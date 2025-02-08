@@ -1,0 +1,140 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 210 57% 55%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 180 80% 44%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 84 64% 52%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+
+    --destructive: 16 100% 50%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 180 80% 44%;
+
+    --radius: 0.5rem;
+
+    --sidebar-width: 16rem;
+    --sidebar-width-icon: 3rem;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 210 57% 55%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 180 80% 44%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 84 64% 52%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 16 100% 50%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 180 80% 44%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Custom button styles */
+.btn-primary {
+  @apply bg-primary text-white hover:bg-primary-hover focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2;
+}
+
+.btn-secondary {
+  @apply bg-secondary text-white hover:bg-secondary-hover focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2;
+}
+
+.btn-success {
+  @apply bg-success text-white hover:bg-success-hover focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2;
+}
+
+.btn-warning {
+  @apply bg-warning text-foreground hover:bg-warning-hover focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2;
+}
+
+.btn-danger {
+  @apply bg-error text-white hover:bg-error-hover focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2;
+}
+
+/* Form element styles */
+.form-input {
+  @apply bg-white border-border focus:border-info focus:ring-2 focus:ring-info;
+}
+
+.form-select {
+  @apply bg-white border-border focus:border-info focus:ring-2 focus:ring-info;
+}
+
+.form-checkbox {
+  @apply text-primary border-border focus:ring-2 focus:ring-info;
+}
+
+/* Alert styles */
+.alert-success {
+  @apply bg-success text-white border-success-dark;
+}
+
+.alert-warning {
+  @apply bg-warning text-foreground border-alert;
+}
+
+.alert-info {
+  @apply bg-info text-foreground border-secondary;
+}
+
+/* Sidebar styles */
+.group\/sidebar-wrapper {
+  @apply transition-all ease-in-out duration-300;
+}
+
+.group\/sidebar-wrapper[data-state="collapsed"] {
+  width: var(--sidebar-width-icon);
+}
+
+.group\/sidebar-wrapper[data-state="expanded"] {
+  width: var(--sidebar-width);
+}
+
