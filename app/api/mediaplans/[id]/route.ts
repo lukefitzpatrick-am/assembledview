@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import axios from "axios"
 
-const XANO_MEDIAPLAN_BASE_URL = "https://api.xano.com/p/YOUR_XANO_PROJECT_ID" // Replace YOUR_XANO_PROJECT_ID with your actual Xano project ID
+const XANO_MEDIAPLAN_BASE_URL = "https://xg4h-uyzs-dtex.a2.xano.io/api:QVYjoFmM" // Replace YOUR_XANO_PROJECT_ID with your actual Xano project ID
 
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
   try {

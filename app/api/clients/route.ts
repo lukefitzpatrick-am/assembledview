@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import axios from "axios"
 
-const XANO_CLIENTS_BASE_URL = process.env.XANO_CLIENTS_BASE_URL || "YOUR_DEFAULT_BASE_URL" //Added default value
+const XANO_CLIENTS_BASE_URL = process.env.XANO_CLIENTS_BASE_URL || "https://xg4h-uyzs-dtex.a2.xano.io/api:9v_k2NR8" //Added default value
 
 export async function GET() {
   try {

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import axios from "axios"
 
-const XANO_PUBLISHERS_BASE_URL = process.env.XANO_PUBLISHERS_BASE_URL
+const XANO_PUBLISHERS_BASE_URL = process.env.XANO_PUBLISHERS_BASE_URL || "https://xg4h-uyzs-dtex.a2.xano.io/api:YkRK8qLP"
 
 export async function GET() {
   try {

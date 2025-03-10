@@ -11,6 +11,10 @@ module.exports = {
       },
     },
     extend: {
+      fontFamily: {
+        sans: ["Arial", "Helvetica", "sans-serif"],
+      },
+      
       colors: {
         // Primary Colors
         primary: "#4f8fcb", // Blue

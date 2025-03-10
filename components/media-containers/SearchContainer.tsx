@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react"
 import { useForm, useFieldArray } from "react-hook-form"
+import { useWatch } from "react-hook-form"
+import { useMemo } from "react";
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import { Button } from "@/components/ui/button"
@@ -20,6 +22,19 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 
+// 🆕 Exported utility function to get bursts
+export function getAllBursts(form) {
+  const lineItems = form.getValues("lineItems") || [];
+
+  return lineItems.flatMap((lineItem) =>
+    lineItem.bursts.map((burst) => ({
+      startDate: burst.startDate,
+      endDate: burst.endDate,
+      budget: burst.budget,
+    }))
+  );
+}
+
 const burstSchema = z.object({
   budget: z.string().min(1, "Budget is required"),
   buyAmount: z.string().min(1, "Buy Amount is required"),
@@ -36,10 +51,36 @@ const lineItemSchema = z.object({
   fixedCostMedia: z.boolean(),
   clientPaysForMedia: z.boolean(),
   bursts: z.array(burstSchema).min(1, "At least one burst is required"),
+  // ✅ Add these fields to match the expected dynamic updates
+  totalMedia: z.number().optional(),
+  totalDeliverables: z.number().optional(),
+  totalFee: z.number().optional(),
 })
 
 const searchFormSchema = z.object({
-  lineItems: z.array(lineItemSchema).min(1, "At least one line item is required"),
+  lineItems: z.array(
+    z.object({
+      platform: z.string().min(1, "Platform is required"),
+      bidStrategy: z.string().min(1, "Bid Strategy is required"),
+      buyType: z.string().min(1, "Buy Type is required"),
+      creativeTargeting: z.string(),
+      fixedCostMedia: z.boolean(),
+      clientPaysForMedia: z.boolean(),
+      bursts: z.array(
+        z.object({
+          budget: z.string(),
+          buyAmount: z.string(),
+          startDate: z.date(),
+          endDate: z.date(),
+          calculatedValue: z.number(),
+        })
+      ).min(1, "At least one burst is required"),
+      totalMedia: z.number().optional(),
+      totalDeliverables: z.number().optional(),
+      totalFee: z.number().optional(),
+    })
+  ),
+  overallDeliverables: z.number().optional(),
 })
 
 type SearchFormValues = z.infer<typeof searchFormSchema>
@@ -50,13 +91,76 @@ interface Publisher {
 }
 
 interface SearchContainerProps {
-  clientId: string
+  clientId: string;
+  onTotalMediaChange: (totalMedia: number, totalFee: number) => void;
+  onBurstsChange: (bursts: { startDate: string; endDate: string; budget: number }[]) => void;
+  feesearch: number | null;
+  onInvestmentChange?: (investmentByMonth: { monthYear: string; amount: string }[]) => void;
 }
 
-export default function SearchContainer({ clientId }: SearchContainerProps) {
+export function getSearchBursts(form) {
+  const lineItems = form.getValues("lineItems") || [];
+
+  return lineItems.flatMap((lineItem) =>
+    lineItem.bursts.map((burst) => ({
+      startDate: burst.startDate,
+      endDate: burst.endDate,
+      budget: parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0,
+    }))
+  );
+}
+
+export function calculateInvestmentPerMonth(form, feesearch) {
+  const lineItems = form.getValues("lineItems") || [];
+  let monthlyInvestment: Record<string, number> = {};
+
+  lineItems.forEach((lineItem) => {
+    lineItem.bursts.forEach((burst) => {
+      const startDate = new Date(burst.startDate);
+      const endDate = new Date(burst.endDate);
+      const lineMedia = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0;
+      const feePercentage = feesearch || 0;
+
+      // ✅ Corrected total investment calculation
+      const totalInvestment = lineMedia + ((lineMedia / (100 - feePercentage)) * feePercentage);
+      const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+      let current = new Date(startDate);
+      while (current <= endDate) {
+        const monthYear = `${current.toLocaleString("default", { month: "long" })} ${current.getFullYear()}`;
+        
+        if (!monthlyInvestment[monthYear]) {
+          monthlyInvestment[monthYear] = 0;
+        }
+
+        // ✅ Count the number of days in the current month
+        const nextMonth = new Date(current);
+        nextMonth.setMonth(nextMonth.getMonth() + 1);
+        nextMonth.setDate(1);
+
+        const lastDayOfMonth = new Date(nextMonth.getTime() - 1);
+        const daysInThisMonth = Math.min(lastDayOfMonth.getDate(), Math.ceil((endDate.getTime() - current.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+
+        const investmentForThisMonth = (totalInvestment / totalDays) * daysInThisMonth;
+        monthlyInvestment[monthYear] += investmentForThisMonth;
+
+        // Move to the next month
+        current.setMonth(current.getMonth() + 1);
+        current.setDate(1);
+      }
+    });
+  });
+
+  return Object.entries(monthlyInvestment).map(([monthYear, amount]) => ({
+    monthYear,
+    amount: `$${amount.toFixed(2)}`,
+  }));
+}
+
+
+export default function SearchContainer({ clientId, feesearch, onTotalMediaChange, onBurstsChange, onInvestmentChange }: SearchContainerProps) {
   const [publishers, setPublishers] = useState<Publisher[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [clientFeeSearch, setClientFeeSearch] = useState(0)
   const { toast } = useToast()
   const { mbaNumber } = useMediaPlanContext()
 
@@ -80,11 +184,53 @@ export default function SearchContainer({ clientId }: SearchContainerProps) {
               calculatedValue: 0,
             },
           ],
+          // ✅ Ensure these default values exist
+          totalMedia: 0,
+          totalDeliverables: 0,
+          totalFee: 0,
         },
       ],
     },
   })
 
+  const watchedLineItems = useWatch({ control: form.control, name: "lineItems" });
+  
+const overallTotals = useMemo(() => {
+  let overallMedia = 0;
+  let overallFee = 0;
+  let overallCost = 0;
+  
+  const lineItemTotals = watchedLineItems.map((lineItem, index) => {
+    let lineMedia = 0;
+    let lineDeliverables = 0;
+    let lineFee = 0;
+    let lineCost = 0;
+  
+    lineItem.bursts.forEach((burst) => {
+      const budget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0;
+      lineMedia += budget;
+      lineDeliverables += burst.calculatedValue || 0;
+    });
+  
+    lineFee = feesearch ? (lineMedia / (100 - feesearch)) * feesearch : 0;
+    lineCost = lineMedia + lineFee;
+  
+    overallMedia += lineMedia;
+    overallFee += lineFee;
+    overallCost += lineCost;
+  
+    return {
+      index: index + 1,
+      deliverables: lineDeliverables,
+      media: lineMedia.toFixed(2),
+      fee: lineFee.toFixed(2),
+      totalCost: lineCost.toFixed(2),
+    };
+  });
+  
+  return { lineItemTotals, overallMedia, overallFee, overallCost };
+}, [watchedLineItems, feesearch]); // ✅ Dependency array ensures recalculation when data changes
+  
   const {
     fields: lineItemFields,
     append: appendLineItem,
@@ -93,191 +239,236 @@ export default function SearchContainer({ clientId }: SearchContainerProps) {
     control: form.control,
     name: "lineItems",
   })
-
+  
   useEffect(() => {
-    fetchPublishers()
-    fetchClientInfo()
-  }, []) //Corrected useEffect dependency array
-
-  useEffect(() => {
-    const subscription = form.watch((value, { name, type }) => {
-      if (name && (name.includes("budget") || name.includes("buyAmount") || name.includes("buyType"))) {
-        calculateAllValues()
+    const fetchPublishers = async () => {
+      try {
+        const publishers = await getPublishersForSearch();
+        setPublishers(publishers);
+      } catch (error) {
+        toast({
+          title: "Error loading publishers",
+          description: error.message,
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
       }
-    })
-    return () => subscription.unsubscribe()
-  }, [form.watch])
+    };
+  
+    fetchPublishers();
+  }, [clientId, toast]);  // ✅ Publishers only load once on mount
+  
+  const [overallDeliverables, setOverallDeliverables] = useState(0);
+  
+  useEffect(() => {
+    let totalMedia = 0;
+    let totalFee = 0;
+    
+    watchedLineItems.forEach((lineItem) => {
+      let lineMedia = 0;
+      lineItem.bursts.forEach((burst) => {
+        const budget = parseFloat(burst?.budget?.replace(/[^0-9.]/g, "")) || 0;
+        lineMedia += budget;
+      });
+    
+      let lineFee = feesearch ? (lineMedia / (100 - feesearch)) * feesearch : 0;
+      totalMedia += lineMedia;
+      totalFee += lineFee;
+    });
+    
+    onTotalMediaChange(totalMedia, totalFee); // ✅ Ensure the total fee is sent to page.tsx
+  }, [watchedLineItems, onTotalMediaChange, feesearch]);
 
-  const calculateAllValues = () => {
-    lineItemFields.forEach((_, lineItemIndex) => {
-      const buyType = form.getValues(`lineItems.${lineItemIndex}.buyType`)
-      const bursts = form.getValues(`lineItems.${lineItemIndex}.bursts`)
-
-      bursts.forEach((burst, burstIndex) => {
-        const budget = Number.parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0
-        const buyAmount = Number.parseFloat(burst.buyAmount.replace(/[^0-9.]/g, "")) || 1
-        let value = 0
-
-        switch (buyType) {
-          case "cpc":
-          case "cpv":
-            value = budget / buyAmount
-            break
-          case "cpm":
-            value = (budget / buyAmount) * 1000
-            break
-          case "fixed_cost":
-            value = 1
-            break
-        }
-
-        form.setValue(`lineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`, value, {
-          shouldValidate: true,
-        })
-      })
-    })
-  }
-
-  async function fetchPublishers() {
-    try {
-      const fetchedPublishers = await getPublishersForSearch()
-      setPublishers(fetchedPublishers)
-    } catch (error) {
-      console.error("Error fetching publishers:", error)
-      toast({
-        title: "Error",
-        description: "Failed to fetch publishers. Please try again.",
-        variant: "destructive",
-      })
-      setPublishers([])
+  useEffect(() => {
+    const investmentByMonth = calculateInvestmentPerMonth(form, feesearch || 0);
+    onInvestmentChange(investmentByMonth); // Send to page.tsx
+  }, [watchedLineItems, feesearch, onInvestmentChange]);
+  
+  useEffect(() => {
+    if (onInvestmentChange) {
+      const investmentByMonth = calculateInvestmentPerMonth(form, feesearch || 0);
+      onInvestmentChange(investmentByMonth);
     }
-  }
+  }, [watchedLineItems, feesearch]);
+  
+  useEffect(() => {
+    const bursts = getSearchBursts(form); // Extract bursts from form state
+    onBurstsChange(bursts); // Send bursts to Page.tsx
+  }, [watchedLineItems, onBurstsChange]);  
+  
+  const handleValueChange = (lineItemIndex: number, burstIndex: number) => {
+    const burst = form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}`);
+    const budget = parseFloat(burst?.budget?.replace(/[^0-9.]/g, "")) || 0;
+    const buyAmount = parseFloat(burst?.buyAmount?.replace(/[^0-9.]/g, "")) || 1;
+    const buyType = form.getValues(`lineItems.${lineItemIndex}.buyType`);
 
-  async function fetchClientInfo() {
-    if (!clientId) {
-      setIsLoading(false)
-      return
+    let calculatedValue = 0;
+    switch (buyType) {
+      case "cpc":
+      case "cpv":
+        calculatedValue = budget / buyAmount;
+        break;
+      case "cpm":
+        calculatedValue = (budget / buyAmount) * 1000;
+        break;
+      case "fixed_cost":
+        calculatedValue = 1;
+        break;
+      default:
+        calculatedValue = 0;
     }
-    setIsLoading(true)
-    try {
-      const clientInfo = await getClientInfo(clientId)
-      setClientFeeSearch(clientInfo.feesearch)
-    } catch (error) {
-      console.error("Error fetching client information:", error)
-      toast({
-        title: "Error",
-        description: "Failed to fetch client information. Please try again.",
-        variant: "destructive",
-      })
-    } finally {
-      setIsLoading(false)
+
+    if (form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`) !== calculatedValue) {
+      form.setValue(`lineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`, calculatedValue, {
+        shouldValidate: true,
+        shouldDirty: true,
+      });
+
+      // ✅ Trigger recalculation of line item totals
+      handleLineItemValueChange(lineItemIndex);
     }
-  }
+  };
 
-  const getTotals = (lineItemIndex: number) => {
-    const bursts = form.watch(`lineItems.${lineItemIndex}.bursts`)
-    const totalMedia = bursts.reduce((sum, burst) => {
-      const budget =
-        typeof burst.budget === "string" ? Number.parseFloat(burst.budget.replace(/[^0-9.]/g, "")) : burst.budget || 0
-      return sum + budget
-    }, 0)
-    const totalCalculatedValue = bursts.reduce((sum, burst) => sum + (burst.calculatedValue || 0), 0)
+  const handleLineItemValueChange = (lineItemIndex: number) => {
+    const lineItems = form.getValues("lineItems") || [];
+    let overallMedia = 0;
+    let overallFee = 0;
+    let overallCost = 0;
 
-    const fee = totalMedia / ((1 - clientFeeSearch) * clientFeeSearch)
+    lineItems.forEach((lineItem, index) => {
+      let lineMedia = 0;
+      let lineFee = 0;
+      let lineDeliverables = 0;
 
-    return { totalMedia, totalCalculatedValue, fee }
-  }
+      lineItem.bursts.forEach((burst) => {
+        const budget = parseFloat(burst?.budget?.replace(/[^0-9.]/g, "")) || 0;
+        lineMedia += budget;
+        lineDeliverables += burst?.calculatedValue || 0;
+      });
 
-  const handleAppendBurst = (lineItemIndex: number) => {
-    const currentBursts = form.getValues(`lineItems.${lineItemIndex}.bursts`) || []
-    form.setValue(`lineItems.${lineItemIndex}.bursts`, [
-      ...currentBursts,
-      {
-        budget: "",
-        buyAmount: "",
-        startDate: new Date(),
-        endDate: new Date(),
-        calculatedValue: 0,
-      },
-    ])
-  }
+      lineFee = feesearch ? (lineMedia / (100 - feesearch)) * feesearch : 0;
+      overallMedia += lineMedia;
+      overallFee += lineFee;
+      overallCost += lineMedia + lineFee;
+    });
+
+    // ✅ Store in state instead of form.setValue
+    setOverallDeliverables(overallMedia);
+    onTotalMediaChange(overallMedia, overallFee);
+  };
+
+const handleAppendBurst = (lineItemIndex: number) => {
+  const currentBursts = form.getValues(`lineItems.${lineItemIndex}.bursts`) || []
+  form.setValue(`lineItems.${lineItemIndex}.bursts`, [
+    ...currentBursts,
+    {
+      budget: "",
+      buyAmount: "",
+      startDate: new Date(),
+      endDate: new Date(),
+      calculatedValue: 0,
+    },
+  ]);
+
+  // ✅ NEW: Ensure line item totals update
+  handleLineItemValueChange(lineItemIndex);
+};
+  
+  
+    const getDeliverablesLabel = (buyType: string) => {
+      switch (buyType.toLowerCase()) {
+        case "cpc":
+          return "Clicks";
+        case "cpv":
+          return "Views";
+        case "cpm":
+          return "Impressions";
+        case "fixed_cost":
+          return "Fixed Fee";
+        default:
+          return "Deliverables";
+      }
+    };
 
   const handleRemoveBurst = (lineItemIndex: number, burstIndex: number) => {
     const currentBursts = form.getValues(`lineItems.${lineItemIndex}.bursts`) || []
     form.setValue(
       `lineItems.${lineItemIndex}.bursts`,
       currentBursts.filter((_, index) => index !== burstIndex),
-    )
-  }
+    );
 
-  return (
-    <div>
-      {isLoading ? (
-        <div className="flex justify-center items-center h-20">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+  // ✅ NEW: Ensure line item totals update
+      handleLineItemValueChange(lineItemIndex);
+    };
+    
+  
+    return(
+      <div className="space-y-6">
+      <div className="mb-6">
+    <Card>
+      <CardHeader>
+        <CardTitle className="pt-4 border-t font-bold text-lg flex justify-between">Search Media</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {overallTotals.lineItemTotals.map((item) => (
+          <div key={item.index} className="flex justify-between border-b pb-2">
+            <span className="font-medium">Line Item {item.index}</span>
+            <div className="flex space-x-4">
+              <span>
+                  {getDeliverablesLabel(form.getValues(`lineItems.${item.index - 1}.buyType`))}: {item.deliverables.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+              </span>
+              <span>Media: ${parseFloat(item.media).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              <span>Fee: ${parseFloat(item.fee).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              <span>Total Cost: ${parseFloat(item.totalCost).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            </div>
+          </div>
+     ))}
+  
+        {/* Overall Totals */}
+        <div className="pt-4 border-t font-medium flex justify-between">
+          <span>Search Media Totals:</span>
+          <div className="flex space-x-4">
+            <span>Media: ${overallTotals.overallMedia.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            <span>Fees ({feesearch}%): ${overallTotals.overallFee.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            <span>Total Cost: ${overallTotals.overallCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          </div>
         </div>
-      ) : (
-        <div className="space-y-6">
-          <Form {...form}>
-            <div className="space-y-6">
-              {lineItemFields.map((field, lineItemIndex) => {
-                const { totalMedia, totalCalculatedValue, fee } = getTotals(lineItemIndex)
-
-                return (
-                  <div key={field.id} className="space-y-6">
-                    <Card>
-                      <CardContent className="py-4">
-                        <div className="flex justify-between items-center">
-                          <CardTitle className="text-lg font-medium">Totals</CardTitle>
-                          <div className="flex space-x-4">
-                            <div>
-                              <span className="font-semibold mr-2">Media:</span>
-                              <span>
-                                $
-                                {totalMedia.toLocaleString(undefined, {
-                                  minimumFractionDigits: 2,
-                                  maximumFractionDigits: 2,
-                                })}
-                              </span>
-                            </div>
-                            <div>
-                              <span className="font-semibold mr-2">Total Cost:</span>
-                              <span>
-                                $
-                                {totalMedia.toLocaleString(undefined, {
-                                  minimumFractionDigits: 2,
-                                  maximumFractionDigits: 2,
-                                })}
-                              </span>
-                            </div>
-                            <div>
-                              <span className="font-semibold mr-2">
-                                {form.watch(`lineItems.${lineItemIndex}.buyType`) === "cpc"
-                                  ? "Clicks:"
-                                  : form.watch(`lineItems.${lineItemIndex}.buyType`) === "cpv"
-                                    ? "Views:"
-                                    : form.watch(`lineItems.${lineItemIndex}.buyType`) === "cpm"
-                                      ? "Impressions:"
-                                      : "Fixed Cost:"}
-                              </span>
-                              <span>
-                                {totalCalculatedValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                              </span>
-                            </div>
-                            <div>
-                              <span className="font-semibold mr-2">Fee ({clientFeeSearch * 100}%):</span>
-                              <span>
-                                $
-                                {fee.toLocaleString(undefined, {
-                                  minimumFractionDigits: 2,
-                                  maximumFractionDigits: 2,
-                                })}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
+      </CardContent>
+    </Card>
+  </div>
+  
+      <div>
+        {isLoading ? (
+          <div className="flex justify-center items-center h-20">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          </div> //
+        ) : (
+          <div className="space-y-6">
+            <Form {...form}>
+              <div className="space-y-6">
+                {lineItemFields.map((field, lineItemIndex) => {
+                  const getTotals = (lineItemIndex: number) => {
+                    const lineItem = form.getValues(`lineItems.${lineItemIndex}`);
+                    let totalMedia = 0;
+                    let totalCalculatedValue = 0;
+                    let fee = 0;
+  
+                    lineItem.bursts.forEach((burst) => {
+                      const budget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0;
+                      totalMedia += budget;
+                      totalCalculatedValue += burst.calculatedValue || 0;
+                    });
+  
+                    fee = feesearch ? (totalMedia / (100 - feesearch)) * feesearch : 0;
+  
+                    return { totalMedia, totalCalculatedValue, fee };
+                  };
+  
+                  const { totalMedia, totalCalculatedValue, fee } = getTotals(lineItemIndex);
+  
+                  return (
+                    <div key={field.id} className="space-y-6">
 
                     <Card>
                       <CardHeader className="pb-4">
@@ -383,7 +574,7 @@ export default function SearchContainer({ clientId }: SearchContainerProps) {
                             render={({ field }) => (
                               <FormItem className="flex flex-row items-start space-x-3 space-y-0">
                                 <FormControl>
-                                  <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                                  <Checkbox checked={!!field.value} onCheckedChange={field.onChange} />
                                 </FormControl>
                                 <div className="space-y-1 leading-none">
                                   <FormLabel>Fixed Cost Media</FormLabel>
@@ -416,77 +607,80 @@ export default function SearchContainer({ clientId }: SearchContainerProps) {
                                   <CardTitle className="text-base font-medium">Burst {burstIndex + 1}</CardTitle>
                                 </CardHeader>
                                 <CardContent>
-                                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                                    <FormField
-                                      control={form.control}
-                                      name={`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`}
-                                      render={({ field }) => (
-                                        <FormItem>
-                                          <FormLabel>Budget</FormLabel>
-                                          <FormControl>
+                                  <div className="grid grid-cols-10 gap-4 items-center">
+                                        <FormField
+                                          control={form.control}
+                                         name={`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`}
+                                         render={({ field }) => (
+                                          <FormItem className="col-span-1">
+                                           <FormLabel>Budget</FormLabel>
+                                           <FormControl>
                                             <Input
-                                              {...field}
-                                              type="text"
-                                              className="w-full"
-                                              onChange={(e) => {
-                                                const value = e.target.value.replace(/[^0-9.]/g, "")
-                                                field.onChange(value)
-                                              }}
-                                              onBlur={(e) => {
-                                                const value = e.target.value
-                                                const formattedValue = new Intl.NumberFormat("en-US", {
-                                                  style: "currency",
-                                                  currency: "USD",
-                                                  minimumFractionDigits: 2,
-                                                  maximumFractionDigits: 2,
-                                                }).format(Number.parseFloat(value) || 0)
-                                                field.onChange(formattedValue)
-                                              }}
-                                            />
-                                          </FormControl>
-                                          <FormMessage />
-                                        </FormItem>
-                                      )}
-                                    />
+                                             {...field}
+                                             type="text"
+                                             className="w-full"
+                                             onChange={(e) => {
+                                              const value = e.target.value.replace(/[^0-9.]/g, "");
+                                              field.onChange(value);
+            handleValueChange(lineItemIndex, burstIndex); // ✅ Trigger recalculation immediately
+          }}
+          onBlur={(e) => {
+            const value = e.target.value;
+            const formattedValue = new Intl.NumberFormat("en-US", {
+              style: "currency",
+              currency: "USD",
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            }).format(Number.parseFloat(value) || 0);
+            field.onChange(formattedValue);
+            handleValueChange(lineItemIndex, burstIndex); // ✅ Recalculate after formatting
+          }}
+        />
+      </FormControl>
+      <FormMessage />
+    </FormItem>
+  )}
+/>
 
-                                    <FormField
-                                      control={form.control}
-                                      name={`lineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount`}
-                                      render={({ field }) => (
-                                        <FormItem>
-                                          <FormLabel>Buy Amount</FormLabel>
-                                          <FormControl>
-                                            <Input
-                                              {...field}
-                                              type="text"
-                                              className="w-full"
-                                              onChange={(e) => {
-                                                const value = e.target.value.replace(/[^0-9.]/g, "")
-                                                field.onChange(value)
-                                              }}
-                                              onBlur={(e) => {
-                                                const value = e.target.value
-                                                const formattedValue = new Intl.NumberFormat("en-US", {
-                                                  style: "currency",
-                                                  currency: "USD",
-                                                  minimumFractionDigits: 2,
-                                                  maximumFractionDigits: 2,
-                                                }).format(Number.parseFloat(value) || 0)
-                                                field.onChange(formattedValue)
-                                              }}
-                                            />
-                                          </FormControl>
-                                          <FormMessage />
-                                        </FormItem>
-                                      )}
-                                    />
+<FormField
+control={form.control}
+name={`lineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount`}
+render={({ field }) => (
+  <FormItem className="col-span-1">
+    <FormLabel>Buy Amount</FormLabel>
+    <FormControl>
+      <Input
+        {...field}
+        type="text"
+        className="w-full"
+        onChange={(e) => {
+          const value = e.target.value.replace(/[^0-9.]/g, "");
+          field.onChange(value);
+          handleValueChange(lineItemIndex, burstIndex); // ✅ Trigger recalculation immediately
+        }}
+        onBlur={(e) => {
+          const value = e.target.value;
+          const formattedValue = new Intl.NumberFormat("en-US", {
+            style: "currency",
+            currency: "USD",
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          }).format(Number.parseFloat(value) || 0);
+          field.onChange(formattedValue);
+          handleValueChange(lineItemIndex, burstIndex); // ✅ Recalculate after formatting
+        }}
+      />
+    </FormControl>
+    <FormMessage />
+  </FormItem>
+)}
+/>
 
-                                    <div className="grid grid-cols-2 gap-2">
                                       <FormField
                                         control={form.control}
                                         name={`lineItems.${lineItemIndex}.bursts.${burstIndex}.startDate`}
                                         render={({ field }) => (
-                                          <FormItem>
+                                          <FormItem className="col-span-2">
                                             <FormLabel>Start Date</FormLabel>
                                             <Popover>
                                               <PopoverTrigger asChild>
@@ -524,7 +718,7 @@ export default function SearchContainer({ clientId }: SearchContainerProps) {
                                         control={form.control}
                                         name={`lineItems.${lineItemIndex}.bursts.${burstIndex}.endDate`}
                                         render={({ field }) => (
-                                          <FormItem>
+                                          <FormItem className="col-span-2">
                                             <FormLabel>End Date</FormLabel>
                                             <Popover>
                                               <PopoverTrigger asChild>
@@ -551,80 +745,103 @@ export default function SearchContainer({ clientId }: SearchContainerProps) {
                                                   }
                                                   initialFocus
                                                 />
+                           
                                               </PopoverContent>
                                             </Popover>
                                             <FormMessage />
                                           </FormItem>
                                         )}
                                       />
-                                    </div>
 
-                                    <FormField
-                                      control={form.control}
-                                      name={`lineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`}
-                                      render={({ field }) => {
-                                        const buyType = form.watch(`lineItems.${lineItemIndex}.buyType`)
-                                        let title = "Calculated Value"
+<FormField
+  control={form.control}
+  name={`lineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`}
+  render={({ field }) => {
+    // Get the buyType reactively with useWatch
+    const buyType = useWatch({
+      control: form.control,
+      name: `lineItems.${lineItemIndex}.buyType`,
+    });
 
-                                        switch (buyType) {
-                                          case "cpc":
-                                            title = "Clicks"
-                                            break
-                                          case "cpv":
-                                            title = "Views"
-                                            break
-                                          case "cpm":
-                                            title = "Impressions"
-                                            break
-                                          case "fixed_cost":
-                                            title = "Fixed Cost"
-                                            break
-                                        }
+    // Calculate the value dynamically using useMemo
+    const calculatedValue = useMemo(() => {
+      const budget = parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0");
+      const buyAmount = parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount`)?.replace(/[^0-9.]/g, "") || "1");
 
-                                        return (
-                                          <FormItem>
-                                            <FormLabel>{title}</FormLabel>
-                                            <FormControl>
-                                              <Input
-                                                type="text"
-                                                className="w-full"
-                                                value={
-                                                  field.value?.toLocaleString(undefined, {
-                                                    maximumFractionDigits: 0,
-                                                  }) || "0"
-                                                }
-                                                readOnly
-                                              />
-                                            </FormControl>
-                                          </FormItem>
-                                        )
-                                      }}
-                                    />
-                                  </div>
-                                </CardContent>
-                                <CardFooter className="flex justify-end space-x-2">
-                                  <Button
-                                    type="button"
-                                    variant="destructive"
-                                    onClick={() => handleRemoveBurst(lineItemIndex, burstIndex)}
-                                  >
-                                    Remove Burst
-                                  </Button>
-                                  {burstIndex === form.watch(`lineItems.${lineItemIndex}.bursts`, []).length - 1 && (
+      switch (buyType) {
+        case "cpc":
+        case "cpv":
+          return buyAmount !== 0 ? (budget / buyAmount) : "0";
+        case "cpm":
+          return buyAmount !== 0 ? ((budget / buyAmount) * 1000) : "0";
+        case "fixed_cost":
+          return "1";
+        default:
+          return "0";
+      }
+    }, [
+      form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`),
+      form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount`),
+      buyType
+    ]);
+
+    // Set the label based on buyType
+    let title = "Calculated Value";
+    switch (buyType) {
+      case "cpc":
+        title = "Clicks";
+        break;
+      case "cpv":
+        title = "Views";
+        break;
+      case "cpm":
+        title = "Impressions";
+        break;
+      case "fixed_cost":
+        title = "Fixed Cost";
+        break;
+    }
+
+    return (
+      <FormItem className="col-span-2">
+        <FormLabel>{title}</FormLabel>
+        <FormControl>
+          <Input
+            type="text"
+            className="w-full"
+            value={calculatedValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            readOnly
+          />
+        </FormControl>
+      </FormItem>
+    );
+  }}
+/>
+
+                                    {/* ✅ Buttons Section - Aligning in the same row */}
+                                    <div className="col-span-1 flex justify-center items-center">
+                                    {burstIndex === form.watch(`lineItems.${lineItemIndex}.bursts`, []).length - 1 && (
                                     <Button type="button" onClick={() => handleAppendBurst(lineItemIndex)}>
-                                      Add Burst
+                                     Add Burst
                                     </Button>
-                                  )}
-                                </CardFooter>
-                              </Card>
-                            )
-                          })}
+                                   )}
+                                   </div>
+                                   <div className="col-span-1 flex justify-center items-center">
+                                     <Button
+                                      type="button"
+                                      variant="destructive"
+                                      onClick={() => handleRemoveBurst(lineItemIndex, burstIndex)}
+                                     >
+                                      Remove Burst
+                                    </Button>
+                                 </div>
+                               </div>
+                             </CardContent>
+                            </Card>
+              )})}
                         </div>
                       </CardContent>
                       <CardFooter className="flex justify-end space-x-2">
-                        <Button type="button" variant="destructive" onClick={() => removeLineItem(lineItemIndex)}>
-                          Remove Line Item
-                        </Button>
                         {lineItemIndex === lineItemFields.length - 1 && (
                           <Button
                             type="button"
@@ -651,6 +868,9 @@ export default function SearchContainer({ clientId }: SearchContainerProps) {
                             Add Line Item
                           </Button>
                         )}
+                        <Button type="button" variant="destructive" onClick={() => removeLineItem(lineItemIndex)}>
+                          Remove Line Item
+                        </Button>
                       </CardFooter>
                     </Card>
                   </div>
@@ -661,6 +881,4 @@ export default function SearchContainer({ clientId }: SearchContainerProps) {
         </div>
       )}
     </div>
-  )
-}
-
+  </div>)}
