@@ -1,51 +1,37 @@
 import { NextResponse } from "next/server";
-import { carboneAPI } from "@/lib/api";
+
+const CARBONE_API_KEY = "test_eyJhbGciOiJFUzUxMiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiIxMDc3ODE4NDc5OTkwODY3NDA0IiwiYXVkIjoiY2FyYm9uZSIsImV4cCI6MjQwMDIwMTE3NiwiZGF0YSI6eyJ0eXBlIjoidGVzdCJ9fQ.APibiN9Cnwxx7NnO7BhxQvwroiv8M2NGoETOws7XHLuSLemaqvY-gyiORMbhDbRhO_BiOUU30PfWS__ZrgpbNlveAF03yoaLYDHmyMenGLLpjXQ5rfWTek0nPPETctY1YUn5qh7pMcZmlwjSm46UFpk5oy_jVlA9Xz2T-OE9KIIbk9TS" // Use a real API key
+const CARBONE_RENDER_URL = "https://api.carbone.io/render";
 
 export async function POST(req: Request) {
   try {
     const { templateId, jsonData } = await req.json();
 
     if (!templateId || !jsonData) {
-      return NextResponse.json({ error: "Missing templateId or jsonData" }, { status: 400 });
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    console.log("🚀 Sending data to Carbone API:", { templateId, jsonData });
-
-    const reportId = await carboneAPI.generateDocument(templateId, jsonData);
-
-    if (!reportId) {
-      throw new Error("Carbone API did not return a report ID.");
-    }
-
-    console.log("✅ Successfully generated report ID:", reportId);
-
-    return NextResponse.json({ reportId });
-  } catch (error) {
-    console.error("❌ Error generating MBA document:", error);
-    return NextResponse.json({ error: "Failed to generate document", details: error.message }, { status: 500 });
-  }
-}
-
-export async function GET(req: Request, { params }: { params: { id: string } }) {
-  try {
-    const reportId = params.id;
-    if (!reportId) {
-      return NextResponse.json({ error: "Missing report ID" }, { status: 400 });
-    }
-
-    console.log("📥 Downloading document with report ID:", reportId);
-
-    const fileBlob = await carboneAPI.downloadDocument(reportId);
-
-    return new Response(fileBlob, {
+    const response = await fetch(CARBONE_RENDER_URL, {
+      method: "POST",
       headers: {
-        "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="generated_MBA_document.pdf"`,
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${CARBONE_API_KEY}`,
       },
+      body: JSON.stringify({
+        templateId,
+        data: jsonData,
+        convertTo: "pdf", // You can change format if needed
+      }),
     });
+
+    const responseData = await response.json();
+
+    if (!response.ok) {
+      throw new Error(`Carbone API error: ${responseData.error || "Unknown error"}`);
+    }
+
+    return NextResponse.json({ reportId: responseData.data.reportId });
   } catch (error) {
-    console.error("❌ Failed to retrieve document:", error);
-    return NextResponse.json({ error: "Failed to fetch document", details: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
-

@@ -40,6 +40,8 @@ body {
 
     --sidebar-width: 16rem;
     --sidebar-width-icon: 3rem;
+
+    --scrollbar-width: 17px; /* Standard scrollbar width */
   }
 
   .dark {

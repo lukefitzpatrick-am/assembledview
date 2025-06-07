@@ -1,0 +1,45 @@
+{
+  "d": {
+    "date": "2024-03-21",
+    "mba_number": "MBA-2024-001",
+    "campaign_name": "Summer Brand Awareness Campaign",
+    "campaign_brand": "Brand Name",
+    "po_number": "PO-2024-123",
+    "media_plan_version": "v1.0",
+    "client": {
+      "name": "Client Company Name",
+      "address": "123 Business Street",
+      "suburb": "Business District",
+      "state": "NSW",
+      "postcode": "2000"
+    },
+    "campaign": {
+      "date_start": "2024-06-01",
+      "date_end": "2024-08-31"
+    },
+    "media_types": [
+      {
+        "type": "Digital Display",
+        "amount": "25000.00"
+      },
+      {
+        "type": "Social Media",
+        "amount": "15000.00"
+      },
+      {
+        "type": "Search",
+        "amount": "10000.00"
+      }
+    ],
+    "total": {
+      "media": "50000.00"
+    },
+    "totals": {
+      "service_fee": "5000.00",
+      "production": "2000.00",
+      "adserving": "1000.00",
+      "totals_ex_gst": "58000.00",
+      "total_inc_gst": "63800.00"
+    }
+  }
+} 

@@ -11,6 +11,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { SavingModal } from "@/components/ui/saving-modal"
 import { SuccessModal } from "@/components/ui/success-modal"
+import { ErrorModal } from "@/components/ui/error-modal"
 
 const phoneRegex = /^(?:\+61|0)[2-478](?:[ -]?[0-9]){8}$/
 const abnRegex = /^\d{11}$/
@@ -87,6 +88,7 @@ interface AddClientFormProps {
 export function AddClientForm({ onSuccess }: AddClientFormProps) {
   const [isSaving, setIsSaving] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
+  const [error, setError] = useState<{ title: string; message: string } | null>(null)
 
   const form = useForm<ClientFormValues>({
     resolver: zodResolver(clientSchema),
@@ -99,14 +101,14 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
       streetaddress: "",
       suburb: "",
       state_dropdown: "NSW",
-      postcode: undefined,
+      postcode: 0,
       keyfirstname: "",
       keylastname: "",
-      keyphone: undefined,
+      keyphone: 0,
       keyemail: "",
       billingfirstname: "",
       billinglastname: "",
-      billingphone: undefined,
+      billingphone: 0,
       billingemail: "",
       monthlyretainer: 0,
       organicsocial: 0,
@@ -153,6 +155,8 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
   async function onSubmit(data: ClientFormValues) {
     setIsSaving(true)
     try {
+      console.log("Submitting client data:", JSON.stringify(data, null, 2))
+      
       const response = await fetch("/api/clients", {
         method: "POST",
         headers: {
@@ -162,6 +166,7 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
       })
 
       const result = await response.json()
+      console.log("API response:", JSON.stringify(result, null, 2))
 
       if (!response.ok) {
         throw new Error(JSON.stringify(result))
@@ -173,15 +178,43 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
     } catch (error) {
       console.error("Error creating client:", error)
       let errorMessage = "An unexpected error occurred"
+      let errorTitle = "Error"
+      
       if (error instanceof Error) {
         try {
           const parsedError = JSON.parse(error.message)
-          errorMessage = parsedError.details?.message || parsedError.error || parsedError.message || error.message
-        } catch {
+          console.error("Parsed error details:", parsedError)
+          
+          if (parsedError.details) {
+            if (Array.isArray(parsedError.details)) {
+              errorTitle = "Missing Required Fields"
+              errorMessage = `Please fill in the following required fields: ${parsedError.details.join(", ")}`
+            } else if (typeof parsedError.details === 'object') {
+              errorTitle = "API Error"
+              errorMessage = `The server returned an error: ${JSON.stringify(parsedError.details)}`
+            } else {
+              errorTitle = "API Error"
+              errorMessage = `The server returned an error: ${parsedError.details}`
+            }
+          } else if (parsedError.error) {
+            errorTitle = "Error"
+            errorMessage = parsedError.error
+          } else if (parsedError.message) {
+            errorTitle = "Error"
+            errorMessage = parsedError.message
+          } else {
+            errorTitle = "Error"
+            errorMessage = error.message
+          }
+        } catch (parseError) {
+          console.error("Error parsing error message:", parseError)
+          errorTitle = "Error"
           errorMessage = error.message
         }
       }
-      alert(`Failed to create client: ${errorMessage}`)
+      
+      // Show error modal instead of alert
+      setError({ title: errorTitle, message: errorMessage })
     } finally {
       setIsSaving(false)
     }
@@ -346,7 +379,12 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
               <FormItem>
                 <FormLabel>Postcode</FormLabel>
                 <FormControl>
-                  <Input {...field} type="number" onChange={(e) => field.onChange(e.target.valueAsNumber)} />
+                  <Input 
+                    {...field} 
+                    type="number" 
+                    value={field.value === undefined ? 0 : field.value} 
+                    onChange={(e) => field.onChange(e.target.valueAsNumber || 0)} 
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -393,7 +431,8 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
                     <Input
                       {...field}
                       type="number"
-                      onChange={(e) => field.onChange(e.target.valueAsNumber)}
+                      value={field.value === undefined ? 0 : field.value}
+                      onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
                       placeholder="+61 4XX XXX XXX"
                     />
                   </FormControl>
@@ -457,7 +496,8 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
                     <Input
                       {...field}
                       type="number"
-                      onChange={(e) => field.onChange(e.target.valueAsNumber)}
+                      value={field.value === undefined ? 0 : field.value}
+                      onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
                       placeholder="+61 4XX XXX XXX"
                     />
                   </FormControl>
@@ -553,7 +593,10 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
                   render={({ field }) => (
                     <FormItem className="flex flex-row items-start space-x-3 space-y-0">
                       <FormControl>
-                        <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                        <Checkbox 
+                          checked={field.value as boolean} 
+                          onCheckedChange={field.onChange} 
+                        />
                       </FormControl>
                       <div className="space-y-1 leading-none">
                         <FormLabel>{medium.charAt(0).toUpperCase() + medium.slice(1)}</FormLabel>
@@ -650,7 +693,7 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
                   <FormItem>
                     <FormLabel>{`${platform.toUpperCase()} ID`}</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input {...field} value={field.value as string} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -667,6 +710,14 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
 
       <SavingModal isOpen={isSaving} />
       <SuccessModal isOpen={showSuccess} onClose={() => setShowSuccess(false)} message="Client created successfully!" />
+      {error && (
+        <ErrorModal 
+          isOpen={!!error} 
+          onClose={() => setError(null)} 
+          title={error.title} 
+          message={error.message} 
+        />
+      )}
     </>
   )
 }
