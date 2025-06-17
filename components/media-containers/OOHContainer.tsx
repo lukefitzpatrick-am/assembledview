@@ -425,12 +425,14 @@ export default function OohContainer({
     switch (buyType) {
       case "cpc":
       case "cpv":
+      case "panels":
         calculatedValue = buyAmount !== 0 ? budget / buyAmount : 0;
         break;
       case "cpm":
         calculatedValue = buyAmount !== 0 ? (budget / buyAmount) * 1000 : 0;
         break;
       case "fixed_cost":
+      case "package":
         calculatedValue = 1;
         break;
       default:
@@ -513,6 +515,10 @@ export default function OohContainer({
         return "Impressions";
       case "fixed_cost":
         return "Fixed Fee";
+      case "package":
+        return "Package";
+      case "panels":
+        return "Panels";
       default:
         return "Deliverables";
     }
@@ -847,6 +853,7 @@ useEffect(() => {
                                         <SelectItem value="cpm">CPM</SelectItem>
                                         <SelectItem value="panels">Panels</SelectItem>
                                         <SelectItem value="fixed_cost">Fixed Cost</SelectItem>
+                                        <SelectItem value="package">Package</SelectItem>
                                       </SelectContent>
                                     </Select>
                                     <FormMessage />
@@ -1151,10 +1158,12 @@ useEffect(() => {
                                           switch (buyType) {
                                             case "cpc":
                                             case "cpv":
+                                            case "panels":
                                               return buyAmount !== 0 ? (budget / buyAmount) : "0";
                                             case "cpm":
                                               return buyAmount !== 0 ? ((budget / buyAmount) * 1000) : "0";
                                             case "fixed_cost":
+                                            case "package":
                                               return "1";
                                             default:
                                               return "0";
@@ -1175,6 +1184,12 @@ useEffect(() => {
                                             break;
                                           case "cpm":
                                             title = "Impressions";
+                                            break;
+                                          case "panels":
+                                            title = "Panels";
+                                            break;
+                                          case "package":
+                                            title = "Package";
                                             break;
                                           case "fixed_cost":
                                             title = "Fixed Cost";

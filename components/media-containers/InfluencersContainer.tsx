@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { useToast } from "@/components/ui/use-toast"
-import { getPublishersForSearch, getClientInfo } from "@/lib/api"
+import { getPublishersForInfluencers, getClientInfo } from "@/lib/api"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { Calendar } from "@/components/ui/calendar"
@@ -80,7 +80,7 @@ const lineItemSchema = z.object({
   buyType: z.string().min(1, "Buy Type is required"),
   creativeTargeting: z.string().default(""),
   creative: z.string().default(""),
-  buyingDemo: z.string().default(""),
+  buyingDemo: z.string().default(""), 
   market: z.string().default(""),
   fixedCostMedia: z.boolean().default(false),
   clientPaysForMedia: z.boolean().default(false),
@@ -91,21 +91,21 @@ const lineItemSchema = z.object({
   totalFee: z.number().optional(),
 })
 
-const searchFormSchema = z.object({
-  lineItems: z.array(lineItemSchema),
+const influencersFormSchema = z.object({
+  lineItems: z.array(lineItemSchema),   
   overallDeliverables: z.number().optional(),
 })
 
-type SearchFormValues = z.infer<typeof searchFormSchema>
+type InfluencersFormValues = z.infer<typeof influencersFormSchema>
 
 interface Publisher {
-  id: number;
-  publisher_name: string;
+  id: number
+  publisher_name: string
 }
 
-interface SearchContainerProps {
+interface InfluencersContainerProps {
   clientId: string;
-  feesearch: number;
+  feeinfluencers: number;
   onTotalMediaChange: (totalMedia: number, totalFee: number) => void;
   onBurstsChange: (bursts: BillingBurst[]) => void;
   onInvestmentChange: (investmentByMonth: any) => void;
@@ -117,9 +117,9 @@ interface SearchContainerProps {
   mediaTypes: string[];
 }
 
-export function getSearchBursts(
-  form: UseFormReturn<SearchFormValues>,
-  feesearch: number
+export function getInfluencersBursts(
+  form: UseFormReturn<InfluencersFormValues>,
+  feeinfluencers: number
 ): BillingBurst[] {
   const lineItems = form.getValues("lineItems") || []
 
@@ -129,7 +129,7 @@ export function getSearchBursts(
         burst.budget.replace(/[^0-9.]/g, "")
       ) || 0
 
-      const pct = feesearch || 0
+      const pct = feeinfluencers || 0
       let feeAmount = 0
 
       if (li.budgetIncludesFees) {
@@ -149,25 +149,28 @@ export function getSearchBursts(
         feeAmount   = (mediaAmount / (100 - pct)) * pct
         mediaAmount = 0
       }
-
+      
       return {
         startDate: burst.startDate,
         endDate:   burst.endDate,
-
+        
         mediaAmount,
         feeAmount,
         totalAmount: mediaAmount + feeAmount,
 
-        mediaType:          "search",
+        mediaType:          "influencers",
         feePercentage:      pct,
         clientPaysForMedia: li.clientPaysForMedia,
         budgetIncludesFees: li.budgetIncludesFees,
-      }
+        noAdserving: false,
+        deliverables: 0,
+        buyType: li.buyType,
+              }
     })
   )
 }
 
-export function calculateInvestmentPerMonth(form, feesearch) {
+export function calculateInvestmentPerMonth(form, feeinfluencers) {
   const lineItems = form.getValues("lineItems") || [];
   let monthlyInvestment: Record<string, number> = {};
 
@@ -176,7 +179,7 @@ export function calculateInvestmentPerMonth(form, feesearch) {
       const startDate = new Date(burst.startDate);
       const endDate = new Date(burst.endDate);
       const lineMedia = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0;
-      const feePercentage = feesearch || 0;
+      const feePercentage = feeinfluencers || 0;
 
       // ✅ Corrected total investment calculation
       const totalInvestment = lineMedia + ((lineMedia / (100 - feePercentage)) * feePercentage);
@@ -214,7 +217,7 @@ export function calculateInvestmentPerMonth(form, feesearch) {
   }));
 }
 
-export function calculateBurstInvestmentPerMonth(form, feesearch) {
+export function calculateBurstInvestmentPerMonth(form, feeinfluencers) {
   const lineItems = form.getValues("lineItems") || [];
   let monthlyInvestment: Record<string, number> = {};
 
@@ -224,7 +227,7 @@ export function calculateBurstInvestmentPerMonth(form, feesearch) {
       const endDate = new Date(burst.endDate);
       const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
       const burstBudget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0;
-      const feePercentage = feesearch || 0;
+      const feePercentage = feeinfluencers || 0;
       
       // Calculate total investment including fees
       const totalInvestment = burstBudget + ((burstBudget / (100 - feePercentage)) * feePercentage);
@@ -264,9 +267,9 @@ export function calculateBurstInvestmentPerMonth(form, feesearch) {
   }));
 }
 
-export default function SearchContainer({
+export default function InfluencersContainer({
   clientId,
-  feesearch,
+  feeinfluencers,
   onTotalMediaChange,
   onBurstsChange,
   onInvestmentChange,
@@ -276,7 +279,7 @@ export default function SearchContainer({
   campaignBudget,
   campaignId,
   mediaTypes
-}: SearchContainerProps) {
+}: InfluencersContainerProps) {
   // Add refs to track previous values
   const prevInvestmentRef = useRef<{ monthYear: string; amount: string }[]>([]);
   const prevBurstsRef = useRef<BillingBurst[]>([]);
@@ -289,8 +292,8 @@ export default function SearchContainer({
   const [overallDeliverables, setOverallDeliverables] = useState(0);
   
   // Form initialization
-  const form = useForm<SearchFormValues>({
-    resolver: zodResolver(searchFormSchema),
+  const form = useForm<InfluencersFormValues>({
+    resolver: zodResolver(influencersFormSchema),
     defaultValues: {
       lineItems: [
         {
@@ -299,7 +302,7 @@ export default function SearchContainer({
           buyType: "",
           creativeTargeting: "",
           creative: "",
-          buyingDemo: "",
+          buyingDemo: "",   
           market: "",
           fixedCostMedia: false,
           clientPaysForMedia: false,
@@ -322,8 +325,8 @@ export default function SearchContainer({
     },
   });
 
-  // Field array hook
-  const {
+   // Field array hook
+   const {
     fields: lineItemFields,
     append: appendLineItem,
     remove: removeLineItem,
@@ -331,44 +334,44 @@ export default function SearchContainer({
     control: form.control,
     name: "lineItems",
   });
-
+  
   // Watch hook
   const watchedLineItems = useWatch({ 
     control: form.control, 
     name: "lineItems",
     defaultValue: form.getValues("lineItems")
   });
-  
+
   // Memoized calculations
   const overallTotals = useMemo(() => {
     let overallMedia = 0;
     let overallFee = 0;
     let overallCost = 0;
-    
+
     const lineItemTotals = watchedLineItems.map((lineItem, index) => {
       let lineMedia = 0;
-      let lineDeliverables = 0;
       let lineFee = 0;
+      let lineDeliverables = 0;
       let lineCost = 0;
-    
+
       lineItem.bursts.forEach((burst) => {
         const budget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0;
         if (lineItem.budgetIncludesFees) {
-          lineFee += (budget / 100) * (feesearch || 0);
-          lineMedia += (budget / 100) * (100 - (feesearch || 0));
+          lineFee += (budget / 100) * (feeinfluencers || 0);
+          lineMedia += (budget / 100) * (100 - (feeinfluencers || 0));
         } else {
           lineMedia += budget;
-          lineFee = feesearch ? (lineMedia / (100 - feesearch)) * feesearch : 0;
+          lineFee = feeinfluencers ? (lineMedia / (100 - feeinfluencers)) * feeinfluencers : 0;
         }
         lineDeliverables += burst.calculatedValue || 0;
       });
-    
+
       lineCost = lineMedia + lineFee;
-    
+
       overallMedia += lineMedia;
       overallFee += lineFee;
-      overallCost += lineCost;
-    
+      overallCost += lineMedia;
+
       return {
         index: index + 1,
         deliverables: lineDeliverables,
@@ -377,10 +380,10 @@ export default function SearchContainer({
         totalCost: lineCost,
       };
     });
-    
+
     return { lineItemTotals, overallMedia, overallFee, overallCost };
-  }, [watchedLineItems, feesearch]);
-  
+  }, [watchedLineItems, feeinfluencers]);
+
   // Callback handlers
   const handleLineItemValueChange = useCallback((lineItemIndex: number) => {
     const lineItems = form.getValues("lineItems") || [];
@@ -399,7 +402,7 @@ export default function SearchContainer({
         lineDeliverables += burst?.calculatedValue || 0;
       });
 
-      lineFee = feesearch ? (lineMedia / (100 - feesearch)) * feesearch : 0;
+      lineFee = feeinfluencers ? (lineMedia / (100 - feeinfluencers)) * feeinfluencers : 0;
       overallMedia += lineMedia;
       overallFee += lineFee;
       overallCost += lineMedia + lineFee;
@@ -407,14 +410,14 @@ export default function SearchContainer({
 
     setOverallDeliverables(overallMedia);
     onTotalMediaChange(overallMedia, overallFee);
-  }, [form, feesearch, onTotalMediaChange]);
+  }, [form, feeinfluencers, onTotalMediaChange]);
 
-  const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number) => {
+   const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number) => {
     const burst = form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}`);
     const budget = parseFloat(burst?.budget?.replace(/[^0-9.]/g, "") || "0");
     const buyAmount = parseFloat(burst?.buyAmount?.replace(/[^0-9.]/g, "") || "1");
     const buyType = form.getValues(`lineItems.${lineItemIndex}.buyType`);
-
+  
     let calculatedValue = 0;
     switch (buyType) {
       case "cpc":
@@ -430,71 +433,71 @@ export default function SearchContainer({
       default:
         calculatedValue = 0;
     }
-
+  
     if (form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`) !== calculatedValue) {
       form.setValue(`lineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`, calculatedValue, {
         shouldValidate: true,
         shouldDirty: true,
       });
-
+  
       handleLineItemValueChange(lineItemIndex);
     }
   }, [form, handleLineItemValueChange]);
 
   const handleAppendBurst = useCallback((lineItemIndex: number) => {
     const currentBursts = form.getValues(`lineItems.${lineItemIndex}.bursts`) || [];
-    
-    // Check if we've reached the maximum number of bursts (12)
-    if (currentBursts.length >= 12) {
-      toast({
-        title: "Maximum bursts reached",
-        description: "Can't add more bursts. Each line item is limited to 12 bursts.",
-        variant: "destructive",
-      });
-      return;
+  
+  // Check if we've reached the maximum number of bursts (12)
+  if (currentBursts.length >= 12) {
+    toast({
+      title: "Maximum bursts reached",
+      description: "Can't add more bursts. Each line item is limited to 12 bursts.",
+      variant: "destructive",
+    });
+    return;
+  }
+  
+  // Get the end date of the last burst
+  let startDate = new Date();
+  if (currentBursts.length > 0) {
+    const lastBurst = currentBursts[currentBursts.length - 1];
+    if (lastBurst.endDate) {
+      // Set start date to one day after the end date of the last burst
+      startDate = new Date(lastBurst.endDate);
+      startDate.setDate(startDate.getDate() + 1);
     }
-    
-    // Get the end date of the last burst
-    let startDate = new Date();
-    if (currentBursts.length > 0) {
-      const lastBurst = currentBursts[currentBursts.length - 1];
-      if (lastBurst.endDate) {
-        // Set start date to one day after the end date of the last burst
-        startDate = new Date(lastBurst.endDate);
-        startDate.setDate(startDate.getDate() + 1);
-      }
-    }
-    
-    // Set end date to the last day of the month based on the start date
-    const endDate = new Date(startDate);
-    endDate.setMonth(endDate.getMonth() + 1); // Move to the first day of next month
-    endDate.setDate(0); // Set to the last day of the current month
-    
-    form.setValue(`lineItems.${lineItemIndex}.bursts`, [
-      ...currentBursts,
-      {
-        budget: "",
-        buyAmount: "",
-        startDate: startDate,
-        endDate: endDate,
-        calculatedValue: 0,
-        fee: 0,
-      },
-    ]);
+  }
+  
+  // Set end date to the last day of the month based on the start date
+  const endDate = new Date(startDate);
+  endDate.setMonth(endDate.getMonth() + 1); // Move to the first day of next month
+  endDate.setDate(0); // Set to the last day of the current month
+  
+  form.setValue(`lineItems.${lineItemIndex}.bursts`, [
+    ...currentBursts,
+    {
+      budget: "",
+      buyAmount: "",
+      startDate: startDate,
+      endDate: endDate,
+      calculatedValue: 0,
+      fee: 0,
+    },
+  ]);
 
-    handleLineItemValueChange(lineItemIndex);
+  handleLineItemValueChange(lineItemIndex);
   }, [form, handleLineItemValueChange, toast]);
-
+  
   const handleRemoveBurst = useCallback((lineItemIndex: number, burstIndex: number) => {
     const currentBursts = form.getValues(`lineItems.${lineItemIndex}.bursts`) || [];
     form.setValue(
       `lineItems.${lineItemIndex}.bursts`,
       currentBursts.filter((_, index) => index !== burstIndex),
     );
-
+  
     handleLineItemValueChange(lineItemIndex);
   }, [form, handleLineItemValueChange]);
-
+  
   const getDeliverablesLabel = useCallback((buyType: string) => {
     if (!buyType) return "Deliverables";
     
@@ -511,7 +514,7 @@ export default function SearchContainer({
         return "Deliverables";
     }
   }, []);
-  
+
   // Effect hooks
   useEffect(() => {
     const fetchPublishers = async () => {
@@ -523,7 +526,7 @@ export default function SearchContainer({
           return;
         }
 
-        const fetchedPublishers = await getPublishersForSearch();
+        const fetchedPublishers = await getPublishersForInfluencers();
         publishersRef.current = fetchedPublishers;
         setPublishers(fetchedPublishers);
       } catch (error) {
@@ -548,168 +551,171 @@ useEffect(() => {
   )
 }, [overallTotals.overallMedia, overallTotals.overallFee, onTotalMediaChange])
 
-useEffect(() => {
-  // convert each form lineItem into the shape needed for Excel
-  const items: LineItem[] = form.getValues('lineItems').flatMap(lineItem =>
-    lineItem.bursts.map(burst => ({
-      market: lineItem.market,                                // or fixed value
-      platform: lineItem.platform,
-      bidStrategy: lineItem.bidStrategy,
-      targeting: lineItem.creativeTargeting,
-      creative:   lineItem.creative,
-      startDate: formatDateString(burst.startDate),
-      endDate:   formatDateString(burst.endDate),
-      deliverables: burst.calculatedValue ?? 0,
-      buyingDemo:   lineItem.buyingDemo,
-      buyType:      lineItem.buyType,
-      deliverablesAmount: burst.budget,
-      grossMedia: (parseFloat(String(burst.budget).replace(/[^0-9.-]+/g,"")) || 0).toFixed(2),
-    }))
-  );
-  
-  // push it up to page.tsx
+  useEffect(() => {
+    // convert each form lineItem into the shape needed for Excel
+    const items: LineItem[] = form.getValues('lineItems').flatMap(lineItem =>
+      lineItem.bursts.map(burst => ({
+        market: lineItem.market,                                // or fixed value
+        platform: lineItem.platform,
+        bidStrategy: lineItem.bidStrategy,
+        targeting: lineItem.creativeTargeting,
+        creative:   lineItem.creative,
+        startDate: formatDateString(burst.startDate),
+        endDate:   formatDateString(burst.endDate),
+        deliverables: burst.calculatedValue ?? 0,
+        buyingDemo:   lineItem.buyingDemo,
+        buyType:      lineItem.buyType,
+        deliverablesAmount: burst.budget,
+        grossMedia: (parseFloat(String(burst.budget).replace(/[^0-9.-]+/g,"")) || 0).toFixed(2),
+      }))
+    );
+
+    // push it up to page.tsx
   onLineItemsChange(items);
-}, [watchedLineItems, feesearch]);
+}, [watchedLineItems, feeinfluencers]);
 
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      const investmentByMonth = calculateInvestmentPerMonth(form, feesearch || 0);
-      const bursts = getSearchBursts(form, feesearch || 0);
-      
-      const hasInvestmentChanges = JSON.stringify(investmentByMonth) !== JSON.stringify(prevInvestmentRef.current);
-      const hasBurstChanges = JSON.stringify(bursts) !== JSON.stringify(prevBurstsRef.current);
-      
-      if (hasInvestmentChanges) {
-        onInvestmentChange(investmentByMonth);
-        prevInvestmentRef.current = investmentByMonth;
-      }
-      
-      if (hasBurstChanges) {
-        onBurstsChange(bursts);
-        prevBurstsRef.current = bursts;
-        
-        // Calculate total media and fee for billing
-        let totalMedia = 0;
-        let totalFee = 0;
-        
-        bursts.forEach(burst => {
-          totalMedia += burst.mediaAmount;
-          totalFee += burst.feeAmount;
-        });
-      }
-    }, 300); // 300ms debounce
-
-    return () => clearTimeout(timeoutId);
-  }, [watchedLineItems, feesearch, onInvestmentChange, onBurstsChange, onTotalMediaChange, form]);
-
-  const getBursts = () => {
-    const formLineItems = form.getValues("lineItems") || [];
-    return formLineItems.flatMap(item =>
-      item.bursts.map(burst => {
-        const budget = parseFloat(burst.budget?.replace(/[^0-9.]/g, "") || "0");
-        let mediaAmount = 0;
-        let feeAmount = 0;
-
-        if (item.budgetIncludesFees) {
-          // budget was gross (media+fee)
-          const base = budget / (1 + (feesearch || 0)/100);
-          feeAmount = budget - base;
-          mediaAmount = base;
-        } else if (!item.clientPaysForMedia) {
-          // budget is net media, so fee on top
-          mediaAmount = budget;
-          feeAmount = (budget * (feesearch || 0)) / 100;
-        } else {
-          // client pays media directly
-          feeAmount = budget;
-          mediaAmount = 0;
+      const timeoutId = setTimeout(() => {
+        const investmentByMonth = calculateInvestmentPerMonth(form, feeinfluencers || 0);
+        const bursts = getInfluencersBursts(form, feeinfluencers || 0);
+    
+        const hasInvestmentChanges = JSON.stringify(investmentByMonth) !== JSON.stringify(prevInvestmentRef.current);
+        const hasBurstChanges = JSON.stringify(bursts) !== JSON.stringify(prevBurstsRef.current);
+    
+        if (hasInvestmentChanges) {
+          onInvestmentChange(investmentByMonth);
+          prevInvestmentRef.current = investmentByMonth;
         }
+    
+        if (hasBurstChanges) {
+        onBurstsChange(bursts);
+      prevBurstsRef.current = bursts;
+      
+      // Calculate total media and fee for billing
+      let totalMedia = 0;
+      let totalFee = 0;
+      
+      bursts.forEach(burst => {
+        totalMedia += burst.mediaAmount;
+        totalFee += burst.feeAmount;
+      });
+    }
+  }, 300); // 300ms debounce
 
-        const billingBurst: BillingBurst = {
-          startDate: burst.startDate,
-          endDate: burst.endDate,
-          mediaAmount: mediaAmount,
-          feeAmount: feeAmount,
-          totalAmount: mediaAmount + feeAmount,
-          mediaType: 'search',
-          feePercentage: feesearch,
-          clientPaysForMedia: item.clientPaysForMedia,
-          budgetIncludesFees: item.budgetIncludesFees
-        };
+  return () => clearTimeout(timeoutId);
+}, [watchedLineItems, feeinfluencers, onInvestmentChange, onBurstsChange, onTotalMediaChange, form]);
 
-        return billingBurst;
-      })
-    );
-  };
+const getBursts = () => {
+  const formLineItems = form.getValues("lineItems") || [];
+  return formLineItems.flatMap(item =>
+    item.bursts.map(burst => {
+      const budget = parseFloat(burst.budget?.replace(/[^0-9.]/g, "") || "0");
+      let mediaAmount = 0;
+      let feeAmount = 0;
+
+      if (item.budgetIncludesFees) {
+        // budget was gross (media+fee)
+        const base = budget / (1 + (feeinfluencers || 0)/100);
+        feeAmount = budget - base;
+        mediaAmount = base;
+      } else if (!item.clientPaysForMedia) {
+        // budget is net media, so fee on top
+        mediaAmount = budget;
+        feeAmount = (budget * (feeinfluencers || 0)) / 100;
+      } else {
+        // client pays media directly
+        feeAmount = budget;
+        mediaAmount = 0;
+      }
+
+      const billingBurst: BillingBurst = {
+        startDate: burst.startDate,
+        endDate: burst.endDate,
+        mediaAmount: mediaAmount,
+        feeAmount: feeAmount,
+        totalAmount: mediaAmount + feeAmount,
+        mediaType: 'influencers',
+        feePercentage: feeinfluencers,
+        clientPaysForMedia: item.clientPaysForMedia,
+        budgetIncludesFees: item.budgetIncludesFees,
+        noAdserving: false,
+        deliverables: 0,
+        buyType: item.buyType,
+      };
+
+      return billingBurst;
+    })
+  );
+};
 
   return (
     <div className="space-y-6">
       <div className="mb-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="pt-4 border-t font-bold text-lg flex justify-between">Search Media</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {overallTotals.lineItemTotals.map((item) => (
-              <div key={item.index} className="flex justify-between border-b pb-2">
-                <span className="font-medium">Line Item {item.index}</span>
-                <div className="flex space-x-4">
-                  <span>
-                    {getDeliverablesLabel(form.getValues(`lineItems.${item.index - 1}.buyType`))}: {item.deliverables.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                  </span>
-                  <span>Media: ${item.media.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                  <span>Fee: ${item.fee.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                  <span>Total Cost: ${item.totalCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                </div>
-              </div>
-            ))}
-  
-            {/* Overall Totals */}
-            <div className="pt-4 border-t font-medium flex justify-between">
-              <span>Search Media Totals:</span>
-              <div className="flex space-x-4">
-                <span>Media: ${overallTotals.overallMedia.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                <span>Fees ({feesearch}%): ${overallTotals.overallFee.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                <span>Total Cost: ${overallTotals.overallCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-  
-      <div>
-        {isLoading ? (
-          <div className="flex justify-center items-center h-20">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+       <Card>
+        <CardHeader>
+         <CardTitle className="pt-4 border-t font-bold text-lg flex justify-between">Influencers</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+         {overallTotals.lineItemTotals.map((item) => (
+        <div key={item.index} className="flex justify-between border-b pb-2">
+          <span className="font-medium">Line Item {item.index}</span>
+          <div className="flex space-x-4">
+            <span>
+                {getDeliverablesLabel(form.getValues(`lineItems.${item.index - 1}.buyType`))}: {item.deliverables.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            </span>
+            <span>Media: ${item.media.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+            <span>Fee: ${item.fee.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+            <span>Total Cost: ${item.totalCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
           </div>
-        ) : (
-          <div className="space-y-6">
-            <Form {...form}>
-              <div className="space-y-6">
-                {lineItemFields.map((field, lineItemIndex) => {
-                  const getTotals = (lineItemIndex: number) => {
-                    const lineItem = form.getValues(`lineItems.${lineItemIndex}`);
-                    let totalMedia = 0;
-                    let totalCalculatedValue = 0;
+        </div>
+   ))}
 
-                    lineItem.bursts.forEach((burst) => {
-                      const budget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0;
-                      totalMedia += budget;
-                      totalCalculatedValue += burst.calculatedValue || 0;
-                    });
+      {/* Overall Totals */}
+      <div className="pt-4 border-t font-medium flex justify-between">
+        <span>Influencers Totals:</span>
+        <div className="flex space-x-4">
+          <span>Media: ${overallTotals.overallMedia.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+          <span>Fees ({feeinfluencers}%): ${overallTotals.overallFee.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+          <span>Total Cost: ${overallTotals.overallCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+        </div>
+      </div>
+    </CardContent>
+  </Card>
+</div>
 
-                    return { totalMedia, totalCalculatedValue };
-                  };
+    <div>
+      {isLoading ? (
+        <div className="flex justify-center items-center h-20">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          <Form {...form}>
+            <div className="space-y-6">
+              {lineItemFields.map((field, lineItemIndex) => {
+                const getTotals = (lineItemIndex: number) => {
+                  const lineItem = form.getValues(`lineItems.${lineItemIndex}`);
+                  let totalMedia = 0;
+                  let totalCalculatedValue = 0;
 
-                  const { totalMedia, totalCalculatedValue } = getTotals(lineItemIndex);
+                  lineItem.bursts.forEach((burst) => {
+                    const budget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0;
+                    totalMedia += budget;
+                    totalCalculatedValue += burst.calculatedValue || 0;
+                  });
 
-                  return (
-                    <Card key={field.id} className="space-y-6">
+                  return { totalMedia, totalCalculatedValue };
+                };
+
+                const { totalMedia, totalCalculatedValue } = getTotals(lineItemIndex);
+
+                return (
+                  <Card key={field.id} className="space-y-6">
                       <CardHeader className="pb-2">
                         <div className="flex justify-between items-center">
                           <div className="flex items-center space-x-2">
-                            <CardTitle className="text-lg font-medium">Search Line Item {lineItemIndex + 1}</CardTitle>
-                            <div className="text-sm text-muted-foreground">ID: {`${mbaNumber}ML${lineItemIndex + 1}`}</div>
+                            <CardTitle className="text-lg font-medium">Influencers Line Item {lineItemIndex + 1}</CardTitle>
+                            <div className="text-sm text-muted-foreground">ID: {`${mbaNumber}IN${lineItemIndex + 1}`}</div>
                           </div>
                           <div className="flex items-center space-x-2">
                             <div className="text-sm font-medium">
@@ -721,11 +727,11 @@ useEffect(() => {
                               }).format(
                                 form.getValues(`lineItems.${lineItemIndex}.budgetIncludesFees`)
                                   ? totalMedia
-                                  : totalMedia + (totalMedia / (100 - (feesearch || 0))) * (feesearch || 0)
+                                  : totalMedia + (totalMedia / (100 - (feeinfluencers || 0))) * (feeinfluencers || 0)
                               )}
                             </div>
-                            <Button
-                              type="button"
+                            <Button 
+                              type="button" 
                               variant="outline" 
                               size="sm"
                               onClick={() => {
@@ -760,8 +766,8 @@ useEffect(() => {
                       </div>
                       
                       {/* Detailed Content - Collapsible */}
-                      <div
-                        id={`line-item-${lineItemIndex}`}
+                      <div 
+                        id={`line-item-${lineItemIndex}`} 
                         className="bg-white rounded-xl shadow p-6 mb-6"
                       >
                         <CardContent className="space-y-6">
@@ -807,10 +813,13 @@ useEffect(() => {
                                         </SelectTrigger>
                                       </FormControl>
                                       <SelectContent>
-                                        <SelectItem value="target_roas">Target ROAS</SelectItem>
-                                        <SelectItem value="manual_cpc">Manual CPC</SelectItem>
-                                        <SelectItem value="maximize_conversions">Maximise Conversions</SelectItem>
-                                        <SelectItem value="target_cpa">Target CPA</SelectItem>
+                                        <SelectItem value="reach">Reach</SelectItem>
+                                        <SelectItem value="manual_cpc">Clicks</SelectItem>
+                                        <SelectItem value="maximize_conversions">Maximize Conversions</SelectItem>
+                                        <SelectItem value="landing_page_views">Landing Page Views</SelectItem>
+                                        <SelectItem value="completed_views">Video Views</SelectItem>
+                                        <SelectItem value="leads">Leads</SelectItem>
+                                        <SelectItem value="conversion_value">Conversion Value</SelectItem>
                                       </SelectContent>
                                     </Select>
                                     <FormMessage />
@@ -835,6 +844,7 @@ useEffect(() => {
                                         <SelectItem value="cpm">CPM</SelectItem>
                                         <SelectItem value="cpv">CPV</SelectItem>
                                         <SelectItem value="fixed_cost">Fixed Cost</SelectItem>
+                                        <SelectItem value="fixed_cost">Gauranteed Leads</SelectItem>
                                       </SelectContent>
                                     </Select>
                                     <FormMessage />
@@ -870,7 +880,7 @@ useEffect(() => {
                               </FormItem>
                             </div>
 
-                            {/* Column 3 - Creative */}
+                            {/* Column 3 - Creative and Market */}
                             <div className="space-y-4">
                               <FormItem className="flex items-center space-x-2">
                                 <FormLabel className="block text-sm mb-1 self-start mt-4">Creative</FormLabel>
@@ -885,11 +895,11 @@ useEffect(() => {
                               </FormItem>
 
                               <FormItem className="flex items-center space-x-2">
-                                <FormLabel className="block text-sm mb-1">Market</FormLabel>
+                                <FormLabel className="block text-sm mb-1">Market  </FormLabel>
                                 <FormControl>
                                   <Textarea
                                     {...form.register(`lineItems.${lineItemIndex}.market`)}
-                                    placeholder="Enter market or Geo Targeting"
+                                    placeholder="Enter market or GEO"
                                     className="w-full min-h-0 h-10 text-sm rounded-md border"
                                   />
                                 </FormControl>
@@ -953,7 +963,7 @@ useEffect(() => {
                         </CardContent>
                       </div>
 
-                      {/* Bursts Section */}
+                          {/* Bursts Section */}
                       <div className="space-y-4">
                         {form.watch(`lineItems.${lineItemIndex}.bursts`, []).map((burstField, burstIndex) => {
                           return (
@@ -1188,14 +1198,14 @@ useEffect(() => {
                                               maximumFractionDigits: 2,
                                             }).format(
                                               form.getValues(`lineItems.${lineItemIndex}.budgetIncludesFees`)
-                                                ? (parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (100 - (feesearch || 0))
+                                                ? (parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (100 - (feeinfluencers || 0))
                                                 : parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0")
                                             )}
                                             readOnly
                                           />
                                         </div>
                                         <div className="flex flex-col">
-                                          <FormLabel className="text-xs">Fee ({feesearch}%)</FormLabel>
+                                          <FormLabel className="text-xs">Fee ({feeinfluencers}%)</FormLabel>
                                           <Input
                                             type="text"
                                             className="w-full"
@@ -1206,8 +1216,8 @@ useEffect(() => {
                                               maximumFractionDigits: 2,
                                             }).format(
                                               form.getValues(`lineItems.${lineItemIndex}.budgetIncludesFees`)
-                                                ? (parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (feesearch || 0)
-                                                : (parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / (100 - (feesearch || 0))) * (feesearch || 0)
+                                                ? (parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (feeinfluencers || 0)
+                                                : (parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / (100 - (feeinfluencers || 0))) * (feeinfluencers || 0)
                                             )}
                                             readOnly
                                           />
@@ -1266,7 +1276,7 @@ useEffect(() => {
                         )}
                         <Button type="button" variant="destructive" onClick={() => removeLineItem(lineItemIndex)}>
                           Remove Line Item
-                        </Button>
+                          </Button>
                       </CardFooter>
                     </Card>
                   );

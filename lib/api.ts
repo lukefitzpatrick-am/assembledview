@@ -1,10 +1,52 @@
 const SEARCH_BASE_URL = process.env.XANO_SEARCH_BASE_URL || "https://xg4h-uyzs-dtex.a2.xano.io/api:TMcVkd1X"
 const PUBLISHERS_BASE_URL = process.env.XANO_PUBLISHERS_BASE_URL || "https://xg4h-uyzs-dtex.a2.xano.io/api:YkRK8qLP"
 const CLIENTS_BASE_URL = process.env.XANO_CLIENTS_BASE_URL || "https://xg4h-uyzs-dtex.a2.xano.io/api:9v_k2NR8"
-const MEDIAPLAN_BASE_URL = process.env.XANO_MEDIAPLAN_BASE_URL || "https://xg4h-uyzs-dtex.a2.xano.io/api:QVYjoFmM"
 const MEDIA_DETAILS_BASE_URL = process.env.XANO_MEDIA_DETAILS_BASE_URL || "https://xg4h-uyzs-dtex.a2.xano.io/api:di-s-JRc" 
-const CARBONE_API_KEY = process.env.NEXT_PUBLIC_CARBONE_API_KEY || "eyJhbGciOiJFUzUxMiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiIxMDc3ODE4NDc5OTkwODY3NDA0IiwiYXVkIjoiY2FyYm9uZSIsImV4cCI6MjQwMDIwMTE3NiwiZGF0YSI6eyJ0eXBlIjoidGVzdCJ9fQ.APibiN9Cnwxx7NnO7BhxQvwroiv8M2NGoETOws7XHLuSLemaqvY-gyiORMbhDbRhO_BiOUU30PfWS__ZrgpbNlveAF03yoaLYDHmyMenGLLpjXQ5rfWTek0nPPETctY1YUn5qh7pMcZmlwjSm46UFpk5oy_jVlA9Xz2T-OE9KIIbk9TS" // Use a real API key
-const CARBONE_RENDER_URL = "https://api.carbone.io/render";
+const MEDIA_PLANS_BASE_URL = process.env.XANO_MEDIA_PLANS_BASE_URL || "https://xg4h-uyzs-dtex.a2.xano.io/api:RaUx9FOa"
+
+
+
+interface MediaPlan {
+  mp_clientname: string;
+  mp_campaignname: string;
+  mbanumber: string;
+}
+
+interface MediaPlanVersion {
+  media_plan_id: number; // This will link to the record in the `media_plans` table
+  version_number: number;
+  mba_number: string;
+  po_number: string;
+  campaign_name: string;
+  campaign_status: string;
+  campaign_start_date: string;
+  campaign_end_date: string;
+  brand: string;
+  client_contact: string;
+  fixed_fee: boolean;
+  mp_campaignbudget: number;
+  billingSchedule?: any; // or a more specific type if you have one
+  mp_television: boolean;
+  mp_radio: boolean;
+  mp_newspaper: boolean;
+  mp_magazines: boolean;
+  mp_ooh: boolean;
+  mp_cinema: boolean;
+  mp_digidisplay: boolean;
+  mp_digiaudio: boolean;
+  mp_digivideo: boolean;
+  mp_bvod: boolean;
+  mp_integration: boolean;
+  mp_search: boolean;
+  mp_socialmedia: boolean;
+  mp_progdisplay: boolean;
+  mp_progvideo: boolean;
+  mp_progbvod: boolean;
+  mp_progaudio: boolean;
+  mp_progooh: boolean;
+  mp_influencers: boolean;
+  // Add excel_file, mba_pdf_file, and created_by if you are handling them now
+}
 
 // Add TypeScript interfaces
 interface SearchLineItem {
@@ -76,6 +118,30 @@ interface MagazinesAdSizes {
   adsize: string;
 }
 
+interface AudioSite {
+  id: number;
+  platform: string;
+  site: string;
+}
+
+interface VideoSite {
+  id: number;
+  platform: string;
+  site: string;
+}
+
+interface DisplaySite {
+  id: number;
+  platform: string;
+  site: string;
+}
+
+interface BVODSite {
+  id: number;
+  platform: string;
+  site: string;
+}
+
 export async function getTVStations(): Promise<TVStation[]> {
   const response = await fetch(`${MEDIA_DETAILS_BASE_URL}/tv_stations`);
   if (!response.ok) {
@@ -128,6 +194,38 @@ export async function getSearchLineItems(): Promise<SearchLineItem[]> {
   const response = await fetch(`${SEARCH_BASE_URL}/GET_search_line_items`);
   if (!response.ok) {
     throw new Error("Failed to fetch search line items");
+  }
+  return response.json();
+}
+
+export async function getAudioSites(): Promise<AudioSite[]> {
+  const response = await fetch(`${MEDIA_DETAILS_BASE_URL}/audio_site`);
+  if (!response.ok) {
+    throw new Error("Failed to fetch audio sites");
+  }
+  return response.json();
+}
+
+export async function getVideoSites(): Promise<VideoSite[]> {
+  const response = await fetch(`${MEDIA_DETAILS_BASE_URL}/video_site`);
+  if (!response.ok) {
+    throw new Error("Failed to fetch video sites");
+  }
+  return response.json();
+}
+
+export async function getDisplaySites(): Promise<DisplaySite[]> {
+  const response = await fetch(`${MEDIA_DETAILS_BASE_URL}/display_site`);
+  if (!response.ok) {
+    throw new Error("Failed to fetch display sites");
+  }
+  return response.json();
+}
+
+export async function getBVODSites(): Promise<BVODSite[]> {
+  const response = await fetch(`${MEDIA_DETAILS_BASE_URL}/bvod_site`);
+  if (!response.ok) {
+    throw new Error("Failed to fetch BVOD sites");
   }
   return response.json();
 }
@@ -230,6 +328,61 @@ export async function createMagazineAdSize(adSizeData: { adsize: string }): Prom
   return response.json();
 }
 
+export async function createAudioSite(siteData: { platform: string; site: string }): Promise<AudioSite> {
+  const response = await fetch(`${MEDIA_DETAILS_BASE_URL}/audio_site`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(siteData),
+  });
+  if (!response.ok) {
+    throw new Error("Failed to create Audio Site");
+  }
+  return response.json();
+}
+
+export async function createVideoSite(siteData: { platform: string; site: string }): Promise<VideoSite> {
+  const response = await fetch(`${MEDIA_DETAILS_BASE_URL}/video_site`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(siteData),
+  });
+  if (!response.ok) {
+    throw new Error("Failed to create Video Site");
+  }
+  return response.json();
+}
+
+export async function createDisplaySite(siteData: { platform: string; site: string }): Promise<DisplaySite> {
+  const response = await fetch(`${MEDIA_DETAILS_BASE_URL}/display_site`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(siteData),
+  });
+  if (!response.ok) {
+    throw new Error("Failed to create Display Site");
+  }
+  return response.json();
+}
+
+export async function createBVODSite(siteData: { platform: string; site: string }): Promise<BVODSite> {
+  const response = await fetch(`${MEDIA_DETAILS_BASE_URL}/bvod_site`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(siteData),
+  });
+  if (!response.ok) {
+    throw new Error("Failed to create BVOD Site");
+  }
+  return response.json();
+}
 
 export async function createSearchBurst(data: SearchBurst): Promise<SearchBurst> {
   const response = await fetch(`${SEARCH_BASE_URL}/POST_search_bursts`, {
@@ -309,22 +462,64 @@ export async function getClientInfo(clientId: string): Promise<ClientInfo | null
   }
 }
 
-export async function createMediaPlan(data: any) {
-  const response = await fetch(`${MEDIAPLAN_BASE_URL}/post_mediaplan_topline`, {
+// --- NEW VERSIONED SAVE FUNCTION ---
+export async function createMediaPlanVersioned(
+  mediaPlanData: MediaPlan,
+  versionData: Omit<MediaPlanVersion, 'media_plan_id'>
+): Promise<{ mediaPlan: any; version: any }> {
+
+  // Step 1: Create the main media_plan record
+  const planResponse = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(data),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(mediaPlanData),
   });
-  if (!response.ok) {
-    throw new Error("Failed to create media plan");
+
+  if (!planResponse.ok) {
+    const error = await planResponse.json();
+    throw new Error(`Failed to create media plan: ${error.message}`);
   }
-  return response.json();
+  const newMediaPlan = await planResponse.json();
+
+  // Step 2: Create the media_plan_version record, linking it to the plan created above
+  const versionPayload = {
+    ...versionData,
+    media_plan_id: newMediaPlan.id, // Use the ID from the Step 1 response
+  };
+
+  const versionResponse = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_version`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(versionPayload),
+  });
+
+  if (!versionResponse.ok) {
+    const error = await versionResponse.json();
+    // Optional: Add logic here to delete the `media_plan` from step 1 for cleanup.
+    throw new Error(`Failed to create media plan version: ${error.message}`);
+  }
+  const newVersion = await versionResponse.json();
+
+  // Step 3: Update the main media_plan with the latest_version_id using the PUT URL
+  const updateResponse = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan/${newMediaPlan.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ latest_version_id: newVersion.id }),
+  });
+
+   if (!updateResponse.ok) {
+    const error = await updateResponse.json();
+    // If this fails, the plan is created but not linked to the latest version.
+    // You may want to log this as a non-critical error.
+    console.warn(`Could not set latest_version_id for media_plan ${newMediaPlan.id}: ${error.message}`);
+  }
+
+  return { mediaPlan: newMediaPlan, version: newVersion };
 }
 
+
 export async function getMediaPlans() {
-  const response = await fetch(`${MEDIAPLAN_BASE_URL}/get_mediaplan_topline`);
+  const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan`);
   if (!response.ok) {
     throw new Error("Failed to fetch media plans");
   }
@@ -332,7 +527,7 @@ export async function getMediaPlans() {
 }
 
 export async function editMediaPlan(id: string, data: any) {
-  const response = await fetch(`${MEDIAPLAN_BASE_URL}/edit_mediaplan_topline/${id}`, {
+  const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_${id}`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
@@ -742,30 +937,3 @@ export async function getPublishersForInfluencers() {
   }
 }
 
-const API_KEY = process.env.NEXT_PUBLIC_CARBONE_API_KEY;
-
-if (!API_KEY) {
-  throw new Error("❌ Carbone API key is missing! Set NEXT_PUBLIC_CARBONE_API_KEY in environment variables.");
-}
-
-export const carboneAPI = {
-  render: async (templateId: string, jsonData: any) => {
-    const response = await fetch("https://api.carbone.io/render", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${API_KEY}`,
-      },
-      body: JSON.stringify({ templateId, data: jsonData, convertTo: "pdf" }),
-    });
-
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(`Carbone API error: ${data.error}`);
-    }
-    
-    return data;
-  },
-};
-
-console.log("🔍 Carbone API Key:", process.env.NEXT_PUBLIC_CARBONE_API_KEY);

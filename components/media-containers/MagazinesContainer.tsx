@@ -573,12 +573,14 @@ const handleAddNewMagazinesAdSize = async () => {
     switch (buyType) {
       case "cpc":
       case "cpv":
+      case "insertions":
         calculatedValue = buyAmount !== 0 ? budget / buyAmount : 0;
         break;
       case "cpm":
         calculatedValue = buyAmount !== 0 ? (budget / buyAmount) * 1000 : 0;
         break;
       case "fixed_cost":
+      case "package":
         calculatedValue = 1;
         break;
       default:
@@ -655,6 +657,10 @@ const handleAddNewMagazinesAdSize = async () => {
     switch (buyType.toLowerCase()) {
       case "cpc":
         return "Clicks";
+      case "insertions":
+        return "Insertions";
+      case "package":
+        return "Package";
       case "cpv":
         return "Views";
       case "cpm":
@@ -1380,10 +1386,12 @@ useEffect(() => {
                                           switch (buyType) {
                                             case "cpc":
                                             case "cpv":
+                                            case "insertions":
                                               return buyAmount !== 0 ? (budget / buyAmount) : "0";
                                             case "cpm":
                                               return buyAmount !== 0 ? ((budget / buyAmount) * 1000) : "0";
                                             case "fixed_cost":
+                                            case "package":
                                               return "1";
                                             default:
                                               return "0";
@@ -1407,6 +1415,12 @@ useEffect(() => {
                                             break;
                                           case "fixed_cost":
                                             title = "Fixed Cost";
+                                            break;
+                                          case "package":
+                                            title = "Package";
+                                            break;
+                                          case "insertions":
+                                            title = "Insertions";
                                             break;
                                         }
 

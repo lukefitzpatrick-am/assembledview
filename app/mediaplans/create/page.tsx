@@ -18,12 +18,13 @@ import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { toast } from "@/components/ui/use-toast"
 import { useRouter } from "next/navigation"
-import { OutcomeModal } from "@/components/OutcomeModal"
 import { Table, TableBody, TableCell, TableHeader, TableRow, TableHead, TableFooter } from "@/components/ui/table"
 import { Download, FileText } from "lucide-react"
-import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // adjust path if needed
+import type { BillingBurst, BillingMonth } from "@/lib/billing/types" // adjust path if needed
 import { generateMediaPlan, MediaPlanHeader, LineItem, MediaItems } from '@/lib/generateMediaPlan'
+import { generateMBA, MBAData } from '@/lib/generateMBA'
 import { saveAs } from 'file-saver'
+import { createMediaPlanVersioned } from "@/lib/api"
 
 const mediaPlanSchema = z.object({
   mp_clientname: z.string().min(1, "Client name is required"),
@@ -127,6 +128,28 @@ const ProgOOHContainer = lazy(() => import("@/components/media-containers/ProgOO
 const InfluencersContainer = lazy(() => import("@/components/media-containers/InfluencersContainer"))
 const ProductionContainer = lazy(() => import("@/components/media-containers/ProductionContainer"))
 
+// Place this inside your CreateMediaPlan component, after the state declarations
+const mediaKeyMap: { [key: string]: string } = {
+  mp_search: 'search',
+  mp_socialmedia: 'socialMedia',
+  mp_digiaudio: 'digiAudio',
+  mp_digidisplay: 'digiDisplay',
+  mp_digivideo: 'digiVideo',
+  mp_bvod: 'bvod',
+  mp_progdisplay: 'progDisplay',
+  mp_progvideo: 'progVideo',
+  mp_progbvod: 'progBvod',
+  mp_progaudio: 'progAudio',
+  mp_progooh: 'progOoh',
+  mp_cinema: 'cinema',
+  mp_television: 'television',
+  mp_radio: 'radio',
+  mp_newspaper: 'newspaper',
+  mp_magazines: 'magazines',
+  mp_ooh: 'ooh',
+  mp_integration: 'integration',
+  mp_influencers: 'influencers',
+};
 // Add these type declarations at the top of the file
 type BillingMonths = {
   monthYear: string;
@@ -194,15 +217,15 @@ export default function CreateMediaPlan() {
   const [selectedClientId, setSelectedClientId] = useState<string>("")
   const { setMbaNumber } = useMediaPlanContext() 
   const [burstsData, setBurstsData] = useState([])
-  const [modalOpen, setModalOpen] = useState(false)
-  const [modalTitle, setModalTitle] = useState("")
-  const [modalOutcome, setModalOutcome] = useState("")
-  const [modalLoading, setModalLoading] = useState(false)
   const [isDownloading, setIsDownloading] = useState(false)
   const [clientAddress, setClientAddress] = useState("")
   const [clientSuburb, setClientSuburb] = useState("")
   const [clientState, setClientState] = useState("")
   const [clientPostcode, setClientPostcode] = useState("")
+  const [saveStatus, setSaveStatus] = useState<{ message: string; status: 'pending' | 'success' | 'error' }[]>([]);
+  const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  const [partialMBAError, setPartialMBAError] = useState<string | null>(null);
+  const [manualBillingError, setManualBillingError] = useState<string | null>(null);
 
   // Search
   const [feesearch, setFeeSearch] = useState<number | null>(null)
@@ -217,6 +240,13 @@ export default function CreateMediaPlan() {
   const [socialMediaBursts, setSocialMediaBursts] = useState<BillingBurst[]>([])
   const [socialMediaItems, setSocialMediaItems] = useState<LineItem[]>([]);
   const [socialMediaFeeTotal, setSocialMediaFeeTotal] = useState(0);
+
+  //Influencers
+  const [feeinfluencers, setFeeInfluencers] = useState<number | null>(null)
+  const [influencersTotal, setInfluencersTotal] = useState(0)
+  const [influencersBursts, setInfluencersBursts] = useState<BillingBurst[]>([])
+  const [influencersItems, setInfluencersItems] = useState<LineItem[]>([])
+  const [influencersFeeTotal, setInfluencersFeeTotal] = useState(0)
 
   //BVOD
   const [feebvod, setFeeBVOD] = useState<number | null>(null)
@@ -354,6 +384,8 @@ export default function CreateMediaPlan() {
   const [billingTotal, setBillingTotal] = useState("$0.00")  
   const [grossMediaTotal, setGrossMediaTotal] = useState(0);
   const [totalInvestment, setTotalInvestment] = useState(0);
+  const [isPartialMBA, setIsPartialMBA] = useState(false);
+  const [isPartialMBAModalOpen, setIsPartialMBAModalOpen] = useState(false);
 
   const form = useForm<MediaPlanFormValues>({
     resolver: zodResolver(mediaPlanSchema),
@@ -407,6 +439,23 @@ export default function CreateMediaPlan() {
     return window.btoa(binary)
   }
 
+  const [partialMBAValues, setPartialMBAValues] = useState({
+    mediaTotals: {} as Record<string, number>,
+    grossMedia: 0,
+    assembledFee: 0,
+    adServing: 0,
+    production: 0,
+  });
+
+  // This will store a snapshot of the original values for the reset button
+  const [originalPartialMBAValues, setOriginalPartialMBAValues] = useState({
+    mediaTotals: {} as Record<string, number>,
+    grossMedia: 0,
+    assembledFee: 0,
+    adServing: 0,
+    production: 0,
+  });
+
   function calculateBillingSchedule() {
     const start = form.watch("mp_campaigndates_start");
     const end   = form.watch("mp_campaigndates_end");
@@ -427,13 +476,13 @@ export default function CreateMediaPlan() {
           totalMedia: 0,
           totalFee: 0,
           adServing: 0,
-          mediaCosts: { search: 0, socialMedia: 0, progAudio: 0, cinema: 0, digiAudio: 0, digiDisplay: 0, digiVideo: 0, progDisplay: 0, progVideo: 0, progBvod: 0, progOoh: 0, television: 0, radio: 0, newspaper: 0, magazines: 0, ooh: 0, /* Add other media types as needed */ }
+          mediaCosts: { search: 0, socialMedia: 0, progAudio: 0, cinema: 0, digiAudio: 0, digiDisplay: 0, digiVideo: 0, progDisplay: 0, progVideo: 0, progBvod: 0, progOoh: 0, television: 0, radio: 0, newspaper: 0, magazines: 0, ooh: 0, bvod: 0, integration: 0, influencers: 0 /* Add other media types as needed */ }
       };
       cur.setMonth(cur.getMonth() + 1);
       cur.setDate(1);
   }
     // 2. Distribute a single burst and track its media type.
-    function distribute(burst: BillingBurst, mediaType: 'search' | 'socialMedia' | 'progAudio' | 'cinema' | 'digiAudio' | 'digiDisplay' | 'digiVideo' | 'progDisplay' | 'progVideo' | 'progBvod' | 'progOoh' | 'television' | 'radio' | 'newspaper' | 'magazines' | 'ooh' | 'bvod') {
+    function distribute(burst: BillingBurst, mediaType: 'search' | 'socialMedia' | 'progAudio' | 'cinema' | 'digiAudio' | 'digiDisplay' | 'digiVideo' | 'progDisplay' | 'progVideo' | 'progBvod' | 'progOoh' | 'television' | 'radio' | 'newspaper' | 'magazines' | 'ooh' | 'bvod' | 'integration' | 'influencers') {
       const s = new Date(burst.startDate);
       const e = new Date(burst.endDate);
       if (isNaN(s.getTime()) || isNaN(e.getTime()) || s > e) return; // Guard against invalid dates
@@ -481,6 +530,8 @@ export default function CreateMediaPlan() {
     magazineBursts.forEach(b => distribute(b, 'magazines'));
     oohBursts.forEach(b => distribute(b, 'ooh'));
     bvodBursts.forEach(b => distribute(b, 'bvod'));
+    integrationBursts.forEach(b => distribute(b, 'integration'));
+    influencersBursts.forEach(b => distribute(b, 'influencers'));
 
     // 4. Format into BillingMonth[]
     const formatter = new Intl.NumberFormat("en-AU", {
@@ -527,11 +578,11 @@ export default function CreateMediaPlan() {
   digiAudioBursts.forEach(b => distributeAdServing(b, 'digiAudio'))
   digiDisplayBursts.forEach(b => distributeAdServing(b, 'digiDisplay'))
   digiVideoBursts.forEach(b => distributeAdServing(b, 'digiVideo'))
+  bvodBursts.forEach(b => distributeAdServing(b, 'bvod'))
   progAudioBursts.forEach(b => distributeAdServing(b, 'progAudio'))
   progVideoBursts.forEach(b => distributeAdServing(b, 'progVideo'))
   progBvodBursts.forEach(b => distributeAdServing(b, 'progBvod'))
   progOohBursts.forEach(b => distributeAdServing(b, 'progOoh'))
-  cinemaBursts.forEach(b => distributeAdServing(b, 'cinema'))
   progDisplayBursts.forEach(b => distributeAdServing(b, 'progDisplay'))
 
   const months: BillingMonth[] = Object.entries(map).map(
@@ -560,9 +611,9 @@ export default function CreateMediaPlan() {
               newspaper: formatter.format(mediaCosts.newspaper || 0),
               magazines: formatter.format(mediaCosts.magazines || 0),
               ooh: formatter.format(mediaCosts.ooh || 0),
-
-              integration: "$0.00", influencers: "$0.00"
-          }
+              integration: formatter.format(mediaCosts.integration || 0),
+              influencers: formatter.format(mediaCosts.influencers || 0),
+             }
       })
   ); 
   
@@ -846,12 +897,13 @@ export default function CreateMediaPlan() {
   adservvideo,
 ]);
 
+  // in page.tsx
+
   const handleGenerateMBA = async () => {
     setIsLoading(true);
-
+  
     const fv = form.getValues();
-
-    // Validate required fields
+  
     if (!fv.mbanumber) {
       toast({
         title: "Error",
@@ -862,55 +914,93 @@ export default function CreateMediaPlan() {
       return;
     }
 
-    // Inside handleGenerateMBA, before you build `body`:
-const visibleMedia = mediaTypes
-  .filter(medium => form.watch(medium.name as keyof MediaPlanFormValues))
-  .map(medium => ({
-    media_type: medium.label,
-    gross_amount: calculateMediaTotal(medium.name),
-  }));
+    let finalVisibleMedia: { media_type: string; gross_amount: number }[];
+    let finalTotals: MBAData['totals'];
 
-    const body = {
-      ...fv,
-      gross_media: visibleMedia,
-      grossMediaTotal,
-      calculateAssembledFee: calculateAssembledFee(),
-      calculateProductionCosts: calculateProductionCosts(),
-      calculateAdServingFees: calculateAdServingFees(),
-      totalInvestment,
-      clientAddress,
-      clientSuburb,
-      clientState,
-      clientPostcode
+    // Conditionally build the data payload based on whether Partial MBA is active
+    if (isPartialMBA) {
+      // --- Use Partial MBA Data ---
+      finalVisibleMedia = Object.entries(partialMBAValues.mediaTotals)
+        .map(([key, value]) => {
+            const mediaTypeInfo = mediaTypes.find(m => mediaKeyMap[m.name] === key);
+            return {
+              media_type: mediaTypeInfo ? mediaTypeInfo.label : 'Unknown Media',
+              gross_amount: value,
+            };
+        });
+
+      const totalExGst = partialMBAValues.grossMedia + partialMBAValues.assembledFee + partialMBAValues.adServing + partialMBAValues.production;
+
+      finalTotals = {
+        gross_media: partialMBAValues.grossMedia,
+        service_fee: partialMBAValues.assembledFee,
+        production: partialMBAValues.production,
+        adserving: partialMBAValues.adServing,
+        totals_ex_gst: totalExGst,
+        total_inc_gst: totalExGst * 1.1,
+      };
+
+    } else {
+      // --- Use Automatic Calculation Data (Original Logic) ---
+      finalVisibleMedia = mediaTypes
+        .filter(medium => form.watch(medium.name as keyof MediaPlanFormValues))
+        .map(medium => ({
+          media_type: medium.label,
+          gross_amount: calculateMediaTotal(medium.name),
+        }));
+
+      const totalExGst = totalInvestment;
+
+      finalTotals = {
+        gross_media: grossMediaTotal,
+        service_fee: calculateAssembledFee(),
+        production: calculateProductionCosts(),
+        adserving: calculateAdServingFees(),
+        totals_ex_gst: totalExGst,
+        total_inc_gst: totalExGst * 1.1,
+      };
+    }
+  
+    const billingScheduleWithGST = billingMonths.map(month => {
+      const amountExGst = parseFloat(month.totalAmount.replace(/[^0-9.-]/g, ""));
+      const amountIncGst = amountExGst * 1.10;
+      return {
+        ...month,
+        totalAmount: new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(amountIncGst)
+      };
+    });
+  
+    // Construct the final body with either manual or auto data
+    const body: MBAData = {
+      date: format(new Date(), "dd/MM/yyyy"),
+      mba_number: fv.mbanumber,
+      campaign_name: fv.mp_campaignname,
+      campaign_brand: fv.mp_brand,
+      po_number: fv.mp_ponumber,
+      media_plan_version: fv.mp_plannumber,
+      client: {
+        name: fv.mp_clientname,
+        streetaddress: clientAddress,
+        suburb: clientSuburb,
+        state: clientState,
+        postcode: clientPostcode,
+      },
+      campaign: {
+        date_start: format(fv.mp_campaigndates_start, "dd/MM/yyyy"),
+        date_end: format(fv.mp_campaigndates_end, "dd/MM/yyyy"),
+      },
+      gross_media: finalVisibleMedia,
+      totals: finalTotals,
+      billingSchedule: billingScheduleWithGST,
     };
-
+  
     try {
-      const res = await fetch('/api/mba/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || 'Failed to generate MBA');
-      }
-
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `MBA_${fv.mp_clientname}_${fv.mp_campaignname}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
-
+      const blob = await generateMBA(body);
+      saveAs(blob, `MBA_${fv.mp_clientname}_${fv.mp_campaignname}.pdf`);
       toast({
         title: "Success",
         description: "MBA generated successfully",
       });
-
     } catch (e: any) {
       console.error("MBA Generation Error:", e);
       toast({ 
@@ -956,59 +1046,62 @@ const visibleMedia = mediaTypes
         return radioTotal ?? 0;
       case "mp_newspaper":
         return newspaperTotal ?? 0;
-      case "mp_magazine":
+      case "mp_magazines":
+        return magazineTotal ?? 0;
+      case "mp_ooh":
+        return oohTotal ?? 0;
+      case "mp_integration":
+        return integrationTotal ?? 0;
+      case "mp_bvod":
+        return bvodTotal ?? 0;
       default:
         return 0;
     }
   };
 
-  const calculateGrossMediaTotal = (): number => {
-    return (
-      (searchTotal ?? 0) +
-      (socialmediaTotal ?? 0) +
-      (progAudioTotal ?? 0) +
-      (cinemaTotal ?? 0) +
-      (digiAudioTotal ?? 0) +
-      (digiDisplayTotal ?? 0) +
-      (digiVideoTotal ?? 0) +
-      (bvodTotal ?? 0) +
-      (progDisplayTotal ?? 0) +
-      (progVideoTotal ?? 0) +
-      (progBvodTotal ?? 0) +
-      (progOohTotal ?? 0) +
-      (televisionTotal ?? 0) +
-      (radioTotal ?? 0) +
-      (newspaperTotal ?? 0) +
-      (magazineTotal ?? 0) +
-      (oohTotal ?? 0)
-    );
-  };
+  
 
 
-  // Calculate the Assembled Fee (sum of all fees)
-  const calculateAssembledFee = (): number => {
-    return (
-      (searchFeeTotal ?? 0) +
-      (socialMediaFeeTotal ?? 0) +
-      (progAudioFeeTotal ?? 0) +
-      (cinemaFeeTotal ?? 0) +
-      (digiAudioFeeTotal ?? 0) +
-      (digiDisplayFeeTotal ?? 0) +
-      (digiVideoFeeTotal ?? 0) +
-      (bvodFeeTotal ?? 0) +
-      (progDisplayFeeTotal ?? 0) +
-      (progVideoFeeTotal ?? 0) +
-      (progBvodFeeTotal ?? 0) +
-      (televisionFeeTotal ?? 0) +
-      (radioFeeTotal ?? 0) +
-      (newspaperFeeTotal ?? 0) +
-      (magazineFeeTotal ?? 0) +
-      (oohFeeTotal ?? 0)
-    );
-  };
+  
 
-  // Calculate Ad Serving Fees
+  
+
+
+    function getRateForMediaType(mediaType: string): number {
+      switch(mediaType) {
+        case 'progVideo':
+        case 'progBvod':
+        case 'digiVideo':
+        case 'digi video':
+        case 'bvod':  
+          return adservvideo  ?? 0
+        case 'progAudio':
+        case 'digiAudio':
+        case 'digi audio':
+          return adservaudio ?? 0
+        case 'progDisplay':
+        case 'digiDisplay':
+        case 'digi display':
+          return adservdisplay ?? 0
+        default:
+          return adservimp    ?? 0
+      }
+    }
+    // Calculate Production Costs (assuming content creator fees count as production)
+    const calculateProductionCosts = () => {
+      return 0;
+    };
+
+    // Calculate Ad Serving Fees
   const calculateAdServingFees = () => {
+    // If manual billing is active, sum the ad serving totals from the manual schedule
+    if (isManualBilling) {
+      return billingMonths.reduce((sum, month) => {
+        const monthAdServingTotal = parseFloat(month.adservingTechFees.replace(/[^0-9.-]/g, ""));
+        return sum + (monthAdServingTotal || 0);
+      }, 0);
+    }
+    // Original logic for automated calculation
     const allBursts = [
       ...progDisplayBursts,
       ...progVideoBursts,
@@ -1029,28 +1122,71 @@ const visibleMedia = mediaTypes
           return sum + cost
     }, 0)
   }
-  
-  function getRateForMediaType(mediaType: string): number {
-    switch(mediaType) {
-      case 'progVideo':
-      case 'progBvod':
-      case 'digiVideo':
-      case 'bvod':  
-        return adservvideo  ?? 0
-      case 'progAudio':
-      case 'digiAudio':
-        return adservaudio ?? 0
-      case 'progDisplay':
-      case 'digiDisplay':
-        return adservdisplay ?? 0
-      default:
-        return adservimp    ?? 0
+
+  const calculateAssembledFee = (): number => {
+    // If manual billing is active, sum the fee totals from the manual schedule
+    if (isManualBilling) {
+      return billingMonths.reduce((sum, month) => {
+        const monthFeeTotal = parseFloat(month.feeTotal.replace(/[^0-9.-]/g, ""));
+        return sum + (monthFeeTotal || 0);
+      }, 0);
     }
-  }
-  // Calculate Production Costs (assuming content creator fees count as production)
-  const calculateProductionCosts = () => {
-    return feecontentcreator ?? 0;
+
+    return (
+      (searchFeeTotal ?? 0) +
+      (socialMediaFeeTotal ?? 0) +
+      (progAudioFeeTotal ?? 0) +
+      (cinemaFeeTotal ?? 0) +
+      (digiAudioFeeTotal ?? 0) +
+      (digiDisplayFeeTotal ?? 0) +
+      (digiVideoFeeTotal ?? 0) +
+      (bvodFeeTotal ?? 0) +
+      (integrationFeeTotal ?? 0) +
+      (progDisplayFeeTotal ?? 0) +
+      (progVideoFeeTotal ?? 0) +
+      (progBvodFeeTotal ?? 0) +
+      (progOohFeeTotal ?? 0) +
+      (influencersFeeTotal ?? 0) +
+      (televisionFeeTotal ?? 0) +
+      (radioFeeTotal ?? 0) +
+      (newspaperFeeTotal ?? 0) +
+      (magazineFeeTotal ?? 0) +
+      (oohFeeTotal ?? 0)
+    );
   };
+
+  const calculateGrossMediaTotal = (): number => {
+    // If manual billing is active, sum the totals from the manual schedule
+    if (isManualBilling) {
+      return billingMonths.reduce((sum, month) => {
+        const monthMediaTotal = parseFloat(month.mediaTotal.replace(/[^0-9.-]/g, ""));
+        return sum + (monthMediaTotal || 0);
+      }, 0);
+    }
+    return (
+    (searchTotal ?? 0) +
+    (socialmediaTotal ?? 0) +
+    (progAudioTotal ?? 0) +
+    (cinemaTotal ?? 0) +
+    (digiAudioTotal ?? 0) +
+    (digiDisplayTotal ?? 0) +
+    (digiVideoTotal ?? 0) +
+    (bvodTotal ?? 0) +
+    (integrationTotal ?? 0) +
+    (progDisplayTotal ?? 0) +
+    (progVideoTotal ?? 0) +
+    (progBvodTotal ?? 0) +
+    (progOohTotal ?? 0) +
+    (influencersTotal ?? 0) +
+    (televisionTotal ?? 0) +
+    (radioTotal ?? 0) +
+    (newspaperTotal ?? 0) +
+    (magazineTotal ?? 0) +
+    (oohTotal ?? 0)
+  );
+};
+  
+  
 
   function BillingAndMBASections({ form }: { form: FormProps }) {
     type BillingMonth = {
@@ -1127,300 +1263,6 @@ const visibleMedia = mediaTypes
       setClients(data)
     } catch (error) {
       console.error("Error fetching clients:", error)
-    }
-  }
-
-  async function onSubmit(data: MediaPlanFormValues) {
-    setIsLoading(true)
-    try {
-      // First, save the media plan
-      const response = await fetch("/api/mediaplans", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(data),
-      })
-
-      if (!response.ok) {
-        throw new Error("Failed to create media plan")
-      }
-
-      const mediaPlanData = await response.json()
-      const mbaNumber = mediaPlanData.mbanumber || data.mbanumber
-      
-      // Then, save search data if search is enabled
-      if (data.mp_search && mbaNumber) {
-        try {
-          // @ts-ignore - Accessing the saveSearchData function from the window object
-          if (window.saveSearchData) {
-            // @ts-ignore - Calling the saveSearchData function
-            await window.saveSearchData(mbaNumber)
-            console.log("Search data saved successfully")
-          } else {
-            console.warn("saveSearchData function not found")
-          }
-        } catch (error) {
-          console.error("Failed to save search data:", error)
-          // Continue with the media plan creation even if search data saving fails
-        }
-      }
-
-      // Then, save social media data if social media is enabled
-      if (data.mp_socialmedia && mbaNumber) {
-        try {
-          // @ts-ignore - Accessing the saveSocialMediaData function from the window object
-          if (window.saveSocialMediaData) {
-            // @ts-ignore - Calling the saveSocialMediaData function
-            await window.saveSocialMediaData(mbaNumber)
-            console.log("Social media data saved successfully")
-          } else {
-            console.warn("saveSocialMediaData function not found")
-          }
-        } catch (error) {
-          console.error("Failed to save social media data:", error)
-          // Continue with the media plan creation even if social media data saving fails
-        }
-      }
-      
-      // Then, save cinema data if cinema is enabled
-      if (data.mp_cinema && mbaNumber) {
-        try {
-          // @ts-ignore - Accessing the saveCinemaData function from the window object
-          if (window.saveCinemaData) {
-            // @ts-ignore - Calling the saveCinemaData function 
-            await window.saveCinemaData(mbaNumber)
-            console.log("Cinema data saved successfully")
-          } else {
-            console.warn("saveCinemaData function not found")
-          }
-        } catch (error) {
-          console.error("Failed to save cinema data:", error)
-          // Continue with the media plan creation even if cinema data saving fails
-        }
-      }
-
-      // Then, save digiAudio data if digiAudio is enabled
-      if (data.mp_digiaudio && mbaNumber) {
-        try {
-          // @ts-ignore - Accessing the saveDigiAudioData function from the window object
-          if (window.saveDigiAudioData) {
-            // @ts-ignore - Calling the saveDigiAudioData function
-            await window.saveDigiAudioData(mbaNumber)
-            console.log("DigiAudio data saved successfully")
-          } else {
-            console.warn("saveDigiAudioData function not found")
-          }
-        } catch (error) {
-          console.error("Failed to save digiAudio data:", error)
-          // Continue with the media plan creation even if digiAudio data saving fails
-        }
-      }
-
-      // Then, save digiDisplay data if digiDisplay is enabled
-      if (data.mp_digidisplay && mbaNumber) {
-        try {
-          // @ts-ignore - Accessing the saveDigiDisplayData function from the window object
-          if (window.saveDigiDisplayData) {
-            // @ts-ignore - Calling the saveDigiDisplayData function
-            await window.saveDigiDisplayData(mbaNumber)
-            console.log("DigiDisplay data saved successfully")
-          } else {
-            console.warn("saveDigiDisplayData function not found")
-          }
-        } catch (error) {
-          console.error("Failed to save digiDisplay data:", error)
-          // Continue with the media plan creation even if digiDisplay data saving fails  
-        }
-      }
-
-      // Then, save digiVideo data if digiVideo is enabled
-      if (data.mp_digivideo && mbaNumber) {
-        try {
-          // @ts-ignore - Accessing the saveDigiVideoData function from the window object
-          if (window.saveDigiVideoData) {
-            // @ts-ignore - Calling the saveDigiVideoData function
-            await window.saveDigiVideoData(mbaNumber)
-            console.log("DigiVideo data saved successfully")
-          } else {
-            console.warn("saveDigiVideoData function not found")
-          }
-        } catch (error) {
-          console.error("Failed to save digiVideo data:", error)
-          // Continue with the media plan creation even if digiVideo data saving fails
-        }
-      }
-
-      // Then, save progDisplay data if progDisplay is enabled
-      if (data.mp_progdisplay && mbaNumber) {
-        try {
-          // @ts-ignore - Accessing the saveProgDisplayData function from the window object
-          if (window.saveProgDisplayData) {
-            // @ts-ignore - Calling the saveProgDisplayData function
-            await window.saveProgDisplayData(mbaNumber)
-            console.log("ProgDisplay data saved successfully")
-          } else {
-            console.warn("saveProgDisplayData function not found")
-          }
-        } catch (error) {
-          console.error("Failed to save progDisplay data:", error)
-          // Continue with the media plan creation even if progDisplay data saving fails
-        }
-      }
-
-      // Then, save progVideo data if progVideo is enabled  
-      if (data.mp_progvideo && mbaNumber) {
-        try {
-          // @ts-ignore - Accessing the saveProgVideoData function from the window object
-          if (window.saveProgVideoData) {
-            // @ts-ignore - Calling the saveProgVideoData function
-            await window.saveProgVideoData(mbaNumber)
-            console.log("ProgVideo data saved successfully")
-          } else {
-            console.warn("saveProgVideoData function not found")
-          }
-        } catch (error) {
-          console.error("Failed to save progVideo data:", error)
-          // Continue with the media plan creation even if progVideo data saving fails
-        }
-      }
-
-      // Then, save progBvod data if progBvod is enabled
-      if (data.mp_progbvod && mbaNumber) {
-        try {
-          // @ts-ignore - Accessing the saveProgBvodData function from the window object
-          if (window.saveProgBvodData) {
-            // @ts-ignore - Calling the saveProgBvodData function
-            await window.saveProgBvodData(mbaNumber)
-            console.log("ProgBvod data saved successfully")
-          } else {
-            console.warn("saveProgBvodData function not found")
-          }
-        } catch (error) {
-          console.error("Failed to save progBvod data:", error)
-          // Continue with the media plan creation even if progBvod data saving fails
-        }
-      }
-
-      // Then, save progOoh data if progOoh is enabled
-      if (data.mp_progooh && mbaNumber) {
-        try {
-          // @ts-ignore - Accessing the saveProgOohData function from the window object
-          if (window.saveProgOohData) {
-            // @ts-ignore - Calling the saveProgOohData function
-            await window.saveProgOohData(mbaNumber)
-            console.log("ProgOoh data saved successfully")
-          } else {
-            console.warn("saveProgOohData function not found")
-          }
-        } catch (error) {
-          console.error("Failed to save progOoh data:", error)
-          // Continue with the media plan creation even if progOoh data saving fails
-        }
-      }
-
-      // Then, save television data if television is enabled
-      if (data.mp_television && mbaNumber) {
-        try {
-          // @ts-ignore - Accessing the saveTelevisionData function from the window object
-          if (window.saveTelevisionData) {
-            // @ts-ignore - Calling the saveTelevisionData function
-            await window.saveTelevisionData(mbaNumber)
-            console.log("Television data saved successfully")
-          } else {
-            console.warn("saveTelevisionData function not found")
-          }
-        } catch (error) {
-          console.error("Failed to save television data:", error)
-          // Continue with the media plan creation even if television data saving fails
-        }
-      }
-
-      // Then, save radio data if radio is enabled
-      if (data.mp_radio && mbaNumber) {
-        try {
-          // @ts-ignore - Accessing the saveRadioData function from the window object
-          if (window.saveRadioData) {
-            // @ts-ignore - Calling the saveRadioData function
-            await window.saveRadioData(mbaNumber)
-            console.log("Radio data saved successfully")
-          } else {
-            console.warn("saveRadioData function not found")
-          }
-        } catch (error) {
-          console.error("Failed to save radio data:", error)
-          // Continue with the media plan creation even if radio data saving fails
-        }
-      }
-
-      // Then, save newspaper data if newspaper is enabled
-      if (data.mp_newspaper && mbaNumber) {
-        try {
-          // @ts-ignore - Accessing the saveNewspaperData function from the window object
-          if (window.saveNewspaperData) {
-            // @ts-ignore - Calling the saveNewspaperData function
-            await window.saveNewspaperData(mbaNumber)
-            console.log("Newspaper data saved successfully")
-          } else {
-            console.warn("saveNewspaperData function not found")
-          }
-        } catch (error) {
-          console.error("Failed to save newspaper data:", error)
-          // Continue with the media plan creation even if newspaper data saving fails
-        }
-      }
-
-      // Then, save magazine data if magazine is enabled
-      if (data.mp_magazines && mbaNumber) {
-        try {
-          // @ts-ignore - Accessing the saveMagazineData function from the window object
-          if (window.saveMagazinesData) {
-            // @ts-ignore - Calling the saveMagazineData function
-            await window.saveMagazinesData(mbaNumber)
-            console.log("Magazines data saved successfully")
-          } else {
-            console.warn("saveMagazinesData function not found")
-          }
-        } catch (error) {
-          console.error("Failed to save magazine data:", error)
-          // Continue with the media plan creation even if magazine data saving fails
-        }
-      }
-
-      // Then, save ooh data if ooh is enabled
-      if (data.mp_ooh && mbaNumber) {
-        try {
-          // @ts-ignore - Accessing the saveOOHData function from the window object
-          if (window.saveOOHData) {
-            // @ts-ignore - Calling the saveOOHData function
-            await window.saveOOHData(mbaNumber)
-            console.log("OOH data saved successfully")
-          } else {
-            console.warn("saveOOHData function not found")
-          }
-        } catch (error) {
-          console.error("Failed to save ooh data:", error)
-          // Continue with the media plan creation even if ooh data saving fails
-        }
-      }
-      // Handle successful creation
-      console.log("Media plan created successfully")
-      toast({
-        title: "Success",
-        description: "Media plan created successfully",
-      })
-      
-      // Redirect to the edit page
-      router.push(`/mediaplans/${mediaPlanData.id}/edit`)
-    } catch (error) {
-      console.error("Failed to create media plan:", error)
-      toast({
-        title: "Error",
-        description: error.message || "Failed to create media plan",
-        variant: "destructive",
-      })
-    } finally {
-      setIsLoading(false)
     }
   }
 
@@ -1586,6 +1428,81 @@ const visibleMedia = mediaTypes
   const handleProgOohBurstsChange = (bursts: BillingBurst[]) =>
     setProgOohBursts(bursts)
 
+  // --- Partial MBA Handlers ---
+
+  function handlePartialMBAOpen() {
+    // 1. Capture the current, automatically calculated values
+    const currentMediaTotals: Record<string, number> = {};
+    mediaTypes
+      .filter(medium => form.watch(medium.name as keyof MediaPlanFormValues))
+      .forEach(medium => {
+        const key = mediaKeyMap[medium.name];
+        if (key) {
+          currentMediaTotals[key] = calculateMediaTotal(medium.name);
+        }
+      });
+
+    const currentValues = {
+      mediaTotals: currentMediaTotals,
+      grossMedia: calculateGrossMediaTotal(),
+      assembledFee: calculateAssembledFee(),
+      adServing: calculateAdServingFees(),
+      production: calculateProductionCosts(),
+    };
+
+    // 2. Set the state for the modal and create a backup for the 'reset' button
+    setPartialMBAValues(currentValues);
+    setOriginalPartialMBAValues(JSON.parse(JSON.stringify(currentValues))); // Deep copy for a clean snapshot
+    setIsPartialMBAModalOpen(true);
+  }
+
+  function handlePartialMBAChange(
+    field: 'mediaTotal' | 'assembledFee' | 'adServing' | 'production',
+    value: string,
+    mediaKey?: string
+  ) {
+    const numericValue = parseFloat(value.replace(/[^0-9.-]/g, "")) || 0;
+
+    setPartialMBAValues(prev => {
+      const newValues = { ...prev };
+      
+      // Update the specific field that was changed
+      if (field === 'mediaTotal' && mediaKey) {
+        newValues.mediaTotals[mediaKey] = numericValue;
+      } else if (field !== 'mediaTotal') {
+        newValues[field] = numericValue;
+      }
+
+      // Recalculate Gross Media as the sum of all individual media items
+      newValues.grossMedia = Object.values(newValues.mediaTotals).reduce((sum, total) => sum + total, 0);
+
+      return newValues;
+    });
+  }
+
+  function handlePartialMBASave() {
+    const campaignBudget = form.getValues("mp_campaignbudget") || 0;
+    const { grossMedia, assembledFee, adServing, production } = partialMBAValues;
+    const newTotalInvestment = grossMedia + assembledFee + adServing + production;
+
+    // Validate that the new total is within $2.00 of the campaign budget
+    if (Math.abs(newTotalInvestment - campaignBudget) > 2) {
+      setPartialMBAError("MBA does not match Campaign Budget. The total must be within $2.00 of the budget.");
+     return;
+    }
+
+    setPartialMBAError(null);
+    setIsPartialMBA(true);
+    setIsPartialMBAModalOpen(false);
+    toast({ title: "Success", description: "Partial MBA details have been saved." });
+  }
+
+  function handlePartialMBAReset() {
+    // Revert to the original values that were present when the modal was opened
+    setPartialMBAValues(JSON.parse(JSON.stringify(originalPartialMBAValues)));
+    toast({ title: "Changes Reset", description: "Values have been reset to their original state." });
+  }
+  // Manual Billing Functions
   function handleManualBillingOpen() {
     // The main `billingMonths` state now contains the correct, detailed breakdown.
     // We just need to copy it to the modal's state.
@@ -1605,72 +1522,43 @@ const visibleMedia = mediaTypes
 
   function handleManualBillingChange(
     index: number,
-    type: 'search' | 'socialMedia' | 'digiAudio' | 'digiDisplay' | 'digiVideo' | 'bvod' | 'feeTotal' | 'progDisplay' | 'progVideo' | 'progBvod' | 'progOoh' | 'progAudio' | 'cinema' | 'newspaper' | 'magazines' | 'ooh' | 'television' | 'radio', 
-    rawValue: string
+    type: 'media' | 'fee' | 'adServing',
+    rawValue: string,
+    mediaKey?: string // e.g., 'search', 'socialMedia'
   ) {
     const copy = [...manualBillingMonths];
     const numericValue = parseFloat(rawValue.replace(/[^0-9.-]/g, "")) || 0;
     const formatter = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
     const formattedValue = formatter.format(numericValue);
 
-    // Update the specific value the user edited
-    if (type === 'search') {
-      copy[index].mediaCosts.search = formattedValue;
-    } else if (type === 'socialMedia') {
-      copy[index].mediaCosts.socialMedia = formattedValue;
-    } else if (type === 'cinema') {
-      copy[index].mediaCosts.cinema = formattedValue;
-    } else if (type === 'digiAudio') {
-      copy[index].mediaCosts.digiAudio = formattedValue;
-    } else if (type === 'digiDisplay') {
-      copy[index].mediaCosts.digiDisplay = formattedValue;
-    } else if (type === 'digiVideo') {
-      copy[index].mediaCosts.digiVideo = formattedValue;
-    } else if (type === 'feeTotal') {
+    // Dynamically update the correct value
+    if (type === 'media' && mediaKey && copy[index].mediaCosts.hasOwnProperty(mediaKey)) {
+      copy[index].mediaCosts[mediaKey] = formattedValue;
+    } else if (type === 'fee') {
       copy[index].feeTotal = formattedValue;
-    } else if (type === 'bvod') {
-      copy[index].mediaCosts.bvod = formattedValue;
-    } else if (type === 'progDisplay') {
-      copy[index].mediaCosts.progDisplay = formattedValue;
-    } else if (type === 'progVideo') {
-      copy[index].mediaCosts.progVideo = formattedValue;
-    } else if (type === 'progBvod') {
-      copy[index].mediaCosts.progBvod = formattedValue;
-    } else if (type === 'progOoh') {
-      copy[index].mediaCosts.progOoh = formattedValue;
-    } else if (type === 'progAudio') {
-      copy[index].mediaCosts.progAudio = formattedValue;
-    }
-    else if (type === 'television') {
-      copy[index].mediaCosts.television = formattedValue;
-    } else if (type === 'radio') {
-      copy[index].mediaCosts.radio = formattedValue;
-    } else if (type === 'newspaper') {
-      copy[index].mediaCosts.newspaper = formattedValue;
-    } else if (type === 'magazines') {
-      copy[index].mediaCosts.magazines = formattedValue;
-    } else if (type === 'ooh') {
-      copy[index].mediaCosts.ooh = formattedValue;
+    } else if (type === 'adServing') {
+      copy[index].adservingTechFees = formattedValue;
     }
 
-    // Recalculate the aggregated totals for the affected month.
-    const newMediaTotal = Object.values(copy[index].mediaCosts).reduce((sum, current) => {
+    // Recalculate totals for the affected month
+    const mediaTotal = Object.values(copy[index].mediaCosts).reduce((sum, current) => {
         return sum + (parseFloat(String(current).replace(/[^0-9.-]/g, '')) || 0);
     }, 0);
+    
+    const feeTotal = parseFloat(copy[index].feeTotal.replace(/[^0-9.-]/g, '')) || 0;
+    const adServingTotal = parseFloat(copy[index].adservingTechFees.replace(/[^0-9.-]/g, '')) || 0;
 
-    // Update the main mediaTotal and feeTotal properties for the month.
-    copy[index].mediaTotal = formatter.format(newMediaTotal);
-    const newFeeTotal = parseFloat(copy[index].feeTotal.replace(/[^0-9.-]/g, '')) || 0;
-    copy[index].totalAmount = formatter.format(newMediaTotal + newFeeTotal);
-    // --- END OF NEW PART ---
+    // Update the aggregated and total amounts for the month
+    copy[index].mediaTotal = formatter.format(mediaTotal);
+    copy[index].totalAmount = formatter.format(mediaTotal + feeTotal + adServingTotal);
 
-    // Recalculate the final Grand Total for the whole schedule.
+    // Recalculate the final Grand Total for the whole schedule
     const grandTotal = copy.reduce(
       (acc, m) => acc + parseFloat(m.totalAmount.replace(/[^0-9.-]/g, "")),
       0
     );
 
-    // Update state to trigger UI re-render.
+    // Update state to trigger UI re-render
     setManualBillingTotal(formatter.format(grandTotal));
     setManualBillingMonths(copy);
   }
@@ -1711,141 +1599,105 @@ const visibleMedia = mediaTypes
     setIsManualBilling(false)
     calculateBillingSchedule()
   }
-
-  const handleSaveCampaign = async () => {
-    setIsLoading(true);
-    setModalOpen(true);
-    setModalTitle("Saving Media Plan");
-    setModalLoading(true);
-    setModalOutcome("Saving media plan to database...");
     
+  const handleSaveCampaign = async () => {
+    // 1. Open the modal and set the initial pending status
+    setSaveStatus([{ message: "Preparing to save media plan...", status: 'pending' }]);
+    setIsSaveModalOpen(true);
+
     try {
-      // Get form values
       const formValues = form.getValues();
-      
-      // Prepare data for the API
-      const mediaPlanData = {
+
+      // 2. Prepare Payloads
+      const mediaPlanPayload = {
         mp_clientname: formValues.mp_clientname,
-        mp_campaignstatus: "Draft",
         mp_campaignname: formValues.mp_campaignname,
-        mp_campaigndates_start: formValues.mp_campaigndates_start,
-        mp_campaigndates_end: formValues.mp_campaigndates_end,
-        mp_brand: formValues.mp_brand,
-        mp_clientcontact: formValues.mp_clientcontact,
-        mp_ponumber: formValues.mp_ponumber,
-        mp_campaignbudget: formValues.mp_campaignbudget,
-        mbaidentifier: formValues.mbaidentifier,
         mbanumber: formValues.mbanumber,
-        mp_fixedfee: formValues.mp_fixedfee || false,
-        mp_television: formValues.mp_television || false,
-        mp_radio: formValues.mp_radio || false,
-        mp_newspaper: formValues.mp_newspaper || false,
-        mp_magazines: formValues.mp_magazines || false,
-        mp_ooh: formValues.mp_ooh || false,
-        mp_cinema: formValues.mp_cinema || false,
-        mp_digidisplay: formValues.mp_digidisplay || false,
-        mp_digiaudio: formValues.mp_digiaudio || false,
-        mp_digivideo: formValues.mp_digivideo || false,
-        mp_bvod: formValues.mp_bvod || false,
-        mp_integration: formValues.mp_integration || false,
-        mp_search: formValues.mp_search || false,
-        mp_socialmedia: formValues.mp_socialmedia || false,
-        mp_progdisplay: formValues.mp_progdisplay || false,
-        mp_progvideo: formValues.mp_progvideo || false,
-        mp_progbvod: formValues.mp_progbvod || false,
-        mp_progaudio: formValues.mp_progaudio || false,
-        mp_progooh: formValues.mp_progooh || false,
-        mp_influencers: formValues.mp_influencers || false
       };
 
-      // Send data to API
-      const response = await fetch("/api/mediaplans", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(mediaPlanData),
-      });
+      const versionPayload = {
+        version_number: parseInt(formValues.mp_plannumber, 10) || 1, // Correctly use the form value
+        mba_number: formValues.mbanumber,
+        po_number: formValues.mp_ponumber,
+        campaign_name: formValues.mp_campaignname,
+        campaign_status: formValues.mp_campaignstatus,
+        campaign_start_date: format(formValues.mp_campaigndates_start, "yyyy-MM-dd"),
+        campaign_end_date: format(formValues.mp_campaigndates_end, "yyyy-MM-dd"),
+        brand: formValues.mp_brand,
+        client_contact: formValues.mp_clientcontact,
+        fixed_fee: formValues.mp_fixedfee,
+        mp_campaignbudget: formValues.mp_campaignbudget,
+        billingSchedule: isManualBilling ? manualBillingMonths : billingMonths,
+        // Media type booleans
+        mp_television: formValues.mp_television,
+        mp_radio: formValues.mp_radio,
+        mp_newspaper: formValues.mp_newspaper,
+        mp_magazines: formValues.mp_magazines,
+        mp_ooh: formValues.mp_ooh,
+        mp_cinema: formValues.mp_cinema,
+        mp_digidisplay: formValues.mp_digidisplay,
+        mp_digiaudio: formValues.mp_digiaudio,
+        mp_digivideo: formValues.mp_digivideo,
+        mp_bvod: formValues.mp_bvod,
+        mp_integration: formValues.mp_integration,
+        mp_search: formValues.mp_search,
+        mp_socialmedia: formValues.mp_socialmedia,
+        mp_progdisplay: formValues.mp_progdisplay,
+        mp_progvideo: formValues.mp_progvideo,
+        mp_progbvod: formValues.mp_progbvod,
+        mp_progaudio: formValues.mp_progaudio,
+        mp_progooh: formValues.mp_progooh,
+        mp_influencers: formValues.mp_influencers,
+      };
 
-      if (!response.ok) {
-        // Try to get error message from response
-        let errorMessage = "Failed to save media plan";
-        try {
-          const errorData = await response.json();
-          if (errorData && errorData.error) {
-            errorMessage = errorData.error;
-          }
-        } catch (e) {
-          // If we can't parse the error JSON, just use the default message
-          console.error("Could not parse error response:", e);
-        }
-        throw new Error(errorMessage);
-      }
+      // Update modal status
+      setSaveStatus([{ message: "Saving Media Plan record...", status: 'pending' }]);
 
-      // Only try to parse the response as JSON if it was successful
-      const result = await response.json();
-      console.log("Media plan saved successfully:", result);
-      
-      setModalOutcome(`Media plan saved successfully!\n\nClient: ${formValues.mp_clientname}\nCampaign: ${formValues.mp_campaignname}\nStatus: Draft\n\nRedirecting to media plans list...`);
-      setModalLoading(false);
-      
-      // Redirect to the media plans list page after a delay
-      setTimeout(() => {
-        router.push("/mediaplans");
-      }, 2000);
-    } catch (error) {
-      console.error("Error saving media plan:", error);
-      setModalOutcome(`Error saving media plan: ${error instanceof Error ? error.message : "Unknown error"}`);
-      setModalLoading(false);
-      
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to save media plan",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      // 3. Call the API
+      const { mediaPlan, version } = await createMediaPlanVersioned(
+        mediaPlanPayload,
+        // @ts-ignore
+        versionPayload
+      );
 
-  const handleSaveAndGenerateAll = async () => {
-    setIsLoading(true);
-    setModalOpen(true);
-    setModalTitle("Save & Generate All");
-    setModalLoading(true);
-    setModalOutcome("Saving media plan and generating MBA...");
-    
-    try {
-      // First save the media plan
-      await handleSaveCampaign();
-      
-      // Then generate the MBA
-      await handleGenerateMBA();
-      
-      setModalOutcome(`All operations completed successfully!\n\nMedia plan saved and MBA generated.`);
-      setModalLoading(false);
-      
-      // Show success message
-      toast({
-        title: "Success",
-        description: "Media plan saved and MBA generated successfully",
-        variant: "default",
-      });
-    } catch (error) {
-      console.error("Error in save and generate all:", error);
-      setModalOutcome(`Error in save and generate all: ${error instanceof Error ? error.message : "Unknown error"}`);
-      setModalLoading(false);
-      
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to complete all operations",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    // 4. Update status on success
+    setSaveStatus([
+        { message: `Media Plan ${mediaPlan.id} saved successfully.`, status: 'success' },
+        { message: `Version ${version.version_number} created successfully.`, status: 'success' }
+        // Future: Add status updates for line item saves here
+    ]);
 
+    toast({
+      title: "Success",
+      description: "Media plan and initial version created.",
+    });
+
+    // 5. Redirect after a delay
+    setTimeout(() => {
+      setIsSaveModalOpen(false);
+      router.push(`/mediaplans`);
+    }, 2500);
+
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
+    console.error("Error saving media plan:", error);
+
+    // 6. Update status on error
+    setSaveStatus([
+        { message: "Failed to save media plan.", status: 'error' },
+        { message: errorMessage, status: 'error' }
+    ]);
+
+    toast({
+      title: "Error Saving Plan",
+      description: errorMessage,
+      variant: "destructive",
+    });
+  }
+};
+
+
+  
   const handleGenerateMediaPlan = async () => {
     setIsDownloading(true)
     try {
@@ -2006,7 +1858,7 @@ const workbook = await generateMediaPlan(header, mediaItems);
       <h1 className="text-4xl font-bold p-4">Create a Media Plan</h1>
       <div className="w-full px-4 py-6 space-y-6">
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+          <form className="space-y-8">
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 w-full">
               <FormField
                 control={form.control}
@@ -2279,93 +2131,98 @@ const workbook = await generateMediaPlan(header, mediaItems);
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 border border-gray-300 rounded-lg p-6 mt-6">
               {/* MBA Details Section */}
-              <div className="flex flex-col space-y-4 border border-gray-300 rounded-lg p-6 mt-6">
-                <h3 className="text-lg font-semibold mb-4">MBA Details</h3>
-    
-                {/* Dynamic Media Totals */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="flex flex-col space-y-3">
-                    {mediaTypes.map((medium) => {
-                      if (form.watch(medium.name as keyof MediaPlanFormValues)) {
-                        return (
-                          <div key={medium.name} className="text-sm font-medium">
-                            {medium.label}
-                          </div>
-                        );
-                      }
-                      return null;
-                    })}
-                  </div>
+<div className="flex flex-col space-y-4 border border-gray-300 rounded-lg p-6 mt-6">
+  <div className="flex items-center justify-between">
+    <h3 className="text-lg font-semibold">MBA Details</h3>
+    {isPartialMBA ? (
+      <Button variant="outline" size="sm" type="button" onClick={() => setIsPartialMBA(false)}>Reset to Auto</Button>
+    ) : (
+      <Button variant="outline" size="sm" type="button" onClick={handlePartialMBAOpen}>Partial MBA</Button>
+    )}
+  </div>
 
-                  {/* Corresponding Media Totals */}
-                  <div className="flex flex-col space-y-3 text-right">
-                    {mediaTypes.map((medium) => {
-                      if (form.watch(medium.name as keyof MediaPlanFormValues)) {
-                        const total = calculateMediaTotal(medium.name);
-                        return (
-                          <div key={medium.name} className="text-sm font-medium">
-                            {new Intl.NumberFormat("en-AU", { style:"currency", currency:"AUD" }).format(total)}
-                          </div>
-                        );
-                      }
-                      return null;
-                    })}
-                  </div>
-                </div>
+  {/* Dynamic Media Totals */}
+  <div className="grid grid-cols-2 gap-4">
+    <div className="flex flex-col space-y-3">
+      {mediaTypes
+        .filter(medium => form.watch(medium.name as keyof MediaPlanFormValues) && medium.component)
+        .map(medium => (
+        <div key={medium.name} className="text-sm font-medium">
+          {medium.label}
+        </div>
+      ))}
+    </div>
 
-                {/* Separator */}
-                <div className="border-t border-gray-400 my-4"></div>
+    <div className="flex flex-col space-y-3 text-right">
+      {mediaTypes
+        .filter(medium => form.watch(medium.name as keyof MediaPlanFormValues) && medium.component)
+        .map(medium => {
+          const mediaKey = mediaKeyMap[medium.name];
+          const total = isPartialMBA ? partialMBAValues.mediaTotals[mediaKey] || 0 : calculateMediaTotal(medium.name);
+          return (
+            <div key={medium.name} className="text-sm font-medium">
+              {currencyFormatter.format(total)}
+            </div>
+          );
+        })}
+    </div>
+  </div>
 
-                {/* Gross Media Total */}
-                <div className="grid grid-cols-2 gap-4 mb-2">
-                  <div className="text-sm font-semibold">Gross Media Total</div>
-                  <div className="text-sm font-semibold text-right">
-                    {new Intl.NumberFormat("en-AU", { style:"currency", currency:"AUD" }).format(grossMediaTotal)}
-                  </div>
-                </div>
+  <div className="border-t border-gray-400 my-4"></div>
 
-                {/* Assembled Fee */}
-                <div className="grid grid-cols-2 gap-4 mb-2">
-                  <div className="text-sm font-semibold">Assembled Fee </div>
-                  <div className="text-sm font-semibold text-right">
-                    {new Intl.NumberFormat("en-AU", { style:"currency", currency:"AUD" }).format(calculateAssembledFee())}
-                  </div>
-                </div>
+  {/* Gross Media Total */}
+  <div className="grid grid-cols-2 gap-4 mb-2">
+    <div className="text-sm font-semibold">Gross Media Total</div>
+    <div className="text-sm font-semibold text-right">
+      {currencyFormatter.format(isPartialMBA ? partialMBAValues.grossMedia : grossMediaTotal)}
+    </div>
+  </div>
 
-                {/* Ad Serving and Tech Fees */}
-                <div className="grid grid-cols-2 gap-4 mb-2">
-                  <div className="text-sm font-semibold">Ad Serving & Tech Fees</div>
-                  <div className="text-sm font-semibold text-right">
-                    {new Intl.NumberFormat("en-AU", { style:"currency", currency:"AUD" }).format(calculateAdServingFees())}
-                  </div>
-                </div>
+  {/* Assembled Fee */}
+  <div className="grid grid-cols-2 gap-4 mb-2">
+    <div className="text-sm font-semibold">Assembled Fee</div>
+    <div className="text-sm font-semibold text-right">
+      {currencyFormatter.format(isPartialMBA ? partialMBAValues.assembledFee : calculateAssembledFee())}
+    </div>
+  </div>
 
-                {/* Production Costs */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="text-sm font-semibold">Production</div>
-                  <div className="text-sm font-semibold text-right">
-                    {new Intl.NumberFormat("en-AU", { style:"currency", currency:"AUD" }).format(0)}
-                  </div>
-                </div>
+  {/* Ad Serving and Tech Fees */}
+  <div className="grid grid-cols-2 gap-4 mb-2">
+    <div className="text-sm font-semibold">Ad Serving & Tech Fees</div>
+    <div className="text-sm font-semibold text-right">
+      {currencyFormatter.format(isPartialMBA ? partialMBAValues.adServing : calculateAdServingFees())}
+    </div>
+  </div>
 
-                {/* Total Investment (ex GST) */}
-                <div className="grid grid-cols-2 gap-4 mb-2">
-                  <div className="text-sm font-bold">Total Investment (ex GST)</div>
-                  <div className="text-sm font-bold text-right">
-                    {new Intl.NumberFormat("en-AU", { style:"currency", currency:"AUD" }).format(totalInvestment)}
-                  </div>
-                </div>
+  {/* Production Costs */}
+  <div className="grid grid-cols-2 gap-4">
+    <div className="text-sm font-semibold">Production</div>
+    <div className="text-sm font-semibold text-right">
+      {currencyFormatter.format(isPartialMBA ? partialMBAValues.production : calculateProductionCosts())}
+    </div>
+  </div>
 
-              </div>
+  {/* Total Investment (ex GST) */}
+  <div className="grid grid-cols-2 gap-4 mb-2">
+    <div className="text-sm font-bold">Total Investment (ex GST)</div>
+    <div className="text-sm font-bold text-right">
+      {currencyFormatter.format(
+        isPartialMBA
+          ? partialMBAValues.grossMedia + partialMBAValues.assembledFee + partialMBAValues.adServing + partialMBAValues.production
+          : totalInvestment
+      )}
+    </div>
+  </div>
+</div>
 
               <div className="border border-gray-300 rounded-lg p-6 mt-6">
               {/* Dynamic Billing Schedule */}
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold">Billing Schedule</h3>
                 {isManualBilling ? (
-                  <Button onClick={handleResetBilling}>Reset Billing</Button>
+                  <Button onClick={handleResetBilling} type="button">Reset Billing</Button>
                 ) : (
-                  <Button onClick={handleManualBillingOpen}>Manual Billing</Button>
+                  <Button onClick={handleManualBillingOpen} type="button">Manual Billing</Button>
                 )}
                 </div>
                 <Table>
@@ -2409,248 +2266,256 @@ const workbook = await generateMediaPlan(header, mediaItems);
               </div>
 
               {/* === Manual Billing Modal === */}
-              <Dialog
-                open={isManualBillingModalOpen}
-                onOpenChange={setIsManualBillingModalOpen}
-              >
-                <DialogContent className="max-w-5xl max-h-[90vh] overflow-auto">
-                  <DialogHeader>
-                    <DialogTitle>Manual Billing Schedule</DialogTitle>
-                  </DialogHeader>
-                  <div style={{ overflowX: "auto" }}>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Month</TableHead>
-                          {form.watch('mp_search') && <TableHead className="text-right">Search</TableHead>}
-                          {form.watch('mp_socialmedia') && <TableHead className="text-right">Social</TableHead>}
-                          {form.watch('mp_bvod') && <TableHead className="text-right">BVOD</TableHead>}
-                          {form.watch('mp_digiaudio') && <TableHead className="text-right">Digi Audio</TableHead>}
-                          {form.watch('mp_digidisplay') && <TableHead className="text-right">Digi Display</TableHead>}
-                          {form.watch('mp_digivideo') && <TableHead className="text-right">Digi Video</TableHead>}
-                          {form.watch('mp_cinema') && <TableHead className="text-right">Cinema</TableHead>}
-                          {form.watch('mp_progaudio') && <TableHead className="text-right">Prog Audio</TableHead>}
-                          {form.watch('mp_progvideo') && <TableHead className="text-right">Prog Video</TableHead>}
-                          {form.watch('mp_progbvod') && <TableHead className="text-right">Prog BVOD</TableHead>}
-                          {form.watch('mp_progooh') && <TableHead className="text-right">Prog OOH</TableHead>}
-                          {form.watch('mp_progdisplay') && <TableHead className="text-right">Prog Display</TableHead>}
-                          {form.watch('mp_influencers') && <TableHead className="text-right">Influencers</TableHead>}
-                          {form.watch('mp_newspaper') && <TableHead className="text-right">Newspaper</TableHead>}
-                          {form.watch('mp_magazines') && <TableHead className="text-right">Magazines</TableHead>}
-                          {form.watch('mp_television') && <TableHead className="text-right">Television</TableHead>}
-                          {form.watch('mp_radio') && <TableHead className="text-right">Radio</TableHead>}
-                          <TableHead className="text-right">Fees</TableHead>
-                          <TableHead className="text-right">Ad Serving</TableHead>
-                          <TableHead className="text-right">Total</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {manualBillingMonths.map((m, i) => {
-                          // The row total is now read directly from the state we calculate in handleManualBillingChange
-                          const rowTotalFormatted = m.totalAmount || "$0.00";
-                          
-                          return (
-                            <TableRow key={m.monthYear}>
-                              <TableCell>{m.monthYear}</TableCell>
-                              {form.watch("mp_search") && (
-                                <TableCell align="right">
-                                  <Input
-                                    className="text-right" /* Justify right */
-                                    value={m.mediaCosts.search}
-                                    /* onBlur finalizes the edit and recalculates everything */
-                                    onBlur={e => handleManualBillingChange(i, "search", e.target.value)}
-                                    /* onChange provides a smooth typing experience */
-                                    onChange={e => {
-                                      const tempCopy = [...manualBillingMonths];
-                                      tempCopy[i].mediaCosts.search = e.target.value;
-                                      setManualBillingMonths(tempCopy);
-                                    }}
-                                  />
-                                </TableCell>
-                              )}
-                              {form.watch("mp_socialmedia") && (
-                                <TableCell align="right">
-                                  <Input
-                                    className="text-right" /* Justify right */
-                                    value={m.mediaCosts.socialMedia}
-                                    onBlur={e => handleManualBillingChange(i, "socialMedia", e.target.value)}
-                                    onChange={e => {
-                                      const tempCopy = [...manualBillingMonths];
-                                      tempCopy[i].mediaCosts.socialMedia = e.target.value;
-                                      setManualBillingMonths(tempCopy);
-                                    }}
-                                  />
-                                </TableCell>
-                              )}
-                              {form.watch("mp_bvod") && (
-                                <TableCell align="right">
-                                  <Input
-                                    className="text-right" /* Justify right */
-                                    value={m.mediaCosts.bvod}
-                                    onBlur={e => handleManualBillingChange(i, "bvod", e.target.value)}
-                                    onChange={e => {
-                                      const tempCopy = [...manualBillingMonths];
-                                      tempCopy[i].mediaCosts.bvod = e.target.value;
-                                      setManualBillingMonths(tempCopy);
-                                    }}
-                                    />
-                                </TableCell>
-                              )}
-                              {form.watch("mp_cinema") && (
-                                <TableCell align="right">
-                                  <Input
-                                    className="text-right" /* Justify right */
-                                    value={m.mediaCosts.cinema}
-                                    onBlur={e => handleManualBillingChange(i, "cinema", e.target.value)}
-                                    onChange={e => {
-                                      const tempCopy = [...manualBillingMonths];
-                                      tempCopy[i].mediaCosts.cinema = e.target.value;
-                                      setManualBillingMonths(tempCopy);
-                                    }}
-                                  />
-                                </TableCell>
-                              )}
-                              {form.watch("mp_digiaudio") && (
-                                <TableCell align="right">
-                                  <Input
-                                    className="text-right" /* Justify right */
-                                    value={m.mediaCosts.digiAudio}
-                                    onBlur={e => handleManualBillingChange(i, "digiAudio", e.target.value)}
-                                    onChange={e => {
-                                      const tempCopy = [...manualBillingMonths];
-                                      tempCopy[i].mediaCosts.digiAudio = e.target.value;
-                                      setManualBillingMonths(tempCopy);
-                                    }}
-                                    />
-                                </TableCell>
-                              )}
-                              {form.watch("mp_digidisplay") && (
-                                <TableCell align="right">
-                                  <Input
-                                    className="text-right" /* Justify right */
-                                    value={m.mediaCosts.digiDisplay}
-                                    onBlur={e => handleManualBillingChange(i, "digiDisplay", e.target.value)}
-                                    onChange={e => {
-                                      const tempCopy = [...manualBillingMonths];
-                                      tempCopy[i].mediaCosts.digiDisplay = e.target.value;
-                                      setManualBillingMonths(tempCopy);
-                                    }}
-                                    />
-                                </TableCell>
-                              )}
-                              {form.watch("mp_digivideo") && (
-                                <TableCell align="right">
-                                  <Input
-                                    className="text-right" /* Justify right */
-                                    value={m.mediaCosts.digiVideo}
-                                    onBlur={e => handleManualBillingChange(i, "digiVideo", e.target.value)}
-                                    onChange={e => {
-                                      const tempCopy = [...manualBillingMonths];
-                                      tempCopy[i].mediaCosts.digiVideo = e.target.value;
-                                      setManualBillingMonths(tempCopy);
-                                    }}
-                                    />
-                                </TableCell>
-                              )}
-                              {form.watch("mp_progaudio") && (
-                                <TableCell align="right">
-                                  <Input 
-                                    className="text-right" /* Justify right */
-                                    value={m.mediaCosts.progAudio}
-                                    onBlur={e => handleManualBillingChange(i, "progAudio", e.target.value)}
-                                    onChange={e => {
-                                      const tempCopy = [...manualBillingMonths];
-                                      tempCopy[i].mediaCosts.progAudio = e.target.value;
-                                      setManualBillingMonths(tempCopy);
-                                    }}
-                                    />
-                                </TableCell>
-                              )}
-                              {form.watch("mp_progvideo") && (
-                              <TableCell align="right">
-                                <Input
-                                  className="text-right" /* Justify right */
-                                  value={m.feeTotal}
-                                  onBlur={e => handleManualBillingChange(i, "feeTotal", e.target.value)}
-                                  onChange={e => {
-                                    const tempCopy = [...manualBillingMonths];
-                                    tempCopy[i].feeTotal = e.target.value;
-                                    setManualBillingMonths(tempCopy);
-                                  }}
-                                />
-                              </TableCell>
-                              )}
-                              {form.watch("mp_progdisplay") && (
-                                <TableCell align="right">
-                                  <Input
-                                    className="text-right" /* Justify right */
-                                    value={m.mediaCosts.progDisplay}
-                                    onBlur={e => handleManualBillingChange(i, "progDisplay", e.target.value)}
-                                    onChange={e => {
-                                      const tempCopy = [...manualBillingMonths];
-                                      tempCopy[i].mediaCosts.progDisplay = e.target.value;
-                                      setManualBillingMonths(tempCopy);
-                                    }}
-                                  />
-                                </TableCell>
-                              )}
-                              {form.watch("mp_progvideo") && (
-                                <TableCell align="right">
-                                  <Input
-                                    className="text-right" /* Justify right */
-                                    value={m.mediaCosts.progVideo}
-                                    onBlur={e => handleManualBillingChange(i, "progVideo", e.target.value)}
-                                    onChange={e => {
-                                      const tempCopy = [...manualBillingMonths];
-                                      tempCopy[i].mediaCosts.progVideo = e.target.value;
-                                      setManualBillingMonths(tempCopy);
-                                    }}
-                                  />
-                                </TableCell>
-                              )}                                    
-                              { /* This now displays the pre-formatted total from our state */}
-                              <TableCell className="font-semibold text-right">{rowTotalFormatted}</TableCell>
-                            </TableRow>
-                          )
-                        })}
-                      </TableBody>
-                      {/* This new footer will show correctly formatted subtotals */}
-                      <TableFooter>
-                          <TableRow className="font-bold border-t-2">
-                              <TableCell>Subtotals</TableCell>
-                              {form.watch('mp_search') && <TableCell className="text-right">{new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(manualBillingMonths.reduce((acc, m) => acc + parseFloat((m.mediaCosts.search || "$0").replace(/[^0-9.-]/g, '')), 0))}</TableCell>}
-                              {form.watch('mp_socialmedia') && <TableCell className="text-right">{new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(manualBillingMonths.reduce((acc, m) => acc + parseFloat((m.mediaCosts.socialMedia || "$0").replace(/[^0-np.-]/g, '')), 0))}</TableCell>}
-                              {form.watch('mp_bvod') && <TableCell className="text-right">{new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(manualBillingMonths.reduce((acc, m) => acc + parseFloat((m.mediaCosts.bvod || "$0").replace(/[^0-np.-]/g, '')), 0))}</TableCell>}
-                              {form.watch('mp_cinema') && <TableCell className="text-right">{new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(manualBillingMonths.reduce((acc, m) => acc + parseFloat((m.mediaCosts.cinema || "$0").replace(/[^0-np.-]/g, '')), 0))}</TableCell>}
-                              {form.watch('mp_digiaudio') && <TableCell className="text-right">{new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(manualBillingMonths.reduce((acc, m) => acc + parseFloat((m.mediaCosts.digiAudio || "$0").replace(/[^0-np.-]/g, '')), 0))}</TableCell>}
-                              {form.watch('mp_digidisplay') && <TableCell className="text-right">{new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(manualBillingMonths.reduce((acc, m) => acc + parseFloat((m.mediaCosts.digiDisplay || "$0").replace(/[^0-np.-]/g, '')), 0))}</TableCell>}
-                              {form.watch('mp_digivideo') && <TableCell className="text-right">{new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(manualBillingMonths.reduce((acc, m) => acc + parseFloat((m.mediaCosts.digiVideo || "$0").replace(/[^0-np.-]/g, '')), 0))}</TableCell>}
-                              {form.watch('mp_progaudio') && <TableCell className="text-right">{new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(manualBillingMonths.reduce((acc, m) => acc + parseFloat((m.mediaCosts.progAudio || "$0").replace(/[^0-np.-]/g, '')), 0))}</TableCell>}
-                              {form.watch('mp_progdisplay') && <TableCell className="text-right">{new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(manualBillingMonths.reduce((acc, m) => acc + parseFloat((m.mediaCosts.progDisplay || "$0").replace(/[^0-np.-]/g, '')), 0))}</TableCell>}
-                              
-                              <TableCell className="text-right">{new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(manualBillingMonths.reduce((acc, m) => acc + parseFloat((m.feeTotal || "$0").replace(/[^0-9.-]/g, '')), 0))}</TableCell>
-                              <TableCell className="text-right">{manualBillingTotal}</TableCell>
-                          </TableRow>
-                      </TableFooter>
-                    </Table>
-                  </div>
-                  <div className="mt-4 text-right">
-                    <span className="font-bold">Grand Total: {manualBillingTotal}</span>
-                  </div>
-                  {/* The new footer with Reset, Cancel, and Save buttons */}
-                  <DialogFooter className="sm:justify-between pt-4">
-                    <Button variant="outline" onClick={handleManualBillingReset} className="sm:mr-auto">
-                      Reset
-                    </Button>
-                    <div className="flex space-x-2">
-                        <Button variant="ghost" onClick={() => setIsManualBillingModalOpen(false)}>
-                          Cancel
-                        </Button>
-                        <Button onClick={handleManualBillingSave}>Save</Button>
-                    </div>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+              <Dialog open={isManualBillingModalOpen} onOpenChange={setIsManualBillingModalOpen}>
+  <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
+    <DialogHeader>
+      <DialogTitle>Manual Billing Schedule</DialogTitle>
+    </DialogHeader>
+    <div className="overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="sticky left-0 bg-white z-10">Month</TableHead>
+            {mediaTypes
+              .filter(medium => form.watch(medium.name as keyof MediaPlanFormValues) && medium.component)
+              .map(medium => (
+                <TableHead key={medium.name} className="text-right">{medium.label}</TableHead>
+              ))}
+            <TableHead className="text-right">Fees</TableHead>
+            <TableHead className="text-right">Ad Serving</TableHead>
+            <TableHead className="text-right font-bold">Total</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {manualBillingMonths.map((month, monthIndex) => (
+            <TableRow key={month.monthYear}>
+              <TableCell className="sticky left-0 bg-white z-10 font-medium">{month.monthYear}</TableCell>
+              {mediaTypes
+                .filter(medium => form.watch(medium.name as keyof MediaPlanFormValues) && medium.component)
+                .map(medium => {
+                  const mediaKey = mediaKeyMap[medium.name];
+                  return (
+                    <TableCell key={medium.name} align="right">
+                      <Input
+                        className="text-right"
+                        value={month.mediaCosts[mediaKey] || '$0.00'}
+                        onBlur={e => handleManualBillingChange(monthIndex, "media", e.target.value, mediaKey)}
+                        onChange={e => {
+                          const tempCopy = [...manualBillingMonths];
+                          tempCopy[monthIndex].mediaCosts[mediaKey] = e.target.value;
+                          setManualBillingMonths(tempCopy);
+                        }}
+                      />
+                    </TableCell>
+                  );
+                })}
+              <TableCell align="right">
+                <Input
+                  className="text-right"
+                  value={month.feeTotal}
+                  onBlur={e => handleManualBillingChange(monthIndex, "fee", e.target.value)}
+                  onChange={e => {
+                    const tempCopy = [...manualBillingMonths];
+                    tempCopy[monthIndex].feeTotal = e.target.value;
+                    setManualBillingMonths(tempCopy);
+                  }}
+                />
+              </TableCell>
+              <TableCell align="right">
+                <Input
+                  className="text-right"
+                  value={month.adservingTechFees}
+                  onBlur={e => handleManualBillingChange(monthIndex, "adServing", e.target.value)}
+                  onChange={e => {
+                    const tempCopy = [...manualBillingMonths];
+                    tempCopy[monthIndex].adservingTechFees = e.target.value;
+                    setManualBillingMonths(tempCopy);
+                  }}
+                />
+              </TableCell>
+              <TableCell className="font-semibold text-right">{month.totalAmount}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+        <TableFooter>
+          <TableRow className="font-bold border-t-2">
+            <TableCell className="sticky left-0 bg-white z-10">Subtotals</TableCell>
+            {mediaTypes
+              .filter(medium => form.watch(medium.name as keyof MediaPlanFormValues) && medium.component)
+              .map(medium => {
+                const mediaKey = mediaKeyMap[medium.name];
+                const subtotal = manualBillingMonths.reduce((acc, m) => acc + parseFloat((m.mediaCosts[mediaKey] || "$0").replace(/[^0-9.-]/g, '')), 0);
+                return (
+                  <TableCell key={medium.name} className="text-right">
+                    {currencyFormatter.format(subtotal)}
+                  </TableCell>
+                );
+              })}
+            <TableCell className="text-right">
+              {currencyFormatter.format(manualBillingMonths.reduce((acc, m) => acc + parseFloat((m.feeTotal || "$0").replace(/[^0-9.-]/g, '')), 0))}
+            </TableCell>
+            <TableCell className="text-right">
+              {currencyFormatter.format(manualBillingMonths.reduce((acc, m) => acc + parseFloat((m.adservingTechFees || "$0").replace(/[^0-9.-]/g, '')), 0))}
+            </TableCell>
+            <TableCell className="text-right">{manualBillingTotal}</TableCell>
+          </TableRow>
+        </TableFooter>
+      </Table>
+    </div>
+    <div className="mt-4 text-right">
+      <span className="font-bold">Grand Total: {manualBillingTotal}</span>
+    </div>
+    <DialogFooter className="sm:justify-between pt-4">
+      <Button variant="outline" onClick={handleManualBillingReset} className="sm:mr-auto">
+        Reset to Automatic
+      </Button>
+      <div className="flex space-x-2">
+        <Button variant="ghost" onClick={() => setIsManualBillingModalOpen(false)}>
+          Cancel
+        </Button>
+        <Button onClick={handleManualBillingSave}>Save Manual Schedule</Button>
+      </div>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
+
+{/* === Save Status Modal === */}
+<Dialog open={isSaveModalOpen} onOpenChange={setIsSaveModalOpen}>
+    <DialogContent>
+        <DialogHeader>
+            <DialogTitle>Saving Progress</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+            {saveStatus.map((item, index) => (
+                <div key={index} className="flex items-center space-x-3">
+                    {item.status === 'pending' && (
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-900"></div>
+                    )}
+                    {item.status === 'success' && (
+                        <svg className="h-6 w-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    )}
+                    {item.status === 'error' && (
+                        <svg className="h-6 w-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    )}
+                    <span className="text-sm font-medium">{item.message}</span>
+                </div>
+            ))}
+        </div>
+        <DialogFooter>
+            <Button onClick={() => setIsSaveModalOpen(false)}>Close</Button>
+        </DialogFooter>
+    </DialogContent>
+</Dialog>
+
+{/* === Partial MBA Modal === */}
+<Dialog open={isPartialMBAModalOpen} onOpenChange={(open) => {
+  setIsPartialMBAModalOpen(open);
+  if (!open) setPartialMBAError(null);
+}}>
+  <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+    <DialogHeader>
+      <DialogTitle>Partial MBA Override</DialogTitle>
+    </DialogHeader>
+    <div className="space-y-4 p-4">
+      {partialMBAError && (
+        <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md" role="alert">
+          <p className="font-bold">Budget Mismatch</p>
+          <p>{partialMBAError}</p>
+        </div>
+      )}
+      {/* Individual Media Items */}
+      <h4 className="font-semibold text-md border-b pb-2">Media Totals</h4>
+      <div className="grid grid-cols-3 gap-x-8 gap-y-4">
+        {mediaTypes
+          .filter(medium => form.watch(medium.name as keyof MediaPlanFormValues) && medium.component)
+          .map(medium => {
+            const mediaKey = mediaKeyMap[medium.name];
+            return (
+              <div key={medium.name} className="flex items-center justify-between">
+                <label className="text-sm font-medium">{medium.label}</label>
+                <Input
+                  className="text-right w-40"
+                  value={currencyFormatter.format(partialMBAValues.mediaTotals[mediaKey] || 0)}
+                  onBlur={(e) => handlePartialMBAChange('mediaTotal', e.target.value, mediaKey)}
+                  onChange={(e) => {
+                      const tempValues = {...partialMBAValues};
+                      tempValues.mediaTotals[mediaKey] = parseFloat(e.target.value.replace(/[^0-9.-]/g, '')) || 0;
+                      setPartialMBAValues(tempValues);
+                  }}
+                />
+              </div>
+            );
+          })}
+      </div>
+      
+      {/* Aggregated Totals */}
+      <h4 className="font-semibold text-md border-b pb-2 pt-4">Summary Totals</h4>
+      <div className="space-y-4 max-w-md mx-auto">
+          <div className="flex items-center justify-between">
+              <label className="text-sm font-medium">Gross Media Total</label>
+              <Input
+                  className="text-right w-48 bg-gray-100"
+                  value={currencyFormatter.format(partialMBAValues.grossMedia)}
+                  readOnly // This field is calculated automatically
+              />
+          </div>
+          <div className="flex items-center justify-between">
+              <label className="text-sm font-medium">Assembled Fee</label>
+              <Input
+                  className="text-right w-48"
+                  value={currencyFormatter.format(partialMBAValues.assembledFee)}
+                  onBlur={(e) => handlePartialMBAChange('assembledFee', e.target.value)}
+                  onChange={(e) => setPartialMBAValues(p => ({...p, assembledFee: parseFloat(e.target.value.replace(/[^0-9.-]/g, '')) || 0}))}
+              />
+          </div>
+          <div className="flex items-center justify-between">
+              <label className="text-sm font-medium">Ad Serving & Tech Fees</label>
+              <Input
+                  className="text-right w-48"
+                  value={currencyFormatter.format(partialMBAValues.adServing)}
+                  onBlur={(e) => handlePartialMBAChange('adServing', e.target.value)}
+                  onChange={(e) => setPartialMBAValues(p => ({...p, adServing: parseFloat(e.target.value.replace(/[^0-9.-]/g, '')) || 0}))}
+              />
+          </div>
+          <div className="flex items-center justify-between">
+              <label className="text-sm font-medium">Production</label>
+              <Input
+                  className="text-right w-48"
+                  value={currencyFormatter.format(partialMBAValues.production)}
+                  onBlur={(e) => handlePartialMBAChange('production', e.target.value)}
+                  onChange={(e) => setPartialMBAValues(p => ({...p, production: parseFloat(e.target.value.replace(/[^0-9.-]/g, '')) || 0}))}
+              />
+          </div>
+          <div className="border-t pt-4 mt-4 flex items-center justify-between">
+              <label className="text-sm font-bold">Total Investment (ex GST)</label>
+              <div className="text-right w-48 font-bold p-2">
+                  {currencyFormatter.format(
+                      partialMBAValues.grossMedia +
+                      partialMBAValues.assembledFee +
+                      partialMBAValues.adServing +
+                      partialMBAValues.production
+                  )}
+              </div>
+          </div>
+      </div>
+    </div>
+    <DialogFooter className="sm:justify-between pt-4">
+      <Button variant="outline" onClick={handlePartialMBAReset} className="sm:mr-auto">
+        Reset Changes
+      </Button>
+      <div className="flex space-x-2">
+        <Button variant="ghost" onClick={() => setIsPartialMBAModalOpen(false)}>
+          Cancel
+        </Button>
+        <Button onClick={handlePartialMBASave}>Save Partial MBA</Button>
+      </div>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
             </div>
 
             {mediaTypes.map((medium) => {
@@ -3102,7 +2967,7 @@ const workbook = await generateMediaPlan(header, mediaItems);
         </Button>
         <Button
           type="button"
-          onClick={handleSaveAndGenerateAll}
+          onClick={handleSaveCampaign}
           disabled={isLoading}
           className="bg-[#008e5e] text-white hover:bg-[#008e5e]/90"
         >

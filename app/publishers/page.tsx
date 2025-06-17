@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { PlusCircle, Edit } from "lucide-react"
 import { AddPublisherForm } from "@/components/AddPublisherForm"
+import { mediaTypeTheme } from "@/lib/utils"
 import { EditPublisherForm } from "@/components/EditPublisherForm"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -24,32 +25,51 @@ import {
 } from "recharts"
 
 interface Publisher {
-  id: number
-  publisher_name: string
-  publisherid: string
-  [key: string]: any
-}
-
-const mediaTypeColors: { [key: string]: string } = {
-  television: "bg-blue-500",
-  radio: "bg-green-500",
-  newspaper: "bg-yellow-500",
-  magazines: "bg-pink-500",
-  ooh: "bg-purple-500",
-  cinema: "bg-red-500",
-  digidisplay: "bg-indigo-500",
-  digiaudio: "bg-teal-500",
-  digivideo: "bg-orange-500",
-  bvod: "bg-cyan-500",
-  integration: "bg-lime-500",
-  search: "bg-amber-500",
-  socialmedia: "bg-fuchsia-500",
-  progdisplay: "bg-emerald-500",
-  progvideo: "bg-sky-500",
-  progbvod: "bg-rose-500",
-  progaudio: "bg-violet-500",
-  progooh: "bg-slate-500",
-  influencers: "bg-neutral-500",
+  id: number;
+  publisher_name: string;
+  publisherid: string;
+  publishertype: "direct" | "internal_biddable";
+  billingagency: "assembled media" | "advertising associates";
+  financecode: string;
+  pub_television: boolean;
+  pub_radio: boolean;
+  pub_newspaper: boolean;
+  pub_magazines: boolean;
+  pub_ooh: boolean;
+  pub_cinema: boolean;
+  pub_digidisplay: boolean;
+  pub_digiaudio: boolean;
+  pub_digivideo: boolean;
+  pub_bvod: boolean;
+  pub_integration: boolean;
+  pub_search: boolean;
+  pub_socialmedia: boolean;
+  pub_progdisplay: boolean;
+  pub_progvideo: boolean;
+  pub_progbvod: boolean;
+  pub_progaudio: boolean;
+  pub_progooh: boolean;
+  pub_influencers: boolean;
+  pub_radio_comms: number;
+  pub_television_comms: number;
+  pub_newspaper_comms: number;
+  pub_magazines_comms: number;
+  pub_ooh_comms: number;
+  pub_cinema_comms: number;
+  pub_digidisplay_comms: number;
+  pub_digiaudio_comms: number;
+  pub_digivideo_comms: number;
+  pub_bvod_comms: number;
+  pub_integration_comms: number;
+  pub_search_comms: number;
+  pub_socialmedia_comms: number;
+  pub_progdisplay_comms: number;
+  pub_progvideo_comms: number;
+  pub_progbvod_comms: number;
+  pub_progaudio_comms: number;
+  pub_progooh_comms: number;
+  pub_influencers_comms: number;
+  [key: string]: any;
 }
 
 // Custom tooltip for the charts
@@ -74,49 +94,24 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null
 }
 
-// Generate random data for the charts
 const generateChartData = (publishers: Publisher[], isYearToDate: boolean = false) => {
-  // Get an array of colors from the mediaTypeColors object
-  const colorValues = Object.values(mediaTypeColors).map(color => {
-    // Convert Tailwind color classes to hex colors
-    if (color === "bg-blue-500") return "#3b82f6";
-    if (color === "bg-green-500") return "#10b981";
-    if (color === "bg-yellow-500") return "#eab308";
-    if (color === "bg-pink-500") return "#ec4899";
-    if (color === "bg-purple-500") return "#8b5cf6";
-    if (color === "bg-red-500") return "#ef4444";
-    if (color === "bg-indigo-500") return "#6366f1";
-    if (color === "bg-teal-500") return "#14b8a6";
-    if (color === "bg-orange-500") return "#f97316";
-    if (color === "bg-cyan-500") return "#06b6d4";
-    if (color === "bg-lime-500") return "#84cc16";
-    if (color === "bg-amber-500") return "#f59e0b";
-    if (color === "bg-fuchsia-500") return "#d946ef";
-    if (color === "bg-emerald-500") return "#10b981";
-    if (color === "bg-sky-500") return "#0ea5e9";
-    if (color === "bg-rose-500") return "#f43f5e";
-    if (color === "bg-violet-500") return "#8b5cf6";
-    if (color === "bg-slate-500") return "#64748b";
-    if (color === "bg-neutral-500") return "#737373";
-    return "#3b82f6"; // Default blue color
-  });
+  // Directly get the array of hex color values from our new theme
+  const colorValues = Object.values(mediaTypeTheme.colors);
   
-  // Generate random spend data for each publisher
   return publishers.map((publisher, index) => {
-    // For year to date, use higher values
-    const baseValue = isYearToDate ? 50000 : 5000
-    const randomSpend = Math.floor(baseValue + Math.random() * baseValue * 2)
+    const baseValue = isYearToDate ? 50000 : 5000;
+    const randomSpend = Math.floor(baseValue + Math.random() * baseValue * 2);
     
-    // Cycle through the colors
+    // Cycle through the colors from our theme
     const colorIndex = index % colorValues.length;
     
     return {
       name: publisher.publisher_name,
       spend: randomSpend,
       color: colorValues[colorIndex]
-    }
-  }).sort((a, b) => b.spend - a.spend) // Sort by spend in descending order
-}
+    };
+  }).sort((a, b) => b.spend - a.spend); // Sort by spend
+};
 
 export default function Publishers() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
@@ -176,8 +171,12 @@ export default function Publishers() {
     return mediaTypes
       .filter((type) => publisher[`pub_${type}`])
       .map((type) => (
-        <Badge key={type} className={`mr-1 mb-1 ${mediaTypeColors[type]} text-white`}>
-          {type}
+        <Badge
+        key={type}
+         className="mr-1 mb-1 text-white"
+        style={{ backgroundColor: mediaTypeTheme.colors[type as keyof typeof mediaTypeTheme.colors] }}
+      >
+        {type}
         </Badge>
       ))
   }

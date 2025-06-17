@@ -424,12 +424,14 @@ export default function CinemaContainer({
     switch (buyType) {
       case "cpc":
       case "cpv":
+      case "screens":
         calculatedValue = buyAmount !== 0 ? budget / buyAmount : 0;
         break;
       case "cpm":
         calculatedValue = buyAmount !== 0 ? (budget / buyAmount) * 1000 : 0;
         break;
       case "fixed_cost":
+      case "package":
         calculatedValue = 1;
         break;
       default:
@@ -510,6 +512,10 @@ export default function CinemaContainer({
         return "Views";
       case "cpm":
         return "Impressions";
+      case "screens":
+        return "Screens";
+      case "package":
+        return "Package";
       case "fixed_cost":
         return "Fixed Fee";
       default:
@@ -838,11 +844,11 @@ useEffect(() => {
                                           <SelectValue placeholder="Select" />
                                         </SelectTrigger>
                                       </FormControl>
-                                      <SelectContent>
-                                        <SelectItem value="cpc">CPC</SelectItem>
+                                      <SelectContent>                                  
                                         <SelectItem value="cpm">CPM</SelectItem>
-                                        <SelectItem value="cpv">CPV</SelectItem>
                                         <SelectItem value="fixed_cost">Fixed Cost</SelectItem>
+                                        <SelectItem value="package">Package</SelectItem>
+                                        <SelectItem value="screens">Screens</SelectItem>
                                       </SelectContent>
                                     </Select>
                                     <FormMessage />
@@ -1135,10 +1141,12 @@ useEffect(() => {
                                           switch (buyType) {
                                             case "cpc":
                                             case "cpv":
+                                            case "screens":
                                               return buyAmount !== 0 ? (budget / buyAmount) : "0";
                                             case "cpm":
                                               return buyAmount !== 0 ? ((budget / buyAmount) * 1000) : "0";
                                             case "fixed_cost":
+                                            case "package":
                                               return "1";
                                             default:
                                               return "0";
@@ -1159,6 +1167,12 @@ useEffect(() => {
                                             break;
                                           case "cpm":
                                             title = "Impressions";
+                                            break;
+                                          case "screens":
+                                            title = "Screens";
+                                            break;
+                                          case "package":
+                                            title = "Package";
                                             break;
                                           case "fixed_cost":
                                             title = "Fixed Cost";

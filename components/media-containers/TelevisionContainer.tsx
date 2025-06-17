@@ -1282,9 +1282,13 @@ useEffect(() => {
                                           name: `televisionlineItems.${lineItemIndex}.buyType`,
                                         });
 
-                                        const calculatedValue = useMemo(() => {
-                                          const budget = parseFloat(form.getValues(`televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0");
-                                          const buyAmount = parseFloat(form.getValues(`televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount`)?.replace(/[^0-9.]/g, "") || "1");
+                                        // Use useWatch to subscribe to changes for real-time calculation
+                                      const budgetValue = useWatch({ control: form.control, name: `televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.budget` });
+                                      const buyAmountValue = useWatch({ control: form.control, name: `televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount` });
+
+                                       const calculatedValue = useMemo(() => {
+                                          const budget = parseFloat(String(budgetValue)?.replace(/[^0-9.]/g, "") || "0");
+                                          const buyAmount = parseFloat(String(buyAmountValue)?.replace(/[^0-9.]/g, "") || "1");
 
                                           switch (buyType) {
                                             case "cpt":
@@ -1297,11 +1301,17 @@ useEffect(() => {
                                             default:
                                               return "0";
                                           }
-                                        }, [
-                                          form.getValues(`televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.budget`),
-                                          form.getValues(`televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount`),
-                                          buyType
-                                        ]);
+                                        }, [budgetValue, buyAmountValue, buyType]);
+
+                                        // ✅ FIX: This useEffect updates the form state when the calculation changes.
+                                        useEffect(() => {
+                                          // The schema expects a string, so we convert the calculated number.
+                                          // This update triggers the watch hooks and causes the summaries to re-calculate.
+                                          form.setValue(
+                                            `televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.tarps`,
+                                            String(calculatedValue)
+                                          );
+                                        }, [calculatedValue, lineItemIndex, burstIndex, form]);
 
                                         let title = "Calculated Value";
                                         switch (buyType) {

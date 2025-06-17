@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import axios from "axios"
 
-const XANO_MEDIAPLAN_BASE_URL = "https://xg4h-uyzs-dtex.a2.xano.io/api:QVYjoFmM"
+const XANO_MEDIAPLAN_BASE_URL = "https://xg4h-uyzs-dtex.a2.xano.io/api:RaUx9FOa"
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
@@ -13,7 +13,7 @@ export async function GET(req: Request) {
 
   try {
     // Fetch existing media plans with the same MBA Identifier
-    const response = await axios.get(`${XANO_MEDIAPLAN_BASE_URL}/get_mediaplan_topline`, {
+    const response = await axios.get(`${XANO_MEDIAPLAN_BASE_URL}/media_plan`, {
       params: { mbaidentifier: mbaidentifier },
     })
 

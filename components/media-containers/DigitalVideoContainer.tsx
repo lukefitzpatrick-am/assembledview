@@ -8,12 +8,15 @@ import * as z from "zod"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger,} from "@/components/ui/dialog"
+import { PlusCircle } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Textarea } from "@/components/ui/textarea"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { useToast } from "@/components/ui/use-toast"
-import { getPublishersForDigiVideo, getClientInfo } from "@/lib/api"
+import { Label } from "@/components/ui/label";
+import { getPublishersForDigiVideo, getClientInfo, getVideoSites, createVideoSite } from "@/lib/api"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { Calendar } from "@/components/ui/calendar"
@@ -27,24 +30,12 @@ import type { LineItem } from '@/lib/generateMediaPlan'
 // Format Dates
 const formatDateString = (d?: Date | string): string => {
   if (!d) return '';
-
-  // Ensure we have a valid Date object.
-  // If d is already a 'YYYY-MM-DD' string, new Date(d) will parse it as UTC midnight.
-  // If d is a Date object from the calendar, it's typically local.
-  // We want to work with the components of the date as the user sees it locally.
   const dateObj = d instanceof Date ? d : new Date(d);
-
   if (isNaN(dateObj.getTime())) {
-    // Handle cases where 'd' might be an invalid date string after new Date(d)
-    // For example, if new Date('invalid-date-string') was passed.
-    // Check if 'd' itself was the Date object that was invalid.
     if (d instanceof Date && isNaN(d.getTime())) return '';
-    // If 'd' was a string that resulted in an invalid date, also return empty.
-    // This check might be redundant if the source 'd' is always a valid Date object or undefined.
     return '';
   }
 
-  // Get year, month, and day based on the local representation of dateObj
   const year = dateObj.getFullYear();
   const month = (dateObj.getMonth() + 1).toString().padStart(2, '0'); // getMonth() is 0-indexed
   const day = dateObj.getDate().toString().padStart(2, '0');
@@ -54,9 +45,9 @@ const formatDateString = (d?: Date | string): string => {
 
 // Exported utility function to get bursts
 export function getAllBursts(form) {
-  const lineItems = form.getValues("lineItems") || [];
+  const digivideolineItems = form.getValues("digivideolineItems") || [];
 
-  return lineItems.flatMap((lineItem) =>
+  return digivideolineItems.flatMap((lineItem) =>
     lineItem.bursts.map((burst) => ({
       startDate: burst.startDate,
       endDate: burst.endDate,
@@ -65,7 +56,7 @@ export function getAllBursts(form) {
   );
 }
 
-const burstSchema = z.object({
+const digivideoBurstSchema = z.object({
   budget: z.string().min(1, "Budget is required"),
   buyAmount: z.string().min(1, "Buy Amount is required"),
   startDate: z.date(),
@@ -74,8 +65,9 @@ const burstSchema = z.object({
   fee: z.number().optional(),
 })
 
-const lineItemSchema = z.object({
+const digivideoLineItemSchema = z.object({
   platform: z.string().min(1, "Platform is required"),
+  site: z.string().min(1, "Site is required"),
   bidStrategy: z.string().min(1, "Bid Strategy is required"),
   buyType: z.string().min(1, "Buy Type is required"),
   creativeTargeting: z.string().default(""),
@@ -86,14 +78,14 @@ const lineItemSchema = z.object({
   clientPaysForMedia: z.boolean().default(false),
   budgetIncludesFees: z.boolean().default(false),
   noadserving: z.boolean().default(false),
-  bursts: z.array(burstSchema).min(1, "At least one burst is required"),
+  bursts: z.array(digivideoBurstSchema).min(1, "At least one burst is required"),
   totalMedia: z.number().optional(),
   totalDeliverables: z.number().optional(),
   totalFee: z.number().optional(),
 })
 
 const digivideoFormSchema = z.object({
-  lineItems: z.array(lineItemSchema),
+  digivideolineItems: z.array(digivideoLineItemSchema),
   overallDeliverables: z.number().optional(),
 })
 
@@ -102,6 +94,12 @@ type DigiVideoFormValues = z.infer<typeof digivideoFormSchema>
 interface Publisher {
   id: number;
   publisher_name: string;
+}
+
+interface VideoSite {
+  id: number;
+  platform: string;
+  site: string;
 }
 
 interface DigiVideoContainerProps {
@@ -122,9 +120,9 @@ export function getDigiVideoBursts(
   form: UseFormReturn<DigiVideoFormValues>,
   feedigivideo: number
 ): BillingBurst[] {
-  const lineItems = form.getValues("lineItems") || []
+  const digivideolineItems = form.getValues("digivideolineItems") || []
 
-  return lineItems.flatMap(li =>
+  return digivideolineItems.flatMap(li =>
     li.bursts.map(burst => {
       let mediaAmount = parseFloat(
         burst.budget.replace(/[^0-9.]/g, "")
@@ -172,10 +170,10 @@ export function getDigiVideoBursts(
 }
 
 export function calculateInvestmentPerMonth(form, feedigivideo) {
-  const lineItems = form.getValues("lineItems") || [];
+  const digivideolineItems = form.getValues("digivideolineItems") || [];
   let monthlyInvestment: Record<string, number> = {};
 
-  lineItems.forEach((lineItem) => {
+  digivideolineItems.forEach((lineItem) => {
     lineItem.bursts.forEach((burst) => {
       const startDate = new Date(burst.startDate);
       const endDate = new Date(burst.endDate);
@@ -219,10 +217,10 @@ export function calculateInvestmentPerMonth(form, feedigivideo) {
 }
 
 export function calculateBurstInvestmentPerMonth(form, feedigivideo) {
-  const lineItems = form.getValues("lineItems") || [];
+  const digivideolineItems = form.getValues("digivideolineItems") || [];
   let monthlyInvestment: Record<string, number> = {};
 
-  lineItems.forEach((lineItem) => {
+  digivideolineItems.forEach((lineItem) => {
     lineItem.bursts.forEach((burst) => {
       const startDate = new Date(burst.startDate);
       const endDate = new Date(burst.endDate);
@@ -285,20 +283,93 @@ export default function DigiVideoContainer({
   const prevInvestmentRef = useRef<{ monthYear: string; amount: string }[]>([]);
   const prevBurstsRef = useRef<BillingBurst[]>([]);
   const publishersRef = useRef<Publisher[]>([]);
-
+  const videoSitesRef = useRef<VideoSite[]>([]);
   const [publishers, setPublishers] = useState<Publisher[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [digivideoSites, setDigiVideoSites] = useState<VideoSite[]>([]);
   const { toast } = useToast()
   const { mbaNumber } = useMediaPlanContext()
   const [overallDeliverables, setOverallDeliverables] = useState(0);
+
+  const [isAddSiteDialogOpen, setIsAddSiteDialogOpen] = useState(false);
+  const [newSiteName, setNewSiteName] = useState("");
+  const [newSitePlatform, setNewSitePlatform] = useState("");
+  // Store the lineItemIndex for which the "Add Station" was clicked
+  const [currentLineItemIndexForNewSite, setCurrentLineItemIndexForNewSite] = useState<number | null>(null);
+  const [sitesAvailable, setSitesAvailable] = useState(true); // Assume true until fetched
+  // Function to re-fetch TV stations
+  const fetchAndUpdateVideoSites = async () => {
+    try {
+      setIsLoading(true);
+      const fetchedVideoSites = await getVideoSites(); //
+      videoSitesRef.current = fetchedVideoSites; //
+      setDigiVideoSites(fetchedVideoSites); //
+    } catch (error) {
+      toast({ //
+        title: "Error refreshing Video Sites",
+        description: (error as Error).message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false); //
+    }
+  };
+
+  const handleAddNewSite = async () => {
+    if (!newSiteName.trim() || !newSitePlatform.trim()) {
+      toast({ //
+        title: "Missing Information",
+        description: "Please provide both site name and platform.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+  try {
+    setIsLoading(true); //
+    const newSiteData: Omit<VideoSite, 'id'> = { //
+      site: newSiteName,
+      platform: newSitePlatform,
+  };
+  const createdSite = await createVideoSite(newSiteData);
+
+    toast({
+      title: "Site Added",
+      description: `${createdSite.site} has been successfully added.`,
+    });
+  
+  await fetchAndUpdateVideoSites();
+
+  // Optionally, select the newly added station and network in the form
+  if (currentLineItemIndexForNewSite !== null) {
+    form.setValue(`digivideolineItems.${currentLineItemIndexForNewSite}.platform`, createdSite.platform); //
+    form.setValue(`digivideolineItems.${currentLineItemIndexForNewSite}.site`, createdSite.site); //
+  }
+
+  setIsAddSiteDialogOpen(false);
+  setNewSiteName("");
+  setNewSitePlatform("");
+  setCurrentLineItemIndexForNewSite(null);
+
+} catch (error) {
+  toast({ //
+    title: "Error Adding Site",
+    description: (error as Error).message,
+    variant: "destructive",
+  });
+} finally {
+  setIsLoading(false); //
+}
+};
   
   // Form initialization
   const form = useForm<DigiVideoFormValues>({
     resolver: zodResolver(digivideoFormSchema),
     defaultValues: {
-      lineItems: [
+      digivideolineItems: [
         {
           platform: "",
+          site: "",
           bidStrategy: "",
           buyType: "",
           creativeTargeting: "",
@@ -334,14 +405,14 @@ export default function DigiVideoContainer({
     remove: removeLineItem,
   } = useFieldArray({
     control: form.control,
-    name: "lineItems",
+    name: "digivideolineItems",
   });
 
   // Watch hook
   const watchedLineItems = useWatch({ 
     control: form.control, 
-    name: "lineItems",
-    defaultValue: form.getValues("lineItems")
+    name: "digivideolineItems",
+    defaultValue: form.getValues("digivideolineItems")
   });
   
   // Memoized calculations
@@ -388,12 +459,12 @@ export default function DigiVideoContainer({
   
   // Callback handlers
   const handleLineItemValueChange = useCallback((lineItemIndex: number) => {
-    const lineItems = form.getValues("lineItems") || [];
+    const digivideolineItems = form.getValues("digivideolineItems") || [];
     let overallMedia = 0;
     let overallFee = 0;
     let overallCost = 0;
 
-    lineItems.forEach((lineItem) => {
+    digivideolineItems.forEach((lineItem) => {
       let lineMedia = 0;
       let lineFee = 0;
       let lineDeliverables = 0;
@@ -415,10 +486,10 @@ export default function DigiVideoContainer({
   }, [form, feedigivideo, onTotalMediaChange]);
 
   const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number) => {
-    const burst = form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}`);
+    const burst = form.getValues(`digivideolineItems.${lineItemIndex}.bursts.${burstIndex}`);
     const budget = parseFloat(burst?.budget?.replace(/[^0-9.]/g, "") || "0");
     const buyAmount = parseFloat(burst?.buyAmount?.replace(/[^0-9.]/g, "") || "1");
-    const buyType = form.getValues(`lineItems.${lineItemIndex}.buyType`);
+    const buyType = form.getValues(`digivideolineItems.${lineItemIndex}.buyType`);
 
     let calculatedValue = 0;
     switch (buyType) {
@@ -436,8 +507,8 @@ export default function DigiVideoContainer({
         calculatedValue = 0;
     }
 
-    if (form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`) !== calculatedValue) {
-      form.setValue(`lineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`, calculatedValue, {
+    if (form.getValues(`digivideolineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`) !== calculatedValue) {
+      form.setValue(`digivideolineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`, calculatedValue, {
         shouldValidate: true,
         shouldDirty: true,
       });
@@ -447,7 +518,7 @@ export default function DigiVideoContainer({
   }, [form, handleLineItemValueChange]);
 
   const handleAppendBurst = useCallback((lineItemIndex: number) => {
-    const currentBursts = form.getValues(`lineItems.${lineItemIndex}.bursts`) || [];
+    const currentBursts = form.getValues(`digivideolineItems.${lineItemIndex}.bursts`) || [];
     
     // Check if we've reached the maximum number of bursts (12)
     if (currentBursts.length >= 12) {
@@ -475,7 +546,7 @@ export default function DigiVideoContainer({
     endDate.setMonth(endDate.getMonth() + 1); // Move to the first day of next month
     endDate.setDate(0); // Set to the last day of the current month
     
-    form.setValue(`lineItems.${lineItemIndex}.bursts`, [
+    form.setValue(`digivideolineItems.${lineItemIndex}.bursts`, [
       ...currentBursts,
       {
         budget: "",
@@ -491,9 +562,9 @@ export default function DigiVideoContainer({
   }, [form, handleLineItemValueChange, toast]);
 
   const handleRemoveBurst = useCallback((lineItemIndex: number, burstIndex: number) => {
-    const currentBursts = form.getValues(`lineItems.${lineItemIndex}.bursts`) || [];
+    const currentBursts = form.getValues(`digivideolineItems.${lineItemIndex}.bursts`) || [];
     form.setValue(
-      `lineItems.${lineItemIndex}.bursts`,
+      `digivideolineItems.${lineItemIndex}.bursts`,
       currentBursts.filter((_, index) => index !== burstIndex),
     );
 
@@ -555,10 +626,11 @@ useEffect(() => {
 
 useEffect(() => {
   // convert each form lineItem into the shape needed for Excel
-  const items: LineItem[] = form.getValues('lineItems').flatMap(lineItem =>
+  const items: LineItem[] = form.getValues('digivideolineItems').flatMap(lineItem =>
     lineItem.bursts.map(burst => ({
       market: lineItem.market,                                // or fixed value
       platform: lineItem.platform,
+      site: lineItem.site,
       bidStrategy: lineItem.bidStrategy,
       targeting: lineItem.creativeTargeting,
       creative:   lineItem.creative,
@@ -608,7 +680,7 @@ useEffect(() => {
   }, [watchedLineItems, feedigivideo, onInvestmentChange, onBurstsChange, onTotalMediaChange, form]);
 
   const getBursts = () => {
-    const formLineItems = form.getValues("lineItems") || [];
+    const formLineItems = form.getValues("digivideolineItems") || [];
     return formLineItems.flatMap(item =>
       item.bursts.map(burst => {
         const budget = parseFloat(burst.budget?.replace(/[^0-9.]/g, "") || "0");
@@ -663,7 +735,7 @@ useEffect(() => {
                 <span className="font-medium">Line Item {item.index}</span>
                 <div className="flex space-x-4">
                   <span>
-                    {getDeliverablesLabel(form.getValues(`lineItems.${item.index - 1}.buyType`))}: {item.deliverables.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    {getDeliverablesLabel(form.getValues(`digivideolineItems.${item.index - 1}.buyType`))}: {item.deliverables.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                   </span>
                   <span>Media: ${item.media.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                   <span>Fee: ${item.fee.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
@@ -696,7 +768,7 @@ useEffect(() => {
               <div className="space-y-6">
                 {lineItemFields.map((field, lineItemIndex) => {
                   const getTotals = (lineItemIndex: number) => {
-                    const lineItem = form.getValues(`lineItems.${lineItemIndex}`);
+                    const lineItem = form.getValues(`digivideolineItems.${lineItemIndex}`);
                     let totalMedia = 0;
                     let totalCalculatedValue = 0;
 
@@ -709,6 +781,15 @@ useEffect(() => {
                     return { totalMedia, totalCalculatedValue };
                   };
 
+                  const selectedPublisher = form.watch(`digivideolineItems.${lineItemIndex}.platform`);
+
+                  let filteredDigiVideoSites;
+                  if (!selectedPublisher) {
+                    filteredDigiVideoSites = digivideoSites; // Show all sites if no publisher is selected
+                  } else {
+                    filteredDigiVideoSites = digivideoSites.filter(site => site.platform === selectedPublisher);
+                  }
+
                   const { totalMedia, totalCalculatedValue } = getTotals(lineItemIndex);
 
                   return (
@@ -717,7 +798,7 @@ useEffect(() => {
                         <div className="flex justify-between items-center">
                           <div className="flex items-center space-x-2">
                             <CardTitle className="text-lg font-medium">Digi Video Line Item {lineItemIndex + 1}</CardTitle>
-                            <div className="text-sm text-muted-foreground">ID: {`${mbaNumber}ML${lineItemIndex + 1}`}</div>
+                            <div className="text-sm text-muted-foreground">ID: {`${mbaNumber}DV${lineItemIndex + 1}`}</div>
                           </div>
                           <div className="flex items-center space-x-2">
                             <div className="text-sm font-medium">
@@ -727,7 +808,7 @@ useEffect(() => {
                                 minimumFractionDigits: 2,
                                 maximumFractionDigits: 2
                               }).format(
-                                form.getValues(`lineItems.${lineItemIndex}.budgetIncludesFees`)
+                                form.getValues(`digivideolineItems.${lineItemIndex}.budgetIncludesFees`)
                                   ? totalMedia
                                   : totalMedia + (totalMedia / (100 - (feedigivideo || 0))) * (feedigivideo || 0)
                               )}
@@ -753,16 +834,16 @@ useEffect(() => {
                       <div className="px-6 py-2 border-b">
                         <div className="grid grid-cols-4 gap-4 text-sm">
                           <div>
-                            <span className="font-medium">Platform:</span> {form.watch(`lineItems.${lineItemIndex}.platform`) || 'Not selected'}
+                            <span className="font-medium">Publisher:</span> {form.watch(`digivideolineItems.${lineItemIndex}.platform`) || 'Not selected'}
                           </div>
                           <div>
-                            <span className="font-medium">Buy Type:</span> {form.watch(`lineItems.${lineItemIndex}.buyType`) || 'Not selected'}
+                            <span className="font-medium">Buy Type:</span> {form.watch(`digivideolineItems.${lineItemIndex}.buyType`) || 'Not selected'}
                           </div>
                           <div>
-                            <span className="font-medium">Bid Strategy:</span> {form.watch(`lineItems.${lineItemIndex}.bidStrategy`) || 'Not selected'}
+                            <span className="font-medium">Site:</span> {form.watch(`digivideolineItems.${lineItemIndex}.site`) || 'Not selected'}
                           </div>
                           <div>
-                            <span className="font-medium">Bursts:</span> {form.watch(`lineItems.${lineItemIndex}.bursts`, []).length}
+                            <span className="font-medium">Bursts:</span> {form.watch(`digivideolineItems.${lineItemIndex}.bursts`, []).length}
                           </div>
                         </div>
                       </div>
@@ -779,14 +860,16 @@ useEffect(() => {
                             <div className="space-y-4">
                               <FormField
                                 control={form.control}
-                                name={`lineItems.${lineItemIndex}.platform`}
+                                name={`digivideolineItems.${lineItemIndex}.platform`}
                                 render={({ field }) => (
                                   <FormItem className="flex items-center space-x-2">
-                                    <FormLabel className="w-24 text-sm">Platform</FormLabel>
-                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormLabel className="w-24 text-sm">Publisher</FormLabel>
+                                     <Select onValueChange={(value) => {
+                                      field.onChange(value);
+                                       }} defaultValue={field.value}>
                                       <FormControl>
                                         <SelectTrigger className="h-9 w-full flex-1 rounded-md border">
-                                          <SelectValue placeholder="Select" />
+                                          <SelectValue placeholder="Select Publisher" />
                                         </SelectTrigger>
                                       </FormControl>
                                       <SelectContent>
@@ -804,23 +887,63 @@ useEffect(() => {
 
                               <FormField
                                 control={form.control}
-                                name={`lineItems.${lineItemIndex}.bidStrategy`}
+                                name={`digivideolineItems.${lineItemIndex}.site`}
                                 render={({ field }) => (
                                   <FormItem className="flex items-center space-x-2">
-                                    <FormLabel className="w-24 text-sm">Bid Strategy</FormLabel>
-                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                      <FormControl>
-                                        <SelectTrigger className="h-9 w-full flex-1 rounded-md border">
-                                          <SelectValue placeholder="Select" />
-                                        </SelectTrigger>
-                                      </FormControl>
-                                      <SelectContent>
-                                      <SelectItem value="reach">Reach</SelectItem>
-                                        <SelectItem value="viewability">Viewability</SelectItem>
-                                        <SelectItem value="completed_views">Completed Views</SelectItem>
-                                        <SelectItem value="completion_rate">Completion Rate</SelectItem>
-                                      </SelectContent>
-                                    </Select>
+                                    <FormLabel className="w-24 text-sm">Site</FormLabel>
+                                        <div className="flex-1 flex items-center space-x-1">
+                                          <Select
+                                            onValueChange={field.onChange}
+                                            value={field.value} // Ensure value is controlled
+                                            disabled={!selectedPublisher} // Disable if no network is selected
+                                          >
+                                            <FormControl>
+                                              <SelectTrigger className="h-9 w-full rounded-md border">
+                                                <SelectValue placeholder={selectedPublisher ? "Select Site" : "Select Publisher first"} />
+                                              </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                              {filteredDigiVideoSites.length > 0 ? (
+                                                filteredDigiVideoSites.map((digivideoSite) => ( //
+                                                  <SelectItem 
+                                                  key={digivideoSite.id} 
+                                                  value={digivideoSite.site || `site-${digivideoSite.id}`} // Guard against empty string
+                                                >
+                                                  {digivideoSite.site}
+                                                  </SelectItem>
+                                                ))
+                                              ) : (
+                                                selectedPublisher && ( <div className="p-2 text-sm text-muted-foreground text-center">
+                                                No sites found for "{selectedPublisher}".<br />
+                                                Click the <PlusCircle className="inline h-4 w-4 mx-1 text-blue-500" /> icon to add one.
+                                              </div>
+                                            )
+                                              )}
+                                            </SelectContent>
+                                          </Select>
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              className="p-1 h-auto"
+                                              onClick={() => {
+                                                const currentPublisherInForm = form.getValues(`digivideolineItems.${lineItemIndex}.platform`); //
+                                                if (!currentPublisherInForm) {
+                                                  toast({ //
+                                                    title: "Select a Site First",
+                                                    description: "Please select a Publisher before adding a site.",
+                                                    variant: "default", 
+                                                  });
+                                                  return;
+                                                }
+                                                setCurrentLineItemIndexForNewSite(lineItemIndex); //
+                                                setNewSiteName(""); //
+                                                setNewSitePlatform(selectedPublisher); //
+                                                setIsAddSiteDialogOpen(true); //
+                                              }}
+                                            >
+                                              <PlusCircle className="h-5 w-5 text-blue-500" />
+                                            </Button>
+                                           </div>
                                     <FormMessage />
                                   </FormItem>
                                 )}
@@ -828,7 +951,7 @@ useEffect(() => {
 
                               <FormField
                                 control={form.control}
-                                name={`lineItems.${lineItemIndex}.buyType`}
+                                name={`digivideolineItems.${lineItemIndex}.buyType`}
                                 render={({ field }) => (
                                   <FormItem className="flex items-center space-x-2">
                                     <FormLabel className="w-24 text-sm">Buy Type</FormLabel>
@@ -857,7 +980,7 @@ useEffect(() => {
                                 <FormLabel className="block text-sm mb-1 self-start mt-4">Targeting</FormLabel>
                                 <FormControl>
                                   <Textarea
-                                    {...form.register(`lineItems.${lineItemIndex}.creativeTargeting`)}
+                                    {...form.register(`digivideolineItems.${lineItemIndex}.creativeTargeting`)}
                                     placeholder="Enter targeting details"
                                     className="w-full h-24 text-sm rounded-md border"
                                   />
@@ -869,7 +992,7 @@ useEffect(() => {
                                 <FormLabel className="block text-sm mb-1">Buying Demo</FormLabel>
                                 <FormControl>
                                   <Textarea
-                                    {...form.register(`lineItems.${lineItemIndex}.buyingDemo`)}
+                                    {...form.register(`digivideolineItems.${lineItemIndex}.buyingDemo`)}
                                     placeholder="Enter buying demo details"
                                     className="w-full min-h-0 h-10 text-sm rounded-md border"
                                   />
@@ -884,7 +1007,7 @@ useEffect(() => {
                                 <FormLabel className="block text-sm mb-1 self-start mt-4">Creative</FormLabel>
                                 <FormControl>
                                   <Textarea
-                                    {...form.register(`lineItems.${lineItemIndex}.creative`)}
+                                    {...form.register(`digivideolineItems.${lineItemIndex}.creative`)}
                                     placeholder="Enter creative details"
                                     className="w-full h-24 text-sm rounded-md border"
                                   />
@@ -896,7 +1019,7 @@ useEffect(() => {
                                 <FormLabel className="block text-sm mb-1">Market</FormLabel>
                                 <FormControl>
                                   <Textarea
-                                    {...form.register(`lineItems.${lineItemIndex}.market`)}
+                                    {...form.register(`digivideolineItems.${lineItemIndex}.market`)}
                                     placeholder="Enter market or Geo Targeting"
                                     className="w-full min-h-0 h-10 text-sm rounded-md border"
                                   />
@@ -910,7 +1033,7 @@ useEffect(() => {
                               <div className="space-y-3">
                                 <FormField
                                   control={form.control}
-                                  name={`lineItems.${lineItemIndex}.fixedCostMedia`}
+                                  name={`digivideolineItems.${lineItemIndex}.fixedCostMedia`}
                                   render={({ field }) => (
                                     <FormItem className="flex items-center space-x-2">
                                       <FormControl>
@@ -923,7 +1046,7 @@ useEffect(() => {
 
                                 <FormField
                                   control={form.control}
-                                  name={`lineItems.${lineItemIndex}.clientPaysForMedia`}
+                                  name={`digivideolineItems.${lineItemIndex}.clientPaysForMedia`}
                                   render={({ field }) => (
                                     <FormItem className="flex items-center space-x-2">
                                       <FormControl>
@@ -936,7 +1059,7 @@ useEffect(() => {
 
                                 <FormField
                                   control={form.control}
-                                  name={`lineItems.${lineItemIndex}.budgetIncludesFees`}
+                                  name={`digivideolineItems.${lineItemIndex}.budgetIncludesFees`}
                                   render={({ field }) => (
                                     <FormItem className="flex items-center space-x-2">
                                       <FormControl>
@@ -948,7 +1071,7 @@ useEffect(() => {
                                 />
                                 <FormField
                                   control={form.control}
-                                  name={`lineItems.${lineItemIndex}.noadserving`}
+                                  name={`digivideolineItems.${lineItemIndex}.noadserving`}
                                   render={({ field }) => (
                                     <FormItem className="flex items-center space-x-2">
                                       <FormControl>
@@ -975,7 +1098,7 @@ useEffect(() => {
 
                       {/* Bursts Section */}
                       <div className="space-y-4">
-                        {form.watch(`lineItems.${lineItemIndex}.bursts`, []).map((burstField, burstIndex) => {
+                        {form.watch(`digivideolineItems.${lineItemIndex}.bursts`, []).map((burstField, burstIndex) => {
                           return (
                             <Card key={`${lineItemIndex}-${burstIndex}`} className="border border-gray-200">
                               <CardContent className="py-2 px-4">
@@ -987,7 +1110,7 @@ useEffect(() => {
                                   <div className="grid grid-cols-5 gap-4 items-center flex-grow">
                                     <FormField
                                       control={form.control}
-                                      name={`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`}
+                                      name={`digivideolineItems.${lineItemIndex}.bursts.${burstIndex}.budget`}
                                       render={({ field }) => (
                                         <FormItem>
                                           <FormLabel className="text-xs">Budget</FormLabel>
@@ -1021,7 +1144,7 @@ useEffect(() => {
 
                                     <FormField
                                       control={form.control}
-                                      name={`lineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount`}
+                                      name={`digivideolineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount`}
                                       render={({ field }) => (
                                         <FormItem>
                                           <FormLabel className="text-xs">Buy Amount</FormLabel>
@@ -1056,7 +1179,7 @@ useEffect(() => {
                                     <div className="grid grid-cols-2 gap-2">
                                       <FormField
                                         control={form.control}
-                                        name={`lineItems.${lineItemIndex}.bursts.${burstIndex}.startDate`}
+                                        name={`digivideolineItems.${lineItemIndex}.bursts.${burstIndex}.startDate`}
                                         render={({ field }) => (
                                           <FormItem>
                                             <FormLabel className="text-xs">Start Date</FormLabel>
@@ -1094,7 +1217,7 @@ useEffect(() => {
 
                                       <FormField
                                         control={form.control}
-                                        name={`lineItems.${lineItemIndex}.bursts.${burstIndex}.endDate`}
+                                        name={`digivideolineItems.${lineItemIndex}.bursts.${burstIndex}.endDate`}
                                         render={({ field }) => (
                                           <FormItem>
                                             <FormLabel className="text-xs">End Date</FormLabel>
@@ -1133,16 +1256,16 @@ useEffect(() => {
 
                                     <FormField
                                       control={form.control}
-                                      name={`lineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`}
+                                      name={`digivideolineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`}
                                       render={({ field }) => {
                                         const buyType = useWatch({
                                           control: form.control,
-                                          name: `lineItems.${lineItemIndex}.buyType`,
+                                          name: `digivideolineItems.${lineItemIndex}.buyType`,
                                         });
 
                                         const calculatedValue = useMemo(() => {
-                                          const budget = parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0");
-                                          const buyAmount = parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount`)?.replace(/[^0-9.]/g, "") || "1");
+                                          const budget = parseFloat(form.getValues(`digivideolineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0");
+                                          const buyAmount = parseFloat(form.getValues(`digivideolineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount`)?.replace(/[^0-9.]/g, "") || "1");
 
                                           switch (buyType) {
                                             case "cpc":
@@ -1156,8 +1279,8 @@ useEffect(() => {
                                               return "0";
                                           }
                                         }, [
-                                          form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`),
-                                          form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount`),
+                                          form.getValues(`digivideolineItems.${lineItemIndex}.bursts.${burstIndex}.budget`),
+                                          form.getValues(`digivideolineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount`),
                                           buyType
                                         ]);
 
@@ -1207,9 +1330,9 @@ useEffect(() => {
                                               minimumFractionDigits: 2,
                                               maximumFractionDigits: 2,
                                             }).format(
-                                              form.getValues(`lineItems.${lineItemIndex}.budgetIncludesFees`)
-                                                ? (parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (100 - (feedigivideo || 0))
-                                                : parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0")
+                                              form.getValues(`digivideolineItems.${lineItemIndex}.budgetIncludesFees`)
+                                                ? (parseFloat(form.getValues(`digivideolineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (100 - (feedigivideo || 0))
+                                                : parseFloat(form.getValues(`digivideolineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0")
                                             )}
                                             readOnly
                                           />
@@ -1225,9 +1348,9 @@ useEffect(() => {
                                               minimumFractionDigits: 2,
                                               maximumFractionDigits: 2,
                                             }).format(
-                                              form.getValues(`lineItems.${lineItemIndex}.budgetIncludesFees`)
-                                                ? (parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (feedigivideo || 0)
-                                                : (parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / (100 - (feedigivideo || 0))) * (feedigivideo || 0)
+                                              form.getValues(`digivideolineItems.${lineItemIndex}.budgetIncludesFees`)
+                                                ? (parseFloat(form.getValues(`digivideolineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (feedigivideo || 0)
+                                                : (parseFloat(form.getValues(`digivideolineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / (100 - (feedigivideo || 0))) * (feedigivideo || 0)
                                             )}
                                             readOnly
                                           />
@@ -1259,6 +1382,7 @@ useEffect(() => {
                             onClick={() =>
                               appendLineItem({
                                 platform: "",
+                                site: "",
                                 bidStrategy: "",
                                 buyType: "",
                                 creativeTargeting: "",
@@ -1297,6 +1421,69 @@ useEffect(() => {
           </div>
         )}
       </div>
+    {/* Add Station Dialog */}
+<Dialog open={isAddSiteDialogOpen} onOpenChange={setIsAddSiteDialogOpen}>
+  <DialogContent className="sm:max-w-[425px]">
+    <DialogHeader>
+      <DialogTitle>Add New Video Site</DialogTitle>
+      <DialogDescription>
+        Enter the details for the new Video Site.
+      </DialogDescription>
+    </DialogHeader>
+    <div className="grid gap-4 py-4">
+    <div className="grid grid-cols-4 items-center gap-4">
+        <Label htmlFor="dialogDisplayNetworkName" className="text-right">
+          Publisher
+        </Label>
+        <Input
+          id="dialogDisplayNetworkName"
+          value={newSitePlatform} // This is pre-filled from the line item
+          readOnly
+          className="col-span-3 bg-gray-100 focus:ring-0 pointer-events-none" // Style to indicate read-only
+        />
+      </div>
+      <div className="grid grid-cols-4 items-center gap-4">
+        <Label htmlFor="newStationNetwork" className="text-right">
+          
+        </Label>
+        {/* Assuming 'publishers' contains the list of available networks */}
+        <Select
+          value={newSitePlatform}
+          onValueChange={setNewSitePlatform}
+        >
+          <SelectTrigger className="col-span-3 h-9">
+            <SelectValue placeholder="Select Network" />
+          </SelectTrigger>
+          <SelectContent>
+            {publishers.map((publisher) => ( //
+              <SelectItem key={publisher.id} value={publisher.publisher_name}>
+                {publisher.publisher_name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="grid grid-cols-4 items-center gap-4">
+        <Label htmlFor="newStationName" className="text-right">
+          Station Name
+        </Label>
+        <Input
+          id="newStationName"
+          value={newSiteName}
+          onChange={(e) => setNewSiteName(e.target.value)}
+          className="col-span-3"
+          placeholder="e.g., Channel 9"
+        />
+      </div>
+    </div>
+    <DialogFooter>
+      <Button variant="outline" onClick={() => setIsAddSiteDialogOpen(false)}>Cancel</Button>
+      <Button onClick={handleAddNewSite} disabled={isLoading}>
+        {isLoading ? "Adding..." : "Add Site"}
+      </Button>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
     </div>
   );
 }

@@ -26,14 +26,12 @@ interface Client {
 }
 
 const menuItems = [
-  { title: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
-  { title: "MediaPlans", icon: FileText, href: "/mediaplans" },
+  { title: "Home", icon: LayoutDashboard, href: "/dashboard" },
+  { title: "Media Plans", icon: FileText, href: "/mediaplans" },
   { title: "Clients", icon: Users, href: "/clients" },
   { title: "Publishers", icon: Building2, href: "/publishers" },
   { title: "Finance", icon: DollarSign, href: "/finance" },
-  { title: "Management", icon: BarChart3, href: "/management" },
   { title: "Create Media Plan", icon: PlusCircle, href: "/mediaplans/create" },
-  { title: "Login", icon: UserCircle, href: "/auth/login" },
 ];
 
 export function AppSidebar() {

@@ -21,7 +21,20 @@ const nextConfig = {
     parallelServerBuildTraces: true,
     parallelServerCompiles: true,
   },
+  webpack: (config, { isServer }) => {
+
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback, // Keep any existing fallbacks
+        fs: false,
+        'jpeg-exif': false, // This is a dependency of pdfkit that uses 'fs'
+        'png-js': false,    // Another dependency of pdfkit that can cause issues
+      };
 }
+return config;
+},
+}
+  
 
 mergeConfig(nextConfig, userConfig)
 
