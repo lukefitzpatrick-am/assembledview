@@ -9,11 +9,11 @@ const MEDIA_PLANS_BASE_URL = process.env.XANO_MEDIA_PLANS_BASE_URL || "https://x
 interface MediaPlan {
   mp_clientname: string;
   mp_campaignname: string;
-  mbanumber: string;
+  mba_number: string;
 }
 
+// Replace the old MediaPlanVersion interface with this one
 interface MediaPlanVersion {
-  media_plan_id: number; // This will link to the record in the `media_plans` table
   version_number: number;
   mba_number: string;
   po_number: string;
@@ -25,7 +25,7 @@ interface MediaPlanVersion {
   client_contact: string;
   fixed_fee: boolean;
   mp_campaignbudget: number;
-  billingSchedule?: any; // or a more specific type if you have one
+  billingSchedule?: any;
   mp_television: boolean;
   mp_radio: boolean;
   mp_newspaper: boolean;
@@ -45,31 +45,7 @@ interface MediaPlanVersion {
   mp_progaudio: boolean;
   mp_progooh: boolean;
   mp_influencers: boolean;
-  // Add excel_file, mba_pdf_file, and created_by if you are handling them now
-}
-
-// Add TypeScript interfaces
-interface SearchLineItem {
-  id?: string;
-  mbanumber: string;
-  platform: string;
-  bid_strategy: string;
-  buy_type: string;
-  creative_targeting: string;
-  is_fixed_cost: boolean;
-  client_pays_for_media: boolean;
-  total_budget: number;
-  line_item_id: string;
-}
-
-interface SearchBurst {
-  line_item_id: string;
-  mbanumber: string;
-  burst_number: number;
-  budget: number;
-  buy_amount: number;
-  start_date: Date | string;
-  end_date: Date | string;
+  client_name: string;
 }
 
 interface Publisher {
@@ -142,6 +118,61 @@ interface BVODSite {
   site: string;
 }
 
+
+export async function createMediaPlan(data: { mp_clientname: string; mp_campaignname: string; mba_number: string; }) {
+  try {
+    const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || "Failed to create media plan");
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Error creating media plan:", error);
+    throw error;
+  }
+}
+
+export async function createMediaPlanVersion(data: MediaPlanVersion) {
+  try {
+    const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_version`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data), 
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || "Failed to create media plan version");
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Error creating media plan version:", error);
+    throw error;
+  }
+}
+
+export async function editMediaPlan(id: number, data: any) { 
+  const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan/${id}`, { 
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) {
+    throw new Error("Failed to edit media plan");
+  }
+  return response.json();
+}
+
 export async function getTVStations(): Promise<TVStation[]> {
   const response = await fetch(`${MEDIA_DETAILS_BASE_URL}/tv_stations`);
   if (!response.ok) {
@@ -190,14 +221,6 @@ export async function getMagazinesAdSizes(): Promise<MagazinesAdSizes[]> {
   return response.json();
 }
 
-export async function getSearchLineItems(): Promise<SearchLineItem[]> {
-  const response = await fetch(`${SEARCH_BASE_URL}/GET_search_line_items`);
-  if (!response.ok) {
-    throw new Error("Failed to fetch search line items");
-  }
-  return response.json();
-}
-
 export async function getAudioSites(): Promise<AudioSite[]> {
   const response = await fetch(`${MEDIA_DETAILS_BASE_URL}/audio_site`);
   if (!response.ok) {
@@ -230,19 +253,7 @@ export async function getBVODSites(): Promise<BVODSite[]> {
   return response.json();
 }
 
-export async function createSearchLineItem(data: SearchLineItem): Promise<SearchLineItem> {
-  const response = await fetch(`${SEARCH_BASE_URL}/POST_search_line_items`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(data),
-  });
-  if (!response.ok) {
-    throw new Error("Failed to create search line item");
-  }
-  return response.json();
-}
+
 
 export async function createTVStation(stationData: { station: string; network: string }): Promise<TVStation> {
   const response = await fetch(`${MEDIA_DETAILS_BASE_URL}/POST_tv_stations`, {
@@ -384,36 +395,6 @@ export async function createBVODSite(siteData: { platform: string; site: string 
   return response.json();
 }
 
-export async function createSearchBurst(data: SearchBurst): Promise<SearchBurst> {
-  const response = await fetch(`${SEARCH_BASE_URL}/POST_search_bursts`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(data),
-  });
-  if (!response.ok) {
-    throw new Error("Failed to create search burst");
-  }
-  return response.json();
-}
-
-export async function getSearchLineItemHistory() {
-  const response = await fetch(`${SEARCH_BASE_URL}/GET_search_line_items_history`);
-  if (!response.ok) {
-    throw new Error("Failed to fetch search line item history");
-  }
-  return response.json();
-}
-
-export async function getSearchBurstHistory() {
-  const response = await fetch(`${SEARCH_BASE_URL}/GET_search_bursts_history`);
-  if (!response.ok) {
-    throw new Error("Failed to fetch search burst history");
-  }
-  return response.json();
-}
-
 export async function getPublishersForSearch(): Promise<Publisher[]> {
   try {
     const response = await fetch(`${PUBLISHERS_BASE_URL}/get_publishers`);
@@ -462,80 +443,10 @@ export async function getClientInfo(clientId: string): Promise<ClientInfo | null
   }
 }
 
-// --- NEW VERSIONED SAVE FUNCTION ---
-export async function createMediaPlanVersioned(
-  mediaPlanData: MediaPlan,
-  versionData: Omit<MediaPlanVersion, 'media_plan_id'>
-): Promise<{ mediaPlan: any; version: any }> {
-
-  // Step 1: Create the main media_plan record
-  const planResponse = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(mediaPlanData),
-  });
-
-  if (!planResponse.ok) {
-    const error = await planResponse.json();
-    throw new Error(`Failed to create media plan: ${error.message}`);
-  }
-  const newMediaPlan = await planResponse.json();
-
-  // Step 2: Create the media_plan_version record, linking it to the plan created above
-  const versionPayload = {
-    ...versionData,
-    media_plan_id: newMediaPlan.id, // Use the ID from the Step 1 response
-  };
-
-  const versionResponse = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_version`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(versionPayload),
-  });
-
-  if (!versionResponse.ok) {
-    const error = await versionResponse.json();
-    // Optional: Add logic here to delete the `media_plan` from step 1 for cleanup.
-    throw new Error(`Failed to create media plan version: ${error.message}`);
-  }
-  const newVersion = await versionResponse.json();
-
-  // Step 3: Update the main media_plan with the latest_version_id using the PUT URL
-  const updateResponse = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan/${newMediaPlan.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ latest_version_id: newVersion.id }),
-  });
-
-   if (!updateResponse.ok) {
-    const error = await updateResponse.json();
-    // If this fails, the plan is created but not linked to the latest version.
-    // You may want to log this as a non-critical error.
-    console.warn(`Could not set latest_version_id for media_plan ${newMediaPlan.id}: ${error.message}`);
-  }
-
-  return { mediaPlan: newMediaPlan, version: newVersion };
-}
-
-
 export async function getMediaPlans() {
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan`);
   if (!response.ok) {
     throw new Error("Failed to fetch media plans");
-  }
-  return response.json();
-}
-
-export async function editMediaPlan(id: string, data: any) {
-  const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_${id}`, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(data),
-  });
-  if (!response.ok) {
-    throw new Error("Failed to edit media plan");
   }
   return response.json();
 }
@@ -936,4 +847,9 @@ export async function getPublishersForInfluencers() {
     return [];
   }
 }
+
+
+
+
+// ... (the rest of your functions)
 

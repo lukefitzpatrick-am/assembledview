@@ -21,8 +21,8 @@ export async function GET(req: Request) {
 
     let maxNumber = 0
     for (const plan of existingPlans) {
-      if (plan.mbanumber && plan.mbanumber.startsWith(mbaidentifier)) {
-        const numberPart = Number.parseInt(plan.mbanumber.slice(-3))
+      if (plan.mba_number && plan.mba_number.startsWith(mbaidentifier)) {
+        const numberPart = Number.parseInt(plan.mba_number.slice(-3))
         if (!isNaN(numberPart) && numberPart > maxNumber) {
           maxNumber = numberPart
         }
@@ -30,9 +30,9 @@ export async function GET(req: Request) {
     }
 
     const newNumber = maxNumber + 1
-    const mbanumber = `${mbaidentifier}${newNumber.toString().padStart(3, "0")}`
+    const mba_number = `${mbaidentifier}${newNumber.toString().padStart(3, "0")}`
 
-    return NextResponse.json({ mbanumber })
+    return NextResponse.json({ mba_number })
   } catch (error) {
     console.error("Failed to generate MBA number:", error)
     if (axios.isAxiosError(error)) {

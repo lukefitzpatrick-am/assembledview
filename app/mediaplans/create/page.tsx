@@ -24,7 +24,7 @@ import type { BillingBurst, BillingMonth } from "@/lib/billing/types" // adjust 
 import { generateMediaPlan, MediaPlanHeader, LineItem, MediaItems } from '@/lib/generateMediaPlan'
 import { generateMBA, MBAData } from '@/lib/generateMBA'
 import { saveAs } from 'file-saver'
-import { createMediaPlanVersioned } from "@/lib/api"
+import { createMediaPlan, createMediaPlanVersion, editMediaPlan } from "@/lib/api"
 
 const mediaPlanSchema = z.object({
   mp_clientname: z.string().min(1, "Client name is required"),
@@ -37,7 +37,7 @@ const mediaPlanSchema = z.object({
   mp_ponumber: z.string(),
   mp_campaignbudget: z.number(),
   mbaidentifier: z.string(),
-  mbanumber: z.string(),
+  mba_number: z.string(),
   mp_plannumber: z.string(),
   mp_television: z.boolean(),
   mp_radio: z.boolean(),
@@ -400,7 +400,7 @@ export default function CreateMediaPlan() {
       mp_ponumber: "",
       mp_campaignbudget: 0,
       mbaidentifier: "",
-      mbanumber: "",
+      mba_number: "",
       mp_plannumber: "1",
       mp_television: false,
       mp_radio: false,
@@ -904,7 +904,7 @@ export default function CreateMediaPlan() {
   
     const fv = form.getValues();
   
-    if (!fv.mbanumber) {
+    if (!fv.mba_number) {
       toast({
         title: "Error",
         description: "MBA number is required to generate MBA",
@@ -973,7 +973,7 @@ export default function CreateMediaPlan() {
     // Construct the final body with either manual or auto data
     const body: MBAData = {
       date: format(new Date(), "dd/MM/yyyy"),
-      mba_number: fv.mbanumber,
+      mba_number: fv.mba_number,
       campaign_name: fv.mp_campaignname,
       campaign_brand: fv.mp_brand,
       po_number: fv.mp_ponumber,
@@ -1274,15 +1274,15 @@ export default function CreateMediaPlan() {
         throw new Error(errorData.error || "Failed to generate MBA number")
       }
       const data = await response.json()
-      if (data.mbanumber) {
-        form.setValue("mbanumber", data.mbanumber)
-        setMbaNumber(data.mbanumber)
+      if (data.mba_number) {
+        form.setValue("mba_number", data.mba_number)
+        setMbaNumber(data.mba_number)
       } else {
         throw new Error("MBA number not found in response")
       }
     } catch (error) {
       console.error("Error generating MBA number:", error)
-      form.setValue("mbanumber", "Error generating MBA number")
+      form.setValue("mba_number", "Error generating MBA number")
       setMbaNumber("")
     }
   }
@@ -1321,7 +1321,7 @@ export default function CreateMediaPlan() {
     } else {
       form.setValue("mp_clientname", "")
       form.setValue("mbaidentifier", "")
-      form.setValue("mbanumber", "")
+      form.setValue("mba_number", "")
       setSelectedClientId("")
       setFeeSearch(null);
       setFeeSocial(null);
@@ -1600,103 +1600,138 @@ export default function CreateMediaPlan() {
     calculateBillingSchedule()
   }
     
+  // page.tsx
+
   const handleSaveCampaign = async () => {
-    // 1. Open the modal and set the initial pending status
-    setSaveStatus([{ message: "Preparing to save media plan...", status: 'pending' }]);
+    setSaveStatus([{ message: "Starting save process...", status: 'pending' }]);
     setIsSaveModalOpen(true);
-
+    setIsLoading(true);
+  
     try {
-      const formValues = form.getValues();
+        const formValues = form.getValues();
+  
+        // --- Step 1: Create the Media Plan ---
+        setSaveStatus(prev => [...prev, { message: "Saving main media plan...", status: 'pending' }]);
+        const mediaPlanPayload = {
+            mp_clientname: formValues.mp_clientname,
+            mp_campaignname: formValues.mp_campaignname,
+            mba_number: formValues.mba_number,
+        };
+        const newMediaPlan = await createMediaPlan(mediaPlanPayload);
+  
+        if (!newMediaPlan || !newMediaPlan.id) {
+            throw new Error("Failed to save media plan or did not receive an ID.");
+        }
+        setSaveStatus(prev => [...prev, { message: `Media Plan saved with ID: ${newMediaPlan.id}`, status: 'success' }]);
+  
+  
+        // --- Step 2: Create the Media Plan Version, linking the ID ---
+        setSaveStatus(prev => [...prev, { message: "Saving version details...", status: 'pending' }]);
+        
+          // START: NEW CLEANING LOGIC
+        const sourceBillingData = isManualBilling ? manualBillingMonths : billingMonths;
 
-      // 2. Prepare Payloads
-      const mediaPlanPayload = {
-        mp_clientname: formValues.mp_clientname,
-        mp_campaignname: formValues.mp_campaignname,
-        mbanumber: formValues.mbanumber,
-      };
+        const cleanBillingSchedule = sourceBillingData.map(month => {
+            // Helper function to safely parse currency strings into numbers
+            const parseCurrency = (value: string | number): number => {
+                if (typeof value === 'number') return value;
+                // Remove '$', ',', and any non-numeric characters except the decimal point
+                return parseFloat(String(value).replace(/[^0-9.-]/g, '')) || 0;
+            };
 
-      const versionPayload = {
-        version_number: parseInt(formValues.mp_plannumber, 10) || 1, // Correctly use the form value
-        mba_number: formValues.mbanumber,
-        po_number: formValues.mp_ponumber,
-        campaign_name: formValues.mp_campaignname,
-        campaign_status: formValues.mp_campaignstatus,
-        campaign_start_date: format(formValues.mp_campaigndates_start, "yyyy-MM-dd"),
-        campaign_end_date: format(formValues.mp_campaigndates_end, "yyyy-MM-dd"),
-        brand: formValues.mp_brand,
-        client_contact: formValues.mp_clientcontact,
-        fixed_fee: formValues.mp_fixedfee,
-        mp_campaignbudget: formValues.mp_campaignbudget,
-        billingSchedule: isManualBilling ? manualBillingMonths : billingMonths,
-        // Media type booleans
-        mp_television: formValues.mp_television,
-        mp_radio: formValues.mp_radio,
-        mp_newspaper: formValues.mp_newspaper,
-        mp_magazines: formValues.mp_magazines,
-        mp_ooh: formValues.mp_ooh,
-        mp_cinema: formValues.mp_cinema,
-        mp_digidisplay: formValues.mp_digidisplay,
-        mp_digiaudio: formValues.mp_digiaudio,
-        mp_digivideo: formValues.mp_digivideo,
-        mp_bvod: formValues.mp_bvod,
-        mp_integration: formValues.mp_integration,
-        mp_search: formValues.mp_search,
-        mp_socialmedia: formValues.mp_socialmedia,
-        mp_progdisplay: formValues.mp_progdisplay,
-        mp_progvideo: formValues.mp_progvideo,
-        mp_progbvod: formValues.mp_progbvod,
-        mp_progaudio: formValues.mp_progaudio,
-        mp_progooh: formValues.mp_progooh,
-        mp_influencers: formValues.mp_influencers,
-      };
+            // Clean up the nested mediaCosts object
+            const cleanedMediaCosts = Object.entries(month.mediaCosts).reduce((acc, [key, value]) => {
+                acc[key] = parseCurrency(value as string);
+                return acc;
+            }, {} as Record<string, number>);
 
-      // Update modal status
-      setSaveStatus([{ message: "Saving Media Plan record...", status: 'pending' }]);
+            // Return a new object with all values as numbers
+            return {
+                monthYear: month.monthYear,
+                mediaTotal: parseCurrency(month.mediaTotal),
+                feeTotal: parseCurrency(month.feeTotal),
+                totalAmount: parseCurrency(month.totalAmount),
+                adservingTechFees: parseCurrency(month.adservingTechFees),
+                production: parseCurrency(month.production),
+                mediaCosts: cleanedMediaCosts,
+            };
+        });
+        // END: NEW CLEANING LOGIC
 
-      // 3. Call the API
-      const { mediaPlan, version } = await createMediaPlanVersioned(
-        mediaPlanPayload,
-        // @ts-ignore
-        versionPayload
-      );
+        const versionPayload = {
+          version_number: parseInt(formValues.mp_plannumber, 10) || 1,
+          
+          // Map form names (e.g., mp_campaignname) to API names (e.g., campaign_name)
+          mba_number: formValues.mba_number,
+          po_number: formValues.mp_ponumber,
+          campaign_name: formValues.mp_campaignname,
+          campaign_status: formValues.mp_campaignstatus,
+          brand: formValues.mp_brand,
+          client_name: formValues.mp_clientname,
+          client_contact: formValues.mp_clientcontact,
+          fixed_fee: formValues.mp_fixedfee,
+          mp_campaignbudget: formValues.mp_campaignbudget,
 
-    // 4. Update status on success
-    setSaveStatus([
-        { message: `Media Plan ${mediaPlan.id} saved successfully.`, status: 'success' },
-        { message: `Version ${version.version_number} created successfully.`, status: 'success' }
-        // Future: Add status updates for line item saves here
-    ]);
+          // Dates and Billing
+          campaign_start_date: format(formValues.mp_campaigndates_start, "yyyy-MM-dd"),
+          campaign_end_date: format(formValues.mp_campaigndates_end, "yyyy-MM-dd"),
+          billingSchedule: cleanBillingSchedule, // <-- USE THE CLEANED DATA
 
-    toast({
-      title: "Success",
-      description: "Media plan and initial version created.",
-    });
-
-    // 5. Redirect after a delay
-    setTimeout(() => {
-      setIsSaveModalOpen(false);
-      router.push(`/mediaplans`);
-    }, 2500);
-
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
-    console.error("Error saving media plan:", error);
-
-    // 6. Update status on error
-    setSaveStatus([
-        { message: "Failed to save media plan.", status: 'error' },
-        { message: errorMessage, status: 'error' }
-    ]);
-
-    toast({
-      title: "Error Saving Plan",
-      description: errorMessage,
-      variant: "destructive",
-    });
-  }
-};
-
-
+          // Media Type Booleans
+          mp_television: formValues.mp_television,
+          mp_radio: formValues.mp_radio,
+          mp_newspaper: formValues.mp_newspaper,
+          mp_magazines: formValues.mp_magazines,
+          mp_ooh: formValues.mp_ooh,
+          mp_cinema: formValues.mp_cinema,
+          mp_digidisplay: formValues.mp_digidisplay,
+          mp_digiaudio: formValues.mp_digiaudio,
+          mp_digivideo: formValues.mp_digivideo,
+          mp_bvod: formValues.mp_bvod,
+          mp_integration: formValues.mp_integration,
+          mp_search: formValues.mp_search,
+          mp_socialmedia: formValues.mp_socialmedia,
+          mp_progdisplay: formValues.mp_progdisplay,
+          mp_progvideo: formValues.mp_progvideo,
+          mp_progbvod: formValues.mp_progbvod,
+          mp_progaudio: formValues.mp_progaudio,
+          mp_progooh: formValues.mp_progooh,
+          mp_influencers: formValues.mp_influencers,
+        };
+  
+        const newVersion = await createMediaPlanVersion(versionPayload);
+         if (!newVersion || !newVersion.id) {
+            throw new Error("Failed to save media plan version or did not receive an ID.");
+        }
+        setSaveStatus(prev => [...prev, { message: `Version ${newVersion.version_number} saved.`, status: 'success' }]);
+  
+        // --- Step 3: Update the Media Plan with the latest_version_id ---
+        setSaveStatus(prev => [...prev, { message: "Linking version to plan...", status: 'pending' }]);
+        await editMediaPlan(newMediaPlan.id, { latest_version_id: newVersion.id });
+        setSaveStatus(prev => [...prev, { message: "Link successful!", status: 'success' }]);
+  
+        // --- Final Success ---
+        toast({
+            title: "Success!",
+            description: "Your media plan and version have been saved correctly.",
+        });
+        setTimeout(() => {
+            setIsSaveModalOpen(false);
+            router.push(`/mediaplans`); // Redirect on success
+        }, 2500);
+  
+    } catch (error: any) {
+        const errorMessage = error.message || "An unknown error occurred.";
+        setSaveStatus(prev => [...prev, { message: errorMessage, status: 'error' }]);
+        toast({
+            title: "Save Failed",
+            description: errorMessage,
+            variant: "destructive",
+        });
+    } finally {
+        setIsLoading(false);
+    }
+  };
   
   const handleGenerateMediaPlan = async () => {
     setIsDownloading(true)
@@ -1713,7 +1748,7 @@ export default function CreateMediaPlan() {
         client:         form.getValues('mp_clientname'),
         brand:          form.getValues('mp_brand'),
         campaignName:   form.getValues('mp_campaignname'),
-        mbaNumber:      form.getValues('mbanumber'),
+        mbaNumber:      form.getValues('mba_number'),
         clientContact:  form.getValues('mp_clientcontact'),
         planVersion:    '1',
         poNumber:       form.getValues('mp_ponumber'),
@@ -2085,7 +2120,7 @@ const workbook = await generateMediaPlan(header, mediaItems);
 
               <FormField
                 control={form.control}
-                name="mbanumber"
+                name="mba_number"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>MBA Number</FormLabel>
