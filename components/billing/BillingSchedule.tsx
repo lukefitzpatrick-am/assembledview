@@ -74,21 +74,33 @@ export function BillingSchedule({
         const daysInMonth = getDaysInMonthForBurst(month, burst);
         const totalDays = getTotalDaysInBurst(burst);
         
-        if (burst.clientPaysForMedia) {
-          // Only calculate fee
-          const fee = (burst.budget / (100 - burst.feePercentage)) * burst.feePercentage;
+        if (burst.budgetIncludesFees && burst.clientPaysForMedia) {
+          // Both true: budget is gross, extract fee only, mediaAmount = 0
+          // Media = 0
+          // Fees = Budget * (Fee / 100)
+          const fee = (burst.budget * (burst.feePercentage || 0)) / 100;
           feeAmount += (fee / totalDays) * daysInMonth;
+          // searchAmount stays 0 (client pays media directly)
+        } else if (burst.budgetIncludesFees) {
+          // Only budgetIncludesFees: budget is gross, split into media and fee
+          // Media = Budget * ((100 - Fee) / 100)
+          // Fees = Budget * (Fee / 100)
+          const media = (burst.budget * (100 - (burst.feePercentage || 0))) / 100;
+          const fee = (burst.budget * (burst.feePercentage || 0)) / 100;
+          searchAmount += (media / totalDays) * daysInMonth;
+          feeAmount += (fee / totalDays) * daysInMonth;
+        } else if (burst.clientPaysForMedia) {
+          // Only clientPaysForMedia: budget is net media, only fee is billed
+          const fee = (burst.budget / (100 - (burst.feePercentage || 0))) * (burst.feePercentage || 0);
+          feeAmount += (fee / totalDays) * daysInMonth;
+          // searchAmount stays 0 (client pays media directly)
         } else {
-          if (burst.budgetIncludesFees) {
-            const adjustedBudget = burst.budget / 100 * (100 - burst.feePercentage);
-            searchAmount += (adjustedBudget / totalDays) * daysInMonth;
-            const fee = burst.budget - adjustedBudget;
-            feeAmount += (fee / totalDays) * daysInMonth;
-          } else {
-            searchAmount += (burst.budget / totalDays) * daysInMonth;
-            const fee = (burst.budget / (100 - burst.feePercentage)) * burst.feePercentage;
-            feeAmount += (fee / totalDays) * daysInMonth;
-          }
+          // Neither: budget is net media, fee calculated on top
+          // Media = Budget (unchanged)
+          // Fees = Budget * (Fee / (100 - Fee))
+          searchAmount += (burst.budget / totalDays) * daysInMonth;
+          const fee = (burst.budget * (burst.feePercentage || 0)) / (100 - (burst.feePercentage || 0));
+          feeAmount += (fee / totalDays) * daysInMonth;
         }
       });
 
@@ -97,21 +109,33 @@ export function BillingSchedule({
         const daysInMonth = getDaysInMonthForBurst(month, burst);
         const totalDays = getTotalDaysInBurst(burst);
         
-        if (burst.clientPaysForMedia) {
-          // Only calculate fee
-          const fee = (burst.budget / (100 - burst.feePercentage)) * burst.feePercentage;
+        if (burst.budgetIncludesFees && burst.clientPaysForMedia) {
+          // Both true: budget is gross, extract fee only, mediaAmount = 0
+          // Media = 0
+          // Fees = Budget * (Fee / 100)
+          const fee = (burst.budget * (burst.feePercentage || 0)) / 100;
           feeAmount += (fee / totalDays) * daysInMonth;
+          // socialAmount stays 0 (client pays media directly)
+        } else if (burst.budgetIncludesFees) {
+          // Only budgetIncludesFees: budget is gross, split into media and fee
+          // Media = Budget * ((100 - Fee) / 100)
+          // Fees = Budget * (Fee / 100)
+          const media = (burst.budget * (100 - (burst.feePercentage || 0))) / 100;
+          const fee = (burst.budget * (burst.feePercentage || 0)) / 100;
+          socialAmount += (media / totalDays) * daysInMonth;
+          feeAmount += (fee / totalDays) * daysInMonth;
+        } else if (burst.clientPaysForMedia) {
+          // Only clientPaysForMedia: budget is net media, only fee is billed
+          const fee = (burst.budget / (100 - (burst.feePercentage || 0))) * (burst.feePercentage || 0);
+          feeAmount += (fee / totalDays) * daysInMonth;
+          // socialAmount stays 0 (client pays media directly)
         } else {
-          if (burst.budgetIncludesFees) {
-            const adjustedBudget = burst.budget / 100 * (100 - burst.feePercentage);
-            socialAmount += (adjustedBudget / totalDays) * daysInMonth;
-            const fee = burst.budget - adjustedBudget;
-            feeAmount += (fee / totalDays) * daysInMonth;
-          } else {
-            socialAmount += (burst.budget / totalDays) * daysInMonth;
-            const fee = (burst.budget / (100 - burst.feePercentage)) * burst.feePercentage;
-            feeAmount += (fee / totalDays) * daysInMonth;
-          }
+          // Neither: budget is net media, fee calculated on top
+          // Media = Budget (unchanged)
+          // Fees = Budget * (Fee / (100 - Fee))
+          socialAmount += (burst.budget / totalDays) * daysInMonth;
+          const fee = (burst.budget * (burst.feePercentage || 0)) / (100 - (burst.feePercentage || 0));
+          feeAmount += (fee / totalDays) * daysInMonth;
         }
       });
 

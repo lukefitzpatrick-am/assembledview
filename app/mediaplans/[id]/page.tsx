@@ -47,19 +47,28 @@ interface MediaPlan {
   version_number: number
 }
 
-export default function MediaPlanPage({ params }: { params: { id: string } }) {
+export default function MediaPlanPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter()
   const [mediaPlan, setMediaPlan] = useState<MediaPlan | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [downloading, setDownloading] = useState(false)
+  const [id, setId] = useState<string>('')
+
+  useEffect(() => {
+    params.then(({ id: paramId }) => {
+      setId(paramId)
+    })
+  }, [params])
 
   // Fetch media plan from the API
   useEffect(() => {
+    if (!id) return
+    
     const fetchMediaPlan = async () => {
       try {
         setLoading(true)
-        const response = await fetch(`/api/mediaplans/${params.id}`)
+        const response = await fetch(`/api/mediaplans/${id}`)
         
         if (!response.ok) {
           throw new Error("Failed to fetch media plan")
@@ -76,7 +85,7 @@ export default function MediaPlanPage({ params }: { params: { id: string } }) {
     }
 
     fetchMediaPlan()
-  }, [params.id])
+  }, [id])
 
   // Format currency
   const formatCurrency = (amount: number) => {
@@ -325,7 +334,7 @@ export default function MediaPlanPage({ params }: { params: { id: string } }) {
               <FileText className="mr-2 h-4 w-4" />
               Generate MBA
             </Button>
-            <Button onClick={() => router.push(`/mediaplans/${params.id}/edit`)}>
+            <Button onClick={() => router.push(`/mediaplans/${id}/edit`)}>
               Edit Media Plan
             </Button>
           </div>

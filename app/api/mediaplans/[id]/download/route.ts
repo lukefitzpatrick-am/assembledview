@@ -5,17 +5,18 @@ const XANO_MEDIAPLANS_BASE_URL = process.env.XANO_MEDIAPLANS_BASE_URL || "https:
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const response = await axios.get(`${XANO_MEDIAPLANS_BASE_URL}/download_mediaplan/${params.id}`, {
+    const { id } = await params
+    const response = await axios.get(`${XANO_MEDIAPLANS_BASE_URL}/download_mediaplan/${id}`, {
       responseType: 'arraybuffer'
     })
     
     // Set the appropriate headers for PDF download
     const headers = new Headers()
     headers.set('Content-Type', 'application/pdf')
-    headers.set('Content-Disposition', `attachment; filename=media-plan-${params.id}.pdf`)
+    headers.set('Content-Disposition', `attachment; filename=media-plan-${id}.pdf`)
     
     return new NextResponse(response.data, {
       status: 200,

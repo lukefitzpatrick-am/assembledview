@@ -21,6 +21,7 @@ export interface Burst { // This is a burst *within* a GroupedItem
   startDate: string; // ISO Date string YYYY-MM-DD
   endDate: string;   // ISO Date string YYYY-MM-DD
   deliverablesAmount: number; // Budget of the burst
+  deliverables: number; // Deliverables count for the burst
 }
 
 // Consolidated LineItem for data from containers
@@ -42,6 +43,8 @@ export interface LineItem {
   daypart?: string;
   placement?: string;     // Also for OOH, Cinema, Print, Radio
   size?: string;          // Ad Size/Length (TV: "30s", Print: "Full Page", OOH: "Supersite")
+  format?: string;        // Format for Radio, Cinema
+  duration?: string;      // Duration for Radio, Cinema
   oohFormat?: string;     // e.g., "Billboard", "Street Furniture"
   oohType?: string;       // e.g., "Digital", "Static"
   panels?: number | string;// Specific deliverable for OOH if not covered by 'deliverables'
@@ -74,6 +77,8 @@ export interface GroupedItem {
   daypart?: string;
   placement?: string;
   size?: string;
+  format?: string;
+  duration?: string;
   oohFormat?: string;
   oohType?: string;
   panels?: number | string;
@@ -154,9 +159,75 @@ function formatBidStrategy(strategyCode: string | undefined): string {
     .join(' ');
 }
 
+// format buy type to human readable
+function formatBuyType(buyType: string | undefined): string {
+  if (!buyType) return '';
+  
+  // Handle common buy type formats and acronyms
+  const buyTypeMap: { [key: string]: string } = {
+    'cpt': 'CPT',
+    'cpm': 'CPM',
+    'cpc': 'CPC',
+    'cpv': 'CPV',
+    'cpa': 'CPA',
+    'cpl': 'CPL',
+    'cpi': 'CPI',
+    'fixed_cost': 'Fixed Cost',
+    'fixed_spot_rate': 'Fixed Spot Rate',
+    'sponsorship': 'Sponsorship',
+    'spots': 'Spots',
+    'reach': 'Reach',
+    'frequency': 'Frequency',
+    'cpp': 'CPP',
+    'cost_per_spot': 'Cost Per Spot',
+    'cost_per_thousand': 'Cost Per Thousand',
+    'cost_per_point': 'Cost Per Point',
+    'cost_per_click': 'CPC',
+    'cost_per_view': 'CPV',
+    'cost_per_acquisition': 'CPA',
+    'cost_per_lead': 'CPL',
+    'cost_per_install': 'CPI'
+  };
+  
+  const lowerBuyType = buyType.toLowerCase();
+  if (buyTypeMap[lowerBuyType]) {
+    return buyTypeMap[lowerBuyType];
+  }
+  
+  // Check if it's already an acronym (all caps or mixed case like "CPC", "cpm", etc.)
+  // Common acronym patterns: 2-4 uppercase letters
+  const acronymPattern = /^[A-Z]{2,4}$/i;
+  if (acronymPattern.test(buyType)) {
+    return buyType.toUpperCase();
+  }
+  
+  // If not in map, format by capitalizing words and handling underscores
+  return buyType
+    .split('_')
+    .map(word => {
+      // If word looks like an acronym, uppercase it
+      if (acronymPattern.test(word)) {
+        return word.toUpperCase();
+      }
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    })
+    .join(' ');
+}
+
 export async function generateMediaPlan(
   header: MediaPlanHeader,
   mediaItems: MediaItems,
+  mbaData?: {
+    gross_media: { media_type: string; gross_amount: number }[];
+    totals: {
+      gross_media: number;
+      service_fee: number;
+      production: number;
+      adserving: number;
+      totals_ex_gst: number;
+      total_inc_gst: number;
+    };
+  }
 ): Promise<ExcelJS.Workbook> {
   const {
     logoBase64,
@@ -184,7 +255,14 @@ export async function generateMediaPlan(
     "Programmatic BVOD": ['market', 'platform', 'bidStrategy', 'targeting', 'creative', 'buyingDemo', 'buyType'],
     "Programmatic Video": ['market', 'platform', 'bidStrategy', 'targeting', 'creative', 'buyingDemo', 'buyType'],
     "Programmatic Audio": ['market', 'platform', 'bidStrategy', 'targeting', 'creative', 'buyingDemo', 'buyType'],
-    "Programmatic OOH": ['market', 'platform', 'bidStrategy', 'targeting', 'creative', 'buyingDemo', 'buyType'], 
+    "Programmatic OOH": ['market', 'platform', 'bidStrategy', 'targeting', 'creative', 'buyingDemo', 'buyType'],
+    "Radio": ['market', 'network', 'station', 'placement', 'size', 'radioDuration', 'buyingDemo', 'buyType'],
+    "Cinema": ['market', 'network', 'station', 'placement', 'size', 'buyingDemo', 'buyType'],
+    "OOH": ['market', 'network', 'oohFormat', 'oohType', 'placement', 'size', 'buyingDemo', 'buyType'],
+    "BVOD": ['market', 'platform', 'site', 'bidStrategy', 'targeting', 'creative', 'buyingDemo', 'buyType'],
+    "Digital Display": ['market', 'platform', 'site', 'targeting', 'creative', 'buyingDemo', 'buyType'],
+    "Digital Audio": ['market', 'platform', 'site', 'bidStrategy', 'targeting', 'creative', 'buyingDemo', 'buyType'],
+    "Digital Video": ['market', 'platform', 'site', 'bidStrategy', 'targeting', 'creative', 'buyingDemo', 'buyType'],
     // ... (other configs)
   };
 
@@ -215,7 +293,8 @@ export async function generateMediaPlan(
           market: item.market, platform: item.platform, network: item.network, station: item.station,
           bidStrategy: item.bidStrategy, targeting: item.targeting, creative: item.creative,
           buyingDemo: item.buyingDemo, buyType: item.buyType, daypart: item.daypart,
-          placement: item.placement, size: item.size, oohFormat: item.oohFormat, oohType: item.oohType,
+          placement: item.placement, size: item.size, format: item.format, duration: item.duration,
+          oohFormat: item.oohFormat, oohType: item.oohType,
           panels: item.panels, cinemaTarget: item.cinemaTarget, screens: item.screens, title: item.title,
           insertions: item.insertions, radioDuration: item.radioDuration, spots: item.spots,
           site: item.site, digitalDuration: item.digitalDuration,
@@ -235,6 +314,7 @@ export async function generateMediaPlan(
             startDate: itemStartDate,
             endDate: itemEndDate,
             deliverablesAmount: deliverablesAmtNum,
+            deliverables: calculatedDeliverablesNum,
         });
         group.deliverablesAmount += deliverablesAmtNum; // This is sum of burst budgets
         group.grossMedia += grossMediaNum;
@@ -253,7 +333,7 @@ export async function generateMediaPlan(
 
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('Media Plan');
-  sheet.views = [{ state: 'normal', showGridLines: false, zoomScale: 50 }];
+  sheet.views = [{ state: 'normal', showGridLines: false, zoomScale: 60 }];
   sheet.mergeCells('B2:C2');
 
   const pxToChars = (px: number) => px / 7; // Approximate conversion
@@ -285,7 +365,7 @@ export async function generateMediaPlan(
   ) => {
     const c = typeof cellOrRef === 'string' ? sheet.getCell(cellOrRef) : cellOrRef;
     if (options.value !== undefined) c.value = options.value;
-    c.font = { name: 'Inter', size: options.fontSize ?? 12, bold: options.bold ?? false, color: options.fontColor ? { argb: options.fontColor } : undefined };
+    c.font = { name: 'Aptos', size: options.fontSize ?? 15, bold: options.bold ?? false, color: options.fontColor ? { argb: options.fontColor } : undefined };
     c.alignment = { horizontal: options.align ?? 'left', vertical: options.verticalAlign ?? 'middle', wrapText: false, textRotation: options.textRotation as any }; // wrapText false by default
     if (options.fill) c.fill = options.fill;
     if (options.numFmt) c.numFmt = options.numFmt;
@@ -328,6 +408,13 @@ export async function generateMediaPlan(
    bottom: { style: 'dashed', color: { argb: 'FFBFBFBF' } }, right: { style: 'dashed', color: { argb: 'FFBFBFBF' } }
   };
 
+  const blackBorder: Partial<ExcelJS.Borders> = {
+    top: { style: 'thin', color: { argb: 'FF000000' } }, 
+    left: { style: 'thin', color: { argb: 'FF000000' } },
+    bottom: { style: 'thin', color: { argb: 'FF000000' } }, 
+    right: { style: 'thin', color: { argb: 'FF000000' } }
+  };
+
   const firstDateCol = 15; // Column O
   // Calculate lastDateCol based on the timeline
   const timelineDays = Math.floor((lastSunday.getTime() - firstSunday.getTime()) / msPerDay);
@@ -346,7 +433,7 @@ export async function generateMediaPlan(
     const dateCell = sheet.getCell(7, colIdx);
     style(dateCell, {
         value: new Date(d.getTime()), // Store as Date object (already UTC)
-        numFmt: 'dd/mm/yyyy', align: 'center', verticalAlign: 'bottom', textRotation: 90, fontSize: 12
+        numFmt: 'dd/mm/yyyy', align: 'center', verticalAlign: 'bottom', textRotation: 45, fontSize: 10
     });
     dateCell.border = lightDashedBorder; // Added border to date row
 
@@ -365,34 +452,52 @@ export async function generateMediaPlan(
       '', 'Deliverables', 'Buying Demo', 'Buy Type', 'Avg. Rate', 'Gross Media'
   ];
 
+  const BIDDABLE_WITH_SITE_HEADERS = [
+      'Market', 'Platform', 'Site', 'Targeting', 'Creative', 'Start Date', 'End Date',
+      '', 'Deliverables', 'Buying Demo', 'Buy Type', 'Avg. Rate', 'Gross Media'
+  ];
+
   const TV_DATA_HEADERS = [
-    'Market', 'Network', 'Station', 'Daypart', 'Placement', 'Start Date', 'End Date', 'Size', 'Deliverables', 'Buying Demo', 'Buy Type', 'Avg. Rate', 'Gross Media'
+    'Market', 'Network', 'Station', 'Daypart', 'Placement', 'Start Date', 'End Date', 'Length', 'Deliverables', 'Buying Demo', 'Buy Type', 'Avg. Rate', 'Gross Media'
   ];
 
   const PRESS_DATA_HEADERS = [
-    'Market', 'Network', 'Title', '', 'Placement', 'Start Date', 'End Date', 'Size', 'Deliverables', 'Buying Demo', 'Buy Type', 'Avg. Rate', 'Gross Media'
+    'Market', 'Network', 'Title', 'Placement', '', 'Start Date', 'End Date', 'Ad Size', 'Deliverables', 'Buying Demo', 'Buy Type', 'Avg. Rate', 'Gross Media'
+  ];
+
+  const RADIO_DATA_HEADERS = [
+    'Market', 'Network', 'Station', 'Placement', 'Format', 'Start Date', 'End Date', 'Duration', 'Deliverables', 'Buying Demo', 'Buy Type', 'Avg. Rate', 'Gross Media'
+  ];
+
+  const CINEMA_DATA_HEADERS = [
+    'Market', 'Network', 'Station', 'Placement', 'Format', 'Start Date', 'End Date', 'Duration', 'Deliverables', 'Buying Demo', 'Buy Type', 'Avg. Rate', 'Gross Media'
+  ];
+
+  const OOH_DATA_HEADERS = [
+    'Market', 'Network', 'Format', 'Placement', 'Type', 'Start Date', 'End Date', 'Size', 'Deliverables', 'Buying Demo', 'Buy Type', 'Avg. Rate', 'Gross Media'
   ];
 
   function drawSection(
     title: string,
     items: GroupedItem[],
     startRow: number,
-    sectionType: 'Biddable' | 'Television' | 'Press'
+    sectionType: 'Biddable' | 'Television' | 'Press' | 'Radio' | 'Cinema' | 'OOH'
   ): number {
     let r = startRow;
     const sectionHasItems = items.length > 0;
   
-    // FIX: Renamed for clarity
-    const BIDDABLE_DATA_HEADERS = [
-        'Market', 'Platform', 'Bid Strategy', 'Targeting', 'Creative', 'Start Date', 'End Date',
-        '', 'Deliverables', 'Buying Demo', 'Buy Type', 'Avg. Rate', 'Gross Media'
-    ];
+    // Determine which headers to use based on section type and title
+    const useSiteHeader = ['BVOD', 'Digital Display', 'Digital Audio', 'Digital Video'].includes(title);
+    const biddableHeaders = useSiteHeader ? BIDDABLE_WITH_SITE_HEADERS : BIDDABLE_DATA_HEADERS;
   
     // This logic correctly selects the headers to use
     const headersToUse =
       sectionType === 'Television' ? TV_DATA_HEADERS :
       sectionType === 'Press' ? PRESS_DATA_HEADERS :
-      BIDDABLE_DATA_HEADERS;
+      sectionType === 'Radio' ? RADIO_DATA_HEADERS :
+      sectionType === 'Cinema' ? CINEMA_DATA_HEADERS :
+      sectionType === 'OOH' ? OOH_DATA_HEADERS :
+      biddableHeaders;
   
     // --- Section Title & Header Rendering (No changes needed) ---
     const headerLastColNum = Math.max(14, lastDateCol);
@@ -410,7 +515,7 @@ export async function generateMediaPlan(
     const headerFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF808080' } };
     headersToUse.forEach((h, i) => {
       style(sheet.getCell(r, 2 + i), {
-        value: h, bold: true, align: 'left', fill: headerFill, fontColor: 'FF000000'
+        value: h, bold: true, align: 'left', fill: headerFill, fontColor: 'FFFFFFFF'
       });
     });
     r++;
@@ -442,10 +547,10 @@ export async function generateMediaPlan(
             it.placement || '',
             it.groupStartDate ? parseDateStringYYYYMMDD(it.groupStartDate) : null,
             it.groupEndDate ? parseDateStringYYYYMMDD(it.groupEndDate) : null,
-            it.size || '',
+            it.size || '', // Length column
             it.totalCalculatedDeliverables, // TARPs
             it.buyingDemo || '',
-            it.buyType || '',
+            formatBuyType(it.buyType),
             averageRate, // Avg. CPP
             it.grossMedia
           ];
@@ -453,19 +558,76 @@ export async function generateMediaPlan(
           if (it.totalCalculatedDeliverables && it.totalCalculatedDeliverables !== 0) {
             averageRate = it.grossMedia / it.totalCalculatedDeliverables; // Cost Per Insertion
           }
-          // FIX: Added the missing '' to align columns with PRESS_DATA_HEADERS.
           dataRowValues = [
             it.market,
             it.network || '',
             it.title || '',
-            '', // This was the missing element for the blank column D
-            it.placement || '',
+            it.placement || '', // Placement column
+            '', // Blank column
             it.groupStartDate ? parseDateStringYYYYMMDD(it.groupStartDate) : null,
             it.groupEndDate ? parseDateStringYYYYMMDD(it.groupEndDate) : null,
-            it.size || '',
+            it.size || '', // Ad Size column
             it.totalCalculatedDeliverables, // Insertions
             it.buyingDemo || '',
-            it.buyType || '',
+            formatBuyType(it.buyType),
+            averageRate,
+            it.grossMedia
+          ];
+        } else if (sectionType === 'Radio') {
+          if (it.totalCalculatedDeliverables && it.totalCalculatedDeliverables !== 0) {
+            averageRate = it.grossMedia / it.totalCalculatedDeliverables; // Cost Per Spot
+          }
+          dataRowValues = [
+            it.market,
+            it.network || '',
+            it.station || '',
+            it.placement || '',
+            it.creative || it.format || '', // Format column - RadioContainer maps format to creative
+            it.groupStartDate ? parseDateStringYYYYMMDD(it.groupStartDate) : null,
+            it.groupEndDate ? parseDateStringYYYYMMDD(it.groupEndDate) : null,
+            it.radioDuration || it.duration || '', // Duration column
+            it.totalCalculatedDeliverables, // Spots
+            it.buyingDemo || '',
+            formatBuyType(it.buyType),
+            averageRate,
+            it.grossMedia
+          ];
+        } else if (sectionType === 'Cinema') {
+          if (it.totalCalculatedDeliverables && it.totalCalculatedDeliverables !== 0) {
+            // Cost Per Screen - fixed calculation (was 10 times less than it should be)
+            averageRate = (it.grossMedia / it.totalCalculatedDeliverables) * 1000; // Cost Per Screen
+          }
+          dataRowValues = [
+            it.market,
+            it.network || '',
+            it.station || '',
+            it.placement || '',
+            it.format || it.creative || '', // Format column
+            it.groupStartDate ? parseDateStringYYYYMMDD(it.groupStartDate) : null,
+            it.groupEndDate ? parseDateStringYYYYMMDD(it.groupEndDate) : null,
+            it.duration || it.radioDuration || '', // Duration column
+            it.totalCalculatedDeliverables, // Screens
+            it.buyingDemo || '',
+            formatBuyType(it.buyType),
+            averageRate,
+            it.grossMedia
+          ];
+        } else if (sectionType === 'OOH') {
+          if (it.totalCalculatedDeliverables && it.totalCalculatedDeliverables !== 0) {
+            averageRate = it.grossMedia / it.totalCalculatedDeliverables; // Cost Per Panel
+          }
+          dataRowValues = [
+            it.market,
+            it.network || '',
+            it.oohFormat || '',
+            it.placement || '',
+            it.oohType || '',
+            it.groupStartDate ? parseDateStringYYYYMMDD(it.groupStartDate) : null,
+            it.groupEndDate ? parseDateStringYYYYMMDD(it.groupEndDate) : null,
+            it.size || '', // Size column
+            it.totalCalculatedDeliverables, // Panels
+            it.buyingDemo || '',
+            formatBuyType(it.buyType),
             averageRate,
             it.grossMedia
           ];
@@ -478,18 +640,22 @@ export async function generateMediaPlan(
                   averageRate = it.grossMedia / it.totalCalculatedDeliverables;
               }
           }
+          // Use site field for BVOD, Digital Display, Digital Audio, Digital Video
+          const useSite = ['BVOD', 'Digital Display', 'Digital Audio', 'Digital Video'].includes(title);
+          const thirdColumnValue = useSite ? (it.site || '') : formatBidStrategy(it.bidStrategy);
+          
           dataRowValues = [
-            it.market,
+            it.market || '',
             it.platform || '',
-            formatBidStrategy(it.bidStrategy),
+            thirdColumnValue,
             it.targeting || '',
             it.creative || '',
             it.groupStartDate ? parseDateStringYYYYMMDD(it.groupStartDate) : null,
             it.groupEndDate ? parseDateStringYYYYMMDD(it.groupEndDate) : null,
-            '',
+            it.size || '', // Length column
             it.totalCalculatedDeliverables,
             it.buyingDemo || '',
-            it.buyType || '',
+            formatBuyType(it.buyType),
             averageRate,
             it.grossMedia
           ];
@@ -499,23 +665,27 @@ export async function generateMediaPlan(
         dataRowValues.forEach((val, i) => {
           const cell = sheet.getCell(r, 2 + i);
           const cellStyleOptions: Partial<Parameters<typeof style>[1]> = { value: val, fontSize: 15, verticalAlign: 'middle' };
-  
+
           if (i === 5 || i === 6) { // Start/End Date
              cellStyleOptions.numFmt = 'dd/mm/yyyy'; cellStyleOptions.align = 'center';
           } else if (sectionType === 'Television' && i === 8) { // TARPs
-             cellStyleOptions.numFmt = '#,##0.0'; cellStyleOptions.align = 'right';
+             cellStyleOptions.numFmt = '#,##0'; cellStyleOptions.align = 'right';
           } else if (i === 8) { // Default Deliverables
              cellStyleOptions.numFmt = '#,##0'; cellStyleOptions.align = 'right';
           } else if (i === 11 || i === 12) { // Avg Rate & Gross Media
              cellStyleOptions.numFmt = '$#,##0.00'; cellStyleOptions.align = 'right';
-          } else if (sectionType !== 'Biddable' && i === 7) { // Size/Ad Length column
+          } else if ((sectionType === 'Television' || sectionType === 'Radio' || sectionType === 'Cinema') && i === 7) { // Length/Duration column
+              cellStyleOptions.align = 'center';
+          } else if (sectionType === 'Press' && i === 7) { // Ad Size column
+              cellStyleOptions.align = 'center';
+          } else if (sectionType === 'OOH' && i === 7) { // Size column
               cellStyleOptions.align = 'center';
           } else {
              cellStyleOptions.align = 'left';
           }
           style(cell, cellStyleOptions);
         });
-  
+
         for (let cIdx = firstDateCol; cIdx <= lastDateCol; cIdx++) {
           sheet.getCell(r, cIdx).border = lightDashedBorder;
         }
@@ -543,11 +713,37 @@ export async function generateMediaPlan(
     style(sheet.getCell(r, 2), {
       value: `Total ${title}`, bold: true, align: 'right', fill: totalFill, fontColor: 'FF000000'
     });
-  
+
     const sumGrossMedia = items.reduce((s, x) => s + x.grossMedia, 0);
     style(sheet.getCell(r, 14), {
       value: sumGrossMedia, bold: true, align: 'right', numFmt: '$#,##0.00', fill: totalFill, fontColor: 'FF000000'
     });
+
+    // Add exterior border around the entire section
+    const sectionStartRow = startRow;
+    const sectionEndRow = r;
+    const sectionStartCol = 2;
+    const sectionEndCol = headerLastColNum;
+    
+    // Top border
+    for (let cIdx = sectionStartCol; cIdx <= sectionEndCol; cIdx++) {
+      sheet.getCell(sectionStartRow, cIdx).border = { ...sheet.getCell(sectionStartRow, cIdx).border, top: { style: 'thin', color: { argb: 'FF000000' } } };
+    }
+    
+    // Bottom border
+    for (let cIdx = sectionStartCol; cIdx <= sectionEndCol; cIdx++) {
+      sheet.getCell(sectionEndRow, cIdx).border = { ...sheet.getCell(sectionEndRow, cIdx).border, bottom: { style: 'thin', color: { argb: 'FF000000' } } };
+    }
+    
+    // Left border
+    for (let rIdx = sectionStartRow; rIdx <= sectionEndRow; rIdx++) {
+      sheet.getCell(rIdx, sectionStartCol).border = { ...sheet.getCell(rIdx, sectionStartCol).border, left: { style: 'thin', color: { argb: 'FF000000' } } };
+    }
+    
+    // Right border
+    for (let rIdx = sectionStartRow; rIdx <= sectionEndRow; rIdx++) {
+      sheet.getCell(rIdx, sectionEndCol).border = { ...sheet.getCell(rIdx, sectionEndCol).border, right: { style: 'thin', color: { argb: 'FF000000' } } };
+    }
   
     return dataSectionStartRow;
   }
@@ -583,7 +779,7 @@ export async function generateMediaPlan(
               sheet.mergeCells(itemRow, ganttStart, itemRow, ganttEnd); //
               const cell = sheet.getCell(itemRow, ganttStart); //
               style(cell, { 
-                value: b.deliverablesAmount, 
+                value: b.deliverables, 
                 fontSize: 15, 
                 align: 'center', 
                 verticalAlign: 'middle', 
@@ -603,8 +799,110 @@ export async function generateMediaPlan(
       });
 
 
-      currentRow += (groupedTelevision.length + 5); 
-      currentRow++; // Add one blank row after this section before the next one.
+      currentRow += (groupedTelevision.length + 5);
+  }
+
+  // --- Radio ---
+  const groupedRadioRaw = mediaItems.radio || []; // Get raw items for Radio
+  const groupedRadio: GroupedItem[] = groupLineItems(groupedRadioRaw, "Radio"); // Group them
+
+  if (groupedRadio.length > 0) { // Only proceed if there are radio items to display
+      const radioDataStartActualRow = drawSection('Radio', groupedRadio, currentRow, 'Radio'); // Draw the section
+      
+      const firstSundayUTC = new Date(Date.UTC(firstSunday.getFullYear(), firstSunday.getMonth(), firstSunday.getDate())); //
+
+      groupedRadio.forEach((it, idx) => {
+        const itemRow = radioDataStartActualRow + idx; // Data rows start at radioDataStartActualRow
+        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime()); //
+        
+        sortedBursts.forEach(b => {
+          const burstStart = parseDateStringYYYYMMDD(b.startDate); //
+          const burstEnd = parseDateStringYYYYMMDD(b.endDate); //
+          
+          const startOffset = Math.round((burstStart.getTime() - firstSundayUTC.getTime()) / msPerDay); //
+          const endOffset = Math.round((burstEnd.getTime() - firstSundayUTC.getTime()) / msPerDay); //
+          
+          const ganttStart = firstDateCol + startOffset; //
+          const ganttEnd = firstDateCol + endOffset; //
+          
+          // Ensure the burst is within the drawable timeline and worksheet boundaries
+          if (ganttStart <= ganttEnd && ganttStart >= firstDateCol && ganttEnd <= lastDateCol) { // Check ganttEnd against lastDateCol
+            try {
+              sheet.mergeCells(itemRow, ganttStart, itemRow, ganttEnd); //
+              const cell = sheet.getCell(itemRow, ganttStart); //
+              style(cell, { 
+                value: b.deliverables, 
+                fontSize: 15, 
+                align: 'center', 
+                verticalAlign: 'middle', 
+                fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD02A60' } }, 
+                fontColor: 'FFFFFFFF', 
+                numFmt: '#,##0' 
+              }); //
+              cell.border = lightDashedBorder; // Apply the standard light dashed border to the Gantt bar cells
+            } catch (e) { 
+              console.error("Error drawing radio burst Gantt:", e); //
+            }
+          } else {
+            // Optional: Log if a burst is outside the drawable timeline range for debugging
+            // console.warn(`Radio burst for item ${idx} (Market: ${it.market}, Creative: ${it.creative}) is outside the drawable timeline: Start ${b.startDate}, End ${b.endDate}. Calculated Gantt: ${ganttStart}-${ganttEnd}`);
+          }
+        });
+      });
+
+      currentRow += (groupedRadio.length + 5);
+  }
+
+  // --- Newspaper ---
+  const groupedNewspaperRaw = mediaItems.newspaper || []; // Get raw items for Newspaper
+  const groupedNewspaper: GroupedItem[] = groupLineItems(groupedNewspaperRaw, "Newspapers"); // Group them
+
+  if (groupedNewspaper.length > 0) { // Only proceed if there are search items to display
+      const newspaperDataStartActualRow = drawSection('Newspaper', groupedNewspaper, currentRow, 'Press'); // Draw the section
+      
+      const firstSundayUTC = new Date(Date.UTC(firstSunday.getFullYear(), firstSunday.getMonth(), firstSunday.getDate())); //
+
+      groupedNewspaper.forEach((it, idx) => {
+        const itemRow = newspaperDataStartActualRow + idx; // Data rows start at newspaperDataStartActualRow
+        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime()); //
+        
+        sortedBursts.forEach(b => {
+          const burstStart = parseDateStringYYYYMMDD(b.startDate); //
+          const burstEnd = parseDateStringYYYYMMDD(b.endDate); //
+          
+          const startOffset = Math.round((burstStart.getTime() - firstSundayUTC.getTime()) / msPerDay); //
+          const endOffset = Math.round((burstEnd.getTime() - firstSundayUTC.getTime()) / msPerDay); //
+          
+          const ganttStart = firstDateCol + startOffset; //
+          const ganttEnd = firstDateCol + endOffset; //
+          
+          // Ensure the burst is within the drawable timeline and worksheet boundaries
+          if (ganttStart <= ganttEnd && ganttStart >= firstDateCol && ganttEnd <= lastDateCol) { // Check ganttEnd against lastDateCol
+            try {
+              sheet.mergeCells(itemRow, ganttStart, itemRow, ganttEnd); //
+              const cell = sheet.getCell(itemRow, ganttStart); //
+              style(cell, { 
+                value: b.deliverables, 
+                fontSize: 15, 
+                align: 'center', 
+                verticalAlign: 'middle', 
+                fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD02A60' } }, 
+                fontColor: 'FFFFFFFF', 
+                numFmt: '#,##0' 
+              }); //
+              cell.border = lightDashedBorder; // Apply the standard light dashed border to the Gantt bar cells
+            } catch (e) { 
+              console.error("Error drawing newspaper burst Gantt:", e); //
+            }
+          } else {
+            // Optional: Log if a burst is outside the drawable timeline range for debugging
+            // console.warn(`Search burst for item ${idx} (Market: ${it.market}, Creative: ${it.creative}) is outside the drawable timeline: Start ${b.startDate}, End ${b.endDate}. Calculated Gantt: ${ganttStart}-${ganttEnd}`);
+          }
+        });
+      });
+
+
+      currentRow += (groupedNewspaper.length + 5);
   }
 
   // --- Magazines ---
@@ -636,7 +934,7 @@ export async function generateMediaPlan(
               sheet.mergeCells(itemRow, ganttStart, itemRow, ganttEnd); //
               const cell = sheet.getCell(itemRow, ganttStart); //
               style(cell, { 
-                value: b.deliverablesAmount, 
+                value: b.deliverables, 
                 fontSize: 15, 
                 align: 'center', 
                 verticalAlign: 'middle', 
@@ -656,21 +954,20 @@ export async function generateMediaPlan(
       });
 
 
-      currentRow += (groupedMagazines.length + 5); 
-      currentRow++; // Add one blank row after this section before the next one.
+      currentRow += (groupedMagazines.length + 5);
   }
 
-  // --- Newspaper ---
-  const groupedNewspaperRaw = mediaItems.newspaper || []; // Get raw items for Newspaper
-  const groupedNewspaper: GroupedItem[] = groupLineItems(groupedNewspaperRaw, "Newspaper"); // Group them
+  // --- OOH ---
+  const groupedOohRaw = mediaItems.ooh || []; // Get raw items for OOH
+  const groupedOoh: GroupedItem[] = groupLineItems(groupedOohRaw, "OOH"); // Group them
 
-  if (groupedNewspaper.length > 0) { // Only proceed if there are search items to display
-      const newspaperDataStartActualRow = drawSection('Newspaper', groupedNewspaper, currentRow, 'Press'); // Draw the section
+  if (groupedOoh.length > 0) { // Only proceed if there are OOH items to display
+      const oohDataStartActualRow = drawSection('OOH', groupedOoh, currentRow, 'OOH'); // Draw the section
       
       const firstSundayUTC = new Date(Date.UTC(firstSunday.getFullYear(), firstSunday.getMonth(), firstSunday.getDate())); //
 
-      groupedNewspaper.forEach((it, idx) => {
-        const itemRow = newspaperDataStartActualRow + idx; // Data rows start at newspaperDataStartActualRow
+      groupedOoh.forEach((it, idx) => {
+        const itemRow = oohDataStartActualRow + idx; // Data rows start at oohDataStartActualRow
         const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime()); //
         
         sortedBursts.forEach(b => {
@@ -689,7 +986,7 @@ export async function generateMediaPlan(
               sheet.mergeCells(itemRow, ganttStart, itemRow, ganttEnd); //
               const cell = sheet.getCell(itemRow, ganttStart); //
               style(cell, { 
-                value: b.deliverablesAmount, 
+                value: b.deliverables, 
                 fontSize: 15, 
                 align: 'center', 
                 verticalAlign: 'middle', 
@@ -699,20 +996,272 @@ export async function generateMediaPlan(
               }); //
               cell.border = lightDashedBorder; // Apply the standard light dashed border to the Gantt bar cells
             } catch (e) { 
-              console.error("Error drawing newspaper burst Gantt:", e); //
+              console.error("Error drawing OOH burst Gantt:", e); //
             }
           } else {
             // Optional: Log if a burst is outside the drawable timeline range for debugging
-            // console.warn(`Search burst for item ${idx} (Market: ${it.market}, Creative: ${it.creative}) is outside the drawable timeline: Start ${b.startDate}, End ${b.endDate}. Calculated Gantt: ${ganttStart}-${ganttEnd}`);
+            // console.warn(`OOH burst for item ${idx} (Market: ${it.market}, Creative: ${it.creative}) is outside the drawable timeline: Start ${b.startDate}, End ${b.endDate}. Calculated Gantt: ${ganttStart}-${ganttEnd}`);
           }
         });
       });
 
-
-      currentRow += (groupedNewspaper.length + 5); 
-      currentRow++; // Add one blank row after this section before the next one.
+      currentRow += (groupedOoh.length + 5);
   }
 
+  // --- Cinema ---
+  const groupedCinemaRaw = mediaItems.cinema || []; // Get raw items for Cinema
+  const groupedCinema: GroupedItem[] = groupLineItems(groupedCinemaRaw, "Cinema"); // Group them
+
+  if (groupedCinema.length > 0) { // Only proceed if there are cinema items to display
+      const cinemaDataStartActualRow = drawSection('Cinema', groupedCinema, currentRow, 'Cinema'); // Draw the section
+      
+      const firstSundayUTC = new Date(Date.UTC(firstSunday.getFullYear(), firstSunday.getMonth(), firstSunday.getDate())); //
+
+      groupedCinema.forEach((it, idx) => {
+        const itemRow = cinemaDataStartActualRow + idx; // Data rows start at cinemaDataStartActualRow
+        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime()); //
+        
+        sortedBursts.forEach(b => {
+          const burstStart = parseDateStringYYYYMMDD(b.startDate); //
+          const burstEnd = parseDateStringYYYYMMDD(b.endDate); //
+          
+          const startOffset = Math.round((burstStart.getTime() - firstSundayUTC.getTime()) / msPerDay); //
+          const endOffset = Math.round((burstEnd.getTime() - firstSundayUTC.getTime()) / msPerDay); //
+          
+          const ganttStart = firstDateCol + startOffset; //
+          const ganttEnd = firstDateCol + endOffset; //
+          
+          // Ensure the burst is within the drawable timeline and worksheet boundaries
+          if (ganttStart <= ganttEnd && ganttStart >= firstDateCol && ganttEnd <= lastDateCol) { // Check ganttEnd against lastDateCol
+            try {
+              sheet.mergeCells(itemRow, ganttStart, itemRow, ganttEnd); //
+              const cell = sheet.getCell(itemRow, ganttStart); //
+              style(cell, { 
+                value: b.deliverables, 
+                fontSize: 15, 
+                align: 'center', 
+                verticalAlign: 'middle', 
+                fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD02A60' } }, 
+                fontColor: 'FFFFFFFF', 
+                numFmt: '#,##0' 
+              }); //
+              cell.border = lightDashedBorder; // Apply the standard light dashed border to the Gantt bar cells
+            } catch (e) { 
+              console.error("Error drawing cinema burst Gantt:", e); //
+            }
+          } else {
+            // Optional: Log if a burst is outside the drawable timeline range for debugging
+            // console.warn(`Cinema burst for item ${idx} (Market: ${it.market}, Creative: ${it.creative}) is outside the drawable timeline: Start ${b.startDate}, End ${b.endDate}. Calculated Gantt: ${ganttStart}-${ganttEnd}`);
+          }
+        });
+      });
+
+      currentRow += (groupedCinema.length + 5);
+  }
+
+  // --- Digital Display ---
+  const groupedDigiDisplayRaw = mediaItems.digiDisplay || []; // Get raw items for Digital Display
+  const groupedDigiDisplay: GroupedItem[] = groupLineItems(groupedDigiDisplayRaw, "Digital Display"); // Group them
+
+  if (groupedDigiDisplay.length > 0) { // Only proceed if there are Digital Display items to display
+      const digiDisplayDataStartActualRow = drawSection('Digital Display', groupedDigiDisplay, currentRow, 'Biddable'); // Draw the section
+      
+      const firstSundayUTC = new Date(Date.UTC(firstSunday.getFullYear(), firstSunday.getMonth(), firstSunday.getDate())); //
+
+      groupedDigiDisplay.forEach((it, idx) => {
+        const itemRow = digiDisplayDataStartActualRow + idx; // Data rows start at digiDisplayDataStartActualRow
+        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime()); //
+        
+        sortedBursts.forEach(b => {
+          const burstStart = parseDateStringYYYYMMDD(b.startDate); //
+          const burstEnd = parseDateStringYYYYMMDD(b.endDate); //
+          
+          const startOffset = Math.round((burstStart.getTime() - firstSundayUTC.getTime()) / msPerDay); //
+          const endOffset = Math.round((burstEnd.getTime() - firstSundayUTC.getTime()) / msPerDay); //
+          
+          const ganttStart = firstDateCol + startOffset; //
+          const ganttEnd = firstDateCol + endOffset; //
+          
+          // Ensure the burst is within the drawable timeline and worksheet boundaries
+          if (ganttStart <= ganttEnd && ganttStart >= firstDateCol && ganttEnd <= lastDateCol) { // Check ganttEnd against lastDateCol
+            try {
+              sheet.mergeCells(itemRow, ganttStart, itemRow, ganttEnd); //
+              const cell = sheet.getCell(itemRow, ganttStart); //
+              style(cell, { 
+                value: b.deliverables, 
+                fontSize: 15, 
+                align: 'center', 
+                verticalAlign: 'middle', 
+                fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD02A60' } }, 
+                fontColor: 'FFFFFFFF', 
+                numFmt: '#,##0' 
+              }); //
+              cell.border = lightDashedBorder; // Apply the standard light dashed border to the Gantt bar cells
+            } catch (e) { 
+              console.error("Error drawing Digital Display burst Gantt:", e); //
+            }
+          } else {
+            // Optional: Log if a burst is outside the drawable timeline range for debugging
+            // console.warn(`Digital Display burst for item ${idx} (Market: ${it.market}, Creative: ${it.creative}) is outside the drawable timeline: Start ${b.startDate}, End ${b.endDate}. Calculated Gantt: ${ganttStart}-${ganttEnd}`);
+          }
+        });
+      });
+
+      currentRow += (groupedDigiDisplay.length + 5);
+  }
+
+  // --- Digital Audio ---
+  const groupedDigiAudioRaw = mediaItems.digiAudio || []; // Get raw items for Digital Audio
+  const groupedDigiAudio: GroupedItem[] = groupLineItems(groupedDigiAudioRaw, "Digital Audio"); // Group them
+
+  if (groupedDigiAudio.length > 0) { // Only proceed if there are Digital Audio items to display
+      const digiAudioDataStartActualRow = drawSection('Digital Audio', groupedDigiAudio, currentRow, 'Biddable'); // Draw the section
+      
+      const firstSundayUTC = new Date(Date.UTC(firstSunday.getFullYear(), firstSunday.getMonth(), firstSunday.getDate())); //
+
+      groupedDigiAudio.forEach((it, idx) => {
+        const itemRow = digiAudioDataStartActualRow + idx; // Data rows start at digiAudioDataStartActualRow
+        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime()); //
+        
+        sortedBursts.forEach(b => {
+          const burstStart = parseDateStringYYYYMMDD(b.startDate); //
+          const burstEnd = parseDateStringYYYYMMDD(b.endDate); //
+          
+          const startOffset = Math.round((burstStart.getTime() - firstSundayUTC.getTime()) / msPerDay); //
+          const endOffset = Math.round((burstEnd.getTime() - firstSundayUTC.getTime()) / msPerDay); //
+          
+          const ganttStart = firstDateCol + startOffset; //
+          const ganttEnd = firstDateCol + endOffset; //
+          
+          // Ensure the burst is within the drawable timeline and worksheet boundaries
+          if (ganttStart <= ganttEnd && ganttStart >= firstDateCol && ganttEnd <= lastDateCol) { // Check ganttEnd against lastDateCol
+            try {
+              sheet.mergeCells(itemRow, ganttStart, itemRow, ganttEnd); //
+              const cell = sheet.getCell(itemRow, ganttStart); //
+              style(cell, { 
+                value: b.deliverables, 
+                fontSize: 15, 
+                align: 'center', 
+                verticalAlign: 'middle', 
+                fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD02A60' } }, 
+                fontColor: 'FFFFFFFF', 
+                numFmt: '#,##0' 
+              }); //
+              cell.border = lightDashedBorder; // Apply the standard light dashed border to the Gantt bar cells
+            } catch (e) { 
+              console.error("Error drawing Digital Audio burst Gantt:", e); //
+            }
+          } else {
+            // Optional: Log if a burst is outside the drawable timeline range for debugging
+            // console.warn(`Digital Audio burst for item ${idx} (Market: ${it.market}, Creative: ${it.creative}) is outside the drawable timeline: Start ${b.startDate}, End ${b.endDate}. Calculated Gantt: ${ganttStart}-${ganttEnd}`);
+          }
+        });
+      });
+
+      currentRow += (groupedDigiAudio.length + 5);
+  }
+
+  // --- Digital Video ---
+  const groupedDigiVideoRaw = mediaItems.digiVideo || []; // Get raw items for Digital Video
+  const groupedDigiVideo: GroupedItem[] = groupLineItems(groupedDigiVideoRaw, "Digital Video"); // Group them
+
+  if (groupedDigiVideo.length > 0) { // Only proceed if there are Digital Video items to display
+      const digiVideoDataStartActualRow = drawSection('Digital Video', groupedDigiVideo, currentRow, 'Biddable'); // Draw the section
+      
+      const firstSundayUTC = new Date(Date.UTC(firstSunday.getFullYear(), firstSunday.getMonth(), firstSunday.getDate())); //
+
+      groupedDigiVideo.forEach((it, idx) => {
+        const itemRow = digiVideoDataStartActualRow + idx; // Data rows start at digiVideoDataStartActualRow
+        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime()); //
+        
+        sortedBursts.forEach(b => {
+          const burstStart = parseDateStringYYYYMMDD(b.startDate); //
+          const burstEnd = parseDateStringYYYYMMDD(b.endDate); //
+          
+          const startOffset = Math.round((burstStart.getTime() - firstSundayUTC.getTime()) / msPerDay); //
+          const endOffset = Math.round((burstEnd.getTime() - firstSundayUTC.getTime()) / msPerDay); //
+          
+          const ganttStart = firstDateCol + startOffset; //
+          const ganttEnd = firstDateCol + endOffset; //
+          
+          // Ensure the burst is within the drawable timeline and worksheet boundaries
+          if (ganttStart <= ganttEnd && ganttStart >= firstDateCol && ganttEnd <= lastDateCol) { // Check ganttEnd against lastDateCol
+            try {
+              sheet.mergeCells(itemRow, ganttStart, itemRow, ganttEnd); //
+              const cell = sheet.getCell(itemRow, ganttStart); //
+              style(cell, { 
+                value: b.deliverables, 
+                fontSize: 15, 
+                align: 'center', 
+                verticalAlign: 'middle', 
+                fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD02A60' } }, 
+                fontColor: 'FFFFFFFF', 
+                numFmt: '#,##0' 
+              }); //
+              cell.border = lightDashedBorder; // Apply the standard light dashed border to the Gantt bar cells
+            } catch (e) { 
+              console.error("Error drawing Digital Video burst Gantt:", e); //
+            }
+          } else {
+            // Optional: Log if a burst is outside the drawable timeline range for debugging
+            // console.warn(`Digital Video burst for item ${idx} (Market: ${it.market}, Creative: ${it.creative}) is outside the drawable timeline: Start ${b.startDate}, End ${b.endDate}. Calculated Gantt: ${ganttStart}-${ganttEnd}`);
+          }
+        });
+      });
+
+      currentRow += (groupedDigiVideo.length + 5);
+  }
+
+  // --- BVOD ---
+  const groupedBvodRaw = mediaItems.bvod || []; // Get raw items for BVOD
+  const groupedBvod: GroupedItem[] = groupLineItems(groupedBvodRaw, "BVOD"); // Group them
+
+  if (groupedBvod.length > 0) { // Only proceed if there are BVOD items to display
+      const bvodDataStartActualRow = drawSection('BVOD', groupedBvod, currentRow, 'Biddable'); // Draw the section
+      
+      const firstSundayUTC = new Date(Date.UTC(firstSunday.getFullYear(), firstSunday.getMonth(), firstSunday.getDate())); //
+
+      groupedBvod.forEach((it, idx) => {
+        const itemRow = bvodDataStartActualRow + idx; // Data rows start at bvodDataStartActualRow
+        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime()); //
+        
+        sortedBursts.forEach(b => {
+          const burstStart = parseDateStringYYYYMMDD(b.startDate); //
+          const burstEnd = parseDateStringYYYYMMDD(b.endDate); //
+          
+          const startOffset = Math.round((burstStart.getTime() - firstSundayUTC.getTime()) / msPerDay); //
+          const endOffset = Math.round((burstEnd.getTime() - firstSundayUTC.getTime()) / msPerDay); //
+          
+          const ganttStart = firstDateCol + startOffset; //
+          const ganttEnd = firstDateCol + endOffset; //
+          
+          // Ensure the burst is within the drawable timeline and worksheet boundaries
+          if (ganttStart <= ganttEnd && ganttStart >= firstDateCol && ganttEnd <= lastDateCol) { // Check ganttEnd against lastDateCol
+            try {
+              sheet.mergeCells(itemRow, ganttStart, itemRow, ganttEnd); //
+              const cell = sheet.getCell(itemRow, ganttStart); //
+              style(cell, { 
+                value: b.deliverables, 
+                fontSize: 15, 
+                align: 'center', 
+                verticalAlign: 'middle', 
+                fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD02A60' } }, 
+                fontColor: 'FFFFFFFF', 
+                numFmt: '#,##0' 
+              }); //
+              cell.border = lightDashedBorder; // Apply the standard light dashed border to the Gantt bar cells
+            } catch (e) { 
+              console.error("Error drawing BVOD burst Gantt:", e); //
+            }
+          } else {
+            // Optional: Log if a burst is outside the drawable timeline range for debugging
+            // console.warn(`BVOD burst for item ${idx} (Market: ${it.market}, Creative: ${it.creative}) is outside the drawable timeline: Start ${b.startDate}, End ${b.endDate}. Calculated Gantt: ${ganttStart}-${ganttEnd}`);
+          }
+        });
+      });
+
+      currentRow += (groupedBvod.length + 5);
+  }
 
   // --- SEARCH ---
   const groupedSearchRaw = mediaItems.search || []; // Get raw items for Search
@@ -743,7 +1292,7 @@ export async function generateMediaPlan(
               sheet.mergeCells(itemRow, ganttStart, itemRow, ganttEnd); //
               const cell = sheet.getCell(itemRow, ganttStart); //
               style(cell, { 
-                value: b.deliverablesAmount, 
+                value: b.deliverables, 
                 fontSize: 15, 
                 align: 'center', 
                 verticalAlign: 'middle', 
@@ -762,12 +1311,9 @@ export async function generateMediaPlan(
         });
       });
 
-
-      currentRow += (groupedSearch.length + 5); 
-      currentRow++; // Add one blank row after this section before the next one.
+      currentRow += (groupedSearch.length + 5);
   }
 
- 
   // --- SOCIAL MEDIA ---
   const groupedSocialMediaRaw = mediaItems.socialMedia || []; // Get raw items for Social Media
   const groupedSocialMedia: GroupedItem[] = groupLineItems(groupedSocialMediaRaw, "Social Media"); // Group them
@@ -797,7 +1343,7 @@ export async function generateMediaPlan(
               sheet.mergeCells(itemRow, ganttStart, itemRow, ganttEnd); //
               const cell = sheet.getCell(itemRow, ganttStart); //
               style(cell, { 
-                value: b.deliverablesAmount, 
+                value: b.deliverables, 
                 fontSize: 15, 
                 align: 'center', 
                 verticalAlign: 'middle', 
@@ -816,9 +1362,7 @@ export async function generateMediaPlan(
         });
       });
 
-
-      currentRow += (groupedSearch.length + 5); 
-      currentRow++; // Add one blank row after this section before the next one.
+      currentRow += (groupedSocialMedia.length + 5);
   }
 
   // --- Programmatic Display ---
@@ -850,7 +1394,7 @@ export async function generateMediaPlan(
               sheet.mergeCells(itemRow, ganttStart, itemRow, ganttEnd); //
               const cell = sheet.getCell(itemRow, ganttStart); //
               style(cell, { 
-                value: b.deliverablesAmount, 
+                value: b.deliverables, 
                 fontSize: 15, 
                 align: 'center', 
                 verticalAlign: 'middle', 
@@ -870,61 +1414,7 @@ export async function generateMediaPlan(
       });
 
 
-      currentRow += (groupedProgDisplay.length + 5); 
-      currentRow++; // Add one blank row after this section before the next one.
-  }
-
-  // --- Programmatic BVOD ---
-  const groupedProgBVODRaw = mediaItems.progBvod || []; // Get raw items for Search
-  const groupedProgBVOD: GroupedItem[] = groupLineItems(groupedProgBVODRaw, "Programmatic BVOD"); // Group them
-
-  if (groupedProgBVOD.length > 0) { // Only proceed if there are search items to display
-      const progBVODDataStartActualRow = drawSection('Programmatic BVOD', groupedProgBVOD, currentRow, 'Biddable'); // Draw the section
-      
-      const firstSundayUTC = new Date(Date.UTC(firstSunday.getFullYear(), firstSunday.getMonth(), firstSunday.getDate())); //
-
-      groupedProgBVOD.forEach((it, idx) => {
-        const itemRow = progBVODDataStartActualRow + idx; // Data rows start at progBVODDataStartActualRow
-        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime()); //
-        
-        sortedBursts.forEach(b => {
-          const burstStart = parseDateStringYYYYMMDD(b.startDate); //
-          const burstEnd = parseDateStringYYYYMMDD(b.endDate); //
-          
-          const startOffset = Math.round((burstStart.getTime() - firstSundayUTC.getTime()) / msPerDay); //
-          const endOffset = Math.round((burstEnd.getTime() - firstSundayUTC.getTime()) / msPerDay); //
-          
-          const ganttStart = firstDateCol + startOffset; //
-          const ganttEnd = firstDateCol + endOffset; //
-          
-          // Ensure the burst is within the drawable timeline and worksheet boundaries
-          if (ganttStart <= ganttEnd && ganttStart >= firstDateCol && ganttEnd <= lastDateCol) { // Check ganttEnd against lastDateCol
-            try {
-              sheet.mergeCells(itemRow, ganttStart, itemRow, ganttEnd); //
-              const cell = sheet.getCell(itemRow, ganttStart); //
-              style(cell, { 
-                value: b.deliverablesAmount, 
-                fontSize: 15, 
-                align: 'center', 
-                verticalAlign: 'middle', 
-                fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD02A60' } }, 
-                fontColor: 'FFFFFFFF', 
-                numFmt: '#,##0' 
-              }); //
-              cell.border = lightDashedBorder; // Apply the standard light dashed border to the Gantt bar cells
-            } catch (e) { 
-              console.error("Error drawing search burst Gantt:", e); //
-            }
-          } else {
-            // Optional: Log if a burst is outside the drawable timeline range for debugging
-            // console.warn(`Search burst for item ${idx} (Market: ${it.market}, Creative: ${it.creative}) is outside the drawable timeline: Start ${b.startDate}, End ${b.endDate}. Calculated Gantt: ${ganttStart}-${ganttEnd}`);
-          }
-        });
-      });
-
-
-      currentRow += (groupedProgBVOD.length + 5); 
-      currentRow++; // Add one blank row after this section before the next one.
+      currentRow += (groupedProgDisplay.length + 5);
   }
 
   // --- Programmatic Video ---
@@ -956,7 +1446,7 @@ export async function generateMediaPlan(
               sheet.mergeCells(itemRow, ganttStart, itemRow, ganttEnd); //
               const cell = sheet.getCell(itemRow, ganttStart); //
               style(cell, { 
-                value: b.deliverablesAmount, 
+                value: b.deliverables, 
                 fontSize: 15, 
                 align: 'center', 
                 verticalAlign: 'middle', 
@@ -976,8 +1466,59 @@ export async function generateMediaPlan(
       });
 
 
-      currentRow += (groupedProgVideo.length + 5); 
-      currentRow++; // Add one blank row after this section before the next one.
+      currentRow += (groupedProgVideo.length + 5);
+  }
+
+  // --- Programmatic BVOD ---
+  const groupedProgBVODRaw = mediaItems.progBvod || []; // Get raw items for Search
+  const groupedProgBVOD: GroupedItem[] = groupLineItems(groupedProgBVODRaw, "Programmatic BVOD"); // Group them
+
+  if (groupedProgBVOD.length > 0) { // Only proceed if there are search items to display
+      const progBVODDataStartActualRow = drawSection('Programmatic BVOD', groupedProgBVOD, currentRow, 'Biddable'); // Draw the section
+      
+      const firstSundayUTC = new Date(Date.UTC(firstSunday.getFullYear(), firstSunday.getMonth(), firstSunday.getDate())); //
+
+      groupedProgBVOD.forEach((it, idx) => {
+        const itemRow = progBVODDataStartActualRow + idx; // Data rows start at progBVODDataStartActualRow
+        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime()); //
+        
+        sortedBursts.forEach(b => {
+          const burstStart = parseDateStringYYYYMMDD(b.startDate); //
+          const burstEnd = parseDateStringYYYYMMDD(b.endDate); //
+          
+          const startOffset = Math.round((burstStart.getTime() - firstSundayUTC.getTime()) / msPerDay); //
+          const endOffset = Math.round((burstEnd.getTime() - firstSundayUTC.getTime()) / msPerDay); //
+          
+          const ganttStart = firstDateCol + startOffset; //
+          const ganttEnd = firstDateCol + endOffset; //
+          
+          // Ensure the burst is within the drawable timeline and worksheet boundaries
+          if (ganttStart <= ganttEnd && ganttStart >= firstDateCol && ganttEnd <= lastDateCol) { // Check ganttEnd against lastDateCol
+            try {
+              sheet.mergeCells(itemRow, ganttStart, itemRow, ganttEnd); //
+              const cell = sheet.getCell(itemRow, ganttStart); //
+              style(cell, { 
+                value: b.deliverables, 
+                fontSize: 15, 
+                align: 'center', 
+                verticalAlign: 'middle', 
+                fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD02A60' } }, 
+                fontColor: 'FFFFFFFF', 
+                numFmt: '#,##0' 
+              }); //
+              cell.border = lightDashedBorder; // Apply the standard light dashed border to the Gantt bar cells
+            } catch (e) { 
+              console.error("Error drawing search burst Gantt:", e); //
+            }
+          } else {
+            // Optional: Log if a burst is outside the drawable timeline range for debugging
+            // console.warn(`Search burst for item ${idx} (Market: ${it.market}, Creative: ${it.creative}) is outside the drawable timeline: Start ${b.startDate}, End ${b.endDate}. Calculated Gantt: ${ganttStart}-${ganttEnd}`);
+          }
+        });
+      });
+
+
+      currentRow += (groupedProgBVOD.length + 5);
   }
 
   // --- Programmatic Audio ---
@@ -1009,7 +1550,7 @@ export async function generateMediaPlan(
               sheet.mergeCells(itemRow, ganttStart, itemRow, ganttEnd); //
               const cell = sheet.getCell(itemRow, ganttStart); //
               style(cell, { 
-                value: b.deliverablesAmount, 
+                value: b.deliverables, 
                 fontSize: 15, 
                 align: 'center', 
                 verticalAlign: 'middle', 
@@ -1029,8 +1570,7 @@ export async function generateMediaPlan(
       });
 
 
-      currentRow += (groupedProgAudio.length + 5); 
-      currentRow++; // Add one blank row after this section before the next one.
+      currentRow += (groupedProgAudio.length + 5);
   }
 
   // --- Programmatic OOH ---
@@ -1062,7 +1602,7 @@ export async function generateMediaPlan(
               sheet.mergeCells(itemRow, ganttStart, itemRow, ganttEnd); //
               const cell = sheet.getCell(itemRow, ganttStart); //
               style(cell, { 
-                value: b.deliverablesAmount, 
+                value: b.deliverables, 
                 fontSize: 15, 
                 align: 'center', 
                 verticalAlign: 'middle', 
@@ -1082,11 +1622,172 @@ export async function generateMediaPlan(
       });
 
 
-      currentRow += (groupedProgOoh.length + 5); 
-      currentRow++; // Add one blank row after this section before the next one.
+      currentRow += (groupedProgOoh.length + 5);
   }
 
-  // Add other media sections here following the same pattern...
+  // --- MBA Details Section ---
+  if (mbaData) {
+    // Start directly with the MBA data (no heading)
+
+    // Gross Media Breakdown
+    const tableStartRow = currentRow;
+    if (mbaData.gross_media && mbaData.gross_media.length > 0) {
+      style(sheet.getCell(currentRow, 13), {
+        value: 'Media Type',
+        fontSize: 15,
+        bold: true,
+        align: 'left'
+      });
+      style(sheet.getCell(currentRow, 14), {
+        value: 'Gross Amount',
+        fontSize: 15,
+        bold: true,
+        align: 'right'
+      });
+      currentRow++;
+
+      mbaData.gross_media.forEach(item => {
+        style(sheet.getCell(currentRow, 13), {
+          value: item.media_type,
+          fontSize: 15,
+          align: 'left'
+        });
+        style(sheet.getCell(currentRow, 14), {
+          value: item.gross_amount,
+          fontSize: 15,
+          align: 'right',
+          numFmt: '$#,##0.00'
+        });
+        currentRow++;
+      });
+      currentRow++; // Add space after media breakdown
+    }
+
+    // Totals Section
+    if (mbaData.totals) {
+      const totals = mbaData.totals;
+      
+      style(sheet.getCell(currentRow, 13), {
+        value: 'Total Gross Media:',
+        fontSize: 15,
+        bold: true,
+        align: 'left'
+      });
+      style(sheet.getCell(currentRow, 14), {
+        value: totals.gross_media,
+        fontSize: 15,
+        align: 'right',
+        numFmt: '$#,##0.00'
+      });
+      currentRow++;
+
+      style(sheet.getCell(currentRow, 13), {
+        value: 'Service Fee:',
+        fontSize: 15,
+        bold: true,
+        align: 'left'
+      });
+      style(sheet.getCell(currentRow, 14), {
+        value: totals.service_fee,
+        fontSize: 15,
+        align: 'right',
+        numFmt: '$#,##0.00'
+      });
+      currentRow++;
+
+      style(sheet.getCell(currentRow, 13), {
+        value: 'Production:',
+        fontSize: 15,
+        bold: true,
+        align: 'left'
+      });
+      style(sheet.getCell(currentRow, 14), {
+        value: totals.production,
+        fontSize: 15,
+        align: 'right',
+        numFmt: '$#,##0.00'
+      });
+      currentRow++;
+
+      style(sheet.getCell(currentRow, 13), {
+        value: 'Adserving/Tech:',
+        fontSize: 15,
+        bold: true,
+        align: 'left'
+      });
+      style(sheet.getCell(currentRow, 14), {
+        value: totals.adserving,
+        fontSize: 15,
+        align: 'right',
+        numFmt: '$#,##0.00'
+      });
+      currentRow++;
+
+      // Add separator line
+      currentRow++;
+      style(sheet.getCell(currentRow, 13), {
+        value: 'Total Ex GST:',
+        fontSize: 15,
+        bold: true,
+        align: 'left',
+        fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6E6E6' } }
+      });
+      style(sheet.getCell(currentRow, 14), {
+        value: totals.totals_ex_gst,
+        fontSize: 15,
+        bold: true,
+        align: 'right',
+        numFmt: '$#,##0.00',
+        fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6E6E6' } }
+      });
+      currentRow++;
+
+      style(sheet.getCell(currentRow, 13), {
+        value: 'Total Inc GST:',
+        fontSize: 15,
+        bold: true,
+        align: 'left',
+        fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD4E6F1' } }
+      });
+      style(sheet.getCell(currentRow, 14), {
+        value: totals.total_inc_gst,
+        fontSize: 15,
+        bold: true,
+        align: 'right',
+        numFmt: '$#,##0.00',
+        fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD4E6F1' } }
+      });
+      const tableEndRow = currentRow;
+      
+      // Add solid borders around the entire table
+      const tableStartCol = 13; // Column M
+      const tableEndCol = 14; // Column N
+      
+      // Top border
+      for (let cIdx = tableStartCol; cIdx <= tableEndCol; cIdx++) {
+        const cell = sheet.getCell(tableStartRow, cIdx);
+        cell.border = { ...cell.border, top: { style: 'thin', color: { argb: 'FF000000' } } };
+      }
+      
+      // Bottom border
+      for (let cIdx = tableStartCol; cIdx <= tableEndCol; cIdx++) {
+        const cell = sheet.getCell(tableEndRow, cIdx);
+        cell.border = { ...cell.border, bottom: { style: 'thin', color: { argb: 'FF000000' } } };
+      }
+      
+      // Left border
+      for (let rIdx = tableStartRow; rIdx <= tableEndRow; rIdx++) {
+        const cell = sheet.getCell(rIdx, tableStartCol);
+        cell.border = { ...cell.border, left: { style: 'thin', color: { argb: 'FF000000' } } };
+      }
+      
+      // Right border
+      for (let rIdx = tableStartRow; rIdx <= tableEndRow; rIdx++) {
+        const cell = sheet.getCell(rIdx, tableEndCol);
+        cell.border = { ...cell.border, right: { style: 'thin', color: { argb: 'FF000000' } } };
+      }
+    }
+  }
 
   return workbook;
 }

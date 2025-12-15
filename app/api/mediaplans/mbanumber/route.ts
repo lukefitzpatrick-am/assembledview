@@ -13,15 +13,20 @@ export async function GET(req: Request) {
 
   try {
     // Fetch existing media plans with the same MBA Identifier
-    const response = await axios.get(`${XANO_MEDIAPLAN_BASE_URL}/media_plan`, {
+    const response = await axios.get(`${XANO_MEDIAPLAN_BASE_URL}/media_plan_master`, {
       params: { mbaidentifier: mbaidentifier },
     })
 
-    const existingPlans = response.data
+    // Handle both array and object responses from Xano
+    const existingPlans = Array.isArray(response.data) 
+      ? response.data 
+      : response.data 
+        ? [response.data] 
+        : []
 
     let maxNumber = 0
     for (const plan of existingPlans) {
-      if (plan.mba_number && plan.mba_number.startsWith(mbaidentifier)) {
+      if (plan && plan.mba_number && plan.mba_number.startsWith(mbaidentifier)) {
         const numberPart = Number.parseInt(plan.mba_number.slice(-3))
         if (!isNaN(numberPart) && numberPart > maxNumber) {
           maxNumber = numberPart
@@ -36,8 +41,10 @@ export async function GET(req: Request) {
   } catch (error) {
     console.error("Failed to generate MBA number:", error)
     if (axios.isAxiosError(error)) {
-      const errorMessage = error.response?.data?.message || error.message
-      return NextResponse.json({ error: errorMessage }, { status: error.response?.status || 500 })
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || error.message
+      const statusCode = error.response?.status || 500
+      console.error(`API error details: ${errorMessage}, Status: ${statusCode}`)
+      return NextResponse.json({ error: errorMessage }, { status: statusCode })
     }
     return NextResponse.json({ error: "Failed to generate MBA number" }, { status: 500 })
   }

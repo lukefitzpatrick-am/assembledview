@@ -1,7 +1,8 @@
 "use client"
 
 import React, { useState, useEffect } from "react";
-import { FileText, Users, Building2, LayoutDashboard, Settings, PlusCircle, ChevronDown, ChevronRight, UserCircle, DollarSign, BarChart3 } from "lucide-react";
+import { FileText, Users, Building2, LayoutDashboard, Settings, PlusCircle, ChevronDown, ChevronRight, UserCircle, DollarSign, BarChart3, ClipboardList } from "lucide-react";
+import { UserMenu } from "@/components/UserMenu";
 import {
   Sidebar,
   SidebarContent,
@@ -22,16 +23,17 @@ import Image from "next/image";  // Import Next.js Image component
 
 interface Client {
   id: number;
-  clientname_input: string;
+  mp_client_name: string;
 }
 
 const menuItems = [
   { title: "Home", icon: LayoutDashboard, href: "/dashboard" },
-  { title: "Media Plans", icon: FileText, href: "/mediaplans" },
-  { title: "Clients", icon: Users, href: "/clients" },
+  { title: "Campaigns", icon: FileText, href: "/mediaplans" },
+  { title: "Scopes of Work", icon: ClipboardList, href: "/scopes-of-work" },
   { title: "Publishers", icon: Building2, href: "/publishers" },
+  { title: "Clients", icon: Users, href: "/clients" },
   { title: "Finance", icon: DollarSign, href: "/finance" },
-  { title: "Create Media Plan", icon: PlusCircle, href: "/mediaplans/create" },
+  { title: "Create Campaign", icon: PlusCircle, href: "/mediaplans/create" },
 ];
 
 export function AppSidebar() {
@@ -58,7 +60,7 @@ export function AppSidebar() {
   }
 
   return (
-    <Sidebar className="w-56 bg-gray-900 text-white h-screen">
+    <Sidebar className="w-56 bg-gray-900 text-white h-screen overflow-hidden">
       <SidebarContent>
         {/* LOGO SECTION */}
         <div className="flex justify-center items-left py-4">
@@ -95,7 +97,7 @@ export function AppSidebar() {
                   className="flex items-center justify-between w-full"
                 >
                   <div className="flex items-center">
-                    <Users className="mr-2 h-4 w-4" />
+                    <BarChart3 className="mr-2 h-4 w-4" />
                     <span>Client Dashboards</span>
                   </div>
                   {isClientsExpanded ? (
@@ -106,20 +108,26 @@ export function AppSidebar() {
                 </SidebarMenuButton>
                 {isClientsExpanded && (
                   <SidebarMenuSub>
-                    <SidebarMenuSubItem>
-                      <SidebarMenuSubButton asChild>
-                        <Link href="/clients/template">Template</Link>
-                      </SidebarMenuSubButton>
-                    </SidebarMenuSubItem>
-                    {clients.map((client) => (
-                      <SidebarMenuSubItem key={client.id}>
-                        <SidebarMenuSubButton asChild>
-                          <Link href={`/clients/${client.id}`}>
-                            {client.clientname_input}
-                          </Link>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                    ))}
+                    {clients
+                      .filter((client) => client.mp_client_name && client.mp_client_name.trim() !== '')
+                      .map((client) => {
+                        // Convert client name to slug format
+                        const slug = client.mp_client_name
+                          .toLowerCase()
+                          .replace(/[^a-z0-9\s-]/g, '')
+                          .replace(/\s+/g, '-')
+                          .trim()
+                        
+                        return (
+                          <SidebarMenuSubItem key={client.id}>
+                            <SidebarMenuSubButton asChild>
+                              <Link href={`/dashboard/${slug}`}>
+                                {client.mp_client_name}
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )
+                      })}
                   </SidebarMenuSub>
                 )}
               </SidebarMenuItem>
@@ -128,10 +136,12 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      {/* Account Section with more prominent styling */}
-      <div className="mt-auto mb-4">
-        <SidebarSeparator className="my-2" />
-      </div>
+      {/* User Menu Section */}
+      <SidebarFooter className="p-4 overflow-hidden">
+        <div className="w-full max-w-full">
+          <UserMenu />
+        </div>
+      </SidebarFooter>
     </Sidebar>
   );
 }

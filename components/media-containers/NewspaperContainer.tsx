@@ -79,17 +79,18 @@ const newspaperburstSchema = z.object({
 
 const newspaperlineItemSchema = z.object({
   network: z.string().min(1, "Network is required"),
+  publisher: z.string().optional(),
   title: z.string().min(1, "Bid Strategy is required"),
   buyType: z.string().min(1, "Buy Type is required"),
   size: z.string().min(1, "Size is required"),
-  format: z.string().default(""),
-  placement: z.string().default(""),
-  buyingDemo: z.string().default(""),
-  market: z.string().default(""),
-  fixedCostMedia: z.boolean().default(false),
-  clientPaysForMedia: z.boolean().default(false),
-  budgetIncludesFees: z.boolean().default(false),
-  noadserving: z.boolean().default(false),
+  format: z.string().min(1, "Format is required"),
+  placement: z.string().min(1, "Placement is required"),
+  buyingDemo: z.string().min(1, "Buying Demo is required"),
+  market: z.string().min(1, "Market is required"),
+  fixedCostMedia: z.boolean(),
+  clientPaysForMedia: z.boolean(),
+  budgetIncludesFees: z.boolean(),
+  noadserving: z.boolean(),
   bursts: z.array(newspaperburstSchema).min(1, "At least one burst is required"),
   totalMedia: z.number().optional(),
   totalDeliverables: z.number().optional(),
@@ -103,6 +104,7 @@ const newspapersFormSchema = z.object({
 
 type NewspapersFormValues = z.infer<typeof newspapersFormSchema>
 
+// Type definition for form values
 interface Publisher {
   id: number;
   publisher_name: string;
@@ -126,11 +128,14 @@ interface NewspapersContainerProps {
   onBurstsChange: (bursts: BillingBurst[]) => void;
   onInvestmentChange: (investmentByMonth: any) => void;
   onLineItemsChange: (items: LineItem[]) => void;
+  onNewspaperLineItemsChange: (lineItems: any[]) => void;
+  onMediaLineItemsChange: (lineItems: any[]) => void;
   campaignStartDate: Date;
   campaignEndDate: Date;
   campaignBudget: number;
   campaignId: string;
   mediaTypes: string[];
+  initialLineItems?: any[];
 }
 
 export function getNewspapersBursts(
@@ -148,22 +153,27 @@ export function getNewspapersBursts(
       const pct = feenewspapers || 0
       let feeAmount = 0
 
-      if (li.budgetIncludesFees) {
-        // budget was gross (media+fee)
-        // gross budget: split by percent of gross
-        // fee = budget * pct/100
-        // media = budget * (100 - pct)/100
-        feeAmount   = mediaAmount * (pct / 100)
+      if (li.budgetIncludesFees && li.clientPaysForMedia) {
+        // Both true: budget is gross, extract fee only, mediaAmount = 0
+        // Media = 0
+        // Fees = Budget * (Fee / 100)
+        feeAmount = mediaAmount * (pct / 100)
+        mediaAmount = 0
+      } else if (li.budgetIncludesFees) {
+        // Only budgetIncludesFees: budget is gross, split into media and fee
+        // Media = Budget * ((100 - Fee) / 100)
+        // Fees = Budget * (Fee / 100)
+        feeAmount = mediaAmount * (pct / 100)
         mediaAmount = mediaAmount * ((100 - pct) / 100)
-      } else if (!li.clientPaysForMedia) {
-        // budget is net media, so fee on top
-        // net media budget: media unchanged
-        // fee = (media / (100 - pct)) * pct
-        feeAmount = (mediaAmount / (100 - pct)) * pct
-      } else {
-        // client pays media directly
+      } else if (li.clientPaysForMedia) {
+        // Only clientPaysForMedia: budget is net media, only fee is billed
         feeAmount   = (mediaAmount / (100 - pct)) * pct
         mediaAmount = 0
+      } else {
+        // Neither: budget is net media, fee calculated on top
+        // Media = Budget (unchanged)
+        // Fees = Budget * (Fee / (100 - Fee))
+        feeAmount = (mediaAmount * pct) / (100 - pct)
       }
 
       return {
@@ -290,11 +300,14 @@ export default function NewspapersContainer({
   onBurstsChange,
   onInvestmentChange,
   onLineItemsChange,
+  onNewspaperLineItemsChange,
+  onMediaLineItemsChange,
   campaignStartDate,
   campaignEndDate,
   campaignBudget,
   campaignId,
-  mediaTypes
+  mediaTypes,
+  initialLineItems
 }: NewspapersContainerProps) {
   // Add refs to track previous values
   const prevInvestmentRef = useRef<{ monthYear: string; amount: string }[]>([]);
@@ -425,9 +438,9 @@ const handleAddNewNewspaperAdSize = async () => {
     await fetchAndUpdateNewspaperAdSizes(); // Refresh the list
 
     // If a line item context was set (i.e., adding from a specific line item),
-    // update that line item's placement field with the new ad size.
+    // update that line item's size field with the new ad size.
     if (currentLineItemIndexForNewAdSize !== null) {
-      form.setValue(`newspaperlineItems.${currentLineItemIndexForNewAdSize}.placement`, createdAdSize.adsize, { shouldValidate: true, shouldDirty: true }); //
+      form.setValue(`newspaperlineItems.${currentLineItemIndexForNewAdSize}.size`, createdAdSize.adsize, { shouldValidate: true, shouldDirty: true }); //
       setCurrentLineItemIndexForNewAdSize(null); // Reset context
     }
 
@@ -444,7 +457,7 @@ const handleAddNewNewspaperAdSize = async () => {
   }
 };
   // Form initialization
-  const form = useForm<NewspapersFormValues>({
+  const form = useForm({
     resolver: zodResolver(newspapersFormSchema),
     defaultValues: {
       newspaperlineItems: [
@@ -494,8 +507,99 @@ const handleAddNewNewspaperAdSize = async () => {
     name: "newspaperlineItems",
     defaultValue: form.getValues("newspaperlineItems")
   });
+
+  // Data loading for edit mode
+  useEffect(() => {
+    if (initialLineItems && initialLineItems.length > 0) {
+      const transformedLineItems = initialLineItems.map((item: any) => ({
+        network: item.network || item.publisher || "",
+        title: item.title || item.publication || "",
+        placement: item.placement || "",
+        size: item.size || "",
+        format: item.format || "",
+        buyType: item.buy_type || "",
+        buyingDemo: item.buying_demo || "",
+        market: item.market || "",
+        fixedCostMedia: item.fixed_cost_media || false,
+        clientPaysForMedia: item.client_pays_for_media || false,
+        budgetIncludesFees: item.budget_includes_fees || false,
+        noadserving: item.no_adserving || false,
+        bursts: item.bursts_json ? (typeof item.bursts_json === 'string' ? JSON.parse(item.bursts_json) : item.bursts_json).map((burst: any) => ({
+          budget: burst.budget || "",
+          buyAmount: burst.buyAmount || "",
+          startDate: burst.startDate ? new Date(burst.startDate) : new Date(),
+          endDate: burst.endDate ? new Date(burst.endDate) : new Date(),
+        })) : [{
+          budget: "",
+          buyAmount: "",
+          startDate: campaignStartDate || new Date(),
+          endDate: campaignEndDate || new Date(),
+        }],
+      }));
+
+      form.reset({
+        newspaperlineItems: transformedLineItems,
+        overallDeliverables: 0,
+      });
+    }
+  }, [initialLineItems, form, campaignStartDate, campaignEndDate]);
+
+  // Transform form data to API schema format
+  useEffect(() => {
+    const formLineItems = watchedLineItems || [];
+    
+    const transformedLineItems = formLineItems.map((lineItem, index) => {
+      // Calculate totalMedia from raw budget amounts (for display in MBA section)
+      let totalMedia = 0;
+      lineItem.bursts.forEach((burst) => {
+        const budget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0;
+        if (lineItem.budgetIncludesFees) {
+          // Budget is gross, extract media portion
+          const base = budget / (1 + (feenewspapers || 0) / 100);
+          totalMedia += base;
+        } else {
+          // Budget is net media
+          totalMedia += budget;
+        }
+      });
+
+      return {
+        media_plan_version: 0,
+        mba_number: mbaNumber || "",
+        mp_client_name: "",
+        mp_plannumber: "",
+        network: lineItem.network || "",
+        publisher: lineItem.publisher || lineItem.network || "",
+        title: lineItem.title || "",
+        buy_type: lineItem.buyType || "",
+        size: lineItem.size || "",
+        format: lineItem.format || "",
+        placement: lineItem.placement || "",
+        buying_demo: lineItem.buyingDemo || "",
+        market: lineItem.market || "",
+        fixed_cost_media: lineItem.fixedCostMedia || false,
+        client_pays_for_media: lineItem.clientPaysForMedia || false,
+        budget_includes_fees: lineItem.budgetIncludesFees || false,
+        line_item_id: `${mbaNumber || 'NEWS'}${index + 1}`,
+        bursts_json: JSON.stringify(lineItem.bursts.map(burst => ({
+          budget: burst.budget || "",
+          buyAmount: burst.buyAmount || "",
+          startDate: burst.startDate ? (burst.startDate instanceof Date ? burst.startDate.toISOString() : burst.startDate) : "",
+          endDate: burst.endDate ? (burst.endDate instanceof Date ? burst.endDate.toISOString() : burst.endDate) : "",
+          calculatedValue: burst.calculatedValue || 0,
+          fee: burst.fee || 0,
+        }))),
+        line_item: index + 1,
+        totalMedia: totalMedia,
+      };
+    });
+
+    onMediaLineItemsChange(transformedLineItems);
+  }, [watchedLineItems, mbaNumber, onMediaLineItemsChange]);
   
   // Memoized calculations
+  // Note: For display purposes, always show media amounts regardless of clientPaysForMedia
+  // The billing schedule will handle excluding media when clientPaysForMedia is true
   const overallTotals = useMemo(() => {
     let overallMedia = 0;
     let overallFee = 0;
@@ -509,12 +613,17 @@ const handleAddNewNewspaperAdSize = async () => {
     
       lineItem.bursts.forEach((burst) => {
         const budget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0;
+        // Always calculate media for display purposes (ignore clientPaysForMedia)
         if (lineItem.budgetIncludesFees) {
-          lineFee += (budget / 100) * (feenewspapers || 0);
-          lineMedia += (budget / 100) * (100 - (feenewspapers || 0));
+          // Budget is gross, split into media and fee
+          const base = budget / (1 + (feenewspapers || 0) / 100);
+          lineMedia += base;
+          lineFee += budget - base;
         } else {
+          // Budget is net media, fee calculated on top
           lineMedia += budget;
-          lineFee = feenewspapers ? (lineMedia / (100 - feenewspapers)) * feenewspapers : 0;
+          const fee = feenewspapers ? (budget / (100 - feenewspapers)) * feenewspapers : 0;
+          lineFee += fee;
         }
         lineDeliverables += burst.calculatedValue || 0;
       });
@@ -563,7 +672,7 @@ const handleAddNewNewspaperAdSize = async () => {
 
     setOverallDeliverables(overallMedia);
     onTotalMediaChange(overallMedia, overallFee);
-  }, [form, feenewspapers, onTotalMediaChange]);
+  }, [form, feenewspapers]); // Removed onTotalMediaChange dependency to prevent infinite loops
 
   const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number) => {
     const burst = form.getValues(`newspaperlineItems.${lineItemIndex}.bursts.${burstIndex}`);
@@ -589,10 +698,12 @@ const handleAddNewNewspaperAdSize = async () => {
         calculatedValue = 0;
     }
 
-    if (form.getValues(`newspaperlineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`) !== calculatedValue) {
+    // Only update if the calculated value is actually different to prevent infinite loops
+    const currentValue = form.getValues(`newspaperlineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`);
+    if (currentValue !== calculatedValue && !isNaN(calculatedValue)) {
       form.setValue(`newspaperlineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`, calculatedValue, {
-        shouldValidate: true,
-        shouldDirty: true,
+        shouldValidate: false, // Changed to false to prevent validation loops
+        shouldDirty: false,    // Changed to false to prevent dirty state loops
       });
 
       handleLineItemValueChange(lineItemIndex);
@@ -673,6 +784,39 @@ const handleAddNewNewspaperAdSize = async () => {
         return "Deliverables";
     }
   }, []);
+
+  const formatBuyTypeForDisplay = useCallback((buyType: string) => {
+    if (!buyType) return "Not selected";
+    
+    switch (buyType.toLowerCase()) {
+      case "cpt":
+        return "CPT";
+      case "cpm":
+        return "CPM";
+      case "cpv":
+        return "CPV";
+      case "cpc":
+        return "CPC";
+      case "spots":
+        return "Spots";
+      case "package":
+        return "Package";
+      case "bonus":
+        return "Bonus";
+      case "fixed_cost":
+        return "Fixed Cost";
+      case "guaranteed_leads":
+        return "Guaranteed Leads";
+      case "insertions":
+        return "Insertions";
+      case "panels":
+        return "Panels";
+      case "screens":
+        return "Screens";
+      default:
+        return buyType;
+    }
+  }, []);
   
   // Effect hooks
 useEffect(() => {
@@ -729,33 +873,39 @@ useEffect(() => {
     overallTotals.overallMedia,
     overallTotals.overallFee
   )
-}, [overallTotals.overallMedia, overallTotals.overallFee, onTotalMediaChange])
+}, [overallTotals.overallMedia, overallTotals.overallFee, onTotalMediaChange]) // Added missing dependency
 
 useEffect(() => {
   // convert each form lineItem into the shape needed for Excel
   const items: LineItem[] = form.getValues('newspaperlineItems').flatMap(lineItem =>
     lineItem.bursts.map(burst => ({
-      market: lineItem.market,                                // or fixed value
+      market: lineItem.market || "",                                // or fixed value
       network: lineItem.network,
       title: lineItem.title,
-      placement:   lineItem.placement,
+      size: lineItem.size,
+      placement: lineItem.placement || "",
+      buyingDemo: lineItem.buyingDemo || "",
+      fixedCostMedia: lineItem.fixedCostMedia || false,
+      clientPaysForMedia: lineItem.clientPaysForMedia || false,
+      budgetIncludesFees: lineItem.budgetIncludesFees || false,
       startDate: formatDateString(burst.startDate),
       endDate:   formatDateString(burst.endDate),
       deliverables: burst.calculatedValue ?? 0,
-      buyingDemo:   lineItem.buyingDemo,
       buyType:      lineItem.buyType,
       deliverablesAmount: burst.budget,
       grossMedia: (parseFloat(String(burst.budget).replace(/[^0-9.-]+/g,"")) || 0).toFixed(2),
-      noAdserving: false,
-      platform: lineItem.network,
-      bidStrategy: lineItem.title,
-      creative: lineItem.format,
     }))
   );
   
   // push it up to page.tsx
   onLineItemsChange(items);
-}, [watchedLineItems, feenewspapers]);
+}, [watchedLineItems, feenewspapers, onLineItemsChange]);
+
+// Add new useEffect to capture raw newspaper line items data
+useEffect(() => {
+  const rawLineItems = watchedLineItems || [];
+  onNewspaperLineItemsChange(rawLineItems);
+}, [watchedLineItems, onNewspaperLineItemsChange]);
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -786,7 +936,7 @@ useEffect(() => {
     }, 300); // 300ms debounce
 
     return () => clearTimeout(timeoutId);
-  }, [watchedLineItems, feenewspapers, onInvestmentChange, onBurstsChange, onTotalMediaChange, form]);
+  }, [watchedLineItems, feenewspapers, onInvestmentChange, onBurstsChange]); // Added missing dependencies
 
   const getBursts = () => {
     const formLineItems = form.getValues("newspaperlineItems") || [];
@@ -796,19 +946,25 @@ useEffect(() => {
         let mediaAmount = 0;
         let feeAmount = 0;
 
-        if (item.budgetIncludesFees) {
-          // budget was gross (media+fee)
+        if (item.budgetIncludesFees && item.clientPaysForMedia) {
+          // Both true: budget is gross, extract fee only, mediaAmount = 0
+          // Media = 0
+          // Fees = Budget * (Fee / 100)
+          feeAmount = budget * ((feenewspapers || 0) / 100);
+          mediaAmount = 0;
+        } else if (item.budgetIncludesFees) {
+          // Only budgetIncludesFees: budget is gross, split into media and fee
           const base = budget / (1 + (feenewspapers || 0)/100);
           feeAmount = budget - base;
           mediaAmount = base;
-        } else if (!item.clientPaysForMedia) {
-          // budget is net media, so fee on top
+        } else if (item.clientPaysForMedia) {
+          // Only clientPaysForMedia: budget is net media, only fee is billed
+          feeAmount = (budget / (100 - (feenewspapers || 0))) * (feenewspapers || 0);
+          mediaAmount = 0;
+        } else {
+          // Neither: budget is net media, fee calculated on top
           mediaAmount = budget;
           feeAmount = (budget * (feenewspapers || 0)) / 100;
-        } else {
-          // client pays media directly
-          feeAmount = budget;
-          mediaAmount = 0;
         }
 
         const billingBurst: BillingBurst = {
@@ -844,7 +1000,7 @@ useEffect(() => {
                 <span className="font-medium">Line Item {item.index}</span>
                 <div className="flex space-x-4">
                   <span>
-                    {getDeliverablesLabel(form.getValues(`newspaperlineItems.${item.index - 1}.buyType`))}: {item.deliverables.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    {getDeliverablesLabel(form.watch(`newspaperlineItems.${item.index - 1}.buyType`))}: {item.deliverables.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                   </span>
                   <span>Media: ${item.media.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                   <span>Fee: ${item.fee.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
@@ -877,7 +1033,7 @@ useEffect(() => {
               <div className="space-y-6">
                 {lineItemFields.map((field, lineItemIndex) => {
                   const getTotals = (lineItemIndex: number) => {
-                    const lineItem = form.getValues(`newspaperlineItems.${lineItemIndex}`);
+                    const lineItem = form.watch(`newspaperlineItems.${lineItemIndex}`);
                     let totalMedia = 0;
                     let totalCalculatedValue = 0;
 
@@ -919,7 +1075,7 @@ useEffect(() => {
                                 minimumFractionDigits: 2,
                                 maximumFractionDigits: 2
                               }).format(
-                                form.getValues(`newspaperlineItems.${lineItemIndex}.budgetIncludesFees`)
+                                form.watch(`newspaperlineItems.${lineItemIndex}.budgetIncludesFees`)
                                   ? totalMedia
                                   : totalMedia + (totalMedia / (100 - (feenewspapers || 0))) * (feenewspapers || 0)
                               )}
@@ -948,7 +1104,7 @@ useEffect(() => {
                             <span className="font-medium">Network:</span> {form.watch(`newspaperlineItems.${lineItemIndex}.network`) || 'Not selected'}
                           </div>
                           <div>
-                            <span className="font-medium">Buy Type:</span> {form.watch(`newspaperlineItems.${lineItemIndex}.buyType`) || 'Not selected'}
+                            <span className="font-medium">Buy Type:</span> {formatBuyTypeForDisplay(form.watch(`newspaperlineItems.${lineItemIndex}.buyType`))}
                           </div>
                           <div>
                             <span className="font-medium">Title:</span> {form.watch(`newspaperlineItems.${lineItemIndex}.title`) || 'Not selected'}
@@ -975,9 +1131,7 @@ useEffect(() => {
                                 render={({ field }) => (
                                   <FormItem className="flex items-center space-x-2">
                                     <FormLabel className="w-24 text-sm">Network</FormLabel>
-                                    <Select onValueChange={(value) => {
-                                      field.onChange(value);
-                                       }} defaultValue={field.value}>
+                                    <Select onValueChange={field.onChange} value={field.value}>
                                       <FormControl>
                                         <SelectTrigger className="h-9 w-full flex-1 rounded-md border">
                                           <SelectValue placeholder="Select" />
@@ -1033,11 +1187,12 @@ useEffect(() => {
                                             </SelectContent>
                                           </Select>
                                             <Button
+                                              type="button"
                                               variant="ghost"
                                               size="sm"
                                               className="p-1 h-auto"
                                               onClick={() => {
-                                                const currentNetworkInForm = form.getValues(`newspaperlineItems.${lineItemIndex}.network`); //
+                                                const currentNetworkInForm = form.watch(`newspaperlineItems.${lineItemIndex}.network`); //
                                                 if (!currentNetworkInForm) {
                                                   toast({ //
                                                     title: "Select a Title First",
@@ -1116,10 +1271,10 @@ useEffect(() => {
                             <div className="space-y-4">
   <FormField
     control={form.control}
-    name={`newspaperlineItems.${lineItemIndex}.placement`} // This field will now store the Ad Size
+    name={`newspaperlineItems.${lineItemIndex}.size`} // Ad Size field
     render={({ field }) => (
       <FormItem className="flex items-center space-x-2">
-        <FormLabel className="w-24 text-sm self-start mt-2.5">Ad Size</FormLabel> {/* Changed Label */}
+        <FormLabel className="w-24 text-sm self-start mt-2.5">Ad Size</FormLabel>
         <div className="flex-1 flex items-center space-x-1">
           <Select
             onValueChange={field.onChange}
@@ -1402,8 +1557,8 @@ useEffect(() => {
                                         });
 
                                         const calculatedValue = useMemo(() => {
-                                          const budget = parseFloat(form.getValues(`newspaperlineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0");
-                                          const buyAmount = parseFloat(form.getValues(`newspaperlineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount`)?.replace(/[^0-9.]/g, "") || "1");
+                                          const budget = parseFloat(form.watch(`newspaperlineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0");
+                                          const buyAmount = parseFloat(form.watch(`newspaperlineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount`)?.replace(/[^0-9.]/g, "") || "1");
 
                                           switch (buyType) {
                                             case "cpc":
@@ -1419,8 +1574,8 @@ useEffect(() => {
                                               return "0";
                                           }
                                         }, [
-                                          form.getValues(`newspaperlineItems.${lineItemIndex}.bursts.${burstIndex}.budget`),
-                                          form.getValues(`newspaperlineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount`),
+                                          form.watch(`newspaperlineItems.${lineItemIndex}.bursts.${burstIndex}.budget`),
+                                          form.watch(`newspaperlineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount`),
                                           buyType
                                         ]);
 
@@ -1476,9 +1631,9 @@ useEffect(() => {
                                               minimumFractionDigits: 2,
                                               maximumFractionDigits: 2,
                                             }).format(
-                                              form.getValues(`newspaperlineItems.${lineItemIndex}.budgetIncludesFees`)
-                                                ? (parseFloat(form.getValues(`newspaperlineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (100 - (feenewspapers || 0))
-                                                : parseFloat(form.getValues(`newspaperlineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0")
+                                              form.watch(`newspaperlineItems.${lineItemIndex}.budgetIncludesFees`)
+                                                ? (parseFloat(form.watch(`newspaperlineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (100 - (feenewspapers || 0))
+                                                : parseFloat(form.watch(`newspaperlineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0")
                                             )}
                                             readOnly
                                           />
@@ -1494,9 +1649,9 @@ useEffect(() => {
                                               minimumFractionDigits: 2,
                                               maximumFractionDigits: 2,
                                             }).format(
-                                              form.getValues(`newspaperlineItems.${lineItemIndex}.budgetIncludesFees`)
-                                                ? (parseFloat(form.getValues(`newspaperlineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (feenewspapers || 0)
-                                                : (parseFloat(form.getValues(`newspaperlineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / (100 - (feenewspapers || 0))) * (feenewspapers || 0)
+                                              form.watch(`newspaperlineItems.${lineItemIndex}.budgetIncludesFees`)
+                                                ? (parseFloat(form.watch(`newspaperlineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (feenewspapers || 0)
+                                                : (parseFloat(form.watch(`newspaperlineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / (100 - (feenewspapers || 0))) * (feenewspapers || 0)
                                             )}
                                             readOnly
                                           />
@@ -1623,8 +1778,8 @@ useEffect(() => {
       </div>
     </div>
     <DialogFooter>
-      <Button variant="outline" onClick={() => setIsAddTitleDialogOpen(false)}>Cancel</Button>
-      <Button onClick={handleAddNewTitle} disabled={isLoading}>
+      <Button type="button" variant="outline" onClick={() => setIsAddTitleDialogOpen(false)}>Cancel</Button>
+      <Button type="button" onClick={handleAddNewTitle} disabled={isLoading}>
         {isLoading ? "Adding..." : "Add Title"}
       </Button>
     </DialogFooter>
@@ -1654,8 +1809,8 @@ useEffect(() => {
       </div>
     </div>
     <DialogFooter>
-      <Button variant="outline" onClick={() => setIsAddNewspaperAdSizeDialogOpen(false)}>Cancel</Button>
-      <Button onClick={handleAddNewNewspaperAdSize} disabled={isLoading}>
+      <Button type="button" variant="outline" onClick={() => setIsAddNewspaperAdSizeDialogOpen(false)}>Cancel</Button>
+      <Button type="button" onClick={handleAddNewNewspaperAdSize} disabled={isLoading}>
         {isLoading ? "Adding..." : "Add Ad Size"}
       </Button>
     </DialogFooter>

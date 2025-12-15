@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect, lazy, Suspense } from "react"
-import { useForm } from "react-hook-form"
+import { useState, useEffect, lazy, Suspense, useCallback } from "react"
+import { useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import { format } from "date-fns"
@@ -16,18 +16,46 @@ import { CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
+import { ChevronDown } from "lucide-react"
 import { toast } from "@/components/ui/use-toast"
 import { useRouter } from "next/navigation"
 import { Table, TableBody, TableCell, TableHeader, TableRow, TableHead, TableFooter } from "@/components/ui/table"
 import { Download, FileText } from "lucide-react"
-import type { BillingBurst, BillingMonth } from "@/lib/billing/types" // adjust path if needed
+import { SavingModal, type SaveStatusItem } from "@/components/ui/saving-modal"
+import type { BillingBurst, BillingMonth, BillingLineItem } from "@/lib/billing/types" // adjust path if needed
+import { buildBillingScheduleJSON } from "@/lib/billing/buildBillingSchedule"
 import { generateMediaPlan, MediaPlanHeader, LineItem, MediaItems } from '@/lib/generateMediaPlan'
-import { generateMBA, MBAData } from '@/lib/generateMBA'
+import { MBAData } from '@/lib/generateMBA'
 import { saveAs } from 'file-saver'
-import { createMediaPlan, createMediaPlanVersion, editMediaPlan } from "@/lib/api"
+import { 
+  createMediaPlan, 
+  createMediaPlanVersion, 
+  editMediaPlan, 
+  saveTelevisionLineItems, 
+  saveRadioLineItems,
+  saveNewspaperLineItems, 
+  saveMagazinesLineItems,
+  saveOOHLineItems,
+  saveCinemaLineItems,
+  saveDigitalDisplayLineItems,
+  saveDigitalAudioLineItems,
+  saveDigitalVideoLineItems,
+  saveBVODLineItems,
+  saveIntegrationLineItems,
+  saveSearchLineItems,
+  saveSocialMediaLineItems,
+  saveProgDisplayLineItems,
+  saveProgVideoLineItems,
+  saveProgBVODLineItems,
+  saveProgAudioLineItems,
+  saveProgOOHLineItems,
+  saveInfluencersLineItems
+} from "@/lib/api"
+import { checkMediaDatesOutsideCampaign } from "@/lib/utils/mediaPlanValidation"
 
 const mediaPlanSchema = z.object({
-  mp_clientname: z.string().min(1, "Client name is required"),
+  mp_client_name: z.string().min(1, "Client name is required"),
   mp_campaignstatus: z.string().min(1, "Campaign status is required"),
   mp_campaignname: z.string().min(1, "Campaign name is required"),
   mp_campaigndates_start: z.date(),
@@ -41,6 +69,7 @@ const mediaPlanSchema = z.object({
   mp_plannumber: z.string(),
   mp_television: z.boolean(),
   mp_radio: z.boolean(),
+  mp_consulting: z.boolean(),
   mp_newspaper: z.boolean(),
   mp_magazines: z.boolean(),
   mp_ooh: z.boolean(),
@@ -80,7 +109,7 @@ type MediaPlanFormValues = z.infer<typeof mediaPlanSchema>
 
 interface Client {
   id: number
-  clientname_input: string
+  mp_client_name: string
   mbaidentifier: string
   feesearch: number
   feesocial: number
@@ -222,8 +251,31 @@ export default function CreateMediaPlan() {
   const [clientSuburb, setClientSuburb] = useState("")
   const [clientState, setClientState] = useState("")
   const [clientPostcode, setClientPostcode] = useState("")
-  const [saveStatus, setSaveStatus] = useState<{ message: string; status: 'pending' | 'success' | 'error' }[]>([]);
+  const [saveStatus, setSaveStatus] = useState<SaveStatusItem[]>([]);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  
+  // Media type display names mapping
+  const mediaTypeDisplayNames: Record<string, string> = {
+    mp_television: 'Television',
+    mp_radio: 'Radio',
+    mp_newspaper: 'Newspaper',
+    mp_magazines: 'Magazines',
+    mp_ooh: 'OOH',
+    mp_cinema: 'Cinema',
+    mp_digidisplay: 'Digital Display',
+    mp_digiaudio: 'Digital Audio',
+    mp_digivideo: 'Digital Video',
+    mp_bvod: 'BVOD',
+    mp_integration: 'Integration',
+    mp_search: 'Search',
+    mp_socialmedia: 'Social Media',
+    mp_progdisplay: 'Programmatic Display',
+    mp_progvideo: 'Programmatic Video',
+    mp_progbvod: 'Programmatic BVOD',
+    mp_progaudio: 'Programmatic Audio',
+    mp_progooh: 'Programmatic OOH',
+    mp_influencers: 'Influencers'
+  };
   const [partialMBAError, setPartialMBAError] = useState<string | null>(null);
   const [manualBillingError, setManualBillingError] = useState<string | null>(null);
 
@@ -233,6 +285,7 @@ export default function CreateMediaPlan() {
   const [searchBursts, setSearchBursts] = useState<BillingBurst[]>([])
   const [searchItems, setSearchItems] = useState<LineItem[]>([]);
   const [searchFeeTotal, setSearchFeeTotal,] = useState(0);
+  const [searchMediaLineItems, setSearchMediaLineItems] = useState<any[]>([]);
 
   //Social Media
   const [feesocial, setFeeSocial] = useState<number | null>(null)
@@ -240,6 +293,8 @@ export default function CreateMediaPlan() {
   const [socialMediaBursts, setSocialMediaBursts] = useState<BillingBurst[]>([])
   const [socialMediaItems, setSocialMediaItems] = useState<LineItem[]>([]);
   const [socialMediaFeeTotal, setSocialMediaFeeTotal] = useState(0);
+  const [socialMediaLineItems, setSocialMediaLineItems] = useState<any[]>([]);
+  const [socialMediaMediaLineItems, setSocialMediaMediaLineItems] = useState<any[]>([]);
 
   //Influencers
   const [feeinfluencers, setFeeInfluencers] = useState<number | null>(null)
@@ -247,6 +302,7 @@ export default function CreateMediaPlan() {
   const [influencersBursts, setInfluencersBursts] = useState<BillingBurst[]>([])
   const [influencersItems, setInfluencersItems] = useState<LineItem[]>([])
   const [influencersFeeTotal, setInfluencersFeeTotal] = useState(0)
+  const [influencersMediaLineItems, setInfluencersMediaLineItems] = useState<any[]>([])
 
   //BVOD
   const [feebvod, setFeeBVOD] = useState<number | null>(null)
@@ -254,6 +310,7 @@ export default function CreateMediaPlan() {
   const [bvodTotal, setBvodTotal] = useState(0);
   const [bvodBursts, setBvodBursts] = useState<BillingBurst[]>([]);
   const [bvodFeeTotal, setBvodFeeTotal] = useState(0);
+  const [bvodMediaLineItems, setBvodMediaLineItems] = useState<any[]>([]);
 
   //Digi Audio
   const [feedigiaudio, setFeeDigiAudio] = useState<number | null>(null)
@@ -261,6 +318,7 @@ export default function CreateMediaPlan() {
   const [digiAudioFeeTotal, setDigiAudioFeeTotal] = useState(0)
   const [digiAudioBursts, setDigiAudioBursts] = useState<BillingBurst[]>([])
   const [digiAudioItems, setDigiAudioItems] = useState<LineItem[]>([])
+  const [digiAudioMediaLineItems, setDigiAudioMediaLineItems] = useState<any[]>([])
 
   //Digi Display
   const [feedigidisplay, setFeeDigiDisplay] = useState<number | null>(null)
@@ -268,6 +326,7 @@ export default function CreateMediaPlan() {
   const [digiDisplayFeeTotal, setDigiDisplayFeeTotal] = useState(0)
   const [digiDisplayBursts, setDigiDisplayBursts] = useState<BillingBurst[]>([])
   const [digiDisplayItems, setDigiDisplayItems] = useState<LineItem[]>([])
+  const [digiDisplayMediaLineItems, setDigiDisplayMediaLineItems] = useState<any[]>([])
 
   //Digi Video
   const [feedigivideo, setFeeDigiVideo] = useState<number | null>(null)
@@ -275,6 +334,7 @@ export default function CreateMediaPlan() {
   const [digiVideoFeeTotal, setDigiVideoFeeTotal] = useState(0)
   const [digiVideoBursts, setDigiVideoBursts] = useState<BillingBurst[]>([])
   const [digiVideoItems, setDigiVideoItems] = useState<LineItem[]>([])
+  const [digiVideoMediaLineItems, setDigiVideoMediaLineItems] = useState<any[]>([])
 
   //Prog Display
   const [feeprogdisplay, setFeeProgDisplay] = useState<number | null>(null)
@@ -282,6 +342,7 @@ export default function CreateMediaPlan() {
   const [progDisplayFeeTotal, setProgDisplayFeeTotal] = useState(0)
   const [progDisplayBursts, setProgDisplayBursts] = useState<BillingBurst[]>([])
   const [progDisplayItems, setProgDisplayItems] = useState<LineItem[]>([]);
+  const [progDisplayMediaLineItems, setProgDisplayMediaLineItems] = useState<any[]>([]);
 
   //Prog Video
   const [feeprogvideo, setFeeProgVideo] = useState<number | null>(null)
@@ -289,6 +350,7 @@ export default function CreateMediaPlan() {
   const [progVideoFeeTotal, setProgVideoFeeTotal] = useState(0)
   const [progVideoBursts, setProgVideoBursts] = useState<BillingBurst[]>([])
   const [progVideoItems, setProgVideoItems] = useState<LineItem[]>([]);
+  const [progVideoMediaLineItems, setProgVideoMediaLineItems] = useState<any[]>([]);
 
   //Prog Bvod
   const [feeprogbvod, setFeeProgBvod] = useState<number | null>(null)
@@ -296,6 +358,7 @@ export default function CreateMediaPlan() {
   const [progBvodFeeTotal, setProgBvodFeeTotal] = useState(0)
   const [progBvodBursts, setProgBvodBursts] = useState<BillingBurst[]>([])
   const [progBvodItems, setProgBvodItems] = useState<LineItem[]>([]);
+  const [progBvodMediaLineItems, setProgBvodMediaLineItems] = useState<any[]>([]);
 
   //Prog Audio
   const [feeprogaudio, setFeeProgAudio] = useState<number | null>(null)
@@ -303,6 +366,7 @@ export default function CreateMediaPlan() {
   const [progAudioFeeTotal, setProgAudioFeeTotal] = useState(0)
   const [progAudioBursts, setProgAudioBursts] = useState<BillingBurst[]>([])
   const [progAudioItems, setProgAudioItems] = useState<LineItem[]>([])
+  const [progAudioMediaLineItems, setProgAudioMediaLineItems] = useState<any[]>([])
 
   //Prog Ooh
   const [feeprogooh, setFeeProgOoh] = useState<number | null>(null)
@@ -310,6 +374,7 @@ export default function CreateMediaPlan() {
   const [progOohBursts, setProgOohBursts] = useState<BillingBurst[]>([])
   const [progOohItems, setProgOohItems] = useState<LineItem[]>([]);
   const [progOohFeeTotal, setProgOohFeeTotal] = useState(0);
+  const [progOohMediaLineItems, setProgOohMediaLineItems] = useState<any[]>([]);
 
   //Integration
   const [feeintegration, setFeeIntegration] = useState<number | null>(null)
@@ -317,6 +382,7 @@ export default function CreateMediaPlan() {
   const [integrationFeeTotal, setIntegrationFeeTotal] = useState(0)
   const [integrationBursts, setIntegrationBursts] = useState<BillingBurst[]>([])
   const [integrationItems, setIntegrationItems] = useState<LineItem[]>([]);
+  const [integrationMediaLineItems, setIntegrationMediaLineItems] = useState<any[]>([]);
 
   //Content Creator
   const [feecontentcreator, setFeeContentCreator] = useState<number | null>(null)
@@ -329,6 +395,7 @@ export default function CreateMediaPlan() {
   const [cinemaFeeTotal, setCinemaFeeTotal] = useState(0)
   const [cinemaBursts, setCinemaBursts] = useState<BillingBurst[]>([])
   const [cinemaItems, setCinemaItems] = useState<LineItem[]>([])
+  const [cinemaMediaLineItems, setCinemaMediaLineItems] = useState<any[]>([])
 
  // ─ Television
   const [feeTelevision, setFeeTelevision] = useState<number | null>(null)
@@ -336,6 +403,8 @@ export default function CreateMediaPlan() {
   const [televisionBursts, setTelevisionBursts] = useState<BillingBurst[]>([])
   const [televisionTotal, setTelevisionTotal] = useState(0)
   const [televisionFeeTotal, setTelevisionFeeTotal] = useState(0)
+  const [televisionLineItems, setTelevisionLineItems] = useState<any[]>([])
+  const [televisionMediaLineItems, setTelevisionMediaLineItems] = useState<any[]>([])
 
   // ─ Radio
   const [feeRadio, setFeeRadio] = useState<number | null>(null)
@@ -343,6 +412,7 @@ export default function CreateMediaPlan() {
   const [radioBursts, setRadioBursts] = useState<BillingBurst[]>([])
   const [radioTotal, setRadioTotal] = useState(0)
   const [radioFeeTotal, setRadioFeeTotal] = useState(0)
+  const [radioMediaLineItems, setRadioMediaLineItems] = useState<any[]>([])
 
   // ─ Newspapers
   const [feeNewspapers, setFeeNewspapers] = useState<number | null>(null)
@@ -350,6 +420,8 @@ export default function CreateMediaPlan() {
   const [newspaperBursts, setNewspaperBursts] = useState<BillingBurst[]>([])
   const [newspaperTotal, setNewspaperTotal] = useState(0)
   const [newspaperFeeTotal, setNewspaperFeeTotal] = useState(0)
+  const [newspaperLineItems, setNewspaperLineItems] = useState<any[]>([])
+  const [newspaperMediaLineItems, setNewspaperMediaLineItems] = useState<any[]>([])
 
   // ─ Magazines
   const [feeMagazines, setFeeMagazines] = useState<number | null>(null)
@@ -357,6 +429,7 @@ export default function CreateMediaPlan() {
   const [magazineBursts, setMagazineBursts] = useState<BillingBurst[]>([])
   const [magazineTotal, setMagazineTotal] = useState(0)
   const [magazineFeeTotal, setMagazineFeeTotal] = useState(0)
+  const [magazineMediaLineItems, setMagazineMediaLineItems] = useState<any[]>([])
 
   // ─ OOH
   const [feeOoh, setFeeOoh] = useState<number | null>(null)
@@ -364,6 +437,15 @@ export default function CreateMediaPlan() {
   const [oohBursts, setOohBursts] = useState<BillingBurst[]>([])
   const [oohTotal, setOohTotal] = useState(0)
   const [oohFeeTotal, setOohFeeTotal] = useState(0)
+  const [oohMediaLineItems, setOohMediaLineItems] = useState<any[]>([])
+
+  //Consulting/Production
+  const [feeconsulting, setFeeConsulting] = useState<number | null>(null)
+  const [consultingTotal, setConsultingTotal] = useState(0)
+  const [consultingBursts, setConsultingBursts] = useState<BillingBurst[]>([])
+  const [consultingItems, setConsultingItems] = useState<LineItem[]>([])
+  const [consultingFeeTotal, setConsultingFeeTotal] = useState(0)
+  const [consultingMediaLineItems, setConsultingMediaLineItems] = useState<any[]>([])
 
   //Ad Serving
   const [adservvideo, setAdServVideo] = useState<number | null>(null)
@@ -380,17 +462,19 @@ export default function CreateMediaPlan() {
   const [manualBillingTotal, setManualBillingTotal] = useState("$0.00")
   const [originalManualBillingMonths, setOriginalManualBillingMonths] = useState<BillingMonth[]>([]);
   const [originalManualBillingTotal, setOriginalManualBillingTotal] = useState<string>("$0.00");
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
   const [billingMonths, setBillingMonths] = useState<BillingMonth[]>([])
   const [billingTotal, setBillingTotal] = useState("$0.00")  
   const [grossMediaTotal, setGrossMediaTotal] = useState(0);
   const [totalInvestment, setTotalInvestment] = useState(0);
   const [isPartialMBA, setIsPartialMBA] = useState(false);
   const [isPartialMBAModalOpen, setIsPartialMBAModalOpen] = useState(false);
+  const [hasDateWarning, setHasDateWarning] = useState(false);
 
   const form = useForm<MediaPlanFormValues>({
     resolver: zodResolver(mediaPlanSchema),
     defaultValues: {
-      mp_clientname: "",
+      mp_client_name: "",
       mp_campaignstatus: "",
       mp_campaignname: "",
       mp_campaigndates_start: new Date(),
@@ -404,6 +488,7 @@ export default function CreateMediaPlan() {
       mp_plannumber: "1",
       mp_television: false,
       mp_radio: false,
+      mp_consulting: false,
       mp_newspaper: false,
       mp_magazines: false,
       mp_ooh: false,
@@ -426,11 +511,89 @@ export default function CreateMediaPlan() {
     },
   })
 
+  // Use useWatch to properly watch form values without causing infinite loops
+  const campaignStart = useWatch({ control: form.control, name: "mp_campaigndates_start" })
+  const campaignEnd = useWatch({ control: form.control, name: "mp_campaigndates_end" })
+  
+  // Watch all media type boolean fields to prevent infinite loops
+  const watchedMediaTypes = useWatch({
+    control: form.control,
+    name: [
+      "mp_television", "mp_radio", "mp_consulting", "mp_newspaper", "mp_magazines", "mp_ooh", 
+      "mp_cinema", "mp_digidisplay", "mp_digiaudio", "mp_digivideo", "mp_bvod", 
+      "mp_integration", "mp_search", "mp_socialmedia", "mp_progdisplay", 
+      "mp_progvideo", "mp_progbvod", "mp_progaudio", "mp_progooh", "mp_influencers"
+    ]
+  })
+  
+  // Create a mapping object for easier access
+  const mediaTypeNames = [
+    "mp_television", "mp_radio", "mp_consulting", "mp_newspaper", "mp_magazines", "mp_ooh", 
+    "mp_cinema", "mp_digidisplay", "mp_digiaudio", "mp_digivideo", "mp_bvod", 
+    "mp_integration", "mp_search", "mp_socialmedia", "mp_progdisplay", 
+    "mp_progvideo", "mp_progbvod", "mp_progaudio", "mp_progooh", "mp_influencers"
+  ]
+  const watchedMediaTypesMap = mediaTypeNames.reduce((acc, name, index) => {
+    acc[name] = watchedMediaTypes[index]
+    return acc
+  }, {} as Record<string, boolean>)
 
   const currencyFormatter = new Intl.NumberFormat("en-AU", {
     style: "currency",
     currency: "AUD",
   });
+
+  // Check if any media placement dates are outside campaign dates
+  useEffect(() => {
+    const hasWarning = checkMediaDatesOutsideCampaign(
+      campaignStart,
+      campaignEnd,
+      {
+        televisionMediaLineItems,
+        radioMediaLineItems,
+        newspaperMediaLineItems,
+        magazineMediaLineItems,
+        oohMediaLineItems,
+        cinemaMediaLineItems,
+        digiDisplayMediaLineItems,
+        digiAudioMediaLineItems,
+        digiVideoMediaLineItems,
+        bvodMediaLineItems,
+        integrationMediaLineItems,
+        searchMediaLineItems,
+        socialMediaMediaLineItems,
+        progDisplayMediaLineItems,
+        progVideoMediaLineItems,
+        progBvodMediaLineItems,
+        progAudioMediaLineItems,
+        progOohMediaLineItems,
+        influencersMediaLineItems,
+      }
+    );
+    setHasDateWarning(hasWarning);
+  }, [
+    campaignStart,
+    campaignEnd,
+    televisionMediaLineItems,
+    radioMediaLineItems,
+    newspaperMediaLineItems,
+    magazineMediaLineItems,
+    oohMediaLineItems,
+    cinemaMediaLineItems,
+    digiDisplayMediaLineItems,
+    digiAudioMediaLineItems,
+    digiVideoMediaLineItems,
+    bvodMediaLineItems,
+    integrationMediaLineItems,
+    searchMediaLineItems,
+    socialMediaMediaLineItems,
+    progDisplayMediaLineItems,
+    progVideoMediaLineItems,
+    progBvodMediaLineItems,
+    progAudioMediaLineItems,
+    progOohMediaLineItems,
+    influencersMediaLineItems,
+  ]);
 
   function bufferToBase64(buffer: ArrayBuffer) {
     let binary = ''
@@ -715,9 +878,100 @@ export default function CreateMediaPlan() {
     setOohFeeTotal(totalFee);
   };
 
+  const handleConsultingTotalChange = (totalMedia: number, totalFee: number) => {
+    setConsultingTotal(totalMedia);
+    setConsultingFeeTotal(totalFee);
+  };
+
+  const handleInfluencersTotalChange = (totalMedia: number, totalFee: number) => {
+    setInfluencersTotal(totalMedia);
+    setInfluencersFeeTotal(totalFee);
+  };
+
   const handleInvestmentChange = (investmentByMonth) => {
     setInvestmentPerMonth(investmentByMonth);
   };
+
+  // New callback handlers for media line items
+  const handleTelevisionMediaLineItemsChange = useCallback((lineItems: any[]) => {
+    setTelevisionMediaLineItems(lineItems);
+  }, []);
+
+  const handleRadioMediaLineItemsChange = useCallback((lineItems: any[]) => {
+    setRadioMediaLineItems(lineItems);
+  }, []);
+
+  const handleNewspaperMediaLineItemsChange = useCallback((lineItems: any[]) => {
+    setNewspaperMediaLineItems(lineItems);
+  }, []);
+
+  const handleMagazineMediaLineItemsChange = useCallback((lineItems: any[]) => {
+    setMagazineMediaLineItems(lineItems);
+  }, []);
+
+  const handleOohMediaLineItemsChange = useCallback((lineItems: any[]) => {
+    setOohMediaLineItems(lineItems);
+  }, []);
+
+  const handleConsultingMediaLineItemsChange = useCallback((lineItems: any[]) => {
+    setConsultingMediaLineItems(lineItems);
+  }, []);
+
+  const handleCinemaMediaLineItemsChange = useCallback((lineItems: any[]) => {
+    setCinemaMediaLineItems(lineItems);
+  }, []);
+
+  const handleDigiAudioMediaLineItemsChange = useCallback((lineItems: any[]) => {
+    setDigiAudioMediaLineItems(lineItems);
+  }, []);
+
+  const handleDigiDisplayMediaLineItemsChange = useCallback((lineItems: any[]) => {
+    setDigiDisplayMediaLineItems(lineItems);
+  }, []);
+
+  const handleDigiVideoMediaLineItemsChange = useCallback((lineItems: any[]) => {
+    setDigiVideoMediaLineItems(lineItems);
+  }, []);
+
+  const handleBvodMediaLineItemsChange = useCallback((lineItems: any[]) => {
+    setBvodMediaLineItems(lineItems);
+  }, []);
+
+  const handleProgDisplayMediaLineItemsChange = useCallback((lineItems: any[]) => {
+    setProgDisplayMediaLineItems(lineItems);
+  }, []);
+
+  const handleProgVideoMediaLineItemsChange = useCallback((lineItems: any[]) => {
+    setProgVideoMediaLineItems(lineItems);
+  }, []);
+
+  const handleProgBvodMediaLineItemsChange = useCallback((lineItems: any[]) => {
+    setProgBvodMediaLineItems(lineItems);
+  }, []);
+
+  const handleProgAudioMediaLineItemsChange = useCallback((lineItems: any[]) => {
+    setProgAudioMediaLineItems(lineItems);
+  }, []);
+
+  const handleProgOohMediaLineItemsChange = useCallback((lineItems: any[]) => {
+    setProgOohMediaLineItems(lineItems);
+  }, []);
+
+  const handleSearchMediaLineItemsChange = useCallback((lineItems: any[]) => {
+    setSearchMediaLineItems(lineItems);
+  }, []);
+
+  const handleSocialMediaMediaLineItemsChange = useCallback((lineItems: any[]) => {
+    setSocialMediaMediaLineItems(lineItems);
+  }, []);
+
+  const handleIntegrationMediaLineItemsChange = useCallback((lineItems: any[]) => {
+    setIntegrationMediaLineItems(lineItems);
+  }, []);
+
+  const handleInfluencersMediaLineItemsChange = useCallback((lineItems: any[]) => {
+    setInfluencersMediaLineItems(lineItems);
+  }, []);
 
   useEffect(() => {
     const newGrossMediaTotal = calculateGrossMediaTotal();
@@ -742,7 +996,7 @@ export default function CreateMediaPlan() {
  
     digiAudioTotal,
     digiAudioBursts,
-    digiAudioFeeTotal,,
+    digiAudioFeeTotal,
 
     digiDisplayTotal,
     digiDisplayBursts,
@@ -813,12 +1067,12 @@ export default function CreateMediaPlan() {
   }, []); // ✅ Run at mount to initialize with default start & end dates
 
   useEffect(() => {
-    if (form.watch("mp_campaigndates_start") && form.watch("mp_campaigndates_end")) {
+    if (campaignStart && campaignEnd) {
     calculateBillingSchedule();
   }
 }, [
-  form.watch("mp_campaigndates_start"),
-  form.watch("mp_campaigndates_end"),
+  campaignStart,
+  campaignEnd,
   //Digital Media
   searchTotal,
   searchFeeTotal,
@@ -831,7 +1085,7 @@ export default function CreateMediaPlan() {
 
   digiAudioTotal,
   digiAudioBursts,
-  digiAudioFeeTotal,,
+  digiAudioFeeTotal,
 
   digiDisplayTotal,
   digiDisplayBursts,
@@ -961,48 +1215,76 @@ export default function CreateMediaPlan() {
       };
     }
   
-    const billingScheduleWithGST = billingMonths.map(month => {
-      const amountExGst = parseFloat(month.totalAmount.replace(/[^0-9.-]/g, ""));
-      const amountIncGst = amountExGst * 1.10;
+    // Format billing months ex GST for API route (billing schedule should show ex GST)
+    const billingMonthsExGST = billingMonths.map(month => {
       return {
-        ...month,
-        totalAmount: new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(amountIncGst)
+        monthYear: month.monthYear,
+        totalAmount: month.totalAmount // Already formatted ex GST
       };
     });
   
-    // Construct the final body with either manual or auto data
-    const body: MBAData = {
-      date: format(new Date(), "dd/MM/yyyy"),
-      mba_number: fv.mba_number,
-      campaign_name: fv.mp_campaignname,
-      campaign_brand: fv.mp_brand,
-      po_number: fv.mp_ponumber,
-      media_plan_version: fv.mp_plannumber,
-      client: {
-        name: fv.mp_clientname,
-        streetaddress: clientAddress,
-        suburb: clientSuburb,
-        state: clientState,
-        postcode: clientPostcode,
-      },
-      campaign: {
-        date_start: format(fv.mp_campaigndates_start, "dd/MM/yyyy"),
-        date_end: format(fv.mp_campaigndates_end, "dd/MM/yyyy"),
-      },
-      gross_media: finalVisibleMedia,
-      totals: finalTotals,
-      billingSchedule: billingScheduleWithGST,
-    };
-  
     try {
-      const blob = await generateMBA(body);
-      saveAs(blob, `MBA_${fv.mp_clientname}_${fv.mp_campaignname}.pdf`);
+      // Prepare data for API route
+      const apiData = {
+        mba_number: fv.mba_number,
+        mp_client_name: fv.mp_client_name,
+        mp_campaignname: fv.mp_campaignname,
+        mp_brand: fv.mp_brand,
+        mp_ponumber: fv.mp_ponumber,
+        mp_plannumber: fv.mp_plannumber,
+        mp_campaigndates_start: fv.mp_campaigndates_start.toISOString(),
+        mp_campaigndates_end: fv.mp_campaigndates_end.toISOString(),
+        clientAddress: clientAddress,
+        clientSuburb: clientSuburb,
+        clientState: clientState,
+        clientPostcode: clientPostcode,
+        gross_media: finalVisibleMedia,
+        grossMediaTotal: finalTotals.gross_media,
+        calculateAssembledFee: finalTotals.service_fee,
+        calculateProductionCosts: finalTotals.production,
+        calculateAdServingFees: finalTotals.adserving,
+        totalInvestment: finalTotals.totals_ex_gst,
+        billingMonths: billingMonthsExGST,
+      };
+
+      // Call API route
+      const response = await fetch("/api/mba/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(apiData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || errorData.details || "Failed to generate MBA");
+      }
+
+      // Get the PDF blob from the response
+      const pdfBlob = await response.blob();
+
+      // Create a URL for the blob
+      const url = window.URL.createObjectURL(pdfBlob);
+
+      // Create a temporary link element
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `MBA_${fv.mp_client_name}_${fv.mp_campaignname}.pdf`;
+
+      // Append the link to the body, click it, and remove it
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      // Revoke the URL to free up memory
+      window.URL.revokeObjectURL(url);
+
       toast({
         title: "Success",
         description: "MBA generated successfully",
       });
     } catch (e: any) {
-      console.error("MBA Generation Error:", e);
       toast({ 
         title: "Error", 
         description: e.message || "Failed to generate MBA", 
@@ -1059,21 +1341,17 @@ export default function CreateMediaPlan() {
     }
   };
 
-  
-
-
-  
-
-  
-
-
     function getRateForMediaType(mediaType: string): number {
       switch(mediaType) {
         case 'progVideo':
         case 'progBvod':
         case 'digiVideo':
         case 'digi video':
-        case 'bvod':  
+        case 'bvod':
+        case 'BVOD':
+        case 'Prog BVOD':
+        case 'Digi Video':
+        case 'Prog Video':
           return adservvideo  ?? 0
         case 'progAudio':
         case 'digiAudio':
@@ -1214,7 +1492,7 @@ export default function CreateMediaPlan() {
         }
         setBillingMonths(months);
       }
-    }, [form]);
+    }, []);
   
     const handleAmountChange = (index: number, value: string) => {
       const updatedMonths = [...billingMonths];
@@ -1255,6 +1533,7 @@ export default function CreateMediaPlan() {
 
   async function fetchClients() {
     try {
+      setIsLoading(true)
       const response = await fetch("/api/clients")
       if (!response.ok) {
         throw new Error("Failed to fetch clients")
@@ -1262,39 +1541,66 @@ export default function CreateMediaPlan() {
       const data = await response.json()
       setClients(data)
     } catch (error) {
-      console.error("Error fetching clients:", error)
+    } finally {
+      setIsLoading(false)
     }
   }
 
   const generateMBANumber = async (mbaidentifier: string) => {
+    // Validate mbaidentifier before making API call
+    if (!mbaidentifier || mbaidentifier.trim() === "") {
+      console.error("MBA Identifier is required to generate MBA number")
+      form.setValue("mba_number", "")
+      setMbaNumber("")
+      return
+    }
+
     try {
-      const response = await fetch(`/api/mediaplans/mbanumber?mbaidentifier=${mbaidentifier}`)
+      const response = await fetch(`/api/mediaplans/mbanumber?mbaidentifier=${encodeURIComponent(mbaidentifier)}`)
+      
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to generate MBA number")
+        let errorMessage = "Failed to generate MBA number"
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.error || errorMessage
+        } catch (jsonError) {
+          // If response is not JSON, use status text
+          errorMessage = response.statusText || errorMessage
+        }
+        console.error("API error generating MBA number:", errorMessage, "Status:", response.status)
+        throw new Error(errorMessage)
       }
+      
       const data = await response.json()
       if (data.mba_number) {
         form.setValue("mba_number", data.mba_number)
         setMbaNumber(data.mba_number)
       } else {
+        console.error("MBA number not found in response:", data)
         throw new Error("MBA number not found in response")
       }
     } catch (error) {
       console.error("Error generating MBA number:", error)
-      form.setValue("mba_number", "Error generating MBA number")
+      const errorMessage = error instanceof Error ? error.message : "Error generating MBA number"
+      form.setValue("mba_number", "")
       setMbaNumber("")
+      // Optionally show a toast notification here if you have toast available
     }
   }
-
-
 
   const handleClientChange = (clientId: string) => {
     const selectedClient = clients.find((client) => client.id.toString() === clientId)
     if (selectedClient) {
-      form.setValue("mp_clientname", selectedClient.clientname_input)
+      form.setValue("mp_client_name", selectedClient.mp_client_name)
       form.setValue("mbaidentifier", selectedClient.mbaidentifier)
-      generateMBANumber(selectedClient.mbaidentifier)
+      // Only generate MBA number if mbaidentifier exists
+      if (selectedClient.mbaidentifier) {
+        generateMBANumber(selectedClient.mbaidentifier)
+      } else {
+        console.warn("Selected client does not have an MBA identifier")
+        form.setValue("mba_number", "")
+        setMbaNumber("")
+      }
       setSelectedClientId(clientId)
       setFeeSearch(selectedClient.feesearch);
       setFeeSocial(selectedClient.feesocial);
@@ -1319,7 +1625,7 @@ export default function CreateMediaPlan() {
       setClientState(selectedClient.state_dropdown);
       setClientPostcode(selectedClient.postcode);
     } else {
-      form.setValue("mp_clientname", "")
+      form.setValue("mp_client_name", "")
       form.setValue("mbaidentifier", "")
       form.setValue("mba_number", "")
       setSelectedClientId("")
@@ -1348,10 +1654,6 @@ export default function CreateMediaPlan() {
     }
   }
 
-  useEffect(() => {
-    console.log("CreateMediaPlan: selectedClientId changed to", selectedClientId)
-  }, [selectedClientId])
-
   const mediaTypes = [
     { name: "mp_fixedfee", label: "Fixed Fee", component: null },
     { name: "mp_consulting", label: "Production", component: ProductionContainer },
@@ -1376,7 +1678,6 @@ export default function CreateMediaPlan() {
     { name: "mp_influencers", label: "Influencers", component: InfluencersContainer },
   ]
   
-
   const handleSearchBurstsChange = (bursts: BillingBurst[]) =>
     setSearchBursts(bursts)
 
@@ -1406,6 +1707,12 @@ export default function CreateMediaPlan() {
 
   const handleOohBurstsChange = (bursts: BillingBurst[]) =>
     setOohBursts(bursts)
+
+  const handleConsultingBurstsChange = (bursts: BillingBurst[]) =>
+    setConsultingBursts(bursts)
+
+  const handleInfluencersBurstsChange = (bursts: BillingBurst[]) =>
+    setInfluencersBursts(bursts)
 
   const handleDigiAudioBurstsChange = (bursts: BillingBurst[]) =>
     setDigiAudioBursts(bursts)
@@ -1502,11 +1809,209 @@ export default function CreateMediaPlan() {
     setPartialMBAValues(JSON.parse(JSON.stringify(originalPartialMBAValues)));
     toast({ title: "Changes Reset", description: "Values have been reset to their original state." });
   }
+  // Helper function to get header labels for media types
+  function getMediaTypeHeaders(mediaKey: string): { header1: string; header2: string } {
+    switch (mediaKey) {
+      case 'television':
+      case 'radio':
+        return { header1: 'Network', header2: 'Station' };
+      case 'newspaper':
+      case 'magazines':
+        return { header1: 'Network', header2: 'Title' };
+      case 'digiDisplay':
+      case 'digiAudio':
+      case 'digiVideo':
+      case 'bvod':
+        return { header1: 'Publisher', header2: 'Site' };
+      case 'search':
+      case 'socialMedia':
+      case 'progDisplay':
+      case 'progVideo':
+      case 'progBvod':
+      case 'progAudio':
+      case 'progOoh':
+        return { header1: 'Platform', header2: 'Bid Strategy' };
+      case 'ooh':
+      case 'cinema':
+        return { header1: 'Network', header2: 'Format' };
+      default:
+        return { header1: 'Item', header2: 'Details' };
+    }
+  }
+
+  // Helper function to generate billing line items from media line items
+  function generateBillingLineItems(
+    mediaLineItems: any[],
+    mediaType: string,
+    months: BillingMonth[]
+  ): BillingLineItem[] {
+    if (!mediaLineItems || mediaLineItems.length === 0) return [];
+
+    const lineItemsMap = new Map<string, BillingLineItem>();
+    const monthKeys = months.map(m => m.monthYear);
+
+    mediaLineItems.forEach((lineItem, index) => {
+      // Determine header fields based on media type
+      let header1 = '';
+      let header2 = '';
+      let itemId = '';
+
+      switch (mediaType) {
+        case 'television':
+          header1 = lineItem.network || '';
+          header2 = lineItem.station || '';
+          itemId = `${mediaType}-${lineItem.network || ''}-${lineItem.station || ''}-${index}`;
+          break;
+        case 'radio':
+          // Radio can have network/station or platform/bid_strategy depending on the source
+          header1 = lineItem.network || lineItem.platform || '';
+          header2 = lineItem.station || lineItem.bid_strategy || lineItem.bidStrategy || '';
+          itemId = `${mediaType}-${header1}-${header2}-${index}`;
+          break;
+        case 'newspaper':
+        case 'magazines':
+          header1 = lineItem.network || lineItem.publisher || '';
+          header2 = lineItem.title || '';
+          itemId = `${mediaType}-${header1}-${header2}-${index}`;
+          break;
+        case 'digiDisplay':
+        case 'digiAudio':
+        case 'digiVideo':
+        case 'bvod':
+          header1 = lineItem.publisher || '';
+          header2 = lineItem.site || '';
+          itemId = `${mediaType}-${header1}-${header2}-${index}`;
+          break;
+        case 'search':
+        case 'socialMedia':
+        case 'progDisplay':
+        case 'progVideo':
+        case 'progBvod':
+        case 'progAudio':
+        case 'progOoh':
+          header1 = lineItem.platform || '';
+          header2 = lineItem.bid_strategy || lineItem.bidStrategy || '';
+          itemId = `${mediaType}-${header1}-${header2}-${index}`;
+          break;
+        case 'ooh':
+        case 'cinema':
+          header1 = lineItem.network || '';
+          header2 = lineItem.format || '';
+          itemId = `${mediaType}-${header1}-${header2}-${index}`;
+          break;
+        default:
+          header1 = lineItem.network || lineItem.platform || lineItem.publisher || '';
+          header2 = lineItem.station || lineItem.site || lineItem.title || '';
+          itemId = `${mediaType}-${index}`;
+      }
+
+      // Initialize monthly amounts
+      const monthlyAmounts: Record<string, number> = {};
+      monthKeys.forEach(key => monthlyAmounts[key] = 0);
+
+      // Parse bursts and distribute across months
+      let bursts = [];
+      if (typeof lineItem.bursts_json === 'string') {
+        try {
+          bursts = JSON.parse(lineItem.bursts_json);
+        } catch (e) {
+          // Error parsing bursts_json - continue with empty bursts
+        }
+      } else if (Array.isArray(lineItem.bursts_json)) {
+        bursts = lineItem.bursts_json;
+      } else if (Array.isArray(lineItem.bursts)) {
+        bursts = lineItem.bursts;
+      }
+
+      // Distribute each burst across months
+      bursts.forEach((burst: any) => {
+        const startDate = new Date(burst.startDate);
+        const endDate = new Date(burst.endDate);
+        const budget = parseFloat(burst.budget?.replace(/[^0-9.-]/g, '') || '0') || 
+                      parseFloat(burst.buyAmount?.replace(/[^0-9.-]/g, '') || '0') || 0;
+
+        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime()) || budget === 0) return;
+
+        const daysTotal = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        if (daysTotal <= 0) return;
+
+        let currentDate = new Date(startDate);
+        while (currentDate <= endDate) {
+          const monthKey = format(currentDate, "MMMM yyyy");
+          if (monthlyAmounts.hasOwnProperty(monthKey)) {
+            const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+            const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+            const sliceStart = Math.max(startDate.getTime(), monthStart.getTime());
+            const sliceEnd = Math.min(endDate.getTime(), monthEnd.getTime());
+            const daysInMonth = Math.ceil((sliceEnd - sliceStart) / (1000 * 60 * 60 * 24)) + 1;
+            const share = budget * (daysInMonth / daysTotal);
+            monthlyAmounts[monthKey] += share;
+          }
+          currentDate.setMonth(currentDate.getMonth() + 1);
+          currentDate.setDate(1);
+        }
+      });
+
+      // Create or update line item
+      const totalAmount = Object.values(monthlyAmounts).reduce((sum, val) => sum + val, 0);
+      lineItemsMap.set(itemId, {
+        id: itemId,
+        header1,
+        header2,
+        monthlyAmounts,
+        totalAmount
+      });
+    });
+
+    return Array.from(lineItemsMap.values());
+  }
+
   // Manual Billing Functions
   function handleManualBillingOpen() {
     // The main `billingMonths` state now contains the correct, detailed breakdown.
     // We just need to copy it to the modal's state.
     const deepCopiedMonths = JSON.parse(JSON.stringify(billingMonths));
+
+    // Generate line items for each media type
+    const mediaTypeMap: Record<string, { lineItems: any[], key: string }> = {
+      'mp_television': { lineItems: televisionMediaLineItems, key: 'television' },
+      'mp_radio': { lineItems: radioMediaLineItems, key: 'radio' },
+      'mp_newspaper': { lineItems: newspaperMediaLineItems, key: 'newspaper' },
+      'mp_magazines': { lineItems: magazineMediaLineItems, key: 'magazines' },
+      'mp_ooh': { lineItems: oohMediaLineItems, key: 'ooh' },
+      'mp_cinema': { lineItems: cinemaMediaLineItems, key: 'cinema' },
+      'mp_digidisplay': { lineItems: digiDisplayMediaLineItems, key: 'digiDisplay' },
+      'mp_digiaudio': { lineItems: digiAudioMediaLineItems, key: 'digiAudio' },
+      'mp_digivideo': { lineItems: digiVideoMediaLineItems, key: 'digiVideo' },
+      'mp_bvod': { lineItems: bvodMediaLineItems, key: 'bvod' },
+      'mp_search': { lineItems: searchMediaLineItems, key: 'search' },
+      'mp_socialmedia': { lineItems: socialMediaMediaLineItems, key: 'socialMedia' },
+      'mp_progdisplay': { lineItems: progDisplayMediaLineItems, key: 'progDisplay' },
+      'mp_progvideo': { lineItems: progVideoMediaLineItems, key: 'progVideo' },
+      'mp_progbvod': { lineItems: progBvodMediaLineItems, key: 'progBvod' },
+      'mp_progaudio': { lineItems: progAudioMediaLineItems, key: 'progAudio' },
+      'mp_progooh': { lineItems: progOohMediaLineItems, key: 'progOoh' },
+    };
+
+    // Generate line items once and attach to all months
+    const allLineItems: Record<string, BillingLineItem[]> = {};
+    
+    Object.entries(mediaTypeMap).forEach(([mediaTypeKey, { lineItems, key }]) => {
+      if (form.watch(mediaTypeKey as keyof MediaPlanFormValues) && lineItems) {
+        const billingLineItems = generateBillingLineItems(lineItems, key, deepCopiedMonths);
+        if (billingLineItems.length > 0) {
+          allLineItems[key] = billingLineItems;
+        }
+      }
+    });
+
+    // Attach the same line items structure to each month
+    deepCopiedMonths.forEach((month: BillingMonth) => {
+      if (!month.lineItems) month.lineItems = {};
+      Object.entries(allLineItems).forEach(([key, lineItems]) => {
+        month.lineItems![key as keyof typeof month.lineItems] = lineItems;
+      });
+    });
 
     // For the "Reset" functionality from our previous discussion
     setOriginalManualBillingMonths(deepCopiedMonths);
@@ -1518,18 +2023,42 @@ export default function CreateMediaPlan() {
     setIsManualBillingModalOpen(true);
   }
 
-  // apps/web/src/app/mediaplans/create/page.tsx
-
   function handleManualBillingChange(
     index: number,
-    type: 'media' | 'fee' | 'adServing',
+    type: 'media' | 'fee' | 'adServing' | 'lineItem',
     rawValue: string,
-    mediaKey?: string // e.g., 'search', 'socialMedia'
+    mediaKey?: string, // e.g., 'search', 'socialMedia'
+    lineItemId?: string, // For line item edits
+    monthYear?: string // For line item edits
   ) {
     const copy = [...manualBillingMonths];
     const numericValue = parseFloat(rawValue.replace(/[^0-9.-]/g, "")) || 0;
     const formatter = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
     const formattedValue = formatter.format(numericValue);
+
+    // Handle line item changes
+    if (type === 'lineItem' && mediaKey && lineItemId && monthYear) {
+      const monthIndex = copy.findIndex(m => m.monthYear === monthYear);
+      if (monthIndex >= 0 && copy[monthIndex].lineItems) {
+        const lineItemsObj = copy[monthIndex].lineItems;
+        const lineItemsKey = mediaKey as keyof typeof lineItemsObj;
+        if (lineItemsObj[lineItemsKey]) {
+          const lineItems = lineItemsObj[lineItemsKey] as BillingLineItem[];
+          const lineItemIndex = lineItems.findIndex(li => li.id === lineItemId);
+          if (lineItemIndex >= 0) {
+            // Update the line item's monthly amount
+            lineItems[lineItemIndex].monthlyAmounts[monthYear] = numericValue;
+            // Recalculate line item total
+            lineItems[lineItemIndex].totalAmount = Object.values(lineItems[lineItemIndex].monthlyAmounts).reduce((sum, val) => sum + val, 0);
+            
+            // Recalculate media type total for this month from all line items
+            const mediaTypeTotal = lineItems.reduce((sum, li) => sum + (li.monthlyAmounts[monthYear] || 0), 0);
+            const mediaCosts = copy[monthIndex].mediaCosts;
+            (mediaCosts as any)[mediaKey] = formatter.format(mediaTypeTotal);
+          }
+        }
+      }
+    }
 
     // Dynamically update the correct value
     if (type === 'media' && mediaKey && copy[index].mediaCosts.hasOwnProperty(mediaKey)) {
@@ -1563,19 +2092,25 @@ export default function CreateMediaPlan() {
     setManualBillingMonths(copy);
   }
 
+  const [billingError, setBillingError] = useState<{show: boolean, campaignBudget: number, difference: number}>({
+    show: false,
+    campaignBudget: 0,
+    difference: 0
+  });
+
   function handleManualBillingSave() {
     // 1. Get the campaign budget and the new manual total as numbers.
     const campaignBudget = form.getValues("mp_campaignbudget") || 0;
     const currentManualTotalNumber = parseFloat(manualBillingTotal.replace(/[^0-9.-]/g, "")) || 0;
+    const difference = Math.abs(currentManualTotalNumber - campaignBudget);
 
     // 2. VALIDATION: Check if the difference is more than $2.00.
-    if (Math.abs(currentManualTotalNumber - campaignBudget) > 2) {
-      // If validation fails, show a detailed error toast and stop.
-      toast({
-        title: "Budget Mismatch",
-        description: `The Billing Schedule Total (${manualBillingTotal}) must be within $2.00 of the Campaign Budget. Please adjust values.`,
-        variant: "destructive",
-        duration: 7000,
+    if (difference > 2) {
+      // If validation fails, show a detailed error popup and stop.
+      setBillingError({
+        show: true,
+        campaignBudget,
+        difference: currentManualTotalNumber - campaignBudget
       });
       return; // Stop the function here.
     }
@@ -1585,6 +2120,7 @@ export default function CreateMediaPlan() {
     setBillingTotal(manualBillingTotal);
     setIsManualBilling(true); // Keep track that billing is now manually set.
     setIsManualBillingModalOpen(false); // Close the modal.
+    setBillingError({ show: false, campaignBudget: 0, difference: 0 });
     toast({ title: "Success", description: "Manual billing schedule has been saved." });
   }
 
@@ -1599,137 +2135,779 @@ export default function CreateMediaPlan() {
     setIsManualBilling(false)
     calculateBillingSchedule()
   }
+
+  const [mediaPlanId, setMediaPlanId] = useState<number | null>(null)
+  const [isPlanSaving, setIsPlanSaving] = useState<boolean>(false)
+  const [isVersionSaving, setIsVersionSaving] = useState<boolean>(false)
+  const [mediaPlanVersionId, setMediaPlanVersionId] = useState<number | null>(null)
+
+  const handleSaveMediaPlan = async () => {
+    setIsPlanSaving(true)
+    // Update status for Media Plan Master
+    setSaveStatus(prev => {
+      const existing = prev.find(item => item.name === 'Media Plan Master')
+      if (!existing) {
+        return [...prev, { name: 'Media Plan Master', status: 'pending' }]
+      }
+      return prev.map(item => 
+        item.name === 'Media Plan Master' 
+          ? { ...item, status: 'pending' as const }
+          : item
+      )
+    })
     
-  // page.tsx
-
-  const handleSaveCampaign = async () => {
-    setSaveStatus([{ message: "Starting save process...", status: 'pending' }]);
-    setIsSaveModalOpen(true);
-    setIsLoading(true);
-  
     try {
-        const formValues = form.getValues();
+      const { 
+        mp_client_name, 
+        mba_number, 
+        mp_campaignname,
+        mp_campaigndates_start,
+        mp_campaigndates_end,
+        mp_campaignstatus,
+        mp_campaignbudget,
+        mp_plannumber
+      } = form.getValues()
   
-        // --- Step 1: Create the Media Plan ---
-        setSaveStatus(prev => [...prev, { message: "Saving main media plan...", status: 'pending' }]);
-        const mediaPlanPayload = {
-            mp_clientname: formValues.mp_clientname,
-            mp_campaignname: formValues.mp_campaignname,
-            mba_number: formValues.mba_number,
-        };
-        const newMediaPlan = await createMediaPlan(mediaPlanPayload);
+      const payload = { 
+        mp_client_name, 
+        mba_number, 
+        mp_campaignname,
+        mp_campaigndates_start,
+        mp_campaigndates_end,
+        mp_campaignstatus,
+        mp_campaignbudget,
+        mp_plannumber
+      }
+      const mediaPlan = await createMediaPlan(payload)
   
-        if (!newMediaPlan || !newMediaPlan.id) {
-            throw new Error("Failed to save media plan or did not receive an ID.");
-        }
-        setSaveStatus(prev => [...prev, { message: `Media Plan saved with ID: ${newMediaPlan.id}`, status: 'success' }]);
-  
-  
-        // --- Step 2: Create the Media Plan Version, linking the ID ---
-        setSaveStatus(prev => [...prev, { message: "Saving version details...", status: 'pending' }]);
-        
-          // START: NEW CLEANING LOGIC
-        const sourceBillingData = isManualBilling ? manualBillingMonths : billingMonths;
-
-        const cleanBillingSchedule = sourceBillingData.map(month => {
-            // Helper function to safely parse currency strings into numbers
-            const parseCurrency = (value: string | number): number => {
-                if (typeof value === 'number') return value;
-                // Remove '$', ',', and any non-numeric characters except the decimal point
-                return parseFloat(String(value).replace(/[^0-9.-]/g, '')) || 0;
-            };
-
-            // Clean up the nested mediaCosts object
-            const cleanedMediaCosts = Object.entries(month.mediaCosts).reduce((acc, [key, value]) => {
-                acc[key] = parseCurrency(value as string);
-                return acc;
-            }, {} as Record<string, number>);
-
-            // Return a new object with all values as numbers
-            return {
-                monthYear: month.monthYear,
-                mediaTotal: parseCurrency(month.mediaTotal),
-                feeTotal: parseCurrency(month.feeTotal),
-                totalAmount: parseCurrency(month.totalAmount),
-                adservingTechFees: parseCurrency(month.adservingTechFees),
-                production: parseCurrency(month.production),
-                mediaCosts: cleanedMediaCosts,
-            };
-        });
-        // END: NEW CLEANING LOGIC
-
-        const versionPayload = {
-          version_number: parseInt(formValues.mp_plannumber, 10) || 1,
-          
-          // Map form names (e.g., mp_campaignname) to API names (e.g., campaign_name)
-          mba_number: formValues.mba_number,
-          po_number: formValues.mp_ponumber,
-          campaign_name: formValues.mp_campaignname,
-          campaign_status: formValues.mp_campaignstatus,
-          brand: formValues.mp_brand,
-          client_name: formValues.mp_clientname,
-          client_contact: formValues.mp_clientcontact,
-          fixed_fee: formValues.mp_fixedfee,
-          mp_campaignbudget: formValues.mp_campaignbudget,
-
-          // Dates and Billing
-          campaign_start_date: format(formValues.mp_campaigndates_start, "yyyy-MM-dd"),
-          campaign_end_date: format(formValues.mp_campaigndates_end, "yyyy-MM-dd"),
-          billingSchedule: cleanBillingSchedule, // <-- USE THE CLEANED DATA
-
-          // Media Type Booleans
-          mp_television: formValues.mp_television,
-          mp_radio: formValues.mp_radio,
-          mp_newspaper: formValues.mp_newspaper,
-          mp_magazines: formValues.mp_magazines,
-          mp_ooh: formValues.mp_ooh,
-          mp_cinema: formValues.mp_cinema,
-          mp_digidisplay: formValues.mp_digidisplay,
-          mp_digiaudio: formValues.mp_digiaudio,
-          mp_digivideo: formValues.mp_digivideo,
-          mp_bvod: formValues.mp_bvod,
-          mp_integration: formValues.mp_integration,
-          mp_search: formValues.mp_search,
-          mp_socialmedia: formValues.mp_socialmedia,
-          mp_progdisplay: formValues.mp_progdisplay,
-          mp_progvideo: formValues.mp_progvideo,
-          mp_progbvod: formValues.mp_progbvod,
-          mp_progaudio: formValues.mp_progaudio,
-          mp_progooh: formValues.mp_progooh,
-          mp_influencers: formValues.mp_influencers,
-        };
-  
-        const newVersion = await createMediaPlanVersion(versionPayload);
-         if (!newVersion || !newVersion.id) {
-            throw new Error("Failed to save media plan version or did not receive an ID.");
-        }
-        setSaveStatus(prev => [...prev, { message: `Version ${newVersion.version_number} saved.`, status: 'success' }]);
-  
-        // --- Step 3: Update the Media Plan with the latest_version_id ---
-        setSaveStatus(prev => [...prev, { message: "Linking version to plan...", status: 'pending' }]);
-        await editMediaPlan(newMediaPlan.id, { latest_version_id: newVersion.id });
-        setSaveStatus(prev => [...prev, { message: "Link successful!", status: 'success' }]);
-  
-        // --- Final Success ---
-        toast({
-            title: "Success!",
-            description: "Your media plan and version have been saved correctly.",
-        });
-        setTimeout(() => {
-            setIsSaveModalOpen(false);
-            router.push(`/mediaplans`); // Redirect on success
-        }, 2500);
-  
-    } catch (error: any) {
-        const errorMessage = error.message || "An unknown error occurred.";
-        setSaveStatus(prev => [...prev, { message: errorMessage, status: 'error' }]);
-        toast({
-            title: "Save Failed",
-            description: errorMessage,
-            variant: "destructive",
-        });
+      setMediaPlanId(mediaPlan.id)
+      // Update status to success
+      setSaveStatus(prev => prev.map(item => 
+        item.name === 'Media Plan Master' 
+          ? { ...item, status: 'success' as const }
+          : item
+      ))
+      toast({ title: 'Plan created', description: `ID ${mediaPlan.id}` })
+      return mediaPlan.id
+    } catch (err: any) {
+      // Update status to error
+      setSaveStatus(prev => prev.map(item => 
+        item.name === 'Media Plan Master' 
+          ? { ...item, status: 'error' as const, error: err.message }
+          : item
+      ))
+      toast({ title: 'Save error', description: err.message, variant: 'destructive' })
+      throw err;
     } finally {
-        setIsLoading(false);
+      setIsPlanSaving(false)
+    }
+  }
+
+  // Helper function to update save status
+  const updateSaveStatus = (name: string, status: 'pending' | 'success' | 'error', error?: string) => {
+    setSaveStatus(prev => {
+      const existing = prev.find(item => item.name === name)
+      if (!existing) {
+        return [...prev, { name, status, error }]
+      }
+      return prev.map(item => 
+        item.name === name 
+          ? { ...item, status, error }
+          : item
+      )
+    })
+  }
+
+  const handleSaveMediaPlanVersion = async (masterId: number) => {
+    setIsVersionSaving(true);
+    
+    // Initialize status for Media Plan Version
+    updateSaveStatus('Media Plan Version', 'pending')
+    
+    try {
+      // 1. Gather form values
+      const fv = form.getValues();
+  
+      // 2. Ensure billingMonths has lineItems structure before building JSON
+      // If lineItems don't exist, generate them from media line items
+      // Use manual billing months if manual billing is active
+      let billingMonthsWithLineItems = isManualBilling && manualBillingMonths.length > 0 
+        ? [...manualBillingMonths] 
+        : [...billingMonths];
+      
+      // Check if any month has lineItems
+      const hasLineItems = billingMonthsWithLineItems.some(month => month.lineItems && Object.keys(month.lineItems).length > 0);
+      
+      if (!hasLineItems && billingMonthsWithLineItems.length > 0) {
+        // Generate line items for each media type
+        const mediaTypeMap: Record<string, { lineItems: any[], key: string }> = {
+          'mp_television': { lineItems: televisionMediaLineItems, key: 'television' },
+          'mp_radio': { lineItems: radioMediaLineItems, key: 'radio' },
+          'mp_newspaper': { lineItems: newspaperMediaLineItems, key: 'newspaper' },
+          'mp_magazines': { lineItems: magazineMediaLineItems, key: 'magazines' },
+          'mp_ooh': { lineItems: oohMediaLineItems, key: 'ooh' },
+          'mp_cinema': { lineItems: cinemaMediaLineItems, key: 'cinema' },
+          'mp_digidisplay': { lineItems: digiDisplayMediaLineItems, key: 'digiDisplay' },
+          'mp_digiaudio': { lineItems: digiAudioMediaLineItems, key: 'digiAudio' },
+          'mp_digivideo': { lineItems: digiVideoMediaLineItems, key: 'digiVideo' },
+          'mp_bvod': { lineItems: bvodMediaLineItems, key: 'bvod' },
+          'mp_integration': { lineItems: integrationMediaLineItems, key: 'integration' },
+          'mp_search': { lineItems: searchMediaLineItems, key: 'search' },
+          'mp_socialmedia': { lineItems: socialMediaMediaLineItems, key: 'socialMedia' },
+          'mp_progdisplay': { lineItems: progDisplayMediaLineItems, key: 'progDisplay' },
+          'mp_progvideo': { lineItems: progVideoMediaLineItems, key: 'progVideo' },
+          'mp_progbvod': { lineItems: progBvodMediaLineItems, key: 'progBvod' },
+          'mp_progaudio': { lineItems: progAudioMediaLineItems, key: 'progAudio' },
+          'mp_progooh': { lineItems: progOohMediaLineItems, key: 'progOoh' },
+          'mp_influencers': { lineItems: influencersMediaLineItems, key: 'influencers' },
+        };
+
+        // Generate line items once and attach to all months
+        const allLineItems: Record<string, BillingLineItem[]> = {};
+        
+        Object.entries(mediaTypeMap).forEach(([mediaTypeKey, { lineItems, key }]) => {
+          if (fv[mediaTypeKey as keyof typeof fv] && lineItems && lineItems.length > 0) {
+            const billingLineItems = generateBillingLineItems(lineItems, key, billingMonthsWithLineItems);
+            if (billingLineItems.length > 0) {
+              allLineItems[key] = billingLineItems;
+            }
+          }
+        });
+
+        // Attach the same line items structure to each month
+        billingMonthsWithLineItems = billingMonthsWithLineItems.map(month => {
+          const monthCopy = { ...month };
+          if (!monthCopy.lineItems) monthCopy.lineItems = {};
+          Object.entries(allLineItems).forEach(([key, lineItems]) => {
+            (monthCopy.lineItems as any)[key] = lineItems;
+          });
+          return monthCopy;
+        });
+      }
+  
+      // 3. Build version payload (include only top‑level and toggles)
+      // Transform billing schedule to hierarchical structure (Media Type → line items)
+      const billingScheduleJSON = buildBillingScheduleJSON(billingMonthsWithLineItems);
+      
+      // Validate required fields - ensure client_name is a non-empty string
+      const clientName = typeof fv.mp_client_name === 'string' 
+        ? fv.mp_client_name.trim() 
+        : String(fv.mp_client_name || '').trim();
+      
+      if (!clientName) {
+        throw new Error("Client name is required. Please select a client.");
+      }
+      
+      console.log("Form values for media plan version:", {
+        mp_client_name: clientName,
+        mba_number: fv.mba_number,
+        mp_plannumber: fv.mp_plannumber,
+      });
+      
+      // Build payload matching Xano's media_plan_versions endpoint expectations
+      // IMPORTANT: Field names must match Xano script's $input.* references
+      // Xano script maps: client_name -> mp_client_name in database
+      // All fields below must be declared in Xano's input block
+      const payload = {
+        media_plan_master_id: masterId,
+        version_number:       parseInt(fv.mp_plannumber, 10),
+        mba_number:           fv.mba_number || "",
+        campaign_name:        fv.mp_campaignname || "",
+        campaign_status:      fv.mp_campaignstatus || "Draft",
+        campaign_start_date:  fv.mp_campaigndates_start.toISOString(),
+        campaign_end_date:    fv.mp_campaigndates_end.toISOString(),
+        brand:                fv.mp_brand || "",
+        client_name:          clientName,
+        client_contact:       fv.mp_clientcontact || "",
+        po_number:            fv.mp_ponumber || "",
+        mp_campaignbudget:    fv.mp_campaignbudget || 0,
+        fixed_fee:            fv.mp_fixedfee || false,
+        mp_television:        fv.mp_television || false,
+        mp_radio:             fv.mp_radio || false,
+        mp_newspaper:         fv.mp_newspaper || false,
+        mp_magazines:         fv.mp_magazines || false,
+        mp_ooh:               fv.mp_ooh || false,
+        mp_cinema:            fv.mp_cinema || false,
+        mp_digidisplay:       fv.mp_digidisplay || false,
+        mp_digiaudio:         fv.mp_digiaudio || false,
+        mp_digivideo:         fv.mp_digivideo || false,
+        mp_bvod:              fv.mp_bvod || false,
+        mp_integration:       fv.mp_integration || false,
+        mp_search:            fv.mp_search || false,
+        mp_socialmedia:       fv.mp_socialmedia || false,
+        mp_progdisplay:       fv.mp_progdisplay || false,
+        mp_progvideo:         fv.mp_progvideo || false,
+        mp_progbvod:          fv.mp_progbvod || false,
+        mp_progaudio:         fv.mp_progaudio || false,
+        mp_progooh:           fv.mp_progooh || false,
+        mp_influencers:       fv.mp_influencers || false,
+        billingSchedule:      billingScheduleJSON,
+      };
+  
+      // 3. Call Xano
+      const version = await createMediaPlanVersion(payload);
+      setMediaPlanVersionId(version.id);
+      // Update Media Plan Version status to success
+      updateSaveStatus('Media Plan Version', 'success')
+  
+      // 4. Save all media line items for enabled media types
+      const mediaTypeSavePromises: Array<Promise<any[] | { type: string; error: any; }>> = [];
+      
+      // Map media type keys to display names for status tracking
+      const mediaTypeKeyToDisplayName: Record<string, string> = {
+        'television': mediaTypeDisplayNames.mp_television,
+        'radio': mediaTypeDisplayNames.mp_radio,
+        'newspaper': mediaTypeDisplayNames.mp_newspaper,
+        'magazines': mediaTypeDisplayNames.mp_magazines,
+        'ooh': mediaTypeDisplayNames.mp_ooh,
+        'cinema': mediaTypeDisplayNames.mp_cinema,
+        'digidisplay': mediaTypeDisplayNames.mp_digidisplay,
+        'digiaudio': mediaTypeDisplayNames.mp_digiaudio,
+        'digivideo': mediaTypeDisplayNames.mp_digivideo,
+        'bvod': mediaTypeDisplayNames.mp_bvod,
+        'integration': mediaTypeDisplayNames.mp_integration,
+        'search': mediaTypeDisplayNames.mp_search,
+        'socialmedia': mediaTypeDisplayNames.mp_socialmedia,
+        'progdisplay': mediaTypeDisplayNames.mp_progdisplay,
+        'progvideo': mediaTypeDisplayNames.mp_progvideo,
+        'progbvod': mediaTypeDisplayNames.mp_progbvod,
+        'progaudio': mediaTypeDisplayNames.mp_progaudio,
+        'progooh': mediaTypeDisplayNames.mp_progooh,
+        'influencers': mediaTypeDisplayNames.mp_influencers,
+      };
+
+      // Television
+      if (fv.mp_television && televisionMediaLineItems && televisionMediaLineItems.length > 0) {
+        const displayName = mediaTypeDisplayNames.mp_television;
+        updateSaveStatus(displayName, 'pending');
+        mediaTypeSavePromises.push(
+          saveTelevisionLineItems(
+            version.id,
+            fv.mba_number,
+            fv.mp_client_name,
+            fv.mp_plannumber,
+            televisionMediaLineItems
+          ).then(result => {
+            updateSaveStatus(displayName, 'success');
+            return result;
+          }).catch(error => {
+            updateSaveStatus(displayName, 'error', error.message || 'Failed to save');
+            return { type: 'television', error };
+          })
+        );
+      }
+
+      // Radio
+      if (fv.mp_radio && radioMediaLineItems && radioMediaLineItems.length > 0) {
+        const displayName = mediaTypeDisplayNames.mp_radio;
+        updateSaveStatus(displayName, 'pending');
+        mediaTypeSavePromises.push(
+          saveRadioLineItems(
+            version.id,
+            fv.mba_number,
+            fv.mp_client_name,
+            fv.mp_plannumber,
+            radioMediaLineItems
+          ).then(result => {
+            updateSaveStatus(displayName, 'success');
+            return result;
+          }).catch(error => {
+            updateSaveStatus(displayName, 'error', error.message || 'Failed to save');
+            return { type: 'radio', error };
+          })
+        );
+      }
+
+      // Newspaper
+      if (fv.mp_newspaper && newspaperMediaLineItems && newspaperMediaLineItems.length > 0) {
+        const displayName = mediaTypeDisplayNames.mp_newspaper;
+        updateSaveStatus(displayName, 'pending');
+        mediaTypeSavePromises.push(
+          saveNewspaperLineItems(
+            version.id,
+            fv.mba_number,
+            fv.mp_client_name,
+            fv.mp_plannumber,
+            newspaperMediaLineItems
+          ).then(result => {
+            updateSaveStatus(displayName, 'success');
+            return result;
+          }).catch(error => {
+            updateSaveStatus(displayName, 'error', error.message || 'Failed to save');
+            return { type: 'newspaper', error };
+          })
+        );
+      }
+
+      // Magazines
+      if (fv.mp_magazines && magazineMediaLineItems && magazineMediaLineItems.length > 0) {
+        const displayName = mediaTypeDisplayNames.mp_magazines;
+        updateSaveStatus(displayName, 'pending');
+        mediaTypeSavePromises.push(
+          saveMagazinesLineItems(
+            version.id,
+            fv.mba_number,
+            fv.mp_client_name,
+            fv.mp_plannumber,
+            magazineMediaLineItems
+          ).then(result => {
+            updateSaveStatus(displayName, 'success');
+            return result;
+          }).catch(error => {
+            updateSaveStatus(displayName, 'error', error.message || 'Failed to save');
+            return { type: 'magazines', error };
+          })
+        );
+      }
+
+      // OOH
+      if (fv.mp_ooh && oohMediaLineItems && oohMediaLineItems.length > 0) {
+        const displayName = mediaTypeDisplayNames.mp_ooh;
+        updateSaveStatus(displayName, 'pending');
+        mediaTypeSavePromises.push(
+          saveOOHLineItems(
+            version.id,
+            fv.mba_number,
+            fv.mp_client_name,
+            fv.mp_plannumber,
+            oohMediaLineItems
+          ).then(result => {
+            updateSaveStatus(displayName, 'success');
+            return result;
+          }).catch(error => {
+            updateSaveStatus(displayName, 'error', error.message || 'Failed to save');
+            return { type: 'ooh', error };
+          })
+        );
+      }
+
+      // Cinema
+      if (fv.mp_cinema && cinemaMediaLineItems && cinemaMediaLineItems.length > 0) {
+        const displayName = mediaTypeDisplayNames.mp_cinema;
+        updateSaveStatus(displayName, 'pending');
+        mediaTypeSavePromises.push(
+          saveCinemaLineItems(
+            version.id,
+            fv.mba_number,
+            fv.mp_client_name,
+            fv.mp_plannumber,
+            cinemaMediaLineItems
+          ).then(result => {
+            updateSaveStatus(displayName, 'success');
+            return result;
+          }).catch(error => {
+            updateSaveStatus(displayName, 'error', error.message || 'Failed to save');
+            return { type: 'cinema', error };
+          })
+        );
+      }
+
+      // Digital Display
+      if (fv.mp_digidisplay && digiDisplayMediaLineItems && digiDisplayMediaLineItems.length > 0) {
+        const displayName = mediaTypeDisplayNames.mp_digidisplay;
+        updateSaveStatus(displayName, 'pending');
+        mediaTypeSavePromises.push(
+          saveDigitalDisplayLineItems(
+            version.id,
+            fv.mba_number,
+            fv.mp_client_name,
+            fv.mp_plannumber,
+            digiDisplayMediaLineItems
+          ).then(result => {
+            updateSaveStatus(displayName, 'success');
+            return result;
+          }).catch(error => {
+            updateSaveStatus(displayName, 'error', error.message || 'Failed to save');
+            return { type: 'digidisplay', error };
+          })
+        );
+      }
+
+      // Digital Audio
+      if (fv.mp_digiaudio && digiAudioMediaLineItems && digiAudioMediaLineItems.length > 0) {
+        const displayName = mediaTypeDisplayNames.mp_digiaudio;
+        updateSaveStatus(displayName, 'pending');
+        mediaTypeSavePromises.push(
+          saveDigitalAudioLineItems(
+            version.id,
+            fv.mba_number,
+            fv.mp_client_name,
+            fv.mp_plannumber,
+            digiAudioMediaLineItems
+          ).then(result => {
+            updateSaveStatus(displayName, 'success');
+            return result;
+          }).catch(error => {
+            updateSaveStatus(displayName, 'error', error.message || 'Failed to save');
+            return { type: 'digiaudio', error };
+          })
+        );
+      }
+
+      // Digital Video
+      if (fv.mp_digivideo && digiVideoMediaLineItems && digiVideoMediaLineItems.length > 0) {
+        const displayName = mediaTypeDisplayNames.mp_digivideo;
+        updateSaveStatus(displayName, 'pending');
+        mediaTypeSavePromises.push(
+          saveDigitalVideoLineItems(
+            version.id,
+            fv.mba_number,
+            fv.mp_client_name,
+            fv.mp_plannumber,
+            digiVideoMediaLineItems
+          ).then(result => {
+            updateSaveStatus(displayName, 'success');
+            return result;
+          }).catch(error => {
+            updateSaveStatus(displayName, 'error', error.message || 'Failed to save');
+            return { type: 'digivideo', error };
+          })
+        );
+      }
+
+      // BVOD
+      if (fv.mp_bvod && bvodMediaLineItems && bvodMediaLineItems.length > 0) {
+        const displayName = mediaTypeDisplayNames.mp_bvod;
+        updateSaveStatus(displayName, 'pending');
+        mediaTypeSavePromises.push(
+          saveBVODLineItems(
+            version.id,
+            fv.mba_number,
+            fv.mp_client_name,
+            fv.mp_plannumber,
+            bvodMediaLineItems
+          ).then(result => {
+            updateSaveStatus(displayName, 'success');
+            return result;
+          }).catch(error => {
+            updateSaveStatus(displayName, 'error', error.message || 'Failed to save');
+            return { type: 'bvod', error };
+          })
+        );
+      }
+
+      // Integration
+      if (fv.mp_integration && integrationMediaLineItems && integrationMediaLineItems.length > 0) {
+        const displayName = mediaTypeDisplayNames.mp_integration;
+        updateSaveStatus(displayName, 'pending');
+        mediaTypeSavePromises.push(
+          saveIntegrationLineItems(
+            version.id,
+            fv.mba_number,
+            fv.mp_client_name,
+            fv.mp_plannumber,
+            integrationMediaLineItems
+          ).then(result => {
+            updateSaveStatus(displayName, 'success');
+            return result;
+          }).catch(error => {
+            updateSaveStatus(displayName, 'error', error.message || 'Failed to save');
+            return { type: 'integration', error };
+          })
+        );
+      }
+
+      // Search
+      if (fv.mp_search && searchMediaLineItems && searchMediaLineItems.length > 0) {
+        const displayName = mediaTypeDisplayNames.mp_search;
+        updateSaveStatus(displayName, 'pending');
+        mediaTypeSavePromises.push(
+          saveSearchLineItems(
+            version.id,
+            fv.mba_number,
+            fv.mp_client_name,
+            fv.mp_plannumber,
+            searchMediaLineItems
+          ).then(result => {
+            updateSaveStatus(displayName, 'success');
+            return result;
+          }).catch(error => {
+            updateSaveStatus(displayName, 'error', error.message || 'Failed to save');
+            return { type: 'search', error };
+          })
+        );
+      }
+
+      // Social Media
+      if (fv.mp_socialmedia && socialMediaMediaLineItems && socialMediaMediaLineItems.length > 0) {
+        const displayName = mediaTypeDisplayNames.mp_socialmedia;
+        updateSaveStatus(displayName, 'pending');
+        mediaTypeSavePromises.push(
+          saveSocialMediaLineItems(
+            version.id,
+            fv.mba_number,
+            fv.mp_client_name,
+            fv.mp_plannumber,
+            socialMediaMediaLineItems
+          ).then(result => {
+            updateSaveStatus(displayName, 'success');
+            return result;
+          }).catch(error => {
+            updateSaveStatus(displayName, 'error', error.message || 'Failed to save');
+            return { type: 'socialmedia', error };
+          })
+        );
+      }
+
+      // Programmatic Display
+      if (fv.mp_progdisplay && progDisplayMediaLineItems && progDisplayMediaLineItems.length > 0) {
+        const displayName = mediaTypeDisplayNames.mp_progdisplay;
+        updateSaveStatus(displayName, 'pending');
+        mediaTypeSavePromises.push(
+          saveProgDisplayLineItems(
+            version.id,
+            fv.mba_number,
+            fv.mp_client_name,
+            fv.mp_plannumber,
+            progDisplayMediaLineItems
+          ).then(result => {
+            updateSaveStatus(displayName, 'success');
+            return result;
+          }).catch(error => {
+            updateSaveStatus(displayName, 'error', error.message || 'Failed to save');
+            return { type: 'progdisplay', error };
+          })
+        );
+      }
+
+      // Programmatic Video
+      if (fv.mp_progvideo && progVideoMediaLineItems && progVideoMediaLineItems.length > 0) {
+        const displayName = mediaTypeDisplayNames.mp_progvideo;
+        updateSaveStatus(displayName, 'pending');
+        mediaTypeSavePromises.push(
+          saveProgVideoLineItems(
+            version.id,
+            fv.mba_number,
+            fv.mp_client_name,
+            fv.mp_plannumber,
+            progVideoMediaLineItems
+          ).then(result => {
+            updateSaveStatus(displayName, 'success');
+            return result;
+          }).catch(error => {
+            updateSaveStatus(displayName, 'error', error.message || 'Failed to save');
+            return { type: 'progvideo', error };
+          })
+        );
+      }
+
+      // Programmatic BVOD
+      if (fv.mp_progbvod && progBvodMediaLineItems && progBvodMediaLineItems.length > 0) {
+        const displayName = mediaTypeDisplayNames.mp_progbvod;
+        updateSaveStatus(displayName, 'pending');
+        mediaTypeSavePromises.push(
+          saveProgBVODLineItems(
+            version.id,
+            fv.mba_number,
+            fv.mp_client_name,
+            fv.mp_plannumber,
+            progBvodMediaLineItems
+          ).then(result => {
+            updateSaveStatus(displayName, 'success');
+            return result;
+          }).catch(error => {
+            updateSaveStatus(displayName, 'error', error.message || 'Failed to save');
+            return { type: 'progbvod', error };
+          })
+        );
+      }
+
+      // Programmatic Audio
+      if (fv.mp_progaudio && progAudioMediaLineItems && progAudioMediaLineItems.length > 0) {
+        const displayName = mediaTypeDisplayNames.mp_progaudio;
+        updateSaveStatus(displayName, 'pending');
+        mediaTypeSavePromises.push(
+          saveProgAudioLineItems(
+            version.id,
+            fv.mba_number,
+            fv.mp_client_name,
+            fv.mp_plannumber,
+            progAudioMediaLineItems
+          ).then(result => {
+            updateSaveStatus(displayName, 'success');
+            return result;
+          }).catch(error => {
+            updateSaveStatus(displayName, 'error', error.message || 'Failed to save');
+            return { type: 'progaudio', error };
+          })
+        );
+      }
+
+      // Programmatic OOH
+      if (fv.mp_progooh && progOohMediaLineItems && progOohMediaLineItems.length > 0) {
+        const displayName = mediaTypeDisplayNames.mp_progooh;
+        updateSaveStatus(displayName, 'pending');
+        mediaTypeSavePromises.push(
+          saveProgOOHLineItems(
+            version.id,
+            fv.mba_number,
+            fv.mp_client_name,
+            fv.mp_plannumber,
+            progOohMediaLineItems
+          ).then(result => {
+            updateSaveStatus(displayName, 'success');
+            return result;
+          }).catch(error => {
+            updateSaveStatus(displayName, 'error', error.message || 'Failed to save');
+            return { type: 'progooh', error };
+          })
+        );
+      }
+
+      // Influencers
+      if (fv.mp_influencers && influencersMediaLineItems && influencersMediaLineItems.length > 0) {
+        const displayName = mediaTypeDisplayNames.mp_influencers;
+        updateSaveStatus(displayName, 'pending');
+        mediaTypeSavePromises.push(
+          saveInfluencersLineItems(
+            version.id,
+            fv.mba_number,
+            fv.mp_client_name,
+            fv.mp_plannumber,
+            influencersMediaLineItems
+          ).then(result => {
+            updateSaveStatus(displayName, 'success');
+            return result;
+          }).catch(error => {
+            updateSaveStatus(displayName, 'error', error.message || 'Failed to save');
+            return { type: 'influencers', error };
+          })
+        );
+      }
+
+      // Execute all media type saves in parallel
+      if (mediaTypeSavePromises.length > 0) {
+        try {
+          const results = await Promise.all(mediaTypeSavePromises);
+          const errors = results.filter((result): result is { type: string; error: any; } => 
+            result && typeof result === 'object' && 'error' in result
+          );
+          
+          if (errors.length > 0) {
+            toast({
+              title: 'Partial Success',
+              description: `Media plan saved but some media types failed to save.`,
+              variant: 'destructive'
+            });
+          }
+        } catch (error) {
+          toast({
+            title: 'Warning',
+            description: 'Media plan saved but some media data could not be saved. Please try again.',
+            variant: 'destructive'
+          });
+        }
+      }
+  
+      // 7. Notify user
+      toast({ title: 'Version saved', description: `Version ID ${version.id}` });
+    } catch (err: any) {
+      // Update Media Plan Version status to error
+      updateSaveStatus('Media Plan Version', 'error', err.message || 'Failed to save version');
+      toast({ title: 'Error saving version', description: err.message, variant: 'destructive' });
+      throw err; // rethrow for Phase 3 logic
+    } finally {
+      setIsVersionSaving(false);
+    }
+  };
+
+  // in page.tsx
+
+const handleSaveAll = async () => {
+  // Initialize save status array
+  setSaveStatus([{ name: 'Media Plan Master', status: 'pending' }]);
+  
+  let newMediaPlanId: number; // ✅ Declare a local variable for the ID
+
+  // 1️⃣ Save master plan
+  try {
+    newMediaPlanId = await handleSaveMediaPlan(); // ✅ Capture the returned ID
+  } catch {
+    return;
+  }
+
+  // 2️⃣ Save version (Media Plan Version status will be initialized in handleSaveMediaPlanVersion)
+  try {
+    await handleSaveMediaPlanVersion(newMediaPlanId); // ✅ Pass the ID as an argument
+    router.push('/mediaplans');
+  } catch {
+    return;
+  }
+};
+
+  // Helper function to convert client name to slug
+  const clientNameToSlug = (clientName: string): string => {
+    return clientName
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .trim();
+  };
+
+  // Handle Save and Download All - runs in order: Generate MBA -> Download Media Plan -> Save -> Navigate to campaign
+  const handleSaveAndDownloadAll = async () => {
+    try {
+      const fv = form.getValues();
+      
+      // Validate required fields
+      if (!fv.mba_number) {
+        toast({
+          title: "Error",
+          description: "MBA number is required",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (!fv.mp_client_name) {
+        toast({
+          title: "Error",
+          description: "Client name is required",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // 1️⃣ Generate MBA
+      await handleGenerateMBA();
+
+      // 2️⃣ Download Media Plan
+      await handleGenerateMediaPlan();
+
+      // 3️⃣ Save master plan and version
+      let newMediaPlanId: number;
+      try {
+        newMediaPlanId = await handleSaveMediaPlan();
+      } catch (err) {
+        toast({
+          title: "Error",
+          description: "Failed to save media plan",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      try {
+        await handleSaveMediaPlanVersion(newMediaPlanId);
+      } catch (err) {
+        toast({
+          title: "Error",
+          description: "Failed to save media plan version",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // 4️⃣ Navigate to campaign screen
+      const clientSlug = clientNameToSlug(fv.mp_client_name);
+      router.push(`/dashboard/${clientSlug}/${fv.mba_number}`);
+
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to complete save and download all",
+        variant: "destructive",
+      });
     }
   };
   
@@ -1745,7 +2923,7 @@ export default function CreateMediaPlan() {
         logoBase64,
         logoWidth: 457,
         logoHeight: 71,
-        client:         form.getValues('mp_clientname'),
+        client:         form.getValues('mp_client_name'),
         brand:          form.getValues('mp_brand'),
         campaignName:   form.getValues('mp_campaignname'),
         mbaNumber:      form.getValues('mba_number'),
@@ -1854,7 +3032,25 @@ export default function CreateMediaPlan() {
         integration: validIntegrationItems, // etc. for all types
       };
 
-const workbook = await generateMediaPlan(header, mediaItems);
+      // Calculate MBA data for the Excel
+      const mbaData = {
+        gross_media: mediaTypes
+          .filter(medium => form.watch(medium.name as keyof MediaPlanFormValues))
+          .map(medium => ({
+            media_type: medium.label,
+            gross_amount: calculateMediaTotal(medium.name),
+          })),
+        totals: {
+          gross_media: grossMediaTotal,
+          service_fee: calculateAssembledFee(),
+          production: calculateProductionCosts(),
+          adserving: calculateAdServingFees(),
+          totals_ex_gst: totalInvestment,
+          total_inc_gst: totalInvestment * 1.1,
+        }
+      };
+
+const workbook = await generateMediaPlan(header, mediaItems, mbaData);
 
       const arrayBuffer = await workbook.xlsx.writeBuffer() as ArrayBuffer
       
@@ -1866,7 +3062,6 @@ const workbook = await generateMediaPlan(header, mediaItems);
 
     toast({ title: 'Success', description: 'Media plan generated successfully' })
   } catch (error: any) {
-    console.error(error)
     toast({
       title: 'Error',
       description: error.message || 'Failed to generate media plan',
@@ -1890,40 +3085,46 @@ const workbook = await generateMediaPlan(header, mediaItems);
   
   return (
     <div className="w-full min-h-screen">
-      <h1 className="text-4xl font-bold p-4">Create a Media Plan</h1>
+      <h1 className="text-4xl font-bold p-4">Create a Campaign</h1>
       <div className="w-full px-4 py-6 space-y-6">
         <Form {...form}>
           <form className="space-y-8">
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 w-full">
               <FormField
                 control={form.control}
-                name={"mp_clientname" as keyof MediaPlanFormValues}
+                name={"mp_client_name" as keyof MediaPlanFormValues}
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Client Name</FormLabel>
-                    <Select
-                    onValueChange={(value) => {
-                      const selectedClient = clients.find((client) => client.id.toString() === value)
-                      if (selectedClient) {
-                        field.onChange(selectedClient.clientname_input)
-                        handleClientChange(value)
-                      }
-                    }}
-                    value={clients.find((client) => client.clientname_input === field.value)?.id.toString() || ""}
-                    >
-                      <FormControl>
+                    <FormControl>
+                      <Select
+                        onValueChange={(value) => {
+                          const selectedClient = clients.find((client) => client.id.toString() === value)
+                          if (selectedClient) {
+                            field.onChange(selectedClient.mp_client_name)
+                            handleClientChange(value)
+                          }
+                        }}
+                        value={clients.find((client) => client.mp_client_name === field.value)?.id.toString() || ""}
+                      >
                         <SelectTrigger>
                           <SelectValue placeholder="Select a client" />
                         </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {clients.map((client) => (
-                          <SelectItem key={client.id} value={client.id.toString()}>
-                            {client.clientname_input}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                        <SelectContent>
+                          {clients.length === 0 ? (
+                            <div className="p-2 text-sm text-muted-foreground text-center">
+                              {isLoading ? "Loading clients..." : "No clients available"}
+                            </div>
+                          ) : (
+                            clients.map((client) => (
+                              <SelectItem key={client.id} value={client.id.toString()}>
+                                {client.mp_client_name}
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -1935,21 +3136,21 @@ const workbook = await generateMediaPlan(header, mediaItems);
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Campaign Status</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={String(field.value)}>
-                      <FormControl>
+                    <FormControl>
+                      <Select onValueChange={field.onChange} defaultValue={String(field.value)}>
                         <SelectTrigger>
                           <SelectValue placeholder="Select campaign status" />
                         </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="draft">Draft</SelectItem>
-                        <SelectItem value="planned">Planned</SelectItem>
-                        <SelectItem value="approved">Approved</SelectItem>
-                        <SelectItem value="booked">Booked</SelectItem>
-                        <SelectItem value="completed">Completed</SelectItem>
-                        <SelectItem value="cancelled">Cancelled</SelectItem>
-                      </SelectContent>
-                    </Select>
+                        <SelectContent>
+                          <SelectItem value="draft">Draft</SelectItem>
+                          <SelectItem value="planned">Planned</SelectItem>
+                          <SelectItem value="approved">Approved</SelectItem>
+                          <SelectItem value="booked">Booked</SelectItem>
+                          <SelectItem value="completed">Completed</SelectItem>
+                          <SelectItem value="cancelled">Cancelled</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -2164,9 +3365,9 @@ const workbook = await generateMediaPlan(header, mediaItems);
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 border border-gray-300 rounded-lg p-6 mt-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
               {/* MBA Details Section */}
-<div className="flex flex-col space-y-4 border border-gray-300 rounded-lg p-6 mt-6">
+              <div className="flex flex-col space-y-4 border border-gray-300 rounded-lg p-6">
   <div className="flex items-center justify-between">
     <h3 className="text-lg font-semibold">MBA Details</h3>
     {isPartialMBA ? (
@@ -2180,7 +3381,7 @@ const workbook = await generateMediaPlan(header, mediaItems);
   <div className="grid grid-cols-2 gap-4">
     <div className="flex flex-col space-y-3">
       {mediaTypes
-        .filter(medium => form.watch(medium.name as keyof MediaPlanFormValues) && medium.component)
+        .filter(medium => watchedMediaTypesMap[medium.name] && medium.component)
         .map(medium => (
         <div key={medium.name} className="text-sm font-medium">
           {medium.label}
@@ -2190,7 +3391,7 @@ const workbook = await generateMediaPlan(header, mediaItems);
 
     <div className="flex flex-col space-y-3 text-right">
       {mediaTypes
-        .filter(medium => form.watch(medium.name as keyof MediaPlanFormValues) && medium.component)
+        .filter(medium => watchedMediaTypesMap[medium.name] && medium.component)
         .map(medium => {
           const mediaKey = mediaKeyMap[medium.name];
           const total = isPartialMBA ? partialMBAValues.mediaTotals[mediaKey] || 0 : calculateMediaTotal(medium.name);
@@ -2250,7 +3451,8 @@ const workbook = await generateMediaPlan(header, mediaItems);
   </div>
 </div>
 
-              <div className="border border-gray-300 rounded-lg p-6 mt-6">
+              {/* Billing Schedule Section */}
+              <div className="border border-gray-300 rounded-lg p-6">
               {/* Dynamic Billing Schedule */}
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold">Billing Schedule</h3>
@@ -2397,54 +3599,173 @@ const workbook = await generateMediaPlan(header, mediaItems);
         </TableFooter>
       </Table>
     </div>
+    
+    {/* Expandable Line Items Sections */}
+    <div className="mt-6 space-y-4">
+      <h3 className="text-lg font-semibold">Line Item Details</h3>
+      <Accordion type="multiple" className="w-full">
+        {mediaTypes
+          .filter(medium => form.watch(medium.name as keyof MediaPlanFormValues) && medium.component)
+          .map(medium => {
+            const mediaKey = mediaKeyMap[medium.name];
+            const headers = getMediaTypeHeaders(mediaKey);
+            // Get line items from the first month (they should be the same across all months)
+            const firstMonth = manualBillingMonths[0];
+            const lineItems = firstMonth?.lineItems?.[mediaKey as keyof typeof firstMonth.lineItems] as BillingLineItem[] | undefined;
+            
+            if (!lineItems || lineItems.length === 0) return null;
+            
+            return (
+              <AccordionItem key={medium.name} value={medium.name}>
+                <AccordionTrigger className="text-left">
+                  {medium.label} Line Items
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="overflow-x-auto mt-4">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>{headers.header1}</TableHead>
+                          <TableHead>{headers.header2}</TableHead>
+                          {manualBillingMonths.map(month => (
+                            <TableHead key={month.monthYear} className="text-right">{month.monthYear}</TableHead>
+                          ))}
+                          <TableHead className="text-right font-bold">Total</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {lineItems.map(lineItem => (
+                          <TableRow key={lineItem.id}>
+                            <TableCell>{lineItem.header1}</TableCell>
+                            <TableCell>{lineItem.header2}</TableCell>
+                            {manualBillingMonths.map((month, monthIndex) => {
+                              const monthAmount = lineItem.monthlyAmounts[month.monthYear] || 0;
+                              return (
+                                <TableCell key={month.monthYear} align="right">
+                                  <Input
+                                    className="text-right w-24"
+                                    value={currencyFormatter.format(monthAmount)}
+                                    onBlur={e => handleManualBillingChange(
+                                      monthIndex,
+                                      'lineItem',
+                                      e.target.value,
+                                      mediaKey,
+                                      lineItem.id,
+                                      month.monthYear
+                                    )}
+                                    onChange={e => {
+                                      // Update immediately for UI responsiveness
+                                      const tempCopy = [...manualBillingMonths];
+                                      const monthIndex = tempCopy.findIndex(m => m.monthYear === month.monthYear);
+                                      if (monthIndex >= 0 && tempCopy[monthIndex].lineItems) {
+                                        const lineItemsObj = tempCopy[monthIndex].lineItems;
+                                        const lineItemsKey = mediaKey as keyof typeof lineItemsObj;
+                                        if (lineItemsObj[lineItemsKey]) {
+                                          const lineItemsArray = lineItemsObj[lineItemsKey] as BillingLineItem[];
+                                          const liIndex = lineItemsArray.findIndex(li => li.id === lineItem.id);
+                                          if (liIndex >= 0) {
+                                            const numericValue = parseFloat(e.target.value.replace(/[^0-9.-]/g, '')) || 0;
+                                            lineItemsArray[liIndex].monthlyAmounts[month.monthYear] = numericValue;
+                                            // Recalculate line item total across all months
+                                            lineItemsArray[liIndex].totalAmount = Object.values(lineItemsArray[liIndex].monthlyAmounts).reduce((sum, val) => sum + val, 0);
+                                            // Recalculate media type total for this month
+                                            const mediaTypeTotal = lineItemsArray.reduce((sum, li) => sum + (li.monthlyAmounts[month.monthYear] || 0), 0);
+                                            const monthMediaCosts = tempCopy[monthIndex].mediaCosts;
+                                            (monthMediaCosts as any)[mediaKey] = currencyFormatter.format(mediaTypeTotal);
+                                            // Recalculate month totals
+                                            const mediaTotal = Object.values(tempCopy[monthIndex].mediaCosts).reduce((sum, current) => {
+                                              return sum + (parseFloat(String(current).replace(/[^0-9.-]/g, '')) || 0);
+                                            }, 0);
+                                            const feeTotal = parseFloat(tempCopy[monthIndex].feeTotal.replace(/[^0-9.-]/g, '')) || 0;
+                                            const adServingTotal = parseFloat(tempCopy[monthIndex].adservingTechFees.replace(/[^0-9.-]/g, '')) || 0;
+                                            tempCopy[monthIndex].mediaTotal = currencyFormatter.format(mediaTotal);
+                                            tempCopy[monthIndex].totalAmount = currencyFormatter.format(mediaTotal + feeTotal + adServingTotal);
+                                            // Recalculate grand total
+                                            const grandTotal = tempCopy.reduce((acc, m) => acc + parseFloat(m.totalAmount.replace(/[^0-9.-]/g, '')), 0);
+                                            setManualBillingTotal(currencyFormatter.format(grandTotal));
+                                            setManualBillingMonths(tempCopy);
+                                          }
+                                        }
+                                      }
+                                    }}
+                                  />
+                                </TableCell>
+                              );
+                            })}
+                            <TableCell className="text-right font-semibold">
+                              {currencyFormatter.format(lineItem.totalAmount)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            );
+          })}
+      </Accordion>
+    </div>
+    
     <div className="mt-4 text-right">
       <span className="font-bold">Grand Total: {manualBillingTotal}</span>
+      {billingError.show && (
+        <div className="mt-2 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+          <p className="font-bold">Budget Mismatch Error</p>
+          <p>Campaign Budget: {currencyFormatter.format(billingError.campaignBudget)}</p>
+          <p>Billing Total: {manualBillingTotal}</p>
+          <p>Difference: {currencyFormatter.format(Math.abs(billingError.difference))} 
+            {billingError.difference > 0 ? ' over' : ' under'} budget</p>
+          <p className="text-sm mt-1">The billing total must be within $2.00 of the campaign budget.</p>
+        </div>
+      )}
     </div>
     <DialogFooter className="sm:justify-between pt-4">
       <Button variant="outline" onClick={handleManualBillingReset} className="sm:mr-auto">
         Reset to Automatic
       </Button>
       <div className="flex space-x-2">
-        <Button variant="ghost" onClick={() => setIsManualBillingModalOpen(false)}>
+        <Button variant="ghost" onClick={() => {
+          setIsManualBillingModalOpen(false);
+          setBillingError({ show: false, campaignBudget: 0, difference: 0 });
+        }}>
           Cancel
         </Button>
-        <Button onClick={handleManualBillingSave}>Save Manual Schedule</Button>
+        <Button onClick={handleManualBillingSave} disabled={billingError.show}>
+          Save Manual Schedule
+        </Button>
       </div>
     </DialogFooter>
   </DialogContent>
 </Dialog>
 
-{/* === Save Status Modal === */}
-<Dialog open={isSaveModalOpen} onOpenChange={setIsSaveModalOpen}>
-    <DialogContent>
-        <DialogHeader>
-            <DialogTitle>Saving Progress</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4 py-4">
-            {saveStatus.map((item, index) => (
-                <div key={index} className="flex items-center space-x-3">
-                    {item.status === 'pending' && (
-                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-900"></div>
-                    )}
-                    {item.status === 'success' && (
-                        <svg className="h-6 w-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                    )}
-                    {item.status === 'error' && (
-                        <svg className="h-6 w-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                    )}
-                    <span className="text-sm font-medium">{item.message}</span>
-                </div>
-            ))}
-        </div>
-        <DialogFooter>
-            <Button onClick={() => setIsSaveModalOpen(false)}>Close</Button>
-        </DialogFooter>
-    </DialogContent>
-</Dialog>
+{/* Error Dialog */}
+<Dialog open={billingError.show} onOpenChange={(open) => !open && setBillingError({ show: false, campaignBudget: 0, difference: 0 })}>
+  <DialogContent>
+    <DialogHeader>
+      <DialogTitle className="text-red-600">Budget Mismatch</DialogTitle>
+    </DialogHeader>
+    <div className="space-y-2 py-4">
+      <p className="font-semibold">Campaign Budget:</p>
+      <p className="text-lg">{currencyFormatter.format(billingError.campaignBudget)}</p>
+      <p className="font-semibold mt-4">Billing Total:</p>
+      <p className="text-lg">{manualBillingTotal}</p>
+      <p className="font-semibold mt-4 text-red-600">Difference:</p>
+      <p className="text-lg text-red-600">{currencyFormatter.format(Math.abs(billingError.difference))} 
+        {billingError.difference > 0 ? ' over' : ' under'} budget</p>
+      <p className="text-sm text-gray-600 mt-4">
+        The billing schedule total must be within $2.00 of the campaign budget. Please adjust the values to match.
+      </p>
+    </div>
+    <DialogFooter>
+      <Button onClick={() => setBillingError({ show: false, campaignBudget: 0, difference: 0 })}>
+        OK
+      </Button>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>  
+
+<SavingModal isOpen={isVersionSaving || isPlanSaving} items={saveStatus} />
 
 {/* === Partial MBA Modal === */}
 <Dialog open={isPartialMBAModalOpen} onOpenChange={(open) => {
@@ -2554,7 +3875,7 @@ const workbook = await generateMediaPlan(header, mediaItems);
             </div>
 
             {mediaTypes.map((medium) => {
-              if (form.watch(medium.name as keyof MediaPlanFormValues) && medium.component) {
+              if (watchedMediaTypesMap[medium.name] && medium.component) {
                 const Component = medium.component;
                 const componentProps = {
                   clientId: selectedClientId,
@@ -2653,6 +3974,18 @@ const workbook = await generateMediaPlan(header, mediaItems);
                   onTotalMediaChange: handleOohTotalChange,
                   onBurstsChange: handleOohBurstsChange,
                   onInvestmentChange: handleInvestmentChange,
+                  }),
+                  ...(medium.name === "mp_consulting" && {
+                  feesearch: feeconsulting,
+                  onTotalMediaChange: handleConsultingTotalChange,
+                  onBurstsChange: handleConsultingBurstsChange,
+                  onInvestmentChange: handleInvestmentChange,
+                  }),
+                  ...(medium.name === "mp_influencers" && {
+                  feeinfluencers,
+                  onTotalMediaChange: handleInfluencersTotalChange,
+                  onBurstsChange: handleInfluencersBurstsChange,
+                  onInvestmentChange: handleInvestmentChange,
                   }),                
                   
                 };
@@ -2669,11 +4002,29 @@ const workbook = await generateMediaPlan(header, mediaItems);
                             onBurstsChange={handleSearchBurstsChange}
                             onInvestmentChange={handleInvestmentChange}
                             onLineItemsChange={setSearchItems}
+                            onMediaLineItemsChange={handleSearchMediaLineItemsChange}
                             campaignStartDate={form.watch("mp_campaigndates_start")}
                             campaignEndDate={form.watch("mp_campaigndates_end")}
                             campaignBudget={form.watch("mp_campaignbudget")}
                             campaignId={""}
                             mediaTypes={["search"]}
+                          />
+                        </Suspense>
+                      )}
+                      {medium.name === "mp_consulting" && (
+                        <Suspense fallback={<div>Loading Production...</div>}>
+                          <ProductionContainer
+                            clientId={selectedClientId}
+                            feesearch={feeconsulting || 0}
+                            onTotalMediaChange={handleConsultingTotalChange}
+                            onBurstsChange={handleConsultingBurstsChange}
+                            onInvestmentChange={handleInvestmentChange}
+                            onLineItemsChange={setConsultingItems}
+                            campaignStartDate={form.watch("mp_campaigndates_start")}
+                            campaignEndDate={form.watch("mp_campaigndates_end")}
+                            campaignBudget={form.watch("mp_campaignbudget")}
+                            campaignId={""}
+                            mediaTypes={["consulting"]}
                           />
                         </Suspense>
                       )}
@@ -2686,6 +4037,8 @@ const workbook = await generateMediaPlan(header, mediaItems);
                             onBurstsChange={handleSocialMediaBurstsChange}
                             onInvestmentChange={handleInvestmentChange}
                             onLineItemsChange={setSocialMediaItems}
+                            onSocialMediaLineItemsChange={setSocialMediaLineItems}
+                            onMediaLineItemsChange={handleSocialMediaMediaLineItemsChange}
                             campaignStartDate={form.watch("mp_campaigndates_start")}
                             campaignEndDate={form.watch("mp_campaigndates_end")}
                             campaignBudget={form.watch("mp_campaignbudget")}
@@ -2703,6 +4056,7 @@ const workbook = await generateMediaPlan(header, mediaItems);
                             onBurstsChange={handleBVODBurstsChange}
                             onInvestmentChange={handleInvestmentChange}
                             onLineItemsChange={setBVODItems}
+                            onMediaLineItemsChange={handleBvodMediaLineItemsChange}
                             campaignStartDate={form.watch("mp_campaigndates_start")}
                             campaignEndDate={form.watch("mp_campaigndates_end")}
                             campaignBudget={form.watch("mp_campaignbudget")}
@@ -2720,6 +4074,7 @@ const workbook = await generateMediaPlan(header, mediaItems);
                             onBurstsChange={handleIntegrationBurstsChange}
                             onInvestmentChange={handleInvestmentChange}
                             onLineItemsChange={setIntegrationItems}
+                            onMediaLineItemsChange={handleIntegrationMediaLineItemsChange}
                             campaignStartDate={form.watch("mp_campaigndates_start")}
                             campaignEndDate={form.watch("mp_campaigndates_end")}
                             campaignBudget={form.watch("mp_campaignbudget")}
@@ -2737,6 +4092,7 @@ const workbook = await generateMediaPlan(header, mediaItems);
                             onBurstsChange={handleCinemaBurstsChange}
                             onInvestmentChange={handleInvestmentChange}
                             onLineItemsChange={setCinemaItems}
+                            onMediaLineItemsChange={handleCinemaMediaLineItemsChange}
                             campaignStartDate={form.watch("mp_campaigndates_start")}
                             campaignEndDate={form.watch("mp_campaigndates_end")}
                             campaignBudget={form.watch("mp_campaignbudget")}
@@ -2754,6 +4110,7 @@ const workbook = await generateMediaPlan(header, mediaItems);
                             onBurstsChange={handleProgAudioBurstsChange}
                             onInvestmentChange={handleInvestmentChange}
                             onLineItemsChange={setProgAudioItems}
+                            onMediaLineItemsChange={handleProgAudioMediaLineItemsChange}
                             campaignStartDate={form.watch("mp_campaigndates_start")}
                             campaignEndDate={form.watch("mp_campaigndates_end")}
                             campaignBudget={form.watch("mp_campaignbudget")}
@@ -2771,6 +4128,7 @@ const workbook = await generateMediaPlan(header, mediaItems);
                             onBurstsChange={handleProgBvodBurstsChange}
                             onInvestmentChange={handleInvestmentChange}
                             onLineItemsChange={setProgBvodItems}
+                            onMediaLineItemsChange={handleProgBvodMediaLineItemsChange}
                             campaignStartDate={form.watch("mp_campaigndates_start")}
                             campaignEndDate={form.watch("mp_campaigndates_end")}
                             campaignBudget={form.watch("mp_campaignbudget")}
@@ -2788,6 +4146,7 @@ const workbook = await generateMediaPlan(header, mediaItems);
                             onBurstsChange={handleProgOohBurstsChange}
                             onInvestmentChange={handleInvestmentChange}
                             onLineItemsChange={setProgOohItems}
+                            onMediaLineItemsChange={handleProgOohMediaLineItemsChange}
                             campaignStartDate={form.watch("mp_campaigndates_start")}
                             campaignEndDate={form.watch("mp_campaigndates_end")}
                             campaignBudget={form.watch("mp_campaignbudget")}
@@ -2806,6 +4165,7 @@ const workbook = await generateMediaPlan(header, mediaItems);
                           onBurstsChange={handleDigiAudioBurstsChange}
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={setDigiAudioItems}
+                          onMediaLineItemsChange={handleDigiAudioMediaLineItemsChange}
                           campaignStartDate={form.watch("mp_campaigndates_start")}
                           campaignEndDate={form.watch("mp_campaigndates_end")}
                           campaignBudget={form.watch("mp_campaignbudget")}
@@ -2823,6 +4183,7 @@ const workbook = await generateMediaPlan(header, mediaItems);
                           onBurstsChange={handleDigiDisplayBurstsChange}
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={setDigiDisplayItems}
+                          onMediaLineItemsChange={handleDigiDisplayMediaLineItemsChange}
                           campaignStartDate={form.watch("mp_campaigndates_start")}
                           campaignEndDate={form.watch("mp_campaigndates_end")}
                           campaignBudget={form.watch("mp_campaignbudget")}
@@ -2840,6 +4201,7 @@ const workbook = await generateMediaPlan(header, mediaItems);
                           onBurstsChange={handleDigiVideoBurstsChange}
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={setDigiVideoItems}
+                          onMediaLineItemsChange={handleDigiVideoMediaLineItemsChange}
                           campaignStartDate={form.watch("mp_campaigndates_start")}
                           campaignEndDate={form.watch("mp_campaigndates_end")}
                           campaignBudget={form.watch("mp_campaignbudget")}
@@ -2857,6 +4219,7 @@ const workbook = await generateMediaPlan(header, mediaItems);
                           onBurstsChange={handleProgDisplayBurstsChange}
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={setProgDisplayItems}
+                          onMediaLineItemsChange={handleProgDisplayMediaLineItemsChange}
                           campaignStartDate={form.watch("mp_campaigndates_start")}
                           campaignEndDate={form.watch("mp_campaigndates_end")}
                           campaignBudget={form.watch("mp_campaignbudget")}
@@ -2874,6 +4237,7 @@ const workbook = await generateMediaPlan(header, mediaItems);
                           onBurstsChange={handleProgVideoBurstsChange}
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={setProgVideoItems}
+                          onMediaLineItemsChange={handleProgVideoMediaLineItemsChange}
                           campaignStartDate={form.watch("mp_campaigndates_start")}
                           campaignEndDate={form.watch("mp_campaigndates_end")}
                           campaignBudget={form.watch("mp_campaignbudget")}
@@ -2891,6 +4255,8 @@ const workbook = await generateMediaPlan(header, mediaItems);
                           onBurstsChange={handleTelevisionBurstsChange}
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={setTelevisionItems}
+                          onTelevisionLineItemsChange={setTelevisionLineItems}
+                          onMediaLineItemsChange={handleTelevisionMediaLineItemsChange}
                           campaignStartDate={form.watch("mp_campaigndates_start")}
                           campaignEndDate={form.watch("mp_campaigndates_end")}
                           campaignBudget={form.watch("mp_campaignbudget")}
@@ -2908,6 +4274,7 @@ const workbook = await generateMediaPlan(header, mediaItems);
                          onBurstsChange={handleRadioBurstsChange}
                          onInvestmentChange={handleInvestmentChange}
                          onLineItemsChange={setRadioItems}
+                         onMediaLineItemsChange={handleRadioMediaLineItemsChange}
                          campaignStartDate={form.watch("mp_campaigndates_start")}
                          campaignEndDate={form.watch("mp_campaigndates_end")}
                          campaignBudget={form.watch("mp_campaignbudget")}
@@ -2925,6 +4292,8 @@ const workbook = await generateMediaPlan(header, mediaItems);
                             onBurstsChange={handleNewspaperBurstsChange}
                             onInvestmentChange={handleInvestmentChange}
                             onLineItemsChange={setNewspaperItems}
+                            onNewspaperLineItemsChange={setNewspaperLineItems}
+                            onMediaLineItemsChange={handleNewspaperMediaLineItemsChange}
                             campaignStartDate={form.watch("mp_campaigndates_start")}
                             campaignEndDate={form.watch("mp_campaigndates_end")}
                             campaignBudget={form.watch("mp_campaignbudget")}
@@ -2942,6 +4311,7 @@ const workbook = await generateMediaPlan(header, mediaItems);
                             onBurstsChange={handleMagazineBurstsChange}
                             onInvestmentChange={handleInvestmentChange}
                             onLineItemsChange={setMagazineItems}
+                            onMediaLineItemsChange={handleMagazineMediaLineItemsChange}
                             campaignStartDate={form.watch("mp_campaigndates_start")}
                             campaignEndDate={form.watch("mp_campaigndates_end")}
                             campaignBudget={form.watch("mp_campaignbudget")}
@@ -2959,11 +4329,30 @@ const workbook = await generateMediaPlan(header, mediaItems);
                             onBurstsChange={handleOohBurstsChange}
                             onInvestmentChange={handleInvestmentChange}
                             onLineItemsChange={setOohItems}
+                            onMediaLineItemsChange={handleOohMediaLineItemsChange}
                             campaignStartDate={form.watch("mp_campaigndates_start")}
                             campaignEndDate={form.watch("mp_campaigndates_end")}
                             campaignBudget={form.watch("mp_campaignbudget")}
                             campaignId={""}
                             mediaTypes={["ooh"]}
+                          />
+                        </Suspense>
+                    )}
+                    { medium.name === "mp_influencers" && (
+                        <Suspense fallback={<div>Loading Influencers…</div>}>
+                          <InfluencersContainer
+                            clientId={selectedClientId}
+                            feeinfluencers={feeinfluencers || 0}
+                            onTotalMediaChange={handleInfluencersTotalChange}
+                            onBurstsChange={handleInfluencersBurstsChange}
+                            onInvestmentChange={handleInvestmentChange}
+                            onLineItemsChange={setInfluencersItems}
+                            onMediaLineItemsChange={handleInfluencersMediaLineItemsChange}
+                            campaignStartDate={form.watch("mp_campaigndates_start")}
+                            campaignEndDate={form.watch("mp_campaigndates_end")}
+                            campaignBudget={form.watch("mp_campaignbudget")}
+                            campaignId={""}
+                            mediaTypes={["influencers"]}
                           />
                         </Suspense>
                     )}                                                                               
@@ -2977,14 +4366,22 @@ const workbook = await generateMediaPlan(header, mediaItems);
       </div>
 
       {/* Sticky Action Bar */}
-      <div className="fixed bottom-0 left-[240px] right-0 bg-background/95 backdrop-blur-sm border-t p-4 flex justify-end space-x-2 z-50">
-        <Button
-          onClick={handleSaveCampaign}
-          disabled={isLoading}
-          className="bg-[#008e5e] text-white hover:bg-[#008e5e]/90"
-        >
-          {isLoading ? "Saving..." : "Save"}
-        </Button>
+      <div className="fixed bottom-0 left-[240px] right-0 bg-background/95 backdrop-blur-sm border-t p-4 flex justify-between items-center z-50">
+        <div>
+          {hasDateWarning && (
+            <div className="text-red-600 text-sm font-medium">
+              Warning: Media Placement outside campaign dates
+            </div>
+          )}
+        </div>
+        <div className="flex space-x-2">
+          <Button
+            onClick={handleSaveAll}
+            disabled={isLoading}
+            className="bg-[#008e5e] text-white hover:bg-[#008e5e]/90"
+          >
+            {isLoading ? "Saving..." : "Save"}
+          </Button>
         <Button
           onClick={handleGenerateMBA}
           disabled={isLoading}
@@ -2996,18 +4393,19 @@ const workbook = await generateMediaPlan(header, mediaItems);
           type="button"
           onClick={handleGenerateMediaPlan}
           disabled={isDownloading}
-          className="bg-[#fd7adb] text-white hover:bg-[#fd7adb]/90"
+          className="bg-[#B5D337] text-white hover:bg-[#B5D337]/90"
         >
           {isDownloading ? "Creating Media Plan..." : "Download Media Plan"}
         </Button>
         <Button
           type="button"
-          onClick={handleSaveCampaign}
-          disabled={isLoading}
-          className="bg-[#008e5e] text-white hover:bg-[#008e5e]/90"
+          onClick={handleSaveAndDownloadAll}
+          disabled={isLoading || isDownloading || isPlanSaving || isVersionSaving}
+          className="bg-[#472477] text-white hover:bg-[#472477]/90"
         >
-          {isLoading ? "Processing..." : "Save and Download All"}
+          {isLoading || isDownloading || isPlanSaving || isVersionSaving ? "Processing..." : "Save and Download All"}
         </Button>
+        </div>
       </div>
       {/* Add padding to the bottom of the page to account for the sticky bar */}
       <div className="h-24" /> {/* This creates space at the bottom of the page */}

@@ -6,6 +6,7 @@ import { Edit } from "lucide-react"
 import { EditClientForm } from "@/components/EditClientForm"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 
 interface Client {
   id: number
@@ -18,6 +19,9 @@ interface Client {
   suburb: string
   state_dropdown: "NSW" | "VIC" | "QLD" | "SA" | "WA" | "TAS" | "ACT"
   postcode: number
+  payment_days: number
+  payment_terms: string
+  brand_colour: string
   keyfirstname: string
   keylastname: string
   keyphone: number
@@ -25,20 +29,35 @@ interface Client {
   billingemail: string
 }
 
-export default function ClientPage({ params }: { params: { id: string } }) {
+const DEFAULT_BRAND_COLOUR = "#49C7EB"
+
+const getBrandColour = (colour?: string) => {
+  if (!colour) return DEFAULT_BRAND_COLOUR
+  return colour.startsWith("#") ? colour : `#${colour}`
+}
+
+export default function ClientPage({ params }: { params: Promise<{ id: string }> }) {
   const [client, setClient] = useState<Client | null>(null)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [id, setId] = useState<string>('')
 
   useEffect(() => {
+    params.then(({ id: paramId }) => {
+      setId(paramId)
+    })
+  }, [params])
+
+  useEffect(() => {
+    if (!id) return
     fetchClient()
-  }, [params.id])
+  }, [id])
 
   async function fetchClient() {
     try {
       setLoading(true)
-      const response = await fetch(`/api/clients/${params.id}`)
+      const response = await fetch(`/api/clients/${id}`)
       if (!response.ok) {
         throw new Error("Failed to fetch client")
       }
@@ -87,11 +106,42 @@ export default function ClientPage({ params }: { params: { id: string } }) {
               </div>
               <div>
                 <dt className="font-medium">MBA Identifier</dt>
-                <dd>{client.mbaidentifier}</dd>
+                <dd>
+                  {client.mbaidentifier ? (
+                    <Badge
+                      className="text-white"
+                      style={{
+                        backgroundColor: getBrandColour(client.brand_colour),
+                      }}
+                    >
+                      {client.mbaidentifier}
+                    </Badge>
+                  ) : (
+                    "-"
+                  )}
+                </dd>
               </div>
               <div>
                 <dt className="font-medium">Legal Business Name</dt>
                 <dd>{client.legalbusinessname}</dd>
+              </div>
+              <div>
+                <dt className="font-medium">Payment Days</dt>
+                <dd>{client.payment_days}</dd>
+              </div>
+              <div>
+                <dt className="font-medium">Payment Terms</dt>
+                <dd>{client.payment_terms}</dd>
+              </div>
+              <div>
+                <dt className="font-medium">Brand Colour</dt>
+                <dd className="flex items-center gap-2">
+                  <span
+                    className="h-4 w-4 rounded-full border"
+                    style={{ backgroundColor: getBrandColour(client.brand_colour) }}
+                  />
+                  <span>{getBrandColour(client.brand_colour)}</span>
+                </dd>
               </div>
             </dl>
           </CardContent>

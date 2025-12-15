@@ -1,6 +1,8 @@
 // /lib/generateMBA.ts
 
 import { jsPDF } from "jspdf";
+import { readFileSync } from 'fs';
+import { join } from 'path';
 
 // Keep your existing MBAData interface
 export interface MBAData {
@@ -39,14 +41,24 @@ const formatCurrency = (amount: number) => {
 };
 
 // Helper to fetch the logo and convert it to a format jspdf can use
+// Works in both browser and Node.js environments
 const getImageBase64 = async (url: string) => {
     try {
-        const response = await fetch(url);
-        const buffer = await response.arrayBuffer();
-        let binary = '';
-        const bytes = new Uint8Array(buffer);
-        bytes.forEach((b) => binary += String.fromCharCode(b));
-        return window.btoa(binary);
+        // Check if we're in a browser environment
+        if (typeof window !== 'undefined') {
+            // Browser environment: use fetch
+            const response = await fetch(url);
+            const buffer = await response.arrayBuffer();
+            let binary = '';
+            const bytes = new Uint8Array(buffer);
+            bytes.forEach((b) => binary += String.fromCharCode(b));
+            return window.btoa(binary);
+        } else {
+            // Node.js environment: read from filesystem
+            const logoPath = join(process.cwd(), 'public', url.replace(/^\//, ''));
+            const imageBuffer = readFileSync(logoPath);
+            return imageBuffer.toString('base64');
+        }
     } catch (error) {
         console.error("Error loading image for PDF:", error);
         return null;
@@ -172,7 +184,8 @@ export async function generateMBA(mbaData: MBAData): Promise<Blob> {
   y += lineHeight;
   
   doc.setFont("helvetica", "bold");
-  doc.text('Total ex. GST:', totalsX, y, { align: 'right' });
+  doc.text('Total inc. GST:', totalsX, y, { align: 'right' });
+  doc.setFont("helvetica", "normal");
   doc.text(formatCurrency(mbaData.totals.total_inc_gst), valueX, y, { align: 'right' });
   y += lineHeight * 3;
 
@@ -191,6 +204,15 @@ export async function generateMBA(mbaData: MBAData): Promise<Blob> {
   // --- ADD A NEW PAGE FOR THE BILLING SCHEDULE ---
   doc.addPage();
   y = margin.top; // Reset Y position for the new page
+
+  // --- Add Logo to the top right of the second page ---
+  if (logoBase64) {
+    const logoWidth = 45; // Width of logo in mm
+    const logoHeight = 9; // Height of logo in mm
+    const logoX = doc.internal.pageSize.getWidth() - margin.right - logoWidth;
+    const logoY = margin.top - 15; // Position it within the top margin area
+    doc.addImage(logoBase64, 'PNG', logoX, logoY, logoWidth, logoHeight);
+  }
 
   // --- Billing Schedule Section ---
   doc.setFont("helvetica", "bold");

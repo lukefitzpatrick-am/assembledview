@@ -1,0 +1,113 @@
+<svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+  <!-- Black background -->
+  <rect width="32" height="32" fill="#000000"/>
+  
+  <!-- Lime green circles -->
+  <g fill="#32CD32">
+    <!-- 4 larger central circles in 2x2 grid -->
+    <circle cx="12" cy="12" r="3"/>
+    <circle cx="20" cy="12" r="3"/>
+    <circle cx="12" cy="20" r="3"/>
+    <circle cx="20" cy="20" r="3"/>
+    
+    <!-- 8 smaller surrounding circles -->
+    <!-- Top row (2 circles) -->
+    <circle cx="12" cy="6" r="1.5"/>
+    <circle cx="20" cy="6" r="1.5"/>
+    
+    <!-- Bottom row (2 circles) -->
+    <circle cx="12" cy="26" r="1.5"/>
+    <circle cx="20" cy="26" r="1.5"/>
+    
+    <!-- Left side (2 circles) -->
+    <circle cx="6" cy="12" r="1.5"/>
+    <circle cx="6" cy="20" r="1.5"/>
+    
+    <!-- Right side (2 circles) -->
+    <circle cx="26" cy="12" r="1.5"/>
+    <circle cx="26" cy="20" r="1.5"/>
+  </g>
+</svg>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
