@@ -18,7 +18,7 @@ export default function UnauthorizedPage() {
 
   useEffect(() => {
     if (mounted && !isLoading && !user) {
-      router.push('/auth/login');
+      router.push('/api/auth/login');
     }
   }, [mounted, isLoading, user, router]);
 

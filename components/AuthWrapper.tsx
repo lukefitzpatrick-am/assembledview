@@ -9,11 +9,11 @@ export function useUser() {
   const router = useRouter();
 
   const login = () => {
-    router.push('/auth/login');
+    router.push('/api/auth/login');
   };
 
   const logout = () => {
-    router.push('/auth/logout');
+    router.push('/api/auth/logout');
   };
 
   return { user, isLoading, error, login, logout };
