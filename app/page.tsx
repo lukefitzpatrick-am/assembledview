@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useUser } from "@auth0/nextjs-auth0";
+import { useUser } from "@auth0/nextjs-auth0/client";
 import { motion } from "framer-motion";
 import { Loader2 } from "lucide-react";
 import Image from "next/image";

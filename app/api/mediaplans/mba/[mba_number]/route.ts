@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import axios from "axios"
+import { toMelbourneDateISOString } from "@/lib/timezone"
 
 type MediaLineItems = {
   television: any[]
@@ -633,6 +634,11 @@ export async function PUT(
     
     const nextVersionNumber = (latestVersionNumber || 0) + 1
     
+    const campaignStartDate = data.mp_campaigndates_start ?? masterData.campaign_start_date
+    const campaignEndDate = data.mp_campaigndates_end ?? masterData.campaign_end_date
+    const normalizedCampaignStartDate = campaignStartDate ? toMelbourneDateISOString(campaignStartDate) : campaignStartDate
+    const normalizedCampaignEndDate = campaignEndDate ? toMelbourneDateISOString(campaignEndDate) : campaignEndDate
+
     // Format the data to match the media_plan_versions schema
     const newVersionData = {
       media_plan_master_id: masterData.id,
@@ -640,8 +646,8 @@ export async function PUT(
       mba_number: mba_number,
       campaign_name: data.mp_campaignname || masterData.mp_campaignname,
       campaign_status: data.mp_campaignstatus || masterData.campaign_status,
-      campaign_start_date: data.mp_campaigndates_start || masterData.campaign_start_date,
-      campaign_end_date: data.mp_campaigndates_end || masterData.campaign_end_date,
+      campaign_start_date: normalizedCampaignStartDate,
+      campaign_end_date: normalizedCampaignEndDate,
       brand: data.mp_brand || "",
       client_name: data.mp_client_name || masterData.mp_client_name,
       client_contact: data.mp_clientcontact || "",
@@ -678,8 +684,8 @@ export async function PUT(
       version_number: nextVersionNumber,
       mp_campaignname: data.mp_campaignname || masterData.mp_campaignname,
       campaign_status: data.mp_campaignstatus || masterData.campaign_status,
-      campaign_start_date: data.mp_campaigndates_start || masterData.campaign_start_date,
-      campaign_end_date: data.mp_campaigndates_end || masterData.campaign_end_date,
+      campaign_start_date: normalizedCampaignStartDate,
+      campaign_end_date: normalizedCampaignEndDate,
       mp_campaignbudget: data.mp_campaignbudget || masterData.mp_campaignbudget
     }
     
@@ -830,9 +836,13 @@ export async function PATCH(
     }
     if (data.campaign_start_date !== undefined) {
       masterUpdateData.campaign_start_date = data.campaign_start_date
+        ? toMelbourneDateISOString(data.campaign_start_date)
+        : data.campaign_start_date
     }
     if (data.campaign_end_date !== undefined) {
       masterUpdateData.campaign_end_date = data.campaign_end_date
+        ? toMelbourneDateISOString(data.campaign_end_date)
+        : data.campaign_end_date
     }
     if (data.mp_campaignbudget !== undefined) {
       masterUpdateData.mp_campaignbudget = data.mp_campaignbudget

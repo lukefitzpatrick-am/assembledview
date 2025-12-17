@@ -53,6 +53,7 @@ import {
   saveInfluencersLineItems
 } from "@/lib/api"
 import { checkMediaDatesOutsideCampaign } from "@/lib/utils/mediaPlanValidation"
+import { toMelbourneDateISOString } from "@/lib/timezone"
 
 const mediaPlanSchema = z.object({
   mp_client_name: z.string().min(1, "Client name is required"),
@@ -601,6 +602,16 @@ export default function CreateMediaPlan() {
     bytes.forEach(b => binary += String.fromCharCode(b))
     return window.btoa(binary)
   }
+
+  // Give pending container effects a frame to push latest line items before export
+  const waitForStateFlush = () =>
+    new Promise<void>((resolve) => {
+      if (typeof requestAnimationFrame === "function") {
+        requestAnimationFrame(() => resolve())
+      } else {
+        setTimeout(resolve, 0)
+      }
+    })
 
   const [partialMBAValues, setPartialMBAValues] = useState({
     mediaTotals: {} as Record<string, number>,
@@ -1168,6 +1179,9 @@ export default function CreateMediaPlan() {
       return;
     }
 
+    // Ensure any recent duplicate/add operations finish propagating to state
+    await waitForStateFlush();
+
     let finalVisibleMedia: { media_type: string; gross_amount: number }[];
     let finalTotals: MBAData['totals'];
 
@@ -1232,8 +1246,8 @@ export default function CreateMediaPlan() {
         mp_brand: fv.mp_brand,
         mp_ponumber: fv.mp_ponumber,
         mp_plannumber: fv.mp_plannumber,
-        mp_campaigndates_start: fv.mp_campaigndates_start.toISOString(),
-        mp_campaigndates_end: fv.mp_campaigndates_end.toISOString(),
+        mp_campaigndates_start: toMelbourneDateISOString(fv.mp_campaigndates_start),
+        mp_campaigndates_end: toMelbourneDateISOString(fv.mp_campaigndates_end),
         clientAddress: clientAddress,
         clientSuburb: clientSuburb,
         clientState: clientState,
@@ -2314,8 +2328,8 @@ export default function CreateMediaPlan() {
         mba_number:           fv.mba_number || "",
         campaign_name:        fv.mp_campaignname || "",
         campaign_status:      fv.mp_campaignstatus || "Draft",
-        campaign_start_date:  fv.mp_campaigndates_start.toISOString(),
-        campaign_end_date:    fv.mp_campaigndates_end.toISOString(),
+        campaign_start_date:  toMelbourneDateISOString(fv.mp_campaigndates_start),
+        campaign_end_date:    toMelbourneDateISOString(fv.mp_campaigndates_end),
         brand:                fv.mp_brand || "",
         client_name:          clientName,
         client_contact:       fv.mp_clientcontact || "",
@@ -2914,6 +2928,9 @@ const handleSaveAll = async () => {
   const handleGenerateMediaPlan = async () => {
     setIsDownloading(true)
     try {
+      // Allow container effects to emit latest duplicated line items before export
+      await waitForStateFlush();
+
       // fetch and encode logo
       const logoBuf   = await fetch('/assembled-logo.png').then(r => r.arrayBuffer())
       const logoBase64 = bufferToBase64(logoBuf)

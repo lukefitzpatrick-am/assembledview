@@ -1,6 +1,6 @@
 "use client"
 
-import { useUser as useAuth0User } from '@auth0/nextjs-auth0';
+import { useUser as useAuth0User } from '@auth0/nextjs-auth0/client';
 import { useRouter } from 'next/navigation';
 
 // Re-export Auth0 hooks with additional functionality

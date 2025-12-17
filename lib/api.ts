@@ -1,3 +1,5 @@
+import { toMelbourneDateISOString } from "@/lib/timezone"
+
 const PUBLISHERS_BASE_URL = process.env.XANO_PUBLISHERS_BASE_URL || "https://xg4h-uyzs-dtex.a2.xano.io/api:YkRK8qLP"
 const CLIENTS_BASE_URL = process.env.XANO_CLIENTS_BASE_URL || "https://xg4h-uyzs-dtex.a2.xano.io/api:9v_k2NR8"
 const MEDIA_DETAILS_BASE_URL = process.env.XANO_MEDIA_DETAILS_BASE_URL || "https://xg4h-uyzs-dtex.a2.xano.io/api:di-s-JRc" 
@@ -609,8 +611,8 @@ export async function createMediaPlan(data: {
         mp_client_name: data.mp_client_name,
         mp_campaignname: data.mp_campaignname,
         mbanumber: data.mba_number,
-        mp_campaigndates_start: data.mp_campaigndates_start.toISOString(),
-        mp_campaigndates_end: data.mp_campaigndates_end.toISOString(),
+        mp_campaigndates_start: toMelbourneDateISOString(data.mp_campaigndates_start),
+        mp_campaigndates_end: toMelbourneDateISOString(data.mp_campaigndates_end),
         mp_campaignstatus: data.mp_campaignstatus,
         mp_campaignbudget: data.mp_campaignbudget,
         mp_plannumber: data.mp_plannumber,
@@ -1782,12 +1784,18 @@ function extractAndFormatBursts(lineItem: any): any[] {
 
   // Format all burst fields with proper names and handle date serialization
   // Preserve all original fields while ensuring standard fields are properly formatted
+  const formatBurstDate = (value: any) => {
+    if (!value) return "";
+    if (value instanceof Date) return toMelbourneDateISOString(value);
+    return value;
+  };
+
   return bursts.map((burst: any) => {
     const formattedBurst: any = {
       budget: burst.budget || "",
       buyAmount: burst.buyAmount || "",
-      startDate: burst.startDate ? (burst.startDate instanceof Date ? burst.startDate.toISOString() : burst.startDate) : "",
-      endDate: burst.endDate ? (burst.endDate instanceof Date ? burst.endDate.toISOString() : burst.endDate) : "",
+      startDate: formatBurstDate(burst.startDate),
+      endDate: formatBurstDate(burst.endDate),
       calculatedValue: burst.calculatedValue || 0,
       fee: burst.fee || 0,
     };

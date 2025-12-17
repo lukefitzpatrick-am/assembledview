@@ -40,7 +40,7 @@ function clientNamesMatch(name1: string, name2: string): boolean {
 export async function getClientBySlug(slug: string): Promise<Client | null> {
   try {
     // Fetch all clients from Xano
-    const response = await apiClient.get(`${XANO_CLIENTS_BASE_URL}/get_clients`)
+    const response = await apiClient.get(`${XANO_CLIENTS_BASE_URL}/clients`)
     const clients = response.data
     
     // Debug logging
