@@ -1,53 +1,41 @@
 import { NextResponse } from "next/server"
 import axios from "axios"
+import { toMelbourneDateISOString } from "@/lib/timezone"
 
 const XANO_MEDIAPLANS_BASE_URL = process.env.XANO_MEDIAPLANS_BASE_URL || "https://xg4h-uyzs-dtex.a2.xano.io/api:QVYjoFmM"
+const MEDIA_PLANS_VERSIONS_URL = "https://xg4h-uyzs-dtex.a2.xano.io/api:RaUx9FOa"
+const MEDIA_PLAN_MASTER_URL = "https://xg4h-uyzs-dtex.a2.xano.io/api:RaUx9FOa"
 
 export async function POST(request: Request) {
   try {
+    // For now, allow access for development
+    // In production, you would validate the Auth0 session here
+    
     const data = await request.json()
     
-    // Format the data to match the database schema
-    const mediaPlanData = {
-      mp_clientname: data.mp_clientname,
-      mp_campaignstatus: data.mp_campaignstatus || "Draft",
+    // First, create MediaPlanMaster record
+    // For new media plans, version_number is always set to 1
+    const mediaPlanMasterData = {
+      mp_client_name: data.mp_client_name,
+      mba_number: data.mbanumber,
       mp_campaignname: data.mp_campaignname,
-      mp_campaigndates_start: data.mp_campaigndates_start,
-      mp_campaigndates_end: data.mp_campaigndates_end,
-      mp_brand: data.mp_brand,
-      mp_clientcontact: data.mp_clientcontact,
-      mp_ponumber: data.mp_ponumber,
-      mp_campaignbudget: data.mp_campaignbudget,
-      mbaidentifier: data.mbaidentifier,
-      mbanumber: data.mbanumber,
-      mp_fixedfee: data.mp_fixedfee || false,
-      mp_television: data.mp_television || false,
-      mp_radio: data.mp_radio || false,
-      mp_newspaper: data.mp_newspaper || false,
-      mp_magazines: data.mp_magazines || false,
-      mp_ooh: data.mp_ooh || false,
-      mp_cinema: data.mp_cinema || false,
-      mp_digidisplay: data.mp_digidisplay || false,
-      mp_digiaudio: data.mp_digiaudio || false,
-      mp_digivideo: data.mp_digivideo || false,
-      mp_bvod: data.mp_bvod || false,
-      mp_integration: data.mp_integration || false,
-      mp_search: data.mp_search || false,
-      mp_socialmedia: data.mp_socialmedia || false,
-      mp_progdisplay: data.mp_progdisplay || false,
-      mp_progvideo: data.mp_progvideo || false,
-      mp_progbvod: data.mp_progbvod || false,
-      mp_progaudio: data.mp_progaudio || false,
-      mp_progooh: data.mp_progooh || false,
-      mp_influencers: data.mp_influencers || false,
-      created_date: new Date().toISOString().split('T')[0], // Format as YYYY-MM-DD
-      version_number: 1 // Initial version
+      version_number: 1, // Always 1 for new media plans created from create page
+      campaign_status: data.mp_campaignstatus || "Draft",
+      campaign_start_date: data.mp_campaigndates_start ? toMelbourneDateISOString(data.mp_campaigndates_start) : data.mp_campaigndates_start,
+      campaign_end_date: data.mp_campaigndates_end ? toMelbourneDateISOString(data.mp_campaigndates_end) : data.mp_campaigndates_end,
+      mp_campaignbudget: data.mp_campaignbudget
     }
 
-    // Send the data to Xano
-    const response = await axios.post(`${XANO_MEDIAPLANS_BASE_URL}/post_mediaplan_topline`, mediaPlanData)
+    // Create MediaPlanMaster
+    const masterResponse = await axios.post(`${MEDIA_PLAN_MASTER_URL}/media_plan_master`, mediaPlanMasterData)
     
-    return NextResponse.json(response.data)
+    // Note: Version creation is handled separately by handleSaveMediaPlanVersion 
+    // which includes all fields (brand, client_contact, po_number, mediatype flags, billing schedule)
+    // This prevents duplicate entries with incomplete data
+    
+    return NextResponse.json({
+      master: masterResponse.data
+    })
   } catch (error) {
     console.error("Failed to create media plan:", error);
     
@@ -62,7 +50,9 @@ export async function POST(request: Request) {
         data: error.response?.data
       });
       
-      errorMessage = error.response?.data?.message || error.message || "Failed to create media plan";
+      // Extract error message from Xano response
+      const xanoError = error.response?.data?.error || error.response?.data?.message;
+      errorMessage = xanoError || error.message || "Failed to create media plan";
       statusCode = error.response?.status || 500;
     }
     
@@ -75,8 +65,134 @@ export async function POST(request: Request) {
 
 export async function GET() {
   try {
-    const response = await axios.get(`${XANO_MEDIAPLANS_BASE_URL}/get_mediaplan_topline`)
-    return NextResponse.json(response.data)
+    // For now, allow access for development
+    // In production, you would validate the Auth0 session here
+    
+    // Fetch from MediaPlanVersions to get the latest versions with media type flags
+    try {
+      // Fetch both media_plan_versions and media_plan_master in parallel
+      const [versionsResponse, masterResponse] = await Promise.all([
+        axios.get(`${MEDIA_PLANS_VERSIONS_URL}/media_plan_versions`),
+        axios.get(`${MEDIA_PLAN_MASTER_URL}/media_plan_master`)
+      ])
+      
+      const versionsData = versionsResponse.data
+      const mastersData = Array.isArray(masterResponse.data) ? masterResponse.data : [masterResponse.data]
+      
+      console.log("MediaPlanVersions response:", versionsData)
+      console.log("MediaPlanMaster response:", mastersData)
+      
+      // Create a map of mba_number -> master data for quick lookup
+      const masterMap = new Map<string, any>()
+      mastersData.forEach((master: any) => {
+        if (master.mba_number) {
+          masterMap.set(master.mba_number, master)
+        }
+      })
+      
+      // Find the latest version for each unique MBA number from media_plan_versions
+      // Group by mba_number and keep only the entry with the highest version_number
+      const latestVersionsFromVersions = Object.values(
+        (Array.isArray(versionsData) ? versionsData : [versionsData]).reduce((acc: Record<string, any>, plan: any) => {
+          const mbaNumber = plan.mba_number;
+          if (!mbaNumber) {
+            // Skip plans without an MBA number
+            return acc;
+          }
+          if (!acc[mbaNumber] || acc[mbaNumber].version_number < plan.version_number) {
+            acc[mbaNumber] = plan;
+          }
+          return acc;
+        }, {} as Record<string, any>)
+      );
+
+      // Now merge with master data to get the correct version_number from media_plan_master
+      // Use version_number from media_plan_master as the source of truth
+      const mergedData = latestVersionsFromVersions.map((versionPlan: any) => {
+        const masterData = masterMap.get(versionPlan.mba_number)
+        if (masterData && masterData.version_number !== undefined) {
+          // Override version_number with the one from media_plan_master
+          return {
+            ...versionPlan,
+            version_number: masterData.version_number // Use version_number from master, NOT from versions table
+          }
+        }
+        // If no master found, keep the version from versions table (fallback)
+        console.warn(`No master data found for MBA ${versionPlan.mba_number}, using version_number from versions table`)
+        return versionPlan
+      })
+
+      console.log("Merged data with version_number from media_plan_master:", mergedData)
+      return NextResponse.json(mergedData)
+    } catch (versionsError) {
+      console.log("MediaPlanVersions failed, trying original endpoint:", versionsError.message)
+      
+      // Fallback to the original working endpoint
+      // Use version_number from media_plan_master as the source of truth
+      try {
+        // Fetch master data to get correct version numbers
+        let masterMap = new Map<string, any>()
+        try {
+          const masterResponse = await axios.get(`${MEDIA_PLAN_MASTER_URL}/media_plan_master`)
+          const masters = Array.isArray(masterResponse.data) ? masterResponse.data : [masterResponse.data]
+          masters.forEach((master: any) => {
+            if (master.mba_number) {
+              masterMap.set(master.mba_number, master)
+            }
+          })
+        } catch (masterError) {
+          console.log("Could not fetch masters for version number:", masterError)
+        }
+        
+        // get_mediaplan_topline expects version_number in the request body as a POST request
+        // Use a reasonable default, but we'll override with master version_number after
+        let latestVersionId = 1; // Default fallback
+        if (masterMap.size > 0) {
+          const maxVersion = Math.max(...Array.from(masterMap.values()).map((m: any) => m.version_number || 1))
+          latestVersionId = maxVersion
+        }
+        
+        const originalResponse = await axios.post(
+          `${XANO_MEDIAPLANS_BASE_URL}/get_mediaplan_topline`,
+          { version_number: latestVersionId }
+        )
+        console.log("Original endpoint response:", originalResponse.data)
+        
+        // Apply the same filtering: group by mba_number and keep only highest version
+        const fallbackData = Array.isArray(originalResponse.data) ? originalResponse.data : [originalResponse.data];
+        const filteredFallbackData = Object.values(
+          fallbackData.reduce((acc: Record<string, any>, plan: any) => {
+            const mbaNumber = plan.mba_number;
+            if (!mbaNumber) {
+              // Skip plans without an MBA number
+              return acc;
+            }
+            if (!acc[mbaNumber] || acc[mbaNumber].version_number < plan.version_number) {
+              acc[mbaNumber] = plan;
+            }
+            return acc;
+          }, {} as Record<string, any>)
+        );
+        
+        // Override version_number with the one from media_plan_master
+        const mergedFallbackData = filteredFallbackData.map((plan: any) => {
+          const masterData = masterMap.get(plan.mba_number)
+          if (masterData && masterData.version_number !== undefined) {
+            return {
+              ...plan,
+              version_number: masterData.version_number // Use version_number from master
+            }
+          }
+          return plan
+        })
+        
+        return NextResponse.json(mergedFallbackData)
+      } catch (fallbackError) {
+        console.error("Fallback endpoint also failed:", fallbackError)
+        // Re-throw the original error since fallback also failed
+        throw versionsError
+      }
+    }
   } catch (error) {
     console.error("Failed to fetch media plans:", error);
     

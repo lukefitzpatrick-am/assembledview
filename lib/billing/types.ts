@@ -13,6 +13,14 @@ export type BillingBurst = {
   buyType: 'cpm' | 'cpc' | 'cpv' | 'fixed cost' | 'package' | 'insertion' | string;
 };
 
+export type BillingLineItem = {
+  id: string; // Unique identifier for the line item
+  header1: string; // First column header (Network/Platform/Publisher)
+  header2: string; // Second column header (Station/Title/Site/Bid Strategy/Format)
+  monthlyAmounts: Record<string, number>; // Month key -> amount for that month
+  totalAmount: number;
+};
+
 export type BillingMonth = {
   monthYear: string; // e.g. 'January 2025'
   mediaTotal: string;
@@ -40,5 +48,27 @@ export type BillingMonth = {
     progAudio: string;
     progOoh: string;
     influencers: string;
+  };
+  // Optional line item breakdowns for each media type
+  lineItems?: {
+    search?: BillingLineItem[];
+    socialMedia?: BillingLineItem[];
+    television?: BillingLineItem[];
+    radio?: BillingLineItem[];
+    newspaper?: BillingLineItem[];
+    magazines?: BillingLineItem[];
+    ooh?: BillingLineItem[];
+    cinema?: BillingLineItem[];
+    digiDisplay?: BillingLineItem[];
+    digiAudio?: BillingLineItem[];
+    digiVideo?: BillingLineItem[];
+    bvod?: BillingLineItem[];
+    integration?: BillingLineItem[];
+    progDisplay?: BillingLineItem[];
+    progVideo?: BillingLineItem[];
+    progBvod?: BillingLineItem[];
+    progAudio?: BillingLineItem[];
+    progOoh?: BillingLineItem[];
+    influencers?: BillingLineItem[];
   };
 }; 

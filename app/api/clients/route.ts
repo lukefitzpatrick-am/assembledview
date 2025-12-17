@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import axios from "axios"
+import { hasRole } from '@/lib/rbac';
 
 const XANO_CLIENTS_BASE_URL = process.env.XANO_CLIENTS_BASE_URL || "https://xg4h-uyzs-dtex.a2.xano.io/api:9v_k2NR8" //Added default value
 const API_TIMEOUT = 10000; // 10 seconds timeout
@@ -39,8 +40,11 @@ async function retryApiCall<T>(
 
 export async function GET() {
   try {
+    // For now, allow access for development
+    // In production, you would validate the Auth0 session here
+    
     const response = await retryApiCall(() => 
-      apiClient.get(`${XANO_CLIENTS_BASE_URL}/get_clients`)
+      apiClient.get(`${XANO_CLIENTS_BASE_URL}/clients`)
     );
     return NextResponse.json(response.data)
   } catch (error) {
@@ -51,12 +55,20 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    // For now, allow access for development
+    // In production, you would validate the Auth0 session here
+    
     const body = await req.json()
     console.log("Request body:", JSON.stringify(body, null, 2))
     
-    // Validate required fields
-    const requiredFields = ["clientname_input", "clientcategory", "abn", "legalbusinessname", "streetaddress", "suburb", "state_dropdown", "postcode"]
-    const missingFields = requiredFields.filter(field => !body[field])
+    // Normalize name field to mp_client_name (Xano expects this field)
+    const { clientname_input, mp_client_name, client_name, ...rest } = body
+    const clientName = mp_client_name || client_name || clientname_input
+
+    // Validate required fields (only client name and MBA identifier)
+    const missingFields = []
+    if (!clientName) missingFields.push("mp_client_name")
+    if (!body.mbaidentifier) missingFields.push("mbaidentifier")
     
     if (missingFields.length > 0) {
       console.error("Missing required fields:", missingFields)
@@ -65,12 +77,23 @@ export async function POST(req: Request) {
         { status: 400 }
       )
     }
+
+    // Map to Xano expected field name and drop empty values
+    const payload = Object.fromEntries(
+      Object.entries({
+        ...rest,
+        mp_client_name: clientName,
+        client_name: clientName, // compatibility with Xano input field naming
+        clientname_input: clientName, // legacy Xano scripts expecting old field name
+      }).filter(([, value]) => value !== undefined && value !== null && value !== "")
+    )
     
     // Log the API URL being used
-    console.log("Using API URL:", `${XANO_CLIENTS_BASE_URL}/post_clients`)
+    console.log("Using API URL:", `${XANO_CLIENTS_BASE_URL}/clients`)
+    console.log("Outgoing client payload keys:", Object.keys(payload))
     
     const response = await retryApiCall(() => 
-      apiClient.post(`${XANO_CLIENTS_BASE_URL}/post_clients`, body)
+      apiClient.post(`${XANO_CLIENTS_BASE_URL}/clients`, payload)
     );
     
     console.log("API response:", JSON.stringify(response.data, null, 2))

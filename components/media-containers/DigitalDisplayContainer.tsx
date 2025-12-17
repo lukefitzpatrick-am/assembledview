@@ -69,14 +69,15 @@ const digidisplaylineItemSchema = z.object({
   platform: z.string().min(1, "Platform is required"),
   site: z.string().min(1, "Site is required"),
   buyType: z.string().min(1, "Buy Type is required"),
-  creativeTargeting: z.string().default(""),
-  creative: z.string().default(""),
-  buyingDemo: z.string().default(""),
-  market: z.string().default(""),
-  fixedCostMedia: z.boolean().default(false),
-  clientPaysForMedia: z.boolean().default(false),
-  budgetIncludesFees: z.boolean().default(false),
-  noadserving: z.boolean().default(false),
+  publisher: z.string().min(1, "Publisher is required"),
+  creativeTargeting: z.string().min(1, "Creative Targeting is required"),
+  creative: z.string().min(1, "Creative is required"),
+  buyingDemo: z.string().min(1, "Buying Demo is required"),
+  market: z.string().min(1, "Market is required"),
+  fixedCostMedia: z.boolean(),
+  clientPaysForMedia: z.boolean(),
+  budgetIncludesFees: z.boolean(),
+  noadserving: z.boolean(),
   bursts: z.array(digidisplayburstSchema).min(1, "At least one burst is required"),
   totalMedia: z.number().optional(),
   totalDeliverables: z.number().optional(),
@@ -89,6 +90,8 @@ const digidisplayFormSchema = z.object({
 })
 
 type DigiDisplayFormValues = z.infer<typeof digidisplayFormSchema>
+
+// Type definition for form values
 
 interface Publisher {
   id: number;
@@ -108,11 +111,13 @@ interface DigiDisplayContainerProps {
   onBurstsChange: (bursts: BillingBurst[]) => void;
   onInvestmentChange: (investmentByMonth: any) => void;
   onLineItemsChange: (items: LineItem[]) => void;
+  onMediaLineItemsChange: (lineItems: any[]) => void;
   campaignStartDate: Date;
   campaignEndDate: Date;
   campaignBudget: number;
   campaignId: string;
   mediaTypes: string[];
+  initialLineItems?: any[];
 }
 
 export function getDigiDisplayBursts(
@@ -130,22 +135,27 @@ export function getDigiDisplayBursts(
       const pct = feedigidisplay || 0
       let feeAmount = 0
 
-      if (li.budgetIncludesFees) {
-        // budget was gross (media+fee)
-        // gross budget: split by percent of gross
-        // fee = budget * pct/100
-        // media = budget * (100 - pct)/100
-        feeAmount   = mediaAmount * (pct / 100)
+      if (li.budgetIncludesFees && li.clientPaysForMedia) {
+        // Both true: budget is gross, extract fee only, mediaAmount = 0
+        // Media = 0
+        // Fees = Budget * (Fee / 100)
+        feeAmount = mediaAmount * (pct / 100)
+        mediaAmount = 0
+      } else if (li.budgetIncludesFees) {
+        // Only budgetIncludesFees: budget is gross, split into media and fee
+        // Media = Budget * ((100 - Fee) / 100)
+        // Fees = Budget * (Fee / 100)
+        feeAmount = mediaAmount * (pct / 100)
         mediaAmount = mediaAmount * ((100 - pct) / 100)
-      } else if (!li.clientPaysForMedia) {
-        // budget is net media, so fee on top
-        // net media budget: media unchanged
-        // fee = (media / (100 - pct)) * pct
-        feeAmount = (mediaAmount / (100 - pct)) * pct
-      } else {
-        // client pays media directly
+      } else if (li.clientPaysForMedia) {
+        // Only clientPaysForMedia: budget is net media, only fee is billed
         feeAmount   = (mediaAmount / (100 - pct)) * pct
         mediaAmount = 0
+      } else {
+        // Neither: budget is net media, fee calculated on top
+        // Media = Budget (unchanged)
+        // Fees = Budget * (Fee / (100 - Fee))
+        feeAmount = (mediaAmount * pct) / (100 - pct)
       }
 
       return {
@@ -272,11 +282,13 @@ export default function DigiDisplayContainer({
   onBurstsChange,
   onInvestmentChange,
   onLineItemsChange,
+  onMediaLineItemsChange,
   campaignStartDate,
   campaignEndDate,
   campaignBudget,
   campaignId,
-  mediaTypes
+  mediaTypes,
+  initialLineItems
 }: DigiDisplayContainerProps) {
   // Add refs to track previous values
   const prevInvestmentRef = useRef<{ monthYear: string; amount: string }[]>([]);
@@ -361,7 +373,7 @@ export default function DigiDisplayContainer({
 }
 };
 
-  const form = useForm<DigiDisplayFormValues>({
+  const form = useForm({
     resolver: zodResolver(digidisplayFormSchema),
     defaultValues: {
       digidisplaylineItems: [
@@ -369,6 +381,7 @@ export default function DigiDisplayContainer({
           platform: "",
           site: "",
           buyType: "",
+          publisher: "",
           creativeTargeting: "",
           creative: "",
           buyingDemo: "",
@@ -405,14 +418,168 @@ export default function DigiDisplayContainer({
     name: "digidisplaylineItems",
   });
 
+  const handleDuplicateLineItem = useCallback((lineItemIndex: number) => {
+    const items = form.getValues("digidisplaylineItems") || [];
+    const source = items[lineItemIndex];
+
+    if (!source) {
+      toast({
+        title: "No line item to duplicate",
+        description: "Cannot duplicate a missing line item.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const clone = {
+      ...source,
+      bursts: (source.bursts || []).map((burst: any) => ({
+        ...burst,
+        startDate: burst?.startDate ? new Date(burst.startDate) : new Date(),
+        endDate: burst?.endDate ? new Date(burst.endDate) : new Date(),
+        calculatedValue: burst?.calculatedValue ?? 0,
+        fee: burst?.fee ?? 0,
+      })),
+    };
+
+    appendLineItem(clone);
+  }, [appendLineItem, form, toast]);
+
   // Watch hook
   const watchedLineItems = useWatch({ 
     control: form.control, 
     name: "digidisplaylineItems",
     defaultValue: form.getValues("digidisplaylineItems")
   });
+
+  // Data loading for edit mode
+  useEffect(() => {
+    if (initialLineItems && initialLineItems.length > 0) {
+      console.log("[DigitalDisplayContainer] Loading initialLineItems:", initialLineItems);
+      
+      const transformedLineItems = initialLineItems.map((item: any, index: number) => {
+        console.log(`[DigitalDisplayContainer] Processing item ${index}:`, {
+          site: item.site,
+          placement: item.placement,
+          buy_type: item.buy_type,
+          bursts_json: item.bursts_json,
+          bursts_json_type: typeof item.bursts_json,
+        });
+
+        // Safely parse bursts_json
+        let parsedBursts: any[] = [];
+        if (item.bursts_json) {
+          try {
+            if (typeof item.bursts_json === 'string') {
+              const trimmed = item.bursts_json.trim();
+              if (trimmed) {
+                parsedBursts = JSON.parse(trimmed);
+              }
+            } else if (Array.isArray(item.bursts_json)) {
+              parsedBursts = item.bursts_json;
+            } else if (typeof item.bursts_json === 'object') {
+              parsedBursts = [item.bursts_json];
+            }
+          } catch (parseError) {
+            console.error(`[DigitalDisplayContainer] Error parsing bursts_json for item ${index}:`, parseError, item.bursts_json);
+            parsedBursts = [];
+          }
+        }
+
+        if (!Array.isArray(parsedBursts)) {
+          parsedBursts = [];
+        }
+
+        const bursts = parsedBursts.length > 0 ? parsedBursts.map((burst: any) => ({
+          budget: burst.budget || "",
+          buyAmount: burst.buyAmount || "",
+          startDate: burst.startDate ? new Date(burst.startDate) : (campaignStartDate || new Date()),
+          endDate: burst.endDate ? new Date(burst.endDate) : (campaignEndDate || new Date()),
+        })) : [{
+          budget: "",
+          buyAmount: "",
+          startDate: campaignStartDate || new Date(),
+          endDate: campaignEndDate || new Date(),
+        }];
+
+        return {
+          site: item.site || "",
+          placement: item.placement || "",
+          size: item.size || "",
+          buyType: item.buy_type || "",
+          targetingAttribute: item.targeting_attribute || "",
+          fixedCostMedia: item.fixed_cost_media || false,
+          clientPaysForMedia: item.client_pays_for_media || false,
+          budgetIncludesFees: item.budget_includes_fees || false,
+          noadserving: item.no_adserving || false,
+          bursts: bursts,
+        };
+      });
+
+      console.log("[DigitalDisplayContainer] Transformed line items:", transformedLineItems);
+
+      form.reset({
+        digidisplaylineItems: transformedLineItems,
+        overallDeliverables: 0,
+      });
+    }
+  }, [initialLineItems, form, campaignStartDate, campaignEndDate]);
+
+  // Transform form data to API schema format
+  useEffect(() => {
+    const formLineItems = form.getValues('digidisplaylineItems') || [];
+    
+    const transformedLineItems = formLineItems.map((lineItem, index) => {
+      // Calculate totalMedia from raw budget amounts (for display in MBA section)
+      let totalMedia = 0;
+      lineItem.bursts.forEach((burst) => {
+        const budget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0;
+        if (lineItem.budgetIncludesFees) {
+          // Budget is gross, extract media portion
+          const base = budget / (1 + (feedigidisplay || 0) / 100);
+          totalMedia += base;
+        } else {
+          // Budget is net media
+          totalMedia += budget;
+        }
+      });
+
+      return {
+        media_plan_version: 0,
+        mba_number: mbaNumber || "",
+        mp_client_name: "",
+        mp_plannumber: "",
+        publisher: lineItem.publisher || "",
+        site: lineItem.site || "",
+        buy_type: lineItem.buyType || "",
+        creative_targeting: lineItem.creativeTargeting || "",
+        creative: lineItem.creative || "",
+        buying_demo: lineItem.buyingDemo || "",
+        market: lineItem.market || "",
+        fixed_cost_media: lineItem.fixedCostMedia || false,
+        client_pays_for_media: lineItem.clientPaysForMedia || false,
+        budget_includes_fees: lineItem.budgetIncludesFees || false,
+        no_adserving: lineItem.noadserving || false,
+        line_item_id: `${mbaNumber || 'DD'}${index + 1}`,
+        bursts_json: JSON.stringify(lineItem.bursts.map(burst => ({
+          budget: burst.budget || "",
+          buyAmount: burst.buyAmount || "",
+          startDate: burst.startDate ? (burst.startDate instanceof Date ? burst.startDate.toISOString() : burst.startDate) : "",
+          endDate: burst.endDate ? (burst.endDate instanceof Date ? burst.endDate.toISOString() : burst.endDate) : "",
+          calculatedValue: burst.calculatedValue || 0,
+          fee: burst.fee || 0,
+        }))),
+        line_item: index + 1,
+        totalMedia: totalMedia,
+      };
+    });
+
+    onMediaLineItemsChange(transformedLineItems);
+  }, [watchedLineItems, mbaNumber, feedigidisplay, onMediaLineItemsChange]);
   
   // Memoized calculations
+  // Note: For display purposes, always show media amounts regardless of clientPaysForMedia
+  // The billing schedule will handle excluding media when clientPaysForMedia is true
   const overallTotals = useMemo(() => {
     let overallMedia = 0;
     let overallFee = 0;
@@ -426,12 +593,17 @@ export default function DigiDisplayContainer({
     
       lineItem.bursts.forEach((burst) => {
         const budget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0;
+        // Always calculate media for display purposes (ignore clientPaysForMedia)
         if (lineItem.budgetIncludesFees) {
-          lineFee += (budget / 100) * (feedigidisplay || 0);
-          lineMedia += (budget / 100) * (100 - (feedigidisplay || 0));
+          // Budget is gross, split into media and fee
+          const base = budget / (1 + (feedigidisplay || 0) / 100);
+          lineMedia += base;
+          lineFee += budget - base;
         } else {
+          // Budget is net media, fee calculated on top
           lineMedia += budget;
-          lineFee = feedigidisplay ? (lineMedia / (100 - feedigidisplay)) * feedigidisplay : 0;
+          const fee = feedigidisplay ? (budget / (100 - feedigidisplay)) * feedigidisplay : 0;
+          lineFee += fee;
         }
         lineDeliverables += burst.calculatedValue || 0;
       });
@@ -480,7 +652,7 @@ export default function DigiDisplayContainer({
 
     setOverallDeliverables(overallMedia);
     onTotalMediaChange(overallMedia, overallFee);
-  }, [form, feedigidisplay, onTotalMediaChange]);
+  }, [feedigidisplay]); // Removed onTotalMediaChange dependency to prevent infinite loops
 
   const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number) => {
     const burst = form.getValues(`digidisplaylineItems.${lineItemIndex}.bursts.${burstIndex}`);
@@ -504,15 +676,17 @@ export default function DigiDisplayContainer({
         calculatedValue = 0;
     }
 
-    if (form.getValues(`digidisplaylineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`) !== calculatedValue) {
+    // Only update if the calculated value is actually different to prevent infinite loops
+    const currentValue = form.getValues(`digidisplaylineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`);
+    if (currentValue !== calculatedValue && !isNaN(calculatedValue)) {
       form.setValue(`digidisplaylineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`, calculatedValue, {
-        shouldValidate: true,
-        shouldDirty: true,
+        shouldValidate: false, // Changed to false to prevent validation loops
+        shouldDirty: false,    // Changed to false to prevent dirty state loops
       });
 
       handleLineItemValueChange(lineItemIndex);
     }
-  }, [form, handleLineItemValueChange]);
+  }, [handleLineItemValueChange]);
 
   const handleAppendBurst = useCallback((lineItemIndex: number) => {
     const currentBursts = form.getValues(`digidisplaylineItems.${lineItemIndex}.bursts`) || [];
@@ -556,6 +730,56 @@ export default function DigiDisplayContainer({
     ]);
 
     handleLineItemValueChange(lineItemIndex);
+  }, [handleLineItemValueChange, toast]);
+
+  const handleDuplicateBurst = useCallback((lineItemIndex: number) => {
+    const currentBursts = form.getValues(`digidisplaylineItems.${lineItemIndex}.bursts`) || [];
+
+    if (currentBursts.length === 0) {
+      toast({
+        title: "No burst to duplicate",
+        description: "Add a burst first before duplicating.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (currentBursts.length >= 12) {
+      toast({
+        title: "Maximum bursts reached",
+        description: "Can't add more bursts. Each line item is limited to 12 bursts.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const lastBurst = currentBursts[currentBursts.length - 1];
+
+    let startDate = new Date();
+    if (lastBurst?.endDate) {
+      startDate = new Date(lastBurst.endDate);
+      startDate.setDate(startDate.getDate() + 1);
+    }
+
+    const endDate = new Date(startDate);
+    endDate.setMonth(endDate.getMonth() + 1);
+    endDate.setDate(0);
+
+    const duplicatedBurst = {
+      budget: lastBurst?.budget ?? "",
+      buyAmount: lastBurst?.buyAmount ?? "",
+      startDate,
+      endDate,
+      calculatedValue: 0,
+      fee: 0,
+    };
+
+    form.setValue(`digidisplaylineItems.${lineItemIndex}.bursts`, [
+      ...currentBursts,
+      duplicatedBurst,
+    ]);
+
+    handleLineItemValueChange(lineItemIndex);
   }, [form, handleLineItemValueChange, toast]);
 
   const handleRemoveBurst = useCallback((lineItemIndex: number, burstIndex: number) => {
@@ -566,7 +790,7 @@ export default function DigiDisplayContainer({
     );
 
     handleLineItemValueChange(lineItemIndex);
-  }, [form, handleLineItemValueChange]);
+  }, [handleLineItemValueChange]);
 
   const getDeliverablesLabel = useCallback((buyType: string) => {
     if (!buyType) return "Deliverables";
@@ -582,6 +806,39 @@ export default function DigiDisplayContainer({
         return "Fixed Fee";
       default:
         return "Deliverables";
+    }
+  }, []);
+
+  const formatBuyTypeForDisplay = useCallback((buyType: string) => {
+    if (!buyType) return "Not selected";
+    
+    switch (buyType.toLowerCase()) {
+      case "cpt":
+        return "CPT";
+      case "cpm":
+        return "CPM";
+      case "cpv":
+        return "CPV";
+      case "cpc":
+        return "CPC";
+      case "spots":
+        return "Spots";
+      case "package":
+        return "Package";
+      case "bonus":
+        return "Bonus";
+      case "fixed_cost":
+        return "Fixed Cost";
+      case "guaranteed_leads":
+        return "Guaranteed Leads";
+      case "insertions":
+        return "Insertions";
+      case "panels":
+        return "Panels";
+      case "screens":
+        return "Screens";
+      default:
+        return buyType;
     }
   }, []);
   
@@ -612,6 +869,34 @@ export default function DigiDisplayContainer({
   
     fetchPublishers();
   }, [clientId, toast]);
+
+  // Effect hooks for display sites
+  useEffect(() => {
+    const fetchDigiDisplaySites = async () => {
+      try {
+        // Check if we already have display sites cached
+        if (digidisplaySitesRef.current.length > 0) {
+          setDigiDisplaySites(digidisplaySitesRef.current);
+          setIsLoading(false);
+          return;
+        }
+
+        const fetchedDigiDisplaySites = await getDisplaySites();
+        digidisplaySitesRef.current = fetchedDigiDisplaySites;
+        setDigiDisplaySites(fetchedDigiDisplaySites);
+      } catch (error) {
+        toast({
+          title: "Error loading display sites",
+          description: error.message,
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+  
+    fetchDigiDisplaySites();
+  }, [clientId, toast]);
   
   // report raw totals (ignoring clientPaysForMedia) for MBA-Details
 useEffect(() => {
@@ -619,7 +904,7 @@ useEffect(() => {
     overallTotals.overallMedia,
     overallTotals.overallFee
   )
-}, [overallTotals.overallMedia, overallTotals.overallFee, onTotalMediaChange])
+}, [overallTotals.overallMedia, overallTotals.overallFee]) // Removed onTotalMediaChange dependency to prevent infinite loops
 
 useEffect(() => {
   // convert each form lineItem into the shape needed for Excel
@@ -673,7 +958,7 @@ useEffect(() => {
     }, 300); // 300ms debounce
 
     return () => clearTimeout(timeoutId);
-  }, [watchedLineItems, feedigidisplay, onInvestmentChange, onBurstsChange, onTotalMediaChange, form]);
+  }, [watchedLineItems, feedigidisplay]); // Removed callback dependencies to prevent infinite loops
 
   const getBursts = () => {
     const formLineItems = form.getValues("digidisplaylineItems") || [];
@@ -683,19 +968,25 @@ useEffect(() => {
         let mediaAmount = 0;
         let feeAmount = 0;
 
-        if (item.budgetIncludesFees) {
-          // budget was gross (media+fee)
+        if (item.budgetIncludesFees && item.clientPaysForMedia) {
+          // Both true: budget is gross, extract fee only, mediaAmount = 0
+          // Media = 0
+          // Fees = Budget * (Fee / 100)
+          feeAmount = budget * ((feedigidisplay || 0) / 100);
+          mediaAmount = 0;
+        } else if (item.budgetIncludesFees) {
+          // Only budgetIncludesFees: budget is gross, split into media and fee
           const base = budget / (1 + (feedigidisplay || 0)/100);
           feeAmount = budget - base;
           mediaAmount = base;
-        } else if (!item.clientPaysForMedia) {
-          // budget is net media, so fee on top
+        } else if (item.clientPaysForMedia) {
+          // Only clientPaysForMedia: budget is net media, only fee is billed
+          feeAmount = (budget / (100 - (feedigidisplay || 0))) * (feedigidisplay || 0);
+          mediaAmount = 0;
+        } else {
+          // Neither: budget is net media, fee calculated on top
           mediaAmount = budget;
           feeAmount = (budget * (feedigidisplay || 0)) / 100;
-        } else {
-          // client pays media directly
-          feeAmount = budget;
-          mediaAmount = 0;
         }
 
         const billingBurst: BillingBurst = {
@@ -834,7 +1125,7 @@ useEffect(() => {
                             <span className="font-medium">Publisher:</span> {form.watch(`digidisplaylineItems.${lineItemIndex}.platform`) || 'Not selected'}
                           </div>
                           <div>
-                            <span className="font-medium">Buy Type:</span> {form.watch(`digidisplaylineItems.${lineItemIndex}.buyType`) || 'Not selected'}
+                            <span className="font-medium">Buy Type:</span> {formatBuyTypeForDisplay(form.watch(`digidisplaylineItems.${lineItemIndex}.buyType`))}
                           </div>
                           <div>
                             <span className="font-medium">Site:</span> {form.watch(`digidisplaylineItems.${lineItemIndex}.site`) || 'Not selected'}
@@ -919,6 +1210,7 @@ useEffect(() => {
                                             </SelectContent>
                                           </Select>
                                             <Button
+                                              type="button"
                                               variant="ghost"
                                               size="sm"
                                               className="p-1 h-auto"
@@ -1080,14 +1372,23 @@ useEffect(() => {
                                 />
                               </div>
 
-                              <Button
-                                type="button"
-                                size="default"
-                                onClick={() => handleAppendBurst(lineItemIndex)}
-                                className="self-end mt-4"
-                              >
-                                Add Burst
-                              </Button>
+                              <div className="flex space-x-2 self-end mt-4">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="default"
+                                  onClick={() => handleDuplicateBurst(lineItemIndex)}
+                                >
+                                  Duplicate Burst
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="default"
+                                  onClick={() => handleAppendBurst(lineItemIndex)}
+                                >
+                                  Add Burst
+                                </Button>
+                              </div>
                             </div>
                           </div>
                         </CardContent>
@@ -1373,6 +1674,13 @@ useEffect(() => {
                       </div>
 
                       <CardFooter className="flex justify-end space-x-2 pt-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => handleDuplicateLineItem(lineItemIndex)}
+                        >
+                          Duplicate Line Item
+                        </Button>
                         {lineItemIndex === lineItemFields.length - 1 && (
                           <Button
                             type="button"
@@ -1381,6 +1689,7 @@ useEffect(() => {
                                 platform: "",
                                 site: "",
                                 buyType: "",
+                                publisher: "",
                                 creativeTargeting: "",
                                 creative: "",
                                 buyingDemo: "",
@@ -1473,8 +1782,8 @@ useEffect(() => {
       </div>
     </div>
     <DialogFooter>
-      <Button variant="outline" onClick={() => setIsAddSiteDialogOpen(false)}>Cancel</Button>
-      <Button onClick={handleAddNewSite} disabled={isLoading}>
+      <Button type="button" variant="outline" onClick={() => setIsAddSiteDialogOpen(false)}>Cancel</Button>
+      <Button type="button" onClick={handleAddNewSite} disabled={isLoading}>
         {isLoading ? "Adding..." : "Add Site"}
       </Button>
     </DialogFooter>

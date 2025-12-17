@@ -4,23 +4,27 @@ import { format } from 'date-fns';
 
 export async function POST(req: NextRequest) {
   try {
+    // For now, allow access for development
+    // In production, you would validate the Auth0 session here
+    
     const body = await req.json();
 
-    // Basic validation
-    if (!body.mbanumber || !body.mp_clientname) {
+    // Basic validation - support both mbanumber and mba_number for backwards compatibility
+    const mbaNumber = body.mba_number || body.mbanumber;
+    if (!mbaNumber || !body.mp_client_name) {
       return NextResponse.json({ error: 'Missing required MBA data' }, { status: 400 });
     }
 
     // Transform the incoming request body to fit the MBAData interface
     const dataForPdf: MBAData = {
       date: format(new Date(), 'dd/MM/yyyy'),
-      mba_number: body.mbanumber,
+      mba_number: mbaNumber,
       campaign_name: body.mp_campaignname,
       campaign_brand: body.mp_brand,
       po_number: body.mp_ponumber,
       media_plan_version: body.mp_plannumber,
       client: {
-        name: body.mp_clientname,
+        name: body.mp_client_name,
         streetaddress: body.clientAddress,
         suburb: body.clientSuburb,
         state: body.clientState,
@@ -50,7 +54,7 @@ export async function POST(req: NextRequest) {
     const pdfBuffer = await generateMBA(dataForPdf);
 
     // Return the PDF in the response
-    const filename = `MBA_${body.mp_clientname}_${body.mp_campaignname}.pdf`;
+    const filename = `MBA_${body.mp_client_name}_${body.mp_campaignname}.pdf`;
     return new NextResponse(pdfBuffer, {
       status: 200,
       headers: {

@@ -17,9 +17,7 @@ const nextConfig = {
     unoptimized: true,
   },
   experimental: {
-    webpackBuildWorker: true,
-    parallelServerBuildTraces: true,
-    parallelServerCompiles: true,
+    // Removed deprecated experimental features for Next.js 15
   },
   webpack: (config, { isServer }) => {
 

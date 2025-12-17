@@ -12,7 +12,7 @@ module.exports = {
     },
     extend: {
       fontFamily: {
-        sans: ["Arial", "Helvetica", "sans-serif"],
+        sans: ["Aptos", "Segoe UI", "Tahoma", "Arial", "Helvetica", "sans-serif"],
       },
       
       colors: {

@@ -5,10 +5,11 @@ const XANO_MEDIAPLANS_BASE_URL = process.env.XANO_MEDIAPLANS_BASE_URL || "https:
 
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const response = await axios.post(`${XANO_MEDIAPLANS_BASE_URL}/generate_mbanumber/${params.id}`)
+    const { id } = await params
+    const response = await axios.post(`${XANO_MEDIAPLANS_BASE_URL}/generate_mbanumber/${id}`)
     return NextResponse.json(response.data)
   } catch (error) {
     console.error("Error generating MBA number:", error)

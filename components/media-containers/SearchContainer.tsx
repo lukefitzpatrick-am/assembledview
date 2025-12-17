@@ -78,13 +78,14 @@ const lineItemSchema = z.object({
   platform: z.string().min(1, "Platform is required"),
   bidStrategy: z.string().min(1, "Bid Strategy is required"),
   buyType: z.string().min(1, "Buy Type is required"),
-  creativeTargeting: z.string().default(""),
-  creative: z.string().default(""),
-  buyingDemo: z.string().default(""),
-  market: z.string().default(""),
+  creativeTargeting: z.string().optional().default(""),
+  creative: z.string().optional().default(""),
+  buyingDemo: z.string().optional().default(""),
+  market: z.string().optional().default(""),
   fixedCostMedia: z.boolean().default(false),
   clientPaysForMedia: z.boolean().default(false),
   budgetIncludesFees: z.boolean().default(false),
+  noadserving: z.boolean().default(false),
   bursts: z.array(burstSchema).min(1, "At least one burst is required"),
   totalMedia: z.number().optional(),
   totalDeliverables: z.number().optional(),
@@ -110,15 +111,17 @@ interface SearchContainerProps {
   onBurstsChange: (bursts: BillingBurst[]) => void;
   onInvestmentChange: (investmentByMonth: any) => void;
   onLineItemsChange: (items: LineItem[]) => void;
+  onMediaLineItemsChange: (lineItems: any[]) => void;
   campaignStartDate: Date;
   campaignEndDate: Date;
   campaignBudget: number;
   campaignId: string;
   mediaTypes: string[];
+  initialLineItems?: any[];
 }
 
 export function getSearchBursts(
-  form: UseFormReturn<SearchFormValues>,
+  form: any,
   feesearch: number
 ): BillingBurst[] {
   const lineItems = form.getValues("lineItems") || []
@@ -132,22 +135,27 @@ export function getSearchBursts(
       const pct = feesearch || 0
       let feeAmount = 0
 
-      if (li.budgetIncludesFees) {
-        // budget was gross (media+fee)
-        // gross budget: split by percent of gross
-        // fee = budget * pct/100
-        // media = budget * (100 - pct)/100
-        feeAmount   = mediaAmount * (pct / 100)
+      if (li.budgetIncludesFees && li.clientPaysForMedia) {
+        // Both true: budget is gross, extract fee only, mediaAmount = 0
+        // Media = 0
+        // Fees = Budget * (Fee / 100)
+        feeAmount = mediaAmount * (pct / 100)
+        mediaAmount = 0
+      } else if (li.budgetIncludesFees) {
+        // Only budgetIncludesFees: budget is gross, split into media and fee
+        // Media = Budget * ((100 - Fee) / 100)
+        // Fees = Budget * (Fee / 100)
+        feeAmount = mediaAmount * (pct / 100)
         mediaAmount = mediaAmount * ((100 - pct) / 100)
-      } else if (!li.clientPaysForMedia) {
-        // budget is net media, so fee on top
-        // net media budget: media unchanged
-        // fee = (media / (100 - pct)) * pct
-        feeAmount = (mediaAmount / (100 - pct)) * pct
-      } else {
-        // client pays media directly
+      } else if (li.clientPaysForMedia) {
+        // Only clientPaysForMedia: budget is net media, only fee is billed
         feeAmount   = (mediaAmount / (100 - pct)) * pct
         mediaAmount = 0
+      } else {
+        // Neither: budget is net media, fee calculated on top
+        // Media = Budget (unchanged)
+        // Fees = Budget * (Fee / (100 - Fee))
+        feeAmount = (mediaAmount * pct) / (100 - pct)
       }
 
       return {
@@ -274,11 +282,13 @@ export default function SearchContainer({
   onBurstsChange,
   onInvestmentChange,
   onLineItemsChange,
+  onMediaLineItemsChange,
   campaignStartDate,
   campaignEndDate,
   campaignBudget,
   campaignId,
-  mediaTypes
+  mediaTypes,
+  initialLineItems
 }: SearchContainerProps) {
   // Add refs to track previous values
   const prevInvestmentRef = useRef<{ monthYear: string; amount: string }[]>([]);
@@ -292,8 +302,7 @@ export default function SearchContainer({
   const [overallDeliverables, setOverallDeliverables] = useState(0);
   
   // Form initialization
-  const form = useForm<SearchFormValues>({
-    resolver: zodResolver(searchFormSchema),
+  const form = useForm({
     defaultValues: {
       lineItems: [
         {
@@ -307,6 +316,7 @@ export default function SearchContainer({
           fixedCostMedia: false,
           clientPaysForMedia: false,
           budgetIncludesFees: false,
+          noadserving: false,
           bursts: [
             {
               budget: "",
@@ -322,8 +332,9 @@ export default function SearchContainer({
           totalFee: 0,
         },
       ],
+      overallDeliverables: 0,
     },
-  });
+  }) as any;
 
   // Field array hook
   const {
@@ -335,14 +346,180 @@ export default function SearchContainer({
     name: "lineItems",
   });
 
+  const handleDuplicateLineItem = useCallback((lineItemIndex: number) => {
+    const items = form.getValues("lineItems") || [];
+    const source = items[lineItemIndex];
+
+    if (!source) {
+      toast({
+        title: "No line item to duplicate",
+        description: "Cannot duplicate a missing line item.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const clone = {
+      ...source,
+      bursts: (source.bursts || []).map((burst: any) => ({
+        ...burst,
+        startDate: burst?.startDate ? new Date(burst.startDate) : new Date(),
+        endDate: burst?.endDate ? new Date(burst.endDate) : new Date(),
+        calculatedValue: burst?.calculatedValue ?? 0,
+        fee: burst?.fee ?? 0,
+      })),
+    };
+
+    appendLineItem(clone);
+  }, [appendLineItem, form, toast]);
+
   // Watch hook
   const watchedLineItems = useWatch({ 
     control: form.control, 
     name: "lineItems",
     defaultValue: form.getValues("lineItems")
   });
+
+  // Data loading for edit mode
+  useEffect(() => {
+    if (initialLineItems && initialLineItems.length > 0) {
+      console.log("[SearchContainer] Loading initialLineItems:", initialLineItems);
+      
+      const transformedLineItems = initialLineItems.map((item: any, index: number) => {
+        // Log each item for debugging
+        console.log(`[SearchContainer] Processing item ${index}:`, {
+          platform: item.platform,
+          bid_strategy: item.bid_strategy,
+          buy_type: item.buy_type,
+          bursts_json: item.bursts_json,
+          bursts_json_type: typeof item.bursts_json,
+        });
+
+        // Safely parse bursts_json
+        let parsedBursts: any[] = [];
+        if (item.bursts_json) {
+          try {
+            if (typeof item.bursts_json === 'string') {
+              const trimmed = item.bursts_json.trim();
+              if (trimmed) {
+                parsedBursts = JSON.parse(trimmed);
+              }
+            } else if (Array.isArray(item.bursts_json)) {
+              parsedBursts = item.bursts_json;
+            } else if (typeof item.bursts_json === 'object') {
+              // If it's an object, try to convert to array
+              parsedBursts = [item.bursts_json];
+            }
+          } catch (parseError) {
+            console.error(`[SearchContainer] Error parsing bursts_json for item ${index}:`, parseError, item.bursts_json);
+            parsedBursts = [];
+          }
+        }
+
+        // Ensure parsedBursts is an array
+        if (!Array.isArray(parsedBursts)) {
+          parsedBursts = [];
+        }
+
+        const bursts = parsedBursts.length > 0 ? parsedBursts.map((burst: any) => ({
+          budget: burst.budget || "",
+          buyAmount: burst.buyAmount || "",
+          startDate: burst.startDate ? new Date(burst.startDate) : (campaignStartDate || new Date()),
+          endDate: burst.endDate ? new Date(burst.endDate) : (campaignEndDate || new Date()),
+          calculatedValue: burst.calculatedValue || 0,
+          fee: burst.fee || 0,
+        })) : [{
+          budget: "",
+          buyAmount: "",
+          startDate: campaignStartDate || new Date(),
+          endDate: campaignEndDate || new Date(),
+          calculatedValue: 0,
+          fee: 0,
+        }];
+
+        return {
+          platform: item.platform || "",
+          bidStrategy: item.bid_strategy || "",
+          buyType: item.buy_type || "",
+          creativeTargeting: item.creative_targeting || "",
+          creative: item.creative || "",
+          buyingDemo: item.buying_demo || "",
+          market: item.market || "",
+          fixedCostMedia: item.fixed_cost_media || false,
+          clientPaysForMedia: item.client_pays_for_media || false,
+          budgetIncludesFees: item.budget_includes_fees || false,
+          noadserving: item.no_adserving || false,
+          bursts: bursts,
+          totalMedia: 0,
+          totalDeliverables: 0,
+          totalFee: 0,
+        };
+      });
+
+      console.log("[SearchContainer] Transformed line items:", transformedLineItems);
+
+      form.reset({
+        lineItems: transformedLineItems,
+        overallDeliverables: 0,
+      });
+    }
+  }, [initialLineItems, form, campaignStartDate, campaignEndDate]);
+
+  // Transform form data to API schema format
+  useEffect(() => {
+    const formLineItems = form.getValues('lineItems') || [];
+    
+    const transformedLineItems = formLineItems.map((lineItem, index) => {
+      // Calculate totalMedia from raw budget amounts (for display in MBA section)
+      let totalMedia = 0;
+      lineItem.bursts.forEach((burst) => {
+        const budget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0;
+        if (lineItem.budgetIncludesFees) {
+          // Budget is gross, extract media portion
+          // Media = Budget * ((100 - Fee) / 100)
+          totalMedia += (budget * (100 - (feesearch || 0))) / 100;
+        } else {
+          // Budget is net media
+          totalMedia += budget;
+        }
+      });
+
+      return {
+        media_plan_version: 0,
+        mba_number: mbaNumber || "",
+        mp_client_name: "",
+        mp_plannumber: "",
+        platform: lineItem.platform || "",
+        bid_strategy: lineItem.bidStrategy || "",
+        buy_type: lineItem.buyType || "",
+        creative_targeting: lineItem.creativeTargeting || "",
+        creative: lineItem.creative || "",
+        buying_demo: lineItem.buyingDemo || "",
+        market: lineItem.market || "",
+        fixed_cost_media: lineItem.fixedCostMedia || false,
+        client_pays_for_media: lineItem.clientPaysForMedia || false,
+        budget_includes_fees: lineItem.budgetIncludesFees || false,
+        no_adserving: lineItem.noadserving || false,
+        line_item_id: `${mbaNumber || 'SRC'}${index + 1}`,
+        bursts_json: JSON.stringify(lineItem.bursts.map(burst => ({
+          budget: burst.budget || "",
+          buyAmount: burst.buyAmount || "",
+          startDate: burst.startDate ? (burst.startDate instanceof Date ? burst.startDate.toISOString() : burst.startDate) : "",
+          endDate: burst.endDate ? (burst.endDate instanceof Date ? burst.endDate.toISOString() : burst.endDate) : "",
+          calculatedValue: burst.calculatedValue || 0,
+          fee: burst.fee || 0,
+        }))),
+        line_item: index + 1,
+        totalMedia: totalMedia,
+      };
+    });
+
+    onMediaLineItemsChange(transformedLineItems);
+  }, [watchedLineItems, mbaNumber, onMediaLineItemsChange]);
   
   // Memoized calculations
+  // Note: For display purposes, always show media amounts regardless of clientPaysForMedia
+  // The billing schedule will handle excluding media when clientPaysForMedia is true
   const overallTotals = useMemo(() => {
     let overallMedia = 0;
     let overallFee = 0;
@@ -356,12 +533,20 @@ export default function SearchContainer({
     
       lineItem.bursts.forEach((burst) => {
         const budget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0;
+        // Always calculate media for display purposes (ignore clientPaysForMedia)
         if (lineItem.budgetIncludesFees) {
-          lineFee += (budget / 100) * (feesearch || 0);
-          lineMedia += (budget / 100) * (100 - (feesearch || 0));
+          // Budget is gross, split into media and fee
+          // Media = Budget * ((100 - Fee) / 100)
+          // Fees = Budget * (Fee / 100)
+          lineMedia += (budget * (100 - (feesearch || 0))) / 100;
+          lineFee += (budget * (feesearch || 0)) / 100;
         } else {
+          // Budget is net media, fee calculated on top
+          // Media = Budget (unchanged)
+          // Fees = Budget * (Fee / (100 - Fee))
           lineMedia += budget;
-          lineFee = feesearch ? (lineMedia / (100 - feesearch)) * feesearch : 0;
+          const fee = feesearch ? (budget * feesearch) / (100 - feesearch) : 0;
+          lineFee += fee;
         }
         lineDeliverables += burst.calculatedValue || 0;
       });
@@ -410,7 +595,7 @@ export default function SearchContainer({
 
     setOverallDeliverables(overallMedia);
     onTotalMediaChange(overallMedia, overallFee);
-  }, [form, feesearch, onTotalMediaChange]);
+  }, [feesearch]); // Removed onTotalMediaChange dependency to prevent infinite loops
 
   const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number) => {
     const burst = form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}`);
@@ -434,15 +619,17 @@ export default function SearchContainer({
         calculatedValue = 0;
     }
 
-    if (form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`) !== calculatedValue) {
+    // Only update if the calculated value is actually different to prevent infinite loops
+    const currentValue = form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`);
+    if (currentValue !== calculatedValue && !isNaN(calculatedValue)) {
       form.setValue(`lineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`, calculatedValue, {
-        shouldValidate: true,
-        shouldDirty: true,
+        shouldValidate: false, // Changed to false to prevent validation loops
+        shouldDirty: false,    // Changed to false to prevent dirty state loops
       });
 
       handleLineItemValueChange(lineItemIndex);
     }
-  }, [form, handleLineItemValueChange]);
+  }, [handleLineItemValueChange]);
 
   const handleAppendBurst = useCallback((lineItemIndex: number) => {
     const currentBursts = form.getValues(`lineItems.${lineItemIndex}.bursts`) || [];
@@ -486,6 +673,56 @@ export default function SearchContainer({
     ]);
 
     handleLineItemValueChange(lineItemIndex);
+  }, [handleLineItemValueChange, toast]);
+
+  const handleDuplicateBurst = useCallback((lineItemIndex: number) => {
+    const currentBursts = form.getValues(`lineItems.${lineItemIndex}.bursts`) || [];
+
+    if (currentBursts.length === 0) {
+      toast({
+        title: "No burst to duplicate",
+        description: "Add a burst first before duplicating.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (currentBursts.length >= 12) {
+      toast({
+        title: "Maximum bursts reached",
+        description: "Can't add more bursts. Each line item is limited to 12 bursts.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const lastBurst = currentBursts[currentBursts.length - 1];
+
+    let startDate = new Date();
+    if (lastBurst?.endDate) {
+      startDate = new Date(lastBurst.endDate);
+      startDate.setDate(startDate.getDate() + 1);
+    }
+
+    const endDate = new Date(startDate);
+    endDate.setMonth(endDate.getMonth() + 1);
+    endDate.setDate(0);
+
+    const duplicatedBurst = {
+      budget: lastBurst?.budget ?? "",
+      buyAmount: lastBurst?.buyAmount ?? "",
+      startDate,
+      endDate,
+      calculatedValue: 0,
+      fee: 0,
+    };
+
+    form.setValue(`lineItems.${lineItemIndex}.bursts`, [
+      ...currentBursts,
+      duplicatedBurst,
+    ]);
+
+    handleLineItemValueChange(lineItemIndex);
   }, [form, handleLineItemValueChange, toast]);
 
   const handleRemoveBurst = useCallback((lineItemIndex: number, burstIndex: number) => {
@@ -496,7 +733,7 @@ export default function SearchContainer({
     );
 
     handleLineItemValueChange(lineItemIndex);
-  }, [form, handleLineItemValueChange]);
+  }, [handleLineItemValueChange]);
 
   const getDeliverablesLabel = useCallback((buyType: string) => {
     if (!buyType) return "Deliverables";
@@ -512,6 +749,39 @@ export default function SearchContainer({
         return "Fixed Fee";
       default:
         return "Deliverables";
+    }
+  }, []);
+
+  const formatBuyTypeForDisplay = useCallback((buyType: string) => {
+    if (!buyType) return "Not selected";
+    
+    switch (buyType.toLowerCase()) {
+      case "cpt":
+        return "CPT";
+      case "cpm":
+        return "CPM";
+      case "cpv":
+        return "CPV";
+      case "cpc":
+        return "CPC";
+      case "spots":
+        return "Spots";
+      case "package":
+        return "Package";
+      case "bonus":
+        return "Bonus";
+      case "fixed_cost":
+        return "Fixed Cost";
+      case "guaranteed_leads":
+        return "Guaranteed Leads";
+      case "insertions":
+        return "Insertions";
+      case "panels":
+        return "Panels";
+      case "screens":
+        return "Screens";
+      default:
+        return buyType;
     }
   }, []);
   
@@ -549,7 +819,7 @@ useEffect(() => {
     overallTotals.overallMedia,
     overallTotals.overallFee
   )
-}, [overallTotals.overallMedia, overallTotals.overallFee, onTotalMediaChange])
+}, [overallTotals.overallMedia, overallTotals.overallFee]) // Removed onTotalMediaChange dependency to prevent infinite loops
 
 useEffect(() => {
   // convert each form lineItem into the shape needed for Excel
@@ -603,7 +873,7 @@ useEffect(() => {
     }, 300); // 300ms debounce
 
     return () => clearTimeout(timeoutId);
-  }, [watchedLineItems, feesearch, onInvestmentChange, onBurstsChange, onTotalMediaChange, form]);
+  }, [watchedLineItems, feesearch]); // Removed callback dependencies to prevent infinite loops
 
   const getBursts = () => {
     const formLineItems = form.getValues("lineItems") || [];
@@ -613,19 +883,28 @@ useEffect(() => {
         let mediaAmount = 0;
         let feeAmount = 0;
 
-        if (item.budgetIncludesFees) {
-          // budget was gross (media+fee)
-          const base = budget / (1 + (feesearch || 0)/100);
-          feeAmount = budget - base;
-          mediaAmount = base;
-        } else if (!item.clientPaysForMedia) {
-          // budget is net media, so fee on top
-          mediaAmount = budget;
-          feeAmount = (budget * (feesearch || 0)) / 100;
-        } else {
-          // client pays media directly
-          feeAmount = budget;
+        if (item.budgetIncludesFees && item.clientPaysForMedia) {
+          // Both true: budget is gross, extract fee only, mediaAmount = 0
+          // Media = 0
+          // Fees = Budget * (Fee / 100)
+          feeAmount = budget * ((feesearch || 0) / 100);
           mediaAmount = 0;
+        } else if (item.budgetIncludesFees) {
+          // Only budgetIncludesFees: budget is gross, split into media and fee
+          // Media = Budget * ((100 - Fee) / 100)
+          // Fees = Budget * (Fee / 100)
+          mediaAmount = (budget * (100 - (feesearch || 0))) / 100;
+          feeAmount = (budget * (feesearch || 0)) / 100;
+        } else if (item.clientPaysForMedia) {
+          // Only clientPaysForMedia: budget is net media, only fee is billed
+          feeAmount = (budget / (100 - (feesearch || 0))) * (feesearch || 0);
+          mediaAmount = 0;
+        } else {
+          // Neither: budget is net media, fee calculated on top
+          // Media = Budget (unchanged)
+          // Fees = Budget * (Fee / (100 - Fee))
+          mediaAmount = budget;
+          feeAmount = (budget * (feesearch || 0)) / (100 - (feesearch || 0));
         }
 
         const billingBurst: BillingBurst = {
@@ -754,7 +1033,7 @@ useEffect(() => {
                             <span className="font-medium">Platform:</span> {form.watch(`lineItems.${lineItemIndex}.platform`) || 'Not selected'}
                           </div>
                           <div>
-                            <span className="font-medium">Buy Type:</span> {form.watch(`lineItems.${lineItemIndex}.buyType`) || 'Not selected'}
+                            <span className="font-medium">Buy Type:</span> {formatBuyTypeForDisplay(form.watch(`lineItems.${lineItemIndex}.buyType`))}
                           </div>
                           <div>
                             <span className="font-medium">Bid Strategy:</span> {form.watch(`lineItems.${lineItemIndex}.bidStrategy`) || 'Not selected'}
@@ -946,14 +1225,23 @@ useEffect(() => {
                                 />
                               </div>
 
-                              <Button
-                                type="button"
-                                size="default"
-                                onClick={() => handleAppendBurst(lineItemIndex)}
-                                className="self-end mt-4"
-                              >
-                                Add Burst
-                              </Button>
+                              <div className="flex space-x-2 self-end mt-4">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="default"
+                                  onClick={() => handleDuplicateBurst(lineItemIndex)}
+                                >
+                                  Duplicate Burst
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="default"
+                                  onClick={() => handleAppendBurst(lineItemIndex)}
+                                >
+                                  Add Burst
+                                </Button>
+                              </div>
                             </div>
                           </div>
                         </CardContent>
@@ -1239,6 +1527,13 @@ useEffect(() => {
                       </div>
 
                       <CardFooter className="flex justify-end space-x-2 pt-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => handleDuplicateLineItem(lineItemIndex)}
+                        >
+                          Duplicate Line Item
+                        </Button>
                         {lineItemIndex === lineItemFields.length - 1 && (
                           <Button
                             type="button"
@@ -1254,6 +1549,7 @@ useEffect(() => {
                                 fixedCostMedia: false,
                                 clientPaysForMedia: false,
                                 budgetIncludesFees: false,
+                                noadserving: false,
                                 bursts: [
                                   {
                                     budget: "",
@@ -1264,6 +1560,9 @@ useEffect(() => {
                                     fee: 0,
                                   },
                                 ],
+                                totalMedia: 0,
+                                totalDeliverables: 0,
+                                totalFee: 0,
                               })
                             }
                           >

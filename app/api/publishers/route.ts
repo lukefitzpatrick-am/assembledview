@@ -5,6 +5,9 @@ const XANO_PUBLISHERS_BASE_URL = process.env.XANO_PUBLISHERS_BASE_URL || "https:
 
 export async function GET() {
   try {
+    // For now, allow access for development
+    // In production, you would validate the Auth0 session here
+    
     const response = await axios.get(`${XANO_PUBLISHERS_BASE_URL}/get_publishers`)
     return NextResponse.json(response.data)
   } catch (error) {
@@ -15,6 +18,9 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    // For now, allow access for development
+    // In production, you would validate the Auth0 session here
+    
     const body = await req.json()
     const response = await axios.post(`${XANO_PUBLISHERS_BASE_URL}/post_publishers`, body)
     return NextResponse.json(response.data, { status: 201 })

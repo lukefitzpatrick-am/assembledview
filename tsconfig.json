@@ -9,7 +9,8 @@
     "lib": [
       "dom",
       "dom.iterable",
-      "esnext"
+      "esnext",
+      "ES2023"
     ],
     "allowJs": true,
     "skipLibCheck": true,
@@ -27,16 +28,17 @@
         "name": "next"
       }
     ],
-    "target": "ES2017",
+    "target": "ES2023",
     "strictNullChecks": true
   },
   "include": [
-    "next-env.d.ts",
-    ".next/types/**/*.ts",
     "**/*.ts",
-    "**/*.tsx"
+    "**/*.tsx",
+    "next-env.d.ts",
+    ".next/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    ".next"
   ]
 }

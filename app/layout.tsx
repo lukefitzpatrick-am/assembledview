@@ -1,26 +1,22 @@
-import { Inter } from "next/font/google"
-import "./globals.css"
-import { ClientLayout } from "@/components/ClientLayout"
-import type React from "react"
-
-const inter = Inter({ subsets: ["latin"] })
+import "./globals.css";
+import { ClientLayout } from "@/components/ClientLayout";
+import { AuthProvider } from "@/app/providers";
 
 export const metadata = {
-  title: "MediaPlan App",
+  title: "AssembledView",
   description: "Manage mediaplans, clients, and publishers",
-}
+};
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body className={inter.className}>
-        <ClientLayout>{children}</ClientLayout>
+    <html lang="en" suppressHydrationWarning>
+      <body>
+        <AuthProvider>
+          <ClientLayout>{children}</ClientLayout>
+        </AuthProvider>
       </body>
     </html>
-  )
+  );
 }
+
 

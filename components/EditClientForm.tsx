@@ -13,24 +13,36 @@ import { SavingModal } from "@/components/ui/saving-modal"
 import { SuccessModal } from "@/components/ui/success-modal"
 import { Badge } from "@/components/ui/badge"
 
+const optionalString = z.string().optional().or(z.literal(""))
+
 const clientSchema = z.object({
   id: z.number(),
   clientname_input: z.string().min(1, "Client name is required"),
-  clientcategory: z.string().min(1, "Client category is required"),
-  abn: z.string().regex(/^\d{11}$/, "ABN must be exactly 11 digits").optional().or(z.literal("")),
   mbaidentifier: z.string().min(1, "MBA Identifier is required"),
-  legalbusinessname: z.string().optional(),
-  streetaddress: z.string().optional(),
-  suburb: z.string().optional(),
+  clientcategory: optionalString,
+  abn: z.preprocess(
+    (val) => {
+      if (val === null || val === undefined || val === "") return ""
+      return String(val)
+    },
+    z.string().regex(/^[A-Za-z0-9]{11}$/, "ABN must be exactly 11 characters or numbers").optional().or(z.literal(""))
+  ),
+  legalbusinessname: optionalString,
+  streetaddress: optionalString,
+  suburb: optionalString,
   state_dropdown: z.enum(["NSW", "VIC", "QLD", "SA", "WA", "TAS", "ACT"]).optional(),
   postcode: z.number().int().min(1000).max(9999).optional(),
-  keyfirstname: z.string().optional(),
-  keylastname: z.string().optional(),
-  keyphone: z.number().int().positive().optional(),
+  payment_days: z.number().int().positive({
+    message: "Payment days must be a positive whole number",
+  }).optional(),
+  payment_terms: optionalString,
+  keyfirstname: optionalString,
+  keylastname: optionalString,
+  keyphone: z.string().optional(),
   keyemail: z.string().email("Invalid email address").optional().or(z.literal("")),
-  billingfirstname: z.string().optional(),
-  billinglastname: z.string().optional(),
-  billingphone: z.number().int().positive().optional(),
+  billingfirstname: optionalString,
+  billinglastname: optionalString,
+  billingphone: z.string().optional(),
   billingemail: z.string().email("Invalid email address").optional().or(z.literal("")),
   monthlyretainer: z.number().nonnegative().optional(),
   organicsocial: z.number().nonnegative().optional(),
@@ -56,22 +68,32 @@ const clientSchema = z.object({
   adservimp: z.number().nonnegative().optional(),
   adservdisplay: z.number().nonnegative().optional(),
   adservaudio: z.number().nonnegative().optional(),
-  idgoogleads: z.string().optional(),
-  idmeta: z.string().optional(),
-  idcm360: z.string().optional(),
-  iddv360: z.string().optional(),
-  idtiktok: z.string().optional(),
-  idlinkedin: z.string().optional(),
-  idpinterest: z.string().optional(),
-  idquantcast: z.string().optional(),
-  idtaboola: z.string().optional(),
-  idsnapchat: z.string().optional(),
-  idbing: z.string().optional(),
-  idvistar: z.string().optional(),
-  idga4: z.string().optional(),
-  idmerchantcentre: z.string().optional(),
-  idshopify: z.string().optional(),
+  idgoogleads: optionalString,
+  idmeta: optionalString,
+  idcm360: optionalString,
+  iddv360: optionalString,
+  idtiktok: optionalString,
+  idlinkedin: optionalString,
+  idpinterest: optionalString,
+  idquantcast: optionalString,
+  idtaboola: optionalString,
+  idsnapchat: optionalString,
+  idbing: optionalString,
+  idvistar: optionalString,
+  idga4: optionalString,
+  idmerchantcentre: optionalString,
+  idshopify: optionalString,
+  brand_colour: z
+    .string()
+    .regex(/^#?[0-9A-Fa-f]{6}$/, "Brand colour must be a valid 6-digit hex code (e.g. #49C7EB)")
+    .optional()
+    .or(z.literal("")),
 })
+
+const formatHexColour = (value: string) => {
+  const cleaned = value.replace(/[^0-9a-fA-F]/g, "").slice(0, 6)
+  return `#${cleaned}`.toUpperCase().padEnd(7, "0")
+}
 
 type ClientFormValues = z.infer<typeof clientSchema>
 
@@ -84,20 +106,41 @@ export function EditClientForm({ client, onSuccess }: EditClientFormProps) {
   const [isSaving, setIsSaving] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
 
+  // Handle both mp_client_name and clientname_input field names
+  const formData = {
+    ...client,
+    clientname_input: (client as any).mp_client_name || client.clientname_input || '',
+    payment_days: (client as any).payment_days ?? 30,
+    payment_terms: (client as any).payment_terms ?? "",
+    brand_colour: (client as any).brand_colour ?? "#49C7EB",
+    // Convert ABN to string if it comes as a number
+    abn: client.abn ? String(client.abn) : '',
+    // Convert phone numbers to strings to preserve leading zeros
+    keyphone: client.keyphone ? String(client.keyphone) : '',
+    billingphone: client.billingphone ? String(client.billingphone) : '',
+  }
+
   const form = useForm<ClientFormValues>({
     resolver: zodResolver(clientSchema),
-    defaultValues: client,
+    defaultValues: formData,
   })
 
   async function onSubmit(data: ClientFormValues) {
     setIsSaving(true)
     try {
+      // Transform clientname_input to mp_client_name for API
+      const { clientname_input, ...restData } = data
+      const apiPayload = {
+        ...restData,
+        mp_client_name: clientname_input,
+      }
+      
       const response = await fetch(`/api/clients/${data.id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(data),
+        body: JSON.stringify(apiPayload),
       })
 
       if (!response.ok) {
@@ -174,7 +217,7 @@ export function EditClientForm({ client, onSuccess }: EditClientFormProps) {
                       {...field}
                       maxLength={11}
                       onChange={(e) => {
-                        const value = e.target.value.replace(/\D/g, "").slice(0, 11)
+                        const value = e.target.value.replace(/[^A-Za-z0-9]/g, "").slice(0, 11)
                         field.onChange(value)
                       }}
                     />
@@ -300,6 +343,46 @@ export function EditClientForm({ client, onSuccess }: EditClientFormProps) {
             />
           </div>
 
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="payment_days"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>
+                    Payment Days <span className="text-red-500">*</span>
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      type="number"
+                      min={1}
+                      value={field.value ?? 30}
+                      onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="payment_terms"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>
+                    Payment Terms <span className="text-red-500">*</span>
+                  </FormLabel>
+                  <FormControl>
+                    <Input {...field} placeholder="e.g. Net 30 days" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
           <div className="border p-4 rounded-md">
             <h3 className="text-lg font-semibold mb-4">Key Contact</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -340,9 +423,9 @@ export function EditClientForm({ client, onSuccess }: EditClientFormProps) {
                     <FormControl>
                       <Input
                         {...field}
-                        type="number"
-                        value={field.value as number}
-                        onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
+                        type="text"
+                        value={field.value || ""}
+                        onChange={(e) => field.onChange(e.target.value)}
                         placeholder="+61 4XX XXX XXX"
                       />
                     </FormControl>
@@ -407,9 +490,9 @@ export function EditClientForm({ client, onSuccess }: EditClientFormProps) {
                     <FormControl>
                       <Input
                         {...field}
-                        type="number"
-                        value={field.value as number}
-                        onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
+                        type="text"
+                        value={field.value || ""}
+                        onChange={(e) => field.onChange(e.target.value)}
                         placeholder="+61 4XX XXX XXX"
                       />
                     </FormControl>
@@ -596,47 +679,88 @@ export function EditClientForm({ client, onSuccess }: EditClientFormProps) {
 
           <div className="border p-4 rounded-md">
             <h3 className="text-lg font-semibold mb-4">Platform IDs</h3>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {[
-                "googleads",
-                "meta",
-                "cm360",
-                "dv360",
-                "tiktok",
-                "linkedin",
-                "pinterest",
-                "quantcast",
-                "taboola",
-                "snapchat",
-                "bing",
-                "vistar",
-                "ga4",
-                "merchantcentre",
-                "shopify",
+                { key: "googleads", label: "Google Ads" },
+                { key: "meta", label: "Meta" },
+                { key: "cm360", label: "CM360" },
+                { key: "dv360", label: "DV360" },
+                { key: "tiktok", label: "TikTok" },
+                { key: "linkedin", label: "LinkedIn" },
+                { key: "pinterest", label: "Pinterest" },
+                { key: "quantcast", label: "Quantcast" },
+                { key: "taboola", label: "Taboola" },
+                { key: "snapchat", label: "Snapchat" },
+                { key: "bing", label: "Bing" },
+                { key: "vistar", label: "Vistar" },
+                { key: "ga4", label: "GA4" },
+                { key: "merchantcentre", label: "Merchant Centre" },
+                { key: "shopify", label: "Shopify" },
               ].map((platform) => (
                 <FormField
-                  key={platform}
+                  key={platform.key}
                   control={form.control}
-                  name={`id${platform}` as keyof ClientFormValues}
+                  name={`id${platform.key}` as keyof ClientFormValues}
                   render={({ field }) => (
-                    <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                    <FormItem>
+                      <FormLabel>{platform.label}</FormLabel>
                       <FormControl>
-                        <Checkbox
-                          checked={Boolean(field.value)}
-                          onCheckedChange={field.onChange}
+                        <Input
+                          {...field}
+                          value={field.value || ''}
+                          placeholder={`Enter ${platform.label} ID`}
                         />
                       </FormControl>
-                      <div className="space-y-1 leading-none">
-                        <FormLabel>{platform.charAt(0).toUpperCase() + platform.slice(1)}</FormLabel>
-                      </div>
+                      <FormMessage />
                     </FormItem>
                   )}
                 />
               ))}
             </div>
           </div>
+
+          <FormField
+            control={form.control}
+            name="brand_colour"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Brand Colour</FormLabel>
+                <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-4">
+                  <FormControl>
+                    <Input
+                      {...field}
+                      value={field.value?.startsWith("#") ? field.value : `#${field.value}`}
+                      onChange={(e) => field.onChange(formatHexColour(e.target.value))}
+                      placeholder="#49C7EB"
+                      maxLength={7}
+                    />
+                  </FormControl>
+                  <input
+                    type="color"
+                    className="h-10 w-16 rounded border"
+                    value={
+                      field.value?.startsWith("#") ? field.value : `#${field.value}`
+                    }
+                    onChange={(e) => field.onChange(formatHexColour(e.target.value))}
+                  />
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Used for MBA identifier tags.
+                </p>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <div className="flex justify-end gap-4">
+            <Button type="submit" disabled={isSaving}>
+              {isSaving ? "Saving..." : "Save Changes"}
+            </Button>
+          </div>
       </form>
     </Form>
+    <SavingModal isOpen={isSaving} />
+    <SuccessModal isOpen={showSuccess} onClose={() => setShowSuccess(false)} />
     </>
   )
 }

@@ -96,14 +96,14 @@ const searchFormSchema = z.object({
   overallDeliverables: z.number().optional(),
 })
 
-type SearchFormValues = z.infer<typeof searchFormSchema>
+type ProductionFormValues = z.infer<typeof searchFormSchema>
 
 interface Publisher {
   id: number;
   publisher_name: string;
 }
 
-interface SearchContainerProps {
+interface ProductionContainerProps {
   clientId: string;
   feesearch: number;
   onTotalMediaChange: (totalMedia: number, totalFee: number) => void;
@@ -117,8 +117,8 @@ interface SearchContainerProps {
   mediaTypes: string[];
 }
 
-export function getSearchBursts(
-  form: UseFormReturn<SearchFormValues>,
+export function getProductionBursts(
+  form: UseFormReturn<ProductionFormValues>,
   feesearch: number
 ): BillingBurst[] {
   const lineItems = form.getValues("lineItems") || []
@@ -132,22 +132,27 @@ export function getSearchBursts(
       const pct = feesearch || 0
       let feeAmount = 0
 
-      if (li.budgetIncludesFees) {
-        // budget was gross (media+fee)
-        // gross budget: split by percent of gross
-        // fee = budget * pct/100
-        // media = budget * (100 - pct)/100
-        feeAmount   = mediaAmount * (pct / 100)
+      if (li.budgetIncludesFees && li.clientPaysForMedia) {
+        // Both true: budget is gross, extract fee only, mediaAmount = 0
+        // Media = 0
+        // Fees = Budget * (Fee / 100)
+        feeAmount = mediaAmount * (pct / 100)
+        mediaAmount = 0
+      } else if (li.budgetIncludesFees) {
+        // Only budgetIncludesFees: budget is gross, split into media and fee
+        // Media = Budget * ((100 - Fee) / 100)
+        // Fees = Budget * (Fee / 100)
+        feeAmount = mediaAmount * (pct / 100)
         mediaAmount = mediaAmount * ((100 - pct) / 100)
-      } else if (!li.clientPaysForMedia) {
-        // budget is net media, so fee on top
-        // net media budget: media unchanged
-        // fee = (media / (100 - pct)) * pct
-        feeAmount = (mediaAmount / (100 - pct)) * pct
-      } else {
-        // client pays media directly
+      } else if (li.clientPaysForMedia) {
+        // Only clientPaysForMedia: budget is net media, only fee is billed
         feeAmount   = (mediaAmount / (100 - pct)) * pct
         mediaAmount = 0
+      } else {
+        // Neither: budget is net media, fee calculated on top
+        // Media = Budget (unchanged)
+        // Fees = Budget * (Fee / (100 - Fee))
+        feeAmount = (mediaAmount * pct) / (100 - pct)
       }
 
       return {
@@ -264,7 +269,7 @@ export function calculateBurstInvestmentPerMonth(form, feesearch) {
   }));
 }
 
-export default function SearchContainer({
+export default function ProductionContainer({
   clientId,
   feesearch,
   onTotalMediaChange,
@@ -276,7 +281,7 @@ export default function SearchContainer({
   campaignBudget,
   campaignId,
   mediaTypes
-}: SearchContainerProps) {
+}: ProductionContainerProps) {
   // Add refs to track previous values
   const prevInvestmentRef = useRef<{ monthYear: string; amount: string }[]>([]);
   const prevBurstsRef = useRef<BillingBurst[]>([]);
@@ -289,7 +294,7 @@ export default function SearchContainer({
   const [overallDeliverables, setOverallDeliverables] = useState(0);
   
   // Form initialization
-  const form = useForm<SearchFormValues>({
+  const form = useForm<ProductionFormValues>({
     resolver: zodResolver(searchFormSchema),
     defaultValues: {
       lineItems: [
@@ -340,6 +345,8 @@ export default function SearchContainer({
   });
   
   // Memoized calculations
+  // Note: For display purposes, always show media amounts regardless of clientPaysForMedia
+  // The billing schedule will handle excluding media when clientPaysForMedia is true
   const overallTotals = useMemo(() => {
     let overallMedia = 0;
     let overallFee = 0;
@@ -353,12 +360,20 @@ export default function SearchContainer({
     
       lineItem.bursts.forEach((burst) => {
         const budget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0;
+        // Always calculate media for display purposes (ignore clientPaysForMedia)
         if (lineItem.budgetIncludesFees) {
-          lineFee += (budget / 100) * (feesearch || 0);
-          lineMedia += (budget / 100) * (100 - (feesearch || 0));
+          // Budget is gross, split into media and fee
+          // Media = Budget * ((100 - Fee) / 100)
+          // Fees = Budget * (Fee / 100)
+          lineMedia += (budget * (100 - (feesearch || 0))) / 100;
+          lineFee += (budget * (feesearch || 0)) / 100;
         } else {
+          // Budget is net media, fee calculated on top
+          // Media = Budget (unchanged)
+          // Fees = Budget * (Fee / (100 - Fee))
           lineMedia += budget;
-          lineFee = feesearch ? (lineMedia / (100 - feesearch)) * feesearch : 0;
+          const fee = feesearch ? (budget * feesearch) / (100 - feesearch) : 0;
+          lineFee += fee;
         }
         lineDeliverables += burst.calculatedValue || 0;
       });
@@ -431,10 +446,12 @@ export default function SearchContainer({
         calculatedValue = 0;
     }
 
-    if (form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`) !== calculatedValue) {
+    // Only update if the calculated value is actually different to prevent infinite loops
+    const currentValue = form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`);
+    if (currentValue !== calculatedValue && !isNaN(calculatedValue)) {
       form.setValue(`lineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`, calculatedValue, {
-        shouldValidate: true,
-        shouldDirty: true,
+        shouldValidate: false, // Changed to false to prevent validation loops
+        shouldDirty: false,    // Changed to false to prevent dirty state loops
       });
 
       handleLineItemValueChange(lineItemIndex);
@@ -574,7 +591,7 @@ useEffect(() => {
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       const investmentByMonth = calculateInvestmentPerMonth(form, feesearch || 0);
-      const bursts = getSearchBursts(form, feesearch || 0);
+      const bursts = getProductionBursts(form, feesearch || 0);
       
       const hasInvestmentChanges = JSON.stringify(investmentByMonth) !== JSON.stringify(prevInvestmentRef.current);
       const hasBurstChanges = JSON.stringify(bursts) !== JSON.stringify(prevBurstsRef.current);
@@ -610,19 +627,28 @@ useEffect(() => {
         let mediaAmount = 0;
         let feeAmount = 0;
 
-        if (item.budgetIncludesFees) {
-          // budget was gross (media+fee)
-          const base = budget / (1 + (feesearch || 0)/100);
-          feeAmount = budget - base;
-          mediaAmount = base;
-        } else if (!item.clientPaysForMedia) {
-          // budget is net media, so fee on top
-          mediaAmount = budget;
-          feeAmount = (budget * (feesearch || 0)) / 100;
-        } else {
-          // client pays media directly
-          feeAmount = budget;
+        if (item.budgetIncludesFees && item.clientPaysForMedia) {
+          // Both true: budget is gross, extract fee only, mediaAmount = 0
+          // Media = 0
+          // Fees = Budget * (Fee / 100)
+          feeAmount = budget * ((feesearch || 0) / 100);
           mediaAmount = 0;
+        } else if (item.budgetIncludesFees) {
+          // Only budgetIncludesFees: budget is gross, split into media and fee
+          // Media = Budget * ((100 - Fee) / 100)
+          // Fees = Budget * (Fee / 100)
+          mediaAmount = (budget * (100 - (feesearch || 0))) / 100;
+          feeAmount = (budget * (feesearch || 0)) / 100;
+        } else if (item.clientPaysForMedia) {
+          // Only clientPaysForMedia: budget is net media, only fee is billed
+          feeAmount = (budget / (100 - (feesearch || 0))) * (feesearch || 0);
+          mediaAmount = 0;
+        } else {
+          // Neither: budget is net media, fee calculated on top
+          // Media = Budget (unchanged)
+          // Fees = Budget * (Fee / (100 - Fee))
+          mediaAmount = budget;
+          feeAmount = (budget * (feesearch || 0)) / (100 - (feesearch || 0));
         }
 
         const billingBurst: BillingBurst = {

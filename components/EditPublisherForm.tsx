@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { SavingModal } from "@/components/ui/saving-modal"
 
 const publisherSchema = z.object({
   id: z.number(),
@@ -64,7 +65,7 @@ interface EditPublisherFormProps {
 }
 
 export function EditPublisherForm({ publisher, onSuccess }: EditPublisherFormProps) {
-  const [isLoading, setIsLoading] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
 
   const form = useForm<PublisherFormValues>({
     resolver: zodResolver(publisherSchema),
@@ -72,7 +73,7 @@ export function EditPublisherForm({ publisher, onSuccess }: EditPublisherFormPro
   })
 
   async function onSubmit(data: PublisherFormValues) {
-    setIsLoading(true)
+    setIsSaving(true)
     try {
       const response = await fetch(`/api/publishers/${data.id}`, {
         method: "PUT",
@@ -91,7 +92,7 @@ export function EditPublisherForm({ publisher, onSuccess }: EditPublisherFormPro
       console.error("Failed to update publisher:", error)
       // TODO: Show error message to user
     } finally {
-      setIsLoading(false)
+      setIsSaving(false)
     }
   }
 
@@ -262,10 +263,11 @@ export function EditPublisherForm({ publisher, onSuccess }: EditPublisherFormPro
           ))}
         </div>
 
-        <Button type="submit" disabled={isLoading}>
-          {isLoading ? "Updating..." : "Update Publisher"}
+        <Button type="submit" disabled={isSaving}>
+          {isSaving ? "Saving..." : "Update Publisher"}
         </Button>
       </form>
+      <SavingModal isOpen={isSaving} />
     </Form>
   )
 }

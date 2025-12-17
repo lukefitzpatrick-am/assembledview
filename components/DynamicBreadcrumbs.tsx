@@ -23,7 +23,7 @@ export function DynamicBreadcrumbs() {
       <Breadcrumb>
         <BreadcrumbList>
           <BreadcrumbItem className="hidden md:block">
-            <BreadcrumbLink href="/">MediaPlan App</BreadcrumbLink>
+            <BreadcrumbLink href="/">Assembled View</BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbSeparator className="hidden md:block" />
           <BreadcrumbItem>
@@ -46,7 +46,7 @@ export function DynamicBreadcrumbs() {
     <Breadcrumb>
       <BreadcrumbList>
         <BreadcrumbItem className="hidden md:block">
-          <BreadcrumbLink href="/">MediaPlan App</BreadcrumbLink>
+          <BreadcrumbLink href="/">Assembled View</BreadcrumbLink>
         </BreadcrumbItem>
         {segments.map((segment, index) => {
           const href = `/${segments.slice(0, index + 1).join('/')}`
