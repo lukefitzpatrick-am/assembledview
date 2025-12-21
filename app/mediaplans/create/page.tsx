@@ -53,7 +53,7 @@ import {
   saveInfluencersLineItems
 } from "@/lib/api"
 import { checkMediaDatesOutsideCampaign } from "@/lib/utils/mediaPlanValidation"
-import { toMelbourneDateISOString } from "@/lib/timezone"
+import { toMelbourneDateString } from "@/lib/timezone"
 
 const mediaPlanSchema = z.object({
   mp_client_name: z.string().min(1, "Client name is required"),
@@ -1246,8 +1246,8 @@ export default function CreateMediaPlan() {
         mp_brand: fv.mp_brand,
         mp_ponumber: fv.mp_ponumber,
         mp_plannumber: fv.mp_plannumber,
-        mp_campaigndates_start: toMelbourneDateISOString(fv.mp_campaigndates_start),
-        mp_campaigndates_end: toMelbourneDateISOString(fv.mp_campaigndates_end),
+        mp_campaigndates_start: toMelbourneDateString(fv.mp_campaigndates_start),
+        mp_campaigndates_end: toMelbourneDateString(fv.mp_campaigndates_end),
         clientAddress: clientAddress,
         clientSuburb: clientSuburb,
         clientState: clientState,
@@ -2328,8 +2328,8 @@ export default function CreateMediaPlan() {
         mba_number:           fv.mba_number || "",
         campaign_name:        fv.mp_campaignname || "",
         campaign_status:      fv.mp_campaignstatus || "Draft",
-        campaign_start_date:  toMelbourneDateISOString(fv.mp_campaigndates_start),
-        campaign_end_date:    toMelbourneDateISOString(fv.mp_campaigndates_end),
+        campaign_start_date:  toMelbourneDateString(fv.mp_campaigndates_start),
+        campaign_end_date:    toMelbourneDateString(fv.mp_campaigndates_end),
         brand:                fv.mp_brand || "",
         client_name:          clientName,
         client_contact:       fv.mp_clientcontact || "",

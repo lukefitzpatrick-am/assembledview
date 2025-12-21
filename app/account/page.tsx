@@ -31,7 +31,7 @@ export default function AccountPage() {
 
   useEffect(() => {
     if (mounted && !isLoading && !user) {
-      router.push('/api/auth/login');
+      router.push('/api/auth/login?returnTo=/dashboard');
     }
   }, [mounted, isLoading, user, router]);
 
@@ -65,7 +65,7 @@ export default function AccountPage() {
 
   const handlePasswordChange = () => {
     // Redirect to Auth0's password change flow
-    window.open(`${process.env.NEXT_PUBLIC_AUTH0_BASE_URL || 'http://localhost:3000'}/api/auth/login?screen_hint=signup`, '_blank');
+    window.open(`${process.env.NEXT_PUBLIC_AUTH0_BASE_URL || 'http://localhost:3000'}/api/auth/login?screen_hint=signup&returnTo=/dashboard`, '_blank');
   };
 
   const handleProfileEdit = () => {

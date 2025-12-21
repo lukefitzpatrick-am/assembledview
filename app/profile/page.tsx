@@ -22,7 +22,7 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (mounted && !isLoading && !user) {
-      router.push('/api/auth/login');
+      router.push('/api/auth/login?returnTo=/dashboard');
     }
   }, [mounted, isLoading, user, router]);
 
@@ -169,7 +169,7 @@ export default function ProfilePage() {
               <Button 
                 variant="outline" 
                 className="w-full"
-                onClick={() => window.open('/api/auth/login?screen_hint=signup', '_blank')}
+                onClick={() => window.open('/api/auth/login?screen_hint=signup&returnTo=/dashboard', '_blank')}
               >
                 Change Password
               </Button>

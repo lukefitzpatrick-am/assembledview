@@ -107,13 +107,13 @@ export default function HomePage() {
 
             <div className="space-y-3">
               <a
-                href="/api/auth/login"
+                href="/api/auth/login?returnTo=/dashboard"
                 className="inline-flex w-full h-11 items-center justify-center rounded-md bg-black text-white hover:bg-gray-800"
               >
                 Log in
               </a>
               <a
-                href="/api/auth/login?screen_hint=reset_password"
+                href="/api/auth/login?screen_hint=reset_password&returnTo=/dashboard"
                 className="inline-flex w-full h-11 items-center justify-center rounded-md border border-gray-300 hover:bg-gray-50 text-gray-700"
               >
                 Reset Password

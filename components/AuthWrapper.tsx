@@ -9,7 +9,7 @@ export function useUser() {
   const router = useRouter();
 
   const login = () => {
-    router.push('/api/auth/login');
+    router.push('/api/auth/login?returnTo=/dashboard');
   };
 
   const logout = () => {

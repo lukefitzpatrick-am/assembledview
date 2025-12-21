@@ -433,7 +433,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (mounted && !isLoading && !user) {
-      router.push('/api/auth/login')
+      router.push('/api/auth/login?returnTo=/dashboard')
     }
   }, [mounted, isLoading, user, router])
 

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import axios from "axios"
-import { toMelbourneDateISOString } from "@/lib/timezone"
+import { toMelbourneDateString } from "@/lib/timezone"
 
 type MediaLineItems = {
   television: any[]
@@ -636,8 +636,8 @@ export async function PUT(
     
     const campaignStartDate = data.mp_campaigndates_start ?? masterData.campaign_start_date
     const campaignEndDate = data.mp_campaigndates_end ?? masterData.campaign_end_date
-    const normalizedCampaignStartDate = campaignStartDate ? toMelbourneDateISOString(campaignStartDate) : campaignStartDate
-    const normalizedCampaignEndDate = campaignEndDate ? toMelbourneDateISOString(campaignEndDate) : campaignEndDate
+    const normalizedCampaignStartDate = campaignStartDate ? toMelbourneDateString(campaignStartDate) : campaignStartDate
+    const normalizedCampaignEndDate = campaignEndDate ? toMelbourneDateString(campaignEndDate) : campaignEndDate
 
     // Format the data to match the media_plan_versions schema
     const newVersionData = {
@@ -836,12 +836,12 @@ export async function PATCH(
     }
     if (data.campaign_start_date !== undefined) {
       masterUpdateData.campaign_start_date = data.campaign_start_date
-        ? toMelbourneDateISOString(data.campaign_start_date)
+        ? toMelbourneDateString(data.campaign_start_date)
         : data.campaign_start_date
     }
     if (data.campaign_end_date !== undefined) {
       masterUpdateData.campaign_end_date = data.campaign_end_date
-        ? toMelbourneDateISOString(data.campaign_end_date)
+        ? toMelbourneDateString(data.campaign_end_date)
         : data.campaign_end_date
     }
     if (data.mp_campaignbudget !== undefined) {

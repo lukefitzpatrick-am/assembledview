@@ -72,7 +72,7 @@ import { buildBillingScheduleJSON } from "@/lib/billing/buildBillingSchedule"
 import { generateMediaPlan, MediaPlanHeader, LineItem, MediaItems } from '@/lib/generateMediaPlan'
 import { saveAs } from 'file-saver'
 import { filterLineItemsByPlanNumber } from '@/lib/api/mediaPlanVersionHelper'
-import { toMelbourneDateISOString } from "@/lib/timezone"
+import { toMelbourneDateString } from "@/lib/timezone"
 
 
 // Define media type keys as a const array
@@ -2361,8 +2361,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           body: JSON.stringify({
             mp_campaignname: formValues.mp_campaignname,
             campaign_status: formValues.mp_campaignstatus,
-            campaign_start_date: toMelbourneDateISOString(formValues.mp_campaigndates_start),
-            campaign_end_date: toMelbourneDateISOString(formValues.mp_campaigndates_end),
+            campaign_start_date: toMelbourneDateString(formValues.mp_campaigndates_start),
+            campaign_end_date: toMelbourneDateString(formValues.mp_campaigndates_end),
             mp_campaignbudget: formValues.mp_campaignbudget,
           })
         })
@@ -3189,8 +3189,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         mp_brand: fv.mp_brand,
         mp_ponumber: fv.mp_ponumber,
         mp_plannumber: (mediaPlan?.version_number || 1).toString(),
-        mp_campaigndates_start: toMelbourneDateISOString(fv.mp_campaigndates_start),
-        mp_campaigndates_end: toMelbourneDateISOString(fv.mp_campaigndates_end),
+        mp_campaigndates_start: toMelbourneDateString(fv.mp_campaigndates_start),
+        mp_campaigndates_end: toMelbourneDateString(fv.mp_campaigndates_end),
         clientAddress: clientAddress,
         clientSuburb: clientSuburb,
         clientState: clientState,

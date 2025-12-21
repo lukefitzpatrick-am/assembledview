@@ -1,4 +1,4 @@
-import { toMelbourneDateISOString } from "@/lib/timezone"
+import { toMelbourneDateString } from "@/lib/timezone"
 
 const PUBLISHERS_BASE_URL = process.env.XANO_PUBLISHERS_BASE_URL || "https://xg4h-uyzs-dtex.a2.xano.io/api:YkRK8qLP"
 const CLIENTS_BASE_URL = process.env.XANO_CLIENTS_BASE_URL || "https://xg4h-uyzs-dtex.a2.xano.io/api:9v_k2NR8"
@@ -611,8 +611,8 @@ export async function createMediaPlan(data: {
         mp_client_name: data.mp_client_name,
         mp_campaignname: data.mp_campaignname,
         mbanumber: data.mba_number,
-        mp_campaigndates_start: toMelbourneDateISOString(data.mp_campaigndates_start),
-        mp_campaigndates_end: toMelbourneDateISOString(data.mp_campaigndates_end),
+        mp_campaigndates_start: toMelbourneDateString(data.mp_campaigndates_start),
+        mp_campaigndates_end: toMelbourneDateString(data.mp_campaigndates_end),
         mp_campaignstatus: data.mp_campaignstatus,
         mp_campaignbudget: data.mp_campaignbudget,
         mp_plannumber: data.mp_plannumber,
@@ -1786,7 +1786,7 @@ function extractAndFormatBursts(lineItem: any): any[] {
   // Preserve all original fields while ensuring standard fields are properly formatted
   const formatBurstDate = (value: any) => {
     if (!value) return "";
-    if (value instanceof Date) return toMelbourneDateISOString(value);
+    if (value instanceof Date) return toMelbourneDateString(value);
     return value;
   };
 

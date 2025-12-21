@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import axios from "axios"
-import { toMelbourneDateISOString } from "@/lib/timezone"
+import { toMelbourneDateString } from "@/lib/timezone"
 
 const XANO_MEDIAPLANS_BASE_URL = process.env.XANO_MEDIAPLANS_BASE_URL || "https://xg4h-uyzs-dtex.a2.xano.io/api:QVYjoFmM"
 const MEDIA_PLANS_VERSIONS_URL = "https://xg4h-uyzs-dtex.a2.xano.io/api:RaUx9FOa"
@@ -21,8 +21,8 @@ export async function POST(request: Request) {
       mp_campaignname: data.mp_campaignname,
       version_number: 1, // Always 1 for new media plans created from create page
       campaign_status: data.mp_campaignstatus || "Draft",
-      campaign_start_date: data.mp_campaigndates_start ? toMelbourneDateISOString(data.mp_campaigndates_start) : data.mp_campaigndates_start,
-      campaign_end_date: data.mp_campaigndates_end ? toMelbourneDateISOString(data.mp_campaigndates_end) : data.mp_campaigndates_end,
+      campaign_start_date: data.mp_campaigndates_start ? toMelbourneDateString(data.mp_campaigndates_start) : data.mp_campaigndates_start,
+      campaign_end_date: data.mp_campaigndates_end ? toMelbourneDateString(data.mp_campaigndates_end) : data.mp_campaigndates_end,
       mp_campaignbudget: data.mp_campaignbudget
     }
 

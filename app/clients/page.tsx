@@ -58,7 +58,7 @@ export default function Clients() {
 
   useEffect(() => {
     if (mounted && !isLoading && !user) {
-      router.push('/api/auth/login');
+      router.push('/api/auth/login?returnTo=/dashboard');
     } else if (mounted && user && !hasRole(user, ['admin', 'manager'])) {
       // Temporarily allow access for debugging - remove this in production
       console.log('User does not have required roles, but allowing access for debugging');
