@@ -109,7 +109,7 @@ export async function getUserWithRoles(): Promise<{ user: User; roles: string[] 
 
 // Redirect to login with return URL (defaults to dashboard)
 export function redirectToLogin(returnTo: string = '/dashboard'): NextResponse {
-  const loginUrl = new URL('/api/auth/login', process.env.AUTH0_BASE_URL || 'http://localhost:3000');
+  const loginUrl = new URL('/auth/login', process.env.AUTH0_BASE_URL || 'http://localhost:3000');
   if (returnTo) {
     loginUrl.searchParams.set('returnTo', returnTo);
   }

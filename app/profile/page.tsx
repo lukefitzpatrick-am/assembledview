@@ -22,7 +22,7 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (mounted && !isLoading && !user) {
-      router.push('/api/auth/login?returnTo=/dashboard');
+      router.push('/auth/login?returnTo=/dashboard');
     }
   }, [mounted, isLoading, user, router]);
 
@@ -63,7 +63,7 @@ export default function ProfilePage() {
           <h1 className="text-3xl font-bold">Profile</h1>
           <Button 
             variant="outline" 
-            onClick={() => window.location.href = '/api/auth/logout'}
+            onClick={() => window.location.href = '/auth/logout'}
           >
             Sign Out
           </Button>
@@ -169,7 +169,7 @@ export default function ProfilePage() {
               <Button 
                 variant="outline" 
                 className="w-full"
-                onClick={() => window.open('/api/auth/login?screen_hint=signup&returnTo=/dashboard', '_blank')}
+                onClick={() => window.open('/auth/login?screen_hint=signup&returnTo=/dashboard', '_blank')}
               >
                 Change Password
               </Button>
