@@ -872,15 +872,17 @@ const getBursts = () => {
                                   : totalMedia + (totalMedia / (100 - (feeinfluencers || 0))) * (feeinfluencers || 0)
                               )}
                             </div>
-                            <Button 
-                              type="button" 
+                            <Button
+                              type="button"
                               variant="outline" 
                               size="sm"
                               onClick={() => {
                                 const element = document.getElementById(`line-item-${lineItemIndex}`);
-                                if (element) {
-                                  element.classList.toggle('hidden');
-                                }
+                                const bursts = document.getElementById(`line-item-${lineItemIndex}-bursts`);
+                                const footer = document.getElementById(`line-item-${lineItemIndex}-footer`);
+                                element?.classList.toggle('hidden');
+                                bursts?.classList.toggle('hidden');
+                                footer?.classList.toggle('hidden');
                               }}
                             >
                               <ChevronDown className="h-4 w-4" />
@@ -1105,8 +1107,8 @@ const getBursts = () => {
                         </CardContent>
                       </div>
 
-                          {/* Bursts Section */}
-                      <div className="space-y-4">
+                      {/* Bursts Section */}
+                      <div id={`line-item-${lineItemIndex}-bursts`} className="space-y-4">
                         {form.watch(`lineItems.${lineItemIndex}.bursts`, []).map((burstField, burstIndex) => {
                           return (
                             <Card key={`${lineItemIndex}-${burstIndex}`} className="border border-gray-200">
@@ -1384,7 +1386,7 @@ const getBursts = () => {
                         })}
                       </div>
 
-                      <CardFooter className="flex justify-end space-x-2 pt-2">
+                      <CardFooter id={`line-item-${lineItemIndex}-footer`} className="flex justify-end space-x-2 pt-2">
                         {lineItemIndex === lineItemFields.length - 1 && (
                           <Button
                             type="button"

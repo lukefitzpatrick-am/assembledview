@@ -503,10 +503,16 @@ export default function DigiDisplayContainer({
         }];
 
         return {
+          platform: item.publisher || item.platform || "",
+          publisher: item.publisher || item.platform || "",
           site: item.site || "",
           placement: item.placement || "",
           size: item.size || "",
           buyType: item.buy_type || "",
+          creativeTargeting: item.creative_targeting || item.targeting_attribute || "",
+          creative: item.creative || "",
+          buyingDemo: item.buying_demo || "",
+          market: item.market || "",
           targetingAttribute: item.targeting_attribute || "",
           fixedCostMedia: item.fixed_cost_media || false,
           clientPaysForMedia: item.client_pays_for_media || false,
@@ -549,7 +555,8 @@ export default function DigiDisplayContainer({
         mba_number: mbaNumber || "",
         mp_client_name: "",
         mp_plannumber: "",
-        publisher: lineItem.publisher || "",
+        platform: lineItem.platform || lineItem.publisher || "",
+        publisher: lineItem.publisher || lineItem.platform || "",
         site: lineItem.site || "",
         buy_type: lineItem.buyType || "",
         creative_targeting: lineItem.creativeTargeting || "",
@@ -1146,42 +1153,41 @@ useEffect(() => {
                         </div>
                       </div>
                       
-                      {/* Detailed Content - Collapsible */}
-                      <div
-                        id={`line-item-${lineItemIndex}`}
-                        className="bg-white rounded-xl shadow p-6 mb-6"
-                      >
-                        <CardContent className="space-y-6">
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                            
-                            {/* Column 1 - Dropdowns */}
-                            <div className="space-y-4">
-                            <FormField
-                                control={form.control}
-                                name={`digidisplaylineItems.${lineItemIndex}.platform`}
-                                render={({ field }) => (
-                                  <FormItem className="flex items-center space-x-2">
-                                    <FormLabel className="w-24 text-sm">Publisher</FormLabel>
-                                     <Select onValueChange={(value) => {
-                                      field.onChange(value);
-                                       }} defaultValue={field.value}>
-                                      <FormControl>
-                                        <SelectTrigger className="h-9 w-full flex-1 rounded-md border">
-                                          <SelectValue placeholder="Select Publisher" />
-                                        </SelectTrigger>
-                                      </FormControl>
-                                      <SelectContent>
-                                        {publishers.map((publisher) => (
-                                          <SelectItem key={publisher.id} value={publisher.publisher_name}>
-                                            {publisher.publisher_name}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                    <FormMessage />
-                                  </FormItem>
-                                )}
-                              />
+                      {/* Detailed Content & Bursts - Collapsible */}
+                      <div id={`line-item-${lineItemIndex}`} className="space-y-6">
+                        <div className="bg-white rounded-xl shadow p-6 mb-6">
+                          <CardContent className="space-y-6">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                              
+                              {/* Column 1 - Dropdowns */}
+                              <div className="space-y-4">
+                              <FormField
+                                  control={form.control}
+                                  name={`digidisplaylineItems.${lineItemIndex}.platform`}
+                                  render={({ field }) => (
+                                    <FormItem className="flex items-center space-x-2">
+                                      <FormLabel className="w-24 text-sm">Publisher</FormLabel>
+                                       <Select onValueChange={(value) => {
+                                        field.onChange(value);
+                                        form.setValue(`digidisplaylineItems.${lineItemIndex}.publisher`, value, { shouldValidate: false });
+                                         }} defaultValue={field.value}>
+                                        <FormControl>
+                                          <SelectTrigger className="h-9 w-full flex-1 rounded-md border">
+                                            <SelectValue placeholder="Select Publisher" />
+                                          </SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent>
+                                          {publishers.map((publisher) => (
+                                            <SelectItem key={publisher.id} value={publisher.publisher_name}>
+                                              {publisher.publisher_name}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
 
                               <FormField
                                 control={form.control}
@@ -1683,51 +1689,52 @@ useEffect(() => {
                         })}
                       </div>
 
-                      <CardFooter className="flex justify-end space-x-2 pt-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => handleDuplicateLineItem(lineItemIndex)}
-                        >
-                          Duplicate Line Item
-                        </Button>
-                        {lineItemIndex === lineItemFields.length - 1 && (
+                        <CardFooter className="flex justify-end space-x-2 pt-2">
                           <Button
                             type="button"
-                            onClick={() =>
-                              appendLineItem({
-                                platform: "",
-                                site: "",
-                                buyType: "",
-                                publisher: "",
-                                creativeTargeting: "",
-                                creative: "",
-                                buyingDemo: "",
-                                market: "",
-                                fixedCostMedia: false,
-                                clientPaysForMedia: false,
-                                budgetIncludesFees: false,
-                                noadserving: false,
-                                bursts: [
-                                  {
-                                    budget: "",
-                                    buyAmount: "",
-                                    startDate: new Date(),
-                                    endDate: new Date(),
-                                    calculatedValue: 0,
-                                    fee: 0,
-                                  },
-                                ],
-                              })
-                            }
+                            variant="outline"
+                            onClick={() => handleDuplicateLineItem(lineItemIndex)}
                           >
-                            Add Line Item
+                            Duplicate Line Item
                           </Button>
-                        )}
-                        <Button type="button" variant="destructive" onClick={() => removeLineItem(lineItemIndex)}>
-                          Remove Line Item
-                        </Button>
-                      </CardFooter>
+                          {lineItemIndex === lineItemFields.length - 1 && (
+                            <Button
+                              type="button"
+                              onClick={() =>
+                                appendLineItem({
+                                  platform: "",
+                                  site: "",
+                                  buyType: "",
+                                  publisher: "",
+                                  creativeTargeting: "",
+                                  creative: "",
+                                  buyingDemo: "",
+                                  market: "",
+                                  fixedCostMedia: false,
+                                  clientPaysForMedia: false,
+                                  budgetIncludesFees: false,
+                                  noadserving: false,
+                                  bursts: [
+                                    {
+                                      budget: "",
+                                      buyAmount: "",
+                                      startDate: new Date(),
+                                      endDate: new Date(),
+                                      calculatedValue: 0,
+                                      fee: 0,
+                                    },
+                                  ],
+                                })
+                              }
+                            >
+                              Add Line Item
+                            </Button>
+                          )}
+                          <Button type="button" variant="destructive" onClick={() => removeLineItem(lineItemIndex)}>
+                            Remove Line Item
+                          </Button>
+                        </CardFooter>
+                      </div>
                     </Card>
                   );
                 })}
