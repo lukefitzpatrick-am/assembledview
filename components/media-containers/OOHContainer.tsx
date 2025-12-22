@@ -784,22 +784,32 @@ useEffect(() => {
   // convert each form lineItem into the shape needed for Excel
   // Use watchedLineItems to ensure we get the latest values including format and type
   // @ts-ignore - Type mismatch between form and schema
+  const calculatedBursts = getOohBursts(form, feeooh || 0);
+  let burstIndex = 0;
+
   const items: LineItem[] = (watchedLineItems || []).flatMap(lineItem =>
-    lineItem.bursts.map(burst => ({
-      market: lineItem.market || "",                                // or fixed value
-      network: lineItem.network || "",
-      oohFormat: lineItem.format || "",
-      oohType: lineItem.type || "",
-      buyType: lineItem.buyType || "",
-      placement: lineItem.placement || "",
-      size: lineItem.size || "",
-      buyingDemo: lineItem.buyingDemo || "",
-      startDate: formatDateString(burst.startDate),
-      endDate:   formatDateString(burst.endDate),
-      deliverables: burst.calculatedValue ?? 0,
-      deliverablesAmount: burst.budget,
-      grossMedia: (parseFloat(String(burst.budget).replace(/[^0-9.-]+/g,"")) || 0).toFixed(2),
-    }))
+    lineItem.bursts.map(burst => {
+      const computedBurst = calculatedBursts[burstIndex++];
+      const mediaAmount = computedBurst
+        ? computedBurst.mediaAmount
+        : parseFloat(String(burst.budget).replace(/[^0-9.-]+/g, "")) || 0;
+
+      return {
+        market: lineItem.market || "",                                // or fixed value
+        network: lineItem.network || "",
+        oohFormat: lineItem.format || "",
+        oohType: lineItem.type || "",
+        buyType: lineItem.buyType || "",
+        placement: lineItem.placement || "",
+        size: lineItem.size || "",
+        buyingDemo: lineItem.buyingDemo || "",
+        startDate: formatDateString(burst.startDate),
+        endDate:   formatDateString(burst.endDate),
+        deliverables: burst.calculatedValue ?? 0,
+        deliverablesAmount: burst.budget,
+        grossMedia: mediaAmount.toFixed(2),
+      };
+    })
   );
   
   // push it up to page.tsx

@@ -131,6 +131,17 @@ export function AppSidebar() {
                   </SidebarMenuSub>
                 )}
               </SidebarMenuItem>
+
+              <SidebarSeparator />
+
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild>
+                  <Link href="/admin/users/new" className="flex items-center">
+                    <UserCircle className="mr-2 h-4 w-4" />
+                    <span>Admin User Enrolment</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

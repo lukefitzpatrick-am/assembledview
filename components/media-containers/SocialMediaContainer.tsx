@@ -877,10 +877,19 @@ useEffect(() => {
   )
 }, [overallTotals.overallMedia, overallTotals.overallFee]) // Removed onTotalMediaChange dependency to prevent infinite loops
 
-  useEffect(() => {
-    // convert each form lineItem into the shape needed for Excel
-    const items: LineItem[] = form.getValues('lineItems').flatMap(lineItem =>
-      lineItem.bursts.map(burst => ({
+useEffect(() => {
+  // convert each form lineItem into the shape needed for Excel
+  const calculatedBursts = getSocialMediaBursts(form, feesocial || 0);
+  let burstIndex = 0;
+
+  const items: LineItem[] = form.getValues('lineItems').flatMap(lineItem =>
+    lineItem.bursts.map(burst => {
+      const computedBurst = calculatedBursts[burstIndex++];
+      const mediaAmount = computedBurst
+        ? computedBurst.mediaAmount
+        : parseFloat(String(burst.budget).replace(/[^0-9.-]+/g, "")) || 0;
+
+      return {
         market: lineItem.market,                                // or fixed value
         platform: lineItem.platform,
         bidStrategy: lineItem.bidStrategy,
@@ -892,11 +901,12 @@ useEffect(() => {
         buyingDemo:   lineItem.buyingDemo,
         buyType:      lineItem.buyType,
         deliverablesAmount: burst.budget,
-        grossMedia: (parseFloat(String(burst.budget).replace(/[^0-9.-]+/g,"")) || 0).toFixed(2),
-      }))
-    );
+        grossMedia: mediaAmount.toFixed(2),
+      };
+    })
+  );
 
-    // push it up to page.tsx
+  // push it up to page.tsx
   onLineItemsChange(items);
 }, [watchedLineItems, feesocial]);
 

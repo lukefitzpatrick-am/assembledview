@@ -86,6 +86,45 @@ export function filterLineItemsByPlanNumber(
   versionNumber: string,
   mediaType: string
 ): any[] {
+  // Sorting helper to enforce deterministic order by line item number
+  const sortByLineItemNumber = (items: any[]) => {
+    const getLineItemNumber = (item: any): number => {
+      // Prefer explicit line_item field
+      if (item?.line_item !== undefined && item?.line_item !== null) {
+        const parsed = typeof item.line_item === 'string'
+          ? parseInt(item.line_item, 10)
+          : item.line_item;
+        if (!Number.isNaN(parsed)) return parsed;
+      }
+
+      // Fallback: extract trailing digits from line_item_id
+      if (typeof item?.line_item_id === 'string') {
+        const match = item.line_item_id.match(/(\d+)(?!.*\d)/);
+        if (match) {
+          const parsed = parseInt(match[1], 10);
+          if (!Number.isNaN(parsed)) return parsed;
+        }
+      }
+
+      return Number.POSITIVE_INFINITY;
+    };
+
+    return [...items]
+      .map((item, index) => ({
+        item,
+        index,
+        lineItemNumber: getLineItemNumber(item)
+      }))
+      .sort((a, b) => {
+        if (a.lineItemNumber !== b.lineItemNumber) {
+          return a.lineItemNumber - b.lineItemNumber;
+        }
+        // Stable fallback by original order
+        return a.index - b.index;
+      })
+      .map(({ item }) => item);
+  };
+
   // Normalize version number for comparison (handle both string and number)
   const normalizedVersionNumber = typeof versionNumber === 'string' 
     ? parseInt(versionNumber, 10) 
@@ -122,7 +161,7 @@ export function filterLineItemsByPlanNumber(
     console.log(`[${mediaType}] Kept ${filteredData.length} items matching mba_number=${mbaNumber} and version=${normalizedVersionNumber}`);
   }
   
-  return filteredData;
+  return sortByLineItemNumber(filteredData);
 }
 
 

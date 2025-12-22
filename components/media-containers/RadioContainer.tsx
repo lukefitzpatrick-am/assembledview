@@ -974,23 +974,33 @@ useEffect(() => {
 
   useEffect(() => {
   // convert each form lineItem into the shape needed for Excel
+  const calculatedBursts = getRadioBursts(form, feeradio || 0);
+  let burstIndex = 0;
+
   const items: LineItem[] = form.getValues('radiolineItems').flatMap(lineItem =>
-    lineItem.bursts.map(burst => ({
-      market: lineItem.market,                                // or fixed value
-      network: lineItem.network,
-      station: lineItem.station,
-      bidStrategy: lineItem.bidStrategy,
-      placement: lineItem.placement,
-      creative:   lineItem.format,
-      duration:   lineItem.duration,
-      startDate: formatDateString(burst.startDate),
-      endDate:   formatDateString(burst.endDate),
-      deliverables: burst.calculatedValue ?? 0,
-      buyingDemo:   lineItem.buyingDemo,
-      buyType:      lineItem.buyType,
-      deliverablesAmount: burst.budget,
-      grossMedia: (parseFloat(String(burst.budget).replace(/[^0-9.-]+/g,"")) || 0).toFixed(2),
-    }))
+    lineItem.bursts.map(burst => {
+      const computedBurst = calculatedBursts[burstIndex++];
+      const mediaAmount = computedBurst
+        ? computedBurst.mediaAmount
+        : parseFloat(String(burst.budget).replace(/[^0-9.-]+/g, "")) || 0;
+
+      return {
+        market: lineItem.market,                                // or fixed value
+        network: lineItem.network,
+        station: lineItem.station,
+        bidStrategy: lineItem.bidStrategy,
+        placement: lineItem.placement,
+        creative:   lineItem.format,
+        duration:   lineItem.duration,
+        startDate: formatDateString(burst.startDate),
+        endDate:   formatDateString(burst.endDate),
+        deliverables: burst.calculatedValue ?? 0,
+        buyingDemo:   lineItem.buyingDemo,
+        buyType:      lineItem.buyType,
+        deliverablesAmount: burst.budget,
+        grossMedia: mediaAmount.toFixed(2),
+      };
+    })
   );
   
   // push it up to page.tsx

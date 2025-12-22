@@ -877,24 +877,34 @@ useEffect(() => {
 
 useEffect(() => {
   // convert each form lineItem into the shape needed for Excel
+  const calculatedBursts = getNewspapersBursts(form, feenewspapers || 0);
+  let burstIndex = 0;
+
   const items: LineItem[] = form.getValues('newspaperlineItems').flatMap(lineItem =>
-    lineItem.bursts.map(burst => ({
-      market: lineItem.market || "",                                // or fixed value
-      network: lineItem.network,
-      title: lineItem.title,
-      size: lineItem.size,
-      placement: lineItem.placement || "",
-      buyingDemo: lineItem.buyingDemo || "",
-      fixedCostMedia: lineItem.fixedCostMedia || false,
-      clientPaysForMedia: lineItem.clientPaysForMedia || false,
-      budgetIncludesFees: lineItem.budgetIncludesFees || false,
-      startDate: formatDateString(burst.startDate),
-      endDate:   formatDateString(burst.endDate),
-      deliverables: burst.calculatedValue ?? 0,
-      buyType:      lineItem.buyType,
-      deliverablesAmount: burst.budget,
-      grossMedia: (parseFloat(String(burst.budget).replace(/[^0-9.-]+/g,"")) || 0).toFixed(2),
-    }))
+    lineItem.bursts.map(burst => {
+      const computedBurst = calculatedBursts[burstIndex++];
+      const mediaAmount = computedBurst
+        ? computedBurst.mediaAmount
+        : parseFloat(String(burst.budget).replace(/[^0-9.-]+/g, "")) || 0;
+
+      return {
+        market: lineItem.market || "",                                // or fixed value
+        network: lineItem.network,
+        title: lineItem.title,
+        size: lineItem.size,
+        placement: lineItem.placement || "",
+        buyingDemo: lineItem.buyingDemo || "",
+        fixedCostMedia: lineItem.fixedCostMedia || false,
+        clientPaysForMedia: lineItem.clientPaysForMedia || false,
+        budgetIncludesFees: lineItem.budgetIncludesFees || false,
+        startDate: formatDateString(burst.startDate),
+        endDate:   formatDateString(burst.endDate),
+        deliverables: burst.calculatedValue ?? 0,
+        buyType:      lineItem.buyType,
+        deliverablesAmount: burst.budget,
+        grossMedia: mediaAmount.toFixed(2),
+      };
+    })
   );
   
   // push it up to page.tsx

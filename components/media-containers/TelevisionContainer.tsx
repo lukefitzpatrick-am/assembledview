@@ -885,24 +885,34 @@ useEffect(() => {
 
 useEffect(() => {
   // convert each form lineItem into the shape needed for Excel
+  const calculatedBursts = getTelevisionBursts(form, feetelevision || 0);
+  let burstIndex = 0;
+
   const items: LineItem[] = form.getValues('televisionlineItems').flatMap(lineItem =>
-    lineItem.bursts.map(burst => ({
-      market: lineItem.market,                                // or fixed value
-      network: lineItem.network,
-      station: lineItem.station,
-      daypart: lineItem.daypart,
-      placement: lineItem.placement,
-      bidStrategy: lineItem.bidStrategy,
-      creative: lineItem.creative,
-      size: burst.size, // Add the size field from burst
-      startDate: formatDateString(burst.startDate),
-      endDate:   formatDateString(burst.endDate),
-      deliverables: burst.tarps ?? 0,
-      buyingDemo:   lineItem.buyingDemo,
-      buyType:      lineItem.buyType,
-      deliverablesAmount: burst.budget,
-      grossMedia: (parseFloat(String(burst.budget).replace(/[^0-9.-]+/g,"")) || 0).toFixed(2),
-    }))
+    lineItem.bursts.map(burst => {
+      const computedBurst = calculatedBursts[burstIndex++];
+      const mediaAmount = computedBurst
+        ? computedBurst.mediaAmount
+        : parseFloat(String(burst.budget).replace(/[^0-9.-]+/g, "")) || 0;
+
+      return {
+        market: lineItem.market,                                // or fixed value
+        network: lineItem.network,
+        station: lineItem.station,
+        daypart: lineItem.daypart,
+        placement: lineItem.placement,
+        bidStrategy: lineItem.bidStrategy,
+        creative: lineItem.creative,
+        size: burst.size, // Add the size field from burst
+        startDate: formatDateString(burst.startDate),
+        endDate:   formatDateString(burst.endDate),
+        deliverables: burst.tarps ?? 0,
+        buyingDemo:   lineItem.buyingDemo,
+        buyType:      lineItem.buyType,
+        deliverablesAmount: burst.budget,
+        grossMedia: mediaAmount.toFixed(2),
+      };
+    })
   );
   
   // push it up to page.tsx
