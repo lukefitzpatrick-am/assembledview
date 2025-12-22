@@ -8,7 +8,6 @@ export async function middleware(request: NextRequest) {
 // Exclude static assets etc.
 export const config = {
   matcher: [
-    '/auth/:path*',
-    '/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt).*)',
+    '/((?!_next/static|_next/image|favicon.ico).*)',
   ],
 };
