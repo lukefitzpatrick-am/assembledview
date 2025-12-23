@@ -2601,10 +2601,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             })
         )
       }
-      if (formValues.mp_progdisplay && progDisplayMediaLineItems.length > 0) {
+      const progDisplayPayload = buildProgDisplayPayload(progDisplayMediaLineItems);
+      if (formValues.mp_progdisplay && progDisplayPayload.length > 0) {
         updateSaveStatus(mediaTypeDisplayNames.mp_progdisplay, 'pending')
         savePromises.push(
-          saveProgDisplayLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), progDisplayMediaLineItems)
+          saveProgDisplayLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), progDisplayPayload)
             .then(() => updateSaveStatus(mediaTypeDisplayNames.mp_progdisplay, 'success'))
             .catch(error => {
               updateSaveStatus(mediaTypeDisplayNames.mp_progdisplay, 'error', error.message || String(error))
@@ -2959,14 +2960,15 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       }
 
       // Programmatic Display
-      if (formData.mp_progdisplay && progDisplayMediaLineItems && progDisplayMediaLineItems.length > 0) {
+      const progDisplayPayload = buildProgDisplayPayload(progDisplayMediaLineItems);
+      if (formData.mp_progdisplay && progDisplayPayload && progDisplayPayload.length > 0) {
         mediaTypeSavePromises.push(
           saveProgDisplayLineItems(
             data.id,
             formData.mbanumber,
             formData.mp_clientname,
             mediaPlan.version_number + 1,
-            progDisplayMediaLineItems
+            progDisplayPayload
           ).catch(error => {
             console.error('Error saving programmatic display data:', error);
             return { type: 'progdisplay', error };
@@ -3609,6 +3611,40 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const handleProgDisplayMediaLineItemsChange = useCallback((lineItems: any[]) => {
     setProgDisplayMediaLineItems(lineItems);
   }, []);
+
+  // Ensure Programmatic Display payload always contains the full set of fields
+  const buildProgDisplayPayload = useCallback(
+    (items: any[]) =>
+      (items || []).map((item, idx) => ({
+        id: item.id ?? item.line_item_id ?? `${mbaNumber || "PD"}${idx + 1}`,
+        media_plan_version: item.media_plan_version ?? 0,
+        mba_number: item.mba_number ?? mbaNumber ?? "",
+        mp_client_name: item.mp_client_name ?? "",
+        mp_plannumber: item.mp_plannumber ?? "",
+        platform: item.platform ?? item.publisher ?? "",
+        bid_strategy: item.bid_strategy ?? item.bidStrategy ?? "",
+        buy_type: item.buy_type ?? item.buyType ?? "",
+        creative_targeting: item.creative_targeting ?? item.targeting ?? item.targeting_attribute ?? "",
+        creative: item.creative ?? "",
+        buying_demo: item.buying_demo ?? "",
+        market: item.market ?? "",
+        fixed_cost_media: item.fixed_cost_media ?? item.fixedCostMedia ?? false,
+        client_pays_for_media: item.client_pays_for_media ?? item.clientPaysForMedia ?? false,
+        budget_includes_fees: item.budget_includes_fees ?? item.budgetIncludesFees ?? false,
+        no_adserving: item.noadserving ?? item.no_adserving ?? false,
+        line_item_id: item.line_item_id ?? `${mbaNumber || "PD"}${idx + 1}`,
+        bursts_json:
+          typeof item.bursts_json === "string"
+            ? item.bursts_json
+            : JSON.stringify(item.bursts_json ?? item.bursts ?? []),
+        line_item: item.line_item ?? idx + 1,
+        placement: item.placement ?? "",
+        size: item.size ?? "",
+        targeting_attribute: item.targeting_attribute ?? "",
+        totalMedia: item.totalMedia ?? item.total_media ?? undefined,
+      })),
+    [mbaNumber]
+  );
 
   const handleProgVideoMediaLineItemsChange = useCallback((lineItems: any[]) => {
     setProgVideoMediaLineItems(lineItems);

@@ -24,8 +24,12 @@ const DEFAULT_COLORS = [
 ]
 
 export function StackedColumnChart({ title, description, data, colors = DEFAULT_COLORS, onExport }: StackedColumnChartProps) {
-  // Extract all media types from the data
-  const mediaTypes = data.length > 0 ? Object.keys(data[0]).filter(key => key !== 'month') : []
+  // Extract all media types across all rows (not just the first) to avoid empty charts when the first month has no data
+  const mediaTypes = Array.from(
+    new Set(
+      data.flatMap(row => Object.keys(row).filter(key => key !== 'month'))
+    )
+  )
   
   const handleExport = () => {
     if (onExport) {

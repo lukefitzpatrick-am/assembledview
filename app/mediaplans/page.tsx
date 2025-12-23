@@ -12,6 +12,7 @@ import { format } from "date-fns"
 import { TableWithExport } from "@/components/ui/table-with-export"
 import { PlusCircle, Search } from "lucide-react"
 import { mediaTypeTheme } from "@/lib/utils"
+import { compareValues, SortableTableHeader, SortDirection } from "@/components/ui/sortable-table-header"
 
 // Define the MediaPlan interface to handle both MediaPlanMaster and MediaPlanVersions
 interface MediaPlan {
@@ -54,6 +55,13 @@ interface MediaPlan {
   fixed_fee?: boolean;
 }
 
+type SortableValue = string | number | Date | boolean | null | undefined
+
+type SortState = {
+  column: string
+  direction: SortDirection
+}
+
 // Define the campaign statuses in the new order
 const CAMPAIGN_STATUSES = [
   "Booked",
@@ -71,6 +79,47 @@ export default function MediaPlansPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
+  const [sortStates, setSortStates] = useState<Record<string, SortState>>({})
+
+  const getNextDirection = (current: SortDirection) =>
+    current === "asc" ? "desc" : current === "desc" ? null : "asc"
+
+  const toggleSortForStatus = (status: string, column: string) => {
+    setSortStates(prev => {
+      const prevState = prev[status] || { column: "", direction: null }
+      const direction = prevState.column === column ? getNextDirection(prevState.direction) : "asc"
+      return { ...prev, [status]: { column, direction } }
+    })
+  }
+
+  const safeDate = (value: string) => {
+    const d = new Date(value)
+    return isNaN(d.getTime()) ? new Date(0) : d
+  }
+
+  const getSortDirection = (status: string, column: string): SortDirection =>
+    sortStates[status]?.column === column ? sortStates[status]?.direction ?? null : null
+
+  const planSelectors: Record<string, (plan: MediaPlan) => SortableValue> = {
+    id: plan => plan.id,
+    client: plan => plan.mp_client_name || "",
+    mba: plan => plan.mba_number || "",
+    campaign: plan => plan.mp_campaignname || plan.campaign_name || "",
+    version: plan => plan.version_number,
+    budget: plan => plan.mp_campaignbudget || 0,
+    startDate: plan => safeDate(plan.campaign_start_date),
+    endDate: plan => safeDate(plan.campaign_end_date),
+    status: plan => plan.campaign_status || "",
+  }
+
+  const applySortForStatus = (plans: MediaPlan[], status: string) => {
+    const sortState = sortStates[status]
+    if (!sortState?.direction || !planSelectors[sortState.column]) return plans
+    const select = planSelectors[sortState.column]
+    return [...plans].sort((a, b) =>
+      compareValues(select(a), select(b), sortState.direction as Exclude<SortDirection, null>)
+    )
+  }
 
   // Fetch media plans from the API
   useEffect(() => {
@@ -351,6 +400,7 @@ export default function MediaPlansPage() {
           <div className="space-y-8">
             {CAMPAIGN_STATUSES.map((status) => {
               const plans = getMediaPlansByStatus(status)
+              const sortedPlans = applySortForStatus(plans, status)
               return (
                 <Card key={status} className="w-full">
                   <CardHeader>
@@ -369,20 +419,60 @@ export default function MediaPlansPage() {
                         <Table>
                           <TableHeader>
                             <TableRow>
-                              <TableHead className="w-16">ID</TableHead>
-                              <TableHead className="w-32">Client Name</TableHead>
-                              <TableHead className="w-24">MBA Number</TableHead>
-                              <TableHead className="w-40">Campaign Name</TableHead>
-                              <TableHead className="w-20">Version</TableHead>
-                              <TableHead className="w-24">Budget</TableHead>
-                              <TableHead className="w-24">Start Date</TableHead>
-                              <TableHead className="w-24">End Date</TableHead>
+                              <SortableTableHeader
+                                label="ID"
+                                direction={getSortDirection(status, "id")}
+                                onToggle={() => toggleSortForStatus(status, "id")}
+                                className="w-16"
+                              />
+                              <SortableTableHeader
+                                label="Client Name"
+                                direction={getSortDirection(status, "client")}
+                                onToggle={() => toggleSortForStatus(status, "client")}
+                                className="w-32"
+                              />
+                              <SortableTableHeader
+                                label="MBA Number"
+                                direction={getSortDirection(status, "mba")}
+                                onToggle={() => toggleSortForStatus(status, "mba")}
+                                className="w-24"
+                              />
+                              <SortableTableHeader
+                                label="Campaign Name"
+                                direction={getSortDirection(status, "campaign")}
+                                onToggle={() => toggleSortForStatus(status, "campaign")}
+                                className="w-40"
+                              />
+                              <SortableTableHeader
+                                label="Version"
+                                direction={getSortDirection(status, "version")}
+                                onToggle={() => toggleSortForStatus(status, "version")}
+                                className="w-20"
+                              />
+                              <SortableTableHeader
+                                label="Budget"
+                                direction={getSortDirection(status, "budget")}
+                                onToggle={() => toggleSortForStatus(status, "budget")}
+                                className="w-24"
+                              />
+                              <SortableTableHeader
+                                label="Start Date"
+                                direction={getSortDirection(status, "startDate")}
+                                onToggle={() => toggleSortForStatus(status, "startDate")}
+                                className="w-24"
+                              />
+                              <SortableTableHeader
+                                label="End Date"
+                                direction={getSortDirection(status, "endDate")}
+                                onToggle={() => toggleSortForStatus(status, "endDate")}
+                                className="w-24"
+                              />
                               <TableHead className="w-48">Media Types</TableHead>
                               <TableHead className="w-20">Actions</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {plans.map((plan) => (
+                            {sortedPlans.map((plan) => (
                               <TableRow key={plan.id}>
                                 <TableCell className="font-medium w-16">{plan.id}</TableCell>
                                 <TableCell className="w-32">{plan.mp_client_name}</TableCell>

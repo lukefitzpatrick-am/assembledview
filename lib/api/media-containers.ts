@@ -54,6 +54,14 @@ export interface MonthlyMediaSpend {
   }>
 }
 
+export interface SpendFilterOptions {
+  dateRange?: {
+    start: Date
+    end: Date
+  }
+  monthsOrder?: string[]
+}
+
 // Media container endpoints mapping
 const MEDIA_CONTAINER_ENDPOINTS = {
   television: 'television_line_items',
@@ -243,13 +251,17 @@ function extractDate(lineItem: MediaContainerLineItem): Date | null {
  */
 export async function aggregateMonthlySpendByMediaType(
   mbaNumbers: string[],
-  versionNumbers?: Record<string, number>
+  versionNumbers?: Record<string, number>,
+  options: SpendFilterOptions = {}
 ): Promise<MonthlyMediaSpend[]> {
+  const { dateRange, monthsOrder } = options
   const monthlyData: Record<string, Record<string, number>> = {}
   
-  // Initialize months for current year
-  const currentYear = new Date().getFullYear()
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  // Initialize months for requested order (defaults to calendar order)
+  const months = monthsOrder && monthsOrder.length > 0
+    ? monthsOrder
+    : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const calendarMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
   
   months.forEach(month => {
     monthlyData[month] = {}
@@ -268,8 +280,13 @@ export async function aggregateMonthlySpendByMediaType(
         const spendAmount = extractSpendAmount(lineItem)
         const date = extractDate(lineItem)
         
-        if (spendAmount > 0 && date && date.getFullYear() === currentYear) {
-          const monthName = months[date.getMonth()]
+        const isInRange = !dateRange || (date && date >= dateRange.start && date <= dateRange.end)
+        
+        if (spendAmount > 0 && date && isInRange) {
+          const monthIndex = date.getMonth()
+          const monthName = monthsOrder && monthsOrder.length === 12
+            ? monthsOrder[(monthIndex + 12 - 6) % 12] // shift so July (6) maps to index 0
+            : calendarMonths[monthIndex]
           
           if (!monthlyData[monthName][displayName]) {
             monthlyData[monthName][displayName] = 0
@@ -295,8 +312,10 @@ export async function aggregateMonthlySpendByMediaType(
  */
 export async function getSpendByMediaTypeFromLineItems(
   mbaNumbers: string[],
-  versionNumbers?: Record<string, number>
+  versionNumbers?: Record<string, number>,
+  options: SpendFilterOptions = {}
 ): Promise<Array<{ mediaType: string; amount: number; percentage: number }>> {
+  const { dateRange } = options
   const mediaTypeSpend: Record<string, number> = {}
   
   // Process each MBA number
@@ -309,6 +328,10 @@ export async function getSpendByMediaTypeFromLineItems(
       const displayName = MEDIA_TYPE_DISPLAY_NAMES[mediaType as keyof typeof MEDIA_TYPE_DISPLAY_NAMES] || mediaType
       
       const totalSpend = lineItems.reduce((sum, lineItem) => {
+        const date = extractDate(lineItem)
+        const isInRange = !dateRange || (date && date >= dateRange.start && date <= dateRange.end)
+        if (!isInRange) return sum
+
         return sum + extractSpendAmount(lineItem)
       }, 0)
       
@@ -335,8 +358,10 @@ export async function getSpendByMediaTypeFromLineItems(
  * Get spend by campaign from line items
  */
 export async function getSpendByCampaignFromLineItems(
-  campaigns: Array<{ mbaNumber: string; campaignName: string; versionNumber?: number }>
+  campaigns: Array<{ mbaNumber: string; campaignName: string; versionNumber?: number }>,
+  options: SpendFilterOptions = {}
 ): Promise<Array<{ campaignName: string; mbaNumber: string; amount: number; percentage: number }>> {
+  const { dateRange } = options
   const campaignSpend: Record<string, number> = {}
   
   // Process each campaign
@@ -348,6 +373,10 @@ export async function getSpendByCampaignFromLineItems(
     
     const totalSpend = Object.values(allLineItems).reduce((sum, lineItems) => {
       return sum + lineItems.reduce((lineSum, lineItem) => {
+        const date = extractDate(lineItem)
+        const isInRange = !dateRange || (date && date >= dateRange.start && date <= dateRange.end)
+        if (!isInRange) return lineSum
+
         return lineSum + extractSpendAmount(lineItem)
       }, 0)
     }, 0)

@@ -14,6 +14,7 @@ import { useRouter } from 'next/navigation'
 import { AuthPageLoading } from '@/components/AuthLoadingState'
 import axios from 'axios'
 import { mediaTypeTheme } from '@/lib/utils'
+import { compareValues, SortableTableHeader, SortDirection } from "@/components/ui/sortable-table-header"
 
 // Define the type for a MediaPlan object
 type MediaPlan = {
@@ -83,6 +84,13 @@ interface LineItem {
   budget_includes_fees?: boolean
   client_pays_for_media?: boolean
   [key: string]: any
+}
+
+type SortableValue = string | number | Date | boolean | null | undefined
+
+type SortState = {
+  column: string
+  direction: SortDirection
 }
 
 // --- HELPER FUNCTIONS ---
@@ -394,6 +402,37 @@ export default function DashboardPage() {
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [publisherSpendData, setPublisherSpendData] = useState<Array<{ name: string; value: number; percentage: number }>>([])
   const [clientSpendData, setClientSpendData] = useState<Array<{ name: string; value: number; percentage: number }>>([])
+  const [liveCampaignSort, setLiveCampaignSort] = useState<SortState>({ column: "", direction: null })
+  const [liveScopesSort, setLiveScopesSort] = useState<SortState>({ column: "", direction: null })
+  const [dueSoonSort, setDueSoonSort] = useState<SortState>({ column: "", direction: null })
+  const [finishedSort, setFinishedSort] = useState<SortState>({ column: "", direction: null })
+
+  const getNextDirection = (current: SortDirection) =>
+    current === "asc" ? "desc" : current === "desc" ? null : "asc"
+
+  const toggleSort = (
+    column: string,
+    sort: SortState,
+    setSort: React.Dispatch<React.SetStateAction<SortState>>
+  ) => {
+    setSort(prev => {
+      const direction = prev.column === column ? getNextDirection(prev.direction) : "asc"
+      return { column, direction }
+    })
+  }
+
+  const applySort = <T,>(
+    data: T[],
+    sortState: SortState,
+    selectors: Record<string, (item: T) => SortableValue>
+  ): T[] => {
+    const { column, direction } = sortState
+    if (!direction || !selectors[column]) return data
+    const select = selectors[column]
+    return [...data].sort((a, b) =>
+      compareValues(select(a), select(b), direction as Exclude<SortDirection, null>)
+    )
+  }
 
   // State for the dashboard overview metrics
   const [dashboardMetrics, setDashboardMetrics] = useState([
@@ -745,6 +784,11 @@ export default function DashboardPage() {
     })
   }
 
+  const safeDate = (value: string) => {
+    const d = new Date(value)
+    return isNaN(d.getTime()) ? new Date(0) : d
+  }
+
   const getStatusBadgeColor = (status: string) => {
     if (!status) return "bg-gray-500"
     switch (status.toLowerCase()) {
@@ -815,6 +859,29 @@ export default function DashboardPage() {
   const liveScopes = getLiveScopes()
   const campaignsDueToStart = getCampaignsDueToStart()
   const campaignsFinishedRecently = getCampaignsFinishedRecently()
+
+  const liveCampaignSelectors = {
+    client: (plan: MediaPlan): SortableValue => plan.mp_clientname || "",
+    campaign: (plan: MediaPlan): SortableValue => plan.mp_campaignname || "",
+    mba: (plan: MediaPlan): SortableValue => plan.mp_mba_number || "",
+    startDate: (plan: MediaPlan): SortableValue => safeDate(plan.mp_campaigndates_start),
+    endDate: (plan: MediaPlan): SortableValue => safeDate(plan.mp_campaigndates_end),
+    budget: (plan: MediaPlan): SortableValue => plan.mp_campaignbudget || 0,
+    version: (plan: MediaPlan): SortableValue => plan.mp_version || 0,
+    status: (plan: MediaPlan): SortableValue => plan.mp_campaignstatus || "",
+  }
+
+  const scopeSelectors = {
+    project: (scope: ScopeOfWork): SortableValue => scope.project_name || "",
+    client: (scope: ScopeOfWork): SortableValue => scope.client_name || "",
+    scopeDate: (scope: ScopeOfWork): SortableValue => safeDate(scope.scope_date),
+    status: (scope: ScopeOfWork): SortableValue => scope.project_status || "",
+  }
+
+  const sortedLiveCampaigns = applySort(liveCampaigns, liveCampaignSort, liveCampaignSelectors)
+  const sortedLiveScopes = applySort(liveScopes, liveScopesSort, scopeSelectors)
+  const sortedDueSoon = applySort(campaignsDueToStart, dueSoonSort, liveCampaignSelectors)
+  const sortedFinished = applySort(campaignsFinishedRecently, finishedSort, liveCampaignSelectors)
 
   return (
     <div className="w-full h-full flex flex-col">
@@ -889,18 +956,46 @@ export default function DashboardPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Client Name</TableHead>
-                        <TableHead>Campaign Name</TableHead>
-                        <TableHead>MBA Number</TableHead>
-                        <TableHead>Start Date</TableHead>
-                        <TableHead>End Date</TableHead>
-                        <TableHead>Budget</TableHead>
-                        <TableHead>Version</TableHead>
+                        <SortableTableHeader
+                          label="Client Name"
+                          direction={liveCampaignSort.column === "client" ? liveCampaignSort.direction : null}
+                          onToggle={() => toggleSort("client", liveCampaignSort, setLiveCampaignSort)}
+                        />
+                        <SortableTableHeader
+                          label="Campaign Name"
+                          direction={liveCampaignSort.column === "campaign" ? liveCampaignSort.direction : null}
+                          onToggle={() => toggleSort("campaign", liveCampaignSort, setLiveCampaignSort)}
+                        />
+                        <SortableTableHeader
+                          label="MBA Number"
+                          direction={liveCampaignSort.column === "mba" ? liveCampaignSort.direction : null}
+                          onToggle={() => toggleSort("mba", liveCampaignSort, setLiveCampaignSort)}
+                        />
+                        <SortableTableHeader
+                          label="Start Date"
+                          direction={liveCampaignSort.column === "startDate" ? liveCampaignSort.direction : null}
+                          onToggle={() => toggleSort("startDate", liveCampaignSort, setLiveCampaignSort)}
+                        />
+                        <SortableTableHeader
+                          label="End Date"
+                          direction={liveCampaignSort.column === "endDate" ? liveCampaignSort.direction : null}
+                          onToggle={() => toggleSort("endDate", liveCampaignSort, setLiveCampaignSort)}
+                        />
+                        <SortableTableHeader
+                          label="Budget"
+                          direction={liveCampaignSort.column === "budget" ? liveCampaignSort.direction : null}
+                          onToggle={() => toggleSort("budget", liveCampaignSort, setLiveCampaignSort)}
+                        />
+                        <SortableTableHeader
+                          label="Version"
+                          direction={liveCampaignSort.column === "version" ? liveCampaignSort.direction : null}
+                          onToggle={() => toggleSort("version", liveCampaignSort, setLiveCampaignSort)}
+                        />
                         <TableHead>Media Types</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {liveCampaigns.map(plan => (
+                      {sortedLiveCampaigns.map(plan => (
                         <TableRow key={plan.id}>
                           <TableCell>{plan.mp_clientname}</TableCell>
                           <TableCell>{plan.mp_campaignname}</TableCell>
@@ -952,15 +1047,31 @@ export default function DashboardPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Project Name</TableHead>
-                        <TableHead>Client Name</TableHead>
-                        <TableHead>Scope Date</TableHead>
+                        <SortableTableHeader
+                          label="Project Name"
+                          direction={liveScopesSort.column === "project" ? liveScopesSort.direction : null}
+                          onToggle={() => toggleSort("project", liveScopesSort, setLiveScopesSort)}
+                        />
+                        <SortableTableHeader
+                          label="Client Name"
+                          direction={liveScopesSort.column === "client" ? liveScopesSort.direction : null}
+                          onToggle={() => toggleSort("client", liveScopesSort, setLiveScopesSort)}
+                        />
+                        <SortableTableHeader
+                          label="Scope Date"
+                          direction={liveScopesSort.column === "scopeDate" ? liveScopesSort.direction : null}
+                          onToggle={() => toggleSort("scopeDate", liveScopesSort, setLiveScopesSort)}
+                        />
                         <TableHead>Project Overview</TableHead>
-                        <TableHead>Status</TableHead>
+                        <SortableTableHeader
+                          label="Status"
+                          direction={liveScopesSort.column === "status" ? liveScopesSort.direction : null}
+                          onToggle={() => toggleSort("status", liveScopesSort, setLiveScopesSort)}
+                        />
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {liveScopes.map(scope => (
+                      {sortedLiveScopes.map(scope => (
                         <TableRow key={scope.id}>
                           <TableCell className="font-medium">{scope.project_name}</TableCell>
                           <TableCell>{scope.client_name}</TableCell>
@@ -1013,18 +1124,46 @@ export default function DashboardPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Client Name</TableHead>
-                        <TableHead>Campaign Name</TableHead>
-                        <TableHead>MBA Number</TableHead>
-                        <TableHead>Start Date</TableHead>
-                        <TableHead>End Date</TableHead>
-                        <TableHead>Budget</TableHead>
-                        <TableHead>Status</TableHead>
+                        <SortableTableHeader
+                          label="Client Name"
+                          direction={dueSoonSort.column === "client" ? dueSoonSort.direction : null}
+                          onToggle={() => toggleSort("client", dueSoonSort, setDueSoonSort)}
+                        />
+                        <SortableTableHeader
+                          label="Campaign Name"
+                          direction={dueSoonSort.column === "campaign" ? dueSoonSort.direction : null}
+                          onToggle={() => toggleSort("campaign", dueSoonSort, setDueSoonSort)}
+                        />
+                        <SortableTableHeader
+                          label="MBA Number"
+                          direction={dueSoonSort.column === "mba" ? dueSoonSort.direction : null}
+                          onToggle={() => toggleSort("mba", dueSoonSort, setDueSoonSort)}
+                        />
+                        <SortableTableHeader
+                          label="Start Date"
+                          direction={dueSoonSort.column === "startDate" ? dueSoonSort.direction : null}
+                          onToggle={() => toggleSort("startDate", dueSoonSort, setDueSoonSort)}
+                        />
+                        <SortableTableHeader
+                          label="End Date"
+                          direction={dueSoonSort.column === "endDate" ? dueSoonSort.direction : null}
+                          onToggle={() => toggleSort("endDate", dueSoonSort, setDueSoonSort)}
+                        />
+                        <SortableTableHeader
+                          label="Budget"
+                          direction={dueSoonSort.column === "budget" ? dueSoonSort.direction : null}
+                          onToggle={() => toggleSort("budget", dueSoonSort, setDueSoonSort)}
+                        />
+                        <SortableTableHeader
+                          label="Status"
+                          direction={dueSoonSort.column === "status" ? dueSoonSort.direction : null}
+                          onToggle={() => toggleSort("status", dueSoonSort, setDueSoonSort)}
+                        />
                         <TableHead>Media Types</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {campaignsDueToStart.map(plan => (
+                      {sortedDueSoon.map(plan => (
                         <TableRow key={plan.id}>
                           <TableCell>{plan.mp_clientname}</TableCell>
                           <TableCell>{plan.mp_campaignname}</TableCell>
@@ -1080,18 +1219,46 @@ export default function DashboardPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Client Name</TableHead>
-                        <TableHead>Campaign Name</TableHead>
-                        <TableHead>MBA Number</TableHead>
-                        <TableHead>Start Date</TableHead>
-                        <TableHead>End Date</TableHead>
-                        <TableHead>Budget</TableHead>
-                        <TableHead>Status</TableHead>
+                        <SortableTableHeader
+                          label="Client Name"
+                          direction={finishedSort.column === "client" ? finishedSort.direction : null}
+                          onToggle={() => toggleSort("client", finishedSort, setFinishedSort)}
+                        />
+                        <SortableTableHeader
+                          label="Campaign Name"
+                          direction={finishedSort.column === "campaign" ? finishedSort.direction : null}
+                          onToggle={() => toggleSort("campaign", finishedSort, setFinishedSort)}
+                        />
+                        <SortableTableHeader
+                          label="MBA Number"
+                          direction={finishedSort.column === "mba" ? finishedSort.direction : null}
+                          onToggle={() => toggleSort("mba", finishedSort, setFinishedSort)}
+                        />
+                        <SortableTableHeader
+                          label="Start Date"
+                          direction={finishedSort.column === "startDate" ? finishedSort.direction : null}
+                          onToggle={() => toggleSort("startDate", finishedSort, setFinishedSort)}
+                        />
+                        <SortableTableHeader
+                          label="End Date"
+                          direction={finishedSort.column === "endDate" ? finishedSort.direction : null}
+                          onToggle={() => toggleSort("endDate", finishedSort, setFinishedSort)}
+                        />
+                        <SortableTableHeader
+                          label="Budget"
+                          direction={finishedSort.column === "budget" ? finishedSort.direction : null}
+                          onToggle={() => toggleSort("budget", finishedSort, setFinishedSort)}
+                        />
+                        <SortableTableHeader
+                          label="Status"
+                          direction={finishedSort.column === "status" ? finishedSort.direction : null}
+                          onToggle={() => toggleSort("status", finishedSort, setFinishedSort)}
+                        />
                         <TableHead>Media Types</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {campaignsFinishedRecently.map(plan => (
+                      {sortedFinished.map(plan => (
                         <TableRow key={plan.id}>
                           <TableCell>{plan.mp_clientname}</TableCell>
                           <TableCell>{plan.mp_campaignname}</TableCell>

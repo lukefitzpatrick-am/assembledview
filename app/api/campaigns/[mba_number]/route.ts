@@ -113,6 +113,26 @@ function calculateExpectedSpendToDate(
   return totalExpected * proportion
 }
 
+// Safely parse a version number that might be a string or number
+function parseVersionNumber(value: any): number | null {
+  if (value === null || value === undefined) return null
+  const num = typeof value === "string" ? parseInt(value, 10) : value
+  return Number.isFinite(num) ? num : null
+}
+
+// Normalize MBA and string fields for consistent matching
+const normalize = (value: any) => String(value ?? "").trim().toLowerCase()
+
+// Compare master ids safely (handles string/number)
+function matchesMasterId(itemMasterId: any, masterId: any): boolean {
+  const itemIdNum = Number(itemMasterId)
+  const masterIdNum = Number(masterId)
+  if (Number.isFinite(itemIdNum) && Number.isFinite(masterIdNum)) {
+    return itemIdNum === masterIdNum
+  }
+  return String(itemMasterId) === String(masterId)
+}
+
 
 export async function GET(
   request: Request,
@@ -120,6 +140,7 @@ export async function GET(
 ) {
   try {
     const { mba_number } = await params
+    const requestedNormalized = normalize(mba_number)
     
     // Fetch media plan version data (similar to existing MBA route)
     const masterQueryUrl = `${MEDIA_PLAN_MASTER_URL}/media_plan_master?mba_number=${encodeURIComponent(mba_number)}`
@@ -127,12 +148,14 @@ export async function GET(
     
     let masterData: any = null
     if (Array.isArray(masterResponse.data)) {
-      masterData = masterResponse.data.find((item: any) => item.mba_number === mba_number)
+      masterData = masterResponse.data.find((item: any) => normalize(item?.mba_number) === requestedNormalized)
       if (!masterData && masterResponse.data.length > 0) {
         masterData = masterResponse.data[0]
       }
     } else {
-      masterData = masterResponse.data
+      masterData = normalize((masterResponse.data as any)?.mba_number) === requestedNormalized
+        ? masterResponse.data
+        : null
     }
     
     if (!masterData) {
@@ -146,34 +169,60 @@ export async function GET(
     // Then filter by version_number in JavaScript
     const versionQueryUrl = `${MEDIA_PLANS_VERSIONS_URL}/media_plan_versions?mba_number=${encodeURIComponent(mba_number)}`
     const versionResponse = await axios.get(versionQueryUrl)
+
+    // Collect versions and optionally fall back to master_id query if mba filter returns nothing
+    const collectedVersions: any[] = Array.isArray(versionResponse.data) ? versionResponse.data : []
+    if (collectedVersions.length === 0 && masterData?.id !== undefined) {
+      try {
+        const fallbackUrl = `${MEDIA_PLANS_VERSIONS_URL}/media_plan_versions?media_plan_master_id=${encodeURIComponent(masterData.id)}`
+        const fallbackResponse = await axios.get(fallbackUrl)
+        const fallbackData = Array.isArray(fallbackResponse.data) ? fallbackResponse.data : []
+        collectedVersions.push(...fallbackData)
+      } catch (fallbackErr) {
+        console.warn("Fallback fetch by master_id failed", {
+          masterId: masterData?.id,
+          error: fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr)
+        })
+      }
+    }
     
     let versionData: any = null
-    if (Array.isArray(versionResponse.data)) {
+    if (collectedVersions.length > 0) {
       // Filter by mba_number AND master_id first, then by version_number
-      const allVersionsForMBA = versionResponse.data.filter((item: any) => 
-        item.mba_number === mba_number && item.media_plan_master_id === masterData.id
+      let allVersionsForMBA = collectedVersions.filter((item: any) => 
+        normalize(item?.mba_number) === requestedNormalized && matchesMasterId(item.media_plan_master_id, masterData.id)
       )
-      // Find the version matching masterData.version_number
-      versionData = allVersionsForMBA.find((item: any) => {
-        const itemVersion = typeof item.version_number === 'string' 
-          ? parseInt(item.version_number, 10) 
-          : item.version_number
-        const targetVersion = typeof masterData.version_number === 'string'
-          ? parseInt(masterData.version_number, 10)
-          : masterData.version_number
-        return itemVersion === targetVersion
-      })
+
+      // If none matched both mba and master, fall back to master match only
+      if (allVersionsForMBA.length === 0) {
+        allVersionsForMBA = collectedVersions.filter((item: any) =>
+          matchesMasterId(item?.media_plan_master_id, masterData.id)
+        )
+      }
+
+      // Determine target version: prefer master's version_number, otherwise latest available
+      const targetVersionNumber = parseVersionNumber(masterData.version_number)
+      const latestVersion = allVersionsForMBA.reduce((latest: any, item: any) => {
+        const itemVersion = parseVersionNumber(item.version_number) ?? -Infinity
+        if (!latest) return item
+        const latestVersionValue = parseVersionNumber(latest.version_number) ?? -Infinity
+        return itemVersion > latestVersionValue ? item : latest
+      }, null as any)
+
+      // Try to match the target version, fall back to the latest for this MBA/master
+      versionData = allVersionsForMBA.find((item: any) => 
+        parseVersionNumber(item.version_number) === targetVersionNumber
+      ) || latestVersion || null
     } else {
       // Single object response - validate it matches mba_number, master_id, and version_number
-      if (versionResponse.data.mba_number === mba_number && versionResponse.data.media_plan_master_id === masterData.id) {
-        const itemVersion = typeof versionResponse.data.version_number === 'string' 
-          ? parseInt(versionResponse.data.version_number, 10) 
-          : versionResponse.data.version_number
-        const targetVersion = typeof masterData.version_number === 'string'
-          ? parseInt(masterData.version_number, 10)
-          : masterData.version_number
-        if (itemVersion === targetVersion) {
-          versionData = versionResponse.data
+      const single = versionResponse.data
+      const mbaMatches = normalize(single?.mba_number) === requestedNormalized
+      const masterMatches = matchesMasterId(single?.media_plan_master_id, masterData.id)
+      if (mbaMatches && masterMatches) {
+        const itemVersion = parseVersionNumber(single.version_number)
+        const targetVersion = parseVersionNumber(masterData.version_number)
+        if (!targetVersion || itemVersion === targetVersion) {
+          versionData = single
         }
       }
     }
@@ -184,11 +233,16 @@ export async function GET(
         { status: 404 }
       )
     }
+
+    // Use the resolved version number (fall back to master's version or 1)
+    const versionNumber = parseVersionNumber(versionData?.version_number) 
+      ?? parseVersionNumber(masterData.version_number) 
+      ?? 1
     
     // Fetch all line items
     const lineItems = await fetchAllMediaContainerLineItems(
       mba_number,
-      masterData.version_number
+      versionNumber
     )
     
     // Extract billing schedule
@@ -218,13 +272,13 @@ export async function GET(
     // Use media container functions to get spend by media channel
     const spendByMediaChannel = await getSpendByMediaTypeFromLineItems(
       [mba_number],
-      { [mba_number]: masterData.version_number }
+      { [mba_number]: versionNumber }
     )
     
     // Use media container function to get monthly spend by media type
     const monthlySpend = await aggregateMonthlySpendByMediaType(
       [mba_number],
-      { [mba_number]: masterData.version_number }
+      { [mba_number]: versionNumber }
     )
     
     // Prepare response
@@ -232,7 +286,7 @@ export async function GET(
       campaign: {
         ...versionData,
         mbaNumber: mba_number,
-        versionNumber: masterData.version_number
+        versionNumber
       },
       lineItems,
       billingSchedule,
