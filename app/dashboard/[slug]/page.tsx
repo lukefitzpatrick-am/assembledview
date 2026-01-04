@@ -10,6 +10,9 @@ import { getGradientStyle } from '@/lib/utils/colors'
 import SpendByMediaTypeChart from './components/SpendByMediaTypeChart'
 import SpendByCampaignChart from './components/SpendByCampaignChart'
 import MonthlySpendChart from './components/MonthlySpendChart'
+import { auth0 } from '@/lib/auth0'
+import { getPrimaryRole, getUserClientIdentifier } from '@/lib/rbac'
+import { redirect } from 'next/navigation'
 
 interface ClientDashboardProps {
   params: {
@@ -19,6 +22,18 @@ interface ClientDashboardProps {
 
 export default async function ClientDashboard({ params }: ClientDashboardProps) {
   const { slug } = await params
+  const session = await auth0.getSession()
+  const user = session?.user
+  const role = getPrimaryRole(user)
+  const userClientSlug = getUserClientIdentifier(user)
+
+  if (!user) {
+    redirect(`/auth/login?returnTo=/dashboard/${slug}`)
+  }
+
+  if (role === 'client' && userClientSlug && userClientSlug !== slug) {
+    redirect(`/dashboard/${userClientSlug}`)
+  }
   
   let clientData: ClientDashboardData | null = null
   let error: string | null = null

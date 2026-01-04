@@ -15,10 +15,11 @@ function buildMediaContainerUrl(
   const params = new URLSearchParams()
   params.append('mba_number', mbaNumber.trim())
   
-  // Include version_number and mp_plannumber parameters when versionNumber is provided
+  // Include version_number, mp_plannumber, and media_plan_version parameters when versionNumber is provided
   if (versionNumber !== undefined && versionNumber !== null) {
     params.append('version_number', String(versionNumber))
     params.append('mp_plannumber', String(versionNumber))
+    params.append('media_plan_version', String(versionNumber))
   }
 
   return `${MEDIA_PLANS_VERSIONS_URL}/${MEDIA_CONTAINER_ENDPOINTS[mediaType]}?${params.toString()}`
@@ -123,37 +124,57 @@ export async function fetchMediaContainerLineItems(
     return []
   }
   try {
-    // Query with BOTH mba_number AND version_number when available
+    // Primary fetch with version filters
     const url = buildMediaContainerUrl(mediaType, mbaNumber, versionNumber)
     const response = await apiClient.get(url)
     const allItems = Array.isArray(response.data) ? response.data : []
     
-    // Filter by version_number/mp_plannumber in JavaScript as safety net if versionNumber is provided
-    // This ensures we scan ALL entries and don't stop at the first match
-    if (versionNumber !== undefined && versionNumber !== null) {
-      const filtered = allItems.filter((item: any) => {
-        // Check both version_number and mp_plannumber fields
-        const itemVersion = typeof item.version_number === 'string' 
-          ? parseInt(item.version_number, 10) 
-          : item.version_number
-        const itemPlan = typeof item.mp_plannumber === 'string'
-          ? parseInt(item.mp_plannumber, 10)
-          : item.mp_plannumber
-        
-        // Match if either field matches the requested version AND mba_number matches
-        return (itemVersion === versionNumber || itemPlan === versionNumber) && 
-               item.mba_number === mbaNumber
-      })
-      
-      if (filtered.length !== allItems.length) {
-        console.log(`[${mediaType}] Filtered ${allItems.length} items to ${filtered.length} matching mba_number=${mbaNumber} and version=${versionNumber}`)
+    // Helper to normalize and match version fields
+    const matchesVersion = (item: any, ver: number) => {
+      const itemVersion = typeof item.version_number === 'string' 
+        ? parseInt(item.version_number, 10) 
+        : item.version_number
+      const itemPlan = typeof item.mp_plannumber === 'string'
+        ? parseInt(item.mp_plannumber, 10)
+        : item.mp_plannumber
+      const itemMediaPlan = typeof item.media_plan_version === 'string'
+        ? parseInt(item.media_plan_version, 10)
+        : item.media_plan_version
+      return itemVersion === ver || itemPlan === ver || itemMediaPlan === ver
+    }
+
+    // Filter by version fields + mba_number as safety net
+    const filteredPrimary = (versionNumber !== undefined && versionNumber !== null)
+      ? allItems.filter((item: any) => matchesVersion(item, versionNumber) && item.mba_number === mbaNumber)
+      : allItems.filter((item: any) => item.mba_number === mbaNumber)
+    
+    // Fallback: if we expected a version match but got nothing, refetch without version filters.
+    // Keep MBA matches, preferring version matches but allowing items with missing version fields as last resort.
+    if ((versionNumber !== undefined && versionNumber !== null) && filteredPrimary.length === 0) {
+      try {
+        const fallbackUrl = buildMediaContainerUrl(mediaType, mbaNumber, undefined)
+        const fallbackResponse = await apiClient.get(fallbackUrl)
+        const fallbackItems = Array.isArray(fallbackResponse.data) ? fallbackResponse.data : []
+        const filteredFallback = fallbackItems.filter((item: any) => {
+          const mbaMatch = item.mba_number === mbaNumber
+          const versionMatch = matchesVersion(item, versionNumber)
+          const versionUnset = !item.version_number && !item.mp_plannumber && !item.media_plan_version
+          return mbaMatch && (versionMatch || versionUnset)
+        })
+        if (filteredFallback.length > 0) {
+          console.info(`[${mediaType}] Fallback fetched ${filteredFallback.length} items without version filter for mba_number=${mbaNumber}, version=${versionNumber}`)
+        }
+        return filteredFallback
+      } catch (fallbackErr) {
+        console.warn(`[${mediaType}] Fallback fetch without version failed`, fallbackErr)
       }
-      
-      return filtered
+    }
+
+    if (versionNumber !== undefined && versionNumber !== null && filteredPrimary.length !== allItems.length) {
+      console.log(`[${mediaType}] Filtered ${allItems.length} items to ${filteredPrimary.length} matching mba_number=${mbaNumber} and version=${versionNumber}`)
     }
     
-    // If no version specified, return all items matching mba_number
-    return allItems.filter((item: any) => item.mba_number === mbaNumber)
+    return filteredPrimary
   } catch (error) {
     if (axios.isAxiosError(error) && error.response?.status === 404) {
       const cacheKey = `${mediaType}:${mbaNumber}:${versionNumber ?? 'latest'}`

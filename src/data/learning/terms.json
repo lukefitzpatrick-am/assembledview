@@ -1,0 +1,6287 @@
+[
+  {
+    "id": "1-reach-metric-136c4e47",
+    "term": "1+ Reach",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Audience exposed at least once",
+    "type": "definition"
+  },
+  {
+    "id": "15s-creative-a24a33d3",
+    "term": "15s",
+    "category": "Creative",
+    "category_raw": "Creative",
+    "definition": "Fifteen second TV ad",
+    "type": "definition"
+  },
+  {
+    "id": "2-reach-metric-8f9ddd85",
+    "term": "2+ Reach",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Audience exposed at least twice",
+    "type": "definition"
+  },
+  {
+    "id": "3-reach-metric-5a875bf9",
+    "term": "3+ Reach",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Audience exposed at least three times",
+    "type": "definition"
+  },
+  {
+    "id": "30s-creative-d8b8f526",
+    "term": "30s",
+    "category": "Creative",
+    "category_raw": "Creative",
+    "definition": "Thirty second TV ad",
+    "type": "definition"
+  },
+  {
+    "id": "3s-view-metric-88d8588d",
+    "term": "3s View",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Video viewed for at least 3 seconds",
+    "type": "definition"
+  },
+  {
+    "id": "6s-creative-4c2399a5",
+    "term": "6s",
+    "category": "Creative",
+    "category_raw": "Creative",
+    "definition": "Six second short format",
+    "type": "definition"
+  },
+  {
+    "id": "a-b-test-testing-70a583d9",
+    "term": "A/B Test",
+    "category": "Testing",
+    "category_raw": "Testing",
+    "definition": "Comparison of two variants",
+    "type": "definition"
+  },
+  {
+    "id": "abn-commercial-09c72417",
+    "term": "ABN",
+    "category": "Commercial",
+    "category_raw": "Commercial",
+    "definition": "Australian Business Number used for invoicing and contracts",
+    "formula_or_notes": "Australian government identifier",
+    "type": "acronym"
+  },
+  {
+    "id": "absolute-top-rate-metric-d7348793",
+    "term": "Absolute Top Rate",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Ads shown in first position",
+    "type": "definition"
+  },
+  {
+    "id": "accelerated-delivery-delivery-cb10e8ac",
+    "term": "Accelerated Delivery",
+    "category": "Delivery",
+    "category_raw": "Delivery",
+    "definition": "Spend faster than even pacing",
+    "type": "definition"
+  },
+  {
+    "id": "accelerated-pacing-delivery-189e4bab",
+    "term": "Accelerated Pacing",
+    "category": "Delivery",
+    "category_raw": "Delivery",
+    "definition": "Spend delivered faster early in flight",
+    "type": "definition"
+  },
+  {
+    "id": "accrual-finance-31bbb676",
+    "term": "Accrual",
+    "category": "Finance",
+    "category_raw": "Finance",
+    "definition": "Recognised cost not yet invoiced",
+    "type": "definition"
+  },
+  {
+    "id": "accrual-adjustment-finance-b16ca27b",
+    "term": "Accrual Adjustment",
+    "category": "Finance",
+    "category_raw": "Finance",
+    "definition": "Correction to prior accrual estimate",
+    "type": "definition"
+  },
+  {
+    "id": "accrued-media-finance-ebc17552",
+    "term": "Accrued Media",
+    "category": "Finance",
+    "category_raw": "Finance",
+    "definition": "Media delivered but not yet invoiced",
+    "type": "definition"
+  },
+  {
+    "id": "actual-cpc-bidding-a1975081",
+    "term": "Actual CPC",
+    "category": "Bidding",
+    "category_raw": "Bidding",
+    "definition": "Amount actually paid per click",
+    "type": "definition"
+  },
+  {
+    "id": "ad-structure-2066e696",
+    "term": "Ad",
+    "category": "Structure",
+    "category_raw": "Structure",
+    "definition": "Creative delivery unit",
+    "type": "definition"
+  },
+  {
+    "id": "ad-exchange-platform-5e5c2f89",
+    "term": "Ad Exchange",
+    "category": "Platform",
+    "category_raw": "Platform",
+    "definition": "Marketplace connecting DSPs and SSPs",
+    "type": "definition"
+  },
+  {
+    "id": "ad-extensions-creative-eec4207f",
+    "term": "Ad Extensions",
+    "category": "Creative",
+    "category_raw": "Creative",
+    "definition": "Additional ad information elements",
+    "type": "definition"
+  },
+  {
+    "id": "ad-format-creative-2421d796",
+    "term": "Ad Format",
+    "category": "Creative",
+    "category_raw": "Creative",
+    "definition": "Display video native specification",
+    "type": "definition"
+  },
+  {
+    "id": "ad-group-structure-77d83b49",
+    "term": "Ad Group",
+    "category": "Structure",
+    "category_raw": "Structure",
+    "definition": "Grouping of ads and keywords",
+    "type": "definition"
+  },
+  {
+    "id": "ad-pod-placement-a8308758",
+    "term": "Ad Pod",
+    "category": "Placement",
+    "category_raw": "Placement",
+    "definition": "Group of ads within a break",
+    "type": "definition"
+  },
+  {
+    "id": "ad-rank-mechanics-29d6cd1c",
+    "term": "Ad Rank",
+    "category": "Mechanics",
+    "category_raw": "Mechanics",
+    "definition": "Value determining ad position",
+    "formula_or_notes": "Bid × Quality × Context",
+    "type": "formula",
+    "formula": {
+      "calculatorId": "ad-rank",
+      "expression": "bid * quality * context",
+      "variables": [
+        {
+          "key": "bid",
+          "label": "Bid",
+          "unit": "$",
+          "required": true
+        },
+        {
+          "key": "quality",
+          "label": "Quality",
+          "unit": "",
+          "required": true
+        },
+        {
+          "key": "context",
+          "label": "Context",
+          "unit": "",
+          "required": true
+        }
+      ],
+      "output": {
+        "label": "Ad Rank",
+        "unit": ""
+      },
+      "format": "number"
+    }
+  },
+  {
+    "id": "ad-rank-metric-1389819b",
+    "term": "AD RANK",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "",
+    "formula_or_notes": ",",
+    "type": "formula",
+    "formula": {
+      "calculatorId": "ad-rank",
+      "expression": "bid * quality * context",
+      "variables": [
+        {
+          "key": "bid",
+          "label": "Bid",
+          "unit": "$",
+          "required": true
+        },
+        {
+          "key": "quality",
+          "label": "Quality",
+          "unit": "",
+          "required": true
+        },
+        {
+          "key": "context",
+          "label": "Context",
+          "unit": "",
+          "required": true
+        }
+      ],
+      "output": {
+        "label": "Ad Rank",
+        "unit": ""
+      },
+      "format": "number"
+    }
+  },
+  {
+    "id": "ad-relevance-quality-component-4024635e",
+    "term": "Ad Relevance",
+    "category": "Quality Component",
+    "category_raw": "Quality Component",
+    "definition": "Keyword to ad relevance",
+    "type": "definition"
+  },
+  {
+    "id": "ad-relevance-diagnostics-reporting-2ac7ca57",
+    "term": "Ad Relevance Diagnostics",
+    "category": "Reporting",
+    "category_raw": "Reporting",
+    "definition": "Quality feedback indicators",
+    "formula_or_notes": "Meta",
+    "type": "definition"
+  },
+  {
+    "id": "ad-set-structure-cea527d1",
+    "term": "Ad Set",
+    "category": "Structure",
+    "category_raw": "Structure",
+    "definition": "Audience budget and optimisation container",
+    "formula_or_notes": "Meta naming",
+    "type": "definition"
+  },
+  {
+    "id": "ad-set-budget-budgeting-1f062e56",
+    "term": "Ad Set Budget",
+    "category": "Budgeting",
+    "category_raw": "Budgeting",
+    "definition": "Budget set at ad set level",
+    "type": "definition"
+  },
+  {
+    "id": "ad-strength-creative-8e8498da",
+    "term": "Ad Strength",
+    "category": "Creative",
+    "category_raw": "Creative",
+    "definition": "Google diagnostic ad quality indicator",
+    "type": "definition"
+  },
+  {
+    "id": "add-to-cart-metric-3d2f341e",
+    "term": "Add to Cart",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Item added to cart event",
+    "type": "definition"
+  },
+  {
+    "id": "addressable-cpm-metric-1c112f40",
+    "term": "Addressable CPM",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Cost per thousand addressable impressions",
+    "type": "definition"
+  },
+  {
+    "id": "addressable-tv-formula-50d91db1",
+    "term": "Addressable TV",
+    "category": "Formula",
+    "category_raw": "Formula",
+    "definition": "Channel",
+    "formula_or_notes": "TV,Household-level targeted TV ads",
+    "type": "formula",
+    "formula": {
+      "expression": "TV,Household-level targeted TV ads",
+      "variables": [],
+      "output": {
+        "label": "Result",
+        "unit": ""
+      },
+      "format": "number",
+      "inferred": true,
+      "unmapped": true
+    }
+  },
+  {
+    "id": "ads-txt-governance-9cb43b7b",
+    "term": "Ads.txt",
+    "category": "Governance",
+    "category_raw": "Governance",
+    "definition": "File authorising sellers of inventory",
+    "type": "definition"
+  },
+  {
+    "id": "advanced-tv-channel-eebc8210",
+    "term": "Advanced TV",
+    "category": "Channel",
+    "category_raw": "Channel",
+    "definition": "Data-driven TV buying umbrella",
+    "type": "definition"
+  },
+  {
+    "id": "advantage-plus-audience-audience-050d9995",
+    "term": "Advantage Plus Audience",
+    "category": "Audience",
+    "category_raw": "Audience",
+    "definition": "Automated audience expansion",
+    "formula_or_notes": "Meta branding",
+    "type": "definition"
+  },
+  {
+    "id": "advantage-plus-shopping-creative-ff9a8152",
+    "term": "Advantage Plus Shopping",
+    "category": "Creative",
+    "category_raw": "Creative",
+    "definition": "Automated commerce campaign type",
+    "formula_or_notes": "Meta branding",
+    "type": "definition"
+  },
+  {
+    "id": "advertiser-account-account-8f81ca85",
+    "term": "Advertiser Account",
+    "category": "Account",
+    "category_raw": "Account",
+    "definition": "Client-level DSP entity",
+    "type": "definition"
+  },
+  {
+    "id": "affiliate-channel-1d9c5dc1",
+    "term": "Affiliate",
+    "category": "Channel",
+    "category_raw": "Channel",
+    "definition": "Commission based partnerships",
+    "type": "definition"
+  },
+  {
+    "id": "agency-fee-finance-229b96e6",
+    "term": "Agency Fee",
+    "category": "Finance",
+    "category_raw": "Finance",
+    "definition": "Fixed or time-based service charge",
+    "type": "definition"
+  },
+  {
+    "id": "aggregated-event-measurement-tracking-7f783679",
+    "term": "Aggregated Event Measurement",
+    "category": "Tracking",
+    "category_raw": "Tracking",
+    "definition": "Privacy-restricted event ranking",
+    "formula_or_notes": "Meta framework",
+    "type": "definition"
+  },
+  {
+    "id": "all-conversions-tracking-798611c4",
+    "term": "All Conversions",
+    "category": "Tracking",
+    "category_raw": "Tracking",
+    "definition": "Includes primary and secondary conversions",
+    "type": "definition"
+  },
+  {
+    "id": "always-on-planning-88920606",
+    "term": "Always-on",
+    "category": "Planning",
+    "category_raw": "Planning",
+    "definition": "Ongoing campaign without fixed end date",
+    "type": "definition"
+  },
+  {
+    "id": "amazon-ads-commerce-27937c51",
+    "term": "Amazon Ads",
+    "category": "Commerce",
+    "category_raw": "Commerce",
+    "definition": "Amazon advertising platform",
+    "type": "definition"
+  },
+  {
+    "id": "aor-commercial-8b608de2",
+    "term": "AOR",
+    "category": "Commercial",
+    "category_raw": "Commercial",
+    "definition": "Agency of Record appointment",
+    "type": "acronym"
+  },
+  {
+    "id": "aov-metric-ab21f2f6",
+    "term": "AOV",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Average Order Value",
+    "formula_or_notes": "Revenue / Orders",
+    "type": "formula",
+    "formula": {
+      "calculatorId": "aov",
+      "expression": "revenue / orders",
+      "variables": [
+        {
+          "key": "revenue",
+          "label": "Revenue",
+          "unit": "$",
+          "required": true
+        },
+        {
+          "key": "orders",
+          "label": "Orders",
+          "required": true
+        }
+      ],
+      "output": {
+        "label": "AOV",
+        "unit": "$"
+      },
+      "format": "currency"
+    }
+  },
+  {
+    "id": "api-tech-4de0a5b6",
+    "term": "API",
+    "category": "Tech",
+    "category_raw": "Tech",
+    "definition": "System data interface",
+    "type": "acronym"
+  },
+  {
+    "id": "app-ads-txt-governance-5ee27cac",
+    "term": "App-ads.txt",
+    "category": "Governance",
+    "category_raw": "Governance",
+    "definition": "App equivalent of ads.txt",
+    "type": "definition"
+  },
+  {
+    "id": "arbitrage-trading-a91e6947",
+    "term": "Arbitrage",
+    "category": "Trading",
+    "category_raw": "Trading",
+    "definition": "Buying low selling high inventory",
+    "type": "definition"
+  },
+  {
+    "id": "aspect-ratio-creative-8d1536dd",
+    "term": "Aspect Ratio",
+    "category": "Creative",
+    "category_raw": "Creative",
+    "definition": "Width to height format",
+    "type": "definition"
+  },
+  {
+    "id": "asset-creative-89f271ab",
+    "term": "Asset",
+    "category": "Creative",
+    "category_raw": "Creative",
+    "definition": "Ad creative file",
+    "type": "definition"
+  },
+  {
+    "id": "assets-creative-9fe7a20b",
+    "term": "Assets",
+    "category": "Creative",
+    "category_raw": "Creative",
+    "definition": "New naming for extensions",
+    "type": "definition"
+  },
+  {
+    "id": "attention-delivery-28a368fc",
+    "term": "Attention",
+    "category": "Delivery",
+    "category_raw": "Delivery",
+    "definition": "Time based exposure metric",
+    "type": "definition"
+  },
+  {
+    "id": "attribution-measurement-d7bc9bbe",
+    "term": "Attribution",
+    "category": "Measurement",
+    "category_raw": "Measurement",
+    "definition": "Process of assigning credit to touchpoints",
+    "type": "definition"
+  },
+  {
+    "id": "attribution-window-tracking-5a3d8bf0",
+    "term": "Attribution Window",
+    "category": "Tracking",
+    "category_raw": "Tracking",
+    "definition": "Time allowed for conversion credit",
+    "type": "definition"
+  },
+  {
+    "id": "auction-mechanics-082d402b",
+    "term": "Auction",
+    "category": "Mechanics",
+    "category_raw": "Mechanics",
+    "definition": "Process determining ad eligibility and position",
+    "type": "definition"
+  },
+  {
+    "id": "auction-insights-reporting-fff9e99e",
+    "term": "Auction Insights",
+    "category": "Reporting",
+    "category_raw": "Reporting",
+    "definition": "Competitive auction comparison",
+    "type": "definition"
+  },
+  {
+    "id": "auction-time-bidding-mechanics-62ab9fa7",
+    "term": "Auction Time Bidding",
+    "category": "Mechanics",
+    "category_raw": "Mechanics",
+    "definition": "Bids evaluated per query in real time",
+    "type": "definition"
+  },
+  {
+    "id": "audience-audience-3545c4eb",
+    "term": "Audience",
+    "category": "Audience",
+    "category_raw": "Audience",
+    "definition": "Defined viewing demographic",
+    "type": "definition"
+  },
+  {
+    "id": "audience-bid-adjustment-bidding-f25938cd",
+    "term": "Audience Bid Adjustment",
+    "category": "Bidding",
+    "category_raw": "Bidding",
+    "definition": "Bid modifier for audiences",
+    "type": "definition"
+  },
+  {
+    "id": "audience-delivery-delivery-1dccc4c9",
+    "term": "Audience Delivery",
+    "category": "Delivery",
+    "category_raw": "Delivery",
+    "definition": "Actual delivered ratings",
+    "type": "definition"
+  },
+  {
+    "id": "audience-expansion-audience-3b3087c4",
+    "term": "Audience Expansion",
+    "category": "Audience",
+    "category_raw": "Audience",
+    "definition": "Algorithmic reach beyond defined audience",
+    "type": "definition"
+  },
+  {
+    "id": "audience-flow-metric-d925e459",
+    "term": "Audience Flow",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Movement between programs",
+    "type": "definition"
+  },
+  {
+    "id": "audience-network-placement-a597c1a8",
+    "term": "Audience Network",
+    "category": "Placement",
+    "category_raw": "Placement",
+    "definition": "Off-platform placements",
+    "formula_or_notes": "Meta",
+    "type": "definition"
+  },
+  {
+    "id": "auto-tagging-tracking-6817e567",
+    "term": "Auto-tagging",
+    "category": "Tracking",
+    "category_raw": "Tracking",
+    "definition": "Automatic URL parameter tagging",
+    "type": "definition"
+  },
+  {
+    "id": "automatic-placements-delivery-5a93c05c",
+    "term": "Automatic Placements",
+    "category": "Delivery",
+    "category_raw": "Delivery",
+    "definition": "Platform-selected placements",
+    "type": "definition"
+  },
+  {
+    "id": "average-audience-metric-95c46625",
+    "term": "Average Audience",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Mean viewers per program",
+    "type": "definition"
+  },
+  {
+    "id": "average-frequency-metric-ebe1abcc",
+    "term": "Average Frequency",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Alias of Frequency",
+    "type": "definition"
+  },
+  {
+    "id": "avg-monthly-searches-metric-0bcec822",
+    "term": "Avg Monthly Searches",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Alias of Search Volume",
+    "type": "definition"
+  },
+  {
+    "id": "avod-channel-77304cec",
+    "term": "AVOD",
+    "category": "Channel",
+    "category_raw": "Channel",
+    "definition": "Advertising Supported Video On Demand",
+    "type": "acronym"
+  },
+  {
+    "id": "base-bid-bidding-6561861a",
+    "term": "Base Bid",
+    "category": "Bidding",
+    "category_raw": "Bidding",
+    "definition": "Initial bid before modifiers",
+    "type": "definition"
+  },
+  {
+    "id": "baseline-measurement-6bfb9a5b",
+    "term": "Baseline",
+    "category": "Measurement",
+    "category_raw": "Measurement",
+    "definition": "Expected result without media",
+    "type": "definition"
+  },
+  {
+    "id": "behaviour-targeting-audience-44b62fb6",
+    "term": "Behaviour Targeting",
+    "category": "Audience",
+    "category_raw": "Audience",
+    "definition": "Behaviour-based targeting",
+    "type": "definition"
+  },
+  {
+    "id": "bid-bidding-4106df03",
+    "term": "Bid",
+    "category": "Bidding",
+    "category_raw": "Bidding",
+    "definition": "Amount advertiser is willing to pay",
+    "type": "definition"
+  },
+  {
+    "id": "bid-adjustment-bidding-8a2f98ee",
+    "term": "Bid Adjustment",
+    "category": "Bidding",
+    "category_raw": "Bidding",
+    "definition": "Modifier applied to base bid",
+    "type": "definition"
+  },
+  {
+    "id": "bid-cap-bidding-466dba1d",
+    "term": "Bid Cap",
+    "category": "Bidding",
+    "category_raw": "Bidding",
+    "definition": "Maximum bid limit",
+    "type": "definition"
+  },
+  {
+    "id": "bid-floor-mechanics-32870a39",
+    "term": "Bid Floor",
+    "category": "Mechanics",
+    "category_raw": "Mechanics",
+    "definition": "Minimum acceptable price set by seller",
+    "type": "definition"
+  },
+  {
+    "id": "bid-multiplier-bidding-8ba9f66a",
+    "term": "Bid Multiplier",
+    "category": "Bidding",
+    "category_raw": "Bidding",
+    "definition": "Adjustment applied to base bid",
+    "type": "definition"
+  },
+  {
+    "id": "bid-rate-supply-471c7b91",
+    "term": "Bid Rate",
+    "category": "Supply",
+    "category_raw": "Supply",
+    "definition": "Percentage of requests bid on",
+    "formula_or_notes": "Bids / Requests * 100",
+    "type": "formula",
+    "formula": {
+      "calculatorId": "bid-rate",
+      "expression": "(bids / requests) * 100",
+      "variables": [
+        {
+          "key": "bids",
+          "label": "Bids",
+          "required": true
+        },
+        {
+          "key": "requests",
+          "label": "Requests",
+          "required": true
+        }
+      ],
+      "output": {
+        "label": "Bid Rate",
+        "unit": "%"
+      },
+      "format": "percent"
+    }
+  },
+  {
+    "id": "bid-rate-metric-5a0ffd8c",
+    "term": "BID RATE",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "",
+    "formula_or_notes": "Bids / Requests * 100,",
+    "type": "formula",
+    "formula": {
+      "calculatorId": "bid-rate",
+      "expression": "(bids / requests) * 100",
+      "variables": [
+        {
+          "key": "bids",
+          "label": "Bids",
+          "required": true
+        },
+        {
+          "key": "requests",
+          "label": "Requests",
+          "required": true
+        }
+      ],
+      "output": {
+        "label": "Bid Rate",
+        "unit": "%"
+      },
+      "format": "percent"
+    }
+  },
+  {
+    "id": "bid-request-mechanics-259d0882",
+    "term": "Bid Request",
+    "category": "Mechanics",
+    "category_raw": "Mechanics",
+    "definition": "Impression opportunity sent to DSP",
+    "type": "definition"
+  },
+  {
+    "id": "bid-response-mechanics-deb63070",
+    "term": "Bid Response",
+    "category": "Mechanics",
+    "category_raw": "Mechanics",
+    "definition": "DSP bid returned to exchange",
+    "type": "definition"
+  },
+  {
+    "id": "bid-shading-bidding-c41a8d21",
+    "term": "Bid Shading",
+    "category": "Bidding",
+    "category_raw": "Bidding",
+    "definition": "Lowering bids in first-price auctions",
+    "type": "definition"
+  },
+  {
+    "id": "bid-stacking-strategy-7a272761",
+    "term": "Bid Stacking",
+    "category": "Strategy",
+    "category_raw": "Strategy",
+    "definition": "Multiple bid modifiers compounding",
+    "type": "definition"
+  },
+  {
+    "id": "bid-strategy-mechanics-743fbbad",
+    "term": "Bid Strategy",
+    "category": "Mechanics",
+    "category_raw": "Mechanics",
+    "definition": "Rule governing bid behaviour",
+    "type": "definition"
+  },
+  {
+    "id": "bigquery-tech-47f601b2",
+    "term": "BigQuery",
+    "category": "Tech",
+    "category_raw": "Tech",
+    "definition": "Google data warehouse",
+    "type": "definition"
+  },
+  {
+    "id": "billing-month-finance-01bc1fe6",
+    "term": "Billing Month",
+    "category": "Finance",
+    "category_raw": "Finance",
+    "definition": "Month in which spend is recognised",
+    "type": "definition"
+  },
+  {
+    "id": "billing-schedule-finance-aaee9b6b",
+    "term": "Billing Schedule",
+    "category": "Finance",
+    "category_raw": "Finance",
+    "definition": "Planned monthly billing breakdown",
+    "type": "definition"
+  },
+  {
+    "id": "blacklisting-governance-01b67d4c",
+    "term": "Blacklisting",
+    "category": "Governance",
+    "category_raw": "Governance",
+    "definition": "Excluded inventory list",
+    "type": "definition"
+  },
+  {
+    "id": "blended-roas-metric-1b159a7c",
+    "term": "Blended ROAS",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "ROAS across campaigns or channels",
+    "type": "definition"
+  },
+  {
+    "id": "bonus-spots-delivery-bacd8731",
+    "term": "Bonus Spots",
+    "category": "Delivery",
+    "category_raw": "Delivery",
+    "definition": "Additional spots provided at no cost",
+    "type": "definition"
+  },
+  {
+    "id": "bot-traffic-governance-c789d3b1",
+    "term": "Bot Traffic",
+    "category": "Governance",
+    "category_raw": "Governance",
+    "definition": "Automated non-human traffic",
+    "type": "definition"
+  },
+  {
+    "id": "brand-defense-strategy-47254a71",
+    "term": "Brand Defense",
+    "category": "Strategy",
+    "category_raw": "Strategy",
+    "definition": "Protecting branded queries",
+    "type": "definition"
+  },
+  {
+    "id": "brand-lift-measurement-aab528d5",
+    "term": "Brand Lift",
+    "category": "Measurement",
+    "category_raw": "Measurement",
+    "definition": "Survey-based brand impact study",
+    "type": "definition"
+  },
+  {
+    "id": "brand-safety-governance-5aa13ffc",
+    "term": "Brand Safety",
+    "category": "Governance",
+    "category_raw": "Governance",
+    "definition": "Controls to avoid unsafe content",
+    "type": "definition"
+  },
+  {
+    "id": "brand-search-structure-a96b9d43",
+    "term": "Brand Search",
+    "category": "Structure",
+    "category_raw": "Structure",
+    "definition": "Searches containing brand name",
+    "type": "definition"
+  },
+  {
+    "id": "brief-planning-9600415b",
+    "term": "Brief",
+    "category": "Planning",
+    "category_raw": "Planning",
+    "definition": "Client requirements document",
+    "type": "definition"
+  },
+  {
+    "id": "broad-match-match-type-eb48815b",
+    "term": "Broad Match",
+    "category": "Match Type",
+    "category_raw": "Match Type",
+    "definition": "Triggers on related queries via intent",
+    "type": "definition"
+  },
+  {
+    "id": "broad-match-expansion-mechanics-d603fcba",
+    "term": "Broad Match Expansion",
+    "category": "Mechanics",
+    "category_raw": "Mechanics",
+    "definition": "Algorithmic query expansion",
+    "type": "definition"
+  },
+  {
+    "id": "broadcast-tv-channel-401602bc",
+    "term": "Broadcast TV",
+    "category": "Channel",
+    "category_raw": "Channel",
+    "definition": "Alias of Linear TV",
+    "type": "definition"
+  },
+  {
+    "id": "broadcaster-video-on-demand-channel-94abbf9b",
+    "term": "Broadcaster Video On Demand",
+    "category": "Channel",
+    "category_raw": "Channel",
+    "definition": "Alias of BVOD",
+    "type": "definition"
+  },
+  {
+    "id": "budget-planning-4b0e6ef7",
+    "term": "Budget",
+    "category": "Planning",
+    "category_raw": "Planning",
+    "definition": "Approved spend limit for media or services",
+    "type": "definition"
+  },
+  {
+    "id": "budget-cap-delivery-1cdbcc42",
+    "term": "Budget Cap",
+    "category": "Delivery",
+    "category_raw": "Delivery",
+    "definition": "Maximum spend allowed",
+    "type": "definition"
+  },
+  {
+    "id": "burst-planning-0115a664",
+    "term": "Burst",
+    "category": "Planning",
+    "category_raw": "Planning",
+    "definition": "High-intensity spend period within a flight",
+    "type": "definition"
+  },
+  {
+    "id": "bvod-channel-58ae3218",
+    "term": "BVOD",
+    "category": "Channel",
+    "category_raw": "Channel",
+    "definition": "Broadcaster Video On Demand in Australia",
+    "type": "acronym"
+  },
+  {
+    "id": "bvod-completion-rate-metric-c7aab7f9",
+    "term": "BVOD Completion Rate",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Completed views divided by starts",
+    "type": "definition"
+  },
+  {
+    "id": "bvod-cpm-metric-4ac6c890",
+    "term": "BVOD CPM",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Cost per thousand BVOD impressions",
+    "type": "acronym"
+  },
+  {
+    "id": "bvod-cpv-metric-a404c6cf",
+    "term": "BVOD CPV",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Cost per BVOD video view",
+    "type": "acronym"
+  },
+  {
+    "id": "bvod-impression-metric-5fd47584",
+    "term": "BVOD Impression",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Digital video ad serving",
+    "type": "definition"
+  },
+  {
+    "id": "bvod-reach-metric-a009dc07",
+    "term": "BVOD Reach",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Unique viewers reached via BVOD",
+    "type": "definition"
+  },
+  {
+    "id": "call-extension-creative-55abc12f",
+    "term": "Call Extension",
+    "category": "Creative",
+    "category_raw": "Creative",
+    "definition": "Clickable phone number",
+    "type": "definition"
+  },
+  {
+    "id": "call-to-action-creative-addc5d40",
+    "term": "Call to Action",
+    "category": "Creative",
+    "category_raw": "Creative",
+    "definition": "User instruction",
+    "type": "definition"
+  },
+  {
+    "id": "callouts-creative-4b7fe334",
+    "term": "Callouts",
+    "category": "Creative",
+    "category_raw": "Creative",
+    "definition": "Short benefit statements",
+    "type": "definition"
+  },
+  {
+    "id": "campaign-structure-de9851ee",
+    "term": "Campaign",
+    "category": "Structure",
+    "category_raw": "Structure",
+    "definition": "Top-level buying container",
+    "type": "definition"
+  },
+  {
+    "id": "campaign-budget-optimisation-budgeting-ff7eb59d",
+    "term": "Campaign Budget Optimisation",
+    "category": "Budgeting",
+    "category_raw": "Budgeting",
+    "definition": "Automatic budget allocation",
+    "formula_or_notes": "Meta",
+    "type": "definition"
+  },
+  {
+    "id": "campaign-level-optimisation-optimisation-c19933e7",
+    "term": "Campaign Level Optimisation",
+    "category": "Optimisation",
+    "category_raw": "Optimisation",
+    "definition": "Optimising at campaign level",
+    "type": "definition"
+  },
+  {
+    "id": "cannibalisation-optimisation-6aca7db3",
+    "term": "Cannibalisation",
+    "category": "Optimisation",
+    "category_raw": "Optimisation",
+    "definition": "Keywords competing internally",
+    "type": "definition"
+  },
+  {
+    "id": "capi-tracking-0e67f1b1",
+    "term": "CAPI",
+    "category": "Tracking",
+    "category_raw": "Tracking",
+    "definition": "Meta server side conversions",
+    "type": "acronym"
+  },
+  {
+    "id": "cartology-retail-media-8df638c1",
+    "term": "Cartology",
+    "category": "Retail Media",
+    "category_raw": "Retail Media",
+    "definition": "Woolworths retail media network (AU)",
+    "type": "definition"
+  },
+  {
+    "id": "catch-up-tv-channel-c9332794",
+    "term": "Catch-up TV",
+    "category": "Channel",
+    "category_raw": "Channel",
+    "definition": "On-demand replay of broadcast content",
+    "type": "definition"
+  },
+  {
+    "id": "category-contextual-targeting-fb884278",
+    "term": "Category Contextual",
+    "category": "Targeting",
+    "category_raw": "Targeting",
+    "definition": "Content category targeting",
+    "type": "definition"
+  },
+  {
+    "id": "cbo-budgeting-edff4c40",
+    "term": "CBO",
+    "category": "Budgeting",
+    "category_raw": "Budgeting",
+    "definition": "Campaign Budget Optimisation",
+    "formula_or_notes": "Meta automation",
+    "type": "acronym"
+  },
+  {
+    "id": "cdp-tech-a54c3be3",
+    "term": "CDP",
+    "category": "Tech",
+    "category_raw": "Tech",
+    "definition": "Customer Data Platform",
+    "type": "acronym"
+  },
+  {
+    "id": "change-request-operations-71bc1291",
+    "term": "Change Request",
+    "category": "Operations",
+    "category_raw": "Operations",
+    "definition": "Logged scope or delivery change",
+    "type": "definition"
+  },
+  {
+    "id": "clearing-price-mechanics-95ca8326",
+    "term": "Clearing Price",
+    "category": "Mechanics",
+    "category_raw": "Mechanics",
+    "definition": "Price paid after auction clears",
+    "type": "definition"
+  },
+  {
+    "id": "click-engagement-16b2140b",
+    "term": "Click",
+    "category": "Engagement",
+    "category_raw": "Engagement",
+    "definition": "User interaction with an ad",
+    "type": "definition"
+  },
+  {
+    "id": "click-attribution-tracking-fa10407a",
+    "term": "Click Attribution",
+    "category": "Tracking",
+    "category_raw": "Tracking",
+    "definition": "Conversions credited after click",
+    "type": "definition"
+  },
+  {
+    "id": "click-through-conversion-tracking-2da1896a",
+    "term": "Click Through Conversion",
+    "category": "Tracking",
+    "category_raw": "Tracking",
+    "definition": "Conversion after ad click",
+    "type": "definition"
+  },
+  {
+    "id": "click-through-rate-metric-a09866e7",
+    "term": "Click Through Rate",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Alias of CTR",
+    "type": "definition"
+  },
+  {
+    "id": "client-side-tracking-tracking-2a551dc5",
+    "term": "Client-side Tracking",
+    "category": "Tracking",
+    "category_raw": "Tracking",
+    "definition": "Browser based tracking",
+    "type": "definition"
+  },
+  {
+    "id": "client-side-tracking-tracking-9d6c9c0c",
+    "term": "Client-Side Tracking",
+    "category": "Tracking",
+    "category_raw": "Tracking",
+    "definition": "Events sent from browser",
+    "type": "definition"
+  },
+  {
+    "id": "close-variant-match-type-8e874e6a",
+    "term": "Close Variant",
+    "category": "Match Type",
+    "category_raw": "Match Type",
+    "definition": "Plural misspelling or reordered terms",
+    "type": "definition"
+  },
+  {
+    "id": "cm360-channel-66cd4aef",
+    "term": "CM360",
+    "category": "Channel",
+    "category_raw": "Channel",
+    "definition": "Google Campaign Manager",
+    "type": "acronym"
+  },
+  {
+    "id": "cmp-privacy-79314dd7",
+    "term": "CMP",
+    "category": "Privacy",
+    "category_raw": "Privacy",
+    "definition": "Consent Management Platform",
+    "type": "acronym"
+  },
+  {
+    "id": "coles-360-retail-media-7d824eef",
+    "term": "Coles 360",
+    "category": "Retail Media",
+    "category_raw": "Retail Media",
+    "definition": "Coles retail media network (AU)",
+    "type": "definition"
+  },
+  {
+    "id": "commercial-intent-optimisation-88cc07d8",
+    "term": "Commercial Intent",
+    "category": "Optimisation",
+    "category_raw": "Optimisation",
+    "definition": "Purchase-driven search behaviour",
+    "type": "definition"
+  },
+  {
+    "id": "commission-finance-73d0f7cc",
+    "term": "Commission",
+    "category": "Finance",
+    "category_raw": "Finance",
+    "definition": "Percentage of media spend earned by agency",
+    "type": "definition"
+  },
+  {
+    "id": "companion-banner-format-13717cb5",
+    "term": "Companion Banner",
+    "category": "Format",
+    "category_raw": "Format",
+    "definition": "Display unit alongside video",
+    "type": "definition"
+  },
+  {
+    "id": "competition-metric-21556f2c",
+    "term": "Competition",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Relative advertiser density",
+    "type": "definition"
+  },
+  {
+    "id": "competitive-weight-planning-8356db3f",
+    "term": "Competitive Weight",
+    "category": "Planning",
+    "category_raw": "Planning",
+    "definition": "Relative GRP investment",
+    "type": "definition"
+  },
+  {
+    "id": "competitor-search-structure-0ce36378",
+    "term": "Competitor Search",
+    "category": "Structure",
+    "category_raw": "Structure",
+    "definition": "Searches referencing competitors",
+    "type": "definition"
+  },
+  {
+    "id": "compliance-ops-d71618ee",
+    "term": "Compliance",
+    "category": "Ops",
+    "category_raw": "Ops",
+    "definition": "Adherence to rules",
+    "type": "definition"
+  },
+  {
+    "id": "consent-mode-privacy-22e28ee1",
+    "term": "Consent Mode",
+    "category": "Privacy",
+    "category_raw": "Privacy",
+    "definition": "Consent-based signal handling",
+    "type": "definition"
+  },
+  {
+    "id": "contextual-alignment-planning-850e97b3",
+    "term": "Contextual Alignment",
+    "category": "Planning",
+    "category_raw": "Planning",
+    "definition": "Content relevance to brand",
+    "type": "definition"
+  },
+  {
+    "id": "contextual-targeting-targeting-90d2734c",
+    "term": "Contextual Targeting",
+    "category": "Targeting",
+    "category_raw": "Targeting",
+    "definition": "Targeting based on content",
+    "type": "definition"
+  },
+  {
+    "id": "control-group-measurement-8c5fe7ea",
+    "term": "Control Group",
+    "category": "Measurement",
+    "category_raw": "Measurement",
+    "definition": "Unexposed group used in testing",
+    "type": "definition"
+  },
+  {
+    "id": "conversion-measurement-fab44791",
+    "term": "Conversion",
+    "category": "Measurement",
+    "category_raw": "Measurement",
+    "definition": "Tracked outcome used for optimisation",
+    "type": "definition"
+  },
+  {
+    "id": "conversion-action-tracking-277cdd53",
+    "term": "Conversion Action",
+    "category": "Tracking",
+    "category_raw": "Tracking",
+    "definition": "Defined outcome used for optimisation",
+    "type": "definition"
+  },
+  {
+    "id": "conversion-lift-measurement-b18ccee5",
+    "term": "Conversion Lift",
+    "category": "Measurement",
+    "category_raw": "Measurement",
+    "definition": "Incremental conversion measurement",
+    "type": "definition"
+  },
+  {
+    "id": "conversion-rate-ranking-reporting-c0840c87",
+    "term": "Conversion Rate Ranking",
+    "category": "Reporting",
+    "category_raw": "Reporting",
+    "definition": "Conversion comparison ranking",
+    "type": "definition"
+  },
+  {
+    "id": "conversion-window-tracking-ff83892b",
+    "term": "Conversion Window",
+    "category": "Tracking",
+    "category_raw": "Tracking",
+    "definition": "Time allowed for conversion credit",
+    "type": "definition"
+  },
+  {
+    "id": "cookie-syncing-identity-a9209750",
+    "term": "Cookie Syncing",
+    "category": "Identity",
+    "category_raw": "Identity",
+    "definition": "Alias of ID Syncing",
+    "type": "definition"
+  },
+  {
+    "id": "copy-creative-7a61ed56",
+    "term": "Copy",
+    "category": "Creative",
+    "category_raw": "Creative",
+    "definition": "Written ad text",
+    "type": "definition"
+  },
+  {
+    "id": "cost-cap-bidding-ecb0b78b",
+    "term": "Cost Cap",
+    "category": "Bidding",
+    "category_raw": "Bidding",
+    "definition": "Target average cost control",
+    "type": "definition"
+  },
+  {
+    "id": "cost-per-lead-metric-26b84ba7",
+    "term": "Cost per Lead",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Cost per lead submission",
+    "formula_or_notes": "Cost / Leads",
+    "type": "formula",
+    "formula": {
+      "calculatorId": "cost-per-lead",
+      "expression": "cost / leads",
+      "variables": [
+        {
+          "key": "cost",
+          "label": "Cost",
+          "unit": "$",
+          "required": true
+        },
+        {
+          "key": "leads",
+          "label": "Leads",
+          "required": true
+        }
+      ],
+      "output": {
+        "label": "CPL",
+        "unit": "$"
+      },
+      "format": "currency"
+    }
+  },
+  {
+    "id": "cost-per-lead-metric-b74ec736",
+    "term": "COST PER LEAD",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "",
+    "formula_or_notes": "Cost / Leads,",
+    "type": "formula",
+    "formula": {
+      "calculatorId": "cost-per-lead",
+      "expression": "cost / leads",
+      "variables": [
+        {
+          "key": "cost",
+          "label": "Cost",
+          "unit": "$",
+          "required": true
+        },
+        {
+          "key": "leads",
+          "label": "Leads",
+          "required": true
+        }
+      ],
+      "output": {
+        "label": "CPL",
+        "unit": "$"
+      },
+      "format": "currency"
+    }
+  },
+  {
+    "id": "cost-per-lpv-metric-13198059",
+    "term": "Cost per LPV",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Cost divided by landing page views",
+    "type": "definition"
+  },
+  {
+    "id": "cost-per-point-metric-bb44408f",
+    "term": "Cost Per Point",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Cost per rating point",
+    "formula_or_notes": "Cost / GRPs",
+    "type": "formula",
+    "formula": {
+      "calculatorId": "cost-per-point",
+      "expression": "cost / grps",
+      "variables": [
+        {
+          "key": "cost",
+          "label": "Cost",
+          "unit": "$",
+          "required": true
+        },
+        {
+          "key": "grps",
+          "label": "GRPs",
+          "required": true
+        }
+      ],
+      "output": {
+        "label": "CPP",
+        "unit": "$"
+      },
+      "format": "currency"
+    }
+  },
+  {
+    "id": "cost-per-point-metric-9045f485",
+    "term": "COST PER POINT",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "",
+    "formula_or_notes": "Cost / GRPs,",
+    "type": "formula",
+    "formula": {
+      "calculatorId": "cost-per-point",
+      "expression": "cost / grps",
+      "variables": [
+        {
+          "key": "cost",
+          "label": "Cost",
+          "unit": "$",
+          "required": true
+        },
+        {
+          "key": "grps",
+          "label": "GRPs",
+          "required": true
+        }
+      ],
+      "output": {
+        "label": "CPP",
+        "unit": "$"
+      },
+      "format": "currency"
+    }
+  },
+  {
+    "id": "coverage-metric-31cd95c2",
+    "term": "Coverage",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Reach within defined universe",
+    "type": "definition"
+  },
+  {
+    "id": "cpa-metric-524c836c",
+    "term": "CPA",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Cost Per Acquisition",
+    "formula_or_notes": "Cost / Conversions",
+    "type": "formula",
+    "formula": {
+      "calculatorId": "cpa",
+      "expression": "cost / conversions",
+      "variables": [
+        {
+          "key": "cost",
+          "label": "Cost",
+          "unit": "$",
+          "required": true
+        },
+        {
+          "key": "conversions",
+          "label": "Conversions",
+          "required": true
+        }
+      ],
+      "output": {
+        "label": "CPA",
+        "unit": "$"
+      },
+      "format": "currency"
+    }
+  },
+  {
+    "id": "cpc-metric-be9049b9",
+    "term": "CPC",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Cost Per Click",
+    "formula_or_notes": "Cost / Clicks",
+    "type": "formula",
+    "formula": {
+      "calculatorId": "cpc",
+      "expression": "cost / clicks",
+      "variables": [
+        {
+          "key": "cost",
+          "label": "Cost",
+          "unit": "$",
+          "required": true
+        },
+        {
+          "key": "clicks",
+          "label": "Clicks",
+          "required": true
+        }
+      ],
+      "output": {
+        "label": "CPC",
+        "unit": "$"
+      },
+      "format": "currency"
+    }
+  },
+  {
+    "id": "cpe-metric-38b396cf",
+    "term": "CPE",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Cost Per Engagement",
+    "formula_or_notes": "Cost / Engagements",
+    "type": "formula",
+    "formula": {
+      "calculatorId": "cpe",
+      "expression": "cost / engagements",
+      "variables": [
+        {
+          "key": "cost",
+          "label": "Cost",
+          "unit": "$",
+          "required": true
+        },
+        {
+          "key": "engagements",
+          "label": "Engagements",
+          "required": true
+        }
+      ],
+      "output": {
+        "label": "CPE",
+        "unit": "$"
+      },
+      "format": "currency"
+    }
+  },
+  {
+    "id": "cpl-metric-a973f5ba",
+    "term": "CPL",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Cost Per Lead",
+    "formula_or_notes": "Cost / Leads",
+    "type": "formula",
+    "formula": {
+      "calculatorId": "cpl",
+      "expression": "cost / leads",
+      "variables": [
+        {
+          "key": "cost",
+          "label": "Cost",
+          "unit": "$",
+          "required": true
+        },
+        {
+          "key": "leads",
+          "label": "Leads",
+          "required": true
+        }
+      ],
+      "output": {
+        "label": "CPL",
+        "unit": "$"
+      },
+      "format": "currency"
+    }
+  },
+  {
+    "id": "cpm-metric-b686bcf2",
+    "term": "CPM",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Cost Per Thousand Impressions",
+    "formula_or_notes": "Cost / Impressions * 1000",
+    "type": "formula",
+    "formula": {
+      "calculatorId": "cpm",
+      "expression": "(cost / impressions) * 1000",
+      "variables": [
+        {
+          "key": "cost",
+          "label": "Cost",
+          "unit": "$",
+          "required": true
+        },
+        {
+          "key": "impressions",
+          "label": "Impressions",
+          "required": true
+        }
+      ],
+      "output": {
+        "label": "CPM",
+        "unit": "$"
+      },
+      "format": "currency"
+    }
+  },
+  {
+    "id": "cpp-metric-b80695d5",
+    "term": "CPP",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Cost per rating point",
+    "formula_or_notes": "Cost / GRPs",
+    "type": "formula",
+    "formula": {
+      "calculatorId": "cpp",
+      "expression": "cost / grps",
+      "variables": [
+        {
+          "key": "cost",
+          "label": "Cost",
+          "unit": "$",
+          "required": true
+        },
+        {
+          "key": "grps",
+          "label": "GRPs",
+          "required": true
+        }
+      ],
+      "output": {
+        "label": "CPP",
+        "unit": "$"
+      },
+      "format": "currency"
+    }
+  },
+  {
+    "id": "cprp-metric-c888d223",
+    "term": "CPRP",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Cost per target rating point",
+    "formula_or_notes": "Cost / TRPs",
+    "type": "formula",
+    "formula": {
+      "calculatorId": "cprp",
+      "expression": "cost / trps",
+      "variables": [
+        {
+          "key": "cost",
+          "label": "Cost",
+          "unit": "$",
+          "required": true
+        },
+        {
+          "key": "trps",
+          "label": "TRPs",
+          "required": true
+        }
+      ],
+      "output": {
+        "label": "CPRP",
+        "unit": "$"
+      },
+      "format": "currency"
+    }
+  },
+  {
+    "id": "cpv-metric-24732447",
+    "term": "CPV",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Cost Per Video View",
+    "formula_or_notes": "Cost / Video Views",
+    "type": "formula",
+    "formula": {
+      "expression": "cost / video views",
+      "variables": [
+        {
+          "key": "cost",
+          "label": "Cost",
+          "unit": "$",
+          "required": true
+        },
+        {
+          "key": "views",
+          "label": "Views",
+          "required": true
+        }
+      ],
+      "output": {
+        "label": "Result",
+        "unit": ""
+      },
+      "format": "number",
+      "inferred": true
+    }
+  },
+  {
+    "id": "creative-creative-fc0e8722",
+    "term": "Creative",
+    "category": "Creative",
+    "category_raw": "Creative",
+    "definition": "Ad asset including copy and visuals",
+    "type": "definition"
+  },
+  {
+    "id": "creative-fatigue-creative-6b646a6c",
+    "term": "Creative Fatigue",
+    "category": "Creative",
+    "category_raw": "Creative",
+    "definition": "Declining performance due to overexposure",
+    "type": "definition"
+  },
+  {
+    "id": "creative-refresh-creative-44f1d833",
+    "term": "Creative Refresh",
+    "category": "Creative",
+    "category_raw": "Creative",
+    "definition": "Introducing new assets",
+    "type": "definition"
+  },
+  {
+    "id": "creative-rotation-creative-d38d5063",
+    "term": "Creative Rotation",
+    "category": "Creative",
+    "category_raw": "Creative",
+    "definition": "Rules for asset serving",
+    "type": "definition"
+  },
+  {
+    "id": "creative-testing-creative-bfda2d28",
+    "term": "Creative Testing",
+    "category": "Creative",
+    "category_raw": "Creative",
+    "definition": "Testing multiple ad variants",
+    "type": "definition"
+  },
+  {
+    "id": "creative-wearout-creative-5eaaa129",
+    "term": "Creative Wearout",
+    "category": "Creative",
+    "category_raw": "Creative",
+    "definition": "Declining impact from repetition",
+    "type": "definition"
+  },
+  {
+    "id": "crm-tech-de415cbd",
+    "term": "CRM",
+    "category": "Tech",
+    "category_raw": "Tech",
+    "definition": "Customer Relationship Management system",
+    "type": "acronym"
+  },
+  {
+    "id": "cross-device-identity-0391ca3d",
+    "term": "Cross-device",
+    "category": "Identity",
+    "category_raw": "Identity",
+    "definition": "User exposure across devices",
+    "type": "definition"
+  },
+  {
+    "id": "cross-screen-reach-metric-d2c970d1",
+    "term": "Cross-Screen Reach",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Reach across linear and BVOD",
+    "type": "definition"
+  },
+  {
+    "id": "cta-creative-98d3ffef",
+    "term": "CTA",
+    "category": "Creative",
+    "category_raw": "Creative",
+    "definition": "Call to action button or prompt",
+    "type": "acronym"
+  },
+  {
+    "id": "cta-rate-creative-8872e9de",
+    "term": "CTA Rate",
+    "category": "Creative",
+    "category_raw": "Creative",
+    "definition": "CTA interactions divided by impressions",
+    "type": "definition"
+  },
+  {
+    "id": "ctr-metric-3c0b3730",
+    "term": "CTR",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Click Through Rate",
+    "formula_or_notes": "Clicks / Impressions * 100",
+    "type": "formula",
+    "formula": {
+      "calculatorId": "ctr",
+      "expression": "(clicks / impressions) * 100",
+      "variables": [
+        {
+          "key": "clicks",
+          "label": "Clicks",
+          "required": true
+        },
+        {
+          "key": "impressions",
+          "label": "Impressions",
+          "required": true
+        }
+      ],
+      "output": {
+        "label": "CTR",
+        "unit": "%"
+      },
+      "format": "percent"
+    }
+  },
+  {
+    "id": "ctr-formula-metric-dbbfc3ec",
+    "term": "CTR Formula",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "CTR calculation",
+    "formula_or_notes": "Clicks / Impressions * 100",
+    "type": "formula",
+    "formula": {
+      "expression": "clicks / impressions * 100",
+      "variables": [
+        {
+          "key": "clicks",
+          "label": "Clicks",
+          "required": true
+        },
+        {
+          "key": "impressions",
+          "label": "Impressions",
+          "required": true
+        }
+      ],
+      "output": {
+        "label": "Result",
+        "unit": "%"
+      },
+      "format": "percent",
+      "inferred": true
+    }
+  },
+  {
+    "id": "ctv-channel-8e640941",
+    "term": "CTV",
+    "category": "Channel",
+    "category_raw": "Channel",
+    "definition": "Connected TV delivered via internet",
+    "type": "acronym"
+  },
+  {
+    "id": "cume-audience-metric-c851c61a",
+    "term": "Cume Audience",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Cumulative unique viewers",
+    "type": "definition"
+  },
+  {
+    "id": "custom-audience-audience-7a004c68",
+    "term": "Custom Audience",
+    "category": "Audience",
+    "category_raw": "Audience",
+    "definition": "First-party defined audience",
+    "type": "definition"
+  },
+  {
+    "id": "cvr-metric-3f39acdf",
+    "term": "CVR",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Conversion Rate",
+    "formula_or_notes": "Conversions / Clicks * 100",
+    "type": "formula",
+    "formula": {
+      "calculatorId": "cvr",
+      "expression": "(conversions / clicks) * 100",
+      "variables": [
+        {
+          "key": "conversions",
+          "label": "Conversions",
+          "required": true
+        },
+        {
+          "key": "clicks",
+          "label": "Clicks",
+          "required": true
+        }
+      ],
+      "output": {
+        "label": "CVR",
+        "unit": "%"
+      },
+      "format": "percent"
+    }
+  },
+  {
+    "id": "dai-audio-a29a7b80",
+    "term": "DAI",
+    "category": "Audio",
+    "category_raw": "Audio",
+    "definition": "Dynamic Ad Insertion",
+    "type": "acronym"
+  },
+  {
+    "id": "daily-budget-budgeting-8d860fbe",
+    "term": "Daily Budget",
+    "category": "Budgeting",
+    "category_raw": "Budgeting",
+    "definition": "Spend limit per day",
+    "type": "definition"
+  },
+  {
+    "id": "daily-cap-definition-80ac3c5c",
+    "term": "Daily Cap",
+    "category": "Definition",
+    "category_raw": "Definition",
+    "definition": "Delivery",
+    "formula_or_notes": "Programmatic,Daily spend limit",
+    "type": "definition"
+  },
+  {
+    "id": "data-fee-finance-797745e2",
+    "term": "Data Fee",
+    "category": "Finance",
+    "category_raw": "Finance",
+    "definition": "Cost for audience or data usage",
+    "type": "definition"
+  },
+  {
+    "id": "data-freshness-reporting-e9277f49",
+    "term": "Data Freshness",
+    "category": "Reporting",
+    "category_raw": "Reporting",
+    "definition": "Latency of reporting updates",
+    "type": "definition"
+  },
+  {
+    "id": "daypart-planning-e50a3b96",
+    "term": "Daypart",
+    "category": "Planning",
+    "category_raw": "Planning",
+    "definition": "Time-of-day segment",
+    "type": "definition"
+  },
+  {
+    "id": "dayparting-targeting-efd76782",
+    "term": "Dayparting",
+    "category": "Targeting",
+    "category_raw": "Targeting",
+    "definition": "Time-of-day targeting",
+    "type": "definition"
+  },
+  {
+    "id": "de-duplication-measurement-4ef2b420",
+    "term": "De-duplication",
+    "category": "Measurement",
+    "category_raw": "Measurement",
+    "definition": "Removing overlap across screens",
+    "type": "definition"
+  },
+  {
+    "id": "deal-trading-5ce1b432",
+    "term": "Deal",
+    "category": "Trading",
+    "category_raw": "Trading",
+    "definition": "Agreed trading terms between buyer and seller",
+    "type": "definition"
+  },
+  {
+    "id": "deal-id-programmatic-c9f7ee0a",
+    "term": "Deal ID",
+    "category": "Programmatic",
+    "category_raw": "Programmatic",
+    "definition": "Identifier used to transact a deal",
+    "type": "definition"
+  },
+  {
+    "id": "delivery-delivery-64827211",
+    "term": "Delivery",
+    "category": "Delivery",
+    "category_raw": "Delivery",
+    "definition": "Ability to spend budget and serve ads",
+    "type": "definition"
+  },
+  {
+    "id": "delivery-insights-reporting-d096d7c7",
+    "term": "Delivery Insights",
+    "category": "Reporting",
+    "category_raw": "Reporting",
+    "definition": "Explanation for performance behaviour",
+    "type": "definition"
+  },
+  {
+    "id": "demand-supply-02862311",
+    "term": "Demand",
+    "category": "Supply",
+    "category_raw": "Supply",
+    "definition": "Buyer interest in inventory",
+    "type": "definition"
+  },
+  {
+    "id": "demand-side-platform-platform-feeea41d",
+    "term": "Demand Side Platform",
+    "category": "Platform",
+    "category_raw": "Platform",
+    "definition": "Alias of DSP",
+    "type": "definition"
+  },
+  {
+    "id": "demo-audience-e220a035",
+    "term": "Demo",
+    "category": "Audience",
+    "category_raw": "Audience",
+    "definition": "Demographic group definition",
+    "type": "definition"
+  },
+  {
+    "id": "demographic-targeting-audience-64c03407",
+    "term": "Demographic Targeting",
+    "category": "Audience",
+    "category_raw": "Audience",
+    "definition": "Age gender location targeting",
+    "type": "definition"
+  },
+  {
+    "id": "description-creative-83355815",
+    "term": "Description",
+    "category": "Creative",
+    "category_raw": "Creative",
+    "definition": "Supporting ad text",
+    "type": "definition"
+  },
+  {
+    "id": "deterministic-id-identity-107d49f7",
+    "term": "Deterministic ID",
+    "category": "Identity",
+    "category_raw": "Identity",
+    "definition": "Logged-in known identifier",
+    "type": "definition"
+  },
+  {
+    "id": "device-bid-adjustment-bidding-6599d949",
+    "term": "Device Bid Adjustment",
+    "category": "Bidding",
+    "category_raw": "Bidding",
+    "definition": "Bid modifier by device",
+    "type": "definition"
+  },
+  {
+    "id": "device-graph-identity-f890b9c3",
+    "term": "Device Graph",
+    "category": "Identity",
+    "category_raw": "Identity",
+    "definition": "Map linking devices to users",
+    "type": "definition"
+  },
+  {
+    "id": "digital-audio-audio-5427bcab",
+    "term": "Digital Audio",
+    "category": "Audio",
+    "category_raw": "Audio",
+    "definition": "Streamed audio",
+    "type": "definition"
+  },
+  {
+    "id": "diminishing-reach-planning-72b8e364",
+    "term": "Diminishing Reach",
+    "category": "Planning",
+    "category_raw": "Planning",
+    "definition": "Reduced incremental reach at scale",
+    "type": "definition"
+  },
+  {
+    "id": "diminishing-returns-economics-26bfdd94",
+    "term": "Diminishing Returns",
+    "category": "Economics",
+    "category_raw": "Economics",
+    "definition": "Reduced marginal gains at scale",
+    "type": "definition"
+  },
+  {
+    "id": "direct-path-trading-d2d31fbd",
+    "term": "Direct Path",
+    "category": "Trading",
+    "category_raw": "Trading",
+    "definition": "Single hop supply route",
+    "type": "definition"
+  },
+  {
+    "id": "display-format-6724c838",
+    "term": "Display",
+    "category": "Format",
+    "category_raw": "Format",
+    "definition": "Standard banner advertising",
+    "type": "definition"
+  },
+  {
+    "id": "dki-creative-d5ec9b39",
+    "term": "DKI",
+    "category": "Creative",
+    "category_raw": "Creative",
+    "definition": "Alias of DKI",
+    "type": "acronym"
+  },
+  {
+    "id": "dooh-offline-f5b44d27",
+    "term": "DOOH",
+    "category": "Offline",
+    "category_raw": "Offline",
+    "definition": "Digital Out of Home",
+    "type": "acronym"
+  },
+  {
+    "id": "doubleverify-verification-d42413a1",
+    "term": "DoubleVerify",
+    "category": "Verification",
+    "category_raw": "Verification",
+    "definition": "Verification and suitability provider",
+    "type": "definition"
+  },
+  {
+    "id": "dsp-programmatic-cf2090e9",
+    "term": "DSP",
+    "category": "Programmatic",
+    "category_raw": "Programmatic",
+    "definition": "Demand Side Platform used to buy ads",
+    "type": "acronym"
+  },
+  {
+    "id": "duplication-metric-78640b3b",
+    "term": "Duplication",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Audience overlap between placements",
+    "type": "definition"
+  },
+  {
+    "id": "dv360-channel-004a1703",
+    "term": "DV360",
+    "category": "Channel",
+    "category_raw": "Channel",
+    "definition": "Google Display and Video 360",
+    "type": "acronym"
+  },
+  {
+    "id": "dwh-tech-62db5def",
+    "term": "DWH",
+    "category": "Tech",
+    "category_raw": "Tech",
+    "definition": "Data Warehouse",
+    "type": "acronym"
+  },
+  {
+    "id": "dynamic-creative-creative-cf20f70d",
+    "term": "Dynamic Creative",
+    "category": "Creative",
+    "category_raw": "Creative",
+    "definition": "Automated asset combinations",
+    "type": "definition"
+  },
+  {
+    "id": "dynamic-floor-mechanics-169f65ee",
+    "term": "Dynamic Floor",
+    "category": "Mechanics",
+    "category_raw": "Mechanics",
+    "definition": "Floor price adjusted algorithmically",
+    "type": "definition"
+  },
+  {
+    "id": "dynamic-keyword-insertion-creative-199bc7e6",
+    "term": "Dynamic Keyword Insertion",
+    "category": "Creative",
+    "category_raw": "Creative",
+    "definition": "Keyword insertion into ad copy",
+    "type": "definition"
+  },
+  {
+    "id": "ecpc-bidding-aedfbda3",
+    "term": "eCPC",
+    "category": "Bidding",
+    "category_raw": "Bidding",
+    "definition": "Enhanced CPC automation layer",
+    "type": "definition"
+  },
+  {
+    "id": "ecpm-metric-d4d968df",
+    "term": "eCPM",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Effective CPM across buying",
+    "formula_or_notes": "(Cost / Impressions) * 1000",
+    "type": "formula",
+    "formula": {
+      "calculatorId": "ecpm",
+      "expression": "(cost / impressions) * 1000",
+      "variables": [
+        {
+          "key": "cost",
+          "label": "Cost",
+          "unit": "$",
+          "required": true
+        },
+        {
+          "key": "impressions",
+          "label": "Impressions",
+          "required": true
+        }
+      ],
+      "output": {
+        "label": "eCPM",
+        "unit": "$"
+      },
+      "format": "currency"
+    }
+  },
+  {
+    "id": "ecpm-metric-2aafe519",
+    "term": "ECPM",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "",
+    "formula_or_notes": "(Cost / Impressions) * 1000,",
+    "type": "formula",
+    "formula": {
+      "calculatorId": "ecpm",
+      "expression": "(cost / impressions) * 1000",
+      "variables": [
+        {
+          "key": "cost",
+          "label": "Cost",
+          "unit": "$",
+          "required": true
+        },
+        {
+          "key": "impressions",
+          "label": "Impressions",
+          "required": true
+        }
+      ],
+      "output": {
+        "label": "eCPM",
+        "unit": "$"
+      },
+      "format": "currency"
+    }
+  },
+  {
+    "id": "effective-rate-finance-4f05a959",
+    "term": "Effective Rate",
+    "category": "Finance",
+    "category_raw": "Finance",
+    "definition": "Blended realised rate after fees and discounts",
+    "type": "definition"
+  },
+  {
+    "id": "effective-reach-metric-828860ac",
+    "term": "Effective Reach",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Reach achieving minimum frequency",
+    "type": "definition"
+  },
+  {
+    "id": "eligible-impressions-metric-12b9bf95",
+    "term": "Eligible Impressions",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Total impressions available in auctions",
+    "type": "definition"
+  },
+  {
+    "id": "end-card-video-7074b24e",
+    "term": "End Card",
+    "category": "Video",
+    "category_raw": "Video",
+    "definition": "Final video CTA screen",
+    "type": "definition"
+  },
+  {
+    "id": "engagement-engagement-18563eec",
+    "term": "Engagement",
+    "category": "Engagement",
+    "category_raw": "Engagement",
+    "definition": "Interactions beyond impression",
+    "type": "definition"
+  },
+  {
+    "id": "engagement-rate-metric-ff1cd988",
+    "term": "Engagement Rate",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Engagements divided by impressions",
+    "formula_or_notes": "Engagements / Impressions * 100",
+    "type": "formula",
+    "formula": {
+      "calculatorId": "engagement-rate",
+      "expression": "(engagements / impressions) * 100",
+      "variables": [
+        {
+          "key": "engagements",
+          "label": "Engagements",
+          "required": true
+        },
+        {
+          "key": "impressions",
+          "label": "Impressions",
+          "required": true
+        }
+      ],
+      "output": {
+        "label": "Engagement Rate",
+        "unit": "%"
+      },
+      "format": "percent"
+    }
+  },
+  {
+    "id": "engagement-rate-metric-96c56fe5",
+    "term": "ENGAGEMENT RATE",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "",
+    "formula_or_notes": "Engagements / Impressions * 100,",
+    "type": "formula",
+    "formula": {
+      "calculatorId": "engagement-rate",
+      "expression": "(engagements / impressions) * 100",
+      "variables": [
+        {
+          "key": "engagements",
+          "label": "Engagements",
+          "required": true
+        },
+        {
+          "key": "impressions",
+          "label": "Impressions",
+          "required": true
+        }
+      ],
+      "output": {
+        "label": "Engagement Rate",
+        "unit": "%"
+      },
+      "format": "percent"
+    }
+  },
+  {
+    "id": "engagement-rate-ranking-reporting-0bb0a70b",
+    "term": "Engagement Rate Ranking",
+    "category": "Reporting",
+    "category_raw": "Reporting",
+    "definition": "Engagement comparison ranking",
+    "type": "definition"
+  },
+  {
+    "id": "enhanced-conversions-tracking-024d92dc",
+    "term": "Enhanced Conversions",
+    "category": "Tracking",
+    "category_raw": "Tracking",
+    "definition": "Google hashed data feature",
+    "type": "definition"
+  },
+  {
+    "id": "enhanced-cpc-bidding-eb0a2d20",
+    "term": "Enhanced CPC",
+    "category": "Bidding",
+    "category_raw": "Bidding",
+    "definition": "Alias of eCPC",
+    "type": "definition"
+  },
+  {
+    "id": "equivalisation-planning-14e11e8c",
+    "term": "Equivalisation",
+    "category": "Planning",
+    "category_raw": "Planning",
+    "definition": "Adjusting lengths to 30s equivalent",
+    "type": "definition"
+  },
+  {
+    "id": "equivalised-grps-planning-efbdb923",
+    "term": "Equivalised GRPs",
+    "category": "Planning",
+    "category_raw": "Planning",
+    "definition": "Normalised GRPs to standard length",
+    "type": "definition"
+  },
+  {
+    "id": "estimated-reach-delivery-e9a7808b",
+    "term": "Estimated Reach",
+    "category": "Delivery",
+    "category_raw": "Delivery",
+    "definition": "Predicted unique users",
+    "type": "definition"
+  },
+  {
+    "id": "etl-tech-86b14b69",
+    "term": "ETL",
+    "category": "Tech",
+    "category_raw": "Tech",
+    "definition": "Extract Transform Load",
+    "type": "acronym"
+  },
+  {
+    "id": "even-delivery-delivery-c6c95cf9",
+    "term": "Even Delivery",
+    "category": "Delivery",
+    "category_raw": "Delivery",
+    "definition": "Spend evenly across time",
+    "type": "definition"
+  },
+  {
+    "id": "even-pacing-delivery-e728b039",
+    "term": "Even Pacing",
+    "category": "Delivery",
+    "category_raw": "Delivery",
+    "definition": "Spend delivered evenly across time",
+    "type": "definition"
+  },
+  {
+    "id": "event-analytics-80c64b28",
+    "term": "Event",
+    "category": "Analytics",
+    "category_raw": "Analytics",
+    "definition": "Recorded user interaction",
+    "type": "definition"
+  },
+  {
+    "id": "event-deduplication-tracking-7358b33b",
+    "term": "Event Deduplication",
+    "category": "Tracking",
+    "category_raw": "Tracking",
+    "definition": "Preventing double counting",
+    "type": "definition"
+  },
+  {
+    "id": "event-priority-tracking-ce96c3b3",
+    "term": "Event Priority",
+    "category": "Tracking",
+    "category_raw": "Tracking",
+    "definition": "Ranking for limited conversion reporting",
+    "type": "definition"
+  },
+  {
+    "id": "ex-gst-commercial-f4f2a8f3",
+    "term": "Ex GST",
+    "category": "Commercial",
+    "category_raw": "Commercial",
+    "definition": "Price excluding GST",
+    "type": "definition"
+  },
+  {
+    "id": "exact-match-match-type-b46ce74b",
+    "term": "Exact Match",
+    "category": "Match Type",
+    "category_raw": "Match Type",
+    "definition": "Triggers on close variant exact queries",
+    "type": "definition"
+  },
+  {
+    "id": "exclusion-audience-92c49008",
+    "term": "Exclusion",
+    "category": "Audience",
+    "category_raw": "Audience",
+    "definition": "Users explicitly excluded",
+    "type": "definition"
+  },
+  {
+    "id": "expanded-text-ad-creative-981cc6ad",
+    "term": "Expanded Text Ad",
+    "category": "Creative",
+    "category_raw": "Creative",
+    "definition": "Legacy fixed format ad",
+    "type": "definition"
+  },
+  {
+    "id": "expected-ctr-quality-component-b47e51d0",
+    "term": "Expected CTR",
+    "category": "Quality Component",
+    "category_raw": "Quality Component",
+    "definition": "Predicted click likelihood",
+    "type": "definition"
+  },
+  {
+    "id": "exposed-group-measurement-e1a1c729",
+    "term": "Exposed Group",
+    "category": "Measurement",
+    "category_raw": "Measurement",
+    "definition": "Audience that received ads",
+    "type": "definition"
+  },
+  {
+    "id": "fast-channel-bc329603",
+    "term": "FAST",
+    "category": "Channel",
+    "category_raw": "Channel",
+    "definition": "Free Ad Supported Streaming Television",
+    "type": "acronym"
+  },
+  {
+    "id": "fee-finance-22fe14fa",
+    "term": "Fee",
+    "category": "Finance",
+    "category_raw": "Finance",
+    "definition": "Fixed or time-based service charge",
+    "type": "definition"
+  },
+  {
+    "id": "fee-stack-finance-06d04f39",
+    "term": "Fee Stack",
+    "category": "Finance",
+    "category_raw": "Finance",
+    "definition": "Cumulative technology and platform fees",
+    "type": "definition"
+  },
+  {
+    "id": "feed-placement-3d23d2f7",
+    "term": "Feed",
+    "category": "Placement",
+    "category_raw": "Placement",
+    "definition": "Main content feed",
+    "type": "definition"
+  },
+  {
+    "id": "fill-rate-supply-8459814f",
+    "term": "Fill Rate",
+    "category": "Supply",
+    "category_raw": "Supply",
+    "definition": "Percentage of inventory sold",
+    "formula_or_notes": "Filled Impressions / Available Impressions * 100",
+    "type": "formula",
+    "formula": {
+      "calculatorId": "fill-rate",
+      "expression": "(filled_impressions / available_impressions) * 100",
+      "variables": [
+        {
+          "key": "filled_impressions",
+          "label": "Filled Impressions",
+          "required": true
+        },
+        {
+          "key": "available_impressions",
+          "label": "Available Impressions",
+          "required": true
+        }
+      ],
+      "output": {
+        "label": "Fill Rate",
+        "unit": "%"
+      },
+      "format": "percent"
+    }
+  },
+  {
+    "id": "fill-rate-metric-3a9f9c7f",
+    "term": "FILL RATE",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "",
+    "formula_or_notes": "Filled Impressions / Available Impressions * 100,",
+    "type": "formula",
+    "formula": {
+      "calculatorId": "fill-rate",
+      "expression": "(filled_impressions / available_impressions) * 100",
+      "variables": [
+        {
+          "key": "filled_impressions",
+          "label": "Filled Impressions",
+          "required": true
+        },
+        {
+          "key": "available_impressions",
+          "label": "Available Impressions",
+          "required": true
+        }
+      ],
+      "output": {
+        "label": "Fill Rate",
+        "unit": "%"
+      },
+      "format": "percent"
+    }
+  },
+  {
+    "id": "final-url-tracking-597d6c1f",
+    "term": "Final URL",
+    "category": "Tracking",
+    "category_raw": "Tracking",
+    "definition": "Landing page URL",
+    "type": "definition"
+  },
+  {
+    "id": "first-click-attribution-908f4c06",
+    "term": "First Click",
+    "category": "Attribution",
+    "category_raw": "Attribution",
+    "definition": "100 percent credit to first interaction",
+    "type": "definition"
+  },
+  {
+    "id": "first-in-break-placement-0295ab70",
+    "term": "First In Break",
+    "category": "Placement",
+    "category_raw": "Placement",
+    "definition": "First ad position in pod",
+    "type": "definition"
+  },
+  {
+    "id": "first-price-auction-mechanics-42e38999",
+    "term": "First Price Auction",
+    "category": "Mechanics",
+    "category_raw": "Mechanics",
+    "definition": "Winner pays own bid",
+    "type": "definition"
+  },
+  {
+    "id": "first-party-data-data-3b07b2b1",
+    "term": "First-party Data",
+    "category": "Data",
+    "category_raw": "Data",
+    "definition": "Data collected directly",
+    "type": "definition"
+  },
+  {
+    "id": "flight-planning-38ba097b",
+    "term": "Flight",
+    "category": "Planning",
+    "category_raw": "Planning",
+    "definition": "Defined broadcast date range",
+    "type": "definition"
+  },
+  {
+    "id": "flighting-planning-a2d1ca4a",
+    "term": "Flighting",
+    "category": "Planning",
+    "category_raw": "Planning",
+    "definition": "Scheduling of spend over time",
+    "type": "definition"
+  },
+  {
+    "id": "fraud-governance-fd33b8c8",
+    "term": "Fraud",
+    "category": "Governance",
+    "category_raw": "Governance",
+    "definition": "Invalid or deceptive traffic",
+    "type": "definition"
+  },
+  {
+    "id": "free-to-air-tv-channel-bca0f4ac",
+    "term": "Free To Air TV",
+    "category": "Channel",
+    "category_raw": "Channel",
+    "definition": "Ad-supported broadcast television",
+    "type": "definition"
+  },
+  {
+    "id": "frequency-metric-e2354742",
+    "term": "Frequency",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Average exposures per reached viewer",
+    "type": "definition"
+  },
+  {
+    "id": "frequency-cap-delivery-19e23d12",
+    "term": "Frequency Cap",
+    "category": "Delivery",
+    "category_raw": "Delivery",
+    "definition": "Maximum exposures per user",
+    "type": "definition"
+  },
+  {
+    "id": "frequency-distribution-reporting-082bbd43",
+    "term": "Frequency Distribution",
+    "category": "Reporting",
+    "category_raw": "Reporting",
+    "definition": "Exposure spread across users",
+    "type": "definition"
+  },
+  {
+    "id": "frequency-optimisation-definition-cee0b543",
+    "term": "Frequency Optimisation",
+    "category": "Definition",
+    "category_raw": "Definition",
+    "definition": "Planning",
+    "formula_or_notes": "TV,Managing exposure repetition",
+    "type": "definition"
+  },
+  {
+    "id": "fta-tv-channel-8d3c0040",
+    "term": "FTA TV",
+    "category": "Channel",
+    "category_raw": "Channel",
+    "definition": "Alias of Free To Air TV",
+    "type": "acronym"
+  },
+  {
+    "id": "full-funnel-strategy-3011fa4e",
+    "term": "Full Funnel",
+    "category": "Strategy",
+    "category_raw": "Strategy",
+    "definition": "Integrated upper mid and lower funnel approach",
+    "type": "definition"
+  },
+  {
+    "id": "ga4-analytics-accd1f23",
+    "term": "GA4",
+    "category": "Analytics",
+    "category_raw": "Analytics",
+    "definition": "Google Analytics 4",
+    "type": "acronym"
+  },
+  {
+    "id": "gam-publisher-ea9c8340",
+    "term": "GAM",
+    "category": "Publisher",
+    "category_raw": "Publisher",
+    "definition": "Google Ad Manager",
+    "type": "acronym"
+  },
+  {
+    "id": "gclid-tracking-6d830f0d",
+    "term": "GCLID",
+    "category": "Tracking",
+    "category_raw": "Tracking",
+    "definition": "Google Click Identifier",
+    "type": "acronym"
+  },
+  {
+    "id": "geo-channel-31815cac",
+    "term": "GEO",
+    "category": "Channel",
+    "category_raw": "Channel",
+    "definition": "Generative Engine Optimisation",
+    "type": "acronym"
+  },
+  {
+    "id": "geo-lift-measurement-e34a00fd",
+    "term": "Geo Lift",
+    "category": "Measurement",
+    "category_raw": "Measurement",
+    "definition": "Regional test vs control analysis",
+    "type": "definition"
+  },
+  {
+    "id": "geo-targeting-targeting-8525f881",
+    "term": "Geo Targeting",
+    "category": "Targeting",
+    "category_raw": "Targeting",
+    "definition": "Location-based targeting",
+    "type": "definition"
+  },
+  {
+    "id": "givt-governance-5a903a01",
+    "term": "GIVT",
+    "category": "Governance",
+    "category_raw": "Governance",
+    "definition": "General Invalid Traffic",
+    "type": "acronym"
+  },
+  {
+    "id": "governance-governance-db038659",
+    "term": "Governance",
+    "category": "Governance",
+    "category_raw": "Governance",
+    "definition": "Decision and control framework",
+    "type": "definition"
+  },
+  {
+    "id": "gross-cost-finance-02c9e972",
+    "term": "Gross Cost",
+    "category": "Finance",
+    "category_raw": "Finance",
+    "definition": "Media cost including fees",
+    "formula_or_notes": "Definition varies by contract",
+    "type": "definition"
+  },
+  {
+    "id": "gross-margin-finance-778a172d",
+    "term": "Gross Margin",
+    "category": "Finance",
+    "category_raw": "Finance",
+    "definition": "Revenue minus cost of goods",
+    "formula_or_notes": "(Revenue - COGS) / Revenue",
+    "type": "formula",
+    "formula": {
+      "calculatorId": "gross-margin",
+      "expression": "(revenue - cogs) / revenue",
+      "variables": [
+        {
+          "key": "revenue",
+          "label": "Revenue",
+          "unit": "$",
+          "required": true
+        },
+        {
+          "key": "cogs",
+          "label": "COGS",
+          "unit": "$",
+          "required": true
+        }
+      ],
+      "output": {
+        "label": "Gross Margin",
+        "unit": ""
+      },
+      "format": "percent"
+    }
+  },
+  {
+    "id": "gross-margin-finance-62b5aff1",
+    "term": "GROSS MARGIN",
+    "category": "Finance",
+    "category_raw": "Finance",
+    "definition": "",
+    "formula_or_notes": "(Revenue - COGS) / Revenue,",
+    "type": "formula",
+    "formula": {
+      "calculatorId": "gross-margin",
+      "expression": "(revenue - cogs) / revenue",
+      "variables": [
+        {
+          "key": "revenue",
+          "label": "Revenue",
+          "unit": "$",
+          "required": true
+        },
+        {
+          "key": "cogs",
+          "label": "COGS",
+          "unit": "$",
+          "required": true
+        }
+      ],
+      "output": {
+        "label": "Gross Margin",
+        "unit": ""
+      },
+      "format": "percent"
+    }
+  },
+  {
+    "id": "gross-media-cost-finance-ac947fd5",
+    "term": "Gross Media Cost",
+    "category": "Finance",
+    "category_raw": "Finance",
+    "definition": "Cost before tech fees",
+    "type": "definition"
+  },
+  {
+    "id": "gross-rating-points-metric-f134e165",
+    "term": "Gross Rating Points",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Alias of GRP",
+    "type": "definition"
+  },
+  {
+    "id": "grp-metric-892ab68a",
+    "term": "GRP",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Gross Rating Points",
+    "formula_or_notes": "Reach percent × Frequency",
+    "type": "formula",
+    "formula": {
+      "calculatorId": "grp",
+      "expression": "reach_percent * frequency",
+      "variables": [
+        {
+          "key": "reach_percent",
+          "label": "Reach %",
+          "required": true
+        },
+        {
+          "key": "frequency",
+          "label": "Frequency",
+          "required": true
+        }
+      ],
+      "output": {
+        "label": "GRP",
+        "unit": ""
+      },
+      "format": "number"
+    }
+  },
+  {
+    "id": "gst-commercial-421623a0",
+    "term": "GST",
+    "category": "Commercial",
+    "category_raw": "Commercial",
+    "definition": "Goods and Services Tax in Australia",
+    "formula_or_notes": "10% tax",
+    "type": "formula",
+    "formula": {
+      "expression": "10% tax",
+      "variables": [],
+      "output": {
+        "label": "Result",
+        "unit": ""
+      },
+      "format": "number",
+      "inferred": true,
+      "unmapped": true
+    }
+  },
+  {
+    "id": "gtm-tracking-49921cd7",
+    "term": "GTM",
+    "category": "Tracking",
+    "category_raw": "Tracking",
+    "definition": "Google Tag Manager",
+    "type": "acronym"
+  },
+  {
+    "id": "hard-floor-mechanics-2bb706c8",
+    "term": "Hard Floor",
+    "category": "Mechanics",
+    "category_raw": "Mechanics",
+    "definition": "Floor that must be met",
+    "type": "definition"
+  },
+  {
+    "id": "hashed-email-data-25fc162b",
+    "term": "Hashed Email",
+    "category": "Data",
+    "category_raw": "Data",
+    "definition": "Encrypted identifier",
+    "type": "definition"
+  },
+  {
+    "id": "header-bidding-mechanics-5a621aa2",
+    "term": "Header Bidding",
+    "category": "Mechanics",
+    "category_raw": "Mechanics",
+    "definition": "Parallel auction before ad server",
+    "type": "definition"
+  },
+  {
+    "id": "headline-creative-3347a5ee",
+    "term": "Headline",
+    "category": "Creative",
+    "category_raw": "Creative",
+    "definition": "Headline text element",
+    "type": "definition"
+  },
+  {
+    "id": "hidden-margin-trading-a868a23b",
+    "term": "Hidden Margin",
+    "category": "Trading",
+    "category_raw": "Trading",
+    "definition": "Undisclosed intermediary fees",
+    "type": "definition"
+  },
+  {
+    "id": "high-top-of-page-bid-metric-d44f9274",
+    "term": "High Top of Page Bid",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Upper bound bid estimate",
+    "type": "definition"
+  },
+  {
+    "id": "hold-rate-metric-bdbc8951",
+    "term": "Hold Rate",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Views retained past midpoint",
+    "type": "definition"
+  },
+  {
+    "id": "holdout-measurement-7d735b33",
+    "term": "Holdout",
+    "category": "Measurement",
+    "category_raw": "Measurement",
+    "definition": "Audience excluded to measure incrementality",
+    "type": "definition"
+  },
+  {
+    "id": "holdout-test-measurement-68edb06a",
+    "term": "Holdout Test",
+    "category": "Measurement",
+    "category_raw": "Measurement",
+    "definition": "Control vs exposed experiment",
+    "type": "definition"
+  },
+  {
+    "id": "hook-rate-metric-493df60a",
+    "term": "Hook Rate",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Views in first seconds divided by impressions",
+    "type": "definition"
+  },
+  {
+    "id": "household-reach-metric-4a516fd4",
+    "term": "Household Reach",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Unique households exposed",
+    "type": "definition"
+  },
+  {
+    "id": "iab-industry-7d548e4c",
+    "term": "IAB",
+    "category": "Industry",
+    "category_raw": "Industry",
+    "definition": "Interactive Advertising Bureau Australia",
+    "type": "acronym"
+  },
+  {
+    "id": "iab-australia-industry-16386732",
+    "term": "IAB Australia",
+    "category": "Industry",
+    "category_raw": "Industry",
+    "definition": "Australian industry body",
+    "type": "definition"
+  },
+  {
+    "id": "ias-verification-d515485d",
+    "term": "IAS",
+    "category": "Verification",
+    "category_raw": "Verification",
+    "definition": "Integral Ad Science verification tool",
+    "type": "acronym"
+  },
+  {
+    "id": "id-syncing-identity-14b6a4ba",
+    "term": "ID Syncing",
+    "category": "Identity",
+    "category_raw": "Identity",
+    "definition": "Sharing identifiers between platforms",
+    "type": "definition"
+  },
+  {
+    "id": "identity-resolution-identity-19d61e68",
+    "term": "Identity Resolution",
+    "category": "Identity",
+    "category_raw": "Identity",
+    "definition": "Matching users across IDs",
+    "type": "definition"
+  },
+  {
+    "id": "impression-optimisation-bidding-c592b40f",
+    "term": "Impression Optimisation",
+    "category": "Bidding",
+    "category_raw": "Bidding",
+    "definition": "Optimise for impressions",
+    "type": "definition"
+  },
+  {
+    "id": "impression-share-metric-e25e169f",
+    "term": "Impression Share",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Percentage of eligible impressions received",
+    "formula_or_notes": "Impressions / Eligible Impressions * 100",
+    "type": "formula",
+    "formula": {
+      "calculatorId": "impression-share",
+      "expression": "(impressions / eligible_impressions) * 100",
+      "variables": [
+        {
+          "key": "impressions",
+          "label": "Impressions",
+          "required": true
+        },
+        {
+          "key": "eligible_impressions",
+          "label": "Eligible Impressions",
+          "required": true
+        }
+      ],
+      "output": {
+        "label": "Impression Share",
+        "unit": "%"
+      },
+      "format": "percent"
+    }
+  },
+  {
+    "id": "impression-share-metric-ba04de7f",
+    "term": "IMPRESSION SHARE",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "",
+    "formula_or_notes": "Impressions / Eligible Impressions * 100,",
+    "type": "formula",
+    "formula": {
+      "calculatorId": "impression-share",
+      "expression": "(impressions / eligible_impressions) * 100",
+      "variables": [
+        {
+          "key": "impressions",
+          "label": "Impressions",
+          "required": true
+        },
+        {
+          "key": "eligible_impressions",
+          "label": "Eligible Impressions",
+          "required": true
+        }
+      ],
+      "output": {
+        "label": "Impression Share",
+        "unit": "%"
+      },
+      "format": "percent"
+    }
+  },
+  {
+    "id": "impressions-delivery-9a99bad4",
+    "term": "Impressions",
+    "category": "Delivery",
+    "category_raw": "Delivery",
+    "definition": "Total ad servings",
+    "type": "definition"
+  },
+  {
+    "id": "in-stream-placement-82733d50",
+    "term": "In-Stream",
+    "category": "Placement",
+    "category_raw": "Placement",
+    "definition": "Video mid-roll placement",
+    "type": "definition"
+  },
+  {
+    "id": "inc-gst-commercial-a888e1e9",
+    "term": "Inc GST",
+    "category": "Commercial",
+    "category_raw": "Commercial",
+    "definition": "Price including GST",
+    "type": "definition"
+  },
+  {
+    "id": "incremental-bvod-reach-metric-c659ad40",
+    "term": "Incremental BVOD Reach",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Reach beyond linear TV",
+    "type": "definition"
+  },
+  {
+    "id": "incremental-reach-metric-7dad7dfa",
+    "term": "Incremental Reach",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Additional reach beyond base plan",
+    "type": "definition"
+  },
+  {
+    "id": "incrementality-measurement-217d5ca7",
+    "term": "Incrementality",
+    "category": "Measurement",
+    "category_raw": "Measurement",
+    "definition": "Outcomes caused by media not correlation",
+    "type": "definition"
+  },
+  {
+    "id": "influencer-channel-3f282b29",
+    "term": "Influencer",
+    "category": "Channel",
+    "category_raw": "Channel",
+    "definition": "Creator led promotion",
+    "type": "definition"
+  },
+  {
+    "id": "informational-intent-optimisation-ed8b74a9",
+    "term": "Informational Intent",
+    "category": "Optimisation",
+    "category_raw": "Optimisation",
+    "definition": "Research-based search behaviour",
+    "type": "definition"
+  },
+  {
+    "id": "initiate-checkout-metric-ae97cbc4",
+    "term": "Initiate Checkout",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Checkout start event",
+    "type": "definition"
+  },
+  {
+    "id": "interest-targeting-audience-52725b98",
+    "term": "Interest Targeting",
+    "category": "Audience",
+    "category_raw": "Audience",
+    "definition": "Declared interest-based targeting",
+    "type": "definition"
+  },
+  {
+    "id": "inventory-supply-f6929b92",
+    "term": "Inventory",
+    "category": "Supply",
+    "category_raw": "Supply",
+    "definition": "Available ad impressions",
+    "type": "definition"
+  },
+  {
+    "id": "inventory-quality-governance-b89c64d8",
+    "term": "Inventory Quality",
+    "category": "Governance",
+    "category_raw": "Governance",
+    "definition": "Assessment of supply quality",
+    "type": "definition"
+  },
+  {
+    "id": "invoice-finance-4f53d6ca",
+    "term": "Invoice",
+    "category": "Finance",
+    "category_raw": "Finance",
+    "definition": "Billing document issued by supplier",
+    "type": "definition"
+  },
+  {
+    "id": "io-commercial-f522bf0f",
+    "term": "IO",
+    "category": "Commercial",
+    "category_raw": "Commercial",
+    "definition": "Insertion Order used to book media",
+    "type": "acronym"
+  },
+  {
+    "id": "ivt-governance-5746846a",
+    "term": "IVT",
+    "category": "Governance",
+    "category_raw": "Governance",
+    "definition": "Invalid traffic classification",
+    "type": "acronym"
+  },
+  {
+    "id": "keyword-structure-9d7cb587",
+    "term": "Keyword",
+    "category": "Structure",
+    "category_raw": "Structure",
+    "definition": "Search term advertisers bid on",
+    "type": "definition"
+  },
+  {
+    "id": "keyword-contextual-targeting-ce7e7d98",
+    "term": "Keyword Contextual",
+    "category": "Targeting",
+    "category_raw": "Targeting",
+    "definition": "Contextual keyword matching",
+    "type": "definition"
+  },
+  {
+    "id": "keyword-coverage-planning-ecd4e328",
+    "term": "Keyword Coverage",
+    "category": "Planning",
+    "category_raw": "Planning",
+    "definition": "Extent of category keyword presence",
+    "type": "definition"
+  },
+  {
+    "id": "keyword-level-optimisation-optimisation-ce4a39e4",
+    "term": "Keyword Level Optimisation",
+    "category": "Optimisation",
+    "category_raw": "Optimisation",
+    "definition": "Optimising at keyword level",
+    "type": "definition"
+  },
+  {
+    "id": "keyword-mining-optimisation-cb43c80c",
+    "term": "Keyword Mining",
+    "category": "Optimisation",
+    "category_raw": "Optimisation",
+    "definition": "Adding new keywords from SQR",
+    "type": "definition"
+  },
+  {
+    "id": "keyword-overlap-optimisation-00dc2838",
+    "term": "Keyword Overlap",
+    "category": "Optimisation",
+    "category_raw": "Optimisation",
+    "definition": "Multiple keywords triggering same query",
+    "type": "definition"
+  },
+  {
+    "id": "kpi-measurement-b1a84d78",
+    "term": "KPI",
+    "category": "Measurement",
+    "category_raw": "Measurement",
+    "definition": "Key Performance Indicator used to measure success",
+    "type": "acronym"
+  },
+  {
+    "id": "landing-page-experience-quality-component-e1a5da74",
+    "term": "Landing Page Experience",
+    "category": "Quality Component",
+    "category_raw": "Quality Component",
+    "definition": "User experience quality score",
+    "type": "definition"
+  },
+  {
+    "id": "landing-page-view-metric-284d704a",
+    "term": "Landing Page View",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Loaded destination page",
+    "type": "definition"
+  },
+  {
+    "id": "last-click-attribution-61476172",
+    "term": "Last Click",
+    "category": "Attribution",
+    "category_raw": "Attribution",
+    "definition": "100% credit to final click before conversion",
+    "type": "definition"
+  },
+  {
+    "id": "last-in-break-placement-a5b79563",
+    "term": "Last In Break",
+    "category": "Placement",
+    "category_raw": "Placement",
+    "definition": "Last ad position in pod",
+    "type": "definition"
+  },
+  {
+    "id": "latency-mechanics-be8cb1c1",
+    "term": "Latency",
+    "category": "Mechanics",
+    "category_raw": "Mechanics",
+    "definition": "Delay in auction processing",
+    "type": "definition"
+  },
+  {
+    "id": "lead-gen-form-format-4b1d94ca",
+    "term": "Lead Gen Form",
+    "category": "Format",
+    "category_raw": "Format",
+    "definition": "Platform-hosted lead capture",
+    "type": "definition"
+  },
+  {
+    "id": "learning-diagnostics-reporting-9a5f81c4",
+    "term": "Learning Diagnostics",
+    "category": "Reporting",
+    "category_raw": "Reporting",
+    "definition": "Learning phase status insights",
+    "type": "definition"
+  },
+  {
+    "id": "learning-limited-optimisation-732adaed",
+    "term": "Learning Limited",
+    "category": "Optimisation",
+    "category_raw": "Optimisation",
+    "definition": "Insufficient signals for stable learning",
+    "type": "definition"
+  },
+  {
+    "id": "learning-phase-optimisation-14e46aba",
+    "term": "Learning Phase",
+    "category": "Optimisation",
+    "category_raw": "Optimisation",
+    "definition": "Initial delivery stabilisation period",
+    "type": "definition"
+  },
+  {
+    "id": "length-creative-80897445",
+    "term": "Length",
+    "category": "Creative",
+    "category_raw": "Creative",
+    "definition": "Duration of TV ad",
+    "formula_or_notes": "Common lengths 15 30 seconds",
+    "type": "definition"
+  },
+  {
+    "id": "lifetime-budget-budgeting-347ea259",
+    "term": "Lifetime Budget",
+    "category": "Budgeting",
+    "category_raw": "Budgeting",
+    "definition": "Spend limit across campaign duration",
+    "type": "definition"
+  },
+  {
+    "id": "lift-measurement-cc3ba71d",
+    "term": "Lift",
+    "category": "Measurement",
+    "category_raw": "Measurement",
+    "definition": "Difference between exposed and control groups",
+    "type": "definition"
+  },
+  {
+    "id": "lift-study-measurement-782bf8e2",
+    "term": "Lift Study",
+    "category": "Measurement",
+    "category_raw": "Measurement",
+    "definition": "Incrementality measurement framework",
+    "type": "definition"
+  },
+  {
+    "id": "limited-delivery-delivery-c6e1553c",
+    "term": "Limited Delivery",
+    "category": "Delivery",
+    "category_raw": "Delivery",
+    "definition": "Restricted delivery due to constraints",
+    "type": "definition"
+  },
+  {
+    "id": "line-item-structure-6a11e5ba",
+    "term": "Line Item",
+    "category": "Structure",
+    "category_raw": "Structure",
+    "definition": "Buying rule container",
+    "type": "definition"
+  },
+  {
+    "id": "linear-attribution-attribution-4e2cd9eb",
+    "term": "Linear Attribution",
+    "category": "Attribution",
+    "category_raw": "Attribution",
+    "definition": "Equal credit to all touchpoints",
+    "type": "definition"
+  },
+  {
+    "id": "linear-tv-channel-574a1a40",
+    "term": "Linear TV",
+    "category": "Channel",
+    "category_raw": "Channel",
+    "definition": "Traditional scheduled broadcast television",
+    "type": "definition"
+  },
+  {
+    "id": "link-ctr-metric-bcf3d4e1",
+    "term": "Link CTR",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "CTR measured on link clicks only",
+    "type": "definition"
+  },
+  {
+    "id": "linkedin-ads-channel-88fd1fed",
+    "term": "LinkedIn Ads",
+    "category": "Channel",
+    "category_raw": "Channel",
+    "definition": "LinkedIn advertising platform",
+    "type": "definition"
+  },
+  {
+    "id": "linkedin-lead-gen-form-format-845747ee",
+    "term": "LinkedIn Lead Gen Form",
+    "category": "Format",
+    "category_raw": "Format",
+    "definition": "Native lead capture form",
+    "type": "definition"
+  },
+  {
+    "id": "linkedin-message-ads-format-2c27970b",
+    "term": "LinkedIn Message Ads",
+    "category": "Format",
+    "category_raw": "Format",
+    "definition": "Direct message advertising",
+    "type": "definition"
+  },
+  {
+    "id": "linkedin-sponsored-content-format-ebfadab6",
+    "term": "LinkedIn Sponsored Content",
+    "category": "Format",
+    "category_raw": "Format",
+    "definition": "Native feed advertising",
+    "type": "definition"
+  },
+  {
+    "id": "live-tv-channel-dd91e0bd",
+    "term": "Live TV",
+    "category": "Channel",
+    "category_raw": "Channel",
+    "definition": "Real-time broadcast viewing",
+    "type": "definition"
+  },
+  {
+    "id": "location-bid-adjustment-bidding-190de51c",
+    "term": "Location Bid Adjustment",
+    "category": "Bidding",
+    "category_raw": "Bidding",
+    "definition": "Bid modifier by geography",
+    "type": "definition"
+  },
+  {
+    "id": "location-extension-creative-84dcf725",
+    "term": "Location Extension",
+    "category": "Creative",
+    "category_raw": "Creative",
+    "definition": "Business address display",
+    "type": "definition"
+  },
+  {
+    "id": "log-level-data-reporting-25c4b49f",
+    "term": "Log-level Data",
+    "category": "Reporting",
+    "category_raw": "Reporting",
+    "definition": "Impression-level delivery data",
+    "type": "definition"
+  },
+  {
+    "id": "lookalike-audience-7283f57c",
+    "term": "Lookalike",
+    "category": "Audience",
+    "category_raw": "Audience",
+    "definition": "Modelled similar audience",
+    "type": "definition"
+  },
+  {
+    "id": "lookalike-audience-audience-6a5e66bd",
+    "term": "Lookalike Audience",
+    "category": "Audience",
+    "category_raw": "Audience",
+    "definition": "Modelled audience based on seed",
+    "type": "definition"
+  },
+  {
+    "id": "lost-is-budget-metric-d38c226f",
+    "term": "Lost IS Budget",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Impression share lost due to budget limits",
+    "type": "definition"
+  },
+  {
+    "id": "lost-is-rank-metric-cac4bd0a",
+    "term": "Lost IS Rank",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Impression share lost due to ad rank",
+    "type": "definition"
+  },
+  {
+    "id": "low-top-of-page-bid-metric-683ae06f",
+    "term": "Low Top of Page Bid",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Lower bound bid estimate",
+    "type": "definition"
+  },
+  {
+    "id": "low-quality-inventory-governance-327fef5f",
+    "term": "Low-quality Inventory",
+    "category": "Governance",
+    "category_raw": "Governance",
+    "definition": "Alias of MFA",
+    "type": "definition"
+  },
+  {
+    "id": "lower-funnel-strategy-6001e742",
+    "term": "Lower Funnel",
+    "category": "Strategy",
+    "category_raw": "Strategy",
+    "definition": "Conversion-focused activity",
+    "type": "definition"
+  },
+  {
+    "id": "lowest-cost-bidding-6df0bfc6",
+    "term": "Lowest Cost",
+    "category": "Bidding",
+    "category_raw": "Bidding",
+    "definition": "Optimise for cheapest results",
+    "type": "definition"
+  },
+  {
+    "id": "lpv-metric-bd84dec5",
+    "term": "LPV",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Alias of Landing Page View",
+    "type": "acronym"
+  },
+  {
+    "id": "ltv-metric-5ab9a109",
+    "term": "LTV",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Customer Lifetime Value",
+    "formula_or_notes": "AOV * Frequency * Margin * Lifetime",
+    "type": "formula",
+    "formula": {
+      "expression": "aov * frequency * margin * lifetime",
+      "variables": [
+        {
+          "key": "frequency",
+          "label": "Frequency",
+          "required": true
+        }
+      ],
+      "output": {
+        "label": "Result",
+        "unit": ""
+      },
+      "format": "number",
+      "inferred": true
+    }
+  },
+  {
+    "id": "macro-conversion-analytics-a17ad8e1",
+    "term": "Macro Conversion",
+    "category": "Analytics",
+    "category_raw": "Analytics",
+    "definition": "Primary business outcome",
+    "type": "definition"
+  },
+  {
+    "id": "makegood-delivery-50a327bd",
+    "term": "Makegood",
+    "category": "Delivery",
+    "category_raw": "Delivery",
+    "definition": "Replacement inventory for under-delivery",
+    "type": "definition"
+  },
+  {
+    "id": "manual-cpc-bidding-c93b9dd9",
+    "term": "Manual CPC",
+    "category": "Bidding",
+    "category_raw": "Bidding",
+    "definition": "Advertiser sets bids manually",
+    "type": "definition"
+  },
+  {
+    "id": "manual-placements-delivery-1593c7e0",
+    "term": "Manual Placements",
+    "category": "Delivery",
+    "category_raw": "Delivery",
+    "definition": "Advertiser-selected placements",
+    "type": "definition"
+  },
+  {
+    "id": "margin-finance-bd974ae3",
+    "term": "Margin",
+    "category": "Finance",
+    "category_raw": "Finance",
+    "definition": "Agency revenue after costs",
+    "formula_or_notes": "(Revenue - Cost) / Revenue",
+    "type": "formula",
+    "formula": {
+      "expression": "(revenue - cost) / revenue",
+      "variables": [
+        {
+          "key": "cost",
+          "label": "Cost",
+          "unit": "$",
+          "required": true
+        },
+        {
+          "key": "revenue",
+          "label": "Revenue",
+          "unit": "$",
+          "required": true
+        }
+      ],
+      "output": {
+        "label": "Result",
+        "unit": ""
+      },
+      "format": "number",
+      "inferred": true
+    }
+  },
+  {
+    "id": "markup-finance-b530d147",
+    "term": "Markup",
+    "category": "Finance",
+    "category_raw": "Finance",
+    "definition": "Added margin to cost price",
+    "type": "definition"
+  },
+  {
+    "id": "match-type-structure-5990e5de",
+    "term": "Match Type",
+    "category": "Structure",
+    "category_raw": "Structure",
+    "definition": "Rule defining how keywords match queries",
+    "type": "definition"
+  },
+  {
+    "id": "max-cpc-bidding-ecb911f8",
+    "term": "Max CPC",
+    "category": "Bidding",
+    "category_raw": "Bidding",
+    "definition": "Maximum cost per click bid",
+    "type": "definition"
+  },
+  {
+    "id": "maximise-conversion-value-bidding-c2a84592",
+    "term": "Maximise Conversion Value",
+    "category": "Bidding",
+    "category_raw": "Bidding",
+    "definition": "Automated value optimisation strategy",
+    "type": "definition"
+  },
+  {
+    "id": "maximise-conversions-bidding-454a891d",
+    "term": "Maximise Conversions",
+    "category": "Bidding",
+    "category_raw": "Bidding",
+    "definition": "Automated conversion volume strategy",
+    "type": "definition"
+  },
+  {
+    "id": "mba-commercial-fd22ea86",
+    "term": "MBA",
+    "category": "Commercial",
+    "category_raw": "Commercial",
+    "definition": "Media Booking Authority approving media spend",
+    "formula_or_notes": "Client sign-off mechanism",
+    "type": "formula",
+    "formula": {
+      "expression": "Client sign-off mechanism",
+      "variables": [],
+      "output": {
+        "label": "Result",
+        "unit": ""
+      },
+      "format": "number",
+      "inferred": true,
+      "unmapped": true
+    }
+  },
+  {
+    "id": "measurement-reporting-08aa62bf",
+    "term": "Measurement",
+    "category": "Reporting",
+    "category_raw": "Reporting",
+    "definition": "Tracking and reporting of outcomes",
+    "type": "definition"
+  },
+  {
+    "id": "media-mix-planning-74326dca",
+    "term": "Media Mix",
+    "category": "Planning",
+    "category_raw": "Planning",
+    "definition": "Distribution of budget across channels",
+    "type": "definition"
+  },
+  {
+    "id": "media-owner-media-62304216",
+    "term": "Media Owner",
+    "category": "Media",
+    "category_raw": "Media",
+    "definition": "Alternative term for publisher",
+    "type": "definition"
+  },
+  {
+    "id": "media-plan-planning-47703ef9",
+    "term": "Media Plan",
+    "category": "Planning",
+    "category_raw": "Planning",
+    "definition": "Document outlining channels budgets and deliverables",
+    "type": "definition"
+  },
+  {
+    "id": "mer-metric-7b7863df",
+    "term": "MER",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Marketing Efficiency Ratio",
+    "formula_or_notes": "Total Revenue / Total Marketing Spend",
+    "type": "formula",
+    "formula": {
+      "calculatorId": "mer",
+      "expression": "total_revenue / total_marketing_spend",
+      "variables": [
+        {
+          "key": "total_revenue",
+          "label": "Total Revenue",
+          "unit": "$",
+          "required": true
+        },
+        {
+          "key": "total_marketing_spend",
+          "label": "Total Marketing Spend",
+          "unit": "$",
+          "required": true
+        }
+      ],
+      "output": {
+        "label": "MER",
+        "unit": ""
+      },
+      "format": "number"
+    }
+  },
+  {
+    "id": "messenger-placement-336f3dc0",
+    "term": "Messenger",
+    "category": "Placement",
+    "category_raw": "Placement",
+    "definition": "Ad placement within messages",
+    "type": "definition"
+  },
+  {
+    "id": "meta-ads-channel-67119795",
+    "term": "Meta Ads",
+    "category": "Channel",
+    "category_raw": "Channel",
+    "definition": "Facebook and Instagram advertising platform",
+    "type": "definition"
+  },
+  {
+    "id": "metro-tam-measurement-aede917c",
+    "term": "Metro TAM",
+    "category": "Measurement",
+    "category_raw": "Measurement",
+    "definition": "Metropolitan TV measurement",
+    "type": "definition"
+  },
+  {
+    "id": "mfa-governance-dd66c5cb",
+    "term": "MFA",
+    "category": "Governance",
+    "category_raw": "Governance",
+    "definition": "Made for Advertising inventory",
+    "type": "acronym"
+  },
+  {
+    "id": "micro-conversion-analytics-28489206",
+    "term": "Micro Conversion",
+    "category": "Analytics",
+    "category_raw": "Analytics",
+    "definition": "Small intent signal",
+    "type": "definition"
+  },
+  {
+    "id": "mid-funnel-strategy-300ba0fd",
+    "term": "Mid Funnel",
+    "category": "Strategy",
+    "category_raw": "Strategy",
+    "definition": "Consideration-focused activity",
+    "type": "definition"
+  },
+  {
+    "id": "min-cpc-bidding-7751ca07",
+    "term": "Min CPC",
+    "category": "Bidding",
+    "category_raw": "Bidding",
+    "definition": "Minimum bid to enter auction",
+    "type": "definition"
+  },
+  {
+    "id": "mmm-measurement-8af14950",
+    "term": "MMM",
+    "category": "Measurement",
+    "category_raw": "Measurement",
+    "definition": "Marketing Mix Modelling using econometrics",
+    "type": "acronym"
+  },
+  {
+    "id": "moat-verification-f4087743",
+    "term": "Moat",
+    "category": "Verification",
+    "category_raw": "Verification",
+    "definition": "Viewability and attention measurement",
+    "type": "definition"
+  },
+  {
+    "id": "move-measurement-b0337e60",
+    "term": "MOVE",
+    "category": "Measurement",
+    "category_raw": "Measurement",
+    "definition": "Australian OOH measurement framework",
+    "type": "acronym"
+  },
+  {
+    "id": "msa-commercial-f90369f6",
+    "term": "MSA",
+    "category": "Commercial",
+    "category_raw": "Commercial",
+    "definition": "Master Services Agreement governing the relationship",
+    "type": "acronym"
+  },
+  {
+    "id": "mta-attribution-74c59a87",
+    "term": "MTA",
+    "category": "Attribution",
+    "category_raw": "Attribution",
+    "definition": "Multi-Touch Attribution",
+    "type": "acronym"
+  },
+  {
+    "id": "multivariate-test-testing-b953be15",
+    "term": "Multivariate Test",
+    "category": "Testing",
+    "category_raw": "Testing",
+    "definition": "Testing multiple variables at once",
+    "type": "definition"
+  },
+  {
+    "id": "native-channel-944363a7",
+    "term": "Native",
+    "category": "Channel",
+    "category_raw": "Channel",
+    "definition": "Content styled advertising",
+    "type": "definition"
+  },
+  {
+    "id": "navigational-intent-optimisation-872911c3",
+    "term": "Navigational Intent",
+    "category": "Optimisation",
+    "category_raw": "Optimisation",
+    "definition": "Brand or destination search",
+    "type": "definition"
+  },
+  {
+    "id": "nda-commercial-9bd0a18d",
+    "term": "NDA",
+    "category": "Commercial",
+    "category_raw": "Commercial",
+    "definition": "Non-Disclosure Agreement",
+    "type": "acronym"
+  },
+  {
+    "id": "negative-broad-match-type-5c84b320",
+    "term": "Negative Broad",
+    "category": "Match Type",
+    "category_raw": "Match Type",
+    "definition": "Blocks related terms broadly",
+    "type": "definition"
+  },
+  {
+    "id": "negative-exact-match-type-c2e2c420",
+    "term": "Negative Exact",
+    "category": "Match Type",
+    "category_raw": "Match Type",
+    "definition": "Blocks exact search term",
+    "type": "definition"
+  },
+  {
+    "id": "negative-keyword-structure-cd15210a",
+    "term": "Negative Keyword",
+    "category": "Structure",
+    "category_raw": "Structure",
+    "definition": "Keyword that blocks ad triggering",
+    "type": "definition"
+  },
+  {
+    "id": "negative-phrase-match-type-78b6a85b",
+    "term": "Negative Phrase",
+    "category": "Match Type",
+    "category_raw": "Match Type",
+    "definition": "Blocks phrase-based terms",
+    "type": "definition"
+  },
+  {
+    "id": "negotiated-rate-media-6d882cd9",
+    "term": "Negotiated Rate",
+    "category": "Media",
+    "category_raw": "Media",
+    "definition": "Discounted pricing",
+    "type": "definition"
+  },
+  {
+    "id": "net-cost-finance-954ae38e",
+    "term": "Net Cost",
+    "category": "Finance",
+    "category_raw": "Finance",
+    "definition": "Media cost before agency fees",
+    "formula_or_notes": "Definition varies by contract",
+    "type": "definition"
+  },
+  {
+    "id": "net-margin-finance-655e100c",
+    "term": "Net Margin",
+    "category": "Finance",
+    "category_raw": "Finance",
+    "definition": "Profit after all costs",
+    "formula_or_notes": "Net Profit / Revenue",
+    "type": "formula",
+    "formula": {
+      "calculatorId": "net-margin",
+      "expression": "net_profit / revenue",
+      "variables": [
+        {
+          "key": "net_profit",
+          "label": "Net Profit",
+          "unit": "$",
+          "required": true
+        },
+        {
+          "key": "revenue",
+          "label": "Revenue",
+          "unit": "$",
+          "required": true
+        }
+      ],
+      "output": {
+        "label": "Net Margin",
+        "unit": ""
+      },
+      "format": "percent"
+    }
+  },
+  {
+    "id": "net-margin-finance-57959acf",
+    "term": "NET MARGIN",
+    "category": "Finance",
+    "category_raw": "Finance",
+    "definition": "",
+    "formula_or_notes": "Net Profit / Revenue,",
+    "type": "formula",
+    "formula": {
+      "calculatorId": "net-margin",
+      "expression": "net_profit / revenue",
+      "variables": [
+        {
+          "key": "net_profit",
+          "label": "Net Profit",
+          "unit": "$",
+          "required": true
+        },
+        {
+          "key": "revenue",
+          "label": "Revenue",
+          "unit": "$",
+          "required": true
+        }
+      ],
+      "output": {
+        "label": "Net Margin",
+        "unit": ""
+      },
+      "format": "percent"
+    }
+  },
+  {
+    "id": "net-media-cost-finance-67f5617b",
+    "term": "Net Media Cost",
+    "category": "Finance",
+    "category_raw": "Finance",
+    "definition": "Cost after tech fees",
+    "type": "definition"
+  },
+  {
+    "id": "net-reach-metric-dda0308e",
+    "term": "Net Reach",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Unique audience exposure",
+    "type": "definition"
+  },
+  {
+    "id": "non-brand-search-structure-8b702e51",
+    "term": "Non-Brand Search",
+    "category": "Structure",
+    "category_raw": "Structure",
+    "definition": "Generic category searches",
+    "type": "definition"
+  },
+  {
+    "id": "non-skippable-video-format-410c0c0c",
+    "term": "Non-skippable Video",
+    "category": "Format",
+    "category_raw": "Format",
+    "definition": "User must view ad",
+    "type": "definition"
+  },
+  {
+    "id": "north-star-metric-measurement-6f10fb17",
+    "term": "North Star Metric",
+    "category": "Measurement",
+    "category_raw": "Measurement",
+    "definition": "Single metric reflecting business value",
+    "type": "definition"
+  },
+  {
+    "id": "oaic-governance-6bcfc38b",
+    "term": "OAIC",
+    "category": "Governance",
+    "category_raw": "Governance",
+    "definition": "Australian privacy regulator",
+    "type": "acronym"
+  },
+  {
+    "id": "objective-optimisation-0125af74",
+    "term": "Objective",
+    "category": "Optimisation",
+    "category_raw": "Optimisation",
+    "definition": "Primary campaign optimisation goal",
+    "type": "definition"
+  },
+  {
+    "id": "off-peak-planning-e6025c36",
+    "term": "Off Peak",
+    "category": "Planning",
+    "category_raw": "Planning",
+    "definition": "Lower viewing period",
+    "type": "definition"
+  },
+  {
+    "id": "offline-conversion-tracking-48a346d7",
+    "term": "Offline Conversion",
+    "category": "Tracking",
+    "category_raw": "Tracking",
+    "definition": "Uploaded offline outcomes",
+    "type": "definition"
+  },
+  {
+    "id": "okr-measurement-760e4a54",
+    "term": "OKR",
+    "category": "Measurement",
+    "category_raw": "Measurement",
+    "definition": "Objectives and Key Results framework",
+    "type": "acronym"
+  },
+  {
+    "id": "ooh-offline-d2c9d090",
+    "term": "OOH",
+    "category": "Offline",
+    "category_raw": "Offline",
+    "definition": "Out of Home advertising",
+    "type": "acronym"
+  },
+  {
+    "id": "open-auction-trading-f78b1e02",
+    "term": "Open Auction",
+    "category": "Trading",
+    "category_raw": "Trading",
+    "definition": "Open exchange available to all buyers",
+    "type": "definition"
+  },
+  {
+    "id": "optimisation-event-optimisation-c080c372",
+    "term": "Optimisation Event",
+    "category": "Optimisation",
+    "category_raw": "Optimisation",
+    "definition": "Event the algorithm learns against",
+    "type": "definition"
+  },
+  {
+    "id": "ots-metric-6670bbe4",
+    "term": "OTS",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Opportunities To See",
+    "formula_or_notes": "Estimated exposures",
+    "type": "acronym"
+  },
+  {
+    "id": "ott-video-7cb677c0",
+    "term": "OTT",
+    "category": "Video",
+    "category_raw": "Video",
+    "definition": "Over-the-top streamed content",
+    "type": "acronym"
+  },
+  {
+    "id": "outbound-ctr-metric-4f88b488",
+    "term": "Outbound CTR",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "CTR excluding platform interactions",
+    "type": "definition"
+  },
+  {
+    "id": "outbrain-channel-655a7b9b",
+    "term": "Outbrain",
+    "category": "Channel",
+    "category_raw": "Channel",
+    "definition": "Native advertising platform",
+    "type": "definition"
+  },
+  {
+    "id": "outranking-share-metric-6932d0a1",
+    "term": "Outranking Share",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "How often you outrank competitors",
+    "type": "definition"
+  },
+  {
+    "id": "outstream-video-format-4e70cbfb",
+    "term": "Outstream Video",
+    "category": "Format",
+    "category_raw": "Format",
+    "definition": "Video outside player environment",
+    "type": "definition"
+  },
+  {
+    "id": "over-delivery-delivery-3f123693",
+    "term": "Over-delivery",
+    "category": "Delivery",
+    "category_raw": "Delivery",
+    "definition": "Delivered volume above booked amount",
+    "type": "definition"
+  },
+  {
+    "id": "overlap-rate-metric-0a941db2",
+    "term": "Overlap Rate",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "How often competitor appears with you",
+    "type": "definition"
+  },
+  {
+    "id": "oztam-measurement-359e18a9",
+    "term": "OzTAM",
+    "category": "Measurement",
+    "category_raw": "Measurement",
+    "definition": "Australian TV audience measurement body",
+    "type": "definition"
+  },
+  {
+    "id": "pacing-delivery-0483a4cd",
+    "term": "Pacing",
+    "category": "Delivery",
+    "category_raw": "Delivery",
+    "definition": "Rate of spend delivery versus plan",
+    "type": "definition"
+  },
+  {
+    "id": "pacing-control-delivery-67228959",
+    "term": "Pacing Control",
+    "category": "Delivery",
+    "category_raw": "Delivery",
+    "definition": "Spend regulation logic",
+    "type": "definition"
+  },
+  {
+    "id": "paid-search-channel-ef0e6543",
+    "term": "Paid Search",
+    "category": "Channel",
+    "category_raw": "Channel",
+    "definition": "Alias of SEM",
+    "type": "definition"
+  },
+  {
+    "id": "paid-social-channel-bad446eb",
+    "term": "Paid Social",
+    "category": "Channel",
+    "category_raw": "Channel",
+    "definition": "Paid advertising across social platforms",
+    "type": "definition"
+  },
+  {
+    "id": "panel-measurement-75675d1d",
+    "term": "Panel",
+    "category": "Measurement",
+    "category_raw": "Measurement",
+    "definition": "Sample of households measured",
+    "type": "definition"
+  },
+  {
+    "id": "panel-weighting-measurement-95cf0e71",
+    "term": "Panel Weighting",
+    "category": "Measurement",
+    "category_raw": "Measurement",
+    "definition": "Adjusting sample to population",
+    "type": "definition"
+  },
+  {
+    "id": "pay-tv-channel-e30b30ed",
+    "term": "Pay TV",
+    "category": "Channel",
+    "category_raw": "Channel",
+    "definition": "Subscription-based television",
+    "type": "definition"
+  },
+  {
+    "id": "peak-planning-0c16eb36",
+    "term": "Peak",
+    "category": "Planning",
+    "category_raw": "Planning",
+    "definition": "Highest audience concentration",
+    "type": "definition"
+  },
+  {
+    "id": "persona-audience-be7a67a5",
+    "term": "Persona",
+    "category": "Audience",
+    "category_raw": "Audience",
+    "definition": "Fictional profile for planning",
+    "type": "definition"
+  },
+  {
+    "id": "pg-trading-6e69ce1a",
+    "term": "PG",
+    "category": "Trading",
+    "category_raw": "Trading",
+    "definition": "Alias of Programmatic Guaranteed",
+    "type": "acronym"
+  },
+  {
+    "id": "phrase-match-match-type-bb92e4e5",
+    "term": "Phrase Match",
+    "category": "Match Type",
+    "category_raw": "Match Type",
+    "definition": "Triggers on phrase meaning",
+    "type": "definition"
+  },
+  {
+    "id": "pinterest-ads-channel-7119a9d0",
+    "term": "Pinterest Ads",
+    "category": "Channel",
+    "category_raw": "Channel",
+    "definition": "Pinterest advertising",
+    "type": "definition"
+  },
+  {
+    "id": "pitch-commercial-03b332a6",
+    "term": "Pitch",
+    "category": "Commercial",
+    "category_raw": "Commercial",
+    "definition": "Competitive agency selection process",
+    "type": "definition"
+  },
+  {
+    "id": "pixel-tracking-eb6e226a",
+    "term": "Pixel",
+    "category": "Tracking",
+    "category_raw": "Tracking",
+    "definition": "Tracking tag for conversions and audiences",
+    "type": "definition"
+  },
+  {
+    "id": "placement-delivery-b5fafd79",
+    "term": "Placement",
+    "category": "Delivery",
+    "category_raw": "Delivery",
+    "definition": "Location where ad appears",
+    "type": "definition"
+  },
+  {
+    "id": "platform-reporting-reporting-5f87b56a",
+    "term": "Platform Reporting",
+    "category": "Reporting",
+    "category_raw": "Reporting",
+    "definition": "Native platform metrics",
+    "type": "definition"
+  },
+  {
+    "id": "playbook-ops-7fb780c8",
+    "term": "Playbook",
+    "category": "Ops",
+    "category_raw": "Ops",
+    "definition": "Defined best practice guide",
+    "type": "definition"
+  },
+  {
+    "id": "pmp-programmatic-5e98e4d8",
+    "term": "PMP",
+    "category": "Programmatic",
+    "category_raw": "Programmatic",
+    "definition": "Private Marketplace deal",
+    "type": "acronym"
+  },
+  {
+    "id": "po-commercial-5805c5e8",
+    "term": "PO",
+    "category": "Commercial",
+    "category_raw": "Commercial",
+    "definition": "Purchase Order issued by a client",
+    "type": "acronym"
+  },
+  {
+    "id": "podcast-audio-440cc11e",
+    "term": "Podcast",
+    "category": "Audio",
+    "category_raw": "Audio",
+    "definition": "On demand audio content",
+    "type": "definition"
+  },
+  {
+    "id": "portfolio-bid-strategy-bidding-e242f18c",
+    "term": "Portfolio Bid Strategy",
+    "category": "Bidding",
+    "category_raw": "Bidding",
+    "definition": "Bid strategy shared across campaigns",
+    "type": "definition"
+  },
+  {
+    "id": "position-above-rate-metric-d4669123",
+    "term": "Position Above Rate",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "How often competitor outranks you",
+    "type": "definition"
+  },
+  {
+    "id": "position-based-attribution-0cdd9020",
+    "term": "Position Based",
+    "category": "Attribution",
+    "category_raw": "Attribution",
+    "definition": "More credit to first and last touchpoints",
+    "type": "definition"
+  },
+  {
+    "id": "position-in-break-placement-6be89cc1",
+    "term": "Position in Break",
+    "category": "Placement",
+    "category_raw": "Placement",
+    "definition": "Order of ad within pod",
+    "type": "definition"
+  },
+  {
+    "id": "post-bid-blocking-governance-5dbfa9e2",
+    "term": "Post-bid Blocking",
+    "category": "Governance",
+    "category_raw": "Governance",
+    "definition": "Blocking after impression",
+    "type": "definition"
+  },
+  {
+    "id": "post-buy-delivery-bb728282",
+    "term": "Post-buy",
+    "category": "Delivery",
+    "category_raw": "Delivery",
+    "definition": "Campaign reporting after completion",
+    "type": "definition"
+  },
+  {
+    "id": "pre-bid-blocking-governance-e260253b",
+    "term": "Pre-bid Blocking",
+    "category": "Governance",
+    "category_raw": "Governance",
+    "definition": "Blocking before auction",
+    "type": "definition"
+  },
+  {
+    "id": "prebid-mechanics-30f587de",
+    "term": "Prebid",
+    "category": "Mechanics",
+    "category_raw": "Mechanics",
+    "definition": "Open-source header bidding framework",
+    "type": "definition"
+  },
+  {
+    "id": "preferred-deal-programmatic-5e697da4",
+    "term": "Preferred Deal",
+    "category": "Programmatic",
+    "category_raw": "Programmatic",
+    "definition": "Fixed price non-guaranteed deal",
+    "type": "definition"
+  },
+  {
+    "id": "price-extension-creative-f59dd6be",
+    "term": "Price Extension",
+    "category": "Creative",
+    "category_raw": "Creative",
+    "definition": "Product or service pricing",
+    "type": "definition"
+  },
+  {
+    "id": "primary-conversion-measurement-1aa9499e",
+    "term": "Primary Conversion",
+    "category": "Measurement",
+    "category_raw": "Measurement",
+    "definition": "Used for bidding decisions",
+    "type": "definition"
+  },
+  {
+    "id": "primary-demo-audience-21e4b96b",
+    "term": "Primary Demo",
+    "category": "Audience",
+    "category_raw": "Audience",
+    "definition": "Main buying audience",
+    "type": "definition"
+  },
+  {
+    "id": "primary-metric-measurement-10e77603",
+    "term": "Primary Metric",
+    "category": "Measurement",
+    "category_raw": "Measurement",
+    "definition": "Main decision-making metric",
+    "type": "definition"
+  },
+  {
+    "id": "primary-text-creative-7413e385",
+    "term": "Primary Text",
+    "category": "Creative",
+    "category_raw": "Creative",
+    "definition": "Main body copy",
+    "type": "definition"
+  },
+  {
+    "id": "prime-time-planning-6f6f39fa",
+    "term": "Prime Time",
+    "category": "Planning",
+    "category_raw": "Planning",
+    "definition": "High viewing period evening",
+    "type": "definition"
+  },
+  {
+    "id": "privacy-act-governance-9db07e8b",
+    "term": "Privacy Act",
+    "category": "Governance",
+    "category_raw": "Governance",
+    "definition": "Australian privacy legislation",
+    "type": "definition"
+  },
+  {
+    "id": "private-marketplace-trading-2845a7ee",
+    "term": "Private Marketplace",
+    "category": "Trading",
+    "category_raw": "Trading",
+    "definition": "Alias of PMP",
+    "type": "definition"
+  },
+  {
+    "id": "probabilistic-id-identity-4a497d1c",
+    "term": "Probabilistic ID",
+    "category": "Identity",
+    "category_raw": "Identity",
+    "definition": "Modelled identifier",
+    "type": "definition"
+  },
+  {
+    "id": "profit-margin-finance-05160979",
+    "term": "PROFIT MARGIN",
+    "category": "Finance",
+    "category_raw": "Finance",
+    "definition": "",
+    "formula_or_notes": "(Revenue - Cost) / Revenue,",
+    "type": "formula",
+    "formula": {
+      "calculatorId": "profit-margin",
+      "expression": "(revenue - cost) / revenue",
+      "variables": [
+        {
+          "key": "revenue",
+          "label": "Revenue",
+          "unit": "$",
+          "required": true
+        },
+        {
+          "key": "cost",
+          "label": "Cost",
+          "unit": "$",
+          "required": true
+        }
+      ],
+      "output": {
+        "label": "Profit Margin",
+        "unit": ""
+      },
+      "format": "percent"
+    }
+  },
+  {
+    "id": "program-context-d4b638cc",
+    "term": "Program",
+    "category": "Context",
+    "category_raw": "Context",
+    "definition": "Specific TV show or content",
+    "type": "definition"
+  },
+  {
+    "id": "program-affinity-planning-23689875",
+    "term": "Program Affinity",
+    "category": "Planning",
+    "category_raw": "Planning",
+    "definition": "Audience alignment with demo",
+    "type": "definition"
+  },
+  {
+    "id": "program-break-placement-7f7d79ba",
+    "term": "Program Break",
+    "category": "Placement",
+    "category_raw": "Placement",
+    "definition": "Ad break within programming",
+    "type": "definition"
+  },
+  {
+    "id": "programmatic-channel-e65aef2b",
+    "term": "Programmatic",
+    "category": "Channel",
+    "category_raw": "Channel",
+    "definition": "Automated buying and selling of digital media",
+    "type": "definition"
+  },
+  {
+    "id": "programmatic-display-channel-547ac812",
+    "term": "Programmatic Display",
+    "category": "Channel",
+    "category_raw": "Channel",
+    "definition": "Automated display advertising",
+    "type": "definition"
+  },
+  {
+    "id": "programmatic-guaranteed-programmatic-d25243c0",
+    "term": "Programmatic Guaranteed",
+    "category": "Programmatic",
+    "category_raw": "Programmatic",
+    "definition": "Guaranteed impressions at fixed price",
+    "type": "definition"
+  },
+  {
+    "id": "project-fee-finance-f2b84cbc",
+    "term": "Project Fee",
+    "category": "Finance",
+    "category_raw": "Finance",
+    "definition": "Fixed fee for defined scope",
+    "type": "definition"
+  },
+  {
+    "id": "promotion-extension-creative-3359cc3e",
+    "term": "Promotion Extension",
+    "category": "Creative",
+    "category_raw": "Creative",
+    "definition": "Sale or offer messaging",
+    "type": "definition"
+  },
+  {
+    "id": "prospecting-audience-75dc203d",
+    "term": "Prospecting",
+    "category": "Audience",
+    "category_raw": "Audience",
+    "definition": "Targeting new audiences",
+    "type": "definition"
+  },
+  {
+    "id": "publisher-media-8c8ea831",
+    "term": "Publisher",
+    "category": "Media",
+    "category_raw": "Media",
+    "definition": "Inventory owner",
+    "type": "definition"
+  },
+  {
+    "id": "purchase-metric-6382c828",
+    "term": "Purchase",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Completed transaction",
+    "type": "definition"
+  },
+  {
+    "id": "qa-operations-d79d170a",
+    "term": "QA",
+    "category": "Operations",
+    "category_raw": "Operations",
+    "definition": "Quality assurance checks",
+    "type": "acronym"
+  },
+  {
+    "id": "qbr-operations-0d1b5776",
+    "term": "QBR",
+    "category": "Operations",
+    "category_raw": "Operations",
+    "definition": "Quarterly Business Review",
+    "type": "acronym"
+  },
+  {
+    "id": "qs-metric-f980b7ec",
+    "term": "QS",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Alias of Quality Score",
+    "type": "acronym"
+  },
+  {
+    "id": "quality-ranking-reporting-c00d5d8f",
+    "term": "Quality Ranking",
+    "category": "Reporting",
+    "category_raw": "Reporting",
+    "definition": "Ad quality vs competitors",
+    "type": "definition"
+  },
+  {
+    "id": "quality-score-metric-35c62f75",
+    "term": "Quality Score",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Diagnostic estimate of ad quality",
+    "type": "definition"
+  },
+  {
+    "id": "query-level-optimisation-optimisation-cf4753fb",
+    "term": "Query Level Optimisation",
+    "category": "Optimisation",
+    "category_raw": "Optimisation",
+    "definition": "Optimising at search term level",
+    "type": "definition"
+  },
+  {
+    "id": "query-matching-mechanics-451a18d6",
+    "term": "Query Matching",
+    "category": "Mechanics",
+    "category_raw": "Mechanics",
+    "definition": "How keywords match queries",
+    "type": "definition"
+  },
+  {
+    "id": "radio-audio-7e99777a",
+    "term": "Radio",
+    "category": "Audio",
+    "category_raw": "Audio",
+    "definition": "Broadcast radio",
+    "type": "definition"
+  },
+  {
+    "id": "rate-card-media-7576a438",
+    "term": "Rate Card",
+    "category": "Media",
+    "category_raw": "Media",
+    "definition": "Published pricing",
+    "type": "definition"
+  },
+  {
+    "id": "rating-metric-f5519a27",
+    "term": "Rating",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Percentage of audience watching",
+    "type": "definition"
+  },
+  {
+    "id": "rating-point-metric-24688ac6",
+    "term": "Rating Point",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Alias of Rating",
+    "type": "definition"
+  },
+  {
+    "id": "reach-metric-fe19b838",
+    "term": "Reach",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Percentage of target audience exposed",
+    "type": "definition"
+  },
+  {
+    "id": "reach-curve-planning-1ac376d1",
+    "term": "Reach Curve",
+    "category": "Planning",
+    "category_raw": "Planning",
+    "definition": "Relationship between spend and reach",
+    "type": "definition"
+  },
+  {
+    "id": "reach-lift-measurement-82e7e8ad",
+    "term": "Reach Lift",
+    "category": "Measurement",
+    "category_raw": "Measurement",
+    "definition": "Incremental reach measurement",
+    "type": "definition"
+  },
+  {
+    "id": "reach-optimisation-bidding-db3b8f35",
+    "term": "Reach Optimisation",
+    "category": "Bidding",
+    "category_raw": "Bidding",
+    "definition": "Optimise for reach delivery",
+    "type": "definition"
+  },
+  {
+    "id": "real-time-bidding-mechanics-cb8b656d",
+    "term": "Real Time Bidding",
+    "category": "Mechanics",
+    "category_raw": "Mechanics",
+    "definition": "Alias of RTB",
+    "type": "definition"
+  },
+  {
+    "id": "reconciliation-finance-be90845d",
+    "term": "Reconciliation",
+    "category": "Finance",
+    "category_raw": "Finance",
+    "definition": "Matching invoices to bookings and delivery",
+    "type": "definition"
+  },
+  {
+    "id": "reels-placement-fce6b283",
+    "term": "Reels",
+    "category": "Placement",
+    "category_raw": "Placement",
+    "definition": "Short-form vertical video placement",
+    "type": "definition"
+  },
+  {
+    "id": "reforecast-delivery-3afbec27",
+    "term": "Reforecast",
+    "category": "Delivery",
+    "category_raw": "Delivery",
+    "definition": "Updated delivery projection based on actuals",
+    "type": "definition"
+  },
+  {
+    "id": "regional-tam-measurement-c24dba65",
+    "term": "Regional TAM",
+    "category": "Measurement",
+    "category_raw": "Measurement",
+    "definition": "Regional TV measurement",
+    "type": "definition"
+  },
+  {
+    "id": "remarketing-audience-b50bbb74",
+    "term": "Remarketing",
+    "category": "Audience",
+    "category_raw": "Audience",
+    "definition": "Alternative term for retargeting",
+    "type": "definition"
+  },
+  {
+    "id": "reseller-supply-8236bcc8",
+    "term": "Reseller",
+    "category": "Supply",
+    "category_raw": "Supply",
+    "definition": "Intermediary authorised to sell inventory",
+    "type": "definition"
+  },
+  {
+    "id": "reservation-trading-7f7146aa",
+    "term": "Reservation",
+    "category": "Trading",
+    "category_raw": "Trading",
+    "definition": "Guaranteed booked inventory",
+    "type": "definition"
+  },
+  {
+    "id": "reset-learning-optimisation-7791b31a",
+    "term": "Reset Learning",
+    "category": "Optimisation",
+    "category_raw": "Optimisation",
+    "definition": "Change that restarts learning phase",
+    "type": "definition"
+  },
+  {
+    "id": "retail-media-commerce-c8d9f7b2",
+    "term": "Retail Media",
+    "category": "Commerce",
+    "category_raw": "Commerce",
+    "definition": "Ads sold by retailers using first-party data",
+    "type": "definition"
+  },
+  {
+    "id": "retainer-finance-2c6449b5",
+    "term": "Retainer",
+    "category": "Finance",
+    "category_raw": "Finance",
+    "definition": "Ongoing monthly service fee",
+    "type": "definition"
+  },
+  {
+    "id": "retargeting-audience-933567e9",
+    "term": "Retargeting",
+    "category": "Audience",
+    "category_raw": "Audience",
+    "definition": "Targeting users who previously engaged",
+    "type": "definition"
+  },
+  {
+    "id": "return-path-data-measurement-feec88fb",
+    "term": "Return Path Data",
+    "category": "Measurement",
+    "category_raw": "Measurement",
+    "definition": "TV viewing data from devices",
+    "type": "definition"
+  },
+  {
+    "id": "revenue-recognition-finance-a11ae9d9",
+    "term": "Revenue Recognition",
+    "category": "Finance",
+    "category_raw": "Finance",
+    "definition": "When revenue is recognised for accounting",
+    "formula_or_notes": "P&L policy dependent",
+    "type": "definition"
+  },
+  {
+    "id": "reverse-brief-planning-615e54c7",
+    "term": "Reverse Brief",
+    "category": "Planning",
+    "category_raw": "Planning",
+    "definition": "Agency response confirming approach",
+    "type": "definition"
+  },
+  {
+    "id": "rfp-commercial-7603af84",
+    "term": "RFP",
+    "category": "Commercial",
+    "category_raw": "Commercial",
+    "definition": "Request for Proposal",
+    "type": "acronym"
+  },
+  {
+    "id": "rfq-commercial-05638546",
+    "term": "RFQ",
+    "category": "Commercial",
+    "category_raw": "Commercial",
+    "definition": "Request for Quote",
+    "type": "acronym"
+  },
+  {
+    "id": "risk-register-governance-a806dbb3",
+    "term": "Risk Register",
+    "category": "Governance",
+    "category_raw": "Governance",
+    "definition": "Tracked risks and mitigations",
+    "type": "definition"
+  },
+  {
+    "id": "roadmap-ops-8efb52d6",
+    "term": "Roadmap",
+    "category": "Ops",
+    "category_raw": "Ops",
+    "definition": "Planned future work",
+    "type": "definition"
+  },
+  {
+    "id": "roas-metric-38d0cc60",
+    "term": "ROAS",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Return on Ad Spend",
+    "formula_or_notes": "Revenue / Ad Spend",
+    "type": "formula",
+    "formula": {
+      "calculatorId": "roas",
+      "expression": "revenue / ad_spend",
+      "variables": [
+        {
+          "key": "revenue",
+          "label": "Revenue",
+          "unit": "$",
+          "required": true
+        },
+        {
+          "key": "ad_spend",
+          "label": "Ad Spend",
+          "unit": "$",
+          "required": true
+        }
+      ],
+      "output": {
+        "label": "ROAS",
+        "unit": ""
+      },
+      "format": "number"
+    }
+  },
+  {
+    "id": "roi-metric-8692c7a3",
+    "term": "ROI",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Return on Investment",
+    "formula_or_notes": "(Return - Cost) / Cost",
+    "type": "formula",
+    "formula": {
+      "calculatorId": "roi",
+      "expression": "(ret - cost) / cost",
+      "variables": [
+        {
+          "key": "ret",
+          "label": "Return",
+          "unit": "$",
+          "required": true
+        },
+        {
+          "key": "cost",
+          "label": "Cost",
+          "unit": "$",
+          "required": true
+        }
+      ],
+      "output": {
+        "label": "ROI",
+        "unit": ""
+      },
+      "format": "percent"
+    }
+  },
+  {
+    "id": "rsa-creative-847cd757",
+    "term": "RSA",
+    "category": "Creative",
+    "category_raw": "Creative",
+    "definition": "Responsive Search Ad format",
+    "type": "acronym"
+  },
+  {
+    "id": "rtb-mechanics-d32d39a9",
+    "term": "RTB",
+    "category": "Mechanics",
+    "category_raw": "Mechanics",
+    "definition": "Real Time Bidding per impression",
+    "type": "acronym"
+  },
+  {
+    "id": "sa360-channel-9fb39618",
+    "term": "SA360",
+    "category": "Channel",
+    "category_raw": "Channel",
+    "definition": "Search Ads 360",
+    "type": "acronym"
+  },
+  {
+    "id": "safe-area-creative-d1eea1a1",
+    "term": "Safe Area",
+    "category": "Creative",
+    "category_raw": "Creative",
+    "definition": "Visible content area",
+    "type": "definition"
+  },
+  {
+    "id": "sales-lift-measurement-72fb00fb",
+    "term": "Sales Lift",
+    "category": "Measurement",
+    "category_raw": "Measurement",
+    "definition": "Incremental sales measurement study",
+    "type": "definition"
+  },
+  {
+    "id": "search-channel-7db2302b",
+    "term": "Search",
+    "category": "Channel",
+    "category_raw": "Channel",
+    "definition": "Paid search advertising",
+    "type": "definition"
+  },
+  {
+    "id": "search-attribution-model-tracking-2fa4e923",
+    "term": "Search Attribution Model",
+    "category": "Tracking",
+    "category_raw": "Tracking",
+    "definition": "Rule assigning conversion credit",
+    "type": "definition"
+  },
+  {
+    "id": "search-budget-elasticity-economics-2b903499",
+    "term": "Search Budget Elasticity",
+    "category": "Economics",
+    "category_raw": "Economics",
+    "definition": "Impact of spend changes on volume",
+    "type": "definition"
+  },
+  {
+    "id": "search-campaign-structure-b38c1042",
+    "term": "Search Campaign",
+    "category": "Structure",
+    "category_raw": "Structure",
+    "definition": "Top-level paid search container",
+    "type": "definition"
+  },
+  {
+    "id": "search-conversion-lag-measurement-9b2d7ae3",
+    "term": "Search Conversion Lag",
+    "category": "Measurement",
+    "category_raw": "Measurement",
+    "definition": "Time between click and conversion",
+    "type": "definition"
+  },
+  {
+    "id": "search-coverage-gap-planning-4552bd0f",
+    "term": "Search Coverage Gap",
+    "category": "Planning",
+    "category_raw": "Planning",
+    "definition": "Missing keyword opportunities",
+    "type": "definition"
+  },
+  {
+    "id": "search-demand-planning-b75f0837",
+    "term": "Search Demand",
+    "category": "Planning",
+    "category_raw": "Planning",
+    "definition": "Volume of relevant queries",
+    "type": "definition"
+  },
+  {
+    "id": "search-intent-optimisation-3872cd1b",
+    "term": "Search Intent",
+    "category": "Optimisation",
+    "category_raw": "Optimisation",
+    "definition": "Underlying user motivation",
+    "type": "definition"
+  },
+  {
+    "id": "search-is-metric-f324eac5",
+    "term": "Search IS",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Alias of Impression Share",
+    "type": "definition"
+  },
+  {
+    "id": "search-lift-measurement-881d2774",
+    "term": "Search Lift",
+    "category": "Measurement",
+    "category_raw": "Measurement",
+    "definition": "Increase in search after TV exposure",
+    "type": "definition"
+  },
+  {
+    "id": "search-lost-impression-share-metric-6fbb2c6f",
+    "term": "Search Lost Impression Share",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Total lost opportunity",
+    "type": "definition"
+  },
+  {
+    "id": "search-query-report-reporting-39a96d80",
+    "term": "Search Query Report",
+    "category": "Reporting",
+    "category_raw": "Reporting",
+    "definition": "List of actual triggering queries",
+    "type": "definition"
+  },
+  {
+    "id": "search-saturation-definition-42254242",
+    "term": "Search Saturation",
+    "category": "Definition",
+    "category_raw": "Definition",
+    "definition": "Economics",
+    "formula_or_notes": "Search,Point where more spend adds minimal value",
+    "type": "definition"
+  },
+  {
+    "id": "search-term-structure-39d80c87",
+    "term": "Search Term",
+    "category": "Structure",
+    "category_raw": "Structure",
+    "definition": "Actual user query that triggered ad",
+    "type": "definition"
+  },
+  {
+    "id": "search-volume-metric-4c31228c",
+    "term": "Search Volume",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Estimated average query count",
+    "type": "definition"
+  },
+  {
+    "id": "seat-account-1ffb8472",
+    "term": "Seat",
+    "category": "Account",
+    "category_raw": "Account",
+    "definition": "Buyer account within DSP",
+    "type": "definition"
+  },
+  {
+    "id": "second-price-auction-mechanics-2f840ad4",
+    "term": "Second Price Auction",
+    "category": "Mechanics",
+    "category_raw": "Mechanics",
+    "definition": "Winner pays next highest bid plus increment",
+    "type": "definition"
+  },
+  {
+    "id": "second-party-data-data-9743cfa7",
+    "term": "Second-party Data",
+    "category": "Data",
+    "category_raw": "Data",
+    "definition": "Partner shared data",
+    "type": "definition"
+  },
+  {
+    "id": "secondary-conversion-measurement-aa5e39cb",
+    "term": "Secondary Conversion",
+    "category": "Measurement",
+    "category_raw": "Measurement",
+    "definition": "Tracked but not optimised towards",
+    "type": "definition"
+  },
+  {
+    "id": "secondary-demo-audience-62450376",
+    "term": "Secondary Demo",
+    "category": "Audience",
+    "category_raw": "Audience",
+    "definition": "Additional reporting audience",
+    "type": "definition"
+  },
+  {
+    "id": "secondary-metric-measurement-4f6716af",
+    "term": "Secondary Metric",
+    "category": "Measurement",
+    "category_raw": "Measurement",
+    "definition": "Supporting metric",
+    "type": "definition"
+  },
+  {
+    "id": "seed-audience-audience-f03d1581",
+    "term": "Seed Audience",
+    "category": "Audience",
+    "category_raw": "Audience",
+    "definition": "Source list for modelling",
+    "type": "definition"
+  },
+  {
+    "id": "segment-audience-1b30908a",
+    "term": "Segment",
+    "category": "Audience",
+    "category_raw": "Audience",
+    "definition": "Subset of users",
+    "type": "definition"
+  },
+  {
+    "id": "sellers-json-governance-f318b965",
+    "term": "Sellers.json",
+    "category": "Governance",
+    "category_raw": "Governance",
+    "definition": "Transparency file listing sellers",
+    "type": "definition"
+  },
+  {
+    "id": "sem-channel-3af104b8",
+    "term": "SEM",
+    "category": "Channel",
+    "category_raw": "Channel",
+    "definition": "Search Engine Marketing paid activity",
+    "type": "acronym"
+  },
+  {
+    "id": "semantic-targeting-targeting-3b9a4db2",
+    "term": "Semantic Targeting",
+    "category": "Targeting",
+    "category_raw": "Targeting",
+    "definition": "Meaning-based contextual targeting",
+    "type": "definition"
+  },
+  {
+    "id": "seo-channel-5a0596e6",
+    "term": "SEO",
+    "category": "Channel",
+    "category_raw": "Channel",
+    "definition": "Search Engine Optimisation",
+    "type": "acronym"
+  },
+  {
+    "id": "server-side-tracking-tracking-c75e10d8",
+    "term": "Server-side Tracking",
+    "category": "Tracking",
+    "category_raw": "Tracking",
+    "definition": "Server based tracking",
+    "type": "definition"
+  },
+  {
+    "id": "server-side-tracking-tracking-5e152030",
+    "term": "Server-Side Tracking",
+    "category": "Tracking",
+    "category_raw": "Tracking",
+    "definition": "Events sent via server infrastructure",
+    "type": "definition"
+  },
+  {
+    "id": "set-top-box-data-measurement-7ff6b6f7",
+    "term": "Set Top Box Data",
+    "category": "Measurement",
+    "category_raw": "Measurement",
+    "definition": "Viewing data from STB devices",
+    "type": "definition"
+  },
+  {
+    "id": "sgtm-tracking-379d4cdb",
+    "term": "sGTM",
+    "category": "Tracking",
+    "category_raw": "Tracking",
+    "definition": "Server Google Tag Manager",
+    "type": "definition"
+  },
+  {
+    "id": "share-of-audience-metric-62e2aeda",
+    "term": "Share of Audience",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Audience share for program",
+    "type": "definition"
+  },
+  {
+    "id": "share-of-voice-metric-e3e6dfff",
+    "term": "Share of Voice",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Brand presence versus competitors",
+    "type": "definition"
+  },
+  {
+    "id": "sitelinks-creative-de3d19d3",
+    "term": "Sitelinks",
+    "category": "Creative",
+    "category_raw": "Creative",
+    "definition": "Additional page links",
+    "type": "definition"
+  },
+  {
+    "id": "sivt-governance-79d15649",
+    "term": "SIVT",
+    "category": "Governance",
+    "category_raw": "Governance",
+    "definition": "Sophisticated Invalid Traffic",
+    "type": "acronym"
+  },
+  {
+    "id": "skippable-video-format-3e491003",
+    "term": "Skippable Video",
+    "category": "Format",
+    "category_raw": "Format",
+    "definition": "User can skip ad",
+    "type": "definition"
+  },
+  {
+    "id": "sla-commercial-5a57ce55",
+    "term": "SLA",
+    "category": "Commercial",
+    "category_raw": "Commercial",
+    "definition": "Service Level Agreement defining response times",
+    "type": "acronym"
+  },
+  {
+    "id": "smart-bidding-bidding-6083e553",
+    "term": "Smart Bidding",
+    "category": "Bidding",
+    "category_raw": "Bidding",
+    "definition": "Automated bidding using machine learning",
+    "type": "definition"
+  },
+  {
+    "id": "snap-ads-channel-06e50516",
+    "term": "Snap Ads",
+    "category": "Channel",
+    "category_raw": "Channel",
+    "definition": "Snapchat advertising",
+    "type": "definition"
+  },
+  {
+    "id": "snowflake-tech-66b9142e",
+    "term": "Snowflake",
+    "category": "Tech",
+    "category_raw": "Tech",
+    "definition": "Cloud data warehouse",
+    "type": "definition"
+  },
+  {
+    "id": "social-campaign-structure-60c056e3",
+    "term": "Social Campaign",
+    "category": "Structure",
+    "category_raw": "Structure",
+    "definition": "Top-level campaign container",
+    "type": "definition"
+  },
+  {
+    "id": "soft-floor-mechanics-7e26b02b",
+    "term": "Soft Floor",
+    "category": "Mechanics",
+    "category_raw": "Mechanics",
+    "definition": "Floor that can be bypassed",
+    "type": "definition"
+  },
+  {
+    "id": "sov-metric-aace1346",
+    "term": "SOV",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Alias of Share of Voice",
+    "type": "acronym"
+  },
+  {
+    "id": "sow-commercial-0cbe5e58",
+    "term": "SOW",
+    "category": "Commercial",
+    "category_raw": "Commercial",
+    "definition": "Statement of Work defining scope and deliverables",
+    "type": "acronym"
+  },
+  {
+    "id": "spec-sheet-creative-dce99def",
+    "term": "Spec Sheet",
+    "category": "Creative",
+    "category_raw": "Creative",
+    "definition": "Publisher requirements",
+    "type": "definition"
+  },
+  {
+    "id": "spend-cap-budgeting-726b53dd",
+    "term": "Spend Cap",
+    "category": "Budgeting",
+    "category_raw": "Budgeting",
+    "definition": "Maximum allowed spend",
+    "type": "definition"
+  },
+  {
+    "id": "spo-programmatic-f8be464b",
+    "term": "SPO",
+    "category": "Programmatic",
+    "category_raw": "Programmatic",
+    "definition": "Supply Path Optimisation",
+    "type": "acronym"
+  },
+  {
+    "id": "spot-placement-8bd7b45f",
+    "term": "Spot",
+    "category": "Placement",
+    "category_raw": "Placement",
+    "definition": "Individual TV ad placement",
+    "type": "definition"
+  },
+  {
+    "id": "spot-length-weighting-planning-50d7df2e",
+    "term": "Spot Length Weighting",
+    "category": "Planning",
+    "category_raw": "Planning",
+    "definition": "Impact by ad duration",
+    "type": "definition"
+  },
+  {
+    "id": "sqr-reporting-24b0d516",
+    "term": "SQR",
+    "category": "Reporting",
+    "category_raw": "Reporting",
+    "definition": "Alias of Search Query Report",
+    "type": "acronym"
+  },
+  {
+    "id": "ssp-programmatic-fc489a9c",
+    "term": "SSP",
+    "category": "Programmatic",
+    "category_raw": "Programmatic",
+    "definition": "Supply Side Platform used by publishers",
+    "type": "acronym"
+  },
+  {
+    "id": "stories-placement-b15d4138",
+    "term": "Stories",
+    "category": "Placement",
+    "category_raw": "Placement",
+    "definition": "Full-screen vertical placement",
+    "type": "definition"
+  },
+  {
+    "id": "structured-snippets-creative-7c9016a4",
+    "term": "Structured Snippets",
+    "category": "Creative",
+    "category_raw": "Creative",
+    "definition": "Predefined category values",
+    "type": "definition"
+  },
+  {
+    "id": "suitability-governance-eb362586",
+    "term": "Suitability",
+    "category": "Governance",
+    "category_raw": "Governance",
+    "definition": "Controls for brand-appropriate content",
+    "type": "definition"
+  },
+  {
+    "id": "supply-supply-9ed07eb6",
+    "term": "Supply",
+    "category": "Supply",
+    "category_raw": "Supply",
+    "definition": "Total available inventory",
+    "type": "definition"
+  },
+  {
+    "id": "supply-path-trading-8568deac",
+    "term": "Supply Path",
+    "category": "Trading",
+    "category_raw": "Trading",
+    "definition": "Route from buyer to publisher",
+    "type": "definition"
+  },
+  {
+    "id": "supply-path-optimisation-trading-88a0287c",
+    "term": "Supply Path Optimisation",
+    "category": "Trading",
+    "category_raw": "Trading",
+    "definition": "Alias of SPO",
+    "type": "definition"
+  },
+  {
+    "id": "supply-side-platform-platform-4f42d411",
+    "term": "Supply Side Platform",
+    "category": "Platform",
+    "category_raw": "Platform",
+    "definition": "Alias of SSP",
+    "type": "definition"
+  },
+  {
+    "id": "suppression-audience-4d928d32",
+    "term": "Suppression",
+    "category": "Audience",
+    "category_raw": "Audience",
+    "definition": "Excluded users",
+    "type": "definition"
+  },
+  {
+    "id": "svod-channel-02791368",
+    "term": "SVOD",
+    "category": "Channel",
+    "category_raw": "Channel",
+    "definition": "Subscription Video On Demand",
+    "type": "acronym"
+  },
+  {
+    "id": "t-cs-commercial-799d1385",
+    "term": "T&Cs",
+    "category": "Commercial",
+    "category_raw": "Commercial",
+    "definition": "Terms and Conditions applying to services",
+    "type": "definition"
+  },
+  {
+    "id": "taboola-channel-1283588d",
+    "term": "Taboola",
+    "category": "Channel",
+    "category_raw": "Channel",
+    "definition": "Native content discovery platform",
+    "type": "definition"
+  },
+  {
+    "id": "tag-tracking-0fbdd288",
+    "term": "Tag",
+    "category": "Tracking",
+    "category_raw": "Tracking",
+    "definition": "Script used for tracking",
+    "type": "definition"
+  },
+  {
+    "id": "take-rate-finance-539560d1",
+    "term": "Take Rate",
+    "category": "Finance",
+    "category_raw": "Finance",
+    "definition": "Percentage retained by intermediaries",
+    "type": "definition"
+  },
+  {
+    "id": "target-cpa-bidding-bc387ef8",
+    "term": "Target CPA",
+    "category": "Bidding",
+    "category_raw": "Bidding",
+    "definition": "Alias of tCPA",
+    "type": "definition"
+  },
+  {
+    "id": "target-rating-points-metric-a9ff725e",
+    "term": "Target Rating Points",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Alias of TRP",
+    "type": "definition"
+  },
+  {
+    "id": "target-roas-bidding-b77f1140",
+    "term": "Target ROAS",
+    "category": "Bidding",
+    "category_raw": "Bidding",
+    "definition": "Alias of tROAS",
+    "type": "definition"
+  },
+  {
+    "id": "tcpa-bidding-d76f9476",
+    "term": "tCPA",
+    "category": "Bidding",
+    "category_raw": "Bidding",
+    "definition": "Target cost per acquisition strategy",
+    "type": "definition"
+  },
+  {
+    "id": "teads-channel-6c97a448",
+    "term": "Teads",
+    "category": "Channel",
+    "category_raw": "Channel",
+    "definition": "Video distribution platform",
+    "type": "definition"
+  },
+  {
+    "id": "technology-fee-finance-ef020cc8",
+    "term": "Technology Fee",
+    "category": "Finance",
+    "category_raw": "Finance",
+    "definition": "DSP or platform fee",
+    "type": "definition"
+  },
+  {
+    "id": "test-and-learn-planning-3df81f55",
+    "term": "Test and Learn",
+    "category": "Planning",
+    "category_raw": "Planning",
+    "definition": "Structured experimentation approach",
+    "type": "definition"
+  },
+  {
+    "id": "the-trade-desk-channel-1654e2a1",
+    "term": "The Trade Desk",
+    "category": "Channel",
+    "category_raw": "Channel",
+    "definition": "Independent DSP",
+    "type": "definition"
+  },
+  {
+    "id": "thinktv-industry-c6a68f9b",
+    "term": "ThinkTV",
+    "category": "Industry",
+    "category_raw": "Industry",
+    "definition": "Australian TV industry planning body",
+    "type": "definition"
+  },
+  {
+    "id": "third-party-data-data-e3f66e23",
+    "term": "Third-party Data",
+    "category": "Data",
+    "category_raw": "Data",
+    "definition": "External aggregated data",
+    "type": "definition"
+  },
+  {
+    "id": "third-party-reporting-reporting-6cb1f2f1",
+    "term": "Third-party Reporting",
+    "category": "Reporting",
+    "category_raw": "Reporting",
+    "definition": "External measurement tools",
+    "type": "definition"
+  },
+  {
+    "id": "thruplay-metric-0ab7618d",
+    "term": "ThruPlay",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "15s or full-length video view",
+    "formula_or_notes": "Meta definition",
+    "type": "definition"
+  },
+  {
+    "id": "thumbstop-rate-metric-9d47e28a",
+    "term": "Thumbstop Rate",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Users stopping scroll to view video",
+    "type": "definition"
+  },
+  {
+    "id": "tiktok-ads-channel-215dee69",
+    "term": "TikTok Ads",
+    "category": "Channel",
+    "category_raw": "Channel",
+    "definition": "TikTok advertising platform",
+    "type": "definition"
+  },
+  {
+    "id": "tiktok-in-feed-format-f05cae9e",
+    "term": "TikTok In-Feed",
+    "category": "Format",
+    "category_raw": "Format",
+    "definition": "Native feed video format",
+    "type": "definition"
+  },
+  {
+    "id": "tiktok-spark-ads-format-1e3584e3",
+    "term": "TikTok Spark Ads",
+    "category": "Format",
+    "category_raw": "Format",
+    "definition": "Creator-post amplification format",
+    "type": "definition"
+  },
+  {
+    "id": "tiktok-topview-format-0b1f9ff7",
+    "term": "TikTok TopView",
+    "category": "Format",
+    "category_raw": "Format",
+    "definition": "Premium takeover video format",
+    "type": "definition"
+  },
+  {
+    "id": "time-bid-adjustment-bidding-3c66a585",
+    "term": "Time Bid Adjustment",
+    "category": "Bidding",
+    "category_raw": "Bidding",
+    "definition": "Bid modifier by time of day",
+    "type": "definition"
+  },
+  {
+    "id": "time-decay-attribution-29b5f02c",
+    "term": "Time Decay",
+    "category": "Attribution",
+    "category_raw": "Attribution",
+    "definition": "More credit to later touchpoints",
+    "type": "definition"
+  },
+  {
+    "id": "timeout-mechanics-7876c6a4",
+    "term": "Timeout",
+    "category": "Mechanics",
+    "category_raw": "Mechanics",
+    "definition": "Maximum time allowed for bids",
+    "type": "definition"
+  },
+  {
+    "id": "top-of-page-bid-metric-f6195511",
+    "term": "Top of Page Bid",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Estimated bid for top placement",
+    "type": "definition"
+  },
+  {
+    "id": "top-of-page-rate-metric-8f871446",
+    "term": "Top of Page Rate",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Ads shown above organic results",
+    "type": "definition"
+  },
+  {
+    "id": "tracking-template-tracking-e96762ea",
+    "term": "Tracking Template",
+    "category": "Tracking",
+    "category_raw": "Tracking",
+    "definition": "URL template for parameters",
+    "type": "definition"
+  },
+  {
+    "id": "trafficking-operations-a4fd156d",
+    "term": "Trafficking",
+    "category": "Operations",
+    "category_raw": "Operations",
+    "definition": "Setting up ads and tags in platforms",
+    "type": "definition"
+  },
+  {
+    "id": "transparency-governance-8ac5c08f",
+    "term": "Transparency",
+    "category": "Governance",
+    "category_raw": "Governance",
+    "definition": "Clear disclosure of supply and costs",
+    "type": "definition"
+  },
+  {
+    "id": "troas-bidding-879b9852",
+    "term": "tROAS",
+    "category": "Bidding",
+    "category_raw": "Bidding",
+    "definition": "Target return on ad spend strategy",
+    "type": "definition"
+  },
+  {
+    "id": "trp-metric-756ad51f",
+    "term": "TRP",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Target Rating Points",
+    "formula_or_notes": "GRPs within target audience",
+    "type": "acronym"
+  },
+  {
+    "id": "tv-attribution-measurement-8d4a8fd5",
+    "term": "TV Attribution",
+    "category": "Measurement",
+    "category_raw": "Measurement",
+    "definition": "Linking exposure to outcomes",
+    "type": "definition"
+  },
+  {
+    "id": "tv-campaign-structure-5bbcdbf4",
+    "term": "TV Campaign",
+    "category": "Structure",
+    "category_raw": "Structure",
+    "definition": "Top-level TV buying container",
+    "type": "definition"
+  },
+  {
+    "id": "tv-lift-study-measurement-5a42455f",
+    "term": "TV Lift Study",
+    "category": "Measurement",
+    "category_raw": "Measurement",
+    "definition": "Incremental impact measurement",
+    "type": "definition"
+  },
+  {
+    "id": "tv-planning-model-planning-6e012c22",
+    "term": "TV Planning Model",
+    "category": "Planning",
+    "category_raw": "Planning",
+    "definition": "Forecast reach and frequency outcomes",
+    "type": "definition"
+  },
+  {
+    "id": "tv-schedule-structure-4c67744c",
+    "term": "TV Schedule",
+    "category": "Structure",
+    "category_raw": "Structure",
+    "definition": "Planned placements across programs",
+    "type": "definition"
+  },
+  {
+    "id": "tv-weight-planning-778ab8f2",
+    "term": "TV Weight",
+    "category": "Planning",
+    "category_raw": "Planning",
+    "definition": "GRP intensity per period",
+    "type": "definition"
+  },
+  {
+    "id": "under-delivery-delivery-6004c4c4",
+    "term": "Under-delivery",
+    "category": "Delivery",
+    "category_raw": "Delivery",
+    "definition": "Delivered volume below booked amount",
+    "type": "definition"
+  },
+  {
+    "id": "unduplicated-reach-metric-e0ed3122",
+    "term": "Unduplicated Reach",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Reach excluding overlap",
+    "type": "definition"
+  },
+  {
+    "id": "unique-ctr-metric-eb1b633c",
+    "term": "Unique CTR",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "CTR based on unique users",
+    "type": "definition"
+  },
+  {
+    "id": "unique-reach-delivery-a2500089",
+    "term": "Unique Reach",
+    "category": "Delivery",
+    "category_raw": "Delivery",
+    "definition": "Deduplicated reach",
+    "type": "definition"
+  },
+  {
+    "id": "universe-measurement-589cde3a",
+    "term": "Universe",
+    "category": "Measurement",
+    "category_raw": "Measurement",
+    "definition": "Total measurable population",
+    "type": "definition"
+  },
+  {
+    "id": "upper-funnel-strategy-70264d42",
+    "term": "Upper Funnel",
+    "category": "Strategy",
+    "category_raw": "Strategy",
+    "definition": "Awareness-focused activity",
+    "type": "definition"
+  },
+  {
+    "id": "utm-tracking-4c5ec750",
+    "term": "UTM",
+    "category": "Tracking",
+    "category_raw": "Tracking",
+    "definition": "URL parameters used for attribution",
+    "type": "acronym"
+  },
+  {
+    "id": "utm-campaign-tracking-9201ce57",
+    "term": "UTM Campaign",
+    "category": "Tracking",
+    "category_raw": "Tracking",
+    "definition": "Campaign name identifier",
+    "type": "definition"
+  },
+  {
+    "id": "utm-content-tracking-14c20e63",
+    "term": "UTM Content",
+    "category": "Tracking",
+    "category_raw": "Tracking",
+    "definition": "Creative identifier",
+    "type": "definition"
+  },
+  {
+    "id": "utm-medium-tracking-238fd69d",
+    "term": "UTM Medium",
+    "category": "Tracking",
+    "category_raw": "Tracking",
+    "definition": "Channel type identifier",
+    "type": "definition"
+  },
+  {
+    "id": "utm-source-tracking-09c26b3e",
+    "term": "UTM Source",
+    "category": "Tracking",
+    "category_raw": "Tracking",
+    "definition": "Traffic source identifier",
+    "type": "definition"
+  },
+  {
+    "id": "utm-term-tracking-4e66ccd6",
+    "term": "UTM Term",
+    "category": "Tracking",
+    "category_raw": "Tracking",
+    "definition": "Keyword identifier",
+    "type": "definition"
+  },
+  {
+    "id": "value-metric-32eb3ce1",
+    "term": "Value",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Revenue attributed to conversions",
+    "type": "definition"
+  },
+  {
+    "id": "value-optimisation-bidding-00b85a2f",
+    "term": "Value Optimisation",
+    "category": "Bidding",
+    "category_raw": "Bidding",
+    "definition": "Optimise for conversion value",
+    "type": "definition"
+  },
+  {
+    "id": "valuetrack-parameter-tracking-b755ce55",
+    "term": "ValueTrack Parameter",
+    "category": "Tracking",
+    "category_raw": "Tracking",
+    "definition": "Dynamic URL parameter",
+    "type": "definition"
+  },
+  {
+    "id": "vcpm-metric-e6e39d84",
+    "term": "vCPM",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Viewable CPM",
+    "formula_or_notes": "Cost / Viewable Impressions * 1000",
+    "type": "formula",
+    "formula": {
+      "calculatorId": "vcpm",
+      "expression": "(cost / viewable_impressions) * 1000",
+      "variables": [
+        {
+          "key": "cost",
+          "label": "Cost",
+          "unit": "$",
+          "required": true
+        },
+        {
+          "key": "viewable_impressions",
+          "label": "Viewable Impressions",
+          "required": true
+        }
+      ],
+      "output": {
+        "label": "vCPM",
+        "unit": "$"
+      },
+      "format": "currency"
+    }
+  },
+  {
+    "id": "vcpm-metric-0972049b",
+    "term": "VCPM",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "",
+    "formula_or_notes": "Cost / Viewable Impressions * 1000,",
+    "type": "formula",
+    "formula": {
+      "calculatorId": "vcpm",
+      "expression": "(cost / viewable_impressions) * 1000",
+      "variables": [
+        {
+          "key": "cost",
+          "label": "Cost",
+          "unit": "$",
+          "required": true
+        },
+        {
+          "key": "viewable_impressions",
+          "label": "Viewable Impressions",
+          "required": true
+        }
+      ],
+      "output": {
+        "label": "vCPM",
+        "unit": "$"
+      },
+      "format": "currency"
+    }
+  },
+  {
+    "id": "verification-governance-d9a5ffb9",
+    "term": "Verification",
+    "category": "Governance",
+    "category_raw": "Governance",
+    "definition": "Independent measurement of delivery",
+    "type": "definition"
+  },
+  {
+    "id": "video-format-d204e12f",
+    "term": "Video",
+    "category": "Format",
+    "category_raw": "Format",
+    "definition": "In-stream or out-stream video",
+    "type": "definition"
+  },
+  {
+    "id": "video-completion-metric-d09e74f5",
+    "term": "Video Completion",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Video played to end",
+    "type": "definition"
+  },
+  {
+    "id": "video-completion-rate-metric-e229c65f",
+    "term": "Video Completion Rate",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Completed views divided by starts",
+    "type": "definition"
+  },
+  {
+    "id": "video-view-metric-d35cf000",
+    "term": "Video View",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Recorded video play",
+    "type": "definition"
+  },
+  {
+    "id": "view-attribution-tracking-b80369b9",
+    "term": "View Attribution",
+    "category": "Tracking",
+    "category_raw": "Tracking",
+    "definition": "Conversions credited after view",
+    "type": "definition"
+  },
+  {
+    "id": "view-content-metric-5643d03d",
+    "term": "View Content",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "Product or page view event",
+    "type": "definition"
+  },
+  {
+    "id": "view-through-conversion-tracking-5de508d2",
+    "term": "View Through Conversion",
+    "category": "Tracking",
+    "category_raw": "Tracking",
+    "definition": "Conversion after impression without click",
+    "type": "definition"
+  },
+  {
+    "id": "viewability-delivery-65b6200b",
+    "term": "Viewability",
+    "category": "Delivery",
+    "category_raw": "Delivery",
+    "definition": "Percentage of viewable impressions",
+    "type": "definition"
+  },
+  {
+    "id": "viewable-impression-delivery-fd0d0dcb",
+    "term": "Viewable Impression",
+    "category": "Delivery",
+    "category_raw": "Delivery",
+    "definition": "Impression meeting viewability rules",
+    "type": "definition"
+  },
+  {
+    "id": "virtual-australia-measurement-71d3a685",
+    "term": "Virtual Australia",
+    "category": "Measurement",
+    "category_raw": "Measurement",
+    "definition": "Alias of VOZ",
+    "type": "definition"
+  },
+  {
+    "id": "visual-creative-ed42b262",
+    "term": "Visual",
+    "category": "Creative",
+    "category_raw": "Creative",
+    "definition": "Image or video content",
+    "type": "definition"
+  },
+  {
+    "id": "voz-measurement-8890cf6d",
+    "term": "VOZ",
+    "category": "Measurement",
+    "category_raw": "Measurement",
+    "definition": "Total TV measurement framework Australia",
+    "type": "acronym"
+  },
+  {
+    "id": "vtr-metric-9441df11",
+    "term": "VTR",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "",
+    "formula_or_notes": "Completed Views / Impressions * 100,",
+    "type": "formula",
+    "formula": {
+      "calculatorId": "vtr",
+      "expression": "(completed_views / impressions) * 100",
+      "variables": [
+        {
+          "key": "completed_views",
+          "label": "Completed Views",
+          "required": true
+        },
+        {
+          "key": "impressions",
+          "label": "Impressions",
+          "required": true
+        }
+      ],
+      "output": {
+        "label": "VTR",
+        "unit": "%"
+      },
+      "format": "percent"
+    }
+  },
+  {
+    "id": "waterfall-mechanics-dfc10b55",
+    "term": "Waterfall",
+    "category": "Mechanics",
+    "category_raw": "Mechanics",
+    "definition": "Sequential auction structure",
+    "type": "definition"
+  },
+  {
+    "id": "web-lift-measurement-f46f0311",
+    "term": "Web Lift",
+    "category": "Measurement",
+    "category_raw": "Measurement",
+    "definition": "Increase in site visits after TV exposure",
+    "type": "definition"
+  },
+  {
+    "id": "webhook-tech-706ecf67",
+    "term": "Webhook",
+    "category": "Tech",
+    "category_raw": "Tech",
+    "definition": "Event-based data push",
+    "type": "definition"
+  },
+  {
+    "id": "whitelisting-governance-3ab523ae",
+    "term": "Whitelisting",
+    "category": "Governance",
+    "category_raw": "Governance",
+    "definition": "Approved inventory list",
+    "type": "definition"
+  },
+  {
+    "id": "win-rate-supply-0c2070da",
+    "term": "Win Rate",
+    "category": "Supply",
+    "category_raw": "Supply",
+    "definition": "Percentage of auctions won",
+    "formula_or_notes": "Wins / Bids * 100",
+    "type": "formula",
+    "formula": {
+      "calculatorId": "win-rate",
+      "expression": "(wins / bids) * 100",
+      "variables": [
+        {
+          "key": "wins",
+          "label": "Wins",
+          "required": true
+        },
+        {
+          "key": "bids",
+          "label": "Bids",
+          "required": true
+        }
+      ],
+      "output": {
+        "label": "Win Rate",
+        "unit": "%"
+      },
+      "format": "percent"
+    }
+  },
+  {
+    "id": "win-rate-metric-27682d86",
+    "term": "WIN RATE",
+    "category": "Metric",
+    "category_raw": "Metric",
+    "definition": "",
+    "formula_or_notes": "Wins / Bids * 100,",
+    "type": "formula",
+    "formula": {
+      "calculatorId": "win-rate",
+      "expression": "(wins / bids) * 100",
+      "variables": [
+        {
+          "key": "wins",
+          "label": "Wins",
+          "required": true
+        },
+        {
+          "key": "bids",
+          "label": "Bids",
+          "required": true
+        }
+      ],
+      "output": {
+        "label": "Win Rate",
+        "unit": "%"
+      },
+      "format": "percent"
+    }
+  },
+  {
+    "id": "wip-operations-c1845c88",
+    "term": "WIP",
+    "category": "Operations",
+    "category_raw": "Operations",
+    "definition": "Work In Progress status meeting",
+    "type": "acronym"
+  },
+  {
+    "id": "yield-supply-3e6238a9",
+    "term": "Yield",
+    "category": "Supply",
+    "category_raw": "Supply",
+    "definition": "Revenue generated per impression",
+    "type": "definition"
+  },
+  {
+    "id": "yield-optimisation-supply-cbd223d1",
+    "term": "Yield Optimisation",
+    "category": "Supply",
+    "category_raw": "Supply",
+    "definition": "Improving revenue outcomes",
+    "type": "definition"
+  },
+  {
+    "id": "youtube-channel-e919a652",
+    "term": "YouTube",
+    "category": "Channel",
+    "category_raw": "Channel",
+    "definition": "Video platform bought via Google Ads",
+    "type": "definition"
+  }
+]

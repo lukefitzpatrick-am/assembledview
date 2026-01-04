@@ -1,16 +1,49 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useAuthContext } from "@/contexts/AuthContext";
 
 type Status = "idle" | "loading" | "success" | "error";
+type Role = "admin" | "client";
+type ClientOption = { id: number; mp_client_name: string; slug?: string };
 
 export default function NewAdminUserPage() {
+  const router = useRouter();
+  const { isLoading: authLoading, isAdmin } = useAuthContext();
   const [form, setForm] = useState({ firstName: "", lastName: "", email: "", password: "" });
+  const [role, setRole] = useState<Role>("client");
+  const [clientId, setClientId] = useState<string>("");
+  const [clients, setClients] = useState<ClientOption[]>([]);
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!authLoading && !isAdmin) {
+      router.replace("/unauthorized");
+    }
+  }, [authLoading, isAdmin, router]);
+
+  useEffect(() => {
+    async function fetchClients() {
+      try {
+        const resp = await fetch("/api/clients");
+        if (!resp.ok) throw new Error("Failed to fetch clients");
+        const data = await resp.json();
+        if (Array.isArray(data)) {
+          setClients(data);
+        }
+      } catch (err) {
+        console.error("Failed to load clients list", err);
+      }
+    }
+    if (isAdmin) {
+      fetchClients();
+    }
+  }, [isAdmin]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -26,6 +59,8 @@ export default function NewAdminUserPage() {
           lastName: form.lastName,
           email: form.email,
           password: form.password,
+          role,
+          clientId: role === "client" ? clientId : undefined,
         }),
       });
 
@@ -36,11 +71,21 @@ export default function NewAdminUserPage() {
 
       setStatus("success");
       setForm({ firstName: "", lastName: "", email: "", password: "" });
+      setClientId("");
+      setRole("client");
     } catch (err) {
       setStatus("error");
       setError(err instanceof Error ? err.message : "Unexpected error");
     }
   };
+
+  if (authLoading) {
+    return <p className="p-6 text-sm text-muted-foreground">Checking permissions...</p>;
+  }
+
+  if (!isAdmin) {
+    return null;
+  }
 
   return (
     <div className="mx-auto flex max-w-xl flex-col gap-6 py-10">
@@ -99,6 +144,42 @@ export default function NewAdminUserPage() {
           />
         </div>
 
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="role">Role</Label>
+          <select
+            id="role"
+            value={role}
+            onChange={(e) => setRole(e.target.value as Role)}
+            className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+          >
+            <option value="admin">Admin</option>
+            <option value="client">Client</option>
+          </select>
+        </div>
+
+        {role === "client" && (
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="clientId">Client</Label>
+            <select
+              id="clientId"
+              value={clientId}
+              onChange={(e) => setClientId(e.target.value)}
+              required
+              className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
+              <option value="">Select client</option>
+              {clients.map((client) => (
+                <option key={client.id} value={client.id}>
+                  {client.mp_client_name}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground">
+              Client users are restricted to their assigned client dashboards.
+            </p>
+          </div>
+        )}
+
         <Button type="submit" disabled={status === "loading"}>
           {status === "loading" ? "Creating..." : "Create user"}
         </Button>
@@ -120,6 +201,16 @@ export default function NewAdminUserPage() {
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
 
 
 

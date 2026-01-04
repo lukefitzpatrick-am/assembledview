@@ -1,7 +1,7 @@
 "use client"
 
-import React, { useState, useEffect } from "react";
-import { FileText, Users, Building2, LayoutDashboard, Settings, PlusCircle, ChevronDown, ChevronRight, UserCircle, DollarSign, BarChart3, ClipboardList } from "lucide-react";
+import React, { useState, useEffect, useMemo } from "react";
+import { FileText, Users, Building2, LayoutDashboard, PlusCircle, ChevronDown, ChevronRight, UserCircle, DollarSign, BarChart3, ClipboardList, BookOpen } from "lucide-react";
 import { UserMenu } from "@/components/UserMenu";
 import {
   Sidebar,
@@ -20,29 +20,26 @@ import {
 } from "@/components/ui/sidebar";
 import Link from "next/link";
 import Image from "next/image";  // Import Next.js Image component
+import { useAuthContext } from "@/contexts/AuthContext";
 
 interface Client {
   id: number;
   mp_client_name: string;
 }
 
-const menuItems = [
-  { title: "Home", icon: LayoutDashboard, href: "/dashboard" },
-  { title: "Campaigns", icon: FileText, href: "/mediaplans" },
-  { title: "Scopes of Work", icon: ClipboardList, href: "/scopes-of-work" },
-  { title: "Publishers", icon: Building2, href: "/publishers" },
-  { title: "Clients", icon: Users, href: "/clients" },
-  { title: "Finance", icon: DollarSign, href: "/finance" },
-  { title: "Create Campaign", icon: PlusCircle, href: "/mediaplans/create" },
-];
-
 export function AppSidebar() {
+  const { userClient, isAdmin, isClient } = useAuthContext();
   const [isClientsExpanded, setIsClientsExpanded] = useState(false);
+  const [isFinanceExpanded, setIsFinanceExpanded] = useState(false);
   const [clients, setClients] = useState<Client[]>([]);
 
   useEffect(() => {
-    fetchClients();
-  }, []);
+    if (isAdmin) {
+      fetchClients();
+    } else {
+      setClients([]);
+    }
+  }, [isAdmin]);
 
   async function fetchClients() {
     try {
@@ -58,6 +55,32 @@ export function AppSidebar() {
       console.error("Error fetching clients:", error);
     }
   }
+
+  const adminMenuItems = useMemo(() => ([
+    { title: "Home", icon: LayoutDashboard, href: "/dashboard" },
+    { title: "Campaigns", icon: FileText, href: "/mediaplans" },
+    { title: "Scopes of Work", icon: ClipboardList, href: "/scopes-of-work" },
+    { title: "Publishers", icon: Building2, href: "/publishers" },
+    { title: "Clients", icon: Users, href: "/clients" },
+    { title: "Learning", icon: BookOpen, href: "/learning" },
+    { title: "Create Campaign", icon: PlusCircle, href: "/mediaplans/create" },
+  ]), []);
+
+  const clientMenuItems = useMemo(() => {
+    const links = [
+      { title: "Learning", icon: BookOpen, href: "/learning" },
+    ];
+    if (userClient) {
+      links.unshift({
+        title: "My Dashboard",
+        icon: LayoutDashboard,
+        href: `/dashboard/${userClient}`,
+      });
+    }
+    return links;
+  }, [userClient]);
+
+  const menuItems = isAdmin ? adminMenuItems : clientMenuItems;
 
   return (
     <Sidebar className="w-56 bg-gray-900 text-white h-screen overflow-hidden">
@@ -90,58 +113,112 @@ export function AppSidebar() {
                 </SidebarMenuItem>
               ))}
 
-              {/* Client Dashboards Section */}
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  onClick={() => setIsClientsExpanded(!isClientsExpanded)}
-                  className="flex items-center justify-between w-full"
-                >
-                  <div className="flex items-center">
-                    <BarChart3 className="mr-2 h-4 w-4" />
-                    <span>Client Dashboards</span>
-                  </div>
-                  {isClientsExpanded ? (
-                    <ChevronDown className="h-4 w-4" />
-                  ) : (
-                    <ChevronRight className="h-4 w-4" />
+              {isAdmin && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => setIsFinanceExpanded(!isFinanceExpanded)}
+                    className="flex items-center justify-between w-full"
+                  >
+                    <div className="flex items-center">
+                      <DollarSign className="mr-2 h-4 w-4" />
+                      <span>Finance</span>
+                    </div>
+                    {isFinanceExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                  </SidebarMenuButton>
+                  {isFinanceExpanded && (
+                    <SidebarMenuSub>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild>
+                          <Link href="/finance">Overview</Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild>
+                          <Link href="/finance/media">Media</Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild>
+                          <Link href="/finance/sow">Scopes of Work</Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild>
+                          <Link href="/finance/retainers">Retainers</Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                    </SidebarMenuSub>
                   )}
-                </SidebarMenuButton>
-                {isClientsExpanded && (
-                  <SidebarMenuSub>
-                    {clients
-                      .filter((client) => client.mp_client_name && client.mp_client_name.trim() !== '')
-                      .map((client) => {
-                        // Convert client name to slug format
-                        const slug = client.mp_client_name
-                          .toLowerCase()
-                          .replace(/[^a-z0-9\s-]/g, '')
-                          .replace(/\s+/g, '-')
-                          .trim()
-                        
-                        return (
-                          <SidebarMenuSubItem key={client.id}>
-                            <SidebarMenuSubButton asChild>
-                              <Link href={`/dashboard/${slug}`}>
-                                {client.mp_client_name}
-                              </Link>
-                            </SidebarMenuSubButton>
-                          </SidebarMenuSubItem>
-                        )
-                      })}
-                  </SidebarMenuSub>
-                )}
-              </SidebarMenuItem>
+                </SidebarMenuItem>
+              )}
+
+              {/* Client Dashboards Section */}
+              {isAdmin && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => setIsClientsExpanded(!isClientsExpanded)}
+                    className="flex items-center justify-between w-full"
+                  >
+                    <div className="flex items-center">
+                      <BarChart3 className="mr-2 h-4 w-4" />
+                      <span>Client Dashboards</span>
+                    </div>
+                    {isClientsExpanded ? (
+                      <ChevronDown className="h-4 w-4" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4" />
+                    )}
+                  </SidebarMenuButton>
+                  {isClientsExpanded && (
+                    <SidebarMenuSub>
+                      {clients
+                        .filter((client) => client.mp_client_name && client.mp_client_name.trim() !== '')
+                        .map((client) => {
+                          // Convert client name to slug format
+                          const slug = client.mp_client_name
+                            .toLowerCase()
+                            .replace(/[^a-z0-9\s-]/g, '')
+                            .replace(/\s+/g, '-')
+                            .trim()
+                          
+                          return (
+                            <SidebarMenuSubItem key={client.id}>
+                              <SidebarMenuSubButton asChild>
+                                <Link href={`/dashboard/${slug}`}>
+                                  {client.mp_client_name}
+                                </Link>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          )
+                        })}
+                    </SidebarMenuSub>
+                  )}
+                </SidebarMenuItem>
+              )}
 
               <SidebarSeparator />
 
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <Link href="/admin/users/new" className="flex items-center">
-                    <UserCircle className="mr-2 h-4 w-4" />
-                    <span>Admin User Enrolment</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+              {isAdmin && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <Link href="/admin/users/new" className="flex items-center">
+                      <UserCircle className="mr-2 h-4 w-4" />
+                      <span>Admin User Enrolment</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+
+              {isClient && userClient && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <Link href={`/dashboard/${userClient}`} className="flex items-center">
+                      <LayoutDashboard className="mr-2 h-4 w-4" />
+                      <span>My Dashboard</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

@@ -27,6 +27,11 @@ export interface Burst { // This is a burst *within* a GroupedItem
 // Consolidated LineItem for data from containers
 export interface LineItem {
   market: string;
+  line_item_id?: string;
+  lineItemId?: string;
+  line_item?: number | string;
+  lineItem?: number | string;
+  buyAmount?: string | number;
   platform?: string;      // Primarily for Search, Social, Programmatic
   network?: string;       // For TV, Radio, OOH, Cinema, Print, Digital (Publisher)
   station?: string;       // For TV, Radio

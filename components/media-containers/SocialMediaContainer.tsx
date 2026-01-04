@@ -882,12 +882,13 @@ useEffect(() => {
   const calculatedBursts = getSocialMediaBursts(form, feesocial || 0);
   let burstIndex = 0;
 
-  const items: LineItem[] = form.getValues('lineItems').flatMap(lineItem =>
+  const items: LineItem[] = form.getValues('lineItems').flatMap((lineItem, lineItemIndex) =>
     lineItem.bursts.map(burst => {
       const computedBurst = calculatedBursts[burstIndex++];
       const mediaAmount = computedBurst
         ? computedBurst.mediaAmount
         : parseFloat(String(burst.budget).replace(/[^0-9.-]+/g, "")) || 0;
+      const lineItemId = `${mbaNumber || 'SOC'}${lineItemIndex + 1}`;
 
       return {
         market: lineItem.market,                                // or fixed value
@@ -902,13 +903,17 @@ useEffect(() => {
         buyType:      lineItem.buyType,
         deliverablesAmount: burst.budget,
         grossMedia: mediaAmount.toFixed(2),
+        line_item_id: lineItemId,
+        lineItemId,
+        line_item: lineItemIndex + 1,
+        buyAmount: burst.buyAmount ?? burst.budget,
       };
     })
   );
 
   // push it up to page.tsx
   onLineItemsChange(items);
-}, [watchedLineItems, feesocial]);
+}, [watchedLineItems, feesocial, mbaNumber]);
 
 // Add new useEffect to capture raw social media line items data
 useEffect(() => {

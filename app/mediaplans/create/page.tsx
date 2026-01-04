@@ -26,6 +26,7 @@ import { SavingModal, type SaveStatusItem } from "@/components/ui/saving-modal"
 import type { BillingBurst, BillingMonth, BillingLineItem } from "@/lib/billing/types" // adjust path if needed
 import { buildBillingScheduleJSON } from "@/lib/billing/buildBillingSchedule"
 import { generateMediaPlan, MediaPlanHeader, LineItem, MediaItems } from '@/lib/generateMediaPlan'
+import { generateNamingWorkbook } from '@/lib/namingConventions'
 import { MBAData } from '@/lib/generateMBA'
 import { saveAs } from 'file-saver'
 import { 
@@ -54,6 +55,7 @@ import {
 } from "@/lib/api"
 import { checkMediaDatesOutsideCampaign } from "@/lib/utils/mediaPlanValidation"
 import { toMelbourneDateString } from "@/lib/timezone"
+import { setAssistantContext } from "@/lib/assistantBridge"
 
 const mediaPlanSchema = z.object({
   mp_client_name: z.string().min(1, "Client name is required"),
@@ -248,6 +250,7 @@ export default function CreateMediaPlan() {
   const { setMbaNumber } = useMediaPlanContext() 
   const [burstsData, setBurstsData] = useState([])
   const [isDownloading, setIsDownloading] = useState(false)
+  const [isNamingDownloading, setIsNamingDownloading] = useState(false)
   const [clientAddress, setClientAddress] = useState("")
   const [clientSuburb, setClientSuburb] = useState("")
   const [clientState, setClientState] = useState("")
@@ -464,6 +467,7 @@ export default function CreateMediaPlan() {
   const [originalManualBillingMonths, setOriginalManualBillingMonths] = useState<BillingMonth[]>([]);
   const [originalManualBillingTotal, setOriginalManualBillingTotal] = useState<string>("$0.00");
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
+  const [autoBillingMonths, setAutoBillingMonths] = useState<BillingMonth[]>([]);
   const [billingMonths, setBillingMonths] = useState<BillingMonth[]>([])
   const [billingTotal, setBillingTotal] = useState("$0.00")  
   const [grossMediaTotal, setGrossMediaTotal] = useState(0);
@@ -539,10 +543,28 @@ export default function CreateMediaPlan() {
     return acc
   }, {} as Record<string, boolean>)
 
+  // Fields to expose to the assistant
+  const watchedClientName = useWatch({ control: form.control, name: "mp_client_name" })
+  const watchedCampaignName = useWatch({ control: form.control, name: "mp_campaignname" })
+  const watchedCampaignBudget = useWatch({ control: form.control, name: "mp_campaignbudget" })
   const currencyFormatter = new Intl.NumberFormat("en-AU", {
     style: "currency",
     currency: "AUD",
   });
+
+  const summarizeBurstsForAssistant = useCallback(
+    (bursts: BillingBurst[]) =>
+      bursts.map((burst, index) => ({
+        index,
+        startDate: burst.startDate,
+        endDate: burst.endDate,
+        mediaAmount: burst.mediaAmount,
+        feeAmount: burst.feeAmount,
+        totalAmount: burst.totalAmount,
+        buyType: (burst as any).buyType,
+      })),
+    []
+  )
 
   // Check if any media placement dates are outside campaign dates
   useEffect(() => {
@@ -595,6 +617,224 @@ export default function CreateMediaPlan() {
     progOohMediaLineItems,
     influencersMediaLineItems,
   ]);
+
+  const updateBurstBudget = useCallback(
+    async ({ mediaType, burstIndex = 0, budget }: { mediaType: string; burstIndex?: number; budget: number }) => {
+      const numericBudget = typeof budget === "string" ? parseFloat((budget as any).toString().replace(/[^0-9.-]/g, "")) : budget
+      if (!Number.isFinite(numericBudget) || numericBudget < 0) {
+        throw new Error("Invalid budget amount")
+      }
+
+      const targetMap: Record<
+        string,
+        { bursts: BillingBurst[]; setter: (value: BillingBurst[]) => void }
+      > = {
+        search: { bursts: searchBursts, setter: setSearchBursts },
+        socialMedia: { bursts: socialMediaBursts, setter: setSocialMediaBursts },
+        progAudio: { bursts: progAudioBursts, setter: setProgAudioBursts },
+        cinema: { bursts: cinemaBursts, setter: setCinemaBursts },
+        digiAudio: { bursts: digiAudioBursts, setter: setDigiAudioBursts },
+        digiDisplay: { bursts: digiDisplayBursts, setter: setDigiDisplayBursts },
+        digiVideo: { bursts: digiVideoBursts, setter: setDigiVideoBursts },
+        progDisplay: { bursts: progDisplayBursts, setter: setProgDisplayBursts },
+        progVideo: { bursts: progVideoBursts, setter: setProgVideoBursts },
+        progBvod: { bursts: progBvodBursts, setter: setProgBvodBursts },
+        progOoh: { bursts: progOohBursts, setter: setProgOohBursts },
+        television: { bursts: televisionBursts, setter: setTelevisionBursts },
+        radio: { bursts: radioBursts, setter: setRadioBursts },
+        newspaper: { bursts: newspaperBursts, setter: setNewspaperBursts },
+        magazines: { bursts: magazineBursts, setter: setMagazineBursts },
+        ooh: { bursts: oohBursts, setter: setOohBursts },
+        bvod: { bursts: bvodBursts, setter: setBvodBursts },
+        integration: { bursts: integrationBursts, setter: setIntegrationBursts },
+        influencers: { bursts: influencersBursts, setter: setInfluencersBursts },
+        consulting: { bursts: consultingBursts, setter: setConsultingBursts },
+      }
+
+      const target = targetMap[mediaType]
+      if (!target) {
+        throw new Error(`Unsupported media type: ${mediaType}`)
+      }
+
+      if (!target.bursts?.length || burstIndex < 0 || burstIndex >= target.bursts.length) {
+        throw new Error(`Burst index ${burstIndex} is out of range for ${mediaType}`)
+      }
+
+      const updated = target.bursts.map((burst, idx) =>
+        idx === burstIndex
+          ? {
+              ...burst,
+              mediaAmount: numericBudget,
+              totalAmount: numericBudget + (burst.feeAmount || 0),
+            }
+          : burst
+      )
+
+      target.setter(updated)
+      calculateBillingSchedule()
+
+      return `Updated ${mediaType} burst #${burstIndex + 1} budget to ${numericBudget}.`
+    },
+    [
+      bvodBursts,
+      cinemaBursts,
+      consultingBursts,
+      digiAudioBursts,
+      digiDisplayBursts,
+      digiVideoBursts,
+      influencersBursts,
+      integrationBursts,
+      magazineBursts,
+      newspaperBursts,
+      oohBursts,
+      progAudioBursts,
+      progBvodBursts,
+      progDisplayBursts,
+      progOohBursts,
+      progVideoBursts,
+      radioBursts,
+      searchBursts,
+      socialMediaBursts,
+      televisionBursts,
+      calculateBillingSchedule,
+    ]
+  )
+
+  const handleSetField = useCallback(
+    async ({ fieldId, selector, value }: { fieldId?: string; selector?: string; value: any }) => {
+      if (typeof window === "undefined" || typeof document === "undefined") return
+      const target =
+        (selector ? document.querySelector(selector) : null) ||
+        (fieldId ? document.getElementById(fieldId) : null) ||
+        (fieldId ? document.querySelector(`[name="${fieldId}"]`) : null)
+
+      if (!target) {
+        throw new Error("Field not found")
+      }
+
+      const asInput = target as HTMLInputElement | HTMLTextAreaElement
+      if (asInput) {
+        asInput.value = value as any
+        asInput.dispatchEvent(new Event("input", { bubbles: true }))
+        asInput.dispatchEvent(new Event("change", { bubbles: true }))
+        return `Set field ${selector || fieldId} to ${value}`
+      }
+      throw new Error("Unsupported field type")
+    },
+    []
+  )
+
+  const handleClick = useCallback(async ({ selector }: { selector: string }) => {
+    if (typeof document === "undefined") return
+    const el = document.querySelector(selector) as HTMLElement | null
+    if (!el) throw new Error("Element not found")
+    el.click()
+    return `Clicked ${selector}`
+  }, [])
+
+  const handleSelect = useCallback(async ({ selector, value }: { selector: string; value: string }) => {
+    if (typeof document === "undefined") return
+    const el = document.querySelector(selector) as HTMLSelectElement | null
+    if (!el) throw new Error("Select not found")
+    el.value = value
+    el.dispatchEvent(new Event("change", { bubbles: true }))
+    return `Selected ${value} on ${selector}`
+  }, [])
+
+  const handleToggle = useCallback(async ({ selector, value }: { selector: string; value: boolean }) => {
+    if (typeof document === "undefined") return
+    const el = document.querySelector(selector) as HTMLInputElement | null
+    if (!el) throw new Error("Toggle target not found")
+    if (el.type !== "checkbox") throw new Error("Toggle target is not a checkbox")
+    el.checked = Boolean(value)
+    el.dispatchEvent(new Event("input", { bubbles: true }))
+    el.dispatchEvent(new Event("change", { bubbles: true }))
+    return `Toggled ${selector} to ${value}`
+  }, [])
+
+  useEffect(() => {
+    const selectedMedia = mediaTypes
+      .filter((media) => watchedMediaTypesMap[media.name])
+      .map((media) => media.label)
+
+    const summary = {
+      page: "mediaplans/create",
+      clientName: watchedClientName,
+      campaignName: watchedCampaignName,
+      campaignBudget: watchedCampaignBudget,
+      campaignDates: {
+        start: campaignStart,
+        end: campaignEnd,
+      },
+      selectedMedia,
+      bursts: {
+        search: summarizeBurstsForAssistant(searchBursts),
+        socialMedia: summarizeBurstsForAssistant(socialMediaBursts),
+        progAudio: summarizeBurstsForAssistant(progAudioBursts),
+        cinema: summarizeBurstsForAssistant(cinemaBursts),
+        digiAudio: summarizeBurstsForAssistant(digiAudioBursts),
+        digiDisplay: summarizeBurstsForAssistant(digiDisplayBursts),
+        digiVideo: summarizeBurstsForAssistant(digiVideoBursts),
+        progDisplay: summarizeBurstsForAssistant(progDisplayBursts),
+        progVideo: summarizeBurstsForAssistant(progVideoBursts),
+        progBvod: summarizeBurstsForAssistant(progBvodBursts),
+        progOoh: summarizeBurstsForAssistant(progOohBursts),
+        television: summarizeBurstsForAssistant(televisionBursts),
+        radio: summarizeBurstsForAssistant(radioBursts),
+        newspaper: summarizeBurstsForAssistant(newspaperBursts),
+        magazines: summarizeBurstsForAssistant(magazineBursts),
+        ooh: summarizeBurstsForAssistant(oohBursts),
+        bvod: summarizeBurstsForAssistant(bvodBursts),
+        integration: summarizeBurstsForAssistant(integrationBursts),
+        influencers: summarizeBurstsForAssistant(influencersBursts),
+        consulting: summarizeBurstsForAssistant(consultingBursts),
+      },
+    }
+
+    setAssistantContext({
+      summary,
+      actions: {
+        updateBurstBudget,
+        setField: handleSetField,
+        click: handleClick,
+        select: handleSelect,
+        toggle: handleToggle,
+      },
+    })
+  }, [
+    bvodBursts,
+    campaignEnd,
+    campaignStart,
+    cinemaBursts,
+    consultingBursts,
+    digiAudioBursts,
+    digiDisplayBursts,
+    digiVideoBursts,
+    influencersBursts,
+    integrationBursts,
+    magazineBursts,
+    newspaperBursts,
+    oohBursts,
+    progAudioBursts,
+    progBvodBursts,
+    progDisplayBursts,
+    progOohBursts,
+    progVideoBursts,
+    radioBursts,
+    searchBursts,
+    socialMediaBursts,
+    summarizeBurstsForAssistant,
+    televisionBursts,
+    updateBurstBudget,
+    handleSetField,
+    handleClick,
+    handleSelect,
+    handleToggle,
+    watchedCampaignBudget,
+    watchedCampaignName,
+    watchedClientName,
+    watchedMediaTypesMap,
+  ])
 
   function bufferToBase64(buffer: ArrayBuffer) {
     let binary = ''
@@ -791,9 +1031,14 @@ export default function CreateMediaPlan() {
       })
   ); 
   
-  setBillingMonths(months);
-  const grandTotal = months.reduce((sum, m) => sum + parseFloat(m.totalAmount.replace(/[^0-9.-]/g, "")), 0);
-  setBillingTotal(formatter.format(grandTotal));
+  setAutoBillingMonths(months);
+
+  // Preserve manual edits but always capture the auto snapshot
+  if (!isManualBilling) {
+    setBillingMonths(months);
+    const grandTotal = months.reduce((sum, m) => sum + parseFloat(m.totalAmount.replace(/[^0-9.-]/g, "")), 0);
+    setBillingTotal(formatter.format(grandTotal));
+  }
 }
 
   // Digital Media
@@ -2242,66 +2487,78 @@ export default function CreateMediaPlan() {
       // 1. Gather form values
       const fv = form.getValues();
   
-      // 2. Ensure billingMonths has lineItems structure before building JSON
-      // If lineItems don't exist, generate them from media line items
-      // Use manual billing months if manual billing is active
-      let billingMonthsWithLineItems = isManualBilling && manualBillingMonths.length > 0 
-        ? [...manualBillingMonths] 
-        : [...billingMonths];
-      
-      // Check if any month has lineItems
-      const hasLineItems = billingMonthsWithLineItems.some(month => month.lineItems && Object.keys(month.lineItems).length > 0);
-      
-      if (!hasLineItems && billingMonthsWithLineItems.length > 0) {
-        // Generate line items for each media type
-        const mediaTypeMap: Record<string, { lineItems: any[], key: string }> = {
-          'mp_television': { lineItems: televisionMediaLineItems, key: 'television' },
-          'mp_radio': { lineItems: radioMediaLineItems, key: 'radio' },
-          'mp_newspaper': { lineItems: newspaperMediaLineItems, key: 'newspaper' },
-          'mp_magazines': { lineItems: magazineMediaLineItems, key: 'magazines' },
-          'mp_ooh': { lineItems: oohMediaLineItems, key: 'ooh' },
-          'mp_cinema': { lineItems: cinemaMediaLineItems, key: 'cinema' },
-          'mp_digidisplay': { lineItems: digiDisplayMediaLineItems, key: 'digiDisplay' },
-          'mp_digiaudio': { lineItems: digiAudioMediaLineItems, key: 'digiAudio' },
-          'mp_digivideo': { lineItems: digiVideoMediaLineItems, key: 'digiVideo' },
-          'mp_bvod': { lineItems: bvodMediaLineItems, key: 'bvod' },
-          'mp_integration': { lineItems: integrationMediaLineItems, key: 'integration' },
-          'mp_search': { lineItems: searchMediaLineItems, key: 'search' },
-          'mp_socialmedia': { lineItems: socialMediaMediaLineItems, key: 'socialMedia' },
-          'mp_progdisplay': { lineItems: progDisplayMediaLineItems, key: 'progDisplay' },
-          'mp_progvideo': { lineItems: progVideoMediaLineItems, key: 'progVideo' },
-          'mp_progbvod': { lineItems: progBvodMediaLineItems, key: 'progBvod' },
-          'mp_progaudio': { lineItems: progAudioMediaLineItems, key: 'progAudio' },
-          'mp_progooh': { lineItems: progOohMediaLineItems, key: 'progOoh' },
-          'mp_influencers': { lineItems: influencersMediaLineItems, key: 'influencers' },
-        };
+      // Helper to ensure a month array carries line items from current media data
+      const attachLineItemsToMonths = (months: BillingMonth[]): BillingMonth[] => {
+        let monthsWithLineItems = [...months];
 
-        // Generate line items once and attach to all months
-        const allLineItems: Record<string, BillingLineItem[]> = {};
-        
-        Object.entries(mediaTypeMap).forEach(([mediaTypeKey, { lineItems, key }]) => {
-          if (fv[mediaTypeKey as keyof typeof fv] && lineItems && lineItems.length > 0) {
-            const billingLineItems = generateBillingLineItems(lineItems, key, billingMonthsWithLineItems);
-            if (billingLineItems.length > 0) {
-              allLineItems[key] = billingLineItems;
+        const hasLineItems = monthsWithLineItems.some(
+          month => month.lineItems && Object.keys(month.lineItems).length > 0
+        );
+
+        if (!hasLineItems && monthsWithLineItems.length > 0) {
+          const mediaTypeMap: Record<string, { lineItems: any[], key: string }> = {
+            'mp_television': { lineItems: televisionMediaLineItems, key: 'television' },
+            'mp_radio': { lineItems: radioMediaLineItems, key: 'radio' },
+            'mp_newspaper': { lineItems: newspaperMediaLineItems, key: 'newspaper' },
+            'mp_magazines': { lineItems: magazineMediaLineItems, key: 'magazines' },
+            'mp_ooh': { lineItems: oohMediaLineItems, key: 'ooh' },
+            'mp_cinema': { lineItems: cinemaMediaLineItems, key: 'cinema' },
+            'mp_digidisplay': { lineItems: digiDisplayMediaLineItems, key: 'digiDisplay' },
+            'mp_digiaudio': { lineItems: digiAudioMediaLineItems, key: 'digiAudio' },
+            'mp_digivideo': { lineItems: digiVideoMediaLineItems, key: 'digiVideo' },
+            'mp_bvod': { lineItems: bvodMediaLineItems, key: 'bvod' },
+            'mp_integration': { lineItems: integrationMediaLineItems, key: 'integration' },
+            'mp_search': { lineItems: searchMediaLineItems, key: 'search' },
+            'mp_socialmedia': { lineItems: socialMediaMediaLineItems, key: 'socialMedia' },
+            'mp_progdisplay': { lineItems: progDisplayMediaLineItems, key: 'progDisplay' },
+            'mp_progvideo': { lineItems: progVideoMediaLineItems, key: 'progVideo' },
+            'mp_progbvod': { lineItems: progBvodMediaLineItems, key: 'progBvod' },
+            'mp_progaudio': { lineItems: progAudioMediaLineItems, key: 'progAudio' },
+            'mp_progooh': { lineItems: progOohMediaLineItems, key: 'progOoh' },
+            'mp_influencers': { lineItems: influencersMediaLineItems, key: 'influencers' },
+          };
+
+          const allLineItems: Record<string, BillingLineItem[]> = {};
+          
+          Object.entries(mediaTypeMap).forEach(([mediaTypeKey, { lineItems, key }]) => {
+            if (fv[mediaTypeKey as keyof typeof fv] && lineItems && lineItems.length > 0) {
+              const billingLineItems = generateBillingLineItems(lineItems, key, monthsWithLineItems);
+              if (billingLineItems.length > 0) {
+                allLineItems[key] = billingLineItems;
+              }
             }
-          }
-        });
-
-        // Attach the same line items structure to each month
-        billingMonthsWithLineItems = billingMonthsWithLineItems.map(month => {
-          const monthCopy = { ...month };
-          if (!monthCopy.lineItems) monthCopy.lineItems = {};
-          Object.entries(allLineItems).forEach(([key, lineItems]) => {
-            (monthCopy.lineItems as any)[key] = lineItems;
           });
-          return monthCopy;
-        });
-      }
+
+          monthsWithLineItems = monthsWithLineItems.map(month => {
+            const monthCopy = { ...month };
+            if (!monthCopy.lineItems) monthCopy.lineItems = {};
+            Object.entries(allLineItems).forEach(([key, lineItems]) => {
+              (monthCopy.lineItems as any)[key] = lineItems;
+            });
+            return monthCopy;
+          });
+        }
+
+        return monthsWithLineItems;
+      };
+
+      const billingMonthsSource = isManualBilling && manualBillingMonths.length > 0 
+        ? manualBillingMonths 
+        : billingMonths;
+
+      const billingMonthsWithLineItems = attachLineItemsToMonths(billingMonthsSource);
+
+      // Always preserve the auto-calculated schedule for deliverySchedule
+      const deliveryMonthsSource = autoBillingMonths.length > 0
+        ? autoBillingMonths
+        : billingMonths;
+
+      const deliveryMonthsWithLineItems = attachLineItemsToMonths(deliveryMonthsSource);
   
       // 3. Build version payload (include only top‑level and toggles)
       // Transform billing schedule to hierarchical structure (Media Type → line items)
       const billingScheduleJSON = buildBillingScheduleJSON(billingMonthsWithLineItems);
+      const deliveryScheduleJSON = buildBillingScheduleJSON(deliveryMonthsWithLineItems);
       
       // Validate required fields - ensure client_name is a non-empty string
       const clientName = typeof fv.mp_client_name === 'string' 
@@ -2356,6 +2613,7 @@ export default function CreateMediaPlan() {
         mp_progooh:           fv.mp_progooh || false,
         mp_influencers:       fv.mp_influencers || false,
         billingSchedule:      billingScheduleJSON,
+        deliverySchedule:     deliveryScheduleJSON,
       };
   
       // 3. Call Xano
@@ -2922,6 +3180,55 @@ const handleSaveAll = async () => {
         description: error.message || "Failed to complete save and download all",
         variant: "destructive",
       });
+    }
+  };
+
+  const handleDownloadNamingConventions = async () => {
+    setIsNamingDownloading(true);
+    try {
+      if (typeof waitForStateFlush === "function") {
+        await waitForStateFlush();
+      }
+
+      const fv = form.getValues();
+      const workbook = await generateNamingWorkbook({
+        advertiser: fv.mp_client_name || "",
+        brand: fv.mp_brand || "",
+        campaignName: fv.mp_campaignname || "",
+        mbaNumber: fv.mba_number || fv.mbaidentifier || "",
+        startDate: fv.mp_campaigndates_start,
+        endDate: fv.mp_campaigndates_end,
+        version: fv.mp_plannumber || "1",
+        mediaFlags: fv as Record<string, boolean>,
+        items: {
+          search: searchItems,
+          socialMedia: socialMediaItems,
+          digiAudio: digiAudioItems,
+          digiDisplay: digiDisplayItems,
+          digiVideo: digiVideoItems,
+          bvod: bvodItems,
+          integration: integrationItems,
+          progDisplay: progDisplayItems,
+          progVideo: progVideoItems,
+          progBvod: progBvodItems,
+          progAudio: progAudioItems,
+          progOoh: progOohItems,
+        },
+      });
+
+      const arrayBuffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([arrayBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      saveAs(blob, `NamingConventions_${fv.mp_campaignname || "mediaPlan"}.xlsx`);
+      toast({ title: "Success", description: "Naming conventions Excel downloaded" });
+    } catch (error: any) {
+      console.error("Naming download error:", error);
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to download naming conventions",
+        variant: "destructive",
+      });
+    } finally {
+      setIsNamingDownloading(false);
     }
   };
   
@@ -4413,6 +4720,14 @@ const workbook = await generateMediaPlan(header, mediaItems, mbaData);
           className="bg-[#B5D337] text-white hover:bg-[#B5D337]/90"
         >
           {isDownloading ? "Creating Media Plan..." : "Download Media Plan"}
+        </Button>
+        <Button
+          type="button"
+          onClick={handleDownloadNamingConventions}
+          disabled={isNamingDownloading}
+          className="bg-[#3b82f6] text-white hover:bg-[#3b82f6]/90"
+        >
+          {isNamingDownloading ? "Generating Names..." : "Download Naming Conventions"}
         </Button>
         <Button
           type="button"

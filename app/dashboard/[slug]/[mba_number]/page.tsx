@@ -10,6 +10,9 @@ import MediaTable from './components/MediaTable'
 import MediaGanttChart from './components/MediaGanttChart'
 import CampaignHeader from './components/CampaignHeader'
 import CampaignActions from './components/CampaignActions'
+import { auth0 } from '@/lib/auth0'
+import { getPrimaryRole, getUserClientIdentifier } from '@/lib/rbac'
+import { redirect } from 'next/navigation'
 
 interface CampaignDetailPageProps {
   params: Promise<{
@@ -46,6 +49,18 @@ async function fetchCampaignData(mbaNumber: string) {
 
 export default async function CampaignDetailPage({ params }: CampaignDetailPageProps) {
   const { slug, mba_number } = await params
+  const session = await auth0.getSession()
+  const user = session?.user
+  const role = getPrimaryRole(user)
+  const userClientSlug = getUserClientIdentifier(user)
+
+  if (!user) {
+    redirect(`/auth/login?returnTo=/dashboard/${slug}/${mba_number}`)
+  }
+
+  if (role === 'client' && userClientSlug && userClientSlug !== slug) {
+    redirect(`/dashboard/${userClientSlug}`)
+  }
   
   let campaignData: any = null
   let error: string | null = null
@@ -79,7 +94,7 @@ export default async function CampaignDetailPage({ params }: CampaignDetailPageP
   const billingSchedule = campaignData.billingSchedule
 
   return (
-    <div className="space-y-8 pb-32">
+    <div className="w-full px-4 lg:px-8 space-y-8 pb-32">
       {/* Campaign Header Section */}
       <Suspense fallback={<Skeleton className="h-64 w-full" />}>
         <CampaignHeader campaign={campaign} />
@@ -96,8 +111,9 @@ export default async function CampaignDetailPage({ params }: CampaignDetailPageP
             <Suspense fallback={<Skeleton className="h-48 w-full" />}>
               <CampaignTimeChart 
                 timeElapsed={metrics.timeElapsed || 0}
-                startDate={campaign.campaign_start_date || campaign.mp_campaigndates_start}
-                endDate={campaign.campaign_end_date || campaign.mp_campaigndates_end}
+                daysInCampaign={metrics.daysInCampaign}
+                daysElapsed={metrics.daysElapsed}
+                daysRemaining={metrics.daysRemaining}
               />
             </Suspense>
           </CardContent>

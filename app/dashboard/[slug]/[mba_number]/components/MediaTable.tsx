@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, Fragment } from 'react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { ChevronDown, ChevronRight } from 'lucide-react'
@@ -304,12 +304,12 @@ export default function MediaTable({ lineItems }: MediaTableProps) {
                     if (group.bidStrategy) details.push(`Bid: ${group.bidStrategy}`)
                     if (group.buyType) details.push(`Buy: ${group.buyType}`)
 
-                    const groupKey = `${mediaType}-${groupIndex}`
+                    const groupKey = `${mediaType}-${group.key || groupIndex}`
                     const isExpanded = expandedGroups.has(groupKey)
 
                     return (
-                      <>
-                        <TableRow key={groupIndex} className="cursor-pointer hover:bg-gray-50" onClick={() => toggleGroup(groupKey)}>
+                      <Fragment key={groupKey}>
+                        <TableRow className="cursor-pointer hover:bg-gray-50" onClick={() => toggleGroup(groupKey)}>
                           <TableCell>
                             <button className="p-1 hover:bg-gray-100 rounded">
                               {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
@@ -337,7 +337,7 @@ export default function MediaTable({ lineItems }: MediaTableProps) {
                             : (burst.deliverablesAmount || burstBudget || 0)
 
                           return (
-                            <TableRow key={`${groupIndex}-${burstIndex}`} className="bg-gray-50">
+                            <TableRow key={`${groupKey}-burst-${burstIndex}`} className="bg-gray-50">
                               <TableCell></TableCell>
                               <TableCell className="text-sm text-muted-foreground pl-8">
                                 Burst {burstIndex + 1}
@@ -356,7 +356,7 @@ export default function MediaTable({ lineItems }: MediaTableProps) {
                             </TableRow>
                           )
                         })}
-                      </>
+                      </Fragment>
                     )
                   })}
                 </TableBody>

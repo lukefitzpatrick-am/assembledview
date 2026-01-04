@@ -1,7 +1,5 @@
 "use client"
 
-import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell, Legend, Tooltip } from 'recharts'
-
 interface CampaignSpendChartProps {
   expectedSpend: number
   campaignBudget: number
@@ -10,14 +8,6 @@ interface CampaignSpendChartProps {
 export default function CampaignSpendChart({ expectedSpend, campaignBudget }: CampaignSpendChartProps) {
   // Calculate percentage of budget spent
   const spendPercentage = campaignBudget > 0 ? (expectedSpend / campaignBudget) * 100 : 0
-  
-  const data = [
-    {
-      name: 'Budget Utilization',
-      expected: Math.min(100, Math.max(0, spendPercentage)),
-      max: 100
-    }
-  ]
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-AU', {
@@ -50,7 +40,7 @@ export default function CampaignSpendChart({ expectedSpend, campaignBudget }: Ca
           <span className="text-sm font-medium">Utilization</span>
           <span className="text-lg font-bold">{spendPercentage.toFixed(1)}%</span>
         </div>
-        <div className="w-full bg-gray-200 rounded-full h-6 relative overflow-hidden">
+        <div className="w-full bg-gray-200 rounded-full h-4 relative overflow-hidden">
           <div
             className="h-full transition-all duration-300 rounded-full"
             style={{
@@ -60,20 +50,6 @@ export default function CampaignSpendChart({ expectedSpend, campaignBudget }: Ca
           />
         </div>
       </div>
-      
-      <ResponsiveContainer width="100%" height={100}>
-        <BarChart data={data} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-          <XAxis type="number" domain={[0, 100]} hide />
-          <YAxis type="category" dataKey="name" hide />
-          <Tooltip 
-            formatter={(value: number) => `${value.toFixed(1)}%`}
-            contentStyle={{ backgroundColor: 'white', border: '1px solid #ccc', borderRadius: '4px' }}
-          />
-          <Bar dataKey="expected" fill={getColor(spendPercentage)} radius={[0, 4, 4, 0]}>
-            <Cell fill={getColor(spendPercentage)} />
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
     </div>
   )
 }

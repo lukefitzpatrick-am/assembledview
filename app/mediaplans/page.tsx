@@ -13,6 +13,8 @@ import { TableWithExport } from "@/components/ui/table-with-export"
 import { PlusCircle, Search } from "lucide-react"
 import { mediaTypeTheme } from "@/lib/utils"
 import { compareValues, SortableTableHeader, SortDirection } from "@/components/ui/sortable-table-header"
+import { PlanUpload } from "@/components/PlanUpload"
+import type { PlanParseResult } from "@/lib/planParser"
 
 // Define the MediaPlan interface to handle both MediaPlanMaster and MediaPlanVersions
 interface MediaPlan {
@@ -80,6 +82,7 @@ export default function MediaPlansPage() {
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [sortStates, setSortStates] = useState<Record<string, SortState>>({})
+  const [importedPlan, setImportedPlan] = useState<PlanParseResult | null>(null)
 
   const getNextDirection = (current: SortDirection) =>
     current === "asc" ? "desc" : current === "desc" ? null : "asc"
@@ -372,7 +375,6 @@ export default function MediaPlansPage() {
             </Button>
           </div>
         </div>
-
         {error && (
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
             <p>{error}</p>
@@ -507,6 +509,50 @@ export default function MediaPlansPage() {
               )
             })}
           </div>
+        )}
+
+        <PlanUpload
+          onParsed={(result) => {
+            setImportedPlan(result)
+            console.log("Parsed media plan import", result)
+          }}
+          helperText="Upload PDF or CSV media plans/publisher specs. Parsed placements appear below for confirmation."
+        />
+
+        {importedPlan && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Imported media items</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <p className="text-sm text-slate-600">
+                {importedPlan.items.length} item(s) combined from {importedPlan.sources.length} file
+                {importedPlan.sources.length === 1 ? "" : "s"}.
+              </p>
+              <div className="max-h-48 overflow-y-auto space-y-2">
+                {importedPlan.items.slice(0, 5).map((item, idx) => (
+                  <div key={`${item.name}-${idx}`} className="rounded border border-slate-200 bg-white px-3 py-2">
+                    <p className="text-sm font-semibold text-slate-900">{item.name}</p>
+                    <p className="text-xs text-slate-600">
+                      {[item.channel, item.publisher].filter(Boolean).join(" • ")}
+                    </p>
+                    {(item.flightStart || item.flightEnd) && (
+                      <p className="text-xs text-slate-600">
+                        Flight: {item.flightStart || "?"} - {item.flightEnd || "?"}
+                      </p>
+                    )}
+                    {item.specs && <p className="text-xs text-slate-600">Specs: {item.specs}</p>}
+                    {item.deadlines && <p className="text-xs text-slate-600">Deadline: {item.deadlines}</p>}
+                  </div>
+                ))}
+                {importedPlan.items.length > 5 && (
+                  <p className="text-xs text-slate-500">
+                    Showing first 5 of {importedPlan.items.length}. Use the parsed data to prefill media containers.
+                  </p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
         )}
       </div>
     </div>

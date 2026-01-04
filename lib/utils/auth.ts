@@ -2,7 +2,7 @@ import { getSession, withApiAuthRequired, withPageAuthRequired } from '@auth0/ne
 import { NextApiRequest, NextApiResponse } from 'next';
 import { NextRequest, NextResponse } from 'next/server';
 import type { User } from '@auth0/nextjs-auth0';
-import { hasRole, canAccessPage, UserRole } from '@/lib/rbac';
+import { hasRole, canAccessPage, UserRole, getUserRoles, getUserClientIdentifier } from '@/lib/rbac';
 
 // Server-side session helper
 export async function getServerSession() {
@@ -92,15 +92,16 @@ export async function checkPageAccess(page: string): Promise<boolean> {
 }
 
 // Get user with role information
-export async function getUserWithRoles(): Promise<{ user: User; roles: string[] } | null> {
+export async function getUserWithRoles(): Promise<{ user: User; roles: string[]; client?: string | null } | null> {
   try {
     const session = await getSession();
     if (!session || !session.user) {
       return null;
     }
 
-    const roles = session.user['https://assembledmedia.com/roles'] as string[] || [];
-    return { user: session.user, roles };
+    const roles = getUserRoles(session.user);
+    const client = getUserClientIdentifier(session.user);
+    return { user: session.user, roles, client };
   } catch (error) {
     console.error('Get user with roles error:', error);
     return null;

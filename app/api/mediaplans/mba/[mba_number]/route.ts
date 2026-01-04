@@ -673,7 +673,8 @@ export async function PUT(
       mp_progaudio: data.mp_progaudio || false,
       mp_progooh: data.mp_progooh || false,
       mp_influencers: data.mp_influencers || false,
-      billingSchedule: data.billingSchedule || null
+      billingSchedule: data.billingSchedule || null,
+      deliverySchedule: data.deliverySchedule || null,
     }
     
     // Create new version in media_plan_versions table

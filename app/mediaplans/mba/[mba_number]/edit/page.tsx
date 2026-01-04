@@ -70,6 +70,7 @@ import type { BillingSchedule as BillingScheduleInterface, BillingMonth as Billi
 import type { BillingMonth, BillingLineItem as BillingLineItemType, BillingBurst } from "@/lib/billing/types"
 import { buildBillingScheduleJSON } from "@/lib/billing/buildBillingSchedule"
 import { generateMediaPlan, MediaPlanHeader, LineItem, MediaItems } from '@/lib/generateMediaPlan'
+import { generateNamingWorkbook } from '@/lib/namingConventions'
 import { saveAs } from 'file-saver'
 import { filterLineItemsByPlanNumber } from '@/lib/api/mediaPlanVersionHelper'
 import { toMelbourneDateString } from "@/lib/timezone"
@@ -349,6 +350,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const [isManualBillingModalOpen, setIsManualBillingModalOpen] = useState(false)
   const [manualBillingMonths, setManualBillingMonths] = useState<BillingMonth[]>([])
   const [manualBillingTotal, setManualBillingTotal] = useState("$0.00")
+  const [autoBillingMonths, setAutoBillingMonths] = useState<BillingMonth[]>([])
   const [originalManualBillingMonths, setOriginalManualBillingMonths] = useState<BillingMonth[]>([])
   const [originalManualBillingTotal, setOriginalManualBillingTotal] = useState<string>("$0.00")
   const [billingError, setBillingError] = useState<{show: boolean, campaignBudget: number, difference: number}>({
@@ -404,6 +406,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const [error, setError] = useState<string | null>(null)
   const [mediaPlan, setMediaPlan] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [isNamingDownloading, setIsNamingDownloading] = useState(false)
   const [searchLineItems, setSearchLineItems] = useState<any[]>([])
   const [socialMediaLineItems, setSocialMediaLineItems] = useState<any[]>([])
   
@@ -709,9 +712,13 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       })
     ); 
   
-    setBillingMonths(months);
-    const grandTotal = months.reduce((sum, m) => sum + parseFloat(m.totalAmount.replace(/[^0-9.-]/g, "")), 0);
-    setBillingTotal(formatter.format(grandTotal));
+    setAutoBillingMonths(months);
+
+    if (!isManualBilling) {
+      setBillingMonths(months);
+      const grandTotal = months.reduce((sum, m) => sum + parseFloat(m.totalAmount.replace(/[^0-9.-]/g, "")), 0);
+      setBillingTotal(formatter.format(grandTotal));
+    }
   }, [
     searchBursts,
     socialMediaBursts,
@@ -2170,6 +2177,87 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     return Array.from(lineItemsMap.values());
   }, []);
 
+  const attachLineItemsToMonths = useCallback((months: BillingMonth[]): BillingMonth[] => {
+    if (!months || months.length === 0) return [];
+
+    let monthsWithLineItems = [...months];
+    const hasLineItems = monthsWithLineItems.some(
+      month => (month as any).lineItems && Object.keys((month as any).lineItems).length > 0
+    );
+
+    if (hasLineItems) {
+      return monthsWithLineItems;
+    }
+
+    const mediaTypeMap: Record<string, { lineItems: any[], key: string }> = {
+      'mp_television': { lineItems: televisionMediaLineItems, key: 'television' },
+      'mp_radio': { lineItems: radioMediaLineItems, key: 'radio' },
+      'mp_newspaper': { lineItems: newspaperMediaLineItems, key: 'newspaper' },
+      'mp_magazines': { lineItems: magazinesMediaLineItems, key: 'magazines' },
+      'mp_ooh': { lineItems: oohMediaLineItems, key: 'ooh' },
+      'mp_cinema': { lineItems: cinemaMediaLineItems, key: 'cinema' },
+      'mp_digidisplay': { lineItems: digitalDisplayMediaLineItems, key: 'digiDisplay' },
+      'mp_digiaudio': { lineItems: digitalAudioMediaLineItems, key: 'digiAudio' },
+      'mp_digivideo': { lineItems: digitalVideoMediaLineItems, key: 'digiVideo' },
+      'mp_bvod': { lineItems: bvodMediaLineItems, key: 'bvod' },
+      'mp_integration': { lineItems: integrationMediaLineItems, key: 'integration' },
+      'mp_search': { lineItems: searchMediaLineItems, key: 'search' },
+      'mp_socialmedia': { lineItems: socialMediaMediaLineItems, key: 'socialMedia' },
+      'mp_progdisplay': { lineItems: progDisplayMediaLineItems, key: 'progDisplay' },
+      'mp_progvideo': { lineItems: progVideoMediaLineItems, key: 'progVideo' },
+      'mp_progbvod': { lineItems: progBvodMediaLineItems, key: 'progBvod' },
+      'mp_progaudio': { lineItems: progAudioMediaLineItems, key: 'progAudio' },
+      'mp_progooh': { lineItems: progOohMediaLineItems, key: 'progOoh' },
+      'mp_influencers': { lineItems: influencersMediaLineItems, key: 'influencers' },
+    };
+
+    const allLineItems: Record<string, BillingLineItemType[]> = {};
+    const formValues = form.getValues();
+
+    Object.entries(mediaTypeMap).forEach(([mediaTypeKey, { lineItems, key }]) => {
+      const isEnabled = formValues[mediaTypeKey as keyof typeof formValues];
+      if (isEnabled && lineItems && lineItems.length > 0) {
+        const billingLineItems = generateBillingLineItems(lineItems, key, monthsWithLineItems);
+        if (billingLineItems.length > 0) {
+          allLineItems[key] = billingLineItems;
+        }
+      }
+    });
+
+    monthsWithLineItems = monthsWithLineItems.map(month => {
+      const monthCopy = { ...month };
+      if (!monthCopy.lineItems) monthCopy.lineItems = {};
+      Object.entries(allLineItems).forEach(([key, lineItems]) => {
+        (monthCopy.lineItems as any)[key] = lineItems;
+      });
+      return monthCopy;
+    });
+
+    return monthsWithLineItems;
+  }, [
+    form,
+    televisionMediaLineItems,
+    radioMediaLineItems,
+    newspaperMediaLineItems,
+    magazinesMediaLineItems,
+    oohMediaLineItems,
+    cinemaMediaLineItems,
+    digitalDisplayMediaLineItems,
+    digitalAudioMediaLineItems,
+    digitalVideoMediaLineItems,
+    bvodMediaLineItems,
+    integrationMediaLineItems,
+    searchMediaLineItems,
+    socialMediaMediaLineItems,
+    progDisplayMediaLineItems,
+    progVideoMediaLineItems,
+    progBvodMediaLineItems,
+    progAudioMediaLineItems,
+    progOohMediaLineItems,
+    influencersMediaLineItems,
+    generateBillingLineItems
+  ]);
+
   // Build billing schedule JSON from available data
   const buildBillingScheduleForSave = useCallback((): Record<string, any> => {
     // Get months from billingMonths or manualBillingMonths
@@ -2293,6 +2381,19 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     form
   ]);
 
+  const buildDeliveryScheduleForSave = useCallback((): Record<string, any> => {
+    const months = autoBillingMonths.length > 0 ? autoBillingMonths : billingMonths;
+    if (!months || months.length === 0) {
+      return {};
+    }
+    const monthsWithLineItems = attachLineItemsToMonths(months as BillingMonth[]);
+    return buildBillingScheduleJSON(monthsWithLineItems as import("@/lib/billing/types").BillingMonth[]);
+  }, [
+    attachLineItemsToMonths,
+    autoBillingMonths,
+    billingMonths,
+  ]);
+
   // Media type display names mapping
   const mediaTypeDisplayNames: Record<string, string> = {
     mp_television: 'Television',
@@ -2400,6 +2501,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       
       // 2. Build billing schedule JSON
       const billingScheduleJSON = buildBillingScheduleForSave();
+      const deliveryScheduleJSON = buildDeliveryScheduleForSave();
 
       // 3. Create new media_plan_versions record using PUT (which creates new version and increments version_number)
       updateSaveStatus('Media Plan Version', 'pending')
@@ -2414,6 +2516,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           social_media_bursts: socialMediaBursts,
           investment_by_month: investmentPerMonth,
           billingSchedule: billingScheduleJSON,
+          deliverySchedule: deliveryScheduleJSON,
         }),
       })
       
@@ -3438,6 +3541,57 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     }
   }
 
+  const handleDownloadNamingConventions = async () => {
+    setIsNamingDownloading(true);
+    try {
+      const fv = form.getValues();
+      const namingVersion =
+        selectedVersionNumber ??
+        (versionNumber ? Number(versionNumber) : null) ??
+        latestVersionNumber ??
+        "1";
+
+      const workbook = await generateNamingWorkbook({
+        advertiser: fv.mp_clientname || "",
+        brand: fv.mp_brand || "",
+        campaignName: fv.mp_campaignname || "",
+        mbaNumber: fv.mbanumber || fv.mbaidentifier || mbaNumber || "",
+        startDate: fv.mp_campaigndates_start,
+        endDate: fv.mp_campaigndates_end,
+        version: namingVersion,
+        mediaFlags: fv as Record<string, boolean>,
+        items: {
+          search: searchItems,
+          socialMedia: socialMediaItems,
+          digiAudio: digitalAudioItems,
+          digiDisplay: digitalDisplayItems,
+          digiVideo: digitalVideoItems,
+          bvod: bvodItems,
+          integration: integrationItems,
+          progDisplay: progDisplayItems,
+          progVideo: progVideoItems,
+          progBvod: progBvodItems,
+          progAudio: progAudioItems,
+          progOoh: progOohItems,
+        },
+      });
+
+      const arrayBuffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([arrayBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      saveAs(blob, `NamingConventions_${fv.mp_campaignname || "mediaPlan"}.xlsx`);
+      toast({ title: "Success", description: "Naming conventions Excel downloaded" });
+    } catch (error: any) {
+      console.error("Naming download error:", error);
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to download naming conventions",
+        variant: "destructive",
+      });
+    } finally {
+      setIsNamingDownloading(false);
+    }
+  };
+
   const handleSaveAndGenerateAll = async () => {
     try {
       setModalLoading(true)
@@ -3628,6 +3782,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         creative: item.creative ?? "",
         buying_demo: item.buying_demo ?? "",
         market: item.market ?? "",
+        site: item.site ?? "",
+        placement: item.placement ?? "",
+        size: item.size ?? "",
+        targeting_attribute: item.targeting_attribute ?? "",
         fixed_cost_media: item.fixed_cost_media ?? item.fixedCostMedia ?? false,
         client_pays_for_media: item.client_pays_for_media ?? item.clientPaysForMedia ?? false,
         budget_includes_fees: item.budget_includes_fees ?? item.budgetIncludesFees ?? false,
@@ -3638,9 +3796,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             ? item.bursts_json
             : JSON.stringify(item.bursts_json ?? item.bursts ?? []),
         line_item: item.line_item ?? idx + 1,
-        placement: item.placement ?? "",
-        size: item.size ?? "",
-        targeting_attribute: item.targeting_attribute ?? "",
         totalMedia: item.totalMedia ?? item.total_media ?? undefined,
       })),
     [mbaNumber]
@@ -5532,6 +5687,13 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           className="bg-[#B5D337] text-white hover:bg-[#B5D337]/90"
         >
           {isDownloading ? "Downloading..." : "Download Media Plan"}
+        </Button>
+        <Button
+          onClick={handleDownloadNamingConventions}
+          disabled={isNamingDownloading}
+          className="bg-[#3b82f6] text-white hover:bg-[#3b82f6]/90"
+        >
+          {isNamingDownloading ? "Generating Names..." : "Download Naming Conventions"}
         </Button>
         <Button
           onClick={handleSaveAndGenerateAll}

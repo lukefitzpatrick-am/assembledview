@@ -39,6 +39,27 @@ export interface ClientDashboardData {
   }>
 }
 
+export interface GlobalMonthlySpend {
+  month: string
+  amount: number
+}
+
+export interface GlobalMonthlyPublisherSpend {
+  month: string
+  data: Array<{
+    publisher: string
+    amount: number
+  }>
+}
+
+export interface GlobalMonthlyClientSpend {
+  month: string
+  data: Array<{
+    client: string
+    amount: number
+  }>
+}
+
 export interface Client {
   id: string
   name: string

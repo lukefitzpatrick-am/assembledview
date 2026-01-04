@@ -196,42 +196,44 @@ export default function CampaignActions({ mbaNumber, campaign, lineItems, billin
   }
 
   return (
-    <div className="fixed bottom-0 left-[240px] right-0 bg-background/95 backdrop-blur-sm border-t p-4 flex justify-end items-center z-50 shadow-lg">
-      <div className="flex space-x-2">
-        <Button
-          onClick={handleDownloadMediaPlan}
-          disabled={isDownloadingMediaPlan}
-          className="bg-[#B5D337] text-white hover:bg-[#B5D337]/90"
-        >
-          {isDownloadingMediaPlan ? (
-            <>
-              <Download className="mr-2 h-4 w-4 animate-spin" />
-              Downloading...
-            </>
-          ) : (
-            <>
-              <Download className="mr-2 h-4 w-4" />
-              Download Media Plan
-            </>
-          )}
-        </Button>
-        <Button
-          onClick={handleDownloadBillingSchedule}
-          disabled={isDownloadingBillingSchedule || !billingSchedule || !Array.isArray(billingSchedule) || billingSchedule.length === 0}
-          className="bg-[#472477] text-white hover:bg-[#472477]/90"
-        >
-          {isDownloadingBillingSchedule ? (
-            <>
-              <FileText className="mr-2 h-4 w-4 animate-spin" />
-              Downloading...
-            </>
-          ) : (
-            <>
-              <FileText className="mr-2 h-4 w-4" />
-              Download Billing Schedule
-            </>
-          )}
-        </Button>
+    <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t z-50 shadow-lg">
+      <div className="mx-auto flex w-full items-center justify-end gap-4 px-4 py-4 lg:px-6">
+        <div className="flex space-x-2">
+          <Button
+            onClick={handleDownloadMediaPlan}
+            disabled={isDownloadingMediaPlan}
+            className="bg-[#B5D337] text-white hover:bg-[#B5D337]/90"
+          >
+            {isDownloadingMediaPlan ? (
+              <>
+                <Download className="mr-2 h-4 w-4 animate-spin" />
+                Downloading...
+              </>
+            ) : (
+              <>
+                <Download className="mr-2 h-4 w-4" />
+                Download Media Plan
+              </>
+            )}
+          </Button>
+          <Button
+            onClick={handleDownloadBillingSchedule}
+            disabled={isDownloadingBillingSchedule || !billingSchedule || !Array.isArray(billingSchedule) || billingSchedule.length === 0}
+            className="bg-[#472477] text-white hover:bg-[#472477]/90"
+          >
+            {isDownloadingBillingSchedule ? (
+              <>
+                <FileText className="mr-2 h-4 w-4 animate-spin" />
+                Downloading...
+              </>
+            ) : (
+              <>
+                <FileText className="mr-2 h-4 w-4" />
+                Download Billing Schedule
+              </>
+            )}
+          </Button>
+        </div>
       </div>
     </div>
   )

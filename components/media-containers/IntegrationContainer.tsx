@@ -660,12 +660,13 @@ useEffect(() => {
   const calculatedBursts = getIntegrationBursts(form, feeintegration || 0);
   let burstIndex = 0;
 
-  const items: LineItem[] = form.getValues('lineItems').flatMap(lineItem =>
+  const items: LineItem[] = form.getValues('lineItems').flatMap((lineItem, lineItemIndex) =>
     lineItem.bursts.map(burst => {
       const computedBurst = calculatedBursts[burstIndex++];
       const mediaAmount = computedBurst
         ? computedBurst.mediaAmount
         : parseFloat(String(burst.budget).replace(/[^0-9.-]+/g, "")) || 0;
+      const lineItemId = `${mbaNumber || 'INT'}${lineItemIndex + 1}`;
 
       return {
         market: lineItem.market,                                // or fixed value
@@ -680,13 +681,17 @@ useEffect(() => {
         buyType:      lineItem.buyType,
         deliverablesAmount: burst.budget,
         grossMedia: mediaAmount.toFixed(2),
+        line_item_id: lineItemId,
+        lineItemId,
+        line_item: lineItemIndex + 1,
+        buyAmount: burst.buyAmount ?? burst.budget,
       };
     })
   );
   
   // push it up to page.tsx
   onLineItemsChange(items);
-}, [watchedLineItems, feeintegration]);
+}, [watchedLineItems, feeintegration, mbaNumber]);
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {

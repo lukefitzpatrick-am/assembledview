@@ -75,11 +75,11 @@ const GROUPING_KEYS: Record<string, string[]> = {
   influencers: ['market', 'platform', 'targeting', 'creative', 'buyingDemo', 'buyType']
 }
 
-function groupLineItems(items: any[], mediaType: string): Array<{ key: string; item: any; bursts: Burst[] }> {
+function groupLineItems(items: any[], mediaType: string): Array<{ key: string; item: any; bursts: Burst[]; publisher?: string; targeting?: string }> {
   if (!items || items.length === 0) return []
   
   const groupingKeys = GROUPING_KEYS[mediaType] || ['market']
-  const grouped: Map<string, { key: string; item: any; bursts: Burst[] }> = new Map()
+  const grouped: Map<string, { key: string; item: any; bursts: Burst[]; publisher?: string; targeting?: string }> = new Map()
   
   items.forEach(item => {
     // Parse bursts
@@ -97,7 +97,13 @@ function groupLineItems(items: any[], mediaType: string): Array<{ key: string; i
     const key = groupingKeys.map(k => item[k] || '').join('|')
     
     if (!grouped.has(key)) {
-      grouped.set(key, { key, item, bursts: [] })
+      grouped.set(key, { 
+        key, 
+        item, 
+        bursts: [],
+        publisher: item.network || item.platform || item.site || item.station || item.title,
+        targeting: item.targeting || item.creativeTargeting
+      })
     }
     
     const group = grouped.get(key)!
@@ -125,6 +131,8 @@ export default function MediaGanttChart({ lineItems, startDate, endDate }: Media
     const rows: Array<{
       label: string
       mediaType: string
+      publisher?: string
+      targeting?: string
       bars: Array<{
         start: Date
         end: Date
@@ -193,6 +201,8 @@ export default function MediaGanttChart({ lineItems, startDate, endDate }: Media
           rows.push({
             label,
             mediaType,
+            publisher: group.publisher,
+            targeting: group.targeting,
             bars
           })
         }
@@ -257,12 +267,17 @@ export default function MediaGanttChart({ lineItems, startDate, endDate }: Media
         {/* Gantt bars */}
         <div className="relative">
           {rows.map((row, rowIndex) => (
-            <div key={rowIndex} className="border-b h-12 flex items-center relative">
-              <div className="w-48 p-2 text-sm font-medium border-r bg-gray-50 shrink-0">
-                <div className="truncate" title={row.label}>
-                  {row.label}
-                </div>
+          <div key={rowIndex} className="border-b min-h-[56px] flex items-center relative">
+            <div className="w-56 p-2 text-sm font-medium border-r bg-gray-50 shrink-0">
+              <div className="truncate" title={row.label}>
+                {row.label}
               </div>
+              <div className="text-xs text-muted-foreground truncate mt-1" title={`Publisher: ${row.publisher ?? 'N/A'} • Targeting: ${row.targeting ?? 'N/A'}`}>
+                {(row.publisher || row.targeting)
+                  ? [row.publisher, row.targeting].filter(Boolean).join(" • ")
+                  : "No targeting details"}
+              </div>
+            </div>
               <div className="flex-1 relative h-full">
                 {row.bars.map((bar, barIndex) => {
                   const dayWidth = 40 // Approximate width of each day

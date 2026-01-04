@@ -1,4 +1,4 @@
-import { ClientDashboardData, Campaign, Client } from '@/lib/types/dashboard'
+import { ClientDashboardData, Campaign, Client, GlobalMonthlySpend, GlobalMonthlyPublisherSpend, GlobalMonthlyClientSpend } from '@/lib/types/dashboard'
 import { 
   aggregateMonthlySpendByMediaType, 
   getSpendByMediaTypeFromLineItems, 
@@ -129,7 +129,7 @@ export async function getClientDashboardData(slug: string): Promise<ClientDashbo
     console.error('Invalid slug provided for dashboard:', slug)
     return null
   }
-
+  
   const sanitizedSlug = slug.trim()
   const targetSlug = slugifyClientName(sanitizedSlug)
 
@@ -139,9 +139,16 @@ export async function getClientDashboardData(slug: string): Promise<ClientDashbo
     const allVersions = Array.isArray(versionsResponse.data) ? versionsResponse.data : []
 
     const clientVersions = allVersions.filter((version: any) => {
-      const versionClient = version?.mp_client_name
-      if (typeof versionClient !== 'string') return false
-      return slugifyClientName(versionClient) === targetSlug
+      const nameCandidates = [
+        version?.mp_client_name,
+        version?.client_name,
+        version?.mp_clientname,
+        version?.client
+      ].filter((n: any) => typeof n === 'string' && n.trim().length > 0)
+
+      if (nameCandidates.length === 0) return false
+
+      return nameCandidates.some((name: string) => slugifyClientName(name) === targetSlug)
     })
 
     if (clientVersions.length === 0) {
@@ -149,7 +156,7 @@ export async function getClientDashboardData(slug: string): Promise<ClientDashbo
       return null
     }
 
-    const clientName = clientVersions[0].mp_client_name || sanitizedSlug
+    const clientName = clientVersions[0].mp_client_name || clientVersions[0].client_name || clientVersions[0].mp_clientname || sanitizedSlug
     const brandColour = clientVersions[0].brand_colour || clientVersions[0].brandColour
 
     console.log('Dashboard: using client from media_plan_versions', { clientName, slug: targetSlug, versions: clientVersions.length })
@@ -163,7 +170,9 @@ export async function getClientDashboardData(slug: string): Promise<ClientDashbo
       return acc
     }, {})
 
-    const highestApprovedVersionByMBA = Object.entries(versionsByMBA).reduce((acc: Record<string, any>, [mbaNumber, versions]) => {
+    const selectedVersionByMBA: Record<string, any> = {}
+
+    Object.entries(versionsByMBA).forEach(([mbaNumber, versions]) => {
       const sorted = versions
         .slice()
         .sort((a, b) => (b.version_number || 0) - (a.version_number || 0))
@@ -173,18 +182,20 @@ export async function getClientDashboardData(slug: string): Promise<ClientDashbo
         return status === 'booked' || status === 'approved'
       })
 
-      if (bookedApproved) {
-        acc[mbaNumber] = bookedApproved
-      } else {
-        const latest = sorted[0]
-        console.warn(`No booked/approved version found for MBA ${mbaNumber}; latest version ${latest?.version_number ?? 'n/a'} excluded from analytics`)
+      const chosenVersion = bookedApproved || sorted[0]
+
+      if (chosenVersion) {
+        selectedVersionByMBA[mbaNumber] = chosenVersion
       }
-      return acc
-    }, {} as Record<string, any>)
 
-    const highestApprovedVersionPerMBA = Object.values(highestApprovedVersionByMBA)
-
-    const clientCampaigns: Campaign[] = highestApprovedVersionPerMBA.map((version: any) => {
+      if (!bookedApproved && sorted[0]) {
+        console.warn(`No booked/approved version found for MBA ${mbaNumber}; using latest version ${sorted[0]?.version_number ?? 'n/a'} for dashboard lists`)
+      }
+    })
+    
+    const selectedVersionPerMBA = Object.values(selectedVersionByMBA)
+    
+    const clientCampaigns: Campaign[] = selectedVersionPerMBA.map((version: any) => {
       const mediaTypes: string[] = []
       
       // Extract media types from boolean flags
@@ -294,23 +305,27 @@ export async function getClientDashboardData(slug: string): Promise<ClientDashbo
       return acc
     }, {} as Record<string, number>)
 
-    // Primary data source: billingSchedule
+    // Primary data source: deliverySchedule (fallback to billingSchedule if missing)
     const dateRange = { start: fyStart, end: fyEnd }
-    const billingScheduleByMBA: Record<string, any[]> = Object.entries(highestApprovedVersionByMBA).reduce((acc, [mba, version]) => {
-      const schedule = (version as any)?.billingSchedule || (version as any)?.billing_schedule
+    const deliveryScheduleByMBA: Record<string, any[]> = Object.entries(selectedVersionByMBA).reduce((acc, [mba, version]) => {
+      const schedule =
+        (version as any)?.deliverySchedule ||
+        (version as any)?.delivery_schedule ||
+        (version as any)?.billingSchedule ||
+        (version as any)?.billing_schedule
       if (Array.isArray(schedule)) acc[mba] = schedule
       return acc
     }, {} as Record<string, any[]>)
 
-    const billingMediaTypeSpend: Record<string, number> = {}
-    const billingCampaignSpend: Record<string, number> = {}
-    const billingMonthlyMap: Record<string, Record<string, number>> = {}
-    fyMonths.forEach(month => { billingMonthlyMap[month] = {} })
+    const deliveryMediaTypeSpend: Record<string, number> = {}
+    const deliveryCampaignSpend: Record<string, number> = {}
+    const deliveryMonthlyMap: Record<string, Record<string, number>> = {}
+    fyMonths.forEach(month => { deliveryMonthlyMap[month] = {} })
 
     const monthLabelFromDate = (date: Date) => fyMonths[(date.getMonth() + 12 - 6) % 12]
 
     bookedApprovedCampaigns.forEach(campaign => {
-      const schedule = billingScheduleByMBA[campaign.mbaNumber]
+      const schedule = deliveryScheduleByMBA[campaign.mbaNumber]
       if (!Array.isArray(schedule)) return
 
       schedule.forEach(entry => {
@@ -325,24 +340,24 @@ export async function getClientDashboardData(slug: string): Promise<ClientDashbo
           const totalForType = lineItems.reduce((sum: number, li: any) => sum + parseMoney(li?.amount), 0)
           if (totalForType <= 0) return
 
-          billingMediaTypeSpend[mediaTypeName] = (billingMediaTypeSpend[mediaTypeName] || 0) + totalForType
-          billingCampaignSpend[campaign.campaignName || campaign.mbaNumber] = (billingCampaignSpend[campaign.campaignName || campaign.mbaNumber] || 0) + totalForType
-          billingMonthlyMap[monthLabel][mediaTypeName] = (billingMonthlyMap[monthLabel][mediaTypeName] || 0) + totalForType
+          deliveryMediaTypeSpend[mediaTypeName] = (deliveryMediaTypeSpend[mediaTypeName] || 0) + totalForType
+          deliveryCampaignSpend[campaign.campaignName || campaign.mbaNumber] = (deliveryCampaignSpend[campaign.campaignName || campaign.mbaNumber] || 0) + totalForType
+          deliveryMonthlyMap[monthLabel][mediaTypeName] = (deliveryMonthlyMap[monthLabel][mediaTypeName] || 0) + totalForType
         })
       })
     })
 
-    const billingTotal = Object.values(billingMediaTypeSpend).reduce((sum, n) => sum + n, 0)
+    const deliveryTotal = Object.values(deliveryMediaTypeSpend).reduce((sum, n) => sum + n, 0)
 
     let spendByMediaType: Array<{
       mediaType: string
       amount: number
       percentage: number
-    }> = Object.entries(billingMediaTypeSpend)
+    }> = Object.entries(deliveryMediaTypeSpend)
       .map(([mediaType, amount]) => ({
         mediaType,
         amount,
-        percentage: billingTotal > 0 ? (amount / billingTotal) * 100 : 0
+        percentage: deliveryTotal > 0 ? (amount / deliveryTotal) * 100 : 0
       }))
       .filter(item => item.amount > 0)
       .sort((a, b) => b.amount - a.amount)
@@ -353,18 +368,18 @@ export async function getClientDashboardData(slug: string): Promise<ClientDashbo
       amount: number
       percentage: number
     }> = (() => {
-      const totalSpend = Object.values(billingCampaignSpend).reduce((sum, n) => sum + n, 0)
-      return Object.entries(billingCampaignSpend)
+      const totalSpend = Object.values(deliveryCampaignSpend).reduce((sum, n) => sum + n, 0)
+      return Object.entries(deliveryCampaignSpend)
         .map(([campaignName, amount]) => ({
-          campaignName,
+        campaignName,
           mbaNumber: bookedApprovedCampaigns.find(c => c.campaignName === campaignName || c.mbaNumber === campaignName)?.mbaNumber || '',
-          amount,
-          percentage: totalSpend > 0 ? (amount / totalSpend) * 100 : 0
-        }))
+        amount,
+        percentage: totalSpend > 0 ? (amount / totalSpend) * 100 : 0
+      }))
         .filter(item => item.amount > 0)
         .sort((a, b) => b.amount - a.amount)
     })()
-
+    
     let monthlySpend: Array<{
       month: string
       data: Array<{
@@ -373,12 +388,12 @@ export async function getClientDashboardData(slug: string): Promise<ClientDashbo
       }>
     }> = fyMonths.map(month => ({
       month,
-      data: Object.entries(billingMonthlyMap[month] || {})
+      data: Object.entries(deliveryMonthlyMap[month] || {})
         .map(([mediaType, amount]) => ({ mediaType, amount }))
         .filter(item => item.amount > 0)
     }))
 
-    // Fallbacks when billing schedule yields no spend but we still have booked/approved campaigns
+    // Fallbacks when delivery schedule yields no spend but we still have booked/approved campaigns
     if (spendByMediaType.length === 0 || spendByCampaign.length === 0 || monthlySpend.every(m => (m.data || []).length === 0)) {
       const fallbackMediaTypeSpend: Record<string, number> = {}
       const fallbackCampaignSpend: Record<string, number> = {}
@@ -386,7 +401,7 @@ export async function getClientDashboardData(slug: string): Promise<ClientDashbo
       fyMonths.forEach(month => { monthlyMap[month] = {} })
 
       const monthLabelFromDate = (date: Date) => fyMonths[(date.getMonth() + 12 - 6) % 12]
-
+      
       bookedApprovedCampaigns.forEach(campaign => {
         const campaignStartRaw = parseDateSafe(campaign.startDate) || fyStart
         const campaignEndRaw = parseDateSafe(campaign.endDate) || fyEnd
@@ -509,6 +524,240 @@ export async function getClientDashboardData(slug: string): Promise<ClientDashbo
     console.error('Error fetching dashboard data:', error)
     return null
   }
+}
+
+/**
+ * Global monthly spend (all clients), sourced from deliverySchedule on media_plan_versions
+ * with billingSchedule as a fallback. Rules: booked/approved, highest version per MBA,
+ * current AU FY (Jul–Jun).
+ */
+export async function getGlobalMonthlySpend(): Promise<GlobalMonthlySpend[]> {
+  const { start: fyStart, end: fyEnd, months: fyMonths } = getAustralianFinancialYear(new Date())
+
+  const versionsResponse = await apiClient.get(`${MEDIA_PLANS_VERSIONS_URL}/media_plan_versions`)
+  const allVersions = Array.isArray(versionsResponse.data) ? versionsResponse.data : []
+
+  const versionsByMBA = allVersions.reduce((acc: Record<string, any[]>, version: any) => {
+    const mbaNumber = version?.mba_number
+    if (!mbaNumber) return acc
+    acc[mbaNumber] = acc[mbaNumber] || []
+    acc[mbaNumber].push(version)
+    return acc
+  }, {})
+
+  const highestApprovedVersionByMBA = Object.entries(versionsByMBA).reduce((acc: Record<string, any>, [mbaNumber, versions]) => {
+    const sorted = versions
+      .slice()
+      .sort((a, b) => (b.version_number || 0) - (a.version_number || 0))
+
+    const bookedApproved = sorted.find((v: any) => {
+      const status = normalizeStatus(v.campaign_status)
+      return status === 'booked' || status === 'approved'
+    })
+
+    if (bookedApproved) {
+      acc[mbaNumber] = bookedApproved
+    }
+    return acc
+  }, {} as Record<string, any>)
+
+  const deliveryMonthlyMap: Record<string, number> = {}
+  fyMonths.forEach(month => { deliveryMonthlyMap[month] = 0 })
+
+  const monthLabelFromDate = (date: Date) => fyMonths[(date.getMonth() + 12 - 6) % 12]
+
+  Object.values(highestApprovedVersionByMBA).forEach(version => {
+    const schedule =
+      (version as any)?.deliverySchedule ||
+      (version as any)?.delivery_schedule ||
+      (version as any)?.billingSchedule ||
+      (version as any)?.billing_schedule
+    if (!Array.isArray(schedule)) return
+
+    schedule.forEach(entry => {
+      const monthDate = parseMonthYear(entry?.monthYear)
+      if (!monthDate || monthDate < fyStart || monthDate > fyEnd) return
+      const monthLabel = monthLabelFromDate(monthDate)
+
+      const mediaTypes = Array.isArray(entry?.mediaTypes) ? entry.mediaTypes : []
+      mediaTypes.forEach((mt: any) => {
+        const lineItems = Array.isArray(mt?.lineItems) ? mt.lineItems : []
+        const totalForType = lineItems.reduce((sum: number, li: any) => sum + parseMoney(li?.amount), 0)
+        if (totalForType <= 0) return
+        deliveryMonthlyMap[monthLabel] = (deliveryMonthlyMap[monthLabel] || 0) + totalForType
+      })
+    })
+  })
+
+  return fyMonths.map(month => ({
+    month,
+    amount: deliveryMonthlyMap[month] || 0
+  }))
+}
+
+/**
+ * Global monthly spend split by publisher (header1), sourced from deliverySchedule on media_plan_versions
+ * with billingSchedule as a fallback. Rules: booked/approved, highest version per MBA, current AU FY (Jul–Jun).
+ */
+export async function getGlobalMonthlyPublisherSpend(): Promise<GlobalMonthlyPublisherSpend[]> {
+  const { start: fyStart, end: fyEnd, months: fyMonths } = getAustralianFinancialYear(new Date())
+
+  const versionsResponse = await apiClient.get(`${MEDIA_PLANS_VERSIONS_URL}/media_plan_versions`)
+  const allVersions = Array.isArray(versionsResponse.data) ? versionsResponse.data : []
+
+  const versionsByMBA = allVersions.reduce((acc: Record<string, any[]>, version: any) => {
+    const mbaNumber = version?.mba_number
+    if (!mbaNumber) return acc
+    acc[mbaNumber] = acc[mbaNumber] || []
+    acc[mbaNumber].push(version)
+    return acc
+  }, {})
+
+  const highestApprovedVersionByMBA = Object.entries(versionsByMBA).reduce((acc: Record<string, any>, [mbaNumber, versions]) => {
+    const sorted = versions
+      .slice()
+      .sort((a, b) => (b.version_number || 0) - (a.version_number || 0))
+
+    const bookedApproved = sorted.find((v: any) => {
+      const status = normalizeStatus(v.campaign_status)
+      return status === 'booked' || status === 'approved'
+    })
+
+    if (bookedApproved) {
+      acc[mbaNumber] = bookedApproved
+    }
+    return acc
+  }, {} as Record<string, any>)
+
+  const deliveryMonthlyMap: Record<string, Record<string, number>> = {}
+  fyMonths.forEach(month => { deliveryMonthlyMap[month] = {} })
+
+  const monthLabelFromDate = (date: Date) => fyMonths[(date.getMonth() + 12 - 6) % 12]
+
+  Object.values(highestApprovedVersionByMBA).forEach(version => {
+    const schedule =
+      (version as any)?.deliverySchedule ||
+      (version as any)?.delivery_schedule ||
+      (version as any)?.billingSchedule ||
+      (version as any)?.billing_schedule
+    if (!Array.isArray(schedule)) return
+
+    schedule.forEach(entry => {
+      const monthDate = parseMonthYear(entry?.monthYear)
+      if (!monthDate || monthDate < fyStart || monthDate > fyEnd) return
+      const monthLabel = monthLabelFromDate(monthDate)
+
+      const mediaTypes = Array.isArray(entry?.mediaTypes) ? entry.mediaTypes : []
+      mediaTypes.forEach((mt: any) => {
+        const lineItems = Array.isArray(mt?.lineItems) ? mt.lineItems : []
+        lineItems.forEach((li: any) => {
+          const publisher = li?.header1 || 'Unspecified'
+          const amount = parseMoney(li?.amount)
+          if (amount <= 0) return
+          deliveryMonthlyMap[monthLabel][publisher] = (deliveryMonthlyMap[monthLabel][publisher] || 0) + amount
+        })
+      })
+    })
+  })
+
+  return fyMonths.map(month => ({
+    month,
+    data: Object.entries(deliveryMonthlyMap[month] || {})
+      .map(([publisher, amount]) => ({ publisher, amount }))
+      .filter(item => item.amount > 0)
+  }))
+}
+
+/**
+ * Global monthly spend split by client, sourced from deliverySchedule on media_plan_versions
+ * with billingSchedule as fallback. Rules: booked/approved, highest version per MBA,
+ * current AU FY (Jul–Jun). Attempts to use client brand colours from Xano clients table when available.
+ */
+export async function getGlobalMonthlyClientSpend(): Promise<{
+  data: GlobalMonthlyClientSpend[]
+  clientColors: Record<string, string>
+}> {
+  const { start: fyStart, end: fyEnd, months: fyMonths } = getAustralianFinancialYear(new Date())
+
+  // Fetch client colors map
+  let clientColors: Record<string, string> = {}
+  try {
+    const clientsResp = await apiClient.get(`${XANO_CLIENTS_BASE_URL}/clients`)
+    const clients = Array.isArray(clientsResp.data) ? clientsResp.data : []
+    clientColors = clients.reduce((acc: Record<string, string>, c: any) => {
+      if (c.mp_client_name && c.brand_colour) {
+        acc[c.mp_client_name] = c.brand_colour
+      }
+      return acc
+    }, {})
+  } catch (err) {
+    console.warn('Global monthly client spend: unable to fetch client colors', err)
+  }
+
+  const versionsResponse = await apiClient.get(`${MEDIA_PLANS_VERSIONS_URL}/media_plan_versions`)
+  const allVersions = Array.isArray(versionsResponse.data) ? versionsResponse.data : []
+
+  const versionsByMBA = allVersions.reduce((acc: Record<string, any[]>, version: any) => {
+    const mbaNumber = version?.mba_number
+    if (!mbaNumber) return acc
+    acc[mbaNumber] = acc[mbaNumber] || []
+    acc[mbaNumber].push(version)
+    return acc
+  }, {})
+
+  const highestApprovedVersionByMBA = Object.entries(versionsByMBA).reduce((acc: Record<string, any>, [mbaNumber, versions]) => {
+    const sorted = versions
+      .slice()
+      .sort((a, b) => (b.version_number || 0) - (a.version_number || 0))
+
+    const bookedApproved = sorted.find((v: any) => {
+      const status = normalizeStatus(v.campaign_status)
+      return status === 'booked' || status === 'approved'
+    })
+
+    if (bookedApproved) {
+      acc[mbaNumber] = bookedApproved
+    }
+    return acc
+  }, {} as Record<string, any>)
+
+  const deliveryMonthlyMap: Record<string, Record<string, number>> = {}
+  fyMonths.forEach(month => { deliveryMonthlyMap[month] = {} })
+
+  const monthLabelFromDate = (date: Date) => fyMonths[(date.getMonth() + 12 - 6) % 12]
+
+  Object.values(highestApprovedVersionByMBA).forEach(version => {
+    const clientName = version?.mp_client_name || 'Unspecified'
+    const schedule =
+      (version as any)?.deliverySchedule ||
+      (version as any)?.delivery_schedule ||
+      (version as any)?.billingSchedule ||
+      (version as any)?.billing_schedule
+    if (!Array.isArray(schedule)) return
+
+    schedule.forEach(entry => {
+      const monthDate = parseMonthYear(entry?.monthYear)
+      if (!monthDate || monthDate < fyStart || monthDate > fyEnd) return
+      const monthLabel = monthLabelFromDate(monthDate)
+
+      const mediaTypes = Array.isArray(entry?.mediaTypes) ? entry.mediaTypes : []
+      mediaTypes.forEach((mt: any) => {
+        const lineItems = Array.isArray(mt?.lineItems) ? mt.lineItems : []
+        const totalForType = lineItems.reduce((sum: number, li: any) => sum + parseMoney(li?.amount), 0)
+        if (totalForType <= 0) return
+        deliveryMonthlyMap[monthLabel][clientName] = (deliveryMonthlyMap[monthLabel][clientName] || 0) + totalForType
+      })
+    })
+  })
+
+  const data: GlobalMonthlyClientSpend[] = fyMonths.map(month => ({
+    month,
+    data: Object.entries(deliveryMonthlyMap[month] || {})
+      .map(([client, amount]) => ({ client, amount }))
+      .filter(item => item.amount > 0)
+  }))
+
+  return { data, clientColors }
 }
 
 export async function exportDashboardData(slug: string, format: 'csv' | 'json' = 'csv'): Promise<string> {

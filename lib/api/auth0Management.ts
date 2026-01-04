@@ -9,6 +9,8 @@ type CreatedUser = {
   email: string;
 };
 
+type Role = 'admin' | 'client';
+
 const REQUIRED_ENV = [
   'AUTH0_MGMT_CLIENT_ID',
   'AUTH0_MGMT_CLIENT_SECRET',
@@ -21,6 +23,18 @@ function requireEnv(key: string): string {
   const value = process.env[key];
   if (!value) {
     throw new Error(`Missing env: ${key}`);
+  }
+  return value;
+}
+
+function getRoleId(role: Role): string {
+  const envMap: Record<Role, string | undefined> = {
+    admin: process.env.AUTH0_ROLE_ADMIN_ID,
+    client: process.env.AUTH0_ROLE_CLIENT_ID,
+  };
+  const value = envMap[role];
+  if (!value) {
+    throw new Error(`Missing env: AUTH0_ROLE_${role.toUpperCase()}_ID`);
   }
   return value;
 }
@@ -131,6 +145,60 @@ export async function createPasswordChangeTicket(params: { userId: string }): Pr
   }
   return data.ticket;
 }
+
+export async function assignRoleToUser(userId: string, role: Role): Promise<void> {
+  const token = await getManagementToken();
+  const roleId = getRoleId(role);
+
+  const response = await fetch(`https://${getManagementDomain()}/api/v2/roles/${roleId}/users`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ users: [userId] }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to assign role ${role} to user: ${response.status} ${errorText}`);
+  }
+}
+
+export async function updateAuth0UserMetadata(params: {
+  userId: string;
+  app_metadata?: Record<string, unknown>;
+  user_metadata?: Record<string, unknown>;
+}): Promise<void> {
+  const token = await getManagementToken();
+
+  const response = await fetch(`https://${getManagementDomain()}/api/v2/users/${params.userId}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      app_metadata: params.app_metadata,
+      user_metadata: params.user_metadata,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to update user metadata: ${response.status} ${errorText}`);
+  }
+}
+
+
+
+
+
+
+
+
+
+
 
 
 
