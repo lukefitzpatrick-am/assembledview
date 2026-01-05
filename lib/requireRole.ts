@@ -7,7 +7,7 @@ type RequireRoleOptions = {
 };
 
 type RequireRoleSuccess = {
-  session: Awaited<ReturnType<typeof getSession>>;
+  session: Awaited<ReturnType<typeof auth0.getSession>>;
   roles: UserRole[];
   grantedByAllowlist: boolean;
 };
