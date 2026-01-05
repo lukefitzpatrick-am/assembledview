@@ -28,7 +28,7 @@ interface Client {
 }
 
 export function AppSidebar() {
-  const { userClient, isAdmin, isClient } = useAuthContext();
+  const { userClient, isAdmin, isClient, isLoading } = useAuthContext();
   const [isClientsExpanded, setIsClientsExpanded] = useState(false);
   const [isFinanceExpanded, setIsFinanceExpanded] = useState(false);
   const [clients, setClients] = useState<Client[]>([]);
@@ -81,6 +81,22 @@ export function AppSidebar() {
   }, [userClient]);
 
   const menuItems = isAdmin ? adminMenuItems : clientMenuItems;
+
+  if (isLoading) {
+    return (
+      <Sidebar className="w-56 bg-gray-900 text-white h-screen overflow-hidden">
+        <SidebarContent>
+          <div className="flex flex-col gap-3 px-4 py-6 text-sm text-muted-foreground">
+            <div className="h-6 w-24 animate-pulse rounded bg-gray-800" />
+            <div className="h-4 w-32 animate-pulse rounded bg-gray-800" />
+            <div className="h-4 w-28 animate-pulse rounded bg-gray-800" />
+            <div className="h-4 w-36 animate-pulse rounded bg-gray-800" />
+            <span>Loading menu…</span>
+          </div>
+        </SidebarContent>
+      </Sidebar>
+    );
+  }
 
   return (
     <Sidebar className="w-56 bg-gray-900 text-white h-screen overflow-hidden">

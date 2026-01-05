@@ -7,8 +7,7 @@ import {
   updateAuth0UserMetadata,
 } from '@/lib/api/auth0Management';
 import { sendInviteEmail } from '@/lib/email/inviteSender';
-import { auth0 } from '@/lib/auth0';
-import { getUserRoles } from '@/lib/rbac';
+import { requireAdmin } from '@/lib/requireRole';
 
 const payloadSchema = z.object({
   firstName: z.string().trim().min(1, 'First name is required'),
@@ -28,20 +27,10 @@ const updateSchema = payloadSchema
     userId: z.string().trim().min(1, 'User ID is required'),
   });
 
-function isAllowedAdmin(email: string | undefined | null): boolean {
-  const allowlist = process.env.ADMIN_EMAIL_ALLOWLIST;
-  if (!allowlist || !email) return false;
-  return allowlist
-    .split(',')
-    .map((entry) => entry.trim().toLowerCase())
-    .includes(email.toLowerCase());
-}
-
-function isAdminSession(session: Awaited<ReturnType<typeof auth0.getSession>>): boolean {
-  if (!session?.user) return false;
-  const roles = getUserRoles(session.user);
-  return roles.includes('admin');
-}
+const ADMIN_ALLOWLIST = (process.env.ADMIN_EMAIL_ALLOWLIST || '')
+  .split(',')
+  .map((entry) => entry.trim().toLowerCase())
+  .filter(Boolean);
 
 async function syncUserToXano(params: {
   auth0UserId: string;
@@ -85,16 +74,9 @@ async function syncUserToXano(params: {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth0.getSession();
-    const userEmail = session?.user?.email;
-
-    if (!session || !session.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    if (!isAdminSession(session) && !isAllowedAdmin(userEmail)) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    const sessionResult = await requireAdmin(request, { allowEmails: ADMIN_ALLOWLIST });
+    if ('response' in sessionResult) return sessionResult.response;
+    const userEmail = sessionResult.session?.user?.email;
 
     const json = await request.json();
     const parsed = payloadSchema.safeParse(json);
@@ -153,16 +135,8 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const session = await auth0.getSession();
-    const userEmail = session?.user?.email;
-
-    if (!session || !session.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    if (!isAdminSession(session) && !isAllowedAdmin(userEmail)) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    const sessionResult = await requireAdmin(request, { allowEmails: ADMIN_ALLOWLIST });
+    if ('response' in sessionResult) return sessionResult.response;
 
     const json = await request.json();
     const parsed = updateSchema.safeParse(json);
@@ -210,6 +184,7 @@ export async function PUT(request: NextRequest) {
     );
   }
 }
+
 
 
 

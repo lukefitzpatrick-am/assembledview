@@ -9,11 +9,19 @@ export function useUser() {
   const router = useRouter();
 
   const login = () => {
-    router.push('/auth/login?returnTo=/dashboard');
+    if (typeof window !== 'undefined') {
+      window.location.assign('/auth/login?returnTo=/dashboard');
+    } else {
+      router.push('/auth/login?returnTo=/dashboard');
+    }
   };
 
   const logout = () => {
-    router.push('/auth/logout');
+    if (typeof window !== 'undefined') {
+      window.location.assign('/auth/logout');
+    } else {
+      router.push('/auth/logout');
+    }
   };
 
   return { user, isLoading, error, login, logout };

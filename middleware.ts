@@ -5,9 +5,6 @@ export async function middleware(request: NextRequest) {
   return auth0.middleware(request);
 }
 
-// Exclude static assets etc.
 export const config = {
-  matcher: [
-    '/((?!_next/static|_next/image|favicon.ico).*)',
-  ],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt).*)'],
 };

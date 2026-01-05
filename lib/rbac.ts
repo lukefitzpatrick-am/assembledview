@@ -8,17 +8,38 @@ export interface UserWithRoles extends User {
 }
 
 const DEFAULT_ROLE_NAMESPACE = 'https://assembledview.com/roles';
+const ALT_ROLE_NAMESPACE = 'https://assembledview.com.au/roles';
 const DEFAULT_CLIENT_NAMESPACE = 'https://assembledview.com/client';
+const ALT_CLIENT_NAMESPACE = 'https://assembledview.com.au/client';
 
-const ROLE_NAMESPACE =
-  process.env.NEXT_PUBLIC_AUTH0_ROLE_NAMESPACE ||
-  process.env.AUTH0_ROLE_NAMESPACE ||
-  DEFAULT_ROLE_NAMESPACE;
+// Build a list of namespace candidates so both .com and .com.au claims work.
+function buildNamespaceCandidates(
+  envValue: string | undefined,
+  defaultNamespace: string,
+  altNamespace: string
+) {
+  const primary = envValue || defaultNamespace;
+  const swapped =
+    primary.includes('.com.au') ? primary.replace('.com.au', '.com') : primary.replace('.com', '.com.au');
+  const candidates = [primary, swapped, altNamespace, defaultNamespace]
+    .filter(Boolean)
+    .map((ns) => ns.trim());
+  return Array.from(new Set(candidates));
+}
 
-const CLIENT_NAMESPACE =
-  process.env.NEXT_PUBLIC_AUTH0_CLIENT_NAMESPACE ||
-  process.env.AUTH0_CLIENT_NAMESPACE ||
-  DEFAULT_CLIENT_NAMESPACE;
+const ROLE_NAMESPACE_CANDIDATES = buildNamespaceCandidates(
+  process.env.NEXT_PUBLIC_AUTH0_ROLE_NAMESPACE || process.env.AUTH0_ROLE_NAMESPACE,
+  DEFAULT_ROLE_NAMESPACE,
+  ALT_ROLE_NAMESPACE
+);
+
+const CLIENT_NAMESPACE_CANDIDATES = buildNamespaceCandidates(
+  process.env.NEXT_PUBLIC_AUTH0_CLIENT_NAMESPACE || process.env.AUTH0_CLIENT_NAMESPACE,
+  DEFAULT_CLIENT_NAMESPACE,
+  ALT_CLIENT_NAMESPACE
+);
+
+const DEBUG_AUTH_ENABLED = process.env.NEXT_PUBLIC_DEBUG_AUTH === 'true';
 
 // Define role hierarchy and permissions
 export const ROLE_PERMISSIONS = {
@@ -62,6 +83,26 @@ export const ROLE_PERMISSIONS = {
   ],
 } as const;
 
+function coerceToStringArray(value: unknown): string[] {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => (typeof item === 'string' ? item : ''))
+      .filter(Boolean);
+  }
+  if (typeof value === 'string') {
+    return value
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+  }
+  if (typeof value === 'object' && 'name' in (value as Record<string, unknown>)) {
+    const nameVal = (value as Record<string, unknown>).name;
+    return typeof nameVal === 'string' ? [nameVal] : [];
+  }
+  return [];
+}
+
 function normalizeRole(role: string): UserRole | null {
   const lower = role.toLowerCase();
   if (
@@ -76,76 +117,150 @@ function normalizeRole(role: string): UserRole | null {
   return null;
 }
 
-function getClaimArray(user: User, claim: string): string[] {
-  const value = user[claim];
-  if (Array.isArray(value)) {
-    // Handle arrays of strings or objects with a "name" property
-    return (value as unknown[]).map((item) => {
-      if (typeof item === 'string') return item;
-      if (item && typeof item === 'object' && 'name' in (item as Record<string, unknown>)) {
-        const nameVal = (item as Record<string, unknown>).name;
-        return typeof nameVal === 'string' ? nameVal : '';
-      }
-      return '';
-    }).filter(Boolean);
+function getClaimArray(user: User, claim: string | string[]): string[] {
+  const claims = Array.isArray(claim) ? claim : [claim];
+  const values: unknown[] = [];
+
+  for (const c of claims) {
+    const val = (user as Record<string, unknown>)[c];
+    if (val !== undefined) {
+      values.push(val);
+    }
   }
-  if (typeof value === 'string') {
-    return [value];
+
+  if (values.length === 0) return [];
+
+  const flattened = values.flatMap((value) => {
+    if (Array.isArray(value)) {
+      return (value as unknown[]).map((item) => {
+        if (typeof item === 'string') return item;
+        if (item && typeof item === 'object' && 'name' in (item as Record<string, unknown>)) {
+          const nameVal = (item as Record<string, unknown>).name;
+          return typeof nameVal === 'string' ? nameVal : '';
+        }
+        return '';
+      });
+    }
+    if (typeof value === 'string') return [value];
+    return [];
+  });
+
+  return flattened.filter(Boolean);
+}
+
+function namespaceWithSingular(claim: string) {
+  return `${claim.replace(/\/roles$/, '')}/role`;
+}
+
+type RoleNamespaceScanResult = {
+  roles: string[];
+  claimKeyUsed: string | null;
+  claimKeysWithValues: string[];
+};
+
+function scanRoleNamespaces(user: User): RoleNamespaceScanResult {
+  const claimKeys = [
+    ...ROLE_NAMESPACE_CANDIDATES,
+    ...ROLE_NAMESPACE_CANDIDATES.map(namespaceWithSingular),
+  ];
+
+  const claimValues = claimKeys.map((key) => ({ key, values: getClaimArray(user, key) }));
+  const claimKeysWithValues = claimValues.filter(({ values }) => values.length > 0).map(({ key }) => key);
+  const claimKeyUsed = claimKeysWithValues[0] ?? null;
+  const roles = claimValues.flatMap(({ values }) => values);
+
+  return {
+    roles,
+    claimKeyUsed,
+    claimKeysWithValues,
+  };
+}
+
+export type RoleInspection = {
+  hasRolesClaim: boolean;
+  rolesClaimKeyUsed: string | null;
+  roles: string[];
+  hasPermissions: boolean;
+  permissions: string[];
+};
+
+export function inspectUserRolesAndPermissions(user: User | null | undefined): RoleInspection {
+  if (!user) {
+    return {
+      hasRolesClaim: false,
+      rolesClaimKeyUsed: null,
+      roles: [],
+      hasPermissions: false,
+      permissions: [],
+    };
   }
-  return [];
+
+  const namespaceScan = scanRoleNamespaces(user);
+  const permissions = coerceToStringArray((user as Record<string, unknown>).permissions);
+
+  return {
+    hasRolesClaim: namespaceScan.claimKeysWithValues.length > 0,
+    rolesClaimKeyUsed: namespaceScan.claimKeyUsed,
+    roles: getUserRoles(user),
+    hasPermissions: permissions.length > 0,
+    permissions,
+  };
+}
+
+export function logRoleDebug(user: User | null | undefined, context: string = 'rbac') {
+  if (!DEBUG_AUTH_ENABLED) return;
+  const inspection = inspectUserRolesAndPermissions(user);
+  const summary = user
+    ? { sub: (user as Record<string, unknown>).sub, email: (user as Record<string, unknown>).email }
+    : null;
+
+  console.log('[RBAC debug]', { context, summary, inspection, roleNamespaces: ROLE_NAMESPACE_CANDIDATES });
 }
 
 // Helper function to get user roles from Auth0 user object
 export function getUserRoles(user: User | null | undefined): UserRole[] {
   if (!user) return [];
+  const namespaceRoles = scanRoleNamespaces(user);
   const roleCandidates: string[] = [
-    ...getClaimArray(user, ROLE_NAMESPACE),
-    ...getClaimArray(user, 'roles'),
-    ...(Array.isArray(user['app_metadata']?.roles) ? user['app_metadata']!.roles : []),
-    ...(Array.isArray(user['user_metadata']?.roles) ? user['user_metadata']!.roles : []),
-    ...(user['app_metadata']?.role ? [user['app_metadata']!.role] : []),
+    ...namespaceRoles.roles,
+    ...coerceToStringArray((user as Record<string, unknown>).roles),
+    ...coerceToStringArray(user['app_metadata']?.roles),
+    ...coerceToStringArray(user['user_metadata']?.roles),
+    ...coerceToStringArray(user['app_metadata']?.role),
+    ...coerceToStringArray(user['user_metadata']?.role),
   ];
 
-  // Support singular custom-claim naming (e.g., /role instead of /roles)
-  const singularNamespaceKey = `${ROLE_NAMESPACE.replace(/\/roles$/, '')}/role`;
-  const singularNamespaceValue = (user as Record<string, unknown>)[singularNamespaceKey];
-  if (typeof singularNamespaceValue === 'string') {
-    roleCandidates.push(singularNamespaceValue);
-  }
+  const permissionValues = coerceToStringArray((user as Record<string, unknown>).permissions);
 
   const deduped = Array.from(new Set(roleCandidates.filter(Boolean)));
-  const normalized = deduped
+  const normalizedFromRoles = deduped
     .map((role) => normalizeRole(role))
     .filter((role): role is UserRole => Boolean(role));
 
-  if (normalized.length > 0) return normalized;
+  if (normalizedFromRoles.length > 0) return normalizedFromRoles;
+
+  const normalizedFromPermissions = permissionValues
+    .map((value) => normalizeRole(value))
+    .filter((role): role is UserRole => Boolean(role));
+
+  if (normalizedFromPermissions.length > 0) return normalizedFromPermissions;
 
   // Fallback: infer role from permissions when roles are not included in the token
-  const permissions = Array.isArray((user as Record<string, unknown>).permissions)
-    ? ((user as Record<string, unknown>).permissions as string[])
-    : [];
+  if (permissionValues.length > 0) {
+    const hasAdminPerm = permissionValues.some((p) =>
+      p.startsWith('write:users') || p.startsWith('delete:users')
+    );
+    if (hasAdminPerm) return ['admin'];
 
-  const hasAdminPerm = permissions.some((p) =>
-    p.startsWith('write:users') || p.startsWith('delete:users')
-  );
-  if (hasAdminPerm) return ['admin'];
-
-  const hasManagerPerm = permissions.some((p) =>
-    p.startsWith('write:mediaplans') ||
-    p.startsWith('write:clients') ||
-    p.startsWith('write:publishers')
-  );
-  if (hasManagerPerm) return ['manager'];
-
-  // Configurable/local fallback to ensure admins aren't blocked during dev
-  const fallbackRole =
-    process.env.NEXT_PUBLIC_FALLBACK_ROLE ||
-    (process.env.NODE_ENV === 'development' ? 'admin' : null);
-  if (fallbackRole && normalizeRole(fallbackRole)) {
-    return [normalizeRole(fallbackRole)!];
+    const hasManagerPerm = permissionValues.some((p) =>
+      p.startsWith('write:mediaplans') ||
+      p.startsWith('write:clients') ||
+      p.startsWith('write:publishers')
+    );
+    if (hasManagerPerm) return ['manager'];
   }
 
-  return normalized;
+  return normalizedFromRoles;
 }
 
 export function getPrimaryRole(user: User | null | undefined): UserRole | null {
@@ -165,7 +280,7 @@ export function isClientRole(role: UserRole | null | undefined): boolean {
 export function getUserClientIdentifier(user: User | null | undefined): string | null {
   if (!user) return null;
   const claimValue =
-    (user as Record<string, unknown>)[CLIENT_NAMESPACE] ||
+    getClaimArray(user, CLIENT_NAMESPACE_CANDIDATES)[0] ||
     user['app_metadata']?.client ||
     user['app_metadata']?.client_id ||
     user['app_metadata']?.clientId ||
@@ -184,12 +299,6 @@ export function getUserClientIdentifier(user: User | null | undefined): string |
 export function hasRole(user: User, requiredRoles: UserRole | UserRole[]): boolean {
   const userRoles = getUserRoles(user);
   const rolesArray = Array.isArray(requiredRoles) ? requiredRoles : [requiredRoles];
-
-  // Temporary fallback for development - assign admin role if no roles found
-  if (userRoles.length === 0 && process.env.NODE_ENV === 'development') {
-    console.log('No roles found, assigning admin role for development');
-    return true; // Allow access in development
-  }
 
   return rolesArray.some(role => userRoles.includes(role));
 }

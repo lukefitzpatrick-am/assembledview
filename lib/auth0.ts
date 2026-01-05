@@ -1,6 +1,5 @@
 // src/lib/auth0.ts (or /lib/auth0.ts)
 import { Auth0Client } from '@auth0/nextjs-auth0/server';
-import { NextResponse } from 'next/server';
 
 // Fail fast if required environment variables are missing
 ['AUTH0_DOMAIN', 'AUTH0_CLIENT_ID', 'AUTH0_CLIENT_SECRET', 'AUTH0_SECRET', 'APP_BASE_URL'].forEach((key) => {
@@ -9,16 +8,43 @@ import { NextResponse } from 'next/server';
   }
 });
 
+const missingAudience = !process.env.AUTH0_AUDIENCE;
+if (missingAudience) {
+  console.warn(
+    'AUTH0_AUDIENCE is not set; RBAC roles may be missing from tokens (ensure the Management API audience is configured).'
+  );
+}
+
+export const baseAuthParams = {
+  scope: process.env.AUTH0_SCOPE || 'openid profile email',
+  audience: process.env.AUTH0_AUDIENCE,
+};
+
+const ROLE_CLAIMS = ['https://assembledview.com/roles', 'https://assembledview.com.au/roles'];
+const CLIENT_CLAIMS = ['https://assembledview.com/client', 'https://assembledview.com.au/client'];
+
 export const auth0 = new Auth0Client({
-  // SDK will use APP_BASE_URL and AUTH0_DOMAIN from environment variables
-  authorizationParameters: {
-    scope: process.env.AUTH0_SCOPE || 'openid profile email',
-    audience: process.env.AUTH0_AUDIENCE,
-  },
-  async onCallback(error) {
-    if (error) {
-      return NextResponse.redirect(new URL('/error', process.env.APP_BASE_URL));
+  authorizationParameters: baseAuthParams,
+  // Persist custom claims from the ID token/Action onto the session.user object
+  async beforeSessionSaved(session) {
+    const user = session.user || {};
+
+    for (const claim of ROLE_CLAIMS) {
+      const value = (user as Record<string, unknown>)[claim];
+      if (value !== undefined) {
+        (session.user as Record<string, unknown>)[claim] = value;
+        break;
+      }
     }
-    return NextResponse.redirect(new URL('/dashboard', process.env.APP_BASE_URL));
+
+    for (const claim of CLIENT_CLAIMS) {
+      const value = (user as Record<string, unknown>)[claim];
+      if (value !== undefined) {
+        (session.user as Record<string, unknown>)[claim] = value;
+        break;
+      }
+    }
+
+    return session;
   },
 });

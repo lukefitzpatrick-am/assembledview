@@ -1,11 +1,12 @@
 "use client";
 
-import { createContext, useContext, useMemo } from "react";
+import { createContext, useContext, useEffect, useMemo } from "react";
 import { useUser } from "@/components/AuthWrapper";
 import {
   getHighestRole,
   getUserClientIdentifier,
   getUserRoles,
+  logRoleDebug,
   UserRole,
 } from "@/lib/rbac";
 
@@ -33,6 +34,12 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
     () => getUserClientIdentifier(user),
     [user]
   );
+
+  useEffect(() => {
+    if (process.env.NEXT_PUBLIC_DEBUG_AUTH === "true") {
+      logRoleDebug(user, "AuthContext");
+    }
+  }, [user, userRoles]);
 
   const value = useMemo<AuthContextValue>(() => ({
     user,
