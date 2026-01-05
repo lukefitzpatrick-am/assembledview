@@ -1,11 +1,11 @@
-import { getSession } from '@auth0/nextjs-auth0';
 import { redirect } from 'next/navigation';
 import { inspectUserRolesAndPermissions, getUserRoles } from '@/lib/rbac';
+import { auth0 } from '@/lib/auth0';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AdminAuthDebugPage() {
-  const session = await getSession();
+  const session = await auth0.getSession();
 
   if (!session?.user) {
     redirect('/auth/login?returnTo=/admin/auth-debug');

@@ -1,6 +1,6 @@
-import { getSession } from '@auth0/nextjs-auth0';
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserRoles, UserRole } from './rbac';
+import { auth0 } from './auth0';
 
 type RequireRoleOptions = {
   allowEmails?: string[];
@@ -32,7 +32,7 @@ export async function requireRole(
   options: RequireRoleOptions = {}
 ): Promise<RequireRoleSuccess | RequireRoleFailure> {
   const res = NextResponse.next();
-  const session = await getSession(req, res);
+  const session = await auth0.getSession(req, res);
 
   if (!session || !session.user) {
     return { response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };

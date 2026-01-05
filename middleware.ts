@@ -1,8 +1,11 @@
 import type { NextRequest } from 'next/server';
-import { auth0 } from './lib/auth0';
+import { NextResponse } from 'next/server';
 
-export async function middleware(request: NextRequest) {
-  return auth0.middleware(request);
+// Auth0's server SDK pulls in Node-only modules that are incompatible with the Edge
+// runtime used by Next.js middleware. To keep deployments working, we bypass the
+// middleware integration here and let route-level guards enforce access control.
+export function middleware(_request: NextRequest) {
+  return NextResponse.next();
 }
 
 export const config = {

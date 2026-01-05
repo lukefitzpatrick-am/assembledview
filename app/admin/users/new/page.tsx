@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, Suspense, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -73,7 +73,8 @@ export default function NewAdminUserPage() {
   };
 
   return (
-    <AdminGuard>
+    <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Loading...</div>}>
+      <AdminGuard>
       <div className="mx-auto flex max-w-xl flex-col gap-6 py-10">
         <div>
           <h1 className="text-2xl font-semibold">Create Auth0 User</h1>
@@ -185,7 +186,8 @@ export default function NewAdminUserPage() {
           Only allowlisted admins can use this tool. The backend uses the Auth0 Management API to create the user, mark the email as verified, generate a password-set ticket (24h), and send the invite via SendGrid (or SMTP fallback).
         </div>
       </div>
-    </AdminGuard>
+      </AdminGuard>
+    </Suspense>
   );
 }
 
