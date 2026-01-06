@@ -83,7 +83,8 @@ const MEDIA_CONTAINER_ENDPOINTS = {
   progBvod: 'prog_bvod_line_items',
   progAudio: 'prog_audio_line_items',
   progOoh: 'prog_ooh_line_items',
-  influencers: 'influencers_line_items'
+  influencers: 'influencers_line_items',
+  production: 'media_plan_production',
 }
 
 // Media type mapping for display
@@ -106,7 +107,8 @@ const MEDIA_TYPE_DISPLAY_NAMES = {
   progBvod: 'Programmatic BVOD',
   progAudio: 'Programmatic Audio',
   progOoh: 'Programmatic OOH',
-  influencers: 'Influencers'
+  influencers: 'Influencers',
+  production: 'Production',
 }
 
 /**

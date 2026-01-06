@@ -5,41 +5,31 @@ import type { ChatCompletionMessageParam } from "openai/resources/index.mjs"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
-import { getAssistantContext, getAssistantSummary } from "@/lib/assistantBridge"
-import { getPageDataSummary as summarizePageData } from "@/lib/pageData"
+import { getAssistantContext } from "@/lib/assistantBridge"
+import type { PageContext } from "@/lib/openai"
+import type { ChatMode } from "@/src/ava/modes"
 
 type ChatWidgetProps = {
-  getPageDataSummary?: () => Promise<string | undefined> | string | undefined
-  systemInstructions?: string
+  getPageContext?: () => Promise<PageContext | undefined> | PageContext | undefined
+  pageContext?: PageContext
+  mode?: ChatMode
   initialMessages?: ChatCompletionMessageParam[]
   className?: string
 }
 
 export function ChatWidget({
-  getPageDataSummary,
-  systemInstructions,
+  getPageContext,
+  pageContext,
+  mode = "general",
   initialMessages = [],
   className,
 }: ChatWidgetProps) {
-  const actionInstruction =
-    [
-      "When the user asks to change on-page data, include a JSON block in triple backticks. Supported shapes:",
-      '- {"action":"updateBurstBudget","mediaType":"search","burstIndex":0,"budget":12345}',
-      '- {"action":"setField","fieldId":"mp_campaignbudget","value":"50000"}',
-      '- {"action":"setField","selector":"input[name=mp_campaignname]","value":"New name"}',
-      '- {"action":"click","selector":"button[data-test=save-plan]"}',
-      '- {"action":"select","selector":"select[name=mp_campaignstatus]","value":"On Hold"}',
-      '- {"action":"toggle","selector":"input[type=checkbox][name=mp_search]","value":true}',
-      "Only emit an action when confident; otherwise ask a clarifying question.",
-    ].join(" ")
-
   const [isOpen, setIsOpen] = useState(false)
   const [isSending, setIsSending] = useState(false)
   const [input, setInput] = useState("")
   const [messages, setMessages] = useState<ChatCompletionMessageParam[]>(initialMessages)
   const [error, setError] = useState<string | null>(null)
   const [isUploading, setIsUploading] = useState(false)
-  const [uploadContext, setUploadContext] = useState<any | null>(null)
 
   const appendAssistantNote = useCallback(
     (content: string) => setMessages((prev) => [...prev, { role: "assistant", content }]),
@@ -66,7 +56,6 @@ export function ChatWidget({
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "Upload failed")
 
-      setUploadContext(data)
       const summary =
         `Uploaded ${data.sources?.length || 0} file(s); extracted ${data.items?.length || 0} items.` +
         (data.sources?.[0]?.fileName ? ` First file: ${data.sources[0].fileName}` : "")
@@ -90,32 +79,13 @@ export function ChatWidget({
     setInput("")
 
     try {
-      const pageDataFromProp =
-        typeof getPageDataSummary === "function" ? await getPageDataSummary() : getPageDataSummary
-      const assistantSummary = getAssistantSummary()
-      const fallbackPageData =
-        typeof window !== "undefined"
-          ? // Optional global spot where pages can attach data for the assistant
-            (window as any).__ASSEMBLED_VIEW_DATA ||
-            (window as any).__AV_PAGE_DATA ||
-            (window as any).__PAGE_DATA__
-          : undefined
-      const combinedSummary = {
-        page: pageDataFromProp ?? assistantSummary ?? fallbackPageData,
-        uploads: uploadContext
-          ? {
-              sources: uploadContext.sources,
-              itemsPreview: uploadContext.items?.slice(0, 20),
-              totalItems: uploadContext.items?.length,
-            }
-          : undefined,
-      }
-      const pageDataSummary = summarizePageData(combinedSummary ?? fallbackPageData)
+      const resolvedPageContext =
+        typeof getPageContext === "function" ? await getPageContext() : pageContext
 
       const payload = {
         messages: updatedMessages,
-        pageDataSummary,
-        systemInstructions: [systemInstructions, actionInstruction].filter(Boolean).join("\n\n"),
+        pageContext: resolvedPageContext,
+        mode,
       }
 
       const response = await fetch("/api/chat", {
@@ -127,9 +97,10 @@ export function ChatWidget({
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "Chat failed")
 
-      const assistantMessage: ChatCompletionMessageParam = { role: "assistant", content: data.reply }
+      const assistantContent = data.replyText ?? data.reply ?? ""
+      const assistantMessage: ChatCompletionMessageParam = { role: "assistant", content: assistantContent }
       setMessages((prev) => [...prev, assistantMessage])
-      await maybeHandleAssistantAction(data.reply, appendAssistantNote)
+      await maybeHandleAssistantAction(assistantContent, appendAssistantNote)
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to send message"
       setError(message)

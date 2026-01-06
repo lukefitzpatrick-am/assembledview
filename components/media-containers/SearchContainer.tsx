@@ -52,6 +52,21 @@ const formatDateString = (d?: Date | string): string => {
   return `${year}-${month}-${day}`;
 };
 
+type FrameHandle = number;
+const scheduleNextFrame = (cb: () => void): FrameHandle => {
+  if (typeof requestAnimationFrame === "function") {
+    return requestAnimationFrame(cb);
+  }
+  return window.setTimeout(cb, 0);
+};
+const cancelNextFrame = (handle: FrameHandle) => {
+  if (typeof cancelAnimationFrame === "function") {
+    cancelAnimationFrame(handle);
+  } else {
+    clearTimeout(handle);
+  }
+};
+
 // Exported utility function to get bursts
 export function getAllBursts(form) {
   const lineItems = form.getValues("lineItems") || [];
@@ -467,55 +482,59 @@ export default function SearchContainer({
 
   // Transform form data to API schema format
   useEffect(() => {
-    const formLineItems = form.getValues('lineItems') || [];
-    
-    const transformedLineItems = formLineItems.map((lineItem, index) => {
-      // Calculate totalMedia from raw budget amounts (for display in MBA section)
-      let totalMedia = 0;
-      lineItem.bursts.forEach((burst) => {
-        const budget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0;
-        if (lineItem.budgetIncludesFees) {
-          // Budget is gross, extract media portion
-          // Media = Budget * ((100 - Fee) / 100)
-          totalMedia += (budget * (100 - (feesearch || 0))) / 100;
-        } else {
-          // Budget is net media
-          totalMedia += budget;
-        }
+    const handle = scheduleNextFrame(() => {
+      const formLineItems = form.getValues('lineItems') || [];
+      
+      const transformedLineItems = formLineItems.map((lineItem, index) => {
+        // Calculate totalMedia from raw budget amounts (for display in MBA section)
+        let totalMedia = 0;
+        lineItem.bursts.forEach((burst) => {
+          const budget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0;
+          if (lineItem.budgetIncludesFees) {
+            // Budget is gross, extract media portion
+            // Media = Budget * ((100 - Fee) / 100)
+            totalMedia += (budget * (100 - (feesearch || 0))) / 100;
+          } else {
+            // Budget is net media
+            totalMedia += budget;
+          }
+        });
+
+        return {
+          media_plan_version: 0,
+          mba_number: mbaNumber || "",
+          mp_client_name: "",
+          mp_plannumber: "",
+          platform: lineItem.platform || "",
+          bid_strategy: lineItem.bidStrategy || "",
+          buy_type: lineItem.buyType || "",
+          creative_targeting: lineItem.creativeTargeting || "",
+          creative: lineItem.creative || "",
+          buying_demo: lineItem.buyingDemo || "",
+          market: lineItem.market || "",
+          fixed_cost_media: lineItem.fixedCostMedia || false,
+          client_pays_for_media: lineItem.clientPaysForMedia || false,
+          budget_includes_fees: lineItem.budgetIncludesFees || false,
+          no_adserving: lineItem.noadserving || false,
+          line_item_id: `${mbaNumber || 'SRC'}${index + 1}`,
+          bursts_json: JSON.stringify(lineItem.bursts.map(burst => ({
+            budget: burst.budget || "",
+            buyAmount: burst.buyAmount || "",
+            startDate: burst.startDate ? (burst.startDate instanceof Date ? burst.startDate.toISOString() : burst.startDate) : "",
+            endDate: burst.endDate ? (burst.endDate instanceof Date ? burst.endDate.toISOString() : burst.endDate) : "",
+            calculatedValue: burst.calculatedValue || 0,
+            fee: burst.fee || 0,
+          }))),
+          line_item: index + 1,
+          totalMedia: totalMedia,
+        };
       });
 
-      return {
-        media_plan_version: 0,
-        mba_number: mbaNumber || "",
-        mp_client_name: "",
-        mp_plannumber: "",
-        platform: lineItem.platform || "",
-        bid_strategy: lineItem.bidStrategy || "",
-        buy_type: lineItem.buyType || "",
-        creative_targeting: lineItem.creativeTargeting || "",
-        creative: lineItem.creative || "",
-        buying_demo: lineItem.buyingDemo || "",
-        market: lineItem.market || "",
-        fixed_cost_media: lineItem.fixedCostMedia || false,
-        client_pays_for_media: lineItem.clientPaysForMedia || false,
-        budget_includes_fees: lineItem.budgetIncludesFees || false,
-        no_adserving: lineItem.noadserving || false,
-        line_item_id: `${mbaNumber || 'SRC'}${index + 1}`,
-        bursts_json: JSON.stringify(lineItem.bursts.map(burst => ({
-          budget: burst.budget || "",
-          buyAmount: burst.buyAmount || "",
-          startDate: burst.startDate ? (burst.startDate instanceof Date ? burst.startDate.toISOString() : burst.startDate) : "",
-          endDate: burst.endDate ? (burst.endDate instanceof Date ? burst.endDate.toISOString() : burst.endDate) : "",
-          calculatedValue: burst.calculatedValue || 0,
-          fee: burst.fee || 0,
-        }))),
-        line_item: index + 1,
-        totalMedia: totalMedia,
-      };
+      onMediaLineItemsChange(transformedLineItems);
     });
 
-    onMediaLineItemsChange(transformedLineItems);
-  }, [watchedLineItems, mbaNumber, onMediaLineItemsChange]);
+    return () => cancelNextFrame(handle);
+  }, [watchedLineItems, mbaNumber, feesearch, onMediaLineItemsChange]);
   
   // Memoized calculations
   // Note: For display purposes, always show media amounts regardless of clientPaysForMedia
@@ -713,8 +732,8 @@ export default function SearchContainer({
       buyAmount: lastBurst?.buyAmount ?? "",
       startDate,
       endDate,
-      calculatedValue: 0,
-      fee: 0,
+      calculatedValue: lastBurst?.calculatedValue ?? 0,
+      fee: lastBurst?.fee ?? 0,
     };
 
     form.setValue(`lineItems.${lineItemIndex}.bursts`, [
@@ -822,42 +841,46 @@ useEffect(() => {
 }, [overallTotals.overallMedia, overallTotals.overallFee]) // Removed onTotalMediaChange dependency to prevent infinite loops
 
 useEffect(() => {
-  // convert each form lineItem into the shape needed for Excel (and naming)
-  const calculatedBursts = getSearchBursts(form, feesearch || 0);
-  let burstIndex = 0;
+  const handle = scheduleNextFrame(() => {
+    // convert each form lineItem into the shape needed for Excel (and naming)
+    const calculatedBursts = getSearchBursts(form, feesearch || 0);
+    let burstIndex = 0;
 
-  const items: LineItem[] = form.getValues('lineItems').flatMap((lineItem, lineItemIndex) =>
-    lineItem.bursts.map(burst => {
-      const computedBurst = calculatedBursts[burstIndex++];
-      const mediaAmount = computedBurst
-        ? computedBurst.mediaAmount
-        : parseFloat(String(burst.budget).replace(/[^0-9.-]+/g, "")) || 0;
-      const lineItemId = `${mbaNumber || 'SRC'}${lineItemIndex + 1}`;
+    const items: LineItem[] = form.getValues('lineItems').flatMap((lineItem, lineItemIndex) =>
+      lineItem.bursts.map(burst => {
+        const computedBurst = calculatedBursts[burstIndex++];
+        const mediaAmount = computedBurst
+          ? computedBurst.mediaAmount
+          : parseFloat(String(burst.budget).replace(/[^0-9.-]+/g, "")) || 0;
+        const lineItemId = `${mbaNumber || 'SRC'}${lineItemIndex + 1}`;
 
-      return {
-        market: lineItem.market,                                // or fixed value
-        platform: lineItem.platform,
-        bidStrategy: lineItem.bidStrategy,
-        targeting: lineItem.creativeTargeting,
-        creative:   lineItem.creative,
-        startDate: formatDateString(burst.startDate),
-        endDate:   formatDateString(burst.endDate),
-        deliverables: burst.calculatedValue ?? 0,
-        buyingDemo:   lineItem.buyingDemo,
-        buyType:      lineItem.buyType,
-        deliverablesAmount: burst.budget,
-        grossMedia: mediaAmount.toFixed(2),
-        line_item_id: lineItemId,
-        lineItemId,
-        line_item: lineItemIndex + 1,
-        buyAmount: burst.buyAmount ?? burst.budget,
-      };
-    })
-  );
-  
-  // push it up to page.tsx
-  onLineItemsChange(items);
-}, [watchedLineItems, feesearch, mbaNumber]);
+        return {
+          market: lineItem.market,                                // or fixed value
+          platform: lineItem.platform,
+          bidStrategy: lineItem.bidStrategy,
+          targeting: lineItem.creativeTargeting,
+          creative:   lineItem.creative,
+          startDate: formatDateString(burst.startDate),
+          endDate:   formatDateString(burst.endDate),
+          deliverables: burst.calculatedValue ?? 0,
+          buyingDemo:   lineItem.buyingDemo,
+          buyType:      lineItem.buyType,
+          deliverablesAmount: burst.budget,
+          grossMedia: mediaAmount.toFixed(2),
+          line_item_id: lineItemId,
+          lineItemId,
+          line_item: lineItemIndex + 1,
+          buyAmount: burst.buyAmount ?? burst.budget,
+        };
+      })
+    );
+    
+    // push it up to page.tsx
+    onLineItemsChange(items);
+  });
+
+  return () => cancelNextFrame(handle);
+}, [watchedLineItems, feesearch, mbaNumber, onLineItemsChange]);
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {

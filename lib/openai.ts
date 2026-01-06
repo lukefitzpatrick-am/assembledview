@@ -1,28 +1,81 @@
 import OpenAI from "openai"
 import type { ChatCompletionMessageParam } from "openai/resources/index.mjs"
+import { avaBoundaries, avaIdentity } from "@/src/ava/systemPrompt"
+import { avaVoiceSpec } from "@/src/ava/voiceSpec"
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 const DEFAULT_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini"
 
 type BuildSystemPromptInput = {
-  pageDataSummary?: string
+  pageContext?: PageContext
   xanoDataSummary?: string
   customInstructions?: string
 }
 
+export type PageField = {
+  fieldId?: string
+  id?: string
+  label?: string
+  value?: unknown
+  editable?: boolean
+  required?: boolean
+  type?: string
+  options?: { label: string; value: string }[] | string[]
+}
+
+export type PageContext = {
+  route?: { pathname?: string; clientSlug?: string; mbaSlug?: string } | string
+  fields?: PageField[]
+  generatedAt?: string
+}
+
+export type FormPatchUpdate = { fieldId: string; value: unknown }
+export type FormPatch = { updates: FormPatchUpdate[] }
+export type ModelChatReply = { replyText: string; patch: FormPatch | null }
+
+const jsonReplyContract = [
+  "Always respond with JSON only (no prose, markdown, or fences).",
+  'Response shape: {"replyText": string, "patch": FormPatch | null}.',
+  'FormPatch: {"updates":[{"fieldId":string,"value":any}]}.',
+  "If the user did not request a change, return patch as null.",
+  "Only include updates for fields explicitly marked editable in the provided page context.",
+].join("\n")
+
 export function buildSystemPrompt({
-  pageDataSummary,
+  pageContext,
   xanoDataSummary,
   customInstructions,
 }: BuildSystemPromptInput) {
+  const hardRules = [
+    "- Ava can only propose edits for field IDs present in provided PageContext and marked editable.",
+    "- Do not emit any content outside the required JSON shape.",
+  ].join("\n")
+
+  const editableFields =
+    pageContext?.fields
+      ?.map((field) => ({
+        ...field,
+        fieldId: field.fieldId || field.id,
+      }))
+      .filter((field) => field.fieldId) || []
+
+  const editableFieldSummary = editableFields.length
+    ? `Editable field IDs you may update:\n${editableFields
+        .filter((field) => field.editable === true)
+        .map((field) => `- ${field.fieldId}${field.label ? ` (${field.label})` : ""}`)
+        .join("\n")}`
+    : undefined
+
   const parts = [
-    "You are AssembledView's AI assistant. Answer concisely, be explicit with numbers, and prefer bullet points for multi-step answers.",
-    "If the user asks to fill or transform media plan data, propose a clear JSON shape with fields like name, channel, publisher, flight dates, specs, deadlines, budgets, KPIs, and notes.",
-    "When the user explicitly requests an edit, provide a short acknowledgement followed by a JSON block in triple backticks describing the action. Use one of:\n- {\"action\":\"updateBurstBudget\",\"mediaType\":\"search\",\"burstIndex\":0,\"budget\":12345}\n- {\"action\":\"setField\",\"fieldId\":\"mp_campaignbudget\",\"value\":\"50000\"}\n- {\"action\":\"setField\",\"selector\":\"input[name=mp_campaignname]\",\"value\":\"New name\"}\n- {\"action\":\"click\",\"selector\":\"button[data-test=save-plan]\"}\n- {\"action\":\"select\",\"selector\":\"select[name=mp_campaignstatus]\",\"value\":\"On Hold\"}\n- {\"action\":\"toggle\",\"selector\":\"input[type=checkbox][name=mp_search]\",\"value\":true}\nOnly emit an action when confident; otherwise ask clarifying questions.",
+    avaIdentity,
+    avaBoundaries,
+    `Voice rules:\n${avaVoiceSpec}`,
+    `Hard rules:\n${hardRules}`,
+    `Response contract:\n${jsonReplyContract}`,
   ]
 
-  if (pageDataSummary) {
-    parts.push(`Here is current page data to reference:\n${pageDataSummary}`)
+  if (editableFieldSummary) {
+    parts.push(editableFieldSummary)
   }
 
   if (xanoDataSummary) {
@@ -46,17 +99,19 @@ function getClient() {
 export type ChatCallOptions = {
   model?: string
   temperature?: number
+  responseFormat?: "json_object" | "text"
 }
 
 export async function callOpenAIChat(
   messages: ChatCompletionMessageParam[],
-  { model = DEFAULT_MODEL, temperature = 0.2 }: ChatCallOptions = {}
+  { model = DEFAULT_MODEL, temperature = 0.2, responseFormat }: ChatCallOptions = {}
 ) {
   const openai = getClient()
   const completion = await openai.chat.completions.create({
     model,
     temperature,
     messages,
+    response_format: responseFormat ? { type: responseFormat } : undefined,
   })
 
   const reply = completion.choices[0]?.message?.content || ""

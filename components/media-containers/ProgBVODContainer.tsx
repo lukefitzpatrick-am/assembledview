@@ -658,8 +658,8 @@ export default function ProgBVODContainer({
       buyAmount: lastBurst?.buyAmount ?? "",
       startDate,
       endDate,
-      calculatedValue: 0,
-      fee: 0,
+      calculatedValue: lastBurst?.calculatedValue ?? 0,
+      fee: lastBurst?.fee ?? 0,
     };
 
     form.setValue(`lineItems.${lineItemIndex}.bursts`, [

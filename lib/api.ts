@@ -124,6 +124,23 @@ interface DigitalVideoLineItem {
   line_item: number;
 }
 
+// Production / Consulting
+export interface ProductionLineItem {
+  id?: number;
+  created_at?: number;
+  media_plan_version: number;
+  mba_number: string;
+  mp_client_name: string;
+  mp_plannumber: string;
+  media_type: string;
+  publisher: string;
+  description: string;
+  market?: string;
+  line_item_id: string;
+  bursts_json: any;
+  line_item: number;
+}
+
 interface MagazinesLineItem {
   id: number;
   created_at: number;
@@ -2610,6 +2627,125 @@ export async function deleteSearchLineItem(id: number): Promise<void> {
     method: 'DELETE',
   });
   if (!response.ok) throw new Error("Failed to delete search line item");
+}
+
+// Production CRUD Functions
+export async function getProductionLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number): Promise<ProductionLineItem[]> {
+  try {
+    let url = `/api/media_plans/production?mba_number=${mbaNumber}`;
+    if (mediaPlanVersion !== undefined && mediaPlanVersion !== null) {
+      url += `&media_plan_version=${mediaPlanVersion}&mp_plannumber=${mediaPlanVersion}`;
+      console.log(`[API] Fetching production line items for MBA ${mbaNumber} with version ${mediaPlanVersion}`);
+    } else {
+      console.log(`[API] Fetching production line items for MBA ${mbaNumber} without version number`);
+    }
+
+    const response = await fetch(url);
+    if (!response.ok) {
+      if (response.status === 404) {
+        console.log(`[API] No production line items found for MBA ${mbaNumber} (404)`);
+        return [];
+      }
+      console.warn(`[API] Failed to fetch production line items (${response.status})`);
+      return [];
+    }
+
+    return response.json();
+  } catch (error) {
+    console.warn("Error fetching production line items:", error);
+    return [];
+  }
+}
+
+export async function saveProductionLineItems(
+  mediaPlanVersionId: number,
+  mbaNumber: string,
+  clientName: string,
+  planNumber: string,
+  productionLineItems: any[]
+) {
+  try {
+    const savePromises = productionLineItems.map(async (lineItem, index) => {
+      let rawBursts: any[] = [];
+      if (Array.isArray(lineItem.bursts)) {
+        rawBursts = lineItem.bursts;
+      } else if (Array.isArray(lineItem.bursts_json)) {
+        rawBursts = lineItem.bursts_json;
+      } else if (typeof lineItem.bursts_json === 'string') {
+        try {
+          const parsed = JSON.parse(lineItem.bursts_json);
+          if (Array.isArray(parsed)) {
+            rawBursts = parsed;
+          }
+        } catch (err) {
+          console.warn('Failed to parse production bursts_json', err);
+        }
+      }
+
+      const formattedBursts = rawBursts.map((burst: any) => {
+        const cost = typeof burst.cost === 'string'
+          ? parseFloat(burst.cost.replace(/[^0-9.-]/g, '')) || 0
+          : Number(burst.cost ?? 0);
+        const amount = typeof burst.amount === 'string'
+          ? parseFloat(burst.amount.replace(/[^0-9.-]/g, '')) || 0
+          : Number(burst.amount ?? 0);
+
+        const mediaValue = Number.isFinite(cost * amount) ? cost * amount : 0;
+        const calculatedValue = burst.calculatedValue ?? amount ?? 0;
+
+        const toDateString = (value: any) =>
+          value instanceof Date ? toMelbourneDateString(value) : value ?? "";
+
+        return {
+          ...burst,
+          cost,
+          amount,
+          calculatedValue,
+          mediaValue,
+          startDate: toDateString(burst.startDate),
+          endDate: toDateString(burst.endDate),
+        };
+      });
+
+      const { line_item_id, line_item } = buildLineItemMeta(lineItem, mbaNumber, index, 'PROD');
+
+      const productionData: ProductionLineItem = {
+        media_plan_version: mediaPlanVersionId,
+        mba_number: mbaNumber,
+        mp_client_name: clientName,
+        mp_plannumber: planNumber,
+        media_type: getField(lineItem, 'media_type', 'mediaType', ''),
+        publisher: getField(lineItem, 'publisher', 'publisher', ''),
+        description: getField(lineItem, 'description', 'description', ''),
+        market: getField(lineItem, 'market', 'market', ''),
+        line_item_id,
+        bursts_json: formattedBursts,
+        line_item,
+      };
+
+      const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_production`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${XANO_API_KEY}`,
+        },
+        body: JSON.stringify(productionData),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to save production line item ${index + 1}: ${response.statusText}`);
+      }
+
+      return await response.json();
+    });
+
+    const results = await Promise.all(savePromises);
+    console.log('Production line items saved successfully:', results);
+    return results;
+  } catch (error) {
+    console.error('Error saving production line items:', error);
+    throw error;
+  }
 }
 
 // Social Media CRUD Functions

@@ -40,6 +40,7 @@ const mediaTypeLabels: Record<string, string> = {
   progAudio: 'Programmatic Audio',
   progOoh: 'Programmatic OOH',
   influencers: 'Influencers',
+  production: 'Production',
 };
 
 const currencyFormatter = new Intl.NumberFormat('en-AU', {

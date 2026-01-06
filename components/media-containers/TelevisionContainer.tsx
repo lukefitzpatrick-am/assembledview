@@ -741,10 +741,10 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
       buyAmount: lastBurst?.buyAmount ?? "",
       startDate,
       endDate,
-      tarps: "",
-      size: "30s",
-      calculatedValue: 0,
-      fee: 0,
+      tarps: lastBurst?.tarps ?? "",
+      size: lastBurst?.size ?? "30s",
+      calculatedValue: lastBurst?.calculatedValue ?? 0,
+      fee: lastBurst?.fee ?? 0,
     };
 
     form.setValue(`televisionlineItems.${lineItemIndex}.bursts`, [

@@ -12,16 +12,15 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { CalendarIcon } from "lucide-react"
+import { CalendarIcon, ChevronDown, ChevronsUpDown, Check, Download, FileText } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
-import { ChevronDown } from "lucide-react"
 import { toast } from "@/components/ui/use-toast"
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { Table, TableBody, TableCell, TableHeader, TableRow, TableHead, TableFooter } from "@/components/ui/table"
-import { Download, FileText } from "lucide-react"
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { SavingModal, type SaveStatusItem } from "@/components/ui/saving-modal"
 import type { BillingBurst, BillingMonth, BillingLineItem } from "@/lib/billing/types" // adjust path if needed
 import { buildBillingScheduleJSON } from "@/lib/billing/buildBillingSchedule"
@@ -51,10 +50,11 @@ import {
   saveProgBVODLineItems,
   saveProgAudioLineItems,
   saveProgOOHLineItems,
-  saveInfluencersLineItems
+  saveInfluencersLineItems,
+  saveProductionLineItems
 } from "@/lib/api"
 import { checkMediaDatesOutsideCampaign } from "@/lib/utils/mediaPlanValidation"
-import { toMelbourneDateString } from "@/lib/timezone"
+import { toDateOnlyString } from "@/lib/timezone"
 import { setAssistantContext } from "@/lib/assistantBridge"
 
 const mediaPlanSchema = z.object({
@@ -109,6 +109,22 @@ const mediaPlanSchema = z.object({
 })
 
 type MediaPlanFormValues = z.infer<typeof mediaPlanSchema>
+
+type PageField = {
+  id: string;
+  label: string;
+  type: "string" | "number" | "date" | "enum" | "boolean";
+  value: any;
+  editable: true;
+  options?: { label: string; value: string }[];
+  validation?: { required?: boolean; min?: number; max?: number; pattern?: string };
+};
+
+type PageContext = {
+  route: { pathname: string; clientSlug?: string; mbaSlug?: string };
+  fields: PageField[];
+  generatedAt: string;
+};
 
 interface Client {
   id: number
@@ -181,6 +197,7 @@ const mediaKeyMap: { [key: string]: string } = {
   mp_ooh: 'ooh',
   mp_integration: 'integration',
   mp_influencers: 'influencers',
+  mp_consulting: 'production',
 };
 // Add these type declarations at the top of the file
 type BillingMonths = {
@@ -222,6 +239,7 @@ type BillingMonths = {
     progaudio: string;
     progooh: string;
     influencers: string;
+    production: string;
   };
 };
 
@@ -243,10 +261,12 @@ export default function CreateMediaPlan() {
 
   //general and client info
   const router = useRouter()
+  const pathname = usePathname()
   const [clients, setClients] = useState<Client[]>([])
   const [reportId, setReportId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [selectedClientId, setSelectedClientId] = useState<string>("")
+  const [isClientPopoverOpen, setIsClientPopoverOpen] = useState(false)
   const { setMbaNumber } = useMediaPlanContext() 
   const [burstsData, setBurstsData] = useState([])
   const [isDownloading, setIsDownloading] = useState(false)
@@ -278,7 +298,8 @@ export default function CreateMediaPlan() {
     mp_progbvod: 'Programmatic BVOD',
     mp_progaudio: 'Programmatic Audio',
     mp_progooh: 'Programmatic OOH',
-    mp_influencers: 'Influencers'
+    mp_influencers: 'Influencers',
+    mp_consulting: 'Production',
   };
   const [partialMBAError, setPartialMBAError] = useState<string | null>(null);
   const [manualBillingError, setManualBillingError] = useState<string | null>(null);
@@ -890,13 +911,13 @@ export default function CreateMediaPlan() {
           totalMedia: 0,
           totalFee: 0,
           adServing: 0,
-          mediaCosts: { search: 0, socialMedia: 0, progAudio: 0, cinema: 0, digiAudio: 0, digiDisplay: 0, digiVideo: 0, progDisplay: 0, progVideo: 0, progBvod: 0, progOoh: 0, television: 0, radio: 0, newspaper: 0, magazines: 0, ooh: 0, bvod: 0, integration: 0, influencers: 0 /* Add other media types as needed */ }
+          mediaCosts: { search: 0, socialMedia: 0, progAudio: 0, cinema: 0, digiAudio: 0, digiDisplay: 0, digiVideo: 0, progDisplay: 0, progVideo: 0, progBvod: 0, progOoh: 0, television: 0, radio: 0, newspaper: 0, magazines: 0, ooh: 0, bvod: 0, integration: 0, influencers: 0, production: 0 }
       };
       cur.setMonth(cur.getMonth() + 1);
       cur.setDate(1);
   }
     // 2. Distribute a single burst and track its media type.
-    function distribute(burst: BillingBurst, mediaType: 'search' | 'socialMedia' | 'progAudio' | 'cinema' | 'digiAudio' | 'digiDisplay' | 'digiVideo' | 'progDisplay' | 'progVideo' | 'progBvod' | 'progOoh' | 'television' | 'radio' | 'newspaper' | 'magazines' | 'ooh' | 'bvod' | 'integration' | 'influencers') {
+    function distribute(burst: BillingBurst, mediaType: 'search' | 'socialMedia' | 'progAudio' | 'cinema' | 'digiAudio' | 'digiDisplay' | 'digiVideo' | 'progDisplay' | 'progVideo' | 'progBvod' | 'progOoh' | 'television' | 'radio' | 'newspaper' | 'magazines' | 'ooh' | 'bvod' | 'integration' | 'influencers' | 'production') {
       const s = new Date(burst.startDate);
       const e = new Date(burst.endDate);
       if (isNaN(s.getTime()) || isNaN(e.getTime()) || s > e) return; // Guard against invalid dates
@@ -946,6 +967,7 @@ export default function CreateMediaPlan() {
     bvodBursts.forEach(b => distribute(b, 'bvod'));
     integrationBursts.forEach(b => distribute(b, 'integration'));
     influencersBursts.forEach(b => distribute(b, 'influencers'));
+    consultingBursts.forEach(b => distribute(b, 'production'));
 
     // 4. Format into BillingMonth[]
     const formatter = new Intl.NumberFormat("en-AU", {
@@ -1006,7 +1028,7 @@ export default function CreateMediaPlan() {
           feeTotal: formatter.format(totalFee),
           totalAmount: formatter.format(totalMedia + totalFee + adServing),
           adservingTechFees: formatter.format(adServing),
-          production: "$0.00",
+          production: formatter.format(mediaCosts.production || 0),
           mediaCosts: { // This now contains the detailed, calculated breakdown
               search: formatter.format(mediaCosts.search || 0),
               socialMedia: formatter.format(mediaCosts.socialMedia || 0),
@@ -1027,6 +1049,7 @@ export default function CreateMediaPlan() {
               ooh: formatter.format(mediaCosts.ooh || 0),
               integration: formatter.format(mediaCosts.integration || 0),
               influencers: formatter.format(mediaCosts.influencers || 0),
+              production: formatter.format(mediaCosts.production || 0),
              }
       })
   ); 
@@ -1233,7 +1256,11 @@ export default function CreateMediaPlan() {
     const newGrossMediaTotal = calculateGrossMediaTotal();
     setGrossMediaTotal(newGrossMediaTotal);
 
-    const newTotalInvestment = newGrossMediaTotal + calculateAssembledFee() + calculateAdServingFees();
+    const newTotalInvestment =
+      newGrossMediaTotal +
+      calculateAssembledFee() +
+      calculateAdServingFees() +
+      calculateProductionCosts();
     setTotalInvestment(newTotalInvestment);
   }, [
 
@@ -1316,6 +1343,11 @@ export default function CreateMediaPlan() {
     adservaudio,
     adservdisplay,
     adservvideo,
+    // Production
+    consultingTotal,
+    // Manual billing
+    isManualBilling,
+    billingMonths,
   ]);
 
   useEffect(() => {
@@ -1491,8 +1523,8 @@ export default function CreateMediaPlan() {
         mp_brand: fv.mp_brand,
         mp_ponumber: fv.mp_ponumber,
         mp_plannumber: fv.mp_plannumber,
-        mp_campaigndates_start: toMelbourneDateString(fv.mp_campaigndates_start),
-        mp_campaigndates_end: toMelbourneDateString(fv.mp_campaigndates_end),
+        mp_campaigndates_start: toDateOnlyString(fv.mp_campaigndates_start),
+        mp_campaigndates_end: toDateOnlyString(fv.mp_campaigndates_end),
         clientAddress: clientAddress,
         clientSuburb: clientSuburb,
         clientState: clientState,
@@ -1579,6 +1611,8 @@ export default function CreateMediaPlan() {
         return progBvodTotal ?? 0;
       case "mp_progooh":
         return progOohTotal ?? 0;
+    case "mp_consulting":
+      return consultingTotal ?? 0;
       case "mp_influencers":
         return feecontentcreator ?? 0;
       case "mp_television":
@@ -1624,10 +1658,16 @@ export default function CreateMediaPlan() {
           return adservimp    ?? 0
       }
     }
-    // Calculate Production Costs (assuming content creator fees count as production)
-    const calculateProductionCosts = () => {
-      return 0;
-    };
+  // Calculate Production Costs
+  const calculateProductionCosts = () => {
+    if (isManualBilling) {
+      return billingMonths.reduce((sum, month) => {
+        const monthProductionTotal = parseFloat(month.production.replace(/[^0-9.-]/g, ""));
+        return sum + (monthProductionTotal || 0);
+      }, 0);
+    }
+    return consultingTotal ?? 0;
+  };
 
     // Calculate Ad Serving Fees
   const calculateAdServingFees = () => {
@@ -1719,7 +1759,8 @@ export default function CreateMediaPlan() {
     (radioTotal ?? 0) +
     (newspaperTotal ?? 0) +
     (magazineTotal ?? 0) +
-    (oohTotal ?? 0)
+    (oohTotal ?? 0) +
+    (consultingTotal ?? 0)
   );
 };
   
@@ -1783,6 +1824,7 @@ export default function CreateMediaPlan() {
       grossMediaTotal 
       + calculateAssembledFee()
       + calculateAdServingFees()
+      + calculateProductionCosts()
     );
   };
 
@@ -1938,61 +1980,61 @@ export default function CreateMediaPlan() {
   ]
   
   const handleSearchBurstsChange = (bursts: BillingBurst[]) =>
-    setSearchBursts(bursts)
+    setSearchBursts([...bursts])
 
   const handleProgAudioBurstsChange = (bursts: BillingBurst[]) =>
-    setProgAudioBursts(bursts);
+    setProgAudioBursts([...bursts]);
 
   const handleSocialMediaBurstsChange = (bursts: BillingBurst[]) =>
-    setSocialMediaBursts(bursts)
+    setSocialMediaBursts([...bursts])
 
   const handleCinemaBurstsChange = (bursts: BillingBurst[]) =>
-    setCinemaBursts(bursts)
+    setCinemaBursts([...bursts])
 
   const handleTelevisionBurstsChange = (bursts: BillingBurst[]) =>
-    setTelevisionBursts(bursts)
+    setTelevisionBursts([...bursts])
 
   const handleRadioBurstsChange = (bursts: BillingBurst[]) =>
-    setRadioBursts(bursts)
+    setRadioBursts([...bursts])
 
   const handleIntegrationBurstsChange = (bursts: BillingBurst[]) =>
-    setIntegrationBursts(bursts)
+    setIntegrationBursts([...bursts])
 
   const handleNewspaperBurstsChange = (bursts: BillingBurst[]) =>
-    setNewspaperBursts(bursts)
+    setNewspaperBursts([...bursts])
 
   const handleMagazineBurstsChange = (bursts: BillingBurst[]) =>
-    setMagazineBursts(bursts)
+    setMagazineBursts([...bursts])
 
   const handleOohBurstsChange = (bursts: BillingBurst[]) =>
-    setOohBursts(bursts)
+    setOohBursts([...bursts])
 
   const handleConsultingBurstsChange = (bursts: BillingBurst[]) =>
-    setConsultingBursts(bursts)
+    setConsultingBursts([...bursts])
 
   const handleInfluencersBurstsChange = (bursts: BillingBurst[]) =>
-    setInfluencersBursts(bursts)
+    setInfluencersBursts([...bursts])
 
   const handleDigiAudioBurstsChange = (bursts: BillingBurst[]) =>
-    setDigiAudioBursts(bursts)
+    setDigiAudioBursts([...bursts])
 
   const handleDigiDisplayBurstsChange = (bursts: BillingBurst[]) =>
-    setDigiDisplayBursts(bursts)
+    setDigiDisplayBursts([...bursts])
 
   const handleDigiVideoBurstsChange = (bursts: BillingBurst[]) =>
-    setDigiVideoBursts(bursts)
+    setDigiVideoBursts([...bursts])
 
   const handleProgDisplayBurstsChange = (bursts: BillingBurst[]) =>
-    setProgDisplayBursts(bursts)
+    setProgDisplayBursts([...bursts])
 
   const handleProgVideoBurstsChange = (bursts: BillingBurst[]) =>
-    setProgVideoBursts(bursts)
+    setProgVideoBursts([...bursts])
 
   const handleProgBvodBurstsChange = (bursts: BillingBurst[]) =>
-    setProgBvodBursts(bursts)
+    setProgBvodBursts([...bursts])
 
   const handleProgOohBurstsChange = (bursts: BillingBurst[]) =>
-    setProgOohBursts(bursts)
+    setProgOohBursts([...bursts])
 
   // --- Partial MBA Handlers ---
 
@@ -2000,6 +2042,7 @@ export default function CreateMediaPlan() {
     // 1. Capture the current, automatically calculated values
     const currentMediaTotals: Record<string, number> = {};
     mediaTypes
+      .filter(medium => medium.name !== "mp_consulting")
       .filter(medium => form.watch(medium.name as keyof MediaPlanFormValues))
       .forEach(medium => {
         const key = mediaKeyMap[medium.name];
@@ -2515,7 +2558,8 @@ export default function CreateMediaPlan() {
             'mp_progbvod': { lineItems: progBvodMediaLineItems, key: 'progBvod' },
             'mp_progaudio': { lineItems: progAudioMediaLineItems, key: 'progAudio' },
             'mp_progooh': { lineItems: progOohMediaLineItems, key: 'progOoh' },
-            'mp_influencers': { lineItems: influencersMediaLineItems, key: 'influencers' },
+          'mp_influencers': { lineItems: influencersMediaLineItems, key: 'influencers' },
+          'mp_consulting': { lineItems: consultingMediaLineItems, key: 'production' },
           };
 
           const allLineItems: Record<string, BillingLineItem[]> = {};
@@ -2585,8 +2629,8 @@ export default function CreateMediaPlan() {
         mba_number:           fv.mba_number || "",
         campaign_name:        fv.mp_campaignname || "",
         campaign_status:      fv.mp_campaignstatus || "Draft",
-        campaign_start_date:  toMelbourneDateString(fv.mp_campaigndates_start),
-        campaign_end_date:    toMelbourneDateString(fv.mp_campaigndates_end),
+        campaign_start_date:  toDateOnlyString(fv.mp_campaigndates_start),
+        campaign_end_date:    toDateOnlyString(fv.mp_campaigndates_end),
         brand:                fv.mp_brand || "",
         client_name:          clientName,
         client_contact:       fv.mp_clientcontact || "",
@@ -2875,6 +2919,27 @@ export default function CreateMediaPlan() {
           }).catch(error => {
             updateSaveStatus(displayName, 'error', error.message || 'Failed to save');
             return { type: 'integration', error };
+          })
+        );
+      }
+
+      // Production / Consulting
+      if (fv.mp_consulting && consultingMediaLineItems && consultingMediaLineItems.length > 0) {
+        const displayName = mediaTypeDisplayNames.mp_consulting;
+        updateSaveStatus(displayName, 'pending');
+        mediaTypeSavePromises.push(
+          saveProductionLineItems(
+            version.id,
+            fv.mba_number,
+            fv.mp_client_name,
+            fv.mp_plannumber,
+            consultingMediaLineItems
+          ).then(result => {
+            updateSaveStatus(displayName, 'success');
+            return result;
+          }).catch(error => {
+            updateSaveStatus(displayName, 'error', error.message || 'Failed to save');
+            return { type: 'production', error };
           })
         );
       }
@@ -3264,6 +3329,7 @@ const handleSaveAll = async () => {
       const validSearchItems = searchItems.filter(item =>
         parseFloat(item.deliverablesAmount.replace(/[^0-9.]/g, '')) > 0
         );
+      console.debug("[Download] search items prepared", validSearchItems.length, "of", searchItems.length)
 
       const validSocialMediaItems = socialMediaItems.filter(item =>
         parseFloat(item.deliverablesAmount.replace(/[^0-9.]/g, '')) > 0
@@ -3332,6 +3398,10 @@ const handleSaveAll = async () => {
       const validIntegrationItems = integrationItems.filter(item =>
         parseFloat(item.deliverablesAmount.replace(/[^0-9.]/g, '')) > 0
         );
+      const validConsultingItems = consultingItems.filter(item =>
+        parseFloat(String(item.deliverablesAmount || "").replace(/[^0-9.]/g, "")) > 0 ||
+        parseFloat(String(item.grossMedia || "").replace(/[^0-9.]/g, "")) > 0
+      );
 
         
       /// 1️⃣ Build a mediaItems object
@@ -3354,6 +3424,7 @@ const handleSaveAll = async () => {
         ooh: validOohItems, // Make sure you have a state for oohItems and it's populated
         cinema: validCinemaItems, // Make sure you have a state for cinemaItems
         integration: validIntegrationItems, // etc. for all types
+        production: validConsultingItems,
       };
 
       // Calculate MBA data for the Excel
@@ -3406,10 +3477,135 @@ const workbook = await generateMediaPlan(header, mediaItems, mbaData);
   const handleBVODBurstsChange = (bursts: BillingBurst[]) => {
     setBvodBursts(bursts);
   };
+
+  const getPageContext = useCallback((): PageContext => {
+    const values = form.getValues();
+    const clientSlug = values.mp_client_name ? clientNameToSlug(values.mp_client_name) : undefined;
+
+    const baseFields: PageField[] = [
+      {
+        id: "mp_client_name",
+        label: "Client Name",
+        type: "enum",
+        value: values.mp_client_name,
+        editable: true,
+        options: clients.map((client) => ({
+          label: client.mp_client_name,
+          value: client.mp_client_name,
+        })),
+        validation: { required: true },
+      },
+      {
+        id: "mp_campaignstatus",
+        label: "Campaign Status",
+        type: "enum",
+        value: values.mp_campaignstatus,
+        editable: true,
+        options: [
+          { label: "Draft", value: "draft" },
+          { label: "Planned", value: "planned" },
+          { label: "Approved", value: "approved" },
+          { label: "Booked", value: "booked" },
+          { label: "Completed", value: "completed" },
+          { label: "Cancelled", value: "cancelled" },
+        ],
+        validation: { required: true },
+      },
+      {
+        id: "mp_campaignname",
+        label: "Campaign Name",
+        type: "string",
+        value: values.mp_campaignname,
+        editable: true,
+        validation: { required: true },
+      },
+      {
+        id: "mp_brand",
+        label: "Brand",
+        type: "string",
+        value: values.mp_brand,
+        editable: true,
+      },
+      {
+        id: "mp_campaigndates_start",
+        label: "Campaign Start Date",
+        type: "date",
+        value: values.mp_campaigndates_start,
+        editable: true,
+        validation: { required: true },
+      },
+      {
+        id: "mp_campaigndates_end",
+        label: "Campaign End Date",
+        type: "date",
+        value: values.mp_campaigndates_end,
+        editable: true,
+        validation: { required: true },
+      },
+      {
+        id: "mp_clientcontact",
+        label: "Client Contact",
+        type: "string",
+        value: values.mp_clientcontact,
+        editable: true,
+        validation: { required: true },
+      },
+      {
+        id: "mp_ponumber",
+        label: "PO Number",
+        type: "string",
+        value: values.mp_ponumber,
+        editable: true,
+      },
+      {
+        id: "mp_campaignbudget",
+        label: "Campaign Budget",
+        type: "number",
+        value: values.mp_campaignbudget,
+        editable: true,
+      },
+    ];
+
+    const toggleFields: PageField[] = mediaTypes
+      .filter((medium) => medium.name !== "mp_fixedfee")
+      .map((medium) => ({
+        id: medium.name,
+        label: medium.label,
+        type: "boolean",
+        value: values[medium.name as keyof MediaPlanFormValues],
+        editable: true,
+      }));
+
+    return {
+      route: { pathname, clientSlug },
+      fields: [...baseFields, ...toggleFields],
+      generatedAt: new Date().toISOString(),
+    };
+  }, [clients, form, mediaTypes, pathname]);
+
+  const handleCopyPageContext = useCallback(async () => {
+    try {
+      const context = getPageContext();
+      await navigator.clipboard.writeText(JSON.stringify(context, null, 2));
+      toast({ title: "Copied", description: "Page context copied to clipboard" });
+    } catch (error) {
+      console.error("Failed to copy page context", error);
+      toast({
+        title: "Copy failed",
+        description: "Could not copy page context to clipboard",
+        variant: "destructive",
+      });
+    }
+  }, [getPageContext]);
   
   return (
     <div className="w-full min-h-screen">
-      <h1 className="text-4xl font-bold p-4">Create a Campaign</h1>
+      <div className="flex items-center justify-between p-4 gap-4">
+        <h1 className="text-4xl font-bold">Create a Campaign</h1>
+        <Button variant="outline" size="sm" type="button" onClick={handleCopyPageContext}>
+          Copy Page Context
+        </Button>
+      </div>
       <div className="w-full px-4 py-6 space-y-6">
         <Form {...form}>
           <form className="space-y-8">
@@ -3417,41 +3613,74 @@ const workbook = await generateMediaPlan(header, mediaItems, mbaData);
               <FormField
                 control={form.control}
                 name={"mp_client_name" as keyof MediaPlanFormValues}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Client Name</FormLabel>
-                    <FormControl>
-                      <Select
-                        onValueChange={(value) => {
-                          const selectedClient = clients.find((client) => client.id.toString() === value)
-                          if (selectedClient) {
-                            field.onChange(selectedClient.mp_client_name)
-                            handleClientChange(value)
-                          }
-                        }}
-                        value={clients.find((client) => client.mp_client_name === field.value)?.id.toString() || ""}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a client" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {clients.length === 0 ? (
-                            <div className="p-2 text-sm text-muted-foreground text-center">
-                              {isLoading ? "Loading clients..." : "No clients available"}
-                            </div>
-                          ) : (
-                            clients.map((client) => (
-                              <SelectItem key={client.id} value={client.id.toString()}>
-                                {client.mp_client_name}
-                              </SelectItem>
-                            ))
-                          )}
-                        </SelectContent>
-                      </Select>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+                render={({ field }) => {
+                  const selectedClient = clients.find((client) => client.mp_client_name === field.value)
+
+                  return (
+                    <FormItem>
+                      <FormLabel>Client Name</FormLabel>
+                      <FormControl>
+                        <Popover open={isClientPopoverOpen} onOpenChange={setIsClientPopoverOpen}>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              role="combobox"
+                              aria-expanded={isClientPopoverOpen}
+                              className="w-full justify-between"
+                            >
+                              <span className="truncate">
+                                {selectedClient
+                                  ? selectedClient.mp_client_name
+                                  : isLoading
+                                    ? "Loading clients..."
+                                    : "Select a client"}
+                              </span>
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[320px] p-0" align="start">
+                            <Command>
+                              <CommandInput placeholder="Search clients..." />
+                              <CommandList>
+                                <CommandEmpty>{isLoading ? "Loading clients..." : "No clients found."}</CommandEmpty>
+                                {clients.length > 0 && (
+                                  <CommandGroup>
+                                    {clients.map((client) => {
+                                      const isSelected =
+                                        selectedClientId === client.id.toString() ||
+                                        field.value === client.mp_client_name
+
+                                      return (
+                                        <CommandItem
+                                          key={client.id}
+                                          value={`${client.mp_client_name} ${client.mbaidentifier || ""}`.trim()}
+                                          onSelect={() => {
+                                            field.onChange(client.mp_client_name)
+                                            handleClientChange(client.id.toString())
+                                            setIsClientPopoverOpen(false)
+                                          }}
+                                        >
+                                          <Check
+                                            className={cn(
+                                              "mr-2 h-4 w-4",
+                                              isSelected ? "opacity-100" : "opacity-0"
+                                            )}
+                                          />
+                                          <span className="truncate">{client.mp_client_name}</span>
+                                        </CommandItem>
+                                      )
+                                    })}
+                                  </CommandGroup>
+                                )}
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )
+                }}
               />
 
               <FormField
@@ -3705,6 +3934,7 @@ const workbook = await generateMediaPlan(header, mediaItems, mbaData);
   <div className="grid grid-cols-2 gap-4">
     <div className="flex flex-col space-y-3">
       {mediaTypes
+        .filter(medium => medium.name !== "mp_consulting")
         .filter(medium => watchedMediaTypesMap[medium.name] && medium.component)
         .map(medium => (
         <div key={medium.name} className="text-sm font-medium">
@@ -3715,6 +3945,7 @@ const workbook = await generateMediaPlan(header, mediaItems, mbaData);
 
     <div className="flex flex-col space-y-3 text-right">
       {mediaTypes
+        .filter(medium => medium.name !== "mp_consulting")
         .filter(medium => watchedMediaTypesMap[medium.name] && medium.component)
         .map(medium => {
           const mediaKey = mediaKeyMap[medium.name];
@@ -4343,12 +4574,15 @@ const workbook = await generateMediaPlan(header, mediaItems, mbaData);
                             onTotalMediaChange={handleConsultingTotalChange}
                             onBurstsChange={handleConsultingBurstsChange}
                             onInvestmentChange={handleInvestmentChange}
-                            onLineItemsChange={setConsultingItems}
+                            onLineItemsChange={(items) => {
+                              setConsultingItems(items)
+                              setConsultingMediaLineItems(items)
+                            }}
                             campaignStartDate={form.watch("mp_campaigndates_start")}
                             campaignEndDate={form.watch("mp_campaigndates_end")}
                             campaignBudget={form.watch("mp_campaignbudget")}
                             campaignId={""}
-                            mediaTypes={["consulting"]}
+                            mediaTypes={mediaTypes.map((m) => ({ value: m.label, label: m.label }))}
                           />
                         </Suspense>
                       )}

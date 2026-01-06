@@ -74,6 +74,45 @@ export const toMelbourneDateString = (value: DateInput) => {
   return `${year}-${month}-${day}`
 }
 
+/**
+ * Returns a YYYY-MM-DD string using the date's calendar parts as-is,
+ * without applying any timezone normalization. Use this when you need
+ * the exact day the user picked regardless of their locale.
+ */
+export const toDateOnlyString = (value: DateInput) => {
+  const date = value instanceof Date ? value : new Date(value)
+  if (isNaN(date.getTime())) {
+    throw new Error("Invalid date input provided to date-only helper")
+  }
+
+  const year = date.getFullYear()
+  const month = (date.getMonth() + 1).toString().padStart(2, "0")
+  const day = date.getDate().toString().padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
+/**
+ * Parses a YYYY-MM-DD string into a Date set to local midnight without
+ * timezone shifts. Falls back to the native Date parser otherwise.
+ */
+export const parseDateOnlyString = (value: string): Date => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  if (match) {
+    const [, y, m, d] = match
+    return new Date(Number(y), Number(m) - 1, Number(d), 0, 0, 0)
+  }
+  const parsed = new Date(value)
+  if (isNaN(parsed.getTime())) {
+    throw new Error("Invalid date string provided to date-only parser")
+  }
+  return parsed
+}
+
+
+
+
+
+
 
 
 

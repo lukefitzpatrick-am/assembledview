@@ -836,8 +836,8 @@ export default function RadioContainer({
       buyAmount: lastBurst?.buyAmount ?? "",
       startDate,
       endDate,
-      calculatedValue: 0,
-      fee: 0,
+      calculatedValue: lastBurst?.calculatedValue ?? 0,
+      fee: lastBurst?.fee ?? 0,
     };
 
     form.setValue(`radiolineItems.${lineItemIndex}.bursts`, [

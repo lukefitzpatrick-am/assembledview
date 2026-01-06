@@ -48,6 +48,7 @@ export type BillingMonth = {
     progAudio: string;
     progOoh: string;
     influencers: string;
+    production: string;
   };
   // Optional line item breakdowns for each media type
   lineItems?: {
@@ -70,5 +71,6 @@ export type BillingMonth = {
     progAudio?: BillingLineItem[];
     progOoh?: BillingLineItem[];
     influencers?: BillingLineItem[];
+    production?: BillingLineItem[];
   };
 }; 

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, lazy, Suspense, useCallback, useMemo, use, useRef } from "react"
 import { useWatch } from "react-hook-form"
-import { useRouter, useSearchParams } from "next/navigation"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
@@ -73,7 +73,7 @@ import { generateMediaPlan, MediaPlanHeader, LineItem, MediaItems } from '@/lib/
 import { generateNamingWorkbook } from '@/lib/namingConventions'
 import { saveAs } from 'file-saver'
 import { filterLineItemsByPlanNumber } from '@/lib/api/mediaPlanVersionHelper'
-import { toMelbourneDateString } from "@/lib/timezone"
+import { toDateOnlyString, parseDateOnlyString } from "@/lib/timezone"
 
 
 // Define media type keys as a const array
@@ -108,6 +108,22 @@ type MediaFields = {
 
 // Create a type for the form field names
 type FormFieldName = keyof MediaPlanFormValues;
+
+type PageField = {
+  id: string;
+  label: string;
+  type: "string" | "number" | "date" | "enum" | "boolean";
+  value: any;
+  editable: true;
+  options?: { label: string; value: string }[];
+  validation?: { required?: boolean; min?: number; max?: number; pattern?: string };
+};
+
+type PageContext = {
+  route: { pathname: string; clientSlug?: string; mbaSlug?: string };
+  fields: PageField[];
+  generatedAt: string;
+};
 
 const mediaPlanSchema = z.object({
   mp_clientname: z.string().min(1, "Client name is required"),
@@ -254,6 +270,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   console.log("Current MBA number from params:", mbaNumber)
 
   const router = useRouter()
+  const pathname = usePathname()
   const searchParams = useSearchParams()
   const versionNumber = searchParams ? searchParams.get('version') : null
   
@@ -1026,13 +1043,20 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             return date
           }
           if (typeof dateValue === 'string') {
-            const parsed = new Date(dateValue)
-            if (isNaN(parsed.getTime())) {
-              console.warn(`[DATA LOAD] Invalid date string: ${dateValue}`)
-              return new Date()
+            try {
+              // Preserve exact day for plain YYYY-MM-DD without timezone shifts
+              const parsed = parseDateOnlyString(dateValue)
+              console.log(`[DATA LOAD] Parsed date-only string "${dateValue}" to:`, parsed)
+              return parsed
+            } catch {
+              const parsed = new Date(dateValue)
+              if (isNaN(parsed.getTime())) {
+                console.warn(`[DATA LOAD] Invalid date string: ${dateValue}`)
+                return new Date()
+              }
+              console.log(`[DATA LOAD] Parsed string date "${dateValue}" to:`, parsed)
+              return parsed
             }
-            console.log(`[DATA LOAD] Parsed string date "${dateValue}" to:`, parsed)
-            return parsed
           }
           return new Date(dateValue)
         }
@@ -2462,8 +2486,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           body: JSON.stringify({
             mp_campaignname: formValues.mp_campaignname,
             campaign_status: formValues.mp_campaignstatus,
-            campaign_start_date: toMelbourneDateString(formValues.mp_campaigndates_start),
-            campaign_end_date: toMelbourneDateString(formValues.mp_campaigndates_end),
+            campaign_start_date: toDateOnlyString(formValues.mp_campaigndates_start),
+            campaign_end_date: toDateOnlyString(formValues.mp_campaigndates_end),
             mp_campaignbudget: formValues.mp_campaignbudget,
           })
         })
@@ -3294,8 +3318,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         mp_brand: fv.mp_brand,
         mp_ponumber: fv.mp_ponumber,
         mp_plannumber: (mediaPlan?.version_number || 1).toString(),
-        mp_campaigndates_start: toMelbourneDateString(fv.mp_campaigndates_start),
-        mp_campaigndates_end: toMelbourneDateString(fv.mp_campaigndates_end),
+        mp_campaigndates_start: toDateOnlyString(fv.mp_campaigndates_start),
+        mp_campaigndates_end: toDateOnlyString(fv.mp_campaigndates_end),
         clientAddress: clientAddress,
         clientSuburb: clientSuburb,
         clientState: clientState,
@@ -3361,6 +3385,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const handleDownloadMediaPlan = async () => {
     setIsDownloading(true)
     try {
+      await waitForStateFlush()
       // fetch and encode logo
       const logoBuf = await fetch('/assembled-logo.png').then(r => r.arrayBuffer())
       const logoBase64 = bufferToBase64(logoBuf)
@@ -3388,6 +3413,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       const validSearchItems = searchItems.filter(item =>
         parseFloat(item.deliverablesAmount.replace(/[^0-9.]/g, '')) > 0
       )
+      console.debug("[Download] search items prepared", validSearchItems.length, "of", searchItems.length)
 
       const validSocialMediaItems = socialMediaItems.filter(item =>
         parseFloat(item.deliverablesAmount.replace(/[^0-9.]/g, '')) > 0
@@ -3991,7 +4017,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   }
 
   const calculateProductionCosts = () => {
-    // This would be calculated based on your production cost logic
+    if (billingMonths && billingMonths.length > 0) {
+      return billingMonths.reduce((sum, month) => {
+        const monthProduction = parseFloat((month.production || "0").toString().replace(/[^0-9.-]/g, ""))
+        return sum + (monthProduction || 0)
+      }, 0)
+    }
     return 0
   }
 
@@ -4125,7 +4156,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     const newGrossMediaTotal = calculateGrossMediaTotal();
     setGrossMediaTotal(newGrossMediaTotal);
 
-    const newTotalInvestment = newGrossMediaTotal + calculateAssembledFee() + calculateAdServingFees();
+    const newTotalInvestment =
+      newGrossMediaTotal +
+      calculateAssembledFee() +
+      calculateAdServingFees() +
+      calculateProductionCosts();
     setTotalInvestment(newTotalInvestment);
   }, [
     //Digital Media
@@ -4306,6 +4341,18 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     return btoa(binary)
   }
 
+  const waitForStateFlush = useCallback(
+    () =>
+      new Promise<void>((resolve) => {
+        if (typeof requestAnimationFrame === "function") {
+          requestAnimationFrame(() => resolve())
+        } else {
+          setTimeout(resolve, 0)
+        }
+      }),
+    []
+  )
+
   const handleBillingScheduleChange = useCallback((schedule: BillingScheduleType) => {
     setBillingSchedule(schedule);
     setBillingScheduleData({
@@ -4383,6 +4430,120 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     router.push(url)
   }, [mbaNumber, rollbackTargetVersion, router])
 
+  const clientNameToSlug = useCallback((clientName: string): string => {
+    return clientName
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, "")
+      .replace(/\s+/g, "-")
+      .trim();
+  }, []);
+
+  const getPageContext = useCallback((): PageContext => {
+    const values = form.getValues();
+    const clientSlug = values.mp_clientname ? clientNameToSlug(values.mp_clientname) : undefined;
+
+    const baseFields: PageField[] = [
+      {
+        id: "mp_campaignstatus",
+        label: "Campaign Status",
+        type: "enum",
+        value: values.mp_campaignstatus,
+        editable: true,
+        options: [
+          { label: "Draft", value: "draft" },
+          { label: "Planned", value: "planned" },
+          { label: "Approved", value: "approved" },
+          { label: "Booked", value: "booked" },
+          { label: "Completed", value: "completed" },
+          { label: "Cancelled", value: "cancelled" },
+        ],
+        validation: { required: true },
+      },
+      {
+        id: "mp_campaignname",
+        label: "Campaign Name",
+        type: "string",
+        value: values.mp_campaignname,
+        editable: true,
+        validation: { required: true },
+      },
+      {
+        id: "mp_brand",
+        label: "Brand",
+        type: "string",
+        value: values.mp_brand,
+        editable: true,
+      },
+      {
+        id: "mp_campaigndates_start",
+        label: "Campaign Start Date",
+        type: "date",
+        value: values.mp_campaigndates_start,
+        editable: true,
+        validation: { required: true },
+      },
+      {
+        id: "mp_campaigndates_end",
+        label: "Campaign End Date",
+        type: "date",
+        value: values.mp_campaigndates_end,
+        editable: true,
+        validation: { required: true },
+      },
+      {
+        id: "mp_clientcontact",
+        label: "Client Contact",
+        type: "string",
+        value: values.mp_clientcontact,
+        editable: true,
+        validation: { required: true },
+      },
+      {
+        id: "mp_ponumber",
+        label: "PO Number",
+        type: "string",
+        value: values.mp_ponumber,
+        editable: true,
+      },
+      {
+        id: "mp_campaignbudget",
+        label: "Campaign Budget",
+        type: "number",
+        value: values.mp_campaignbudget,
+        editable: true,
+      },
+    ];
+
+    const toggleFields: PageField[] = mediaTypes.map((medium) => ({
+      id: medium.name,
+      label: medium.label,
+      type: "boolean",
+      value: values[medium.name as keyof MediaPlanFormValues],
+      editable: true,
+    }));
+
+    return {
+      route: { pathname, clientSlug, mbaSlug: mbaNumber },
+      fields: [...baseFields, ...toggleFields],
+      generatedAt: new Date().toISOString(),
+    };
+  }, [clientNameToSlug, form, mbaNumber, mediaTypes, pathname]);
+
+  const handleCopyPageContext = useCallback(async () => {
+    try {
+      const context = getPageContext();
+      await navigator.clipboard.writeText(JSON.stringify(context, null, 2));
+      toast({ title: "Copied", description: "Page context copied to clipboard" });
+    } catch (error) {
+      console.error("Failed to copy page context", error);
+      toast({
+        title: "Copy failed",
+        description: "Could not copy page context to clipboard",
+        variant: "destructive",
+      });
+    }
+  }, [getPageContext]);
+
 
   if (loading) {
     return (
@@ -4411,13 +4572,16 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
   return (
     <div className="w-full px-4 py-6 space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-3">
           <h1 className="text-3xl font-bold">Edit Campaign</h1>
+          <div className="text-sm text-gray-500">
+            MBA: {mbaNumber}
+          </div>
         </div>
-        <div className="text-sm text-gray-500">
-          MBA: {mbaNumber}
-        </div>
+        <Button variant="outline" size="sm" type="button" onClick={handleCopyPageContext}>
+          Copy Page Context
+        </Button>
       </div>
 
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">

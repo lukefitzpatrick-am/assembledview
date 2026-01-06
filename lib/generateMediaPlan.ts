@@ -127,6 +127,7 @@ export interface MediaItems {
   ooh:            LineItem[];
   cinema:         LineItem[];
   integration:    LineItem[];
+  production:     LineItem[];
 }
 
 // Helper to parse YYYY-MM-DD to Date (for burst dates from LineItem)
@@ -254,7 +255,7 @@ export async function generateMediaPlan(
     "Television": ['market', 'network', 'station', 'daypart', 'placement', 'size', 'buyingDemo', 'buyType'],
     "Newspapers": ['market', 'network', 'title', 'placement', 'size', 'buyingDemo', 'buyType'],
     "Magazines": ['market', 'network', 'title', 'placement', 'size', 'buyingDemo', 'buyType'],
-    "Search": ['market', 'platform', 'bidStrategy', 'targeting', 'creative', 'buyingDemo', 'buyType'],
+    "Search": ['market', 'platform', 'bidStrategy', 'targeting', 'creative', 'buyingDemo', 'buyType', 'line_item_id', 'lineItemId'],
     "Social Media": ['market', 'platform', 'bidStrategy', 'targeting', 'creative', 'buyingDemo', 'buyType'],
     "Programmatic Display": ['market', 'platform', 'bidStrategy', 'targeting', 'creative', 'buyingDemo', 'buyType'],
     "Programmatic BVOD": ['market', 'platform', 'bidStrategy', 'targeting', 'creative', 'buyingDemo', 'buyType'],
@@ -268,6 +269,7 @@ export async function generateMediaPlan(
     "Digital Display": ['market', 'platform', 'site', 'targeting', 'creative', 'buyingDemo', 'buyType'],
     "Digital Audio": ['market', 'platform', 'site', 'bidStrategy', 'targeting', 'creative', 'buyingDemo', 'buyType'],
     "Digital Video": ['market', 'platform', 'site', 'bidStrategy', 'targeting', 'creative', 'buyingDemo', 'buyType'],
+    "Production": ['market', 'platform', 'network', 'creative', 'buyType'],
     // ... (other configs)
   };
 
@@ -291,7 +293,7 @@ export async function generateMediaPlan(
       const itemEndDate = item.endDate;   // YYYY-MM-DD
       const deliverablesAmtNum = parseFloat(String(item.deliverablesAmount).replace(/[^0-9.-]+/g,"")) || 0;
       const grossMediaNum = parseFloat(String(item.grossMedia).replace(/[^0-9.-]+/g,"")) || 0;
-      const calculatedDeliverablesNum = parseFloat(String(item.deliverables)) || 0;
+      const calculatedDeliverablesNum = parseFloat(String(item.deliverables).replace(/[^0-9.-]+/g,"")) || 0;
 
       if (!group) {
         group = {
@@ -482,11 +484,17 @@ export async function generateMediaPlan(
     'Market', 'Network', 'Format', 'Placement', 'Type', 'Start Date', 'End Date', 'Size', 'Deliverables', 'Buying Demo', 'Buy Type', 'Avg. Rate', 'Gross Media'
   ];
 
+  // B Market, C Publisher, D blank, E Description, F blank,
+  // G Start Date, H End Date, I blank, J Amount, K/L/M blanks, N Media
+  const PRODUCTION_HEADERS = [
+    'Market', 'Publisher', '', 'Description', '', 'Start Date', 'End Date', '', 'Amount', '', '', '', 'Media'
+  ];
+
   function drawSection(
     title: string,
     items: GroupedItem[],
     startRow: number,
-    sectionType: 'Biddable' | 'Television' | 'Press' | 'Radio' | 'Cinema' | 'OOH'
+    sectionType: 'Biddable' | 'Television' | 'Press' | 'Radio' | 'Cinema' | 'OOH' | 'Production'
   ): number {
     let r = startRow;
     const sectionHasItems = items.length > 0;
@@ -502,6 +510,7 @@ export async function generateMediaPlan(
       sectionType === 'Radio' ? RADIO_DATA_HEADERS :
       sectionType === 'Cinema' ? CINEMA_DATA_HEADERS :
       sectionType === 'OOH' ? OOH_DATA_HEADERS :
+      sectionType === 'Production' ? PRODUCTION_HEADERS :
       biddableHeaders;
   
     // --- Section Title & Header Rendering (No changes needed) ---
@@ -540,7 +549,21 @@ export async function generateMediaPlan(
         let averageRate = 0;
   
         // FIX: Correctly structured if/else if/else chain.
-        if (sectionType === 'Television') {
+        if (sectionType === 'Production') {
+          dataRowValues = [
+            it.market,
+            it.network || it.platform || '',
+            '',
+            it.creative || '',
+            '',
+            it.groupStartDate ? parseDateStringYYYYMMDD(it.groupStartDate) : null,
+            it.groupEndDate ? parseDateStringYYYYMMDD(it.groupEndDate) : null,
+            '',
+            it.totalCalculatedDeliverables,
+            '', '', '',
+            it.grossMedia,
+          ];
+        } else if (sectionType === 'Television') {
           if (it.totalCalculatedDeliverables && it.totalCalculatedDeliverables !== 0) {
             averageRate = it.grossMedia / it.totalCalculatedDeliverables; // CPP
           }
@@ -1271,6 +1294,7 @@ export async function generateMediaPlan(
   // --- SEARCH ---
   const groupedSearchRaw = mediaItems.search || []; // Get raw items for Search
   const groupedSearch: GroupedItem[] = groupLineItems(groupedSearchRaw, "Search"); // Group them
+  const mergedSpansByRow: Record<number, Array<{ start: number; end: number }>> = {};
 
   if (groupedSearch.length > 0) { // Only proceed if there are search items to display
       const searchDataStartActualRow = drawSection('Search', groupedSearch, currentRow, 'Biddable'); // Draw the section
@@ -1293,6 +1317,15 @@ export async function generateMediaPlan(
           
           // Ensure the burst is within the drawable timeline and worksheet boundaries
           if (ganttStart <= ganttEnd && ganttStart >= firstDateCol && ganttEnd <= lastDateCol) { // Check ganttEnd against lastDateCol
+            const spans = mergedSpansByRow[itemRow] || (mergedSpansByRow[itemRow] = []);
+            const overlaps = spans.some(span => !(ganttEnd < span.start || ganttStart > span.end));
+            if (overlaps) {
+              // Skip overlapping/duplicate burst to avoid ExcelJS merge conflicts
+              console.warn(`Skipping overlapping search burst for row ${itemRow}: ${ganttStart}-${ganttEnd}`);
+              return;
+            }
+            spans.push({ start: ganttStart, end: ganttEnd });
+
             try {
               sheet.mergeCells(itemRow, ganttStart, itemRow, ganttEnd); //
               const cell = sheet.getCell(itemRow, ganttStart); //
@@ -1628,6 +1661,53 @@ export async function generateMediaPlan(
 
 
       currentRow += (groupedProgOoh.length + 5);
+  }
+
+  // --- Production ---
+  const groupedProductionRaw = mediaItems.production || [];
+  const groupedProduction: GroupedItem[] = groupLineItems(groupedProductionRaw, "Production");
+
+  if (groupedProduction.length > 0) {
+      const productionDataStartActualRow = drawSection('Production', groupedProduction, currentRow, 'Production');
+
+      const firstSundayUTC = new Date(Date.UTC(firstSunday.getFullYear(), firstSunday.getMonth(), firstSunday.getDate()));
+
+      groupedProduction.forEach((it, idx) => {
+        const itemRow = productionDataStartActualRow + idx;
+        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime());
+
+        sortedBursts.forEach(b => {
+          const burstStart = parseDateStringYYYYMMDD(b.startDate);
+          const burstEnd = parseDateStringYYYYMMDD(b.endDate);
+
+          const startOffset = Math.round((burstStart.getTime() - firstSundayUTC.getTime()) / msPerDay);
+          const endOffset = Math.round((burstEnd.getTime() - firstSundayUTC.getTime()) / msPerDay);
+
+          const ganttStart = firstDateCol + startOffset;
+          const ganttEnd = firstDateCol + endOffset;
+
+          if (ganttStart <= ganttEnd && ganttStart >= firstDateCol && ganttEnd <= lastDateCol) {
+            try {
+              sheet.mergeCells(itemRow, ganttStart, itemRow, ganttEnd);
+              const cell = sheet.getCell(itemRow, ganttStart);
+              style(cell, { 
+                value: b.deliverables, 
+                fontSize: 15, 
+                align: 'center', 
+                verticalAlign: 'middle', 
+                fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD02A60' } }, 
+                fontColor: 'FFFFFFFF', 
+                numFmt: '#,##0' 
+              });
+              cell.border = lightDashedBorder;
+            } catch (e) { 
+              console.error("Error drawing production burst Gantt:", e);
+            }
+          }
+        });
+      });
+
+      currentRow += (groupedProduction.length + 5);
   }
 
   // --- MBA Details Section ---
