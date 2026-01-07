@@ -35,3 +35,4 @@
 - `OPENAI_API_KEY` required; `OPENAI_MODEL` optional (defaults to `gpt-4o-mini`); configured in `env.local.example`.
 
 
+

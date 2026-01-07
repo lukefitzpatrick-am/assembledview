@@ -217,7 +217,9 @@ export default function MediaPlanPage({ params }: { params: Promise<{ id: string
       // Create a temporary link element
       const link = document.createElement("a")
       link.href = url
-      link.download = `${mediaPlan.mp_clientname}_${mediaPlan.mp_campaignname}_MediaPlan.pdf`
+      const version = mediaPlan.version_number ?? 1
+      const mediaPlanBase = `${mediaPlan.mp_campaignname}_MediaPlan`
+      link.download = `${mediaPlan.mp_clientname}-${mediaPlanBase}-v${version}.pdf`
       
       // Append the link to the body, click it, and remove it
       document.body.appendChild(link)
@@ -297,7 +299,9 @@ export default function MediaPlanPage({ params }: { params: Promise<{ id: string
       // Create a temporary link element
       const link = document.createElement("a")
       link.href = url
-      link.download = `${mediaPlan.mp_clientname}_${mediaPlan.mp_campaignname}_MBA.pdf`
+      const version = mediaPlan.version_number ?? 1
+      const mbaBase = `${mediaPlan.mp_campaignname}_MBA`
+      link.download = `${mediaPlan.mp_clientname}-${mbaBase}-v${version}.pdf`
       
       // Append the link to the body, click it, and remove it
       document.body.appendChild(link)

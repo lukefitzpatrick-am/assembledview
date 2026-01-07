@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { PlusCircle, Edit } from "lucide-react"
 import { AddClientForm } from "@/components/AddClientForm"
@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { TableWithExport } from "@/components/ui/table-with-export"
+import { SortableTableHeader, SortDirection, compareValues } from "@/components/ui/sortable-table-header"
 import { useUser } from '@/components/AuthWrapper'
 import { useRouter } from 'next/navigation'
 import { AuthPageLoading } from '@/components/AuthLoadingState'
@@ -38,6 +39,20 @@ interface Client {
 
 const DEFAULT_BRAND_COLOUR = "#49C7EB"
 
+type SortColumn =
+  | "clientName"
+  | "category"
+  | "abn"
+  | "mba"
+  | "legalBusiness"
+  | "keyContact"
+  | "keyEmail"
+  | "financeEmail"
+  | "paymentDays"
+  | "paymentTerms"
+
+type SortableValue = string | number | Date | boolean | null | undefined
+
 const getBrandColour = (colour?: string) => {
   if (!colour) return DEFAULT_BRAND_COLOUR
   return colour.startsWith("#") ? colour : `#${colour}`
@@ -51,6 +66,10 @@ export default function Clients() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [clients, setClients] = useState<Client[]>([])
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
+  const [sort, setSort] = useState<{ column: SortColumn; direction: SortDirection }>({
+    column: "clientName",
+    direction: "asc",
+  })
 
   useEffect(() => {
     setMounted(true);
@@ -109,6 +128,55 @@ export default function Clients() {
   brand_colour: "Brand Colour",
   }
 
+  const getClientName = (client: Client) => client.mp_client_name || client.clientname_input || ""
+
+  const getSortValue = (client: Client, column: SortColumn): SortableValue => {
+    switch (column) {
+      case "clientName":
+        return getClientName(client)
+      case "category":
+        return client.clientcategory
+      case "abn":
+        return client.abn
+      case "mba":
+        return client.mbaidentifier
+      case "legalBusiness":
+        return client.legalbusinessname
+      case "keyContact":
+        return `${client.keyfirstname} ${client.keylastname}`.trim()
+      case "keyEmail":
+        return client.keyemail
+      case "financeEmail":
+        return client.billingemail
+      case "paymentDays":
+        return client.payment_days
+      case "paymentTerms":
+        return client.payment_terms
+      default:
+        return ""
+    }
+  }
+
+  const sortedClients = useMemo(() => {
+    if (!Array.isArray(clients)) return []
+    const direction = sort.direction ?? "asc"
+    return [...clients].sort((a, b) =>
+      compareValues(
+        getSortValue(a, sort.column),
+        getSortValue(b, sort.column),
+        direction
+      )
+    )
+  }, [clients, sort])
+
+  const toggleSort = (column: SortColumn) => {
+    setSort(prev =>
+      prev.column === column
+        ? { column, direction: prev.direction === "asc" ? "desc" : "asc" }
+        : { column, direction: "asc" }
+    )
+  }
+
   if (!mounted || isLoading) {
     return <AuthPageLoading message="Loading clients..." />;
   }
@@ -156,31 +224,71 @@ export default function Clients() {
       </div>
 
       <TableWithExport
-        data={clients}
+        data={sortedClients}
         filename="clients.csv"
         headers={csvHeaders}
       >
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Client Name</TableHead>
-              <TableHead>Category</TableHead>
-              <TableHead>ABN</TableHead>
-              <TableHead>MBA Identifier</TableHead>
-              <TableHead>Legal Business Name</TableHead>
-              <TableHead>Key Contact Name</TableHead>
-              <TableHead>Key Contact Email</TableHead>
-              <TableHead>Finance Email</TableHead>
-              <TableHead>Payment Days</TableHead>
-              <TableHead>Payment Terms</TableHead>
+              <SortableTableHeader
+                label="Client Name"
+                direction={sort.column === "clientName" ? sort.direction : null}
+                onToggle={() => toggleSort("clientName")}
+              />
+              <SortableTableHeader
+                label="Category"
+                direction={sort.column === "category" ? sort.direction : null}
+                onToggle={() => toggleSort("category")}
+              />
+              <SortableTableHeader
+                label="ABN"
+                direction={sort.column === "abn" ? sort.direction : null}
+                onToggle={() => toggleSort("abn")}
+              />
+              <SortableTableHeader
+                label="MBA Identifier"
+                direction={sort.column === "mba" ? sort.direction : null}
+                onToggle={() => toggleSort("mba")}
+              />
+              <SortableTableHeader
+                label="Legal Business Name"
+                direction={sort.column === "legalBusiness" ? sort.direction : null}
+                onToggle={() => toggleSort("legalBusiness")}
+              />
+              <SortableTableHeader
+                label="Key Contact Name"
+                direction={sort.column === "keyContact" ? sort.direction : null}
+                onToggle={() => toggleSort("keyContact")}
+              />
+              <SortableTableHeader
+                label="Key Contact Email"
+                direction={sort.column === "keyEmail" ? sort.direction : null}
+                onToggle={() => toggleSort("keyEmail")}
+              />
+              <SortableTableHeader
+                label="Finance Email"
+                direction={sort.column === "financeEmail" ? sort.direction : null}
+                onToggle={() => toggleSort("financeEmail")}
+              />
+              <SortableTableHeader
+                label="Payment Days"
+                direction={sort.column === "paymentDays" ? sort.direction : null}
+                onToggle={() => toggleSort("paymentDays")}
+                align="right"
+              />
+              <SortableTableHeader
+                label="Payment Terms"
+                direction={sort.column === "paymentTerms" ? sort.direction : null}
+                onToggle={() => toggleSort("paymentTerms")}
+              />
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {Array.isArray(clients) &&
-              clients.map((client) => (
+            {sortedClients.map((client) => (
                 <TableRow key={client.id}>
-                  <TableCell>{client.mp_client_name || client.clientname_input || '-'}</TableCell>
+                <TableCell>{getClientName(client) || '-'}</TableCell>
                   <TableCell>{client.clientcategory}</TableCell>
                   <TableCell>{client.abn}</TableCell>
                   <TableCell>
@@ -201,7 +309,7 @@ export default function Clients() {
                   <TableCell>{`${client.keyfirstname} ${client.keylastname}`}</TableCell>
                   <TableCell>{client.keyemail}</TableCell>
                   <TableCell>{client.billingemail}</TableCell>
-                  <TableCell>{client.payment_days}</TableCell>
+                <TableCell className="text-right">{client.payment_days}</TableCell>
                   <TableCell>{client.payment_terms}</TableCell>
                   <TableCell>
                     <Button

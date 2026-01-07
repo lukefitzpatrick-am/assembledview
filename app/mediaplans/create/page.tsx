@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, lazy, Suspense, useCallback } from "react"
+import { useState, useEffect, lazy, Suspense, useCallback, useRef } from "react"
 import { useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
@@ -489,6 +489,7 @@ export default function CreateMediaPlan() {
   const [originalManualBillingTotal, setOriginalManualBillingTotal] = useState<string>("$0.00");
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
   const [autoBillingMonths, setAutoBillingMonths] = useState<BillingMonth[]>([]);
+  const deliveryScheduleSnapshotRef = useRef<BillingMonth[] | null>(null);
   const [billingMonths, setBillingMonths] = useState<BillingMonth[]>([])
   const [billingTotal, setBillingTotal] = useState("$0.00")  
   const [grossMediaTotal, setGrossMediaTotal] = useState(0);
@@ -1053,7 +1054,12 @@ export default function CreateMediaPlan() {
              }
       })
   ); 
-  
+ 
+  // Capture the very first auto-calculated schedule for delivery snapshot
+  if (!deliveryScheduleSnapshotRef.current && months.length > 0) {
+    deliveryScheduleSnapshotRef.current = months;
+  }
+
   setAutoBillingMonths(months);
 
   // Preserve manual edits but always capture the auto snapshot
@@ -1561,7 +1567,9 @@ export default function CreateMediaPlan() {
       // Create a temporary link element
       const link = document.createElement("a");
       link.href = url;
-      link.download = `MBA_${fv.mp_client_name}_${fv.mp_campaignname}.pdf`;
+      const version = fv.mp_plannumber || "1";
+      const mbaBase = `MBA_${fv.mp_campaignname || "campaign"}`;
+      link.download = `${fv.mp_client_name || "client"}-${mbaBase}-v${version}.pdf`;
 
       // Append the link to the body, click it, and remove it
       document.body.appendChild(link);
@@ -2592,10 +2600,13 @@ export default function CreateMediaPlan() {
 
       const billingMonthsWithLineItems = attachLineItemsToMonths(billingMonthsSource);
 
-      // Always preserve the auto-calculated schedule for deliverySchedule
-      const deliveryMonthsSource = autoBillingMonths.length > 0
-        ? autoBillingMonths
-        : billingMonths;
+      // Always preserve the first auto-calculated schedule for deliverySchedule
+      const deliveryMonthsSource =
+        (deliveryScheduleSnapshotRef.current && deliveryScheduleSnapshotRef.current.length > 0)
+          ? deliveryScheduleSnapshotRef.current
+          : (autoBillingMonths.length > 0
+            ? autoBillingMonths
+            : billingMonths);
 
       const deliveryMonthsWithLineItems = attachLineItemsToMonths(deliveryMonthsSource);
   
@@ -3256,6 +3267,11 @@ const handleSaveAll = async () => {
       }
 
       const fv = form.getValues();
+      const version = fv.mp_plannumber || "1";
+      const clientName = fv.mp_client_name || "client";
+      const campaignName = fv.mp_campaignname || "mediaPlan";
+      const namingBase = `NamingConventions_${campaignName}`;
+      const namingFileName = `${clientName}-${namingBase}-v${version}.xlsx`;
       const workbook = await generateNamingWorkbook({
         advertiser: fv.mp_client_name || "",
         brand: fv.mp_brand || "",
@@ -3263,7 +3279,7 @@ const handleSaveAll = async () => {
         mbaNumber: fv.mba_number || fv.mbaidentifier || "",
         startDate: fv.mp_campaigndates_start,
         endDate: fv.mp_campaigndates_end,
-        version: fv.mp_plannumber || "1",
+        version,
         mediaFlags: fv as Record<string, boolean>,
         items: {
           search: searchItems,
@@ -3283,7 +3299,7 @@ const handleSaveAll = async () => {
 
       const arrayBuffer = await workbook.xlsx.writeBuffer();
       const blob = new Blob([arrayBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-      saveAs(blob, `NamingConventions_${fv.mp_campaignname || "mediaPlan"}.xlsx`);
+      saveAs(blob, namingFileName);
       toast({ title: "Success", description: "Naming conventions Excel downloaded" });
     } catch (error: any) {
       console.error("Naming download error:", error);
@@ -3300,6 +3316,7 @@ const handleSaveAll = async () => {
   const handleGenerateMediaPlan = async () => {
     setIsDownloading(true)
     try {
+      const planVersion = form.getValues('mp_plannumber') || '1';
       // Allow container effects to emit latest duplicated line items before export
       await waitForStateFlush();
 
@@ -3317,7 +3334,7 @@ const handleSaveAll = async () => {
         campaignName:   form.getValues('mp_campaignname'),
         mbaNumber:      form.getValues('mba_number'),
         clientContact:  form.getValues('mp_clientcontact'),
-        planVersion:    '1',
+        planVersion,
         poNumber:       form.getValues('mp_ponumber'),
         campaignBudget: new Intl.NumberFormat('en-AU',{style:'currency',currency:'AUD'}).format(form.getValues('mp_campaignbudget')),
         campaignStatus: form.getValues('mp_campaignstatus'),
@@ -3453,7 +3470,9 @@ const workbook = await generateMediaPlan(header, mediaItems, mbaData);
      const blob = new Blob([ arrayBuffer ], {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
        })
-       saveAs(blob, `MediaPlan_${header.client}_${header.campaignName}.xlsx`)
+       const mediaPlanBase = `MediaPlan_${header.campaignName}`;
+       const mediaPlanFileName = `${header.client}-${mediaPlanBase}-v${planVersion}.xlsx`;
+       saveAs(blob, mediaPlanFileName)
 
     toast({ title: 'Success', description: 'Media plan generated successfully' })
   } catch (error: any) {

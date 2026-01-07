@@ -304,6 +304,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
     isManual: false,
     campaignId: ""
   })
+  const deliveryScheduleSnapshotRef = useRef<any>(null)
   const [isClientModalOpen, setIsClientModalOpen] = useState(false)
   const hasFetchedContainerDataRef = useRef(false)
   const [hasDateWarning, setHasDateWarning] = useState(false)
@@ -570,6 +571,23 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
         // Store client name for later client selection
         if (data.client_name) {
           setSelectedClientId(data.client_name) // Temporarily store client name
+        }
+        
+        // Capture initial delivery/billing schedule snapshot before user edits
+        try {
+          let parsedSchedule = data.deliverySchedule ?? data.billingSchedule ?? null
+          if (typeof parsedSchedule === "string" && parsedSchedule.trim() !== "") {
+            parsedSchedule = JSON.parse(parsedSchedule)
+          }
+          if (Array.isArray(parsedSchedule) && parsedSchedule.length > 0) {
+            if (!deliveryScheduleSnapshotRef.current) {
+              deliveryScheduleSnapshotRef.current = parsedSchedule
+            }
+            // Seed editable billing schedule from persisted data if available
+            setBillingSchedule(parsedSchedule as BillingScheduleType)
+          }
+        } catch (parseError) {
+          console.warn("Failed to parse delivery/billing schedule for snapshot:", parseError)
         }
         
         // Billing schedule calculation removed to prevent infinite loops
@@ -1030,6 +1048,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
       
       // Build billing schedule JSON
       const billingScheduleJSON = buildBillingScheduleForSave();
+      const deliveryScheduleJSON = deliveryScheduleSnapshotRef.current || [];
       
       // Create new version in media_plan_versions table
       const response = await fetch(`/api/mediaplans/${id}`, {
@@ -1043,6 +1062,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
           social_media_bursts: socialMediaBursts,
           investment_by_month: investmentPerMonth,
           billingSchedule: billingScheduleJSON,
+          deliverySchedule: deliveryScheduleJSON,
         }),
       })
 
@@ -1477,7 +1497,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = `media-plan-${formData.mbanumber || "draft"}.pdf`
+      const version = mediaPlan?.version_number ?? 1
+      const mediaPlanBase = `${formData.mp_campaignname}_MediaPlan`
+      a.download = `${formData.mp_clientname}-${mediaPlanBase}-v${version}.pdf`
       document.body.appendChild(a)
       a.click()
       window.URL.revokeObjectURL(url)

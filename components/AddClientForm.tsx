@@ -12,25 +12,30 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { SavingModal } from "@/components/ui/saving-modal"
 import { SuccessModal } from "@/components/ui/success-modal"
 import { ErrorModal } from "@/components/ui/error-modal"
-
-const phoneRegex = /^(?:\+61|0)[2-478](?:[ -]?[0-9]){8}$/
-const abnRegex = /^\d{11}$/
 const formatHexColour = (value: string) => {
   const cleaned = value.replace(/[^0-9a-fA-F]/g, "").slice(0, 6)
   return `#${cleaned}`.toUpperCase().padEnd(7, "0")
 }
 
 const optionalString = z.string().optional().or(z.literal(""))
+const normalizeAbn = (value: string) => value.replace(/[^A-Za-z0-9]/g, "")
 
 const clientSchema = z.object({
   clientname_input: z.string().min(1, "Client name is required"),
   mbaidentifier: z.string().min(1, "MBA Identifier is required"),
   clientcategory: optionalString,
-  abn: z
-    .string()
-    .regex(/^\d{11}$/, "ABN must be exactly 11 digits")
-    .optional()
-    .or(z.literal("")),
+  abn: z.preprocess(
+    (val) => {
+      if (val === null || val === undefined || val === "") return ""
+      if (typeof val === "string") return normalizeAbn(val)
+      return val
+    },
+    z
+      .string()
+      .regex(/^[A-Za-z0-9]{11}$/, "ABN must contain 11 letters or numbers after removing spaces or symbols")
+      .optional()
+      .or(z.literal(""))
+  ),
   legalbusinessname: optionalString,
   streetaddress: optionalString,
   suburb: optionalString,
@@ -301,11 +306,8 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
                 <FormControl>
                   <Input
                     {...field}
-                    maxLength={11}
-                    onChange={(e) => {
-                      const value = e.target.value.replace(/\D/g, "").slice(0, 11)
-                      field.onChange(value)
-                    }}
+                    placeholder="e.g. 12 345 678 901"
+                    onChange={(e) => field.onChange(e.target.value)}
                   />
                 </FormControl>
                 <FormMessage />

@@ -42,6 +42,11 @@ function normalizeStatus(status: any): string {
   return String(status).trim().toLowerCase()
 }
 
+const isBookedApprovedCompleted = (status: any) => {
+  const normalized = normalizeStatus(status)
+  return normalized === 'booked' || normalized === 'approved' || normalized === 'completed'
+}
+
 function slugifyClientName(name: string): string {
   return normalizeClientName(name).replace(/\s+/g, '-')
 }
@@ -550,10 +555,7 @@ export async function getGlobalMonthlySpend(): Promise<GlobalMonthlySpend[]> {
       .slice()
       .sort((a, b) => (b.version_number || 0) - (a.version_number || 0))
 
-    const bookedApproved = sorted.find((v: any) => {
-      const status = normalizeStatus(v.campaign_status)
-      return status === 'booked' || status === 'approved'
-    })
+    const bookedApproved = sorted.find((v: any) => isBookedApprovedCompleted(v.campaign_status))
 
     if (bookedApproved) {
       acc[mbaNumber] = bookedApproved
@@ -618,10 +620,7 @@ export async function getGlobalMonthlyPublisherSpend(): Promise<GlobalMonthlyPub
       .slice()
       .sort((a, b) => (b.version_number || 0) - (a.version_number || 0))
 
-    const bookedApproved = sorted.find((v: any) => {
-      const status = normalizeStatus(v.campaign_status)
-      return status === 'booked' || status === 'approved'
-    })
+    const bookedApproved = sorted.find((v: any) => isBookedApprovedCompleted(v.campaign_status))
 
     if (bookedApproved) {
       acc[mbaNumber] = bookedApproved
@@ -710,10 +709,7 @@ export async function getGlobalMonthlyClientSpend(): Promise<{
       .slice()
       .sort((a, b) => (b.version_number || 0) - (a.version_number || 0))
 
-    const bookedApproved = sorted.find((v: any) => {
-      const status = normalizeStatus(v.campaign_status)
-      return status === 'booked' || status === 'approved'
-    })
+    const bookedApproved = sorted.find((v: any) => isBookedApprovedCompleted(v.campaign_status))
 
     if (bookedApproved) {
       acc[mbaNumber] = bookedApproved

@@ -93,6 +93,29 @@ type SortState = {
   direction: SortDirection
 }
 
+const LIVE_STATUSES = ["booked", "approved", "completed"]
+
+const normalizeStatus = (status?: string | null) => (status || "").toString().toLowerCase().trim()
+
+const getTodayBounds = () => {
+  const startOfToday = new Date()
+  startOfToday.setHours(0, 0, 0, 0)
+  const endOfToday = new Date()
+  endOfToday.setHours(23, 59, 59, 999)
+  return { startOfToday, endOfToday }
+}
+
+const getLatestPlanVersions = (plans: MediaPlan[]): MediaPlan[] => {
+  const latestVersionsMap = new Map<string, MediaPlan>()
+  plans.forEach((plan) => {
+    const existing = latestVersionsMap.get(plan.mp_mba_number)
+    if (!existing || plan.mp_version > existing.mp_version) {
+      latestVersionsMap.set(plan.mp_mba_number, plan)
+    }
+  })
+  return Array.from(latestVersionsMap.values())
+}
+
 // Helper function to get the current Australian Financial Year dates
 const getCurrentFinancialYear = () => {
   const today = new Date()
@@ -309,7 +332,7 @@ export default function DashboardOverview({
   }
 
   const [dashboardMetrics, setDashboardMetrics] = useState([
-    { title: "Total Live Campaigns", value: "0", icon: BarChart3, tooltip: "Sum of campaigns with status booked or approved", color: "bg-blue-500" },
+    { title: "Total Live Campaigns", value: "0", icon: BarChart3, tooltip: "Campaigns booked/approved/completed running today", color: "bg-blue-500" },
     { title: "Total Live Scopes of Work", value: "0", icon: TrendingUp, tooltip: "Sum of scopes with status Approved or In-Progress", color: "bg-green-500" },
     { title: "Total Live Clients", value: "0", icon: Users, tooltip: "Sum of unique clients with live activity from campaigns and scopes", color: "bg-purple-500" },
     { title: "Total Live Publishers", value: "0", icon: ShoppingCart, tooltip: "Sum of unique publishers with live activity from campaigns", color: "bg-amber-500" },
@@ -382,17 +405,20 @@ export default function DashboardOverview({
       setMediaPlans(mediaPlansData)
       setScopes(scopesData)
 
-      const latestVersionsMap = new Map<string, MediaPlan>()
-      mediaPlansData.forEach((plan) => {
-        const existing = latestVersionsMap.get(plan.mp_mba_number)
-        if (!existing || plan.mp_version > existing.mp_version) {
-          latestVersionsMap.set(plan.mp_mba_number, plan)
-        }
-      })
-      const latestPlans = Array.from(latestVersionsMap.values())
+      const latestPlans = getLatestPlanVersions(mediaPlansData)
 
-      const liveStatuses = ["booked", "approved"]
-      const liveCampaigns = latestPlans.filter((plan) => plan.mp_campaignstatus && liveStatuses.includes(plan.mp_campaignstatus.toLowerCase()))
+      const statusFilteredPlans = latestPlans.filter((plan) => {
+        const status = normalizeStatus(plan.mp_campaignstatus)
+        return status !== "" && LIVE_STATUSES.includes(status)
+      })
+
+      const { startOfToday, endOfToday } = getTodayBounds()
+      const liveCampaigns = statusFilteredPlans.filter((plan) => {
+        const startDate = new Date(plan.mp_campaigndates_start)
+        const endDate = new Date(plan.mp_campaigndates_end)
+        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return false
+        return startDate <= endOfToday && endDate >= startOfToday
+      })
 
       const liveScopes = scopesData.filter((scope) => scope.project_status === "Approved" || scope.project_status === "In-Progress")
 
@@ -409,7 +435,7 @@ export default function DashboardOverview({
       const totalLiveClients = liveClients.size
 
       const { startDate: fyStartDate, endDate: fyEndDate } = getCurrentFinancialYear()
-      const liveCampaignsInFY = liveCampaigns.filter((plan) => {
+      const eligibleCampaignsInFY = statusFilteredPlans.filter((plan) => {
         const planStartDate = new Date(plan.mp_campaigndates_start)
         const planEndDate = new Date(plan.mp_campaigndates_end)
         return planStartDate <= fyEndDate && planEndDate >= fyStartDate
@@ -428,7 +454,7 @@ export default function DashboardOverview({
       const publisherSpend: Record<string, number> = {}
       const clientSpend: Record<string, number> = {}
 
-      for (const campaign of liveCampaignsInFY) {
+      for (const campaign of eligibleCampaignsInFY) {
         const schedule = campaign.deliverySchedule ?? campaign.billingSchedule
         if (schedule) {
           try {
@@ -471,10 +497,10 @@ export default function DashboardOverview({
       setClientSpendData(clientSpendArray)
 
       setDashboardMetrics([
-        { title: "Total Live Campaigns", value: totalLiveCampaigns.toString(), icon: BarChart3, tooltip: "Sum of campaigns with status booked or approved", color: "bg-blue-500" },
+        { title: "Total Live Campaigns", value: totalLiveCampaigns.toString(), icon: BarChart3, tooltip: "Campaigns booked/approved/completed running today", color: "bg-blue-500" },
         { title: "Total Live Scopes of Work", value: totalLiveScopes.toString(), icon: TrendingUp, tooltip: "Sum of scopes with status Approved or In-Progress", color: "bg-green-500" },
-        { title: "Total Live Clients", value: totalLiveClients.toString(), icon: Users, tooltip: "Sum of unique clients with live activity", color: "bg-purple-500" },
-        { title: "Total Live Publishers", value: totalLivePublishers.toString(), icon: ShoppingCart, tooltip: "Sum of unique publishers with live activity", color: "bg-amber-500" },
+        { title: "Total Live Clients", value: totalLiveClients.toString(), icon: Users, tooltip: "Unique clients with live campaigns or scopes", color: "bg-purple-500" },
+        { title: "Total Live Publishers", value: totalLivePublishers.toString(), icon: ShoppingCart, tooltip: "Unique publishers appearing on live campaigns", color: "bg-amber-500" },
       ])
     } catch (error) {
       console.error("Dashboard: Error fetching data:", error)
@@ -542,57 +568,53 @@ export default function DashboardOverview({
   }
 
   const getLiveCampaigns = () => {
-    const latestVersionsMap = new Map<string, MediaPlan>()
-    mediaPlans.forEach((plan) => {
-      const existing = latestVersionsMap.get(plan.mp_mba_number)
-      if (!existing || plan.mp_version > existing.mp_version) {
-        latestVersionsMap.set(plan.mp_mba_number, plan)
-      }
+    const latestPlans = getLatestPlanVersions(mediaPlans)
+    const { startOfToday, endOfToday } = getTodayBounds()
+
+    return latestPlans.filter((plan) => {
+      const status = normalizeStatus(plan.mp_campaignstatus)
+      if (!LIVE_STATUSES.includes(status)) return false
+
+      const startDate = new Date(plan.mp_campaigndates_start)
+      const endDate = new Date(plan.mp_campaigndates_end)
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return false
+
+      return startDate <= endOfToday && endDate >= startOfToday
     })
-    const latestPlans = Array.from(latestVersionsMap.values())
-    const liveStatuses = ["booked", "approved"]
-    return latestPlans.filter((plan) => plan.mp_campaignstatus && liveStatuses.includes(plan.mp_campaignstatus.toLowerCase()))
   }
 
   const getLiveScopes = () => scopes.filter((scope) => scope.project_status === "Approved" || scope.project_status === "In-Progress")
 
   const getCampaignsDueToStart = () => {
-    const today = new Date()
-    const sevenDaysFromNow = new Date(today)
-    sevenDaysFromNow.setDate(today.getDate() + 7)
+    const { startOfToday, endOfToday } = getTodayBounds()
+    const tenDaysAhead = new Date(endOfToday)
+    tenDaysAhead.setDate(endOfToday.getDate() + 10)
 
-    const latestVersionsMap = new Map<string, MediaPlan>()
-    mediaPlans.forEach((plan) => {
-      const existing = latestVersionsMap.get(plan.mp_mba_number)
-      if (!existing || plan.mp_version > existing.mp_version) {
-        latestVersionsMap.set(plan.mp_mba_number, plan)
-      }
-    })
-    const latestPlans = Array.from(latestVersionsMap.values())
+    const latestPlans = getLatestPlanVersions(mediaPlans)
 
     return latestPlans.filter((plan) => {
       const startDate = new Date(plan.mp_campaigndates_start)
-      return startDate >= today && startDate <= sevenDaysFromNow
+      if (isNaN(startDate.getTime())) return false
+
+      return startDate >= startOfToday && startDate <= tenDaysAhead
     })
   }
 
   const getCampaignsFinishedRecently = () => {
-    const today = new Date()
-    const thirtyDaysAgo = new Date(today)
-    thirtyDaysAgo.setDate(today.getDate() - 30)
+    const { endOfToday } = getTodayBounds()
+    const fortyDaysAgo = new Date(endOfToday)
+    fortyDaysAgo.setDate(endOfToday.getDate() - 40)
 
-    const latestVersionsMap = new Map<string, MediaPlan>()
-    mediaPlans.forEach((plan) => {
-      const existing = latestVersionsMap.get(plan.mp_mba_number)
-      if (!existing || plan.mp_version > existing.mp_version) {
-        latestVersionsMap.set(plan.mp_mba_number, plan)
-      }
-    })
-    const latestPlans = Array.from(latestVersionsMap.values())
+    const latestPlans = getLatestPlanVersions(mediaPlans)
 
     return latestPlans.filter((plan) => {
+      const status = normalizeStatus(plan.mp_campaignstatus)
+      if (!LIVE_STATUSES.includes(status)) return false
+
       const endDate = new Date(plan.mp_campaigndates_end)
-      return endDate >= thirtyDaysAgo && endDate <= today
+      if (isNaN(endDate.getTime())) return false
+
+      return endDate >= fortyDaysAgo && endDate <= endOfToday
     })
   }
 
@@ -737,7 +759,7 @@ export default function DashboardOverview({
             <Card className="w-full">
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
-                  <span>Live Campaigns</span>
+                  <span>Live Campaigns (Booked / Approved / Completed)</span>
                   <Badge className="bg-green-500">{liveCampaigns.length} {liveCampaigns.length === 1 ? "Campaign" : "Campaigns"}</Badge>
                 </CardTitle>
               </CardHeader>
@@ -841,12 +863,12 @@ export default function DashboardOverview({
             </Card>
           </motion.div>
 
-          {/* Table of Campaigns Due to Start <7 Days */}
+          {/* Table of Campaigns Starting Soon */}
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.2 }} className="w-full">
             <Card className="w-full">
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
-                  <span>Campaigns Due to Start &lt;7 Days</span>
+                  <span>Campaigns Starting Soon (Next 10 Days)</span>
                   <Badge className="bg-blue-500">{campaignsDueToStart.length} {campaignsDueToStart.length === 1 ? "Campaign" : "Campaigns"}</Badge>
                 </CardTitle>
               </CardHeader>
@@ -856,7 +878,7 @@ export default function DashboardOverview({
                     <div className="h-10 w-full bg-gray-200 animate-pulse rounded"></div>
                   </div>
                 ) : campaignsDueToStart.length === 0 ? (
-                  <p className="text-muted-foreground text-center py-4">No campaigns due to start in the next 7 days</p>
+                  <p className="text-muted-foreground text-center py-4">No campaigns starting in the next 10 days</p>
                 ) : (
                   <div className="overflow-x-auto">
                     <Table>
@@ -899,12 +921,12 @@ export default function DashboardOverview({
             </Card>
           </motion.div>
 
-          {/* Table of Campaigns Finished in Previous 4 Weeks */}
+          {/* Table of Campaigns Finished in Past 40 Days */}
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.3 }} className="w-full">
             <Card className="w-full">
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
-                  <span>Campaigns Finished in Previous 4 Weeks</span>
+                  <span>Campaigns Finished in Past 40 Days</span>
                   <Badge className="bg-teal-500">{campaignsFinishedRecently.length} {campaignsFinishedRecently.length === 1 ? "Campaign" : "Campaigns"}</Badge>
                 </CardTitle>
               </CardHeader>
@@ -914,7 +936,7 @@ export default function DashboardOverview({
                     <div className="h-10 w-full bg-gray-200 animate-pulse rounded"></div>
                   </div>
                 ) : campaignsFinishedRecently.length === 0 ? (
-                  <p className="text-muted-foreground text-center py-4">No campaigns finished in the previous 4 weeks</p>
+                  <p className="text-muted-foreground text-center py-4">No campaigns finished in the past 40 days</p>
                 ) : (
                   <div className="overflow-x-auto">
                     <Table>

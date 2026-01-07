@@ -253,8 +253,10 @@ export async function PUT(
       mp_progbvod: data.mp_progbvod || currentVersion.mp_progbvod || false,
       mp_progaudio: data.mp_progaudio || currentVersion.mp_progaudio || false,
       mp_progooh: data.mp_progooh || currentVersion.mp_progooh || false,
-      mp_influencers: data.mp_influencers || currentVersion.mp_influencers || false,
-      media_plan_master_id: currentVersion.media_plan_master_id
+    mp_influencers: data.mp_influencers || currentVersion.mp_influencers || false,
+    billingSchedule: data.billingSchedule || currentVersion.billingSchedule || null,
+    deliverySchedule: data.deliverySchedule || currentVersion.deliverySchedule || null,
+    media_plan_master_id: currentVersion.media_plan_master_id
     }
     
     // Create new version in media_plan_versions table

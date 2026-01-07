@@ -14,6 +14,7 @@ import { SuccessModal } from "@/components/ui/success-modal"
 import { Badge } from "@/components/ui/badge"
 
 const optionalString = z.string().optional().or(z.literal(""))
+const normalizeAbn = (value: string) => value.replace(/[^A-Za-z0-9]/g, "")
 
 const clientSchema = z.object({
   id: z.number(),
@@ -23,9 +24,14 @@ const clientSchema = z.object({
   abn: z.preprocess(
     (val) => {
       if (val === null || val === undefined || val === "") return ""
-      return String(val)
+      if (typeof val === "string") return normalizeAbn(val)
+      return val
     },
-    z.string().regex(/^[A-Za-z0-9]{11}$/, "ABN must be exactly 11 characters or numbers").optional().or(z.literal(""))
+    z
+      .string()
+      .regex(/^[A-Za-z0-9]{11}$/, "ABN must contain 11 letters or numbers after removing spaces or symbols")
+      .optional()
+      .or(z.literal(""))
   ),
   legalbusinessname: optionalString,
   streetaddress: optionalString,

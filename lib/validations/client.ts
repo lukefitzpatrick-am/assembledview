@@ -1,17 +1,25 @@
 import * as z from "zod"
 
 const optionalString = z.string().optional().or(z.literal(""))
+const normalizeAbn = (value: string) => value.replace(/[^A-Za-z0-9]/g, "")
 
 const clientSchema = z.object({
   id: z.number(),
   clientname_input: z.string().min(1, "Client name is required"),
   mbaidentifier: z.string().min(1, "MBA Identifier is required"),
   clientcategory: optionalString,
-  abn: z
-    .string()
-    .regex(/^\d{11}$/, "ABN must be exactly 11 digits")
-    .optional()
-    .or(z.literal("")),
+  abn: z.preprocess(
+    (val) => {
+      if (val === null || val === undefined || val === "") return ""
+      if (typeof val === "string") return normalizeAbn(val)
+      return val
+    },
+    z
+      .string()
+      .regex(/^[A-Za-z0-9]{11}$/, "ABN must contain 11 letters or numbers after removing spaces or symbols")
+      .optional()
+      .or(z.literal(""))
+  ),
   legalbusinessname: optionalString,
   streetaddress: optionalString,
   suburb: optionalString,
