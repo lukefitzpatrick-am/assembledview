@@ -78,6 +78,9 @@ const lineItemSchema = z.object({
   platform: z.string().min(1, "Platform is required"),
   bidStrategy: z.string().min(1, "Bid Strategy is required"),
   buyType: z.string().min(1, "Buy Type is required"),
+  objective: z.string().optional(),
+  campaign: z.string().optional(),
+  targetingAttribute: z.string().optional(),
   creativeTargeting: z.string().default(""),
   creative: z.string().default(""),
   buyingDemo: z.string().default(""),
@@ -170,7 +173,7 @@ export function getIntegrationBursts(
         feePercentage:      pct,
         clientPaysForMedia: li.clientPaysForMedia,
         budgetIncludesFees: li.budgetIncludesFees,
-        noAdserving: false,
+        noAdserving: li.noAdserving || false,
         deliverables: 0,
         buyType: li.buyType,
       }
@@ -303,13 +306,16 @@ export default function IntegrationContainer({
   
   // Form initialization
   const form = useForm<IntegrationFormValues>({
-    resolver: zodResolver(integrationFormSchema),
+    resolver: zodResolver(integrationFormSchema) as any,
     defaultValues: {
       lineItems: [
         {
           platform: "",
           bidStrategy: "",
           buyType: "",
+          objective: "",
+          campaign: "",
+          targetingAttribute: "",
           creativeTargeting: "",
           creative: "",
           buyingDemo: "",
@@ -358,24 +364,33 @@ export default function IntegrationContainer({
     if (initialLineItems && initialLineItems.length > 0) {
       const transformedLineItems = initialLineItems.map((item: any) => ({
         platform: item.platform || "",
+        bidStrategy: item.bid_strategy || "",
         objective: item.objective || "",
         campaign: item.campaign || "",
         buyType: item.buy_type || "",
+        creativeTargeting: item.creative_targeting || "",
+        creative: item.creative || "",
+        buyingDemo: item.buying_demo || "",
+        market: item.market || "",
         targetingAttribute: item.targeting_attribute || "",
         fixedCostMedia: item.fixed_cost_media || false,
         clientPaysForMedia: item.client_pays_for_media || false,
         budgetIncludesFees: item.budget_includes_fees || false,
-        noadserving: item.no_adserving || false,
+        noAdserving: item.no_adserving || false,
         bursts: item.bursts_json ? (typeof item.bursts_json === 'string' ? JSON.parse(item.bursts_json) : item.bursts_json).map((burst: any) => ({
           budget: burst.budget || "",
           buyAmount: burst.buyAmount || "",
           startDate: burst.startDate ? new Date(burst.startDate) : new Date(),
           endDate: burst.endDate ? new Date(burst.endDate) : new Date(),
+          calculatedValue: burst.calculatedValue ?? 0,
+          fee: burst.fee ?? 0,
         })) : [{
           budget: "",
           buyAmount: "",
           startDate: campaignStartDate || new Date(),
           endDate: campaignEndDate || new Date(),
+          calculatedValue: 0,
+          fee: 0,
         }],
       }));
 
@@ -418,7 +433,7 @@ export default function IntegrationContainer({
         fixed_cost_media: lineItem.fixedCostMedia || false,
         client_pays_for_media: lineItem.clientPaysForMedia || false,
         budget_includes_fees: lineItem.budgetIncludesFees || false,
-        no_adserving: lineItem.noadserving || false,
+        no_adserving: lineItem.noAdserving || false,
         line_item_id: `${mbaNumber || 'INT'}${index + 1}`,
         bursts_json: JSON.stringify(lineItem.bursts.map(burst => ({
           budget: burst.budget || "",
@@ -512,7 +527,31 @@ export default function IntegrationContainer({
 
     setOverallDeliverables(overallMedia);
     onTotalMediaChange(overallMedia, overallFee);
-  }, [form, feeintegration]); // Removed onTotalMediaChange dependency to prevent infinite loops
+  }, [form, feeintegration, onTotalMediaChange]);
+
+  const handleBuyTypeChange = useCallback(
+    (lineItemIndex: number, value: string) => {
+      form.setValue(`lineItems.${lineItemIndex}.buyType`, value);
+
+      if (value === "bonus") {
+        const currentBursts =
+          form.getValues(`lineItems.${lineItemIndex}.bursts`) || [];
+        const zeroedBursts = currentBursts.map((burst: any) => ({
+          ...burst,
+          budget: "0",
+          buyAmount: "0",
+          calculatedValue: burst.calculatedValue ?? 0,
+        }));
+
+        form.setValue(`lineItems.${lineItemIndex}.bursts`, zeroedBursts, {
+          shouldDirty: true,
+        });
+      }
+
+      handleLineItemValueChange(lineItemIndex);
+    },
+    [form, handleLineItemValueChange]
+  );
 
   const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number) => {
     const burst = form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}`);
@@ -531,6 +570,11 @@ export default function IntegrationContainer({
         break;
       case "fixed_cost":
         calculatedValue = 1;
+        break;
+      case "bonus":
+        calculatedValue = parseFloat(
+          (burst?.calculatedValue ?? "0").toString().replace(/[^0-9.]/g, "")
+        ) || 0;
         break;
       default:
         calculatedValue = 0;
@@ -764,7 +808,7 @@ useEffect(() => {
           totalAmount: mediaAmount + feeAmount,
           mediaType: 'integration',
           feePercentage: feeintegration,
-          noAdserving: false,
+          noAdserving: item.noAdserving || false,
           deliverables: 0,
           buyType: item.buyType,
           clientPaysForMedia: item.clientPaysForMedia,
@@ -1104,69 +1148,79 @@ useEffect(() => {
                                     <FormField
                                       control={form.control}
                                       name={`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`}
-                                      render={({ field }) => (
-                                        <FormItem>
-                                          <FormLabel className="text-xs">Budget</FormLabel>
-                                          <FormControl>
-                                            <Input
-                                              {...field}
-                                              type="text"
-                                              className="w-full"
-                                              onChange={(e) => {
-                                                const value = e.target.value.replace(/[^0-9.]/g, "");
-                                                field.onChange(value);
-                                                handleValueChange(lineItemIndex, burstIndex);
-                                              }}
-                                              onBlur={(e) => {
-                                                const value = e.target.value;
-                                                const formattedValue = new Intl.NumberFormat("en-US", {
-                                                  style: "currency",
-                                                  currency: "USD",
-                                                  minimumFractionDigits: 2,
-                                                  maximumFractionDigits: 2,
-                                                }).format(Number.parseFloat(value) || 0);
-                                                field.onChange(formattedValue);
-                                                handleValueChange(lineItemIndex, burstIndex);
-                                              }}
-                                            />
-                                          </FormControl>
-                                          <FormMessage />
-                                        </FormItem>
-                                      )}
+                                      render={({ field }) => {
+                                        const buyType = form.watch(`lineItems.${lineItemIndex}.buyType`);
+                                        return (
+                                          <FormItem>
+                                            <FormLabel className="text-xs">Budget</FormLabel>
+                                            <FormControl>
+                                              <Input
+                                                {...field}
+                                                type="text"
+                                                className="w-full"
+                                                value={buyType === "bonus" ? "0" : field.value}
+                                                disabled={buyType === "bonus"}
+                                                onChange={(e) => {
+                                                  const value = e.target.value.replace(/[^0-9.]/g, "");
+                                                  field.onChange(value);
+                                                  handleValueChange(lineItemIndex, burstIndex);
+                                                }}
+                                                onBlur={(e) => {
+                                                  const value = e.target.value;
+                                                  const formattedValue = new Intl.NumberFormat("en-US", {
+                                                    style: "currency",
+                                                    currency: "USD",
+                                                    minimumFractionDigits: 2,
+                                                    maximumFractionDigits: 2,
+                                                  }).format(Number.parseFloat(value) || 0);
+                                                  field.onChange(formattedValue);
+                                                  handleValueChange(lineItemIndex, burstIndex);
+                                                }}
+                                              />
+                                            </FormControl>
+                                            <FormMessage />
+                                          </FormItem>
+                                        );
+                                      }}
                                     />
 
                                     <FormField
                                       control={form.control}
                                       name={`lineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount`}
-                                      render={({ field }) => (
-                                        <FormItem>
-                                          <FormLabel className="text-xs">Buy Amount</FormLabel>
-                                          <FormControl>
-                                            <Input
-                                              {...field}
-                                              type="text"
-                                              className="w-full"
-                                              onChange={(e) => {
-                                                const value = e.target.value.replace(/[^0-9.]/g, "");
-                                                field.onChange(value);
-                                                handleValueChange(lineItemIndex, burstIndex);
-                                              }}
-                                              onBlur={(e) => {
-                                                const value = e.target.value;
-                                                const formattedValue = new Intl.NumberFormat("en-US", {
-                                                  style: "currency",
-                                                  currency: "USD",
-                                                  minimumFractionDigits: 2,
-                                                  maximumFractionDigits: 2,
-                                                }).format(Number.parseFloat(value) || 0);
-                                                field.onChange(formattedValue);
-                                                handleValueChange(lineItemIndex, burstIndex);
-                                              }}
-                                            />
-                                          </FormControl>
-                                          <FormMessage />
-                                        </FormItem>
-                                      )}
+                                      render={({ field }) => {
+                                        const buyType = form.watch(`lineItems.${lineItemIndex}.buyType`);
+                                        return (
+                                          <FormItem>
+                                            <FormLabel className="text-xs">Buy Amount</FormLabel>
+                                            <FormControl>
+                                              <Input
+                                                {...field}
+                                                type="text"
+                                                className="w-full"
+                                                value={buyType === "bonus" ? "0" : field.value}
+                                                disabled={buyType === "bonus"}
+                                                onChange={(e) => {
+                                                  const value = e.target.value.replace(/[^0-9.]/g, "");
+                                                  field.onChange(value);
+                                                  handleValueChange(lineItemIndex, burstIndex);
+                                                }}
+                                                onBlur={(e) => {
+                                                  const value = e.target.value;
+                                                  const formattedValue = new Intl.NumberFormat("en-US", {
+                                                    style: "currency",
+                                                    currency: "USD",
+                                                    minimumFractionDigits: 2,
+                                                    maximumFractionDigits: 2,
+                                                  }).format(Number.parseFloat(value) || 0);
+                                                  field.onChange(formattedValue);
+                                                  handleValueChange(lineItemIndex, burstIndex);
+                                                }}
+                                              />
+                                            </FormControl>
+                                            <FormMessage />
+                                          </FormItem>
+                                        );
+                                      }}
                                     />
 
                                     <div className="grid grid-cols-2 gap-2">
@@ -1249,33 +1303,63 @@ useEffect(() => {
 
                                     <FormField
                                       control={form.control}
-                                      name={`lineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`}
-                                      render={({ field }) => {
-                                        const buyType = useWatch({
+                                name={`lineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`}
+                                render={({ field }) => {
+                                  const buyType = useWatch({
+                                    control: form.control,
+                                    name: `lineItems.${lineItemIndex}.buyType`,
+                                  });
+                                        const budgetValue = useWatch({
                                           control: form.control,
-                                          name: `lineItems.${lineItemIndex}.buyType`,
+                                          name: `lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`,
+                                        });
+                                        const buyAmountValue = useWatch({
+                                          control: form.control,
+                                          name: `lineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount`,
                                         });
 
                                         const calculatedValue = useMemo(() => {
-                                          const budget = parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0");
-                                          const buyAmount = parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount`)?.replace(/[^0-9.]/g, "") || "1");
+                                          const budget = parseFloat(
+                                            String(budgetValue)?.replace(/[^0-9.]/g, "") || "0"
+                                          );
+                                          const buyAmount = parseFloat(
+                                            String(buyAmountValue)?.replace(/[^0-9.]/g, "") || "1"
+                                          );
 
                                           switch (buyType) {
                                             case "cpc":
                                             case "cpv":
-                                              return buyAmount !== 0 ? (budget / buyAmount) : "0";
+                                              return buyAmount !== 0 ? budget / buyAmount : "0";
                                             case "cpm":
-                                              return buyAmount !== 0 ? ((budget / buyAmount) * 1000) : "0";
+                                              return buyAmount !== 0 ? (budget / buyAmount) * 1000 : "0";
                                             case "fixed_cost":
                                               return "1";
                                             default:
                                               return "0";
                                           }
-                                        }, [
-                                          form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`),
-                                          form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount`),
-                                          buyType
-                                        ]);
+                                        }, [budgetValue, buyAmountValue, buyType]);
+
+                                        if (buyType === "bonus") {
+                                          return (
+                                            <FormItem>
+                                              <FormLabel className="text-xs">Bonus Deliverables</FormLabel>
+                                              <FormControl>
+                                                <Input
+                                                  type="number"
+                                                  min={0}
+                                                  step={1}
+                                                  className="w-full"
+                                                  value={field.value ?? ""}
+                                                  onChange={(e) => {
+                                                    const value = e.target.value.replace(/[^0-9]/g, "");
+                                                    field.onChange(value);
+                                                  }}
+                                                />
+                                              </FormControl>
+                                              <FormMessage />
+                                            </FormItem>
+                                          );
+                                        }
 
                                         let title = "Calculated Value";
                                         switch (buyType) {
@@ -1300,7 +1384,7 @@ useEffect(() => {
                                               <Input
                                                 type="text"
                                                 className="w-full"
-                                                value={calculatedValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                                value={Number(calculatedValue).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                                                 readOnly
                                               />
                                             </FormControl>
@@ -1377,6 +1461,9 @@ useEffect(() => {
                                 platform: "",
                                 bidStrategy: "",
                                 buyType: "",
+                                objective: "",
+                                campaign: "",
+                                targetingAttribute: "",
                                 creativeTargeting: "",
                                 creative: "",
                                 buyingDemo: "",

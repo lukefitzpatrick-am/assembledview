@@ -175,7 +175,9 @@ export function getTelevisionBursts(
         feePercentage:      pct,
         clientPaysForMedia: li.clientPaysForMedia,
         budgetIncludesFees: li.budgetIncludesFees,
-        deliverables: 0,
+        deliverables: parseFloat(
+          burst?.tarps?.replace(/[^0-9.]/g, "") || "0"
+        ) || 0,
         buyType: li.buyType,
         noAdserving: false,
       }
@@ -538,6 +540,34 @@ export default function TelevisionContainer({
     name: "televisionlineItems",
   });
 
+  // Callback handlers
+  const handleLineItemValueChange = useCallback((lineItemIndex: number) => {
+    const televisionlineItems = form.getValues("televisionlineItems") || [];
+    let overallMedia = 0;
+    let overallFee = 0;
+    let overallCost = 0;
+
+    televisionlineItems.forEach((lineItem) => {
+      let lineMedia = 0;
+      let lineFee = 0;
+      let lineDeliverables = 0;
+
+      lineItem.bursts.forEach((burst) => {
+        const budget = parseFloat(burst?.budget?.replace(/[^0-9.]/g, "") || "0");
+        lineMedia += budget;
+        lineDeliverables += parseFloat(burst.tarps.replace(/[^0-9.]/g, "")) || 0; // Parse TARPs
+      });
+
+      lineFee = feetelevision ? (lineMedia / (100 - feetelevision)) * feetelevision : 0;
+      overallMedia += lineMedia;
+      overallFee += lineFee;
+      overallCost += lineMedia + lineFee;
+    });
+
+    setOverallDeliverables(overallMedia);
+    onTotalMediaChange(overallMedia, overallFee);
+  }, [feetelevision, onTotalMediaChange]);
+
   const handleDuplicateLineItem = useCallback((lineItemIndex: number) => {
     const items = form.getValues("televisionlineItems") || [];
     const source = items[lineItemIndex];
@@ -566,6 +596,31 @@ export default function TelevisionContainer({
 
     appendLineItem(clone);
   }, [appendLineItem, form, toast]);
+
+  const handleBuyTypeChange = useCallback(
+    (lineItemIndex: number, value: string) => {
+      form.setValue(`televisionlineItems.${lineItemIndex}.buyType`, value);
+
+      if (value === "bonus") {
+        const currentBursts =
+          form.getValues(`televisionlineItems.${lineItemIndex}.bursts`) || [];
+        const zeroedBursts = currentBursts.map((burst: any) => ({
+          ...burst,
+          budget: "0",
+          buyAmount: "0",
+        }));
+
+        form.setValue(
+          `televisionlineItems.${lineItemIndex}.bursts`,
+          zeroedBursts,
+          { shouldDirty: true }
+        );
+      }
+
+      handleLineItemValueChange(lineItemIndex);
+    },
+    [form, handleLineItemValueChange]
+  );
 
   // Watch hook
   const watchedLineItems = useWatch({ 
@@ -622,34 +677,6 @@ export default function TelevisionContainer({
     
     return { lineItemTotals, overallMedia, overallFee, overallCost };
   }, [watchedLineItems, feetelevision]);
-  
-  // Callback handlers
-  const handleLineItemValueChange = useCallback((lineItemIndex: number) => {
-    const televisionlineItems = form.getValues("televisionlineItems") || [];
-    let overallMedia = 0;
-    let overallFee = 0;
-    let overallCost = 0;
-
-    televisionlineItems.forEach((lineItem) => {
-      let lineMedia = 0;
-      let lineFee = 0;
-      let lineDeliverables = 0;
-
-      lineItem.bursts.forEach((burst) => {
-        const budget = parseFloat(burst?.budget?.replace(/[^0-9.]/g, "") || "0");
-        lineMedia += budget;
-        lineDeliverables += parseFloat(burst.tarps.replace(/[^0-9.]/g, "")) || 0; // Parse TARPs
-      });
-
-      lineFee = feetelevision ? (lineMedia / (100 - feetelevision)) * feetelevision : 0;
-      overallMedia += lineMedia;
-      overallFee += lineFee;
-      overallCost += lineMedia + lineFee;
-    });
-
-    setOverallDeliverables(overallMedia);
-    onTotalMediaChange(overallMedia, overallFee);
-  }, [feetelevision, onTotalMediaChange]);
 
   // In TelevisionContainer.tsx
 const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number) => {
@@ -1297,7 +1324,12 @@ useEffect(() => {
                                 render={({ field }) => (
                                   <FormItem className="flex items-center space-x-2">
                                     <FormLabel className="w-24 text-sm">Buy Type</FormLabel>
-                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <Select
+                                      onValueChange={(value) =>
+                                        handleBuyTypeChange(lineItemIndex, value)
+                                      }
+                                      defaultValue={field.value}
+                                    >
                                       <FormControl>
                                         <SelectTrigger className="h-9 w-full flex-1 rounded-md border">
                                           <SelectValue placeholder="Select" />
@@ -1452,6 +1484,7 @@ useEffect(() => {
                       {/* Bursts Section */}
                       <div id={`line-item-${lineItemIndex}-bursts`} className="space-y-4">
                         {form.watch(`televisionlineItems.${lineItemIndex}.bursts`, []).map((burstField, burstIndex) => {
+                          const buyType = form.watch(`televisionlineItems.${lineItemIndex}.buyType`);
                           return (
                             <Card key={`${lineItemIndex}-${burstIndex}`} className="border border-gray-200">
                               <CardContent className="py-2 px-4">
@@ -1472,6 +1505,8 @@ useEffect(() => {
                                               {...field}
                                               type="text"
                                               className="w-full"
+                                              value={buyType === "bonus" ? "0" : field.value}
+                                              disabled={buyType === "bonus"}
                                               onChange={(e) => {
                                                 const value = e.target.value.replace(/[^0-9.]/g, "");
                                                 field.onChange(value);
@@ -1506,6 +1541,8 @@ useEffect(() => {
                                               {...field}
                                               type="text"
                                               className="w-full"
+                                              value={buyType === "bonus" ? "0" : field.value}
+                                              disabled={buyType === "bonus"}
                                               onChange={(e) => {
                                                 const value = e.target.value.replace(/[^0-9.]/g, "");
                                                 field.onChange(value);
@@ -1611,49 +1648,76 @@ useEffect(() => {
                                       control={form.control}
                                       name={`televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.tarps`}
                                       render={({ field }) => {
-                                        const buyType = useWatch({
+                                        // Hooks must always run in the same order, so keep these at the top.
+                                        const buyTypeWatch = useWatch({
                                           control: form.control,
                                           name: `televisionlineItems.${lineItemIndex}.buyType`,
                                         });
+                                        const budgetValue = useWatch({
+                                          control: form.control,
+                                          name: `televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.budget`,
+                                        });
+                                        const buyAmountValue = useWatch({
+                                          control: form.control,
+                                          name: `televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount`,
+                                        });
 
-                                        // Use useWatch to subscribe to changes for real-time calculation
-                                      const budgetValue = useWatch({ control: form.control, name: `televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.budget` });
-                                      const buyAmountValue = useWatch({ control: form.control, name: `televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount` });
-
-                                       const calculatedValue = useMemo(() => {
+                                        const calculatedValue = useMemo(() => {
                                           const budget = parseFloat(String(budgetValue)?.replace(/[^0-9.]/g, "") || "0");
                                           const buyAmount = parseFloat(String(buyAmountValue)?.replace(/[^0-9.]/g, "") || "1");
 
-                                          switch (buyType) {
+                                          switch (buyTypeWatch) {
                                             case "cpt":
                                             case "spots":
-                                              return buyAmount !== 0 ? (budget / buyAmount) : "0";
+                                              return buyAmount !== 0 ? budget / buyAmount : "0";
                                             case "cpm":
-                                              return buyAmount !== 0 ? ((budget / buyAmount) * 1000) : "0";
+                                              return buyAmount !== 0 ? (budget / buyAmount) * 1000 : "0";
                                             case "fixed_cost":
                                               return "1";
                                             default:
                                               return "0";
                                           }
-                                        }, [budgetValue, buyAmountValue, buyType]);
+                                        }, [budgetValue, buyAmountValue, buyTypeWatch]);
 
-                                        // ✅ FIX: This useEffect updates the form state when the calculation changes.
-                                        // Only update if the calculated value is different from the current form value
                                         useEffect(() => {
-                                          const currentValue = form.getValues(`televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.tarps`);
+                                          if (buyTypeWatch === "bonus") return;
+                                          const currentValue = form.getValues(
+                                            `televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.tarps`
+                                          );
                                           const newValue = String(calculatedValue);
-                                          
-                                          // Only update if the values are actually different to prevent infinite loops
+
                                           if (currentValue !== newValue) {
                                             form.setValue(
                                               `televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.tarps`,
                                               newValue
                                             );
                                           }
-                                        }, [calculatedValue, lineItemIndex, burstIndex, form]);
+                                        }, [calculatedValue, lineItemIndex, burstIndex, form, buyTypeWatch]);
+
+                                        if (buyTypeWatch === "bonus") {
+                                          return (
+                                            <FormItem>
+                                              <FormLabel className="text-xs">Bonus Deliverables</FormLabel>
+                                              <FormControl>
+                                                <Input
+                                                  type="number"
+                                                  min={0}
+                                                  step={1}
+                                                  className="w-full"
+                                                  value={field.value ?? ""}
+                                                  onChange={(e) => {
+                                                    const value = e.target.value.replace(/[^0-9]/g, "");
+                                                    field.onChange(value);
+                                                  }}
+                                                />
+                                              </FormControl>
+                                              <FormMessage />
+                                            </FormItem>
+                                          );
+                                        }
 
                                         let title = "Calculated Value";
-                                        switch (buyType) {
+                                        switch (buyTypeWatch) {
                                           case "cpt":
                                             title = "TARPs";
                                             break;

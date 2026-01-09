@@ -217,6 +217,17 @@ export function AppSidebar() {
               {isAdmin && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild>
+                    <Link href="/dashboard-demo/pacing/meta" className="flex items-center">
+                      <BarChart3 className="mr-2 h-4 w-4" />
+                      <span>Pacing Demo (Meta)</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+
+              {isAdmin && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
                     <Link href="/admin/users/new" className="flex items-center">
                       <UserCircle className="mr-2 h-4 w-4" />
                       <span>Admin User Enrolment</span>

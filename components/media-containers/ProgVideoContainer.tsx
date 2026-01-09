@@ -559,7 +559,31 @@ export default function ProgVideoContainer({
 
     setOverallDeliverables(overallMedia);
     onTotalMediaChange(overallMedia, overallFee);
-  }, [form, feeprogvideo]); // Removed onTotalMediaChange dependency to prevent infinite loops
+  }, [form, feeprogvideo, onTotalMediaChange]);
+
+  const handleBuyTypeChange = useCallback(
+    (lineItemIndex: number, value: string) => {
+      form.setValue(`lineItems.${lineItemIndex}.buyType`, value);
+
+      if (value === "bonus") {
+        const currentBursts =
+          form.getValues(`lineItems.${lineItemIndex}.bursts`) || [];
+        const zeroedBursts = currentBursts.map((burst: any) => ({
+          ...burst,
+          budget: "0",
+          buyAmount: "0",
+          calculatedValue: burst.calculatedValue ?? 0,
+        }));
+
+        form.setValue(`lineItems.${lineItemIndex}.bursts`, zeroedBursts, {
+          shouldDirty: true,
+        });
+      }
+
+      handleLineItemValueChange(lineItemIndex);
+    },
+    [form, handleLineItemValueChange]
+  );
 
   const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number) => {
     const burst = form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}`);
@@ -578,6 +602,11 @@ export default function ProgVideoContainer({
         break;
       case "fixed_cost":
         calculatedValue = 1;
+        break;
+      case "bonus":
+        calculatedValue = parseFloat(
+          (burst?.calculatedValue ?? "0").toString().replace(/[^0-9.]/g, "")
+        ) || 0;
         break;
       default:
         calculatedValue = 0;
@@ -1005,7 +1034,12 @@ useEffect(() => {
                                 render={({ field }) => (
                                   <FormItem className="flex items-center space-x-2">
                                     <FormLabel className="w-24 text-sm">Platform</FormLabel>
-                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <Select
+                                      onValueChange={(value) =>
+                                        handleBuyTypeChange(lineItemIndex, value)
+                                      }
+                                      defaultValue={field.value}
+                                    >
                                       <FormControl>
                                         <SelectTrigger className="h-9 w-full flex-1 rounded-md border">
                                           <SelectValue placeholder="Select" />
@@ -1064,6 +1098,7 @@ useEffect(() => {
                                         <SelectItem value="cpc">CPC</SelectItem>
                                         <SelectItem value="cpm">CPM</SelectItem>
                                         <SelectItem value="cpv">CPV</SelectItem>
+                                        <SelectItem value="bonus">Bonus</SelectItem>
                                         <SelectItem value="fixed_cost">Fixed Cost</SelectItem>
                                       </SelectContent>
                                     </Select>
@@ -1370,27 +1405,57 @@ useEffect(() => {
                                           control: form.control,
                                           name: `lineItems.${lineItemIndex}.buyType`,
                                         });
+                                        const budgetValue = useWatch({
+                                          control: form.control,
+                                          name: `lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`,
+                                        });
+                                        const buyAmountValue = useWatch({
+                                          control: form.control,
+                                          name: `lineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount`,
+                                        });
 
                                         const calculatedValue = useMemo(() => {
-                                          const budget = parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0");
-                                          const buyAmount = parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount`)?.replace(/[^0-9.]/g, "") || "1");
+                                          const budget = parseFloat(
+                                            String(budgetValue)?.replace(/[^0-9.]/g, "") || "0"
+                                          );
+                                          const buyAmount = parseFloat(
+                                            String(buyAmountValue)?.replace(/[^0-9.]/g, "") || "1"
+                                          );
 
                                           switch (buyType) {
                                             case "cpc":
                                             case "cpv":
-                                              return buyAmount !== 0 ? (budget / buyAmount) : "0";
+                                              return buyAmount !== 0 ? budget / buyAmount : "0";
                                             case "cpm":
-                                              return buyAmount !== 0 ? ((budget / buyAmount) * 1000) : "0";
+                                              return buyAmount !== 0 ? (budget / buyAmount) * 1000 : "0";
                                             case "fixed_cost":
                                               return "1";
                                             default:
                                               return "0";
                                           }
-                                        }, [
-                                          form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`),
-                                          form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount`),
-                                          buyType
-                                        ]);
+                                        }, [budgetValue, buyAmountValue, buyType]);
+
+                                        if (buyType === "bonus") {
+                                          return (
+                                            <FormItem>
+                                              <FormLabel className="text-xs">Bonus Deliverables</FormLabel>
+                                              <FormControl>
+                                                <Input
+                                                  type="number"
+                                                  min={0}
+                                                  step={1}
+                                                  className="w-full"
+                                                  value={field.value ?? ""}
+                                                  onChange={(e) => {
+                                                    const value = e.target.value.replace(/[^0-9]/g, "");
+                                                    field.onChange(value);
+                                                  }}
+                                                />
+                                              </FormControl>
+                                              <FormMessage />
+                                            </FormItem>
+                                          );
+                                        }
 
                                         let title = "Calculated Value";
                                         switch (buyType) {

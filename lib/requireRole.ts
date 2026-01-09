@@ -31,8 +31,7 @@ export async function requireRole(
   requiredRole: UserRole | UserRole[] = 'admin',
   options: RequireRoleOptions = {}
 ): Promise<RequireRoleSuccess | RequireRoleFailure> {
-  const res = NextResponse.next();
-  const session = await auth0.getSession(req, res);
+  const session = await auth0.getSession(req);
 
   if (!session || !session.user) {
     return { response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };

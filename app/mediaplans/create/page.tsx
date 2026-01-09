@@ -901,7 +901,8 @@ export default function CreateMediaPlan() {
     const map: Record<string, {
       totalMedia: number;
       totalFee: number;
-      adServing: number,
+    adServing: number,
+    productionTotal: number;
       mediaCosts: Record<string, number>;
   }> = {};
   
@@ -912,6 +913,7 @@ export default function CreateMediaPlan() {
           totalMedia: 0,
           totalFee: 0,
           adServing: 0,
+          productionTotal: 0,
           mediaCosts: { search: 0, socialMedia: 0, progAudio: 0, cinema: 0, digiAudio: 0, digiDisplay: 0, digiVideo: 0, progDisplay: 0, progVideo: 0, progBvod: 0, progOoh: 0, television: 0, radio: 0, newspaper: 0, magazines: 0, ooh: 0, bvod: 0, integration: 0, influencers: 0, production: 0 }
       };
       cur.setMonth(cur.getMonth() + 1);
@@ -940,7 +942,11 @@ export default function CreateMediaPlan() {
               const feeShare = burst.feeAmount * (daysInMonth / daysTotal);
 
               map[key].mediaCosts[mediaType] += mediaShare;
-              map[key].totalMedia += mediaShare;
+              if (mediaType === 'production') {
+                map[key].productionTotal += mediaShare;
+              } else {
+                map[key].totalMedia += mediaShare;
+              }
               map[key].totalFee += feeShare;
           }
           d.setMonth(d.getMonth() + 1);
@@ -1023,13 +1029,13 @@ export default function CreateMediaPlan() {
   progDisplayBursts.forEach(b => distributeAdServing(b, 'progDisplay'))
 
   const months: BillingMonth[] = Object.entries(map).map(
-      ([monthYear, { totalMedia, totalFee, adServing,mediaCosts }]) => ({
+      ([monthYear, { totalMedia, totalFee, adServing, productionTotal, mediaCosts }]) => ({
           monthYear,
           mediaTotal: formatter.format(totalMedia),
           feeTotal: formatter.format(totalFee),
-          totalAmount: formatter.format(totalMedia + totalFee + adServing),
+          totalAmount: formatter.format(totalMedia + totalFee + adServing + productionTotal),
           adservingTechFees: formatter.format(adServing),
-          production: formatter.format(mediaCosts.production || 0),
+          production: formatter.format(productionTotal || 0),
           mediaCosts: { // This now contains the detailed, calculated breakdown
               search: formatter.format(mediaCosts.search || 0),
               socialMedia: formatter.format(mediaCosts.socialMedia || 0),
@@ -1443,6 +1449,8 @@ export default function CreateMediaPlan() {
   adservaudio,
   adservdisplay,
   adservvideo,
+  // Production
+  consultingBursts,
 ]);
 
   // in page.tsx
@@ -1494,6 +1502,7 @@ export default function CreateMediaPlan() {
     } else {
       // --- Use Automatic Calculation Data (Original Logic) ---
       finalVisibleMedia = mediaTypes
+        .filter(medium => medium.name !== "mp_consulting")
         .filter(medium => form.watch(medium.name as keyof MediaPlanFormValues))
         .map(medium => ({
           media_type: medium.label,
@@ -1767,8 +1776,7 @@ export default function CreateMediaPlan() {
     (radioTotal ?? 0) +
     (newspaperTotal ?? 0) +
     (magazineTotal ?? 0) +
-    (oohTotal ?? 0) +
-    (consultingTotal ?? 0)
+    (oohTotal ?? 0)
   );
 };
   
@@ -2335,7 +2343,7 @@ export default function CreateMediaPlan() {
 
   function handleManualBillingChange(
     index: number,
-    type: 'media' | 'fee' | 'adServing' | 'lineItem',
+    type: 'media' | 'fee' | 'adServing' | 'production' | 'lineItem',
     rawValue: string,
     mediaKey?: string, // e.g., 'search', 'socialMedia'
     lineItemId?: string, // For line item edits
@@ -2373,23 +2381,34 @@ export default function CreateMediaPlan() {
     // Dynamically update the correct value
     if (type === 'media' && mediaKey && copy[index].mediaCosts.hasOwnProperty(mediaKey)) {
       copy[index].mediaCosts[mediaKey] = formattedValue;
+      // Keep production in sync with its own field when edited via media type
+      if (mediaKey === 'production') {
+        copy[index].production = formattedValue;
+      }
     } else if (type === 'fee') {
       copy[index].feeTotal = formattedValue;
     } else if (type === 'adServing') {
       copy[index].adservingTechFees = formattedValue;
+    } else if (type === 'production') {
+      copy[index].production = formattedValue;
+      if (copy[index].mediaCosts.hasOwnProperty('production')) {
+        copy[index].mediaCosts.production = formattedValue;
+      }
     }
 
     // Recalculate totals for the affected month
-    const mediaTotal = Object.values(copy[index].mediaCosts).reduce((sum, current) => {
+    const mediaTotal = Object.entries(copy[index].mediaCosts).reduce((sum, [key, current]) => {
+        if (key === 'production') return sum;
         return sum + (parseFloat(String(current).replace(/[^0-9.-]/g, '')) || 0);
     }, 0);
-    
+
     const feeTotal = parseFloat(copy[index].feeTotal.replace(/[^0-9.-]/g, '')) || 0;
     const adServingTotal = parseFloat(copy[index].adservingTechFees.replace(/[^0-9.-]/g, '')) || 0;
+    const productionTotal = parseFloat((copy[index].production || '').replace(/[^0-9.-]/g, '')) || 0;
 
     // Update the aggregated and total amounts for the month
     copy[index].mediaTotal = formatter.format(mediaTotal);
-    copy[index].totalAmount = formatter.format(mediaTotal + feeTotal + adServingTotal);
+    copy[index].totalAmount = formatter.format(mediaTotal + feeTotal + adServingTotal + productionTotal);
 
     // Recalculate the final Grand Total for the whole schedule
     const grandTotal = copy.reduce(
@@ -2539,6 +2558,50 @@ export default function CreateMediaPlan() {
       const fv = form.getValues();
   
       // Helper to ensure a month array carries line items from current media data
+      const synthesizeLineItemsFromTotals = (month: BillingMonth): BillingMonth => {
+        const parseAmount = (value: string | number | undefined) =>
+          typeof value === 'number'
+            ? value
+            : parseFloat(String(value || '').replace(/[^0-9.-]/g, '')) || 0;
+
+        const mediaCosts = month.mediaCosts || {};
+        const entries = Object.entries(mediaCosts) as [string, string | number][];
+        const lineItems: Record<string, BillingLineItem[]> = {};
+
+        entries.forEach(([mediaKey, rawVal]) => {
+          const amount = parseAmount(rawVal);
+          if (amount > 0) {
+            lineItems[mediaKey] = [
+              {
+                id: `auto-${mediaKey}-${month.monthYear}`,
+                header1: 'Auto',
+                header2: 'Auto allocation',
+                monthlyAmounts: { [month.monthYear]: amount },
+                totalAmount: amount,
+              },
+            ];
+          }
+        });
+
+        // If no media-specific costs, but totals exist, create a generic line item
+        if (Object.keys(lineItems).length === 0) {
+          const total = parseAmount(month.totalAmount);
+          if (total > 0) {
+            lineItems['search'] = [
+              {
+                id: `auto-total-${month.monthYear}`,
+                header1: 'Auto',
+                header2: 'Total',
+                monthlyAmounts: { [month.monthYear]: total },
+                totalAmount: total,
+              },
+            ];
+          }
+        }
+
+        return { ...month, lineItems: { ...(month.lineItems || {}), ...lineItems } };
+      };
+
       const attachLineItemsToMonths = (months: BillingMonth[]): BillingMonth[] => {
         let monthsWithLineItems = [...months];
 
@@ -2546,6 +2609,7 @@ export default function CreateMediaPlan() {
           month => month.lineItems && Object.keys(month.lineItems).length > 0
         );
 
+        // Only synthesize line items when none exist yet; preserve any user edits
         if (!hasLineItems && monthsWithLineItems.length > 0) {
           const mediaTypeMap: Record<string, { lineItems: any[], key: string }> = {
             'mp_television': { lineItems: televisionMediaLineItems, key: 'television' },
@@ -2566,8 +2630,8 @@ export default function CreateMediaPlan() {
             'mp_progbvod': { lineItems: progBvodMediaLineItems, key: 'progBvod' },
             'mp_progaudio': { lineItems: progAudioMediaLineItems, key: 'progAudio' },
             'mp_progooh': { lineItems: progOohMediaLineItems, key: 'progOoh' },
-          'mp_influencers': { lineItems: influencersMediaLineItems, key: 'influencers' },
-          'mp_consulting': { lineItems: consultingMediaLineItems, key: 'production' },
+            'mp_influencers': { lineItems: influencersMediaLineItems, key: 'influencers' },
+            'mp_consulting': { lineItems: consultingMediaLineItems, key: 'production' },
           };
 
           const allLineItems: Record<string, BillingLineItem[]> = {};
@@ -2585,13 +2649,22 @@ export default function CreateMediaPlan() {
             const monthCopy = { ...month };
             if (!monthCopy.lineItems) monthCopy.lineItems = {};
             Object.entries(allLineItems).forEach(([key, lineItems]) => {
-              (monthCopy.lineItems as any)[key] = lineItems;
+              if (!(monthCopy.lineItems as any)[key]) {
+                (monthCopy.lineItems as any)[key] = lineItems;
+              }
             });
             return monthCopy;
           });
+        } else {
+          // Ensure lineItems key exists without overwriting existing edits
+          monthsWithLineItems = monthsWithLineItems.map(month => ({
+            ...month,
+            lineItems: month.lineItems || {},
+          }));
         }
 
-        return monthsWithLineItems;
+        // Final safeguard: ensure each month has at least one line item using totals
+        return monthsWithLineItems.map(synthesizeLineItemsFromTotals);
       };
 
       const billingMonthsSource = isManualBilling && manualBillingMonths.length > 0 
@@ -2612,8 +2685,19 @@ export default function CreateMediaPlan() {
   
       // 3. Build version payload (include only top‑level and toggles)
       // Transform billing schedule to hierarchical structure (Media Type → line items)
-      const billingScheduleJSON = buildBillingScheduleJSON(billingMonthsWithLineItems);
-      const deliveryScheduleJSON = buildBillingScheduleJSON(deliveryMonthsWithLineItems);
+      let billingScheduleJSON = buildBillingScheduleJSON(billingMonthsWithLineItems);
+      if (!billingScheduleJSON.length && billingMonthsWithLineItems.length > 0) {
+        billingScheduleJSON = buildBillingScheduleJSON(
+          billingMonthsWithLineItems.map(synthesizeLineItemsFromTotals)
+        );
+      }
+
+      let deliveryScheduleJSON = buildBillingScheduleJSON(deliveryMonthsWithLineItems);
+      if (!deliveryScheduleJSON.length && deliveryMonthsWithLineItems.length > 0) {
+        deliveryScheduleJSON = buildBillingScheduleJSON(
+          deliveryMonthsWithLineItems.map(synthesizeLineItemsFromTotals)
+        );
+      }
       
       // Validate required fields - ensure client_name is a non-empty string
       const clientName = typeof fv.mp_client_name === 'string' 
@@ -2669,6 +2753,8 @@ export default function CreateMediaPlan() {
         mp_influencers:       fv.mp_influencers || false,
         billingSchedule:      billingScheduleJSON,
         deliverySchedule:     deliveryScheduleJSON,
+        // Xano alias safeguard
+        delivery_schedule:    deliveryScheduleJSON,
       };
   
       // 3. Call Xano
@@ -3280,7 +3366,7 @@ const handleSaveAll = async () => {
         startDate: fv.mp_campaigndates_start,
         endDate: fv.mp_campaigndates_end,
         version,
-        mediaFlags: fv as Record<string, boolean>,
+        mediaFlags: fv as unknown as Record<string, boolean>,
         items: {
           search: searchItems,
           socialMedia: socialMediaItems,
@@ -3596,7 +3682,7 @@ const workbook = await generateMediaPlan(header, mediaItems, mbaData);
       }));
 
     return {
-      route: { pathname, clientSlug },
+      route: { pathname: pathname || "", clientSlug },
       fields: [...baseFields, ...toggleFields],
       generatedAt: new Date().toISOString(),
     };
@@ -4043,6 +4129,7 @@ const workbook = await generateMediaPlan(header, mediaItems, mbaData);
                       <TableHead align="right">Media</TableHead>
                       <TableHead align="right">Fees</TableHead>
                       <TableHead align="right">Ad Serving</TableHead>
+                      <TableHead align="right">Production</TableHead>
                       <TableHead align="right">Total</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -4053,6 +4140,7 @@ const workbook = await generateMediaPlan(header, mediaItems, mbaData);
                         <TableCell align="right">{m.mediaTotal}</TableCell>
                         <TableCell align="right">{m.feeTotal}</TableCell>
                         <TableCell align="right">{m.adservingTechFees}</TableCell>
+                        <TableCell align="right">{m.production || "$0.00"}</TableCell>
                         <TableCell align="right" className="font-semibold">{m.totalAmount}</TableCell>
                       </TableRow>
                     ))}
@@ -4069,6 +4157,10 @@ const workbook = await generateMediaPlan(header, mediaItems, mbaData);
                       <TableCell align="right">
                         {new Intl.NumberFormat("en-AU", { style:"currency", currency:"AUD" })
                           .format(billingMonths.reduce((acc, m) => acc + parseFloat(m.adservingTechFees.replace(/[^0-9.-]/g,"")), 0))}
+                      </TableCell>
+                      <TableCell align="right">
+                        {new Intl.NumberFormat("en-AU", { style:"currency", currency:"AUD" })
+                          .format(billingMonths.reduce((acc, m) => acc + parseFloat((m.production || "$0").replace(/[^0-9.-]/g,"")), 0))}
                       </TableCell>
                       <TableCell align="right" className="font-semibold">{billingTotal}</TableCell>
                     </TableRow>
@@ -4088,12 +4180,14 @@ const workbook = await generateMediaPlan(header, mediaItems, mbaData);
           <TableRow>
             <TableHead className="sticky left-0 bg-white z-10">Month</TableHead>
             {mediaTypes
+              .filter(medium => medium.name !== "mp_consulting")
               .filter(medium => form.watch(medium.name as keyof MediaPlanFormValues) && medium.component)
               .map(medium => (
                 <TableHead key={medium.name} className="text-right">{medium.label}</TableHead>
               ))}
             <TableHead className="text-right">Fees</TableHead>
             <TableHead className="text-right">Ad Serving</TableHead>
+            <TableHead className="text-right">Production</TableHead>
             <TableHead className="text-right font-bold">Total</TableHead>
           </TableRow>
         </TableHeader>
@@ -4102,6 +4196,7 @@ const workbook = await generateMediaPlan(header, mediaItems, mbaData);
             <TableRow key={month.monthYear}>
               <TableCell className="sticky left-0 bg-white z-10 font-medium">{month.monthYear}</TableCell>
               {mediaTypes
+                .filter(medium => medium.name !== "mp_consulting")
                 .filter(medium => form.watch(medium.name as keyof MediaPlanFormValues) && medium.component)
                 .map(medium => {
                   const mediaKey = mediaKeyMap[medium.name];
@@ -4144,6 +4239,21 @@ const workbook = await generateMediaPlan(header, mediaItems, mbaData);
                   }}
                 />
               </TableCell>
+            <TableCell align="right">
+              <Input
+                className="text-right"
+                value={month.production || "$0.00"}
+                onBlur={e => handleManualBillingChange(monthIndex, "production", e.target.value, "production")}
+                onChange={e => {
+                  const tempCopy = [...manualBillingMonths];
+                  tempCopy[monthIndex].production = e.target.value;
+                  if (tempCopy[monthIndex].mediaCosts?.production !== undefined) {
+                    tempCopy[monthIndex].mediaCosts.production = e.target.value;
+                  }
+                  setManualBillingMonths(tempCopy);
+                }}
+              />
+            </TableCell>
               <TableCell className="font-semibold text-right">{month.totalAmount}</TableCell>
             </TableRow>
           ))}
@@ -4152,7 +4262,8 @@ const workbook = await generateMediaPlan(header, mediaItems, mbaData);
           <TableRow className="font-bold border-t-2">
             <TableCell className="sticky left-0 bg-white z-10">Subtotals</TableCell>
             {mediaTypes
-              .filter(medium => form.watch(medium.name as keyof MediaPlanFormValues) && medium.component)
+            .filter(medium => medium.name !== "mp_consulting")
+            .filter(medium => form.watch(medium.name as keyof MediaPlanFormValues) && medium.component)
               .map(medium => {
                 const mediaKey = mediaKeyMap[medium.name];
                 const subtotal = manualBillingMonths.reduce((acc, m) => acc + parseFloat((m.mediaCosts[mediaKey] || "$0").replace(/[^0-9.-]/g, '')), 0);
@@ -4168,6 +4279,9 @@ const workbook = await generateMediaPlan(header, mediaItems, mbaData);
             <TableCell className="text-right">
               {currencyFormatter.format(manualBillingMonths.reduce((acc, m) => acc + parseFloat((m.adservingTechFees || "$0").replace(/[^0-9.-]/g, '')), 0))}
             </TableCell>
+          <TableCell className="text-right">
+            {currencyFormatter.format(manualBillingMonths.reduce((acc, m) => acc + parseFloat((m.production || "$0").replace(/[^0-9.-]/g, '')), 0))}
+          </TableCell>
             <TableCell className="text-right">{manualBillingTotal}</TableCell>
           </TableRow>
         </TableFooter>

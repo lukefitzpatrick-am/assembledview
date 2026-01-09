@@ -12,7 +12,8 @@ module.exports = {
     },
     extend: {
       fontFamily: {
-        sans: ["Aptos", "Segoe UI", "Tahoma", "Arial", "Helvetica", "sans-serif"],
+        sans: ["var(--font-geist-sans)", "system-ui", "sans-serif"],
+        mono: ["var(--font-geist-mono)", "ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
       },
       
       colors: {

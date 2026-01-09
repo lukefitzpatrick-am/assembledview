@@ -1,4 +1,5 @@
 import Fuse from "fuse.js";
+import type { IFuseOptions } from "fuse.js";
 import { LearningTerm, Section, SortMode } from "./types";
 
 export type SearchResult = {
@@ -6,7 +7,7 @@ export type SearchResult = {
   score?: number;
 };
 
-const fuseOptions: Fuse.IFuseOptions<LearningTerm> = {
+const fuseOptions: IFuseOptions<LearningTerm> = {
   includeScore: true,
   shouldSort: true,
   threshold: 0.32,
@@ -66,6 +67,10 @@ export function sortResults(items: SearchResult[], sort: SortMode, recentOrder: 
     return a.score - b.score;
   });
 }
+
+
+
+
 
 
 

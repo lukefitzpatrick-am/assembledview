@@ -256,6 +256,8 @@ export async function PUT(
     mp_influencers: data.mp_influencers || currentVersion.mp_influencers || false,
     billingSchedule: data.billingSchedule || currentVersion.billingSchedule || null,
     deliverySchedule: data.deliverySchedule || currentVersion.deliverySchedule || null,
+    // Alias to tolerate snake_case in Xano input
+    delivery_schedule: data.deliverySchedule || currentVersion.delivery_schedule || currentVersion.deliverySchedule || null,
     media_plan_master_id: currentVersion.media_plan_master_id
     }
     

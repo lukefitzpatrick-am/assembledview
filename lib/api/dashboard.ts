@@ -158,6 +158,26 @@ export async function getClientDashboardData(slug: string): Promise<ClientDashbo
 
     if (clientVersions.length === 0) {
       console.warn('No media_plan_versions found for slug:', sanitizedSlug)
+
+      // Fallback: if client exists in Xano clients table but has no plans yet, return empty dashboard shell
+      const fallbackClient = await getClientBySlug(targetSlug)
+      if (fallbackClient) {
+        return {
+          clientName: fallbackClient.name,
+          brandColour: fallbackClient.brandColour,
+          liveCampaigns: 0,
+          totalCampaignsYTD: 0,
+          spendPast30Days: 0,
+          spentYTD: 0,
+          liveCampaignsList: [],
+          planningCampaignsList: [],
+          completedCampaignsList: [],
+          spendByMediaType: [],
+          spendByCampaign: [],
+          monthlySpend: []
+        }
+      }
+
       return null
     }
 
@@ -173,11 +193,11 @@ export async function getClientDashboardData(slug: string): Promise<ClientDashbo
       acc[mbaNumber] = acc[mbaNumber] || []
       acc[mbaNumber].push(version)
       return acc
-    }, {})
+    }, {} as Record<string, any[]>)
 
     const selectedVersionByMBA: Record<string, any> = {}
 
-    Object.entries(versionsByMBA).forEach(([mbaNumber, versions]) => {
+    Object.entries(versionsByMBA).forEach(([mbaNumber, versions]: [string, any[]]) => {
       const sorted = versions
         .slice()
         .sort((a, b) => (b.version_number || 0) - (a.version_number || 0))
@@ -548,9 +568,9 @@ export async function getGlobalMonthlySpend(): Promise<GlobalMonthlySpend[]> {
     acc[mbaNumber] = acc[mbaNumber] || []
     acc[mbaNumber].push(version)
     return acc
-  }, {})
+  }, {} as Record<string, any[]>)
 
-  const highestApprovedVersionByMBA = Object.entries(versionsByMBA).reduce((acc: Record<string, any>, [mbaNumber, versions]) => {
+  const highestApprovedVersionByMBA = Object.entries(versionsByMBA).reduce((acc: Record<string, any>, [mbaNumber, versions]: [string, any[]]) => {
     const sorted = versions
       .slice()
       .sort((a, b) => (b.version_number || 0) - (a.version_number || 0))
@@ -613,9 +633,9 @@ export async function getGlobalMonthlyPublisherSpend(): Promise<GlobalMonthlyPub
     acc[mbaNumber] = acc[mbaNumber] || []
     acc[mbaNumber].push(version)
     return acc
-  }, {})
+  }, {} as Record<string, any[]>)
 
-  const highestApprovedVersionByMBA = Object.entries(versionsByMBA).reduce((acc: Record<string, any>, [mbaNumber, versions]) => {
+  const highestApprovedVersionByMBA = Object.entries(versionsByMBA).reduce((acc: Record<string, any>, [mbaNumber, versions]: [string, any[]]) => {
     const sorted = versions
       .slice()
       .sort((a, b) => (b.version_number || 0) - (a.version_number || 0))
@@ -702,9 +722,9 @@ export async function getGlobalMonthlyClientSpend(): Promise<{
     acc[mbaNumber] = acc[mbaNumber] || []
     acc[mbaNumber].push(version)
     return acc
-  }, {})
+  }, {} as Record<string, any[]>)
 
-  const highestApprovedVersionByMBA = Object.entries(versionsByMBA).reduce((acc: Record<string, any>, [mbaNumber, versions]) => {
+  const highestApprovedVersionByMBA = Object.entries(versionsByMBA).reduce((acc: Record<string, any>, [mbaNumber, versions]: [string, any[]]) => {
     const sorted = versions
       .slice()
       .sort((a, b) => (b.version_number || 0) - (a.version_number || 0))

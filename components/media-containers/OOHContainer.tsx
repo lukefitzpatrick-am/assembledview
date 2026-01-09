@@ -548,7 +548,31 @@ export default function OohContainer({
 
     setOverallDeliverables(overallMedia);
     onTotalMediaChange(overallMedia, overallFee);
-  }, [form, feeooh]); // Removed onTotalMediaChange dependency to prevent infinite loops
+  }, [form, feeooh, onTotalMediaChange]);
+
+  const handleBuyTypeChange = useCallback(
+    (lineItemIndex: number, value: string) => {
+      form.setValue(`lineItems.${lineItemIndex}.buyType`, value);
+
+      if (value === "bonus") {
+        const currentBursts =
+          form.getValues(`lineItems.${lineItemIndex}.bursts`) || [];
+        const zeroedBursts = currentBursts.map((burst: any) => ({
+          ...burst,
+          budget: "0",
+          buyAmount: "0",
+          calculatedValue: burst.calculatedValue ?? 0,
+        }));
+
+        form.setValue(`lineItems.${lineItemIndex}.bursts`, zeroedBursts, {
+          shouldDirty: true,
+        });
+      }
+
+      handleLineItemValueChange(lineItemIndex);
+    },
+    [form, handleLineItemValueChange]
+  );
 
   const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number) => {
     const burst = form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}`);
@@ -569,6 +593,11 @@ export default function OohContainer({
       case "fixed_cost":
       case "package":
         calculatedValue = 1;
+        break;
+      case "bonus":
+        calculatedValue = parseFloat(
+          (burst?.calculatedValue ?? "0").toString().replace(/[^0-9.]/g, "")
+        ) || 0;
         break;
       default:
         calculatedValue = 0;
@@ -1033,7 +1062,12 @@ useEffect(() => {
                                 render={({ field }) => (
                                   <FormItem className="flex items-center space-x-2">
                                     <FormLabel className="w-24 text-sm">Network</FormLabel>
-                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <Select
+                                      onValueChange={(value) =>
+                                        handleBuyTypeChange(lineItemIndex, value)
+                                      }
+                                      defaultValue={field.value}
+                                    >
                                       <FormControl>
                                         <SelectTrigger className="h-9 w-full flex-1 rounded-md border">
                                           <SelectValue placeholder="Select" />
@@ -1093,11 +1127,12 @@ useEffect(() => {
                                           <SelectValue placeholder="Select" />
                                         </SelectTrigger>
                                       </FormControl>
-                                      <SelectContent>                                       
+                                      <SelectContent>
                                         <SelectItem value="cpm">CPM</SelectItem>
                                         <SelectItem value="panels">Panels</SelectItem>
                                         <SelectItem value="fixed_cost">Fixed Cost</SelectItem>
                                         <SelectItem value="package">Package</SelectItem>
+                                        <SelectItem value="bonus">Bonus</SelectItem>
                                       </SelectContent>
                                     </Select>
                                     <FormMessage />
@@ -1256,70 +1291,80 @@ useEffect(() => {
                                       // @ts-ignore - Type mismatch between form and schema
                                       control={form.control}
                                       name={`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`}
-                                      render={({ field }) => (
-                                        <FormItem>
-                                          <FormLabel className="text-xs">Budget</FormLabel>
-                                          <FormControl>
-                                            <Input
-                                              {...field}
-                                              type="text"
-                                              className="w-full"
-                                              onChange={(e) => {
-                                                const value = e.target.value.replace(/[^0-9.]/g, "");
-                                                field.onChange(value);
-                                                handleValueChange(lineItemIndex, burstIndex);
-                                              }}
-                                              onBlur={(e) => {
-                                                const value = e.target.value;
-                                                const formattedValue = new Intl.NumberFormat("en-US", {
-                                                  style: "currency",
-                                                  currency: "USD",
-                                                  minimumFractionDigits: 2,
-                                                  maximumFractionDigits: 2,
-                                                }).format(Number.parseFloat(value) || 0);
-                                                field.onChange(formattedValue);
-                                                handleValueChange(lineItemIndex, burstIndex);
-                                              }}
-                                            />
-                                          </FormControl>
-                                          <FormMessage />
-                                        </FormItem>
-                                      )}
+                                      render={({ field }) => {
+                                        const buyType = form.watch(`lineItems.${lineItemIndex}.buyType`);
+                                        return (
+                                          <FormItem>
+                                            <FormLabel className="text-xs">Budget</FormLabel>
+                                            <FormControl>
+                                              <Input
+                                                {...field}
+                                                type="text"
+                                                className="w-full"
+                                                value={buyType === "bonus" ? "0" : field.value}
+                                                disabled={buyType === "bonus"}
+                                                onChange={(e) => {
+                                                  const value = e.target.value.replace(/[^0-9.]/g, "");
+                                                  field.onChange(value);
+                                                  handleValueChange(lineItemIndex, burstIndex);
+                                                }}
+                                                onBlur={(e) => {
+                                                  const value = e.target.value;
+                                                  const formattedValue = new Intl.NumberFormat("en-US", {
+                                                    style: "currency",
+                                                    currency: "USD",
+                                                    minimumFractionDigits: 2,
+                                                    maximumFractionDigits: 2,
+                                                  }).format(Number.parseFloat(value) || 0);
+                                                  field.onChange(formattedValue);
+                                                  handleValueChange(lineItemIndex, burstIndex);
+                                                }}
+                                              />
+                                            </FormControl>
+                                            <FormMessage />
+                                          </FormItem>
+                                        );
+                                      }}
                                     />
 
                                     <FormField
                                       // @ts-ignore - Type mismatch between form and schema
                                       control={form.control}
                                       name={`lineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount`}
-                                      render={({ field }) => (
-                                        <FormItem>
-                                          <FormLabel className="text-xs">Buy Amount</FormLabel>
-                                          <FormControl>
-                                            <Input
-                                              {...field}
-                                              type="text"
-                                              className="w-full"
-                                              onChange={(e) => {
-                                                const value = e.target.value.replace(/[^0-9.]/g, "");
-                                                field.onChange(value);
-                                                handleValueChange(lineItemIndex, burstIndex);
-                                              }}
-                                              onBlur={(e) => {
-                                                const value = e.target.value;
-                                                const formattedValue = new Intl.NumberFormat("en-US", {
-                                                  style: "currency",
-                                                  currency: "USD",
-                                                  minimumFractionDigits: 2,
-                                                  maximumFractionDigits: 2,
-                                                }).format(Number.parseFloat(value) || 0);
-                                                field.onChange(formattedValue);
-                                                handleValueChange(lineItemIndex, burstIndex);
-                                              }}
-                                            />
-                                          </FormControl>
-                                          <FormMessage />
-                                        </FormItem>
-                                      )}
+                                      render={({ field }) => {
+                                        const buyType = form.watch(`lineItems.${lineItemIndex}.buyType`);
+                                        return (
+                                          <FormItem>
+                                            <FormLabel className="text-xs">Buy Amount</FormLabel>
+                                            <FormControl>
+                                              <Input
+                                                {...field}
+                                                type="text"
+                                                className="w-full"
+                                                value={buyType === "bonus" ? "0" : field.value}
+                                                disabled={buyType === "bonus"}
+                                                onChange={(e) => {
+                                                  const value = e.target.value.replace(/[^0-9.]/g, "");
+                                                  field.onChange(value);
+                                                  handleValueChange(lineItemIndex, burstIndex);
+                                                }}
+                                                onBlur={(e) => {
+                                                  const value = e.target.value;
+                                                  const formattedValue = new Intl.NumberFormat("en-US", {
+                                                    style: "currency",
+                                                    currency: "USD",
+                                                    minimumFractionDigits: 2,
+                                                    maximumFractionDigits: 2,
+                                                  }).format(Number.parseFloat(value) || 0);
+                                                  field.onChange(formattedValue);
+                                                  handleValueChange(lineItemIndex, burstIndex);
+                                                }}
+                                              />
+                                            </FormControl>
+                                            <FormMessage />
+                                          </FormItem>
+                                        );
+                                      }}
                                     />
 
                                     <div className="grid grid-cols-2 gap-2">
@@ -1411,10 +1456,22 @@ useEffect(() => {
                                           control: form.control,
                                           name: `lineItems.${lineItemIndex}.buyType`,
                                         });
+                                        const budgetValue = useWatch({
+                                          control: form.control,
+                                          name: `lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`,
+                                        });
+                                        const buyAmountValue = useWatch({
+                                          control: form.control,
+                                          name: `lineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount`,
+                                        });
 
                                         const calculatedValue = useMemo(() => {
-                                          const budget = parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0");
-                                          const buyAmount = parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount`)?.replace(/[^0-9.]/g, "") || "1");
+                                          const budget = parseFloat(
+                                            String(budgetValue)?.replace(/[^0-9.]/g, "") || "0"
+                                          );
+                                          const buyAmount = parseFloat(
+                                            String(buyAmountValue)?.replace(/[^0-9.]/g, "") || "1"
+                                          );
 
                                           switch (buyType) {
                                             case "cpc":
@@ -1429,11 +1486,29 @@ useEffect(() => {
                                             default:
                                               return "0";
                                           }
-                                        }, [
-                                          form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`),
-                                          form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount`),
-                                          buyType
-                                        ]);
+                                        }, [budgetValue, buyAmountValue, buyType]);
+
+                                        if (buyType === "bonus") {
+                                          return (
+                                            <FormItem>
+                                              <FormLabel className="text-xs">Bonus Deliverables</FormLabel>
+                                              <FormControl>
+                                                <Input
+                                                  type="number"
+                                                  min={0}
+                                                  step={1}
+                                                  className="w-full"
+                                                  value={field.value ?? ""}
+                                                  onChange={(e) => {
+                                                    const value = e.target.value.replace(/[^0-9]/g, "");
+                                                    field.onChange(value);
+                                                  }}
+                                                />
+                                              </FormControl>
+                                              <FormMessage />
+                                            </FormItem>
+                                          );
+                                        }
 
                                         let title = "Calculated Value";
                                         switch (buyType) {
@@ -1449,11 +1524,11 @@ useEffect(() => {
                                           case "panels":
                                             title = "Panels";
                                             break;
-                                          case "package":
-                                            title = "Package";
-                                            break;
                                           case "fixed_cost":
                                             title = "Fixed Cost";
+                                            break;
+                                          case "package":
+                                            title = "Package";
                                             break;
                                         }
 

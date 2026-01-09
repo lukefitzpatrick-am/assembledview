@@ -10,6 +10,7 @@ export type BillingScheduleType = {
   month: string;
   searchAmount: number;
   socialAmount: number;
+  productionAmount: number;
   feeAmount: number;
   totalAmount: number;
 }[];
@@ -33,6 +34,11 @@ interface BillingScheduleProps {
     clientPaysForMedia: boolean;
     budgetIncludesFees: boolean;
   }[];
+  productionBursts?: {
+    startDate: Date;
+    endDate: Date;
+    amount: number;
+  }[];
   campaignStartDate: Date;
   campaignEndDate: Date;
   campaignBudget: number;
@@ -42,6 +48,7 @@ interface BillingScheduleProps {
 export function BillingSchedule({
   searchBursts,
   socialMediaBursts,
+  productionBursts = [],
   campaignStartDate,
   campaignEndDate,
   campaignBudget,
@@ -68,6 +75,7 @@ export function BillingSchedule({
       let searchAmount = 0;
       let socialAmount = 0;
       let feeAmount = 0;
+      let productionAmount = 0;
 
       // Process search bursts
       searchBursts.forEach(burst => {
@@ -139,12 +147,21 @@ export function BillingSchedule({
         }
       });
 
+      // Process production bursts (simple proportional allocation by days)
+      productionBursts.forEach(burst => {
+        const daysInMonth = getDaysInMonthForBurst(month, burst);
+        const totalDays = getTotalDaysInBurst(burst);
+        if (totalDays <= 0) return;
+        productionAmount += ((burst.amount || 0) / totalDays) * daysInMonth;
+      });
+
       schedule.push({
         month: format(month, "MMMM yyyy"),
         searchAmount: Number(searchAmount.toFixed(2)),
         socialAmount: Number(socialAmount.toFixed(2)),
+        productionAmount: Number(productionAmount.toFixed(2)),
         feeAmount: Number(feeAmount.toFixed(2)),
-        totalAmount: Number((searchAmount + socialAmount + feeAmount).toFixed(2))
+        totalAmount: Number((searchAmount + socialAmount + productionAmount + feeAmount).toFixed(2))
       });
     });
 
@@ -222,6 +239,7 @@ export function BillingSchedule({
                     <TableHead>Month</TableHead>
                     <TableHead>Search</TableHead>
                     <TableHead>Social</TableHead>
+                <TableHead>Production</TableHead>
                     <TableHead>Fee</TableHead>
                     <TableHead>Total</TableHead>
                   </TableRow>
@@ -240,6 +258,7 @@ export function BillingSchedule({
                             newSchedule[index].totalAmount = 
                               newSchedule[index].searchAmount + 
                               newSchedule[index].socialAmount + 
+                              newSchedule[index].productionAmount +
                               newSchedule[index].feeAmount;
                             setManualSchedule(newSchedule);
                           }}
@@ -254,7 +273,24 @@ export function BillingSchedule({
                             newSchedule[index].socialAmount = Number(e.target.value);
                             newSchedule[index].totalAmount = 
                               newSchedule[index].searchAmount + 
+                              newSchedule[index].socialAmount +
+                              newSchedule[index].productionAmount + 
+                              newSchedule[index].feeAmount;
+                            setManualSchedule(newSchedule);
+                          }}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          type="number"
+                          value={month.productionAmount}
+                          onChange={(e) => {
+                            const newSchedule = [...(isManualBilling ? manualSchedule : autoSchedule)];
+                            newSchedule[index].productionAmount = Number(e.target.value);
+                            newSchedule[index].totalAmount = 
+                              newSchedule[index].searchAmount + 
                               newSchedule[index].socialAmount + 
+                              newSchedule[index].productionAmount + 
                               newSchedule[index].feeAmount;
                             setManualSchedule(newSchedule);
                           }}
@@ -270,6 +306,7 @@ export function BillingSchedule({
                             newSchedule[index].totalAmount = 
                               newSchedule[index].searchAmount + 
                               newSchedule[index].socialAmount + 
+                              newSchedule[index].productionAmount +
                               newSchedule[index].feeAmount;
                             setManualSchedule(newSchedule);
                           }}
@@ -311,6 +348,7 @@ export function BillingSchedule({
             <TableHead>Month</TableHead>
             <TableHead>Search Amount</TableHead>
             <TableHead>Social Amount</TableHead>
+            <TableHead>Production Amount</TableHead>
             <TableHead>Fee Amount</TableHead>
             <TableHead>Total Amount</TableHead>
           </TableRow>
@@ -331,6 +369,12 @@ export function BillingSchedule({
                   currency: 'USD'
                 }).format(month.socialAmount)}
               </TableCell>
+            <TableCell>
+              {new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: 'USD'
+              }).format(month.productionAmount)}
+            </TableCell>
               <TableCell>
                 {new Intl.NumberFormat('en-US', {
                   style: 'currency',
@@ -359,6 +403,10 @@ export function BillingSchedule({
               style: 'currency',
               currency: 'USD'
             }).format((isManualBilling ? manualSchedule : autoSchedule).reduce((sum, month) => sum + month.socialAmount, 0))}</div>
+                  <div>Production Total: {new Intl.NumberFormat('en-US', {
+                    style: 'currency',
+                    currency: 'USD'
+                  }).format((isManualBilling ? manualSchedule : autoSchedule).reduce((sum, month) => sum + month.productionAmount, 0))}</div>
             <div>Fee Total: {new Intl.NumberFormat('en-US', {
               style: 'currency',
               currency: 'USD'

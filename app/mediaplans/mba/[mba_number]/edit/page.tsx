@@ -568,10 +568,14 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   }
 
   // Calculate billing schedule function (matching create page exactly)
-  const calculateBillingSchedule = useCallback(() => {
-    const start = form.watch("mp_campaigndates_start");
-    const end = form.watch("mp_campaigndates_end");
-    if (!start || !end) return;
+  const calculateBillingSchedule = useCallback((startOverride?: Date | string | null, endOverride?: Date | string | null) => {
+    const startRaw = startOverride ?? form.watch("mp_campaigndates_start");
+    const endRaw = endOverride ?? form.watch("mp_campaigndates_end");
+    if (!startRaw || !endRaw) return;
+
+    const start = new Date(startRaw as any);
+    const end = new Date(endRaw as any);
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) return;
 
     // 1. Build a more detailed map to hold costs per media type for each month.
     const map: Record<string, {
@@ -588,7 +592,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         totalMedia: 0,
         totalFee: 0,
         adServing: 0,
-        mediaCosts: { search: 0, socialMedia: 0, progAudio: 0, cinema: 0, digiAudio: 0, digiDisplay: 0, digiVideo: 0, progDisplay: 0, progVideo: 0, progBvod: 0, progOoh: 0, television: 0, radio: 0, newspaper: 0, magazines: 0, ooh: 0, bvod: 0, integration: 0, influencers: 0 }
+      mediaCosts: { search: 0, socialMedia: 0, progAudio: 0, cinema: 0, digiAudio: 0, digiDisplay: 0, digiVideo: 0, progDisplay: 0, progVideo: 0, progBvod: 0, progOoh: 0, television: 0, radio: 0, newspaper: 0, magazines: 0, ooh: 0, bvod: 0, integration: 0, influencers: 0, production: 0 }
       };
       cur.setMonth(cur.getMonth() + 1);
       cur.setDate(1);
@@ -725,6 +729,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           ooh: formatter.format(mediaCosts.ooh || 0),
           integration: formatter.format(mediaCosts.integration || 0),
           influencers: formatter.format(mediaCosts.influencers || 0),
+          production: formatter.format(mediaCosts.production || 0),
         }
       })
     ); 
@@ -1451,7 +1456,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             progBvod: '$0.00',
             progAudio: '$0.00',
             progOoh: '$0.00',
-            influencers: '$0.00'
+          influencers: '$0.00',
+          production: '$0.00'
           }
           
           let totalMedia = 0
@@ -1558,6 +1564,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
   // Track if we've already attempted to load line items to prevent duplicate loads
   const hasAttemptedLineItemsLoad = useRef(false)
+  const lastCampaignDatesRef = useRef<{ start: string; end: string } | null>(null)
 
   // Load all line items immediately for enabled media types when media plan is loaded
   useEffect(() => {
@@ -1778,6 +1785,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         progAudio: currencyFormatter.format(0),
         progOoh: currencyFormatter.format(0),
         influencers: currencyFormatter.format(0),
+        production: currencyFormatter.format(0),
       }
     }));
     setManualBillingMonths(formattedBillingMonths);
@@ -1857,6 +1865,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           progAudio: currencyFormatter.format(0),
           progOoh: currencyFormatter.format(0),
           influencers: currencyFormatter.format(0),
+          production: currencyFormatter.format(0),
         };
       }
       Object.entries(allLineItems).forEach(([key, lineItems]) => {
@@ -1922,6 +1931,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 progAudio: formatter.format(0),
                 progOoh: formatter.format(0),
                 influencers: formatter.format(0),
+                production: formatter.format(0),
               };
             }
             const mediaCosts = copy[monthIndex].mediaCosts;
@@ -1952,7 +1962,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         progBvod: formatter.format(0),
         progAudio: formatter.format(0),
         progOoh: formatter.format(0),
-        influencers: formatter.format(0),
+      influencers: formatter.format(0),
+      production: formatter.format(0),
       };
     }
 
@@ -2019,7 +2030,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     setManualBillingMonths([])
     setManualBillingTotal("$0.00")
     // Trigger auto calculation
-    calculateBillingSchedule()
+    calculateBillingSchedule(campaignStartDate, campaignEndDate)
   }
 
   const generateMBANumber = async (mbaidentifier: string) => {
@@ -2332,7 +2343,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           progBvod: currencyFormatter.format(0),
           progAudio: currencyFormatter.format(0),
           progOoh: currencyFormatter.format(0),
-          influencers: currencyFormatter.format(0),
+        influencers: currencyFormatter.format(0),
+        production: currencyFormatter.format(0),
         },
         lineItems: {}
       };
@@ -3503,6 +3515,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         ooh: validOohItems,
         cinema: validCinemaItems,
         integration: validIntegrationItems,
+        production: [],
       }
 
       // Calculate MBA data for the Excel
@@ -3577,6 +3590,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         latestVersionNumber ??
         "1";
 
+      const mediaFlags = Object.fromEntries(
+        mediaTypes.map(medium => [medium.name, !!fv[medium.name as keyof MediaPlanFormValues]])
+      ) as Record<string, boolean>;
+
       const workbook = await generateNamingWorkbook({
         advertiser: fv.mp_clientname || "",
         brand: fv.mp_brand || "",
@@ -3585,7 +3602,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         startDate: fv.mp_campaigndates_start,
         endDate: fv.mp_campaigndates_end,
         version: namingVersion,
-        mediaFlags: fv as Record<string, boolean>,
+        mediaFlags,
         items: {
           search: searchItems,
           socialMedia: socialMediaItems,
@@ -4252,13 +4269,24 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     billingMonths,
   ]);
 
+  // If campaign dates change, rebuild auto schedule; preserve manual state
+  useEffect(() => {
+    if (!campaignStartDate || !campaignEndDate) return
+
+    const startKey = toDateOnlyString(campaignStartDate)
+    const endKey = toDateOnlyString(campaignEndDate)
+    lastCampaignDatesRef.current = { start: startKey, end: endKey }
+
+    calculateBillingSchedule(campaignStartDate, campaignEndDate)
+  }, [campaignStartDate, campaignEndDate, calculateBillingSchedule])
+
   // Recalculate billing schedule when data changes (matching create page pattern)
   // Only recalculate if NOT manual billing (to preserve manual schedule)
   useEffect(() => {
     if (isManualBilling) return; // Don't recalculate if manual billing is active
     
     if (campaignStartDate && campaignEndDate) {
-      calculateBillingSchedule();
+      calculateBillingSchedule(campaignStartDate, campaignEndDate);
     }
   }, [
     campaignStartDate,
@@ -4523,7 +4551,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     }));
 
     return {
-      route: { pathname, clientSlug, mbaSlug: mbaNumber },
+      route: { pathname: pathname ?? "", clientSlug, mbaSlug: mbaNumber },
       fields: [...baseFields, ...toggleFields],
       generatedAt: new Date().toISOString(),
     };
@@ -5491,7 +5519,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                                     progBvod: currencyFormatter.format(0),
                                     progAudio: currencyFormatter.format(0),
                                     progOoh: currencyFormatter.format(0),
-                                    influencers: currencyFormatter.format(0),
+                                  influencers: currencyFormatter.format(0),
+                                  production: currencyFormatter.format(0),
                                   };
                                 }
                                 tempCopy[monthIndex].mediaCosts[mediaKey] = e.target.value;

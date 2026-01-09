@@ -86,12 +86,35 @@ interface ProductionContainerProps {
   mediaTypes: Array<string | MediaTypeOption>
 }
 
-const defaultBurst = (): z.infer<typeof burstSchema> => ({
-  cost: 0,
-  amount: 0,
-  startDate: new Date(),
-  endDate: new Date(),
-})
+const getYesterday = () => {
+  const today = new Date()
+  today.setDate(today.getDate() - 1)
+  return toDateOnly(today) || today
+}
+
+const getPeriodEnd = (start: Date) => {
+  const end = new Date(start)
+  end.setMonth(end.getMonth() + 1)
+  end.setDate(0)
+  return toDateOnly(end) || end
+}
+
+const addDays = (date: Date, days: number) => {
+  const next = new Date(date)
+  next.setDate(next.getDate() + days)
+  return toDateOnly(next) || next
+}
+
+const defaultBurst = (): z.infer<typeof burstSchema> => {
+  const startDate = getYesterday()
+  const endDate = getPeriodEnd(startDate)
+  return {
+    cost: 0,
+    amount: 0,
+    startDate,
+    endDate,
+  }
+}
 
 const buildMediaTypeOptions = (mediaTypes: Array<string | MediaTypeOption>): MediaTypeOption[] => {
   return mediaTypes.map((item) =>
@@ -299,12 +322,9 @@ export default function ProductionContainer({
   const handleAddBurst = (lineItemIndex: number) => {
     const currentBursts = form.getValues(`lineItems.${lineItemIndex}.bursts`) || []
     const lastBurst = currentBursts[currentBursts.length - 1]
-    const nextStart = lastBurst?.endDate
-      ? new Date(new Date(lastBurst.endDate).setDate(new Date(lastBurst.endDate).getDate() + 1))
-      : new Date()
-    const nextEnd = new Date(nextStart)
-    nextEnd.setMonth(nextEnd.getMonth() + 1)
-    nextEnd.setDate(0)
+    const lastEndDate = toDateOnly(lastBurst?.endDate)
+    const nextStart = lastEndDate ? addDays(lastEndDate, 1) : getYesterday()
+    const nextEnd = getPeriodEnd(nextStart)
     form.setValue(`lineItems.${lineItemIndex}.bursts`, [
       ...currentBursts,
       {
@@ -320,7 +340,11 @@ export default function ProductionContainer({
     const currentBursts = form.getValues(`lineItems.${lineItemIndex}.bursts`) || []
     const burst = currentBursts[burstIndex]
     if (!burst) return
-    const cloned = { ...burst }
+    const lastBurst = currentBursts[currentBursts.length - 1]
+    const lastEndDate = toDateOnly(lastBurst?.endDate)
+    const startDate = lastEndDate ? addDays(lastEndDate, 1) : getYesterday()
+    const endDate = getPeriodEnd(startDate)
+    const cloned = { ...burst, startDate, endDate }
     const updated = [
       ...currentBursts.slice(0, burstIndex + 1),
       cloned,

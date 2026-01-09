@@ -13,21 +13,25 @@ import CampaignActions from './components/CampaignActions'
 import { auth0 } from '@/lib/auth0'
 import { getPrimaryRole, getUserClientIdentifier } from '@/lib/rbac'
 import { redirect } from 'next/navigation'
+import { headers } from 'next/headers'
 
 interface CampaignDetailPageProps {
-  params: Promise<{
+  params: {
     slug: string
     mba_number: string
-  }>
+  }
 }
 
 async function fetchCampaignData(mbaNumber: string) {
+  const headerList = headers()
+  const host = headerList.get('x-forwarded-host') || headerList.get('host')
+  const protocol = headerList.get('x-forwarded-proto') || 'https'
+  const envBase = process.env.NEXT_PUBLIC_BASE_URL?.replace(/\/$/, '')
+  const runtimeBase = host ? `${protocol}://${host}` : ''
+  const baseUrl = envBase || runtimeBase
+  const url = `${baseUrl}/api/campaigns/${encodeURIComponent(mbaNumber)}`
+
   try {
-    // In server components, we can use relative URLs which Next.js resolves
-    // or construct absolute URL from environment or headers
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
-    const url = `${baseUrl}/api/campaigns/${encodeURIComponent(mbaNumber)}`
-    
     const response = await fetch(url, { 
       cache: 'no-store',
       headers: {
@@ -48,7 +52,7 @@ async function fetchCampaignData(mbaNumber: string) {
 }
 
 export default async function CampaignDetailPage({ params }: CampaignDetailPageProps) {
-  const { slug, mba_number } = await params
+  const { slug, mba_number } = params
   const session = await auth0.getSession()
   const user = session?.user
   const role = getPrimaryRole(user)

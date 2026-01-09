@@ -172,7 +172,8 @@ export function getSocialMediaBursts(
         clientPaysForMedia: li.clientPaysForMedia,
         budgetIncludesFees: li.budgetIncludesFees,
         noAdserving: false,
-        deliverables: 0,
+        deliverables:
+          parseFloat((burst?.calculatedValue ?? "0").toString()) || 0,
         buyType: li.buyType,
               }
     })
@@ -373,6 +374,59 @@ export default function SocialMediaContainer({
 
     appendLineItem(clone);
   }, [appendLineItem, form, toast]);
+
+  const handleLineItemValueChange = useCallback((lineItemIndex: number) => {
+    const lineItems = form.getValues("lineItems") || [];
+    let overallMedia = 0;
+    let overallFee = 0;
+    let overallCost = 0;
+
+    lineItems.forEach((lineItem) => {
+      let lineMedia = 0;
+      let lineFee = 0;
+      let lineDeliverables = 0;
+
+      lineItem.bursts.forEach((burst) => {
+        const budget = parseFloat(burst?.budget?.replace(/[^0-9.]/g, "") || "0");
+        lineMedia += budget;
+        lineDeliverables += parseFloat(
+          (burst?.calculatedValue ?? "0").toString()
+        ) || 0;
+      });
+
+      lineFee = feesocial ? (lineMedia / (100 - feesocial)) * feesocial : 0;
+      overallMedia += lineMedia;
+      overallFee += lineFee;
+      overallCost += lineMedia + lineFee;
+    });
+
+    setOverallDeliverables(overallMedia);
+    onTotalMediaChange(overallMedia, overallFee);
+  }, [feesocial]); // Removed onTotalMediaChange dependency to prevent infinite loops
+  
+  const handleBuyTypeChange = useCallback(
+    (lineItemIndex: number, value: string) => {
+      form.setValue(`lineItems.${lineItemIndex}.buyType`, value);
+
+      if (value === "bonus") {
+        const currentBursts =
+          form.getValues(`lineItems.${lineItemIndex}.bursts`) || [];
+        const zeroedBursts = currentBursts.map((burst: any) => ({
+          ...burst,
+          budget: "0",
+          buyAmount: "0",
+          calculatedValue: burst.calculatedValue ?? 0,
+        }));
+
+        form.setValue(`lineItems.${lineItemIndex}.bursts`, zeroedBursts, {
+          shouldDirty: true,
+        });
+      }
+
+      handleLineItemValueChange(lineItemIndex);
+    },
+    [form, handleLineItemValueChange]
+  );
   
   // Watch hook
   const watchedLineItems = useWatch({ 
@@ -604,7 +658,9 @@ export default function SocialMediaContainer({
           const fee = feesocial ? (budget * feesocial) / (100 - feesocial) : 0;
           lineFee += fee;
         }
-        lineDeliverables += burst.calculatedValue || 0;
+        lineDeliverables += parseFloat(
+          (burst.calculatedValue ?? "0").toString()
+        ) || 0;
       });
 
       lineCost = lineMedia + lineFee;
@@ -626,32 +682,6 @@ export default function SocialMediaContainer({
   }, [watchedLineItems, feesocial]);
 
   // Callback handlers
-  const handleLineItemValueChange = useCallback((lineItemIndex: number) => {
-    const lineItems = form.getValues("lineItems") || [];
-    let overallMedia = 0;
-    let overallFee = 0;
-    let overallCost = 0;
-
-    lineItems.forEach((lineItem) => {
-      let lineMedia = 0;
-      let lineFee = 0;
-      let lineDeliverables = 0;
-
-      lineItem.bursts.forEach((burst) => {
-        const budget = parseFloat(burst?.budget?.replace(/[^0-9.]/g, "") || "0");
-        lineMedia += budget;
-        lineDeliverables += burst?.calculatedValue || 0;
-      });
-
-      lineFee = feesocial ? (lineMedia / (100 - feesocial)) * feesocial : 0;
-      overallMedia += lineMedia;
-      overallFee += lineFee;
-      overallCost += lineMedia + lineFee;
-    });
-
-    setOverallDeliverables(overallMedia);
-    onTotalMediaChange(overallMedia, overallFee);
-  }, [feesocial]); // Removed onTotalMediaChange dependency to prevent infinite loops
 
    const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number) => {
     const burst = form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}`);
@@ -670,6 +700,11 @@ export default function SocialMediaContainer({
         break;
       case "fixed_cost":
         calculatedValue = 1;
+        break;
+      case "bonus":
+        calculatedValue = parseFloat(
+          (burst?.calculatedValue ?? "0").toString().replace(/[^0-9.]/g, "")
+        ) || 0;
         break;
       default:
         calculatedValue = 0;
@@ -803,6 +838,8 @@ export default function SocialMediaContainer({
         return "Impressions";
       case "fixed_cost":
         return "Fixed Fee";
+      case "bonus":
+        return "Bonus";
       default:
         return "Deliverables";
     }
@@ -1191,7 +1228,12 @@ const getBursts = () => {
                                 render={({ field }) => (
                                   <FormItem className="flex items-center space-x-2">
                                     <FormLabel className="w-24 text-sm">Buy Type</FormLabel>
-                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <Select
+                                      onValueChange={(value) =>
+                                        handleBuyTypeChange(lineItemIndex, value)
+                                      }
+                                      defaultValue={field.value}
+                                    >
                                       <FormControl>
                                         <SelectTrigger className="h-9 w-full flex-1 rounded-md border">
                                           <SelectValue placeholder="Select" />
@@ -1201,6 +1243,7 @@ const getBursts = () => {
                                         <SelectItem value="cpc">CPC</SelectItem>
                                         <SelectItem value="cpm">CPM</SelectItem>
                                         <SelectItem value="cpv">CPV</SelectItem>
+                                        <SelectItem value="bonus">Bonus</SelectItem>
                                         <SelectItem value="fixed_cost">Fixed Cost</SelectItem>
                                         <SelectItem value="guaranteed_leads">Guaranteed Leads</SelectItem>
                                       </SelectContent>
@@ -1333,6 +1376,7 @@ const getBursts = () => {
                       {/* Bursts Section */}
                       <div id={`line-item-${lineItemIndex}-bursts`} className="space-y-4">
                         {form.watch(`lineItems.${lineItemIndex}.bursts`, []).map((burstField, burstIndex) => {
+                          const buyType = form.watch(`lineItems.${lineItemIndex}.buyType`);
                           return (
                             <Card key={`${lineItemIndex}-${burstIndex}`} className="border border-gray-200">
                               <CardContent className="py-2 px-4">
@@ -1353,6 +1397,8 @@ const getBursts = () => {
                                               {...field}
                                               type="text"
                                               className="w-full"
+                                              value={buyType === "bonus" ? "0" : field.value}
+                                              disabled={buyType === "bonus"}
                                               onChange={(e) => {
                                                 const value = e.target.value.replace(/[^0-9.]/g, "");
                                                 field.onChange(value);
@@ -1387,6 +1433,8 @@ const getBursts = () => {
                                               {...field}
                                               type="text"
                                               className="w-full"
+                                              value={buyType === "bonus" ? "0" : field.value}
+                                              disabled={buyType === "bonus"}
                                               onChange={(e) => {
                                                 const value = e.target.value.replace(/[^0-9.]/g, "");
                                                 field.onChange(value);
@@ -1492,31 +1540,44 @@ const getBursts = () => {
                                       control={form.control}
                                       name={`lineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`}
                                       render={({ field }) => {
-                                        const buyType = useWatch({
-                                          control: form.control,
-                                          name: `lineItems.${lineItemIndex}.buyType`,
-                                        });
+                                        if (buyType === "bonus") {
+                                          return (
+                                            <FormItem>
+                                              <FormLabel className="text-xs">Bonus Deliverables</FormLabel>
+                                              <FormControl>
+                                                <Input
+                                                  type="number"
+                                                  min={0}
+                                                  step={1}
+                                                  className="w-full"
+                                                  value={field.value ?? ""}
+                                                  onChange={(e) => {
+                                                    const value = e.target.value.replace(/[^0-9]/g, "");
+                                                    field.onChange(value);
+                                                  }}
+                                                />
+                                              </FormControl>
+                                              <FormMessage />
+                                            </FormItem>
+                                          );
+                                        }
 
-                                        const calculatedValue = useMemo(() => {
-                                          const budget = parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0");
-                                          const buyAmount = parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount`)?.replace(/[^0-9.]/g, "") || "1");
+                                        const budget = parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0");
+                                        const buyAmount = parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount`)?.replace(/[^0-9.]/g, "") || "1");
 
-                                          switch (buyType) {
-                                            case "cpc":
-                                            case "cpv":
-                                              return buyAmount !== 0 ? (budget / buyAmount) : "0";
-                                            case "cpm":
-                                              return buyAmount !== 0 ? ((budget / buyAmount) * 1000) : "0";
-                                            case "fixed_cost":
-                                              return "1";
-                                            default:
-                                              return "0";
-                                          }
-                                        }, [
-                                          form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`),
-                                          form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount`),
-                                          buyType
-                                        ]);
+                                        let calculatedValue = "0";
+                                        switch (buyType) {
+                                          case "cpc":
+                                          case "cpv":
+                                            calculatedValue = buyAmount !== 0 ? (budget / buyAmount).toString() : "0";
+                                            break;
+                                          case "cpm":
+                                            calculatedValue = buyAmount !== 0 ? ((budget / buyAmount) * 1000).toString() : "0";
+                                            break;
+                                          case "fixed_cost":
+                                            calculatedValue = "1";
+                                            break;
+                                        }
 
                                         let title = "Calculated Value";
                                         switch (buyType) {
@@ -1541,7 +1602,7 @@ const getBursts = () => {
                                               <Input
                                                 type="text"
                                                 className="w-full"
-                                                value={calculatedValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                                value={Number(calculatedValue).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                                                 readOnly
                                               />
                                             </FormControl>

@@ -14,25 +14,16 @@ import { SuccessModal } from "@/components/ui/success-modal"
 import { Badge } from "@/components/ui/badge"
 
 const optionalString = z.string().optional().or(z.literal(""))
-const normalizeAbn = (value: string) => value.replace(/[^A-Za-z0-9]/g, "")
-
 const clientSchema = z.object({
   id: z.number(),
   clientname_input: z.string().min(1, "Client name is required"),
   mbaidentifier: z.string().min(1, "MBA Identifier is required"),
   clientcategory: optionalString,
-  abn: z.preprocess(
-    (val) => {
-      if (val === null || val === undefined || val === "") return ""
-      if (typeof val === "string") return normalizeAbn(val)
-      return val
-    },
-    z
-      .string()
-      .regex(/^[A-Za-z0-9]{11}$/, "ABN must contain 11 letters or numbers after removing spaces or symbols")
-      .optional()
-      .or(z.literal(""))
-  ),
+  abn: z
+    .string()
+    .regex(/^[A-Za-z0-9]{11}$/, "ABN must contain 11 letters or numbers after removing spaces or symbols")
+    .optional()
+    .or(z.literal("")),
   legalbusinessname: optionalString,
   streetaddress: optionalString,
   suburb: optionalString,
@@ -104,7 +95,8 @@ const formatHexColour = (value: string) => {
 type ClientFormValues = z.infer<typeof clientSchema>
 
 interface EditClientFormProps {
-  client: ClientFormValues
+  // Accept partial client data from the list API while requiring an id
+  client: Partial<ClientFormValues> & { id: number }
   onSuccess: () => void
 }
 
@@ -116,6 +108,7 @@ export function EditClientForm({ client, onSuccess }: EditClientFormProps) {
   const formData = {
     ...client,
     clientname_input: (client as any).mp_client_name || client.clientname_input || '',
+    mbaidentifier: client.mbaidentifier || '',
     payment_days: (client as any).payment_days ?? 30,
     payment_terms: (client as any).payment_terms ?? "",
     brand_colour: (client as any).brand_colour ?? "#49C7EB",
@@ -128,7 +121,7 @@ export function EditClientForm({ client, onSuccess }: EditClientFormProps) {
 
   const form = useForm<ClientFormValues>({
     resolver: zodResolver(clientSchema),
-    defaultValues: formData,
+    defaultValues: formData as ClientFormValues,
   })
 
   async function onSubmit(data: ClientFormValues) {
@@ -172,6 +165,24 @@ export function EditClientForm({ client, onSuccess }: EditClientFormProps) {
     const numericValue = value.replace(/[^0-9.]/g, "")
     return numericValue ? `${Number(numericValue).toFixed(2)}%` : ""
   }
+
+  const platformIdFields: { name: keyof ClientFormValues; label: string }[] = [
+    { name: "idgoogleads", label: "Google Ads" },
+    { name: "idmeta", label: "Meta" },
+    { name: "idcm360", label: "CM360" },
+    { name: "iddv360", label: "DV360" },
+    { name: "idtiktok", label: "TikTok" },
+    { name: "idlinkedin", label: "LinkedIn" },
+    { name: "idpinterest", label: "Pinterest" },
+    { name: "idquantcast", label: "Quantcast" },
+    { name: "idtaboola", label: "Taboola" },
+    { name: "idsnapchat", label: "Snapchat" },
+    { name: "idbing", label: "Bing" },
+    { name: "idvistar", label: "Vistar" },
+    { name: "idga4", label: "GA4" },
+    { name: "idmerchantcentre", label: "Merchant Centre" },
+    { name: "idshopify", label: "Shopify" },
+  ]
 
   return (
     <>
@@ -686,34 +697,18 @@ export function EditClientForm({ client, onSuccess }: EditClientFormProps) {
           <div className="border p-4 rounded-md">
             <h3 className="text-lg font-semibold mb-4">Platform IDs</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {[
-                { key: "googleads", label: "Google Ads" },
-                { key: "meta", label: "Meta" },
-                { key: "cm360", label: "CM360" },
-                { key: "dv360", label: "DV360" },
-                { key: "tiktok", label: "TikTok" },
-                { key: "linkedin", label: "LinkedIn" },
-                { key: "pinterest", label: "Pinterest" },
-                { key: "quantcast", label: "Quantcast" },
-                { key: "taboola", label: "Taboola" },
-                { key: "snapchat", label: "Snapchat" },
-                { key: "bing", label: "Bing" },
-                { key: "vistar", label: "Vistar" },
-                { key: "ga4", label: "GA4" },
-                { key: "merchantcentre", label: "Merchant Centre" },
-                { key: "shopify", label: "Shopify" },
-              ].map((platform) => (
+              {platformIdFields.map((platform) => (
                 <FormField
-                  key={platform.key}
+                  key={platform.name}
                   control={form.control}
-                  name={`id${platform.key}` as keyof ClientFormValues}
+                  name={platform.name}
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>{platform.label}</FormLabel>
                       <FormControl>
                         <Input
                           {...field}
-                          value={field.value || ''}
+                          value={(field.value ?? '') as string}
                           placeholder={`Enter ${platform.label} ID`}
                         />
                       </FormControl>
@@ -766,7 +761,11 @@ export function EditClientForm({ client, onSuccess }: EditClientFormProps) {
       </form>
     </Form>
     <SavingModal isOpen={isSaving} />
-    <SuccessModal isOpen={showSuccess} onClose={() => setShowSuccess(false)} />
+    <SuccessModal
+      isOpen={showSuccess}
+      message="Client updated successfully"
+      onClose={() => setShowSuccess(false)}
+    />
     </>
   )
 }

@@ -507,7 +507,31 @@ export default function InfluencersContainer({
 
     setOverallDeliverables(overallMedia);
     onTotalMediaChange(overallMedia, overallFee);
-  }, [feeinfluencers]); // Removed onTotalMediaChange dependency to prevent infinite loops
+  }, [form, feeinfluencers, onTotalMediaChange]);
+
+  const handleBuyTypeChange = useCallback(
+    (lineItemIndex: number, value: string) => {
+      form.setValue(`lineItems.${lineItemIndex}.buyType`, value);
+
+      if (value === "bonus") {
+        const currentBursts =
+          form.getValues(`lineItems.${lineItemIndex}.bursts`) || [];
+        const zeroedBursts = currentBursts.map((burst: any) => ({
+          ...burst,
+          budget: "0",
+          buyAmount: "0",
+          calculatedValue: burst.calculatedValue ?? 0,
+        }));
+
+        form.setValue(`lineItems.${lineItemIndex}.bursts`, zeroedBursts, {
+          shouldDirty: true,
+        });
+      }
+
+      handleLineItemValueChange(lineItemIndex);
+    },
+    [form, handleLineItemValueChange]
+  );
 
    const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number) => {
     const burst = form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}`);
@@ -925,7 +949,12 @@ const getBursts = () => {
                                 render={({ field }) => (
                                   <FormItem className="flex items-center space-x-2">
                                     <FormLabel className="w-24 text-sm">Platform</FormLabel>
-                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <Select
+                                      onValueChange={(value) =>
+                                        handleBuyTypeChange(lineItemIndex, value)
+                                      }
+                                      defaultValue={field.value}
+                                    >
                                       <FormControl>
                                         <SelectTrigger className="h-9 w-full flex-1 rounded-md border">
                                           <SelectValue placeholder="Select" />
@@ -987,6 +1016,7 @@ const getBursts = () => {
                                         <SelectItem value="cpc">CPC</SelectItem>
                                         <SelectItem value="cpm">CPM</SelectItem>
                                         <SelectItem value="cpv">CPV</SelectItem>
+                                        <SelectItem value="bonus">Bonus</SelectItem>
                                         <SelectItem value="fixed_cost">Fixed Cost</SelectItem>
                                         <SelectItem value="guaranteed_leads">Guaranteed Leads</SelectItem>
                                       </SelectContent>

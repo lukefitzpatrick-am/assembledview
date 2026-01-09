@@ -249,7 +249,7 @@ export default function MediaPlansPage() {
       const searchLower = searchTerm.toLowerCase();
       return (
         plan.mp_client_name.toLowerCase().includes(searchLower) ||
-        plan.campaign_name.toLowerCase().includes(searchLower) ||
+        (plan.campaign_name?.toLowerCase().includes(searchLower) ?? false) ||
         plan.mba_number.toLowerCase().includes(searchLower) ||
         (plan.brand && plan.brand.toLowerCase().includes(searchLower))
       );

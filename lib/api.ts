@@ -737,6 +737,9 @@ export async function createMediaPlanVersion(data: MediaPlanVersion) {
     ];
     
     const sanitizedData: Partial<MediaPlanVersion> = { ...data };
+    if (sanitizedData.deliverySchedule && !(sanitizedData as any).delivery_schedule) {
+      (sanitizedData as any).delivery_schedule = sanitizedData.deliverySchedule;
+    }
     booleanFields.forEach(field => {
       if (sanitizedData[field as keyof MediaPlanVersion] === undefined) {
         (sanitizedData as any)[field] = false;

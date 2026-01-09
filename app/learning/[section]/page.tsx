@@ -77,11 +77,11 @@ export default function LearningSectionPage({ params }: PageProps) {
   }, []);
 
   useEffect(() => {
-    const id = searchParams.get("id");
+    const id = searchParams?.get("id");
     if (id && terms.find((t) => t.id === id)) {
       setActiveTermId(id);
     }
-  }, [searchParams]);
+  }, [searchParams, terms]);
 
   useEffect(() => {
     const timer = setTimeout(() => {

@@ -693,7 +693,33 @@ const handleAddNewMagazinesAdSize = async () => {
 
     setOverallDeliverables(overallMedia);
     onTotalMediaChange(overallMedia, overallFee);
-  }, [form, feemagazines]); // Removed onTotalMediaChange dependency to prevent infinite loops
+  }, [form, feemagazines, onTotalMediaChange]);
+
+  const handleBuyTypeChange = useCallback(
+    (lineItemIndex: number, value: string) => {
+      form.setValue(`magazineslineItems.${lineItemIndex}.buyType`, value);
+
+      if (value === "bonus") {
+        const currentBursts =
+          form.getValues(`magazineslineItems.${lineItemIndex}.bursts`) || [];
+        const zeroedBursts = currentBursts.map((burst: any) => ({
+          ...burst,
+          budget: "0",
+          buyAmount: "0",
+          calculatedValue: burst.calculatedValue ?? 0,
+        }));
+
+        form.setValue(
+          `magazineslineItems.${lineItemIndex}.bursts`,
+          zeroedBursts,
+          { shouldDirty: true }
+        );
+      }
+
+      handleLineItemValueChange(lineItemIndex);
+    },
+    [form, handleLineItemValueChange]
+  );
 
   const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number) => {
     const burst = form.getValues(`magazineslineItems.${lineItemIndex}.bursts.${burstIndex}`);
@@ -714,6 +740,11 @@ const handleAddNewMagazinesAdSize = async () => {
       case "fixed_cost":
       case "package":
         calculatedValue = 1;
+        break;
+      case "bonus":
+        calculatedValue = parseFloat(
+          (burst?.calculatedValue ?? "0").toString().replace(/[^0-9.]/g, "")
+        ) || 0;
         break;
       default:
         calculatedValue = 0;
@@ -1322,7 +1353,12 @@ useEffect(() => {
                                 render={({ field }) => (
                                   <FormItem className="flex items-center space-x-2">
                                     <FormLabel className="w-24 text-sm">Buy Type</FormLabel>
-                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <Select
+                                      onValueChange={(value) =>
+                                        handleBuyTypeChange(lineItemIndex, value)
+                                      }
+                                      defaultValue={field.value}
+                                    >
                                       <FormControl>
                                         <SelectTrigger className="h-9 w-full flex-1 rounded-md border">
                                           <SelectValue placeholder="Select" />
@@ -1332,6 +1368,7 @@ useEffect(() => {
                                        <SelectItem value="insertions">Insertions</SelectItem>
                                         <SelectItem value="cpm">CPM</SelectItem>
                                         <SelectItem value="package">Package</SelectItem>
+                                        <SelectItem value="bonus">Bonus</SelectItem>
                                         <SelectItem value="fixed_cost">Fixed Cost</SelectItem>
                                       </SelectContent>
                                     </Select>
@@ -1507,6 +1544,7 @@ useEffect(() => {
                       {/* Bursts Section */}
                       <div id={`line-item-${lineItemIndex}-bursts`} className="space-y-4">
                         {form.watch(`magazineslineItems.${lineItemIndex}.bursts`, []).map((burstField, burstIndex) => {
+                          const buyType = form.watch(`magazineslineItems.${lineItemIndex}.buyType`);
                           return (
                             <Card key={`${lineItemIndex}-${burstIndex}`} className="border border-gray-200">
                               <CardContent className="py-2 px-4">
@@ -1528,6 +1566,8 @@ useEffect(() => {
                                               {...field}
                                               type="text"
                                               className="w-full"
+                                              value={buyType === "bonus" ? "0" : field.value}
+                                              disabled={buyType === "bonus"}
                                               onChange={(e) => {
                                                 const value = e.target.value.replace(/[^0-9.]/g, "");
                                                 field.onChange(value);
@@ -1563,6 +1603,8 @@ useEffect(() => {
                                               {...field}
                                               type="text"
                                               className="w-full"
+                                              value={buyType === "bonus" ? "0" : field.value}
+                                              disabled={buyType === "bonus"}
                                               onChange={(e) => {
                                                 const value = e.target.value.replace(/[^0-9.]/g, "");
                                                 field.onChange(value);
@@ -1671,36 +1713,66 @@ useEffect(() => {
                                       control={form.control}
                                       name={`magazineslineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`}
                                       render={({ field }) => {
-                                        const buyType = useWatch({
+                                        const buyTypeWatch = useWatch({
                                           control: form.control,
                                           name: `magazineslineItems.${lineItemIndex}.buyType`,
                                         });
+                                        const budgetValue = useWatch({
+                                          control: form.control,
+                                          name: `magazineslineItems.${lineItemIndex}.bursts.${burstIndex}.budget`,
+                                        });
+                                        const buyAmountValue = useWatch({
+                                          control: form.control,
+                                          name: `magazineslineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount`,
+                                        });
 
                                         const calculatedValue = useMemo(() => {
-                                          const budget = parseFloat(form.getValues(`magazineslineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0");
-                                          const buyAmount = parseFloat(form.getValues(`magazineslineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount`)?.replace(/[^0-9.]/g, "") || "1");
+                                          const budget = parseFloat(
+                                            String(budgetValue)?.replace(/[^0-9.]/g, "") || "0"
+                                          );
+                                          const buyAmount = parseFloat(
+                                            String(buyAmountValue)?.replace(/[^0-9.]/g, "") || "1"
+                                          );
 
-                                          switch (buyType) {
+                                          switch (buyTypeWatch) {
                                             case "cpc":
                                             case "cpv":
                                             case "insertions":
-                                              return buyAmount !== 0 ? (budget / buyAmount) : "0";
+                                              return buyAmount !== 0 ? budget / buyAmount : "0";
                                             case "cpm":
-                                              return buyAmount !== 0 ? ((budget / buyAmount) * 1000) : "0";
+                                              return buyAmount !== 0 ? (budget / buyAmount) * 1000 : "0";
                                             case "fixed_cost":
                                             case "package":
                                               return "1";
                                             default:
                                               return "0";
                                           }
-                                        }, [
-                                          form.getValues(`magazineslineItems.${lineItemIndex}.bursts.${burstIndex}.budget`),
-                                          form.getValues(`magazineslineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount`),
-                                          buyType
-                                        ]);
+                                        }, [budgetValue, buyAmountValue, buyTypeWatch]);
+
+                                        if (buyTypeWatch === "bonus") {
+                                          return (
+                                            <FormItem>
+                                              <FormLabel className="text-xs">Bonus Deliverables</FormLabel>
+                                              <FormControl>
+                                                <Input
+                                                  type="number"
+                                                  min={0}
+                                                  step={1}
+                                                  className="w-full"
+                                                  value={field.value ?? ""}
+                                                  onChange={(e) => {
+                                                    const value = e.target.value.replace(/[^0-9]/g, "");
+                                                    field.onChange(value);
+                                                  }}
+                                                />
+                                              </FormControl>
+                                              <FormMessage />
+                                            </FormItem>
+                                          );
+                                        }
 
                                         let title = "Calculated Value";
-                                        switch (buyType) {
+                                        switch (buyTypeWatch) {
                                           case "cpc":
                                             title = "Clicks";
                                             break;
@@ -1728,7 +1800,7 @@ useEffect(() => {
                                               <Input
                                                 type="text"
                                                 className="w-full"
-                                                value={calculatedValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                                value={Number(calculatedValue).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                                                 readOnly
                                               />
                                             </FormControl>

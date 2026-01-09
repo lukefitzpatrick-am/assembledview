@@ -337,7 +337,7 @@ export default function Clients() {
           </DialogHeader>
           {selectedClient && (
             <EditClientForm
-              client={selectedClient}
+              client={{ ...selectedClient, keyphone: String(selectedClient.keyphone ?? "") }}
               onSuccess={() => {
                 setIsEditDialogOpen(false)
                 fetchClients()
