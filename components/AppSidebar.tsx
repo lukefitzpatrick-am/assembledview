@@ -72,7 +72,7 @@ export function AppSidebar() {
     ];
     if (userClient) {
       links.unshift({
-        title: "My Dashboard",
+        title: userClient.toUpperCase(),
         icon: LayoutDashboard,
         href: `/dashboard/${userClient}`,
       });
@@ -120,7 +120,10 @@ export function AppSidebar() {
             <SidebarMenu>
               {menuItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
+                  <SidebarMenuButton
+                    asChild
+                    className="hover:text-[#B5D337]"
+                  >
                     <Link href={item.href} className="flex items-center">
                       {React.createElement(item.icon, { className: "mr-2 h-4 w-4" })}
                       <span>{item.title}</span>
@@ -133,7 +136,7 @@ export function AppSidebar() {
                 <SidebarMenuItem>
                   <SidebarMenuButton
                     onClick={() => setIsFinanceExpanded(!isFinanceExpanded)}
-                    className="flex items-center justify-between w-full"
+                    className="flex items-center justify-between w-full hover:text-[#B5D337]"
                   >
                     <div className="flex items-center">
                       <DollarSign className="mr-2 h-4 w-4" />
@@ -144,22 +147,22 @@ export function AppSidebar() {
                   {isFinanceExpanded && (
                     <SidebarMenuSub>
                       <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild>
+                        <SidebarMenuSubButton asChild className="hover:text-[#B5D337]">
                           <Link href="/finance">Overview</Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                       <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild>
+                        <SidebarMenuSubButton asChild className="hover:text-[#B5D337]">
                           <Link href="/finance/media">Media</Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                       <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild>
+                        <SidebarMenuSubButton asChild className="hover:text-[#B5D337]">
                           <Link href="/finance/sow">Scopes of Work</Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                       <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild>
+                        <SidebarMenuSubButton asChild className="hover:text-[#B5D337]">
                           <Link href="/finance/retainers">Retainers</Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
@@ -173,7 +176,7 @@ export function AppSidebar() {
                 <SidebarMenuItem>
                   <SidebarMenuButton
                     onClick={() => setIsClientsExpanded(!isClientsExpanded)}
-                    className="flex items-center justify-between w-full"
+                    className="flex items-center justify-between w-full hover:text-[#B5D337]"
                   >
                     <div className="flex items-center">
                       <BarChart3 className="mr-2 h-4 w-4" />
@@ -199,7 +202,7 @@ export function AppSidebar() {
                           
                           return (
                             <SidebarMenuSubItem key={client.id}>
-                              <SidebarMenuSubButton asChild>
+                              <SidebarMenuSubButton asChild className="hover:text-[#B5D337]">
                                 <Link href={`/dashboard/${slug}`}>
                                   {client.mp_client_name}
                                 </Link>
@@ -216,7 +219,7 @@ export function AppSidebar() {
 
               {isAdmin && (
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild>
+                  <SidebarMenuButton asChild className="hover:text-[#B5D337]">
                     <Link href="/dashboard-demo/pacing/meta" className="flex items-center">
                       <BarChart3 className="mr-2 h-4 w-4" />
                       <span>Pacing Demo (Meta)</span>
@@ -227,21 +230,10 @@ export function AppSidebar() {
 
               {isAdmin && (
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild>
+                  <SidebarMenuButton asChild className="hover:text-[#B5D337]">
                     <Link href="/admin/users/new" className="flex items-center">
                       <UserCircle className="mr-2 h-4 w-4" />
                       <span>Admin User Enrolment</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
-
-              {isClient && userClient && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild>
-                    <Link href={`/dashboard/${userClient}`} className="flex items-center">
-                      <LayoutDashboard className="mr-2 h-4 w-4" />
-                      <span>My Dashboard</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

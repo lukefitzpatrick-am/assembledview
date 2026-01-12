@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import type { ChatCompletionMessageParam } from "openai/resources/index.mjs"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -30,6 +30,10 @@ export function ChatWidget({
   const [messages, setMessages] = useState<ChatCompletionMessageParam[]>(initialMessages)
   const [error, setError] = useState<string | null>(null)
   const [isUploading, setIsUploading] = useState(false)
+  const [position, setPosition] = useState({ x: 0, y: 0 })
+  const [dragState, setDragState] = useState<{ offsetX: number; offsetY: number } | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const dragMovedRef = useRef(false)
 
   const appendAssistantNote = useCallback(
     (content: string) => setMessages((prev) => [...prev, { role: "assistant", content }]),
@@ -37,6 +41,50 @@ export function ChatWidget({
   )
 
   const toggle = useCallback(() => setIsOpen((v) => !v), [])
+
+  const startDrag = useCallback(
+    (event: React.MouseEvent) => {
+      if (event.button !== 0) return
+      event.preventDefault()
+      dragMovedRef.current = false
+      setDragState({ offsetX: event.clientX - position.x, offsetY: event.clientY - position.y })
+    },
+    [position.x, position.y]
+  )
+
+  const handleToggleClick = useCallback(() => {
+    if (dragMovedRef.current || isDragging) {
+      dragMovedRef.current = false
+      return
+    }
+    toggle()
+  }, [isDragging, toggle])
+
+  useEffect(() => {
+    if (!dragState) return
+
+    const handleMouseMove = (event: MouseEvent) => {
+      dragMovedRef.current = true
+      setIsDragging(true)
+      setPosition({
+        x: event.clientX - dragState.offsetX,
+        y: event.clientY - dragState.offsetY,
+      })
+    }
+
+    const handleMouseUp = () => {
+      setDragState(null)
+      requestAnimationFrame(() => setIsDragging(false))
+    }
+
+    window.addEventListener("mousemove", handleMouseMove)
+    window.addEventListener("mouseup", handleMouseUp)
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove)
+      window.removeEventListener("mouseup", handleMouseUp)
+    }
+  }, [dragState])
 
   const handleUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files
@@ -111,20 +159,33 @@ export function ChatWidget({
   }
 
   return (
-    <div className={cn("fixed bottom-6 right-6 z-50", className)}>
+    <div
+      className={cn("fixed bottom-6 right-6 z-50", className)}
+      style={{ transform: `translate(${position.x}px, ${position.y}px)` }}
+    >
       <Button
-        onClick={toggle}
-        className="rounded-full shadow-lg"
+        onMouseDown={startDrag}
+        onClick={handleToggleClick}
+        className={cn(
+          "rounded-full shadow-lg cursor-grab active:cursor-grabbing",
+          isDragging && "cursor-grabbing"
+        )}
         size="lg"
         variant={isOpen ? "secondary" : "default"}
       >
-        {isOpen ? "Close Assistant" : "AI Assistant"}
+        {isOpen ? "Close AVA" : "Ask AVA"}
       </Button>
 
       {isOpen && (
         <div className="mt-3 w-96 rounded-xl border border-slate-200 bg-white shadow-2xl">
           <div className="flex items-center justify-between border-b px-4 py-3">
-            <div>
+            <div
+              className={cn(
+                "cursor-grab select-none",
+                isDragging && "cursor-grabbing"
+              )}
+              onMouseDown={startDrag}
+            >
               <p className="text-sm font-semibold text-slate-900">AssembledView Assistant</p>
               <p className="text-xs text-slate-500">Ask about this page, Xano data, or upload results</p>
             </div>

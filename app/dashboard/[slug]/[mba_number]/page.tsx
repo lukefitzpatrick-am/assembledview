@@ -14,6 +14,7 @@ import { auth0 } from '@/lib/auth0'
 import { getPrimaryRole, getUserClientIdentifier } from '@/lib/rbac'
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
+import MetaPacingPanel from '@/components/pacing/MetaPacingPanel'
 
 interface CampaignDetailPageProps {
   params: {
@@ -97,12 +98,21 @@ export default async function CampaignDetailPage({ params }: CampaignDetailPageP
   const metrics = campaignData.metrics || {}
   const billingSchedule = campaignData.billingSchedule
 
+  const socialItems = Array.isArray(lineItems.socialMedia) ? lineItems.socialMedia : []
+  const hasMetaSocial = socialItems.some(
+    (item: any) => typeof item?.platform === "string" && item.platform.toLowerCase().includes("meta")
+  )
+
   return (
     <div className="w-full px-4 lg:px-8 space-y-8 pb-32">
       {/* Campaign Header Section */}
       <Suspense fallback={<Skeleton className="h-64 w-full" />}>
         <CampaignHeader campaign={campaign} />
       </Suspense>
+
+      {hasMetaSocial ? (
+        <MetaPacingPanel clientSlug={slug} mbaSlug={mba_number} />
+      ) : null}
 
       {/* Metrics Section - Time Elapsed and Spend Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

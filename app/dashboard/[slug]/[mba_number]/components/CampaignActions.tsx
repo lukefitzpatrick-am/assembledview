@@ -196,7 +196,7 @@ export default function CampaignActions({ mbaNumber, campaign, lineItems, billin
   }
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t z-50 shadow-lg">
+    <div className="fixed bottom-0 left-0 right-0 md:left-[240px] bg-background/95 backdrop-blur-sm border-t z-50 shadow-lg">
       <div className="mx-auto flex w-full items-center justify-end gap-4 px-4 py-4 lg:px-6">
         <div className="flex space-x-2">
           <Button

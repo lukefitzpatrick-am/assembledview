@@ -38,6 +38,11 @@ export async function GET(request: Request) {
 
     const params = new URLSearchParams();
     params.append("mba_number", mbaNumber);
+    if (versionNumber) {
+      params.append("mp_plannumber", versionNumber);
+      params.append("version_number", versionNumber);
+      params.append("media_plan_version", versionNumber);
+    }
 
     const url = `${XANO_PRODUCTION_BASE_URL}/media_plan_production?${params.toString()}`;
     const headers = {
@@ -49,6 +54,12 @@ export async function GET(request: Request) {
     const data = Array.isArray(response.data) ? response.data : [];
 
     const filteredData = filterLineItemsByPlanNumber(data, mbaNumber, versionNumber, "PRODUCTION");
+
+    // If version metadata is missing in Xano, fall back to returning all rows for the MBA
+    if (filteredData.length === 0) {
+      const mbaMatches = data.filter((item: any) => String(item?.mba_number || "").trim() === mbaNumber);
+      return NextResponse.json(mbaMatches);
+    }
 
     return NextResponse.json(filteredData);
   } catch (error) {

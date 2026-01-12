@@ -14,13 +14,15 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { useToast } from "@/components/ui/use-toast"
 import { getPublishersForCinema, getClientInfo } from "@/lib/api"
+import { formatBurstLabel } from "@/lib/bursts"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { Calendar } from "@/components/ui/calendar"
+import { LoadingDots } from "@/components/ui/loading-dots"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { ChevronDown, Trash2, PlusCircle } from "lucide-react"
+import { ChevronDown, Copy, Plus, Trash2, PlusCircle } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger,} from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label";
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
@@ -90,6 +92,10 @@ const lineItemSchema = z.object({
   clientPaysForMedia: z.boolean().default(false),
   budgetIncludesFees: z.boolean().default(false),
   noadserving: z.boolean().default(false),
+  lineItemId: z.string().optional(),
+  line_item_id: z.string().optional(),
+  line_item: z.union([z.string(), z.number()]).optional(),
+  lineItem: z.union([z.string(), z.number()]).optional(),
   bursts: z.array(burstSchema).min(1, "At least one burst is required"),
   totalMedia: z.number().optional(),
   totalDeliverables: z.number().optional(),
@@ -312,6 +318,16 @@ export default function CinemaContainer({
   const { mbaNumber } = useMediaPlanContext()
   const [overallDeliverables, setOverallDeliverables] = useState(0);
 
+  // Stable ID generator for line items to keep duplicates distinct in exports
+  const createLineItemId = () => {
+    const base = mbaNumber || "CIN";
+    const rand =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? (crypto as any).randomUUID()
+        : `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
+    return `${base}-${rand}`;
+  };
+
   const [isAddStationDialogOpen, setIsAddStationDialogOpen] = useState(false);
   const [newStationName, setNewStationName] = useState("");
   const [newStationNetwork, setNewStationNetwork] = useState("");
@@ -408,6 +424,7 @@ export default function CinemaContainer({
           clientPaysForMedia: false,
           budgetIncludesFees: false,
           noadserving: false,
+          ...(() => { const id = createLineItemId(); return { lineItemId: id, line_item_id: id, line_item: 1, lineItem: 1 }; })(),
           bursts: [
             {
               budget: "",
@@ -449,8 +466,15 @@ export default function CinemaContainer({
       return;
     }
 
+    const newId = createLineItemId();
+    const lineNumber = (source.line_item ?? source.lineItem ?? lineItemIndex + 1) + 1;
+
     const clone = {
       ...source,
+      lineItemId: newId,
+      line_item_id: newId,
+      line_item: lineNumber,
+      lineItem: lineNumber,
       bursts: (source.bursts || []).map((burst: any) => ({
         ...burst,
         startDate: burst?.startDate ? new Date(burst.startDate) : new Date(),
@@ -470,42 +494,80 @@ export default function CinemaContainer({
     defaultValue: form.getValues("cinemalineItems")
   });
 
+  const computeDeliverables = useCallback((burst: any, buyType: string) => {
+    const budget = parseFloat(burst?.budget?.replace(/[^0-9.]/g, "") || "0");
+    const buyAmount = parseFloat(burst?.buyAmount?.replace(/[^0-9.]/g, "") || "1");
+
+    switch (buyType) {
+      case "cpc":
+      case "cpv":
+      case "screens":
+        return buyAmount !== 0 ? budget / buyAmount : 0;
+      case "cpm":
+        return buyAmount !== 0 ? (budget / buyAmount) * 1000 : 0;
+      case "fixed_cost":
+      case "package":
+        return 1;
+      case "bonus":
+        return (
+          parseFloat(
+            (burst?.calculatedValue ?? "0").toString().replace(/[^0-9.]/g, "")
+          ) || 0
+        );
+      default:
+        return burst?.calculatedValue ?? 0;
+    }
+  }, []);
+
   // Data loading for edit mode
   useEffect(() => {
     if (initialLineItems && initialLineItems.length > 0) {
-      const transformedLineItems = initialLineItems.map((item: any) => ({
-        market: item.market || "",
-        network: item.network || "",
-        station: item.station || "",
-        placement: item.placement || "",
-        format: item.format || "",
-        duration: item.duration || "",
-        bidStrategy: item.bid_strategy || "",
-        buyType: item.buy_type || "",
-        buyingDemo: item.buying_demo || "",
-        fixedCostMedia: item.fixed_cost_media || false,
-        clientPaysForMedia: item.client_pays_for_media || false,
-        budgetIncludesFees: item.budget_includes_fees || false,
-        noadserving: item.no_adserving || false,
-        bursts: item.bursts ? (typeof item.bursts === 'string' ? JSON.parse(item.bursts) : item.bursts).map((burst: any) => ({
-          budget: burst.budget || "",
-          buyAmount: burst.buyAmount || "",
-          startDate: burst.startDate ? new Date(burst.startDate) : new Date(),
-          endDate: burst.endDate ? new Date(burst.endDate) : new Date(),
-        })) : [{
-          budget: "",
-          buyAmount: "",
-          startDate: campaignStartDate || new Date(),
-          endDate: campaignEndDate || new Date(),
-        }],
-      }));
+      const transformedLineItems = initialLineItems.map((item: any, index: number) => {
+        const lineItemId = item.line_item_id || item.lineItemId || `${mbaNumber || "CIN"}-${index + 1}`;
+        const buyType = item.buy_type || item.buyType || "";
+
+        return {
+          market: item.market || "",
+          network: item.network || "",
+          station: item.station || "",
+          placement: item.placement || "",
+          format: item.format || "",
+          duration: item.duration || "",
+          bidStrategy: item.bid_strategy || "",
+          buyType: item.buy_type || "",
+          buyingDemo: item.buying_demo || "",
+          fixedCostMedia: item.fixed_cost_media || false,
+          clientPaysForMedia: item.client_pays_for_media || false,
+          budgetIncludesFees: item.budget_includes_fees || false,
+          noadserving: item.no_adserving || false,
+          lineItemId,
+          line_item_id: lineItemId,
+          line_item: item.line_item ?? item.lineItem ?? index + 1,
+          lineItem: item.lineItem ?? item.line_item ?? index + 1,
+          bursts: item.bursts ? (typeof item.bursts === 'string' ? JSON.parse(item.bursts) : item.bursts).map((burst: any) => ({
+            budget: burst.budget || "",
+            buyAmount: burst.buyAmount || "",
+            startDate: burst.startDate ? new Date(burst.startDate) : new Date(),
+            endDate: burst.endDate ? new Date(burst.endDate) : new Date(),
+            calculatedValue: computeDeliverables(burst, buyType),
+            fee: burst.fee ?? 0,
+          })) : [{
+            budget: "",
+            buyAmount: "",
+            startDate: campaignStartDate || new Date(),
+            endDate: campaignEndDate || new Date(),
+            calculatedValue: computeDeliverables({}, buyType),
+            fee: 0,
+          }],
+        };
+      });
 
       form.reset({
         cinemalineItems: transformedLineItems,
         overallDeliverables: 0,
       });
     }
-  }, [initialLineItems, form, campaignStartDate, campaignEndDate]);
+  }, [initialLineItems, form, campaignStartDate, campaignEndDate, computeDeliverables]);
 
   // Transform form data to API schema format
   useEffect(() => {
@@ -525,6 +587,8 @@ export default function CinemaContainer({
           totalMedia += budget;
         }
       });
+      const lineItemId = lineItem.lineItemId || lineItem.line_item_id || `${mbaNumber || "CIN"}-${index + 1}`;
+      const lineNumber = lineItem.line_item ?? lineItem.lineItem ?? index + 1;
 
       return {
         media_plan_version: 0,
@@ -543,7 +607,7 @@ export default function CinemaContainer({
         client_pays_for_media: lineItem.clientPaysForMedia || false,
         budget_includes_fees: lineItem.budgetIncludesFees || false,
         no_adserving: lineItem.noadserving || false,
-        line_item_id: `${mbaNumber || 'CIN'}${index + 1}`,
+        line_item_id: lineItemId,
         bursts_json: JSON.stringify(lineItem.bursts.map(burst => ({
           budget: burst.budget || "",
           buyAmount: burst.buyAmount || "",
@@ -552,7 +616,7 @@ export default function CinemaContainer({
           calculatedValue: burst.calculatedValue || 0,
           fee: burst.fee || 0,
         }))),
-        line_item: index + 1,
+        line_item: lineNumber,
         bid_strategy: lineItem.bidStrategy || "",
         totalMedia: totalMedia,
       };
@@ -568,6 +632,7 @@ export default function CinemaContainer({
     let overallMedia = 0;
     let overallFee = 0;
     let overallCost = 0;
+    let overallDeliverableCount = 0;
     
     const lineItemTotals = watchedLineItems.map((lineItem, index) => {
       let lineMedia = 0;
@@ -589,7 +654,7 @@ export default function CinemaContainer({
           const fee = feecinema ? (budget / (100 - feecinema)) * feecinema : 0;
           lineFee += fee;
         }
-        lineDeliverables += burst.calculatedValue || 0;
+        lineDeliverables += computeDeliverables(burst, lineItem.buyType);
       });
     
       lineCost = lineMedia + lineFee;
@@ -608,7 +673,7 @@ export default function CinemaContainer({
     });
     
     return { lineItemTotals, overallMedia, overallFee, overallCost };
-  }, [watchedLineItems, feecinema]);
+  }, [watchedLineItems, feecinema, computeDeliverables]);
   
   // Callback handlers
   const handleLineItemValueChange = useCallback((lineItemIndex: number) => {
@@ -625,18 +690,19 @@ export default function CinemaContainer({
       lineItem.bursts.forEach((burst) => {
         const budget = parseFloat(burst?.budget?.replace(/[^0-9.]/g, "") || "0");
         lineMedia += budget;
-        lineDeliverables += burst?.calculatedValue || 0;
+        lineDeliverables += computeDeliverables(burst, lineItem.buyType);
       });
 
       lineFee = feecinema ? (lineMedia / (100 - feecinema)) * feecinema : 0;
       overallMedia += lineMedia;
       overallFee += lineFee;
       overallCost += lineMedia + lineFee;
+      overallDeliverableCount += lineDeliverables;
     });
 
-    setOverallDeliverables(overallMedia);
+    setOverallDeliverables(overallDeliverableCount);
     onTotalMediaChange(overallMedia, overallFee);
-  }, [form, feecinema, onTotalMediaChange]);
+  }, [form, feecinema, onTotalMediaChange, computeDeliverables]);
 
   const handleBuyTypeChange = useCallback(
     (lineItemIndex: number, value: string) => {
@@ -666,32 +732,9 @@ export default function CinemaContainer({
 
   const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number) => {
     const burst = form.getValues(`cinemalineItems.${lineItemIndex}.bursts.${burstIndex}`);
-    const budget = parseFloat(burst?.budget?.replace(/[^0-9.]/g, "") || "0");
-    const buyAmount = parseFloat(burst?.buyAmount?.replace(/[^0-9.]/g, "") || "1");
     const buyType = form.getValues(`cinemalineItems.${lineItemIndex}.buyType`);
 
-    let calculatedValue = 0;
-    switch (buyType) {
-      case "cpc":
-      case "cpv":
-      case "screens":
-        calculatedValue = buyAmount !== 0 ? budget / buyAmount : 0;
-        break;
-      case "cpm":
-        calculatedValue = buyAmount !== 0 ? (budget / buyAmount) * 1000 : 0;
-        break;
-      case "fixed_cost":
-      case "package":
-        calculatedValue = 1;
-        break;
-      case "bonus":
-        calculatedValue = parseFloat(
-          (burst?.calculatedValue ?? "0").toString().replace(/[^0-9.]/g, "")
-        ) || 0;
-        break;
-      default:
-        calculatedValue = 0;
-    }
+    const calculatedValue = computeDeliverables(burst, buyType);
 
     // Only update if the calculated value is actually different to prevent infinite loops
     const currentValue = form.getValues(`cinemalineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`);
@@ -703,7 +746,7 @@ export default function CinemaContainer({
 
       handleLineItemValueChange(lineItemIndex);
     }
-  }, [form, handleLineItemValueChange]);
+  }, [form, handleLineItemValueChange, computeDeliverables]);
 
   const handleAppendBurst = useCallback((lineItemIndex: number) => {
     const currentBursts = form.getValues(`cinemalineItems.${lineItemIndex}.bursts`) || [];
@@ -929,12 +972,19 @@ useEffect(() => {
   const calculatedBursts = getCinemaBursts(form, feecinema || 0);
   let burstIndex = 0;
 
-  const items: LineItem[] = form.getValues('cinemalineItems').flatMap(lineItem =>
+  const items: LineItem[] = form.getValues('cinemalineItems').flatMap((lineItem, lineItemIndex) =>
     lineItem.bursts.map(burst => {
       const computedBurst = calculatedBursts[burstIndex++];
       const mediaAmount = computedBurst
         ? computedBurst.mediaAmount
         : parseFloat(String(burst.budget).replace(/[^0-9.-]+/g, "")) || 0;
+      let lineItemId = lineItem.lineItemId || lineItem.line_item_id;
+      if (!lineItemId) {
+        lineItemId = createLineItemId();
+        form.setValue(`cinemalineItems.${lineItemIndex}.lineItemId`, lineItemId);
+        form.setValue(`cinemalineItems.${lineItemIndex}.line_item_id`, lineItemId);
+      }
+      const lineNumber = lineItem.line_item ?? lineItem.lineItem ?? lineItemIndex + 1;
 
       return {
         market: lineItem.market,                                // or fixed value
@@ -952,6 +1002,10 @@ useEffect(() => {
         buyType:      lineItem.buyType,
         deliverablesAmount: burst.budget,
         grossMedia: mediaAmount.toFixed(2),
+        line_item_id: lineItemId,
+        lineItemId: lineItemId,
+        line_item: lineNumber,
+        lineItem: lineNumber,
       };
     })
   );
@@ -1078,13 +1132,16 @@ useEffect(() => {
       <div>
         {isLoading ? (
           <div className="flex justify-center items-center h-20">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <LoadingDots size="md" />
           </div>
         ) : (
           <div className="space-y-6">
             <Form {...form}>
               <div className="space-y-6">
                 {lineItemFields.map((field, lineItemIndex) => {
+                  const sectionId = `cinema-line-item-${lineItemIndex}`;
+                  const burstsId = `${sectionId}-bursts`;
+                  const footerId = `${sectionId}-footer`;
                   const getTotals = (lineItemIndex: number) => {
                     const lineItem = form.getValues(`cinemalineItems.${lineItemIndex}`);
                     let totalMedia = 0;
@@ -1127,9 +1184,9 @@ useEffect(() => {
                               variant="outline" 
                               size="sm"
                               onClick={() => {
-                                const element = document.getElementById(`line-item-${lineItemIndex}`);
-                                const bursts = document.getElementById(`line-item-${lineItemIndex}-bursts`);
-                                const footer = document.getElementById(`line-item-${lineItemIndex}-footer`);
+                                const element = document.getElementById(sectionId);
+                                const bursts = document.getElementById(burstsId);
+                                const footer = document.getElementById(footerId);
                                 element?.classList.toggle('hidden');
                                 bursts?.classList.toggle('hidden');
                                 footer?.classList.toggle('hidden');
@@ -1161,7 +1218,7 @@ useEffect(() => {
                       
                       {/* Detailed Content - Collapsible */}
                       <div
-                        id={`line-item-${lineItemIndex}`}
+                        id={sectionId}
                         className="bg-white rounded-xl shadow p-6 mb-6"
                       >
                         <CardContent className="space-y-6">
@@ -1176,10 +1233,10 @@ useEffect(() => {
                                   <FormItem className="flex items-center space-x-2">
                                     <FormLabel className="w-24 text-sm">Network</FormLabel>
                                     <Select
-                                      onValueChange={(value) =>
-                                        handleBuyTypeChange(lineItemIndex, value)
-                                      }
-                                      defaultValue={field.value}
+                                      onValueChange={(value) => {
+                                        field.onChange(value)
+                                      }}
+                                      value={field.value}
                                     >
                                       <FormControl>
                                         <SelectTrigger className="h-9 w-full flex-1 rounded-md border">
@@ -1354,7 +1411,7 @@ useEffect(() => {
                               </FormItem>
                             </div>
 
-                            {/* Column 4 - Checkboxes and Add Burst */}
+                            {/* Column 4 - Checkboxes */}
                             <div className="flex flex-col justify-between">
                               <div className="space-y-3">
                                 <FormField
@@ -1397,40 +1454,29 @@ useEffect(() => {
                                 />
                               </div>
 
-                              <div className="flex space-x-2 self-end mt-4">
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="default"
-                                  onClick={() => handleDuplicateBurst(lineItemIndex)}
-                                >
-                                  Duplicate Burst
-                                </Button>
-                                <Button
-                                  type="button"
-                                  size="default"
-                                  onClick={() => handleAppendBurst(lineItemIndex)}
-                                >
-                                  Add Burst
-                                </Button>
-                              </div>
                             </div>
                           </div>
                         </CardContent>
                       </div>
 
                       {/* Bursts Section */}
-                      <div id={`line-item-${lineItemIndex}-bursts`} className="space-y-4">
+                      <div id={burstsId} className="space-y-4">
                         {form.watch(`cinemalineItems.${lineItemIndex}.bursts`, []).map((burstField, burstIndex) => {
                           return (
-                            <Card key={`${lineItemIndex}-${burstIndex}`} className="border border-gray-200">
+                            <Card key={`${lineItemIndex}-${burstIndex}`} className="border border-gray-200 bg-muted/30 mx-2">
                               <CardContent className="py-2 px-4">
-                                <div className="flex items-center space-x-4">
+                                <div className="flex items-center gap-3">
                                   <div className="w-24 flex-shrink-0">
-                                    <h4 className="text-sm font-medium">Burst {burstIndex + 1}</h4>
+                                    <h4 className="text-sm font-medium">
+                                      {formatBurstLabel(
+                                        burstIndex + 1,
+                                        form.watch(`cinemalineItems.${lineItemIndex}.bursts.${burstIndex}.startDate`),
+                                        form.watch(`cinemalineItems.${lineItemIndex}.bursts.${burstIndex}.endDate`)
+                                      )}
+                                    </h4>
                                   </div>
                                   
-                                  <div className="grid grid-cols-5 gap-4 items-center flex-grow">
+                                  <div className="grid grid-cols-7 gap-3 items-center flex-grow">
                                     <FormField
                                       control={form.control}
                                       name={`cinemalineItems.${lineItemIndex}.bursts.${burstIndex}.budget`}
@@ -1443,7 +1489,7 @@ useEffect(() => {
                                               <Input
                                                 {...field}
                                                 type="text"
-                                                className="w-full"
+                                                className="w-full min-w-[9rem] h-10 text-sm"
                                                 value={buyType === "bonus" ? "0" : field.value}
                                                 disabled={buyType === "bonus"}
                                                 onChange={(e) => {
@@ -1482,7 +1528,7 @@ useEffect(() => {
                                               <Input
                                                 {...field}
                                                 type="text"
-                                                className="w-full"
+                                                className="w-full min-w-[9rem] h-10 text-sm"
                                                 value={buyType === "bonus" ? "0" : field.value}
                                                 disabled={buyType === "bonus"}
                                                 onChange={(e) => {
@@ -1509,7 +1555,7 @@ useEffect(() => {
                                       }}
                                     />
 
-                                    <div className="grid grid-cols-2 gap-2">
+                                    <div className="grid grid-cols-2 gap-2 col-span-2">
                                       <FormField
                                         control={form.control}
                                         name={`cinemalineItems.${lineItemIndex}.bursts.${burstIndex}.startDate`}
@@ -1522,7 +1568,7 @@ useEffect(() => {
                                                   <Button
                                                     variant={"outline"}
                                                     className={cn(
-                                                      "w-full pl-2 text-left font-normal text-xs h-8",
+                                                      "w-full h-10 pl-2 text-left font-normal text-sm",
                                                       !field.value && "text-muted-foreground",
                                                     )}
                                                   >
@@ -1560,7 +1606,7 @@ useEffect(() => {
                                                   <Button
                                                     variant={"outline"}
                                                     className={cn(
-                                                      "w-full pl-2 text-left font-normal text-xs h-8",
+                                                      "w-full h-10 pl-2 text-left font-normal text-sm",
                                                       !field.value && "text-muted-foreground",
                                                     )}
                                                   >
@@ -1669,7 +1715,7 @@ useEffect(() => {
                                             <FormControl>
                                               <Input
                                                 type="text"
-                                                className="w-full"
+                                                className="w-full min-w-[8rem] h-10 text-sm"
                                                 value={Number(calculatedValue).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                                                 readOnly
                                               />
@@ -1679,58 +1725,75 @@ useEffect(() => {
                                       }}
                                     />
 
-                                    {/* Add Fee and Media Calculation Fields */}
-                                    <div className="flex flex-col space-y-2">
-                                      <div className="grid grid-cols-2 gap-2">
-                                        <div className="flex flex-col">
-                                          <FormLabel className="text-xs">Media</FormLabel>
-                                          <Input
-                                            type="text"
-                                            className="w-full"
-                                            value={new Intl.NumberFormat("en-US", {
-                                              style: "currency",
-                                              currency: "USD",
-                                              minimumFractionDigits: 2,
-                                              maximumFractionDigits: 2,
-                                            }).format(
-                                              form.getValues(`cinemalineItems.${lineItemIndex}.budgetIncludesFees`)
-                                                ? (parseFloat(form.getValues(`cinemalineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (100 - (feecinema || 0))
-                                                : parseFloat(form.getValues(`cinemalineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0")
-                                            )}
-                                            readOnly
-                                          />
-                                        </div>
-                                        <div className="flex flex-col">
-                                          <FormLabel className="text-xs">Fee ({feecinema}%)</FormLabel>
-                                          <Input
-                                            type="text"
-                                            className="w-full"
-                                            value={new Intl.NumberFormat("en-US", {
-                                              style: "currency",
-                                              currency: "USD",
-                                              minimumFractionDigits: 2,
-                                              maximumFractionDigits: 2,
-                                            }).format(
-                                              form.getValues(`cinemalineItems.${lineItemIndex}.budgetIncludesFees`)
-                                                ? (parseFloat(form.getValues(`cinemalineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (feecinema || 0)
-                                                : (parseFloat(form.getValues(`cinemalineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / (100 - (feecinema || 0))) * (feecinema || 0)
-                                            )}
-                                            readOnly
-                                          />
-                                        </div>
-                                      </div>
+                                    <div className="space-y-1">
+                                      <FormLabel className="text-xs leading-tight">Media</FormLabel>
+                                      <Input
+                                        type="text"
+                                        className="w-full h-10 text-sm"
+                                        value={new Intl.NumberFormat("en-US", {
+                                          style: "currency",
+                                          currency: "USD",
+                                          minimumFractionDigits: 2,
+                                          maximumFractionDigits: 2,
+                                        }).format(
+                                          form.getValues(`cinemalineItems.${lineItemIndex}.budgetIncludesFees`)
+                                            ? (parseFloat(form.getValues(`cinemalineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (100 - (feecinema || 0))
+                                            : parseFloat(form.getValues(`cinemalineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0")
+                                        )}
+                                        readOnly
+                                      />
+                                    </div>
+                                    <div className="space-y-1">
+                                      <FormLabel className="text-xs leading-tight">Fee ({feecinema}%)</FormLabel>
+                                      <Input
+                                        type="text"
+                                        className="w-full h-10 text-sm"
+                                        value={new Intl.NumberFormat("en-US", {
+                                          style: "currency",
+                                          currency: "USD",
+                                          minimumFractionDigits: 2,
+                                          maximumFractionDigits: 2,
+                                        }).format(
+                                          form.getValues(`cinemalineItems.${lineItemIndex}.budgetIncludesFees`)
+                                            ? (parseFloat(form.getValues(`cinemalineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (feecinema || 0)
+                                            : (parseFloat(form.getValues(`cinemalineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / (100 - (feecinema || 0))) * (feecinema || 0)
+                                        )}
+                                        readOnly
+                                      />
                                     </div>
                                   </div>
                                   
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 p-0"
-                                    onClick={() => handleRemoveBurst(lineItemIndex, burstIndex)}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
+                                  <div className="flex items-end gap-2 self-end pb-1">
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-10 text-sm px-3"
+                                      onClick={() => handleAppendBurst(lineItemIndex)}
+                                    >
+                                      <Plus className="h-4 w-4 mr-1" />
+                                      Add
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-10 text-sm px-3"
+                                      onClick={() => handleDuplicateBurst(lineItemIndex)}
+                                    >
+                                      <Copy className="h-4 w-4 mr-1" />
+                                      Duplicate
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-10 text-sm px-3"
+                                      onClick={() => handleRemoveBurst(lineItemIndex, burstIndex)}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </div>
                                 </div>
                               </CardContent>
                             </Card>
@@ -1738,12 +1801,13 @@ useEffect(() => {
                         })}
                       </div>
 
-                      <CardFooter id={`line-item-${lineItemIndex}-footer`} className="flex justify-end space-x-2 pt-2">
+                      <CardFooter id={footerId} className="flex justify-end space-x-2 pt-2">
                         <Button
                           type="button"
                           variant="outline"
                           onClick={() => handleDuplicateLineItem(lineItemIndex)}
                         >
+                          <Copy className="h-4 w-4 mr-2" />
                           Duplicate Line Item
                         </Button>
                         {lineItemIndex === lineItemFields.length - 1 && (
@@ -1764,6 +1828,7 @@ useEffect(() => {
                                 clientPaysForMedia: false,
                                 budgetIncludesFees: false,
                                 noadserving: false,
+                                ...(() => { const id = createLineItemId(); return { lineItemId: id, line_item_id: id, line_item: lineItemFields.length + 1, lineItem: lineItemFields.length + 1 }; })(),
                                 bursts: [
                                   {
                                     budget: "",
@@ -1777,10 +1842,12 @@ useEffect(() => {
                               })
                             }
                           >
+                            <Plus className="h-4 w-4 mr-2" />
                             Add Line Item
                           </Button>
                         )}
                         <Button type="button" variant="destructive" onClick={() => removeLineItem(lineItemIndex)}>
+                          <Trash2 className="h-4 w-4 mr-2" />
                           Remove Line Item
                         </Button>
                       </CardFooter>

@@ -1,6 +1,6 @@
 "use client"
 
-import { Loader2 } from 'lucide-react';
+import { LoadingDots } from "@/components/ui/loading-dots";
 
 interface AuthLoadingStateProps {
   message?: string;
@@ -25,7 +25,7 @@ export function AuthLoadingState({
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[200px] space-y-4">
-      <Loader2 className={`${sizeClasses[size]} animate-spin text-primary`} />
+      <LoadingDots size={size} />
       <p className={`${textSizeClasses[size]} text-muted-foreground`}>
         {message}
       </p>
@@ -37,7 +37,7 @@ export function AuthLoadingState({
 export function AuthFullScreenLoading({ message = "Authenticating..." }: { message?: string }) {
   return (
     <div className="fixed inset-0 bg-background flex flex-col items-center justify-center space-y-4 z-50">
-      <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      <LoadingDots size="lg" />
       <div className="text-center space-y-2">
         <h2 className="text-xl font-semibold text-foreground">{message}</h2>
         <p className="text-sm text-muted-foreground">
@@ -53,7 +53,7 @@ export function AuthPageLoading({ message = "Loading page..." }: { message?: str
   return (
     <div className="flex items-center justify-center min-h-screen">
       <div className="flex flex-col items-center space-y-4">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <LoadingDots size="lg" />
         <div className="text-center space-y-2">
           <h2 className="text-xl font-semibold">{message}</h2>
           <p className="text-sm text-muted-foreground">
@@ -69,7 +69,7 @@ export function AuthPageLoading({ message = "Loading page..." }: { message?: str
 export function AuthInlineLoading({ message = "Processing..." }: { message?: string }) {
   return (
     <div className="flex items-center space-x-2 p-4">
-      <Loader2 className="h-4 w-4 animate-spin text-primary" />
+      <LoadingDots size="sm" />
       <span className="text-sm text-muted-foreground">{message}</span>
     </div>
   );

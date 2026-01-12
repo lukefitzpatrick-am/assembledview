@@ -13,14 +13,16 @@ import { Textarea } from "@/components/ui/textarea"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { useToast } from "@/components/ui/use-toast"
+import { formatBurstLabel } from "@/lib/bursts"
 import { getPublishersForInfluencers, getClientInfo } from "@/lib/api"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { Calendar } from "@/components/ui/calendar"
+import { LoadingDots } from "@/components/ui/loading-dots"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { ChevronDown, Trash2 } from "lucide-react"
+import { ChevronDown, Plus, Trash2 } from "lucide-react"
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
 import type { LineItem } from '@/lib/generateMediaPlan'
 
@@ -852,13 +854,16 @@ const getBursts = () => {
     <div>
       {isLoading ? (
         <div className="flex justify-center items-center h-20">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <LoadingDots size="md" />
         </div>
       ) : (
         <div className="space-y-6">
           <Form {...form}>
             <div className="space-y-6">
-              {lineItemFields.map((field, lineItemIndex) => {
+                {lineItemFields.map((field, lineItemIndex) => {
+                  const sectionId = `influencers-line-item-${lineItemIndex}`;
+                  const burstsId = `${sectionId}-bursts`;
+                  const footerId = `${sectionId}-footer`;
                 const getTotals = (lineItemIndex: number) => {
                   const lineItem = form.getValues(`lineItems.${lineItemIndex}`);
                   let totalMedia = 0;
@@ -901,9 +906,9 @@ const getBursts = () => {
                               variant="outline" 
                               size="sm"
                               onClick={() => {
-                                const element = document.getElementById(`line-item-${lineItemIndex}`);
-                                const bursts = document.getElementById(`line-item-${lineItemIndex}-bursts`);
-                                const footer = document.getElementById(`line-item-${lineItemIndex}-footer`);
+                                const element = document.getElementById(sectionId);
+                                const bursts = document.getElementById(burstsId);
+                                const footer = document.getElementById(footerId);
                                 element?.classList.toggle('hidden');
                                 bursts?.classList.toggle('hidden');
                                 footer?.classList.toggle('hidden');
@@ -934,8 +939,8 @@ const getBursts = () => {
                       </div>
                       
                       {/* Detailed Content - Collapsible */}
-                      <div 
-                        id={`line-item-${lineItemIndex}`} 
+                      <div
+                        id={sectionId}
                         className="bg-white rounded-xl shadow p-6 mb-6"
                       >
                         <CardContent className="space-y-6">
@@ -1081,7 +1086,7 @@ const getBursts = () => {
                               </FormItem>
                             </div>
 
-                            {/* Column 4 - Checkboxes and Add Burst */}
+                            {/* Column 4 - Checkboxes */}
                             <div className="flex flex-col justify-between">
                               <div className="space-y-3">
                                 <FormField
@@ -1124,31 +1129,32 @@ const getBursts = () => {
                                 />
                               </div>
 
-                              <Button
-                                type="button"
-                                size="default"
-                                onClick={() => handleAppendBurst(lineItemIndex)}
-                                className="self-end mt-4"
-                              >
-                                Add Burst
-                              </Button>
+                              <div className="flex space-x-2 self-end mt-4">
+                                {/* burst actions moved inline per row */}
+                              </div>
                             </div>
                           </div>
                         </CardContent>
                       </div>
 
                       {/* Bursts Section */}
-                      <div id={`line-item-${lineItemIndex}-bursts`} className="space-y-4">
+                      <div id={burstsId} className="space-y-4">
                         {form.watch(`lineItems.${lineItemIndex}.bursts`, []).map((burstField, burstIndex) => {
                           return (
-                            <Card key={`${lineItemIndex}-${burstIndex}`} className="border border-gray-200">
+                            <Card key={`${lineItemIndex}-${burstIndex}`} className="border border-gray-200 bg-muted/30 mx-2">
                               <CardContent className="py-2 px-4">
-                                <div className="flex items-center space-x-4">
+                                <div className="flex items-center gap-3">
                                   <div className="w-24 flex-shrink-0">
-                                    <h4 className="text-sm font-medium">Burst {burstIndex + 1}</h4>
+                                    <h4 className="text-sm font-medium">
+                                      {formatBurstLabel(
+                                        burstIndex + 1,
+                                        form.watch(`influencerlineItems.${lineItemIndex}.bursts.${burstIndex}.startDate`),
+                                        form.watch(`influencerlineItems.${lineItemIndex}.bursts.${burstIndex}.endDate`)
+                                      )}
+                                    </h4>
                                   </div>
                                   
-                                  <div className="grid grid-cols-5 gap-4 items-center flex-grow">
+                                  <div className="grid grid-cols-7 gap-3 items-center flex-grow">
                                     <FormField
                                       control={form.control}
                                       name={`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`}
@@ -1159,7 +1165,7 @@ const getBursts = () => {
                                             <Input
                                               {...field}
                                               type="text"
-                                              className="w-full"
+                                                  className="w-full min-w-[9rem] h-10 text-sm"
                                               onChange={(e) => {
                                                 const value = e.target.value.replace(/[^0-9.]/g, "");
                                                 field.onChange(value);
@@ -1193,7 +1199,7 @@ const getBursts = () => {
                                             <Input
                                               {...field}
                                               type="text"
-                                              className="w-full"
+                                                  className="w-full min-w-[9rem] h-10 text-sm"
                                               onChange={(e) => {
                                                 const value = e.target.value.replace(/[^0-9.]/g, "");
                                                 field.onChange(value);
@@ -1217,7 +1223,7 @@ const getBursts = () => {
                                       )}
                                     />
 
-                                    <div className="grid grid-cols-2 gap-2">
+                                    <div className="grid grid-cols-2 gap-2 col-span-2">
                                       <FormField
                                         control={form.control}
                                         name={`lineItems.${lineItemIndex}.bursts.${burstIndex}.startDate`}
@@ -1230,7 +1236,7 @@ const getBursts = () => {
                                                   <Button
                                                     variant={"outline"}
                                                     className={cn(
-                                                      "w-full pl-2 text-left font-normal text-xs h-8",
+                                                      "w-full h-10 pl-2 text-left font-normal text-sm",
                                                       !field.value && "text-muted-foreground",
                                                     )}
                                                   >
@@ -1268,7 +1274,7 @@ const getBursts = () => {
                                                   <Button
                                                     variant={"outline"}
                                                     className={cn(
-                                                      "w-full pl-2 text-left font-normal text-xs h-8",
+                                                      "w-full h-10 pl-2 text-left font-normal text-sm",
                                                       !field.value && "text-muted-foreground",
                                                     )}
                                                   >
@@ -1347,7 +1353,7 @@ const getBursts = () => {
                                             <FormControl>
                                               <Input
                                                 type="text"
-                                                className="w-full"
+                                                className="w-full min-w-[8rem] h-10 text-sm"
                                                 value={calculatedValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                                                 readOnly
                                               />
@@ -1357,58 +1363,75 @@ const getBursts = () => {
                                       }}
                                     />
 
-                                    {/* Add Fee and Media Calculation Fields */}
-                                    <div className="flex flex-col space-y-2">
-                                      <div className="grid grid-cols-2 gap-2">
-                                        <div className="flex flex-col">
-                                          <FormLabel className="text-xs">Media</FormLabel>
-                                          <Input
-                                            type="text"
-                                            className="w-full"
-                                            value={new Intl.NumberFormat("en-US", {
-                                              style: "currency",
-                                              currency: "USD",
-                                              minimumFractionDigits: 2,
-                                              maximumFractionDigits: 2,
-                                            }).format(
-                                              form.getValues(`lineItems.${lineItemIndex}.budgetIncludesFees`)
-                                                ? (parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (100 - (feeinfluencers || 0))
-                                                : parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0")
-                                            )}
-                                            readOnly
-                                          />
-                                        </div>
-                                        <div className="flex flex-col">
-                                          <FormLabel className="text-xs">Fee ({feeinfluencers}%)</FormLabel>
-                                          <Input
-                                            type="text"
-                                            className="w-full"
-                                            value={new Intl.NumberFormat("en-US", {
-                                              style: "currency",
-                                              currency: "USD",
-                                              minimumFractionDigits: 2,
-                                              maximumFractionDigits: 2,
-                                            }).format(
-                                              form.getValues(`lineItems.${lineItemIndex}.budgetIncludesFees`)
-                                                ? (parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (feeinfluencers || 0)
-                                                : (parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / (100 - (feeinfluencers || 0))) * (feeinfluencers || 0)
-                                            )}
-                                            readOnly
-                                          />
-                                        </div>
-                                      </div>
+                                    <div className="space-y-1">
+                                      <FormLabel className="text-xs leading-tight">Media</FormLabel>
+                                      <Input
+                                        type="text"
+                                        className="w-full h-10 text-sm"
+                                        value={new Intl.NumberFormat("en-US", {
+                                          style: "currency",
+                                          currency: "USD",
+                                          minimumFractionDigits: 2,
+                                          maximumFractionDigits: 2,
+                                        }).format(
+                                          form.getValues(`lineItems.${lineItemIndex}.budgetIncludesFees`)
+                                            ? (parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (100 - (feeinfluencers || 0))
+                                            : parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0")
+                                        )}
+                                        readOnly
+                                      />
+                                    </div>
+                                    <div className="space-y-1">
+                                      <FormLabel className="text-xs leading-tight">Fee ({feeinfluencers}%)</FormLabel>
+                                      <Input
+                                        type="text"
+                                        className="w-full h-10 text-sm"
+                                        value={new Intl.NumberFormat("en-US", {
+                                          style: "currency",
+                                          currency: "USD",
+                                          minimumFractionDigits: 2,
+                                          maximumFractionDigits: 2,
+                                        }).format(
+                                          form.getValues(`lineItems.${lineItemIndex}.budgetIncludesFees`)
+                                            ? (parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (feeinfluencers || 0)
+                                            : (parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / (100 - (feeinfluencers || 0))) * (feeinfluencers || 0)
+                                        )}
+                                        readOnly
+                                      />
                                     </div>
                                   </div>
                                   
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 p-0"
-                                    onClick={() => handleRemoveBurst(lineItemIndex, burstIndex)}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
+                                  <div className="flex items-end gap-2 self-end pb-1">
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-10 text-sm px-3"
+                                      onClick={() => handleAppendBurst(lineItemIndex)}
+                                    >
+                                      <Plus className="h-4 w-4 mr-1" />
+                                      Add
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-10 text-sm px-3"
+                                      onClick={() => handleDuplicateBurst(lineItemIndex)}
+                                    >
+                                      <Copy className="h-4 w-4 mr-1" />
+                                      Duplicate
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-10 text-sm px-3"
+                                      onClick={() => handleRemoveBurst(lineItemIndex, burstIndex)}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </div>
                                 </div>
                               </CardContent>
                             </Card>
@@ -1416,7 +1439,7 @@ const getBursts = () => {
                         })}
                       </div>
 
-                      <CardFooter id={`line-item-${lineItemIndex}-footer`} className="flex justify-end space-x-2 pt-2">
+                      <CardFooter id={footerId} className="flex justify-end space-x-2 pt-2">
                         {lineItemIndex === lineItemFields.length - 1 && (
                           <Button
                             type="button"
@@ -1445,10 +1468,12 @@ const getBursts = () => {
                               })
                             }
                           >
+                            <Plus className="h-4 w-4 mr-2" />
                             Add Line Item
                           </Button>
                         )}
                         <Button type="button" variant="destructive" onClick={() => removeLineItem(lineItemIndex)}>
+                          <Trash2 className="h-4 w-4 mr-2" />
                           Remove Line Item
                           </Button>
                       </CardFooter>

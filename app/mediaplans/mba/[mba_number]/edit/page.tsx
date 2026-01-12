@@ -14,17 +14,18 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { CalendarIcon } from "lucide-react"
+import { CalendarIcon, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { getSearchBursts } from "@/components/media-containers/SearchContainer"
 import { getSocialMediaBursts } from "@/components/media-containers/SocialMediaContainer"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription, DialogClose } from "@/components/ui/dialog"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Table, TableBody, TableCell, TableHeader, TableRow, TableHead, TableFooter } from "@/components/ui/table"
 import { toast } from "@/components/ui/use-toast"
 import { SavingModal, type SaveStatusItem } from "@/components/ui/saving-modal"
 import { OutcomeModal } from "@/components/outcome-modal"
+import { useUnsavedChangesPrompt } from "@/hooks/use-unsaved-changes-prompt"
 import { 
   getSearchLineItemsByMBA, 
   saveSocialMediaLineItems,
@@ -46,6 +47,7 @@ import {
   getProgOOHLineItemsByMBA,
   getInfluencersLineItemsByMBA,
   getSocialMediaLineItemsByMBA,
+  getProductionLineItemsByMBA,
   saveTelevisionLineItems,
   saveRadioLineItems,
   saveNewspaperLineItems,
@@ -63,7 +65,8 @@ import {
   saveProgBVODLineItems,
   saveProgAudioLineItems,
   saveProgOOHLineItems,
-  saveInfluencersLineItems
+  saveInfluencersLineItems,
+  saveProductionLineItems
 } from "@/lib/api"
 import { BillingSchedule, type BillingScheduleType } from "@/components/billing/BillingSchedule"
 import type { BillingSchedule as BillingScheduleInterface, BillingMonth as BillingMonthInterface } from "@/types/billing"
@@ -78,6 +81,7 @@ import { toDateOnlyString, parseDateOnlyString } from "@/lib/timezone"
 
 // Define media type keys as a const array
 const MEDIA_TYPE_KEYS = [
+  'mp_consulting',
   'mp_television',
   'mp_radio',
   'mp_newspaper',
@@ -211,6 +215,7 @@ const ProgBVODContainer = lazy(() => import("@/components/media-containers/ProgB
 const ProgAudioContainer = lazy(() => import("@/components/media-containers/ProgAudioContainer"))
 const ProgOOHContainer = lazy(() => import("@/components/media-containers/ProgOOHContainer"))
 const InfluencersContainer = lazy(() => import("@/components/media-containers/InfluencersContainer"))
+const ProductionContainer = lazy(() => import("@/components/media-containers/ProductionContainer"))
 
 // Update mediaTypes array to use the strict type
 const mediaTypes: Array<{
@@ -218,6 +223,7 @@ const mediaTypes: Array<{
   label: string;
   component: React.LazyExoticComponent<any>;
 }> = [
+  { name: 'mp_consulting', label: "Production", component: ProductionContainer },
   { name: 'mp_television', label: "Television", component: TelevisionContainer },
   { name: 'mp_radio', label: "Radio", component: RadioContainer },
   { name: 'mp_newspaper', label: "Newspaper", component: NewspaperContainer },
@@ -260,6 +266,7 @@ const mediaKeyMap: { [key: string]: string } = {
   mp_ooh: 'ooh',
   mp_integration: 'integration',
   mp_influencers: 'influencers',
+  mp_consulting: 'production',
 };
 
 export default function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) {
@@ -308,6 +315,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const [feeDigiVideo, setFeeDigiVideo] = useState<number | null>(null)
   const [feeBvod, setFeeBvod] = useState<number | null>(null)
   const [feeIntegration, setFeeIntegration] = useState<number | null>(null)
+  const [feeConsulting, setFeeConsulting] = useState<number | null>(null)
   const [feeInfluencers, setFeeInfluencers] = useState<number | null>(null)
   const [feeprogdisplay, setFeeProgDisplay] = useState<number | null>(null)
   const [feeprogvideo, setFeeProgVideo] = useState<number | null>(null)
@@ -333,6 +341,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const [digitalVideoTotal, setDigitalVideoTotal] = useState(0)
   const [bvodTotal, setBvodTotal] = useState(0)
   const [integrationTotal, setIntegrationTotal] = useState(0)
+  const [consultingTotal, setConsultingTotal] = useState(0)
   const [progDisplayTotal, setProgDisplayTotal] = useState(0)
   const [progVideoTotal, setProgVideoTotal] = useState(0)
   const [progBvodTotal, setProgBvodTotal] = useState(0)
@@ -357,6 +366,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const [digitalVideoBursts, setDigitalVideoBursts] = useState<any[]>([])
   const [bvodBursts, setBvodBursts] = useState<any[]>([])
   const [integrationBursts, setIntegrationBursts] = useState<any[]>([])
+  const [consultingBursts, setConsultingBursts] = useState<any[]>([])
   const [progDisplayBursts, setProgDisplayBursts] = useState<any[]>([])
   const [progVideoBursts, setProgVideoBursts] = useState<any[]>([])
   const [progBvodBursts, setProgBvodBursts] = useState<any[]>([])
@@ -394,6 +404,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   })
   const [isSaving, setIsSaving] = useState(false)
   const [saveStatus, setSaveStatus] = useState<SaveStatusItem[]>([])
+  const [isSaveModalOpen, setIsSaveModalOpen] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const [modalTitle, setModalTitle] = useState("")
   const [modalOutcome, setModalOutcome] = useState("")
@@ -412,6 +423,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const [digitalVideoFeeTotal, setDigitalVideoFeeTotal] = useState(0)
   const [bvodFeeTotal, setBvodFeeTotal] = useState(0)
   const [integrationFeeTotal, setIntegrationFeeTotal] = useState(0)
+  const [consultingFeeTotal, setConsultingFeeTotal] = useState(0)
   const [progDisplayFeeTotal, setProgDisplayFeeTotal] = useState(0)
   const [progVideoFeeTotal, setProgVideoFeeTotal] = useState(0)
   const [progBvodFeeTotal, setProgBvodFeeTotal] = useState(0)
@@ -439,6 +451,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const [digitalVideoLineItems, setDigitalVideoLineItems] = useState<any[]>([])
   const [bvodLineItems, setBvodLineItems] = useState<any[]>([])
   const [integrationLineItems, setIntegrationLineItems] = useState<any[]>([])
+  const [consultingLineItems, setConsultingLineItems] = useState<any[]>([])
   const [progDisplayLineItems, setProgDisplayLineItems] = useState<any[]>([])
   const [progVideoLineItems, setProgVideoLineItems] = useState<any[]>([])
   const [progBvodLineItems, setProgBvodLineItems] = useState<any[]>([])
@@ -460,6 +473,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const [digitalVideoItems, setDigitalVideoItems] = useState<LineItem[]>([])
   const [bvodItems, setBvodItems] = useState<LineItem[]>([])
   const [integrationItems, setIntegrationItems] = useState<LineItem[]>([])
+  const [consultingItems, setConsultingItems] = useState<LineItem[]>([])
   const [progDisplayItems, setProgDisplayItems] = useState<LineItem[]>([])
   const [progVideoItems, setProgVideoItems] = useState<LineItem[]>([])
   const [progBvodItems, setProgBvodItems] = useState<LineItem[]>([])
@@ -478,6 +492,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const [digitalVideoMediaLineItems, setDigitalVideoMediaLineItems] = useState<any[]>([])
   const [bvodMediaLineItems, setBvodMediaLineItems] = useState<any[]>([])
   const [integrationMediaLineItems, setIntegrationMediaLineItems] = useState<any[]>([])
+  const [consultingMediaLineItems, setConsultingMediaLineItems] = useState<any[]>([])
   const [searchMediaLineItems, setSearchMediaLineItems] = useState<any[]>([])
   const [socialMediaMediaLineItems, setSocialMediaMediaLineItems] = useState<any[]>([])
   const [progDisplayMediaLineItems, setProgDisplayMediaLineItems] = useState<any[]>([])
@@ -495,6 +510,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     campaignId: ""
   })
   const [isClientModalOpen, setIsClientModalOpen] = useState(false)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const navigationHydratedRef = useRef(false)
 
   const form = useForm<MediaPlanFormValues>({
     resolver: zodResolver(mediaPlanSchema),
@@ -517,6 +534,42 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     },
   })
 
+  const markUnsavedChanges = useCallback(() => {
+    if (!navigationHydratedRef.current) return
+    setHasUnsavedChanges(true)
+  }, [])
+
+  const shouldBlockNavigation = hasUnsavedChanges && !isSaving && !isLoading
+  const { isOpen: isUnsavedPromptOpen, confirmNavigation, stayOnPage } = useUnsavedChangesPrompt(shouldBlockNavigation)
+  const hasSaveErrors = saveStatus.some(item => item.status === 'error')
+  const shouldShowSaveModal = isSaveModalOpen && (isSaving || hasSaveErrors || saveStatus.length > 0)
+
+  useEffect(() => {
+    if (!isSaving && isSaveModalOpen && saveStatus.length > 0 && !hasSaveErrors) {
+      setIsSaveModalOpen(false)
+      setSaveStatus([])
+    }
+  }, [hasSaveErrors, isSaveModalOpen, isSaving, saveStatus])
+
+  const handleCloseSaveModal = useCallback(() => {
+    if (isSaving) return
+    setIsSaveModalOpen(false)
+    setSaveStatus([])
+  }, [isSaving])
+
+  useEffect(() => {
+    const subscription = form.watch(() => {
+      markUnsavedChanges()
+    })
+    return () => subscription.unsubscribe()
+  }, [form, markUnsavedChanges])
+
+  useEffect(() => {
+    if (!navigationHydratedRef.current) {
+      navigationHydratedRef.current = true
+    }
+  }, [])
+
   // Use useWatch to prevent infinite re-renders from form.watch calls
   const mpSearch = useWatch({ control: form.control, name: 'mp_search' })
   const mpSocialMedia = useWatch({ control: form.control, name: 'mp_socialmedia' })
@@ -531,6 +584,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const mpDigivideo = useWatch({ control: form.control, name: 'mp_digivideo' })
   const mpBvod = useWatch({ control: form.control, name: 'mp_bvod' })
   const mpIntegration = useWatch({ control: form.control, name: 'mp_integration' })
+  const mpConsulting = useWatch({ control: form.control, name: 'mp_consulting' })
   const mpProgdisplay = useWatch({ control: form.control, name: 'mp_progdisplay' })
   const mpProgvideo = useWatch({ control: form.control, name: 'mp_progvideo' })
   const mpProgbvod = useWatch({ control: form.control, name: 'mp_progbvod' })
@@ -581,7 +635,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     const map: Record<string, {
       totalMedia: number;
       totalFee: number;
-      adServing: number,
+      adServing: number;
+      productionTotal: number;
       mediaCosts: Record<string, number>;
     }> = {};
   
@@ -592,14 +647,15 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         totalMedia: 0,
         totalFee: 0,
         adServing: 0,
-      mediaCosts: { search: 0, socialMedia: 0, progAudio: 0, cinema: 0, digiAudio: 0, digiDisplay: 0, digiVideo: 0, progDisplay: 0, progVideo: 0, progBvod: 0, progOoh: 0, television: 0, radio: 0, newspaper: 0, magazines: 0, ooh: 0, bvod: 0, integration: 0, influencers: 0, production: 0 }
+        productionTotal: 0,
+        mediaCosts: { search: 0, socialMedia: 0, progAudio: 0, cinema: 0, digiAudio: 0, digiDisplay: 0, digiVideo: 0, progDisplay: 0, progVideo: 0, progBvod: 0, progOoh: 0, television: 0, radio: 0, newspaper: 0, magazines: 0, ooh: 0, bvod: 0, integration: 0, influencers: 0, production: 0 }
       };
       cur.setMonth(cur.getMonth() + 1);
       cur.setDate(1);
     }
 
     // 2. Distribute a single burst and track its media type.
-    function distribute(burst: BillingBurst, mediaType: 'search' | 'socialMedia' | 'progAudio' | 'cinema' | 'digiAudio' | 'digiDisplay' | 'digiVideo' | 'progDisplay' | 'progVideo' | 'progBvod' | 'progOoh' | 'television' | 'radio' | 'newspaper' | 'magazines' | 'ooh' | 'bvod' | 'integration' | 'influencers') {
+    function distribute(burst: BillingBurst, mediaType: 'search' | 'socialMedia' | 'progAudio' | 'cinema' | 'digiAudio' | 'digiDisplay' | 'digiVideo' | 'progDisplay' | 'progVideo' | 'progBvod' | 'progOoh' | 'television' | 'radio' | 'newspaper' | 'magazines' | 'ooh' | 'bvod' | 'integration' | 'influencers' | 'production') {
       const s = new Date(burst.startDate);
       const e = new Date(burst.endDate);
       if (isNaN(s.getTime()) || isNaN(e.getTime()) || s > e) return; // Guard against invalid dates
@@ -621,7 +677,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           const feeShare = burst.feeAmount * (daysInMonth / daysTotal);
 
           map[key].mediaCosts[mediaType] += mediaShare;
-          map[key].totalMedia += mediaShare;
+          if (mediaType === 'production') {
+            map[key].productionTotal += mediaShare;
+          } else {
+            map[key].totalMedia += mediaShare;
+          }
           map[key].totalFee += feeShare;
         }
         d.setMonth(d.getMonth() + 1);
@@ -648,6 +708,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     oohBursts.forEach(b => distribute(b, 'ooh'));
     bvodBursts.forEach(b => distribute(b, 'bvod'));
     integrationBursts.forEach(b => distribute(b, 'integration'));
+    consultingBursts.forEach(b => distribute(b, 'production'));
     influencersBursts.forEach(b => distribute(b, 'influencers'));
 
     // 4. Format into BillingMonth[]
@@ -701,38 +762,39 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     progOohBursts.forEach(b => distributeAdServing(b, 'progOoh'))
     progDisplayBursts.forEach(b => distributeAdServing(b, 'progDisplay'))
 
-    const months: BillingMonth[] = Object.entries(map).map(
-      ([monthYear, { totalMedia, totalFee, adServing, mediaCosts }]) => ({
+    const months: BillingMonth[] = Object.entries(map).map(([monthYear, entry]) => {
+      const productionTotal = entry.productionTotal || 0;
+      return {
         monthYear,
-        mediaTotal: formatter.format(totalMedia),
-        feeTotal: formatter.format(totalFee),
-        totalAmount: formatter.format(totalMedia + totalFee + adServing),
-        adservingTechFees: formatter.format(adServing),
-        production: "$0.00",
+        mediaTotal: formatter.format(entry.totalMedia),
+        feeTotal: formatter.format(entry.totalFee),
+        totalAmount: formatter.format(entry.totalMedia + entry.totalFee + entry.adServing + productionTotal),
+        adservingTechFees: formatter.format(entry.adServing),
+        production: formatter.format(productionTotal),
         mediaCosts: {
-          search: formatter.format(mediaCosts.search || 0),
-          socialMedia: formatter.format(mediaCosts.socialMedia || 0),
-          digiAudio: formatter.format(mediaCosts.digiAudio || 0),
-          digiDisplay: formatter.format(mediaCosts.digiDisplay || 0),
-          digiVideo: formatter.format(mediaCosts.digiVideo || 0),
-          progAudio: formatter.format(mediaCosts.progAudio || 0),
-          cinema: formatter.format(mediaCosts.cinema || 0),
-          progDisplay: formatter.format(mediaCosts.progDisplay || 0),
-          progVideo: formatter.format(mediaCosts.progVideo || 0),
-          progBvod: formatter.format(mediaCosts.progBvod || 0),
-          progOoh: formatter.format(mediaCosts.progOoh || 0),
-          bvod: formatter.format(mediaCosts.bvod || 0),
-          television: formatter.format(mediaCosts.television || 0),
-          radio: formatter.format(mediaCosts.radio || 0),
-          newspaper: formatter.format(mediaCosts.newspaper || 0),
-          magazines: formatter.format(mediaCosts.magazines || 0),
-          ooh: formatter.format(mediaCosts.ooh || 0),
-          integration: formatter.format(mediaCosts.integration || 0),
-          influencers: formatter.format(mediaCosts.influencers || 0),
-          production: formatter.format(mediaCosts.production || 0),
+          search: formatter.format(entry.mediaCosts.search || 0),
+          socialMedia: formatter.format(entry.mediaCosts.socialMedia || 0),
+          digiAudio: formatter.format(entry.mediaCosts.digiAudio || 0),
+          digiDisplay: formatter.format(entry.mediaCosts.digiDisplay || 0),
+          digiVideo: formatter.format(entry.mediaCosts.digiVideo || 0),
+          progAudio: formatter.format(entry.mediaCosts.progAudio || 0),
+          cinema: formatter.format(entry.mediaCosts.cinema || 0),
+          progDisplay: formatter.format(entry.mediaCosts.progDisplay || 0),
+          progVideo: formatter.format(entry.mediaCosts.progVideo || 0),
+          progBvod: formatter.format(entry.mediaCosts.progBvod || 0),
+          progOoh: formatter.format(entry.mediaCosts.progOoh || 0),
+          bvod: formatter.format(entry.mediaCosts.bvod || 0),
+          television: formatter.format(entry.mediaCosts.television || 0),
+          radio: formatter.format(entry.mediaCosts.radio || 0),
+          newspaper: formatter.format(entry.mediaCosts.newspaper || 0),
+          magazines: formatter.format(entry.mediaCosts.magazines || 0),
+          ooh: formatter.format(entry.mediaCosts.ooh || 0),
+          integration: formatter.format(entry.mediaCosts.integration || 0),
+          influencers: formatter.format(entry.mediaCosts.influencers || 0),
+          production: formatter.format(entry.mediaCosts.production || 0),
         }
-      })
-    ); 
+      };
+    });
   
     setAutoBillingMonths(months);
 
@@ -760,6 +822,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     newspaperBursts,
     magazinesBursts,
     oohBursts,
+    consultingBursts,
     influencersBursts,
     adservvideo,
     adservimp,
@@ -801,6 +864,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       setDigitalVideoLineItems([])
       setBvodLineItems([])
       setIntegrationLineItems([])
+      setConsultingLineItems([])
       setProgDisplayLineItems([])
       setProgVideoLineItems([])
       setProgBvodLineItems([])
@@ -822,6 +886,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       setDigitalVideoBursts([])
       setBvodBursts([])
       setIntegrationBursts([])
+      setConsultingBursts([])
       setProgDisplayBursts([])
       setProgVideoBursts([])
       setProgBvodBursts([])
@@ -1097,6 +1162,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           mp_digivideo: Boolean(data.mp_digivideo),
           mp_bvod: Boolean(data.mp_bvod),
           mp_integration: Boolean(data.mp_integration),
+          mp_consulting: Boolean(data.mp_consulting || data.mp_fixedfee || data.mp_production),
           mp_search: Boolean(data.mp_search),
           mp_socialmedia: Boolean(data.mp_socialmedia),
           mp_progdisplay: Boolean(data.mp_progdisplay),
@@ -1112,6 +1178,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         
         // Update form with the fetched data
         form.reset(formData)
+        navigationHydratedRef.current = true
+        setHasUnsavedChanges(false)
         
         console.log("[DATA LOAD] Form reset completed")
         
@@ -1141,6 +1209,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           if (clientData.feedigivideo !== undefined) setFeeDigiVideo(clientData.feedigivideo ?? null)
           if (clientData.feebvod !== undefined) setFeeBvod(clientData.feebvod ?? null)
           if (clientData.feeintegration !== undefined) setFeeIntegration(clientData.feeintegration ?? null)
+          if (clientData.feecontentcreator !== undefined) setFeeConsulting(clientData.feecontentcreator ?? null)
           if (clientData.feeinfluencers !== undefined) setFeeInfluencers(clientData.feeinfluencers ?? null)
           else if (clientData.feecontentcreator !== undefined) setFeeInfluencers(clientData.feecontentcreator ?? null)
           if (clientData.feesearch !== undefined) setFeeSearch(clientData.feesearch ?? null)
@@ -1211,6 +1280,20 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             if (data.lineItems.integration) {
               const filtered = filterLineItemsByPlanNumber(data.lineItems.integration, mbaNumber, versionForFiltering, 'integration')
               setIntegrationLineItems(filtered)
+            }
+            const productionLineItems =
+              data.lineItems.production ||
+              data.lineItems.consulting ||
+              data.lineItems.contentCreator ||
+              data.lineItems.mp_consulting ||
+              data.lineItems.fixedfee
+            if (productionLineItems) {
+              const filtered = filterLineItemsByPlanNumber(productionLineItems, mbaNumber, versionForFiltering, 'production')
+              setConsultingLineItems(filtered)
+              // Auto-enable Production toggle when saved items are present so the container renders
+              if (filtered.length > 0 && !form.getValues('mp_consulting')) {
+                form.setValue('mp_consulting', true, { shouldDirty: false })
+              }
             }
             if (data.lineItems.search) {
               const filtered = filterLineItemsByPlanNumber(data.lineItems.search, mbaNumber, versionForFiltering, 'search')
@@ -1594,6 +1677,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         { flag: 'mp_digivideo', fetchFn: getDigitalVideoLineItemsByMBA, setter: setDigitalVideoLineItems, enabled: formValues.mp_digivideo },
         { flag: 'mp_bvod', fetchFn: getBVODLineItemsByMBA, setter: setBvodLineItems, enabled: formValues.mp_bvod },
         { flag: 'mp_integration', fetchFn: getIntegrationLineItemsByMBA, setter: setIntegrationLineItems, enabled: formValues.mp_integration },
+        { flag: 'mp_consulting', fetchFn: getProductionLineItemsByMBA, setter: setConsultingLineItems, enabled: formValues.mp_consulting },
         { flag: 'mp_search', fetchFn: getSearchLineItemsByMBA, setter: setSearchLineItems, enabled: formValues.mp_search },
         { flag: 'mp_socialmedia', fetchFn: getSocialMediaLineItemsByMBA, setter: setSocialMediaLineItems, enabled: formValues.mp_socialmedia },
         { flag: 'mp_progdisplay', fetchFn: getProgDisplayLineItemsByMBA, setter: setProgDisplayLineItems, enabled: formValues.mp_progdisplay },
@@ -1730,6 +1814,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     setIntegrationBursts(bursts)
   }, [])
 
+  const handleConsultingBurstsChange = useCallback((bursts: any[]) => {
+    setConsultingBursts(bursts)
+  }, [])
+
   const handleProgDisplayBurstsChange = useCallback((bursts: any[]) => {
     setProgDisplayBursts(bursts)
   }, [])
@@ -1755,6 +1843,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   }, [])
 
   const handleInvestmentChange = useCallback((investmentByMonth) => {
+    markUnsavedChanges();
     setInvestmentPerMonth(investmentByMonth);
     // Initialize manual billing months with the investment data
     const currencyFormatter = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
@@ -1868,6 +1957,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           production: currencyFormatter.format(0),
         };
       }
+      if (month.production === undefined) {
+        month.production = currencyFormatter.format(0);
+      }
       Object.entries(allLineItems).forEach(([key, lineItems]) => {
         (month.lineItems as any)[key] = lineItems;
       });
@@ -1885,7 +1977,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
   function handleManualBillingChange(
     index: number,
-    type: 'media' | 'fee' | 'adServing' | 'lineItem',
+    type: 'media' | 'fee' | 'adServing' | 'production' | 'lineItem',
     rawValue: string,
     mediaKey?: string,
     lineItemId?: string,
@@ -1970,22 +2062,36 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     // Dynamically update the correct value
     if (type === 'media' && mediaKey && copy[index].mediaCosts.hasOwnProperty(mediaKey)) {
       copy[index].mediaCosts[mediaKey] = formattedValue;
+      if (mediaKey === 'production') {
+        copy[index].production = formattedValue;
+      }
     } else if (type === 'fee') {
       copy[index].feeTotal = formattedValue;
     } else if (type === 'adServing') {
       copy[index].adservingTechFees = formattedValue;
+    } else if (type === 'production') {
+      copy[index].production = formattedValue;
+      if (copy[index].mediaCosts.hasOwnProperty('production')) {
+        copy[index].mediaCosts.production = formattedValue;
+      }
+    }
+
+    if (copy[index].production === undefined) {
+      copy[index].production = formatter.format(0);
     }
 
     // Recalculate totals for the affected month
-    const mediaTotal = Object.values(copy[index].mediaCosts).reduce((sum, current) => {
-        return sum + (parseFloat(String(current).replace(/[^0-9.-]/g, '')) || 0);
+    const mediaTotal = Object.entries(copy[index].mediaCosts).reduce((sum, [key, current]) => {
+      if (key === 'production') return sum;
+      return sum + (parseFloat(String(current).replace(/[^0-9.-]/g, '')) || 0);
     }, 0);
     
     const feeTotal = parseFloat(copy[index].feeTotal.replace(/[^0-9.-]/g, '')) || 0;
     const adServingTotal = parseFloat(copy[index].adservingTechFees.replace(/[^0-9.-]/g, '')) || 0;
+    const productionTotal = parseFloat((copy[index].production || copy[index].mediaCosts.production || '0').replace(/[^0-9.-]/g, '')) || 0;
 
     copy[index].mediaTotal = formatter.format(mediaTotal);
-    copy[index].totalAmount = formatter.format(mediaTotal + feeTotal + adServingTotal);
+    copy[index].totalAmount = formatter.format(mediaTotal + feeTotal + adServingTotal + productionTotal);
 
     const grandTotal = copy.reduce(
       (acc, m) => acc + parseFloat(m.totalAmount.replace(/[^0-9.-]/g, "")),
@@ -2236,6 +2342,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       'mp_digivideo': { lineItems: digitalVideoMediaLineItems, key: 'digiVideo' },
       'mp_bvod': { lineItems: bvodMediaLineItems, key: 'bvod' },
       'mp_integration': { lineItems: integrationMediaLineItems, key: 'integration' },
+      'mp_consulting': { lineItems: consultingMediaLineItems, key: 'production' },
       'mp_search': { lineItems: searchMediaLineItems, key: 'search' },
       'mp_socialmedia': { lineItems: socialMediaMediaLineItems, key: 'socialMedia' },
       'mp_progdisplay': { lineItems: progDisplayMediaLineItems, key: 'progDisplay' },
@@ -2423,7 +2530,20 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       return {};
     }
     const monthsWithLineItems = attachLineItemsToMonths(months as BillingMonth[]);
-    return buildBillingScheduleJSON(monthsWithLineItems as import("@/lib/billing/types").BillingMonth[]);
+
+    // Align non-line-item fields with billing schedule for consistency
+    const billingMonthsWithLineItems = attachLineItemsToMonths((billingMonths.length ? billingMonths : months) as BillingMonth[]);
+    const alignedMonths = monthsWithLineItems.map(month => {
+      const billingMatch = billingMonthsWithLineItems.find(m => m.monthYear === month.monthYear);
+      return {
+        ...month,
+        feeTotal: month.feeTotal ?? billingMatch?.feeTotal,
+        adservingTechFees: month.adservingTechFees ?? billingMatch?.adservingTechFees,
+        production: month.production ?? billingMatch?.production,
+      };
+    });
+
+    return buildBillingScheduleJSON(alignedMonths as import("@/lib/billing/types").BillingMonth[]);
   }, [
     attachLineItemsToMonths,
     autoBillingMonths,
@@ -2443,6 +2563,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     mp_digivideo: 'Digital Video',
     mp_bvod: 'BVOD',
     mp_integration: 'Integration',
+  mp_consulting: 'Production',
     mp_search: 'Search',
     mp_socialmedia: 'Social Media',
     mp_progdisplay: 'Programmatic Display',
@@ -2469,6 +2590,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   }
 
   const handleSaveAll = async () => {
+    setIsSaveModalOpen(true)
     setIsSaving(true)
     
     // Initialize save status
@@ -2740,6 +2862,17 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             })
         )
       }
+      if (formValues.mp_consulting && consultingMediaLineItems.length > 0) {
+        updateSaveStatus(mediaTypeDisplayNames.mp_consulting, 'pending')
+        savePromises.push(
+          saveProductionLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), consultingMediaLineItems)
+            .then(() => updateSaveStatus(mediaTypeDisplayNames.mp_consulting, 'success'))
+            .catch(error => {
+              updateSaveStatus(mediaTypeDisplayNames.mp_consulting, 'error', error.message || String(error))
+              return { type: 'consulting', error }
+            })
+        )
+      }
       const progDisplayPayload = buildProgDisplayPayload(progDisplayMediaLineItems);
       if (formValues.mp_progdisplay && progDisplayPayload.length > 0) {
         updateSaveStatus(mediaTypeDisplayNames.mp_progdisplay, 'pending')
@@ -2831,6 +2964,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       })
       
       // Navigate to mediaplans page after successful save
+      setHasUnsavedChanges(false)
       router.push('/mediaplans')
     } catch (error: any) {
       console.error("Error saving:", error)
@@ -2845,6 +2979,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   }
 
   const handleSaveCampaign = async () => {
+    setIsSaveModalOpen(true)
     setIsSaving(true)
     try {
       const formData = form.getValues()
@@ -3066,6 +3201,22 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         );
       }
 
+      // Production / Consulting
+      if (formData.mp_consulting && consultingMediaLineItems && consultingMediaLineItems.length > 0) {
+        mediaTypeSavePromises.push(
+          saveProductionLineItems(
+            data.id,
+            formData.mbanumber,
+            formData.mp_clientname,
+            mediaPlan.version_number + 1,
+            consultingMediaLineItems
+          ).catch(error => {
+            console.error('Error saving production data:', error);
+            return { type: 'consulting', error };
+          })
+        );
+      }
+
       // Search
       if (formData.mp_search && searchMediaLineItems && searchMediaLineItems.length > 0) {
         mediaTypeSavePromises.push(
@@ -3221,6 +3372,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         }
       }
       
+      setHasUnsavedChanges(false)
       toast({
         title: "Success",
         description: `Campaign saved successfully as Version ${mediaPlan.version_number + 1}`
@@ -3235,29 +3387,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     } finally {
       setIsSaving(false)
     }
-  }
-
-  // Media type key mapping for MBA generation
-  const mediaKeyMap: { [key: string]: string } = {
-    mp_search: 'search',
-    mp_socialmedia: 'socialMedia',
-    mp_digiaudio: 'digiAudio',
-    mp_digidisplay: 'digiDisplay',
-    mp_digivideo: 'digiVideo',
-    mp_bvod: 'bvod',
-    mp_progdisplay: 'progDisplay',
-    mp_progvideo: 'progVideo',
-    mp_progbvod: 'progBvod',
-    mp_progaudio: 'progAudio',
-    mp_progooh: 'progOoh',
-    mp_cinema: 'cinema',
-    mp_television: 'television',
-    mp_radio: 'radio',
-    mp_newspaper: 'newspaper',
-    mp_magazines: 'magazines',
-    mp_ooh: 'ooh',
-    mp_integration: 'integration',
-    mp_influencers: 'influencers',
   }
 
   const handleGenerateMBA = async () => {
@@ -3368,7 +3497,18 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       // Create a temporary link element
       const link = document.createElement("a")
       link.href = url
-      link.download = `MBA_${fv.mp_clientname}_${fv.mp_campaignname}.pdf`
+      const clientName = fv.mp_clientname || "client"
+      const campaignName = fv.mp_campaignname || "campaign"
+      const mbaBase = `MBA_${campaignName}`
+      const versionLabel = String(
+        fv.mp_plannumber ||
+        selectedVersionNumber ||
+        (versionNumber ? Number(versionNumber) : null) ||
+        mediaPlan?.version_number ||
+        latestVersionNumber ||
+        1
+      )
+      link.download = `${clientName}-${mbaBase}-v${versionLabel}.pdf`
 
       // Append the link to the body, click it, and remove it
       document.body.appendChild(link)
@@ -3403,7 +3543,22 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       const logoBase64 = bufferToBase64(logoBuf)
   
       const fv = form.getValues()
+      const shouldIncludeLineItem = (item: LineItem) => {
+        const buyType = (item.buyType || '').toLowerCase()
+        const budgetValue = parseFloat(String(item.deliverablesAmount ?? '').replace(/[^0-9.]/g, '')) || 0
+        const deliverablesValue = parseFloat(String(item.deliverables ?? '').replace(/[^0-9.]/g, '')) || 0
+        return buyType === 'bonus' || budgetValue > 0 || deliverablesValue > 0
+      }
       // build header payload
+      const planVersion = String(
+        fv.mp_plannumber ||
+        selectedVersionNumber ||
+        (versionNumber ? Number(versionNumber) : null) ||
+        mediaPlan?.version_number ||
+        latestVersionNumber ||
+        1
+      )
+
       const header: MediaPlanHeader = {
         logoBase64,
         logoWidth: 457,
@@ -3413,7 +3568,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         campaignName: fv.mp_campaignname,
         mbaNumber: fv.mbanumber || mbaNumber,
         clientContact: fv.mp_clientcontact,
-        planVersion: (selectedVersionNumber || mediaPlan?.version_number || 1).toString(),
+        planVersion,
         poNumber: fv.mp_ponumber,
         campaignBudget: new Intl.NumberFormat('en-AU',{style:'currency',currency:'AUD'}).format(fv.mp_campaignbudget),
         campaignStatus: fv.mp_campaignstatus,
@@ -3422,78 +3577,42 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       }
 
       // Exclude any items with no budget to avoid NaN values
-      const validSearchItems = searchItems.filter(item =>
-        parseFloat(item.deliverablesAmount.replace(/[^0-9.]/g, '')) > 0
-      )
+      const validSearchItems = searchItems.filter(shouldIncludeLineItem)
       console.debug("[Download] search items prepared", validSearchItems.length, "of", searchItems.length)
 
-      const validSocialMediaItems = socialMediaItems.filter(item =>
-        parseFloat(item.deliverablesAmount.replace(/[^0-9.]/g, '')) > 0
-      )
+      const validSocialMediaItems = socialMediaItems.filter(shouldIncludeLineItem)
 
-      const validDigiAudioItems = digitalAudioItems.filter(item =>
-        parseFloat(item.deliverablesAmount.replace(/[^0-9.]/g, '')) > 0
-      )
+      const validDigiAudioItems = digitalAudioItems.filter(shouldIncludeLineItem)
 
-      const validDigiDisplayItems = digitalDisplayItems.filter(item =>
-        parseFloat(item.deliverablesAmount.replace(/[^0-9.]/g, '')) > 0
-      )
+      const validDigiDisplayItems = digitalDisplayItems.filter(shouldIncludeLineItem)
 
-      const validDigiVideoItems = digitalVideoItems.filter(item =>
-        parseFloat(item.deliverablesAmount.replace(/[^0-9.]/g, '')) > 0
-      )
+      const validDigiVideoItems = digitalVideoItems.filter(shouldIncludeLineItem)
 
-      const validBvodItems = bvodItems.filter(item =>
-        parseFloat(item.deliverablesAmount.replace(/[^0-9.]/g, '')) > 0
-      )
+      const validBvodItems = bvodItems.filter(shouldIncludeLineItem)
 
-      const validProgDisplayItems = progDisplayItems.filter(item =>
-        parseFloat(item.deliverablesAmount.replace(/[^0-9.]/g, '')) > 0
-      )
+      const validProgDisplayItems = progDisplayItems.filter(shouldIncludeLineItem)
 
-      const validProgVideoItems = progVideoItems.filter(item =>
-        parseFloat(item.deliverablesAmount.replace(/[^0-9.]/g, '')) > 0
-      )
+      const validProgVideoItems = progVideoItems.filter(shouldIncludeLineItem)
 
-      const validProgBvodItems = progBvodItems.filter(item =>
-        parseFloat(item.deliverablesAmount.replace(/[^0-9.]/g, '')) > 0
-      )
+      const validProgBvodItems = progBvodItems.filter(shouldIncludeLineItem)
 
-      const validProgOohItems = progOohItems.filter(item =>
-        parseFloat(item.deliverablesAmount.replace(/[^0-9.]/g, '')) > 0
-      )
+      const validProgOohItems = progOohItems.filter(shouldIncludeLineItem)
 
-      const validProgAudioItems = progAudioItems.filter(item =>
-        parseFloat(item.deliverablesAmount.replace(/[^0-9.]/g, '')) > 0
-      )
+      const validProgAudioItems = progAudioItems.filter(shouldIncludeLineItem)
 
-      const validNewspaperItems = newspaperItems.filter(item =>
-        parseFloat(item.deliverablesAmount.replace(/[^0-9.]/g, '')) > 0
-      )
+      const validNewspaperItems = newspaperItems.filter(shouldIncludeLineItem)
 
-      const validMagazinesItems = magazinesItems.filter(item =>
-        parseFloat(item.deliverablesAmount.replace(/[^0-9.]/g, '')) > 0
-      )
+      const validMagazinesItems = magazinesItems.filter(shouldIncludeLineItem)
 
-      const validTelevisionItems = televisionItems.filter(item =>
-        parseFloat(item.deliverablesAmount.replace(/[^0-9.]/g, '')) > 0
-      )
+      const validTelevisionItems = televisionItems.filter(shouldIncludeLineItem)
 
-      const validRadioItems = radioItems.filter(item =>
-        parseFloat(item.deliverablesAmount.replace(/[^0-9.]/g, '')) > 0
-      )
+      const validRadioItems = radioItems.filter(shouldIncludeLineItem)
 
-      const validOohItems = oohItems.filter(item =>
-        parseFloat(item.deliverablesAmount.replace(/[^0-9.]/g, '')) > 0
-      )
+      const validOohItems = oohItems.filter(shouldIncludeLineItem)
 
-      const validCinemaItems = cinemaItems.filter(item =>
-        parseFloat(item.deliverablesAmount.replace(/[^0-9.]/g, '')) > 0
-      )
+      const validCinemaItems = cinemaItems.filter(shouldIncludeLineItem)
 
-      const validIntegrationItems = integrationItems.filter(item =>
-        parseFloat(item.deliverablesAmount.replace(/[^0-9.]/g, '')) > 0
-      )
+      const validIntegrationItems = integrationItems.filter(shouldIncludeLineItem)
         
       /// Build a mediaItems object
       const mediaItems: MediaItems = {
@@ -3565,7 +3684,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       const blob = new Blob([arrayBuffer], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
       })
-      saveAs(blob, `MediaPlan_${header.client}_${header.campaignName}.xlsx`)
+      const mediaPlanBase = `MediaPlan_${header.campaignName || "campaign"}`
+      const mediaPlanFileName = `${header.client || "client"}-${mediaPlanBase}-v${planVersion}.xlsx`
+      saveAs(blob, mediaPlanFileName)
 
       toast({ title: 'Success', description: 'Media plan generated successfully' })
     } catch (error: any) {
@@ -3585,10 +3706,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     try {
       const fv = form.getValues();
       const namingVersion =
-        selectedVersionNumber ??
-        (versionNumber ? Number(versionNumber) : null) ??
-        latestVersionNumber ??
-        "1";
+        fv.mp_plannumber ||
+        (selectedVersionNumber ??
+          (versionNumber ? Number(versionNumber) : null) ??
+          mediaPlan?.version_number ??
+          latestVersionNumber ??
+          "1");
 
       const mediaFlags = Object.fromEntries(
         mediaTypes.map(medium => [medium.name, !!fv[medium.name as keyof MediaPlanFormValues]])
@@ -3601,7 +3724,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         mbaNumber: fv.mbanumber || fv.mbaidentifier || mbaNumber || "",
         startDate: fv.mp_campaigndates_start,
         endDate: fv.mp_campaigndates_end,
-        version: namingVersion,
+        version: String(namingVersion ?? "1"),
         mediaFlags,
         items: {
           search: searchItems,
@@ -3621,7 +3744,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
       const arrayBuffer = await workbook.xlsx.writeBuffer();
       const blob = new Blob([arrayBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-      saveAs(blob, `NamingConventions_${fv.mp_campaignname || "mediaPlan"}.xlsx`);
+      const clientName = fv.mp_clientname || "client";
+      const campaignName = fv.mp_campaignname || "mediaPlan";
+      const namingBase = `NamingConventions_${campaignName}`;
+      const namingFileName = `${clientName}-${namingBase}-v${String(namingVersion ?? "1")}.xlsx`;
+      saveAs(blob, namingFileName);
       toast({ title: "Success", description: "Naming conventions Excel downloaded" });
     } catch (error: any) {
       console.error("Naming download error:", error);
@@ -3657,157 +3784,201 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   }
 
   const handleSearchTotalChange = useCallback((totalMedia: number, totalFee: number) => {
+    markUnsavedChanges();
     setSearchTotal(totalMedia)
     setSearchFeeTotal(totalFee)
-  }, [])
+  }, [markUnsavedChanges])
 
   const handleSocialMediaTotalChange = useCallback((totalMedia: number, totalFee: number) => {
+    markUnsavedChanges();
     setSocialMediaTotal(totalMedia)
     setSocialMediaFeeTotal(totalFee)
-  }, [])
+  }, [markUnsavedChanges])
 
   // Callback handlers for all media type totals (matching create page pattern)
   const handleTelevisionTotalChange = useCallback((totalMedia: number, totalFee: number) => {
+    markUnsavedChanges();
     setTelevisionTotal(totalMedia)
     setTelevisionFeeTotal(totalFee)
-  }, [])
+  }, [markUnsavedChanges])
 
   const handleRadioTotalChange = useCallback((totalMedia: number, totalFee: number) => {
+    markUnsavedChanges();
     setRadioTotal(totalMedia)
     setRadioFeeTotal(totalFee)
-  }, [])
+  }, [markUnsavedChanges])
 
   const handleNewspaperTotalChange = useCallback((totalMedia: number, totalFee: number) => {
+    markUnsavedChanges();
     setNewspaperTotal(totalMedia)
     setNewspaperFeeTotal(totalFee)
-  }, [])
+  }, [markUnsavedChanges])
 
   const handleMagazinesTotalChange = useCallback((totalMedia: number, totalFee: number) => {
+    markUnsavedChanges();
     setMagazinesTotal(totalMedia)
     setMagazinesFeeTotal(totalFee)
-  }, [])
+  }, [markUnsavedChanges])
 
   const handleOohTotalChange = useCallback((totalMedia: number, totalFee: number) => {
+    markUnsavedChanges();
     setOohTotal(totalMedia)
     setOohFeeTotal(totalFee)
-  }, [])
+  }, [markUnsavedChanges])
 
   const handleCinemaTotalChange = useCallback((totalMedia: number, totalFee: number) => {
+    markUnsavedChanges();
     setCinemaTotal(totalMedia)
     setCinemaFeeTotal(totalFee)
-  }, [])
+  }, [markUnsavedChanges])
 
   const handleDigitalDisplayTotalChange = useCallback((totalMedia: number, totalFee: number) => {
+    markUnsavedChanges();
     setDigitalDisplayTotal(totalMedia)
     setDigitalDisplayFeeTotal(totalFee)
-  }, [])
+  }, [markUnsavedChanges])
 
   const handleDigitalAudioTotalChange = useCallback((totalMedia: number, totalFee: number) => {
+    markUnsavedChanges();
     setDigitalAudioTotal(totalMedia)
     setDigitalAudioFeeTotal(totalFee)
-  }, [])
+  }, [markUnsavedChanges])
 
   const handleDigitalVideoTotalChange = useCallback((totalMedia: number, totalFee: number) => {
+    markUnsavedChanges();
     setDigitalVideoTotal(totalMedia)
     setDigitalVideoFeeTotal(totalFee)
-  }, [])
+  }, [markUnsavedChanges])
 
   const handleBvodTotalChange = useCallback((totalMedia: number, totalFee: number) => {
+    markUnsavedChanges();
     setBvodTotal(totalMedia)
     setBvodFeeTotal(totalFee)
-  }, [])
+  }, [markUnsavedChanges])
 
   const handleIntegrationTotalChange = useCallback((totalMedia: number, totalFee: number) => {
+    markUnsavedChanges();
     setIntegrationTotal(totalMedia)
     setIntegrationFeeTotal(totalFee)
-  }, [])
+  }, [markUnsavedChanges])
+
+  const handleConsultingTotalChange = useCallback((totalMedia: number, totalFee: number) => {
+    markUnsavedChanges();
+    setConsultingTotal(totalMedia)
+    setConsultingFeeTotal(totalFee)
+  }, [markUnsavedChanges])
 
   const handleProgDisplayTotalChange = useCallback((totalMedia: number, totalFee: number) => {
+    markUnsavedChanges();
     setProgDisplayTotal(totalMedia)
     setProgDisplayFeeTotal(totalFee)
-  }, [])
+  }, [markUnsavedChanges])
 
   const handleProgVideoTotalChange = useCallback((totalMedia: number, totalFee: number) => {
+    markUnsavedChanges();
     setProgVideoTotal(totalMedia)
     setProgVideoFeeTotal(totalFee)
-  }, [])
+  }, [markUnsavedChanges])
 
   const handleProgBvodTotalChange = useCallback((totalMedia: number, totalFee: number) => {
+    markUnsavedChanges();
     setProgBvodTotal(totalMedia)
     setProgBvodFeeTotal(totalFee)
-  }, [])
+  }, [markUnsavedChanges])
 
   const handleProgAudioTotalChange = useCallback((totalMedia: number, totalFee: number) => {
+    markUnsavedChanges();
     setProgAudioTotal(totalMedia)
     setProgAudioFeeTotal(totalFee)
-  }, [])
+  }, [markUnsavedChanges])
 
   const handleProgOohTotalChange = useCallback((totalMedia: number, totalFee: number) => {
+    markUnsavedChanges();
     setProgOohTotal(totalMedia)
     setProgOohFeeTotal(totalFee)
-  }, [])
+  }, [markUnsavedChanges])
 
   const handleInfluencersTotalChange = useCallback((totalMedia: number, totalFee: number) => {
+    markUnsavedChanges();
     setInfluencersTotal(totalMedia)
     setInfluencersFeeTotal(totalFee)
-  }, [])
+  }, [markUnsavedChanges])
 
   // Callback handlers for media line items
   const handleTelevisionMediaLineItemsChange = useCallback((lineItems: any[]) => {
+    markUnsavedChanges();
     setTelevisionMediaLineItems(lineItems);
-  }, []);
+  }, [markUnsavedChanges]);
 
   const handleRadioMediaLineItemsChange = useCallback((lineItems: any[]) => {
+    markUnsavedChanges();
     setRadioMediaLineItems(lineItems);
-  }, []);
+  }, [markUnsavedChanges]);
 
   const handleNewspaperMediaLineItemsChange = useCallback((lineItems: any[]) => {
+    markUnsavedChanges();
     setNewspaperMediaLineItems(lineItems);
-  }, []);
+  }, [markUnsavedChanges]);
 
   const handleMagazinesMediaLineItemsChange = useCallback((lineItems: any[]) => {
+    markUnsavedChanges();
     setMagazinesMediaLineItems(lineItems);
-  }, []);
+  }, [markUnsavedChanges]);
 
   const handleOohMediaLineItemsChange = useCallback((lineItems: any[]) => {
+    markUnsavedChanges();
     setOohMediaLineItems(lineItems);
-  }, []);
+  }, [markUnsavedChanges]);
 
   const handleCinemaMediaLineItemsChange = useCallback((lineItems: any[]) => {
+    markUnsavedChanges();
     setCinemaMediaLineItems(lineItems);
-  }, []);
+  }, [markUnsavedChanges]);
 
   const handleDigitalDisplayMediaLineItemsChange = useCallback((lineItems: any[]) => {
+    markUnsavedChanges();
     setDigitalDisplayMediaLineItems(lineItems);
-  }, []);
+  }, [markUnsavedChanges]);
 
   const handleDigitalAudioMediaLineItemsChange = useCallback((lineItems: any[]) => {
+    markUnsavedChanges();
     setDigitalAudioMediaLineItems(lineItems);
-  }, []);
+  }, [markUnsavedChanges]);
 
   const handleDigitalVideoMediaLineItemsChange = useCallback((lineItems: any[]) => {
+    markUnsavedChanges();
     setDigitalVideoMediaLineItems(lineItems);
-  }, []);
+  }, [markUnsavedChanges]);
 
   const handleBvodMediaLineItemsChange = useCallback((lineItems: any[]) => {
+    markUnsavedChanges();
     setBvodMediaLineItems(lineItems);
-  }, []);
+  }, [markUnsavedChanges]);
 
   const handleIntegrationMediaLineItemsChange = useCallback((lineItems: any[]) => {
+    markUnsavedChanges();
     setIntegrationMediaLineItems(lineItems);
-  }, []);
+  }, [markUnsavedChanges]);
+
+  const handleConsultingMediaLineItemsChange = useCallback((lineItems: any[]) => {
+    markUnsavedChanges();
+    setConsultingMediaLineItems(lineItems);
+  }, [markUnsavedChanges]);
 
   const handleSearchMediaLineItemsChange = useCallback((lineItems: any[]) => {
+    markUnsavedChanges();
     setSearchMediaLineItems(lineItems);
-  }, []);
+  }, [markUnsavedChanges]);
 
   const handleSocialMediaMediaLineItemsChange = useCallback((lineItems: any[]) => {
+    markUnsavedChanges();
     setSocialMediaMediaLineItems(lineItems);
-  }, []);
+  }, [markUnsavedChanges]);
 
   const handleProgDisplayMediaLineItemsChange = useCallback((lineItems: any[]) => {
+    markUnsavedChanges();
     setProgDisplayMediaLineItems(lineItems);
-  }, []);
+  }, [markUnsavedChanges]);
 
   // Ensure Programmatic Display payload always contains the full set of fields
   const buildProgDisplayPayload = useCallback(
@@ -3845,97 +4016,125 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   );
 
   const handleProgVideoMediaLineItemsChange = useCallback((lineItems: any[]) => {
+    markUnsavedChanges();
     setProgVideoMediaLineItems(lineItems);
-  }, []);
+  }, [markUnsavedChanges]);
 
   const handleProgBvodMediaLineItemsChange = useCallback((lineItems: any[]) => {
+    markUnsavedChanges();
     setProgBvodMediaLineItems(lineItems);
-  }, []);
+  }, [markUnsavedChanges]);
 
   const handleProgAudioMediaLineItemsChange = useCallback((lineItems: any[]) => {
+    markUnsavedChanges();
     setProgAudioMediaLineItems(lineItems);
-  }, []);
+  }, [markUnsavedChanges]);
 
   const handleProgOohMediaLineItemsChange = useCallback((lineItems: any[]) => {
+    markUnsavedChanges();
     setProgOohMediaLineItems(lineItems);
-  }, []);
+  }, [markUnsavedChanges]);
 
   const handleInfluencersMediaLineItemsChange = useCallback((lineItems: any[]) => {
+    markUnsavedChanges();
     setInfluencersMediaLineItems(lineItems);
-  }, []);
+  }, [markUnsavedChanges]);
 
   // Callback handlers for LineItem[] arrays (for Excel generation)
   const handleSearchItemsChange = useCallback((items: LineItem[]) => {
+    markUnsavedChanges();
     setSearchItems(items);
-  }, []);
+  }, [markUnsavedChanges]);
 
   const handleSocialMediaItemsChange = useCallback((items: LineItem[]) => {
+    markUnsavedChanges();
     setSocialMediaItems(items);
-  }, []);
+  }, [markUnsavedChanges]);
 
   const handleTelevisionItemsChange = useCallback((items: LineItem[]) => {
+    markUnsavedChanges();
     setTelevisionItems(items);
-  }, []);
+  }, [markUnsavedChanges]);
 
   const handleRadioItemsChange = useCallback((items: LineItem[]) => {
+    markUnsavedChanges();
     setRadioItems(items);
-  }, []);
+  }, [markUnsavedChanges]);
 
   const handleNewspaperItemsChange = useCallback((items: LineItem[]) => {
+    markUnsavedChanges();
     setNewspaperItems(items);
-  }, []);
+  }, [markUnsavedChanges]);
 
   const handleMagazinesItemsChange = useCallback((items: LineItem[]) => {
+    markUnsavedChanges();
     setMagazinesItems(items);
-  }, []);
+  }, [markUnsavedChanges]);
 
   const handleOohItemsChange = useCallback((items: LineItem[]) => {
+    markUnsavedChanges();
     setOohItems(items);
-  }, []);
+  }, [markUnsavedChanges]);
 
   const handleCinemaItemsChange = useCallback((items: LineItem[]) => {
+    markUnsavedChanges();
     setCinemaItems(items);
-  }, []);
+  }, [markUnsavedChanges]);
 
   const handleDigitalDisplayItemsChange = useCallback((items: LineItem[]) => {
+    markUnsavedChanges();
     setDigitalDisplayItems(items);
-  }, []);
+  }, [markUnsavedChanges]);
 
   const handleDigitalAudioItemsChange = useCallback((items: LineItem[]) => {
+    markUnsavedChanges();
     setDigitalAudioItems(items);
-  }, []);
+  }, [markUnsavedChanges]);
 
   const handleDigitalVideoItemsChange = useCallback((items: LineItem[]) => {
+    markUnsavedChanges();
     setDigitalVideoItems(items);
-  }, []);
+  }, [markUnsavedChanges]);
 
   const handleBvodItemsChange = useCallback((items: LineItem[]) => {
+    markUnsavedChanges();
     setBvodItems(items);
-  }, []);
+  }, [markUnsavedChanges]);
 
   const handleIntegrationItemsChange = useCallback((items: LineItem[]) => {
+    markUnsavedChanges();
     setIntegrationItems(items);
-  }, []);
+  }, [markUnsavedChanges]);
+
+  const handleConsultingItemsChange = useCallback((items: LineItem[]) => {
+    markUnsavedChanges();
+    setConsultingItems(items);
+  }, [markUnsavedChanges]);
 
   const handleProgDisplayItemsChange = useCallback((items: LineItem[]) => {
+    markUnsavedChanges();
     setProgDisplayItems(items);
-  }, []);
+  }, [markUnsavedChanges]);
 
   const handleProgVideoItemsChange = useCallback((items: LineItem[]) => {
+    markUnsavedChanges();
     setProgVideoItems(items);
-  }, []);
+  }, [markUnsavedChanges]);
 
   const handleProgBvodItemsChange = useCallback((items: LineItem[]) => {
+    markUnsavedChanges();
     setProgBvodItems(items);
-  }, []);
+  }, [markUnsavedChanges]);
 
   const handleProgAudioItemsChange = useCallback((items: LineItem[]) => {
+    markUnsavedChanges();
     setProgAudioItems(items);
-  }, []);
+  }, [markUnsavedChanges]);
 
   const handleProgOohItemsChange = useCallback((items: LineItem[]) => {
+    markUnsavedChanges();
     setProgOohItems(items);
-  }, []);
+  }, [markUnsavedChanges]);
 
   // Add calculation functions
   const calculateGrossMediaTotal = (): number => {
@@ -4088,6 +4287,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         return integrationTotal ?? 0;
       case "mp_bvod":
         return bvodTotal ?? 0;
+      case "mp_consulting":
+        return consultingTotal ?? 0;
       default:
         return 0;
     }
@@ -4935,39 +5136,43 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               {/* Dynamic Media Totals */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex flex-col space-y-3">
-                  {mediaTypes.map((medium) => {
-                    const isEnabled = form.watch(medium.name as FormFieldName);
-                    if (isEnabled) {
-                      return (
-                        <div key={medium.name} className="text-sm font-medium">
-                          {medium.label}
-                        </div>
-                      );
-                    }
-                    return null;
-                  })}
+                  {mediaTypes
+                    .filter((medium) => medium.name !== "mp_consulting")
+                    .map((medium) => {
+                      const isEnabled = form.watch(medium.name as FormFieldName);
+                      if (isEnabled) {
+                        return (
+                          <div key={medium.name} className="text-sm font-medium">
+                            {medium.label}
+                          </div>
+                        );
+                      }
+                      return null;
+                    })}
                 </div>
 
                 {/* Corresponding Media Totals */}
                 <div className="flex flex-col space-y-3 text-right">
-                  {mediaTypes.map((medium) => {
-                    const isEnabled = form.watch(medium.name as FormFieldName);
-                    if (isEnabled) {
-                      const mediaKey = mediaKeyMap[medium.name];
-                      const total = isPartialMBA ? partialMBAValues.mediaTotals[mediaKey] || 0 : calculateMediaTotal(medium.name);
-                      return (
-                        <div key={medium.name} className="text-sm font-medium">
-                          {new Intl.NumberFormat('en-US', {
-                            style: 'currency',
-                            currency: 'USD',
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2
-                          }).format(total)}
-                        </div>
-                      );
-                    }
-                    return null;
-                  })}
+                  {mediaTypes
+                    .filter((medium) => medium.name !== "mp_consulting")
+                    .map((medium) => {
+                      const isEnabled = form.watch(medium.name as FormFieldName);
+                      if (isEnabled) {
+                        const mediaKey = mediaKeyMap[medium.name];
+                        const total = isPartialMBA ? partialMBAValues.mediaTotals[mediaKey] || 0 : calculateMediaTotal(medium.name);
+                        return (
+                          <div key={medium.name} className="text-sm font-medium">
+                            {new Intl.NumberFormat('en-US', {
+                              style: 'currency',
+                              currency: 'USD',
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2
+                            }).format(total)}
+                          </div>
+                        );
+                      }
+                      return null;
+                    })}
                 </div>
               </div>
 
@@ -5061,13 +5266,14 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                     <TableHead align="right">Media</TableHead>
                     <TableHead align="right">Fees</TableHead>
                     <TableHead align="right">Ad Serving</TableHead>
+                    <TableHead align="right">Production</TableHead>
                     <TableHead align="right">Total</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {billingMonths.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center text-gray-500">
+                      <TableCell colSpan={6} className="text-center text-gray-500">
                         No billing schedule available. Select campaign dates to generate.
                       </TableCell>
                     </TableRow>
@@ -5078,6 +5284,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                         <TableCell align="right">{m.mediaTotal}</TableCell>
                         <TableCell align="right">{m.feeTotal}</TableCell>
                         <TableCell align="right">{m.adservingTechFees}</TableCell>
+                        <TableCell align="right">{m.production || "$0.00"}</TableCell>
                         <TableCell align="right" className="font-semibold">{m.totalAmount}</TableCell>
                       </TableRow>
                     ))
@@ -5097,6 +5304,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                         {new Intl.NumberFormat("en-AU", { style:"currency", currency:"AUD" })
                           .format(billingMonths.reduce((acc, m) => acc + parseFloat(m.adservingTechFees.replace(/[^0-9.-]/g,"")), 0))}
                       </TableCell>
+                      <TableCell align="right">
+                        {new Intl.NumberFormat("en-AU", { style:"currency", currency:"AUD" })
+                          .format(billingMonths.reduce((acc, m) => acc + parseFloat((m.production || "$0").replace(/[^0-9.-]/g,"")), 0))}
+                      </TableCell>
                       <TableCell align="right" className="font-semibold">{billingTotal}</TableCell>
                     </TableRow>
                   )}
@@ -5113,8 +5324,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 if (!form.watch(medium.name as any)) return null;
                 
                 return (
-                  <div key={medium.name} className="border border-gray-200 rounded-lg p-6">
-                    <h2 className="text-xl font-semibold mb-4">{medium.label}</h2>
+                  <div key={medium.name} className="mt-4">
                     <Suspense fallback={<div>Loading {medium.label}...</div>}>
                       {medium.name === "mp_television" && (
                         <TelevisionContainer
@@ -5305,6 +5515,28 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                           initialLineItems={integrationLineItems}
                         />
                       )}
+                      {medium.name === "mp_consulting" && (
+                        <Suspense fallback={<div>Loading Production...</div>}>
+                          <ProductionContainer
+                            clientId={selectedClientId}
+                            feesearch={feeConsulting || 0}
+                            onTotalMediaChange={handleConsultingTotalChange}
+                            onBurstsChange={handleConsultingBurstsChange}
+                            onInvestmentChange={handleInvestmentChange}
+                            onLineItemsChange={(items) => {
+                              setConsultingItems(items)
+                              setConsultingMediaLineItems(items)
+                            }}
+                            onMediaLineItemsChange={handleConsultingMediaLineItemsChange}
+                            campaignStartDate={form.watch("mp_campaigndates_start")}
+                            campaignEndDate={form.watch("mp_campaigndates_end")}
+                            campaignBudget={form.watch("mp_campaignbudget")}
+                            campaignId={mbaNumber}
+                            mediaTypes={mediaTypes.map((m) => ({ value: m.label, label: m.label }))}
+                            initialLineItems={consultingLineItems}
+                          />
+                        </Suspense>
+                      )}
                       {medium.name === "mp_search" && (
                         <SearchContainer
                           clientId={selectedClientId}
@@ -5451,7 +5683,64 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         </form>
       </Form>
 
-      <SavingModal isOpen={isSaving} items={saveStatus} />
+      <Dialog
+        open={isUnsavedPromptOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            stayOnPage();
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader className="flex flex-row items-start justify-between space-y-0">
+            <div className="space-y-2">
+              <DialogTitle>Leave without saving?</DialogTitle>
+              <DialogDescription>
+                You have unsaved changes. Save your campaign before leaving or continue without saving.
+              </DialogDescription>
+            </div>
+            <DialogClose asChild>
+              <button
+                type="button"
+                onClick={stayOnPage}
+                className="ml-2 rounded-md border p-1 text-sm hover:bg-muted"
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </DialogClose>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Leaving now will discard any unsaved edits to this media plan.
+          </p>
+          <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:justify-end sm:space-x-2">
+            <Button variant="outline" className="w-full sm:w-auto" onClick={stayOnPage}>
+              No, stay on page
+            </Button>
+            <Button
+              variant="secondary"
+              className="w-full sm:w-auto"
+              onClick={async () => {
+                stayOnPage();
+                await handleSaveAll();
+              }}
+              disabled={isLoading || isSaving}
+            >
+              {isLoading || isSaving ? "Saving..." : "Save campaign"}
+            </Button>
+            <Button variant="destructive" className="w-full sm:w-auto" onClick={confirmNavigation}>
+              Yes, leave without saving
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <SavingModal
+        isOpen={shouldShowSaveModal}
+        items={saveStatus}
+        isSaving={isSaving}
+        onClose={handleCloseSaveModal}
+      />
 
       <OutcomeModal
         isOpen={modalOpen}
@@ -5473,12 +5762,14 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 <TableRow>
                   <TableHead className="sticky left-0 bg-white z-10">Month</TableHead>
                   {mediaTypes
+                    .filter(medium => medium.name !== "mp_consulting")
                     .filter(medium => form.watch(medium.name as any) && medium.component)
                     .map(medium => (
                       <TableHead key={medium.name} className="text-right">{medium.label}</TableHead>
                     ))}
                   <TableHead className="text-right">Fees</TableHead>
                   <TableHead className="text-right">Ad Serving</TableHead>
+                  <TableHead className="text-right">Production</TableHead>
                   <TableHead className="text-right font-bold">Total</TableHead>
                 </TableRow>
               </TableHeader>
@@ -5487,6 +5778,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                   <TableRow key={month.monthYear}>
                     <TableCell className="sticky left-0 bg-white z-10 font-medium">{month.monthYear}</TableCell>
                     {mediaTypes
+                      .filter(medium => medium.name !== "mp_consulting")
                       .filter(medium => form.watch(medium.name as any) && medium.component)
                       .map(medium => {
                         const mediaKey = mediaKeyMap[medium.name];
@@ -5554,6 +5846,21 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                         }}
                       />
                     </TableCell>
+                    <TableCell align="right">
+                      <Input
+                        className="text-right"
+                        value={month.production || "$0.00"}
+                        onBlur={e => handleManualBillingChange(monthIndex, "production", e.target.value, "production")}
+                        onChange={e => {
+                          const tempCopy = [...manualBillingMonths];
+                          tempCopy[monthIndex].production = e.target.value;
+                          if (tempCopy[monthIndex].mediaCosts?.production !== undefined) {
+                            tempCopy[monthIndex].mediaCosts.production = e.target.value;
+                          }
+                          setManualBillingMonths(tempCopy);
+                        }}
+                      />
+                    </TableCell>
                     <TableCell className="font-semibold text-right">{month.totalAmount}</TableCell>
                   </TableRow>
                 ))}
@@ -5562,6 +5869,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 <TableRow className="font-bold border-t-2">
                   <TableCell className="sticky left-0 bg-white z-10">Subtotals</TableCell>
                   {mediaTypes
+                    .filter(medium => medium.name !== "mp_consulting")
                     .filter(medium => form.watch(medium.name as any) && medium.component)
                     .map(medium => {
                       const mediaKey = mediaKeyMap[medium.name];
@@ -5580,6 +5888,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                   <TableCell className="text-right">
                     {new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" })
                       .format(manualBillingMonths.reduce((acc, m) => acc + parseFloat((m.adservingTechFees || "$0").replace(/[^0-9.-]/g, '')), 0))}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" })
+                      .format(manualBillingMonths.reduce((acc, m) => acc + parseFloat((m.production || "$0").replace(/[^0-9.-]/g, '')), 0))}
                   </TableCell>
                   <TableCell className="text-right">{manualBillingTotal}</TableCell>
                 </TableRow>

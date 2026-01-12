@@ -283,7 +283,16 @@ export async function generateMediaPlan(
       return groupedResult;
     }
 
-    const keysForGrouping = groupingKeysConfig[mediaTypeTitle] || (itemsToGroup[0] ? Object.keys(itemsToGroup[0]) as (keyof LineItem)[] : []);
+    // Always include a unique identifier when present so duplicated line items are not merged away
+    const idKeys: (keyof LineItem)[] = ['line_item_id', 'lineItemId', 'line_item', 'lineItem'];
+    const baseKeys = groupingKeysConfig[mediaTypeTitle] || (itemsToGroup[0] ? Object.keys(itemsToGroup[0]) as (keyof LineItem)[] : []);
+    const keysForGrouping: (keyof LineItem)[] = [...baseKeys];
+
+    idKeys.forEach(k => {
+      if (!keysForGrouping.includes(k) && itemsToGroup.some(item => (item as any)[k])) {
+        keysForGrouping.push(k);
+      }
+    });
 
     itemsToGroup.forEach(item => {
       const key = keysForGrouping.map(k => (item as any)[k] ?? '').join('|');
@@ -426,6 +435,64 @@ export async function generateMediaPlan(
   // Calculate lastDateCol based on the timeline
   const timelineDays = Math.floor((lastSunday.getTime() - firstSunday.getTime()) / msPerDay);
   const lastDateCol = firstDateCol + timelineDays;
+
+  // Track merged gantt ranges per row to avoid double-merging when line items repeat
+  const mergedGanttRanges = new Map<number, { start: number; end: number }[]>();
+  const ganttFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD02A60' } };
+
+  function mergeBurstCells(
+    itemRow: number,
+    ganttStart: number,
+    ganttEnd: number,
+    deliverables: number | string,
+    errorContext: string
+  ) {
+    const existingRanges = mergedGanttRanges.get(itemRow) ?? [];
+    const overlap = existingRanges.find(r => ganttStart <= r.end && ganttEnd >= r.start);
+
+    // Consolidate overlapping/duplicate bursts into the same merged cell
+    if (overlap) {
+      const targetCell = sheet.getCell(itemRow, overlap.start);
+      const currentVal = typeof targetCell.value === 'number'
+        ? targetCell.value
+        : parseFloat(String(targetCell.value).replace(/[^0-9.-]+/g, '')) || 0;
+      const incomingVal = typeof deliverables === 'number'
+        ? deliverables
+        : parseFloat(String(deliverables).replace(/[^0-9.-]+/g, '')) || 0;
+
+      style(targetCell, {
+        value: currentVal + incomingVal,
+        fontSize: 15,
+        align: 'center',
+        verticalAlign: 'middle',
+        fill: ganttFill,
+        fontColor: 'FFFFFFFF',
+        numFmt: '#,##0'
+      });
+      targetCell.border = lightDashedBorder;
+      return;
+    }
+
+    try {
+      sheet.mergeCells(itemRow, ganttStart, itemRow, ganttEnd);
+      const cell = sheet.getCell(itemRow, ganttStart);
+      style(cell, {
+        value: deliverables,
+        fontSize: 15,
+        align: 'center',
+        verticalAlign: 'middle',
+        fill: ganttFill,
+        fontColor: 'FFFFFFFF',
+        numFmt: '#,##0'
+      });
+      cell.border = lightDashedBorder;
+
+      existingRanges.push({ start: ganttStart, end: ganttEnd });
+      mergedGanttRanges.set(itemRow, existingRanges);
+    } catch (e) {
+      console.error(`Error drawing ${errorContext} burst Gantt:`, e);
+    }
+  }
 
 
   for (
@@ -803,22 +870,7 @@ export async function generateMediaPlan(
           
           // Ensure the burst is within the drawable timeline and worksheet boundaries
           if (ganttStart <= ganttEnd && ganttStart >= firstDateCol && ganttEnd <= lastDateCol) { // Check ganttEnd against lastDateCol
-            try {
-              sheet.mergeCells(itemRow, ganttStart, itemRow, ganttEnd); //
-              const cell = sheet.getCell(itemRow, ganttStart); //
-              style(cell, { 
-                value: b.deliverables, 
-                fontSize: 15, 
-                align: 'center', 
-                verticalAlign: 'middle', 
-                fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD02A60' } }, 
-                fontColor: 'FFFFFFFF', 
-                numFmt: '#,##0' 
-              }); //
-              cell.border = lightDashedBorder; // Apply the standard light dashed border to the Gantt bar cells
-            } catch (e) { 
-              console.error("Error drawing television burst Gantt:", e); //
-            }
+            mergeBurstCells(itemRow, ganttStart, ganttEnd, b.deliverables, 'television');
           } else {
             // Optional: Log if a burst is outside the drawable timeline range for debugging
             // console.warn(`Search burst for item ${idx} (Market: ${it.market}, Creative: ${it.creative}) is outside the drawable timeline: Start ${b.startDate}, End ${b.endDate}. Calculated Gantt: ${ganttStart}-${ganttEnd}`);
@@ -855,22 +907,7 @@ export async function generateMediaPlan(
           
           // Ensure the burst is within the drawable timeline and worksheet boundaries
           if (ganttStart <= ganttEnd && ganttStart >= firstDateCol && ganttEnd <= lastDateCol) { // Check ganttEnd against lastDateCol
-            try {
-              sheet.mergeCells(itemRow, ganttStart, itemRow, ganttEnd); //
-              const cell = sheet.getCell(itemRow, ganttStart); //
-              style(cell, { 
-                value: b.deliverables, 
-                fontSize: 15, 
-                align: 'center', 
-                verticalAlign: 'middle', 
-                fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD02A60' } }, 
-                fontColor: 'FFFFFFFF', 
-                numFmt: '#,##0' 
-              }); //
-              cell.border = lightDashedBorder; // Apply the standard light dashed border to the Gantt bar cells
-            } catch (e) { 
-              console.error("Error drawing radio burst Gantt:", e); //
-            }
+            mergeBurstCells(itemRow, ganttStart, ganttEnd, b.deliverables, 'radio');
           } else {
             // Optional: Log if a burst is outside the drawable timeline range for debugging
             // console.warn(`Radio burst for item ${idx} (Market: ${it.market}, Creative: ${it.creative}) is outside the drawable timeline: Start ${b.startDate}, End ${b.endDate}. Calculated Gantt: ${ganttStart}-${ganttEnd}`);
@@ -906,22 +943,7 @@ export async function generateMediaPlan(
           
           // Ensure the burst is within the drawable timeline and worksheet boundaries
           if (ganttStart <= ganttEnd && ganttStart >= firstDateCol && ganttEnd <= lastDateCol) { // Check ganttEnd against lastDateCol
-            try {
-              sheet.mergeCells(itemRow, ganttStart, itemRow, ganttEnd); //
-              const cell = sheet.getCell(itemRow, ganttStart); //
-              style(cell, { 
-                value: b.deliverables, 
-                fontSize: 15, 
-                align: 'center', 
-                verticalAlign: 'middle', 
-                fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD02A60' } }, 
-                fontColor: 'FFFFFFFF', 
-                numFmt: '#,##0' 
-              }); //
-              cell.border = lightDashedBorder; // Apply the standard light dashed border to the Gantt bar cells
-            } catch (e) { 
-              console.error("Error drawing newspaper burst Gantt:", e); //
-            }
+            mergeBurstCells(itemRow, ganttStart, ganttEnd, b.deliverables, 'newspaper');
           } else {
             // Optional: Log if a burst is outside the drawable timeline range for debugging
             // console.warn(`Search burst for item ${idx} (Market: ${it.market}, Creative: ${it.creative}) is outside the drawable timeline: Start ${b.startDate}, End ${b.endDate}. Calculated Gantt: ${ganttStart}-${ganttEnd}`);
@@ -958,22 +980,7 @@ export async function generateMediaPlan(
           
           // Ensure the burst is within the drawable timeline and worksheet boundaries
           if (ganttStart <= ganttEnd && ganttStart >= firstDateCol && ganttEnd <= lastDateCol) { // Check ganttEnd against lastDateCol
-            try {
-              sheet.mergeCells(itemRow, ganttStart, itemRow, ganttEnd); //
-              const cell = sheet.getCell(itemRow, ganttStart); //
-              style(cell, { 
-                value: b.deliverables, 
-                fontSize: 15, 
-                align: 'center', 
-                verticalAlign: 'middle', 
-                fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD02A60' } }, 
-                fontColor: 'FFFFFFFF', 
-                numFmt: '#,##0' 
-              }); //
-              cell.border = lightDashedBorder; // Apply the standard light dashed border to the Gantt bar cells
-            } catch (e) { 
-              console.error("Error drawing magazines burst Gantt:", e); //
-            }
+            mergeBurstCells(itemRow, ganttStart, ganttEnd, b.deliverables, 'magazines');
           } else {
             // Optional: Log if a burst is outside the drawable timeline range for debugging
             // console.warn(`Search burst for item ${idx} (Market: ${it.market}, Creative: ${it.creative}) is outside the drawable timeline: Start ${b.startDate}, End ${b.endDate}. Calculated Gantt: ${ganttStart}-${ganttEnd}`);
@@ -1010,22 +1017,7 @@ export async function generateMediaPlan(
           
           // Ensure the burst is within the drawable timeline and worksheet boundaries
           if (ganttStart <= ganttEnd && ganttStart >= firstDateCol && ganttEnd <= lastDateCol) { // Check ganttEnd against lastDateCol
-            try {
-              sheet.mergeCells(itemRow, ganttStart, itemRow, ganttEnd); //
-              const cell = sheet.getCell(itemRow, ganttStart); //
-              style(cell, { 
-                value: b.deliverables, 
-                fontSize: 15, 
-                align: 'center', 
-                verticalAlign: 'middle', 
-                fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD02A60' } }, 
-                fontColor: 'FFFFFFFF', 
-                numFmt: '#,##0' 
-              }); //
-              cell.border = lightDashedBorder; // Apply the standard light dashed border to the Gantt bar cells
-            } catch (e) { 
-              console.error("Error drawing OOH burst Gantt:", e); //
-            }
+            mergeBurstCells(itemRow, ganttStart, ganttEnd, b.deliverables, 'ooh');
           } else {
             // Optional: Log if a burst is outside the drawable timeline range for debugging
             // console.warn(`OOH burst for item ${idx} (Market: ${it.market}, Creative: ${it.creative}) is outside the drawable timeline: Start ${b.startDate}, End ${b.endDate}. Calculated Gantt: ${ganttStart}-${ganttEnd}`);
@@ -1061,22 +1053,7 @@ export async function generateMediaPlan(
           
           // Ensure the burst is within the drawable timeline and worksheet boundaries
           if (ganttStart <= ganttEnd && ganttStart >= firstDateCol && ganttEnd <= lastDateCol) { // Check ganttEnd against lastDateCol
-            try {
-              sheet.mergeCells(itemRow, ganttStart, itemRow, ganttEnd); //
-              const cell = sheet.getCell(itemRow, ganttStart); //
-              style(cell, { 
-                value: b.deliverables, 
-                fontSize: 15, 
-                align: 'center', 
-                verticalAlign: 'middle', 
-                fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD02A60' } }, 
-                fontColor: 'FFFFFFFF', 
-                numFmt: '#,##0' 
-              }); //
-              cell.border = lightDashedBorder; // Apply the standard light dashed border to the Gantt bar cells
-            } catch (e) { 
-              console.error("Error drawing cinema burst Gantt:", e); //
-            }
+            mergeBurstCells(itemRow, ganttStart, ganttEnd, b.deliverables, 'cinema');
           } else {
             // Optional: Log if a burst is outside the drawable timeline range for debugging
             // console.warn(`Cinema burst for item ${idx} (Market: ${it.market}, Creative: ${it.creative}) is outside the drawable timeline: Start ${b.startDate}, End ${b.endDate}. Calculated Gantt: ${ganttStart}-${ganttEnd}`);
@@ -1112,22 +1089,7 @@ export async function generateMediaPlan(
           
           // Ensure the burst is within the drawable timeline and worksheet boundaries
           if (ganttStart <= ganttEnd && ganttStart >= firstDateCol && ganttEnd <= lastDateCol) { // Check ganttEnd against lastDateCol
-            try {
-              sheet.mergeCells(itemRow, ganttStart, itemRow, ganttEnd); //
-              const cell = sheet.getCell(itemRow, ganttStart); //
-              style(cell, { 
-                value: b.deliverables, 
-                fontSize: 15, 
-                align: 'center', 
-                verticalAlign: 'middle', 
-                fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD02A60' } }, 
-                fontColor: 'FFFFFFFF', 
-                numFmt: '#,##0' 
-              }); //
-              cell.border = lightDashedBorder; // Apply the standard light dashed border to the Gantt bar cells
-            } catch (e) { 
-              console.error("Error drawing Digital Display burst Gantt:", e); //
-            }
+            mergeBurstCells(itemRow, ganttStart, ganttEnd, b.deliverables, 'digital display');
           } else {
             // Optional: Log if a burst is outside the drawable timeline range for debugging
             // console.warn(`Digital Display burst for item ${idx} (Market: ${it.market}, Creative: ${it.creative}) is outside the drawable timeline: Start ${b.startDate}, End ${b.endDate}. Calculated Gantt: ${ganttStart}-${ganttEnd}`);
@@ -1163,22 +1125,7 @@ export async function generateMediaPlan(
           
           // Ensure the burst is within the drawable timeline and worksheet boundaries
           if (ganttStart <= ganttEnd && ganttStart >= firstDateCol && ganttEnd <= lastDateCol) { // Check ganttEnd against lastDateCol
-            try {
-              sheet.mergeCells(itemRow, ganttStart, itemRow, ganttEnd); //
-              const cell = sheet.getCell(itemRow, ganttStart); //
-              style(cell, { 
-                value: b.deliverables, 
-                fontSize: 15, 
-                align: 'center', 
-                verticalAlign: 'middle', 
-                fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD02A60' } }, 
-                fontColor: 'FFFFFFFF', 
-                numFmt: '#,##0' 
-              }); //
-              cell.border = lightDashedBorder; // Apply the standard light dashed border to the Gantt bar cells
-            } catch (e) { 
-              console.error("Error drawing Digital Audio burst Gantt:", e); //
-            }
+            mergeBurstCells(itemRow, ganttStart, ganttEnd, b.deliverables, 'digital audio');
           } else {
             // Optional: Log if a burst is outside the drawable timeline range for debugging
             // console.warn(`Digital Audio burst for item ${idx} (Market: ${it.market}, Creative: ${it.creative}) is outside the drawable timeline: Start ${b.startDate}, End ${b.endDate}. Calculated Gantt: ${ganttStart}-${ganttEnd}`);
@@ -1214,22 +1161,7 @@ export async function generateMediaPlan(
           
           // Ensure the burst is within the drawable timeline and worksheet boundaries
           if (ganttStart <= ganttEnd && ganttStart >= firstDateCol && ganttEnd <= lastDateCol) { // Check ganttEnd against lastDateCol
-            try {
-              sheet.mergeCells(itemRow, ganttStart, itemRow, ganttEnd); //
-              const cell = sheet.getCell(itemRow, ganttStart); //
-              style(cell, { 
-                value: b.deliverables, 
-                fontSize: 15, 
-                align: 'center', 
-                verticalAlign: 'middle', 
-                fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD02A60' } }, 
-                fontColor: 'FFFFFFFF', 
-                numFmt: '#,##0' 
-              }); //
-              cell.border = lightDashedBorder; // Apply the standard light dashed border to the Gantt bar cells
-            } catch (e) { 
-              console.error("Error drawing Digital Video burst Gantt:", e); //
-            }
+            mergeBurstCells(itemRow, ganttStart, ganttEnd, b.deliverables, 'digital video');
           } else {
             // Optional: Log if a burst is outside the drawable timeline range for debugging
             // console.warn(`Digital Video burst for item ${idx} (Market: ${it.market}, Creative: ${it.creative}) is outside the drawable timeline: Start ${b.startDate}, End ${b.endDate}. Calculated Gantt: ${ganttStart}-${ganttEnd}`);
@@ -1265,22 +1197,7 @@ export async function generateMediaPlan(
           
           // Ensure the burst is within the drawable timeline and worksheet boundaries
           if (ganttStart <= ganttEnd && ganttStart >= firstDateCol && ganttEnd <= lastDateCol) { // Check ganttEnd against lastDateCol
-            try {
-              sheet.mergeCells(itemRow, ganttStart, itemRow, ganttEnd); //
-              const cell = sheet.getCell(itemRow, ganttStart); //
-              style(cell, { 
-                value: b.deliverables, 
-                fontSize: 15, 
-                align: 'center', 
-                verticalAlign: 'middle', 
-                fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD02A60' } }, 
-                fontColor: 'FFFFFFFF', 
-                numFmt: '#,##0' 
-              }); //
-              cell.border = lightDashedBorder; // Apply the standard light dashed border to the Gantt bar cells
-            } catch (e) { 
-              console.error("Error drawing BVOD burst Gantt:", e); //
-            }
+            mergeBurstCells(itemRow, ganttStart, ganttEnd, b.deliverables, 'bvod');
           } else {
             // Optional: Log if a burst is outside the drawable timeline range for debugging
             // console.warn(`BVOD burst for item ${idx} (Market: ${it.market}, Creative: ${it.creative}) is outside the drawable timeline: Start ${b.startDate}, End ${b.endDate}. Calculated Gantt: ${ganttStart}-${ganttEnd}`);
@@ -1294,7 +1211,6 @@ export async function generateMediaPlan(
   // --- SEARCH ---
   const groupedSearchRaw = mediaItems.search || []; // Get raw items for Search
   const groupedSearch: GroupedItem[] = groupLineItems(groupedSearchRaw, "Search"); // Group them
-  const mergedSpansByRow: Record<number, Array<{ start: number; end: number }>> = {};
 
   if (groupedSearch.length > 0) { // Only proceed if there are search items to display
       const searchDataStartActualRow = drawSection('Search', groupedSearch, currentRow, 'Biddable'); // Draw the section
@@ -1317,31 +1233,7 @@ export async function generateMediaPlan(
           
           // Ensure the burst is within the drawable timeline and worksheet boundaries
           if (ganttStart <= ganttEnd && ganttStart >= firstDateCol && ganttEnd <= lastDateCol) { // Check ganttEnd against lastDateCol
-            const spans = mergedSpansByRow[itemRow] || (mergedSpansByRow[itemRow] = []);
-            const overlaps = spans.some(span => !(ganttEnd < span.start || ganttStart > span.end));
-            if (overlaps) {
-              // Skip overlapping/duplicate burst to avoid ExcelJS merge conflicts
-              console.warn(`Skipping overlapping search burst for row ${itemRow}: ${ganttStart}-${ganttEnd}`);
-              return;
-            }
-            spans.push({ start: ganttStart, end: ganttEnd });
-
-            try {
-              sheet.mergeCells(itemRow, ganttStart, itemRow, ganttEnd); //
-              const cell = sheet.getCell(itemRow, ganttStart); //
-              style(cell, { 
-                value: b.deliverables, 
-                fontSize: 15, 
-                align: 'center', 
-                verticalAlign: 'middle', 
-                fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD02A60' } }, 
-                fontColor: 'FFFFFFFF', 
-                numFmt: '#,##0' 
-              }); //
-              cell.border = lightDashedBorder; // Apply the standard light dashed border to the Gantt bar cells
-            } catch (e) { 
-              console.error("Error drawing search burst Gantt:", e); //
-            }
+            mergeBurstCells(itemRow, ganttStart, ganttEnd, b.deliverables, 'search');
           } else {
             // Optional: Log if a burst is outside the drawable timeline range for debugging
             // console.warn(`Search burst for item ${idx} (Market: ${it.market}, Creative: ${it.creative}) is outside the drawable timeline: Start ${b.startDate}, End ${b.endDate}. Calculated Gantt: ${ganttStart}-${ganttEnd}`);
@@ -1377,22 +1269,7 @@ export async function generateMediaPlan(
           
           // Ensure the burst is within the drawable timeline and worksheet boundaries
           if (ganttStart <= ganttEnd && ganttStart >= firstDateCol && ganttEnd <= lastDateCol) { // Check ganttEnd against lastDateCol
-            try {
-              sheet.mergeCells(itemRow, ganttStart, itemRow, ganttEnd); //
-              const cell = sheet.getCell(itemRow, ganttStart); //
-              style(cell, { 
-                value: b.deliverables, 
-                fontSize: 15, 
-                align: 'center', 
-                verticalAlign: 'middle', 
-                fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD02A60' } }, 
-                fontColor: 'FFFFFFFF', 
-                numFmt: '#,##0' 
-              }); //
-              cell.border = lightDashedBorder; // Apply the standard light dashed border to the Gantt bar cells
-            } catch (e) { 
-              console.error("Error drawing search burst Gantt:", e); //
-            }
+            mergeBurstCells(itemRow, ganttStart, ganttEnd, b.deliverables, 'social media');
           } else {
             // Optional: Log if a burst is outside the drawable timeline range for debugging
             // console.warn(`Search burst for item ${idx} (Market: ${it.market}, Creative: ${it.creative}) is outside the drawable timeline: Start ${b.startDate}, End ${b.endDate}. Calculated Gantt: ${ganttStart}-${ganttEnd}`);
@@ -1428,22 +1305,7 @@ export async function generateMediaPlan(
           
           // Ensure the burst is within the drawable timeline and worksheet boundaries
           if (ganttStart <= ganttEnd && ganttStart >= firstDateCol && ganttEnd <= lastDateCol) { // Check ganttEnd against lastDateCol
-            try {
-              sheet.mergeCells(itemRow, ganttStart, itemRow, ganttEnd); //
-              const cell = sheet.getCell(itemRow, ganttStart); //
-              style(cell, { 
-                value: b.deliverables, 
-                fontSize: 15, 
-                align: 'center', 
-                verticalAlign: 'middle', 
-                fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD02A60' } }, 
-                fontColor: 'FFFFFFFF', 
-                numFmt: '#,##0' 
-              }); //
-              cell.border = lightDashedBorder; // Apply the standard light dashed border to the Gantt bar cells
-            } catch (e) { 
-              console.error("Error drawing search burst Gantt:", e); //
-            }
+            mergeBurstCells(itemRow, ganttStart, ganttEnd, b.deliverables, 'programmatic display');
           } else {
             // Optional: Log if a burst is outside the drawable timeline range for debugging
             // console.warn(`Search burst for item ${idx} (Market: ${it.market}, Creative: ${it.creative}) is outside the drawable timeline: Start ${b.startDate}, End ${b.endDate}. Calculated Gantt: ${ganttStart}-${ganttEnd}`);
@@ -1480,22 +1342,7 @@ export async function generateMediaPlan(
           
           // Ensure the burst is within the drawable timeline and worksheet boundaries
           if (ganttStart <= ganttEnd && ganttStart >= firstDateCol && ganttEnd <= lastDateCol) { // Check ganttEnd against lastDateCol
-            try {
-              sheet.mergeCells(itemRow, ganttStart, itemRow, ganttEnd); //
-              const cell = sheet.getCell(itemRow, ganttStart); //
-              style(cell, { 
-                value: b.deliverables, 
-                fontSize: 15, 
-                align: 'center', 
-                verticalAlign: 'middle', 
-                fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD02A60' } }, 
-                fontColor: 'FFFFFFFF', 
-                numFmt: '#,##0' 
-              }); //
-              cell.border = lightDashedBorder; // Apply the standard light dashed border to the Gantt bar cells
-            } catch (e) { 
-              console.error("Error drawing search burst Gantt:", e); //
-            }
+            mergeBurstCells(itemRow, ganttStart, ganttEnd, b.deliverables, 'programmatic video');
           } else {
             // Optional: Log if a burst is outside the drawable timeline range for debugging
             // console.warn(`Search burst for item ${idx} (Market: ${it.market}, Creative: ${it.creative}) is outside the drawable timeline: Start ${b.startDate}, End ${b.endDate}. Calculated Gantt: ${ganttStart}-${ganttEnd}`);
@@ -1532,22 +1379,7 @@ export async function generateMediaPlan(
           
           // Ensure the burst is within the drawable timeline and worksheet boundaries
           if (ganttStart <= ganttEnd && ganttStart >= firstDateCol && ganttEnd <= lastDateCol) { // Check ganttEnd against lastDateCol
-            try {
-              sheet.mergeCells(itemRow, ganttStart, itemRow, ganttEnd); //
-              const cell = sheet.getCell(itemRow, ganttStart); //
-              style(cell, { 
-                value: b.deliverables, 
-                fontSize: 15, 
-                align: 'center', 
-                verticalAlign: 'middle', 
-                fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD02A60' } }, 
-                fontColor: 'FFFFFFFF', 
-                numFmt: '#,##0' 
-              }); //
-              cell.border = lightDashedBorder; // Apply the standard light dashed border to the Gantt bar cells
-            } catch (e) { 
-              console.error("Error drawing search burst Gantt:", e); //
-            }
+            mergeBurstCells(itemRow, ganttStart, ganttEnd, b.deliverables, 'programmatic bvod');
           } else {
             // Optional: Log if a burst is outside the drawable timeline range for debugging
             // console.warn(`Search burst for item ${idx} (Market: ${it.market}, Creative: ${it.creative}) is outside the drawable timeline: Start ${b.startDate}, End ${b.endDate}. Calculated Gantt: ${ganttStart}-${ganttEnd}`);
@@ -1584,22 +1416,7 @@ export async function generateMediaPlan(
           
           // Ensure the burst is within the drawable timeline and worksheet boundaries
           if (ganttStart <= ganttEnd && ganttStart >= firstDateCol && ganttEnd <= lastDateCol) { // Check ganttEnd against lastDateCol
-            try {
-              sheet.mergeCells(itemRow, ganttStart, itemRow, ganttEnd); //
-              const cell = sheet.getCell(itemRow, ganttStart); //
-              style(cell, { 
-                value: b.deliverables, 
-                fontSize: 15, 
-                align: 'center', 
-                verticalAlign: 'middle', 
-                fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD02A60' } }, 
-                fontColor: 'FFFFFFFF', 
-                numFmt: '#,##0' 
-              }); //
-              cell.border = lightDashedBorder; // Apply the standard light dashed border to the Gantt bar cells
-            } catch (e) { 
-              console.error("Error drawing search burst Gantt:", e); //
-            }
+            mergeBurstCells(itemRow, ganttStart, ganttEnd, b.deliverables, 'programmatic audio');
           } else {
             // Optional: Log if a burst is outside the drawable timeline range for debugging
             // console.warn(`Search burst for item ${idx} (Market: ${it.market}, Creative: ${it.creative}) is outside the drawable timeline: Start ${b.startDate}, End ${b.endDate}. Calculated Gantt: ${ganttStart}-${ganttEnd}`);
@@ -1636,22 +1453,7 @@ export async function generateMediaPlan(
           
           // Ensure the burst is within the drawable timeline and worksheet boundaries
           if (ganttStart <= ganttEnd && ganttStart >= firstDateCol && ganttEnd <= lastDateCol) { // Check ganttEnd against lastDateCol
-            try {
-              sheet.mergeCells(itemRow, ganttStart, itemRow, ganttEnd); //
-              const cell = sheet.getCell(itemRow, ganttStart); //
-              style(cell, { 
-                value: b.deliverables, 
-                fontSize: 15, 
-                align: 'center', 
-                verticalAlign: 'middle', 
-                fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD02A60' } }, 
-                fontColor: 'FFFFFFFF', 
-                numFmt: '#,##0' 
-              }); //
-              cell.border = lightDashedBorder; // Apply the standard light dashed border to the Gantt bar cells
-            } catch (e) { 
-              console.error("Error drawing search burst Gantt:", e); //
-            }
+            mergeBurstCells(itemRow, ganttStart, ganttEnd, b.deliverables, 'programmatic ooh');
           } else {
             // Optional: Log if a burst is outside the drawable timeline range for debugging
             // console.warn(`Search burst for item ${idx} (Market: ${it.market}, Creative: ${it.creative}) is outside the drawable timeline: Start ${b.startDate}, End ${b.endDate}. Calculated Gantt: ${ganttStart}-${ganttEnd}`);
@@ -1687,22 +1489,7 @@ export async function generateMediaPlan(
           const ganttEnd = firstDateCol + endOffset;
 
           if (ganttStart <= ganttEnd && ganttStart >= firstDateCol && ganttEnd <= lastDateCol) {
-            try {
-              sheet.mergeCells(itemRow, ganttStart, itemRow, ganttEnd);
-              const cell = sheet.getCell(itemRow, ganttStart);
-              style(cell, { 
-                value: b.deliverables, 
-                fontSize: 15, 
-                align: 'center', 
-                verticalAlign: 'middle', 
-                fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD02A60' } }, 
-                fontColor: 'FFFFFFFF', 
-                numFmt: '#,##0' 
-              });
-              cell.border = lightDashedBorder;
-            } catch (e) { 
-              console.error("Error drawing production burst Gantt:", e);
-            }
+            mergeBurstCells(itemRow, ganttStart, ganttEnd, b.deliverables, 'production');
           }
         });
       });

@@ -17,13 +17,15 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/componen
 import { useToast } from "@/components/ui/use-toast"
 import { Label } from "@/components/ui/label";
 import { getPublishersForDigiVideo, getClientInfo, getVideoSites, createVideoSite } from "@/lib/api"
+import { formatBurstLabel } from "@/lib/bursts"
+import { LoadingDots } from "@/components/ui/loading-dots"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { ChevronDown, Trash2 } from "lucide-react"
+import { ChevronDown, Copy, Plus, Trash2 } from "lucide-react"
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
 import type { LineItem } from '@/lib/generateMediaPlan'
 
@@ -457,11 +459,18 @@ export default function DigiVideoContainer({
   useEffect(() => {
     if (initialLineItems && initialLineItems.length > 0) {
       const transformedLineItems = initialLineItems.map((item: any) => ({
+        platform: item.platform || "",
+        publisher: item.publisher || "",
         site: item.site || "",
         placement: item.placement || "",
         size: item.size || "",
+        bidStrategy: item.bid_strategy || "",
         buyType: item.buy_type || "",
         targetingAttribute: item.targeting_attribute || "",
+        creativeTargeting: item.creative_targeting || "",
+        creative: item.creative || "",
+        buyingDemo: item.buying_demo || "",
+        market: item.market || "",
         fixedCostMedia: item.fixed_cost_media || false,
         clientPaysForMedia: item.client_pays_for_media || false,
         budgetIncludesFees: item.budget_includes_fees || false,
@@ -471,11 +480,15 @@ export default function DigiVideoContainer({
           buyAmount: burst.buyAmount || "",
           startDate: burst.startDate ? new Date(burst.startDate) : new Date(),
           endDate: burst.endDate ? new Date(burst.endDate) : new Date(),
+          calculatedValue: burst.calculatedValue ?? 0,
+          fee: burst.fee ?? 0,
         })) : [{
           budget: "",
           buyAmount: "",
           startDate: campaignStartDate || new Date(),
           endDate: campaignEndDate || new Date(),
+          calculatedValue: 0,
+          fee: 0,
         }],
       }));
 
@@ -510,9 +523,14 @@ export default function DigiVideoContainer({
         mba_number: mbaNumber || "",
         mp_client_name: "",
         mp_plannumber: "",
+        platform: lineItem.platform || "",
+        bid_strategy: lineItem.bidStrategy || "",
         publisher: lineItem.publisher || "",
         site: lineItem.site || "",
+        placement: lineItem.placement || "",
+        size: lineItem.size || "",
         buy_type: lineItem.buyType || "",
+        targeting_attribute: lineItem.targetingAttribute || "",
         creative_targeting: lineItem.creativeTargeting || "",
         creative: lineItem.creative || "",
         buying_demo: lineItem.buyingDemo || "",
@@ -1055,13 +1073,14 @@ useEffect(() => {
       <div>
         {isLoading ? (
           <div className="flex justify-center items-center h-20">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <LoadingDots size="md" />
           </div>
         ) : (
           <div className="space-y-6">
             <Form {...form}>
               <div className="space-y-6">
                 {lineItemFields.map((field, lineItemIndex) => {
+                  const sectionId = `digivideo-line-item-${lineItemIndex}`;
                   const getTotals = (lineItemIndex: number) => {
                     const lineItem = form.getValues(`digivideolineItems.${lineItemIndex}`);
                     let totalMedia = 0;
@@ -1076,7 +1095,7 @@ useEffect(() => {
                     return { totalMedia, totalCalculatedValue };
                   };
 
-                  const selectedPublisher = form.watch(`digivideolineItems.${lineItemIndex}.platform`);
+                  const selectedPublisher = form.watch(`digivideolineItems.${lineItemIndex}.publisher`);
 
                   let filteredDigiVideoSites;
                   if (!selectedPublisher) {
@@ -1113,7 +1132,7 @@ useEffect(() => {
                               variant="outline" 
                               size="sm"
                               onClick={() => {
-                                const element = document.getElementById(`line-item-${lineItemIndex}`);
+                                const element = document.getElementById(sectionId);
                                 if (element) {
                                   element.classList.toggle('hidden');
                                 }
@@ -1144,7 +1163,7 @@ useEffect(() => {
                       </div>
                       
                       {/* Detailed Content & Bursts - Collapsible */}
-                      <div id={`line-item-${lineItemIndex}`} className="space-y-6">
+                      <div id={sectionId} className="space-y-6">
                         <div className="bg-white rounded-xl shadow p-6 mb-6">
                           <CardContent className="space-y-6">
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -1153,13 +1172,18 @@ useEffect(() => {
                               <div className="space-y-4">
                                 <FormField
                                   control={form.control}
-                                  name={`digivideolineItems.${lineItemIndex}.platform`}
+                                  name={`digivideolineItems.${lineItemIndex}.publisher`}
                                   render={({ field }) => (
                                     <FormItem className="flex items-center space-x-2">
                                       <FormLabel className="w-24 text-sm">Publisher</FormLabel>
-                                      <Select onValueChange={(value) => {
-                                        field.onChange(value);
-                                         }} defaultValue={field.value}>
+                                      <Select
+                                        onValueChange={(value) => {
+                                          field.onChange(value);
+                                          form.setValue(`digivideolineItems.${lineItemIndex}.platform`, value, { shouldDirty: true });
+                                          form.setValue(`digivideolineItems.${lineItemIndex}.site`, "", { shouldDirty: true });
+                                        }}
+                                        value={field.value}
+                                      >
                                         <FormControl>
                                           <SelectTrigger className="h-9 w-full flex-1 rounded-md border">
                                             <SelectValue placeholder="Select Publisher" />
@@ -1328,7 +1352,7 @@ useEffect(() => {
                               </FormItem>
                             </div>
 
-                            {/* Column 4 - Checkboxes and Add Burst */}
+                            {/* Column 4 - Checkboxes */}
                             <div className="flex flex-col justify-between">
                               <div className="space-y-3">
                                 <FormField
@@ -1383,23 +1407,6 @@ useEffect(() => {
                                 />
                               </div>
 
-                              <div className="flex space-x-2 self-end mt-4">
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="default"
-                                  onClick={() => handleDuplicateBurst(lineItemIndex)}
-                                >
-                                  Duplicate Burst
-                                </Button>
-                                <Button
-                                  type="button"
-                                  size="default"
-                                  onClick={() => handleAppendBurst(lineItemIndex)}
-                                >
-                                  Add Burst
-                                </Button>
-                              </div>
                             </div>
                           </div>
                         </CardContent>
@@ -1409,14 +1416,20 @@ useEffect(() => {
                       <div className="space-y-4">
                         {form.watch(`digivideolineItems.${lineItemIndex}.bursts`, []).map((burstField, burstIndex) => {
                           return (
-                            <Card key={`${lineItemIndex}-${burstIndex}`} className="border border-gray-200">
+                            <Card key={`${lineItemIndex}-${burstIndex}`} className="border border-gray-200 bg-muted/30 mx-2">
                               <CardContent className="py-2 px-4">
-                                <div className="flex items-center space-x-4">
+                                <div className="flex items-center gap-3">
                                   <div className="w-24 flex-shrink-0">
-                                    <h4 className="text-sm font-medium">Burst {burstIndex + 1}</h4>
+                                    <h4 className="text-sm font-medium">
+                                      {formatBurstLabel(
+                                        burstIndex + 1,
+                                        form.watch(`digivideolineItems.${lineItemIndex}.bursts.${burstIndex}.startDate`),
+                                        form.watch(`digivideolineItems.${lineItemIndex}.bursts.${burstIndex}.endDate`)
+                                      )}
+                                    </h4>
                                   </div>
                                   
-                                  <div className="grid grid-cols-5 gap-4 items-center flex-grow">
+                                  <div className="grid grid-cols-7 gap-3 items-center flex-grow">
                                     <FormField
                                       control={form.control}
                                       name={`digivideolineItems.${lineItemIndex}.bursts.${burstIndex}.budget`}
@@ -1429,7 +1442,7 @@ useEffect(() => {
                                               <Input
                                                 {...field}
                                                 type="text"
-                                                className="w-full"
+                                                className="w-full min-w-[9rem] h-10 text-sm"
                                                 value={buyType === "bonus" ? "0" : field.value}
                                                 disabled={buyType === "bonus"}
                                                 onChange={(e) => {
@@ -1468,7 +1481,7 @@ useEffect(() => {
                                               <Input
                                                 {...field}
                                                 type="text"
-                                                className="w-full"
+                                                className="w-full min-w-[9rem] h-10 text-sm"
                                                 value={buyType === "bonus" ? "0" : field.value}
                                                 disabled={buyType === "bonus"}
                                                 onChange={(e) => {
@@ -1495,7 +1508,7 @@ useEffect(() => {
                                       }}
                                     />
 
-                                    <div className="grid grid-cols-2 gap-2">
+                                    <div className="grid grid-cols-2 gap-2 col-span-2">
                                       <FormField
                                         control={form.control}
                                         name={`digivideolineItems.${lineItemIndex}.bursts.${burstIndex}.startDate`}
@@ -1508,7 +1521,7 @@ useEffect(() => {
                                                   <Button
                                                     variant={"outline"}
                                                     className={cn(
-                                                      "w-full pl-2 text-left font-normal text-xs h-8",
+                                                      "w-full h-10 pl-2 text-left font-normal text-sm",
                                                       !field.value && "text-muted-foreground",
                                                     )}
                                                   >
@@ -1546,7 +1559,7 @@ useEffect(() => {
                                                   <Button
                                                     variant={"outline"}
                                                     className={cn(
-                                                      "w-full pl-2 text-left font-normal text-xs h-8",
+                                                      "w-full h-10 pl-2 text-left font-normal text-sm",
                                                       !field.value && "text-muted-foreground",
                                                     )}
                                                   >
@@ -1655,7 +1668,7 @@ useEffect(() => {
                                             <FormControl>
                                               <Input
                                                 type="text"
-                                                className="w-full"
+                                                className="w-full min-w-[8rem] h-10 text-sm"
                                                 value={calculatedValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                                                 readOnly
                                               />
@@ -1665,58 +1678,75 @@ useEffect(() => {
                                       }}
                                     />
 
-                                    {/* Add Fee and Media Calculation Fields */}
-                                    <div className="flex flex-col space-y-2">
-                                      <div className="grid grid-cols-2 gap-2">
-                                        <div className="flex flex-col">
-                                          <FormLabel className="text-xs">Media</FormLabel>
-                                          <Input
-                                            type="text"
-                                            className="w-full"
-                                            value={new Intl.NumberFormat("en-US", {
-                                              style: "currency",
-                                              currency: "USD",
-                                              minimumFractionDigits: 2,
-                                              maximumFractionDigits: 2,
-                                            }).format(
-                                              form.getValues(`digivideolineItems.${lineItemIndex}.budgetIncludesFees`)
-                                                ? (parseFloat(form.getValues(`digivideolineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (100 - (feedigivideo || 0))
-                                                : parseFloat(form.getValues(`digivideolineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0")
-                                            )}
-                                            readOnly
-                                          />
-                                        </div>
-                                        <div className="flex flex-col">
-                                          <FormLabel className="text-xs">Fee ({feedigivideo}%)</FormLabel>
-                                          <Input
-                                            type="text"
-                                            className="w-full"
-                                            value={new Intl.NumberFormat("en-US", {
-                                              style: "currency",
-                                              currency: "USD",
-                                              minimumFractionDigits: 2,
-                                              maximumFractionDigits: 2,
-                                            }).format(
-                                              form.getValues(`digivideolineItems.${lineItemIndex}.budgetIncludesFees`)
-                                                ? (parseFloat(form.getValues(`digivideolineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (feedigivideo || 0)
-                                                : (parseFloat(form.getValues(`digivideolineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / (100 - (feedigivideo || 0))) * (feedigivideo || 0)
-                                            )}
-                                            readOnly
-                                          />
-                                        </div>
-                                      </div>
+                                    <div className="space-y-1">
+                                      <FormLabel className="text-xs leading-tight">Media</FormLabel>
+                                      <Input
+                                        type="text"
+                                        className="w-full h-10 text-sm"
+                                        value={new Intl.NumberFormat("en-US", {
+                                          style: "currency",
+                                          currency: "USD",
+                                          minimumFractionDigits: 2,
+                                          maximumFractionDigits: 2,
+                                        }).format(
+                                          form.getValues(`digivideolineItems.${lineItemIndex}.budgetIncludesFees`)
+                                            ? (parseFloat(form.getValues(`digivideolineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (100 - (feedigivideo || 0))
+                                            : parseFloat(form.getValues(`digivideolineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0")
+                                        )}
+                                        readOnly
+                                      />
+                                    </div>
+                                    <div className="space-y-1">
+                                      <FormLabel className="text-xs leading-tight">Fee ({feedigivideo}%)</FormLabel>
+                                      <Input
+                                        type="text"
+                                        className="w-full h-10 text-sm"
+                                        value={new Intl.NumberFormat("en-US", {
+                                          style: "currency",
+                                          currency: "USD",
+                                          minimumFractionDigits: 2,
+                                          maximumFractionDigits: 2,
+                                        }).format(
+                                          form.getValues(`digivideolineItems.${lineItemIndex}.budgetIncludesFees`)
+                                            ? (parseFloat(form.getValues(`digivideolineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (feedigivideo || 0)
+                                            : (parseFloat(form.getValues(`digivideolineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / (100 - (feedigivideo || 0))) * (feedigivideo || 0)
+                                        )}
+                                        readOnly
+                                      />
                                     </div>
                                   </div>
                                   
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 p-0"
-                                    onClick={() => handleRemoveBurst(lineItemIndex, burstIndex)}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
+                                  <div className="flex items-end gap-2 self-end pb-1">
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-10 text-sm px-3"
+                                      onClick={() => handleAppendBurst(lineItemIndex)}
+                                    >
+                                      <Plus className="h-4 w-4 mr-1" />
+                                      Add
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-10 text-sm px-3"
+                                      onClick={() => handleDuplicateBurst(lineItemIndex)}
+                                    >
+                                      <Copy className="h-4 w-4 mr-1" />
+                                      Duplicate
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-10 text-sm px-3"
+                                      onClick={() => handleRemoveBurst(lineItemIndex, burstIndex)}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </div>
                                 </div>
                               </CardContent>
                             </Card>
@@ -1730,6 +1760,7 @@ useEffect(() => {
                             variant="outline"
                             onClick={() => handleDuplicateLineItem(lineItemIndex)}
                           >
+                            <Copy className="h-4 w-4 mr-2" />
                             Duplicate Line Item
                           </Button>
                           {lineItemIndex === lineItemFields.length - 1 && (
@@ -1763,10 +1794,12 @@ useEffect(() => {
                                 })
                               }
                             >
+                              <Plus className="h-4 w-4 mr-2" />
                               Add Line Item
                             </Button>
                           )}
                           <Button type="button" variant="destructive" onClick={() => removeLineItem(lineItemIndex)}>
+                            <Trash2 className="h-4 w-4 mr-2" />
                             Remove Line Item
                           </Button>
                         </CardFooter>

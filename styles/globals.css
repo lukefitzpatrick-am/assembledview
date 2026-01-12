@@ -6,6 +6,21 @@
   .text-balance {
     text-wrap: balance;
   }
+
+  @keyframes loading-dots {
+    0%, 80%, 100% {
+      transform: scale(0.4);
+      opacity: 0.4;
+    }
+    40% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+
+  .loading-dots__dot {
+    animation: loading-dots 1.4s infinite ease-in-out;
+  }
 }
 
 @layer base {
@@ -40,7 +55,8 @@
     --sidebar-primary: 240 5.9% 10%;
     --sidebar-primary-foreground: 0 0% 98%;
     --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
+    /* Assembled Media green for sidebar hover/active text */
+    --sidebar-accent-foreground: 72 64% 52%;
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
@@ -74,7 +90,8 @@
     --sidebar-primary: 224.3 76.3% 48%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    /* Keep the same green in dark mode for brand consistency */
+    --sidebar-accent-foreground: 72 64% 52%;
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
   }

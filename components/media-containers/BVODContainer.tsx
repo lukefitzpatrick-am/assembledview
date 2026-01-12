@@ -17,13 +17,15 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/componen
 import { useToast } from "@/components/ui/use-toast"
 import { Label } from "@/components/ui/label";
 import { getPublishersForBvod, getClientInfo, getBVODSites, createBVODSite } from "@/lib/api"
+import { formatBurstLabel } from "@/lib/bursts"
+import { LoadingDots } from "@/components/ui/loading-dots"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { ChevronDown, Trash2 } from "lucide-react"
+import { ChevronDown, Copy, Plus, Trash2 } from "lucide-react"
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
 import type { LineItem } from '@/lib/generateMediaPlan'
 
@@ -493,27 +495,46 @@ export default function BVODContainer({
 
         const bursts = parsedBursts.length > 0 ? parsedBursts.map((burst: any) => ({
           budget: burst.budget || "",
-          buyAmount: burst.buyAmount || "",
-          startDate: burst.startDate ? new Date(burst.startDate) : (campaignStartDate || new Date()),
-          endDate: burst.endDate ? new Date(burst.endDate) : (campaignEndDate || new Date()),
+          buyAmount: burst.buyAmount || burst.rate || burst.buy_amount || "",
+          startDate: burst.startDate
+            ? new Date(burst.startDate)
+            : burst.start_date
+              ? new Date(burst.start_date)
+              : (campaignStartDate || new Date()),
+          endDate: burst.endDate
+            ? new Date(burst.endDate)
+            : burst.end_date
+              ? new Date(burst.end_date)
+              : (campaignEndDate || new Date()),
+          calculatedValue: burst.calculatedValue ?? burst.deliverables ?? 0,
+          fee: burst.fee ?? 0,
         })) : [{
           budget: "",
           buyAmount: "",
           startDate: campaignStartDate || new Date(),
           endDate: campaignEndDate || new Date(),
+          calculatedValue: 0,
+          fee: 0,
         }];
 
         return {
+          platform: item.platform || item.publisher || "",
+          publisher: item.publisher || item.platform || "",
           site: item.site || "",
-          placement: item.placement || "",
-          size: item.size || "",
+          bidStrategy: item.bid_strategy || item.bidStrategy || "",
           buyType: item.buy_type || "",
-          targetingAttribute: item.targeting_attribute || "",
-          fixedCostMedia: item.fixed_cost_media || false,
-          clientPaysForMedia: item.client_pays_for_media || false,
-          budgetIncludesFees: item.budget_includes_fees || false,
-          noadserving: item.no_adserving || false,
+          creativeTargeting: item.creative_targeting || item.targeting || "",
+          creative: item.creative || "",
+          buyingDemo: item.buying_demo || "",
+          market: item.market || "",
+          fixedCostMedia: item.fixed_cost_media ?? false,
+          clientPaysForMedia: item.client_pays_for_media ?? false,
+          budgetIncludesFees: item.budget_includes_fees ?? false,
+          noadserving: item.no_adserving ?? false,
           bursts: bursts,
+          totalMedia: 0,
+          totalDeliverables: 0,
+          totalFee: 0,
         };
       });
 
@@ -550,10 +571,13 @@ export default function BVODContainer({
         mba_number: mbaNumber || "",
         mp_client_name: "",
         mp_plannumber: "",
+        platform: lineItem.platform || lineItem.publisher || "",
         publisher: lineItem.publisher || "",
+        bid_strategy: lineItem.bidStrategy || "",
         site: lineItem.site || "",
         buy_type: lineItem.buyType || "",
         creative_targeting: lineItem.creativeTargeting || "",
+        targeting: lineItem.creativeTargeting || "",
         creative: lineItem.creative || "",
         buying_demo: lineItem.buyingDemo || "",
         market: lineItem.market || "",
@@ -1099,13 +1123,16 @@ useEffect(() => {
       <div>
         {isLoading ? (
           <div className="flex justify-center items-center h-20">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            <LoadingDots size="md" />
           </div>
         ) : (
           <div className="space-y-6">
             <Form {...form}>
               <div className="space-y-6">
                 {lineItemFields.map((field, lineItemIndex) => {
+                  const sectionId = `bvod-line-item-${lineItemIndex}`;
+                  const burstsId = `${sectionId}-bursts`;
+                  const footerId = `${sectionId}-footer`;
                   const getTotals = (lineItemIndex: number) => {
                     const lineItem = form.getValues(`bvodlineItems.${lineItemIndex}`);
                     let totalMedia = 0;
@@ -1120,7 +1147,7 @@ useEffect(() => {
                     return { totalMedia, totalCalculatedValue };
                   };
 
-                  const selectedPublisher = form.watch(`bvodlineItems.${lineItemIndex}.platform`);
+                  const selectedPublisher = form.watch(`bvodlineItems.${lineItemIndex}.publisher`);
 
                   let filteredBVODSites;
                   if (!selectedPublisher) {
@@ -1157,9 +1184,9 @@ useEffect(() => {
                               variant="outline" 
                               size="sm"
                               onClick={() => {
-                                const element = document.getElementById(`line-item-${lineItemIndex}`);
-                                const bursts = document.getElementById(`line-item-${lineItemIndex}-bursts`);
-                                const footer = document.getElementById(`line-item-${lineItemIndex}-footer`);
+                                const element = document.getElementById(sectionId);
+                                const bursts = document.getElementById(burstsId);
+                                const footer = document.getElementById(footerId);
                                 element?.classList.toggle('hidden');
                                 bursts?.classList.toggle('hidden');
                                 footer?.classList.toggle('hidden');
@@ -1180,7 +1207,7 @@ useEffect(() => {
                           <div>
                             <span className="font-medium">Buy Type:</span> {formatBuyTypeForDisplay(form.watch(`bvodlineItems.${lineItemIndex}.buyType`))}
                           </div>
-                          <div>
+                              <div>
                             <span className="font-medium">Site:</span> {form.watch(`bvodlineItems.${lineItemIndex}.site`) || 'Not selected'}
                           </div>
                           <div>
@@ -1191,7 +1218,7 @@ useEffect(() => {
                       
                       {/* Detailed Content - Collapsible */}
                       <div
-                        id={`line-item-${lineItemIndex}`}
+                        id={sectionId}
                         className="bg-white rounded-xl shadow p-6 mb-6"
                       >
                         <CardContent className="space-y-6">
@@ -1201,13 +1228,18 @@ useEffect(() => {
                             <div className="space-y-4">
                               <FormField
                                 control={form.control}
-                                name={`bvodlineItems.${lineItemIndex}.platform`}
+                                name={`bvodlineItems.${lineItemIndex}.publisher`}
                                 render={({ field }) => (
                                   <FormItem className="flex items-center space-x-2">
 <FormLabel className="w-24 text-sm">Publisher</FormLabel>
-                                     <Select onValueChange={(value) => {
-                                      field.onChange(value);
-                                       }} defaultValue={field.value}>
+                                     <Select
+                                      onValueChange={(value) => {
+                                        field.onChange(value);
+                                        form.setValue(`bvodlineItems.${lineItemIndex}.platform`, value, { shouldDirty: true });
+                                        form.setValue(`bvodlineItems.${lineItemIndex}.site`, "", { shouldDirty: true });
+                                      }}
+                                      value={field.value}
+                                    >
                                       <FormControl>
                                         <SelectTrigger className="h-9 w-full flex-1 rounded-md border">
                                           <SelectValue placeholder="Select Publisher" />
@@ -1376,7 +1408,7 @@ useEffect(() => {
                               </FormItem>
                             </div>
 
-                            {/* Column 4 - Checkboxes and Add Burst */}
+                            {/* Column 4 - Checkboxes */}
                             <div className="flex flex-col justify-between">
                               <div className="space-y-3">
                                 <FormField
@@ -1431,40 +1463,29 @@ useEffect(() => {
                                 />
                               </div>
 
-                              <div className="flex space-x-2 self-end mt-4">
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="default"
-                                  onClick={() => handleDuplicateBurst(lineItemIndex)}
-                                >
-                                  Duplicate Burst
-                                </Button>
-                                <Button
-                                  type="button"
-                                  size="default"
-                                  onClick={() => handleAppendBurst(lineItemIndex)}
-                                >
-                                  Add Burst
-                                </Button>
-                              </div>
                             </div>
                           </div>
                         </CardContent>
                       </div>
 
                       {/* Bursts Section */}
-                      <div id={`line-item-${lineItemIndex}-bursts`} className="space-y-4">
+                      <div id={burstsId} className="space-y-4">
                         {form.watch(`bvodlineItems.${lineItemIndex}.bursts`, []).map((burstField, burstIndex) => {
                           return (
-                            <Card key={`${lineItemIndex}-${burstIndex}`} className="border border-gray-200">
+                            <Card key={`${lineItemIndex}-${burstIndex}`} className="border border-gray-200 bg-muted/30 mx-2">
                               <CardContent className="py-2 px-4">
-                                <div className="flex items-center space-x-4">
+                                <div className="flex items-center gap-3">
                                   <div className="w-24 flex-shrink-0">
-                                    <h4 className="text-sm font-medium">Burst {burstIndex + 1}</h4>
+                                    <h4 className="text-sm font-medium">
+                                      {formatBurstLabel(
+                                        burstIndex + 1,
+                                        form.watch(`bvodlineItems.${lineItemIndex}.bursts.${burstIndex}.startDate`),
+                                        form.watch(`bvodlineItems.${lineItemIndex}.bursts.${burstIndex}.endDate`)
+                                      )}
+                                    </h4>
                                   </div>
                                   
-                                  <div className="grid grid-cols-5 gap-4 items-center flex-grow">
+                                  <div className="grid grid-cols-7 gap-3 items-center flex-grow">
                                     <FormField
                                       control={form.control}
                                       name={`bvodlineItems.${lineItemIndex}.bursts.${burstIndex}.budget`}
@@ -1477,7 +1498,7 @@ useEffect(() => {
                                               <Input
                                                 {...field}
                                                 type="text"
-                                                className="w-full"
+                                                className="w-full min-w-[9rem] h-10 text-sm"
                                                 value={buyType === "bonus" ? "0" : field.value}
                                                 disabled={buyType === "bonus"}
                                                 onChange={(e) => {
@@ -1516,7 +1537,7 @@ useEffect(() => {
                                               <Input
                                                 {...field}
                                                 type="text"
-                                                className="w-full"
+                                                className="w-full min-w-[9rem] h-10 text-sm"
                                                 value={buyType === "bonus" ? "0" : field.value}
                                                 disabled={buyType === "bonus"}
                                                 onChange={(e) => {
@@ -1543,7 +1564,7 @@ useEffect(() => {
                                       }}
                                     />
 
-                                    <div className="grid grid-cols-2 gap-2">
+                                    <div className="grid grid-cols-2 gap-2 col-span-2">
                                       <FormField
                                         control={form.control}
                                         name={`bvodlineItems.${lineItemIndex}.bursts.${burstIndex}.startDate`}
@@ -1556,7 +1577,7 @@ useEffect(() => {
                                                   <Button
                                                     variant={"outline"}
                                                     className={cn(
-                                                      "w-full pl-2 text-left font-normal text-xs h-8",
+                                                      "w-full h-10 pl-2 text-left font-normal text-sm",
                                                       !field.value && "text-muted-foreground",
                                                     )}
                                                   >
@@ -1594,7 +1615,7 @@ useEffect(() => {
                                                   <Button
                                                     variant={"outline"}
                                                     className={cn(
-                                                      "w-full pl-2 text-left font-normal text-xs h-8",
+                                                      "w-full h-10 pl-2 text-left font-normal text-sm",
                                                       !field.value && "text-muted-foreground",
                                                     )}
                                                   >
@@ -1703,7 +1724,7 @@ useEffect(() => {
                                             <FormControl>
                                               <Input
                                                 type="text"
-                                                className="w-full"
+                                                className="w-full min-w-[8rem] h-10 text-sm"
                                                 value={calculatedValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                                                 readOnly
                                               />
@@ -1713,58 +1734,75 @@ useEffect(() => {
                                       }}
                                     />
 
-                                    {/* Add Fee and Media Calculation Fields */}
-                                    <div className="flex flex-col space-y-2">
-                                      <div className="grid grid-cols-2 gap-2">
-                                        <div className="flex flex-col">
-                                          <FormLabel className="text-xs">Media</FormLabel>
-                                          <Input
-                                            type="text"
-                                            className="w-full"
-                                            value={new Intl.NumberFormat("en-US", {
-                                              style: "currency",
-                                              currency: "USD",
-                                              minimumFractionDigits: 2,
-                                              maximumFractionDigits: 2,
-                                            }).format(
-                                              form.getValues(`bvodlineItems.${lineItemIndex}.budgetIncludesFees`)
-                                                ? (parseFloat(form.getValues(`bvodlineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (100 - (feebvod || 0))
-                                                : parseFloat(form.getValues(`bvodlineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0")
-                                            )}
-                                            readOnly
-                                          />
-                                        </div>
-                                        <div className="flex flex-col">
-                                          <FormLabel className="text-xs">Fee ({feebvod}%)</FormLabel>
-                                          <Input
-                                            type="text"
-                                            className="w-full"
-                                            value={new Intl.NumberFormat("en-US", {
-                                              style: "currency",
-                                              currency: "USD",
-                                              minimumFractionDigits: 2,
-                                              maximumFractionDigits: 2,
-                                            }).format(
-                                              form.getValues(`bvodlineItems.${lineItemIndex}.budgetIncludesFees`)
-                                                ? (parseFloat(form.getValues(`bvodlineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (feebvod || 0)
-                                                : (parseFloat(form.getValues(`bvodlineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / (100 - (feebvod || 0))) * (feebvod || 0)
-                                            )}
-                                            readOnly
-                                          />
-                                        </div>
-                                      </div>
+                                    <div className="space-y-1">
+                                      <FormLabel className="text-xs leading-tight">Media</FormLabel>
+                                      <Input
+                                        type="text"
+                                        className="w-full h-10 text-sm"
+                                        value={new Intl.NumberFormat("en-US", {
+                                          style: "currency",
+                                          currency: "USD",
+                                          minimumFractionDigits: 2,
+                                          maximumFractionDigits: 2,
+                                        }).format(
+                                          form.getValues(`bvodlineItems.${lineItemIndex}.budgetIncludesFees`)
+                                            ? (parseFloat(form.getValues(`bvodlineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (100 - (feebvod || 0))
+                                            : parseFloat(form.getValues(`bvodlineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0")
+                                        )}
+                                        readOnly
+                                      />
+                                    </div>
+                                    <div className="space-y-1">
+                                      <FormLabel className="text-xs leading-tight">Fee ({feebvod}%)</FormLabel>
+                                      <Input
+                                        type="text"
+                                        className="w-full h-10 text-sm"
+                                        value={new Intl.NumberFormat("en-US", {
+                                          style: "currency",
+                                          currency: "USD",
+                                          minimumFractionDigits: 2,
+                                          maximumFractionDigits: 2,
+                                        }).format(
+                                          form.getValues(`bvodlineItems.${lineItemIndex}.budgetIncludesFees`)
+                                            ? (parseFloat(form.getValues(`bvodlineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (feebvod || 0)
+                                            : (parseFloat(form.getValues(`bvodlineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / (100 - (feebvod || 0))) * (feebvod || 0)
+                                        )}
+                                        readOnly
+                                      />
                                     </div>
                                   </div>
                                   
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 p-0"
-                                    onClick={() => handleRemoveBurst(lineItemIndex, burstIndex)}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
+                                  <div className="flex items-end gap-2 self-end pb-1">
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-10 text-sm px-3"
+                                      onClick={() => handleAppendBurst(lineItemIndex)}
+                                    >
+                                      <Plus className="h-4 w-4 mr-1" />
+                                      Add
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-10 text-sm px-3"
+                                      onClick={() => handleDuplicateBurst(lineItemIndex)}
+                                    >
+                                      <Copy className="h-4 w-4 mr-1" />
+                                      Duplicate
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-10 text-sm px-3"
+                                      onClick={() => handleRemoveBurst(lineItemIndex, burstIndex)}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </div>
                                 </div>
                               </CardContent>
                             </Card>
@@ -1772,12 +1810,13 @@ useEffect(() => {
                         })}
                       </div>
 
-                      <CardFooter id={`line-item-${lineItemIndex}-footer`} className="flex justify-end space-x-2 pt-2">
+                      <CardFooter id={footerId} className="flex justify-end space-x-2 pt-2">
                         <Button
                           type="button"
                           variant="outline"
                           onClick={() => handleDuplicateLineItem(lineItemIndex)}
                         >
+                          <Copy className="h-4 w-4 mr-2" />
                           Duplicate Line Item
                         </Button>
                         {lineItemIndex === lineItemFields.length - 1 && (
@@ -1811,10 +1850,12 @@ useEffect(() => {
                               })
                             }
                           >
+                            <Plus className="h-4 w-4 mr-2" />
                             Add Line Item
                           </Button>
                         )}
                         <Button type="button" variant="destructive" onClick={() => removeLineItem(lineItemIndex)}>
+                          <Trash2 className="h-4 w-4 mr-2" />
                           Remove Line Item
                         </Button>
                       </CardFooter>

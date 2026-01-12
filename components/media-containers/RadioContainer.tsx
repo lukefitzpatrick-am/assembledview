@@ -17,13 +17,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/componen
 import { useToast } from "@/components/ui/use-toast"
 import { Label } from "@/components/ui/label";
 import { getPublishersForRadio, getClientInfo, getRadioStations, createRadioStation } from "@/lib/api"
+import { formatBurstLabel } from "@/lib/bursts"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { ChevronDown, Trash2 } from "lucide-react"
+import { ChevronDown, Copy, Plus, Trash2 } from "lucide-react"
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
 import type { LineItem } from '@/lib/generateMediaPlan'
 
@@ -82,6 +83,10 @@ const radioLineItemSchema = z.object({
   clientPaysForMedia: z.boolean().default(false),
   budgetIncludesFees: z.boolean().default(false),
   noadserving: z.boolean().default(false),
+  lineItemId: z.string().optional(),
+  line_item_id: z.string().optional(),
+  line_item: z.union([z.string(), z.number()]).optional(),
+  lineItem: z.union([z.string(), z.number()]).optional(),
   bursts: z.array(radioBurstSchema).min(1, "At least one burst is required"),
   totalMedia: z.number().optional(),
   totalDeliverables: z.number().optional(),
@@ -277,6 +282,25 @@ export function calculateBurstInvestmentPerMonth(form, feeradio) {
   }));
 }
 
+const computeLoadedDeliverables = (buyType: string, burst: any) => {
+  const budget = parseFloat(String(burst?.budget ?? "0").replace(/[^0-9.]/g, "")) || 0;
+  const buyAmount = parseFloat(String(burst?.buyAmount ?? "1").replace(/[^0-9.]/g, "")) || 0;
+
+  switch (buyType) {
+    case "package":
+    case "spots":
+      return buyAmount !== 0 ? budget / buyAmount : 0;
+    case "cpm":
+      return buyAmount !== 0 ? (budget / buyAmount) * 1000 : 0;
+    case "fixed_cost":
+      return 1;
+    case "bonus":
+      return parseFloat(String(burst?.calculatedValue ?? 0).replace(/[^0-9.]/g, "")) || 0;
+    default:
+      return parseFloat(String(burst?.calculatedValue ?? 0).replace(/[^0-9.]/g, "")) || 0;
+  }
+};
+
 export default function RadioContainer({
   clientId,
   feeradio,
@@ -305,6 +329,16 @@ export default function RadioContainer({
   const { toast } = useToast()
   const { mbaNumber } = useMediaPlanContext()
   const [overallDeliverables, setOverallDeliverables] = useState(0);
+
+  // Stable ID generator for line items to keep duplicates distinct in exports
+  const createLineItemId = () => {
+    const base = mbaNumber || "RAD";
+    const rand =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? (crypto as any).randomUUID()
+        : `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
+    return `${base}-${rand}`;
+  };
 
   const [isAddStationDialogOpen, setIsAddStationDialogOpen] = useState(false);
   const [newStationName, setNewStationName] = useState("");
@@ -397,6 +431,7 @@ export default function RadioContainer({
           clientPaysForMedia: false,
           budgetIncludesFees: false,
           noadserving: false,
+          ...(() => { const id = createLineItemId(); return { lineItemId: id, line_item_id: id, line_item: 1, lineItem: 1 }; })(),
           bursts: [
             {
               budget: "",
@@ -439,8 +474,15 @@ export default function RadioContainer({
       return;
     }
 
+    const newId = createLineItemId();
+    const lineNumber = (source.line_item ?? source.lineItem ?? lineItemIndex + 1) + 1;
+
     const clone = {
       ...source,
+      lineItemId: newId,
+      line_item_id: newId,
+      line_item: lineNumber,
+      lineItem: lineNumber,
       bursts: (source.bursts || []).map((burst: any) => ({
         ...burst,
         startDate: burst?.startDate ? new Date(burst.startDate) : new Date(),
@@ -545,12 +587,18 @@ export default function RadioContainer({
           buyAmount: burst.buyAmount || "",
           startDate: burst.startDate ? new Date(burst.startDate) : (campaignStartDate || new Date()),
           endDate: burst.endDate ? new Date(burst.endDate) : (campaignEndDate || new Date()),
+          calculatedValue: computeLoadedDeliverables(item.buy_type || item.buyType, burst),
+          fee: burst.fee ?? 0,
         })) : [{
           budget: "",
           buyAmount: "",
           startDate: campaignStartDate || new Date(),
           endDate: campaignEndDate || new Date(),
+          calculatedValue: computeLoadedDeliverables(item.buy_type || item.buyType, {}),
+          fee: 0,
         }];
+
+        const lineItemId = item.line_item_id || item.lineItemId || `${mbaNumber || "RAD"}-${index + 1}`;
 
         return {
           market: item.market || "",
@@ -566,6 +614,10 @@ export default function RadioContainer({
           clientPaysForMedia: item.client_pays_for_media || false,
           budgetIncludesFees: item.budget_includes_fees || false,
           noadserving: item.no_adserving || false,
+          lineItemId,
+          line_item_id: lineItemId,
+          line_item: item.line_item ?? item.lineItem ?? index + 1,
+          lineItem: item.lineItem ?? item.line_item ?? index + 1,
           bursts: bursts,
         };
       });
@@ -597,6 +649,8 @@ export default function RadioContainer({
           totalMedia += budget;
         }
       });
+      const lineItemId = lineItem.lineItemId || lineItem.line_item_id || `${mbaNumber || "RAD"}-${index + 1}`;
+      const lineNumber = lineItem.line_item ?? lineItem.lineItem ?? index + 1;
 
       // Format bursts for API
       const formattedBursts = lineItem.bursts.map(burst => ({
@@ -629,10 +683,10 @@ export default function RadioContainer({
         client_pays_for_media: lineItem.clientPaysForMedia || false,
         budget_includes_fees: lineItem.budgetIncludesFees || false,
         no_adserving: lineItem.noadserving || false,
-        line_item_id: `${mbaNumber || 'RAD'}${index + 1}`,
+        line_item_id: lineItemId,
         bursts: formattedBursts, // Include bursts array for extractAndFormatBursts()
         bursts_json: JSON.stringify(formattedBursts), // Also include as JSON string for compatibility
-        line_item: index + 1,
+        line_item: lineNumber,
         totalMedia: totalMedia,
       };
     });
@@ -1006,12 +1060,19 @@ useEffect(() => {
   const calculatedBursts = getRadioBursts(form, feeradio || 0);
   let burstIndex = 0;
 
-  const items: LineItem[] = form.getValues('radiolineItems').flatMap(lineItem =>
+  const items: LineItem[] = form.getValues('radiolineItems').flatMap((lineItem, lineItemIndex) =>
     lineItem.bursts.map(burst => {
       const computedBurst = calculatedBursts[burstIndex++];
       const mediaAmount = computedBurst
         ? computedBurst.mediaAmount
         : parseFloat(String(burst.budget).replace(/[^0-9.-]+/g, "")) || 0;
+      let lineItemId = lineItem.lineItemId || lineItem.line_item_id;
+      if (!lineItemId) {
+        lineItemId = createLineItemId();
+        form.setValue(`radiolineItems.${lineItemIndex}.lineItemId`, lineItemId);
+        form.setValue(`radiolineItems.${lineItemIndex}.line_item_id`, lineItemId);
+      }
+      const lineNumber = lineItem.line_item ?? lineItem.lineItem ?? lineItemIndex + 1;
 
       return {
         market: lineItem.market,                                // or fixed value
@@ -1028,6 +1089,10 @@ useEffect(() => {
         buyType:      lineItem.buyType,
         deliverablesAmount: burst.budget,
         grossMedia: mediaAmount.toFixed(2),
+        line_item_id: lineItemId,
+        lineItemId: lineItemId,
+        line_item: lineNumber,
+        lineItem: lineNumber,
       };
     })
   );
@@ -1164,6 +1229,9 @@ useEffect(() => {
             <Form {...form}>
               <div className="space-y-6">
                 {lineItemFields.map((field, lineItemIndex) => {
+                  const sectionId = `radio-line-item-${lineItemIndex}`;
+                  const burstsId = `${sectionId}-bursts`;
+                  const footerId = `${sectionId}-footer`;
                   const getTotals = (lineItemIndex: number) => {
                     const lineItem = form.getValues(`radiolineItems.${lineItemIndex}`);
                     let totalMedia = 0;
@@ -1217,9 +1285,9 @@ useEffect(() => {
                               variant="outline" 
                               size="sm"
                               onClick={() => {
-                                const element = document.getElementById(`line-item-${lineItemIndex}`);
-                                const bursts = document.getElementById(`line-item-${lineItemIndex}-bursts`);
-                                const footer = document.getElementById(`line-item-${lineItemIndex}-footer`);
+                                const element = document.getElementById(sectionId);
+                                const bursts = document.getElementById(burstsId);
+                                const footer = document.getElementById(footerId);
                                 element?.classList.toggle('hidden');
                                 bursts?.classList.toggle('hidden');
                                 footer?.classList.toggle('hidden');
@@ -1251,7 +1319,7 @@ useEffect(() => {
                       
                       {/* Detailed Content - Collapsible */}
                       <div
-                        id={`line-item-${lineItemIndex}`}
+                        id={sectionId}
                         className="bg-white rounded-xl shadow p-6 mb-6"
                       >
                         <CardContent className="space-y-6">
@@ -1491,41 +1559,29 @@ useEffect(() => {
                                 />
                               </div>
 
-                              <div className="flex space-x-2 self-end mt-4">
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="default"
-                                  onClick={() => handleDuplicateBurst(lineItemIndex)}
-                                >
-                                  Duplicate Burst
-                                </Button>
-                                <Button
-                                  type="button"
-                                  size="default"
-                                  onClick={() => handleAppendBurst(lineItemIndex)}
-                                >
-                                  Add Burst
-                                </Button>
-                              </div>
                             </div>
                           </div>
                         </CardContent>
                       </div>
 
-                      {/* Bursts Section */}
-                      <div id={`line-item-${lineItemIndex}-bursts`} className="space-y-4">
+                      <div id={burstsId} className="space-y-4">
                         {form.watch(`radiolineItems.${lineItemIndex}.bursts`, []).map((burstField, burstIndex) => {
                           const buyType = form.watch(`radiolineItems.${lineItemIndex}.buyType`);
                           return (
-                            <Card key={`${lineItemIndex}-${burstIndex}`} className="border border-gray-200">
+                            <Card key={`${lineItemIndex}-${burstIndex}`} className="border border-gray-200 bg-muted/30 mx-2">
                               <CardContent className="py-2 px-4">
-                                <div className="flex items-center space-x-4">
+                                <div className="flex items-center gap-3">
                                   <div className="w-24 flex-shrink-0">
-                                    <h4 className="text-sm font-medium">Burst {burstIndex + 1}</h4>
+                                    <h4 className="text-sm font-medium">
+                                      {formatBurstLabel(
+                                        burstIndex + 1,
+                                        form.watch(`radiolineItems.${lineItemIndex}.bursts.${burstIndex}.startDate`),
+                                        form.watch(`radiolineItems.${lineItemIndex}.bursts.${burstIndex}.endDate`)
+                                      )}
+                                    </h4>
                                   </div>
                                   
-                                  <div className="grid grid-cols-5 gap-4 items-center flex-grow">
+                                  <div className="grid grid-cols-7 gap-3 items-center flex-grow">
                                     <FormField
                                       control={form.control}
                                       name={`radiolineItems.${lineItemIndex}.bursts.${burstIndex}.budget`}
@@ -1536,7 +1592,7 @@ useEffect(() => {
                                             <Input
                                               {...field}
                                               type="text"
-                                              className="w-full"
+                                              className="w-full min-w-[9rem] h-10 text-sm"
                                               value={buyType === "bonus" ? "0" : field.value}
                                               disabled={buyType === "bonus"}
                                               onChange={(e) => {
@@ -1572,7 +1628,7 @@ useEffect(() => {
                                             <Input
                                               {...field}
                                               type="text"
-                                              className="w-full"
+                                              className="w-full min-w-[9rem] h-10 text-sm"
                                               value={buyType === "bonus" ? "0" : field.value}
                                               disabled={buyType === "bonus"}
                                               onChange={(e) => {
@@ -1598,7 +1654,7 @@ useEffect(() => {
                                       )}
                                     />
 
-                                    <div className="grid grid-cols-2 gap-2">
+                                    <div className="grid grid-cols-2 gap-2 col-span-2">
                                       <FormField
                                         control={form.control}
                                         name={`radiolineItems.${lineItemIndex}.bursts.${burstIndex}.startDate`}
@@ -1611,7 +1667,7 @@ useEffect(() => {
                                                   <Button
                                                     variant={"outline"}
                                                     className={cn(
-                                                      "w-full pl-2 text-left font-normal text-xs h-8",
+                                                      "w-full h-10 pl-2 text-left font-normal text-sm",
                                                       !field.value && "text-muted-foreground",
                                                     )}
                                                   >
@@ -1649,7 +1705,7 @@ useEffect(() => {
                                                   <Button
                                                     variant={"outline"}
                                                     className={cn(
-                                                      "w-full pl-2 text-left font-normal text-xs h-8",
+                                                      "w-full h-10 pl-2 text-left font-normal text-sm",
                                                       !field.value && "text-muted-foreground",
                                                     )}
                                                   >
@@ -1758,7 +1814,7 @@ useEffect(() => {
                                             <FormControl>
                                               <Input
                                                 type="text"
-                                                className="w-full"
+                                                className="w-full min-w-[8rem] h-10 text-sm"
                                                 value={Number(calculatedValue).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                                                 readOnly
                                               />
@@ -1768,58 +1824,75 @@ useEffect(() => {
                                       }}
                                     />
 
-                                    {/* Add Fee and Media Calculation Fields */}
-                                    <div className="flex flex-col space-y-2">
-                                      <div className="grid grid-cols-2 gap-2">
-                                        <div className="flex flex-col">
-                                          <FormLabel className="text-xs">Media</FormLabel>
-                                          <Input
-                                            type="text"
-                                            className="w-full"
-                                            value={new Intl.NumberFormat("en-US", {
-                                              style: "currency",
-                                              currency: "USD",
-                                              minimumFractionDigits: 2,
-                                              maximumFractionDigits: 2,
-                                            }).format(
-                                              form.getValues(`radiolineItems.${lineItemIndex}.budgetIncludesFees`)
-                                                ? (parseFloat(form.getValues(`radiolineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (100 - (feeradio || 0))
-                                                : parseFloat(form.getValues(`radiolineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0")
-                                            )}
-                                            readOnly
-                                          />
-                                        </div>
-                                        <div className="flex flex-col">
-                                          <FormLabel className="text-xs">Fee ({feeradio}%)</FormLabel>
-                                          <Input
-                                            type="text"
-                                            className="w-full"
-                                            value={new Intl.NumberFormat("en-US", {
-                                              style: "currency",
-                                              currency: "USD",
-                                              minimumFractionDigits: 2,
-                                              maximumFractionDigits: 2,
-                                            }).format(
-                                              form.getValues(`radiolineItems.${lineItemIndex}.budgetIncludesFees`)
-                                                ? (parseFloat(form.getValues(`radiolineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (feeradio || 0)
-                                                : (parseFloat(form.getValues(`radiolineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / (100 - (feeradio || 0))) * (feeradio || 0)
-                                            )}
-                                            readOnly
-                                          />
-                                        </div>
-                                      </div>
+                                    <div className="space-y-1">
+                                      <FormLabel className="text-xs leading-tight">Media</FormLabel>
+                                      <Input
+                                        type="text"
+                                        className="w-full h-10 text-sm"
+                                        value={new Intl.NumberFormat("en-US", {
+                                          style: "currency",
+                                          currency: "USD",
+                                          minimumFractionDigits: 2,
+                                          maximumFractionDigits: 2,
+                                        }).format(
+                                          form.getValues(`radiolineItems.${lineItemIndex}.budgetIncludesFees`)
+                                            ? (parseFloat(form.getValues(`radiolineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (100 - (feeradio || 0))
+                                            : parseFloat(form.getValues(`radiolineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0")
+                                        )}
+                                        readOnly
+                                      />
+                                    </div>
+                                    <div className="space-y-1">
+                                      <FormLabel className="text-xs leading-tight">Fee ({feeradio}%)</FormLabel>
+                                      <Input
+                                        type="text"
+                                        className="w-full h-10 text-sm"
+                                        value={new Intl.NumberFormat("en-US", {
+                                          style: "currency",
+                                          currency: "USD",
+                                          minimumFractionDigits: 2,
+                                          maximumFractionDigits: 2,
+                                        }).format(
+                                          form.getValues(`radiolineItems.${lineItemIndex}.budgetIncludesFees`)
+                                            ? (parseFloat(form.getValues(`radiolineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (feeradio || 0)
+                                            : (parseFloat(form.getValues(`radiolineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / (100 - (feeradio || 0))) * (feeradio || 0)
+                                        )}
+                                        readOnly
+                                      />
                                     </div>
                                   </div>
                                   
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 p-0"
-                                    onClick={() => handleRemoveBurst(lineItemIndex, burstIndex)}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
+                                  <div className="flex items-end gap-2 self-end pb-1">
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-10 text-sm px-3"
+                                      onClick={() => handleAppendBurst(lineItemIndex)}
+                                    >
+                                      <Plus className="h-4 w-4 mr-1" />
+                                      Add
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-10 text-sm px-3"
+                                      onClick={() => handleDuplicateBurst(lineItemIndex)}
+                                    >
+                                      <Copy className="h-4 w-4 mr-1" />
+                                      Duplicate
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-10 text-sm px-3"
+                                      onClick={() => handleRemoveBurst(lineItemIndex, burstIndex)}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </div>
                                 </div>
                               </CardContent>
                             </Card>
@@ -1827,12 +1900,13 @@ useEffect(() => {
                         })}
                       </div>
 
-                      <CardFooter id={`line-item-${lineItemIndex}-footer`} className="flex justify-end space-x-2 pt-2">
+                      <CardFooter id={footerId} className="flex justify-end space-x-2 pt-2">
                         <Button
                           type="button"
                           variant="outline"
                           onClick={() => handleDuplicateLineItem(lineItemIndex)}
                         >
+                          <Copy className="h-4 w-4 mr-2" />
                           Duplicate Line Item
                         </Button>
                         {lineItemIndex === lineItemFields.length - 1 && (
@@ -1856,6 +1930,7 @@ useEffect(() => {
                                 clientPaysForMedia: false,
                                 budgetIncludesFees: false,
                                 noadserving: false,
+                                ...(() => { const id = createLineItemId(); return { lineItemId: id, line_item_id: id, line_item: lineItemFields.length + 1, lineItem: lineItemFields.length + 1 }; })(),
                                 bursts: [
                                   {
                                     budget: "",
@@ -1872,10 +1947,12 @@ useEffect(() => {
                               })
                             }
                           >
+                            <Plus className="h-4 w-4 mr-2" />
                             Add Line Item
                           </Button>
                         )}
                         <Button type="button" variant="destructive" onClick={() => removeLineItem(lineItemIndex)}>
+                          <Trash2 className="h-4 w-4 mr-2" />
                           Remove Line Item
                         </Button>
                       </CardFooter>

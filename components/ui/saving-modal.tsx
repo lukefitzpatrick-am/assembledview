@@ -1,8 +1,10 @@
 "use client"
 
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
-import { Check, X, Loader2 } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Check, X } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { LoadingDots } from "@/components/ui/loading-dots"
 
 export interface SaveStatusItem {
   name: string;
@@ -13,19 +15,43 @@ export interface SaveStatusItem {
 interface SavingModalProps {
   isOpen: boolean;
   items?: SaveStatusItem[];
+  isSaving?: boolean;
+  onClose?: () => void;
 }
 
-export function SavingModal({ isOpen, items = [] }: SavingModalProps) {
+export function SavingModal({ isOpen, items = [], isSaving = false, onClose }: SavingModalProps) {
   const hasItems = items.length > 0;
   const allComplete = items.length > 0 && items.every(item => item.status !== 'pending');
   const hasErrors = items.some(item => item.status === 'error');
+  const canClose = !isSaving;
+
+  const handleClose = () => {
+    if (!canClose) return;
+    onClose?.();
+  };
 
   return (
-    <Dialog open={isOpen} onOpenChange={() => {}}>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) {
+          handleClose();
+        }
+      }}
+    >
       <DialogContent className="sm:max-w-[500px] flex flex-col min-h-[200px] gap-4 bg-background border-2 border-secondary">
         <DialogTitle className="text-lg font-semibold">
           {hasErrors ? "Saving with Errors" : allComplete ? "Saving Complete" : "Saving Changes"}
         </DialogTitle>
+        {hasItems && (
+          <DialogDescription className={cn("text-sm", hasErrors ? "text-destructive" : "text-muted-foreground")}>
+            {hasErrors
+              ? "Some sections failed to save. Review the errors below and fix them before retrying."
+              : isSaving
+                ? "We are saving your changes. This may take a moment."
+                : "All sections have been processed."}
+          </DialogDescription>
+        )}
         
         {hasItems ? (
           <div className="flex flex-col gap-3 max-h-[400px] overflow-y-auto">
@@ -40,7 +66,7 @@ export function SavingModal({ isOpen, items = [] }: SavingModalProps) {
               >
                 <div className="flex-shrink-0 w-5 h-5 flex items-center justify-center">
                   {item.status === 'pending' && (
-                    <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                    <LoadingDots size="sm" dotClassName="bg-muted-foreground" aria-label="Saving" />
                   )}
                   {item.status === 'success' && (
                     <Check className="w-5 h-5 text-green-600" />
@@ -68,6 +94,19 @@ export function SavingModal({ isOpen, items = [] }: SavingModalProps) {
             <DialogDescription className="text-lg font-semibold text-foreground">
               Saving changes...
             </DialogDescription>
+          </div>
+        )}
+
+        {(hasErrors || (!isSaving && allComplete)) && (
+          <div className="flex justify-end">
+            <Button
+              variant={hasErrors ? "destructive" : "outline"}
+              size="sm"
+              onClick={handleClose}
+              disabled={!canClose}
+            >
+              {hasErrors ? "Dismiss" : "Close"}
+            </Button>
           </div>
         )}
       </DialogContent>

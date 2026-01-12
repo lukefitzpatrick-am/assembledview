@@ -128,17 +128,19 @@ interface DigitalVideoLineItem {
 export interface ProductionLineItem {
   id?: number;
   created_at?: number;
-  media_plan_version: number;
-  mba_number: string;
-  mp_client_name: string;
-  mp_plannumber: string;
+  media_plan_version?: number;
+  version_number?: number;
+  mba_number?: string;
+  mp_client_name?: string;
+  mp_plannumber?: string;
   media_type: string;
   publisher: string;
-  description: string;
   market?: string;
-  line_item_id: string;
-  bursts_json: any;
-  line_item: number;
+  description?: string;
+  bursts: any[];
+  bursts_json?: any;
+  line_item_id?: string;
+  line_item?: number;
 }
 
 interface MagazinesLineItem {
@@ -2668,60 +2670,82 @@ export async function saveProductionLineItems(
   productionLineItems: any[]
 ) {
   try {
-    const savePromises = productionLineItems.map(async (lineItem, index) => {
-      let rawBursts: any[] = [];
+    const coerceNumber = (value: any) =>
+      typeof value === 'string'
+        ? parseFloat(value.replace(/[^0-9.-]/g, '')) || 0
+        : Number(value ?? 0)
+
+    const toDateString = (value: any) => {
+      if (!value) return ""
+      if (value instanceof Date) return toMelbourneDateString(value)
+      return value
+    }
+
+    const normalizeBursts = (lineItem: any) => {
+      let bursts: any[] = []
+
       if (Array.isArray(lineItem.bursts)) {
-        rawBursts = lineItem.bursts;
+        bursts = lineItem.bursts
       } else if (Array.isArray(lineItem.bursts_json)) {
-        rawBursts = lineItem.bursts_json;
+        bursts = lineItem.bursts_json
       } else if (typeof lineItem.bursts_json === 'string') {
         try {
-          const parsed = JSON.parse(lineItem.bursts_json);
-          if (Array.isArray(parsed)) {
-            rawBursts = parsed;
-          }
+          const parsed = JSON.parse(lineItem.bursts_json)
+          bursts = Array.isArray(parsed) ? parsed : []
         } catch (err) {
-          console.warn('Failed to parse production bursts_json', err);
+          console.warn('Failed to parse production bursts_json', err)
         }
+      } else if (lineItem.startDate || lineItem.endDate) {
+        // Handle flattened line item payloads (one burst per line item)
+        bursts = [{
+          cost: lineItem.cost ?? lineItem.deliverablesAmount ?? 0,
+          amount: lineItem.amount ?? lineItem.deliverables ?? 0,
+          startDate: lineItem.startDate,
+          endDate: lineItem.endDate,
+        }]
       }
 
-      const formattedBursts = rawBursts.map((burst: any) => {
-        const cost = typeof burst.cost === 'string'
-          ? parseFloat(burst.cost.replace(/[^0-9.-]/g, '')) || 0
-          : Number(burst.cost ?? 0);
-        const amount = typeof burst.amount === 'string'
-          ? parseFloat(burst.amount.replace(/[^0-9.-]/g, '')) || 0
-          : Number(burst.amount ?? 0);
+      return (bursts || []).map((burst: any) => ({
+        cost: coerceNumber(burst.cost ?? burst.budget ?? burst.mediaValue),
+        amount: coerceNumber(burst.amount ?? burst.deliverables ?? burst.buyAmount),
+        startDate: toDateString(burst.startDate || burst.start_date),
+        endDate: toDateString(burst.endDate || burst.end_date),
+        description: burst.description ?? lineItem.description ?? "",
+        market: burst.market ?? lineItem.market ?? "",
+      }))
+    }
 
-        const mediaValue = Number.isFinite(cost * amount) ? cost * amount : 0;
-        const calculatedValue = burst.calculatedValue ?? amount ?? 0;
+    const pickField = (lineItem: any, candidates: string[], defaultValue = "") => {
+      for (const key of candidates) {
+        const value = lineItem[key]
+        if (value !== undefined && value !== null && value !== "") {
+          return value
+        }
+      }
+      return defaultValue
+    }
 
-        const toDateString = (value: any) =>
-          value instanceof Date ? toMelbourneDateString(value) : value ?? "";
-
-        return {
-          ...burst,
-          cost,
-          amount,
-          calculatedValue,
-          mediaValue,
-          startDate: toDateString(burst.startDate),
-          endDate: toDateString(burst.endDate),
-        };
-      });
-
+    const savePromises = productionLineItems.map(async (lineItem, index) => {
+      const formattedBursts = normalizeBursts(lineItem)
       const { line_item_id, line_item } = buildLineItemMeta(lineItem, mbaNumber, index, 'PROD');
+
+      const mediaType = pickField(lineItem, ['media_type', 'mediaType', 'platform'], '')
+      const publisher = pickField(lineItem, ['publisher', 'network', 'site'], '')
+      const description = pickField(lineItem, ['description', 'creative'], '')
+      const market = pickField(lineItem, ['market'], '')
 
       const productionData: ProductionLineItem = {
         media_plan_version: mediaPlanVersionId,
+        version_number: coerceNumber(planNumber) || mediaPlanVersionId,
         mba_number: mbaNumber,
         mp_client_name: clientName,
         mp_plannumber: planNumber,
-        media_type: getField(lineItem, 'media_type', 'mediaType', ''),
-        publisher: getField(lineItem, 'publisher', 'publisher', ''),
-        description: getField(lineItem, 'description', 'description', ''),
-        market: getField(lineItem, 'market', 'market', ''),
+        media_type: mediaType,
+        publisher,
+        description,
+        market,
         line_item_id,
+        bursts: formattedBursts,
         bursts_json: formattedBursts,
         line_item,
       };
@@ -3671,10 +3695,16 @@ export async function saveProgAudioLineItems(mediaPlanVersionId: number, mbaNumb
         mba_number: mbaNumber,
         mp_client_name: clientName,
         mp_plannumber: planNumber,
+        platform: getField(lineItem, 'platform', 'platform', ''),
+        bid_strategy: getField(lineItem, 'bid_strategy', 'bidStrategy', ''),
         site: getField(lineItem, 'site', 'site', ''),
         placement: getField(lineItem, 'placement', 'placement', ''),
         buy_type: getField(lineItem, 'buy_type', 'buyType', ''),
         targeting_attribute: getField(lineItem, 'targeting_attribute', 'targetingAttribute', ''),
+        creative_targeting: getField(lineItem, 'creative_targeting', 'creativeTargeting', ''),
+        creative: getField(lineItem, 'creative', 'creative', ''),
+        buying_demo: getField(lineItem, 'buying_demo', 'buyingDemo', ''),
+        market: getField(lineItem, 'market', 'market', ''),
         fixed_cost_media: getBooleanField(lineItem, 'fixed_cost_media', 'fixedCostMedia', false),
         client_pays_for_media: getBooleanField(lineItem, 'client_pays_for_media', 'clientPaysForMedia', false),
         budget_includes_fees: getBooleanField(lineItem, 'budget_includes_fees', 'budgetIncludesFees', false),

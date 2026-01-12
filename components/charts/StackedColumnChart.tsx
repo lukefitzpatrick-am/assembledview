@@ -23,6 +23,14 @@ const DEFAULT_COLORS = [
   '#ff00ff', '#00ffff', '#ff0000', '#0000ff', '#ffff00'
 ]
 
+const formatCurrencyNoDecimals = (value: number) =>
+  new Intl.NumberFormat('en-AU', {
+    style: 'currency',
+    currency: 'AUD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0
+  }).format(value)
+
 export function StackedColumnChart({ title, description, data, colors = DEFAULT_COLORS, onExport }: StackedColumnChartProps) {
   // Extract all media types across all rows (not just the first) to avoid empty charts when the first month has no data
   const mediaTypes = Array.from(
@@ -73,9 +81,9 @@ export function StackedColumnChart({ title, description, data, colors = DEFAULT_
             <BarChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month" />
-              <YAxis />
+              <YAxis tickFormatter={formatCurrencyNoDecimals} tick={{ fontSize: 11 }} />
               <Tooltip 
-                formatter={(value: number, name: string) => [`$${value.toLocaleString()}`, name]}
+                formatter={(value: number, name: string) => [formatCurrencyNoDecimals(value), name]}
                 labelFormatter={(label) => `Month: ${label}`}
               />
               <Legend />

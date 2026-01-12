@@ -12,9 +12,10 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { CalendarIcon, Check, ChevronsUpDown, Copy, Plus, Trash2 } from "lucide-react"
+import { CalendarIcon, Check, ChevronDown, ChevronsUpDown, Copy, Plus, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { BillingBurst } from "@/lib/billing/types"
+import { formatBurstLabel } from "@/lib/bursts"
 import type { LineItem } from "@/lib/generateMediaPlan"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
@@ -79,11 +80,13 @@ interface ProductionContainerProps {
   onBurstsChange: (bursts: BillingBurst[]) => void
   onInvestmentChange: (investmentByMonth: any) => void
   onLineItemsChange: (items: LineItem[]) => void
+  onMediaLineItemsChange?: (items: any[]) => void
   campaignStartDate: Date
   campaignEndDate: Date
   campaignBudget: number
   campaignId: string
   mediaTypes: Array<string | MediaTypeOption>
+  initialLineItems?: any[]
 }
 
 const getYesterday = () => {
@@ -215,11 +218,13 @@ export default function ProductionContainer({
   onBurstsChange,
   onInvestmentChange,
   onLineItemsChange,
+  onMediaLineItemsChange,
   campaignStartDate,
   campaignEndDate,
   campaignBudget,
   campaignId,
   mediaTypes,
+  initialLineItems = [],
 }: ProductionContainerProps) {
   const { mbaNumber } = useMediaPlanContext()
   const mediaTypeOptions = useMemo(() => buildMediaTypeOptions(mediaTypes), [mediaTypes])
@@ -230,6 +235,7 @@ export default function ProductionContainer({
   const burstsChangeRef = useRef(onBurstsChange)
   const investmentChangeRef = useRef(onInvestmentChange)
   const lineItemsChangeRef = useRef(onLineItemsChange)
+  const mediaLineItemsChangeRef = useRef(onMediaLineItemsChange)
 
   useEffect(() => {
     totalMediaChangeRef.current = onTotalMediaChange
@@ -246,6 +252,10 @@ export default function ProductionContainer({
   useEffect(() => {
     lineItemsChangeRef.current = onLineItemsChange
   }, [onLineItemsChange])
+
+  useEffect(() => {
+    mediaLineItemsChangeRef.current = onMediaLineItemsChange
+  }, [onMediaLineItemsChange])
 
   const form = useForm<ProductionFormValues>({
     resolver: zodResolver(formSchema),
@@ -278,6 +288,47 @@ export default function ProductionContainer({
     name: "lineItems",
   })
 
+  // Hydrate form when initialLineItems are provided (edit flow)
+  useEffect(() => {
+    if (!initialLineItems || initialLineItems.length === 0) return
+    try {
+      const normalized = initialLineItems.map((item: any, idx: number) => {
+        const rawBursts =
+          typeof item.bursts_json === "string"
+            ? (() => {
+                try {
+                  const parsed = JSON.parse(item.bursts_json)
+                  return Array.isArray(parsed) ? parsed : []
+                } catch {
+                  return []
+                }
+              })()
+            : (item.bursts_json ?? item.bursts ?? [])
+
+        const bursts = (rawBursts || []).map((burst: any) => {
+          const cost = typeof burst.cost === "string" ? parseFloat(burst.cost.replace(/[^0-9.-]/g, "")) || 0 : Number(burst.cost || 0)
+          const amountRaw = burst.amount ?? burst.deliverables ?? 0
+          const amount = typeof amountRaw === "string" ? parseFloat(amountRaw.replace(/[^0-9.-]/g, "")) || 0 : Number(amountRaw || 0)
+          const startDate = toDateOnly(burst.startDate || burst.start_date) || getYesterday()
+          const endDate = toDateOnly(burst.endDate || burst.end_date) || getPeriodEnd(startDate)
+          return { cost, amount, startDate, endDate }
+        })
+
+        return {
+          mediaType: item.mediaType || item.platform || item.media_type || "",
+          publisher: item.publisher || item.network || "",
+          description: item.description || item.creative || "",
+          market: item.market || "",
+          lineItemId: item.line_item_id || item.lineItemId || `${campaignId || "MBA"}PROD${idx + 1}`,
+          bursts: bursts.length > 0 ? bursts : [defaultBurst()],
+        }
+      })
+      form.setValue("lineItems", normalized, { shouldDirty: false })
+    } catch (err) {
+      console.warn("[ProductionContainer] Failed to hydrate initial line items", err)
+    }
+  }, [initialLineItems, form, campaignId])
+
   const totals = useMemo(() => {
     const totalMedia = watchedLineItems?.reduce((sum, li) => {
       const burstSum = li.bursts.reduce(
@@ -289,13 +340,36 @@ export default function ProductionContainer({
     return { totalMedia }
   }, [watchedLineItems])
 
+  const apiLineItems = useMemo(() => {
+    return (watchedLineItems || []).map((lineItem, index) => ({
+      media_plan_version: 0,
+      mba_number: mbaNumber || "",
+      mp_client_name: "",
+      mp_plannumber: "",
+      media_type: lineItem.mediaType || "",
+      publisher: lineItem.publisher || "",
+      market: lineItem.market || "",
+      description: lineItem.description || "",
+      line_item_id: lineItem.lineItemId || `${mbaNumber || "MBA"}PROD${index + 1}`,
+      bursts: (lineItem.bursts || []).map((burst) => ({
+        cost: Number(burst.cost) || 0,
+        amount: Number(burst.amount) || 0,
+        startDate: formatDateString(burst.startDate),
+        endDate: formatDateString(burst.endDate),
+      })),
+      line_item: index + 1,
+    }))
+  }, [watchedLineItems, mbaNumber])
+
   useEffect(() => {
     const bursts = buildBillingBursts(watchedLineItems || [])
     totalMediaChangeRef.current?.(totals.totalMedia, 0)
     burstsChangeRef.current?.(bursts)
     investmentChangeRef.current?.(buildInvestmentByMonth(bursts))
-    lineItemsChangeRef.current?.(mapLineItemsForExport(watchedLineItems || [], mbaNumber || "MBA"))
-  }, [watchedLineItems, totals.totalMedia, mbaNumber])
+    const mappedLineItems = mapLineItemsForExport(watchedLineItems || [], mbaNumber || "MBA")
+    lineItemsChangeRef.current?.(mappedLineItems)
+    mediaLineItemsChangeRef.current?.(apiLineItems)
+  }, [watchedLineItems, totals.totalMedia, mbaNumber, apiLineItems])
 
   const handleAddLineItem = () => {
     appendLineItem({
@@ -380,17 +454,45 @@ export default function ProductionContainer({
             const lineItemId =
               form.watch(`lineItems.${lineItemIndex}.lineItemId`) ||
               `${mbaNumber || "MBA"}PROD${lineItemIndex + 1}`
+            const lineItemBursts = form.watch(`lineItems.${lineItemIndex}.bursts`) || []
+            const lineItemMediaTotal =
+              lineItemBursts.reduce(
+                (sum, burst) => sum + (burst.cost || 0) * (burst.amount || 0),
+                0
+              ) || 0
 
             return (
               <Card key={field.id} className="space-y-4">
-                <CardHeader className="flex justify-between">
-                  <div>
-                    <CardTitle className="text-lg font-semibold">
-                      Production Line Item {lineItemIndex + 1}
-                    </CardTitle>
-                    <div className="text-sm text-muted-foreground">ID: {lineItemId}</div>
+                <CardHeader className="flex flex-col gap-2">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <CardTitle className="text-lg font-semibold">
+                        Production Line Item {lineItemIndex + 1}
+                      </CardTitle>
+                      <div className="text-sm text-muted-foreground">ID: {lineItemId}</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-sm font-medium whitespace-nowrap">
+                        Media: ${lineItemMediaTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const details = document.getElementById(`production-line-item-${lineItemIndex}`)
+                          const bursts = document.getElementById(`production-line-item-${lineItemIndex}-bursts`)
+                          const footer = document.getElementById(`production-line-item-${lineItemIndex}-footer`)
+                          details?.classList.toggle("hidden")
+                          bursts?.classList.toggle("hidden")
+                          footer?.classList.toggle("hidden")
+                        }}
+                      >
+                        <ChevronDown className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <Button variant="outline" size="sm" type="button" onClick={() => handleDuplicateLineItem(lineItemIndex)}>
                       <Copy className="h-4 w-4 mr-1" /> Duplicate
                     </Button>
@@ -400,128 +502,152 @@ export default function ProductionContainer({
                   </div>
                 </CardHeader>
 
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <FormField
-                      control={form.control}
-                      name={`lineItems.${lineItemIndex}.mediaType`}
-                      render={({ field }) => {
-                        const selectedOption = mediaTypeOptions.find((option) => option.value === field.value)
-                        const isOpen = openMediaIndex === lineItemIndex
+                <div className="px-6 py-2 border-b">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+                    <div>
+                      <span className="font-medium">Media Type:</span>{" "}
+                      {form.watch(`lineItems.${lineItemIndex}.mediaType`) || "Not selected"}
+                    </div>
+                    <div>
+                      <span className="font-medium">Publisher:</span>{" "}
+                      {form.watch(`lineItems.${lineItemIndex}.publisher`) || "Not provided"}
+                    </div>
+                    <div>
+                      <span className="font-medium">Market:</span>{" "}
+                      {form.watch(`lineItems.${lineItemIndex}.market`) || "Not provided"}
+                    </div>
+                    <div>
+                      <span className="font-medium">Bursts:</span> {lineItemBursts.length}
+                    </div>
+                  </div>
+                </div>
 
-                        return (
+                <div id={`production-line-item-${lineItemIndex}`} className="space-y-4">
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <FormField
+                        control={form.control}
+                        name={`lineItems.${lineItemIndex}.mediaType`}
+                        render={({ field }) => {
+                          const selectedOption = mediaTypeOptions.find((option) => option.value === field.value)
+                          const isOpen = openMediaIndex === lineItemIndex
+
+                          return (
+                            <FormItem>
+                              <FormLabel>Media Type</FormLabel>
+                              <Popover open={isOpen} onOpenChange={(open) => setOpenMediaIndex(open ? lineItemIndex : null)}>
+                                <PopoverTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    role="combobox"
+                                    aria-expanded={isOpen}
+                                    className="w-full justify-between"
+                                  >
+                                    <span className="truncate">
+                                      {selectedOption ? selectedOption.label : "Select media type"}
+                                    </span>
+                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-[280px] p-0" align="start">
+                                  <Command>
+                                    <CommandInput placeholder="Search media types..." />
+                                    <CommandList>
+                                      <CommandEmpty>No media types found.</CommandEmpty>
+                                      <CommandGroup>
+                                        {mediaTypeOptions.map((option) => {
+                                          const isSelected = option.value === field.value
+                                          return (
+                                            <CommandItem
+                                              key={option.value}
+                                              value={option.label}
+                                              onSelect={() => {
+                                                field.onChange(option.value)
+                                                setOpenMediaIndex(null)
+                                              }}
+                                            >
+                                              <Check
+                                                className={cn(
+                                                  "mr-2 h-4 w-4",
+                                                  isSelected ? "opacity-100" : "opacity-0"
+                                                )}
+                                              />
+                                              <span className="truncate">{option.label}</span>
+                                            </CommandItem>
+                                          )
+                                        })}
+                                      </CommandGroup>
+                                    </CommandList>
+                                  </Command>
+                                </PopoverContent>
+                              </Popover>
+                              <FormMessage />
+                            </FormItem>
+                          )
+                        }}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name={`lineItems.${lineItemIndex}.publisher`}
+                        render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Media Type</FormLabel>
-                            <Popover open={isOpen} onOpenChange={(open) => setOpenMediaIndex(open ? lineItemIndex : null)}>
-                              <PopoverTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  role="combobox"
-                                  aria-expanded={isOpen}
-                                  className="w-full justify-between"
-                                >
-                                  <span className="truncate">
-                                    {selectedOption ? selectedOption.label : "Select media type"}
-                                  </span>
-                                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-[280px] p-0" align="start">
-                                <Command>
-                                  <CommandInput placeholder="Search media types..." />
-                                  <CommandList>
-                                    <CommandEmpty>No media types found.</CommandEmpty>
-                                    <CommandGroup>
-                                      {mediaTypeOptions.map((option) => {
-                                        const isSelected = option.value === field.value
-                                        return (
-                                          <CommandItem
-                                            key={option.value}
-                                            value={option.label}
-                                            onSelect={() => {
-                                              field.onChange(option.value)
-                                              setOpenMediaIndex(null)
-                                            }}
-                                          >
-                                            <Check
-                                              className={cn(
-                                                "mr-2 h-4 w-4",
-                                                isSelected ? "opacity-100" : "opacity-0"
-                                              )}
-                                            />
-                                            <span className="truncate">{option.label}</span>
-                                          </CommandItem>
-                                        )
-                                      })}
-                                    </CommandGroup>
-                                  </CommandList>
-                                </Command>
-                              </PopoverContent>
-                            </Popover>
+                            <FormLabel>Publisher</FormLabel>
+                            <FormControl>
+                              <Input {...field} placeholder="Publisher" />
+                            </FormControl>
                             <FormMessage />
                           </FormItem>
-                        )
-                      }}
-                    />
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name={`lineItems.${lineItemIndex}.market`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Market</FormLabel>
+                            <FormControl>
+                              <Input {...field} placeholder="Market" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
 
                     <FormField
                       control={form.control}
-                      name={`lineItems.${lineItemIndex}.publisher`}
+                      name={`lineItems.${lineItemIndex}.description`}
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Publisher</FormLabel>
+                          <FormLabel>Description</FormLabel>
                           <FormControl>
-                            <Input {...field} placeholder="Publisher" />
+                            <Textarea {...field} placeholder="Description" className="min-h-[80px]" />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
 
-                    <FormField
-                      control={form.control}
-                      name={`lineItems.${lineItemIndex}.market`}
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Market</FormLabel>
-                          <FormControl>
-                            <Input {...field} placeholder="Market" />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  <FormField
-                    control={form.control}
-                    name={`lineItems.${lineItemIndex}.description`}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Description</FormLabel>
-                        <FormControl>
-                          <Textarea {...field} placeholder="Description" className="min-h-[80px]" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <h4 className="font-semibold text-base">Bursts</h4>
                       <Button type="button" size="sm" onClick={() => handleAddBurst(lineItemIndex)}>
                         <Plus className="h-4 w-4 mr-1" /> Add Burst
                       </Button>
                     </div>
+                  </CardContent>
 
-                    {(form.watch(`lineItems.${lineItemIndex}.bursts`) || []).map((burst, burstIndex) => {
+                  <div id={`production-line-item-${lineItemIndex}-bursts`} className="space-y-3 px-6 pb-4">
+                    {lineItemBursts.map((burst, burstIndex) => {
                       const mediaValue = (burst.cost || 0) * (burst.amount || 0)
                       return (
                         <Card key={`${lineItemIndex}-${burstIndex}`} className="bg-muted/30">
                           <CardContent className="pt-4 space-y-4">
                             <div className="flex items-center justify-between">
-                              <div className="font-medium">Burst {burstIndex + 1}</div>
+                              <div className="font-medium">
+                                {formatBurstLabel(burstIndex + 1, burst.startDate, burst.endDate)}
+                              </div>
                               <div className="flex gap-2">
                                 <Button
                                   type="button"
@@ -672,10 +798,13 @@ export default function ProductionContainer({
                       )
                     })}
                   </div>
-                </CardContent>
+                </div>
 
                 {lineItemIndex === lineItemFields.length - 1 && (
-                  <CardFooter className="flex justify-end">
+                  <CardFooter
+                    id={`production-line-item-${lineItemIndex}-footer`}
+                    className="flex justify-end"
+                  >
                     <Button type="button" onClick={handleAddLineItem}>
                       <Plus className="h-4 w-4 mr-1" /> Add Line Item
                     </Button>

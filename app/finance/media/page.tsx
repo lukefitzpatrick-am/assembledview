@@ -18,10 +18,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Loader2, Download } from "lucide-react"
+import { Download } from "lucide-react"
 import ExcelJS from "exceljs"
 import { saveAs } from "file-saver"
 import { format, addMonths, startOfMonth } from "date-fns"
+import { LoadingDots } from "@/components/ui/loading-dots"
 
 interface FinanceLineItem {
   itemCode: string
@@ -312,7 +313,7 @@ export default function FinanceMediaPage() {
           <Button onClick={loadData} disabled={loading}>
             {loading ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <LoadingDots size="sm" className="mr-2" />
                 Loading...
               </>
             ) : (
@@ -324,7 +325,7 @@ export default function FinanceMediaPage() {
 
       {loading && (
         <div className="flex justify-center items-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin" />
+          <LoadingDots size="md" />
         </div>
       )}
 

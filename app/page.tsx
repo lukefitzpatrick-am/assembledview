@@ -3,10 +3,10 @@
 import { useState, useEffect } from "react";
 import { useUser } from "@auth0/nextjs-auth0/client";
 import { motion } from "framer-motion";
-import { Loader2 } from "lucide-react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
+import { LoadingDots } from "@/components/ui/loading-dots";
 
 export default function HomePage() {
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -46,7 +46,7 @@ export default function HomePage() {
     return (
       <main className="w-full h-screen flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <LoadingDots size="md" />
           <p className="text-lg font-medium">Loading Assembled Media Overview...</p>
         </div>
       </main>
@@ -130,7 +130,7 @@ export default function HomePage() {
   return (
     <div className="min-h-screen flex items-center justify-center">
       <div className="flex flex-col items-center gap-4">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <LoadingDots size="md" />
         <p className="text-lg font-medium">Redirecting to dashboard...</p>
       </div>
     </div>

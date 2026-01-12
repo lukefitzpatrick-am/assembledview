@@ -2346,8 +2346,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                 if (!form.watch(medium.name as any)) return null;
                 
                 return (
-                  <div key={medium.name} className="border border-gray-200 rounded-lg p-6">
-                    <h2 className="text-xl font-semibold mb-4">{medium.label}</h2>
+                  <div key={medium.name} className="mt-4">
                     <Suspense fallback={<div>Loading {medium.label}...</div>}>
                       {medium.name === "mp_television" && (
                         <TelevisionContainer

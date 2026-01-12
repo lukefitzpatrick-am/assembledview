@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Download } from 'lucide-react'
+import { LoadingDots } from '@/components/ui/loading-dots'
 import CampaignTimeChart from './CampaignTimeChart'
 import CampaignSpendChart from './CampaignSpendChart'
 import MediaChannelPieChart from './MediaChannelPieChart'
@@ -186,7 +187,9 @@ export default function CampaignDetailContent({ slug, mbaNumber }: CampaignDetai
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <div className="mx-auto mb-4">
+            <LoadingDots size="lg" />
+          </div>
           <p className="text-muted-foreground">Loading campaign details...</p>
         </div>
       </div>
