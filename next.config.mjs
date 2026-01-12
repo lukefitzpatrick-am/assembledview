@@ -21,6 +21,13 @@ const nextConfig = {
   },
   webpack: (config, { isServer }) => {
 
+    if (isServer) {
+      config.externals = config.externals || []
+      config.externals.push({
+        "snowflake-sdk": "commonjs snowflake-sdk",
+      })
+    }
+
     if (!isServer) {
       config.resolve.fallback = {
         ...config.resolve.fallback, // Keep any existing fallbacks
