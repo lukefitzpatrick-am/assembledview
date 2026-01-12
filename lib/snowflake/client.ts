@@ -1,4 +1,4 @@
-import snowflake from "snowflake-sdk"
+import "server-only"
 
 type SnowflakeEnv = {
   account: string | undefined
@@ -34,12 +34,23 @@ function ensureConfig(env: SnowflakeEnv) {
   }
 }
 
+async function loadSnowflake() {
+  if (!isServer) {
+    throw new Error("Snowflake client must run on the server")
+  }
+
+  const mod = await import("snowflake-sdk")
+  return (mod as any).default ?? mod
+}
+
 export async function querySnowflake<T = Record<string, unknown>>(
   sql: string,
   binds: any[] = []
 ): Promise<T[]> {
   const env = getEnv()
   ensureConfig(env)
+
+  const snowflake = await loadSnowflake()
 
   const connection = snowflake.createConnection({
     account: env.account!,
@@ -59,7 +70,7 @@ export async function querySnowflake<T = Record<string, unknown>>(
 
   try {
     await new Promise<void>((resolve, reject) => {
-      connection.connect((err) => {
+      connection.connect((err: unknown) => {
         if (err) {
           reject(err)
         } else {
@@ -73,7 +84,7 @@ export async function querySnowflake<T = Record<string, unknown>>(
       const statement = connection.execute({
         sqlText: sql,
         binds,
-        complete: (err, _stmt, rows) => {
+        complete: (err: unknown, _stmt: unknown, rows: unknown) => {
           if (err) {
             reject(err)
           } else {
@@ -85,7 +96,7 @@ export async function querySnowflake<T = Record<string, unknown>>(
       statement.once("error", reject)
     })
   } finally {
-    connection.destroy((err) => {
+    connection.destroy((err: unknown) => {
       if (err) {
         console.warn("[snowflake] destroy error", err)
       } else {

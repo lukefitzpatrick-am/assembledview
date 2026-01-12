@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { getSocialMediaLineItemsByMBA } from "@/lib/api"
 import { querySnowflake } from "@/lib/snowflake/client"
 
+export const runtime = "nodejs"
+
 export const revalidate = 86400
 
 type Burst = {
