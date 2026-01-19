@@ -467,7 +467,11 @@ export default function CinemaContainer({
     }
 
     const newId = createLineItemId();
-    const lineNumber = (source.line_item ?? source.lineItem ?? lineItemIndex + 1) + 1;
+    const baseLineNumber = Number(
+      source.line_item ?? source.lineItem ?? lineItemIndex + 1
+    );
+    const lineNumber =
+      (Number.isFinite(baseLineNumber) ? baseLineNumber : lineItemIndex + 1) + 1;
 
     const clone = {
       ...source,
@@ -681,6 +685,7 @@ export default function CinemaContainer({
     let overallMedia = 0;
     let overallFee = 0;
     let overallCost = 0;
+    let overallDeliverableCount = 0;
 
     cinemalineItems.forEach((lineItem) => {
       let lineMedia = 0;

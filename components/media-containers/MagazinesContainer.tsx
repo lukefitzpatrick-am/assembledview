@@ -18,6 +18,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { Label } from "@/components/ui/label"
 import { getPublishersForMagazines, getClientInfo, getMagazinesAdSizes, createMagazineAdSize, getMagazines, createMagazine, getNewspapers, getNewspapersAdSizes, createNewspaper, createNewspaperAdSize } from "@/lib/api"
 import { formatBurstLabel } from "@/lib/bursts"
+import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
 import { LoadingDots } from "@/components/ui/loading-dots"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
@@ -346,15 +347,9 @@ export default function MagazinesContainer({
   const { mbaNumber } = useMediaPlanContext()
   const [overallDeliverables, setOverallDeliverables] = useState(0);
 
-  // Stable ID generator for line items to keep duplicates distinct in exports
-  const createLineItemId = () => {
-    const base = mbaNumber || "MAG";
-    const rand =
-      typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? (crypto as any).randomUUID()
-        : `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
-    return `${base}-${rand}`;
-  };
+  // Deterministic ID generator aligned with UI label
+  const createLineItemId = (lineNumber: number) =>
+    buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.magazines, lineNumber);
 
   const [isAddMagazinesAdSizeDialogOpen, setIsAddMagazinesAdSizeDialogOpen] = useState(false);
   const [newTitleName, setNewTitleName] = useState("");
@@ -506,7 +501,7 @@ const form = useForm<MagazinesFormValues>({
           clientPaysForMedia: false,
           budgetIncludesFees: false,
           noadserving: false,
-          ...(() => { const id = createLineItemId(); return { lineItemId: id, line_item_id: id, line_item: 1, lineItem: 1 }; })(),
+          ...(() => { const id = createLineItemId(1); return { lineItemId: id, line_item_id: id, line_item: 1, lineItem: 1 }; })(),
           bursts: [
             {
               budget: "",
@@ -548,8 +543,8 @@ const form = useForm<MagazinesFormValues>({
       return;
     }
 
-    const newId = createLineItemId();
     const lineNumber = (source.line_item ?? source.lineItem ?? lineItemIndex + 1) + 1;
+    const newId = createLineItemId(lineNumber);
 
     const clone = {
       ...source,
@@ -580,7 +575,8 @@ const form = useForm<MagazinesFormValues>({
   useEffect(() => {
     if (initialLineItems && initialLineItems.length > 0) {
       const transformedLineItems = initialLineItems.map((item: any, index: number) => {
-        const lineItemId = item.line_item_id || item.lineItemId || `${mbaNumber || "MAG"}-${index + 1}`;
+        const lineNumber = item.line_item ?? item.lineItem ?? index + 1;
+        const lineItemId = item.line_item_id || item.lineItemId || createLineItemId(lineNumber);
 
         return {
           network: item.network || item.publisher || "",
@@ -642,8 +638,8 @@ const form = useForm<MagazinesFormValues>({
           totalMedia += budget;
         }
       });
-      const lineItemId = lineItem.lineItemId || lineItem.line_item_id || `${mbaNumber || "MAG"}-${index + 1}`;
       const lineNumber = lineItem.line_item ?? lineItem.lineItem ?? index + 1;
+      const lineItemId = lineItem.lineItemId || lineItem.line_item_id || createLineItemId(lineNumber);
 
       return {
         media_plan_version: 0,
@@ -1066,13 +1062,13 @@ useEffect(() => {
       const mediaAmount = computedBurst
         ? computedBurst.mediaAmount
         : parseFloat(String(burst.budget).replace(/[^0-9.-]+/g, "")) || 0;
+      const lineNumber = lineItem.line_item ?? lineItem.lineItem ?? lineItemIndex + 1;
       let lineItemId = lineItem.lineItemId || lineItem.line_item_id;
       if (!lineItemId) {
-        lineItemId = createLineItemId();
+        lineItemId = createLineItemId(lineNumber);
         form.setValue(`magazineslineItems.${lineItemIndex}.lineItemId`, lineItemId);
         form.setValue(`magazineslineItems.${lineItemIndex}.line_item_id`, lineItemId);
       }
-      const lineNumber = lineItem.line_item ?? lineItem.lineItem ?? lineItemIndex + 1;
 
       return {
         market: lineItem.market || "",                                // or fixed value
@@ -1975,7 +1971,7 @@ useEffect(() => {
                                 clientPaysForMedia: false,
                                 budgetIncludesFees: false,
                                 noadserving: false,
-                              ...(() => { const id = createLineItemId(); return { lineItemId: id, line_item_id: id, line_item: lineItemFields.length + 1, lineItem: lineItemFields.length + 1 }; })(),
+                              ...(() => { const nextNumber = lineItemFields.length + 1; const id = createLineItemId(nextNumber); return { lineItemId: id, line_item_id: id, line_item: nextNumber, lineItem: nextNumber }; })(),
                                 bursts: [
                                   {
                                     budget: "",

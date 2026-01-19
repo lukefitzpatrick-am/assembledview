@@ -523,11 +523,13 @@ export default function TelevisionContainer({
         }];
 
         const lineItemId = item.line_item_id || item.lineItemId || createLineItemId();
+        const normalizedNetwork = item.network || item.platform || item.publisher || "";
+        const normalizedStation = item.station || item.site || item.publisher || "";
 
         return {
           market: item.market || "",
-          network: item.network || "",
-          station: item.station || "",
+          network: normalizedNetwork,
+          station: normalizedStation,
           daypart: item.daypart || "",
           placement: item.placement || "",
           bidStrategy: item.bid_strategy || "",

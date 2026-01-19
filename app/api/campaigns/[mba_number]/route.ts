@@ -1,9 +1,61 @@
 import { NextResponse } from "next/server"
 import axios from "axios"
-import { fetchAllMediaContainerLineItems } from "@/lib/api/media-containers"
+import { fetchAllMediaContainerLineItems, MEDIA_CONTAINER_ENDPOINTS } from "@/lib/api/media-containers"
+import { filterLineItemsByPlanNumber } from "@/lib/api/mediaPlanVersionHelper"
+import { normalizeCampaignLineItems } from "@/lib/mediaplan/normalizeCampaignLineItems"
+import { xanoUrl } from "@/lib/api/xano"
 
-const MEDIA_PLANS_VERSIONS_URL = "https://xg4h-uyzs-dtex.a2.xano.io/api:RaUx9FOa"
-const MEDIA_PLAN_MASTER_URL = "https://xg4h-uyzs-dtex.a2.xano.io/api:RaUx9FOa"
+export const dynamic = "force-dynamic"
+
+const isDev = process.env.NODE_ENV !== "production"
+
+const CANONICAL_MEDIA_KEYS: Array<keyof typeof MEDIA_CONTAINER_ENDPOINTS | "consulting"> = [
+  "search",
+  "socialMedia",
+  "progDisplay",
+  "progVideo",
+  "progBvod",
+  "progAudio",
+  "progOoh",
+  "television",
+  "radio",
+  "newspaper",
+  "magazines",
+  "ooh",
+  "cinema",
+  "bvod",
+  "digitalDisplay",
+  "digitalAudio",
+  "digitalVideo",
+  "integration",
+  "influencers",
+  "production",
+  "consulting",
+]
+
+const CANONICAL_TO_FETCH_MAP: Record<typeof CANONICAL_MEDIA_KEYS[number], keyof typeof MEDIA_CONTAINER_ENDPOINTS> = {
+  search: "search",
+  socialMedia: "socialMedia",
+  progDisplay: "progDisplay",
+  progVideo: "progVideo",
+  progBvod: "progBvod",
+  progAudio: "progAudio",
+  progOoh: "progOoh",
+  television: "television",
+  radio: "radio",
+  newspaper: "newspaper",
+  magazines: "magazines",
+  ooh: "ooh",
+  cinema: "cinema",
+  bvod: "bvod",
+  digitalDisplay: "digitalDisplay",
+  digitalAudio: "digitalAudio",
+  digitalVideo: "digitalVideo",
+  integration: "integration",
+  influencers: "influencers",
+  production: "production",
+  consulting: "production",
+}
 
 /**
  * Calculate campaign time elapsed as percentage
@@ -318,6 +370,126 @@ function matchesMasterId(itemMasterId: any, masterId: any): boolean {
   return String(itemMasterId) === String(masterId)
 }
 
+function parseJsonMaybe<T>(value: any): T | null {
+  if (!value) return null
+  if (typeof value === "object") return value as T
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value) as T
+    } catch {
+      return null
+    }
+  }
+  return null
+}
+
+function normalizeDeliverySchedule(raw: any) {
+  const parsed = parseJsonMaybe<any[]>(raw) || []
+  const spendByChannel: Record<string, number> = {}
+  const monthlyMap: Record<string, Record<string, number>> = {}
+
+  parsed.forEach((entry) => {
+    const channel =
+      entry?.channel ||
+      entry?.media_channel ||
+      entry?.mediaType ||
+      entry?.media_type ||
+      entry?.publisher ||
+      entry?.placement ||
+      "Other"
+
+    const monthLabel = getMonthLabel(
+      entry?.month ||
+      entry?.monthYear ||
+      entry?.period_start ||
+      entry?.periodStart ||
+      entry?.date ||
+      entry?.startDate
+    )
+
+    const amount = parseAmount(
+      entry?.spend ??
+      entry?.amount ??
+      entry?.budget ??
+      entry?.value ??
+      entry?.investment ??
+      entry?.media_investment
+    )
+
+    if (amount > 0) {
+      spendByChannel[channel] = (spendByChannel[channel] || 0) + amount
+      monthlyMap[monthLabel] = monthlyMap[monthLabel] || {}
+      monthlyMap[monthLabel][channel] = (monthlyMap[monthLabel][channel] || 0) + amount
+    }
+  })
+
+  const monthlySpend = Object.entries(monthlyMap)
+    .map(([month, data]) => ({
+      month,
+      data: Object.entries(data).map(([mediaType, amount]) => ({ mediaType, amount })),
+    }))
+    .sort((a, b) => {
+      const aDate = new Date(a.month).getTime()
+      const bDate = new Date(b.month).getTime()
+      if (isNaN(aDate) || isNaN(bDate)) return a.month.localeCompare(b.month)
+      return aDate - bDate
+    })
+
+  const total = Object.values(spendByChannel).reduce((sum, v) => sum + v, 0)
+  const spendByMediaChannel = Object.entries(spendByChannel).map(([mediaType, amount]) => ({
+    mediaType,
+    amount,
+    percentage: total > 0 ? (amount / total) * 100 : 0,
+  }))
+
+  return {
+    raw: parsed,
+    spendByMediaChannel,
+    monthlySpend,
+  }
+}
+
+function parseSocialBursts(raw: any): Array<{
+  start_date: string
+  end_date: string
+  media_investment: number
+  deliverables: number
+}> {
+  const bursts = parseJsonMaybe<any[]>(raw) || []
+  return bursts
+    .map((b) => ({
+      start_date: b?.start_date || b?.startDate || "",
+      end_date: b?.end_date || b?.endDate || "",
+      media_investment: parseAmount(b?.media_investment ?? b?.budget ?? b?.amount ?? b?.spend),
+      deliverables: parseAmount(b?.deliverables ?? b?.deliverable ?? b?.deliverablesAmount),
+    }))
+    .filter((b) => b.start_date && b.end_date)
+}
+
+function normalizeSocialLineItems(rawItems: any[]): any[] {
+  return (Array.isArray(rawItems) ? rawItems : []).map((item) => {
+    const bursts = parseSocialBursts(item?.bursts_json ?? item?.bursts)
+    const totalBudget =
+      parseAmount(item?.totalMedia) ||
+      parseAmount(item?.grossMedia) ||
+      parseAmount(item?.budget) ||
+      parseAmount(item?.total_budget) ||
+      bursts.reduce((sum, b) => sum + (b.media_investment || 0), 0)
+
+    const deliverableTotal =
+      parseAmount(item?.goal_deliverable_total) ||
+      parseAmount(item?.deliverables_total) ||
+      bursts.reduce((sum, b) => sum + (b.deliverables || 0), 0)
+
+    return {
+      ...item,
+      bursts,
+      total_budget: totalBudget,
+      goal_deliverable_total: deliverableTotal,
+    }
+  })
+}
+
 
 export async function GET(
   request: Request,
@@ -326,9 +498,11 @@ export async function GET(
   try {
     const { mba_number } = await params
     const requestedNormalized = normalize(mba_number)
+    const searchParams = new URL(request.url).searchParams
+    const requestedVersion = parseVersionNumber(searchParams.get("version"))
     
     // Fetch media plan version data (similar to existing MBA route)
-    const masterQueryUrl = `${MEDIA_PLAN_MASTER_URL}/media_plan_master?mba_number=${encodeURIComponent(mba_number)}`
+    const masterQueryUrl = `${xanoUrl("media_plan_master", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${encodeURIComponent(mba_number)}`
     const masterResponse = await axios.get(masterQueryUrl)
     
     let masterData: any = null
@@ -356,7 +530,7 @@ export async function GET(
 
     // Targeted fetch by MBA number
     try {
-      const versionQueryUrl = `${MEDIA_PLANS_VERSIONS_URL}/media_plan_versions?mba_number=${encodeURIComponent(mba_number)}`
+      const versionQueryUrl = `${xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${encodeURIComponent(mba_number)}`
       const versionResponse = await axios.get(versionQueryUrl)
       const data = Array.isArray(versionResponse.data)
         ? versionResponse.data
@@ -374,7 +548,9 @@ export async function GET(
     // Fallback: fetch all versions when mba_number filter returns nothing (prevents 404s when filters change)
     if (collectedVersions.length === 0) {
       try {
-        const allVersionsResponse = await axios.get(`${MEDIA_PLANS_VERSIONS_URL}/media_plan_versions`)
+        const allVersionsResponse = await axios.get(
+          xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
+        )
         const allData = Array.isArray(allVersionsResponse.data)
           ? allVersionsResponse.data
           : allVersionsResponse.data
@@ -392,7 +568,7 @@ export async function GET(
     // Additional fallback by master_id to support legacy records that may not include mba_number
     if (collectedVersions.length === 0 && masterData?.id !== undefined) {
       try {
-        const fallbackUrl = `${MEDIA_PLANS_VERSIONS_URL}/media_plan_versions?media_plan_master_id=${encodeURIComponent(masterData.id)}`
+        const fallbackUrl = `${xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?media_plan_master_id=${encodeURIComponent(masterData.id)}`
         const fallbackResponse = await axios.get(fallbackUrl)
         const fallbackData = Array.isArray(fallbackResponse.data)
           ? fallbackResponse.data
@@ -419,14 +595,22 @@ export async function GET(
         ? versionsForMBA.filter((item: any) => matchesMasterId(item.media_plan_master_id, masterData.id))
         : versionsForMBA
 
-      // Choose the latest version number, falling back to any MBA match if master match is absent
       const candidates = preferredVersions.length > 0 ? preferredVersions : versionsForMBA
-      versionData = candidates.reduce((latest: any, item: any) => {
-        const itemVersion = parseVersionNumber(item?.version_number) ?? -Infinity
-        if (!latest) return item
-        const latestVersionValue = parseVersionNumber(latest?.version_number) ?? -Infinity
-        return itemVersion > latestVersionValue ? item : latest
-      }, null as any)
+
+      // If a version is explicitly requested, pick it if available
+      if (requestedVersion !== null) {
+        versionData = candidates.find((item: any) => parseVersionNumber(item?.version_number) === requestedVersion) ?? null
+      }
+
+      // Otherwise choose the latest version number, falling back to any MBA match if master match is absent
+      if (!versionData) {
+        versionData = candidates.reduce((latest: any, item: any) => {
+          const itemVersion = parseVersionNumber(item?.version_number) ?? -Infinity
+          if (!latest) return item
+          const latestVersionValue = parseVersionNumber(latest?.version_number) ?? -Infinity
+          return itemVersion > latestVersionValue ? item : latest
+        }, null as any)
+      }
     }
     
     if (!versionData) {
@@ -437,14 +621,80 @@ export async function GET(
     }
 
     // Use the resolved version number (fall back to master's version or 1)
-    const versionNumber = parseVersionNumber(versionData?.version_number) 
+    const versionNumber = requestedVersion 
+      ?? parseVersionNumber(versionData?.version_number) 
       ?? parseVersionNumber(masterData.version_number) 
       ?? 1
+
+    // Derive media types to fetch based on flags in version data
+    const mediaFlagMap: Record<string, { canonicalKey: typeof CANONICAL_MEDIA_KEYS[number]; fetchKey: keyof typeof MEDIA_CONTAINER_ENDPOINTS }> = {
+      mp_television: { canonicalKey: "television", fetchKey: "television" },
+      mp_radio: { canonicalKey: "radio", fetchKey: "radio" },
+      mp_newspaper: { canonicalKey: "newspaper", fetchKey: "newspaper" },
+      mp_magazines: { canonicalKey: "magazines", fetchKey: "magazines" },
+      mp_ooh: { canonicalKey: "ooh", fetchKey: "ooh" },
+      mp_cinema: { canonicalKey: "cinema", fetchKey: "cinema" },
+      mp_digidisplay: { canonicalKey: "digitalDisplay", fetchKey: "digitalDisplay" },
+      mp_digiaudio: { canonicalKey: "digitalAudio", fetchKey: "digitalAudio" },
+      mp_digivideo: { canonicalKey: "digitalVideo", fetchKey: "digitalVideo" },
+      mp_bvod: { canonicalKey: "bvod", fetchKey: "bvod" },
+      mp_integration: { canonicalKey: "integration", fetchKey: "integration" },
+      mp_search: { canonicalKey: "search", fetchKey: "search" },
+      mp_socialmedia: { canonicalKey: "socialMedia", fetchKey: "socialMedia" },
+      mp_progdisplay: { canonicalKey: "progDisplay", fetchKey: "progDisplay" },
+      mp_progvideo: { canonicalKey: "progVideo", fetchKey: "progVideo" },
+      mp_progbvod: { canonicalKey: "progBvod", fetchKey: "progBvod" },
+      mp_progaudio: { canonicalKey: "progAudio", fetchKey: "progAudio" },
+      mp_progooh: { canonicalKey: "progOoh", fetchKey: "progOoh" },
+      mp_influencers: { canonicalKey: "influencers", fetchKey: "influencers" },
+      mp_production: { canonicalKey: "consulting", fetchKey: "production" },
+      mp_production: { canonicalKey: "production", fetchKey: "production" },
+    }
+
+    function isTruthyFlag(value: any) {
+      if (value === undefined || value === null) return false
+      if (typeof value === "boolean") return value
+      if (typeof value === "number") return value !== 0
+      if (typeof value === "string") {
+        const normalized = value.trim().toLowerCase()
+        return ["yes", "true", "1", "y"].includes(normalized)
+      }
+      return false
+    }
+
+    const enabledEntries = Object.entries(mediaFlagMap)
+      .filter(([flag]) => isTruthyFlag((versionData as any)?.[flag]))
+      .map(([, value]) => value)
+
+    const enabledMediaTypes = Array.from(new Set(enabledEntries.map((entry) => entry.canonicalKey)))
+    const mediaTypesToFetch = Array.from(new Set(enabledEntries.map((entry) => entry.fetchKey)))
+
+    if (isDev) {
+      console.info("[campaigns] enabled media types", { mba_number, versionNumber, enabledMediaTypes })
+    }
     
-    // Fetch all line items
-    let lineItems = await fetchAllMediaContainerLineItems(
+    // Fetch line items only for enabled media types (fallback to all if none flagged)
+    const rawLineItems = await fetchAllMediaContainerLineItems(
       mba_number,
-      versionNumber
+      versionNumber,
+      mediaTypesToFetch.length ? mediaTypesToFetch : undefined
+    )
+    if (isDev) {
+      const endpointsCalled = (mediaTypesToFetch.length ? mediaTypesToFetch : Object.keys(MEDIA_CONTAINER_ENDPOINTS)).map(
+        (key) =>
+          `${xanoUrl(MEDIA_CONTAINER_ENDPOINTS[key as keyof typeof MEDIA_CONTAINER_ENDPOINTS], ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}`
+      )
+      console.info("[campaigns] Xano endpoints called", { mba_number, versionNumber, endpointsCalled })
+    }
+
+    // Filter line items to ensure MBA + version alignment (mirrors editor behavior)
+    let lineItems = Object.fromEntries(
+      Object.entries(rawLineItems).map(([mediaType, items]) => [
+        mediaType,
+        Array.isArray(items)
+          ? filterLineItemsByPlanNumber(items, mba_number, versionNumber.toString(), mediaType)
+          : [],
+      ])
     )
     
     // Extract billing schedule (support multiple casing variants)
@@ -481,11 +731,36 @@ export async function GET(
     const billingSpend = billingSchedule && Array.isArray(billingSchedule)
       ? summarizeBillingSchedule(billingSchedule)
       : { spendByMediaChannel: [], monthlySpend: [] }
+
+    const deliverySchedule = normalizeDeliverySchedule(versionData.deliverySchedule || versionData.delivery_schedule)
     
     // If no line items returned, synthesize minimal read-only rows from billingSchedule for display
     const hasAnyLineItems = Object.values(lineItems).some(items => Array.isArray(items) && items.length > 0)
     if (!hasAnyLineItems && billingSchedule && Array.isArray(billingSchedule)) {
       lineItems = synthesizeLineItemsFromBilling(billingSchedule)
+    }
+
+    // Normalise line items for gantt consumption (bursts_json strings, derived dates)
+    const normalisedContainers = normalizeCampaignLineItems(lineItems, startDate, endDate)
+
+    const lineItemsWithDefaults: Record<string, any[]> = {}
+    const consultingEnabled = enabledMediaTypes.includes("consulting")
+    CANONICAL_MEDIA_KEYS.forEach((canonicalKey) => {
+      const sourceKey = CANONICAL_TO_FETCH_MAP[canonicalKey]
+      const items = normalisedContainers[sourceKey] || []
+      const scopedItems = canonicalKey === "consulting" && !consultingEnabled ? [] : items
+      lineItemsWithDefaults[canonicalKey] = canonicalKey === "socialMedia" ? normalizeSocialLineItems(scopedItems) : scopedItems
+    })
+
+    if (isDev) {
+      const counts = Object.fromEntries(
+        CANONICAL_MEDIA_KEYS.map((key) => [key, Array.isArray(lineItemsWithDefaults[key]) ? lineItemsWithDefaults[key].length : 0])
+      )
+      console.info("[campaigns] line item counts", { mba_number, versionNumber, counts })
+      const enabledEmpty = enabledMediaTypes.filter((key) => (counts as any)[key] === 0)
+      if (enabledEmpty.length) {
+        console.warn("[campaigns] enabled media types returned zero items", { mba_number, versionNumber, enabledEmpty })
+      }
     }
 
     // Prepare response
@@ -495,14 +770,18 @@ export async function GET(
         mbaNumber: mba_number,
         versionNumber
       },
-      lineItems,
+      lineItems: lineItemsWithDefaults,
+      enabledMediaTypes,
       billingSchedule,
+      deliverySchedule: deliverySchedule.raw,
       metrics: {
         timeElapsed,
         ...(startDate && endDate ? calculateDayMetrics(startDate, endDate) : {}),
         expectedSpendToDate,
         spendByMediaChannel: billingSpend.spendByMediaChannel,
-        monthlySpend: billingSpend.monthlySpend
+        monthlySpend: billingSpend.monthlySpend,
+        deliverySpendByChannel: deliverySchedule.spendByMediaChannel,
+        deliveryMonthlySpend: deliverySchedule.monthlySpend
       }
     }
     

@@ -9,7 +9,7 @@ import { Toaster } from "@/components/ui/toaster"
 import { ChatWidget } from "@/components/ChatWidget"
 import { usePathname } from "next/navigation"
 import { AuthWrapper } from "@/components/AuthWrapper"
-import { AuthContextProvider } from "@/contexts/AuthContext"
+import { AuthContextProvider, useAuthContext } from "@/contexts/AuthContext"
 import type React from "react"
 
 export function ClientLayout({ children }: { children: React.ReactNode }) {
@@ -28,11 +28,14 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
               {isShellVisible && <AppSidebar />}
               <SidebarInset className="flex-1 min-w-0 flex flex-col">
                 {isShellVisible && (
-                  <header className="flex h-16 shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
-                    <div className="flex items-center gap-2 px-4">
+                  <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
+                    <div className="flex items-center gap-2">
                       <SidebarTrigger className="-ml-1" />
                       <Separator orientation="vertical" className="mr-2 h-4" />
                       <DynamicBreadcrumbs />
+                    </div>
+                    <div className="ml-auto">
+                      <UserGreeting />
                     </div>
                   </header>
                 )}
@@ -48,3 +51,21 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   )
 }
 
+function UserGreeting() {
+  const { user } = useAuthContext()
+
+  const firstName =
+    user?.given_name ||
+    (user?.name ? user.name.split(" ")[0] : undefined) ||
+    user?.nickname ||
+    "there"
+
+  return (
+    <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+      <span aria-hidden="true" className="text-lg">
+        👋
+      </span>
+      <span className="leading-none">Hi {firstName}</span>
+    </div>
+  )
+}

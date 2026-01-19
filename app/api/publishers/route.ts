@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server"
 import axios from "axios"
-
-const XANO_PUBLISHERS_BASE_URL = process.env.XANO_PUBLISHERS_BASE_URL || "https://xg4h-uyzs-dtex.a2.xano.io/api:YkRK8qLP"
+import { xanoUrl } from "@/lib/api/xano"
 
 export async function GET() {
   try {
     // For now, allow access for development
     // In production, you would validate the Auth0 session here
     
-    const response = await axios.get(`${XANO_PUBLISHERS_BASE_URL}/get_publishers`)
+    const response = await axios.get(xanoUrl("get_publishers", "XANO_PUBLISHERS_BASE_URL"))
     return NextResponse.json(response.data)
   } catch (error) {
     console.error("Failed to fetch publishers:", error)
@@ -22,7 +21,7 @@ export async function POST(req: Request) {
     // In production, you would validate the Auth0 session here
     
     const body = await req.json()
-    const response = await axios.post(`${XANO_PUBLISHERS_BASE_URL}/post_publishers`, body)
+    const response = await axios.post(xanoUrl("post_publishers", "XANO_PUBLISHERS_BASE_URL"), body)
     return NextResponse.json(response.data, { status: 201 })
   } catch (error) {
     console.error("Failed to create publisher:", error)

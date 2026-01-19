@@ -1,4 +1,4 @@
-import type { User } from '@auth0/nextjs-auth0';
+import type { User } from '@auth0/nextjs-auth0/types';
 
 export type UserRole = 'admin' | 'manager' | 'client';
 
@@ -81,7 +81,7 @@ export const ROLE_PERMISSIONS = {
     'read:own:mediaplans',
     'read:own:clients',
   ],
-} as const;
+} satisfies Record<UserRole, string[]>;
 
 function coerceToStringArray(value: unknown): string[] {
   if (!value) return [];

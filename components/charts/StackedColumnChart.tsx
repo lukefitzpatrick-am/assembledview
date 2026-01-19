@@ -2,6 +2,7 @@
 
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Download } from 'lucide-react'
 
@@ -16,6 +17,9 @@ interface StackedColumnChartProps {
   data: StackedColumnData[]
   colors?: string[]
   onExport?: () => void
+  cardClassName?: string
+  headerClassName?: string
+  contentClassName?: string
 }
 
 const DEFAULT_COLORS = [
@@ -31,7 +35,16 @@ const formatCurrencyNoDecimals = (value: number) =>
     maximumFractionDigits: 0
   }).format(value)
 
-export function StackedColumnChart({ title, description, data, colors = DEFAULT_COLORS, onExport }: StackedColumnChartProps) {
+export function StackedColumnChart({
+  title,
+  description,
+  data,
+  colors = DEFAULT_COLORS,
+  onExport,
+  cardClassName,
+  headerClassName,
+  contentClassName,
+}: StackedColumnChartProps) {
   // Extract all media types across all rows (not just the first) to avoid empty charts when the first month has no data
   const mediaTypes = Array.from(
     new Set(
@@ -61,9 +74,31 @@ export function StackedColumnChart({ title, description, data, colors = DEFAULT_
     }
   }
 
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      const total = payload.reduce((sum: number, entry: any) => sum + (Number(entry?.value) || 0), 0)
+      return (
+        <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-lg">
+          <p className="mb-2 font-semibold">Month: {label}</p>
+          {payload.map((entry: any, index: number) => {
+            const value = Number(entry?.value) || 0
+            if (value <= 0) return null
+            return (
+              <p key={index} className="text-sm" style={{ color: entry?.color }}>
+                {entry?.name}: {formatCurrencyNoDecimals(value)}
+              </p>
+            )
+          })}
+          <p className="mt-2 border-t pt-2 text-sm font-semibold">Total: {formatCurrencyNoDecimals(total)}</p>
+        </div>
+      )
+    }
+    return null
+  }
+
   return (
-    <Card>
-      <CardHeader>
+    <Card className={cn(cardClassName)}>
+      <CardHeader className={cn(headerClassName)}>
         <div className="flex justify-between items-center">
           <div>
             <CardTitle>{title}</CardTitle>
@@ -75,17 +110,14 @@ export function StackedColumnChart({ title, description, data, colors = DEFAULT_
           </Button>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className={cn(contentClassName)}>
         <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month" />
               <YAxis tickFormatter={formatCurrencyNoDecimals} tick={{ fontSize: 11 }} />
-              <Tooltip 
-                formatter={(value: number, name: string) => [formatCurrencyNoDecimals(value), name]}
-                labelFormatter={(label) => `Month: ${label}`}
-              />
+              <Tooltip content={<CustomTooltip />} />
               <Legend />
               {mediaTypes.map((mediaType, index) => (
                 <Bar 

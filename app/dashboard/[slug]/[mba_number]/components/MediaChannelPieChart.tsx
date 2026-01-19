@@ -35,14 +35,19 @@ export default function MediaChannelPieChart({ data }: MediaChannelPieChartProps
     }).format(value)
   }
 
+  const totalAmount = data.reduce((sum, entry) => sum + (Number(entry.amount) || 0), 0)
+
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
       const data = payload[0]
       return (
         <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
           <p className="font-semibold">{data.name}</p>
-          <p className="text-blue-600">{formatCurrency(data.value)}</p>
+          <p className="text-blue-600">{formatCurrency(Number(data.value) || 0)}</p>
           <p className="text-sm text-gray-500">{data.payload.percentage.toFixed(1)}%</p>
+          <p className="mt-2 border-t pt-2 text-sm font-semibold">
+            Total: {formatCurrency(totalAmount)}
+          </p>
         </div>
       )
     }

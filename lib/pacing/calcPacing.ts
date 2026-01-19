@@ -23,12 +23,14 @@ export type PacingResult = {
     expectedToDate: number
     delta: number
     pacingPct: number
+    goalTotal: number
   }
   deliverable?: {
     actualToDate: number
     expectedToDate: number
     delta: number
     pacingPct: number
+    goalTotal: number
   }
   series: PacingSeriesPoint[]
 }
@@ -108,16 +110,25 @@ export function calculatePacing(params: {
       ? findLatestOnOrBefore(actualCumulative, actualAsAt)
       : { spend: 0, deliverable: 0 }
 
-  const expectedSpendToDate = expectedAsAt?.cumulative_expected_spend || 0
-  const spendDelta = (actualAsAtValues?.spend || 0) - expectedSpendToDate
+  const spendGoalTotal = Number(expected.totals?.spend ?? 0)
+  const expectedSpendToDateRaw = expectedAsAt?.cumulative_expected_spend || 0
+  const expectedSpendToDate = clampToTotal(expectedSpendToDateRaw, spendGoalTotal)
+  const actualSpendToDate = clampToTotal(actualAsAtValues?.spend || 0, spendGoalTotal)
+  const spendDelta = actualSpendToDate - expectedSpendToDate
   const spendPacing =
-    expectedSpendToDate > 0
-      ? ((actualAsAtValues?.spend || 0) / expectedSpendToDate) * 100
-      : 0
+    expectedSpendToDate > 0 ? (actualSpendToDate / expectedSpendToDate) * 100 : 0
 
-  const deliverableExpected =
+  const deliverableGoalTotal = Number(expected.totals?.deliverables ?? 0)
+  const deliverableExpectedRaw =
     expectedAsAt?.cumulative_expected_deliverables || 0
-  const deliverableActual = actualAsAtValues?.deliverable || 0
+  const deliverableExpected = clampToTotal(
+    deliverableExpectedRaw,
+    deliverableGoalTotal
+  )
+  const deliverableActual = clampToTotal(
+    actualAsAtValues?.deliverable || 0,
+    deliverableGoalTotal
+  )
   const deliverableDelta = deliverableActual - deliverableExpected
   const deliverablePacing =
     deliverableExpected > 0 ? (deliverableActual / deliverableExpected) * 100 : 0
@@ -131,12 +142,11 @@ export function calculatePacing(params: {
   const result: PacingResult = {
     asAtDate: actualAsAt,
     spend: {
-      actualToDate: Number((actualAsAtValues?.spend || 0).toFixed(2)),
-      expectedToDate: Number(
-        (expectedAsAt?.cumulative_expected_spend || 0).toFixed(2)
-      ),
+      actualToDate: Number(actualSpendToDate.toFixed(2)),
+      expectedToDate: Number(expectedSpendToDate.toFixed(2)),
       delta: Number(spendDelta.toFixed(2)),
       pacingPct: Number(spendPacing.toFixed(2)),
+      goalTotal: Number(spendGoalTotal.toFixed(2)),
     },
     series,
   }
@@ -147,6 +157,7 @@ export function calculatePacing(params: {
       expectedToDate: Number(deliverableExpected.toFixed(2)),
       delta: Number(deliverableDelta.toFixed(2)),
       pacingPct: Number(deliverablePacing.toFixed(2)),
+      goalTotal: Number(deliverableGoalTotal.toFixed(2)),
     }
   }
 
@@ -159,6 +170,8 @@ export function getDeliverableKey(buyType: BuyType): DeliverableKey | null {
       return "impressions"
     case "CPC":
       return "clicks"
+    case "CPA":
+      return "results"
     case "CPV":
       return "video_3s_views"
     case "LEADS":
@@ -210,13 +223,26 @@ function buildDailySeries({
   actualDailyMap: Map<string, { spend: number; deliverable: number }>
   deliverableKeyExists: boolean
 }): PacingSeriesPoint[] {
-  const dateSet = new Set<string>()
-  expectedDailyMap.forEach((_, date) => dateSet.add(date))
-  actualDailyMap.forEach((_, date) => dateSet.add(date))
+  const allDates = [
+    ...Array.from(expectedDailyMap.keys()),
+    ...Array.from(actualDailyMap.keys()),
+  ].sort((a, b) => a.localeCompare(b))
 
-  const dates = Array.from(dateSet).sort((a, b) => a.localeCompare(b))
+  if (!allDates.length) return []
 
-  return dates.map((date) => {
+  const firstDate = allDates[0]
+  const lastDate = allDates[allDates.length - 1]
+
+  const dateRange: string[] = []
+  for (
+    let cursor = new Date(firstDate + "T00:00:00Z");
+    cursor <= new Date(lastDate + "T00:00:00Z");
+    cursor.setUTCDate(cursor.getUTCDate() + 1)
+  ) {
+    dateRange.push(cursor.toISOString().slice(0, 10))
+  }
+
+  return dateRange.map((date) => {
     const expected = expectedDailyMap.get(date) ?? { spend: 0, deliverable: 0 }
     const actual = actualDailyMap.get(date) ?? { spend: 0, deliverable: 0 }
     return {
@@ -231,4 +257,11 @@ function buildDailySeries({
         : 0,
     }
   })
+}
+
+function clampToTotal(value: number, total: number) {
+  if (total > 0) {
+    return Math.min(value, total)
+  }
+  return value
 }

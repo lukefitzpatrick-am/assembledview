@@ -11,6 +11,17 @@ type CreatedUser = {
 
 type Role = 'admin' | 'client';
 
+export class Auth0HttpError extends Error {
+  status: number;
+  body: unknown;
+
+  constructor(message: string, status: number, body: unknown) {
+    super(message);
+    this.status = status;
+    this.body = body;
+  }
+}
+
 const REQUIRED_ENV = [
   'AUTH0_MGMT_CLIENT_ID',
   'AUTH0_MGMT_CLIENT_SECRET',
@@ -27,7 +38,7 @@ function requireEnv(key: string): string {
   return value;
 }
 
-function getRoleId(role: Role): string {
+export function getRoleId(role: Role): string {
   const envMap: Record<Role, string | undefined> = {
     admin: process.env.AUTH0_ROLE_ADMIN_ID,
     client: process.env.AUTH0_ROLE_CLIENT_ID,
@@ -48,6 +59,16 @@ function getManagementDomain(): string {
   return process.env.AUTH0_MGMT_DOMAIN || requireEnv('AUTH0_DOMAIN');
 }
 
+async function parseResponseBody(response: Response): Promise<unknown> {
+  const text = await response.text();
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+}
+
 async function getManagementToken(): Promise<string> {
   ensureConfig();
 
@@ -65,8 +86,8 @@ async function getManagementToken(): Promise<string> {
   });
 
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Failed to obtain Auth0 management token: ${response.status} ${errorText}`);
+    const errorBody = await parseResponseBody(response);
+    throw new Auth0HttpError('Failed to obtain Auth0 management token', response.status, errorBody);
   }
 
   const json = (await response.json()) as ManagementTokenResponse;
@@ -80,20 +101,23 @@ export async function createAuth0User(params: {
   email: string;
   firstName: string;
   lastName: string;
-  password: string;
+  clientSlug?: string;
 }): Promise<CreatedUser> {
   const token = await getManagementToken();
+  const connection = requireEnv('AUTH0_DB_CONNECTION');
   const payload = {
-    connection: requireEnv('AUTH0_DB_CONNECTION'),
+    connection,
     email: params.email,
-    password: params.password,
     email_verified: true, // create as verified
     verify_email: false, // prevent Auth0 from sending verification email
+    given_name: params.firstName,
+    family_name: params.lastName,
+    name: `${params.firstName} ${params.lastName}`,
+    app_metadata: params.clientSlug ? { client_slug: params.clientSlug } : undefined,
     user_metadata: {
       first_name: params.firstName,
       last_name: params.lastName,
     },
-    name: `${params.firstName} ${params.lastName}`,
   };
 
   const response = await fetch(`https://${getManagementDomain()}/api/v2/users`, {
@@ -106,8 +130,8 @@ export async function createAuth0User(params: {
   });
 
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Failed to create Auth0 user: ${response.status} ${errorText}`);
+    const errorBody = await parseResponseBody(response);
+    throw new Auth0HttpError('Failed to create Auth0 user', response.status, errorBody);
   }
 
   const data = (await response.json()) as CreatedUser;
@@ -119,10 +143,12 @@ export async function createAuth0User(params: {
 
 export async function createPasswordChangeTicket(params: { userId: string }): Promise<string> {
   const token = await getManagementToken();
+  const ttlEnv = Number(process.env.AUTH0_INVITE_TTL_SEC ?? 604800);
+  const ttlSeconds = Number.isFinite(ttlEnv) && ttlEnv > 0 ? ttlEnv : 604800;
   const payload = {
     user_id: params.userId,
     result_url: `${requireEnv('APP_BASE_URL')}/login`,
-    ttl_sec: 86400,
+    ttl_sec: ttlSeconds,
   };
 
   const response = await fetch(`https://${getManagementDomain()}/api/v2/tickets/password-change`, {
@@ -135,8 +161,8 @@ export async function createPasswordChangeTicket(params: { userId: string }): Pr
   });
 
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Failed to create password change ticket: ${response.status} ${errorText}`);
+    const errorBody = await parseResponseBody(response);
+    throw new Auth0HttpError('Failed to create password change ticket', response.status, errorBody);
   }
 
   const data = (await response.json()) as { ticket?: string };
@@ -160,8 +186,24 @@ export async function assignRoleToUser(userId: string, role: Role): Promise<void
   });
 
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Failed to assign role ${role} to user: ${response.status} ${errorText}`);
+    const errorBody = await parseResponseBody(response);
+    throw new Auth0HttpError(`Failed to assign role ${role} to user`, response.status, errorBody);
+  }
+}
+
+export async function deleteAuth0User(userId: string): Promise<void> {
+  const token = await getManagementToken();
+
+  const response = await fetch(`https://${getManagementDomain()}/api/v2/users/${userId}`, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const errorBody = await parseResponseBody(response);
+    throw new Auth0HttpError('Failed to delete Auth0 user', response.status, errorBody);
   }
 }
 
@@ -185,8 +227,8 @@ export async function updateAuth0UserMetadata(params: {
   });
 
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Failed to update user metadata: ${response.status} ${errorText}`);
+    const errorBody = await parseResponseBody(response);
+    throw new Auth0HttpError('Failed to update user metadata', response.status, errorBody);
   }
 }
 

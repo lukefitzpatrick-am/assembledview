@@ -17,6 +17,7 @@ import { getPublishersForProgAudio, getClientInfo } from "@/lib/api"
 import { formatBurstLabel } from "@/lib/bursts"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
+import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { CalendarIcon } from "lucide-react"
@@ -787,7 +788,7 @@ useEffect(() => {
       const mediaAmount = computedBurst
         ? computedBurst.mediaAmount
         : parseFloat(String(burst.budget).replace(/[^0-9.-]+/g, "")) || 0;
-      const lineItemId = `${mbaNumber || 'PA'}${lineItemIndex + 1}`;
+      const lineItemId = buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.progAudio, lineItemIndex + 1);
 
       return {
         market: lineItem.market || "",                                // or fixed value

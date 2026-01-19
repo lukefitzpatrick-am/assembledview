@@ -3,8 +3,7 @@
 import { NextResponse } from "next/server";
 import axios from "axios";
 import { getVersionNumberForMBA, filterLineItemsByPlanNumber } from "@/lib/api/mediaPlanVersionHelper";
-
-const XANO_PRODUCTION_BASE_URL = process.env.XANO_PRODUCTION_BASE_URL || "https://xg4h-uyzs-dtex.a2.xano.io/api:RaUx9FOa";
+import { xanoUrl } from "@/lib/api/xano";
 
 export async function GET(request: Request) {
   try {
@@ -44,7 +43,7 @@ export async function GET(request: Request) {
       params.append("media_plan_version", versionNumber);
     }
 
-    const url = `${XANO_PRODUCTION_BASE_URL}/media_plan_production?${params.toString()}`;
+    const url = `${xanoUrl("media_plan_production", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?${params.toString()}`;
     const headers = {
       "Content-Type": "application/json",
       Accept: "application/json",
@@ -72,11 +71,15 @@ export async function POST(request: Request) {
   try {
     const data = await request.json();
 
-    const response = await axios.post(`${XANO_PRODUCTION_BASE_URL}/media_plan_production`, data, {
+    const response = await axios.post(
+      xanoUrl("media_plan_production", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]),
+      data,
+      {
       headers: {
         "Content-Type": "application/json",
       },
-    });
+      }
+    );
 
     return NextResponse.json(response.data);
   } catch (error) {

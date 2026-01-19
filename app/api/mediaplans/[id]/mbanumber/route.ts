@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server"
 import axios from "axios"
-
-const XANO_MEDIAPLANS_BASE_URL = process.env.XANO_MEDIAPLANS_BASE_URL || "https://xg4h-uyzs-dtex.a2.xano.io/api:QVYjoFmM"
+import { xanoUrl } from "@/lib/api/xano"
 
 export async function POST(
   request: Request,
@@ -9,7 +8,9 @@ export async function POST(
 ) {
   try {
     const { id } = await params
-    const response = await axios.post(`${XANO_MEDIAPLANS_BASE_URL}/generate_mbanumber/${id}`)
+    const response = await axios.post(
+      `${xanoUrl("generate_mbanumber", "XANO_MEDIAPLANS_BASE_URL")}/${id}`
+    )
     return NextResponse.json(response.data)
   } catch (error) {
     console.error("Error generating MBA number:", error)

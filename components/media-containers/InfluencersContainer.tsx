@@ -22,7 +22,7 @@ import { LoadingDots } from "@/components/ui/loading-dots"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { ChevronDown, Plus, Trash2 } from "lucide-react"
+import { ChevronDown, Copy, Plus, Trash2 } from "lucide-react"
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
 import type { LineItem } from '@/lib/generateMediaPlan'
 
@@ -78,15 +78,19 @@ const burstSchema = z.object({
 
 const lineItemSchema = z.object({
   platform: z.string().min(1, "Platform is required"),
+  objective: z.string(),
+  campaign: z.string(),
   bidStrategy: z.string().min(1, "Bid Strategy is required"),
   buyType: z.string().min(1, "Buy Type is required"),
-  creativeTargeting: z.string().default(""),
-  creative: z.string().default(""),
-  buyingDemo: z.string().default(""), 
-  market: z.string().default(""),
-  fixedCostMedia: z.boolean().default(false),
-  clientPaysForMedia: z.boolean().default(false),
-  budgetIncludesFees: z.boolean().default(false),
+  targetingAttribute: z.string(),
+  creativeTargeting: z.string(),
+  creative: z.string(),
+  buyingDemo: z.string(), 
+  market: z.string(),
+  fixedCostMedia: z.boolean(),
+  clientPaysForMedia: z.boolean(),
+  budgetIncludesFees: z.boolean(),
+  noadserving: z.boolean(),
   bursts: z.array(burstSchema).min(1, "At least one burst is required"),
   totalMedia: z.number().optional(),
   totalDeliverables: z.number().optional(),
@@ -304,13 +308,16 @@ export default function InfluencersContainer({
   
   // Form initialization
   const form = useForm<InfluencersFormValues>({
-    resolver: zodResolver(influencersFormSchema),
+    resolver: zodResolver<InfluencersFormValues, any, InfluencersFormValues>(influencersFormSchema),
     defaultValues: {
       lineItems: [
         {
           platform: "",
+          objective: "",
+          campaign: "",
           bidStrategy: "",
           buyType: "",
+          targetingAttribute: "",
           creativeTargeting: "",
           creative: "",
           buyingDemo: "",   
@@ -318,6 +325,7 @@ export default function InfluencersContainer({
           fixedCostMedia: false,
           clientPaysForMedia: false,
           budgetIncludesFees: false,
+          noadserving: false,
           bursts: [
             {
               budget: "",
@@ -360,8 +368,13 @@ export default function InfluencersContainer({
         platform: item.platform || "",
         objective: item.objective || "",
         campaign: item.campaign || "",
+        bidStrategy: item.bid_strategy || "",
         buyType: item.buy_type || "",
         targetingAttribute: item.targeting_attribute || "",
+        creativeTargeting: item.creative_targeting || "",
+        creative: item.creative || "",
+        buyingDemo: item.buying_demo || "",
+        market: item.market || "",
         fixedCostMedia: item.fixed_cost_media || false,
         clientPaysForMedia: item.client_pays_for_media || false,
         budgetIncludesFees: item.budget_includes_fees || false,
@@ -612,6 +625,27 @@ export default function InfluencersContainer({
 
   handleLineItemValueChange(lineItemIndex);
   }, [handleLineItemValueChange, toast]);
+  
+  const handleDuplicateBurst = useCallback((lineItemIndex: number) => {
+    const currentBursts = form.getValues(`lineItems.${lineItemIndex}.bursts`) || [];
+
+    if (currentBursts.length === 0) {
+      handleAppendBurst(lineItemIndex);
+      return;
+    }
+
+    const lastBurst = currentBursts[currentBursts.length - 1];
+    form.setValue(`lineItems.${lineItemIndex}.bursts`, [
+      ...currentBursts,
+      {
+        ...lastBurst,
+        startDate: lastBurst.startDate ? new Date(lastBurst.startDate) : new Date(),
+        endDate: lastBurst.endDate ? new Date(lastBurst.endDate) : new Date(),
+      },
+    ]);
+
+    handleLineItemValueChange(lineItemIndex);
+  }, [form, handleAppendBurst, handleLineItemValueChange]);
   
   const handleRemoveBurst = useCallback((lineItemIndex: number, burstIndex: number) => {
     const currentBursts = form.getValues(`lineItems.${lineItemIndex}.bursts`) || [];
@@ -1148,8 +1182,8 @@ const getBursts = () => {
                                     <h4 className="text-sm font-medium">
                                       {formatBurstLabel(
                                         burstIndex + 1,
-                                        form.watch(`influencerlineItems.${lineItemIndex}.bursts.${burstIndex}.startDate`),
-                                        form.watch(`influencerlineItems.${lineItemIndex}.bursts.${burstIndex}.endDate`)
+                                        form.watch(`lineItems.${lineItemIndex}.bursts.${burstIndex}.startDate`),
+                                        form.watch(`lineItems.${lineItemIndex}.bursts.${burstIndex}.endDate`)
                                       )}
                                     </h4>
                                   </div>
@@ -1446,8 +1480,11 @@ const getBursts = () => {
                             onClick={() =>
                               appendLineItem({
                                 platform: "",
+                                    objective: "",
+                                    campaign: "",
                                 bidStrategy: "",
                                 buyType: "",
+                                    targetingAttribute: "",
                                 creativeTargeting: "",
                                 creative: "",
                                 buyingDemo: "",
@@ -1455,6 +1492,7 @@ const getBursts = () => {
                                 fixedCostMedia: false,
                                 clientPaysForMedia: false,
                                 budgetIncludesFees: false,
+                                    noadserving: false,
                                 bursts: [
                                   {
                                     budget: "",

@@ -25,6 +25,7 @@ import { ChevronDown, Copy, Plus, Trash2 } from "lucide-react"
 import { LoadingDots } from "@/components/ui/loading-dots"
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
 import type { LineItem } from '@/lib/generateMediaPlan'
+import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
 
 // Format Dates
 const formatDateString = (d?: Date | string): string => {
@@ -475,7 +476,7 @@ export default function ProgOOHContainer({
         client_pays_for_media: lineItem.clientPaysForMedia || false,
         budget_includes_fees: lineItem.budgetIncludesFees || false,
         no_adserving: lineItem.noadserving || false,
-        line_item_id: `${mbaNumber || 'POOH'}${index + 1}`,
+        line_item_id: buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.progOOH, index + 1),
         bursts_json: JSON.stringify(lineItem.bursts.map(burst => ({
           budget: burst.budget || "",
           buyAmount: burst.buyAmount || "",
@@ -795,7 +796,7 @@ useEffect(() => {
       const mediaAmount = computedBurst
         ? computedBurst.mediaAmount
         : parseFloat(String(burst.budget).replace(/[^0-9.-]+/g, "")) || 0;
-      const lineItemId = `${mbaNumber || 'POOH'}${lineItemIndex + 1}`;
+      const lineItemId = buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.progOOH, lineItemIndex + 1);
 
       return {
         market: lineItem.market || '',                                // Pass through market value

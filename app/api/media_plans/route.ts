@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { xanoUrl } from '@/lib/api/xano';
 
 // Define the type for a MediaPlan object to ensure type safety
 // This should match the type definition in your page.tsx
@@ -37,7 +38,7 @@ type MediaPlan = {
 
 export async function GET() {
   const res = await fetch(
-    'https://xg4h-uyzs-dtex.a2.xano.io/api:RaUx9FOa/media_plan_versions'
+    xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
   )
   if (!res.ok) return NextResponse.error()
   const data = await res.json()

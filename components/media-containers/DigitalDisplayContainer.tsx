@@ -18,7 +18,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { Label } from "@/components/ui/label"
 import { getPublishersForDigiDisplay, getClientInfo, getDisplaySites, createDisplaySite } from "@/lib/api"
 import { formatBurstLabel } from "@/lib/bursts"
-import { LoadingDots } from "@/components/ui/loading-dots"
+import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { Calendar } from "@/components/ui/calendar"
@@ -277,25 +277,6 @@ export function calculateBurstInvestmentPerMonth(form, feedigidisplay) {
   }));
 }
 
-const computeLoadedDeliverables = (buyType: string, burst: any) => {
-  const budget = parseFloat(String(burst?.budget ?? "0").replace(/[^0-9.]/g, "")) || 0;
-  const buyAmount = parseFloat(String(burst?.buyAmount ?? "1").replace(/[^0-9.]/g, "")) || 0;
-
-  switch (buyType) {
-    case "cpc":
-    case "cpv":
-      return buyAmount !== 0 ? budget / buyAmount : 0;
-    case "cpm":
-      return buyAmount !== 0 ? (budget / buyAmount) * 1000 : 0;
-    case "fixed_cost":
-      return 1;
-    case "bonus":
-      return parseFloat(String(burst?.calculatedValue ?? 0).replace(/[^0-9.]/g, "")) || 0;
-    default:
-      return parseFloat(String(burst?.calculatedValue ?? 0).replace(/[^0-9.]/g, "")) || 0;
-  }
-};
-
 export default function DigiDisplayContainer({
   clientId,
   feedigidisplay,
@@ -516,15 +497,11 @@ export default function DigiDisplayContainer({
           buyAmount: burst.buyAmount || "",
           startDate: burst.startDate ? new Date(burst.startDate) : (campaignStartDate || new Date()),
           endDate: burst.endDate ? new Date(burst.endDate) : (campaignEndDate || new Date()),
-        calculatedValue: computeLoadedDeliverables(item.buy_type || item.buyType, burst),
-        fee: burst.fee ?? 0,
         })) : [{
           budget: "",
           buyAmount: "",
           startDate: campaignStartDate || new Date(),
           endDate: campaignEndDate || new Date(),
-        calculatedValue: computeLoadedDeliverables(item.buy_type || item.buyType, {}),
-        fee: 0,
         }];
 
         return {
@@ -592,7 +569,7 @@ export default function DigiDisplayContainer({
         client_pays_for_media: lineItem.clientPaysForMedia || false,
         budget_includes_fees: lineItem.budgetIncludesFees || false,
         no_adserving: lineItem.noadserving || false,
-        line_item_id: `${mbaNumber || 'DD'}${index + 1}`,
+        line_item_id: buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.digitalDisplay, index + 1),
         bursts_json: JSON.stringify(lineItem.bursts.map(burst => ({
           budget: burst.budget || "",
           buyAmount: burst.buyAmount || "",
@@ -975,7 +952,7 @@ useEffect(() => {
       const mediaAmount = computedBurst
         ? computedBurst.mediaAmount
         : parseFloat(String(burst.budget).replace(/[^0-9.-]+/g, "")) || 0;
-      const lineItemId = `${mbaNumber || 'DD'}${lineItemIndex + 1}`;
+      const lineItemId = buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.digitalDisplay, lineItemIndex + 1);
 
       return {
         market: lineItem.market,
@@ -1120,14 +1097,13 @@ useEffect(() => {
       <div>
         {isLoading ? (
           <div className="flex justify-center items-center h-20">
-          <LoadingDots size="md" />
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
           </div>
         ) : (
           <div className="space-y-6">
             <Form {...form}>
               <div className="space-y-6">
                 {lineItemFields.map((field, lineItemIndex) => {
-                  const sectionId = `digidisplay-line-item-${lineItemIndex}`;
                   const getTotals = (lineItemIndex: number) => {
                     const lineItem = form.getValues(`digidisplaylineItems.${lineItemIndex}`);
                     let totalMedia = 0;
@@ -1180,7 +1156,7 @@ useEffect(() => {
                               variant="outline" 
                               size="sm"
                               onClick={() => {
-                                const element = document.getElementById(sectionId);
+                                const element = document.getElementById(`line-item-${lineItemIndex}`);
                                 if (element) {
                                   element.classList.toggle('hidden');
                                 }
@@ -1211,7 +1187,7 @@ useEffect(() => {
                       </div>
                       
                       {/* Detailed Content & Bursts - Collapsible */}
-                      <div id={sectionId} className="space-y-6">
+                      <div id={`line-item-${lineItemIndex}`} className="space-y-6">
                         <div className="bg-white rounded-xl shadow p-6 mb-6">
                           <CardContent className="space-y-6">
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">

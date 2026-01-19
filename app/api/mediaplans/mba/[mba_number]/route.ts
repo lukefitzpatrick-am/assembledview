@@ -1,16 +1,18 @@
 import { NextResponse } from "next/server"
 import axios from "axios"
-import { toMelbourneDateString } from "@/lib/timezone"
+import { parseDateOnlyString, toMelbourneDateString } from "@/lib/timezone"
+import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
+import { getXanoBaseUrl, xanoUrl } from "@/lib/api/xano"
 
 type MediaLineItems = {
   television: any[]
   radio: any[]
-  search: any[]
-  socialMedia: any[]
   newspaper: any[]
   magazines: any[]
   ooh: any[]
   cinema: any[]
+  search: any[]
+  socialMedia: any[]
   digitalDisplay: any[]
   digitalAudio: any[]
   digitalVideo: any[]
@@ -22,17 +24,18 @@ type MediaLineItems = {
   progAudio: any[]
   progOoh: any[]
   influencers: any[]
+  production: any[]
 }
 
 const createEmptyLineItems = (): MediaLineItems => ({
   television: [],
   radio: [],
-  search: [],
-  socialMedia: [],
   newspaper: [],
   magazines: [],
   ooh: [],
   cinema: [],
+  search: [],
+  socialMedia: [],
   digitalDisplay: [],
   digitalAudio: [],
   digitalVideo: [],
@@ -43,11 +46,546 @@ const createEmptyLineItems = (): MediaLineItems => ({
   progBvod: [],
   progAudio: [],
   progOoh: [],
-  influencers: []
+  influencers: [],
+  production: []
 })
 
-const MEDIA_PLANS_VERSIONS_URL = "https://xg4h-uyzs-dtex.a2.xano.io/api:RaUx9FOa"
-const MEDIA_PLAN_MASTER_URL = "https://xg4h-uyzs-dtex.a2.xano.io/api:RaUx9FOa"
+const MEDIA_TYPE_ENDPOINTS: Record<keyof MediaLineItems, string> = {
+  television: "media_plan_television",
+  radio: "media_plan_radio",
+  newspaper: "media_plan_newspaper",
+  magazines: "media_plan_magazines",
+  ooh: "media_plan_ooh",
+  cinema: "media_plan_cinema",
+  digitalDisplay: "media_plan_digi_display",
+  digitalAudio: "media_plan_digi_audio",
+  digitalVideo: "media_plan_digi_video",
+  bvod: "media_plan_digi_bvod",
+  integration: "media_plan_integration",
+  search: "media_plan_search",
+  socialMedia: "media_plan_social",
+  progDisplay: "media_plan_prog_display",
+  progVideo: "media_plan_prog_video",
+  progBvod: "media_plan_prog_bvod",
+  progAudio: "media_plan_prog_audio",
+  progOoh: "media_plan_prog_ooh",
+  influencers: "media_plan_influencers",
+  production: "media_plan_production",
+}
+
+const MEDIA_TYPE_FLAGS: Record<keyof MediaLineItems, string> = {
+  television: "mp_television",
+  radio: "mp_radio",
+  newspaper: "mp_newspaper",
+  magazines: "mp_magazines",
+  ooh: "mp_ooh",
+  cinema: "mp_cinema",
+  digitalDisplay: "mp_digidisplay",
+  digitalAudio: "mp_digiaudio",
+  digitalVideo: "mp_digivideo",
+  bvod: "mp_bvod",
+  integration: "mp_integration",
+  search: "mp_search",
+  socialMedia: "mp_socialmedia",
+  progDisplay: "mp_progdisplay",
+  progVideo: "mp_progvideo",
+  progBvod: "mp_progbvod",
+  progAudio: "mp_progaudio",
+  progOoh: "mp_progooh",
+  influencers: "mp_influencers",
+  production: "mp_production",
+}
+
+const MEDIA_TYPE_ALIASES: Record<string, keyof MediaLineItems> = {
+  "social media": "socialMedia",
+  "socialmedia": "socialMedia",
+  "social": "socialMedia",
+  "digital display": "digitalDisplay",
+  "digitaldisplay": "digitalDisplay",
+  "digital audio": "digitalAudio",
+  "digitalaudio": "digitalAudio",
+  "digital video": "digitalVideo",
+  "digitalvideo": "digitalVideo",
+  "programmatic display": "progDisplay",
+  "prog display": "progDisplay",
+  "progdisplay": "progDisplay",
+  "programmatic video": "progVideo",
+  "prog video": "progVideo",
+  "progvideo": "progVideo",
+  "programmatic bvod": "progBvod",
+  "prog bvod": "progBvod",
+  "progbvod": "progBvod",
+  "programmatic audio": "progAudio",
+  "prog audio": "progAudio",
+  "progaudio": "progAudio",
+  "programmatic ooh": "progOoh",
+  "prog ooh": "progOoh",
+  "progooh": "progOoh",
+}
+
+function normalise(value: any) {
+  return String(value ?? "").trim().toLowerCase()
+}
+
+function parseVersion(value: any): number | null {
+  if (value === null || value === undefined) return null
+  const num = typeof value === "string" ? parseInt(value, 10) : Number(value)
+  return Number.isNaN(num) ? null : num
+}
+
+function parseAmount(value: any): number {
+  if (value === null || value === undefined) return 0
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0
+  if (typeof value === "string") {
+    const cleaned = value.replace(/[^0-9.-]+/g, "")
+    const parsed = parseFloat(cleaned)
+    return Number.isFinite(parsed) ? parsed : 0
+  }
+  return 0
+}
+
+function safeParseDate(value: any): Date | null {
+  if (!value) return null
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return new Date(value)
+  }
+  if (typeof value === "string") {
+    try {
+      return parseDateOnlyString(value)
+    } catch {
+      const parsed = new Date(value)
+      return Number.isNaN(parsed.getTime()) ? null : parsed
+    }
+  }
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+function getMonthLabel(value: any): string {
+  if (!value) return "Unknown"
+  const date = new Date(value)
+  if (!Number.isNaN(date.getTime())) {
+    return date.toLocaleDateString("en-US", { month: "short", year: "numeric" })
+  }
+  return String(value)
+}
+
+function slugifyClientName(name: string | null | undefined): string {
+  if (!name || typeof name !== "string") return ""
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .trim()
+}
+
+async function fetchClientBrandColour(clientName?: string | null): Promise<string | null> {
+  if (!clientName) return null
+  try {
+    const response = await axios.get(xanoUrl("clients", "XANO_CLIENTS_BASE_URL"))
+    const clients = Array.isArray(response.data) ? response.data : []
+    const targetSlug = slugifyClientName(clientName)
+    const match = clients.find((client: any) => slugifyClientName(client?.mp_client_name || client?.name) === targetSlug)
+    const colour = match?.brand_colour ?? match?.brandColor ?? match?.brand_colour
+    if (typeof colour === "string" && colour.trim()) {
+      return colour.trim()
+    }
+  } catch (error) {
+    console.warn("[API] Failed to fetch client brand colour", {
+      clientName,
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+  return null
+}
+
+function calculateTimeElapsed(startDate: string, endDate: string): number {
+  const start = safeParseDate(startDate)
+  const end = safeParseDate(endDate)
+  if (!start || !end) return 0
+  const today = new Date()
+
+  start.setHours(0, 0, 0, 0)
+  end.setHours(0, 0, 0, 0)
+  today.setHours(0, 0, 0, 0)
+
+  const totalDays = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)))
+  const daysElapsed = Math.max(0, Math.ceil((today.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)))
+
+  if (today > end) return 100
+  if (today < start) return 0
+
+  const percentage = (daysElapsed / totalDays) * 100
+  return Math.min(100, Math.max(0, Math.round(percentage * 100) / 100))
+}
+
+function calculateDayMetrics(startDate: string, endDate: string) {
+  const start = safeParseDate(startDate)
+  const end = safeParseDate(endDate)
+  if (!start || !end) {
+    return { daysInCampaign: 0, daysElapsed: 0, daysRemaining: 0 }
+  }
+  const today = new Date()
+
+  start.setHours(0, 0, 0, 0)
+  end.setHours(0, 0, 0, 0)
+  today.setHours(0, 0, 0, 0)
+
+  const daysInCampaign = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1)
+  const daysElapsed = today < start ? 0 : Math.min(daysInCampaign, Math.ceil((today.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1)
+  const daysRemaining = Math.max(0, daysInCampaign - daysElapsed)
+
+  return { daysInCampaign, daysElapsed, daysRemaining }
+}
+
+function startOfDay(date: Date) {
+  const next = new Date(date)
+  next.setHours(0, 0, 0, 0)
+  return next
+}
+
+function endOfDay(date: Date) {
+  const next = new Date(date)
+  next.setHours(23, 59, 59, 999)
+  return next
+}
+
+function daysBetweenInclusive(start: Date, end: Date): number {
+  const startDay = startOfDay(start).getTime()
+  const endDay = startOfDay(end).getTime()
+  if (endDay < startDay) return 0
+  return Math.floor((endDay - startDay) / (1000 * 60 * 60 * 24)) + 1
+}
+
+function extractMonthDate(entry: any): Date | null {
+  const raw =
+    entry?.month ||
+    entry?.billingMonth ||
+    entry?.date ||
+    entry?.startDate ||
+    entry?.periodStart ||
+    entry?.period_start
+  const parsed = safeParseDate(raw)
+  if (!parsed) return null
+  const monthStart = new Date(parsed.getFullYear(), parsed.getMonth(), 1)
+  monthStart.setHours(0, 0, 0, 0)
+  return monthStart
+}
+
+function sumBillingEntryAmount(entry: any): number {
+  if (!entry) return 0
+  if (entry?.totalAmount) return parseAmount(entry.totalAmount)
+  if (entry?.amount) return parseAmount(entry.amount)
+
+  let total = 0
+  const mediaTypes = Array.isArray(entry?.mediaTypes) ? entry.mediaTypes : []
+  mediaTypes.forEach((mt: any) => {
+    const lineItems = Array.isArray(mt?.lineItems) ? mt.lineItems : []
+    lineItems.forEach((item: any) => {
+      total += parseAmount(item?.amount)
+    })
+  })
+  return total
+}
+
+function calculateExpectedSpendToDate(billingSchedule: any, startDate: string, endDate: string): number {
+  if (!billingSchedule || !Array.isArray(billingSchedule)) {
+    return 0
+  }
+
+  const start = safeParseDate(startDate)
+  const end = safeParseDate(endDate)
+  if (!start || !end) return 0
+  const today = new Date()
+
+  const campaignStart = startOfDay(start)
+  const campaignEnd = endOfDay(end)
+  const todayStart = startOfDay(today)
+  const todayEnd = endOfDay(today)
+
+  if (todayEnd < campaignStart) return 0
+
+  const monthlyTotals = new Map<
+    string,
+    { amount: number; monthStart: Date; monthEnd: Date }
+  >()
+
+  billingSchedule.forEach((entry: any) => {
+    const monthStart = extractMonthDate(entry)
+    if (!monthStart) return
+    const amount = sumBillingEntryAmount(entry)
+    if (!amount) return
+    const key = `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, "0")}`
+    const monthEnd = endOfDay(new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0))
+    const existing = monthlyTotals.get(key)
+    if (existing) {
+      existing.amount += amount
+    } else {
+      monthlyTotals.set(key, { amount, monthStart, monthEnd })
+    }
+  })
+
+  let expected = 0
+
+  monthlyTotals.forEach(({ amount, monthStart, monthEnd }) => {
+    const windowStart = monthStart > campaignStart ? monthStart : campaignStart
+    const windowEnd = monthEnd < campaignEnd ? monthEnd : campaignEnd
+    if (windowEnd < windowStart) return
+
+    if (todayEnd >= windowEnd) {
+      expected += amount
+      return
+    }
+
+    if (todayStart < windowStart) {
+      return
+    }
+
+    const totalDays = daysBetweenInclusive(windowStart, windowEnd)
+    const elapsedDays = Math.min(totalDays, daysBetweenInclusive(windowStart, todayStart))
+    if (totalDays <= 0 || elapsedDays <= 0) return
+
+    expected += amount * (elapsedDays / totalDays)
+  })
+
+  return Number(expected.toFixed(2))
+}
+
+function summarizeBillingSchedule(billingSchedule: any[]): {
+  spendByMediaChannel: Array<{ mediaType: string; amount: number; percentage: number }>
+  monthlySpend: Array<{ month: string; data: Array<{ mediaType: string; amount: number }> }>
+} {
+  const channelTotals: Record<string, number> = {}
+  const monthlyTotals: Record<string, Record<string, number>> = {}
+
+  billingSchedule.forEach((entry: any) => {
+    const monthLabel = getMonthLabel(
+      entry?.month ||
+        entry?.billingMonth ||
+        entry?.date ||
+        entry?.startDate ||
+        entry?.periodStart ||
+        entry?.period_start
+    )
+
+    const mediaTypes = Array.isArray(entry?.mediaTypes) ? entry.mediaTypes : []
+
+    if (mediaTypes.length === 0) {
+      const uncategorizedAmount = parseAmount(entry?.totalAmount ?? entry?.amount)
+      if (uncategorizedAmount > 0) {
+        channelTotals["Uncategorized"] = (channelTotals["Uncategorized"] || 0) + uncategorizedAmount
+        monthlyTotals[monthLabel] = monthlyTotals[monthLabel] || {}
+        monthlyTotals[monthLabel]["Uncategorized"] = (monthlyTotals[monthLabel]["Uncategorized"] || 0) + uncategorizedAmount
+      }
+      return
+    }
+
+    mediaTypes.forEach((mt: any) => {
+      const mediaType =
+        mt?.mediaType ||
+        mt?.media_type ||
+        mt?.name ||
+        "Other"
+
+      const lineItemSum = Array.isArray(mt?.lineItems)
+        ? mt.lineItems.reduce((sum: number, li: any) => {
+            return sum + parseAmount(li?.amount ?? li?.totalAmount ?? li?.cost ?? li?.value ?? li?.total)
+          }, 0)
+        : 0
+
+      const amount = lineItemSum || parseAmount(mt?.totalAmount ?? mt?.amount)
+      if (amount <= 0) return
+
+      channelTotals[mediaType] = (channelTotals[mediaType] || 0) + amount
+
+      monthlyTotals[monthLabel] = monthlyTotals[monthLabel] || {}
+      monthlyTotals[monthLabel][mediaType] = (monthlyTotals[monthLabel][mediaType] || 0) + amount
+    })
+  })
+
+  const totalAmount = Object.values(channelTotals).reduce((sum, val) => sum + val, 0)
+  const spendByMediaChannel = Object.entries(channelTotals).map(([mediaType, amount]) => ({
+    mediaType,
+    amount,
+    percentage: totalAmount > 0 ? (amount / totalAmount) * 100 : 0
+  }))
+
+  const monthlySpend = Object.entries(monthlyTotals).map(([month, entries]) => ({
+    month,
+    data: Object.entries(entries).map(([mediaType, amount]) => ({
+      mediaType,
+      amount
+    }))
+  }))
+
+  monthlySpend.sort((a, b) => {
+    const aDate = new Date(a.month).getTime()
+    const bDate = new Date(b.month).getTime()
+    if (Number.isNaN(aDate) || Number.isNaN(bDate)) return a.month.localeCompare(b.month)
+    return aDate - bDate
+  })
+
+  return { spendByMediaChannel, monthlySpend }
+}
+
+function normalizeDeliverySchedule(raw: any) {
+  const parsed = Array.isArray(raw) ? raw : typeof raw === "string" ? (() => {
+    try {
+      return JSON.parse(raw)
+    } catch {
+      return []
+    }
+  })() : []
+  const spendByChannel: Record<string, number> = {}
+  const monthlyMap: Record<string, Record<string, number>> = {}
+
+  parsed.forEach((entry: any) => {
+    const channel =
+      entry?.channel ||
+      entry?.media_channel ||
+      entry?.mediaType ||
+      entry?.media_type ||
+      entry?.publisher ||
+      entry?.placement ||
+      "Other"
+
+    const monthLabel = getMonthLabel(
+      entry?.month ||
+        entry?.monthYear ||
+        entry?.period_start ||
+        entry?.periodStart ||
+        entry?.date ||
+        entry?.startDate
+    )
+
+    const amount = parseAmount(
+      entry?.spend ??
+        entry?.amount ??
+        entry?.budget ??
+        entry?.value ??
+        entry?.investment ??
+        entry?.media_investment
+    )
+
+    if (amount > 0) {
+      spendByChannel[channel] = (spendByChannel[channel] || 0) + amount
+      monthlyMap[monthLabel] = monthlyMap[monthLabel] || {}
+      monthlyMap[monthLabel][channel] = (monthlyMap[monthLabel][channel] || 0) + amount
+    }
+  })
+
+  const monthlySpend = Object.entries(monthlyMap)
+    .map(([month, data]) => ({
+      month,
+      data: Object.entries(data).map(([mediaType, amount]) => ({ mediaType, amount })),
+    }))
+    .sort((a, b) => {
+      const aDate = new Date(a.month).getTime()
+      const bDate = new Date(b.month).getTime()
+      if (Number.isNaN(aDate) || Number.isNaN(bDate)) return a.month.localeCompare(b.month)
+      return aDate - bDate
+    })
+
+  const total = Object.values(spendByChannel).reduce((sum, v) => sum + v, 0)
+  const spendByMediaChannel = Object.entries(spendByChannel).map(([mediaType, amount]) => ({
+    mediaType,
+    amount,
+    percentage: total > 0 ? (amount / total) * 100 : 0,
+  }))
+
+  return {
+    raw: parsed,
+    spendByMediaChannel,
+    monthlySpend,
+  }
+}
+
+function normalizeMediaTypeKey(raw: any): keyof MediaLineItems | null {
+  if (raw === null || raw === undefined) return null
+  const trimmed = String(raw).trim()
+  if (!trimmed) return null
+  if (trimmed in MEDIA_TYPE_ENDPOINTS) return trimmed as keyof MediaLineItems
+  const normalized = normalise(trimmed).replace(/[^a-z0-9]+/g, " ").trim()
+  if (normalized in MEDIA_TYPE_ENDPOINTS) return normalized as keyof MediaLineItems
+  return MEDIA_TYPE_ALIASES[normalized] || null
+}
+
+function flagIsEnabled(value: any): boolean {
+  if (value === true) return true
+  if (value === 1) return true
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase()
+    return normalized === "true" || normalized === "1" || normalized === "yes"
+  }
+  return false
+}
+
+function deriveEnabledMediaTypes(versionData: Record<string, any> = {}) {
+  const enabledSet = new Set<keyof MediaLineItems>()
+  const arrayCandidates = [
+    versionData?.enabledMediaTypes,
+    versionData?.enabled_media_types,
+    versionData?.media_types,
+    versionData?.mediaTypes,
+  ]
+  arrayCandidates.forEach((candidate) => {
+    if (Array.isArray(candidate)) {
+      candidate.forEach((entry) => {
+        const normalized = normalizeMediaTypeKey(entry)
+        if (normalized) enabledSet.add(normalized)
+      })
+    }
+  })
+
+  ;(Object.keys(MEDIA_TYPE_FLAGS) as Array<keyof MediaLineItems>).forEach((key) => {
+    const flag = MEDIA_TYPE_FLAGS[key]
+    if (flagIsEnabled(versionData?.[flag])) {
+      enabledSet.add(key)
+    }
+  })
+
+  const enabled = Array.from(enabledSet)
+  return enabled.length > 0 ? enabled : (Object.keys(MEDIA_TYPE_ENDPOINTS) as Array<keyof MediaLineItems>)
+}
+
+function filterByMbaAndVersion(items: any[], mbaNumber: string, versionNumber: number): any[] {
+  if (!Array.isArray(items)) return []
+  const normalizedMba = normalise(mbaNumber)
+  const versionStr = String(versionNumber)
+
+  return items.filter((item) => {
+    if (normalise(item?.mba_number) !== normalizedMba) return false
+
+    const mpPlanNumber = item?.mp_plannumber ?? item?.mp_plan_number ?? item?.mpPlanNumber
+    const mediaPlanVersion = item?.media_plan_version ?? item?.media_plan_version_id
+    const versionNumberField = item?.version_number
+
+    if (mpPlanNumber !== null && mpPlanNumber !== undefined && String(mpPlanNumber).trim() !== "") {
+      return String(mpPlanNumber).trim() === versionStr
+    }
+
+    if (mediaPlanVersion !== null && mediaPlanVersion !== undefined && String(mediaPlanVersion).trim() !== "") {
+      return String(mediaPlanVersion).trim() === versionStr
+    }
+
+    if (versionNumberField !== null && versionNumberField !== undefined && String(versionNumberField).trim() !== "") {
+      return String(versionNumberField).trim() === versionStr
+    }
+
+    return false
+  })
+}
+
+async function fetchXanoTableForMediaType(
+  mediaType: keyof MediaLineItems,
+  mbaNumber: string,
+  versionNumber: number
+): Promise<any[]> {
+  const endpoint = MEDIA_TYPE_ENDPOINTS[mediaType]
+  const url = xanoUrl(endpoint, ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
+  const data = await fetchAllXanoPages(url, { mba_number: mbaNumber }, `MBA_${mediaType}`)
+  return filterByMbaAndVersion(data, mbaNumber, versionNumber)
+}
 
 // GET latest version by MBA number
 export async function GET(
@@ -55,14 +593,15 @@ export async function GET(
   { params }: { params: Promise<{ mba_number: string }> }
 ) {
   try {
+    const mediaPlansBaseUrl = getXanoBaseUrl(["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
     const { mba_number } = await params
     console.log(`[API] Received request for MBA number: "${mba_number}"`)
     console.log(`[API] MBA number type: ${typeof mba_number}, length: ${mba_number?.length}`)
     
     // First, get the MediaPlanMaster by MBA number
-    const masterQueryUrl = `${MEDIA_PLAN_MASTER_URL}/media_plan_master?mba_number=${encodeURIComponent(mba_number)}`
+    const masterQueryUrl = `${mediaPlansBaseUrl}/media_plan_master?mba_number=${encodeURIComponent(mba_number)}`
     console.log(`[API] Querying master with URL: ${masterQueryUrl}`)
-    console.log(`[API] Master API Database: ${MEDIA_PLAN_MASTER_URL}`)
+    console.log(`[API] Master API Database: ${mediaPlansBaseUrl}`)
     console.log(`[API] Master Endpoint: media_plan_master`)
     console.log(`[API] Requested MBA number: "${mba_number}" (type: ${typeof mba_number}, length: ${mba_number?.length})`)
     
@@ -77,14 +616,13 @@ export async function GET(
     })
     
     // Handle array response - find the exact match (no fallback to first record)
-    const normalize = (value: any) => String(value ?? '').trim().toLowerCase()
-    const requestedNormalized = normalize(mba_number)
+    const requestedNormalized = normalise(mba_number)
     let masterData: any = null
     if (Array.isArray(masterResponse.data)) {
-      masterData = masterResponse.data.find((item: any) => normalize(item?.mba_number) === requestedNormalized) || null
+      masterData = masterResponse.data.find((item: any) => normalise(item?.mba_number) === requestedNormalized) || null
     } else if (masterResponse.data && typeof masterResponse.data === 'object') {
       const candidate = masterResponse.data as any
-      masterData = normalize(candidate?.mba_number) === requestedNormalized ? candidate : null
+      masterData = normalise(candidate?.mba_number) === requestedNormalized ? candidate : null
     }
     
     // CRITICAL: Ensure we use version_number from media_plan_master
@@ -140,18 +678,12 @@ export async function GET(
     
     // Fetch ALL versions for this MBA to derive target and latest
     const versionsResponse = await axios.get(
-      `${MEDIA_PLANS_VERSIONS_URL}/media_plan_versions?mba_number=${encodeURIComponent(mba_number)}`
+      `${mediaPlansBaseUrl}/media_plan_versions?mba_number=${encodeURIComponent(mba_number)}`
     )
     
     const allVersionsForMBA = Array.isArray(versionsResponse.data)
-      ? versionsResponse.data.filter((v: any) => normalize(v?.mba_number) === requestedNormalized)
+      ? versionsResponse.data.filter((v: any) => normalise(v?.mba_number) === requestedNormalized)
       : []
-    
-    const parseVersion = (value: any): number | null => {
-      if (value === null || value === undefined) return null
-      const num = typeof value === 'string' ? parseInt(value, 10) : value
-      return isNaN(num) ? null : num
-    }
     
     const versionsMetadata = allVersionsForMBA.map((v: any) => ({
       id: v.id,
@@ -205,222 +737,47 @@ export async function GET(
 
     // Check if line items should be skipped for faster initial load
     // Note: url was already parsed above for version parameter
-    const skipLineItems = url.searchParams.get('skipLineItems') === 'true'
-    
-    // If we have an MBA number and line items aren't skipped, fetch related line items
+    const skipLineItems = url.searchParams.get("skipLineItems") === "true"
+
     let lineItemsData: MediaLineItems = createEmptyLineItems()
-    
+    const versionRecord = versionData || masterData || {}
+    const enabledMediaTypes = deriveEnabledMediaTypes(versionRecord)
+
     if (mba_number && !skipLineItems) {
       try {
-        // Always use the target version (requested or derived) for line items
         const versionNumberForLineItems = targetVersionNumber
-        console.log(`[API] Fetching line items for MBA: ${mba_number}, version: ${versionNumberForLineItems} (requested: ${targetVersionNumber || 'latest'})`)
-        console.log(`[API] Strategy: Query with mba_number AND version_number parameters, then filter by version_number/mp_plannumber in JavaScript as safety net`)
-        console.log(`[API] Version matching details:`, {
-          requestedVersion: targetVersionNumber,
-          versionDataVersion: versionData?.version_number,
-          latestVersionNumber: latestVersionNumber,
-          versionNumberForLineItems: versionNumberForLineItems,
-          mba_number: mba_number,
-          willFilterBy: ['version_number', 'mp_plannumber'],
-          matchingLogic: 'OR (either field matches) AND mba_number matches'
-        })
-        
-        // Helper function to filter media container items by version_number or mp_plannumber
-        // Checks both fields to ensure we match items regardless of which field is used
-        // This is a safety net - the query should already filter by version_number, but we ensure ALL entries are checked
-        const filterByVersion = (items: any[], versionNumber: number, mediaType?: string): any[] => {
-          if (!Array.isArray(items)) return []
-          
-          // Log sample items for debugging (first item only to avoid spam)
-          if (items.length > 0 && mediaType) {
-            const sampleItem = items[0]
-            console.log(`[API] Sample ${mediaType} item fields:`, {
-              mba_number: sampleItem.mba_number,
-              version_number: sampleItem.version_number,
-              mp_plannumber: sampleItem.mp_plannumber,
-              has_version_number: 'version_number' in sampleItem,
-              has_mp_plannumber: 'mp_plannumber' in sampleItem,
-              totalItems: items.length,
-              filteringFor: { mba_number, versionNumber }
-            })
-          }
-          
-          // Filter ALL items - ensure we check every entry, not just the first match
-          const filtered = items.filter((item: any) => {
-            // Check both version_number and mp_plannumber fields
-            const itemVersion = typeof item.version_number === 'string' 
-              ? parseInt(item.version_number, 10) 
-              : item.version_number
-            const itemPlan = typeof item.mp_plannumber === 'string'
-              ? parseInt(item.mp_plannumber, 10)
-              : item.mp_plannumber
-            
-            // Match if either field matches the requested version AND mba_number matches
-            const versionMatches = (itemVersion === versionNumber || itemPlan === versionNumber)
-            const mbaMatches = item.mba_number === mba_number
-            
-            if (!versionMatches || !mbaMatches) {
-              console.debug(`[API] Filtered out ${mediaType || 'item'}: mba_number=${item.mba_number} (expected ${mba_number}), version_number=${itemVersion}, mp_plannumber=${itemPlan} (expected ${versionNumber})`)
-            }
-            
-            return versionMatches && mbaMatches
-          })
-          
-          if (mediaType && filtered.length !== items.length) {
-            console.log(`[API] ${mediaType} filtering: ${items.length} total items, ${filtered.length} matched (mba_number: ${mba_number}, version: ${versionNumber})`)
-          }
-          
-          return filtered
-        }
-        
-        // Build query URLs with both mba_number AND version_number parameters
-        // This ensures we query with both parameters from the start
-        const versionParam = versionNumberForLineItems ? `&version_number=${encodeURIComponent(versionNumberForLineItems)}` : ''
-        const mpPlanParam = versionNumberForLineItems ? `&mp_plannumber=${encodeURIComponent(versionNumberForLineItems)}` : ''
-        
-        // Fetch line items for all media types in parallel - query with BOTH mba_number AND version_number
-        // Then filter by version_number/mp_plannumber in JavaScript as safety net to ensure we scan entire database
-        const [
-          televisionItems,
-          radioItems,
-          searchItems,
-          socialMediaItems,
-          newspaperItems,
-          magazinesItems,
-          oohItems,
-          cinemaItems,
-          digitalDisplayItems,
-          digitalAudioItems,
-          digitalVideoItems,
-          bvodItems,
-          integrationItems,
-          progDisplayItems,
-          progVideoItems,
-          progBvodItems,
-          progAudioItems,
-          progOohItems,
-          influencersItems
-        ] = await Promise.all([
-          axios.get(`${MEDIA_PLANS_VERSIONS_URL}/media_plan_television?mba_number=${encodeURIComponent(mba_number)}${versionParam}${mpPlanParam}`).catch(() => ({ data: [] })),
-          axios.get(`${MEDIA_PLANS_VERSIONS_URL}/media_plan_radio?mba_number=${encodeURIComponent(mba_number)}${versionParam}${mpPlanParam}`).catch(() => ({ data: [] })),
-          axios.get(`${MEDIA_PLANS_VERSIONS_URL}/media_plan_search?mba_number=${encodeURIComponent(mba_number)}${versionParam}${mpPlanParam}`).catch(() => ({ data: [] })),
-          axios.get(`${MEDIA_PLANS_VERSIONS_URL}/media_plan_social?mba_number=${encodeURIComponent(mba_number)}${versionParam}${mpPlanParam}`).catch(() => ({ data: [] })),
-          axios.get(`${MEDIA_PLANS_VERSIONS_URL}/media_plan_newspaper?mba_number=${encodeURIComponent(mba_number)}${versionParam}${mpPlanParam}`).catch(() => ({ data: [] })),
-          axios.get(`${MEDIA_PLANS_VERSIONS_URL}/media_plan_magazines?mba_number=${encodeURIComponent(mba_number)}${versionParam}${mpPlanParam}`).catch(() => ({ data: [] })),
-          axios.get(`${MEDIA_PLANS_VERSIONS_URL}/media_plan_ooh?mba_number=${encodeURIComponent(mba_number)}${versionParam}${mpPlanParam}`).catch(() => ({ data: [] })),
-          axios.get(`${MEDIA_PLANS_VERSIONS_URL}/media_plan_cinema?mba_number=${encodeURIComponent(mba_number)}${versionParam}${mpPlanParam}`).catch(() => ({ data: [] })),
-          axios.get(`${MEDIA_PLANS_VERSIONS_URL}/media_plan_digi_display?mba_number=${encodeURIComponent(mba_number)}${versionParam}${mpPlanParam}`).catch(() => ({ data: [] })),
-          axios.get(`${MEDIA_PLANS_VERSIONS_URL}/media_plan_digi_audio?mba_number=${encodeURIComponent(mba_number)}${versionParam}${mpPlanParam}`).catch(() => ({ data: [] })),
-          axios.get(`${MEDIA_PLANS_VERSIONS_URL}/media_plan_digi_video?mba_number=${encodeURIComponent(mba_number)}${versionParam}${mpPlanParam}`).catch(() => ({ data: [] })),
-          axios.get(`${MEDIA_PLANS_VERSIONS_URL}/media_plan_digi_bvod?mba_number=${encodeURIComponent(mba_number)}${versionParam}${mpPlanParam}`).catch(() => ({ data: [] })),
-          axios.get(`${MEDIA_PLANS_VERSIONS_URL}/media_plan_integration?mba_number=${encodeURIComponent(mba_number)}${versionParam}${mpPlanParam}`).catch(() => ({ data: [] })),
-          axios.get(`${MEDIA_PLANS_VERSIONS_URL}/media_plan_prog_display?mba_number=${encodeURIComponent(mba_number)}${versionParam}${mpPlanParam}`).catch(() => ({ data: [] })),
-          axios.get(`${MEDIA_PLANS_VERSIONS_URL}/media_plan_prog_video?mba_number=${encodeURIComponent(mba_number)}${versionParam}${mpPlanParam}`).catch(() => ({ data: [] })),
-          axios.get(`${MEDIA_PLANS_VERSIONS_URL}/media_plan_prog_bvod?mba_number=${encodeURIComponent(mba_number)}${versionParam}${mpPlanParam}`).catch(() => ({ data: [] })),
-          axios.get(`${MEDIA_PLANS_VERSIONS_URL}/media_plan_prog_audio?mba_number=${encodeURIComponent(mba_number)}${versionParam}${mpPlanParam}`).catch(() => ({ data: [] })),
-          axios.get(`${MEDIA_PLANS_VERSIONS_URL}/media_plan_prog_ooh?mba_number=${encodeURIComponent(mba_number)}${versionParam}${mpPlanParam}`).catch(() => ({ data: [] })),
-          axios.get(`${MEDIA_PLANS_VERSIONS_URL}/media_plan_influencers?mba_number=${encodeURIComponent(mba_number)}${versionParam}${mpPlanParam}`).catch(() => ({ data: [] }))
-        ])
-
-        // Filter all results by version_number or mp_plannumber (both must match mba_number AND version)
-        lineItemsData = {
-          television: filterByVersion(televisionItems.data || [], versionNumberForLineItems, 'television'),
-          radio: filterByVersion(radioItems.data || [], versionNumberForLineItems, 'radio'),
-          search: filterByVersion(searchItems.data || [], versionNumberForLineItems, 'search'),
-          socialMedia: filterByVersion(socialMediaItems.data || [], versionNumberForLineItems, 'socialMedia'),
-          newspaper: filterByVersion(newspaperItems.data || [], versionNumberForLineItems, 'newspaper'),
-          magazines: filterByVersion(magazinesItems.data || [], versionNumberForLineItems, 'magazines'),
-          ooh: filterByVersion(oohItems.data || [], versionNumberForLineItems, 'ooh'),
-          cinema: filterByVersion(cinemaItems.data || [], versionNumberForLineItems, 'cinema'),
-          digitalDisplay: filterByVersion(digitalDisplayItems.data || [], versionNumberForLineItems, 'digitalDisplay'),
-          digitalAudio: filterByVersion(digitalAudioItems.data || [], versionNumberForLineItems, 'digitalAudio'),
-          digitalVideo: filterByVersion(digitalVideoItems.data || [], versionNumberForLineItems, 'digitalVideo'),
-          bvod: filterByVersion(bvodItems.data || [], versionNumberForLineItems, 'bvod'),
-          integration: filterByVersion(integrationItems.data || [], versionNumberForLineItems, 'integration'),
-          progDisplay: filterByVersion(progDisplayItems.data || [], versionNumberForLineItems, 'progDisplay'),
-          progVideo: filterByVersion(progVideoItems.data || [], versionNumberForLineItems, 'progVideo'),
-          progBvod: filterByVersion(progBvodItems.data || [], versionNumberForLineItems, 'progBvod'),
-          progAudio: filterByVersion(progAudioItems.data || [], versionNumberForLineItems, 'progAudio'),
-          progOoh: filterByVersion(progOohItems.data || [], versionNumberForLineItems, 'progOoh'),
-          influencers: filterByVersion(influencersItems.data || [], versionNumberForLineItems, 'influencers')
-        }
-        
-        // Calculate totals for validation logging
-        const totalLineItemsBeforeFilter = [
-          televisionItems.data || [],
-          radioItems.data || [],
-          searchItems.data || [],
-          socialMediaItems.data || [],
-          newspaperItems.data || [],
-          magazinesItems.data || [],
-          oohItems.data || [],
-          cinemaItems.data || [],
-          digitalDisplayItems.data || [],
-          digitalAudioItems.data || [],
-          digitalVideoItems.data || [],
-          bvodItems.data || [],
-          integrationItems.data || [],
-          progDisplayItems.data || [],
-          progVideoItems.data || [],
-          progBvodItems.data || [],
-          progAudioItems.data || [],
-          progOohItems.data || [],
-          influencersItems.data || []
-        ].reduce((sum, arr) => sum + (Array.isArray(arr) ? arr.length : 0), 0)
-        
-        const totalLineItemsAfterFilter = Object.values(lineItemsData).reduce(
-          (sum: number, items: any) => sum + (Array.isArray(items) ? items.length : 0), 
-          0
+        console.log(
+          `[API] Fetching Xano line items for MBA: ${mba_number}, version: ${versionNumberForLineItems}`
         )
-        
-        console.log(`[API] Filtered line items by version ${versionNumberForLineItems} (mba_number: ${mba_number}):`, {
-          television: lineItemsData.television.length,
-          radio: lineItemsData.radio.length,
-          search: lineItemsData.search.length,
-          socialMedia: lineItemsData.socialMedia.length,
-          newspaper: lineItemsData.newspaper.length,
-          magazines: lineItemsData.magazines.length,
-          ooh: lineItemsData.ooh.length,
-          cinema: lineItemsData.cinema.length,
-          digitalDisplay: lineItemsData.digitalDisplay.length,
-          digitalAudio: lineItemsData.digitalAudio.length,
-          digitalVideo: lineItemsData.digitalVideo.length,
-          bvod: lineItemsData.bvod.length,
-          integration: lineItemsData.integration.length,
-          progDisplay: lineItemsData.progDisplay.length,
-          progVideo: lineItemsData.progVideo.length,
-          progBvod: lineItemsData.progBvod.length,
-          progAudio: lineItemsData.progAudio.length,
-          progOoh: lineItemsData.progOoh.length,
-          influencers: lineItemsData.influencers.length,
-          filteringCriteria: {
-            mba_number: mba_number,
-            version_number: versionNumberForLineItems,
-            checksBothFields: true
-          },
-          validation: {
-            totalItemsBeforeFilter: totalLineItemsBeforeFilter,
-            totalItemsAfterFilter: totalLineItemsAfterFilter,
-            itemsFilteredOut: totalLineItemsBeforeFilter - totalLineItemsAfterFilter,
-            queryStrategy: 'Query with mba_number AND version_number, then filter in JS as safety net',
-            ensuresAllEntriesChecked: true
-          }
+
+        const results = await Promise.all(
+          enabledMediaTypes.map(async (mediaType) => {
+            try {
+              const items = await fetchXanoTableForMediaType(mediaType, mba_number, versionNumberForLineItems)
+              return { mediaType, items }
+            } catch (error) {
+              console.warn(`[API] Failed to fetch ${mediaType} line items`, error)
+              return { mediaType, items: [] }
+            }
+          })
+        )
+
+        lineItemsData = createEmptyLineItems()
+        results.forEach(({ mediaType, items }) => {
+          lineItemsData[mediaType] = Array.isArray(items) ? items : []
         })
-        
-        // Validation: Log if we found multiple entries with same mba_number and version_number
-        const mediaTypesWithMultipleItems = Object.entries(lineItemsData)
-          .filter(([_, items]: [string, any]) => Array.isArray(items) && items.length > 1)
-          .map(([type, _]) => type)
-        
-        if (mediaTypesWithMultipleItems.length > 0) {
-          console.log(`[API] ✓ Validation: Found multiple line items for ${mediaTypesWithMultipleItems.length} media type(s), confirming we're not stopping at first match:`, mediaTypesWithMultipleItems)
-        }
       } catch (lineItemsError) {
         console.error("Error fetching line items:", lineItemsError)
-        // Continue without line items if they fail
       }
     }
+
+    const countsPerType = Object.entries(lineItemsData).reduce(
+      (acc, [key, items]) => {
+        acc[key] = Array.isArray(items) ? items.length : 0
+        return acc
+      },
+      {} as Record<string, number>
+    )
     
     // Combine master, version, and line items data
     // Explicitly include billingSchedule from versionData to ensure it's not lost
@@ -442,6 +799,56 @@ export async function GET(
       }
     }
     
+    const deliveryScheduleSource =
+      versionData.deliverySchedule ||
+      versionData.delivery_schedule ||
+      masterData.deliverySchedule ||
+      masterData.delivery_schedule ||
+      null
+
+    let parsedDeliverySchedule = deliveryScheduleSource
+    if (typeof deliveryScheduleSource === "string" && deliveryScheduleSource.trim() !== "") {
+      try {
+        parsedDeliverySchedule = JSON.parse(deliveryScheduleSource)
+      } catch (e) {
+        console.warn(`[API] Failed to parse deliverySchedule as JSON:`, e)
+        parsedDeliverySchedule = deliveryScheduleSource
+      }
+    }
+
+    const startDate =
+      versionData.campaign_start_date ||
+      versionData.mp_campaigndates_start ||
+      masterData.campaign_start_date ||
+      masterData.mp_campaigndates_start
+    const endDate =
+      versionData.campaign_end_date ||
+      versionData.mp_campaigndates_end ||
+      masterData.campaign_end_date ||
+      masterData.mp_campaigndates_end
+
+    const timeElapsed = startDate && endDate ? calculateTimeElapsed(startDate, endDate) : 0
+    const dayMetrics = startDate && endDate ? calculateDayMetrics(startDate, endDate) : { daysInCampaign: 0, daysElapsed: 0, daysRemaining: 0 }
+
+    const clientName =
+      versionData?.mp_client_name ||
+      versionData?.client_name ||
+      masterData?.mp_client_name ||
+      masterData?.client_name ||
+      null
+
+    const clientBrandColour = await fetchClientBrandColour(clientName)
+
+    const expectedSpendToDate = parsedBillingSchedule && Array.isArray(parsedBillingSchedule) && startDate && endDate
+      ? calculateExpectedSpendToDate(parsedBillingSchedule, startDate, endDate)
+      : 0
+
+    const billingSpend = parsedBillingSchedule && Array.isArray(parsedBillingSchedule)
+      ? summarizeBillingSchedule(parsedBillingSchedule)
+      : { spendByMediaChannel: [], monthlySpend: [] }
+
+    const deliveryScheduleMetrics = normalizeDeliverySchedule(parsedDeliverySchedule)
+
     // Ensure version_number is explicitly set from versionData to avoid being overridden by masterData
     // If a specific version was requested, we MUST use that version (it should already be in versionData)
     // Priority: targetVersionNumber (if requested) > versionData.version_number > latestVersionNumber > masterData.version_number
@@ -493,12 +900,49 @@ export async function GET(
     const combinedData = {
       ...masterData,
       ...versionData,
+      mbaNumber: mba_number,
+      versionNumber: actualVersionNumber,
+      versionData,
       version_number: actualVersionNumber, // Explicitly set to ensure correct version is returned
       billingSchedule: parsedBillingSchedule,
+      deliverySchedule: deliveryScheduleMetrics.raw,
       lineItems: lineItemsData,
+      metrics: {
+        timeElapsed,
+        ...dayMetrics,
+        expectedSpendToDate,
+        spendByMediaChannel: billingSpend.spendByMediaChannel,
+        monthlySpend: billingSpend.monthlySpend,
+        deliverySpendByChannel: deliveryScheduleMetrics.spendByMediaChannel,
+        deliveryMonthlySpend: deliveryScheduleMetrics.monthlySpend,
+      },
+      debug: {
+        enabledMediaTypes,
+        countsPerType,
+      },
+      client: {
+        ...(versionData?.client || masterData?.client || {}),
+        brand_colour: clientBrandColour || versionData?.client?.brand_colour || masterData?.client?.brand_colour,
+        brandColour: clientBrandColour || versionData?.client?.brandColour || masterData?.client?.brandColour,
+        name: clientName || versionData?.client?.name || masterData?.client?.name,
+      },
+      client_details: {
+        ...(versionData?.client_details || versionData?.clientDetails || masterData?.client_details || masterData?.clientDetails || {}),
+        brand_colour:
+          clientBrandColour ||
+          versionData?.client_details?.brand_colour ||
+          versionData?.clientDetails?.brand_colour ||
+          masterData?.client_details?.brand_colour ||
+          masterData?.clientDetails?.brand_colour,
+      },
       versions: versionsMetadata.sort((a, b) => (a.version_number || 0) - (b.version_number || 0)),
       latestVersionNumber,
-      nextVersionNumber
+      nextVersionNumber,
+    }
+
+    if (clientBrandColour) {
+      combinedData.brand_colour = combinedData.brand_colour || clientBrandColour
+      combinedData.client_brand_colour = combinedData.client_brand_colour || clientBrandColour
     }
     
     // Final validation that the returned version matches the requested version
@@ -590,6 +1034,7 @@ export async function PUT(
   { params }: { params: Promise<{ mba_number: string }> }
 ) {
   try {
+    const mediaPlansBaseUrl = getXanoBaseUrl(["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
     const { mba_number } = await params
     const data = await request.json()
     
@@ -597,12 +1042,11 @@ export async function PUT(
     console.log("Update data:", data)
     
     // First, get the MediaPlanMaster by MBA number (require exact match)
-    const masterResponse = await axios.get(`${MEDIA_PLAN_MASTER_URL}/media_plan_master?mba_number=${mba_number}`)
-    const normalize = (value: any) => String(value ?? '').trim().toLowerCase()
-    const requestedNormalized = normalize(mba_number)
+    const masterResponse = await axios.get(`${mediaPlansBaseUrl}/media_plan_master?mba_number=${mba_number}`)
+    const requestedNormalized = normalise(mba_number)
     const masterData = Array.isArray(masterResponse.data)
-      ? masterResponse.data.find((item: any) => normalize(item?.mba_number) === requestedNormalized) || null
-      : (masterResponse.data && normalize((masterResponse.data as any).mba_number) === requestedNormalized
+      ? masterResponse.data.find((item: any) => normalise(item?.mba_number) === requestedNormalized) || null
+      : (masterResponse.data && normalise((masterResponse.data as any).mba_number) === requestedNormalized
         ? masterResponse.data
         : null)
     
@@ -616,11 +1060,11 @@ export async function PUT(
 
     // Calculate next version number based on max existing version for this MBA
     const versionsResponse = await axios.get(
-      `${MEDIA_PLANS_VERSIONS_URL}/media_plan_versions?mba_number=${encodeURIComponent(mba_number)}`
+      `${mediaPlansBaseUrl}/media_plan_versions?mba_number=${encodeURIComponent(mba_number)}`
     ).catch(() => ({ data: [] }))
     
     const allVersionsForMBA = Array.isArray(versionsResponse.data)
-      ? versionsResponse.data.filter((v: any) => normalize(v?.mba_number) === requestedNormalized)
+      ? versionsResponse.data.filter((v: any) => normalise(v?.mba_number) === requestedNormalized)
       : []
     
     const parseVersion = (value: any): number => {
@@ -678,7 +1122,7 @@ export async function PUT(
     }
     
     // Create new version in media_plan_versions table
-    const versionResponse = await axios.post(`${MEDIA_PLANS_VERSIONS_URL}/media_plan_versions`, newVersionData)
+    const versionResponse = await axios.post(`${mediaPlansBaseUrl}/media_plan_versions`, newVersionData)
     
     // Update MediaPlanMaster with new version number and campaign name
     const masterUpdateData = {
@@ -690,7 +1134,7 @@ export async function PUT(
       mp_campaignbudget: data.mp_campaignbudget || masterData.mp_campaignbudget
     }
     
-    const masterUpdateResponse = await axios.patch(`${MEDIA_PLAN_MASTER_URL}/media_plan_master/${masterData.id}`, masterUpdateData)
+    const masterUpdateResponse = await axios.patch(`${mediaPlansBaseUrl}/media_plan_master/${masterData.id}`, masterUpdateData)
     
     console.log("New version created:", versionResponse.data)
     console.log("Master updated:", masterUpdateResponse.data)
@@ -744,6 +1188,7 @@ export async function PATCH(
   { params }: { params: Promise<{ mba_number: string }> }
 ) {
   try {
+    const mediaPlansBaseUrl = getXanoBaseUrl(["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
     const { mba_number } = await params
     const data = await request.json()
     
@@ -752,21 +1197,20 @@ export async function PATCH(
     console.log("[PATCH] Update data:", data)
     
     // First, get the MediaPlanMaster by MBA number (require exact match)
-    const masterQueryUrl = `${MEDIA_PLAN_MASTER_URL}/media_plan_master?mba_number=${encodeURIComponent(mba_number)}`
+    const masterQueryUrl = `${mediaPlansBaseUrl}/media_plan_master?mba_number=${encodeURIComponent(mba_number)}`
     console.log(`[PATCH] Querying master with URL: ${masterQueryUrl}`)
     
     const masterResponse = await axios.get(masterQueryUrl)
     
-    const normalize = (value: any) => String(value ?? '').trim().toLowerCase()
-    const requestedNormalized = normalize(mba_number)
+    const requestedNormalized = normalise(mba_number)
     
     // Handle array response - find the exact match (same logic as GET handler)
     let masterData: any = null
     if (Array.isArray(masterResponse.data)) {
-      masterData = masterResponse.data.find((item: any) => normalize(item?.mba_number) === requestedNormalized) || null
+      masterData = masterResponse.data.find((item: any) => normalise(item?.mba_number) === requestedNormalized) || null
     } else if (masterResponse.data && typeof masterResponse.data === 'object') {
       const candidate = masterResponse.data as any
-      masterData = normalize(candidate?.mba_number) === requestedNormalized ? candidate : null
+      masterData = normalise(candidate?.mba_number) === requestedNormalized ? candidate : null
     }
     
     console.log(`[PATCH] Master data response:`, {
@@ -851,7 +1295,7 @@ export async function PATCH(
     
     // Construct the PATCH URL using the numeric id field
     // Format: /media_plan_master/{id} - this should target ONLY the specific record
-    const patchUrl = `${MEDIA_PLAN_MASTER_URL}/media_plan_master/${numericMasterId}`
+    const patchUrl = `${mediaPlansBaseUrl}/media_plan_master/${numericMasterId}`
     console.log(`[PATCH] Updating media plan master at URL: ${patchUrl}`)
     console.log(`[PATCH] Target master ID: ${numericMasterId}`)
     console.log(`[PATCH] Update payload (only updating these fields):`, masterUpdateData)

@@ -6,11 +6,7 @@ import {
   extractLineItemsFromBillingSchedule,
   extractServiceAmountsFromBillingSchedule,
 } from "@/lib/finance/utils"
-
-const MEDIA_PLAN_MASTER_URL = process.env.XANO_MEDIA_PLANS_BASE_URL || "https://xg4h-uyzs-dtex.a2.xano.io/api:RaUx9FOa"
-const MEDIA_PLANS_VERSIONS_URL = process.env.XANO_MEDIA_PLANS_BASE_URL || "https://xg4h-uyzs-dtex.a2.xano.io/api:RaUx9FOa"
-const CLIENTS_BASE_URL = process.env.XANO_CLIENTS_BASE_URL || "https://xg4h-uyzs-dtex.a2.xano.io/api:9v_k2NR8"
-const PUBLISHERS_BASE_URL = process.env.XANO_PUBLISHERS_BASE_URL || "https://xg4h-uyzs-dtex.a2.xano.io/api:YkRK8qLP"
+import { xanoUrl } from "@/lib/api/xano"
 
 
 export async function GET(request: NextRequest) {
@@ -34,7 +30,9 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch all media plan masters to get latest version numbers
-    const mastersResponse = await axios.get(`${MEDIA_PLAN_MASTER_URL}/media_plan_master`)
+    const mastersResponse = await axios.get(
+      xanoUrl("media_plan_master", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
+    )
     const masters = Array.isArray(mastersResponse.data) ? mastersResponse.data : []
 
     // Create a map of MBA number to latest version info (use masters first, then fallback to versions)
@@ -53,7 +51,9 @@ export async function GET(request: NextRequest) {
     })
 
     // Fetch all media plan versions
-    const versionsResponse = await axios.get(`${MEDIA_PLANS_VERSIONS_URL}/media_plan_versions`)
+    const versionsResponse = await axios.get(
+      xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
+    )
     const allVersions = Array.isArray(versionsResponse.data) ? versionsResponse.data : []
 
     // Ensure we have latest version info even if master entry is missing
@@ -102,8 +102,8 @@ export async function GET(request: NextRequest) {
 
     // Fetch clients and publishers in parallel
     const [clientsResponse, publishersResponse] = await Promise.all([
-      axios.get(`${CLIENTS_BASE_URL}/get_clients`).catch(() => ({ data: [] })),
-      axios.get(`${PUBLISHERS_BASE_URL}/get_publishers`).catch(() => ({ data: [] })),
+      axios.get(xanoUrl("get_clients", "XANO_CLIENTS_BASE_URL")).catch(() => ({ data: [] })),
+      axios.get(xanoUrl("get_publishers", "XANO_PUBLISHERS_BASE_URL")).catch(() => ({ data: [] })),
     ])
 
     const clients = Array.isArray(clientsResponse.data) ? clientsResponse.data : []

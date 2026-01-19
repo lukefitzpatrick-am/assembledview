@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import axios from "axios"
 import { formatInvoiceDate, matchMonthYear, parseBillingScheduleAmount } from "@/lib/finance/utils"
-
-const XANO_SCOPES_BASE_URL = process.env.XANO_SCOPES_BASE_URL || "https://xg4h-uyzs-dtex.a2.xano.io/api:idlsZiVX"
+import { xanoUrl } from "@/lib/api/xano"
 
 type ScopeOfWork = {
   id: number
@@ -144,7 +143,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Invalid month format. Use YYYY-MM" }, { status: 400 })
     }
 
-    const scopesResponse = await axios.get(`${XANO_SCOPES_BASE_URL}/scope_of_work`)
+    const scopesResponse = await axios.get(xanoUrl("scope_of_work", "XANO_SCOPES_BASE_URL"))
     const scopes: ScopeOfWork[] = Array.isArray(scopesResponse.data) ? scopesResponse.data : []
 
     const bookedApproved: FinanceCampaignData[] = []

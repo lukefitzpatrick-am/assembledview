@@ -1,10 +1,46 @@
 import { toMelbourneDateString } from "@/lib/timezone"
+import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
+import { getXanoBaseUrl } from "@/lib/api/xano"
+import { MEDIA_TYPE_ID_CODES, buildLineItemIdentity, buildLineItemId, pickLineItemNumber } from "@/lib/mediaplan/lineItemIds"
 
-const PUBLISHERS_BASE_URL = process.env.XANO_PUBLISHERS_BASE_URL || "https://xg4h-uyzs-dtex.a2.xano.io/api:YkRK8qLP"
-const CLIENTS_BASE_URL = process.env.XANO_CLIENTS_BASE_URL || "https://xg4h-uyzs-dtex.a2.xano.io/api:9v_k2NR8"
-const MEDIA_DETAILS_BASE_URL = process.env.XANO_MEDIA_DETAILS_BASE_URL || "https://xg4h-uyzs-dtex.a2.xano.io/api:di-s-JRc" 
-const MEDIA_PLANS_BASE_URL = process.env.XANO_MEDIA_PLANS_BASE_URL || "https://xg4h-uyzs-dtex.a2.xano.io/api:RaUx9FOa"
+const isBrowser = typeof window !== "undefined"
+const PUBLISHERS_BASE_URL = getXanoBaseUrl("XANO_PUBLISHERS_BASE_URL")
+const CLIENTS_BASE_URL = getXanoBaseUrl("XANO_CLIENTS_BASE_URL")
+const MEDIA_DETAILS_BASE_URL = isBrowser
+  ? "/api/media-details"
+  : getXanoBaseUrl("XANO_MEDIA_DETAILS_BASE_URL")
+const MEDIA_PLANS_BASE_URL = isBrowser
+  ? "/api/media_plans"
+  : getXanoBaseUrl(["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
+const publishersEndpoint = isBrowser ? "/api/publishers" : `${PUBLISHERS_BASE_URL}/get_publishers`
 const XANO_API_KEY = process.env.XANO_API_KEY || ""
+
+async function extractResponseMessage(response: Response): Promise<string> {
+  const contentType = response.headers.get("content-type") || ""
+  if (contentType.includes("application/json")) {
+    try {
+      const data = await response.json()
+      if (typeof data === "string") return data
+      return data?.error || data?.message || JSON.stringify(data)
+    } catch {
+      // fall through to text
+    }
+  }
+  try {
+    return await response.text()
+  } catch {
+    return response.statusText || "Unknown error"
+  }
+}
+
+async function parseJsonOrText<T = any>(response: Response): Promise<T> {
+  const contentType = response.headers.get("content-type") || ""
+  if (contentType.includes("application/json")) {
+    return response.json() as Promise<T>
+  }
+  // Returning text is better than throwing a JSON parse error (e.g. HTML 404 pages)
+  return (await response.text()) as unknown as T
+}
 
 // Media Plan Line Item Interfaces based on provided schemas
 interface CinemaLineItem {
@@ -876,7 +912,7 @@ export async function getMediaPlanVersions() {
 
 export async function getMediaPlanVersionById(id: number) {
   try {
-    const response = await fetch(`https://xg4h-uyzs-dtex.a2.xano.io/api:RaUx9FOa/media_plan_versions?id=${id}`);
+    const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_versions?id=${id}`);
     if (!response.ok) {
       throw new Error("Failed to fetch media plan version");
     }
@@ -890,7 +926,7 @@ export async function getMediaPlanVersionById(id: number) {
 
 export async function getMediaPlanVersionByMasterId(masterId: number) {
   try {
-    const response = await fetch(`https://xg4h-uyzs-dtex.a2.xano.io/api:RaUx9FOa/media_plan_versions?media_plan_master_id=${masterId}`);
+    const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_versions?media_plan_master_id=${masterId}`);
     if (!response.ok) {
       throw new Error("Failed to fetch media plan versions by master ID");
     }
@@ -921,76 +957,49 @@ export async function getMediaPlanVersionByMBA(mba_number: string) {
   return fetch(`/media_plan_version?mba_number=${mba_number}`);
 }
 
-export async function getTVStations(): Promise<TVStation[]> {
-  const response = await fetch(`${MEDIA_DETAILS_BASE_URL}/tv_stations`);
+async function fetchMediaDetail(path: string) {
+  const url = isBrowser ? `/api/media-details/${path}` : `${MEDIA_DETAILS_BASE_URL}/${path}`
+  const response = await fetch(url)
   if (!response.ok) {
-    throw new Error("Failed to fetch TV stations");
+    throw new Error(`Failed to fetch media details: ${path}`)
   }
-  return response.json();
+  return response.json()
+}
+
+export async function getTVStations(): Promise<TVStation[]> {
+  return fetchMediaDetail("tv_stations")
 }
 
 export async function getRadioStations(): Promise<RadioStation[]> {
-  const response = await fetch(`${MEDIA_DETAILS_BASE_URL}/radio_stations`);
-  if (!response.ok) {
-    throw new Error("Failed to fetch TV stations");
-  }
-  return response.json();
+  return fetchMediaDetail("radio_stations")
 }
 
 export async function getNewspapers(): Promise<Newspapers[]> {
-  const response = await fetch(`${MEDIA_DETAILS_BASE_URL}/newspapers`);
-  if (!response.ok) {
-    throw new Error("Failed to fetch newspapers");
-  }
-  return response.json();
+  return fetchMediaDetail("newspapers")
 }
 
 export async function getNewspapersAdSizes(): Promise<NewspapersAdSizes[]> {
-  const response = await fetch(`${MEDIA_DETAILS_BASE_URL}/newspaper_adsizes`);
-  if (!response.ok) {
-    throw new Error("Failed to fetch newspapers ad sizes");
-  }
-  return response.json();
+  return fetchMediaDetail("newspaper_adsizes")
 }
 
 export async function getMagazines(): Promise<Magazines[]> {
-  const response = await fetch(`${MEDIA_DETAILS_BASE_URL}/magazines`);
-  if (!response.ok) {
-    throw new Error("Failed to fetch magazines");
-  }
-  return response.json();
+  return fetchMediaDetail("magazines")
 }
 
 export async function getMagazinesAdSizes(): Promise<MagazinesAdSizes[]> {
-  const response = await fetch(`${MEDIA_DETAILS_BASE_URL}/magazines_adsizes`);
-  if (!response.ok) {
-    throw new Error("Failed to fetch magazines ad sizes");
-  }
-  return response.json();
+  return fetchMediaDetail("magazines_adsizes")
 }
 
 export async function getAudioSites(): Promise<AudioSite[]> {
-  const response = await fetch(`${MEDIA_DETAILS_BASE_URL}/audio_site`);
-  if (!response.ok) {
-    throw new Error("Failed to fetch audio sites");
-  }
-  return response.json();
+  return fetchMediaDetail("audio_site")
 }
 
 export async function getVideoSites(): Promise<VideoSite[]> {
-  const response = await fetch(`${MEDIA_DETAILS_BASE_URL}/video_site`);
-  if (!response.ok) {
-    throw new Error("Failed to fetch video sites");
-  }
-  return response.json();
+  return fetchMediaDetail("video_site")
 }
 
 export async function getDisplaySites(): Promise<DisplaySite[]> {
-  const response = await fetch(`${MEDIA_DETAILS_BASE_URL}/display_site`);
-  if (!response.ok) {
-    throw new Error("Failed to fetch display sites");
-  }
-  return response.json();
+  return fetchMediaDetail("display_site")
 }
 
 export async function getBVODSites(): Promise<BVODSite[]> {
@@ -1145,7 +1154,7 @@ export async function createBVODSite(siteData: { platform: string; site: string 
 
 export async function getPublishersForSearch(): Promise<Publisher[]> {
   try {
-    const response = await fetch(`${PUBLISHERS_BASE_URL}/get_publishers`);
+    const response = await fetch(publishersEndpoint);
     if (!response.ok) {
       throw new Error("Failed to fetch publishers for search");
     }
@@ -1167,7 +1176,9 @@ export async function getPublishersForSearch(): Promise<Publisher[]> {
 
 export async function getClientInfo(clientId: string): Promise<ClientInfo | null> {
   try {
-    const response = await fetch(`${CLIENTS_BASE_URL}/clients/${clientId}`);
+    const response = await fetch(
+      isBrowser ? `/api/clients/${clientId}` : `${CLIENTS_BASE_URL}/clients/${clientId}`
+    );
     if (!response.ok) {
       throw new Error("Failed to fetch client information");
     }
@@ -1195,7 +1206,7 @@ export async function getMediaPlans() {
 
 export async function getPublishersForSocialMedia() {
   try {
-    const response = await fetch(`${PUBLISHERS_BASE_URL}/get_publishers`);
+    const response = await fetch(publishersEndpoint);
     if (!response.ok) {
       throw new Error("Failed to fetch publishers for search");
     }
@@ -1218,7 +1229,7 @@ export async function getPublishersForSocialMedia() {
 
 export async function getPublishersForTelevision() {
   try {
-    const response = await fetch(`${PUBLISHERS_BASE_URL}/get_publishers`);
+    const response = await fetch(publishersEndpoint);
     if (!response.ok) {
       throw new Error("Failed to fetch publishers for television");
     }
@@ -1240,7 +1251,7 @@ export async function getPublishersForTelevision() {
 
 export async function getPublishersForRadio() {
   try {
-    const response = await fetch(`${PUBLISHERS_BASE_URL}/get_publishers`);
+    const response = await fetch(publishersEndpoint);
     if (!response.ok) {
       throw new Error("Failed to fetch publishers for radio");
     }
@@ -1262,7 +1273,7 @@ export async function getPublishersForRadio() {
 
 export async function getPublishersForNewspapers() {
   try {
-    const response = await fetch(`${PUBLISHERS_BASE_URL}/get_publishers`);
+    const response = await fetch(publishersEndpoint);
     if (!response.ok) {
       throw new Error("Failed to fetch publishers for newspapers");
     }
@@ -1284,7 +1295,7 @@ export async function getPublishersForNewspapers() {
 
 export async function getPublishersForMagazines() {
   try {
-    const response = await fetch(`${PUBLISHERS_BASE_URL}/get_publishers`);
+    const response = await fetch(publishersEndpoint);
     if (!response.ok) {
       throw new Error("Failed to fetch publishers for magazines");
     }
@@ -1306,7 +1317,7 @@ export async function getPublishersForMagazines() {
 
 export async function getPublishersForOoh() {
   try {
-    const response = await fetch(`${PUBLISHERS_BASE_URL}/get_publishers`);
+    const response = await fetch(publishersEndpoint);
     if (!response.ok) {
       throw new Error("Failed to fetch publishers for OOH");
     }
@@ -1328,7 +1339,7 @@ export async function getPublishersForOoh() {
 
 export async function getPublishersForCinema() {
   try {
-    const response = await fetch(`${PUBLISHERS_BASE_URL}/get_publishers`);
+    const response = await fetch(publishersEndpoint);
     if (!response.ok) {
       throw new Error("Failed to fetch publishers for cinema");
     }
@@ -1350,7 +1361,7 @@ export async function getPublishersForCinema() {
 
 export async function getPublishersForDigiDisplay() {
   try {
-    const response = await fetch(`${PUBLISHERS_BASE_URL}/get_publishers`);
+    const response = await fetch(publishersEndpoint);
     if (!response.ok) {
       throw new Error("Failed to fetch publishers for digital display");
     }
@@ -1372,7 +1383,7 @@ export async function getPublishersForDigiDisplay() {
 
 export async function getPublishersForDigiAudio() {
   try {
-    const response = await fetch(`${PUBLISHERS_BASE_URL}/get_publishers`);
+    const response = await fetch(publishersEndpoint);
     if (!response.ok) {
       throw new Error("Failed to fetch publishers for digital audio");
     }
@@ -1394,7 +1405,7 @@ export async function getPublishersForDigiAudio() {
 
 export async function getPublishersForDigiVideo() {
   try {
-    const response = await fetch(`${PUBLISHERS_BASE_URL}/get_publishers`);
+    const response = await fetch(publishersEndpoint);
     if (!response.ok) {
       throw new Error("Failed to fetch publishers for digital video");
     }
@@ -1416,7 +1427,7 @@ export async function getPublishersForDigiVideo() {
 
 export async function getPublishersForBvod() {
   try {
-    const response = await fetch(`${PUBLISHERS_BASE_URL}/get_publishers`);
+    const response = await fetch(publishersEndpoint);
     if (!response.ok) {
       throw new Error("Failed to fetch publishers for BVOD");
     }
@@ -1438,7 +1449,7 @@ export async function getPublishersForBvod() {
 
 export async function getPublishersForIntegration() {
   try {
-    const response = await fetch(`${PUBLISHERS_BASE_URL}/get_publishers`);
+    const response = await fetch(publishersEndpoint);
     if (!response.ok) {
       throw new Error("Failed to fetch publishers for integration");
     }
@@ -1460,7 +1471,7 @@ export async function getPublishersForIntegration() {
 
 export async function getPublishersForProgDisplay() {
   try {
-    const response = await fetch(`${PUBLISHERS_BASE_URL}/get_publishers`);
+    const response = await fetch(publishersEndpoint);
     if (!response.ok) {
       throw new Error("Failed to fetch publishers for programmatic display");
     }
@@ -1482,7 +1493,7 @@ export async function getPublishersForProgDisplay() {
 
 export async function getPublishersForProgVideo() {
   try {
-    const response = await fetch(`${PUBLISHERS_BASE_URL}/get_publishers`);
+    const response = await fetch(publishersEndpoint);
     if (!response.ok) {
       throw new Error("Failed to fetch publishers for programmatic video");
     }
@@ -1504,7 +1515,7 @@ export async function getPublishersForProgVideo() {
 
 export async function getPublishersForProgBvod() {
   try {
-    const response = await fetch(`${PUBLISHERS_BASE_URL}/get_publishers`);
+    const response = await fetch(publishersEndpoint);
     if (!response.ok) {
       throw new Error("Failed to fetch publishers for programmatic BVOD");
     }
@@ -1526,7 +1537,7 @@ export async function getPublishersForProgBvod() {
 
 export async function getPublishersForProgAudio() {
   try {
-    const response = await fetch(`${PUBLISHERS_BASE_URL}/get_publishers`);
+    const response = await fetch(publishersEndpoint);
     if (!response.ok) {
       throw new Error("Failed to fetch publishers for programmatic audio");
     }
@@ -1548,7 +1559,7 @@ export async function getPublishersForProgAudio() {
 
 export async function getPublishersForProgOoh() {
   try {
-    const response = await fetch(`${PUBLISHERS_BASE_URL}/get_publishers`);
+    const response = await fetch(publishersEndpoint);
     if (!response.ok) {
       throw new Error("Failed to fetch publishers for programmatic OOH");
     }
@@ -1570,7 +1581,7 @@ export async function getPublishersForProgOoh() {
 
 export async function getPublishersForInfluencers() {
   try {
-    const response = await fetch(`${PUBLISHERS_BASE_URL}/get_publishers`);
+    const response = await fetch(publishersEndpoint);
     if (!response.ok) {
       throw new Error("Failed to fetch publishers for influencers");
     }
@@ -1765,6 +1776,25 @@ function buildLineItemMeta(lineItem: any, mbaNumber: string, index: number, pref
   };
 }
 
+function applyDeterministicIdForUpdate<T extends { mba_number?: string }>(
+  data: T,
+  mediaTypeCode: typeof MEDIA_TYPE_ID_CODES[keyof typeof MEDIA_TYPE_ID_CODES]
+) {
+  if (!data) return data;
+  const mba = (data as any)?.mba_number;
+  if (!mba) return data;
+
+  const lineItemNumber = pickLineItemNumber(data, 1);
+  const { line_item_id, line_item } = buildLineItemIdentity(
+    data,
+    mba,
+    mediaTypeCode,
+    Math.max(0, lineItemNumber - 1)
+  );
+
+  return { ...(data as any), line_item_id, line_item } as T;
+}
+
 /**
  * Helper function to extract and format bursts from a line item.
  * Handles both lineItem.bursts (array) and lineItem.bursts_json (string) cases.
@@ -1874,10 +1904,35 @@ export async function saveSocialMediaLineItems(mediaPlanVersionId: number, mbaNu
 
 
 
+async function fetchLineItemsFromApi(
+  mbaNumber: string,
+  mediaPlanVersion: number | undefined,
+  key: string
+): Promise<any[]> {
+  const params = new URLSearchParams()
+  if (mediaPlanVersion !== undefined && mediaPlanVersion !== null) {
+    params.set("version", String(mediaPlanVersion))
+  }
+  const query = params.toString()
+  const url = query
+    ? `/api/mediaplans/mba/${encodeURIComponent(mbaNumber)}?${query}`
+    : `/api/mediaplans/mba/${encodeURIComponent(mbaNumber)}`
+  const response = await fetch(url)
+  if (!response.ok) {
+    throw new Error("Failed to fetch media plan line items")
+  }
+  const data = await response.json()
+  const items = data?.lineItems?.[key]
+  return Array.isArray(items) ? items : []
+}
+
 // ===== COMPREHENSIVE CRUD FUNCTIONS FOR ALL 18 MEDIA TYPES =====
 
 // Cinema CRUD Functions
 export async function getCinemaLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number): Promise<CinemaLineItem[]> {
+  if (isBrowser) {
+    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "cinema")
+  }
   try {
     let url = `${MEDIA_PLANS_BASE_URL}/media_plan_cinema?mba_number=${mbaNumber}`;
     if (mediaPlanVersion !== undefined && mediaPlanVersion !== null) {
@@ -1946,6 +2001,9 @@ export async function deleteCinemaLineItem(id: number): Promise<void> {
 
 // Digital Audio CRUD Functions
 export async function getDigitalAudioLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number): Promise<DigitalAudioLineItem[]> {
+  if (isBrowser) {
+    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "digitalAudio")
+  }
   try {
     let url = `${MEDIA_PLANS_BASE_URL}/media_plan_digi_audio?mba_number=${mbaNumber}`;
     if (mediaPlanVersion !== undefined && mediaPlanVersion !== null) {
@@ -1981,10 +2039,12 @@ export async function createDigitalAudioLineItem(data: Partial<DigitalAudioLineI
 }
 
 export async function updateDigitalAudioLineItem(id: number, data: Partial<DigitalAudioLineItem>): Promise<DigitalAudioLineItem> {
+  const payload = applyDeterministicIdForUpdate(data, MEDIA_TYPE_ID_CODES.digitalAudio)
+
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_digi_audio/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
+    body: JSON.stringify(payload),
   });
   if (!response.ok) throw new Error("Failed to update digital audio line item");
   return response.json();
@@ -1999,6 +2059,9 @@ export async function deleteDigitalAudioLineItem(id: number): Promise<void> {
 
 // BVOD CRUD Functions
 export async function getBVODLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number): Promise<BVODLineItem[]> {
+  if (isBrowser) {
+    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "bvod")
+  }
   try {
     let url = `${MEDIA_PLANS_BASE_URL}/media_plan_digi_bvod?mba_number=${mbaNumber}`;
     if (mediaPlanVersion !== undefined && mediaPlanVersion !== null) {
@@ -2029,10 +2092,12 @@ export async function createBVODLineItem(data: Partial<BVODLineItem>): Promise<B
 }
 
 export async function updateBVODLineItem(id: number, data: Partial<BVODLineItem>): Promise<BVODLineItem> {
+  const payload = applyDeterministicIdForUpdate(data, MEDIA_TYPE_ID_CODES.bvod)
+
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_digi_bvod/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
+    body: JSON.stringify(payload),
   });
   if (!response.ok) throw new Error("Failed to update BVOD line item");
   return response.json();
@@ -2047,6 +2112,9 @@ export async function deleteBVODLineItem(id: number): Promise<void> {
 
 // Digital Display CRUD Functions
 export async function getDigitalDisplayLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number): Promise<DigitalDisplayLineItem[]> {
+  if (isBrowser) {
+    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "digitalDisplay")
+  }
   try {
     let url = `${MEDIA_PLANS_BASE_URL}/media_plan_digi_display?mba_number=${mbaNumber}`;
     if (mediaPlanVersion !== undefined && mediaPlanVersion !== null) {
@@ -2077,10 +2145,12 @@ export async function createDigitalDisplayLineItem(data: Partial<DigitalDisplayL
 }
 
 export async function updateDigitalDisplayLineItem(id: number, data: Partial<DigitalDisplayLineItem>): Promise<DigitalDisplayLineItem> {
+  const payload = applyDeterministicIdForUpdate(data, MEDIA_TYPE_ID_CODES.digitalDisplay)
+
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_digi_display/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
+    body: JSON.stringify(payload),
   });
   if (!response.ok) throw new Error("Failed to update digital display line item");
   return response.json();
@@ -2095,6 +2165,9 @@ export async function deleteDigitalDisplayLineItem(id: number): Promise<void> {
 
 // Digital Video CRUD Functions
 export async function getDigitalVideoLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number): Promise<DigitalVideoLineItem[]> {
+  if (isBrowser) {
+    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "digitalVideo")
+  }
   try {
     let url = `${MEDIA_PLANS_BASE_URL}/media_plan_digi_video?mba_number=${mbaNumber}`;
     if (mediaPlanVersion !== undefined && mediaPlanVersion !== null) {
@@ -2125,10 +2198,12 @@ export async function createDigitalVideoLineItem(data: Partial<DigitalVideoLineI
 }
 
 export async function updateDigitalVideoLineItem(id: number, data: Partial<DigitalVideoLineItem>): Promise<DigitalVideoLineItem> {
+  const payload = applyDeterministicIdForUpdate(data, MEDIA_TYPE_ID_CODES.digitalVideo)
+
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_digi_video/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
+    body: JSON.stringify(payload),
   });
   if (!response.ok) throw new Error("Failed to update digital video line item");
   return response.json();
@@ -2143,6 +2218,9 @@ export async function deleteDigitalVideoLineItem(id: number): Promise<void> {
 
 // Magazines CRUD Functions
 export async function getMagazinesLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number): Promise<MagazinesLineItem[]> {
+  if (isBrowser) {
+    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "magazines")
+  }
   try {
     let url = `${MEDIA_PLANS_BASE_URL}/media_plan_magazines?mba_number=${mbaNumber}`;
     if (mediaPlanVersion !== undefined && mediaPlanVersion !== null) {
@@ -2173,10 +2251,12 @@ export async function createMagazinesLineItem(data: Partial<MagazinesLineItem>):
 }
 
 export async function updateMagazinesLineItem(id: number, data: Partial<MagazinesLineItem>): Promise<MagazinesLineItem> {
+  const payload = applyDeterministicIdForUpdate(data, MEDIA_TYPE_ID_CODES.magazines)
+
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_magazines/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
+    body: JSON.stringify(payload),
   });
   if (!response.ok) throw new Error("Failed to update magazines line item");
   return response.json();
@@ -2191,6 +2271,9 @@ export async function deleteMagazinesLineItem(id: number): Promise<void> {
 
 // Newspaper CRUD Functions
 export async function getNewspaperLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number): Promise<NewspaperLineItem[]> {
+  if (isBrowser) {
+    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "newspaper")
+  }
   try {
     let url = `${MEDIA_PLANS_BASE_URL}/media_plan_newspaper?mba_number=${mbaNumber}`;
     if (mediaPlanVersion !== undefined && mediaPlanVersion !== null) {
@@ -2239,6 +2322,9 @@ export async function deleteNewspaperLineItem(id: number): Promise<void> {
 
 // OOH CRUD Functions
 export async function getOOHLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number): Promise<OOHLineItem[]> {
+  if (isBrowser) {
+    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "ooh")
+  }
   try {
     let url = `${MEDIA_PLANS_BASE_URL}/media_plan_ooh?mba_number=${mbaNumber}`;
     if (mediaPlanVersion !== undefined && mediaPlanVersion !== null) {
@@ -2269,10 +2355,12 @@ export async function createOOHLineItem(data: Partial<OOHLineItem>): Promise<OOH
 }
 
 export async function updateOOHLineItem(id: number, data: Partial<OOHLineItem>): Promise<OOHLineItem> {
+  const payload = applyDeterministicIdForUpdate(data, MEDIA_TYPE_ID_CODES.ooh)
+
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_ooh/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
+    body: JSON.stringify(payload),
   });
   if (!response.ok) throw new Error("Failed to update OOH line item");
   return response.json();
@@ -2287,6 +2375,9 @@ export async function deleteOOHLineItem(id: number): Promise<void> {
 
 // Programmatic Audio CRUD Functions
 export async function getProgAudioLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number): Promise<ProgAudioLineItem[]> {
+  if (isBrowser) {
+    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "progAudio")
+  }
   try {
     let url = `${MEDIA_PLANS_BASE_URL}/media_plan_prog_audio?mba_number=${mbaNumber}`;
     if (mediaPlanVersion !== undefined && mediaPlanVersion !== null) {
@@ -2317,10 +2408,12 @@ export async function createProgAudioLineItem(data: Partial<ProgAudioLineItem>):
 }
 
 export async function updateProgAudioLineItem(id: number, data: Partial<ProgAudioLineItem>): Promise<ProgAudioLineItem> {
+  const payload = applyDeterministicIdForUpdate(data, MEDIA_TYPE_ID_CODES.progAudio)
+
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_prog_audio/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
+    body: JSON.stringify(payload),
   });
   if (!response.ok) throw new Error("Failed to update programmatic audio line item");
   return response.json();
@@ -2335,6 +2428,9 @@ export async function deleteProgAudioLineItem(id: number): Promise<void> {
 
 // Programmatic BVOD CRUD Functions
 export async function getProgBVODLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number): Promise<ProgBVODLineItem[]> {
+  if (isBrowser) {
+    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "progBvod")
+  }
   try {
     let url = `${MEDIA_PLANS_BASE_URL}/media_plan_prog_bvod?mba_number=${mbaNumber}`;
     if (mediaPlanVersion !== undefined && mediaPlanVersion !== null) {
@@ -2365,10 +2461,12 @@ export async function createProgBVODLineItem(data: Partial<ProgBVODLineItem>): P
 }
 
 export async function updateProgBVODLineItem(id: number, data: Partial<ProgBVODLineItem>): Promise<ProgBVODLineItem> {
+  const payload = applyDeterministicIdForUpdate(data, MEDIA_TYPE_ID_CODES.progBVOD)
+
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_prog_bvod/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
+    body: JSON.stringify(payload),
   });
   if (!response.ok) throw new Error("Failed to update programmatic BVOD line item");
   return response.json();
@@ -2383,6 +2481,9 @@ export async function deleteProgBVODLineItem(id: number): Promise<void> {
 
 // Programmatic Display CRUD Functions
 export async function getProgDisplayLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number): Promise<ProgDisplayLineItem[]> {
+  if (isBrowser) {
+    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "progDisplay")
+  }
   try {
     let url = `${MEDIA_PLANS_BASE_URL}/media_plan_prog_display?mba_number=${mbaNumber}`;
     if (mediaPlanVersion !== undefined && mediaPlanVersion !== null) {
@@ -2413,10 +2514,12 @@ export async function createProgDisplayLineItem(data: Partial<ProgDisplayLineIte
 }
 
 export async function updateProgDisplayLineItem(id: number, data: Partial<ProgDisplayLineItem>): Promise<ProgDisplayLineItem> {
+  const payload = applyDeterministicIdForUpdate(data, MEDIA_TYPE_ID_CODES.progDisplay)
+
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_prog_display/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
+    body: JSON.stringify(payload),
   });
   if (!response.ok) throw new Error("Failed to update programmatic display line item");
   return response.json();
@@ -2431,6 +2534,9 @@ export async function deleteProgDisplayLineItem(id: number): Promise<void> {
 
 // Programmatic OOH CRUD Functions
 export async function getProgOOHLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number): Promise<ProgOOHLineItem[]> {
+  if (isBrowser) {
+    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "progOoh")
+  }
   try {
     let url = `${MEDIA_PLANS_BASE_URL}/media_plan_prog_ooh?mba_number=${mbaNumber}`;
     if (mediaPlanVersion !== undefined && mediaPlanVersion !== null) {
@@ -2461,10 +2567,12 @@ export async function createProgOOHLineItem(data: Partial<ProgOOHLineItem>): Pro
 }
 
 export async function updateProgOOHLineItem(id: number, data: Partial<ProgOOHLineItem>): Promise<ProgOOHLineItem> {
+  const payload = applyDeterministicIdForUpdate(data, MEDIA_TYPE_ID_CODES.progOOH)
+
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_prog_ooh/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
+    body: JSON.stringify(payload),
   });
   if (!response.ok) throw new Error("Failed to update programmatic OOH line item");
   return response.json();
@@ -2479,19 +2587,27 @@ export async function deleteProgOOHLineItem(id: number): Promise<void> {
 
 // Programmatic Video CRUD Functions
 export async function getProgVideoLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number): Promise<ProgVideoLineItem[]> {
+  if (isBrowser) {
+    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "progVideo")
+  }
   try {
-    let url = `${MEDIA_PLANS_BASE_URL}/media_plan_prog_video?mba_number=${mbaNumber}`;
-    if (mediaPlanVersion !== undefined && mediaPlanVersion !== null) {
-      url += `&version_number=${mediaPlanVersion}&mp_plannumber=${mediaPlanVersion}`;
-      console.log(`[API] Fetching programmatic video line items for MBA ${mbaNumber} with version ${mediaPlanVersion}`);
-    } else {
-      console.log(`[API] Fetching programmatic video line items for MBA ${mbaNumber} without version number`);
-    }
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error("Failed to fetch programmatic video line items");
-    }
-    return response.json();
+    const data = await fetchAllXanoPages(
+      `${MEDIA_PLANS_BASE_URL}/media_plan_prog_video`,
+      {
+        mba_number: mbaNumber,
+        version_number: mediaPlanVersion,
+        mp_plannumber: mediaPlanVersion,
+      },
+      "PROG_VIDEO"
+    )
+
+    console.log(
+      `[API] Fetched programmatic video line items for MBA ${mbaNumber}${
+        mediaPlanVersion !== undefined && mediaPlanVersion !== null ? ` with version ${mediaPlanVersion}` : ""
+      }: count=${data.length}`
+    )
+
+    return data
   } catch (error) {
     console.error("Error fetching programmatic video line items:", error);
     return [];
@@ -2509,10 +2625,12 @@ export async function createProgVideoLineItem(data: Partial<ProgVideoLineItem>):
 }
 
 export async function updateProgVideoLineItem(id: number, data: Partial<ProgVideoLineItem>): Promise<ProgVideoLineItem> {
+  const payload = applyDeterministicIdForUpdate(data, MEDIA_TYPE_ID_CODES.progVideo)
+
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_prog_video/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
+    body: JSON.stringify(payload),
   });
   if (!response.ok) throw new Error("Failed to update programmatic video line item");
   return response.json();
@@ -2527,6 +2645,9 @@ export async function deleteProgVideoLineItem(id: number): Promise<void> {
 
 // Radio CRUD Functions
 export async function getRadioLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number): Promise<RadioLineItem[]> {
+  if (isBrowser) {
+    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "radio")
+  }
   try {
     let url = `${MEDIA_PLANS_BASE_URL}/media_plan_radio?mba_number=${mbaNumber}`;
     if (mediaPlanVersion !== undefined && mediaPlanVersion !== null) {
@@ -2563,10 +2684,12 @@ export async function createRadioLineItem(data: Partial<RadioLineItem>): Promise
 }
 
 export async function updateRadioLineItem(id: number, data: Partial<RadioLineItem>): Promise<RadioLineItem> {
+  const payload = applyDeterministicIdForUpdate(data, MEDIA_TYPE_ID_CODES.radio)
+
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_radio/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
+    body: JSON.stringify(payload),
   });
   if (!response.ok) throw new Error("Failed to update radio line item");
   return response.json();
@@ -2581,6 +2704,9 @@ export async function deleteRadioLineItem(id: number): Promise<void> {
 
 // Search CRUD Functions
 export async function getSearchLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number): Promise<SearchLineItem[]> {
+  if (isBrowser) {
+    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "search")
+  }
   try {
     let url = `/api/media_plans/search?mba_number=${mbaNumber}`;
     if (mediaPlanVersion !== undefined && mediaPlanVersion !== null) {
@@ -2618,10 +2744,12 @@ export async function createSearchLineItem(data: Partial<SearchLineItem>): Promi
 }
 
 export async function updateSearchLineItem(id: number, data: Partial<SearchLineItem>): Promise<SearchLineItem> {
+  const payload = applyDeterministicIdForUpdate(data, MEDIA_TYPE_ID_CODES.search)
+
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_search/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
+    body: JSON.stringify(payload),
   });
   if (!response.ok) throw new Error("Failed to update search line item");
   return response.json();
@@ -2636,6 +2764,9 @@ export async function deleteSearchLineItem(id: number): Promise<void> {
 
 // Production CRUD Functions
 export async function getProductionLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number): Promise<ProductionLineItem[]> {
+  if (isBrowser) {
+    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "production")
+  }
   try {
     let url = `/api/media_plans/production?mba_number=${mbaNumber}`;
     if (mediaPlanVersion !== undefined && mediaPlanVersion !== null) {
@@ -2750,7 +2881,11 @@ export async function saveProductionLineItems(
         line_item,
       };
 
-      const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_production`, {
+      const endpoint = isBrowser
+        ? "/api/media_plans/production"
+        : `${MEDIA_PLANS_BASE_URL}/media_plan_production`
+
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -2760,10 +2895,11 @@ export async function saveProductionLineItems(
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to save production line item ${index + 1}: ${response.statusText}`);
+        const message = await extractResponseMessage(response)
+        throw new Error(`Failed to save production line item ${index + 1}: ${message}`);
       }
 
-      return await response.json();
+      return await parseJsonOrText(response);
     });
 
     const results = await Promise.all(savePromises);
@@ -2777,6 +2913,9 @@ export async function saveProductionLineItems(
 
 // Social Media CRUD Functions
 export async function getSocialMediaLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number): Promise<SocialMediaLineItem[]> {
+  if (isBrowser) {
+    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "socialMedia")
+  }
   try {
     let url = `/api/media_plans/social?mba_number=${mbaNumber}`;
     if (mediaPlanVersion !== undefined && mediaPlanVersion !== null) {
@@ -2842,6 +2981,9 @@ export async function deleteSocialMediaLineItem(id: number): Promise<void> {
 
 // Television CRUD Functions
 export async function getTelevisionLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number): Promise<TelevisionLineItem[]> {
+  if (isBrowser) {
+    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "television")
+  }
   try {
     let url = `/api/media_plans/television?mba_number=${mbaNumber}`;
     if (mediaPlanVersion !== undefined && mediaPlanVersion !== null) {
@@ -2905,6 +3047,9 @@ export async function deleteTelevisionLineItem(id: number): Promise<void> {
 
 // Missing GET Functions
 export async function getIntegrationLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number): Promise<IntegrationLineItem[]> {
+  if (isBrowser) {
+    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "integration")
+  }
   try {
     let url = `${MEDIA_PLANS_BASE_URL}/media_plan_integration?mba_number=${mbaNumber}`;
     if (mediaPlanVersion !== undefined && mediaPlanVersion !== null) {
@@ -2931,6 +3076,9 @@ export async function getIntegrationLineItemsByMBA(mbaNumber: string, mediaPlanV
 }
 
 export async function getInfluencersLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number): Promise<InfluencersLineItem[]> {
+  if (isBrowser) {
+    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "influencers")
+  }
   try {
     let url = `${MEDIA_PLANS_BASE_URL}/media_plan_influencers?mba_number=${mbaNumber}`;
     if (mediaPlanVersion !== undefined && mediaPlanVersion !== null) {
@@ -2962,6 +3110,7 @@ export async function saveRadioLineItems(mediaPlanVersionId: number, mbaNumber: 
     const savePromises = radioLineItems.map(async (lineItem, index) => {
       // Format bursts data to ensure dates are properly serialized
       const formattedBursts = extractAndFormatBursts(lineItem);
+      const idMeta = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.radio, index);
       
       // Log for debugging
       console.log(`[Radio] Saving line item ${index + 1}:`, {
@@ -2993,9 +3142,9 @@ export async function saveRadioLineItems(mediaPlanVersionId: number, mbaNumber: 
         client_pays_for_media: getBooleanField(lineItem, 'client_pays_for_media', 'clientPaysForMedia', false),
         budget_includes_fees: getBooleanField(lineItem, 'budget_includes_fees', 'budgetIncludesFees', false),
         no_adserving: getBooleanField(lineItem, 'no_adserving', 'noadserving', false),
-        line_item_id: getField(lineItem, 'line_item_id', 'line_item_id', `${mbaNumber}RAD${index + 1}`),
+        line_item_id: idMeta.line_item_id,
         bursts: formattedBursts, // Use 'bursts' to match database schema
-        line_item: getField(lineItem, 'line_item', 'line_item', index + 1),
+        line_item: idMeta.line_item,
       };
 
       const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_radio`, {
@@ -3027,7 +3176,7 @@ export async function saveMagazinesLineItems(mediaPlanVersionId: number, mbaNumb
   try {
     const savePromises = magazinesLineItems.map(async (lineItem, index) => {
       const formattedBursts = extractAndFormatBursts(lineItem);
-      const { line_item_id, line_item } = buildLineItemMeta(lineItem, mbaNumber, index, 'MAG');
+      const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.magazines, index);
 
       const magazinesData = {
         media_plan_version: mediaPlanVersionId,
@@ -3082,7 +3231,7 @@ export async function saveOOHLineItems(mediaPlanVersionId: number, mbaNumber: st
   try {
     const savePromises = oohLineItems.map(async (lineItem, index) => {
       const formattedBursts = extractAndFormatBursts(lineItem);
-      const { line_item_id, line_item } = buildLineItemMeta(lineItem, mbaNumber, index, 'OOH');
+      const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.ooh, index);
 
       const oohData = {
         media_plan_version: mediaPlanVersionId,
@@ -3138,6 +3287,7 @@ export async function saveCinemaLineItems(mediaPlanVersionId: number, mbaNumber:
   try {
     const savePromises = cinemaLineItems.map(async (lineItem, index) => {
       const formattedBursts = extractAndFormatBursts(lineItem);
+      const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.cinema, index);
 
       const cinemaData = {
         media_plan_version: mediaPlanVersionId,
@@ -3154,8 +3304,8 @@ export async function saveCinemaLineItems(mediaPlanVersionId: number, mbaNumber:
         client_pays_for_media: getBooleanField(lineItem, 'client_pays_for_media', 'clientPaysForMedia', false),
         budget_includes_fees: getBooleanField(lineItem, 'budget_includes_fees', 'budgetIncludesFees', false),
         no_adserving: getBooleanField(lineItem, 'no_adserving', 'noadserving', false),
-        line_item_id: lineItem.line_item_id || `${mbaNumber}CN${index + 1}`,
-        line_item: lineItem.line_item || index + 1,
+        line_item_id,
+        line_item,
         station: getField(lineItem, 'station', 'station', ''),
         placement: getField(lineItem, 'placement', 'placement', ''),
         duration: getField(lineItem, 'duration', 'duration', ''),
@@ -3192,7 +3342,7 @@ export async function saveDigitalDisplayLineItems(mediaPlanVersionId: number, mb
   try {
     const savePromises = digitalDisplayLineItems.map(async (lineItem, index) => {
       const formattedBursts = extractAndFormatBursts(lineItem);
-      const { line_item_id, line_item } = buildLineItemMeta(lineItem, mbaNumber, index, 'DD');
+      const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.digitalDisplay, index);
 
       const digitalDisplayData = {
         media_plan_version: mediaPlanVersionId,
@@ -3247,6 +3397,7 @@ export async function saveDigitalAudioLineItems(mediaPlanVersionId: number, mbaN
   try {
     const savePromises = digitalAudioLineItems.map(async (lineItem, index) => {
       const formattedBursts = extractAndFormatBursts(lineItem);
+      const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.digitalAudio, index);
 
       const digitalAudioData = {
         media_plan_version: mediaPlanVersionId,
@@ -3267,9 +3418,9 @@ export async function saveDigitalAudioLineItems(mediaPlanVersionId: number, mbaN
         client_pays_for_media: getBooleanField(lineItem, 'client_pays_for_media', 'clientPaysForMedia', false),
         budget_includes_fees: getBooleanField(lineItem, 'budget_includes_fees', 'budgetIncludesFees', false),
         no_adserving: getBooleanField(lineItem, 'no_adserving', 'noadserving', false),
-        line_item_id: lineItem.line_item_id || `${mbaNumber}DA${index + 1}`,
+        line_item_id,
         bursts_json: JSON.stringify(formattedBursts),
-        line_item: lineItem.line_item || index + 1,
+        line_item,
       };
 
       const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_digi_audio`, {
@@ -3301,7 +3452,7 @@ export async function saveDigitalVideoLineItems(mediaPlanVersionId: number, mbaN
   try {
     const savePromises = digitalVideoLineItems.map(async (lineItem, index) => {
       const formattedBursts = extractAndFormatBursts(lineItem);
-      const { line_item_id, line_item } = buildLineItemMeta(lineItem, mbaNumber, index, 'DV');
+      const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.digitalVideo, index);
 
       const digitalVideoData = {
         media_plan_version: mediaPlanVersionId,
@@ -3358,7 +3509,7 @@ export async function saveBVODLineItems(mediaPlanVersionId: number, mbaNumber: s
   try {
     const savePromises = bvodLineItems.map(async (lineItem, index) => {
       const formattedBursts = extractAndFormatBursts(lineItem);
-      const { line_item_id, line_item } = buildLineItemMeta(lineItem, mbaNumber, index, 'BVOD');
+      const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.bvod, index);
 
       const bvodData = {
         media_plan_version: mediaPlanVersionId,
@@ -3386,7 +3537,11 @@ export async function saveBVODLineItems(mediaPlanVersionId: number, mbaNumber: s
         line_item,
       };
 
-      const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_digi_bvod`, {
+      const endpoint = isBrowser
+        ? "/api/media_plans/digi-bvod"
+        : `${MEDIA_PLANS_BASE_URL}/media_plan_digi_bvod`
+
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -3396,10 +3551,11 @@ export async function saveBVODLineItems(mediaPlanVersionId: number, mbaNumber: s
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to save BVOD line item ${index + 1}: ${response.statusText}`);
+        const message = await extractResponseMessage(response)
+        throw new Error(`Failed to save BVOD line item ${index + 1}: ${message}`);
       }
 
-      return await response.json();
+      return await parseJsonOrText(response);
     });
 
     const results = await Promise.all(savePromises);
@@ -3465,7 +3621,7 @@ export async function saveSearchLineItems(mediaPlanVersionId: number, mbaNumber:
   try {
     const savePromises = searchLineItems.map(async (lineItem, index) => {
       const formattedBursts = extractAndFormatBursts(lineItem);
-      const { line_item_id, line_item } = buildLineItemMeta(lineItem, mbaNumber, index, 'SEA');
+      const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.search, index);
 
       const searchData = {
         media_plan_version: mediaPlanVersionId,
@@ -3520,7 +3676,7 @@ export async function saveProgDisplayLineItems(mediaPlanVersionId: number, mbaNu
   try {
     const savePromises = progDisplayLineItems.map(async (lineItem, index) => {
       const formattedBursts = extractAndFormatBursts(lineItem);
-      const { line_item_id, line_item } = buildLineItemMeta(lineItem, mbaNumber, index, 'PD');
+      const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.progDisplay, index);
 
       const progDisplayData = {
         media_plan_version: mediaPlanVersionId,
@@ -3576,7 +3732,7 @@ export async function saveProgVideoLineItems(mediaPlanVersionId: number, mbaNumb
   try {
     const savePromises = progVideoLineItems.map(async (lineItem, index) => {
       const formattedBursts = extractAndFormatBursts(lineItem);
-      const { line_item_id, line_item } = buildLineItemMeta(lineItem, mbaNumber, index, 'PV');
+      const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.progVideo, index);
 
       const progVideoData = {
         media_plan_version: mediaPlanVersionId,
@@ -3603,7 +3759,11 @@ export async function saveProgVideoLineItems(mediaPlanVersionId: number, mbaNumb
         line_item,
       };
 
-      const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_prog_video`, {
+      const endpoint = isBrowser
+        ? "/api/media_plans/prog-video"
+        : `${MEDIA_PLANS_BASE_URL}/media_plan_prog_video`
+
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -3613,10 +3773,11 @@ export async function saveProgVideoLineItems(mediaPlanVersionId: number, mbaNumb
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to save programmatic video line item ${index + 1}: ${response.statusText}`);
+        const message = await extractResponseMessage(response)
+        throw new Error(`Failed to save programmatic video line item ${index + 1}: ${message}`);
       }
 
-      return await response.json();
+      return await parseJsonOrText(response);
     });
 
     const results = await Promise.all(savePromises);
@@ -3632,7 +3793,7 @@ export async function saveProgBVODLineItems(mediaPlanVersionId: number, mbaNumbe
   try {
     const savePromises = progBVODLineItems.map(async (lineItem, index) => {
       const formattedBursts = extractAndFormatBursts(lineItem);
-      const { line_item_id, line_item } = buildLineItemMeta(lineItem, mbaNumber, index, 'PBV');
+      const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.progBVOD, index);
 
       const progBVODData = {
         media_plan_version: mediaPlanVersionId,
@@ -3688,7 +3849,7 @@ export async function saveProgAudioLineItems(mediaPlanVersionId: number, mbaNumb
   try {
     const savePromises = progAudioLineItems.map(async (lineItem, index) => {
       const formattedBursts = extractAndFormatBursts(lineItem);
-      const { line_item_id, line_item } = buildLineItemMeta(lineItem, mbaNumber, index, 'PA');
+      const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.progAudio, index);
 
       const progAudioData = {
         media_plan_version: mediaPlanVersionId,
@@ -3743,7 +3904,7 @@ export async function saveProgOOHLineItems(mediaPlanVersionId: number, mbaNumber
   try {
     const savePromises = progOOHLineItems.map(async (lineItem, index) => {
       const formattedBursts = extractAndFormatBursts(lineItem);
-      const { line_item_id, line_item } = buildLineItemMeta(lineItem, mbaNumber, index, 'POOH');
+      const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.progOOH, index);
 
       const progOOHData = {
         media_plan_version: mediaPlanVersionId,

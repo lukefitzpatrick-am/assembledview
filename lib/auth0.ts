@@ -1,5 +1,6 @@
 // src/lib/auth0.ts (or /lib/auth0.ts)
 import { Auth0Client } from '@auth0/nextjs-auth0/server';
+import { CLIENT_CLAIMS, CLIENT_SLUGS_CLAIMS, CLIENT_SLUG_CLAIMS, ROLE_CLAIMS } from './auth0-claims';
 
 // Fail fast if required environment variables are missing
 ['AUTH0_DOMAIN', 'AUTH0_CLIENT_ID', 'AUTH0_CLIENT_SECRET', 'AUTH0_SECRET', 'APP_BASE_URL'].forEach((key) => {
@@ -11,7 +12,7 @@ import { Auth0Client } from '@auth0/nextjs-auth0/server';
 const missingAudience = !process.env.AUTH0_AUDIENCE;
 if (missingAudience) {
   console.warn(
-    'AUTH0_AUDIENCE is not set; RBAC roles may be missing from tokens (ensure the Management API audience is configured).'
+    'AUTH0_AUDIENCE is not set; audience affects the access token. Custom claims need an Auth0 Action to add roles/client claims to the ID token/session.'
   );
 }
 
@@ -19,9 +20,6 @@ export const baseAuthParams = {
   scope: process.env.AUTH0_SCOPE || 'openid profile email',
   audience: process.env.AUTH0_AUDIENCE,
 };
-
-const ROLE_CLAIMS = ['https://assembledview.com/roles', 'https://assembledview.com.au/roles'];
-const CLIENT_CLAIMS = ['https://assembledview.com/client', 'https://assembledview.com.au/client'];
 
 export const auth0 = new Auth0Client({
   authorizationParameters: baseAuthParams,
@@ -37,6 +35,22 @@ export const auth0 = new Auth0Client({
       }
     }
 
+    for (const claim of CLIENT_SLUG_CLAIMS) {
+      const value = (user as Record<string, unknown>)[claim];
+      if (value !== undefined) {
+        (session.user as Record<string, unknown>)[claim] = value;
+        break;
+      }
+    }
+
+    for (const claim of CLIENT_SLUGS_CLAIMS) {
+      const value = (user as Record<string, unknown>)[claim];
+      if (value !== undefined) {
+        (session.user as Record<string, unknown>)[claim] = value;
+        break;
+      }
+    }
+
     for (const claim of CLIENT_CLAIMS) {
       const value = (user as Record<string, unknown>)[claim];
       if (value !== undefined) {
@@ -45,6 +59,9 @@ export const auth0 = new Auth0Client({
       }
     }
 
+    // Custom role/client claims must be added by an Auth0 Post-Login Action
+    // with namespaced keys (https://assembledview.com/...); they appear on
+    // session.user only if present on the ID token or persisted here.
     return session;
   },
 });

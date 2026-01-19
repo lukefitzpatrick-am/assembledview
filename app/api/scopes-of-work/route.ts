@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server"
 import axios from "axios"
-
-const XANO_SCOPES_BASE_URL = process.env.XANO_SCOPES_BASE_URL || "https://xg4h-uyzs-dtex.a2.xano.io/api:idlsZiVX"
+import { xanoUrl } from "@/lib/api/xano"
 const API_TIMEOUT = 10000; // 10 seconds timeout
 
 // Create an axios instance with default config
@@ -42,7 +41,7 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status");
     
-    let url = `${XANO_SCOPES_BASE_URL}/scope_of_work`;
+    let url = xanoUrl("scope_of_work", "XANO_SCOPES_BASE_URL");
     if (status) {
       url += `?project_status=${status}`;
     }
@@ -117,7 +116,7 @@ export async function POST(req: Request) {
     };
     
     const response = await retryApiCall(() => 
-      apiClient.post(`${XANO_SCOPES_BASE_URL}/scope_of_work`, scopeData)
+      apiClient.post(xanoUrl("scope_of_work", "XANO_SCOPES_BASE_URL"), scopeData)
     );
     
     console.log("API response:", JSON.stringify(response.data, null, 2));

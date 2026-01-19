@@ -13,9 +13,9 @@ type ClientOption = { id: number; mp_client_name: string; slug?: string };
 
 export default function NewAdminUserPage() {
   const { isAdmin } = useAuthContext();
-  const [form, setForm] = useState({ firstName: "", lastName: "", email: "", password: "" });
+  const [form, setForm] = useState({ firstName: "", lastName: "", email: "" });
   const [role, setRole] = useState<Role>("client");
-  const [clientId, setClientId] = useState<string>("");
+  const [clientSlug, setClientSlug] = useState<string>("");
   const [clients, setClients] = useState<ClientOption[]>([]);
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -51,9 +51,8 @@ export default function NewAdminUserPage() {
           firstName: form.firstName,
           lastName: form.lastName,
           email: form.email,
-          password: form.password,
           role,
-          clientId: role === "client" ? clientId : undefined,
+          clientSlug: role === "client" ? clientSlug : undefined,
         }),
       });
 
@@ -63,8 +62,8 @@ export default function NewAdminUserPage() {
       }
 
       setStatus("success");
-      setForm({ firstName: "", lastName: "", email: "", password: "" });
-      setClientId("");
+      setForm({ firstName: "", lastName: "", email: "" });
+      setClientSlug("");
       setRole("client");
     } catch (err) {
       setStatus("error");
@@ -119,19 +118,6 @@ export default function NewAdminUserPage() {
           </div>
 
           <div className="flex flex-col gap-2">
-            <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              value={form.password}
-              onChange={(e) => setForm((prev) => ({ ...prev, password: e.target.value }))}
-              required
-              autoComplete="new-password"
-              minLength={8}
-            />
-          </div>
-
-          <div className="flex flex-col gap-2">
             <Label htmlFor="role">Role</Label>
             <select
               id="role"
@@ -149,14 +135,14 @@ export default function NewAdminUserPage() {
               <Label htmlFor="clientId">Client</Label>
               <select
                 id="clientId"
-                value={clientId}
-                onChange={(e) => setClientId(e.target.value)}
+                value={clientSlug}
+                onChange={(e) => setClientSlug(e.target.value)}
                 required
                 className="rounded-md border border-input bg-background px-3 py-2 text-sm"
               >
                 <option value="">Select client</option>
                 {clients.map((client) => (
-                  <option key={client.id} value={client.id}>
+                  <option key={client.id} value={client.slug ?? String(client.id)}>
                     {client.mp_client_name}
                   </option>
                 ))}

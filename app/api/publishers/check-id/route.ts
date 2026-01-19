@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server"
 import axios from "axios"
-
-const XANO_PUBLISHERS_BASE_URL = process.env.XANO_PUBLISHERS_BASE_URL || "https://xg4h-uyzs-dtex.a2.xano.io/api:YkRK8qLP"
+import { xanoUrl } from "@/lib/api/xano"
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
@@ -13,7 +12,7 @@ export async function GET(req: Request) {
 
   try {
     // Use the correct endpoint for fetching publishers
-    const response = await axios.get(`${XANO_PUBLISHERS_BASE_URL}/publishers`, {
+    const response = await axios.get(xanoUrl("publishers", "XANO_PUBLISHERS_BASE_URL"), {
       params: { publisherid: id },
     })
 

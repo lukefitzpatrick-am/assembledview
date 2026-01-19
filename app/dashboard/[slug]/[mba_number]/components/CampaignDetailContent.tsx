@@ -13,6 +13,7 @@ import MonthlySpendStackedChart from './MonthlySpendStackedChart'
 import MediaTable from './MediaTable'
 import MediaGanttChart from './MediaGanttChart'
 import { format } from 'date-fns'
+import { normaliseLineItemsByType, NormalisedLineItem } from '@/lib/mediaplan/normalizeLineItem'
 
 interface CampaignDetailContentProps {
   slug: string
@@ -44,10 +45,13 @@ interface CampaignData {
     spendByChannel: Record<string, number>
     monthlySpend: Record<string, Record<string, number>>
   }
+  enabledMediaTypes?: string[]
 }
 
 export default function CampaignDetailContent({ slug, mbaNumber }: CampaignDetailContentProps) {
   const [data, setData] = useState<CampaignData | null>(null)
+  const [lineItemsByMediaType, setLineItemsByMediaType] = useState<Record<string, any[]>>({})
+  const [normalisedLineItemsByMediaType, setNormalisedLineItemsByMediaType] = useState<Record<string, NormalisedLineItem[]>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [downloadingMediaPlan, setDownloadingMediaPlan] = useState(false)
@@ -61,7 +65,22 @@ export default function CampaignDetailContent({ slug, mbaNumber }: CampaignDetai
           throw new Error('Failed to fetch campaign data')
         }
         const campaignData = await response.json()
-        setData(campaignData)
+        const activeMediaTypes = Array.isArray(campaignData.enabledMediaTypes) ? campaignData.enabledMediaTypes : []
+        const sourceLineItems = campaignData.lineItems || {}
+        const mediaKeys = activeMediaTypes.length ? activeMediaTypes : Object.keys(sourceLineItems || {})
+        const merged: Record<string, any[]> = {}
+
+        mediaKeys.forEach((key) => {
+          merged[key] = Array.isArray(sourceLineItems?.[key]) ? sourceLineItems[key] : []
+        })
+
+        console.log('lineItemsByMediaType keys:', Object.keys(merged))
+        console.log('socialMedia count:', merged.socialMedia?.length ?? 0)
+        console.log('search count:', merged.search?.length ?? 0)
+
+        setLineItemsByMediaType(merged)
+        setNormalisedLineItemsByMediaType(normaliseLineItemsByType(merged))
+        setData({ ...campaignData, enabledMediaTypes: activeMediaTypes, lineItems: merged })
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unknown error occurred')
       } finally {
@@ -82,24 +101,24 @@ export default function CampaignDetailContent({ slug, mbaNumber }: CampaignDetai
 
       // Prepare media items from line items
       const mediaItems = {
-        search: data.lineItems.search || [],
-        socialMedia: data.lineItems.socialMedia || [],
-        digiAudio: data.lineItems.digitalAudio || [],
-        digiDisplay: data.lineItems.digitalDisplay || [],
-        digiVideo: data.lineItems.digitalVideo || [],
-        bvod: data.lineItems.bvod || [],
-        progDisplay: data.lineItems.progDisplay || [],
-        progVideo: data.lineItems.progVideo || [],
-        progBvod: data.lineItems.progBvod || [],
-        progOoh: data.lineItems.progOoh || [],
-        progAudio: data.lineItems.progAudio || [],
-        newspaper: data.lineItems.newspaper || [],
-        magazines: data.lineItems.magazines || [],
-        television: data.lineItems.television || [],
-        radio: data.lineItems.radio || [],
-        ooh: data.lineItems.ooh || [],
-        cinema: data.lineItems.cinema || [],
-        integration: data.lineItems.integration || [],
+        search: lineItemsByMediaType.search || [],
+        socialMedia: lineItemsByMediaType.socialMedia || [],
+        digiAudio: lineItemsByMediaType.digitalAudio || [],
+        digiDisplay: lineItemsByMediaType.digitalDisplay || [],
+        digiVideo: lineItemsByMediaType.digitalVideo || [],
+        bvod: lineItemsByMediaType.bvod || [],
+        progDisplay: lineItemsByMediaType.progDisplay || [],
+        progVideo: lineItemsByMediaType.progVideo || [],
+        progBvod: lineItemsByMediaType.progBvod || [],
+        progOoh: lineItemsByMediaType.progOoh || [],
+        progAudio: lineItemsByMediaType.progAudio || [],
+        newspaper: lineItemsByMediaType.newspaper || [],
+        magazines: lineItemsByMediaType.magazines || [],
+        television: lineItemsByMediaType.television || [],
+        radio: lineItemsByMediaType.radio || [],
+        ooh: lineItemsByMediaType.ooh || [],
+        cinema: lineItemsByMediaType.cinema || [],
+        integration: lineItemsByMediaType.integration || [],
       }
 
       const response = await fetch('/api/mediaplans/download', {
@@ -214,6 +233,23 @@ export default function CampaignDetailContent({ slug, mbaNumber }: CampaignDetai
     return 'outline'
   }
 
+  const spendByChannelData = Object.entries(data.metrics.spendByChannel || {}).map(([mediaType, amount]) => {
+    const numericAmount = Number(amount) || 0
+    return { mediaType, amount: numericAmount, percentage: 0 }
+  })
+  const totalChannelSpend = spendByChannelData.reduce((sum, entry) => sum + entry.amount, 0)
+  spendByChannelData.forEach(entry => {
+    entry.percentage = totalChannelSpend > 0 ? (entry.amount / totalChannelSpend) * 100 : 0
+  })
+
+  const monthlySpendData = Object.entries(data.metrics.monthlySpend || {}).map(([month, mediaSpend]) => ({
+    month,
+    data: Object.entries(mediaSpend || {}).map(([mediaType, amount]) => ({
+      mediaType,
+      amount: Number(amount) || 0,
+    })),
+  }))
+
   return (
     <div className="space-y-8 pb-24">
       {/* Campaign Header */}
@@ -293,28 +329,27 @@ export default function CampaignDetailContent({ slug, mbaNumber }: CampaignDetai
 
       {/* Time and Spend Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <CampaignTimeChart timeElapsedPercent={data.metrics.timeElapsedPercent} />
+        <CampaignTimeChart timeElapsed={data.metrics.timeElapsedPercent} />
         <CampaignSpendChart 
           expectedSpend={data.metrics.expectedSpendToDate}
-          actualSpend={data.metrics.actualSpendToDate}
-          totalExpected={data.metrics.totalExpectedSpend}
+          campaignBudget={data.campaign.campaignBudget}
         />
       </div>
 
       {/* Media Channel Pie Chart */}
-      <MediaChannelPieChart spendByChannel={data.metrics.spendByChannel} />
+      <MediaChannelPieChart data={spendByChannelData} />
 
       {/* Monthly Spend Stacked Chart */}
-      <MonthlySpendStackedChart monthlySpend={data.metrics.monthlySpend} />
+      <MonthlySpendStackedChart data={monthlySpendData} />
 
       {/* Media Table */}
-      <MediaTable lineItems={data.lineItems} />
+      <MediaTable lineItems={normalisedLineItemsByMediaType} />
 
       {/* Gantt Chart */}
       <MediaGanttChart 
-        lineItems={data.lineItems}
-        campaignStartDate={data.campaign.campaignStartDate}
-        campaignEndDate={data.campaign.campaignEndDate}
+        lineItems={normalisedLineItemsByMediaType}
+        startDate={data.campaign.campaignStartDate}
+        endDate={data.campaign.campaignEndDate}
       />
 
       {/* Sticky Footer with Download Buttons */}

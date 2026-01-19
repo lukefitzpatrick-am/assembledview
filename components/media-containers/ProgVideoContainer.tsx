@@ -17,6 +17,7 @@ import { getPublishersForProgVideo, getClientInfo } from "@/lib/api"
 import { formatBurstLabel } from "@/lib/bursts"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
+import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { CalendarIcon } from "lucide-react"
@@ -25,6 +26,27 @@ import { ChevronDown, Copy, Plus, Trash2 } from "lucide-react"
 import { LoadingDots } from "@/components/ui/loading-dots"
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
 import type { LineItem } from '@/lib/generateMediaPlan'
+
+const computeLoadedDeliverables = (buyType: string, burst: any) => {
+  const budget = parseFloat(String(burst?.budget ?? "0").replace(/[^0-9.]/g, "")) || 0
+  const buyAmount = parseFloat(String(burst?.buyAmount ?? "1").replace(/[^0-9.]/g, "")) || 0
+  const type = (buyType || "").toLowerCase()
+
+  switch (type) {
+    case "cpc":
+    case "cpv":
+      return buyAmount !== 0 ? budget / buyAmount : 0
+    case "cpm":
+      return buyAmount !== 0 ? (budget / buyAmount) * 1000 : 0
+    case "fixed_cost":
+    case "package":
+      return 1
+    case "bonus":
+      return parseFloat(String(burst?.calculatedValue ?? burst?.deliverables ?? 0).replace(/[^0-9.]/g, "")) || 0
+    default:
+      return parseFloat(String(burst?.calculatedValue ?? burst?.deliverables ?? burst?.impressions ?? 0).replace(/[^0-9.]/g, "")) || 0
+  }
+}
 
 // Format Dates
 const formatDateString = (d?: Date | string): string => {
@@ -393,41 +415,53 @@ export default function ProgVideoContainer({
   // Data loading for edit mode
   useEffect(() => {
     if (initialLineItems && initialLineItems.length > 0) {
-      const transformedLineItems = initialLineItems.map((item: any) => ({
-        platform: item.platform || "",
-        bidStrategy: item.bid_strategy || "",
-        buyType: item.buy_type || "",
-        creativeTargeting: item.creative_targeting || "",
-        creative: item.creative || "",
-        buyingDemo: item.buying_demo || "",
-        market: item.market || "",
-        site: item.site || "",
-        placement: item.placement || "",
-        size: item.size || "",
-        targetingAttribute: item.targeting_attribute || "",
-        fixedCostMedia: item.fixed_cost_media || false,
-        clientPaysForMedia: item.client_pays_for_media || false,
-        budgetIncludesFees: item.budget_includes_fees || false,
-        noadserving: item.no_adserving || false,
-        bursts: item.bursts_json ? (typeof item.bursts_json === 'string' ? JSON.parse(item.bursts_json) : item.bursts_json).map((burst: any) => ({
-          budget: burst.budget || "",
-          buyAmount: burst.buyAmount || "",
-          startDate: burst.startDate ? new Date(burst.startDate) : new Date(),
-          endDate: burst.endDate ? new Date(burst.endDate) : new Date(),
-          calculatedValue: burst.calculatedValue || 0,
-          fee: burst.fee || 0,
-        })) : [{
-          budget: "",
-          buyAmount: "",
-          startDate: campaignStartDate || new Date(),
-          endDate: campaignEndDate || new Date(),
-          calculatedValue: 0,
-          fee: 0,
-        }],
-        totalMedia: item.total_media || 0,
-        totalDeliverables: item.total_deliverables || 0,
-        totalFee: item.total_fee || 0,
-      }));
+      const transformedLineItems = initialLineItems.map((item: any) => {
+        const normalizedPlatform = item.platform || item.publisher || "";
+        const normalizedSite = item.site || item.publisher || normalizedPlatform;
+
+        return {
+          platform: normalizedPlatform,
+          bidStrategy: item.bid_strategy || "",
+          buyType: item.buy_type || "",
+          creativeTargeting: item.creative_targeting || "",
+          creative: item.creative || "",
+          buyingDemo: item.buying_demo || "",
+          market: item.market || "",
+          site: normalizedSite,
+          placement: item.placement || "",
+          size: item.size || "",
+          targetingAttribute: item.targeting_attribute || "",
+          fixedCostMedia: item.fixed_cost_media || false,
+          clientPaysForMedia: item.client_pays_for_media || false,
+          budgetIncludesFees: item.budget_includes_fees || false,
+          noadserving: item.no_adserving || false,
+          bursts: item.bursts_json
+            ? (typeof item.bursts_json === "string"
+                ? JSON.parse(item.bursts_json)
+                : item.bursts_json
+              ).map((burst: any) => ({
+                budget: burst.budget || "",
+                buyAmount: burst.buyAmount || "",
+                startDate: burst.startDate ? new Date(burst.startDate) : new Date(),
+                endDate: burst.endDate ? new Date(burst.endDate) : new Date(),
+                calculatedValue: computeLoadedDeliverables(item.buy_type || item.buyType, burst),
+                fee: burst.fee || 0,
+              }))
+            : [
+                {
+                  budget: "",
+                  buyAmount: "",
+                  startDate: campaignStartDate || new Date(),
+                  endDate: campaignEndDate || new Date(),
+                  calculatedValue: computeLoadedDeliverables(item.buy_type || item.buyType, {}),
+                  fee: 0,
+                },
+              ],
+          totalMedia: item.total_media || 0,
+          totalDeliverables: item.total_deliverables || 0,
+          totalFee: item.total_fee || 0,
+        };
+      });
 
       form.reset({
         lineItems: transformedLineItems,
@@ -475,7 +509,7 @@ export default function ProgVideoContainer({
         client_pays_for_media: lineItem.clientPaysForMedia || false,
         budget_includes_fees: lineItem.budgetIncludesFees || false,
         no_adserving: lineItem.noadserving || false,
-        line_item_id: `${mbaNumber || 'PV'}${index + 1}`,
+        line_item_id: buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.progVideo, index + 1),
         bursts_json: JSON.stringify(lineItem.bursts.map(burst => ({
           budget: burst.budget || "",
           buyAmount: burst.buyAmount || "",
@@ -800,7 +834,7 @@ useEffect(() => {
       const mediaAmount = computedBurst
         ? computedBurst.mediaAmount
         : parseFloat(String(burst.budget).replace(/[^0-9.-]+/g, "")) || 0;
-      const lineItemId = `${mbaNumber || 'PV'}${lineItemIndex + 1}`;
+      const lineItemId = buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.progVideo, lineItemIndex + 1);
 
       return {
         market: lineItem.market,                                // or fixed value

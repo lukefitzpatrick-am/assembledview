@@ -34,6 +34,9 @@ Notes:
 - If you use the `.com.au` domain, the app already understands both namespaces.
 - Test the Action in dev and prod; without it, users will appear role-less and lose admin UI.
 
+## Role IDs required for provisioning
+- `AUTH0_ROLE_CLIENT_ID` and `AUTH0_ROLE_ADMIN_ID` must be the Auth0 Role IDs (they start with `rol_...`), not the role display names.
+
 
 
 

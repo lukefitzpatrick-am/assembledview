@@ -1,13 +1,16 @@
-import { getSession, withApiAuthRequired, withPageAuthRequired } from '@auth0/nextjs-auth0';
+import { Auth0Client } from '@auth0/nextjs-auth0/server';
+import type { User } from '@auth0/nextjs-auth0/types';
 import { NextApiRequest, NextApiResponse } from 'next';
 import { NextRequest, NextResponse } from 'next/server';
-import type { User } from '@auth0/nextjs-auth0';
 import { hasRole, canAccessPage, UserRole, getUserRoles, getUserClientIdentifier } from '@/lib/rbac';
+
+// Single Auth0 client instance configured via environment variables
+const auth0 = new Auth0Client();
 
 // Server-side session helper
 export async function getServerSession() {
   try {
-    const session = await getSession();
+    const session = await auth0.getSession();
     return session;
   } catch (error) {
     console.error('Error getting session:', error);
@@ -17,7 +20,7 @@ export async function getServerSession() {
 
 // API route protection wrapper
 export function withAuth(handler: (req: NextApiRequest, res: NextApiResponse) => Promise<void>) {
-  return withApiAuthRequired(async (req: NextApiRequest, res: NextApiResponse) => {
+  return auth0.withApiAuthRequired(async (req: NextApiRequest, res: NextApiResponse) => {
     try {
       await handler(req, res);
     } catch (error) {
@@ -32,9 +35,9 @@ export function withRoleAuth(
   requiredRoles: UserRole | UserRole[],
   handler: (req: NextApiRequest, res: NextApiResponse) => Promise<void>
 ) {
-  return withApiAuthRequired(async (req: NextApiRequest, res: NextApiResponse) => {
+  return auth0.withApiAuthRequired(async (req: NextApiRequest, res: NextApiResponse) => {
     try {
-      const session = await getSession(req, res);
+      const session = await auth0.getSession(req);
       if (!session || !session.user) {
         return res.status(401).json({ error: 'Unauthorized' });
       }
@@ -52,7 +55,7 @@ export function withRoleAuth(
 }
 
 // Page protection wrapper
-export const withPageAuth = withPageAuthRequired;
+export const withPageAuth = auth0.withPageAuthRequired.bind(auth0);
 
 // API route protection for App Router (Next.js 13+)
 export async function withApiRouteAuth(
@@ -60,8 +63,8 @@ export async function withApiRouteAuth(
   requiredRoles?: UserRole | UserRole[]
 ): Promise<{ user: User } | NextResponse> {
   try {
-    const session = await getSession();
-    
+    const session = await auth0.getSession(request);
+
     if (!session || !session.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -80,7 +83,7 @@ export async function withApiRouteAuth(
 // Check if user can access a specific page
 export async function checkPageAccess(page: string): Promise<boolean> {
   try {
-    const session = await getSession();
+    const session = await auth0.getSession();
     if (!session || !session.user) {
       return false;
     }
@@ -94,7 +97,7 @@ export async function checkPageAccess(page: string): Promise<boolean> {
 // Get user with role information
 export async function getUserWithRoles(): Promise<{ user: User; roles: string[]; client?: string | null } | null> {
   try {
-    const session = await getSession();
+    const session = await auth0.getSession();
     if (!session || !session.user) {
       return null;
     }
@@ -130,7 +133,7 @@ export function createAuthErrorResponse(message: string, status: number = 401): 
 // Validate session and return user or redirect
 export async function validateSessionOrRedirect(): Promise<{ user: User } | NextResponse> {
   try {
-    const session = await getSession();
+    const session = await auth0.getSession();
     if (!session || !session.user) {
       return redirectToLogin();
     }

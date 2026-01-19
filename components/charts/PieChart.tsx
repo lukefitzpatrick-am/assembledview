@@ -2,6 +2,7 @@
 
 import { PieChart as RechartsPieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Download } from 'lucide-react'
 
@@ -17,6 +18,9 @@ interface PieChartProps {
   data: PieChartData[]
   colors?: string[]
   onExport?: () => void
+  cardClassName?: string
+  headerClassName?: string
+  contentClassName?: string
 }
 
 const DEFAULT_COLORS = [
@@ -24,7 +28,49 @@ const DEFAULT_COLORS = [
   '#ff00ff', '#00ffff', '#ff0000', '#0000ff', '#ffff00'
 ]
 
-export function PieChart({ title, description, data, colors = DEFAULT_COLORS, onExport }: PieChartProps) {
+export function PieChart({
+  title,
+  description,
+  data,
+  colors = DEFAULT_COLORS,
+  onExport,
+  cardClassName,
+  headerClassName,
+  contentClassName,
+}: PieChartProps) {
+  const totalValue = data.reduce((sum, item) => sum + (Number(item.value) || 0), 0)
+
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat("en-AU", {
+      style: "currency",
+      currency: "AUD",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value)
+
+  const CustomTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      const entry = payload[0]
+      const value = Number(entry?.value) || 0
+      const pct =
+        typeof entry?.payload?.percentage === "number"
+          ? entry.payload.percentage
+          : totalValue > 0
+            ? (value / totalValue) * 100
+            : 0
+
+      return (
+        <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-lg">
+          <p className="font-semibold">{entry?.name}</p>
+          <p className="text-blue-600">{formatCurrency(value)}</p>
+          <p className="text-sm text-gray-500">{pct.toFixed(1)}%</p>
+          <p className="mt-2 border-t pt-2 text-sm font-semibold">Total: {formatCurrency(totalValue)}</p>
+        </div>
+      )
+    }
+    return null
+  }
+
   const handleExport = () => {
     if (onExport) {
       onExport()
@@ -46,8 +92,8 @@ export function PieChart({ title, description, data, colors = DEFAULT_COLORS, on
   }
 
   return (
-    <Card>
-      <CardHeader>
+    <Card className={cn(cardClassName)}>
+      <CardHeader className={cn(headerClassName)}>
         <div className="flex justify-between items-center">
           <div>
             <CardTitle>{title}</CardTitle>
@@ -59,7 +105,7 @@ export function PieChart({ title, description, data, colors = DEFAULT_COLORS, on
           </Button>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className={cn(contentClassName)}>
         <div className="h-[512px]">
           <ResponsiveContainer width="100%" height="100%">
             <RechartsPieChart>
@@ -85,10 +131,7 @@ export function PieChart({ title, description, data, colors = DEFAULT_COLORS, on
                   <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
                 ))}
               </Pie>
-              <Tooltip 
-                formatter={(value: number) => [`$${value.toLocaleString()}`, 'Value']}
-                labelFormatter={(label) => `Media Type: ${label}`}
-              />
+              <Tooltip content={<CustomTooltip />} />
               <Legend />
             </RechartsPieChart>
           </ResponsiveContainer>

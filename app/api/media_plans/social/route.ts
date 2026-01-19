@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
-import axios from 'axios';
+import axios from "axios";
+import { fetchAllXanoPages } from '@/lib/api/xanoPagination';
+import { filterLineItemsByPlanNumber } from '@/lib/api/mediaPlanVersionHelper';
+import { xanoUrl } from '@/lib/api/xano';
 
 // Interface matching the Xano database schema
 interface SocialMediaData {
@@ -23,10 +26,6 @@ interface SocialMediaData {
   bursts_json: any; // JSON object containing bursts data
   line_item: number;
 }
-
-const XANO_SOCIAL_BASE_URL = process.env.XANO_SOCIAL_BASE_URL || "https://xg4h-uyzs-dtex.a2.xano.io/api:RaUx9FOa";
-const MEDIA_PLANS_VERSIONS_URL = "https://xg4h-uyzs-dtex.a2.xano.io/api:RaUx9FOa";
-const MEDIA_PLAN_MASTER_URL = "https://xg4h-uyzs-dtex.a2.xano.io/api:RaUx9FOa";
 
 export async function POST(request: Request) {
   try {
@@ -62,13 +61,16 @@ export async function POST(request: Request) {
     };
 
     // Send the data to Xano
-    const response = await fetch(`${XANO_SOCIAL_BASE_URL}/media_plan_social`, {
+    const response = await fetch(
+      xanoUrl("media_plan_social", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]),
+      {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(socialMediaData),
-    });
+      }
+    );
 
     if (!response.ok) {
       const errorData = await response.json();
@@ -122,7 +124,9 @@ export async function GET(request: Request) {
       // Need to fetch the latest version_number from media_plan_versions table
       try {
         // First get the master data to find the latest version number
-        const masterResponse = await axios.get(`${MEDIA_PLAN_MASTER_URL}/media_plan_master?mba_number=${encodeURIComponent(mbaNumber)}`);
+        const masterResponse = await axios.get(
+          `${xanoUrl("media_plan_master", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${encodeURIComponent(mbaNumber)}`
+        );
         let masterData: any = null;
         
         if (Array.isArray(masterResponse.data)) {
@@ -134,7 +138,7 @@ export async function GET(request: Request) {
         if (masterData && masterData.version_number) {
           // Get the specific version data
           const versionResponse = await axios.get(
-            `${MEDIA_PLANS_VERSIONS_URL}/media_plan_versions?media_plan_master_id=${masterData.id}&version_number=${masterData.version_number}`
+            `${xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?media_plan_master_id=${masterData.id}&version_number=${masterData.version_number}`
           );
           
           let versionData: any = null;
@@ -167,62 +171,23 @@ export async function GET(request: Request) {
       );
     }
     
-    // Query ONLY by mba_number to scan entire database
-    // Then filter by mp_plannumber in JavaScript to ensure we get all matching records
-    const params = new URLSearchParams();
-    params.append('mba_number', mbaNumber);
-    
-    const url = `${XANO_SOCIAL_BASE_URL}/media_plan_social?${params.toString()}`;
-    
-    console.log(`[SOCIAL] Fetching from media_plan_social table`);
-    console.log(`[SOCIAL] Strategy: Query all records matching mba_number, then filter by mp_plannumber=${versionNumber} in JavaScript`);
-    console.log(`[SOCIAL] API URL: ${url}`);
-    
-    const headers = {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json'
-    };
-    
-    const response = await axios.get(url, { 
-      headers,
-      timeout: 10000 
-    });
-    
-    console.log(`[SOCIAL] API response status: ${response.status}`);
-    console.log(`[SOCIAL] Raw response data count:`, Array.isArray(response.data) ? response.data.length : 'not an array');
-    
-    // Ensure we return an array
-    const data = Array.isArray(response.data) ? response.data : [];
-    
-    // Filter by mp_plannumber in JavaScript after scanning entire database for mba_number
-    // This ensures we get all records matching mba_number, then filter by version
-    const filteredData = data.filter((item: any) => {
-      // Normalize values for comparison (handle both string and number)
-      const itemMba = String(item.mba_number || '').trim();
-      const itemPlan = typeof item.mp_plannumber === 'string' 
-        ? parseInt(item.mp_plannumber, 10) 
-        : item.mp_plannumber
-      const filterMba = String(mbaNumber).trim();
-      const filterPlan = typeof versionNumber === 'string'
-        ? parseInt(versionNumber, 10)
-        : parseInt(String(versionNumber), 10)
-      
-      const matchesMba = itemMba === filterMba;
-      const matchesPlan = itemPlan === filterPlan;
-      
-      if (!matchesMba || !matchesPlan) {
-        console.log(`[SOCIAL] Filtered out item: mba_number=${itemMba} (expected ${filterMba}), mp_plannumber=${itemPlan} (expected ${filterPlan})`);
-      }
-      
-      return matchesMba && matchesPlan;
-    });
-    
+    const baseUrl = xanoUrl("media_plan_social", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]);
+
+    console.log(`[SOCIAL] Fetching from media_plan_social table with pagination`);
+    console.log(`[SOCIAL] Strategy: Query all records matching mba_number, then filter by version in JavaScript`);
+
+    const data = await fetchAllXanoPages(
+      baseUrl,
+      { mba_number: mbaNumber },
+      "SOCIAL"
+    );
+
+    console.log(`[SOCIAL] Raw response data count:`, data.length);
+
+    const filteredData = filterLineItemsByPlanNumber(data, mbaNumber, versionNumber, 'SOCIAL');
+
     console.log(`[SOCIAL] Final filtered data count: ${filteredData.length} (from ${data.length} total items)`);
-    
-    if (filteredData.length !== data.length) {
-      console.log(`[SOCIAL] Filtered ${data.length - filteredData.length} items. Only items matching both mba_number and mp_plannumber are returned.`);
-    }
-    
+
     return NextResponse.json(filteredData);
   } catch (error: any) {
     console.error("Error fetching social media data:", error);

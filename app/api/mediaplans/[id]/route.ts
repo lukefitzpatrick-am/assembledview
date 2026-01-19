@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server"
 import axios from "axios"
-
-const XANO_MEDIAPLANS_BASE_URL = process.env.XANO_MEDIAPLANS_BASE_URL || "https://xg4h-uyzs-dtex.a2.xano.io/api:QVYjoFmM"
-const MEDIA_PLANS_VERSIONS_URL = "https://xg4h-uyzs-dtex.a2.xano.io/api:RaUx9FOa"
+import { xanoUrl } from "@/lib/api/xano"
 
 // GET a single media plan by ID
 export async function GET(
@@ -14,7 +12,7 @@ export async function GET(
     console.log(`Fetching media plan with ID: ${id}`)
     
     // Fetch from media_plan_versions table
-    const versionsUrl = `${MEDIA_PLANS_VERSIONS_URL}/media_plan_versions?id=${id}`
+    const versionsUrl = `${xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?id=${id}`
     console.log(`API URL: ${versionsUrl}`)
     
     const headers = {
@@ -98,25 +96,25 @@ export async function GET(
           progOohItems,
           influencersItems
         ] = await Promise.all([
-          axios.get(`${MEDIA_PLANS_VERSIONS_URL}/television_line_items?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
-          axios.get(`${MEDIA_PLANS_VERSIONS_URL}/radio_line_items?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
-          axios.get(`${MEDIA_PLANS_VERSIONS_URL}/search_line_items?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
-          axios.get(`${MEDIA_PLANS_VERSIONS_URL}/social_media_line_items?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
-          axios.get(`${MEDIA_PLANS_VERSIONS_URL}/newspaper_line_items?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
-          axios.get(`${MEDIA_PLANS_VERSIONS_URL}/magazines_line_items?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
-          axios.get(`${MEDIA_PLANS_VERSIONS_URL}/ooh_line_items?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
-          axios.get(`${MEDIA_PLANS_VERSIONS_URL}/cinema_line_items?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
-          axios.get(`${MEDIA_PLANS_VERSIONS_URL}/digital_display_line_items?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
-          axios.get(`${MEDIA_PLANS_VERSIONS_URL}/digital_audio_line_items?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
-          axios.get(`${MEDIA_PLANS_VERSIONS_URL}/digital_video_line_items?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
-          axios.get(`${MEDIA_PLANS_VERSIONS_URL}/bvod_line_items?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
-          axios.get(`${MEDIA_PLANS_VERSIONS_URL}/integration_line_items?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
-          axios.get(`${MEDIA_PLANS_VERSIONS_URL}/prog_display_line_items?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
-          axios.get(`${MEDIA_PLANS_VERSIONS_URL}/prog_video_line_items?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
-          axios.get(`${MEDIA_PLANS_VERSIONS_URL}/prog_bvod_line_items?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
-          axios.get(`${MEDIA_PLANS_VERSIONS_URL}/prog_audio_line_items?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
-          axios.get(`${MEDIA_PLANS_VERSIONS_URL}/prog_ooh_line_items?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
-          axios.get(`${MEDIA_PLANS_VERSIONS_URL}/influencers_line_items?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] }))
+          axios.get(`${xanoUrl("television_line_items", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
+          axios.get(`${xanoUrl("radio_line_items", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
+          axios.get(`${xanoUrl("search_line_items", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
+          axios.get(`${xanoUrl("social_media_line_items", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
+          axios.get(`${xanoUrl("newspaper_line_items", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
+          axios.get(`${xanoUrl("magazines_line_items", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
+          axios.get(`${xanoUrl("ooh_line_items", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
+          axios.get(`${xanoUrl("cinema_line_items", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
+          axios.get(`${xanoUrl("digital_display_line_items", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
+          axios.get(`${xanoUrl("digital_audio_line_items", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
+          axios.get(`${xanoUrl("digital_video_line_items", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
+          axios.get(`${xanoUrl("bvod_line_items", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
+          axios.get(`${xanoUrl("integration_line_items", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
+          axios.get(`${xanoUrl("prog_display_line_items", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
+          axios.get(`${xanoUrl("prog_video_line_items", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
+          axios.get(`${xanoUrl("prog_bvod_line_items", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
+          axios.get(`${xanoUrl("prog_audio_line_items", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
+          axios.get(`${xanoUrl("prog_ooh_line_items", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
+          axios.get(`${xanoUrl("influencers_line_items", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] }))
         ])
         
         // Filter all results by version_number/mp_plannumber in JavaScript
@@ -204,7 +202,9 @@ export async function PUT(
     console.log("Update data:", data)
     
     // First, get the current version to get the media_plan_master_id and determine next version number
-    const currentVersionResponse = await axios.get(`${MEDIA_PLANS_VERSIONS_URL}/media_plan_versions?id=${id}`)
+    const currentVersionResponse = await axios.get(
+      `${xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?id=${id}`
+    )
     const currentVersion = Array.isArray(currentVersionResponse.data) 
       ? currentVersionResponse.data[0]
       : currentVersionResponse.data
@@ -217,7 +217,9 @@ export async function PUT(
     }
 
     // Get all versions for this media plan master to determine next version number
-    const allVersionsResponse = await axios.get(`${MEDIA_PLANS_VERSIONS_URL}/media_plan_versions?media_plan_master_id=${currentVersion.media_plan_master_id}`)
+    const allVersionsResponse = await axios.get(
+      `${xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?media_plan_master_id=${currentVersion.media_plan_master_id}`
+    )
     const allVersions = Array.isArray(allVersionsResponse.data) ? allVersionsResponse.data : [allVersionsResponse.data]
     const nextVersionNumber = Math.max(...allVersions.map(v => v.version_number)) + 1
     
@@ -262,7 +264,10 @@ export async function PUT(
     }
     
     // Create new version in media_plan_versions table
-    const response = await axios.post(`${MEDIA_PLANS_VERSIONS_URL}/media_plan_versions`, newVersionData)
+    const response = await axios.post(
+      xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]),
+      newVersionData
+    )
     
     console.log("New version created:", response.data)
     

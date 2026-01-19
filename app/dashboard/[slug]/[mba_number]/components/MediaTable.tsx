@@ -5,9 +5,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { format } from 'date-fns'
+import { NormalisedLineItem, groupByLineItemId } from '@/lib/mediaplan/normalizeLineItem'
 
 interface MediaTableProps {
-  lineItems: Record<string, any[]>
+  lineItems: Record<string, NormalisedLineItem[]>
 }
 
 const MEDIA_TYPE_DISPLAY_NAMES: Record<string, string> = {
@@ -32,172 +33,62 @@ const MEDIA_TYPE_DISPLAY_NAMES: Record<string, string> = {
   influencers: 'Influencers'
 }
 
-interface Burst {
-  startDate: string
-  endDate: string
-  budget?: string | number
-  deliverablesAmount?: string | number
-  deliverables?: number
-  calculatedValue?: number
-}
-
-interface GroupedItem {
+type GroupedItem = {
   key: string
+  lineItemId: string
   market?: string
+  platform?: string
   network?: string
   station?: string
-  platform?: string
   site?: string
+  publisher?: string
   title?: string
-  placement?: string
-  size?: string
-  daypart?: string
   targeting?: string
-  creative?: string
-  bidStrategy?: string
   buyType?: string
   buyingDemo?: string
   totalMedia: number
   totalDeliverables: number
   groupStartDate: string
   groupEndDate: string
-  bursts: Burst[]
+  bursts: NormalisedLineItem['bursts']
 }
 
-// Grouping keys for different media types (similar to Excel)
-const GROUPING_KEYS: Record<string, string[]> = {
-  television: ['market', 'network', 'station', 'daypart', 'placement', 'size', 'buyingDemo', 'buyType'],
-  radio: ['market', 'network', 'station', 'placement', 'size', 'radioDuration', 'buyingDemo', 'buyType'],
-  newspaper: ['market', 'network', 'title', 'placement', 'size', 'buyingDemo', 'buyType'],
-  magazines: ['market', 'network', 'title', 'placement', 'size', 'buyingDemo', 'buyType'],
-  search: ['market', 'platform', 'bidStrategy', 'targeting', 'creative', 'buyingDemo', 'buyType'],
-  socialMedia: ['market', 'platform', 'bidStrategy', 'targeting', 'creative', 'buyingDemo', 'buyType'],
-  progDisplay: ['market', 'platform', 'bidStrategy', 'targeting', 'creative', 'buyingDemo', 'buyType'],
-  progVideo: ['market', 'platform', 'bidStrategy', 'targeting', 'creative', 'buyingDemo', 'buyType'],
-  progBvod: ['market', 'platform', 'bidStrategy', 'targeting', 'creative', 'buyingDemo', 'buyType'],
-  progAudio: ['market', 'platform', 'bidStrategy', 'targeting', 'creative', 'buyingDemo', 'buyType'],
-  progOoh: ['market', 'platform', 'bidStrategy', 'targeting', 'creative', 'buyingDemo', 'buyType'],
-  ooh: ['market', 'network', 'oohFormat', 'oohType', 'placement', 'size', 'buyingDemo', 'buyType'],
-  cinema: ['market', 'network', 'station', 'placement', 'size', 'buyingDemo', 'buyType'],
-  bvod: ['market', 'platform', 'site', 'bidStrategy', 'targeting', 'creative', 'buyingDemo', 'buyType'],
-  digitalDisplay: ['market', 'platform', 'site', 'targeting', 'creative', 'buyingDemo', 'buyType'],
-  digitalAudio: ['market', 'platform', 'site', 'bidStrategy', 'targeting', 'creative', 'buyingDemo', 'buyType'],
-  digitalVideo: ['market', 'platform', 'site', 'bidStrategy', 'targeting', 'creative', 'buyingDemo', 'buyType'],
-  integration: ['market', 'network', 'placement', 'size', 'buyingDemo', 'buyType'],
-  influencers: ['market', 'platform', 'targeting', 'creative', 'buyingDemo', 'buyType']
+function safeNumber(value: number | undefined) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0
 }
 
-function parseBurstsJson(burstsJson: any): Burst[] {
-  if (!burstsJson) return []
-  
-  try {
-    let parsed: any = burstsJson
-    if (typeof burstsJson === 'string') {
-      const trimmed = burstsJson.trim()
-      if (!trimmed) return []
-      parsed = JSON.parse(trimmed)
-    }
-    
-    if (Array.isArray(parsed)) {
-      return parsed.map((burst: any) => ({
-        startDate: burst.startDate || burst.start_date || '',
-        endDate: burst.endDate || burst.end_date || '',
-        budget: burst.budget || burst.deliverablesAmount || 0,
-        deliverablesAmount: burst.deliverablesAmount || burst.budget || 0,
-        deliverables: burst.deliverables || burst.calculatedValue || 0,
-        calculatedValue: burst.calculatedValue || burst.deliverables || 0
-      }))
-    } else if (typeof parsed === 'object') {
-      return [{
-        startDate: parsed.startDate || parsed.start_date || '',
-        endDate: parsed.endDate || parsed.end_date || '',
-        budget: parsed.budget || parsed.deliverablesAmount || 0,
-        deliverablesAmount: parsed.deliverablesAmount || parsed.budget || 0,
-        deliverables: parsed.deliverables || parsed.calculatedValue || 0,
-        calculatedValue: parsed.calculatedValue || parsed.deliverables || 0
-      }]
-    }
-  } catch (error) {
-    console.error('Error parsing bursts_json:', error)
-  }
-  
-  return []
-}
-
-function groupLineItems(items: any[], mediaType: string): GroupedItem[] {
+function groupLineItems(items: NormalisedLineItem[]): GroupedItem[] {
   if (!items || items.length === 0) return []
-  
-  const groupingKeys = GROUPING_KEYS[mediaType] || ['market']
-  const grouped: Map<string, GroupedItem> = new Map()
-  
-  items.forEach(item => {
-    // Parse bursts
-    const bursts = parseBurstsJson(item.bursts_json || item.bursts)
-    
-    // If no bursts, create one from item dates
-    const itemBursts = bursts.length > 0 ? bursts : [{
-      startDate: item.start_date || item.startDate || item.placement_date || '',
-      endDate: item.end_date || item.endDate || item.placement_date || '',
-      budget: item.totalMedia || item.grossMedia || item.budget || item.spend || 0,
-      deliverablesAmount: item.totalMedia || item.grossMedia || item.budget || item.spend || 0,
-      deliverables: item.deliverables || item.timps || item.tarps || item.spots || item.insertions || item.panels || item.screens || item.clicks || item.impressions || 0
-    }]
-    
-    // Create grouping key
-    const key = groupingKeys.map(k => item[k] || '').join('|')
-    
-    if (!grouped.has(key)) {
-      const firstBurst = itemBursts[0]
-      grouped.set(key, {
-        key,
-        market: item.market,
-        network: item.network,
-        station: item.station,
-        platform: item.platform,
-        site: item.site,
-        title: item.title,
-        placement: item.placement,
-        size: item.size,
-        daypart: item.daypart,
-        targeting: item.targeting || item.creativeTargeting,
-        creative: item.creative,
-        bidStrategy: item.bidStrategy || item.bid_strategy,
-        buyType: item.buyType || item.buy_type,
-        buyingDemo: item.buyingDemo || item.buying_demo,
-        totalMedia: 0,
-        totalDeliverables: 0,
-        groupStartDate: firstBurst.startDate,
-        groupEndDate: firstBurst.endDate,
-        bursts: []
-      })
+
+  return items.map((item) => {
+    const totalMedia = item.bursts.reduce((sum, burst) => sum + safeNumber(burst.deliverablesAmount || burst.budget), 0)
+    const totalDeliverables = item.bursts.reduce((sum, burst) => sum + safeNumber(burst.deliverables), 0)
+
+    const startDates = item.bursts.map((b) => b.startDate).filter(Boolean)
+    const endDates = item.bursts.map((b) => b.endDate).filter(Boolean)
+    const groupStartDate = startDates.length ? startDates.reduce((a, b) => (a < b ? a : b)) : ''
+    const groupEndDate = endDates.length ? endDates.reduce((a, b) => (a > b ? a : b)) : ''
+
+    return {
+      key: item.lineItemId,
+      lineItemId: item.lineItemId,
+      market: item.market,
+      platform: item.platform,
+      network: item.network,
+      station: item.station,
+      site: item.site,
+      publisher: item.publisher || item.platform || item.network || item.site || item.station,
+      title: item.title,
+      targeting: item.targeting,
+      buyType: item.buyType,
+      buyingDemo: item.buyingDemo,
+      totalMedia,
+      totalDeliverables,
+      groupStartDate,
+      groupEndDate,
+      bursts: item.bursts,
     }
-    
-    const group = grouped.get(key)!
-    
-    // Add bursts to group
-    itemBursts.forEach(burst => {
-      group.bursts.push(burst)
-      const budget = typeof burst.budget === 'string' 
-        ? parseFloat(burst.budget.replace(/[^0-9.-]+/g, '')) || 0
-        : (burst.budget || 0)
-      const deliverablesAmount = typeof burst.deliverablesAmount === 'string'
-        ? parseFloat(burst.deliverablesAmount.replace(/[^0-9.-]+/g, '')) || 0
-        : (burst.deliverablesAmount || budget || 0)
-      
-      group.totalMedia += deliverablesAmount
-      group.totalDeliverables += (burst.deliverables || burst.calculatedValue || 0)
-      
-      // Update group date range
-      if (burst.startDate && (!group.groupStartDate || burst.startDate < group.groupStartDate)) {
-        group.groupStartDate = burst.startDate
-      }
-      if (burst.endDate && (!group.groupEndDate || burst.endDate > group.groupEndDate)) {
-        group.groupEndDate = burst.endDate
-      }
-    })
   })
-  
-  return Array.from(grouped.values())
 }
 
 export default function MediaTable({ lineItems }: MediaTableProps) {
@@ -238,13 +129,14 @@ export default function MediaTable({ lineItems }: MediaTableProps) {
 
   const groupedData = useMemo(() => {
     const result: Record<string, GroupedItem[]> = {}
-    
-    Object.entries(lineItems).forEach(([mediaType, items]) => {
-      if (items && items.length > 0) {
-        result[mediaType] = groupLineItems(items, mediaType)
+
+    Object.entries(lineItems || {}).forEach(([mediaType, items]) => {
+      if (Array.isArray(items) && items.length > 0) {
+        const groupedItems = groupByLineItemId(items, mediaType)
+        result[mediaType] = groupLineItems(groupedItems)
       }
     })
-    
+
     return result
   }, [lineItems])
 
@@ -290,19 +182,15 @@ export default function MediaTable({ lineItems }: MediaTableProps) {
                 </TableHeader>
                 <TableBody>
                   {groups.map((group, groupIndex) => {
-                    const details = []
-                    if (group.network) details.push(`Network: ${group.network}`)
-                    if (group.station) details.push(`Station: ${group.station}`)
-                    if (group.platform) details.push(`Platform: ${group.platform}`)
-                    if (group.site) details.push(`Site: ${group.site}`)
-                    if (group.title) details.push(`Title: ${group.title}`)
+                    const details: string[] = []
+                    const publisher = group.publisher || group.platform || group.network || group.site || group.station
+                    const title = group.title && !/auto\s*allocation/i.test(group.title) ? group.title : undefined
+
+                    if (publisher) details.push(publisher)
+                    if (title) details.push(title)
                     if (group.targeting) details.push(`Targeting: ${group.targeting}`)
-                    if (group.creative) details.push(`Creative: ${group.creative}`)
-                    if (group.daypart) details.push(`Daypart: ${group.daypart}`)
-                    if (group.placement) details.push(`Placement: ${group.placement}`)
-                    if (group.size) details.push(`Size: ${group.size}`)
-                    if (group.bidStrategy) details.push(`Bid: ${group.bidStrategy}`)
                     if (group.buyType) details.push(`Buy: ${group.buyType}`)
+                    if (group.buyingDemo) details.push(`Demo: ${group.buyingDemo}`)
 
                     const groupKey = `${mediaType}-${group.key || groupIndex}`
                     const isExpanded = expandedGroups.has(groupKey)
@@ -315,9 +203,9 @@ export default function MediaTable({ lineItems }: MediaTableProps) {
                               {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                             </button>
                           </TableCell>
-                          <TableCell className="font-medium">{group.market || '-'}</TableCell>
+                          <TableCell className="font-medium">{group.market || '—'}</TableCell>
                           <TableCell className="text-sm text-muted-foreground">
-                            {details.length > 0 ? details.join(' • ') : '-'}
+                            {details.length > 0 ? details.join(' • ') : `Line item ${group.lineItemId || '—'}`}
                           </TableCell>
                           <TableCell>
                             {formatDate(group.groupStartDate)} - {formatDate(group.groupEndDate)}
@@ -329,12 +217,12 @@ export default function MediaTable({ lineItems }: MediaTableProps) {
                           </TableCell>
                         </TableRow>
                         {isExpanded && group.bursts.map((burst, burstIndex) => {
-                          const burstBudget = typeof burst.budget === 'string'
-                            ? parseFloat(burst.budget.replace(/[^0-9.-]+/g, '')) || 0
-                            : (burst.budget || 0)
-                          const burstDeliverablesAmount = typeof burst.deliverablesAmount === 'string'
-                            ? parseFloat(burst.deliverablesAmount.replace(/[^0-9.-]+/g, '')) || 0
-                            : (burst.deliverablesAmount || burstBudget || 0)
+                          // Normalised bursts store numeric values; guard to keep rendering resilient
+                          const burstBudget = typeof burst.budget === 'number' ? burst.budget : 0
+                          const burstDeliverablesAmount =
+                            typeof burst.deliverablesAmount === 'number'
+                              ? burst.deliverablesAmount
+                              : burstBudget
 
                           return (
                             <TableRow key={`${groupKey}-burst-${burstIndex}`} className="bg-gray-50">
@@ -347,7 +235,7 @@ export default function MediaTable({ lineItems }: MediaTableProps) {
                                 {formatDate(burst.startDate)} - {formatDate(burst.endDate)}
                               </TableCell>
                               <TableCell className="text-sm">
-                                {(burst.deliverables || burst.calculatedValue || 0).toLocaleString()}
+                                {(burst.deliverables ?? 0).toLocaleString()}
                               </TableCell>
                               <TableCell className="text-sm font-medium">
                                 {formatCurrency(burstDeliverablesAmount)}

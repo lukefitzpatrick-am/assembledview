@@ -23,8 +23,8 @@ import {
   CartesianGrid,
   XAxis,
   YAxis,
-  AreaChart,
-  Area,
+  LineChart,
+  Line,
 } from "recharts"
 import {
   ChartContainer,
@@ -89,6 +89,7 @@ const palette = {
 }
 
 const clampRatio = (value: number) => Math.min(Math.max(value, 0), 1)
+const round2 = (n: number) => Number((n || 0).toFixed(2))
 
 export default function MetaPacingPanel({
   clientSlug,
@@ -107,8 +108,10 @@ export default function MetaPacingPanel({
       setIsLoading(true)
       setError(null)
       try {
-        const url = `/api/pacing/meta?clientSlug=${encodeURIComponent(clientSlug)}&mbaSlug=${encodeURIComponent(mbaSlug)}`
-        const res = await fetch(url, { cache: "force-cache" })
+        const url = `/api/pacing/meta?clientSlug=${encodeURIComponent(clientSlug)}&mbaSlug=${encodeURIComponent(
+          mbaSlug
+        )}&t=${Date.now()}`
+        const res = await fetch(url, { cache: "no-store" })
         if (!res.ok) {
           const details = await res.json().catch(() => ({}))
           throw new Error(details.error || "Failed to load Meta pacing data")
@@ -140,31 +143,12 @@ export default function MetaPacingPanel({
       lineItems.map((item) => {
         const expected = calcExpectedFromBursts(item.bursts)
 
-        // Fixed-cost buys should not use platform spend pacing. TODO: replace with Xano budget when available.
-        const adjustedExpected =
-          item.buy_type === "FIXED COST" || item.fixed_cost_media
-            ? {
-                daily: expected.daily.map((day) => ({
-                  ...day,
-                  expected_spend: 0,
-                })),
-                cumulative: expected.cumulative.map((day) => ({
-                  ...day,
-                  cumulative_expected_spend: 0,
-                })),
-                totals: {
-                  ...expected.totals,
-                  spend: 0,
-                },
-              }
-            : expected
-
         const pacing = calculatePacing({
           buyType: item.buy_type,
           actualsDaily: item.actualsDaily,
-          expected: adjustedExpected,
+          expected,
         })
-        return { data: item, expected: adjustedExpected, pacing }
+        return { data: item, expected, pacing }
       }),
     [lineItems]
   )
@@ -175,8 +159,13 @@ export default function MetaPacingPanel({
       { expected_spend: number; expected_deliverables: number }
     >()
     const aggregatedActualMap = new Map<string, AggregatedActual>()
+    let bookedSpendTotal = 0
+    let bookedDeliverablesTotal = 0
 
     lineItemMetrics.forEach((item) => {
+      bookedSpendTotal += item.expected.totals.spend
+      bookedDeliverablesTotal += item.expected.totals.deliverables
+
       item.expected.daily.forEach((day) => {
         const existing = aggregatedExpectedMap.get(day.date) ?? {
           expected_spend: 0,
@@ -236,17 +225,12 @@ export default function MetaPacingPanel({
       }
     })
 
-    const expectedTotals =
-      expectedCumulative.length > 0
-        ? expectedCumulative[expectedCumulative.length - 1]
-        : { cumulative_expected_spend: 0, cumulative_expected_deliverables: 0 }
-
     const aggregatedExpected = {
       daily: expectedDaily,
       cumulative: expectedCumulative,
       totals: {
-        spend: expectedTotals.cumulative_expected_spend,
-        deliverables: expectedTotals.cumulative_expected_deliverables,
+        spend: round2(bookedSpendTotal),
+        deliverables: round2(bookedDeliverablesTotal),
       },
     }
 
@@ -320,22 +304,56 @@ export default function MetaPacingPanel({
 
       <Card>
         <CardHeader>
-          <CardTitle>Container Summary</CardTitle>
-          <CardDescription>
-            Sum of all Meta line items. Tooltips show actual vs expected, delta, pacing %, and as-at date.
-          </CardDescription>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <CardTitle>Container Summary</CardTitle>
+              <CardDescription>
+                Sum of all Meta line items. Tooltips show actual vs expected, delta, pacing %, and
+                as-at date.
+              </CardDescription>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                handleDownloadContainerCSVs({
+                  containerName: "Meta container",
+                  series: containerMetrics.pacing.series,
+                  totals: summarizeActuals(containerMetrics.actuals),
+                  adSetRows: lineItems.flatMap((item) =>
+                    item.adSetRows.map((row) => ({
+                      ...row,
+                      line_item_name: item.line_item_name,
+                    }))
+                  ),
+                })
+              }
+            >
+              Download CSVs
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-6">
+          <div className="text-xs text-muted-foreground px-1">
+            Booked budget: {formatCurrency(containerMetrics.expected.totals.spend)} • Booked deliverables:{" "}
+            {formatNumber(containerMetrics.expected.totals.deliverables)}
+          </div>
           <div className="grid gap-3 xl:grid-cols-4 lg:grid-cols-2 auto-rows-[170px]">
             {containerMetrics.pacing.spend ? (
-              <PacingGaugeCard
-                title="Budget pacing %"
-                pacingPct={containerMetrics.pacing.spend.pacingPct}
-                actual={formatCurrency(containerMetrics.pacing.spend.actualToDate)}
-                expected={formatCurrency(containerMetrics.pacing.spend.expectedToDate)}
-                delta={formatCurrency(containerMetrics.pacing.spend.delta)}
-                asAt={containerMetrics.pacing.asAtDate ?? "—"}
-              />
+              <div className="flex flex-col">
+                <PacingGaugeCard
+                  title="Budget pacing %"
+                  pacingPct={containerMetrics.pacing.spend.pacingPct}
+                  actual={formatCurrency(containerMetrics.pacing.spend.actualToDate)}
+                  expected={formatCurrency(containerMetrics.pacing.spend.expectedToDate)}
+                  delta={formatCurrency(containerMetrics.pacing.spend.delta)}
+                  asAt={containerMetrics.pacing.asAtDate ?? "—"}
+                />
+                <div className="mt-1 text-xs text-muted-foreground px-1">
+                  Booked {formatCurrency(containerMetrics.expected.totals.spend)} • Delivered{" "}
+                  {formatCurrency(containerMetrics.pacing.spend.actualToDate)}
+                </div>
+              </div>
             ) : (
               <Card>
                 <KpiHeader title="Budget pacing %" helper="100% = on target" />
@@ -345,14 +363,20 @@ export default function MetaPacingPanel({
               </Card>
             )}
             {containerMetrics.pacing.deliverable ? (
-              <PacingGaugeCard
-                title="Deliverable pacing %"
-                pacingPct={containerMetrics.pacing.deliverable.pacingPct}
-                actual={formatCurrency(containerMetrics.pacing.deliverable.actualToDate)}
-                expected={formatCurrency(containerMetrics.pacing.deliverable.expectedToDate)}
-                delta={formatCurrency(containerMetrics.pacing.deliverable.delta)}
-                asAt={containerMetrics.pacing.asAtDate ?? "—"}
-              />
+              <div className="flex flex-col">
+                <PacingGaugeCard
+                  title="Deliverable pacing %"
+                  pacingPct={containerMetrics.pacing.deliverable.pacingPct}
+                  actual={formatNumber(containerMetrics.pacing.deliverable.actualToDate)}
+                  expected={formatNumber(containerMetrics.pacing.deliverable.expectedToDate)}
+                  delta={formatNumber(containerMetrics.pacing.deliverable.delta)}
+                  asAt={containerMetrics.pacing.asAtDate ?? "—"}
+                />
+                <div className="mt-1 text-xs text-muted-foreground px-1">
+                  Booked {formatNumber(containerMetrics.expected.totals.deliverables)} • Delivered{" "}
+                  {formatNumber(containerMetrics.pacing.deliverable.actualToDate)}
+                </div>
+              </div>
             ) : (
               <Card>
                 <KpiHeader title="Deliverable pacing %" helper="100% = on target" />
@@ -381,23 +405,32 @@ export default function MetaPacingPanel({
             />
           </div>
 
-          <Card className="shadow-none border-muted">
-            <CardHeader className="pb-4">
+          <Card className="shadow-none border-muted overflow-hidden">
+            <CardHeader className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur pb-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <CardTitle className="text-base">Daily pacing</CardTitle>
+                  <CardTitle className="text-base">Daily delivery</CardTitle>
                   <CardDescription className="text-xs">
-                    Combined budget and deliverable pacing with dual axes and tooltips.
+                    Actual spend and deliverables with KPI rollups.
                   </CardDescription>
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="pt-2">
-              <DualAxisDailyPacingChart
-                series={containerMetrics.pacing.series}
-                asAtDate={containerMetrics.pacing.asAtDate}
-              />
-            </CardContent>
+            <div className="px-6 pt-4">
+              <KpiCallouts totals={summarizeActuals(containerMetrics.actuals)} />
+            </div>
+            <ScrollArea className="max-h-[360px]">
+              <div className="px-6 pb-4 pt-2">
+                <ActualsDailyDeliveryChart
+                  series={containerMetrics.pacing.series}
+                  asAtDate={containerMetrics.pacing.asAtDate}
+                  deliverableLabel="Deliverables"
+                />
+              </div>
+            </ScrollArea>
+            <div className="sticky bottom-0 z-10 border-t bg-background/95 px-6 py-2 text-xs text-muted-foreground">
+              As at {containerMetrics.pacing.asAtDate ?? "—"}
+            </div>
           </Card>
         </CardContent>
       </Card>
@@ -426,6 +459,12 @@ export default function MetaPacingPanel({
                       ) : null}
                     </div>
                     <span className="text-xs text-muted-foreground">
+                      {formatDateRange(getBurstDateRange(item.data.bursts))} • Budget{" "}
+                      {formatCurrency(item.expected.totals.spend)} •{" "}
+                      {getDeliverableLabel(item.data.buy_type)}{" "}
+                      {formatNumber(item.expected.totals.deliverables)}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
                       100% = on target | As at {item.pacing.asAtDate ?? "—"}
                     </span>
                   </div>
@@ -444,83 +483,98 @@ export default function MetaPacingPanel({
                 </div>
               </AccordionTrigger>
               <AccordionContent>
-                {item.data.buy_type === "FIXED COST" ? (
-                  <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-                    Charts are hidden for fixed-cost buys. Table remains available.
-                  </div>
-                ) : (
-                  <div className="space-y-6">
-                    <div className="grid gap-3 xl:grid-cols-4 lg:grid-cols-2 auto-rows-[170px]">
-                      {item.pacing.spend ? (
-                        <PacingGaugeCard
-                          title="Budget pacing %"
-                          pacingPct={item.pacing.spend.pacingPct}
-                          actual={formatCurrency(item.pacing.spend.actualToDate)}
-                          expected={formatCurrency(item.pacing.spend.expectedToDate)}
-                          delta={formatCurrency(item.pacing.spend.delta)}
-                          asAt={item.pacing.asAtDate ?? "—"}
-                        />
-                      ) : (
-                        <Card>
-                          <KpiHeader title="Budget pacing %" helper="100% = on target" />
-                          <CardContent className="flex h-[calc(170px-60px)] items-center text-sm text-muted-foreground">
-                            Not available for this buy type.
-                          </CardContent>
-                        </Card>
-                      )}
-                      {item.pacing.deliverable ? (
-                        <PacingGaugeCard
-                          title="Deliverable pacing %"
-                          pacingPct={item.pacing.deliverable.pacingPct}
-                          actual={formatCurrency(item.pacing.deliverable.actualToDate)}
-                          expected={formatCurrency(item.pacing.deliverable.expectedToDate)}
-                          delta={formatCurrency(item.pacing.deliverable.delta)}
-                          asAt={item.pacing.asAtDate ?? "—"}
-                        />
-                      ) : (
-                        <Card>
-                          <KpiHeader title="Deliverable pacing %" helper="100% = on target" />
-                          <CardContent className="flex h-[calc(170px-60px)] items-center text-sm text-muted-foreground">
-                            Not available for this buy type.
-                          </CardContent>
-                        </Card>
-                      )}
-                      <FuelGaugeCard
-                        title="Budget pacing volume"
-                        helper="Actual vs expected to date"
-                        summary={item.pacing.spend}
-                        asAtDate={item.pacing.asAtDate}
-                        valueLabel="Budget"
-                        variant="budget"
-                        total={item.expected.totals.spend}
+              <div className="space-y-6">
+                <div className="grid gap-3 xl:grid-cols-4 lg:grid-cols-2 auto-rows-[170px]">
+                  {item.pacing.spend ? (
+                    <div className="flex flex-col">
+                      <PacingGaugeCard
+                        title="Budget pacing %"
+                        pacingPct={item.pacing.spend.pacingPct}
+                        actual={formatCurrency(item.pacing.spend.actualToDate)}
+                        expected={formatCurrency(item.pacing.spend.expectedToDate)}
+                        delta={formatCurrency(item.pacing.spend.delta)}
+                        asAt={item.pacing.asAtDate ?? "—"}
                       />
-                      <FuelGaugeCard
-                        title="Deliverable pacing volume"
-                        helper="Actual vs expected to date"
-                        summary={item.pacing.deliverable}
-                        asAtDate={item.pacing.asAtDate}
-                        valueLabel={getDeliverableLabel(item.data.buy_type)}
-                        variant="deliverable"
-                        total={item.expected.totals.deliverables}
-                      />
+                      <div className="mt-1 text-xs text-muted-foreground px-1">
+                        Booked {formatCurrency(item.expected.totals.spend)} • Delivered{" "}
+                        {formatCurrency(item.pacing.spend.actualToDate)}
+                      </div>
                     </div>
-
-                    <Card className="shadow-none border-muted">
-                      <CardHeader className="pb-4">
-                        <CardTitle className="text-base">Daily pacing</CardTitle>
-                        <CardDescription className="text-xs">
-                          Daily expected vs actual for budget and deliverables.
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent className="pt-2">
-                        <DualAxisDailyPacingChart
-                          series={item.pacing.series}
-                          asAtDate={item.pacing.asAtDate}
-                        />
+                  ) : (
+                    <Card>
+                      <KpiHeader title="Budget pacing %" helper="100% = on target" />
+                      <CardContent className="flex h-[calc(170px-60px)] items-center text-sm text-muted-foreground">
+                        Not available for this buy type.
                       </CardContent>
                     </Card>
+                  )}
+                  {item.pacing.deliverable ? (
+                    <div className="flex flex-col">
+                      <PacingGaugeCard
+                        title="Deliverable pacing %"
+                        pacingPct={item.pacing.deliverable.pacingPct}
+                        actual={formatNumber(item.pacing.deliverable.actualToDate)}
+                        expected={formatNumber(item.pacing.deliverable.expectedToDate)}
+                        delta={formatNumber(item.pacing.deliverable.delta)}
+                        asAt={item.pacing.asAtDate ?? "—"}
+                      />
+                      <div className="mt-1 text-xs text-muted-foreground px-1">
+                        Booked {formatNumber(item.expected.totals.deliverables)} • Delivered{" "}
+                        {formatNumber(item.pacing.deliverable.actualToDate)}
+                      </div>
+                    </div>
+                  ) : (
+                    <Card>
+                      <KpiHeader title="Deliverable pacing %" helper="100% = on target" />
+                      <CardContent className="flex h-[calc(170px-60px)] items-center text-sm text-muted-foreground">
+                        Not available for this buy type.
+                      </CardContent>
+                    </Card>
+                  )}
+                  <FuelGaugeCard
+                    title="Budget pacing volume"
+                    helper="Actual vs expected to date"
+                    summary={item.pacing.spend}
+                    asAtDate={item.pacing.asAtDate}
+                    valueLabel="Budget"
+                    variant="budget"
+                  total={item.expected.totals.spend}
+                  />
+                  <FuelGaugeCard
+                    title="Deliverable pacing volume"
+                    helper="Actual vs expected to date"
+                    summary={item.pacing.deliverable}
+                    asAtDate={item.pacing.asAtDate}
+                    valueLabel={getDeliverableLabel(item.data.buy_type)}
+                    variant="deliverable"
+                  total={item.expected.totals.deliverables}
+                  />
+                </div>
+
+                <Card className="shadow-none border-muted overflow-hidden">
+                  <CardHeader className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur pb-4">
+                    <CardTitle className="text-base">Daily delivery</CardTitle>
+                    <CardDescription className="text-xs">
+                      Actual spend and deliverables with KPI rollups.
+                    </CardDescription>
+                  </CardHeader>
+                  <div className="px-6 pt-4">
+                    <KpiCallouts totals={summarizeActuals(item.data.actualsDaily)} />
                   </div>
-                )}
+                  <ScrollArea className="max-h-[360px]">
+                    <div className="px-6 pb-4 pt-2">
+                      <ActualsDailyDeliveryChart
+                        series={item.pacing.series}
+                        asAtDate={item.pacing.asAtDate}
+                        deliverableLabel={getDeliverableLabel(item.data.buy_type)}
+                      />
+                    </div>
+                  </ScrollArea>
+                  <div className="sticky bottom-0 z-10 border-t bg-background/95 px-6 py-2 text-xs text-muted-foreground">
+                    As at {item.pacing.asAtDate ?? "—"}
+                  </div>
+                </Card>
+              </div>
 
                 <div className="space-y-3">
                   <div className="flex items-center justify-between gap-3">
@@ -533,9 +587,15 @@ export default function MetaPacingPanel({
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleDownloadCSV(item.data)}
+                      onClick={() =>
+                        handleDownloadLineItemCSVs({
+                          lineItem: item.data,
+                          series: item.pacing.series,
+                          totals: summarizeActuals(item.data.actualsDaily),
+                        })
+                      }
                     >
-                      Download CSV
+                      Download CSVs
                     </Button>
                   </div>
                   <AdSetTable rows={item.data.adSetRows} />
@@ -606,7 +666,7 @@ function FuelGaugeCard({
   const baseColor = variant === "deliverable" ? palette.deliverable : palette.budget
   const formatValue = (val: number) =>
     variant === "budget" ? formatCurrency(val) : formatNumber(val)
-  const totalValue = Math.max(total ?? summary.expectedToDate, 0)
+  const totalValue = Math.max(total ?? 0, 0)
   const delivered = summary.actualToDate
   const actualRatio = totalValue > 0 ? clampRatio(delivered / totalValue) : 0
   const expectedRatio =
@@ -683,11 +743,11 @@ function FuelGaugeCard({
 
                 <div className="flex items-center justify-between text-[11px] text-muted-foreground">
                   <div className="flex items-center gap-2">
-                    <span>Delivered {valueLabel.toLowerCase()}</span>
+                    <span>Delivered</span>
                     <span className="font-medium text-foreground">{formatValue(delivered)}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span>Total {valueLabel.toLowerCase()}</span>
+                    <span>Booked</span>
                     <span className="font-medium text-foreground">{formatValue(totalValue)}</span>
                   </div>
                 </div>
@@ -720,44 +780,29 @@ function FuelGaugeCard({
   )
 }
 
-function DualAxisDailyPacingChart({
+function ActualsDailyDeliveryChart({
   series,
   asAtDate,
+  deliverableLabel,
 }: {
   series: PacingSeriesPoint[]
   asAtDate: string | null
+  deliverableLabel: string
 }) {
-  const chartHeight = 360
+  const chartHeight = 320
 
   return (
     <ChartContainer
       config={{
-        budgetActual: { label: "Budget actual", color: palette.budget },
-        budgetExpected: { label: "Budget expected", color: palette.budget },
-        deliverableActual: { label: "Deliverables actual", color: palette.deliverable },
-        deliverableExpected: { label: "Deliverables expected", color: palette.deliverable },
+        spendActual: { label: "Actual spend", color: palette.budget },
+        deliverableActual: {
+          label: `${deliverableLabel} actual`,
+          color: palette.deliverable,
+        },
       }}
-      className="w-full h-[360px]"
+      className="w-full h-[320px]"
     >
-      <AreaChart data={series} height={chartHeight} margin={{ left: 12, right: 12, top: 4, bottom: 0 }}>
-        <defs>
-          <linearGradient id="budgetActualGradient" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="5%" stopColor={palette.budget} stopOpacity={0.38} />
-            <stop offset="95%" stopColor={palette.budget} stopOpacity={0.24} />
-          </linearGradient>
-          <linearGradient id="budgetExpectedGradient" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="5%" stopColor={palette.budget} stopOpacity={0.22} />
-            <stop offset="95%" stopColor={palette.budget} stopOpacity={0.16} />
-          </linearGradient>
-          <linearGradient id="deliverableActualGradient" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="5%" stopColor={palette.deliverable} stopOpacity={0.36} />
-            <stop offset="95%" stopColor={palette.deliverable} stopOpacity={0.22} />
-          </linearGradient>
-          <linearGradient id="deliverableExpectedGradient" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="5%" stopColor={palette.deliverable} stopOpacity={0.2} />
-            <stop offset="95%" stopColor={palette.deliverable} stopOpacity={0.16} />
-          </linearGradient>
-        </defs>
+      <LineChart data={series} height={chartHeight} margin={{ left: 12, right: 12, top: 4, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 4" strokeOpacity={0.12} stroke="hsl(var(--muted-foreground))" />
         <XAxis
           dataKey="date"
@@ -781,103 +826,47 @@ function DualAxisDailyPacingChart({
           tickFormatter={(v) => formatShortNumber(v)}
         />
         <ChartLegend content={<ChartLegendContent className="text-xs text-muted-foreground" />} />
-        <Area
-          type="monotone"
-          yAxisId="left"
-          dataKey="expectedSpend"
-          name="Budget expected"
-          stroke={palette.budget}
-          strokeOpacity={0.9}
-          fill="url(#budgetExpectedGradient)"
-          fillOpacity={1}
-          strokeWidth={1.7}
-        />
-        <Area
+        <Line
           type="monotone"
           yAxisId="left"
           dataKey="actualSpend"
-          name="Budget actual"
+          name="Actual spend"
           stroke={palette.budget}
-          fill="url(#budgetActualGradient)"
-          fillOpacity={1}
-          strokeWidth={2.8}
-          activeDot={{ r: 5, stroke: palette.budget, strokeWidth: 1 }}
+          strokeWidth={2.6}
+          dot={false}
+          activeDot={{ r: 4, stroke: palette.budget, strokeWidth: 1 }}
         />
-        <Area
-          type="monotone"
-          yAxisId="right"
-          dataKey="expectedDeliverable"
-          name="Deliverables expected"
-          stroke={palette.deliverable}
-          strokeOpacity={0.9}
-          fill="url(#deliverableExpectedGradient)"
-          fillOpacity={1}
-          strokeWidth={1.6}
-        />
-        <Area
+        <Line
           type="monotone"
           yAxisId="right"
           dataKey="actualDeliverable"
-          name="Deliverables actual"
+          name={`${deliverableLabel} actual`}
           stroke={palette.deliverable}
-          fill="url(#deliverableActualGradient)"
-          fillOpacity={1}
-          strokeWidth={2.7}
-          activeDot={{ r: 5, stroke: palette.deliverable, strokeWidth: 1 }}
+          strokeWidth={2.3}
+          dot={false}
+          activeDot={{ r: 4, stroke: palette.deliverable, strokeWidth: 1 }}
         />
         <ChartTooltip
-          content={({ active, payload, label: tooltipLabel }) => {
+          content={({ active, payload }) => {
             if (!active || !payload?.length) return null
             const point = payload[0].payload as PacingSeriesPoint
-            const budgetDelta = point.actualSpend - point.expectedSpend
-            const budgetPacing =
-              point.expectedSpend > 0 ? (point.actualSpend / point.expectedSpend) * 100 : 0
-            const deliverableDelta = point.actualDeliverable - point.expectedDeliverable
-            const deliverablePacing =
-              point.expectedDeliverable > 0
-                ? (point.actualDeliverable / point.expectedDeliverable) * 100
-                : 0
-
             return (
               <TooltipContent
-                title="Daily pacing"
+                title="Daily delivery"
+                date={point.date}
                 payload={payload}
                 formatter={() => (
                   <>
                     <div className="flex justify-between gap-4">
-                      <span>Budget actual</span>
+                      <span>Actual spend</span>
                       <span className="font-medium">{formatCurrency(point.actualSpend)}</span>
                     </div>
                     <div className="flex justify-between gap-4">
-                      <span>Budget expected</span>
-                      <span className="font-medium">{formatCurrency(point.expectedSpend)}</span>
-                    </div>
-                    <div className="flex justify-between gap-4">
-                      <span>Budget delta</span>
-                      <span className="font-medium">{formatCurrency(budgetDelta)}</span>
-                    </div>
-                    <div className="flex justify-between gap-4">
-                      <span>Budget pacing %</span>
-                      <span className="font-medium">{formatPercent(budgetPacing)}</span>
-                    </div>
-                    <div className="pt-1 flex justify-between gap-4">
-                      <span>Deliverables actual</span>
+                      <span>{deliverableLabel} actual</span>
                       <span className="font-medium">{formatNumber(point.actualDeliverable)}</span>
                     </div>
-                    <div className="flex justify-between gap-4">
-                      <span>Deliverables expected</span>
-                      <span className="font-medium">{formatNumber(point.expectedDeliverable)}</span>
-                    </div>
-                    <div className="flex justify-between gap-4">
-                      <span>Deliverables delta</span>
-                      <span className="font-medium">{formatNumber(deliverableDelta)}</span>
-                    </div>
-                    <div className="flex justify-between gap-4">
-                      <span>Deliverables pacing %</span>
-                      <span className="font-medium">{formatPercent(deliverablePacing)}</span>
-                    </div>
                     <div className="pt-2 text-[10px] text-muted-foreground">
-                      As at {asAtDate ?? tooltipLabel}
+                      As at {asAtDate ?? "—"}
                     </div>
                   </>
                 )}
@@ -885,17 +874,19 @@ function DualAxisDailyPacingChart({
             )
           }}
         />
-      </AreaChart>
+      </LineChart>
     </ChartContainer>
   )
 }
 
 function TooltipContent({
   title,
+  date,
   payload,
   formatter,
 }: {
   title: string
+  date?: string
   payload?: any
   formatter: (item: any) => ReactNode
 }) {
@@ -904,13 +895,152 @@ function TooltipContent({
 
   return (
     <div className="min-w-[240px] rounded-md border bg-popover p-3 shadow-md text-xs">
-      <div className="mb-2 font-semibold leading-tight">{title}</div>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="font-semibold leading-tight">{title}</div>
+        {date ? (
+          <div className="text-[11px] text-muted-foreground">{formatDate(date)}</div>
+        ) : null}
+      </div>
       <div className="space-y-1.5">{formatter(item)}</div>
     </div>
   )
 }
 
+type ActualKpis = {
+  spend: number
+  impressions: number
+  clicks: number
+  results: number
+  video_3s_views: number
+  cpm: number
+  ctr: number
+  cvr: number
+  cpc: number
+  cost_per_result: number
+  cpv: number
+  view_rate: number
+}
+
+function summarizeActuals(rows: ActualsDaily[]): ActualKpis {
+  const totals = rows.reduce(
+    (acc, row) => {
+      acc.spend += row.spend
+      acc.impressions += row.impressions
+      acc.clicks += row.clicks
+      acc.results += row.results
+      acc.video_3s_views += row.video_3s_views
+      return acc
+    },
+    { spend: 0, impressions: 0, clicks: 0, results: 0, video_3s_views: 0 }
+  )
+
+  const cpm = totals.impressions ? (totals.spend / totals.impressions) * 1000 : 0
+  const ctr = totals.impressions ? (totals.clicks / totals.impressions) * 100 : 0
+  const cvr = totals.clicks ? (totals.results / totals.clicks) * 100 : 0
+  const cpc = totals.clicks ? totals.spend / totals.clicks : 0
+  const cost_per_result = totals.results ? totals.spend / totals.results : 0
+  const cpv = totals.video_3s_views ? totals.spend / totals.video_3s_views : 0
+  const view_rate = totals.impressions
+    ? (totals.video_3s_views / totals.impressions) * 100
+    : 0
+
+  return {
+    ...totals,
+    cpm,
+    ctr,
+    cvr,
+    cpc,
+    cost_per_result,
+    cpv,
+    view_rate,
+  }
+}
+
+function KpiCallouts({ totals }: { totals: ActualKpis }) {
+  const cvr = totals.cvr
+  const cpa = totals.cost_per_result
+  return (
+    <div className="space-y-3">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <KpiStat
+          label="Clicks"
+          value={formatNumber(totals.clicks)}
+          pill1Label="CTR"
+          pill1Value={formatPercent(totals.ctr)}
+          pill2Label="CPC"
+          pill2Value={formatCurrency(totals.cpc)}
+        />
+        <KpiStat
+          label="Conversions"
+          value={formatNumber(totals.results)}
+          pill1Label="CVR"
+          pill1Value={formatPercent(cvr)}
+          pill2Label="CPA"
+          pill2Value={formatCurrency(cpa)}
+        />
+        <KpiStat
+          label="Views"
+          value={formatNumber(totals.video_3s_views)}
+          pill1Label="VR"
+          pill1Value={formatPercent(totals.view_rate)}
+          pill2Label="CPV"
+          pill2Value={formatCurrency(totals.cpv)}
+        />
+        <KpiStat
+          label="Impressions"
+          value={formatNumber(totals.impressions)}
+          pill1Label="CPM"
+          pill1Value={formatShortCurrency(totals.cpm)}
+          pill2Label="CTR"
+          pill2Value={formatPercent(totals.ctr)}
+        />
+      </div>
+    </div>
+  )
+}
+
+function KpiStat({
+  label,
+  value,
+  pill1Label,
+  pill1Value,
+  pill2Label,
+  pill2Value,
+}: {
+  label: string
+  value: string
+  pill1Label?: string
+  pill1Value?: string
+  pill2Label?: string
+  pill2Value?: string
+}) {
+  return (
+    <div className="rounded-md border border-muted/60 bg-muted/30 px-3 py-2">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <div className="text-[11px] text-muted-foreground">{label}</div>
+          <div className="text-sm font-semibold text-foreground">{value}</div>
+        </div>
+        <div className="flex flex-col items-end gap-1">
+          {pill1Label ? (
+            <Badge variant="outline" className="px-2 py-0.5 text-[11px]">
+              {pill1Label} {pill1Value}
+            </Badge>
+          ) : null}
+          {pill2Label ? (
+            <Badge variant="outline" className="px-2 py-0.5 text-[11px]">
+              {pill2Label} {pill2Value}
+            </Badge>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function AdSetTable({ rows }: { rows: ApiLineItem["adSetRows"] }) {
+  const columns =
+    "120px 240px 280px 140px 140px 110px 120px 140px 120px 90px 110px 140px 110px 130px"
   const derivedRows: DerivedAdSetRow[] = useMemo(
     () => rows.map((row) => deriveRow(row)),
     [rows]
@@ -939,86 +1069,86 @@ function AdSetTable({ rows }: { rows: ApiLineItem["adSetRows"] }) {
   })
 
   return (
-    <ScrollArea className="w-full rounded-md border">
-      <div className="min-w-[1100px]">
-        <Table>
-          <TableHeader className="bg-muted/50">
-            <TableRow>
-              <TableHead className="w-[120px]">Date</TableHead>
-              <TableHead>Ad Set Name</TableHead>
-              <TableHead className="text-right">Amount Spent</TableHead>
-              <TableHead className="text-right">Impressions</TableHead>
-              <TableHead className="text-right">CPM</TableHead>
-              <TableHead className="text-right">Results</TableHead>
-              <TableHead className="text-right">Cost Per Result</TableHead>
-              <TableHead className="text-right">Clicks</TableHead>
-              <TableHead className="text-right">CTR</TableHead>
-              <TableHead className="text-right">CPC</TableHead>
-              <TableHead className="text-right">3s View Plays</TableHead>
-              <TableHead className="text-right">CPV</TableHead>
-              <TableHead className="text-right">3s View Rate</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {derivedRows.map((row, idx) => (
-              <TableRow key={`${row.date}-${row.ad_set_name}-${idx}`}>
-                <TableCell className="font-medium">{row.date}</TableCell>
-                <TableCell>{row.ad_set_name}</TableCell>
-                <TableCell className="text-right">{formatCurrency(row.spend)}</TableCell>
-                <TableCell className="text-right">{formatNumber(row.impressions)}</TableCell>
-                <TableCell className="text-right">{formatShortCurrency(row.cpm)}</TableCell>
-                <TableCell className="text-right">{formatNumber(row.results)}</TableCell>
-                <TableCell className="text-right">
-                  {row.cost_per_result > 0 ? formatCurrency(row.cost_per_result) : "—"}
-                </TableCell>
-                <TableCell className="text-right">{formatNumber(row.clicks)}</TableCell>
-                <TableCell className="text-right">{formatPercent(row.ctr)}</TableCell>
-                <TableCell className="text-right">
-                  {row.cpc > 0 ? formatCurrency(row.cpc) : "—"}
-                </TableCell>
-                <TableCell className="text-right">{formatNumber(row.video_3s_views)}</TableCell>
-                <TableCell className="text-right">
-                  {row.cpv > 0 ? formatCurrency(row.cpv) : "—"}
-                </TableCell>
-                <TableCell className="text-right">{formatPercent(row.view_rate)}</TableCell>
-              </TableRow>
-            ))}
-            <TableRow className="bg-muted/40 font-semibold">
-              <TableCell>Totals</TableCell>
-              <TableCell />
-              <TableCell className="text-right">{formatCurrency(totals.spend)}</TableCell>
-              <TableCell className="text-right">{formatNumber(totals.impressions)}</TableCell>
-              <TableCell className="text-right">
-                {formatShortCurrency(totalsDerived.cpm)}
-              </TableCell>
-              <TableCell className="text-right">{formatNumber(totals.results)}</TableCell>
-              <TableCell className="text-right">
-                {totalsDerived.cost_per_result > 0
-                  ? formatCurrency(totalsDerived.cost_per_result)
-                  : "—"}
-              </TableCell>
-              <TableCell className="text-right">{formatNumber(totals.clicks)}</TableCell>
-              <TableCell className="text-right">{formatPercent(totalsDerived.ctr)}</TableCell>
-              <TableCell className="text-right">
-                {totalsDerived.cpc > 0 ? formatCurrency(totalsDerived.cpc) : "—"}
-              </TableCell>
-              <TableCell className="text-right">
-                {formatNumber(totals.video_3s_views)}
-              </TableCell>
-              <TableCell className="text-right">
-                {totalsDerived.cpv > 0 ? formatCurrency(totalsDerived.cpv) : "—"}
-              </TableCell>
-              <TableCell className="text-right">{formatPercent(totalsDerived.view_rate)}</TableCell>
-            </TableRow>
-          </TableBody>
-        </Table>
+    <div className="relative w-full rounded-md border overflow-hidden">
+      <div className="bg-muted/50 backdrop-blur border-b">
+        <div
+          className="grid items-center px-4 py-2 text-xs font-semibold text-muted-foreground"
+          style={{ gridTemplateColumns: columns }}
+        >
+          <div>Date</div>
+          <div>Campaign</div>
+          <div>Ad Set Name</div>
+          <div className="text-right">Amount Spent</div>
+          <div className="text-right">Impressions</div>
+          <div className="text-right">CPM</div>
+          <div className="text-right">Results</div>
+          <div className="text-right">Cost Per Result</div>
+          <div className="text-right">Clicks</div>
+          <div className="text-right">CTR</div>
+          <div className="text-right">CPC</div>
+          <div className="text-right">3s View Plays</div>
+          <div className="text-right">CPV</div>
+          <div className="text-right">3s View Rate</div>
+        </div>
       </div>
-    </ScrollArea>
+
+      <div className="max-h-[420px] overflow-auto">
+        {derivedRows.map((row, idx) => (
+          <div
+            key={`${row.date}-${row.ad_set_name}-${idx}`}
+            className="grid items-center border-b last:border-b-0 px-4 py-2 text-sm"
+            style={{ gridTemplateColumns: columns }}
+          >
+            <div className="font-medium">{row.date}</div>
+            <div className="truncate">{row.campaign_name}</div>
+            <div className="truncate">{row.ad_set_name}</div>
+            <div className="text-right">{formatCurrency(row.spend)}</div>
+            <div className="text-right">{formatNumber(row.impressions)}</div>
+            <div className="text-right">{formatShortCurrency(row.cpm)}</div>
+            <div className="text-right">{formatNumber(row.results)}</div>
+            <div className="text-right">
+              {row.cost_per_result > 0 ? formatCurrency(row.cost_per_result) : "—"}
+            </div>
+            <div className="text-right">{formatNumber(row.clicks)}</div>
+            <div className="text-right">{formatPercent(row.ctr)}</div>
+            <div className="text-right">{row.cpc > 0 ? formatCurrency(row.cpc) : "—"}</div>
+            <div className="text-right">{formatNumber(row.video_3s_views)}</div>
+            <div className="text-right">{row.cpv > 0 ? formatCurrency(row.cpv) : "—"}</div>
+            <div className="text-right">{formatPercent(row.view_rate)}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="bg-muted/60 border-t font-semibold">
+        <div
+          className="grid items-center px-4 py-2 text-sm"
+          style={{ gridTemplateColumns: columns }}
+        >
+          <div>Totals</div>
+          <div />
+          <div />
+          <div className="text-right">{formatCurrency(totals.spend)}</div>
+          <div className="text-right">{formatNumber(totals.impressions)}</div>
+          <div className="text-right">{formatShortCurrency(totalsDerived.cpm)}</div>
+          <div className="text-right">{formatNumber(totals.results)}</div>
+          <div className="text-right">
+            {totalsDerived.cost_per_result > 0 ? formatCurrency(totalsDerived.cost_per_result) : "—"}
+          </div>
+          <div className="text-right">{formatNumber(totals.clicks)}</div>
+          <div className="text-right">{formatPercent(totalsDerived.ctr)}</div>
+          <div className="text-right">{totalsDerived.cpc > 0 ? formatCurrency(totalsDerived.cpc) : "—"}</div>
+          <div className="text-right">{formatNumber(totals.video_3s_views)}</div>
+          <div className="text-right">{totalsDerived.cpv > 0 ? formatCurrency(totalsDerived.cpv) : "—"}</div>
+          <div className="text-right">{formatPercent(totalsDerived.view_rate)}</div>
+        </div>
+      </div>
+    </div>
   )
 }
 
 type DerivedAdSetRow = {
   date: string
+  campaign_name: string
   ad_set_name: string
   spend: number
   impressions: number
@@ -1045,6 +1175,7 @@ function deriveRow(row: AdSetRow): DerivedAdSetRow {
 
   return {
     ...row,
+    campaign_name: row.campaign_name ?? (row as Record<string, string | undefined>).campaign ?? "",
     cpm,
     ctr,
     cpc,
@@ -1054,24 +1185,131 @@ function deriveRow(row: AdSetRow): DerivedAdSetRow {
   }
 }
 
-function handleDownloadCSV(lineItem: ApiLineItem) {
-  const derived = lineItem.adSetRows.map((row) => ({
-    date: row.date,
-    ad_set_name: row.ad_set_name,
-    amount_spent: row.spend,
-    impressions: row.impressions,
-    cpm: row.impressions ? (row.spend / row.impressions) * 1000 : 0,
-    results: row.results,
-    cost_per_result: row.results ? row.spend / row.results : 0,
-    clicks: row.clicks,
-    ctr: row.impressions ? (row.clicks / row.impressions) * 100 : 0,
-    cpc: row.clicks ? row.spend / row.clicks : 0,
-    view_3s_plays: row.video_3s_views,
-    cpv: row.video_3s_views ? row.spend / row.video_3s_views : 0,
-    view_rate: row.impressions ? (row.video_3s_views / row.impressions) * 100 : 0,
-  }))
+type CsvFile = {
+  filename: string
+  data: Record<string, any>[]
+}
 
-  downloadCSV(derived, `${lineItem.line_item_name}-ad-sets`)
+async function downloadMultipleCSVs(files: CsvFile[]) {
+  for (const file of files) {
+    downloadCSV(file.data, file.filename)
+    await new Promise((resolve) => setTimeout(resolve, 120))
+  }
+}
+
+function buildDailySeriesExport(series: PacingSeriesPoint[]) {
+  return series.map((point) => ({
+    date: point.date,
+    actual_spend: point.actualSpend,
+    expected_spend: point.expectedSpend,
+    actual_deliverable: point.actualDeliverable,
+    expected_deliverable: point.expectedDeliverable,
+  }))
+}
+
+function buildKpiTotalsExport(label: string, totals: ActualKpis) {
+  return [
+    {
+      label,
+      spend: totals.spend,
+      impressions: totals.impressions,
+      clicks: totals.clicks,
+      results: totals.results,
+      video_3s_views: totals.video_3s_views,
+      cpm: totals.cpm,
+      ctr: totals.ctr,
+      cvr: totals.cvr,
+      cpc: totals.cpc,
+      cost_per_result: totals.cost_per_result,
+      cpv: totals.cpv,
+      view_rate: totals.view_rate,
+    },
+  ]
+}
+
+function buildAdSetExport(rows: (AdSetRow & { line_item_name?: string })[]) {
+  return rows.map((row) => {
+    const derived = deriveRow(row)
+    return {
+      line_item_name: row.line_item_name ?? "",
+      date: derived.date,
+      campaign_name: derived.campaign_name,
+      ad_set_name: derived.ad_set_name,
+      amount_spent: derived.spend,
+      impressions: derived.impressions,
+      cpm: derived.cpm,
+      results: derived.results,
+      cost_per_result: derived.cost_per_result,
+      clicks: derived.clicks,
+      ctr: derived.ctr,
+      cpc: derived.cpc,
+      view_3s_plays: derived.video_3s_views,
+      cpv: derived.cpv,
+      view_rate: derived.view_rate,
+    }
+  })
+}
+
+function sanitizeFilename(value: string) {
+  const cleaned = value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)+/g, "")
+  return cleaned || "meta"
+}
+
+async function handleDownloadLineItemCSVs({
+  lineItem,
+  series,
+  totals,
+}: {
+  lineItem: ApiLineItem
+  series: PacingSeriesPoint[]
+  totals: ActualKpis
+}) {
+  const baseName = `meta-${sanitizeFilename(lineItem.line_item_name)}`
+  await downloadMultipleCSVs([
+    {
+      filename: `${baseName}-daily-series`,
+      data: buildDailySeriesExport(series),
+    },
+    {
+      filename: `${baseName}-kpi-totals`,
+      data: buildKpiTotalsExport(lineItem.line_item_name, totals),
+    },
+    {
+      filename: `${baseName}-ad-sets`,
+      data: buildAdSetExport(lineItem.adSetRows),
+    },
+  ])
+}
+
+async function handleDownloadContainerCSVs({
+  containerName,
+  series,
+  totals,
+  adSetRows,
+}: {
+  containerName: string
+  series: PacingSeriesPoint[]
+  totals: ActualKpis
+  adSetRows: (AdSetRow & { line_item_name?: string })[]
+}) {
+  const baseName = `meta-${sanitizeFilename(containerName)}`
+  await downloadMultipleCSVs([
+    {
+      filename: `${baseName}-daily-series`,
+      data: buildDailySeriesExport(series),
+    },
+    {
+      filename: `${baseName}-kpi-totals`,
+      data: buildKpiTotalsExport(containerName, totals),
+    },
+    {
+      filename: `${baseName}-ad-sets`,
+      data: buildAdSetExport(adSetRows),
+    },
+  ])
 }
 
 function getDeliverableLabel(buyType: BuyType) {
@@ -1088,6 +1326,36 @@ function getDeliverableLabel(buyType: BuyType) {
     default:
       return "Deliverables"
   }
+}
+
+function getBurstDateRange(bursts: Burst[]) {
+  let start: string | null = null
+  let end: string | null = null
+
+  bursts.forEach((burst) => {
+    const burstStart = burst.startDate ?? burst.start_date
+    const burstEnd = burst.endDate ?? burst.end_date
+    if (burstStart && (!start || burstStart < start)) start = burstStart
+    if (burstEnd && (!end || burstEnd > end)) end = burstEnd
+  })
+
+  return { start, end }
+}
+
+function formatDateRange(range: { start: string | null; end: string | null }) {
+  if (!range.start && !range.end) return "Dates unavailable"
+  return `${formatDate(range.start)} – ${formatDate(range.end)}`
+}
+
+function formatDate(value: string | null) {
+  if (!value) return "—"
+  const parsed = new Date(`${value}T00:00:00`)
+  if (Number.isNaN(parsed.getTime())) return value
+  return parsed.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  })
 }
 
 function formatCurrency(value: number) {

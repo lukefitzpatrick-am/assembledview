@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server"
 import axios from "axios"
-
-const XANO_MEDIAPLANS_BASE_URL = process.env.XANO_MEDIAPLANS_BASE_URL || "https://xg4h-uyzs-dtex.a2.xano.io/api:QVYjoFmM"
+import { xanoUrl } from "@/lib/api/xano"
 
 export async function GET(
   request: Request,
@@ -9,9 +8,12 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    const response = await axios.get(`${XANO_MEDIAPLANS_BASE_URL}/download_mediaplan/${id}`, {
+    const response = await axios.get(
+      `${xanoUrl("download_mediaplan", "XANO_MEDIAPLANS_BASE_URL")}/${id}`,
+      {
       responseType: 'arraybuffer'
-    })
+      }
+    )
     
     // Set the appropriate headers for PDF download
     const headers = new Headers()

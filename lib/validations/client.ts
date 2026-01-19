@@ -81,5 +81,4 @@ const clientSchema = z.object({
     .or(z.literal("")),
 })
 
-export const clientSchema = clientSchema
-
+export { clientSchema }

@@ -2,9 +2,7 @@ import { NextResponse } from "next/server"
 import { generateBillingSchedulePDF } from "@/lib/generateBillingSchedulePDF"
 import { format } from 'date-fns'
 import axios from "axios"
-
-const MEDIA_PLANS_VERSIONS_URL = "https://xg4h-uyzs-dtex.a2.xano.io/api:RaUx9FOa"
-const MEDIA_PLAN_MASTER_URL = "https://xg4h-uyzs-dtex.a2.xano.io/api:RaUx9FOa"
+import { xanoUrl } from "@/lib/api/xano"
 
 export async function GET(
   request: Request,
@@ -14,7 +12,7 @@ export async function GET(
     const { mba_number } = await params
 
     // Fetch media plan version data
-    const masterQueryUrl = `${MEDIA_PLAN_MASTER_URL}/media_plan_master?mba_number=${encodeURIComponent(mba_number)}`
+    const masterQueryUrl = `${xanoUrl("media_plan_master", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${encodeURIComponent(mba_number)}`
     const masterResponse = await axios.get(masterQueryUrl)
 
     let masterData: any = null
@@ -35,7 +33,7 @@ export async function GET(
     }
 
     // Get the latest version
-    const versionQueryUrl = `${MEDIA_PLANS_VERSIONS_URL}/media_plan_versions?media_plan_master_id=${masterData.id}&version_number=${masterData.version_number}`
+    const versionQueryUrl = `${xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?media_plan_master_id=${masterData.id}&version_number=${masterData.version_number}`
     const versionResponse = await axios.get(versionQueryUrl)
 
     let versionData: any = null

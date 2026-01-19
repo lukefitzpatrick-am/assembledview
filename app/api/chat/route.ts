@@ -13,11 +13,7 @@ import {
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
-const XANO_BASE_URL =
-  process.env.XANO_ASSISTANT_ENDPOINT ||
-  process.env.XANO_BASE_URL ||
-  process.env.XANO_MEDIA_PLANS_BASE_URL ||
-  ""
+const XANO_BASE_URL = process.env.XANO_ASSISTANT_ENDPOINT || process.env.XANO_BASE_URL || ""
 const XANO_API_KEY = process.env.XANO_API_KEY || ""
 
 type ChatRequestBody = {

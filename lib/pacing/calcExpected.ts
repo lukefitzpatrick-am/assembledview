@@ -26,13 +26,24 @@ export function calcExpectedFromBursts(bursts: Burst[]): ExpectedResult {
   const totals = { spend: 0, deliverables: 0 }
 
   bursts.forEach((burst) => {
-    const dates = expandDateRange(burst.start_date, burst.end_date)
+    const startDate = burst.startDate ?? burst.start_date
+    const endDate = burst.endDate ?? burst.end_date
+    const dates = expandDateRange(startDate, endDate)
     if (!dates.length) return
 
-    const spendPerDay = burst.media_investment / dates.length
-    const deliverablesPerDay = burst.deliverables / dates.length
-    totals.spend += burst.media_investment
-    totals.deliverables += burst.deliverables
+    const spendTotal = coalesceNumber(
+      burst.budget_number,
+      burst.media_investment,
+      burst.buy_amount_number
+    )
+    const deliverablesTotal = coalesceNumber(
+      burst.calculated_value_number,
+      burst.deliverables
+    )
+    const spendPerDay = spendTotal / dates.length
+    const deliverablesPerDay = deliverablesTotal / dates.length
+    totals.spend += spendTotal
+    totals.deliverables += deliverablesTotal
 
     dates.forEach((date) => {
       const existing = dailyMap.get(date) ?? { spend: 0, deliverables: 0 }
@@ -71,6 +82,15 @@ export function calcExpectedFromBursts(bursts: Burst[]): ExpectedResult {
       deliverables: Number(totals.deliverables.toFixed(2)),
     },
   }
+}
+
+function coalesceNumber(...values: Array<number | undefined | null>): number {
+  for (const value of values) {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value
+    }
+  }
+  return 0
 }
 
 function expandDateRange(start: string, end: string): string[] {

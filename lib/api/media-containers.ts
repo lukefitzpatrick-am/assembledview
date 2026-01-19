@@ -1,6 +1,5 @@
 import axios from 'axios'
-
-const MEDIA_PLANS_VERSIONS_URL = process.env.XANO_MEDIA_CONTAINERS_BASE_URL || "https://xg4h-uyzs-dtex.a2.xano.io/api:RaUx9FOa"
+import { xanoUrl } from '@/lib/api/xano'
 
 // Track which "no data" messages have already been logged to avoid spam
 const missingLineItemsLogCache = new Set<string>()
@@ -22,7 +21,7 @@ function buildMediaContainerUrl(
     params.append('media_plan_version', String(versionNumber))
   }
 
-  return `${MEDIA_PLANS_VERSIONS_URL}/${MEDIA_CONTAINER_ENDPOINTS[mediaType]}?${params.toString()}`
+  return `${xanoUrl(MEDIA_CONTAINER_ENDPOINTS[mediaType], ["XANO_MEDIA_CONTAINERS_BASE_URL", "XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?${params.toString()}`
 }
 
 // Create axios instance with timeout
@@ -64,7 +63,7 @@ export interface SpendFilterOptions {
 }
 
 // Media container endpoints mapping
-const MEDIA_CONTAINER_ENDPOINTS = {
+export const MEDIA_CONTAINER_ENDPOINTS = {
   television: 'television_line_items',
   radio: 'radio_line_items',
   newspaper: 'newspaper_line_items',
@@ -205,14 +204,16 @@ export async function fetchMediaContainerLineItems(
  */
 export async function fetchAllMediaContainerLineItems(
   mbaNumber: string,
-  versionNumber?: number
+  versionNumber?: number,
+  mediaTypeFilter?: Array<keyof typeof MEDIA_CONTAINER_ENDPOINTS>
 ): Promise<Record<string, MediaContainerLineItem[]>> {
   const results: Record<string, MediaContainerLineItem[]> = {}
+  const mediaTypes = mediaTypeFilter && mediaTypeFilter.length > 0 ? mediaTypeFilter : (Object.keys(MEDIA_CONTAINER_ENDPOINTS) as Array<keyof typeof MEDIA_CONTAINER_ENDPOINTS>)
   
-  // Fetch all media types in parallel
-  const promises = Object.keys(MEDIA_CONTAINER_ENDPOINTS).map(async (mediaType) => {
+  // Fetch selected media types in parallel
+  const promises = mediaTypes.map(async (mediaType) => {
     const lineItems = await fetchMediaContainerLineItems(
-      mediaType as keyof typeof MEDIA_CONTAINER_ENDPOINTS,
+      mediaType,
       mbaNumber,
       versionNumber
     )

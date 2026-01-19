@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server"
 import axios from "axios"
-
-const XANO_SCOPES_BASE_URL = process.env.XANO_SCOPES_BASE_URL || "https://xg4h-uyzs-dtex.a2.xano.io/api:idlsZiVX"
+import { xanoUrl } from "@/lib/api/xano"
 
 export async function POST(req: Request) {
   try {
@@ -13,7 +12,7 @@ export async function POST(req: Request) {
     }
 
     // Fetch all existing scopes
-    const response = await axios.get(`${XANO_SCOPES_BASE_URL}/scope_of_work`);
+    const response = await axios.get(xanoUrl("scope_of_work", "XANO_SCOPES_BASE_URL"));
 
     const allScopes = Array.isArray(response.data) ? response.data : [];
     

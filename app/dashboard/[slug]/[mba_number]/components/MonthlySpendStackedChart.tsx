@@ -58,19 +58,18 @@ export default function MonthlySpendStackedChart({ data }: MonthlySpendStackedCh
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
-      const total = payload.reduce((sum: number, entry: any) => sum + (entry.value || 0), 0)
+      const total = payload.reduce((sum: number, entry: any) => sum + (Number(entry.value) || 0), 0)
       return (
         <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
           <p className="font-semibold mb-2">{label}</p>
           {payload.map((entry: any, index: number) => {
-            if (entry.value > 0) {
-              return (
-                <p key={index} style={{ color: entry.color }} className="text-sm">
-                  {entry.name}: {formatCurrency(entry.value)}
-                </p>
-              )
-            }
-            return null
+            const value = Number(entry.value) || 0
+            if (value <= 0) return null
+            return (
+              <p key={index} style={{ color: entry.color }} className="text-sm">
+                {entry.name}: {formatCurrency(value)}
+              </p>
+            )
           })}
           <p className="font-semibold mt-2 pt-2 border-t">
             Total: {formatCurrency(total)}

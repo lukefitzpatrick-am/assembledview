@@ -1,59 +1,314 @@
-import { Suspense } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Skeleton } from '@/components/ui/skeleton'
-import CampaignTimeChart from './components/CampaignTimeChart'
-import CampaignSpendChart from './components/CampaignSpendChart'
-import MediaChannelPieChart from './components/MediaChannelPieChart'
-import MonthlySpendStackedChart from './components/MonthlySpendStackedChart'
-import MediaTable from './components/MediaTable'
-import MediaGanttChart from './components/MediaGanttChart'
-import CampaignHeader from './components/CampaignHeader'
-import CampaignActions from './components/CampaignActions'
-import { auth0 } from '@/lib/auth0'
-import { getPrimaryRole, getUserClientIdentifier } from '@/lib/rbac'
-import { redirect } from 'next/navigation'
-import { headers } from 'next/headers'
-import MetaPacingPanel from '@/components/pacing/MetaPacingPanel'
+import dynamic from "next/dynamic"
+import { Suspense, type ReactNode } from "react"
+import { Skeleton } from "@/components/ui/skeleton"
+import CampaignActions from "./components/CampaignActions"
+import ExpectedSpendToDateCard from "./components/ExpectedSpendToDateCard"
+import { auth0 } from "@/lib/auth0"
+import { getPrimaryRole, getUserClientIdentifier } from "@/lib/rbac"
+import { redirect } from "next/navigation"
+import { headers } from "next/headers"
+import { getCampaignPacingData } from "@/lib/snowflake/pacing-service"
+
+const CampaignInfoHeader = dynamic(() => import("@/components/dashboard/campaign/CampaignInfoHeader"))
+const CampaignSummaryRow = dynamic(() => import("@/components/dashboard/campaign/CampaignSummaryRow"))
+const SpendChartsRow = dynamic(() => import("@/components/dashboard/campaign/SpendChartsRow"))
+const MediaPlanVizSection = dynamic(() => import("@/components/dashboard/campaign/MediaPlanVizSection"))
+const SocialPacingContainer = dynamic(() => import("@/components/dashboard/pacing/social/SocialPacingContainer"))
+const ProgrammaticPacingContainer = dynamic(
+  () => import("@/components/dashboard/pacing/programmatic/ProgrammaticPacingContainer")
+)
 
 interface CampaignDetailPageProps {
-  params: {
+  params: Promise<{
     slug: string
     mba_number: string
-  }
+  }>
+  searchParams?: Promise<{
+    version?: string
+  }>
 }
 
-async function fetchCampaignData(mbaNumber: string) {
-  const headerList = headers()
-  const host = headerList.get('x-forwarded-host') || headerList.get('host')
-  const protocol = headerList.get('x-forwarded-proto') || 'https'
-  const envBase = process.env.NEXT_PUBLIC_BASE_URL?.replace(/\/$/, '')
-  const runtimeBase = host ? `${protocol}://${host}` : ''
-  const baseUrl = envBase || runtimeBase
-  const url = `${baseUrl}/api/campaigns/${encodeURIComponent(mbaNumber)}`
+const DEBUG_LINE_ITEMS = process.env.NEXT_PUBLIC_DEBUG_LINEITEMS === "true"
+const DEBUG_BRAND = process.env.NEXT_PUBLIC_DEBUG_BRAND === "true"
+const DEBUG_SPEND = process.env.NEXT_PUBLIC_DEBUG_SPEND === "true"
 
-  try {
-    const response = await fetch(url, { 
-      cache: 'no-store',
-      headers: {
-        'Content-Type': 'application/json',
+function parseAmountSafe(value: any) {
+  if (typeof value === "number") return value
+  if (typeof value === "string") {
+    const parsed = parseFloat(value.replace(/[^0-9.-]+/g, ""))
+    return Number.isNaN(parsed) ? 0 : parsed
+  }
+  return 0
+}
+
+function deriveSpendToDate(deliverySchedule: any[]) {
+  if (!Array.isArray(deliverySchedule)) return 0
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  return deliverySchedule.reduce((sum, entry) => {
+    const dateValue = entry?.date || entry?.DATE || entry?.startDate || entry?.start_date
+    const entryDate = dateValue ? new Date(dateValue) : null
+    if (entryDate && !Number.isNaN(entryDate.getTime())) {
+      entryDate.setHours(0, 0, 0, 0)
+      if (entryDate <= today) {
+        return sum + parseAmountSafe(entry?.spend ?? entry?.amount ?? entry?.budget ?? entry?.value ?? entry?.media_investment)
       }
-    })
-    
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData.error || `Failed to fetch campaign data: ${response.statusText}`)
     }
-    
-    return await response.json()
-  } catch (error) {
-    console.error('Error fetching campaign data:', error)
-    throw error
-  }
+    return sum
+  }, 0)
 }
 
-export default async function CampaignDetailPage({ params }: CampaignDetailPageProps) {
-  const { slug, mba_number } = params
+function getCurrentMelbourneYearMonth() {
+  const now = new Date()
+  const parts = new Intl.DateTimeFormat("en-AU", {
+    timeZone: "Australia/Melbourne",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+  }).formatToParts(now)
+  const year = Number(parts.find((part) => part.type === "year")?.value)
+  const month = Number(parts.find((part) => part.type === "month")?.value)
+  if (Number.isFinite(year) && Number.isFinite(month)) {
+    return { year, month }
+  }
+  return { year: now.getFullYear(), month: now.getMonth() + 1 }
+}
+
+function deriveSpendToDateFromMonthlySpend(monthlySpend: any): number {
+  const { year: currentYear, month: currentMonth } = getCurrentMelbourneYearMonth()
+
+  const parseMonthLabel = (input: any): { year: number; month: number } | null => {
+    if (!input) return null
+    if (input instanceof Date && !Number.isNaN(input.getTime())) {
+      return { year: input.getFullYear(), month: input.getMonth() + 1 }
+    }
+    if (typeof input === "number" && Number.isFinite(input)) {
+      const asString = String(input)
+      if (asString.length === 6) {
+        const year = Number(asString.slice(0, 4))
+        const month = Number(asString.slice(4, 6))
+        if (month >= 1 && month <= 12) {
+          return { year, month }
+        }
+      }
+    }
+    if (typeof input === "string") {
+      const trimmed = input.trim()
+      if (!trimmed) return null
+
+      const isoLike = trimmed.match(/^(\d{4})[-/](\d{1,2})/)
+      if (isoLike) {
+        const year = Number(isoLike[1])
+        const month = Number(isoLike[2])
+        if (month >= 1 && month <= 12) {
+          return { year, month }
+        }
+      }
+
+      const monthName = trimmed.match(
+        /^(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})/i
+      )
+      if (monthName) {
+        const monthIndex =
+          [
+            "january",
+            "february",
+            "march",
+            "april",
+            "may",
+            "june",
+            "july",
+            "august",
+            "september",
+            "october",
+            "november",
+            "december",
+          ].indexOf(monthName[1].toLowerCase())
+        if (monthIndex >= 0) {
+          return { year: Number(monthName[2]), month: monthIndex + 1 }
+        }
+      }
+
+      const parsedDate = new Date(trimmed)
+      if (!Number.isNaN(parsedDate.getTime())) {
+        return { year: parsedDate.getFullYear(), month: parsedDate.getMonth() + 1 }
+      }
+    }
+    return null
+  }
+
+  const sumNumericValues = (value: any): number => {
+    if (typeof value === "number" && Number.isFinite(value)) return value
+    if (typeof value === "string") {
+      const parsed = parseAmountSafe(value)
+      return Number.isFinite(parsed) ? parsed : 0
+    }
+    if (value && typeof value === "object") {
+      return Object.values(value).reduce((acc, child) => acc + sumNumericValues(child), 0)
+    }
+    return 0
+  }
+
+  const isWithinCurrentMonth = (year: number, month: number) =>
+    Number.isFinite(year) &&
+    Number.isFinite(month) &&
+    (year < currentYear || (year === currentYear && month <= currentMonth))
+
+  if (Array.isArray(monthlySpend)) {
+    const labelKeys = new Set(["monthYear", "month", "date", "label", "id", "month_label", "monthLabel"])
+    return monthlySpend.reduce((total, entry) => {
+      if (!entry || typeof entry !== "object") return total
+      const monthLabel = entry.monthYear ?? entry.month ?? entry.date ?? entry.label
+      const parsed = parseMonthLabel(monthLabel)
+      if (!parsed || !isWithinCurrentMonth(parsed.year, parsed.month)) return total
+
+      const entrySum = Object.entries(entry).reduce((acc, [key, value]) => {
+        if (labelKeys.has(key)) return acc
+        const numericValue = sumNumericValues(value)
+        return Number.isFinite(numericValue) ? acc + numericValue : acc
+      }, 0)
+
+      return total + entrySum
+    }, 0)
+  }
+
+  if (monthlySpend && typeof monthlySpend === "object") {
+    return Object.entries(monthlySpend).reduce((total, [label, value]) => {
+      const parsed = parseMonthLabel(label)
+      if (!parsed || !isWithinCurrentMonth(parsed.year, parsed.month)) return total
+      const numericValue = sumNumericValues(value)
+      return Number.isFinite(numericValue) ? total + numericValue : total
+    }, 0)
+  }
+
+  return 0
+}
+
+function normaliseHexColour(input: unknown): string | undefined {
+  if (typeof input !== "string") return undefined
+  const trimmed = input.trim()
+  if (!trimmed) return undefined
+  const raw = trimmed.startsWith("#") ? trimmed.slice(1) : trimmed
+  const hex = raw.toLowerCase()
+
+  if (/^[0-9a-f]{3}$/.test(hex)) {
+    const expanded = hex
+      .split("")
+      .map((char) => `${char}${char}`)
+      .join("")
+    return `#${expanded.toUpperCase()}`
+  }
+
+  if (/^[0-9a-f]{6}$/.test(hex)) {
+    return `#${hex.toUpperCase()}`
+  }
+
+  if (/^[0-9a-f]{8}$/.test(hex)) {
+    return `#${hex.slice(0, 6).toUpperCase()}`
+  }
+
+  return undefined
+}
+
+function hexToRgba(hex: string | undefined, alpha: number) {
+  if (!hex) return null
+  const normalised = normaliseHexColour(hex)
+  if (!normalised) return null
+  const stripped = normalised.slice(1)
+  const r = Number.parseInt(stripped.slice(0, 2), 16)
+  const g = Number.parseInt(stripped.slice(2, 4), 16)
+  const b = Number.parseInt(stripped.slice(4, 6), 16)
+  if ([r, g, b].some((value) => Number.isNaN(value))) return null
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
+function getBrandGradientStyle(brandColour?: string) {
+  const start = brandColour ? hexToRgba(brandColour, 0.55) : null
+  const mid = brandColour ? hexToRgba(brandColour, 0.22) : null
+  const end = brandColour ? hexToRgba(brandColour, 0) : null
+  if (!start || !mid || !end) return undefined
+  return { backgroundImage: `linear-gradient(90deg, ${start} 0%, ${mid} 45%, ${end} 100%)` }
+}
+
+function BrandFrame({ children, brandColour }: { children: ReactNode; brandColour?: string }) {
+  const gradientStyle = getBrandGradientStyle(brandColour)
+  return (
+    <div className="overflow-hidden rounded-3xl border border-muted/70 bg-background/90 shadow-sm">
+      {gradientStyle ? <div className="h-3" style={gradientStyle} aria-hidden /> : null}
+      <div>{children}</div>
+    </div>
+  )
+}
+
+async function fetchCampaignData(mbaNumber: string, version?: string) {
+  const headerList = await headers()
+  const host =
+    headerList.get("x-forwarded-host") ||
+    headerList.get("host") ||
+    process.env.NEXT_PUBLIC_VERCEL_URL
+
+  // Default to http for local dev to avoid https://localhost failures
+  const defaultProtocol = host?.includes("localhost") || host?.includes("127.0.0.1") ? "http" : "https"
+  const protocol = headerList.get("x-forwarded-proto") || defaultProtocol
+
+  const envBase = process.env.NEXT_PUBLIC_BASE_URL?.replace(/\/$/, "")
+  const runtimeBase = host ? `${protocol}://${host}` : ""
+  const baseUrl = envBase || runtimeBase
+  const queryParts: string[] = []
+  if (version) {
+    queryParts.push(`version=${encodeURIComponent(version)}`)
+  }
+  const queryString = queryParts.length ? `?${queryParts.join("&")}` : ""
+  const urlPath = `/api/mediaplans/mba/${encodeURIComponent(mbaNumber)}${queryString}`
+  const url = baseUrl ? `${baseUrl}${urlPath}` : urlPath
+
+  let response: Response
+  try {
+    const cookieHeader = headerList.get("cookie") ?? ""
+    response = await fetch(url, {
+      cache: "no-store",
+      headers: {
+        "Content-Type": "application/json",
+        cookie: cookieHeader,
+      },
+    })
+  } catch (err) {
+    console.error("fetchCampaignData request failed", {
+      url,
+      host,
+      protocol,
+      envBase,
+      runtimeBase,
+      error: err instanceof Error ? err.message : String(err),
+    })
+    throw new Error("Could not reach campaign API")
+  }
+
+  if (!response.ok) {
+    const bodyText = await response.text().catch(() => "")
+    console.error("fetchCampaignData failed", {
+      url,
+      status: response.status,
+      statusText: response.statusText,
+      bodyText,
+    })
+    let errorDetail: any = {}
+    try {
+      errorDetail = bodyText ? JSON.parse(bodyText) : {}
+    } catch {
+      errorDetail = {}
+    }
+    throw new Error(errorDetail.error || `Failed to fetch campaign data: ${response.statusText}`)
+  }
+
+  return response.json()
+}
+
+export default async function CampaignDetailPage({ params, searchParams }: CampaignDetailPageProps) {
+  const { slug, mba_number } = await params
+  const { version } = searchParams ? await searchParams : {}
+  const parsedVersion = version ? Number(version) : undefined
+  const versionNumberFromQuery = Number.isFinite(parsedVersion) ? parsedVersion : undefined
   const session = await auth0.getSession()
   const user = session?.user
   const role = getPrimaryRole(user)
@@ -63,156 +318,250 @@ export default async function CampaignDetailPage({ params }: CampaignDetailPageP
     redirect(`/auth/login?returnTo=/dashboard/${slug}/${mba_number}`)
   }
 
-  if (role === 'client' && userClientSlug && userClientSlug !== slug) {
+  if (role === "client" && userClientSlug && userClientSlug !== slug) {
     redirect(`/dashboard/${userClientSlug}`)
   }
-  
+
   let campaignData: any = null
   let error: string | null = null
-  
+  let campaign: any = null
+  let campaignVersion: Record<string, any> = {}
+  let resolvedVersionNumber: number | undefined
+
   try {
-    campaignData = await fetchCampaignData(mba_number)
+    campaignData = await fetchCampaignData(mba_number, version)
+    campaign = campaignData?.campaign ?? campaignData
+    campaignVersion = campaignData?.versionData ?? campaignData?.mediaPlanVersion ?? campaignData?.campaign ?? campaignData ?? {}
+    resolvedVersionNumber = Number(
+      versionNumberFromQuery ??
+        campaignData?.versionNumber ??
+        campaignData?.version_number ??
+        campaignVersion?.mp_plannumber ??
+        campaignVersion?.mp_plan_number ??
+        campaignVersion?.version_number ??
+        campaignVersion?.versionNumber ??
+        campaign?.mp_plannumber ??
+        campaign?.mp_plan_number ??
+        campaign?.version_number
+    )
+    if (!Number.isFinite(resolvedVersionNumber)) {
+      throw new Error(`No media plan version number available for MBA ${mba_number}`)
+    }
   } catch (err) {
-    error = err instanceof Error ? err.message : 'Unknown error occurred'
-    console.error('Campaign detail page error:', err)
+    error = err instanceof Error ? err.message : "Unknown error occurred"
+    console.error("Campaign detail page error:", err)
   }
 
   if (error || !campaignData) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <div className="text-center max-w-2xl">
-          <h2 className="text-2xl font-bold text-red-900 mb-4">Campaign Not Found</h2>
-          <p className="text-red-600 mb-4">
-            {error || 'The requested campaign could not be found.'}
-          </p>
-          <p className="text-sm text-gray-600">
-            Please check the MBA number and try again.
-          </p>
+      <div className="flex h-96 items-center justify-center">
+        <div className="max-w-2xl text-center">
+          <h2 className="mb-4 text-2xl font-bold text-red-900">Campaign Not Found</h2>
+          <p className="mb-4 text-red-600">{error || "The requested campaign could not be found."}</p>
+          <p className="text-sm text-gray-600">Please check the MBA number and try again.</p>
         </div>
       </div>
     )
   }
 
-  const campaign = campaignData.campaign
-  const lineItems = campaignData.lineItems || {}
+  const versionNumber = resolvedVersionNumber ?? versionNumberFromQuery
+  const lineItemsMap = (campaignData?.lineItems ?? {}) as Record<string, any[]>
+  if (DEBUG_LINE_ITEMS) {
+    console.log("[DATA LOAD] campaign data version info", {
+      mba_number: campaignVersion?.mba_number ?? campaign?.mba_number ?? mba_number,
+      version_number: versionNumber ?? null,
+    })
+  }
   const metrics = campaignData.metrics || {}
   const billingSchedule = campaignData.billingSchedule
-
-  const socialItems = Array.isArray(lineItems.socialMedia) ? lineItems.socialMedia : []
-  const hasMetaSocial = socialItems.some(
-    (item: any) => typeof item?.platform === "string" && item.platform.toLowerCase().includes("meta")
+  const deliverySchedule = campaignData.deliverySchedule || []
+  const socialItems = Array.isArray(lineItemsMap.socialMedia) ? lineItemsMap.socialMedia : []
+  const progDisplayItems = Array.isArray(lineItemsMap.progDisplay) ? lineItemsMap.progDisplay : []
+  const progVideoItems = Array.isArray(lineItemsMap.progVideo) ? lineItemsMap.progVideo : []
+  const pacingLineItemIds = Array.from(
+    new Set(
+      [...socialItems, ...progDisplayItems, ...progVideoItems]
+        .map((item) => item?.line_item_id)
+        .filter(Boolean)
+        .map((id) => String(id))
+    )
+  )
+  const debugLineItemCounts = Object.entries(lineItemsMap).map(
+    ([key, value]) => `${key}: ${Array.isArray(value) ? value.length : 0}`
   )
 
+  const spendByChannel =
+    (metrics.deliverySpendByChannel && metrics.deliverySpendByChannel.length > 0
+      ? metrics.deliverySpendByChannel
+      : metrics.spendByMediaChannel) || []
+
+  const monthlySpend =
+    (metrics.deliveryMonthlySpend && metrics.deliveryMonthlySpend.length > 0
+      ? metrics.deliveryMonthlySpend
+      : metrics.monthlySpend) || []
+
+  const budget = parseAmountSafe(
+    campaign?.campaign_budget || campaign?.mp_campaignbudget || campaign?.total_budget || campaign?.total_media
+  )
+  const monthlySpendToDate = deriveSpendToDateFromMonthlySpend(monthlySpend)
+  const deliverySpendToDate = deriveSpendToDate(deliverySchedule)
+  const actualSpend = (monthlySpendToDate > 0 ? monthlySpendToDate : deliverySpendToDate) || metrics.actualSpendToDate || 0
+  if (DEBUG_SPEND) {
+    console.log("[Spend Debug] spend to date resolution", {
+      monthlySpendToDate,
+      deliverySpendToDate,
+      metricsActualSpendToDate: metrics.actualSpendToDate,
+      used:
+        monthlySpendToDate > 0
+          ? "monthlySpend"
+          : deliverySpendToDate
+            ? "deliverySchedule"
+            : metrics.actualSpendToDate
+              ? "metricsActualSpendToDate"
+              : "none",
+    })
+  }
+  const expectedSpend = metrics.expectedSpendToDate || 0
+
+  const startDate = campaign?.campaign_start_date || campaign?.mp_campaigndates_start
+  const endDate = campaign?.campaign_end_date || campaign?.mp_campaigndates_end
+
+  let initialPacingRows: any[] = []
+  if (pacingLineItemIds.length > 0) {
+    try {
+      initialPacingRows = await getCampaignPacingData(mba_number, pacingLineItemIds, startDate, endDate)
+    } catch (err) {
+      console.error("[SSR Pacing] failed, falling back to []", {
+        mba_number,
+        error: err instanceof Error ? err.message : String(err),
+      })
+      initialPacingRows = []
+    }
+  }
+
+  const brandCandidates = [
+    campaign?.brand_colour,
+    campaign?.brandColour,
+    campaign?.brand_color,
+    campaign?.brandColor,
+    campaign?.client_brand_colour,
+    campaignData?.client?.brand_colour,
+    campaignData?.client?.brandColour,
+    campaignData?.client_info?.brand_colour,
+    campaignData?.clientInfo?.brand_colour,
+    campaignData?.client_details?.brand_colour,
+    campaignData?.clientDetails?.brand_colour,
+  ]
+  const brandColour = normaliseHexColour(brandCandidates.find(Boolean))
+  const brandGradientDebug = getBrandGradientStyle(brandColour)
+  if (DEBUG_BRAND) {
+    console.log("[Brand Debug] brand colour resolution", {
+      brandCandidates,
+      brandColour,
+      hasGradient: Boolean(brandGradientDebug),
+    })
+  }
+
   return (
-    <div className="w-full px-4 lg:px-8 space-y-8 pb-32">
-      {/* Campaign Header Section */}
-      <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-        <CampaignHeader campaign={campaign} />
+    <div className="w-full space-y-6 rounded-3xl bg-[#DEE5F4] p-4 pb-40 md:p-6 md:pb-48">
+      <BrandFrame brandColour={brandColour}>
+        <Suspense fallback={<Skeleton className="h-40 w-full rounded-3xl" />}>
+          <CampaignInfoHeader campaign={campaign} />
+        </Suspense>
+      </BrandFrame>
+
+      <BrandFrame>
+        <Suspense fallback={<Skeleton className="h-32 w-full rounded-3xl" />}>
+          <CampaignSummaryRow
+            time={{
+              timeElapsedPct: metrics.timeElapsed,
+              daysInCampaign: metrics.daysInCampaign,
+              daysElapsed: metrics.daysElapsed,
+              daysRemaining: metrics.daysRemaining,
+              startDate,
+              endDate,
+            }}
+            spend={{
+              budget,
+              actualSpend,
+              expectedSpend,
+            }}
+            accentColorTime={brandColour || "#6366f1"}
+            accentColorSpend={brandColour || "#8b5cf6"}
+            spendCardNode={
+              <Suspense fallback={<Skeleton className="h-32 w-full rounded-2xl" />}>
+                <ExpectedSpendToDateCard
+                  mbaNumber={mba_number}
+                  campaignStart={startDate}
+                  campaignEnd={endDate}
+                  budget={budget}
+                  actualSpend={actualSpend}
+                  hideStatus
+                />
+              </Suspense>
+            }
+            hideStatus
+          />
+        </Suspense>
+      </BrandFrame>
+
+      <Suspense fallback={<Skeleton className="h-[360px] w-full rounded-3xl" />}>
+        <SpendChartsRow
+          spendByChannel={spendByChannel}
+          monthlySpendByChannel={monthlySpend}
+          deliverySchedule={deliverySchedule}
+        />
       </Suspense>
 
-      {hasMetaSocial ? (
-        <MetaPacingPanel clientSlug={slug} mbaSlug={mba_number} />
+      <Suspense fallback={<Skeleton className="h-[420px] w-full rounded-3xl" />}>
+        <MediaPlanVizSection
+          lineItems={lineItemsMap}
+          campaignStart={startDate}
+          campaignEnd={endDate}
+          clientSlug={slug}
+          mbaNumber={mba_number}
+        />
+      </Suspense>
+
+      {socialItems.length ? (
+        <Suspense fallback={<Skeleton className="h-[480px] w-full rounded-3xl" />}>
+          <SocialPacingContainer
+            clientSlug={slug}
+            mbaNumber={mba_number}
+            socialLineItems={socialItems}
+            campaignStart={startDate}
+            campaignEnd={endDate}
+            initialPacingRows={initialPacingRows}
+          />
+        </Suspense>
       ) : null}
 
-      {/* Metrics Section - Time Elapsed and Spend Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Campaign Time Elapsed</CardTitle>
-            <CardDescription>Progress through campaign timeline</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Suspense fallback={<Skeleton className="h-48 w-full" />}>
-              <CampaignTimeChart 
-                timeElapsed={metrics.timeElapsed || 0}
-                daysInCampaign={metrics.daysInCampaign}
-                daysElapsed={metrics.daysElapsed}
-                daysRemaining={metrics.daysRemaining}
-              />
-            </Suspense>
-          </CardContent>
-        </Card>
+      {(progDisplayItems.length || progVideoItems.length) ? (
+        <Suspense fallback={<Skeleton className="h-[480px] w-full rounded-3xl" />}>
+          <ProgrammaticPacingContainer
+            clientSlug={slug}
+            mbaNumber={mba_number}
+            progDisplayLineItems={progDisplayItems}
+            progVideoLineItems={progVideoItems}
+            campaignStart={startDate}
+            campaignEnd={endDate}
+            initialPacingRows={initialPacingRows}
+          />
+        </Suspense>
+      ) : null}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Campaign Spend to Date</CardTitle>
-            <CardDescription>Expected vs actual spend</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Suspense fallback={<Skeleton className="h-48 w-full" />}>
-              <CampaignSpendChart 
-                expectedSpend={metrics.expectedSpendToDate || 0}
-                campaignBudget={parseFloat(campaign.mp_campaignbudget || 0)}
-              />
-            </Suspense>
-          </CardContent>
-        </Card>
-      </div>
+      {DEBUG_LINE_ITEMS ? (
+        <div className="rounded-2xl border border-dashed border-muted/70 bg-background/80 p-3 text-sm text-muted-foreground">
+          <div className="font-semibold text-foreground mb-1">Line item debug</div>
+          <ul className="space-y-1">
+            {debugLineItemCounts.length
+              ? debugLineItemCounts.map((entry) => <li key={entry}>{entry}</li>)
+              : <li>No line items loaded</li>}
+          </ul>
+        </div>
+      ) : null}
 
-      {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Spend by Media Channel</CardTitle>
-            <CardDescription>Distribution of spend across media types</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Suspense fallback={<Skeleton className="h-80 w-full" />}>
-              <MediaChannelPieChart data={metrics.spendByMediaChannel || []} />
-            </Suspense>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Monthly Spend by Channel</CardTitle>
-            <CardDescription>Spend breakdown by month</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Suspense fallback={<Skeleton className="h-80 w-full" />}>
-              <MonthlySpendStackedChart data={metrics.monthlySpend || []} />
-            </Suspense>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Media Table Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Media Line Items</CardTitle>
-          <CardDescription>Detailed breakdown of all media placements</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Suspense fallback={<Skeleton className="h-96 w-full" />}>
-            <MediaTable lineItems={lineItems} />
-          </Suspense>
-        </CardContent>
-      </Card>
-
-      {/* Gantt Chart Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Media Timeline</CardTitle>
-          <CardDescription>When media is live by day</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Suspense fallback={<Skeleton className="h-96 w-full" />}>
-            <MediaGanttChart 
-              lineItems={lineItems}
-              startDate={campaign.campaign_start_date || campaign.mp_campaigndates_start}
-              endDate={campaign.campaign_end_date || campaign.mp_campaigndates_end}
-            />
-          </Suspense>
-        </CardContent>
-      </Card>
-
-      {/* Sticky Footer with Download Buttons */}
-      <CampaignActions 
-        mbaNumber={mba_number}
-        campaign={campaign}
-        lineItems={lineItems}
-        billingSchedule={billingSchedule}
-      />
+      <CampaignActions mbaNumber={mba_number} campaign={campaign} lineItems={lineItemsMap} billingSchedule={billingSchedule} />
     </div>
   )
 }

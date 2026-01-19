@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-
-const XANO_TELEVISION_BASE_URL = process.env.XANO_TELEVISION_BASE_URL || "https://xg4h-uyzs-dtex.a2.xano.io/api:RaUx9FOa";
+import { xanoUrl } from '@/lib/api/xano';
 
 export async function PUT(
   request: Request,
@@ -17,13 +16,16 @@ export async function PUT(
       );
     }
 
-    const response = await fetch(`${XANO_TELEVISION_BASE_URL}/television_line_items/${id}`, {
+    const response = await fetch(
+      `${xanoUrl("television_line_items", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}/${id}`,
+      {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(data),
-    });
+      }
+    );
 
     if (!response.ok) {
       const errorData = await response.json();
@@ -63,9 +65,12 @@ export async function DELETE(
       );
     }
 
-    const response = await fetch(`${XANO_TELEVISION_BASE_URL}/television_line_items/${id}`, {
+    const response = await fetch(
+      `${xanoUrl("television_line_items", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}/${id}`,
+      {
       method: 'DELETE',
-    });
+      }
+    );
 
     if (!response.ok) {
       const errorData = await response.json();

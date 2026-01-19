@@ -21,6 +21,7 @@ import { formatBurstLabel } from "@/lib/bursts"
 import { LoadingDots } from "@/components/ui/loading-dots"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
+import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { CalendarIcon } from "lucide-react"
@@ -538,7 +539,7 @@ export default function DigiAudioContainer({
         client_pays_for_media: lineItem.clientPaysForMedia || false,
         budget_includes_fees: lineItem.budgetIncludesFees || false,
         no_adserving: lineItem.noadserving || false,
-        line_item_id: `${mbaNumber || 'DA'}${index + 1}`,
+        line_item_id: buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.digitalAudio, index + 1),
         bursts_json: JSON.stringify(lineItem.bursts.map(burst => ({
           budget: burst.budget || "",
           buyAmount: burst.buyAmount || "",
@@ -893,7 +894,7 @@ useEffect(() => {
       const mediaAmount = computedBurst
         ? computedBurst.mediaAmount
         : parseFloat(String(burst.budget).replace(/[^0-9.-]+/g, "")) || 0;
-      const lineItemId = `${mbaNumber || 'DA'}${lineItemIndex + 1}`;
+      const lineItemId = buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.digitalAudio, lineItemIndex + 1);
 
       return {
         market: lineItem.market,                                // or fixed value

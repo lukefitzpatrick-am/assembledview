@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import axios from 'axios';
 import { getVersionNumberForMBA, filterLineItemsByPlanNumber } from '@/lib/api/mediaPlanVersionHelper';
+import { xanoUrl } from '@/lib/api/xano';
 
 // Interface matching the Xano database schema
 interface NewspaperData {
@@ -25,8 +26,6 @@ interface NewspaperData {
   bursts_json: any; // JSON object containing bursts data
   line_item: number;
 }
-
-const XANO_NEWSPAPER_BASE_URL = process.env.XANO_NEWSPAPER_BASE_URL || "https://xg4h-uyzs-dtex.a2.xano.io/api:RaUx9FOa";
 
 export async function POST(request: Request) {
   try {
@@ -63,13 +62,16 @@ export async function POST(request: Request) {
     };
 
     // Send the data to Xano
-    const response = await fetch(`${XANO_NEWSPAPER_BASE_URL}/media_plan_newspaper`, {
+    const response = await fetch(
+      xanoUrl("media_plan_newspaper", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]),
+      {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(newspaperData),
-    });
+      }
+    );
 
     if (!response.ok) {
       const errorData = await response.json();
@@ -136,7 +138,7 @@ export async function GET(request: Request) {
     const params = new URLSearchParams();
     params.append('mba_number', mbaNumber);
     
-    const url = `${XANO_NEWSPAPER_BASE_URL}/media_plan_newspaper?${params.toString()}`;
+    const url = `${xanoUrl("media_plan_newspaper", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?${params.toString()}`;
     
     console.log(`[NEWSPAPER] Fetching from media_plan_newspaper table`);
     console.log(`[NEWSPAPER] Strategy: Query all records matching mba_number, then filter by mp_plannumber=${versionNumber} in JavaScript`);

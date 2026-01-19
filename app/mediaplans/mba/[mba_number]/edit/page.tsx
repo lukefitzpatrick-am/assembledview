@@ -81,7 +81,7 @@ import { toDateOnlyString, parseDateOnlyString } from "@/lib/timezone"
 
 // Define media type keys as a const array
 const MEDIA_TYPE_KEYS = [
-  'mp_consulting',
+  'mp_production',
   'mp_television',
   'mp_radio',
   'mp_newspaper',
@@ -223,7 +223,7 @@ const mediaTypes: Array<{
   label: string;
   component: React.LazyExoticComponent<any>;
 }> = [
-  { name: 'mp_consulting', label: "Production", component: ProductionContainer },
+  { name: 'mp_production', label: "Production", component: ProductionContainer },
   { name: 'mp_television', label: "Television", component: TelevisionContainer },
   { name: 'mp_radio', label: "Radio", component: RadioContainer },
   { name: 'mp_newspaper', label: "Newspaper", component: NewspaperContainer },
@@ -266,7 +266,7 @@ const mediaKeyMap: { [key: string]: string } = {
   mp_ooh: 'ooh',
   mp_integration: 'integration',
   mp_influencers: 'influencers',
-  mp_consulting: 'production',
+  mp_production: 'production',
 };
 
 export default function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) {
@@ -584,7 +584,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const mpDigivideo = useWatch({ control: form.control, name: 'mp_digivideo' })
   const mpBvod = useWatch({ control: form.control, name: 'mp_bvod' })
   const mpIntegration = useWatch({ control: form.control, name: 'mp_integration' })
-  const mpConsulting = useWatch({ control: form.control, name: 'mp_consulting' })
+  const mpConsulting = useWatch({ control: form.control, name: 'mp_production' })
   const mpProgdisplay = useWatch({ control: form.control, name: 'mp_progdisplay' })
   const mpProgvideo = useWatch({ control: form.control, name: 'mp_progvideo' })
   const mpProgbvod = useWatch({ control: form.control, name: 'mp_progbvod' })
@@ -622,7 +622,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   }
 
   // Calculate billing schedule function (matching create page exactly)
-  const calculateBillingSchedule = useCallback((startOverride?: Date | string | null, endOverride?: Date | string | null) => {
+  const calculateBillingSchedule = useCallback((
+    startOverride?: Date | string | null,
+    endOverride?: Date | string | null,
+    forceApply?: boolean
+  ) => {
     const startRaw = startOverride ?? form.watch("mp_campaigndates_start");
     const endRaw = endOverride ?? form.watch("mp_campaigndates_end");
     if (!startRaw || !endRaw) return;
@@ -737,10 +741,18 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           const sliceStart = Math.max(s.getTime(), monthStart.getTime())
           const sliceEnd = Math.min(e.getTime(), monthEnd.getTime())
           const daysInMonth = Math.ceil((sliceEnd - sliceStart)/(1000*60*60*24)) + 1
-          const share = burst.deliverables * (daysInMonth/daysTotal)
-  
-          const rate = getRateForMediaType(mediaType)
-          const cost = burst.buyType === "cpm"
+        const share = burst.deliverables * (daysInMonth/daysTotal)
+
+        const rate = getRateForMediaType(mediaType)
+        const buyType = burst.buyType?.toLowerCase?.() || ""
+        const isCpm = buyType === "cpm"
+        const isBonus = buyType === "bonus"
+        const isDigiAudio = typeof mediaType === "string" && mediaType.toLowerCase().replace(/\s+/g, "") === "digiaudio"
+        const isCpmOrBonusForDigiAudio = isDigiAudio && (isCpm || isBonus)
+        const effectiveRate = isCpmOrBonusForDigiAudio ? (adservaudio ?? rate) : rate
+        const cost = isCpmOrBonusForDigiAudio
+          ? (share /1000 ) * effectiveRate
+          : isCpm
             ? (share /1000 ) * rate
             : (share * rate)
   
@@ -798,7 +810,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   
     setAutoBillingMonths(months);
 
-    if (!isManualBilling) {
+    if (!isManualBilling || forceApply) {
       setBillingMonths(months);
       const grandTotal = months.reduce((sum, m) => sum + parseFloat(m.totalAmount.replace(/[^0-9.-]/g, "")), 0);
       setBillingTotal(formatter.format(grandTotal));
@@ -1085,10 +1097,23 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           created_at: v.created_at ?? null
         })) : []
         setAvailableVersions(versionsFromApi)
-        const latestFromApi = data.latestVersionNumber 
-          ?? (versionsFromApi.length > 0 ? Math.max(...versionsFromApi.map(v => v.version_number || 0)) : loadedVersionNumber || 1)
+
+        // Derive latest version robustly (even when loading an older version)
+        const versionCandidates = [
+          data.latestVersionNumber,
+          data.latest_version_number,
+          data.currentVersionNumber,
+          data.master_version_number,
+          loadedVersionNumber,
+          ...(versionsFromApi.length > 0 ? versionsFromApi.map(v => v.version_number || 0) : [])
+        ].filter((v) => typeof v === 'number' && !Number.isNaN(v)) as number[]
+
+        const latestFromApi = versionCandidates.length > 0 ? Math.max(...versionCandidates) : 1
         setLatestVersionNumber(latestFromApi)
-        const nextFromApi = data.nextVersionNumber ?? (latestFromApi ? latestFromApi + 1 : (loadedVersionNumber || 0) + 1)
+
+        const nextFromApi = data.nextVersionNumber
+          ?? data.next_version_number
+          ?? (latestFromApi + 1)
         setNextSaveVersionNumber(nextFromApi)
         
         if (requestedVersionNumber !== null && loadedVersionNumber !== null && loadedVersionNumber !== requestedVersionNumber) {
@@ -1162,7 +1187,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           mp_digivideo: Boolean(data.mp_digivideo),
           mp_bvod: Boolean(data.mp_bvod),
           mp_integration: Boolean(data.mp_integration),
-          mp_consulting: Boolean(data.mp_consulting || data.mp_fixedfee || data.mp_production),
+          mp_production: Boolean(data.mp_production || data.mp_fixedfee),
           mp_search: Boolean(data.mp_search),
           mp_socialmedia: Boolean(data.mp_socialmedia),
           mp_progdisplay: Boolean(data.mp_progdisplay),
@@ -1285,14 +1310,14 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               data.lineItems.production ||
               data.lineItems.consulting ||
               data.lineItems.contentCreator ||
-              data.lineItems.mp_consulting ||
+              data.lineItems.mp_production ||
               data.lineItems.fixedfee
             if (productionLineItems) {
               const filtered = filterLineItemsByPlanNumber(productionLineItems, mbaNumber, versionForFiltering, 'production')
               setConsultingLineItems(filtered)
               // Auto-enable Production toggle when saved items are present so the container renders
-              if (filtered.length > 0 && !form.getValues('mp_consulting')) {
-                form.setValue('mp_consulting', true, { shouldDirty: false })
+              if (filtered.length > 0 && !form.getValues('mp_production')) {
+                form.setValue('mp_production', true, { shouldDirty: false })
               }
             }
             if (data.lineItems.search) {
@@ -1677,7 +1702,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         { flag: 'mp_digivideo', fetchFn: getDigitalVideoLineItemsByMBA, setter: setDigitalVideoLineItems, enabled: formValues.mp_digivideo },
         { flag: 'mp_bvod', fetchFn: getBVODLineItemsByMBA, setter: setBvodLineItems, enabled: formValues.mp_bvod },
         { flag: 'mp_integration', fetchFn: getIntegrationLineItemsByMBA, setter: setIntegrationLineItems, enabled: formValues.mp_integration },
-        { flag: 'mp_consulting', fetchFn: getProductionLineItemsByMBA, setter: setConsultingLineItems, enabled: formValues.mp_consulting },
+        { flag: 'mp_production', fetchFn: getProductionLineItemsByMBA, setter: setConsultingLineItems, enabled: formValues.mp_production },
         { flag: 'mp_search', fetchFn: getSearchLineItemsByMBA, setter: setSearchLineItems, enabled: formValues.mp_search },
         { flag: 'mp_socialmedia', fetchFn: getSocialMediaLineItemsByMBA, setter: setSocialMediaLineItems, enabled: formValues.mp_socialmedia },
         { flag: 'mp_progdisplay', fetchFn: getProgDisplayLineItemsByMBA, setter: setProgDisplayLineItems, enabled: formValues.mp_progdisplay },
@@ -2136,7 +2161,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     setManualBillingMonths([])
     setManualBillingTotal("$0.00")
     // Trigger auto calculation
-    calculateBillingSchedule(campaignStartDate, campaignEndDate)
+    calculateBillingSchedule(campaignStartDate, campaignEndDate, true)
   }
 
   const generateMBANumber = async (mbaidentifier: string) => {
@@ -2342,7 +2367,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       'mp_digivideo': { lineItems: digitalVideoMediaLineItems, key: 'digiVideo' },
       'mp_bvod': { lineItems: bvodMediaLineItems, key: 'bvod' },
       'mp_integration': { lineItems: integrationMediaLineItems, key: 'integration' },
-      'mp_consulting': { lineItems: consultingMediaLineItems, key: 'production' },
+      'mp_production': { lineItems: consultingMediaLineItems, key: 'production' },
       'mp_search': { lineItems: searchMediaLineItems, key: 'search' },
       'mp_socialmedia': { lineItems: socialMediaMediaLineItems, key: 'socialMedia' },
       'mp_progdisplay': { lineItems: progDisplayMediaLineItems, key: 'progDisplay' },
@@ -2563,7 +2588,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     mp_digivideo: 'Digital Video',
     mp_bvod: 'BVOD',
     mp_integration: 'Integration',
-  mp_consulting: 'Production',
+  mp_production: 'Production',
     mp_search: 'Search',
     mp_socialmedia: 'Social Media',
     mp_progdisplay: 'Programmatic Display',
@@ -2862,13 +2887,13 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             })
         )
       }
-      if (formValues.mp_consulting && consultingMediaLineItems.length > 0) {
-        updateSaveStatus(mediaTypeDisplayNames.mp_consulting, 'pending')
+      if (formValues.mp_production && consultingMediaLineItems.length > 0) {
+        updateSaveStatus(mediaTypeDisplayNames.mp_production, 'pending')
         savePromises.push(
           saveProductionLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), consultingMediaLineItems)
-            .then(() => updateSaveStatus(mediaTypeDisplayNames.mp_consulting, 'success'))
+            .then(() => updateSaveStatus(mediaTypeDisplayNames.mp_production, 'success'))
             .catch(error => {
-              updateSaveStatus(mediaTypeDisplayNames.mp_consulting, 'error', error.message || String(error))
+              updateSaveStatus(mediaTypeDisplayNames.mp_production, 'error', error.message || String(error))
               return { type: 'consulting', error }
             })
         )
@@ -3202,7 +3227,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       }
 
       // Production / Consulting
-      if (formData.mp_consulting && consultingMediaLineItems && consultingMediaLineItems.length > 0) {
+      if (formData.mp_production && consultingMediaLineItems && consultingMediaLineItems.length > 0) {
         mediaTypeSavePromises.push(
           saveProductionLineItems(
             data.id,
@@ -4224,10 +4249,17 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     return allBursts.reduce((sum, b) => {
       if (b.noAdserving) return sum;
       const rate = getRateForMediaType(b.mediaType)
-      const isCPM = b.buyType.toLowerCase() === "cpm"
-      const cost  = isCPM
-        ? (b.deliverables/1000)*rate
-        : (b.deliverables*rate)
+      const buyType = b.buyType?.toLowerCase?.() || ""
+      const isCPM = buyType === "cpm"
+      const isBonus = buyType === "bonus"
+      const isDigiAudio = typeof b.mediaType === "string" && b.mediaType.toLowerCase().replace(/\s+/g, "") === "digiaudio"
+      const isCpmOrBonusForDigiAudio = isDigiAudio && (isCPM || isBonus)
+      const effectiveRate = isCpmOrBonusForDigiAudio ? (adservaudio ?? rate) : rate
+      const cost  = isCpmOrBonusForDigiAudio
+        ? (b.deliverables/1000)*effectiveRate
+        : isCPM
+          ? (b.deliverables/1000)*rate
+          : (b.deliverables*rate)
           return sum + cost
     }, 0)
   }
@@ -4287,7 +4319,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         return integrationTotal ?? 0;
       case "mp_bvod":
         return bvodTotal ?? 0;
-      case "mp_consulting":
+      case "mp_production":
         return consultingTotal ?? 0;
       default:
         return 0;
@@ -5137,7 +5169,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex flex-col space-y-3">
                   {mediaTypes
-                    .filter((medium) => medium.name !== "mp_consulting")
+                    .filter((medium) => medium.name !== "mp_production")
                     .map((medium) => {
                       const isEnabled = form.watch(medium.name as FormFieldName);
                       if (isEnabled) {
@@ -5154,7 +5186,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 {/* Corresponding Media Totals */}
                 <div className="flex flex-col space-y-3 text-right">
                   {mediaTypes
-                    .filter((medium) => medium.name !== "mp_consulting")
+                    .filter((medium) => medium.name !== "mp_production")
                     .map((medium) => {
                       const isEnabled = form.watch(medium.name as FormFieldName);
                       if (isEnabled) {
@@ -5515,7 +5547,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                           initialLineItems={integrationLineItems}
                         />
                       )}
-                      {medium.name === "mp_consulting" && (
+                      {medium.name === "mp_production" && (
                         <Suspense fallback={<div>Loading Production...</div>}>
                           <ProductionContainer
                             clientId={selectedClientId}
@@ -5762,7 +5794,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 <TableRow>
                   <TableHead className="sticky left-0 bg-white z-10">Month</TableHead>
                   {mediaTypes
-                    .filter(medium => medium.name !== "mp_consulting")
+                    .filter(medium => medium.name !== "mp_production")
                     .filter(medium => form.watch(medium.name as any) && medium.component)
                     .map(medium => (
                       <TableHead key={medium.name} className="text-right">{medium.label}</TableHead>
@@ -5778,7 +5810,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                   <TableRow key={month.monthYear}>
                     <TableCell className="sticky left-0 bg-white z-10 font-medium">{month.monthYear}</TableCell>
                     {mediaTypes
-                      .filter(medium => medium.name !== "mp_consulting")
+                      .filter(medium => medium.name !== "mp_production")
                       .filter(medium => form.watch(medium.name as any) && medium.component)
                       .map(medium => {
                         const mediaKey = mediaKeyMap[medium.name];
@@ -5869,7 +5901,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 <TableRow className="font-bold border-t-2">
                   <TableCell className="sticky left-0 bg-white z-10">Subtotals</TableCell>
                   {mediaTypes
-                    .filter(medium => medium.name !== "mp_consulting")
+                    .filter(medium => medium.name !== "mp_production")
                     .filter(medium => form.watch(medium.name as any) && medium.component)
                     .map(medium => {
                       const mediaKey = mediaKeyMap[medium.name];

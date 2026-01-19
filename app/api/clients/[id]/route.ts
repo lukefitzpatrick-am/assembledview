@@ -1,12 +1,19 @@
 import { NextResponse } from "next/server"
 import axios from "axios"
-const XANO_CLIENTS_BASE_URL = process.env.XANO_CLIENTS_BASE_URL || "https://xg4h-uyzs-dtex.a2.xano.io/api:9v_k2NR8"
+
+const DEFAULT_CLIENTS_BASE_URL = "https://xg4h-uyzs-dtex.a2.xano.io/api:9v_k2NR8"
+const clientsBaseUrl = (process.env.XANO_CLIENTS_BASE_URL || process.env.XANO_BASE_URL || DEFAULT_CLIENTS_BASE_URL).replace(/\/$/, "")
+const clientsUrl = `${clientsBaseUrl}/clients`
+
+if (!process.env.XANO_CLIENTS_BASE_URL && !process.env.XANO_BASE_URL) {
+  console.warn("XANO_CLIENTS_BASE_URL is not set; falling back to default clients base URL")
+}
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
     const body = await req.json()
-    const response = await axios.put(`${XANO_CLIENTS_BASE_URL}/clients/${id}`, body)
+    const response = await axios.put(`${clientsUrl}/${id}`, body)
     return NextResponse.json(response.data)
   } catch (error) {
     console.error("Failed to update client:", error)
@@ -18,7 +25,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   try {
     const { id } = await params
     const body = await req.json()
-    const response = await axios.patch(`${XANO_CLIENTS_BASE_URL}/clients/${id}`, body)
+    const response = await axios.patch(`${clientsUrl}/${id}`, body)
     return NextResponse.json(response.data)
   } catch (error) {
     console.error("Failed to patch client:", error)
@@ -32,7 +39,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    const response = await axios.get(`${XANO_CLIENTS_BASE_URL}/clients/${id}`)
+    const response = await axios.get(`${clientsUrl}/${id}`)
     return NextResponse.json(response.data)
   } catch (error) {
     console.error("Failed to fetch client:", error)

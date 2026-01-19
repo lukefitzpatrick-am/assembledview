@@ -739,9 +739,20 @@ const handleAddNewNewspaperAdSize = async () => {
       return;
     }
 
+    const newId = createLineItemId();
+    const baseLineItem = source.line_item ?? source.lineItem;
+    const normalizedLineItemNumber: number =
+      typeof baseLineItem === "string"
+        ? Number.parseFloat(baseLineItem) || 0
+        : baseLineItem ?? lineItemIndex + 1;
+    const nextLineItemNumber = normalizedLineItemNumber + 1;
+
     const clone = {
       ...source,
-      ...(() => { const id = createLineItemId(); return { lineItemId: id, line_item_id: id, line_item: (source.line_item ?? source.lineItem ?? lineItemIndex + 1) + 1, lineItem: (source.lineItem ?? source.line_item ?? lineItemIndex + 1) + 1 }; })(),
+      lineItemId: newId,
+      line_item_id: newId,
+      line_item: nextLineItemNumber,
+      lineItem: nextLineItemNumber,
       bursts: (source.bursts || []).map((burst: any) => ({
         ...burst,
         startDate: burst?.startDate ? new Date(burst.startDate) : new Date(),

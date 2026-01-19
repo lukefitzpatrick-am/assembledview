@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-import axios from 'axios';
 import { getVersionNumberForMBA, filterLineItemsByPlanNumber } from '@/lib/api/mediaPlanVersionHelper';
+import { fetchAllXanoPages } from '@/lib/api/xanoPagination';
+import { xanoUrl } from '@/lib/api/xano';
 
 // Interface matching the Xano database schema
 interface TelevisionData {
@@ -25,8 +26,6 @@ interface TelevisionData {
   bursts_json: any; // JSON object containing bursts data
   line_item: number;
 }
-
-const XANO_TELEVISION_BASE_URL = process.env.XANO_TELEVISION_BASE_URL || "https://xg4h-uyzs-dtex.a2.xano.io/api:RaUx9FOa";
 
 export async function POST(request: Request) {
   try {
@@ -63,13 +62,16 @@ export async function POST(request: Request) {
     };
 
     // Send the data to Xano
-    const response = await fetch(`${XANO_TELEVISION_BASE_URL}/media_plan_television`, {
+    const response = await fetch(
+      xanoUrl("media_plan_television", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]),
+      {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(televisionData),
-    });
+      }
+    );
 
     if (!response.ok) {
       const errorData = await response.json();
@@ -130,34 +132,17 @@ export async function GET(request: Request) {
       );
     }
     
-    // Query ONLY by mba_number to scan entire database
-    // Then filter by mp_plannumber in JavaScript to ensure we get all matching records
-    const params = new URLSearchParams();
-    params.append('mba_number', mbaNumber);
-    
-    const url = `${XANO_TELEVISION_BASE_URL}/media_plan_television?${params.toString()}`;
-    
-    console.log(`[TELEVISION] Fetching from media_plan_television table`);
-    console.log(`[TELEVISION] Strategy: Query all records matching mba_number, then filter by mp_plannumber=${versionNumber} in JavaScript`);
-    console.log(`[TELEVISION] API URL: ${url}`);
-    
-    const headers = {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json'
-    };
-    
-    const response = await axios.get(url, { 
-      headers,
-      timeout: 10000 
-    });
-    
-    console.log(`[TELEVISION] API response status: ${response.status}`);
-    console.log(`[TELEVISION] Raw response data count:`, Array.isArray(response.data) ? response.data.length : 'not an array');
-    
-    // Ensure we return an array
-    const data = Array.isArray(response.data) ? response.data : [];
-    
-    // Strict client-side filtering to ensure exact matches
+    console.log(`[TELEVISION] Fetching from media_plan_television table with pagination`);
+    console.log(`[TELEVISION] Strategy: Query all records matching mba_number, then filter by version in JavaScript`);
+
+    const data = await fetchAllXanoPages(
+      xanoUrl("media_plan_television", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]),
+      { mba_number: mbaNumber },
+      "TELEVISION"
+    );
+
+    console.log(`[TELEVISION] Raw response data count:`, data.length);
+
     const filteredData = filterLineItemsByPlanNumber(data, mbaNumber, versionNumber, 'TELEVISION');
     
     console.log(`[TELEVISION] Final filtered data count: ${filteredData.length} (from ${data.length} total items)`);

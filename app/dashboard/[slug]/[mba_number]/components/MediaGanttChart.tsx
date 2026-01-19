@@ -1,133 +1,47 @@
 "use client"
 
 import { useMemo } from 'react'
-import { format, eachDayOfInterval, startOfWeek, endOfWeek, parseISO } from 'date-fns'
+import { format, eachDayOfInterval, startOfDay, endOfDay, differenceInCalendarDays, parseISO } from 'date-fns'
+import { NormalisedLineItem, groupByLineItemId } from '@/lib/mediaplan/normalizeLineItem'
 
 interface MediaGanttChartProps {
-  lineItems: Record<string, any[]>
+  lineItems: Record<string, NormalisedLineItem[]>
   startDate: string
   endDate: string
 }
 
 // Excel gantt chart color: #FFD02A60 (pink/magenta)
 const GANTT_COLOR = '#D02A60'
+const DAY_WIDTH = 40
+const LABEL_WIDTH = 224
 
-interface Burst {
-  startDate: string
-  endDate: string
-  deliverables?: number
-  calculatedValue?: number
+function safeNumber(value: number | undefined) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0
 }
 
-function parseBurstsJson(burstsJson: any): Burst[] {
-  if (!burstsJson) return []
-  
+function safeParseDate(value?: string) {
+  if (!value) return null
   try {
-    let parsed: any = burstsJson
-    if (typeof burstsJson === 'string') {
-      const trimmed = burstsJson.trim()
-      if (!trimmed) return []
-      parsed = JSON.parse(trimmed)
-    }
-    
-    if (Array.isArray(parsed)) {
-      return parsed.map((burst: any) => ({
-        startDate: burst.startDate || burst.start_date || '',
-        endDate: burst.endDate || burst.end_date || '',
-        deliverables: burst.deliverables || burst.calculatedValue || 0,
-        calculatedValue: burst.calculatedValue || burst.deliverables || 0
-      }))
-    } else if (typeof parsed === 'object') {
-      return [{
-        startDate: parsed.startDate || parsed.start_date || '',
-        endDate: parsed.endDate || parsed.end_date || '',
-        deliverables: parsed.deliverables || parsed.calculatedValue || 0,
-        calculatedValue: parsed.calculatedValue || parsed.deliverables || 0
-      }]
-    }
-  } catch (error) {
-    console.error('Error parsing bursts_json:', error)
+    const parsed = parseISO(value)
+    return Number.isNaN(parsed.getTime()) ? null : parsed
+  } catch {
+    return null
   }
-  
-  return []
-}
-
-// Grouping keys for different media types (similar to Excel)
-const GROUPING_KEYS: Record<string, string[]> = {
-  television: ['market', 'network', 'station', 'daypart', 'placement', 'size', 'buyingDemo', 'buyType'],
-  radio: ['market', 'network', 'station', 'placement', 'size', 'radioDuration', 'buyingDemo', 'buyType'],
-  newspaper: ['market', 'network', 'title', 'placement', 'size', 'buyingDemo', 'buyType'],
-  magazines: ['market', 'network', 'title', 'placement', 'size', 'buyingDemo', 'buyType'],
-  search: ['market', 'platform', 'bidStrategy', 'targeting', 'creative', 'buyingDemo', 'buyType'],
-  socialMedia: ['market', 'platform', 'bidStrategy', 'targeting', 'creative', 'buyingDemo', 'buyType'],
-  progDisplay: ['market', 'platform', 'bidStrategy', 'targeting', 'creative', 'buyingDemo', 'buyType'],
-  progVideo: ['market', 'platform', 'bidStrategy', 'targeting', 'creative', 'buyingDemo', 'buyType'],
-  progBvod: ['market', 'platform', 'bidStrategy', 'targeting', 'creative', 'buyingDemo', 'buyType'],
-  progAudio: ['market', 'platform', 'bidStrategy', 'targeting', 'creative', 'buyingDemo', 'buyType'],
-  progOoh: ['market', 'platform', 'bidStrategy', 'targeting', 'creative', 'buyingDemo', 'buyType'],
-  ooh: ['market', 'network', 'oohFormat', 'oohType', 'placement', 'size', 'buyingDemo', 'buyType'],
-  cinema: ['market', 'network', 'station', 'placement', 'size', 'buyingDemo', 'buyType'],
-  bvod: ['market', 'platform', 'site', 'bidStrategy', 'targeting', 'creative', 'buyingDemo', 'buyType'],
-  digitalDisplay: ['market', 'platform', 'site', 'targeting', 'creative', 'buyingDemo', 'buyType'],
-  digitalAudio: ['market', 'platform', 'site', 'bidStrategy', 'targeting', 'creative', 'buyingDemo', 'buyType'],
-  digitalVideo: ['market', 'platform', 'site', 'bidStrategy', 'targeting', 'creative', 'buyingDemo', 'buyType'],
-  integration: ['market', 'network', 'placement', 'size', 'buyingDemo', 'buyType'],
-  influencers: ['market', 'platform', 'targeting', 'creative', 'buyingDemo', 'buyType']
-}
-
-function groupLineItems(items: any[], mediaType: string): Array<{ key: string; item: any; bursts: Burst[]; publisher?: string; targeting?: string }> {
-  if (!items || items.length === 0) return []
-  
-  const groupingKeys = GROUPING_KEYS[mediaType] || ['market']
-  const grouped: Map<string, { key: string; item: any; bursts: Burst[]; publisher?: string; targeting?: string }> = new Map()
-  
-  items.forEach(item => {
-    // Parse bursts
-    const bursts = parseBurstsJson(item.bursts_json || item.bursts)
-    
-    // If no bursts, create one from item dates
-    const itemBursts = bursts.length > 0 ? bursts : [{
-      startDate: item.start_date || item.startDate || item.placement_date || '',
-      endDate: item.end_date || item.endDate || item.placement_date || '',
-      deliverables: item.deliverables || item.timps || item.tarps || item.spots || item.insertions || item.panels || item.screens || item.clicks || item.impressions || 0,
-      calculatedValue: item.deliverables || item.timps || item.tarps || item.spots || item.insertions || item.panels || item.screens || item.clicks || item.impressions || 0
-    }]
-    
-    // Create grouping key
-    const key = groupingKeys.map(k => item[k] || '').join('|')
-    
-    if (!grouped.has(key)) {
-      grouped.set(key, { 
-        key, 
-        item, 
-        bursts: [],
-        publisher: item.network || item.platform || item.site || item.station || item.title,
-        targeting: item.targeting || item.creativeTargeting
-      })
-    }
-    
-    const group = grouped.get(key)!
-    group.bursts.push(...itemBursts)
-  })
-  
-  return Array.from(grouped.values())
 }
 
 export default function MediaGanttChart({ lineItems, startDate, endDate }: MediaGanttChartProps) {
   const ganttData = useMemo(() => {
-    if (!startDate || !endDate) return null
+    const safeStart = safeParseDate(startDate)
+    const safeEnd = safeParseDate(endDate)
+    if (!safeStart || !safeEnd) return null
 
-    const start = new Date(startDate)
-    const end = new Date(endDate)
+    const start = startOfDay(safeStart)
+    const end = endOfDay(safeEnd)
+
+    // Generate all days in the campaign range
+    const allDays = eachDayOfInterval({ start, end })
     
-    // Calculate week boundaries (Sunday to Saturday) - matching Excel
-    const weekStart = startOfWeek(start, { weekStartsOn: 0 })
-    const weekEnd = endOfWeek(end, { weekStartsOn: 6 })
-    
-    // Generate all days in the range
-    const allDays = eachDayOfInterval({ start: weekStart, end: weekEnd })
-    
-    // Process line items - group them first
+    // Process line items
     const rows: Array<{
       label: string
       mediaType: string
@@ -142,74 +56,62 @@ export default function MediaGanttChart({ lineItems, startDate, endDate }: Media
       }>
     }> = []
 
-    Object.entries(lineItems).forEach(([mediaType, items]) => {
-      const grouped = groupLineItems(items, mediaType)
-      
-      grouped.forEach((group) => {
-        // Create label from grouped item
-        const labelParts = []
-        if (group.item.market) labelParts.push(group.item.market)
-        if (group.item.network || group.item.platform) labelParts.push(group.item.network || group.item.platform)
-        if (group.item.station || group.item.site) labelParts.push(group.item.station || group.item.site)
-        if (group.item.title) labelParts.push(group.item.title)
-        const label = labelParts.length > 0 ? labelParts.join(' • ') : `${mediaType} Group`
+    Object.entries(lineItems || {}).forEach(([mediaType, items]) => {
+      if (!Array.isArray(items)) return
+      const groupedItems = groupByLineItemId(items, mediaType)
 
-        // Process each burst
-        const bars: Array<{
-          start: Date
-          end: Date
-          startOffset: number
-          width: number
-          deliverables: number
-        }> = []
+      groupedItems.forEach((item) => {
+        const publisher = item.publisher || item.platform || item.network || item.site || item.station
+        const safeTitle = item.title && !/auto\s*allocation/i.test(item.title) ? item.title : undefined
+        const labelLeft = publisher ?? '—'
+        const labelRight = safeTitle ?? `Line item ${item.lineItemId || '—'}`
+        const label = `${labelLeft} • ${labelRight}`
 
-        // Sort bursts by start date
-        const sortedBursts = [...group.bursts].sort((a, b) => {
-          const aStart = a.startDate ? parseISO(a.startDate).getTime() : 0
-          const bStart = b.startDate ? parseISO(b.startDate).getTime() : 0
-          return aStart - bStart
-        })
+        const bars = item.bursts
+          .map((burst) => {
+            const barStart = safeParseDate(burst.startDate)
+            const barEnd = safeParseDate(burst.endDate) || barStart
+            if (!barStart || !barEnd) return null
 
-        sortedBursts.forEach(burst => {
-          if (!burst.startDate) return
+            if (barEnd < start || barStart > end) return null
 
-          const barStart = parseISO(burst.startDate)
-          const barEnd = burst.endDate ? parseISO(burst.endDate) : barStart
+            const clampedStart = barStart < start ? start : barStart
+            const clampedEnd = barEnd > end ? end : barEnd
 
-          // Only include bars that overlap with the campaign period
-          if (barEnd < start || barStart > end) return
+            const startOffset = differenceInCalendarDays(clampedStart, start)
+            const width = Math.max(1, differenceInCalendarDays(clampedEnd, clampedStart) + 1)
 
-          // Clamp dates to campaign period
-          const clampedStart = barStart < start ? start : barStart
-          const clampedEnd = barEnd > end ? end : barEnd
+            const deliverables = safeNumber(burst.deliverables ?? 0)
 
-          const startOffset = Math.floor((clampedStart.getTime() - weekStart.getTime()) / (1000 * 60 * 60 * 24))
-          const width = Math.max(1, Math.floor((clampedEnd.getTime() - clampedStart.getTime()) / (1000 * 60 * 60 * 24)) + 1)
-
-          const deliverables = burst.deliverables || burst.calculatedValue || 0
-
-          bars.push({
-            start: clampedStart,
-            end: clampedEnd,
-            startOffset,
-            width,
-            deliverables
+            return {
+              start: clampedStart,
+              end: clampedEnd,
+              startOffset,
+              width,
+              deliverables,
+            }
           })
-        })
+          .filter(Boolean) as Array<{
+            start: Date
+            end: Date
+            startOffset: number
+            width: number
+            deliverables: number
+          }>
 
         if (bars.length > 0) {
           rows.push({
             label,
             mediaType,
-            publisher: group.publisher,
-            targeting: group.targeting,
-            bars
+            publisher,
+            targeting: item.targeting,
+            bars,
           })
         }
       })
     })
 
-    return { rows, days: allDays, weekStart }
+    return { rows, days: allDays }
   }, [lineItems, startDate, endDate])
 
   if (!ganttData || ganttData.rows.length === 0) {
@@ -220,7 +122,9 @@ export default function MediaGanttChart({ lineItems, startDate, endDate }: Media
     )
   }
 
-  const { rows, days, weekStart } = ganttData
+  const { rows, days } = ganttData
+  const totalWidth = days.length * DAY_WIDTH
+  const headerWidth = totalWidth + LABEL_WIDTH
 
   // Group by weeks (Sunday to Saturday)
   const weeks: Date[][] = []
@@ -241,48 +145,46 @@ export default function MediaGanttChart({ lineItems, startDate, endDate }: Media
     <div className="overflow-x-auto">
       <div className="min-w-full">
         {/* Header with dates */}
-        <div className="flex border-b">
-          {weeks.map((week, weekIndex) => (
-            <div key={weekIndex} className="flex-1 border-r last:border-r-0">
-              <div className="text-xs font-semibold text-center p-2 border-b bg-gray-50">
-                {format(week[0], 'MMM d')} - {format(week[week.length - 1], 'MMM d, yyyy')}
-              </div>
-              <div className="flex">
-                {week.map((day) => (
-                  <div
-                    key={day.toISOString()}
-                    className="flex-1 text-xs text-center p-1 border-r last:border-r-0 min-w-[40px]"
-                  >
-                    {format(day, 'd')}
-                    <div className="text-[10px] text-muted-foreground">
-                      {format(day, 'EEE')[0]}
+        <div className="flex border-b" style={{ width: headerWidth }}>
+          <div className="shrink-0 border-r bg-gray-50" style={{ width: LABEL_WIDTH }} />
+          <div className="flex" style={{ width: totalWidth }}>
+            {weeks.map((week, weekIndex) => (
+              <div key={weekIndex} className="border-r last:border-r-0" style={{ width: week.length * DAY_WIDTH }}>
+                <div className="text-xs font-semibold text-center p-2 border-b bg-gray-50">
+                  {format(week[0], 'MMM d')} - {format(week[week.length - 1], 'MMM d, yyyy')}
+                </div>
+                <div className="flex">
+                  {week.map((day) => (
+                    <div
+                      key={day.toISOString()}
+                      className="shrink-0 text-xs text-center p-1 border-r last:border-r-0"
+                      style={{ width: DAY_WIDTH }}
+                    >
+                      {format(day, 'd')}
+                      <div className="text-[10px] text-muted-foreground">
+                        {format(day, 'EEE')[0]}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
 
         {/* Gantt bars */}
         <div className="relative">
           {rows.map((row, rowIndex) => (
-          <div key={rowIndex} className="border-b min-h-[56px] flex items-center relative">
-            <div className="w-56 p-2 text-sm font-medium border-r bg-gray-50 shrink-0">
+            <div key={rowIndex} className="border-b min-h-[56px] flex items-center relative">
+            <div className="p-2 text-sm font-medium border-r bg-gray-50 shrink-0" style={{ width: LABEL_WIDTH }}>
               <div className="truncate" title={row.label}>
                 {row.label}
               </div>
-              <div className="text-xs text-muted-foreground truncate mt-1" title={`Publisher: ${row.publisher ?? 'N/A'} • Targeting: ${row.targeting ?? 'N/A'}`}>
-                {(row.publisher || row.targeting)
-                  ? [row.publisher, row.targeting].filter(Boolean).join(" • ")
-                  : "No targeting details"}
-              </div>
             </div>
-              <div className="flex-1 relative h-full">
+              <div className="relative h-full flex-none" style={{ width: totalWidth }}>
                 {row.bars.map((bar, barIndex) => {
-                  const dayWidth = 40 // Approximate width of each day
-                  const left = bar.startOffset * dayWidth
-                  const width = bar.width * dayWidth
+                  const left = bar.startOffset * DAY_WIDTH
+                  const width = bar.width * DAY_WIDTH
 
                   return (
                     <div

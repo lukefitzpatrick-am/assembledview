@@ -1,7 +1,5 @@
 import axios from 'axios';
-
-const MEDIA_PLANS_VERSIONS_URL = "https://xg4h-uyzs-dtex.a2.xano.io/api:RaUx9FOa";
-const MEDIA_PLAN_MASTER_URL = "https://xg4h-uyzs-dtex.a2.xano.io/api:RaUx9FOa";
+import { xanoUrl } from '@/lib/api/xano';
 
 /**
  * Gets the version_number from media_plan_versions table for a given mba_number
@@ -28,7 +26,9 @@ export async function getVersionNumberForMBA(
   // Need to fetch the latest version_number from media_plan_versions table
   try {
     // First get the master data to find the latest version number
-    const masterResponse = await axios.get(`${MEDIA_PLAN_MASTER_URL}/media_plan_master?mba_number=${encodeURIComponent(mbaNumber)}`);
+    const masterResponse = await axios.get(
+      `${xanoUrl("media_plan_master", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${encodeURIComponent(mbaNumber)}`
+    );
     let masterData: any = null;
     
     if (Array.isArray(masterResponse.data)) {
@@ -49,7 +49,7 @@ export async function getVersionNumberForMBA(
     
     // Get the specific version data
     const versionResponse = await axios.get(
-      `${MEDIA_PLANS_VERSIONS_URL}/media_plan_versions?media_plan_master_id=${masterData.id}&version_number=${masterData.version_number}`
+      `${xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?media_plan_master_id=${masterData.id}&version_number=${masterData.version_number}`
     );
     
     let versionData: any = null;
@@ -86,6 +86,9 @@ export function filterLineItemsByPlanNumber(
   versionNumber: string,
   mediaType: string
 ): any[] {
+  const requestedVersion = String(versionNumber ?? "").trim()
+  const requestedMba = String(mbaNumber ?? "").trim()
+
   // Sorting helper to enforce deterministic order by line item number
   const sortByLineItemNumber = (items: any[]) => {
     const getLineItemNumber = (item: any): number => {
@@ -126,41 +129,39 @@ export function filterLineItemsByPlanNumber(
   };
 
   // Normalize version number for comparison (handle both string and number)
-  const normalizedVersionNumber = typeof versionNumber === 'string' 
-    ? parseInt(versionNumber, 10) 
-    : versionNumber
-  
   const filteredData = data.filter((item: any) => {
-    // Normalize values for comparison (handle both string and number)
-    const itemMba = String(item.mba_number || '').trim();
-    const filterMba = String(mbaNumber).trim();
-    
-    // Check both version_number and mp_plannumber fields
-    const itemVersion = typeof item.version_number === 'string' 
-      ? parseInt(item.version_number, 10) 
-      : (item.version_number || null)
-    const itemPlan = typeof item.mp_plannumber === 'string'
-      ? parseInt(item.mp_plannumber, 10)
-      : (item.mp_plannumber || null)
-    
-    const matchesMba = itemMba === filterMba;
-    // Match if EITHER version_number OR mp_plannumber matches the requested version
-    const matchesVersion = (itemVersion !== null && itemVersion === normalizedVersionNumber) ||
-                           (itemPlan !== null && itemPlan === normalizedVersionNumber);
-    
-    if (!matchesMba || !matchesVersion) {
-      console.log(`[${mediaType}] Filtered out item: mba_number=${itemMba} (expected ${filterMba}), version_number=${itemVersion}, mp_plannumber=${itemPlan} (expected ${normalizedVersionNumber})`);
+    const itemMba = String(item.mba_number ?? item.mbaNumber ?? "").trim()
+
+    const versionCandidates = [
+      item.media_plan_version,
+      item.media_plan_version_number,
+      item.version_number,
+      item.versionNumber,
+      item.mp_plannumber,
+      item.mp_plan_number,
+    ]
+
+    const versionMatch = versionCandidates.some((value) => String(value ?? "").trim() === requestedVersion)
+    const mbaMatch = itemMba === requestedMba
+
+    if (!mbaMatch || !versionMatch) {
+      console.log(
+        `[${mediaType}] Filtered out item: mba=${itemMba} (need ${requestedMba}), versions=${versionCandidates.join(
+          ","
+        )} (need ${requestedVersion})`
+      )
     }
-    
-    // Must match BOTH mba_number AND (version_number OR mp_plannumber)
-    return matchesMba && matchesVersion;
-  });
-  
+
+    return versionMatch && mbaMatch
+  })
+
   if (filteredData.length !== data.length) {
-    console.warn(`[${mediaType}] Warning: ${data.length - filteredData.length} items were filtered out. Only items matching both mba_number and (version_number OR mp_plannumber) are returned.`);
-    console.log(`[${mediaType}] Kept ${filteredData.length} items matching mba_number=${mbaNumber} and version=${normalizedVersionNumber}`);
+    console.warn(
+      `[${mediaType}] Warning: ${data.length - filteredData.length} items were filtered out. Only items matching both mba_number and version are returned.`
+    )
+    console.log(`[${mediaType}] Kept ${filteredData.length} items matching mba_number=${requestedMba} and version=${requestedVersion}`)
   }
-  
+
   return sortByLineItemNumber(filteredData);
 }
 

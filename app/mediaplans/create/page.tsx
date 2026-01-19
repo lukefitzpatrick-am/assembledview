@@ -73,7 +73,7 @@ const mediaPlanSchema = z.object({
   mp_plannumber: z.string(),
   mp_television: z.boolean(),
   mp_radio: z.boolean(),
-  mp_consulting: z.boolean(),
+  mp_production: z.boolean(),
   mp_production: z.boolean(),
   mp_newspaper: z.boolean(),
   mp_magazines: z.boolean(),
@@ -199,7 +199,7 @@ const mediaKeyMap: { [key: string]: string } = {
   mp_ooh: 'ooh',
   mp_integration: 'integration',
   mp_influencers: 'influencers',
-  mp_consulting: 'production',
+  mp_production: 'production',
   mp_production: 'production',
 };
 // Add these type declarations at the top of the file
@@ -308,7 +308,7 @@ export default function CreateMediaPlan() {
     mp_progaudio: 'Programmatic Audio',
     mp_progooh: 'Programmatic OOH',
     mp_influencers: 'Influencers',
-    mp_consulting: 'Production',
+    mp_production: 'Production',
     mp_production: 'Production',
   };
   const [partialMBAError, setPartialMBAError] = useState<string | null>(null);
@@ -525,7 +525,7 @@ export default function CreateMediaPlan() {
       mp_plannumber: "1",
       mp_television: false,
       mp_radio: false,
-      mp_consulting: false,
+      mp_production: false,
       mp_production: false,
       mp_newspaper: false,
       mp_magazines: false,
@@ -569,7 +569,7 @@ export default function CreateMediaPlan() {
   const watchedMediaTypes = useWatch({
     control: form.control,
     name: [
-      "mp_television", "mp_radio", "mp_consulting", "mp_newspaper", "mp_magazines", "mp_ooh", 
+      "mp_television", "mp_radio", "mp_production", "mp_newspaper", "mp_magazines", "mp_ooh", 
       "mp_cinema", "mp_digidisplay", "mp_digiaudio", "mp_digivideo", "mp_bvod", 
       "mp_integration", "mp_search", "mp_socialmedia", "mp_progdisplay", 
       "mp_progvideo", "mp_progbvod", "mp_progaudio", "mp_progooh", "mp_influencers"
@@ -578,7 +578,7 @@ export default function CreateMediaPlan() {
   
   // Create a mapping object for easier access
   const mediaTypeNames = [
-    "mp_television", "mp_radio", "mp_consulting", "mp_newspaper", "mp_magazines", "mp_ooh", 
+    "mp_television", "mp_radio", "mp_production", "mp_newspaper", "mp_magazines", "mp_ooh", 
     "mp_cinema", "mp_digidisplay", "mp_digiaudio", "mp_digivideo", "mp_bvod", 
     "mp_integration", "mp_search", "mp_socialmedia", "mp_progdisplay", 
     "mp_progvideo", "mp_progbvod", "mp_progaudio", "mp_progooh", "mp_influencers"
@@ -589,7 +589,7 @@ export default function CreateMediaPlan() {
   }, {} as Record<string, boolean>)
 
   // Keep mp_production aligned with the Production toggle to persist the flag for saves
-  const productionToggle = useWatch({ control: form.control, name: "mp_consulting" })
+  const productionToggle = useWatch({ control: form.control, name: "mp_production" })
   useEffect(() => {
     const next = Boolean(productionToggle)
     const current = form.getValues("mp_production")
@@ -1037,11 +1037,19 @@ export default function CreateMediaPlan() {
         const sliceEnd   = Math.min(e.getTime(), monthEnd.getTime())
         const daysInMonth = Math.ceil((sliceEnd - sliceStart)/(1000*60*60*24)) + 1
         const share = burst.deliverables * (daysInMonth/daysTotal)
-  
+
         const rate = getRateForMediaType(mediaType)
-        const cost = burst.buyType === "cpm"
-          ? (share /1000 ) * rate
-          : (share * rate)
+        const buyType = burst.buyType?.toLowerCase?.() || ""
+        const isCpm = buyType === "cpm"
+        const isBonus = buyType === "bonus"
+        const isDigiAudio = typeof mediaType === "string" && mediaType.toLowerCase().replace(/\s+/g, "") === "digiaudio"
+        const isCpmOrBonusForDigiAudio = isDigiAudio && (isCpm || isBonus)
+        const effectiveRate = isCpmOrBonusForDigiAudio ? (adservaudio ?? rate) : rate
+        const cost = isCpmOrBonusForDigiAudio
+          ? (share / 1000) * effectiveRate
+          : isCpm
+            ? (share / 1000) * rate
+            : (share * rate)
   
         map[monthKey].adServing += cost
       }
@@ -1687,7 +1695,7 @@ export default function CreateMediaPlan() {
     } else {
       // --- Use Automatic Calculation Data (Original Logic) ---
       finalVisibleMedia = mediaTypes
-        .filter(medium => medium.name !== "mp_consulting")
+        .filter(medium => medium.name !== "mp_production")
         .filter(medium => form.watch(medium.name as keyof MediaPlanFormValues))
         .map(medium => ({
           media_type: medium.label,
@@ -1813,7 +1821,7 @@ export default function CreateMediaPlan() {
         return progBvodTotal ?? 0;
       case "mp_progooh":
         return progOohTotal ?? 0;
-    case "mp_consulting":
+    case "mp_production":
       return consultingTotal ?? 0;
       case "mp_influencers":
         return feecontentcreator ?? 0;
@@ -1894,10 +1902,17 @@ export default function CreateMediaPlan() {
     return allBursts.reduce((sum, b) => {
       if (b.noAdserving) return sum;
       const rate = getRateForMediaType(b.mediaType)
-      const isCPM = b.buyType.toLowerCase() === "cpm"
-      const cost  = isCPM
-        ? (b.deliverables/1000)*rate
-        : (b.deliverables*rate)
+      const buyType = b.buyType?.toLowerCase?.() || ""
+      const isCPM = buyType === "cpm"
+      const isBonus = buyType === "bonus"
+      const isDigiAudio = typeof b.mediaType === "string" && b.mediaType.toLowerCase().replace(/\s+/g, "") === "digiaudio"
+      const isCpmOrBonusForDigiAudio = isDigiAudio && (isCPM || isBonus)
+      const effectiveRate = isCpmOrBonusForDigiAudio ? (adservaudio ?? rate) : rate
+      const cost  = isCpmOrBonusForDigiAudio
+        ? (b.deliverables/1000)*effectiveRate
+        : isCPM
+          ? (b.deliverables/1000)*rate
+          : (b.deliverables*rate)
           return sum + cost
     }, 0)
   }
@@ -2158,7 +2173,7 @@ export default function CreateMediaPlan() {
 
   const mediaTypes = [
     { name: "mp_fixedfee", label: "Fixed Fee", component: null },
-    { name: "mp_consulting", label: "Production", component: ProductionContainer },
+    { name: "mp_production", label: "Production", component: ProductionContainer },
     { name: "mp_television", label: "Television", component: TelevisionContainer },
     { name: "mp_radio", label: "Radio", component: RadioContainer },
     { name: "mp_newspaper", label: "Newspaper", component: NewspaperContainer },
@@ -2257,7 +2272,7 @@ export default function CreateMediaPlan() {
     // 1. Capture the current, automatically calculated values
     const currentMediaTotals: Record<string, number> = {};
     mediaTypes
-      .filter(medium => medium.name !== "mp_consulting")
+      .filter(medium => medium.name !== "mp_production")
       .filter(medium => form.watch(medium.name as keyof MediaPlanFormValues))
       .forEach(medium => {
         const key = mediaKeyMap[medium.name];
@@ -2850,7 +2865,7 @@ export default function CreateMediaPlan() {
             'mp_progaudio': { lineItems: progAudioMediaLineItems, key: 'progAudio' },
             'mp_progooh': { lineItems: progOohMediaLineItems, key: 'progOoh' },
             'mp_influencers': { lineItems: influencersMediaLineItems, key: 'influencers' },
-            'mp_consulting': { lineItems: consultingMediaLineItems, key: 'production' },
+            'mp_production': { lineItems: consultingMediaLineItems, key: 'production' },
           };
 
           const allLineItems: Record<string, BillingLineItem[]> = {};
@@ -2963,8 +2978,7 @@ export default function CreateMediaPlan() {
         po_number:            fv.mp_ponumber || "",
         mp_campaignbudget:    fv.mp_campaignbudget || 0,
         fixed_fee:            fv.mp_fixedfee || false,
-        mp_consulting:        fv.mp_consulting || false,
-        mp_production:        fv.mp_production || fv.mp_consulting || false,
+        mp_production:        fv.mp_production || false,
         mp_television:        fv.mp_television || false,
         mp_radio:             fv.mp_radio || false,
         mp_newspaper:         fv.mp_newspaper || false,
@@ -3254,8 +3268,8 @@ export default function CreateMediaPlan() {
       }
 
       // Production / Consulting
-      if (fv.mp_consulting && consultingMediaLineItems && consultingMediaLineItems.length > 0) {
-        const displayName = mediaTypeDisplayNames.mp_consulting;
+      if (fv.mp_production && consultingMediaLineItems && consultingMediaLineItems.length > 0) {
+        const displayName = mediaTypeDisplayNames.mp_production;
         updateSaveStatus(displayName, 'pending');
         mediaTypeSavePromises.push(
           saveProductionLineItems(
@@ -4269,7 +4283,7 @@ const workbook = await generateMediaPlan(header, mediaItems, mbaData);
                             checked={!!field.value}
                             onCheckedChange={(checked) => {
                               field.onChange(checked)
-                              if (medium.name === "mp_consulting") {
+                              if (medium.name === "mp_production") {
                                 form.setValue("mp_production", checked, { shouldDirty: true })
                               }
                             }}
@@ -4299,7 +4313,7 @@ const workbook = await generateMediaPlan(header, mediaItems, mbaData);
   <div className="grid grid-cols-2 gap-4">
     <div className="flex flex-col space-y-3">
       {mediaTypes
-        .filter(medium => medium.name !== "mp_consulting")
+        .filter(medium => medium.name !== "mp_production")
         .filter(medium => watchedMediaTypesMap[medium.name] && medium.component)
         .map(medium => (
         <div key={medium.name} className="text-sm font-medium">
@@ -4310,7 +4324,7 @@ const workbook = await generateMediaPlan(header, mediaItems, mbaData);
 
     <div className="flex flex-col space-y-3 text-right">
       {mediaTypes
-        .filter(medium => medium.name !== "mp_consulting")
+        .filter(medium => medium.name !== "mp_production")
         .filter(medium => watchedMediaTypesMap[medium.name] && medium.component)
         .map(medium => {
           const mediaKey = mediaKeyMap[medium.name];
@@ -4440,7 +4454,7 @@ const workbook = await generateMediaPlan(header, mediaItems, mbaData);
           <TableRow>
             <TableHead className="sticky left-0 bg-white z-10">Month</TableHead>
             {mediaTypes
-              .filter(medium => medium.name !== "mp_consulting")
+              .filter(medium => medium.name !== "mp_production")
               .filter(medium => form.watch(medium.name as keyof MediaPlanFormValues) && medium.component)
               .map(medium => (
                 <TableHead key={medium.name} className="text-right">{medium.label}</TableHead>
@@ -4456,7 +4470,7 @@ const workbook = await generateMediaPlan(header, mediaItems, mbaData);
             <TableRow key={month.monthYear}>
               <TableCell className="sticky left-0 bg-white z-10 font-medium">{month.monthYear}</TableCell>
               {mediaTypes
-                .filter(medium => medium.name !== "mp_consulting")
+                .filter(medium => medium.name !== "mp_production")
                 .filter(medium => form.watch(medium.name as keyof MediaPlanFormValues) && medium.component)
                 .map(medium => {
                   const mediaKey = mediaKeyMap[medium.name];
@@ -4522,7 +4536,7 @@ const workbook = await generateMediaPlan(header, mediaItems, mbaData);
           <TableRow className="font-bold border-t-2">
             <TableCell className="sticky left-0 bg-white z-10">Subtotals</TableCell>
             {mediaTypes
-            .filter(medium => medium.name !== "mp_consulting")
+            .filter(medium => medium.name !== "mp_production")
             .filter(medium => form.watch(medium.name as keyof MediaPlanFormValues) && medium.component)
               .map(medium => {
                 const mediaKey = mediaKeyMap[medium.name];
@@ -4928,7 +4942,7 @@ const workbook = await generateMediaPlan(header, mediaItems, mbaData);
                   onBurstsChange: handleOohBurstsChange,
                   onInvestmentChange: handleInvestmentChange,
                   }),
-                  ...(medium.name === "mp_consulting" && {
+                  ...(medium.name === "mp_production" && {
                   feesearch: feeconsulting,
                   onTotalMediaChange: handleConsultingTotalChange,
                   onBurstsChange: handleConsultingBurstsChange,
@@ -4963,7 +4977,7 @@ const workbook = await generateMediaPlan(header, mediaItems, mbaData);
                           />
                         </Suspense>
                       )}
-                      {medium.name === "mp_consulting" && (
+                      {medium.name === "mp_production" && (
                         <Suspense fallback={<div>Loading Production...</div>}>
                           <ProductionContainer
                             clientId={selectedClientId}

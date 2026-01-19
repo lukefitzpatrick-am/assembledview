@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils"
 import { ChevronDown, Copy, Plus, Trash2 } from "lucide-react"
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
 import type { LineItem } from '@/lib/generateMediaPlan'
+import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
 
 // Format Dates
 const formatDateString = (d?: Date | string): string => {
@@ -330,15 +331,9 @@ export default function RadioContainer({
   const { mbaNumber } = useMediaPlanContext()
   const [overallDeliverables, setOverallDeliverables] = useState(0);
 
-  // Stable ID generator for line items to keep duplicates distinct in exports
-  const createLineItemId = () => {
-    const base = mbaNumber || "RAD";
-    const rand =
-      typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? (crypto as any).randomUUID()
-        : `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
-    return `${base}-${rand}`;
-  };
+  // Deterministic ID generator aligned with what is shown in the UI
+  const createLineItemId = (lineNumber: number) =>
+    buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.radio, lineNumber);
 
   const [isAddStationDialogOpen, setIsAddStationDialogOpen] = useState(false);
   const [newStationName, setNewStationName] = useState("");
@@ -431,7 +426,7 @@ export default function RadioContainer({
           clientPaysForMedia: false,
           budgetIncludesFees: false,
           noadserving: false,
-          ...(() => { const id = createLineItemId(); return { lineItemId: id, line_item_id: id, line_item: 1, lineItem: 1 }; })(),
+          ...(() => { const id = createLineItemId(1); return { lineItemId: id, line_item_id: id, line_item: 1, lineItem: 1 }; })(),
           bursts: [
             {
               budget: "",
@@ -474,8 +469,8 @@ export default function RadioContainer({
       return;
     }
 
-    const newId = createLineItemId();
     const lineNumber = (source.line_item ?? source.lineItem ?? lineItemIndex + 1) + 1;
+    const newId = createLineItemId(lineNumber);
 
     const clone = {
       ...source,
@@ -599,12 +594,15 @@ export default function RadioContainer({
         }];
 
         const lineItemId = item.line_item_id || item.lineItemId || `${mbaNumber || "RAD"}-${index + 1}`;
+        const normalizedNetwork = item.network || item.platform || item.publisher || "";
+        const normalizedStation = item.station || item.site || "";
 
         return {
           market: item.market || "",
-          network: item.network || "",
-          station: item.station || "",
+          network: normalizedNetwork,
+          station: normalizedStation,
           placement: item.placement || "",
+          platform: normalizedNetwork,
           format: item.format || "",
           duration: item.duration || "",
           bidStrategy: item.bid_strategy || "",
@@ -1066,13 +1064,13 @@ useEffect(() => {
       const mediaAmount = computedBurst
         ? computedBurst.mediaAmount
         : parseFloat(String(burst.budget).replace(/[^0-9.-]+/g, "")) || 0;
+      const lineNumber = lineItem.line_item ?? lineItem.lineItem ?? lineItemIndex + 1;
       let lineItemId = lineItem.lineItemId || lineItem.line_item_id;
       if (!lineItemId) {
-        lineItemId = createLineItemId();
+        lineItemId = createLineItemId(lineNumber);
         form.setValue(`radiolineItems.${lineItemIndex}.lineItemId`, lineItemId);
         form.setValue(`radiolineItems.${lineItemIndex}.line_item_id`, lineItemId);
       }
-      const lineNumber = lineItem.line_item ?? lineItem.lineItem ?? lineItemIndex + 1;
 
       return {
         market: lineItem.market,                                // or fixed value
@@ -1930,7 +1928,7 @@ useEffect(() => {
                                 clientPaysForMedia: false,
                                 budgetIncludesFees: false,
                                 noadserving: false,
-                                ...(() => { const id = createLineItemId(); return { lineItemId: id, line_item_id: id, line_item: lineItemFields.length + 1, lineItem: lineItemFields.length + 1 }; })(),
+                                ...(() => { const nextNumber = lineItemFields.length + 1; const id = createLineItemId(nextNumber); return { lineItemId: id, line_item_id: id, line_item: nextNumber, lineItem: nextNumber }; })(),
                                 bursts: [
                                   {
                                     budget: "",

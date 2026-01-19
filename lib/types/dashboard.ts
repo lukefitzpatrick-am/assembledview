@@ -15,7 +15,7 @@ export interface ClientDashboardData {
   liveCampaigns: number
   totalCampaignsYTD: number
   spendPast30Days: number
-  spentYTD: number
+  totalSpend: number
   liveCampaignsList: Campaign[]
   planningCampaignsList: Campaign[]
   completedCampaignsList: Campaign[]

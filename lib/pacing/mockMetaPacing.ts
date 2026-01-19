@@ -10,8 +10,13 @@ export type BuyType =
 export type Burst = {
   start_date: string
   end_date: string
+  startDate?: string
+  endDate?: string
   media_investment: number
   deliverables: number
+  budget_number?: number
+  calculated_value_number?: number
+  buy_amount_number?: number
 }
 
 export type ActualsDaily = {
@@ -25,6 +30,7 @@ export type ActualsDaily = {
 
 export type AdSetRow = {
   date: string
+  campaign_name?: string
   ad_set_name: string
   spend: number
   impressions: number

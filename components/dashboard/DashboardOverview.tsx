@@ -15,7 +15,6 @@ import { AuthPageLoading } from "@/components/AuthLoadingState"
 import axios from "axios"
 import { mediaTypeTheme } from "@/lib/utils"
 import { compareValues, SortableTableHeader, SortDirection } from "@/components/ui/sortable-table-header"
-import { getGlobalMonthlySpend, getGlobalMonthlyPublisherSpend, getGlobalMonthlyClientSpend } from "@/lib/api/dashboard"
 import { useAuthContext } from "@/contexts/AuthContext"
 
 // Types reused from the original dashboard page
@@ -365,11 +364,19 @@ export default function DashboardOverview({
       setFetchError(null)
 
       try {
-        const [monthlyPub, monthlyClient] = await Promise.all([getGlobalMonthlyPublisherSpend(), getGlobalMonthlyClientSpend()])
-        setMonthlyPublisherSpend(monthlyPub || [])
+        const [monthlyPubResp, monthlyClientResp] = await Promise.all([
+          fetch("/api/dashboard/global-monthly-publisher-spend"),
+          fetch("/api/dashboard/global-monthly-client-spend"),
+        ])
+
+        const monthlyPub = monthlyPubResp.ok ? await monthlyPubResp.json() : []
+        const monthlyClient = monthlyClientResp.ok ? await monthlyClientResp.json() : null
+
+        setMonthlyPublisherSpend(Array.isArray(monthlyPub) ? monthlyPub : [])
         setMonthlyClientSpend(monthlyClient?.data || [])
         setClientColors(monthlyClient?.clientColors || {})
-      } catch {
+      } catch (error) {
+        console.error("Dashboard: Error fetching monthly breakdowns:", error)
         setMonthlyPublisherSpend([])
         setMonthlyClientSpend([])
         setClientColors({})

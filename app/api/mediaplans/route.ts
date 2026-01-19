@@ -1,10 +1,7 @@
 import { NextResponse } from "next/server"
 import axios from "axios"
 import { toMelbourneDateString } from "@/lib/timezone"
-
-const XANO_MEDIAPLANS_BASE_URL = process.env.XANO_MEDIAPLANS_BASE_URL || "https://xg4h-uyzs-dtex.a2.xano.io/api:QVYjoFmM"
-const MEDIA_PLANS_VERSIONS_URL = "https://xg4h-uyzs-dtex.a2.xano.io/api:RaUx9FOa"
-const MEDIA_PLAN_MASTER_URL = "https://xg4h-uyzs-dtex.a2.xano.io/api:RaUx9FOa"
+import { xanoUrl } from "@/lib/api/xano"
 
 export async function POST(request: Request) {
   try {
@@ -27,7 +24,10 @@ export async function POST(request: Request) {
     }
 
     // Create MediaPlanMaster
-    const masterResponse = await axios.post(`${MEDIA_PLAN_MASTER_URL}/media_plan_master`, mediaPlanMasterData)
+    const masterResponse = await axios.post(
+      xanoUrl("media_plan_master", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]),
+      mediaPlanMasterData
+    )
     
     // Note: Version creation is handled separately by handleSaveMediaPlanVersion 
     // which includes all fields (brand, client_contact, po_number, mediatype flags, billing schedule)
@@ -72,8 +72,8 @@ export async function GET() {
     try {
       // Fetch both media_plan_versions and media_plan_master in parallel
       const [versionsResponse, masterResponse] = await Promise.all([
-        axios.get(`${MEDIA_PLANS_VERSIONS_URL}/media_plan_versions`),
-        axios.get(`${MEDIA_PLAN_MASTER_URL}/media_plan_master`)
+        axios.get(xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])),
+        axios.get(xanoUrl("media_plan_master", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]))
       ])
       
       const versionsData = versionsResponse.data
@@ -133,7 +133,9 @@ export async function GET() {
         // Fetch master data to get correct version numbers
         let masterMap = new Map<string, any>()
         try {
-          const masterResponse = await axios.get(`${MEDIA_PLAN_MASTER_URL}/media_plan_master`)
+          const masterResponse = await axios.get(
+            xanoUrl("media_plan_master", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
+          )
           const masters = Array.isArray(masterResponse.data) ? masterResponse.data : [masterResponse.data]
           masters.forEach((master: any) => {
             if (master.mba_number) {
@@ -153,7 +155,7 @@ export async function GET() {
         }
         
         const originalResponse = await axios.post(
-          `${XANO_MEDIAPLANS_BASE_URL}/get_mediaplan_topline`,
+          xanoUrl("get_mediaplan_topline", "XANO_MEDIAPLANS_BASE_URL"),
           { version_number: latestVersionId }
         )
         console.log("Original endpoint response:", originalResponse.data)
