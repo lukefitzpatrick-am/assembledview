@@ -235,18 +235,24 @@ function getEnv(): SnowflakeEnv {
   }
 }
 
-function readPrivateKey(env: SnowflakeEnv): string | null {
-  const { privateKeyPath, privateKey } = env
-
-  if (privateKeyPath && fs.existsSync(privateKeyPath)) {
-    return fs.readFileSync(privateKeyPath, "utf8")
+function readPrivateKey(env: SnowflakeEnv): string {
+  const b64 = process.env.SNOWFLAKE_PRIVATE_KEY_B64?.trim()
+  if (b64) {
+    return Buffer.from(b64, "base64")
+      .toString("utf8")
+      .replace(/\r\n/g, "\n")
+      .trim()
   }
 
-  if (privateKey) {
-    return privateKey.replace(/\\n/g, "\n")
+  if (env.privateKeyPath && fs.existsSync(env.privateKeyPath)) {
+    return fs.readFileSync(env.privateKeyPath, "utf8")
+      .replace(/\r\n/g, "\n")
+      .trim()
   }
 
-  return null
+  throw new Error(
+    "Snowflake private key missing. Set SNOWFLAKE_PRIVATE_KEY_B64 (Vercel) or SNOWFLAKE_PRIVATE_KEY_PATH (local)."
+  )
 }
 
 // =============================================================================
@@ -329,15 +335,8 @@ function validateSnowflakeConfig(env: SnowflakeEnv): void {
     )
   }
 
-  // Check credentials
-  const hasPassword = Boolean(env.password)
-  const hasPrivateKey = Boolean(readPrivateKey(env))
-
-  if (!hasPassword && !hasPrivateKey) {
-    throw new Error(
-      "[snowflake] Missing credentials: provide SNOWFLAKE_PASSWORD or SNOWFLAKE_PRIVATE_KEY(_PATH)"
-    )
-  }
+  // Check credentials (private key required for JWT auth)
+  readPrivateKey(env)
 
   // Validate POOL_MAX
   validateNumericRange(
@@ -675,9 +674,10 @@ function getPool(): snowflake.Pool<snowflake.Connection> {
   logPoolConfiguration(env)
 
   const privateKey = readPrivateKey(env)
-  const credentials = privateKey
-    ? { authenticator: "SNOWFLAKE_JWT", privateKey }
-    : { password: env.password! }
+  const credentials = {
+    authenticator: "SNOWFLAKE_JWT",
+    privateKey,
+  }
 
   const poolOptions: snowflake.PoolOptions & { acquireTimeoutMillis?: number } = {
     max: POOL_MAX,
