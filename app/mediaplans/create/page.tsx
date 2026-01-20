@@ -2960,6 +2960,10 @@ export default function CreateMediaPlan() {
         mp_plannumber: fv.mp_plannumber,
       });
       
+      const shouldEnableProduction = Boolean(
+        fv.mp_production || (consultingMediaLineItems?.length ?? 0) > 0
+      )
+
       // Build payload matching Xano's media_plan_versions endpoint expectations
       // IMPORTANT: Field names must match Xano script's $input.* references
       // Xano script maps: client_name -> mp_client_name in database
@@ -2978,7 +2982,7 @@ export default function CreateMediaPlan() {
         po_number:            fv.mp_ponumber || "",
         mp_campaignbudget:    fv.mp_campaignbudget || 0,
         fixed_fee:            fv.mp_fixedfee || false,
-        mp_production:        fv.mp_production || false,
+        mp_production:        shouldEnableProduction,
         mp_television:        fv.mp_television || false,
         mp_radio:             fv.mp_radio || false,
         mp_newspaper:         fv.mp_newspaper || false,
@@ -3268,7 +3272,7 @@ export default function CreateMediaPlan() {
       }
 
       // Production / Consulting
-      if (fv.mp_production && consultingMediaLineItems && consultingMediaLineItems.length > 0) {
+      if (shouldEnableProduction && consultingMediaLineItems && consultingMediaLineItems.length > 0) {
         const displayName = mediaTypeDisplayNames.mp_production;
         updateSaveStatus(displayName, 'pending');
         mediaTypeSavePromises.push(

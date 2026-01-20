@@ -2686,6 +2686,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       const billingScheduleJSON = buildBillingScheduleForSave();
       const deliveryScheduleJSON = buildDeliveryScheduleForSave();
 
+      const shouldEnableProduction = Boolean(
+        formValues.mp_production || (consultingMediaLineItems?.length ?? 0) > 0
+      )
+
       // 3. Create new media_plan_versions record using PUT (which creates new version and increments version_number)
       updateSaveStatus('Media Plan Version', 'pending')
       const versionResponse = await fetch(`/api/mediaplans/mba/${mbaNumber}`, {
@@ -2695,6 +2699,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         },
         body: JSON.stringify({
           ...formValues,
+          mp_production: shouldEnableProduction,
           search_bursts: searchBursts,
           social_media_bursts: socialMediaBursts,
           investment_by_month: investmentPerMonth,
@@ -2887,7 +2892,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             })
         )
       }
-      if (formValues.mp_production && consultingMediaLineItems.length > 0) {
+      if (shouldEnableProduction && consultingMediaLineItems.length > 0) {
         updateSaveStatus(mediaTypeDisplayNames.mp_production, 'pending')
         savePromises.push(
           saveProductionLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), consultingMediaLineItems)
@@ -3009,6 +3014,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     try {
       const formData = form.getValues()
       
+      const shouldEnableProduction = Boolean(
+        formData.mp_production || (consultingMediaLineItems?.length ?? 0) > 0
+      )
+
       // Create new version in media_plan_versions table
       const response = await fetch(`/api/mediaplans/mba/${mbaNumber}`, {
         method: "PUT",
@@ -3017,6 +3026,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         },
         body: JSON.stringify({
           ...formData,
+          mp_production: shouldEnableProduction,
           search_bursts: searchBursts,
           social_media_bursts: socialMediaBursts,
           investment_by_month: investmentPerMonth,
@@ -3227,7 +3237,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       }
 
       // Production / Consulting
-      if (formData.mp_production && consultingMediaLineItems && consultingMediaLineItems.length > 0) {
+      if (shouldEnableProduction && consultingMediaLineItems && consultingMediaLineItems.length > 0) {
         mediaTypeSavePromises.push(
           saveProductionLineItems(
             data.id,
@@ -6203,42 +6213,45 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       </Dialog>
       
       {/* Sticky Banner */}
-      <div className="fixed bottom-0 left-[240px] right-0 bg-background/95 backdrop-blur-sm border-t p-4 flex justify-end space-x-2 z-50">
-        <Button
-          onClick={handleSaveAll}
-          disabled={isSaving || isLoading}
-          className="bg-[#008e5e] text-white hover:bg-[#008e5e]/90"
-        >
-          {isSaving ? "Saving..." : "Save"}
-        </Button>
-        <Button
-          onClick={handleGenerateMBA}
-          disabled={isLoading}
-          className="bg-[#fd7adb] text-white hover:bg-[#fd7adb]/90"
-        >
-          {isLoading ? "Generating..." : "Generate MBA"}
-        </Button>
-        <Button
-          onClick={handleDownloadMediaPlan}
-          disabled={isDownloading}
-          className="bg-[#B5D337] text-white hover:bg-[#B5D337]/90"
-        >
-          {isDownloading ? "Downloading..." : "Download Media Plan"}
-        </Button>
-        <Button
-          onClick={handleDownloadNamingConventions}
-          disabled={isNamingDownloading}
-          className="bg-[#3b82f6] text-white hover:bg-[#3b82f6]/90"
-        >
-          {isNamingDownloading ? "Generating Names..." : "Download Naming Conventions"}
-        </Button>
-        <Button
-          onClick={handleSaveAndGenerateAll}
-          disabled={isLoading}
-          className="bg-[#008e5e] text-white hover:bg-[#008e5e]/90"
-        >
-          {isLoading ? "Processing..." : "Save & Generate All"}
-        </Button>
+      <div className="fixed bottom-0 left-[240px] right-0 bg-background/95 backdrop-blur-sm border-t p-4 z-50 flex justify-between items-center">
+        <p className="text-red-500 text-lg font-bold">Don't forget to reset or update the billing schedule</p>
+        <div className="flex space-x-2">
+          <Button
+            onClick={handleSaveAll}
+            disabled={isSaving || isLoading}
+            className="bg-[#008e5e] text-white hover:bg-[#008e5e]/90"
+          >
+            {isSaving ? "Saving..." : "Save"}
+          </Button>
+          <Button
+            onClick={handleGenerateMBA}
+            disabled={isLoading}
+            className="bg-[#fd7adb] text-white hover:bg-[#fd7adb]/90"
+          >
+            {isLoading ? "Generating..." : "Generate MBA"}
+          </Button>
+          <Button
+            onClick={handleDownloadMediaPlan}
+            disabled={isDownloading}
+            className="bg-[#B5D337] text-white hover:bg-[#B5D337]/90"
+          >
+            {isDownloading ? "Downloading..." : "Download Media Plan"}
+          </Button>
+          <Button
+            onClick={handleDownloadNamingConventions}
+            disabled={isNamingDownloading}
+            className="bg-[#3b82f6] text-white hover:bg-[#3b82f6]/90"
+          >
+            {isNamingDownloading ? "Generating Names..." : "Download Naming Conventions"}
+          </Button>
+          <Button
+            onClick={handleSaveAndGenerateAll}
+            disabled={isLoading}
+            className="bg-[#008e5e] text-white hover:bg-[#008e5e]/90"
+          >
+            {isLoading ? "Processing..." : "Save & Generate All"}
+          </Button>
+        </div>
       </div>
     </div>
   )

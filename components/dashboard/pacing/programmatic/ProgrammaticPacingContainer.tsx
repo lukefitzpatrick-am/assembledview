@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+// REFACTORED: Removed useState and useEffect - all data now comes from server via initialPacingRows
+import { useMemo, useRef } from "react"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -718,120 +719,71 @@ export default function ProgrammaticPacingContainer({
   campaignEnd,
   initialPacingRows,
 }: ProgrammaticPacingContainerProps) {
-  const initialProgrammatic = useMemo(() => {
-    if (!Array.isArray(initialPacingRows)) return { display: [] as Dv360DailyRow[], video: [] as Dv360DailyRow[] }
-    const display: Dv360DailyRow[] = []
-    const video: Dv360DailyRow[] = []
-    initialPacingRows.forEach((row) => {
-      if (row.channel === "programmatic-display") {
-        display.push(mapCombinedRowToDv360(row))
-      } else if (row.channel === "programmatic-video") {
-        video.push(mapCombinedRowToDv360(row))
-      }
-    })
-    return { display, video }
+  // ============================================================================
+  // REFACTORED: Filter initialPacingRows by channel using useMemo
+  // No more client-side fetching - all data comes from server
+  // ============================================================================
+
+  // Filter rows where channel === 'programmatic-display' and map to Dv360DailyRow
+  const displayRows = useMemo(() => {
+    if (!Array.isArray(initialPacingRows)) return []
+    return initialPacingRows
+      .filter((row) => row.channel === "programmatic-display")
+      .map(mapCombinedRowToDv360)
   }, [initialPacingRows])
 
-  const [resolvedDisplayItems, setResolvedDisplayItems] = useState<ProgrammaticLineItem[]>(progDisplayLineItems ?? [])
-  const [resolvedVideoItems, setResolvedVideoItems] = useState<ProgrammaticLineItem[]>(progVideoLineItems ?? [])
-  const [resolvedCampaignStart, setResolvedCampaignStart] = useState<string | undefined>(campaignStart)
-  const [resolvedCampaignEnd, setResolvedCampaignEnd] = useState<string | undefined>(campaignEnd)
-  const [displayRows, setDisplayRows] = useState<Dv360DailyRow[]>(initialProgrammatic.display)
-  const [videoRows, setVideoRows] = useState<Dv360DailyRow[]>(initialProgrammatic.video)
-  const [displayDateSeries, setDisplayDateSeries] = useState<string[]>([])
-  const [videoDateSeries, setVideoDateSeries] = useState<string[]>([])
-  const [isDisplayLoading, setIsDisplayLoading] = useState(false)
-  const [isVideoLoading, setIsVideoLoading] = useState(false)
-  const [displayError, setDisplayError] = useState<string | null>(null)
-  const [videoError, setVideoError] = useState<string | null>(null)
-  const displayFetchKeyRef = useRef<string | null>(null)
-  const videoFetchKeyRef = useRef<string | null>(null)
+  // Filter rows where channel === 'programmatic-video' and map to Dv360DailyRow
+  const videoRows = useMemo(() => {
+    if (!Array.isArray(initialPacingRows)) return []
+    return initialPacingRows
+      .filter((row) => row.channel === "programmatic-video")
+      .map(mapCombinedRowToDv360)
+  }, [initialPacingRows])
 
-  useEffect(() => {
-    const providedDisplay = progDisplayLineItems !== undefined
-    const providedVideo = progVideoLineItems !== undefined
-    if (providedDisplay || providedVideo) {
-      if (providedDisplay) setResolvedDisplayItems(progDisplayLineItems ?? [])
-      if (providedVideo) setResolvedVideoItems(progVideoLineItems ?? [])
-      setResolvedCampaignStart(campaignStart)
-      setResolvedCampaignEnd(campaignEnd)
-      return
-    }
+  // REFACTORED: Use props directly instead of state
+  const resolvedCampaignStart = campaignStart
+  const resolvedCampaignEnd = campaignEnd
 
-    let cancelled = false
-    const loadMba = async () => {
-      try {
-        const res = await fetch(`/api/mediaplans/mba/${encodeURIComponent(mbaNumber)}`, {
-          cache: "no-store",
-        })
-        if (!res.ok) return
-        const data = await res.json()
-        if (cancelled) return
-        const lineItemsMap = (data?.lineItems ?? {}) as Record<string, any[]>
-        if (lineItemsMap?.progDisplay) {
-          setResolvedDisplayItems(Array.isArray(lineItemsMap.progDisplay) ? lineItemsMap.progDisplay : [])
-        }
-        if (lineItemsMap?.progVideo) {
-          setResolvedVideoItems(Array.isArray(lineItemsMap.progVideo) ? lineItemsMap.progVideo : [])
-        }
-        const campaign = data?.campaign ?? data ?? {}
-        const start =
-          campaign?.campaign_start_date ??
-          campaign?.mp_campaigndates_start ??
-          campaign?.start_date ??
-          resolvedCampaignStart ??
-          campaignStart
-        const end =
-          campaign?.campaign_end_date ??
-          campaign?.mp_campaigndates_end ??
-          campaign?.end_date ??
-          resolvedCampaignEnd ??
-          campaignEnd
-        setResolvedCampaignStart(start)
-        setResolvedCampaignEnd(end)
-      } catch (err) {
-        if (!cancelled) {
-          console.error("[ProgrammaticPacing] fallback MBA fetch failed", err)
-        }
-      }
-    }
-
-    loadMba()
-    return () => {
-      cancelled = true
-    }
-  }, [progDisplayLineItems, progVideoLineItems, campaignStart, campaignEnd, mbaNumber])
-
+  // REFACTORED: Normalize line items directly from props
   const normalizedDisplay = useMemo(
-    () =>
-      resolvedDisplayItems
+    (): ProgrammaticLineItem[] =>
+      (progDisplayLineItems ?? [])
         .filter((item) => {
           const platform = String(item.platform ?? "").toLowerCase()
           return platform === "dv360" || platform === "youtube - dv360" || platform === "youtube-dv360"
         })
-        .map((item) => ({
-          ...item,
-          line_item_id: cleanId(item.line_item_id),
-          bursts: parseBursts(item.bursts ?? item.bursts_json),
-        })),
-    [resolvedDisplayItems]
+        .flatMap((item) => {
+          const id = cleanId(item.line_item_id)
+          if (!id) return []
+          return [{
+            ...item,
+            line_item_id: id,
+            bursts: parseBursts(item.bursts ?? item.bursts_json),
+          }]
+        }),
+    [progDisplayLineItems]
   )
 
   const normalizedVideo = useMemo(
-    () =>
-      resolvedVideoItems
+    (): ProgrammaticLineItem[] =>
+      (progVideoLineItems ?? [])
         .filter((item) => {
           const platform = String(item.platform ?? "").toLowerCase()
           return platform === "dv360" || platform === "youtube - dv360" || platform === "youtube-dv360"
         })
-        .map((item) => ({
-          ...item,
-          line_item_id: cleanId(item.line_item_id),
-          bursts: parseBursts(item.bursts ?? item.bursts_json),
-        })),
-    [resolvedVideoItems]
+        .flatMap((item) => {
+          const id = cleanId(item.line_item_id)
+          if (!id) return []
+          return [{
+            ...item,
+            line_item_id: id,
+            bursts: parseBursts(item.bursts ?? item.bursts_json),
+          }]
+        }),
+    [progVideoLineItems]
   )
 
+  // Compute date ranges for display line items
   const displayRanges = useMemo(
     () =>
       normalizedDisplay.map((item) => ({
@@ -841,6 +793,7 @@ export default function ProgrammaticPacingContainer({
     [normalizedDisplay, resolvedCampaignStart, resolvedCampaignEnd]
   )
 
+  // Compute date ranges for video line items
   const videoRanges = useMemo(
     () =>
       normalizedVideo.map((item) => ({
@@ -850,6 +803,7 @@ export default function ProgrammaticPacingContainer({
     [normalizedVideo, resolvedCampaignStart, resolvedCampaignEnd]
   )
 
+  // Compute query range for display items
   const displayQueryRange = useMemo(() => {
     const starts = displayRanges.map((r) => r.start).filter(Boolean) as string[]
     const ends = displayRanges.map((r) => r.end).filter(Boolean) as string[]
@@ -858,6 +812,7 @@ export default function ProgrammaticPacingContainer({
     return { start, end }
   }, [displayRanges, resolvedCampaignStart, resolvedCampaignEnd])
 
+  // Compute query range for video items
   const videoQueryRange = useMemo(() => {
     const starts = videoRanges.map((r) => r.start).filter(Boolean) as string[]
     const ends = videoRanges.map((r) => r.end).filter(Boolean) as string[]
@@ -866,190 +821,20 @@ export default function ProgrammaticPacingContainer({
     return { start, end }
   }, [videoRanges, resolvedCampaignStart, resolvedCampaignEnd])
 
-  useEffect(() => {
-    if (!mbaNumber) return
-    const displayIds = displayRanges.map((r) => r.id).filter(Boolean) as string[]
-    const videoIds = videoRanges.map((r) => r.id).filter(Boolean) as string[]
-    if (!displayQueryRange.start && !videoQueryRange.start) return
-    const displayController = new AbortController()
-    const videoController = new AbortController()
-    let cancelled = false
-
-    const loadDisplay = async () => {
-      if (!displayIds.length || !displayQueryRange.start || !displayQueryRange.end) return
-      setDisplayError(null)
-      setIsDisplayLoading(true)
-      const t0 = Date.now()
-      try {
-        const res = await fetch("/api/pacing/programmatic/display", {
-          method: "POST",
-          cache: "no-store",
-          headers: { "Content-Type": "application/json" },
-          signal: displayController.signal,
-          body: JSON.stringify({
-            mbaNumber,
-            lineItemIds: displayIds,
-            startDate: displayQueryRange.start,
-            endDate: displayQueryRange.end,
-          }),
-        })
-        if (!res.ok) {
-          throw new Error(`Display pacing request failed with ${res.status}`)
-        }
-        const data = await res.json()
-        if (!cancelled) {
-          const mapped = Array.isArray(data?.rows)
-            ? data.rows.map((row: any) => ({
-                ...row,
-                matchedPostfix: cleanId(row.matchedPostfix ?? row.line_item_id ?? row.lineItem ?? row.lineItemId),
-              }))
-            : []
-          setDisplayRows(mapped)
-          setDisplayDateSeries(Array.isArray(data?.dateSeries) ? data.dateSeries : [])
-          if (DEBUG_PACING) {
-            console.log("[ProgrammaticPacing] display fetch ms/rows", {
-              mbaNumber,
-              elapsedMs: Date.now() - t0,
-              rowCount: mapped.length,
-            })
-          }
-        }
-      } catch (err) {
-        if (!cancelled && err instanceof Error && err.name === "AbortError") return
-        if (!cancelled) {
-          console.error("[ProgrammaticPacing] display pacing fetch failed", err)
-          setDisplayError("Unable to load programmatic display pacing right now.")
-        }
-      } finally {
-        if (!cancelled) {
-          setIsDisplayLoading(false)
-        }
-      }
-    }
-
-    const loadVideo = async () => {
-      if (!videoIds.length || !videoQueryRange.start || !videoQueryRange.end) return
-      setVideoError(null)
-      setIsVideoLoading(true)
-      const t0 = Date.now()
-      try {
-        const res = await fetch("/api/pacing/programmatic/video", {
-          method: "POST",
-          cache: "no-store",
-          headers: { "Content-Type": "application/json" },
-          signal: videoController.signal,
-          body: JSON.stringify({
-            mbaNumber,
-            lineItemIds: videoIds,
-            startDate: videoQueryRange.start,
-            endDate: videoQueryRange.end,
-          }),
-        })
-        if (!res.ok) {
-          throw new Error(`Video pacing request failed with ${res.status}`)
-        }
-        const data = await res.json()
-        if (!cancelled) {
-          const mapped = Array.isArray(data?.rows)
-            ? data.rows.map((row: any) => ({
-                ...row,
-                matchedPostfix: cleanId(row.matchedPostfix ?? row.line_item_id ?? row.lineItem ?? row.lineItemId),
-              }))
-            : []
-          setVideoRows(mapped)
-          setVideoDateSeries(Array.isArray(data?.dateSeries) ? data.dateSeries : [])
-          if (DEBUG_PACING) {
-            console.log("[ProgrammaticPacing] video fetch ms/rows", {
-              mbaNumber,
-              elapsedMs: Date.now() - t0,
-              rowCount: mapped.length,
-            })
-          }
-        }
-      } catch (err) {
-        if (!cancelled && err instanceof Error && err.name === "AbortError") return
-        if (!cancelled) {
-          console.error("[ProgrammaticPacing] video pacing fetch failed", err)
-          setVideoError("Unable to load programmatic video pacing right now.")
-        }
-      } finally {
-        if (!cancelled) {
-          setIsVideoLoading(false)
-        }
-      }
-    }
-
-    const displayKey = displayIds.length && displayQueryRange.start && displayQueryRange.end
-      ? `${mbaNumber}|display|${displayQueryRange.start}|${displayQueryRange.end}|${displayIds.join(",")}`
-      : null
-    const videoKey = videoIds.length && videoQueryRange.start && videoQueryRange.end
-      ? `${mbaNumber}|video|${videoQueryRange.start}|${videoQueryRange.end}|${videoIds.join(",")}`
-      : null
-
-    const shouldFetchDisplay =
-      displayIds.length > 0 &&
-      !isDisplayLoading &&
-      displayKey !== displayFetchKeyRef.current &&
-      Boolean(displayQueryRange.start && displayQueryRange.end)
-    const shouldFetchVideo =
-      videoIds.length > 0 &&
-      !isVideoLoading &&
-      videoKey !== videoFetchKeyRef.current &&
-      Boolean(videoQueryRange.start && videoQueryRange.end)
-
-    if (shouldFetchDisplay) {
-      loadDisplay()
-      displayFetchKeyRef.current = displayKey
-    }
-    if (shouldFetchVideo) {
-      loadVideo()
-      videoFetchKeyRef.current = videoKey
-    }
-
-    return () => {
-      cancelled = true
-      displayController.abort()
-      videoController.abort()
-    }
-  }, [
-    mbaNumber,
-    normalizedDisplay.length,
-    normalizedVideo.length,
-    displayRanges,
-    videoRanges,
-    displayQueryRange.start,
-    displayQueryRange.end,
-    videoQueryRange.start,
-    videoQueryRange.end,
-    isDisplayLoading,
-    isVideoLoading,
-  ])
-
-  useEffect(() => {
-    setDisplayError(null)
-    setVideoError(null)
+  // REFACTORED: Compute date series from query ranges using useMemo instead of useEffect
+  const displayDateSeries = useMemo(() => {
     if (displayQueryRange.start && displayQueryRange.end) {
-      setDisplayDateSeries(eachDay(new Date(displayQueryRange.start), new Date(displayQueryRange.end)))
-    } else {
-      setDisplayDateSeries([])
+      return eachDay(new Date(displayQueryRange.start), new Date(displayQueryRange.end))
     }
+    return []
+  }, [displayQueryRange.start, displayQueryRange.end])
+
+  const videoDateSeries = useMemo(() => {
     if (videoQueryRange.start && videoQueryRange.end) {
-      setVideoDateSeries(eachDay(new Date(videoQueryRange.start), new Date(videoQueryRange.end)))
-    } else {
-      setVideoDateSeries([])
+      return eachDay(new Date(videoQueryRange.start), new Date(videoQueryRange.end))
     }
-    setDisplayRows(initialProgrammatic.display)
-    setVideoRows(initialProgrammatic.video)
-    setIsDisplayLoading(false)
-    setIsVideoLoading(false)
-  }, [
-    displayQueryRange.start,
-    displayQueryRange.end,
-    videoQueryRange.start,
-    videoQueryRange.end,
-    initialProgrammatic.display,
-    initialProgrammatic.video,
-  ])
+    return []
+  }, [videoQueryRange.start, videoQueryRange.end])
 
   function buildLineItemMetrics(
     items: ProgrammaticLineItem[],
@@ -1194,16 +979,17 @@ export default function ProgrammaticPacingContainer({
     [normalizedVideo, videoRows, videoDateSeries, videoQueryRange.start, videoQueryRange.end]
   )
 
+  // Compute the "as at" date for aggregate metrics (clamped to today or campaign end)
   const aggregateAsAtDate = useMemo(() => {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
-    const endDate = resolvedCampaignEnd ?? displayQueryRange.end ?? videoQueryRange.end
+    const endDate = campaignEnd ?? displayQueryRange.end ?? videoQueryRange.end
     if (endDate) {
       const clamped = new Date(Math.min(today.getTime(), new Date(endDate).getTime()))
       return clamped.toISOString().slice(0, 10)
     }
     return today.toISOString().slice(0, 10)
-  }, [resolvedCampaignEnd, displayQueryRange.end, videoQueryRange.end])
+  }, [campaignEnd, displayQueryRange.end, videoQueryRange.end])
 
   const aggregateDisplay = useMemo(
     () => buildAggregatedMetrics(displayMetrics, aggregateAsAtDate),
@@ -1312,13 +1098,12 @@ export default function ProgrammaticPacingContainer({
     }
   }
 
+  // REFACTORED: Removed isLoading and error state - data is always available from server
   function renderPanel(kind: PanelKind) {
     const isDisplay = kind === "display"
     const metrics = isDisplay ? displayMetrics : videoMetrics
     const aggregate = isDisplay ? aggregateDisplay : aggregateVideo
     const bookedTotals = isDisplay ? displayBookedTotals : videoBookedTotals
-    const isLoading = isDisplay ? isDisplayLoading : isVideoLoading
-    const error = isDisplay ? displayError : videoError
     const label = isDisplay ? "Prog Display" : "Prog Video"
 
     if (!metrics.length) {
@@ -1346,65 +1131,54 @@ export default function ProgrammaticPacingContainer({
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {error ? (
-            <div className="rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>
-          ) : null}
+          {/* REFACTORED: Removed error display - no client-side fetching means no errors */}
 
-          {isLoading ? (
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <div className="h-32 animate-pulse rounded-2xl bg-muted" />
-              <div className="h-32 animate-pulse rounded-2xl bg-muted" />
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <SmallProgressCard
-                label="Budget pacing"
-                value={formatCurrency(aggregate.spend.actualToDate)}
-                helper={`Delivered ${formatCurrency(aggregate.spend.actualToDate)} • Planned ${formatCurrency(bookedTotals.spend)}`}
-                pacingPct={aggregate.spend.pacingPct}
-                progressRatio={
-                  bookedTotals.spend > 0
-                    ? Math.max(0, Math.min(1, aggregate.spend.actualToDate / bookedTotals.spend))
-                    : 0
-                }
-                accentColor={palette.budget}
-              />
-              <SmallProgressCard
-                label="Deliverable pacing"
-                value={formatWholeNumber(aggregate.deliverable?.actualToDate)}
-                helper={`Delivered ${formatWholeNumber(aggregate.deliverable?.actualToDate)} • Planned ${formatWholeNumber(bookedTotals.deliverables)}`}
-                pacingPct={aggregate.deliverable?.pacingPct}
-                progressRatio={
-                  bookedTotals.deliverables > 0
-                    ? Math.max(
-                        0,
-                        Math.min(
-                          1,
-                          (aggregate.deliverable?.actualToDate ?? 0) / bookedTotals.deliverables
-                        )
+          {/* REFACTORED: Removed loading skeleton - data is always available */}
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <SmallProgressCard
+              label="Budget pacing"
+              value={formatCurrency(aggregate.spend.actualToDate)}
+              helper={`Delivered ${formatCurrency(aggregate.spend.actualToDate)} • Planned ${formatCurrency(bookedTotals.spend)}`}
+              pacingPct={aggregate.spend.pacingPct}
+              progressRatio={
+                bookedTotals.spend > 0
+                  ? Math.max(0, Math.min(1, aggregate.spend.actualToDate / bookedTotals.spend))
+                  : 0
+              }
+              accentColor={palette.budget}
+            />
+            <SmallProgressCard
+              label="Deliverable pacing"
+              value={formatWholeNumber(aggregate.deliverable?.actualToDate)}
+              helper={`Delivered ${formatWholeNumber(aggregate.deliverable?.actualToDate)} • Planned ${formatWholeNumber(bookedTotals.deliverables)}`}
+              pacingPct={aggregate.deliverable?.pacingPct}
+              progressRatio={
+                bookedTotals.deliverables > 0
+                  ? Math.max(
+                      0,
+                      Math.min(
+                        1,
+                        (aggregate.deliverable?.actualToDate ?? 0) / bookedTotals.deliverables
                       )
-                    : 0
-                }
-                accentColor={palette.deliverable}
-              />
-            </div>
-          )}
+                    )
+                  : 0
+              }
+              accentColor={palette.deliverable}
+            />
+          </div>
 
-          {!isLoading ? (
-            <div className="space-y-4 rounded-2xl border border-muted/60 bg-muted/10 p-4">
-              <KpiCallouts
-                totals={summarizeActuals(metrics.flatMap((metric) => metric.actualsDaily))}
-              />
-              <ActualsDailyDeliveryChart
-                series={aggregate.series}
-                asAtDate={aggregate.asAtDate}
-                deliverableLabel="Deliverables"
-                chartRef={aggregateChartRef}
-              />
-            </div>
-          ) : (
-            <div className="h-[360px] animate-pulse rounded-2xl bg-muted" />
-          )}
+          {/* Charts and KPIs - always rendered since data is available */}
+          <div className="space-y-4 rounded-2xl border border-muted/60 bg-muted/10 p-4">
+            <KpiCallouts
+              totals={summarizeActuals(metrics.flatMap((metric) => metric.actualsDaily))}
+            />
+            <ActualsDailyDeliveryChart
+              series={aggregate.series}
+              asAtDate={aggregate.asAtDate}
+              deliverableLabel="Deliverables"
+              chartRef={aggregateChartRef}
+            />
+          </div>
 
           <Accordion type="multiple" defaultValue={[]}>
             {metrics.map((metric) => (

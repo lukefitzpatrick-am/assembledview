@@ -119,8 +119,16 @@ export const getCampaignPacingData = cache(
   const placeholders = normalizedIds.map(() => "?").join(", ")
 
   const sql = `
+  /* QUERY_TAG: bulk_pacing */
   SELECT
-    CHANNEL,
+    /* normalised channel values for the app */
+    CASE
+      WHEN LOWER(CHANNEL) LIKE '%meta%' THEN 'meta'
+      WHEN LOWER(CHANNEL) LIKE '%tiktok%' THEN 'tiktok'
+      WHEN LOWER(CHANNEL) LIKE '%programmatic%' AND LOWER(CHANNEL) LIKE '%display%' THEN 'programmatic-display'
+      WHEN LOWER(CHANNEL) LIKE '%programmatic%' AND LOWER(CHANNEL) LIKE '%video%' THEN 'programmatic-video'
+      ELSE LOWER(CHANNEL)
+    END AS CHANNEL,
     DATE_DAY,
     /* alias to existing field names so containers don’t change */
     ENTITY_NAME AS ADSET_NAME,
@@ -144,7 +152,15 @@ export const getCampaignPacingData = cache(
 
   const binds = [...normalizedIds, start, end]
 
+  // ============================================================================
+  // PERFORMANCE: Track query execution time
+  // ============================================================================
+  const queryStartTime = Date.now()
+
   const rows = await querySnowflake<RawRow>(sql, binds)
+
+  // Calculate query duration
+  const queryDurationMs = Date.now() - queryStartTime
 
   const unknownChannels = new Set<string>()
   const filteredRows = rows.filter((row) => {
@@ -156,19 +172,70 @@ export const getCampaignPacingData = cache(
     return allowed
   })
 
+  // ============================================================================
+  // PERFORMANCE LOGGING: Always log query performance metrics
+  // ============================================================================
+  const channelCounts = filteredRows.reduce((acc, row) => {
+    const channel = String(row.CHANNEL ?? "").toLowerCase()
+    acc[channel] = (acc[channel] ?? 0) + 1
+    return acc
+  }, {} as Record<string, number>)
+
+  const avgRowsPerLineItem = normalizedIds.length > 0
+    ? Number((filteredRows.length / normalizedIds.length).toFixed(2))
+    : 0
+
+  console.log("[Pacing] Query performance", {
+    mbaNumber,
+    durationMs: queryDurationMs,
+    rowsReturned: filteredRows.length,
+    lineItemCount: normalizedIds.length,
+    avgRowsPerLineItem,
+    channels: channelCounts,
+    dateRange: { start, end },
+  })
+
+  // ============================================================================
+  // WARNING: Log warning if query returns 0 rows but line items were provided
+  // ============================================================================
+  if (filteredRows.length === 0 && normalizedIds.length > 0) {
+    console.warn("[Pacing] Zero rows returned for provided line items", {
+      mbaNumber,
+      lineItemCount: normalizedIds.length,
+      lineItemSample: normalizedIds.slice(0, 5),
+      dateRange: { start, end },
+      unknownChannels: unknownChannels.size ? Array.from(unknownChannels) : undefined,
+    })
+  }
+
+  // ============================================================================
+  // DEBUG: Extended logging when DEBUG_PACING is enabled
+  // ============================================================================
   if (DEBUG_PACING) {
     const distinctChannels = new Set(
       filteredRows.map((row) => String(row.CHANNEL ?? "").toLowerCase())
     )
-    console.log("[Pacing] query result", {
+
+    // Log query plan details
+    console.log("[Pacing] Query plan details", {
+      mbaNumber,
+      sql: sql.trim().slice(0, 200) + "...",
+      bindCount: binds.length,
+      placeholderCount: normalizedIds.length,
+      dateBinds: { start, end },
+    })
+
+    console.log("[Pacing] Query result details", {
       mbaNumber,
       idsCount: normalizedIds.length,
       dateRange: { start, end },
       rowsReturned: filteredRows.length,
+      rawRowsBeforeFilter: rows.length,
       distinctChannels: Array.from(distinctChannels),
       unknownChannels: unknownChannels.size ? Array.from(unknownChannels) : undefined,
     })
 
+    // Probe query when zero rows returned
     if (filteredRows.length === 0) {
       try {
         const probePlaceholders = normalizedIds.map(() => "?").join(", ")
@@ -183,14 +250,20 @@ export const getCampaignPacingData = cache(
           normalizedIds
         )
 
-        console.log("[Pacing] zero-row probe", {
+        console.log("[Pacing] Zero-row probe results", {
           mbaNumber,
           idsCount: normalizedIds.length,
           probeMatchesLength: probeMatches.length,
           probeMatchesSample: probeMatches,
+          suggestion: probeMatches.length > 0
+            ? "Data exists but outside date range"
+            : "No data found for these line item IDs",
         })
       } catch (error) {
-        console.error("[Pacing] zero-row probe failed", { error })
+        console.error("[Pacing] Zero-row probe failed", {
+          mbaNumber,
+          error: error instanceof Error ? error.message : String(error),
+        })
       }
     }
   }

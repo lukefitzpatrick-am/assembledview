@@ -1,4 +1,5 @@
 export type MetaPacingRow = {
+  channel?: string
   dateDay: string
   adsetName: string
   lineItemId?: string

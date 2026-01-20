@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { auth0 } from './auth0';
 import { getAllowedClientSlugs, getRoles } from './auth0-claims';
 
@@ -11,10 +11,9 @@ type RequireTenantAccessResult =
  */
 export async function requireTenantAccess(
   request: NextRequest,
-  response?: NextResponse,
   routeSlug?: string
 ): Promise<RequireTenantAccessResult> {
-  const session = await auth0.getSession(request, response ?? NextResponse.next());
+  const session = await auth0.getSession(request);
 
   if (!session) {
     return { ok: false, status: 401 };
@@ -48,7 +47,7 @@ export async function requireTenantAccess(
  * import { requireTenantAccess } from '@/lib/tenant-guard';
  *
  * export async function GET(request: NextRequest, { params }: { params: { slug: string } }) {
- *   const guard = await requireTenantAccess(request, undefined, params.slug);
+ *   const guard = await requireTenantAccess(request, params.slug);
  *   if (!guard.ok) return NextResponse.json({ error: 'forbidden' }, { status: guard.status });
  *
  *   // ... proceed knowing params.slug is permitted for this user

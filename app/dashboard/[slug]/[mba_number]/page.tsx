@@ -8,6 +8,9 @@ import { getPrimaryRole, getUserClientIdentifier } from "@/lib/rbac"
 import { redirect } from "next/navigation"
 import { headers } from "next/headers"
 import { getCampaignPacingData } from "@/lib/snowflake/pacing-service"
+import { checkConnectionHealth } from "@/lib/snowflake/pool"
+import { createPerfTimer, logPerf } from "@/lib/utils/perf"
+import { calculateExpectedSpendToDateFromDeliverySchedule } from "@/lib/spend/expectedSpend"
 
 const CampaignInfoHeader = dynamic(() => import("@/components/dashboard/campaign/CampaignInfoHeader"))
 const CampaignSummaryRow = dynamic(() => import("@/components/dashboard/campaign/CampaignSummaryRow"))
@@ -31,6 +34,7 @@ interface CampaignDetailPageProps {
 const DEBUG_LINE_ITEMS = process.env.NEXT_PUBLIC_DEBUG_LINEITEMS === "true"
 const DEBUG_BRAND = process.env.NEXT_PUBLIC_DEBUG_BRAND === "true"
 const DEBUG_SPEND = process.env.NEXT_PUBLIC_DEBUG_SPEND === "true"
+const DEBUG_SNOWFLAKE = process.env.NEXT_PUBLIC_DEBUG_SNOWFLAKE === "true"
 
 function parseAmountSafe(value: any) {
   if (typeof value === "number") return value
@@ -144,7 +148,7 @@ function deriveSpendToDateFromMonthlySpend(monthlySpend: any): number {
       return Number.isFinite(parsed) ? parsed : 0
     }
     if (value && typeof value === "object") {
-      return Object.values(value).reduce((acc, child) => acc + sumNumericValues(child), 0)
+      return Object.values(value).reduce<number>((acc, child) => acc + sumNumericValues(child), 0)
     }
     return 0
   }
@@ -305,14 +309,23 @@ async function fetchCampaignData(mbaNumber: string, version?: string) {
 }
 
 export default async function CampaignDetailPage({ params, searchParams }: CampaignDetailPageProps) {
+  // ============================================================================
+  // PERFORMANCE: Start page timer
+  // ============================================================================
+  const pageTimer = createPerfTimer(`CampaignPage[${(await params).mba_number}]`)
+
   const { slug, mba_number } = await params
   const { version } = searchParams ? await searchParams : {}
   const parsedVersion = version ? Number(version) : undefined
   const versionNumberFromQuery = Number.isFinite(parsedVersion) ? parsedVersion : undefined
+
+  // Auth check with timing
+  const authStart = performance.now()
   const session = await auth0.getSession()
   const user = session?.user
   const role = getPrimaryRole(user)
   const userClientSlug = getUserClientIdentifier(user)
+  logPerf("Auth check", authStart, { hasUser: !!user, role })
 
   if (!user) {
     redirect(`/auth/login?returnTo=/dashboard/${slug}/${mba_number}`)
@@ -328,6 +341,8 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
   let campaignVersion: Record<string, any> = {}
   let resolvedVersionNumber: number | undefined
 
+  // Campaign data fetch with timing
+  const campaignFetchStart = performance.now()
   try {
     campaignData = await fetchCampaignData(mba_number, version)
     campaign = campaignData?.campaign ?? campaignData
@@ -347,7 +362,16 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
     if (!Number.isFinite(resolvedVersionNumber)) {
       throw new Error(`No media plan version number available for MBA ${mba_number}`)
     }
+    logPerf("Campaign data fetch", campaignFetchStart, {
+      mba: mba_number,
+      version: resolvedVersionNumber,
+      hasLineItems: !!campaignData?.lineItems,
+    })
   } catch (err) {
+    logPerf("Campaign data fetch (failed)", campaignFetchStart, {
+      mba: mba_number,
+      error: err instanceof Error ? err.message : String(err),
+    })
     error = err instanceof Error ? err.message : "Unknown error occurred"
     console.error("Campaign detail page error:", err)
   }
@@ -403,6 +427,9 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
   const budget = parseAmountSafe(
     campaign?.campaign_budget || campaign?.mp_campaignbudget || campaign?.total_budget || campaign?.total_media
   )
+  const startDate = campaign?.campaign_start_date || campaign?.mp_campaigndates_start
+  const endDate = campaign?.campaign_end_date || campaign?.mp_campaigndates_end
+
   const monthlySpendToDate = deriveSpendToDateFromMonthlySpend(monthlySpend)
   const deliverySpendToDate = deriveSpendToDate(deliverySchedule)
   const actualSpend = (monthlySpendToDate > 0 ? monthlySpendToDate : deliverySpendToDate) || metrics.actualSpendToDate || 0
@@ -421,23 +448,193 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
               : "none",
     })
   }
-  const expectedSpend = metrics.expectedSpendToDate || 0
+  const expectedSpendToDate = calculateExpectedSpendToDateFromDeliverySchedule(
+    deliverySchedule,
+    startDate,
+    endDate
+  )
+  const expectedSpend = expectedSpendToDate || metrics.expectedSpendToDate || 0
 
-  const startDate = campaign?.campaign_start_date || campaign?.mp_campaigndates_start
-  const endDate = campaign?.campaign_end_date || campaign?.mp_campaigndates_end
+  if (DEBUG_SPEND) {
+    const monthCount = Array.isArray(deliverySchedule)
+      ? deliverySchedule.length
+      : Array.isArray(deliverySchedule?.months)
+        ? deliverySchedule.months.length
+        : 0
+    const fallbackPath = expectedSpendToDate
+      ? "deliverySchedule"
+      : metrics.expectedSpendToDate
+        ? "metricsExpectedSpendToDate"
+        : "none"
 
+    console.log("[Spend Debug] expected spend resolution", {
+      deliveryScheduleMonths: monthCount,
+      expectedSpendToDate,
+      fallbackPath,
+    })
+  }
+
+  // ============================================================================
+  // OPTIMIZED: Smart pacing data fetch with date range calculation and logging
+  // ============================================================================
   let initialPacingRows: any[] = []
   if (pacingLineItemIds.length > 0) {
+    // Smart date range calculation
+    const MAX_RANGE_DAYS = 180
+    const DEFAULT_RANGE_DAYS = 90
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    let pacingStartDate: string
+    let pacingEndDate: string
+
+    // Calculate end date: use campaign end date or today, whichever is earlier
+    if (endDate) {
+      const campaignEnd = new Date(endDate)
+      campaignEnd.setHours(0, 0, 0, 0)
+      pacingEndDate = (campaignEnd <= today ? campaignEnd : today).toISOString().slice(0, 10)
+    } else {
+      pacingEndDate = today.toISOString().slice(0, 10)
+    }
+
+    // Calculate start date: use campaign start date or default to 90 days ago
+    if (startDate) {
+      const campaignStart = new Date(startDate)
+      campaignStart.setHours(0, 0, 0, 0)
+      pacingStartDate = campaignStart.toISOString().slice(0, 10)
+    } else {
+      // Default to 90 days ago if no campaign start date
+      const defaultStart = new Date(today.getTime() - DEFAULT_RANGE_DAYS * 24 * 60 * 60 * 1000)
+      pacingStartDate = defaultStart.toISOString().slice(0, 10)
+    }
+
+    // Clamp to max 180 days to prevent excessive queries
+    const startDateObj = new Date(pacingStartDate)
+    const endDateObj = new Date(pacingEndDate)
+    const rangeDays = Math.ceil((endDateObj.getTime() - startDateObj.getTime()) / (24 * 60 * 60 * 1000))
+    if (rangeDays > MAX_RANGE_DAYS) {
+      const clampedStart = new Date(endDateObj.getTime() - MAX_RANGE_DAYS * 24 * 60 * 60 * 1000)
+      pacingStartDate = clampedStart.toISOString().slice(0, 10)
+    }
+
+    // =========================================================================
+    // HEALTH CHECK: DEBUG ONLY - Log Snowflake connectivity status
+    // Disabled by default to avoid consuming pool capacity before pacing fetch
+    // Enable with NEXT_PUBLIC_DEBUG_SNOWFLAKE=true for diagnostics
+    // =========================================================================
+    let healthCheckResult: { healthy: boolean; error?: string } | null = null
+    
+    if (DEBUG_SNOWFLAKE) {
+      const healthCheckStart = performance.now()
+      try {
+        const result = await checkConnectionHealth()
+        healthCheckResult = { healthy: result.healthy, error: result.error }
+        
+        logPerf("Snowflake health check", healthCheckStart, {
+          healthy: result.healthy,
+          acquireMs: result.acquireMs,
+          queryMs: result.queryMs,
+          totalMs: result.totalMs,
+          error: result.error,
+        })
+        
+        if (!result.healthy) {
+          console.warn("[SSR Pacing] Snowflake health check failed (will still attempt pacing fetch)", {
+            mba_number,
+            error: result.error,
+            totalMs: result.totalMs,
+          })
+        }
+      } catch (healthErr) {
+        // Health check itself threw an error (shouldn't happen, but be safe)
+        healthCheckResult = { healthy: false, error: healthErr instanceof Error ? healthErr.message : String(healthErr) }
+        logPerf("Snowflake health check (error)", healthCheckStart, {
+          error: healthCheckResult.error,
+        })
+        console.warn("[SSR Pacing] Snowflake health check error (will still attempt pacing fetch)", {
+          mba_number,
+          error: healthCheckResult.error,
+        })
+      }
+    }
+
+    // =========================================================================
+    // PACING FETCH: Always attempt regardless of health check result
+    // =========================================================================
+    const pacingFetchStart = performance.now()
+
     try {
-      initialPacingRows = await getCampaignPacingData(mba_number, pacingLineItemIds, startDate, endDate)
-    } catch (err) {
-      console.error("[SSR Pacing] failed, falling back to []", {
+      initialPacingRows = await getCampaignPacingData(
         mba_number,
-        error: err instanceof Error ? err.message : String(err),
+        pacingLineItemIds,
+        pacingStartDate,
+        pacingEndDate
+      )
+
+      // Log performance with channel breakdown
+      const channelCounts = initialPacingRows.reduce((acc, row) => {
+        const channel = row.channel ?? "unknown"
+        acc[channel] = (acc[channel] ?? 0) + 1
+        return acc
+      }, {} as Record<string, number>)
+
+      logPerf("Pacing data fetch", pacingFetchStart, {
+        mba: mba_number,
+        lineItems: pacingLineItemIds.length,
+        rows: initialPacingRows.length,
+        dateRange: `${pacingStartDate} to ${pacingEndDate}`,
+        channels: channelCounts,
+        healthCheckPassed: healthCheckResult?.healthy ?? "not_run",
       })
+
+      // =========================================================================
+      // SANITY LOG: Alert when we expected data but got none
+      // Helps diagnose date-range mismatch vs data actually missing
+      // =========================================================================
+      if (initialPacingRows.length === 0) {
+        console.warn("[SSR Pacing] Query returned 0 rows despite having line items", {
+          mba_number,
+          lineItemCount: pacingLineItemIds.length,
+          sampleLineItemIds: pacingLineItemIds.slice(0, 5),
+          dateRange: { start: pacingStartDate, end: pacingEndDate },
+          healthCheckPassed: healthCheckResult?.healthy ?? "not_run",
+          healthCheckError: healthCheckResult?.error,
+        })
+      }
+    } catch (err) {
+      // Log failed fetch with health check context
+      logPerf("Pacing data fetch (failed)", pacingFetchStart, {
+        mba: mba_number,
+        lineItems: pacingLineItemIds.length,
+        error: err instanceof Error ? err.message : String(err),
+        healthCheckPassed: healthCheckResult?.healthy ?? "not_run",
+      })
+      console.error("[SSR Pacing] Query failed", {
+        mba_number,
+        lineItemCount: pacingLineItemIds.length,
+        sampleLineItemIds: pacingLineItemIds.slice(0, 5),
+        dateRange: { start: pacingStartDate, end: pacingEndDate },
+        error: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+        healthCheckPassed: healthCheckResult?.healthy ?? "not_run",
+        healthCheckError: healthCheckResult?.error,
+      })
+      // Graceful fallback - page should still render without pacing data
       initialPacingRows = []
     }
   }
+
+  // Log total SSR time
+  pageTimer.total({
+    mba: mba_number,
+    hasError: !!error,
+    pacingRows: initialPacingRows.length,
+    lineItemCounts: {
+      social: socialItems.length,
+      progDisplay: progDisplayItems.length,
+      progVideo: progVideoItems.length,
+    },
+  })
 
   const brandCandidates = [
     campaign?.brand_colour,
@@ -496,6 +693,8 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
                   campaignEnd={endDate}
                   budget={budget}
                   actualSpend={actualSpend}
+                  expectedSpend={expectedSpend}
+                  deliverySchedule={deliverySchedule}
                   hideStatus
                 />
               </Suspense>

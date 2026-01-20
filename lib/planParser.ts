@@ -155,7 +155,8 @@ export async function extractPlanFromText(text: string, fileName?: string) {
 
 async function parseXlsxBuffer(buffer: Buffer, fileName: string): Promise<ParsedFile> {
   const workbook = new ExcelJS.Workbook()
-  await workbook.xlsx.load(buffer)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await workbook.xlsx.load(buffer as any)
 
   const allRows: string[][] = []
   let items: MediaContainer[] = []

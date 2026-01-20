@@ -65,7 +65,6 @@ const mediaTypeLabels: Record<string, string> = {
   mp_progooh: "Programmatic OOH",
   mp_influencers: "Influencers",
   mp_production: "Production",
-  mp_production: "Production",
 }
 
 const mediaTypeClasses: Record<string, string> = {

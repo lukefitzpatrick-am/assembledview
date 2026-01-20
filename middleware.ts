@@ -38,7 +38,7 @@ export async function middleware(request: NextRequest) {
     return continueResponse;
   }
 
-  const session = await auth0.getSession(request, continueResponse);
+  const session = await auth0.getSession(request);
 
   // API routes (except /api/auth) return JSON on missing auth
   if (isApiRoute) {

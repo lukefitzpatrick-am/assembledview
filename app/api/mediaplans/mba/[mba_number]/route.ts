@@ -1098,6 +1098,7 @@ export async function PUT(
       po_number: data.mp_ponumber || "",
       mp_campaignbudget: data.mp_campaignbudget || masterData.mp_campaignbudget,
       fixed_fee: data.mp_fixedfee || false,
+      mp_production: data.mp_production || false,
       mp_television: data.mp_television || false,
       mp_radio: data.mp_radio || false,
       mp_newspaper: data.mp_newspaper || false,

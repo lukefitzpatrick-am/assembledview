@@ -647,7 +647,6 @@ export async function GET(
       mp_progaudio: { canonicalKey: "progAudio", fetchKey: "progAudio" },
       mp_progooh: { canonicalKey: "progOoh", fetchKey: "progOoh" },
       mp_influencers: { canonicalKey: "influencers", fetchKey: "influencers" },
-      mp_production: { canonicalKey: "consulting", fetchKey: "production" },
       mp_production: { canonicalKey: "production", fetchKey: "production" },
     }
 
@@ -666,8 +665,13 @@ export async function GET(
       .filter(([flag]) => isTruthyFlag((versionData as any)?.[flag]))
       .map(([, value]) => value)
 
-    const enabledMediaTypes = Array.from(new Set(enabledEntries.map((entry) => entry.canonicalKey)))
-    const mediaTypesToFetch = Array.from(new Set(enabledEntries.map((entry) => entry.fetchKey)))
+    // mp_production also gates consulting (shares production container)
+    const enabledEntriesWithConsulting = isTruthyFlag((versionData as any)?.mp_production)
+      ? [...enabledEntries, { canonicalKey: "consulting" as const, fetchKey: "production" as const }]
+      : enabledEntries
+
+    const enabledMediaTypes = Array.from(new Set(enabledEntriesWithConsulting.map((entry) => entry.canonicalKey)))
+    const mediaTypesToFetch = Array.from(new Set(enabledEntriesWithConsulting.map((entry) => entry.fetchKey)))
 
     if (isDev) {
       console.info("[campaigns] enabled media types", { mba_number, versionNumber, enabledMediaTypes })

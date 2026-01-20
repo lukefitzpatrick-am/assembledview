@@ -162,21 +162,21 @@ interface DigitalVideoLineItem {
 
 // Production / Consulting
 export interface ProductionLineItem {
-  id?: number;
-  created_at?: number;
-  media_plan_version?: number;
-  version_number?: number;
-  mba_number?: string;
-  mp_client_name?: string;
-  mp_plannumber?: string;
+  id: number;
+  created_at: number;
   media_type: string;
   publisher: string;
-  market?: string;
-  description?: string;
+  market: string;
+  description: string;
   bursts: any[];
+  mp_client_name: string;
+  mba_number: string;
+  mp_plannumber: string;
+  line_item: number;
+  media_plan_version?: number;
+  version_number?: number;
   bursts_json?: any;
   line_item_id?: string;
-  line_item?: number;
 }
 
 interface MagazinesLineItem {
@@ -2865,7 +2865,7 @@ export async function saveProductionLineItems(
       const description = pickField(lineItem, ['description', 'creative'], '')
       const market = pickField(lineItem, ['market'], '')
 
-      const productionData: ProductionLineItem = {
+      const productionData: Partial<ProductionLineItem> = {
         media_plan_version: mediaPlanVersionId,
         version_number: coerceNumber(planNumber) || mediaPlanVersionId,
         mba_number: mbaNumber,

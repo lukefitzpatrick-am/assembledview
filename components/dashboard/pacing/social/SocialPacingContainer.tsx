@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useMemo, useRef } from "react"
 import {
   Accordion,
   AccordionContent,
@@ -101,13 +101,6 @@ const getRowLineItemId = (row: any): string | null => {
 }
 const round2 = (n: number) => Number((n || 0).toFixed(2))
 
-function getRowPlatform(row: any): "meta" | "tiktok" | null {
-  const channel = String(row?.channel ?? row?.CHANNEL ?? "").toLowerCase()
-  if (channel === "meta") return "meta"
-  if (channel === "tiktok") return "tiktok"
-  return null
-}
-
 function mapCombinedRowToMeta(row: CombinedPacingRow): MetaPacingRow {
   return {
     channel: row.channel as any,
@@ -122,23 +115,6 @@ function mapCombinedRowToMeta(row: CombinedPacingRow): MetaPacingRow {
     clicks: row.clicks ?? 0,
     results: row.results ?? 0,
     video3sViews: row.video3sViews ?? 0,
-  }
-}
-
-function mapApiRowToMeta(row: any, channel: "meta" | "tiktok"): MetaPacingRow {
-  return {
-    channel,
-    dateDay: row.dateDay ?? row.DATE_DAY,
-    adsetName: row.adsetName ?? row.ADSET_NAME ?? "",
-    lineItemId: cleanId(row.lineItemId ?? row.LINE_ITEM_ID ?? row.adsetId ?? row.ADSET_ID),
-    campaignId: row.campaignId ?? row.CAMPAIGN_ID,
-    campaignName: row.campaignName ?? row.CAMPAIGN_NAME,
-    adsetId: row.adsetId ?? row.ADSET_ID,
-    amountSpent: row.amountSpent ?? row.AMOUNT_SPENT ?? 0,
-    impressions: row.impressions ?? row.IMPRESSIONS ?? 0,
-    clicks: row.clicks ?? row.CLICKS ?? 0,
-    results: row.results ?? row.RESULTS ?? 0,
-    video3sViews: row.video3sViews ?? row.THREE_S_VIEW_PLAYS ?? 0,
   }
 }
 
@@ -950,96 +926,40 @@ export default function SocialPacingContainer({
   clientSlug,
   mbaNumber,
   socialLineItems,
-  snowflakeDeliveryRows,
   campaignStart,
   campaignEnd,
   initialPacingRows,
 }: SocialPacingContainerProps) {
-  const initialSplit = useMemo(() => {
-    if (!Array.isArray(initialPacingRows)) {
-      return { meta: [] as MetaPacingRow[], tiktok: [] as MetaPacingRow[] }
-    }
-    const meta: MetaPacingRow[] = []
-    const tiktok: MetaPacingRow[] = []
-    initialPacingRows.forEach((row) => {
-      if (row.channel === "meta") {
-        meta.push(mapCombinedRowToMeta(row))
-      } else if (row.channel === "tiktok") {
-        tiktok.push(mapCombinedRowToMeta(row))
-      }
-    })
-    return { meta, tiktok }
+  // Filter initialPacingRows by channel using useMemo - no client-side fetching
+  const metaRows = useMemo(() => {
+    if (!Array.isArray(initialPacingRows)) return []
+    return initialPacingRows
+      .filter((row) => row.channel === "meta")
+      .map(mapCombinedRowToMeta)
   }, [initialPacingRows])
 
-  const [resolvedSocialItems, setResolvedSocialItems] = useState<SocialLineItem[]>(socialLineItems ?? [])
-  const [resolvedCampaignStart, setResolvedCampaignStart] = useState<string | undefined>(campaignStart)
-  const [resolvedCampaignEnd, setResolvedCampaignEnd] = useState<string | undefined>(campaignEnd)
-  const [metaRows, setMetaRows] = useState<MetaPacingRow[]>(initialSplit.meta)
-  const [tiktokRows, setTiktokRows] = useState<MetaPacingRow[]>(initialSplit.tiktok)
-  const [isMetaLoading, setIsMetaLoading] = useState(false)
-  const [isTiktokLoading, setIsTiktokLoading] = useState(false)
-  const [metaError, setMetaError] = useState<string | null>(null)
-  const [tiktokError, setTiktokError] = useState<string | null>(null)
-  const metaFetchKeyRef = useRef<string | null>(null)
-  const tiktokFetchKeyRef = useRef<string | null>(null)
+  const tiktokRows = useMemo(() => {
+    if (!Array.isArray(initialPacingRows)) return []
+    return initialPacingRows
+      .filter((row) => row.channel === "tiktok")
+      .map(mapCombinedRowToMeta)
+  }, [initialPacingRows])
 
-  useEffect(() => {
-    if (socialLineItems !== undefined) {
-      setResolvedSocialItems(socialLineItems)
-      setResolvedCampaignStart(campaignStart)
-      setResolvedCampaignEnd(campaignEnd)
-      return
-    }
-
-    let cancelled = false
-    const loadMba = async () => {
-      try {
-        const res = await fetch(`/api/mediaplans/mba/${encodeURIComponent(mbaNumber)}`, {
-          cache: "no-store",
-        })
-        if (!res.ok) {
-          return
-        }
-        const data = await res.json()
-        if (cancelled) return
-        const lineItemsMap = (data?.lineItems ?? {}) as Record<string, any[]>
-        if (lineItemsMap?.socialMedia) {
-          setResolvedSocialItems(Array.isArray(lineItemsMap.socialMedia) ? lineItemsMap.socialMedia : [])
-        }
-        const campaign = data?.campaign ?? data ?? {}
-        const start =
-          campaign?.campaign_start_date ??
-          campaign?.mp_campaigndates_start ??
-          campaign?.start_date ??
-          resolvedCampaignStart ??
-          campaignStart
-        const end =
-          campaign?.campaign_end_date ??
-          campaign?.mp_campaigndates_end ??
-          campaign?.end_date ??
-          resolvedCampaignEnd ??
-          campaignEnd
-        setResolvedCampaignStart(start)
-        setResolvedCampaignEnd(end)
-      } catch (err) {
-        if (!cancelled) {
-          console.error("[SocialPacing] fallback MBA fetch failed", err)
-        }
-      }
-    }
-
-    loadMba()
-    return () => {
-      cancelled = true
-    }
-  }, [socialLineItems, campaignStart, campaignEnd, mbaNumber])
-
+  // Combine rows for filtering in lineItemMetrics
   const socialRows = useMemo(() => [...metaRows, ...tiktokRows], [metaRows, tiktokRows])
-  const isLoading = isMetaLoading || isTiktokLoading
+
+  // Data is already available from server - no loading state needed
+  const isLoading = false
+
+  // Use props directly - no state management needed
+  const resolvedCampaignStart = campaignStart
+  const resolvedCampaignEnd = campaignEnd
+
   const normalizedLineItems = useMemo(
-    () => normalizeLineItems(resolvedSocialItems),
-    [resolvedSocialItems]
+    () => normalizeLineItems(socialLineItems ?? []),
+    [socialLineItems]
   )
+
   const metaItems = useMemo(
     () =>
       normalizedLineItems.filter((item) => {
@@ -1048,6 +968,7 @@ export default function SocialPacingContainer({
       }),
     [normalizedLineItems]
   )
+
   const tiktokItems = useMemo(
     () =>
       normalizedLineItems.filter((item) => {
@@ -1056,7 +977,6 @@ export default function SocialPacingContainer({
       }),
     [normalizedLineItems]
   )
-  // TikTok pacing plugs in with the same shape and a different mart table.
 
   const metaRanges = useMemo(
     () =>
@@ -1096,219 +1016,6 @@ export default function SocialPacingContainer({
     const end = ends.length ? ends.sort().slice(-1)[0] : resolvedCampaignEnd
     return { start, end }
   }, [tiktokRanges, resolvedCampaignStart, resolvedCampaignEnd])
-
-  useEffect(() => {
-    if (!mbaNumber) return
-    if (!metaQueryRange.start || !metaQueryRange.end) return
-    if (!tiktokQueryRange.start || !tiktokQueryRange.end) {
-      // allow meta fetch even if tiktok range missing
-    }
-
-    const metaController = new AbortController()
-    const tiktokController = new AbortController()
-    let cancelled = false
-
-    const loadMeta = async () => {
-      const lineItemIds = metaRanges.map((r) => r.lineItemId).filter(Boolean) as string[]
-      if (!lineItemIds.length) return
-      if (!metaQueryRange.start || !metaQueryRange.end) return
-      setMetaError(null)
-      setIsMetaLoading(true)
-      const t0 = Date.now()
-      try {
-        const res = await fetch("/api/pacing/social/meta", {
-          method: "POST",
-          cache: "no-store",
-          headers: { "Content-Type": "application/json" },
-          signal: metaController.signal,
-          body: JSON.stringify({
-            mbaNumber,
-            lineItemIds,
-            startDate: metaQueryRange.start,
-            endDate: metaQueryRange.end,
-          }),
-        })
-        if (!res.ok) {
-          throw new Error(`Meta pacing request failed with ${res.status}`)
-        }
-        const data = await res.json()
-        if (!cancelled) {
-          const mapped = Array.isArray(data?.rows)
-            ? data.rows.map((row: any) => mapApiRowToMeta(row, "meta"))
-            : []
-          setMetaRows(mapped)
-          if (DEBUG_PACING) {
-            console.log("[SocialPacing] meta fetch ms/rows", {
-              mbaNumber,
-              elapsedMs: Date.now() - t0,
-              rowCount: mapped.length,
-            })
-          }
-        }
-      } catch (err) {
-        if (!cancelled && err instanceof Error && err.name === "AbortError") return
-        if (!cancelled) {
-          console.error("[SocialPacing] meta pacing fetch failed", err)
-          setMetaError("Unable to load Meta pacing data right now.")
-        }
-      } finally {
-        if (!cancelled) {
-          setIsMetaLoading(false)
-        }
-      }
-    }
-
-    const loadTiktok = async () => {
-      const lineItemIds = tiktokRanges.map((r) => r.lineItemId).filter(Boolean) as string[]
-      if (!lineItemIds.length) return
-      if (!tiktokQueryRange.start || !tiktokQueryRange.end) return
-      setTiktokError(null)
-      setIsTiktokLoading(true)
-      const t0 = Date.now()
-      try {
-        const res = await fetch("/api/pacing/social/tiktok", {
-          method: "POST",
-          cache: "no-store",
-          headers: { "Content-Type": "application/json" },
-          signal: tiktokController.signal,
-          body: JSON.stringify({
-            mbaNumber,
-            lineItemIds,
-            startDate: tiktokQueryRange.start,
-            endDate: tiktokQueryRange.end,
-          }),
-        })
-        if (!res.ok) {
-          throw new Error(`TikTok pacing request failed with ${res.status}`)
-        }
-        const data = await res.json()
-        if (!cancelled) {
-          const mapped = Array.isArray(data?.rows)
-            ? data.rows.map((row: any) => mapApiRowToMeta(row, "tiktok"))
-            : []
-          setTiktokRows(mapped)
-          if (DEBUG_PACING) {
-            console.log("[SocialPacing] tiktok fetch ms/rows", {
-              mbaNumber,
-              elapsedMs: Date.now() - t0,
-              rowCount: mapped.length,
-            })
-          }
-        }
-      } catch (err) {
-        if (!cancelled && err instanceof Error && err.name === "AbortError") return
-        if (!cancelled) {
-          console.error("[SocialPacing] tiktok pacing fetch failed", err)
-          setTiktokError("Unable to load TikTok pacing data right now.")
-        }
-      } finally {
-        if (!cancelled) {
-          setIsTiktokLoading(false)
-        }
-      }
-    }
-
-    const metaKey =
-      metaRanges.length && metaQueryRange.start && metaQueryRange.end
-        ? `${mbaNumber}|meta|${metaQueryRange.start}|${metaQueryRange.end}|${metaRanges
-            .map((r) => r.lineItemId)
-            .filter(Boolean)
-            .join(",")}`
-        : null
-    const tiktokKey =
-      tiktokRanges.length && tiktokQueryRange.start && tiktokQueryRange.end
-        ? `${mbaNumber}|tiktok|${tiktokQueryRange.start}|${tiktokQueryRange.end}|${tiktokRanges
-            .map((r) => r.lineItemId)
-            .filter(Boolean)
-            .join(",")}`
-        : null
-
-    const shouldFetchMeta =
-      metaItems.length > 0 &&
-      !isMetaLoading &&
-      Boolean(metaQueryRange.start && metaQueryRange.end) &&
-      metaKey !== metaFetchKeyRef.current
-    const shouldFetchTiktok =
-      tiktokItems.length > 0 &&
-      !isTiktokLoading &&
-      Boolean(tiktokQueryRange.start && tiktokQueryRange.end) &&
-      tiktokKey !== tiktokFetchKeyRef.current
-
-    if (shouldFetchMeta) {
-      loadMeta()
-      metaFetchKeyRef.current = metaKey
-    }
-    if (shouldFetchTiktok) {
-      loadTiktok()
-      tiktokFetchKeyRef.current = tiktokKey
-    }
-
-    return () => {
-      cancelled = true
-      metaController.abort()
-      tiktokController.abort()
-    }
-  }, [
-    mbaNumber,
-    metaItems.length,
-    tiktokItems.length,
-    metaRanges,
-    tiktokRanges,
-    metaQueryRange.start,
-    metaQueryRange.end,
-    tiktokQueryRange.start,
-    tiktokQueryRange.end,
-    isMetaLoading,
-    isTiktokLoading,
-  ])
-
-  useEffect(() => {
-    if (initialSplit.meta.length || initialSplit.tiktok.length) {
-      setMetaRows(initialSplit.meta)
-      setTiktokRows(initialSplit.tiktok)
-      setIsMetaLoading(false)
-      setIsTiktokLoading(false)
-      return
-    }
-
-    if (!snowflakeDeliveryRows) return
-    const initialMeta: MetaPacingRow[] = []
-    const initialTikTok: MetaPacingRow[] = []
-    const unexpectedChannels = new Set<string>()
-
-    snowflakeDeliveryRows.forEach((row) => {
-      const platform = getRowPlatform(row)
-      if (platform === "meta") {
-        initialMeta.push(row)
-      } else if (platform === "tiktok") {
-        initialTikTok.push(row)
-      } else {
-        const channel = (row as any)?.channel ?? (row as any)?.CHANNEL
-        if (channel) {
-          unexpectedChannels.add(String(channel))
-        }
-      }
-    })
-
-    setMetaRows(initialMeta)
-    setTiktokRows(initialTikTok)
-    setIsMetaLoading(false)
-    setIsTiktokLoading(false)
-
-    if (DEBUG_PACING) {
-      console.info("[SocialPacing] snowflake split", {
-        totalRows: snowflakeDeliveryRows.length,
-        initialMeta: initialMeta.length,
-        initialTikTok: initialTikTok.length,
-        unexpectedChannels: unexpectedChannels.size ? Array.from(unexpectedChannels) : undefined,
-      })
-    }
-  }, [initialSplit.meta, initialSplit.tiktok, snowflakeDeliveryRows])
-
-  useEffect(() => {
-    setIsMetaLoading(false)
-    setIsTiktokLoading(false)
-  }, [metaItems.length, tiktokItems.length])
 
   const lineItemMetrics: LineItemMetrics[] = useMemo(() => {
     const activeItems = [...metaItems, ...tiktokItems]
@@ -1473,7 +1180,7 @@ export default function SocialPacingContainer({
         deliverableKey,
       }
     })
-  }, [metaItems, tiktokItems, socialRows, resolvedCampaignStart, resolvedCampaignEnd])
+  }, [metaItems, tiktokItems, socialRows, resolvedCampaignStart, resolvedCampaignEnd, metaRows, tiktokRows, mbaNumber])
 
   const aggregateAsAtDate = useMemo(() => {
     const today = new Date()
@@ -1512,8 +1219,8 @@ export default function SocialPacingContainer({
     return {
       metaCount: metaItems.length,
       tiktokCount: tiktokItems.length,
-      metaRows: metaRows.length,
-      tiktokRows: tiktokRows.length,
+      metaRowCount: metaRows.length,
+      tiktokRowCount: tiktokRows.length,
       perItem,
       zeroMatches,
     }
@@ -1617,13 +1324,6 @@ export default function SocialPacingContainer({
         {/* Description removed per request */}
       </CardHeader>
       <CardContent className="space-y-4">
-        {(metaError || tiktokError) ? (
-          <div className="rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive space-y-1">
-            {metaError ? <div>Meta: {metaError}</div> : null}
-            {tiktokError ? <div>TikTok: {tiktokError}</div> : null}
-          </div>
-        ) : null}
-
         {isLoading ? (
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <div className="h-32 animate-pulse rounded-2xl bg-muted" />
@@ -1686,7 +1386,7 @@ export default function SocialPacingContainer({
             <div>Meta line items: {debugSummary.metaCount}</div>
             <div>TikTok line items: {debugSummary.tiktokCount}</div>
             <div className="mt-1">
-              <span className="font-medium text-foreground">Rows</span>: meta {debugSummary.metaRows} • tiktok {debugSummary.tiktokRows}
+              <span className="font-medium text-foreground">Rows</span>: meta {debugSummary.metaRowCount} • tiktok {debugSummary.tiktokRowCount}
             </div>
             <div className="mt-2">
               {debugSummary.perItem.length ? (
