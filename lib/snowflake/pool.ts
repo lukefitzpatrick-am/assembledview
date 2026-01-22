@@ -87,8 +87,8 @@ const BASE_BACKOFF_MS = 250
 const MAX_BACKOFF_MS = 10000
 
 // Maximum retry attempts for transient errors
-// Production defaults to 0 (avoid doubling latency on hot paths); dev allows more retries
-const MAX_RETRIES = Number(process.env.SNOWFLAKE_MAX_RETRIES ?? (IS_PRODUCTION ? "0" : "3"))
+// Production defaults to 1 to smooth over occasional connect/network blips; dev allows more retries
+const MAX_RETRIES = Number(process.env.SNOWFLAKE_MAX_RETRIES ?? (IS_PRODUCTION ? "1" : "3"))
 
 // Maximum total time for all retry attempts
 // Production defaults to 45s; dev allows up to 120s
@@ -843,7 +843,8 @@ async function getServerlessConnection(requestId: string, signal?: AbortSignal):
     clientSessionKeepAlive: false,
   })
 
-  const CONNECT_TIMEOUT_MS = Number(process.env.SNOWFLAKE_CONNECT_TIMEOUT_MS ?? "15000")
+  // Production default is higher to avoid intermittent connect timeouts on cold starts.
+  const CONNECT_TIMEOUT_MS = Number(process.env.SNOWFLAKE_CONNECT_TIMEOUT_MS ?? (IS_PRODUCTION ? "20000" : "15000"))
   console.info("[snowflake][serverless] creating connection", { requestId, connectTimeoutMs: CONNECT_TIMEOUT_MS })
   const connectStart = Date.now()
   if (signal) {
@@ -918,6 +919,11 @@ function shouldRetry(err: unknown, attempt: number = 0): boolean {
   // Retry on transient network errors
   const isTransientError = TRANSIENT_ERROR_TOKENS.some((token) => upperMessage.includes(token))
   if (isTransientError) {
+    return true
+  }
+
+  // Retry Snowflake connect timeouts (common during cold starts / networking hiccups)
+  if (lowerMessage.includes("connect timeout")) {
     return true
   }
 

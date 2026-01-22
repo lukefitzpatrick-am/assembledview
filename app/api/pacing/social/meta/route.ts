@@ -7,6 +7,9 @@ import { getMelbourneYesterdayISO } from "@/lib/dates/melbourne"
 export const dynamic = "force-dynamic"
 export const revalidate = 0
 export const runtime = "nodejs"
+export const preferredRegion = ["syd1"]
+// NOTE: Vercel functions default to 15s; pacing can exceed this during cold warehouse resume.
+export const maxDuration = 60
 
 type RequestBody = {
   mbaNumber?: string
@@ -21,6 +24,7 @@ const DEBUG =
   process.env.NEXT_PUBLIC_DEBUG_PACING === "true"
 
 const QUERY_ROW_LIMIT = 50000
+const INTERNAL_TIMEOUT_MS = 55_000
 
 async function readJsonBody(request: NextRequest): Promise<RequestBody> {
   const raw = await request.text()
@@ -60,6 +64,9 @@ export async function POST(request: NextRequest) {
   console.log("[PACING ROUTE HIT] social/meta", { time: new Date().toISOString() })
   const requestId = crypto.randomUUID()
   try {
+    const ac = new AbortController()
+    const timer = setTimeout(() => ac.abort(), INTERNAL_TIMEOUT_MS)
+    try {
     const body = await readJsonBody(request)
     const mbaNumber = body?.mbaNumber
     const rawLineItemIds = Array.isArray(body?.lineItemIds) ? body.lineItemIds.filter(Boolean) : []
@@ -113,7 +120,7 @@ export async function POST(request: NextRequest) {
         lineItemIds,
         startDate: start,
         endDate: end,
-      })
+      }, { requestId, signal: ac.signal })
       const elapsedMs = Date.now() - t0
       console.log("[api/pacing/social/meta][" + requestId + "] snowflake_ms", elapsedMs)
 
@@ -209,6 +216,16 @@ export async function POST(request: NextRequest) {
     response.headers.set("Cache-Control", "no-store, max-age=0")
     response.headers.set("x-pacing-cache", cacheResult.state)
     return response
+    } catch (err) {
+      const isAbortError = Boolean(err && typeof err === "object" && (err as any).name === "AbortError")
+      if (isAbortError || ac.signal.aborted) {
+        console.warn("[api/pacing/social/meta][" + requestId + "] timeout", { ms: INTERNAL_TIMEOUT_MS })
+        return NextResponse.json({ error: "Timed out" }, { status: 504 })
+      }
+      throw err
+    } finally {
+      clearTimeout(timer)
+    }
   } catch (err: any) {
     console.error("[api/pacing/social/meta][" + requestId + "] error", err)
     const message = err?.message ?? String(err)

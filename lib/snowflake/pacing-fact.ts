@@ -40,7 +40,12 @@ function clampStartToMaxRange(startISO: string, endISO: string): string {
   return startISO < earliest ? earliest : startISO
 }
 
-export async function queryPacingFact(params: QueryPacingFactParams) {
+type QueryPacingFactOptions = {
+  requestId?: string
+  signal?: AbortSignal
+}
+
+export async function queryPacingFact(params: QueryPacingFactParams, options: QueryPacingFactOptions = {}) {
   const { channel, lineItemIds, startDate, endDate } = params
   const ids = lineItemIds
     .map((value) => String(value ?? "").trim().toLowerCase())
@@ -96,7 +101,11 @@ export async function queryPacingFact(params: QueryPacingFactParams) {
 
   const queryWindow = async (windowStartISO: string, windowEndISO: string) => {
     const binds = [...ids, windowStartISO, windowEndISO]
-    return querySnowflake<PacingFactRow>(baseSql, binds)
+    return querySnowflake<PacingFactRow>(baseSql, binds, {
+      requestId: options.requestId,
+      signal: options.signal,
+      label: `pacing_fact_${channel}`,
+    })
   }
 
   // First, try single-shot query.
