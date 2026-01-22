@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserRoles, UserRole } from './rbac';
+import { getUserClientIdentifier, getUserRoles, UserRole } from './rbac';
 import { auth0 } from './auth0';
 
 type RequireRoleOptions = {
@@ -9,6 +9,7 @@ type RequireRoleOptions = {
 type RequireRoleSuccess = {
   session: Awaited<ReturnType<typeof auth0.getSession>>;
   roles: UserRole[];
+  clientSlug: string | null;
   grantedByAllowlist: boolean;
 };
 
@@ -38,6 +39,7 @@ export async function requireRole(
   }
 
   const roles = getUserRoles(session.user);
+  const clientSlug = getUserClientIdentifier(session.user);
   const required = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
   const hasRequiredRole = required.some((role) => roles.includes(role));
   const grantedByAllowlist = isAllowlisted(
@@ -45,11 +47,21 @@ export async function requireRole(
     options.allowEmails || []
   );
 
+  if (process.env.NEXT_PUBLIC_DEBUG_AUTH === 'true') {
+    console.log('[requireRole auth debug]', {
+      required,
+      roles,
+      clientSlug,
+      grantedByAllowlist,
+      email: session.user.email,
+    });
+  }
+
   if (!hasRequiredRole && !grantedByAllowlist) {
     return { response: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) };
   }
 
-  return { session, roles, grantedByAllowlist };
+  return { session, roles, clientSlug, grantedByAllowlist };
 }
 
 export async function requireAdmin(

@@ -36,7 +36,8 @@ const IS_PRODUCTION = (process.env.NODE_ENV || "").toLowerCase() === "production
 // Maximum connections in the pool
 // Increased to 20 to handle concurrent pacing requests without exhaustion
 // In serverless, connections are ephemeral so higher max is safe
-const POOL_MAX = Number(process.env.SNOWFLAKE_POOL_MAX ?? "20")
+const DEFAULT_POOL_MAX = IS_PRODUCTION ? "4" : "20"
+const POOL_MAX = Number(process.env.SNOWFLAKE_POOL_MAX ?? DEFAULT_POOL_MAX)
 
 // Minimum connections to maintain (always 0 for serverless to avoid stale connections)
 const POOL_MIN_CONNECTIONS = 0
@@ -55,8 +56,8 @@ const POOL_WARM_TIMEOUT_MS = Number(process.env.SNOWFLAKE_POOL_WARM_TIMEOUT_MS ?
 // =============================================================================
 
 // Connection acquisition timeout
-// Production defaults to 7s (fail fast under Vercel limits); dev stays at 15s
-const DEFAULT_ACQUIRE_TIMEOUT_MS = IS_PRODUCTION ? "7000" : "15000"
+// Production defaults to 20s (Vercel maxDuration is now 60s); dev stays at 15s
+const DEFAULT_ACQUIRE_TIMEOUT_MS = IS_PRODUCTION ? "20000" : "15000"
 const ACQUIRE_TIMEOUT_MS = Number(process.env.SNOWFLAKE_ACQUIRE_TIMEOUT_MS ?? DEFAULT_ACQUIRE_TIMEOUT_MS)
 
 // Query execution timeout
@@ -85,8 +86,8 @@ const MAX_BACKOFF_MS = 10000
 const MAX_RETRIES = Number(process.env.SNOWFLAKE_MAX_RETRIES ?? (IS_PRODUCTION ? "1" : "3"))
 
 // Maximum total time for all retry attempts
-// Production defaults to 12s; dev allows up to 120s
-const DEFAULT_MAX_TOTAL_RETRY_TIME_MS = IS_PRODUCTION ? "12000" : "120000"
+// Production defaults to 45s; dev allows up to 120s
+const DEFAULT_MAX_TOTAL_RETRY_TIME_MS = IS_PRODUCTION ? "45000" : "120000"
 const MAX_TOTAL_RETRY_TIME_MS = Number(
   process.env.SNOWFLAKE_MAX_RETRY_TIME_MS ?? DEFAULT_MAX_TOTAL_RETRY_TIME_MS
 )
@@ -225,6 +226,9 @@ let poolWarmed = false
 let warmingInProgress = false
 // Allow forcing pool warming even in production via env var
 const FORCE_POOL_WARM = process.env.SNOWFLAKE_FORCE_POOL_WARM === "true"
+
+// Module-scope singleton (keeps pool stable per warm instance).
+let poolSingleton: snowflake.Pool<snowflake.Connection> | undefined
 
 function getEnv(): SnowflakeEnv {
   return {
@@ -391,7 +395,7 @@ function logPoolConfiguration(env: SnowflakeEnv): void {
   }
 
   // Track which values came from env vs defaults
-  const poolMaxSource = getConfigWithSource(process.env.SNOWFLAKE_POOL_MAX, "20")
+  const poolMaxSource = getConfigWithSource(process.env.SNOWFLAKE_POOL_MAX, DEFAULT_POOL_MAX)
   const acquireTimeoutSource = getConfigWithSource(process.env.SNOWFLAKE_ACQUIRE_TIMEOUT_MS, DEFAULT_ACQUIRE_TIMEOUT_MS)
   const executeTimeoutSource = getConfigWithSource(process.env.SNOWFLAKE_EXECUTE_TIMEOUT_MS, DEFAULT_EXECUTE_TIMEOUT_MS)
   const initTimeoutSource = getConfigWithSource(process.env.SNOWFLAKE_INIT_TIMEOUT_MS, DEFAULT_INIT_TIMEOUT_MS)
@@ -666,8 +670,17 @@ export function logPoolStats(): void {
 }
 
 function getPool(): snowflake.Pool<snowflake.Connection> {
+  if (poolSingleton) {
+    console.info("[snowflake] Reusing existing pool")
+    return poolSingleton
+  }
+
   const cached = getCachedPool()
-  if (cached) return cached
+  if (cached) {
+    poolSingleton = cached
+    console.info("[snowflake] Reusing existing pool")
+    return cached
+  }
 
   const env = getEnv()
 
@@ -711,6 +724,7 @@ function getPool(): snowflake.Pool<snowflake.Connection> {
     poolOptions
   )
 
+  poolSingleton = createdPool
   setCachedPool(createdPool)
 
   // Trigger non-blocking pool warming after pool creation
@@ -828,6 +842,30 @@ function destroyConnection(connection: snowflake.Connection) {
 type SnowflakePool = snowflake.Pool<snowflake.Connection> & {
   acquire: () => Promise<snowflake.Connection>
   release: (conn: snowflake.Connection) => Promise<void> | void
+  destroy?: (conn: snowflake.Connection) => Promise<void> | void
+}
+
+async function destroyPooledConnection(
+  pool: SnowflakePool,
+  connection: snowflake.Connection,
+  requestId?: string
+): Promise<void> {
+  try {
+    const result = pool.destroy?.(connection)
+    if (result && typeof (result as Promise<void>).then === "function") {
+      await result
+    } else if (!pool.destroy) {
+      // Fallback: destroy raw connection (best-effort). Prefer pool.destroy when available.
+      destroyConnection(connection)
+    }
+  } catch (err) {
+    console.warn("[snowflake] failed to destroy pooled connection", { requestId, error: getErrorMessage(err) })
+    try {
+      destroyConnection(connection)
+    } catch {
+      // ignore
+    }
+  }
 }
 
 /**
@@ -847,29 +885,31 @@ async function acquireConnection(
   const activePool = getPool() as unknown as SnowflakePool
   const start = Date.now()
 
-  console.info("[snowflake][acquire] Starting connection acquire", {
+  const effectiveTimeoutMs = Math.max(timeoutMs, ACQUIRE_TIMEOUT_MS)
+
+  console.info("[snowflake][acquire] start", {
     requestId,
-    timeoutMs,
+    timeoutMs: effectiveTimeoutMs,
   })
 
   // Track whether we've already resolved/rejected
   let settled = false
-  let lateConnection: snowflake.Connection | null = null
+  let timeoutId: NodeJS.Timeout | null = null
 
   // Create timeout promise
   const timeoutPromise = new Promise<never>((_, reject) => {
-    setTimeout(() => {
+    timeoutId = setTimeout(() => {
       if (!settled) {
         settled = true
         const elapsed = Date.now() - start
-        console.error("[snowflake][acquire] Timeout fired", {
+        console.error("[snowflake][acquire] timeout", {
           requestId,
           elapsedMs: elapsed,
-          timeoutMs,
+          timeoutMs: effectiveTimeoutMs,
         })
         reject(new Error(`[snowflake] acquire timeout after ~${elapsed}ms`))
       }
-    }, timeoutMs)
+    }, effectiveTimeoutMs)
   })
 
   // Create acquire promise (Promise-based API)
@@ -880,8 +920,8 @@ async function acquireConnection(
         requestId,
         elapsedMs: Date.now() - start,
       })
-      lateConnection = connection
-      destroyConnection(connection)
+      // Ensure pool accounting is updated when possible.
+      destroyPooledConnection(activePool, connection, requestId).catch(() => {})
       // Return a rejected promise to ensure we don't resolve with this connection
       throw new Error("[snowflake] Connection acquired after timeout (destroyed)")
     }
@@ -894,7 +934,7 @@ async function acquireConnection(
     settled = true
 
     const elapsed = Date.now() - start
-    console.info("[snowflake][acquire] Connection acquired successfully", {
+    console.info("[snowflake][acquire] ok", {
       requestId,
       elapsedMs: elapsed,
     })
@@ -907,6 +947,8 @@ async function acquireConnection(
   } catch (err) {
     settled = true
     throw err
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId)
   }
 }
 
@@ -917,7 +959,7 @@ async function acquireConnection(
  * 
  * @param connection - The connection to release
  */
-async function releaseConnection(connection: snowflake.Connection): Promise<void> {
+async function releaseConnection(connection: snowflake.Connection, requestId?: string): Promise<void> {
   const activePool = getPool() as unknown as SnowflakePool
   try {
     const result = activePool.release(connection)
@@ -925,6 +967,7 @@ async function releaseConnection(connection: snowflake.Connection): Promise<void
     if (result && typeof (result as Promise<void>).then === "function") {
       await result
     }
+    console.info("[snowflake][release] ok", { requestId })
   } catch (err) {
     console.warn("[snowflake] failed to release connection", err)
   }
@@ -1017,7 +1060,7 @@ export async function warmPool(count: number = POOL_WARM_SIZE): Promise<void> {
 
       // CRITICAL: Release IMMEDIATELY after validating
       // Don't wait to release all at the end - this causes the deadlock
-      await releaseConnection(connection)
+      await releaseConnection(connection, `warm-pool-${i}`)
       connection = null // Mark as released
 
       const elapsedMs = Date.now() - connStart
@@ -1050,7 +1093,7 @@ export async function warmPool(count: number = POOL_WARM_SIZE): Promise<void> {
       // If we acquired a connection but validation failed, release/destroy it
       if (connection) {
         try {
-          await releaseConnection(connection)
+          await releaseConnection(connection, `warm-pool-${i}`)
         } catch {
           // Ignore release errors during warm failure
         }
@@ -1201,7 +1244,7 @@ export async function checkConnectionHealth(): Promise<HealthCheckResult> {
     // Step 3: Always release the connection back to the pool
     if (connection) {
       try {
-        await releaseConnection(connection)
+        await releaseConnection(connection, "health-check")
       } catch (err) {
         console.warn("[snowflake][health] Failed to release connection", getErrorMessage(err))
       }
@@ -1250,15 +1293,24 @@ async function executeWithTimeout<T = any>(
   binds: any[] = [],
   timeoutMs: number = EXECUTE_TIMEOUT_MS,
   label: string = "query",
-  requestId?: string
+  requestId?: string,
+  signal?: AbortSignal
 ): Promise<T[]> {
   let stmt: snowflake.RowStatement | null = null
   let finished = false
   let timeoutId: NodeJS.Timeout | null = null
+  let abortHandler: (() => void) | null = null
 
   const wrapError = (message: string) => {
     const trimmed = sqlText.slice(0, 60).replace(/\s+/g, " ").trim()
     return new Error(`[snowflake] ${message}: ${trimmed}`)
+  }
+
+  if (signal?.aborted) {
+    const err = wrapError("aborted")
+    ;(err as any).name = "AbortError"
+    ;(err as any).__sfAborted = true
+    throw err
   }
 
   const promise = new Promise<T[]>((resolve, reject) => {
@@ -1266,12 +1318,14 @@ async function executeWithTimeout<T = any>(
       if (finished) return
       finished = true
       if (timeoutId) clearTimeout(timeoutId)
+      if (abortHandler && signal) signal.removeEventListener("abort", abortHandler)
       resolve(rows)
     }
     const rejectOnce = (err: unknown) => {
       if (finished) return
       finished = true
       if (timeoutId) clearTimeout(timeoutId)
+      if (abortHandler && signal) signal.removeEventListener("abort", abortHandler)
       reject(err)
     }
 
@@ -1286,6 +1340,20 @@ async function executeWithTimeout<T = any>(
         }
       },
     })
+
+    if (signal) {
+      abortHandler = () => {
+        const abortErr = wrapError("aborted")
+        ;(abortErr as any).name = "AbortError"
+        ;(abortErr as any).__sfAborted = true
+        try {
+          stmt?.cancel(() => rejectOnce(abortErr))
+        } catch {
+          rejectOnce(abortErr)
+        }
+      }
+      signal.addEventListener("abort", abortHandler, { once: true })
+    }
 
     timeoutId = setTimeout(() => {
       const timeoutError = wrapError("timeout executing")
@@ -1431,10 +1499,19 @@ function createRequestId(existing?: string) {
 export async function execWithRetry<T = any>(
   sqlText: string,
   binds: any[] = [],
-  options: { requestId?: string } = {}
+  options: { requestId?: string; signal?: AbortSignal; label?: string } = {}
 ): Promise<T[]> {
   const requestId = createRequestId(options.requestId)
   const startTime = Date.now()
+  const signal = options.signal
+  const label = options.label ?? "query"
+
+  if (signal?.aborted) {
+    const err = new Error("[snowflake] aborted")
+    ;(err as any).name = "AbortError"
+    ;(err as any).__sfAborted = true
+    throw err
+  }
 
   // Check circuit breaker before attempting
   if (!isCircuitClosed()) {
@@ -1478,9 +1555,36 @@ export async function execWithRetry<T = any>(
 
     try {
       const acquireStart = DEBUG_SNOWFLAKE ? Date.now() : null
-      connection = await acquireConnection(requestId)
+      if (signal) {
+        let onAbort: (() => void) | null = null
+        try {
+          connection = await Promise.race([
+            acquireConnection(requestId),
+            new Promise<snowflake.Connection>((_, reject) => {
+              onAbort = () => {
+                const err = new Error("[snowflake] aborted")
+                ;(err as any).name = "AbortError"
+                ;(err as any).__sfAborted = true
+                reject(err)
+              }
+              signal.addEventListener("abort", onAbort, { once: true })
+            }),
+          ])
+        } finally {
+          if (onAbort) signal.removeEventListener("abort", onAbort)
+        }
+      } else {
+        connection = await acquireConnection(requestId)
+      }
       if (DEBUG_SNOWFLAKE && acquireStart !== null) {
         console.info("[snowflake][timing]", { requestId, label: "acquire_ms", ms: Date.now() - acquireStart })
+      }
+
+      if (signal?.aborted) {
+        const err = new Error("[snowflake] aborted")
+        ;(err as any).name = "AbortError"
+        ;(err as any).__sfAborted = true
+        throw err
       }
 
       const initStart = DEBUG_SNOWFLAKE ? Date.now() : null
@@ -1495,8 +1599,9 @@ export async function execWithRetry<T = any>(
         sqlText,
         binds,
         EXECUTE_TIMEOUT_MS,
-        "query",
-        requestId
+        label,
+        requestId,
+        signal
       )
       if (DEBUG_SNOWFLAKE && queryStart !== null) {
         console.info("[snowflake][timing]", { requestId, label: "query_ms", ms: Date.now() - queryStart })
@@ -1509,7 +1614,8 @@ export async function execWithRetry<T = any>(
       lastError = err
 
       if (connection) {
-        destroyAfterRelease = true
+        // Only destroy connections on hard timeouts; otherwise release back to pool.
+        destroyAfterRelease = Boolean((err as any)?.__sfTimedOut)
         destroyImmediately = Boolean((err as any)?.__sfTimedOut)
         console.debug("[snowflake] marking connection for destroyAfterRelease", {
           attempt,
@@ -1575,12 +1681,12 @@ export async function execWithRetry<T = any>(
       if (connection) {
         releaseStart = DEBUG_SNOWFLAKE ? Date.now() : null
         try {
-          // Fix race condition: destroy BEFORE release to prevent another request
-          // from acquiring a stale/broken connection
+          const activePool = getPool() as unknown as SnowflakePool
           if (destroyAfterRelease || destroyImmediately) {
-            destroyConnection(connection)
+            await destroyPooledConnection(activePool, connection, requestId)
+            console.info("[snowflake][release] ok", { requestId, destroyed: true })
           } else {
-            await releaseConnection(connection)
+            await releaseConnection(connection, requestId)
           }
         } catch (e) {
           console.error("[snowflake] release/destroy failed", e)

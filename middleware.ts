@@ -1,21 +1,18 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { auth0 } from './lib/auth0';
-import { getRoles } from './lib/auth0-claims';
-import { getUserClientIdentifier, getUserPrimaryMbaNumber, getUserMbaNumbers } from './lib/rbac';
+import { getUserClientIdentifier, getUserRoles } from './lib/rbac';
 
 const STATIC_PATHS = ['/favicon.ico', '/robots.txt', '/sitemap.xml'];
 const PUBLIC_PATHS = ['/', '/forbidden', '/learning'];
+const DEBUG_AUTH_ENABLED = process.env.NEXT_PUBLIC_DEBUG_AUTH === 'true';
 
 const normalizePath = (p: string) => (p !== '/' && p.endsWith('/') ? p.slice(0, -1) : p);
-const slugify = (value: string) =>
-  value
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, '-')
-    .replace(/[^a-z0-9-]/g, '')
-    .replace(/-+/g, '-')
-    .replace(/^-+|-+$/g, '');
+
+function isAllowedClientDashboardPath(pathname: string, clientSlug: string) {
+  const base = `/dashboard/${clientSlug}`;
+  return pathname === base || pathname.startsWith(`${base}/`);
+}
 
 export async function middleware(request: NextRequest) {
   // Run Auth0 middleware first so sessions/cookies continue to roll
@@ -50,11 +47,11 @@ export async function middleware(request: NextRequest) {
       return NextResponse.json({ error: 'unauthorised' }, { status: 401 });
     }
 
-    const roles = getRoles(session.user);
-    const allowedSlugs = getAllowedClientSlugs(session.user);
+    const roles = getUserRoles(session.user);
     const isClient = roles.includes('client');
+    const clientSlug = getUserClientIdentifier(session.user);
 
-    if (isClient && allowedSlugs.length === 0) {
+    if (isClient && !clientSlug) {
       return NextResponse.json({ error: 'unauthorised' }, { status: 401 });
     }
 
@@ -76,63 +73,40 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  const roles = getRoles(session.user);
+  const roles = getUserRoles(session.user);
   const isClient = roles.includes('client');
   const isAdmin = roles.includes('admin');
-
-  // Client users accessing /dashboard must be redirected to their client dashboard
-  if (isClient && pathname === '/dashboard') {
-    const clientSlug = getUserClientIdentifier(session.user);
-    if (!clientSlug) {
-      console.warn('[middleware] Client user missing client_slug, redirecting to unauthorized', {
-        email: session.user?.email,
-      });
-      return NextResponse.redirect(new URL('/unauthorized', request.url));
-    }
-
-    // Check for primary MBA or single MBA assignment
-    const primaryMba = getUserPrimaryMbaNumber(session.user);
-    const mbaNumbers = getUserMbaNumbers(session.user);
-
-    if (primaryMba) {
-      return NextResponse.redirect(new URL(`/dashboard/${clientSlug}/${primaryMba}`, request.url));
-    }
-
-    if (mbaNumbers.length === 1) {
-      return NextResponse.redirect(new URL(`/dashboard/${clientSlug}/${mbaNumbers[0]}`, request.url));
-    }
-
-    return NextResponse.redirect(new URL(`/dashboard/${clientSlug}`, request.url));
-  }
-
-  // Non-client users (admins) can proceed
-  if (!isClient) {
-    return continueResponse;
-  }
-
-  // Client users: enforce tenant isolation
   const clientSlug = getUserClientIdentifier(session.user);
-  if (!clientSlug) {
-    return pathname === '/forbidden' || pathname === '/unauthorized'
-      ? continueResponse
-      : NextResponse.redirect(new URL('/unauthorized', request.url));
+  let redirectTarget: string | null = null;
+
+  // Client users: redirect home + enforce tenant dashboard slug.
+  if (isClient) {
+    if (!clientSlug) {
+      redirectTarget = '/unauthorized';
+    } else if (pathname === '/' || pathname === '/dashboard') {
+      redirectTarget = `/dashboard/${clientSlug}`;
+    } else if (pathname.startsWith('/dashboard') && !isAllowedClientDashboardPath(pathname, clientSlug)) {
+      redirectTarget = `/dashboard/${clientSlug}`;
+    }
   }
 
-  // Redirect root to client dashboard
-  if (pathname === '/') {
-    const primaryMba = getUserPrimaryMbaNumber(session.user);
-    const mbaNumbers = getUserMbaNumbers(session.user);
-
-    if (primaryMba) {
-      return NextResponse.redirect(new URL(`/dashboard/${clientSlug}/${primaryMba}`, request.url));
-    }
-
-    if (mbaNumbers.length === 1) {
-      return NextResponse.redirect(new URL(`/dashboard/${clientSlug}/${mbaNumbers[0]}`, request.url));
-    }
-
-    return NextResponse.redirect(new URL(`/dashboard/${clientSlug}`, request.url));
+  if (DEBUG_AUTH_ENABLED) {
+    console.log('[middleware auth debug]', {
+      path: pathname,
+      roles,
+      clientSlug,
+      isClient,
+      isAdmin,
+      redirectTarget,
+    });
   }
+
+  if (redirectTarget) {
+    return NextResponse.redirect(new URL(redirectTarget, request.url));
+  }
+
+  // Non-client users (admins/managers) can proceed.
+  if (!isClient) return continueResponse;
 
   // Allow access to learning, forbidden, unauthorized pages
   if (pathname === '/learning' || pathname === '/forbidden' || pathname === '/unauthorized') {
@@ -146,17 +120,9 @@ export async function middleware(request: NextRequest) {
   }
 
   // For other routes, redirect to client dashboard
-  const primaryMba = getUserPrimaryMbaNumber(session.user);
-  const mbaNumbers = getUserMbaNumbers(session.user);
-
-  if (primaryMba) {
-    return NextResponse.redirect(new URL(`/dashboard/${clientSlug}/${primaryMba}`, request.url));
+  if (!clientSlug) {
+    return NextResponse.redirect(new URL('/unauthorized', request.url));
   }
-
-  if (mbaNumbers.length === 1) {
-    return NextResponse.redirect(new URL(`/dashboard/${clientSlug}/${mbaNumbers[0]}`, request.url));
-  }
-
   return NextResponse.redirect(new URL(`/dashboard/${clientSlug}`, request.url));
 }
 

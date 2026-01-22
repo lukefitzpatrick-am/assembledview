@@ -11,6 +11,10 @@ const DEFAULT_ROLE_NAMESPACE = 'https://assembledview.com/roles';
 const ALT_ROLE_NAMESPACE = 'https://assembledview.com.au/roles';
 const DEFAULT_CLIENT_NAMESPACE = 'https://assembledview.com/client';
 const ALT_CLIENT_NAMESPACE = 'https://assembledview.com.au/client';
+const DEFAULT_CLIENT_SLUG_NAMESPACE = 'https://assembledview.com/client_slug';
+const ALT_CLIENT_SLUG_NAMESPACE = 'https://assembledview.com.au/client_slug';
+const DEFAULT_CLIENT_SLUGS_NAMESPACE = 'https://assembledview.com/client_slugs';
+const ALT_CLIENT_SLUGS_NAMESPACE = 'https://assembledview.com.au/client_slugs';
 
 // Build a list of namespace candidates so both .com and .com.au claims work.
 function buildNamespaceCandidates(
@@ -40,6 +44,9 @@ const CLIENT_NAMESPACE_CANDIDATES = buildNamespaceCandidates(
 );
 
 const DEBUG_AUTH_ENABLED = process.env.NEXT_PUBLIC_DEBUG_AUTH === 'true';
+
+type RoleSource = 'namespaced_claim' | 'app_metadata' | 'user_metadata' | 'permissions' | 'none';
+type ClientSlugSource = 'namespaced_claim' | 'app_metadata' | 'user_metadata' | 'none';
 
 // Define role hierarchy and permissions
 export const ROLE_PERMISSIONS = {
@@ -176,10 +183,148 @@ function scanRoleNamespaces(user: User): RoleNamespaceScanResult {
   };
 }
 
+const CLIENT_SLUG_CLAIM_CANDIDATES = buildNamespaceCandidates(
+  process.env.NEXT_PUBLIC_AUTH0_CLIENT_SLUG_NAMESPACE || process.env.AUTH0_CLIENT_SLUG_NAMESPACE,
+  DEFAULT_CLIENT_SLUG_NAMESPACE,
+  ALT_CLIENT_SLUG_NAMESPACE
+);
+
+const CLIENT_SLUGS_CLAIM_CANDIDATES = buildNamespaceCandidates(
+  process.env.NEXT_PUBLIC_AUTH0_CLIENT_SLUGS_NAMESPACE || process.env.AUTH0_CLIENT_SLUGS_NAMESPACE,
+  DEFAULT_CLIENT_SLUGS_NAMESPACE,
+  ALT_CLIENT_SLUGS_NAMESPACE
+);
+
+type ClientNamespaceScanResult = {
+  slugs: string[];
+  claimKeyUsed: string | null;
+  claimKeysWithValues: string[];
+};
+
+function normalizeClientSlug(value: string): string | null {
+  const trimmed = value.trim().toLowerCase();
+  if (!trimmed) return null;
+  // Explicitly do not treat numeric client IDs as valid slugs.
+  if (/^\d+$/.test(trimmed)) return null;
+  return trimmed;
+}
+
+function scanClientSlugNamespaces(user: User): ClientNamespaceScanResult {
+  // Priority: plural claim first, then singular claim.
+  const claimKeys = [...CLIENT_SLUGS_CLAIM_CANDIDATES, ...CLIENT_SLUG_CLAIM_CANDIDATES];
+  const claimValues = claimKeys.map((key) => ({ key, values: getClaimArray(user, key) }));
+  const claimKeysWithValues = claimValues.filter(({ values }) => values.length > 0).map(({ key }) => key);
+  const claimKeyUsed = claimKeysWithValues[0] ?? null;
+
+  const slugs = claimValues
+    .flatMap(({ values }) => values)
+    .map((value) => (typeof value === 'string' ? normalizeClientSlug(value) : null))
+    .filter((value): value is string => Boolean(value));
+
+  return {
+    slugs: Array.from(new Set(slugs)),
+    claimKeyUsed,
+    claimKeysWithValues,
+  };
+}
+
+function normalizeAndDedupeRoles(roles: string[]): UserRole[] {
+  const normalized = roles
+    .map((role) => (typeof role === 'string' ? role.trim() : ''))
+    .filter(Boolean)
+    .map((role) => normalizeRole(role))
+    .filter((role): role is UserRole => Boolean(role));
+
+  return Array.from(new Set(normalized));
+}
+
+function getMetadataRoles(user: User, key: 'app_metadata' | 'user_metadata'): string[] {
+  const meta = (user as Record<string, any>)[key];
+  if (!meta || typeof meta !== 'object') return [];
+  // Accept both `role` and `roles` for resilience.
+  return [...coerceToStringArray(meta.role), ...coerceToStringArray(meta.roles)];
+}
+
+function getUserRolesWithSource(user: User | null | undefined): { roles: UserRole[]; source: RoleSource; claimKeyUsed?: string | null } {
+  if (!user) return { roles: [], source: 'none' };
+
+  // a) namespaced custom claim roles
+  const namespaceScan = scanRoleNamespaces(user);
+  const fromNamespaced = normalizeAndDedupeRoles(namespaceScan.roles);
+  if (fromNamespaced.length > 0) {
+    return { roles: fromNamespaced, source: 'namespaced_claim', claimKeyUsed: namespaceScan.claimKeyUsed };
+  }
+
+  // b) user.app_metadata.role (string or array)
+  const fromAppMetadata = normalizeAndDedupeRoles(getMetadataRoles(user, 'app_metadata'));
+  if (fromAppMetadata.length > 0) {
+    return { roles: fromAppMetadata, source: 'app_metadata' };
+  }
+
+  // c) user.user_metadata.role (string or array)
+  const fromUserMetadata = normalizeAndDedupeRoles(getMetadataRoles(user, 'user_metadata'));
+  if (fromUserMetadata.length > 0) {
+    return { roles: fromUserMetadata, source: 'user_metadata' };
+  }
+
+  // Optional fallback: infer from permissions when no role sources exist.
+  const permissionValues = coerceToStringArray((user as Record<string, unknown>).permissions);
+  if (permissionValues.length > 0) {
+    const hasAdminPerm = permissionValues.some((p) => p.startsWith('write:users') || p.startsWith('delete:users'));
+    if (hasAdminPerm) return { roles: ['admin'], source: 'permissions' };
+
+    const hasManagerPerm = permissionValues.some(
+      (p) =>
+        p.startsWith('write:mediaplans') ||
+        p.startsWith('write:clients') ||
+        p.startsWith('write:publishers')
+    );
+    if (hasManagerPerm) return { roles: ['manager'], source: 'permissions' };
+  }
+
+  return { roles: [], source: 'none' };
+}
+
+function getUserClientSlugWithSource(
+  user: User | null | undefined
+): { clientSlug: string | null; source: ClientSlugSource; claimKeyUsed?: string | null } {
+  if (!user) return { clientSlug: null, source: 'none' };
+
+  // a) namespaced custom claim client_slug / client_slugs
+  const namespaceScan = scanClientSlugNamespaces(user);
+  if (namespaceScan.slugs.length > 0) {
+    return {
+      clientSlug: namespaceScan.slugs[0] ?? null,
+      source: 'namespaced_claim',
+      claimKeyUsed: namespaceScan.claimKeyUsed,
+    };
+  }
+
+  // b) user.app_metadata.client_slug
+  const appSlugRaw = (user as Record<string, any>)['app_metadata']?.client_slug;
+  if (typeof appSlugRaw === 'string') {
+    const normalized = normalizeClientSlug(appSlugRaw);
+    if (normalized) return { clientSlug: normalized, source: 'app_metadata' };
+  }
+
+  // c) user.user_metadata.client_slug
+  const userSlugRaw = (user as Record<string, any>)['user_metadata']?.client_slug;
+  if (typeof userSlugRaw === 'string') {
+    const normalized = normalizeClientSlug(userSlugRaw);
+    if (normalized) return { clientSlug: normalized, source: 'user_metadata' };
+  }
+
+  return { clientSlug: null, source: 'none' };
+}
+
 export type RoleInspection = {
   hasRolesClaim: boolean;
   rolesClaimKeyUsed: string | null;
   roles: string[];
+  roleSource: RoleSource;
+  clientSlug: string | null;
+  clientSlugSource: ClientSlugSource;
+  clientSlugClaimKeyUsed: string | null;
   hasPermissions: boolean;
   permissions: string[];
 };
@@ -190,6 +335,10 @@ export function inspectUserRolesAndPermissions(user: User | null | undefined): R
       hasRolesClaim: false,
       rolesClaimKeyUsed: null,
       roles: [],
+      roleSource: 'none',
+      clientSlug: null,
+      clientSlugSource: 'none',
+      clientSlugClaimKeyUsed: null,
       hasPermissions: false,
       permissions: [],
     };
@@ -197,11 +346,17 @@ export function inspectUserRolesAndPermissions(user: User | null | undefined): R
 
   const namespaceScan = scanRoleNamespaces(user);
   const permissions = coerceToStringArray((user as Record<string, unknown>).permissions);
+  const roleInfo = getUserRolesWithSource(user);
+  const clientInfo = getUserClientSlugWithSource(user);
 
   return {
     hasRolesClaim: namespaceScan.claimKeysWithValues.length > 0,
     rolesClaimKeyUsed: namespaceScan.claimKeyUsed,
     roles: getUserRoles(user),
+    roleSource: roleInfo.source,
+    clientSlug: clientInfo.clientSlug,
+    clientSlugSource: clientInfo.source,
+    clientSlugClaimKeyUsed: clientInfo.claimKeyUsed ?? null,
     hasPermissions: permissions.length > 0,
     permissions,
   };
@@ -214,53 +369,18 @@ export function logRoleDebug(user: User | null | undefined, context: string = 'r
     ? { sub: (user as Record<string, unknown>).sub, email: (user as Record<string, unknown>).email }
     : null;
 
-  console.log('[RBAC debug]', { context, summary, inspection, roleNamespaces: ROLE_NAMESPACE_CANDIDATES });
+  console.log('[RBAC debug]', {
+    context,
+    summary,
+    inspection,
+    roleNamespaces: ROLE_NAMESPACE_CANDIDATES,
+    clientSlugNamespaces: { plural: CLIENT_SLUGS_CLAIM_CANDIDATES, singular: CLIENT_SLUG_CLAIM_CANDIDATES },
+  });
 }
 
 // Helper function to get user roles from Auth0 user object
 export function getUserRoles(user: User | null | undefined): UserRole[] {
-  if (!user) return [];
-  const namespaceRoles = scanRoleNamespaces(user);
-  const roleCandidates: string[] = [
-    ...namespaceRoles.roles,
-    ...coerceToStringArray((user as Record<string, unknown>).roles),
-    ...coerceToStringArray(user['app_metadata']?.roles),
-    ...coerceToStringArray(user['user_metadata']?.roles),
-    ...coerceToStringArray(user['app_metadata']?.role),
-    ...coerceToStringArray(user['user_metadata']?.role),
-  ];
-
-  const permissionValues = coerceToStringArray((user as Record<string, unknown>).permissions);
-
-  const deduped = Array.from(new Set(roleCandidates.filter(Boolean)));
-  const normalizedFromRoles = deduped
-    .map((role) => normalizeRole(role))
-    .filter((role): role is UserRole => Boolean(role));
-
-  if (normalizedFromRoles.length > 0) return normalizedFromRoles;
-
-  const normalizedFromPermissions = permissionValues
-    .map((value) => normalizeRole(value))
-    .filter((role): role is UserRole => Boolean(role));
-
-  if (normalizedFromPermissions.length > 0) return normalizedFromPermissions;
-
-  // Fallback: infer role from permissions when roles are not included in the token
-  if (permissionValues.length > 0) {
-    const hasAdminPerm = permissionValues.some((p) =>
-      p.startsWith('write:users') || p.startsWith('delete:users')
-    );
-    if (hasAdminPerm) return ['admin'];
-
-    const hasManagerPerm = permissionValues.some((p) =>
-      p.startsWith('write:mediaplans') ||
-      p.startsWith('write:clients') ||
-      p.startsWith('write:publishers')
-    );
-    if (hasManagerPerm) return ['manager'];
-  }
-
-  return normalizedFromRoles;
+  return getUserRolesWithSource(user).roles;
 }
 
 export function getPrimaryRole(user: User | null | undefined): UserRole | null {
@@ -278,14 +398,7 @@ export function isClientRole(role: UserRole | null | undefined): boolean {
 }
 
 export function getUserClientIdentifier(user: User | null | undefined): string | null {
-  if (!user) return null;
-  
-  // Only read from app_metadata.client_slug (never use client_id)
-  const clientSlug = user['app_metadata']?.client_slug;
-  
-  if (!clientSlug) return null;
-  if (typeof clientSlug === 'string') return clientSlug;
-  return null;
+  return getUserClientSlugWithSource(user).clientSlug;
 }
 
 /**

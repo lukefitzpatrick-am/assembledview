@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { auth0 } from './auth0';
-import { getAllowedClientSlugs, getRoles } from './auth0-claims';
+import { getUserClientIdentifier, getUserRoles } from './rbac';
 
 type RequireTenantAccessResult =
   | { ok: true; session: Awaited<ReturnType<typeof auth0.getSession>>; allowedSlugs?: string[] }
@@ -19,14 +19,15 @@ export async function requireTenantAccess(
     return { ok: false, status: 401 };
   }
 
-  const roles = getRoles(session.user);
+  const roles = getUserRoles(session.user);
 
   // Non-client users bypass tenant restrictions
   if (!roles.includes('client')) {
     return { ok: true, session };
   }
 
-  const allowedSlugs = getAllowedClientSlugs(session.user);
+  const clientSlug = getUserClientIdentifier(session.user);
+  const allowedSlugs = clientSlug ? [clientSlug] : [];
 
   if (!allowedSlugs.length) {
     return { ok: false, status: 403 };

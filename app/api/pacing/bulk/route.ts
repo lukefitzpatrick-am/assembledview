@@ -5,6 +5,9 @@ export const dynamic = "force-dynamic"
 export const revalidate = 0
 export const runtime = "nodejs"
 export const preferredRegion = ["syd1"]
+// NOTE: Vercel functions default to 15s; pacing can exceed this during cold warehouse resume.
+// Increase max duration to prevent Runtime Timeout Error (504).
+export const maxDuration = 60
 
 type RequestBody = {
   mbaNumber?: string
@@ -15,6 +18,12 @@ type RequestBody = {
 
 const DEBUG = process.env.NEXT_PUBLIC_DEBUG_PACING === "true"
 const QUERY_ROW_LIMIT = 50000
+const INTERNAL_TIMEOUT_MS = 55_000
+
+function createRequestId(): string {
+  // short, log-friendly id
+  return Math.random().toString(36).slice(2, 10)
+}
 
 /**
  * Normalizes line item IDs: trims, lowercases, and deduplicates
@@ -30,12 +39,18 @@ function normalizeLineItemIds(ids?: string[]): string[] {
 }
 
 export async function POST(request: NextRequest) {
+  const requestId = createRequestId()
+  const t0 = Date.now()
+
   try {
+    console.info("[api/pacing/bulk] start", { requestId })
+
     // Parse request body
     let body: RequestBody
     try {
       body = await request.json()
     } catch (err) {
+      console.info("[api/pacing/bulk] timing", { requestId, stage: "parse_json", ms: Date.now() - t0 })
       return NextResponse.json(
         { ok: false, error: "Invalid JSON body" },
         { status: 400 }
@@ -45,6 +60,7 @@ export async function POST(request: NextRequest) {
     // Validate mbaNumber
     const mbaNumber = body?.mbaNumber
     if (!mbaNumber || typeof mbaNumber !== "string" || !mbaNumber.trim()) {
+      console.info("[api/pacing/bulk] timing", { requestId, stage: "validate", ms: Date.now() - t0 })
       return NextResponse.json(
         { ok: false, error: "mbaNumber is required and must be a non-empty string" },
         { status: 400 }
@@ -55,6 +71,7 @@ export async function POST(request: NextRequest) {
     const rawLineItemIds = body?.lineItemIds
     const normalizedLineItemIds = normalizeLineItemIds(rawLineItemIds)
     if (normalizedLineItemIds.length === 0) {
+      console.info("[api/pacing/bulk] timing", { requestId, stage: "validate", ms: Date.now() - t0 })
       return NextResponse.json(
         { ok: false, error: "lineItemIds is required and must be a non-empty array" },
         { status: 400 }
@@ -64,6 +81,8 @@ export async function POST(request: NextRequest) {
     // Optional date parameters
     const startDate = body?.startDate
     const endDate = body?.endDate
+
+    console.info("[api/pacing/bulk] timing", { requestId, stage: "parsed_validated", ms: Date.now() - t0 })
 
     if (DEBUG) {
       console.log("[api/pacing/bulk] request", {
@@ -75,12 +94,31 @@ export async function POST(request: NextRequest) {
     }
 
     // Fetch pacing data
-    const rows = await getCampaignPacingData(
-      mbaNumber,
-      normalizedLineItemIds,
-      startDate,
-      endDate
-    )
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), INTERNAL_TIMEOUT_MS)
+
+    let rows: Awaited<ReturnType<typeof getCampaignPacingData>>
+    try {
+      rows = await getCampaignPacingData(
+        mbaNumber,
+        normalizedLineItemIds,
+        { startDate, endDate },
+        {
+        requestId,
+        signal: controller.signal,
+        }
+      )
+    } catch (err) {
+      if (controller.signal.aborted) {
+        console.warn("[api/pacing/bulk] timeout", { requestId, ms: Date.now() - t0 })
+        return NextResponse.json({ ok: false, error: "Pacing request timed out" }, { status: 504 })
+      }
+      throw err
+    } finally {
+      clearTimeout(timeoutId)
+    }
+
+    console.info("[api/pacing/bulk] timing", { requestId, stage: "snowflake_done", ms: Date.now() - t0 })
 
     const dateDays = rows.map((r) => r.dateDay).filter(Boolean)
     const maxDateDay = dateDays.length > 0 ? dateDays.sort().slice(-1)[0] : null
@@ -113,6 +151,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Return success response
+    console.info("[api/pacing/bulk] timing", { requestId, stage: "respond", ms: Date.now() - t0 })
     return NextResponse.json({
       ok: true,
       rows,
@@ -133,6 +172,8 @@ export async function POST(request: NextRequest) {
     const errorMessage = err instanceof Error ? err.message : String(err)
     const errorDetails = err instanceof Error ? err.stack : undefined
 
+    console.error("[api/pacing/bulk] error", { requestId, ms: Date.now() - t0, error: errorMessage })
+
     if (DEBUG) {
       console.error("[api/pacing/bulk] error", {
         error: errorMessage,
@@ -144,6 +185,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         ok: false,
+        // Always return JSON on errors; keep message generic unless DEBUG is enabled.
         error: "Internal server error",
         ...(DEBUG && errorDetails ? { details: errorDetails } : {}),
       },

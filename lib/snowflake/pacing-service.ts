@@ -1,7 +1,5 @@
 import "server-only"
 
-import { cache } from "react"
-
 import { querySnowflake } from "@/lib/snowflake/query"
 
 type Channel = "meta" | "tiktok" | "programmatic-display" | "programmatic-video"
@@ -47,6 +45,16 @@ const MAX_IDS = 500
 const QUERY_ROW_LIMIT = 50000
 const DEBUG_PACING = process.env.NEXT_PUBLIC_DEBUG_PACING === "true"
 const ALLOWED_CHANNELS: Channel[] = ["meta", "tiktok", "programmatic-display", "programmatic-video"]
+
+type GetCampaignPacingDataOptions = {
+  requestId?: string
+  signal?: AbortSignal
+}
+
+type GetCampaignPacingDataParams = {
+  startDate?: string
+  endDate?: string
+}
 
 /**
  * Get yesterday's date in Australia/Melbourne timezone as ISO string "YYYY-MM-DD"
@@ -135,16 +143,17 @@ function prepareIds(lineItemIds?: string[] | null) {
   return Array.from(unique).sort()
 }
 
-export const getCampaignPacingData = cache(
-  async (
-    mbaNumber: string | null | undefined,
-    lineItemIds: string[] | null | undefined,
-    startDate?: string,
-    endDate?: string
-  ): Promise<PacingRow[]> => {
+export async function getCampaignPacingData(
+  mbaNumber: string | null | undefined,
+  lineItemIds: string[] | null | undefined,
+  params?: GetCampaignPacingDataParams,
+  options?: GetCampaignPacingDataOptions
+): Promise<PacingRow[]> {
   if (!mbaNumber) {
     throw new Error("mbaNumber is required")
   }
+
+  const requestId = options?.requestId ?? Math.random().toString(36).slice(2, 10)
 
   let normalizedIds = prepareIds(lineItemIds)
   if (!normalizedIds.length) {
@@ -162,7 +171,7 @@ export const getCampaignPacingData = cache(
     normalizedIds = normalizedIds.slice(0, MAX_IDS)
   }
 
-  const { start, end } = clampDateRange(startDate, endDate)
+  const { start, end } = clampDateRange(params?.startDate, params?.endDate)
 
   if (DEBUG_PACING) {
     console.log("[Pacing] query input", {
@@ -172,53 +181,22 @@ export const getCampaignPacingData = cache(
     })
   }
 
-  // Query for max available date in Snowflake to ensure we don't cut off latest data
-  let maxAvailableDate: string | null = null
-  let effectiveEnd = end
-  
-  try {
-    const maxDatePlaceholders = normalizedIds.map(() => "?").join(", ")
-    const maxDateSql = `
-      SELECT MAX(CAST(DATE_DAY AS DATE)) AS MAX_DATE
-      FROM ASSEMBLEDVIEW.MART.PACING_FACT
-      WHERE LINE_ITEM_ID IN (${maxDatePlaceholders})
-    `
-    const maxDateRows = await querySnowflake<{ MAX_DATE: string | null }>(
-      maxDateSql,
-      normalizedIds
-    )
-    
-    if (maxDateRows.length > 0 && maxDateRows[0].MAX_DATE) {
-      maxAvailableDate = normalizeDateString(maxDateRows[0].MAX_DATE)
-      if (maxAvailableDate) {
-        // Use MIN(requestedEnd, maxDate) to ensure we include all available data
-        effectiveEnd = maxAvailableDate < end ? maxAvailableDate : end
-        
-        if (DEBUG_PACING && effectiveEnd !== end) {
-          console.log("[Pacing] effective end adjusted to max available date", {
-            mbaNumber,
-            requestedEnd: end,
-            maxAvailableDate,
-            effectiveEnd,
-          })
-        }
-      }
-    }
-  } catch (error) {
-    // If max date query fails, log but continue with requested end
-    if (DEBUG_PACING) {
-      console.warn("[Pacing] max date query failed, using requested end", {
-        mbaNumber,
-        error: error instanceof Error ? error.message : String(error),
-        requestedEnd: end,
-      })
-    }
-  }
-
+  const buildStart = Date.now()
   const placeholders = normalizedIds.map(() => "?").join(", ")
 
   const sql = `
   /* QUERY_TAG: bulk_pacing */
+  WITH maxd AS (
+    SELECT MAX(CAST(DATE_DAY AS DATE)) AS max_date
+    FROM ASSEMBLEDVIEW.MART.PACING_FACT
+    WHERE LOWER(LINE_ITEM_ID) IN (${placeholders})
+  ),
+  bounds AS (
+    SELECT
+      TO_DATE(?) AS start_date,
+      LEAST(TO_DATE(?), maxd.max_date) AS end_date
+    FROM maxd
+  )
   SELECT
     /* normalised channel values for the app */
     CASE
@@ -242,24 +220,36 @@ export const getCampaignPacingData = cache(
     VIDEO_3S_VIEWS,
     MAX_FIVETRAN_SYNCED_AT,
     UPDATED_AT
-  FROM ASSEMBLEDVIEW.MART.PACING_FACT
-  WHERE LINE_ITEM_ID IN (${placeholders})
-    AND CAST(DATE_DAY AS DATE) BETWEEN TO_DATE(?) AND TO_DATE(?)
+  FROM ASSEMBLEDVIEW.MART.PACING_FACT, bounds
+  WHERE bounds.end_date IS NOT NULL
+    AND CAST(DATE_DAY AS DATE) BETWEEN bounds.start_date AND bounds.end_date
+    AND LOWER(LINE_ITEM_ID) IN (${placeholders})
   ORDER BY CAST(DATE_DAY AS DATE) ASC, CHANNEL ASC
   LIMIT ${QUERY_ROW_LIMIT}
 `
 
-  const binds = [...normalizedIds, start, effectiveEnd]
+  // binds order: ids for maxd, then start/end bounds, then ids for final select
+  const binds = [...normalizedIds, start, end, ...normalizedIds]
+  console.info("[pacing-service][timing] build", {
+    requestId,
+    ms: Date.now() - buildStart,
+    idsCount: normalizedIds.length,
+  })
 
   // ============================================================================
   // PERFORMANCE: Track query execution time
   // ============================================================================
   const queryStartTime = Date.now()
 
-  const rows = await querySnowflake<RawRow>(sql, binds)
+  const rows = await querySnowflake<RawRow>(sql, binds, {
+    requestId,
+    signal: options?.signal,
+    label: "pacing_bulk",
+  })
 
   // Calculate query duration
   const queryDurationMs = Date.now() - queryStartTime
+  console.info("[pacing-service][timing] query", { requestId, ms: queryDurationMs, rows: rows.length })
 
   // If we hit the hard row limit, Snowflake will drop the newest days first
   // because we order ASC. This is a common cause of “missing latest N days”.
@@ -270,7 +260,7 @@ export const getCampaignPacingData = cache(
       rowLimit: QUERY_ROW_LIMIT,
       rawRowsReturned: rows.length,
       lineItemCount: normalizedIds.length,
-      dateRange: { start, end: effectiveEnd },
+      dateRange: { start, end },
       note: "ORDER BY date ASC means latest dates may be missing if truncated",
     })
   }
@@ -362,7 +352,8 @@ export const getCampaignPacingData = cache(
         `
         const probeMatches = await querySnowflake<{ CHANNEL: string; LINE_ITEM_ID: string }>(
           probeSql,
-          normalizedIds
+          normalizedIds,
+          { requestId, signal: options?.signal, label: "pacing_zero_row_probe" }
         )
 
         console.log("[Pacing] Zero-row probe results", {
@@ -410,5 +401,4 @@ export const getCampaignPacingData = cache(
       updatedAt: row.UPDATED_AT ?? null,
     }
   })
-  }
-)
+}
