@@ -8,6 +8,7 @@ export type Dv360DailyRow = {
   impressions: number
   clicks: number
   conversions: number
+  videoViews?: number
   matchedPostfix?: string | null
 }
 
@@ -148,6 +149,7 @@ export async function queryDv360Pacing(
     impressions: Number(row.IMPRESSIONS ?? 0),
     clicks: Number(row.CLICKS ?? 0),
     conversions: Number(row.CONVERSIONS ?? 0),
+    videoViews: 0,
     matchedPostfix: row.MATCHED_POSTFIX ?? null,
   }))
 
@@ -187,6 +189,7 @@ export async function queryDv360Pacing(
           impressions: 0,
           clicks: 0,
           conversions: 0,
+          videoViews: 0,
           matchedPostfix: postfix,
         }
       )

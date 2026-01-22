@@ -4,6 +4,9 @@ import { parseDateOnlyString, toMelbourneDateString } from "@/lib/timezone"
 import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
 import { getXanoBaseUrl, xanoUrl } from "@/lib/api/xano"
 
+export const dynamic = "force-dynamic"
+export const revalidate = 0
+
 type MediaLineItems = {
   television: any[]
   radio: any[]
@@ -125,6 +128,17 @@ const MEDIA_TYPE_ALIASES: Record<string, keyof MediaLineItems> = {
 
 function normalise(value: any) {
   return String(value ?? "").trim().toLowerCase()
+}
+
+function isTruthyFlag(value: any) {
+  if (value === undefined || value === null) return false
+  if (typeof value === "boolean") return value
+  if (typeof value === "number") return value !== 0
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase()
+    return ["yes", "true", "1", "y", "on"].includes(normalized)
+  }
+  return false
 }
 
 function parseVersion(value: any): number | null {
@@ -970,7 +984,10 @@ export async function GET(
       lineItemsCount: Object.keys(lineItemsData).reduce((sum, key) => sum + (lineItemsData[key]?.length || 0), 0)
     })
     
-    return NextResponse.json(combinedData)
+    const response = NextResponse.json(combinedData)
+    // Ensure no caching
+    response.headers.set("Cache-Control", "no-store, max-age=0")
+    return response
   } catch (error) {
     console.error("Error fetching media plan by MBA:", error)
     
@@ -1084,6 +1101,7 @@ export async function PUT(
     const normalizedCampaignEndDate = campaignEndDate ? toMelbourneDateString(campaignEndDate) : campaignEndDate
 
     // Format the data to match the media_plan_versions schema
+    const mpProductionFlag = isTruthyFlag(data.mp_production) || isTruthyFlag(data.mp_fixedfee)
     const newVersionData = {
       media_plan_master_id: masterData.id,
       version_number: nextVersionNumber,
@@ -1097,27 +1115,27 @@ export async function PUT(
       client_contact: data.mp_clientcontact || "",
       po_number: data.mp_ponumber || "",
       mp_campaignbudget: data.mp_campaignbudget || masterData.mp_campaignbudget,
-      fixed_fee: data.mp_fixedfee || false,
-      mp_production: data.mp_production || false,
-      mp_television: data.mp_television || false,
-      mp_radio: data.mp_radio || false,
-      mp_newspaper: data.mp_newspaper || false,
-      mp_magazines: data.mp_magazines || false,
-      mp_ooh: data.mp_ooh || false,
-      mp_cinema: data.mp_cinema || false,
-      mp_digidisplay: data.mp_digidisplay || false,
-      mp_digiaudio: data.mp_digiaudio || false,
-      mp_digivideo: data.mp_digivideo || false,
-      mp_bvod: data.mp_bvod || false,
-      mp_integration: data.mp_integration || false,
-      mp_search: data.mp_search || false,
-      mp_socialmedia: data.mp_socialmedia || false,
-      mp_progdisplay: data.mp_progdisplay || false,
-      mp_progvideo: data.mp_progvideo || false,
-      mp_progbvod: data.mp_progbvod || false,
-      mp_progaudio: data.mp_progaudio || false,
-      mp_progooh: data.mp_progooh || false,
-      mp_influencers: data.mp_influencers || false,
+      fixed_fee: isTruthyFlag(data.mp_fixedfee),
+      mp_production: mpProductionFlag,
+      mp_television: isTruthyFlag(data.mp_television),
+      mp_radio: isTruthyFlag(data.mp_radio),
+      mp_newspaper: isTruthyFlag(data.mp_newspaper),
+      mp_magazines: isTruthyFlag(data.mp_magazines),
+      mp_ooh: isTruthyFlag(data.mp_ooh),
+      mp_cinema: isTruthyFlag(data.mp_cinema),
+      mp_digidisplay: isTruthyFlag(data.mp_digidisplay),
+      mp_digiaudio: isTruthyFlag(data.mp_digiaudio),
+      mp_digivideo: isTruthyFlag(data.mp_digivideo),
+      mp_bvod: isTruthyFlag(data.mp_bvod),
+      mp_integration: isTruthyFlag(data.mp_integration),
+      mp_search: isTruthyFlag(data.mp_search),
+      mp_socialmedia: isTruthyFlag(data.mp_socialmedia),
+      mp_progdisplay: isTruthyFlag(data.mp_progdisplay),
+      mp_progvideo: isTruthyFlag(data.mp_progvideo),
+      mp_progbvod: isTruthyFlag(data.mp_progbvod),
+      mp_progaudio: isTruthyFlag(data.mp_progaudio),
+      mp_progooh: isTruthyFlag(data.mp_progooh),
+      mp_influencers: isTruthyFlag(data.mp_influencers),
       billingSchedule: data.billingSchedule || null,
       deliverySchedule: data.deliverySchedule || null,
     }

@@ -2,6 +2,7 @@ import crypto from "node:crypto"
 import { NextRequest, NextResponse } from "next/server"
 import { buildPacingCacheKey, getPacingCache } from "@/lib/pacing/pacingCache"
 import { queryPacingFact } from "@/lib/snowflake/pacing-fact"
+import { getMelbourneYesterdayISO } from "@/lib/dates/melbourne"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -19,6 +20,8 @@ const DEBUG =
   process.env.DEBUG_PACING === "true" ||
   process.env.NEXT_PUBLIC_DEBUG_PACING === "true"
 
+const QUERY_ROW_LIMIT = 50000
+
 function normalizeDateString(value?: string | null) {
   if (!value) return null
   const parsed = new Date(value)
@@ -27,8 +30,8 @@ function normalizeDateString(value?: string | null) {
 }
 
 function buildDateRange(startDate?: string, endDate?: string) {
-  const today = new Date()
-  const end = normalizeDateString(endDate) ?? today.toISOString().slice(0, 10)
+  // Use Melbourne yesterday as default end date since Snowflake data is typically up to yesterday
+  const end = normalizeDateString(endDate) ?? getMelbourneYesterdayISO()
   // Clamp to 180 days to avoid unbounded scans that can time out serverless funcs.
   const maxRangeDays = 180
   const startProvided = normalizeDateString(startDate)
@@ -126,6 +129,25 @@ export async function POST(request: NextRequest) {
       const t1 = Date.now()
       console.log("[api/pacing/programmatic/video][" + requestId + "] snowflake_ms", t1 - t0)
 
+      // TEMPORARY DEBUG: Calculate max date and synced timestamp from results
+      const dateDays = rows.map((r) => r.DATE_DAY).filter(Boolean)
+      const maxDateDay = dateDays.length > 0 ? dateDays.sort().slice(-1)[0] : null
+      const syncedAts = rows.map((r) => r.MAX_FIVETRAN_SYNCED_AT).filter(Boolean)
+      const maxSyncedAt = syncedAts.length > 0 ? syncedAts.sort().slice(-1)[0] : null
+
+      const hitRowLimit = rows.length === QUERY_ROW_LIMIT
+      if (hitRowLimit) {
+        console.warn("[api/pacing/programmatic/video] potential truncation: hit row limit", {
+          mbaNumber,
+          startDate: start,
+          endDate: end,
+          idsCount: lineItemIds.length,
+          rowLimit: QUERY_ROW_LIMIT,
+          rowsReturned: rows.length,
+          maxDateDay,
+        })
+      }
+
       if (DEBUG) {
         console.info("[api/pacing/programmatic/video] rows", {
           mbaNumber,
@@ -133,6 +155,9 @@ export async function POST(request: NextRequest) {
           endDate: end,
           lineItemIds,
           rowCount: rows.length,
+          maxDateDay,
+          maxSyncedAt,
+          hitRowLimit,
         })
       }
 
@@ -144,8 +169,11 @@ export async function POST(request: NextRequest) {
         impressions: Number(row.IMPRESSIONS ?? 0),
         clicks: Number(row.CLICKS ?? 0),
         conversions: Number(row.RESULTS ?? 0),
+        video3sViews: Number(row.VIDEO_3S_VIEWS ?? 0),
         matchedPostfix: row.LINE_ITEM_ID ? String(row.LINE_ITEM_ID).toLowerCase() : null,
         lineItemId: row.LINE_ITEM_ID ?? null,
+        maxFivetranSyncedAt: row.MAX_FIVETRAN_SYNCED_AT ?? null,
+        updatedAt: row.UPDATED_AT ?? null,
       }))
 
       const totals = mappedRows.reduce(
@@ -160,7 +188,7 @@ export async function POST(request: NextRequest) {
 
       const dateSeries = buildDateSeries(start, end)
 
-      return { rows: mappedRows, totals, dateSeries }
+      return { rows: mappedRows, totals, dateSeries, _debugMaxDateDay: maxDateDay, _debugMaxSyncedAt: maxSyncedAt }
     })
 
     if (DEBUG && cacheResult.state === "STALE" && cacheResult.staleError) {
@@ -173,12 +201,26 @@ export async function POST(request: NextRequest) {
     }
 
     const pacing = cacheResult.value
+    // TEMPORARY DEBUG: Add diagnostic fields to response
+    // TODO: Remove these debug fields after verifying date range issues are resolved
     const response = NextResponse.json({
       rows: pacing.rows,
       totals: pacing.totals,
       dateSeries: pacing.dateSeries,
       count: pacing.rows.length,
+      // TEMPORARY DEBUG FIELDS - Remove after verification
+      _debug: {
+        object_name: "ASSEMBLEDVIEW.MART.PACING_FACT",
+        max_date_day: pacing._debugMaxDateDay ?? null,
+        max_synced_at: pacing._debugMaxSyncedAt ?? null,
+        server_timestamp: new Date().toISOString(),
+        query_date_range: { start, end },
+        query_row_limit: QUERY_ROW_LIMIT,
+        hit_row_limit: pacing.rows.length === QUERY_ROW_LIMIT,
+      },
     })
+    // Ensure no caching
+    response.headers.set("Cache-Control", "no-store, max-age=0")
     response.headers.set("x-pacing-cache", cacheResult.state)
     return response
   } catch (err: any) {

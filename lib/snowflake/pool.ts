@@ -30,6 +30,9 @@ type SnowflakeEnv = {
 // All timeouts are configurable via environment variables for tuning per environment
 // =============================================================================
 
+// Track whether we're in a serverless/production environment (skip warming)
+const IS_PRODUCTION = (process.env.NODE_ENV || "").toLowerCase() === "production"
+
 // Maximum connections in the pool
 // Increased to 20 to handle concurrent pacing requests without exhaustion
 // In serverless, connections are ephemeral so higher max is safe
@@ -40,7 +43,7 @@ const POOL_MIN_CONNECTIONS = 0
 
 // Number of connections to pre-create during pool warming
 // 3 connections provides good coverage for typical concurrent load
-const POOL_WARM_SIZE = Number(process.env.SNOWFLAKE_POOL_WARM_SIZE ?? "3")
+const POOL_WARM_SIZE = Number(process.env.SNOWFLAKE_POOL_WARM_SIZE ?? (IS_PRODUCTION ? "0" : "3"))
 
 // Timeout for each connection during pool warming (10 seconds)
 // Shorter than regular acquire to fail fast during warmup
@@ -51,21 +54,21 @@ const POOL_WARM_TIMEOUT_MS = Number(process.env.SNOWFLAKE_POOL_WARM_TIMEOUT_MS ?
 // Tuned to prevent timeout cascades while allowing adequate time for operations
 // =============================================================================
 
-// Connection acquisition timeout: 15 seconds (reduced from 45s)
-// Rationale: If a connection can't be acquired in 15s, the pool is likely exhausted
-// Fail fast and let the caller handle retry logic rather than blocking for 45s
-// This prevents the 3-minute timeout cascade (45s × 4 retries = 180s)
-const ACQUIRE_TIMEOUT_MS = Number(process.env.SNOWFLAKE_ACQUIRE_TIMEOUT_MS ?? "15000")
+// Connection acquisition timeout
+// Production defaults to 7s (fail fast under Vercel limits); dev stays at 15s
+const DEFAULT_ACQUIRE_TIMEOUT_MS = IS_PRODUCTION ? "7000" : "15000"
+const ACQUIRE_TIMEOUT_MS = Number(process.env.SNOWFLAKE_ACQUIRE_TIMEOUT_MS ?? DEFAULT_ACQUIRE_TIMEOUT_MS)
 
-// Query execution timeout: 30 seconds (increased from 20s)
-// Rationale: Complex pacing queries with large IN clauses may need 10-20 seconds
-// 30s provides headroom for slow warehouse resume or query compilation
-const EXECUTE_TIMEOUT_MS = Number(process.env.SNOWFLAKE_EXECUTE_TIMEOUT_MS ?? "30000")
+// Query execution timeout
+// Production defaults to 8s; dev stays at 30s for heavier local queries
+const DEFAULT_EXECUTE_TIMEOUT_MS = IS_PRODUCTION ? "8000" : "30000"
+const EXECUTE_TIMEOUT_MS = Number(process.env.SNOWFLAKE_EXECUTE_TIMEOUT_MS ?? DEFAULT_EXECUTE_TIMEOUT_MS)
 
 // Session initialization timeout: 8 seconds
 // Rationale: ALTER SESSION commands are fast; 8s is generous
 // If init takes longer, the connection is likely unhealthy
-const INIT_TIMEOUT_MS = Number(process.env.SNOWFLAKE_INIT_TIMEOUT_MS ?? "8000")
+const DEFAULT_INIT_TIMEOUT_MS = "8000"
+const INIT_TIMEOUT_MS = Number(process.env.SNOWFLAKE_INIT_TIMEOUT_MS ?? DEFAULT_INIT_TIMEOUT_MS)
 
 // =============================================================================
 // RETRY CONFIGURATION
@@ -78,11 +81,15 @@ const BASE_BACKOFF_MS = 250
 const MAX_BACKOFF_MS = 10000
 
 // Maximum retry attempts for transient errors
-const MAX_RETRIES = 3
+// Production defaults to 1; dev allows more retries
+const MAX_RETRIES = Number(process.env.SNOWFLAKE_MAX_RETRIES ?? (IS_PRODUCTION ? "1" : "3"))
 
-// Maximum total time for all retry attempts (120 seconds)
-// Prevents infinite retry loops regardless of individual attempt limits
-const MAX_TOTAL_RETRY_TIME_MS = Number(process.env.SNOWFLAKE_MAX_RETRY_TIME_MS ?? "120000")
+// Maximum total time for all retry attempts
+// Production defaults to 12s; dev allows up to 120s
+const DEFAULT_MAX_TOTAL_RETRY_TIME_MS = IS_PRODUCTION ? "12000" : "120000"
+const MAX_TOTAL_RETRY_TIME_MS = Number(
+  process.env.SNOWFLAKE_MAX_RETRY_TIME_MS ?? DEFAULT_MAX_TOTAL_RETRY_TIME_MS
+)
 
 // Error tokens that indicate transient network errors (safe to retry)
 const TRANSIENT_ERROR_TOKENS = ["ECONNRESET", "ETIMEDOUT", "EAI_AGAIN", "ENOTFOUND", "ECONNREFUSED"]
@@ -216,8 +223,6 @@ let warmInitiated = false
 let poolWarmed = false
 // Track whether warming is currently in progress (prevents concurrent warming attempts)
 let warmingInProgress = false
-// Track whether we're in a serverless/production environment (skip warming)
-const IS_PRODUCTION = (process.env.NODE_ENV || "").toLowerCase() === "production"
 // Allow forcing pool warming even in production via env var
 const FORCE_POOL_WARM = process.env.SNOWFLAKE_FORCE_POOL_WARM === "true"
 
@@ -387,10 +392,10 @@ function logPoolConfiguration(env: SnowflakeEnv): void {
 
   // Track which values came from env vs defaults
   const poolMaxSource = getConfigWithSource(process.env.SNOWFLAKE_POOL_MAX, "20")
-  const acquireTimeoutSource = getConfigWithSource(process.env.SNOWFLAKE_ACQUIRE_TIMEOUT_MS, "15000")
-  const executeTimeoutSource = getConfigWithSource(process.env.SNOWFLAKE_EXECUTE_TIMEOUT_MS, "30000")
-  const initTimeoutSource = getConfigWithSource(process.env.SNOWFLAKE_INIT_TIMEOUT_MS, "8000")
-  const warmSizeSource = getConfigWithSource(process.env.SNOWFLAKE_POOL_WARM_SIZE, "3")
+  const acquireTimeoutSource = getConfigWithSource(process.env.SNOWFLAKE_ACQUIRE_TIMEOUT_MS, DEFAULT_ACQUIRE_TIMEOUT_MS)
+  const executeTimeoutSource = getConfigWithSource(process.env.SNOWFLAKE_EXECUTE_TIMEOUT_MS, DEFAULT_EXECUTE_TIMEOUT_MS)
+  const initTimeoutSource = getConfigWithSource(process.env.SNOWFLAKE_INIT_TIMEOUT_MS, DEFAULT_INIT_TIMEOUT_MS)
+  const warmSizeSource = getConfigWithSource(process.env.SNOWFLAKE_POOL_WARM_SIZE, IS_PRODUCTION ? "0" : "3")
   const warmTimeoutSource = getConfigWithSource(process.env.SNOWFLAKE_POOL_WARM_TIMEOUT_MS, "10000")
 
   // Determine credential type
@@ -1080,11 +1085,11 @@ export async function warmPool(count: number = POOL_WARM_SIZE): Promise<void> {
 // HEALTH CHECK
 // =============================================================================
 
-/** Timeout for health check connection acquisition (15 seconds - matches ACQUIRE_TIMEOUT_MS) */
-const HEALTH_CHECK_ACQUIRE_TIMEOUT_MS = 15000
+/** Timeout for health check connection acquisition (bounded by ACQUIRE_TIMEOUT_MS) */
+const HEALTH_CHECK_ACQUIRE_TIMEOUT_MS = Math.min(ACQUIRE_TIMEOUT_MS, 12000)
 
-/** Timeout for health check query execution (10 seconds - generous for SELECT 1) */
-const HEALTH_CHECK_QUERY_TIMEOUT_MS = 10000
+/** Timeout for health check query execution (bounded by EXECUTE_TIMEOUT_MS) */
+const HEALTH_CHECK_QUERY_TIMEOUT_MS = Math.min(EXECUTE_TIMEOUT_MS, 10000)
 
 /** Result type for connection health check */
 export type HealthCheckResult = {
@@ -1099,8 +1104,8 @@ export type HealthCheckResult = {
  * Check if the Snowflake connection pool is healthy.
  *
  * This function performs a lightweight health check by:
- * 1. Acquiring a connection from the pool (15s timeout)
- * 2. Running a simple query: SELECT 1 AS health_check (10s timeout)
+ * 1. Acquiring a connection from the pool (bounded by ACQUIRE_TIMEOUT_MS)
+ * 2. Running a simple query: SELECT 1 AS health_check (bounded by EXECUTE_TIMEOUT_MS)
  * 3. Releasing the connection back to the pool
  *
  * Use this before fetching pacing data to verify Snowflake connectivity.
@@ -1542,6 +1547,17 @@ export async function execWithRetry<T = any>(
       const cappedBackoff = Math.min(exponentialBackoff, MAX_BACKOFF_MS)
       const jitter = 0.5 + Math.random() // 0.5x - 1.5x
       const delayMs = Math.round(cappedBackoff * jitter)
+      const remainingMs = MAX_TOTAL_RETRY_TIME_MS - totalElapsedNow
+      if (remainingMs <= delayMs) {
+        console.debug("[snowflake] Retry delay exceeds remaining budget", {
+          requestId,
+          attempt,
+          delayMs,
+          remainingMs,
+        })
+        recordFailure()
+        throw formatError(err)
+      }
 
       console.info("[snowflake] Retrying after transient error", {
         requestId,

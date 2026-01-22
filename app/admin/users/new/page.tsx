@@ -13,7 +13,12 @@ type ClientOption = { id: number; mp_client_name: string; slug?: string };
 
 export default function NewAdminUserPage() {
   const { isAdmin } = useAuthContext();
-  const [form, setForm] = useState({ firstName: "", lastName: "", email: "" });
+  const [form, setForm] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    password: "",
+  });
   const [role, setRole] = useState<Role>("client");
   const [clientSlug, setClientSlug] = useState<string>("");
   const [clients, setClients] = useState<ClientOption[]>([]);
@@ -51,6 +56,7 @@ export default function NewAdminUserPage() {
           firstName: form.firstName,
           lastName: form.lastName,
           email: form.email,
+          password: form.password,
           role,
           clientSlug: role === "client" ? clientSlug : undefined,
         }),
@@ -62,7 +68,7 @@ export default function NewAdminUserPage() {
       }
 
       setStatus("success");
-      setForm({ firstName: "", lastName: "", email: "" });
+      setForm({ firstName: "", lastName: "", email: "", password: "" });
       setClientSlug("");
       setRole("client");
     } catch (err) {
@@ -115,6 +121,21 @@ export default function NewAdminUserPage() {
               required
               autoComplete="email"
             />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="password">Temporary password</Label>
+            <Input
+              id="password"
+              type="password"
+              value={form.password}
+              onChange={(e) => setForm((prev) => ({ ...prev, password: e.target.value }))}
+              required
+              autoComplete="new-password"
+            />
+            <p className="text-xs text-muted-foreground">
+              Auth0 requires a password at creation. The user can change it from the invite link.
+            </p>
           </div>
 
           <div className="flex flex-col gap-2">

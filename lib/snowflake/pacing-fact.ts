@@ -1,5 +1,8 @@
 import { querySnowflake } from "@/lib/snowflake/query"
 
+const QUERY_ROW_LIMIT = 50000
+const MAX_RANGE_DAYS = 180
+
 export type PacingFactRow = {
   CHANNEL: string
   DATE_DAY: string
@@ -25,6 +28,18 @@ type QueryPacingFactParams = {
   endDate: string
 }
 
+function addDaysISO(isoDate: string, days: number): string {
+  const [y, m, d] = isoDate.split("-").map((v) => Number(v))
+  const dt = new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1, 0, 0, 0))
+  dt.setUTCDate(dt.getUTCDate() + days)
+  return dt.toISOString().slice(0, 10)
+}
+
+function clampStartToMaxRange(startISO: string, endISO: string): string {
+  const earliest = addDaysISO(endISO, -MAX_RANGE_DAYS)
+  return startISO < earliest ? earliest : startISO
+}
+
 export async function queryPacingFact(params: QueryPacingFactParams) {
   const { channel, lineItemIds, startDate, endDate } = params
   const ids = lineItemIds
@@ -35,9 +50,28 @@ export async function queryPacingFact(params: QueryPacingFactParams) {
 
   const placeholders = ids.map(() => "?").join(", ")
 
-  const sql = `  SELECT
+  // Snowflake CHANNEL values may not be normalised (case/wording varies),
+  // so we match using LOWER() + LIKE patterns (same intent as bulk pacing query).
+  const channelWhere = (() => {
+    switch (channel) {
+      case "meta":
+        return "LOWER(CHANNEL) LIKE '%meta%'"
+      case "tiktok":
+        return "LOWER(CHANNEL) LIKE '%tiktok%'"
+      case "programmatic-display":
+        return "LOWER(CHANNEL) LIKE '%programmatic%' AND LOWER(CHANNEL) LIKE '%display%'"
+      case "programmatic-video":
+        return "LOWER(CHANNEL) LIKE '%programmatic%' AND LOWER(CHANNEL) LIKE '%video%'"
+      default: {
+        const exhaustive: never = channel
+        throw new Error(`Unsupported pacing channel: ${String(exhaustive)}`)
+      }
+    }
+  })()
+
+  const baseSql = `  SELECT
     CHANNEL,
-    DATE_DAY,
+    CAST(DATE_DAY AS DATE) AS DATE_DAY,
     LINE_ITEM_ID,
     ENTITY_NAME,
     ENTITY_ID,
@@ -50,13 +84,83 @@ export async function queryPacingFact(params: QueryPacingFactParams) {
     MAX_FIVETRAN_SYNCED_AT,
     UPDATED_AT
   FROM ASSEMBLEDVIEW.MART.PACING_FACT
-  WHERE CHANNEL = ?
+  WHERE ${channelWhere}
     AND LINE_ITEM_ID IN (${placeholders})
-    AND DATE_DAY BETWEEN TO_DATE(?) AND TO_DATE(?)
-  ORDER BY DATE_DAY ASC
-  LIMIT 50000`
+    AND CAST(DATE_DAY AS DATE) BETWEEN TO_DATE(?) AND TO_DATE(?)
+  ORDER BY CAST(DATE_DAY AS DATE) ASC
+  LIMIT ${QUERY_ROW_LIMIT}`
 
-  const binds = [channel, ...ids, startDate, endDate]
+  const startISO = String(startDate).slice(0, 10)
+  const endISO = String(endDate).slice(0, 10)
+  const clampedStartISO = clampStartToMaxRange(startISO, endISO)
 
-  return querySnowflake<PacingFactRow>(sql, binds)
+  const queryWindow = async (windowStartISO: string, windowEndISO: string) => {
+    const binds = [...ids, windowStartISO, windowEndISO]
+    return querySnowflake<PacingFactRow>(baseSql, binds)
+  }
+
+  // First, try single-shot query.
+  const rows = await queryWindow(clampedStartISO, endISO)
+
+  const hitRowLimit = rows.length === QUERY_ROW_LIMIT
+  if (hitRowLimit) {
+    const dateDays = rows.map((r) => r.DATE_DAY).filter(Boolean)
+    const maxDateDay = dateDays.length ? dateDays.sort().slice(-1)[0] : null
+    console.warn("[pacing-fact] Potential truncation: query hit row limit", {
+      channel,
+      rowLimit: QUERY_ROW_LIMIT,
+      rowsReturned: rows.length,
+      idsCount: ids.length,
+      dateRange: { startDate: clampedStartISO, endDate: endISO },
+      maxDateDay,
+      note: "ORDER BY date ASC means latest dates may be missing if truncated",
+    })
+  }
+
+  // If we hit the row limit, fall back to chunked queries by date window so we don't
+  // silently drop the most recent days.
+  if (!hitRowLimit) return rows
+
+  const windowSizes = [30, 14, 7, 3, 1]
+  const aggregated: PacingFactRow[] = []
+
+  let cursorEnd = endISO
+  while (cursorEnd >= clampedStartISO) {
+    let fetched = false
+
+    for (const windowDays of windowSizes) {
+      const windowStart = addDaysISO(cursorEnd, -(windowDays - 1))
+      const windowStartClamped = windowStart < clampedStartISO ? clampedStartISO : windowStart
+
+      const windowRows = await queryWindow(windowStartClamped, cursorEnd)
+      const windowHitLimit = windowRows.length === QUERY_ROW_LIMIT
+
+      if (windowHitLimit && windowDays === 1) {
+        // Even a single day exceeds the limit: we cannot safely return complete data.
+        throw new Error(
+          `[pacing-fact] Too many rows for 1-day window; cannot avoid truncation. ` +
+            `channel=${channel} ids=${ids.length} date=${cursorEnd}`
+        )
+      }
+
+      if (windowHitLimit) {
+        // Try a smaller window size for the same cursorEnd.
+        continue
+      }
+
+      aggregated.push(...windowRows)
+      // Move cursorEnd to the day before this window starts.
+      cursorEnd = addDaysISO(windowStartClamped, -1)
+      fetched = true
+      break
+    }
+
+    if (!fetched) {
+      // Should be unreachable due to 1-day guard above, but keep safe.
+      break
+    }
+  }
+
+  aggregated.sort((a, b) => String(a.DATE_DAY ?? "").localeCompare(String(b.DATE_DAY ?? "")))
+  return aggregated
 }

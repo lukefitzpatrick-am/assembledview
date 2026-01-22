@@ -1,7 +1,8 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { auth0 } from './lib/auth0';
-import { getAllowedClientSlugs, getClientSlug, getRoles } from './lib/auth0-claims';
+import { getRoles } from './lib/auth0-claims';
+import { getUserClientIdentifier, getUserPrimaryMbaNumber, getUserMbaNumbers } from './lib/rbac';
 
 const STATIC_PATHS = ['/favicon.ico', '/robots.txt', '/sitemap.xml'];
 const PUBLIC_PATHS = ['/', '/forbidden', '/learning'];
@@ -76,41 +77,87 @@ export async function middleware(request: NextRequest) {
   }
 
   const roles = getRoles(session.user);
-  const allowedSlugs = getAllowedClientSlugs(session.user);
-  const primarySlug = allowedSlugs[0];
-  const clientRoot = primarySlug ? `/${primarySlug}` : undefined;
   const isClient = roles.includes('client');
+  const isAdmin = roles.includes('admin');
 
+  // Client users accessing /dashboard must be redirected to their client dashboard
+  if (isClient && pathname === '/dashboard') {
+    const clientSlug = getUserClientIdentifier(session.user);
+    if (!clientSlug) {
+      console.warn('[middleware] Client user missing client_slug, redirecting to unauthorized', {
+        email: session.user?.email,
+      });
+      return NextResponse.redirect(new URL('/unauthorized', request.url));
+    }
+
+    // Check for primary MBA or single MBA assignment
+    const primaryMba = getUserPrimaryMbaNumber(session.user);
+    const mbaNumbers = getUserMbaNumbers(session.user);
+
+    if (primaryMba) {
+      return NextResponse.redirect(new URL(`/dashboard/${clientSlug}/${primaryMba}`, request.url));
+    }
+
+    if (mbaNumbers.length === 1) {
+      return NextResponse.redirect(new URL(`/dashboard/${clientSlug}/${mbaNumbers[0]}`, request.url));
+    }
+
+    return NextResponse.redirect(new URL(`/dashboard/${clientSlug}`, request.url));
+  }
+
+  // Non-client users (admins) can proceed
   if (!isClient) {
     return continueResponse;
   }
 
-  if (!clientRoot) {
-    return pathname === '/forbidden'
+  // Client users: enforce tenant isolation
+  const clientSlug = getUserClientIdentifier(session.user);
+  if (!clientSlug) {
+    return pathname === '/forbidden' || pathname === '/unauthorized'
       ? continueResponse
-      : NextResponse.redirect(new URL('/forbidden', request.url));
+      : NextResponse.redirect(new URL('/unauthorized', request.url));
   }
 
+  // Redirect root to client dashboard
   if (pathname === '/') {
-    return NextResponse.redirect(new URL(clientRoot, request.url));
+    const primaryMba = getUserPrimaryMbaNumber(session.user);
+    const mbaNumbers = getUserMbaNumbers(session.user);
+
+    if (primaryMba) {
+      return NextResponse.redirect(new URL(`/dashboard/${clientSlug}/${primaryMba}`, request.url));
+    }
+
+    if (mbaNumbers.length === 1) {
+      return NextResponse.redirect(new URL(`/dashboard/${clientSlug}/${mbaNumbers[0]}`, request.url));
+    }
+
+    return NextResponse.redirect(new URL(`/dashboard/${clientSlug}`, request.url));
   }
 
-  if (pathname === '/dashboard' || pathname.startsWith('/dashboard/')) {
-    return NextResponse.redirect(new URL(clientRoot, request.url));
-  }
-
-  const routeSlugRaw = pathname.split('/').filter(Boolean)[0] ?? '';
-  const routeSlug = slugify(routeSlugRaw);
-  const isAllowed =
-    pathname === '/learning' ||
-    pathname === '/forbidden' ||
-    (routeSlug && allowedSlugs.includes(routeSlug));
-
-  if (isAllowed) {
+  // Allow access to learning, forbidden, unauthorized pages
+  if (pathname === '/learning' || pathname === '/forbidden' || pathname === '/unauthorized') {
     return continueResponse;
   }
 
-  return NextResponse.redirect(new URL(clientRoot, request.url));
+  // For dashboard routes, let the page components handle tenant checks
+  // (they will use notFound() if there's a mismatch)
+  if (pathname.startsWith('/dashboard/')) {
+    return continueResponse;
+  }
+
+  // For other routes, redirect to client dashboard
+  const primaryMba = getUserPrimaryMbaNumber(session.user);
+  const mbaNumbers = getUserMbaNumbers(session.user);
+
+  if (primaryMba) {
+    return NextResponse.redirect(new URL(`/dashboard/${clientSlug}/${primaryMba}`, request.url));
+  }
+
+  if (mbaNumbers.length === 1) {
+    return NextResponse.redirect(new URL(`/dashboard/${clientSlug}/${mbaNumbers[0]}`, request.url));
+  }
+
+  return NextResponse.redirect(new URL(`/dashboard/${clientSlug}`, request.url));
 }
 
 export const config = {

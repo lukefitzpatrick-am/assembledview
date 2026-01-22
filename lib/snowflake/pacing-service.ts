@@ -44,8 +44,46 @@ type RawRow = {
 
 const MAX_RANGE_DAYS = 180
 const MAX_IDS = 500
+const QUERY_ROW_LIMIT = 50000
 const DEBUG_PACING = process.env.NEXT_PUBLIC_DEBUG_PACING === "true"
 const ALLOWED_CHANNELS: Channel[] = ["meta", "tiktok", "programmatic-display", "programmatic-video"]
+
+/**
+ * Get yesterday's date in Australia/Melbourne timezone as ISO string "YYYY-MM-DD"
+ */
+function getMelbourneYesterdayISO(): string {
+  const now = new Date()
+  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Australia/Melbourne",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  })
+  const parts = formatter.formatToParts(yesterday)
+  const year = parts.find((p) => p.type === "year")?.value ?? ""
+  const month = parts.find((p) => p.type === "month")?.value ?? ""
+  const day = parts.find((p) => p.type === "day")?.value ?? ""
+  return `${year}-${month}-${day}`
+}
+
+/**
+ * Get today's date in Australia/Melbourne timezone as ISO string "YYYY-MM-DD"
+ */
+function getMelbourneTodayISO(): string {
+  const now = new Date()
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Australia/Melbourne",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  })
+  const parts = formatter.formatToParts(now)
+  const year = parts.find((p) => p.type === "year")?.value ?? ""
+  const month = parts.find((p) => p.type === "month")?.value ?? ""
+  const day = parts.find((p) => p.type === "day")?.value ?? ""
+  return `${year}-${month}-${day}`
+}
 
 function normalizeDateString(value?: string | null) {
   if (!value) return null
@@ -56,8 +94,26 @@ function normalizeDateString(value?: string | null) {
 }
 
 function clampDateRange(startDate?: string, endDate?: string) {
-  const todayISO = new Date().toISOString().slice(0, 10)
-  const end = normalizeDateString(endDate) ?? todayISO
+  const melbourneTodayISO = getMelbourneTodayISO()
+  const melbourneYesterdayISO = getMelbourneYesterdayISO()
+  
+  // Normalize provided end date
+  const normalizedEnd = normalizeDateString(endDate)
+  
+  // Determine end: use provided end if it's before today (completed campaign), otherwise default to Melbourne yesterday
+  let end: string
+  
+  if (normalizedEnd && normalizedEnd < melbourneTodayISO) {
+    // Completed campaign: use provided end date
+    end = normalizedEnd
+  } else {
+    // Active campaign: default to Melbourne yesterday (not server UTC yesterday)
+    end = normalizedEnd && normalizedEnd < melbourneYesterdayISO
+      ? normalizedEnd
+      : melbourneYesterdayISO
+  }
+  
+  // Clamp start date
   const endDateObj = new Date(end)
   const earliestAllowed = new Date(endDateObj.getTime() - MAX_RANGE_DAYS * 24 * 60 * 60 * 1000)
   const startProvided = normalizeDateString(startDate)
@@ -116,6 +172,49 @@ export const getCampaignPacingData = cache(
     })
   }
 
+  // Query for max available date in Snowflake to ensure we don't cut off latest data
+  let maxAvailableDate: string | null = null
+  let effectiveEnd = end
+  
+  try {
+    const maxDatePlaceholders = normalizedIds.map(() => "?").join(", ")
+    const maxDateSql = `
+      SELECT MAX(CAST(DATE_DAY AS DATE)) AS MAX_DATE
+      FROM ASSEMBLEDVIEW.MART.PACING_FACT
+      WHERE LINE_ITEM_ID IN (${maxDatePlaceholders})
+    `
+    const maxDateRows = await querySnowflake<{ MAX_DATE: string | null }>(
+      maxDateSql,
+      normalizedIds
+    )
+    
+    if (maxDateRows.length > 0 && maxDateRows[0].MAX_DATE) {
+      maxAvailableDate = normalizeDateString(maxDateRows[0].MAX_DATE)
+      if (maxAvailableDate) {
+        // Use MIN(requestedEnd, maxDate) to ensure we include all available data
+        effectiveEnd = maxAvailableDate < end ? maxAvailableDate : end
+        
+        if (DEBUG_PACING && effectiveEnd !== end) {
+          console.log("[Pacing] effective end adjusted to max available date", {
+            mbaNumber,
+            requestedEnd: end,
+            maxAvailableDate,
+            effectiveEnd,
+          })
+        }
+      }
+    }
+  } catch (error) {
+    // If max date query fails, log but continue with requested end
+    if (DEBUG_PACING) {
+      console.warn("[Pacing] max date query failed, using requested end", {
+        mbaNumber,
+        error: error instanceof Error ? error.message : String(error),
+        requestedEnd: end,
+      })
+    }
+  }
+
   const placeholders = normalizedIds.map(() => "?").join(", ")
 
   const sql = `
@@ -129,7 +228,7 @@ export const getCampaignPacingData = cache(
       WHEN LOWER(CHANNEL) LIKE '%programmatic%' AND LOWER(CHANNEL) LIKE '%video%' THEN 'programmatic-video'
       ELSE LOWER(CHANNEL)
     END AS CHANNEL,
-    DATE_DAY,
+    CAST(DATE_DAY AS DATE) AS DATE_DAY,
     /* alias to existing field names so containers don’t change */
     ENTITY_NAME AS ADSET_NAME,
     NULL AS CAMPAIGN_ID,
@@ -145,12 +244,12 @@ export const getCampaignPacingData = cache(
     UPDATED_AT
   FROM ASSEMBLEDVIEW.MART.PACING_FACT
   WHERE LINE_ITEM_ID IN (${placeholders})
-    AND DATE_DAY BETWEEN TO_DATE(?) AND TO_DATE(?)
-  ORDER BY DATE_DAY ASC, CHANNEL ASC
-  LIMIT 50000
+    AND CAST(DATE_DAY AS DATE) BETWEEN TO_DATE(?) AND TO_DATE(?)
+  ORDER BY CAST(DATE_DAY AS DATE) ASC, CHANNEL ASC
+  LIMIT ${QUERY_ROW_LIMIT}
 `
 
-  const binds = [...normalizedIds, start, end]
+  const binds = [...normalizedIds, start, effectiveEnd]
 
   // ============================================================================
   // PERFORMANCE: Track query execution time
@@ -161,6 +260,20 @@ export const getCampaignPacingData = cache(
 
   // Calculate query duration
   const queryDurationMs = Date.now() - queryStartTime
+
+  // If we hit the hard row limit, Snowflake will drop the newest days first
+  // because we order ASC. This is a common cause of “missing latest N days”.
+  const hitRowLimit = rows.length === QUERY_ROW_LIMIT
+  if (hitRowLimit) {
+    console.warn("[Pacing] Potential truncation: query hit row limit", {
+      mbaNumber,
+      rowLimit: QUERY_ROW_LIMIT,
+      rawRowsReturned: rows.length,
+      lineItemCount: normalizedIds.length,
+      dateRange: { start, end: effectiveEnd },
+      note: "ORDER BY date ASC means latest dates may be missing if truncated",
+    })
+  }
 
   const unknownChannels = new Set<string>()
   const filteredRows = rows.filter((row) => {
@@ -188,11 +301,13 @@ export const getCampaignPacingData = cache(
   console.log("[Pacing] Query performance", {
     mbaNumber,
     durationMs: queryDurationMs,
+    rawRowsReturned: rows.length,
     rowsReturned: filteredRows.length,
     lineItemCount: normalizedIds.length,
     avgRowsPerLineItem,
     channels: channelCounts,
     dateRange: { start, end },
+    hitRowLimit,
   })
 
   // ============================================================================

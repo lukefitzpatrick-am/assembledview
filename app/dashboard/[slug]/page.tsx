@@ -24,6 +24,7 @@ import SpendByCampaignChart from './components/SpendByCampaignChart'
 import MonthlySpendChart from './components/MonthlySpendChart'
 import { auth0 } from '@/lib/auth0'
 import { getPrimaryRole, getUserClientIdentifier } from '@/lib/rbac'
+import { notFound } from 'next/navigation'
 
 interface ClientDashboardProps {
   params: {
@@ -328,8 +329,35 @@ export default async function ClientDashboard({ params }: ClientDashboardProps) 
     redirect(`/auth/login?returnTo=/dashboard/${slug}`)
   }
 
-  if (role === 'client' && userClientSlug && userClientSlug !== slug) {
-    redirect(`/dashboard/${userClientSlug}`)
+  // Log for debugging
+  console.log("[dashboard/[slug]] Tenant safety check", {
+    email: user.email,
+    role,
+    requestedSlug: slug,
+    userClientSlug,
+    app_metadata: user['app_metadata'],
+  })
+
+  // Enforce tenant safety: client users can only access their own slug
+  if (role === 'client') {
+    if (!userClientSlug) {
+      console.error("[dashboard/[slug]] Client user missing client_slug in app_metadata", {
+        email: user.email,
+        requestedSlug: slug,
+        app_metadata: user['app_metadata'],
+      })
+      notFound()
+    }
+
+    // Case-insensitive comparison for slug
+    if (userClientSlug.toLowerCase() !== slug.toLowerCase()) {
+      console.warn("[dashboard/[slug]] Tenant mismatch - client attempted to access another client's dashboard", {
+        email: user.email,
+        userClientSlug,
+        requestedSlug: slug,
+      })
+      notFound()
+    }
   }
   
   let clientData: ClientDashboardData | null = null

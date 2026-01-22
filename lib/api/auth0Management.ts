@@ -101,19 +101,36 @@ export async function createAuth0User(params: {
   email: string;
   firstName: string;
   lastName: string;
+  password: string;
   clientSlug?: string;
+  mbaNumbers?: string[];
+  primaryMbaNumber?: string;
 }): Promise<CreatedUser> {
   const token = await getManagementToken();
   const connection = requireEnv('AUTH0_DB_CONNECTION');
+  
+  // Build app_metadata object
+  const appMetadata: Record<string, unknown> = {};
+  if (params.clientSlug) {
+    appMetadata.client_slug = params.clientSlug;
+  }
+  if (params.mbaNumbers && Array.isArray(params.mbaNumbers) && params.mbaNumbers.length > 0) {
+    appMetadata.mba_numbers = params.mbaNumbers.filter(Boolean);
+  }
+  if (params.primaryMbaNumber) {
+    appMetadata.primary_mba_number = params.primaryMbaNumber;
+  }
+  
   const payload = {
     connection,
     email: params.email,
+    password: params.password,
     email_verified: true, // create as verified
     verify_email: false, // prevent Auth0 from sending verification email
     given_name: params.firstName,
     family_name: params.lastName,
     name: `${params.firstName} ${params.lastName}`,
-    app_metadata: params.clientSlug ? { client_slug: params.clientSlug } : undefined,
+    app_metadata: Object.keys(appMetadata).length > 0 ? appMetadata : undefined,
     user_metadata: {
       first_name: params.firstName,
       last_name: params.lastName,

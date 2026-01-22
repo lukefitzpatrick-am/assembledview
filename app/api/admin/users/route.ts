@@ -15,8 +15,11 @@ const basePayloadSchema = z.object({
   firstName: z.string().trim().min(1, 'First name is required'),
   lastName: z.string().trim().min(1, 'Last name is required'),
   email: z.string().trim().email('Valid email is required'),
+  password: z.string().min(1, 'Password is required'),
   role: z.enum(['admin', 'client']).default('client'),
   clientSlug: z.string().trim().optional(),
+  mbaNumbers: z.array(z.string().trim()).optional(),
+  primaryMbaNumber: z.string().trim().optional(),
 });
 
 const enforceClientSlug = (data: z.infer<typeof basePayloadSchema>) =>
@@ -67,7 +70,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { firstName, lastName, email, role, clientSlug } = parsed.data;
+    const { firstName, lastName, email, password, role, clientSlug, mbaNumbers, primaryMbaNumber } = parsed.data;
 
     // Fail fast before touching Auth0.
     ensureRoleEnv(role);
@@ -87,7 +90,10 @@ export async function POST(request: NextRequest) {
         email,
         firstName,
         lastName,
+        password,
         clientSlug: role === 'client' ? clientSlug : undefined,
+        mbaNumbers: role === 'client' ? mbaNumbers : undefined,
+        primaryMbaNumber: role === 'client' ? primaryMbaNumber : undefined,
       });
       createdUserId = createdUser.user_id;
 
@@ -95,9 +101,20 @@ export async function POST(request: NextRequest) {
       await assignRoleToUser(createdUser.user_id, role);
 
       currentStep = 'set_metadata';
+      // Build app_metadata with role and client info
+      const appMetadata: Record<string, unknown> = { role };
+      if (role === 'client') {
+        if (clientSlug) appMetadata.client_slug = clientSlug;
+        if (mbaNumbers && Array.isArray(mbaNumbers) && mbaNumbers.length > 0) {
+          appMetadata.mba_numbers = mbaNumbers.filter(Boolean);
+        }
+        if (primaryMbaNumber) {
+          appMetadata.primary_mba_number = primaryMbaNumber;
+        }
+      }
       await updateAuth0UserMetadata({
         userId: createdUser.user_id,
-        app_metadata: { role, client_slug: role === 'client' ? clientSlug ?? null : null },
+        app_metadata: appMetadata,
       });
 
       currentStep = 'create_ticket';
@@ -181,15 +198,27 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const { firstName, lastName, email, role, clientSlug, userId } = parsed.data;
+    const { firstName, lastName, email, role, clientSlug, mbaNumbers, primaryMbaNumber, userId } = parsed.data;
 
     if (role) {
       await assignRoleToUser(userId, role);
     }
 
+    // Build app_metadata with role and client info
+    const appMetadata: Record<string, unknown> = { role };
+    if (role === 'client') {
+      if (clientSlug) appMetadata.client_slug = clientSlug;
+      if (mbaNumbers && Array.isArray(mbaNumbers) && mbaNumbers.length > 0) {
+        appMetadata.mba_numbers = mbaNumbers.filter(Boolean);
+      }
+      if (primaryMbaNumber) {
+        appMetadata.primary_mba_number = primaryMbaNumber;
+      }
+    }
+
     await updateAuth0UserMetadata({
       userId,
-      app_metadata: { role, client_slug: role === 'client' ? clientSlug ?? null : null },
+      app_metadata: appMetadata,
     });
 
     return NextResponse.json({ ok: true, userId });

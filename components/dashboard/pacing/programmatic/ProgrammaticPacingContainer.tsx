@@ -1,7 +1,7 @@
 "use client"
 
-// REFACTORED: Removed useState and useEffect - all data now comes from server via initialPacingRows
-import { useMemo, useRef } from "react"
+import React, { useEffect, useMemo, useRef, useState } from "react"
+import { useUser } from "@/components/AuthWrapper"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -40,6 +40,7 @@ type ProgrammaticPacingContainerProps = {
   campaignStart?: string
   campaignEnd?: string
   initialPacingRows?: CombinedPacingRow[]
+  pacingLineItemIds?: string[]
 }
 
 type PacingSeriesPoint = {
@@ -78,13 +79,14 @@ type LineItemMetrics = {
     impressions: number
     clicks: number
     conversions: number
+    videoViews: number
     deliverable_value: number
   }>
   matchedRows: Dv360DailyRow[]
   booked: { spend: number; deliverables: number }
   delivered: { spend: number; deliverables: number }
   shouldToDate: { spend: number; deliverables: number }
-  deliverableKey: "impressions" | "clicks" | "conversions" | null
+  deliverableKey: "impressions" | "clicks" | "conversions" | "videoViews"
 }
 
 const palette = {
@@ -93,11 +95,17 @@ const palette = {
 }
 
 const DEBUG_PACING = process.env.NEXT_PUBLIC_DEBUG_PACING === "true"
+const IS_DEV = process.env.NODE_ENV !== "production"
 
-const deliverableMapping: Record<string, "impressions" | "clicks" | "conversions" | null> = {
+const deliverableMapping: Record<
+  string,
+  "impressions" | "clicks" | "conversions" | "videoViews" | null
+> = {
   cpm: "impressions",
   cpc: "clicks",
+  cpv: "videoViews",
   cpa: "conversions",
+  leads: "conversions",
 }
 
 function cleanId(v: any) {
@@ -123,6 +131,92 @@ function startOfDay(date: Date) {
 
 function toISO(date: Date) {
   return startOfDay(date).toISOString().slice(0, 10)
+}
+
+/**
+ * Get today's date in Australia/Melbourne timezone as ISO string "YYYY-MM-DD"
+ */
+function getMelbourneTodayISO(): string {
+  const now = new Date()
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Australia/Melbourne",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  })
+  const parts = formatter.formatToParts(now)
+  const year = parts.find((p) => p.type === "year")?.value ?? ""
+  const month = parts.find((p) => p.type === "month")?.value ?? ""
+  const day = parts.find((p) => p.type === "day")?.value ?? ""
+  return `${year}-${month}-${day}`
+}
+
+/**
+ * Get yesterday's date in Australia/Melbourne timezone as ISO string "YYYY-MM-DD"
+ */
+function getMelbourneYesterdayISO(): string {
+  const now = new Date()
+  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Australia/Melbourne",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  })
+  const parts = formatter.formatToParts(yesterday)
+  const year = parts.find((p) => p.type === "year")?.value ?? ""
+  const month = parts.find((p) => p.type === "month")?.value ?? ""
+  const day = parts.find((p) => p.type === "day")?.value ?? ""
+  return `${year}-${month}-${day}`
+}
+
+function computePacingRange(campaignStart?: string, campaignEnd?: string) {
+  const MAX_RANGE_DAYS = 180
+  const DEFAULT_RANGE_DAYS = 90
+  const msPerDay = 24 * 60 * 60 * 1000
+  
+  const melbourneTodayISO = getMelbourneTodayISO()
+  const melbourneYesterdayISO = getMelbourneYesterdayISO()
+  
+  // Parse campaign end date if provided
+  let campaignEndDateISO: string | null = null
+  if (campaignEnd) {
+    const parsed = parseDateSafe(campaignEnd)
+    if (parsed) {
+      campaignEndDateISO = toISO(parsed)
+    }
+  }
+  
+  // Determine end date: use campaign end if it's before today (completed), otherwise use yesterday
+  const endISO = campaignEndDateISO && campaignEndDateISO < melbourneTodayISO
+    ? campaignEndDateISO
+    : melbourneYesterdayISO
+  
+  // Parse start date
+  let startDate: Date | null = null
+  if (campaignStart) {
+    startDate = parseDateSafe(campaignStart)
+  }
+  
+  if (!startDate) {
+    // Default to DEFAULT_RANGE_DAYS before end date
+    const endDate = parseDateSafe(endISO)
+    if (endDate) {
+      startDate = new Date(endDate.getTime() - DEFAULT_RANGE_DAYS * msPerDay)
+    } else {
+      startDate = new Date(Date.now() - DEFAULT_RANGE_DAYS * msPerDay)
+    }
+  }
+  
+  const endDate = parseDateSafe(endISO) ?? new Date()
+  const rangeDays = Math.ceil((endDate.getTime() - startDate.getTime()) / msPerDay)
+  
+  // Clamp start to MAX_RANGE_DAYS before end
+  if (rangeDays > MAX_RANGE_DAYS) {
+    startDate = new Date(endDate.getTime() - MAX_RANGE_DAYS * msPerDay)
+  }
+
+  return { start: toISO(startDate), end: endISO }
 }
 
 function eachDay(start: Date, end: Date): string[] {
@@ -278,6 +372,7 @@ function mapCombinedRowToDv360(row: CombinedPacingRow): Dv360DailyRow {
     impressions: row.impressions ?? 0,
     clicks: row.clicks ?? 0,
     conversions: row.results ?? 0,
+    videoViews: row.video3sViews ?? 0,
     matchedPostfix: row.lineItemId ? String(row.lineItemId).toLowerCase() : null,
   }
 }
@@ -292,15 +387,18 @@ function sumBookedFromBursts(bursts: any[]) {
   )
 }
 
-function summarizeActuals(rows: Array<{ spend: number; impressions: number; clicks: number; conversions: number }>) {
+function summarizeActuals(
+  rows: Array<{ spend: number; impressions: number; clicks: number; conversions: number; videoViews: number }>
+) {
   const totals = rows.reduce(
     (acc, row) => ({
       spend: acc.spend + (row.spend ?? 0),
       impressions: acc.impressions + (row.impressions ?? 0),
       clicks: acc.clicks + (row.clicks ?? 0),
       conversions: acc.conversions + (row.conversions ?? 0),
+      videoViews: acc.videoViews + (row.videoViews ?? 0),
     }),
-    { spend: 0, impressions: 0, clicks: 0, conversions: 0 }
+    { spend: 0, impressions: 0, clicks: 0, conversions: 0, videoViews: 0 }
   )
 
   const cpm = totals.impressions ? (totals.spend / totals.impressions) * 1000 : 0
@@ -308,8 +406,10 @@ function summarizeActuals(rows: Array<{ spend: number; impressions: number; clic
   const cvr = totals.impressions ? (totals.conversions / totals.impressions) * 100 : 0
   const cpc = totals.clicks ? totals.spend / totals.clicks : 0
   const cpa = totals.conversions ? totals.spend / totals.conversions : 0
+  const cpv = totals.videoViews ? totals.spend / totals.videoViews : 0
+  const viewRate = totals.impressions ? (totals.videoViews / totals.impressions) * 100 : 0
 
-  return { ...totals, cpm, ctr, cvr, cpc, cpa }
+  return { ...totals, cpm, ctr, cvr, cpc, cpa, cpv, viewRate }
 }
 
 function formatCurrency(value: number | undefined) {
@@ -368,10 +468,24 @@ function buildCumulativeSeries(dates: string[], actualsDaily: LineItemMetrics["a
   })
 }
 
-function deriveDeliverableKey(buyType?: string | null) {
-  if (!buyType) return null
+function deriveDeliverableKey(buyType?: string | null): LineItemMetrics["deliverableKey"] {
+  if (!buyType) return "impressions"
   const normalized = String(buyType).toLowerCase()
-  return deliverableMapping[normalized] ?? null
+  return deliverableMapping[normalized] ?? "impressions"
+}
+
+function getDeliverableLabel(key: LineItemMetrics["deliverableKey"]) {
+  switch (key) {
+    case "clicks":
+      return "Clicks"
+    case "conversions":
+      return "Conversions"
+    case "videoViews":
+      return "Video Views"
+    case "impressions":
+    default:
+      return "Impressions"
+  }
 }
 
 function buildAggregatedMetrics(lineItemMetrics: LineItemMetrics[], asAtDate?: string): PacingResult {
@@ -577,13 +691,16 @@ function ActualsDailyDeliveryChart({
   )
 }
 
-function DeliveryTable({ rows }: { rows: Dv360DailyRow[] }) {
+function DeliveryTable({ rows, showVideoViews = false }: { rows: Dv360DailyRow[]; showVideoViews?: boolean }) {
   if (!rows.length) {
     return <div className="text-sm text-muted-foreground">No delivery rows matched to this line item yet.</div>
   }
 
-  const COLS = "120px minmax(200px, 1fr) minmax(200px, 1fr) 120px 120px 120px 120px"
+  const COLS = showVideoViews
+    ? "120px minmax(200px, 1fr) minmax(200px, 1fr) 120px 120px 120px 120px 140px"
+    : "120px minmax(200px, 1fr) minmax(200px, 1fr) 120px 120px 120px 120px"
 
+  // Sort by date (ISO format YYYY-MM-DD, so localeCompare works correctly for chronological order)
   const sorted = [...rows].sort((a, b) => a.date.localeCompare(b.date))
 
   const totals = sorted.reduce(
@@ -592,8 +709,9 @@ function DeliveryTable({ rows }: { rows: Dv360DailyRow[] }) {
       impressions: acc.impressions + row.impressions,
       clicks: acc.clicks + row.clicks,
       conversions: acc.conversions + row.conversions,
+      videoViews: acc.videoViews + (row.videoViews ?? 0),
     }),
-    { spend: 0, impressions: 0, clicks: 0, conversions: 0 }
+    { spend: 0, impressions: 0, clicks: 0, conversions: 0, videoViews: 0 }
   )
 
   return (
@@ -608,6 +726,7 @@ function DeliveryTable({ rows }: { rows: Dv360DailyRow[] }) {
             <div className="text-right">Impressions</div>
             <div className="text-right">Clicks</div>
             <div className="text-right">Conversions</div>
+            {showVideoViews ? <div className="text-right">Video Views</div> : null}
           </div>
         </div>
 
@@ -624,6 +743,7 @@ function DeliveryTable({ rows }: { rows: Dv360DailyRow[] }) {
             <div className="text-right">{formatNumber(row.impressions)}</div>
             <div className="text-right">{formatNumber(row.clicks)}</div>
             <div className="text-right">{formatNumber(row.conversions)}</div>
+            {showVideoViews ? <div className="text-right">{formatNumber(row.videoViews ?? 0)}</div> : null}
           </div>
         ))}
 
@@ -636,6 +756,7 @@ function DeliveryTable({ rows }: { rows: Dv360DailyRow[] }) {
             <div className="text-right">{formatNumber(totals.impressions)}</div>
             <div className="text-right">{formatNumber(totals.clicks)}</div>
             <div className="text-right">{formatNumber(totals.conversions)}</div>
+            {showVideoViews ? <div className="text-right">{formatNumber(totals.videoViews)}</div> : null}
           </div>
         </div>
       </div>
@@ -676,10 +797,18 @@ function KpiCallouts({ totals }: { totals: ReturnType<typeof summarizeActuals> }
       pill2Label: "CPA",
       pill2Value: formatCurrency2dp(totals.cpa),
     },
+    {
+      label: "Video Views",
+      value: formatNumber(totals.videoViews),
+      pill1Label: "View rate",
+      pill1Value: formatPercent(totals.viewRate),
+      pill2Label: "CPV",
+      pill2Value: formatCurrency2dp(totals.cpv),
+    },
   ]
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {cards.map((card) => (
         <Card key={card.label} className="rounded-2xl border-muted/70 shadow-sm">
           <CardContent className="flex flex-col gap-1.5 p-3 sm:p-3.5">
@@ -718,31 +847,41 @@ export default function ProgrammaticPacingContainer({
   campaignStart,
   campaignEnd,
   initialPacingRows,
-}: ProgrammaticPacingContainerProps) {
-  // ============================================================================
-  // REFACTORED: Filter initialPacingRows by channel using useMemo
-  // No more client-side fetching - all data comes from server
-  // ============================================================================
+  pacingLineItemIds,
+}: ProgrammaticPacingContainerProps): React.ReactElement | null {
+  const { user, isLoading: authLoading } = useUser()
+  const [pacingRows, setPacingRows] = useState<CombinedPacingRow[]>(initialPacingRows ?? [])
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const pendingFetchKeyRef = useRef<string | null>(null)
+  const lastSuccessfulFetchKeyRef = useRef<string | null>(null)
+  const retryCountRef = useRef<number>(0)
+  const cancelledRef = useRef<boolean>(false)
 
   // Filter rows where channel === 'programmatic-display' and map to Dv360DailyRow
   const displayRows = useMemo(() => {
-    if (!Array.isArray(initialPacingRows)) return []
-    return initialPacingRows
+    if (!Array.isArray(pacingRows)) return []
+    return pacingRows
       .filter((row) => row.channel === "programmatic-display")
       .map(mapCombinedRowToDv360)
-  }, [initialPacingRows])
+  }, [pacingRows])
 
   // Filter rows where channel === 'programmatic-video' and map to Dv360DailyRow
   const videoRows = useMemo(() => {
-    if (!Array.isArray(initialPacingRows)) return []
-    return initialPacingRows
+    if (!Array.isArray(pacingRows)) return []
+    return pacingRows
       .filter((row) => row.channel === "programmatic-video")
       .map(mapCombinedRowToDv360)
-  }, [initialPacingRows])
+  }, [pacingRows])
 
-  // REFACTORED: Use props directly instead of state
   const resolvedCampaignStart = campaignStart
   const resolvedCampaignEnd = campaignEnd
+
+  // Extract line item ID with multiple field fallbacks
+  const extractLineItemId = (item: ProgrammaticLineItem): string | null => {
+    const id = item.line_item_id ?? item.lineItemId ?? item.LINE_ITEM_ID
+    return cleanId(id)
+  }
 
   // REFACTORED: Normalize line items directly from props
   const normalizedDisplay = useMemo(
@@ -753,7 +892,7 @@ export default function ProgrammaticPacingContainer({
           return platform === "dv360" || platform === "youtube - dv360" || platform === "youtube-dv360"
         })
         .flatMap((item) => {
-          const id = cleanId(item.line_item_id)
+          const id = extractLineItemId(item)
           if (!id) return []
           return [{
             ...item,
@@ -772,7 +911,7 @@ export default function ProgrammaticPacingContainer({
           return platform === "dv360" || platform === "youtube - dv360" || platform === "youtube-dv360"
         })
         .flatMap((item) => {
-          const id = cleanId(item.line_item_id)
+          const id = extractLineItemId(item)
           if (!id) return []
           return [{
             ...item,
@@ -782,6 +921,324 @@ export default function ProgrammaticPacingContainer({
         }),
     [progVideoLineItems]
   )
+
+  const programmaticLineItemIds = useMemo(() => {
+    const idsFromItems = [...normalizedDisplay, ...normalizedVideo]
+      .map((item) => extractLineItemId(item))
+      .filter(Boolean) as string[]
+    const uniqueItems = Array.from(new Set(idsFromItems))
+    if (!pacingLineItemIds?.length) {
+      return uniqueItems
+    }
+    const pacingSet = new Set(
+      pacingLineItemIds.map((id) => cleanId(id)).filter(Boolean) as string[]
+    )
+    return uniqueItems.filter((id) => pacingSet.has(id))
+  }, [normalizedDisplay, normalizedVideo, pacingLineItemIds])
+
+  // Stable string key for dependency tracking
+  const idsKey = useMemo(() => programmaticLineItemIds.join(","), [programmaticLineItemIds])
+
+  const pacingRange = useMemo(
+    () => computePacingRange(campaignStart, campaignEnd),
+    [campaignStart, campaignEnd]
+  )
+
+  useEffect(() => {
+    if (initialPacingRows?.length) {
+      setPacingRows(initialPacingRows)
+      setIsLoading(false)
+      setError(null)
+    }
+  }, [initialPacingRows])
+
+  // Safe JSON parser with content-type check
+  const parseJsonSafely = async (response: Response): Promise<any> => {
+    const contentType = response.headers.get("content-type") || ""
+    if (!contentType.includes("application/json")) {
+      const text = await response.text()
+      throw new Error(`Expected JSON but got ${contentType}. Response: ${text.slice(0, 200)}`)
+    }
+    return response.json()
+  }
+
+  // Fetch with retry logic
+  const fetchPacingData = async (
+    mbaNum: string,
+    lineItemIds: string[],
+    startDate: string,
+    endDate: string,
+    retryAttempt = 0
+  ): Promise<void> => {
+    cancelledRef.current = false
+    setIsLoading(true)
+    setError(null)
+
+    const fetchKey = `${mbaNum}|${lineItemIds.join(",")}|${startDate}|${endDate}`
+    const attemptCount = retryAttempt + 1
+
+    if (IS_DEV) {
+      console.log("[PACING UI] calling /api/pacing/bulk", {
+        fetchKey,
+        attemptCount,
+        mbaNumber: mbaNum,
+        count: lineItemIds.length,
+        startDate,
+        endDate,
+      })
+    }
+
+    let response: Response | null = null
+    try {
+      response = await fetch("/api/pacing/bulk", {
+        method: "POST",
+        credentials: "include",
+        cache: "no-store",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          mbaNumber: mbaNum,
+          lineItemIds,
+          startDate,
+          endDate,
+        }),
+      })
+
+      // Check for auth-related status codes
+      if (response.status === 401 || response.status === 403 || response.status === 302) {
+        if (retryAttempt === 0) {
+          if (IS_DEV) {
+            console.log("[PACING UI] Auth failure, retrying after delay", {
+              fetchKey,
+              attemptCount,
+              status: response.status,
+              contentType: response.headers.get("content-type"),
+            })
+          }
+          // Retry once after 400ms
+          setTimeout(() => {
+            if (!cancelledRef.current) {
+              fetchPacingData(mbaNum, lineItemIds, startDate, endDate, 1)
+            }
+          }, 400)
+          return
+        } else {
+          // Already retried, surface error
+          pendingFetchKeyRef.current = null
+          const errorText = await response.text().catch(() => "Authentication failed")
+          throw new Error(`Authentication failed (${response.status}): ${errorText.slice(0, 200)}`)
+        }
+      }
+
+      if (!response.ok) {
+        pendingFetchKeyRef.current = null
+        throw new Error(`Pacing request failed (${response.status})`)
+      }
+
+      const data = await parseJsonSafely(response)
+
+      if (cancelledRef.current) return
+
+      const rows = Array.isArray(data?.rows) ? data.rows : []
+      
+      // Check for error in response
+      const hasError = Boolean(data?.error)
+      const hasRows = rows.length > 0
+      
+      // If there's an error, always set error state (even if rows exist)
+      if (hasError) {
+        const errorMsg = String(data.error)
+        setError(errorMsg)
+        pendingFetchKeyRef.current = null
+        
+        if (IS_DEV || DEBUG_PACING) {
+          console.log("[PACING UI] API returned error", {
+            fetchKey,
+            attemptCount,
+            error: errorMsg,
+            rowsCount: rows.length,
+          })
+        }
+        
+        // Still set rows if they exist, but mark as error
+        if (hasRows) {
+          setPacingRows(rows)
+        }
+        
+        // Don't commit key on error
+        return
+      }
+
+      // Successful: no error field
+      if (IS_DEV || DEBUG_PACING) {
+        console.log("[PACING UI] Fetch successful", {
+          fetchKey,
+          attemptCount,
+          rowsCount: rows.length,
+        })
+      }
+      
+      // Commit the fetch key as successful immediately before setting state
+      lastSuccessfulFetchKeyRef.current = fetchKey
+      pendingFetchKeyRef.current = null
+      setPacingRows(rows)
+      setError(null)
+      retryCountRef.current = 0
+    } catch (err) {
+      if (cancelledRef.current) return
+
+      const errorMessage = err instanceof Error ? err.message : String(err)
+      
+      // Clear pending key on any failure
+      pendingFetchKeyRef.current = null
+      
+      // Check if it's a non-JSON HTML response (likely auth redirect)
+      if (errorMessage.includes("Expected JSON but got") && retryAttempt === 0) {
+        if (IS_DEV) {
+          console.log("[PACING UI] Non-JSON response, retrying after delay", {
+            fetchKey,
+            attemptCount,
+            error: errorMessage,
+          })
+        }
+        setTimeout(() => {
+          if (!cancelledRef.current) {
+            fetchPacingData(mbaNum, lineItemIds, startDate, endDate, 1)
+          }
+        }, 400)
+        return
+      }
+
+      // Don't set empty data on auth failures - just set error
+      const isAuthError = response?.status === 401 || response?.status === 403 || response?.status === 302
+      if (IS_DEV) {
+        console.log("[PACING UI] Fetch error", {
+          fetchKey,
+          attemptCount,
+          error: errorMessage,
+          isAuthError,
+          keyCommitted: false,
+        })
+      }
+      setError(errorMessage)
+    } finally {
+      if (!cancelledRef.current) {
+        setIsLoading(false)
+      }
+    }
+  }
+
+  useEffect(() => {
+    // Guard: Skip auto-fetch if initialPacingRows is provided (from PacingDataProvider)
+    if (initialPacingRows !== undefined) {
+      if (IS_DEV || DEBUG_PACING) {
+        console.log("[PACING UI] Skipping fetch - initialPacingRows provided", {
+          rowsCount: initialPacingRows?.length ?? 0,
+        })
+      }
+      return
+    }
+
+    // Guard: Wait for auth to be ready
+    if (authLoading) {
+      if (IS_DEV || DEBUG_PACING) {
+        console.log("[PACING UI] Skipping fetch - auth loading")
+      }
+      return
+    }
+
+    // Guard: Ensure user exists
+    if (!user) {
+      if (IS_DEV || DEBUG_PACING) {
+        console.log("[PACING UI] Skipping fetch - no user")
+      }
+      return
+    }
+
+    // Guard: Ensure slug and mbaNumber are defined
+    if (!clientSlug || !mbaNumber) {
+      if (IS_DEV || DEBUG_PACING) {
+        console.log("[PACING UI] Skipping fetch - missing params", {
+          hasSlug: !!clientSlug,
+          hasMbaNumber: !!mbaNumber,
+        })
+      }
+      return
+    }
+
+    // Guard: Ensure we have line item IDs
+    if (!programmaticLineItemIds.length) {
+      if (IS_DEV || DEBUG_PACING) {
+        console.log("[PACING UI] Skipping fetch - no line item IDs", {
+          idsKey,
+          idsCount: programmaticLineItemIds.length,
+        })
+      }
+      return
+    }
+
+    // Guard: Ensure we have a valid date range
+    if (!pacingRange.start || !pacingRange.end) {
+      if (IS_DEV || DEBUG_PACING) {
+        console.log("[PACING UI] Skipping fetch - invalid date range", {
+          start: pacingRange.start,
+          end: pacingRange.end,
+        })
+      }
+      return
+    }
+
+    const fetchKey = `${mbaNumber}|${idsKey}|${pacingRange.start}|${pacingRange.end}`
+    
+    // Skip if this key is already pending
+    if (pendingFetchKeyRef.current === fetchKey) {
+      if (IS_DEV || DEBUG_PACING) {
+        console.log("[PACING UI] Skipping fetch - key already pending", { fetchKey })
+      }
+      return
+    }
+    
+    // Skip if this key was successfully fetched (but allow retry if ids change)
+    if (lastSuccessfulFetchKeyRef.current === fetchKey) {
+      if (IS_DEV || DEBUG_PACING) {
+        console.log("[PACING UI] Skipping fetch - key already successful", { fetchKey })
+      }
+      return
+    }
+    
+    // DEV logging: derived IDs and range
+    if (IS_DEV || DEBUG_PACING) {
+      console.log("[PACING UI] Preparing fetch", {
+        idsKey,
+        idsCount: programmaticLineItemIds.length,
+        sampleIds: programmaticLineItemIds.slice(0, 10),
+        pacingRange: { start: pacingRange.start, end: pacingRange.end },
+        fetchKey,
+      })
+    }
+    
+    // Set pending key immediately before calling fetch
+    pendingFetchKeyRef.current = fetchKey
+    // Note: lastSuccessfulFetchKeyRef will be set inside fetchPacingData on success
+
+    fetchPacingData(mbaNumber, programmaticLineItemIds, pacingRange.start, pacingRange.end)
+
+    return () => {
+      cancelledRef.current = true
+    }
+  }, [
+    authLoading,
+    user,
+    clientSlug,
+    mbaNumber,
+    pacingRange.end,
+    pacingRange.start,
+    idsKey,
+    programmaticLineItemIds,
+    initialPacingRows,
+  ])
 
   // Compute date ranges for display line items
   const displayRanges = useMemo(
@@ -849,7 +1306,7 @@ export default function ProgrammaticPacingContainer({
     return items.map((item) => {
       const bursts = item.bursts ?? parseBursts(item.bursts_json)
       const window = getLineItemWindow(bursts, fallbackStart, fallbackEnd)
-      const targetId = cleanId(item.line_item_id)
+      const targetId = extractLineItemId(item)
 
       const matched = apiRows.filter((row) => {
         if (!targetId) return false
@@ -863,33 +1320,42 @@ export default function ProgrammaticPacingContainer({
             ? dateSeries
             : Array.from(new Set(matched.map((m) => m.date))).sort()
 
-      const groupedByDate = new Map<string, { spend: number; impressions: number; clicks: number; conversions: number }>()
+      const groupedByDate = new Map<
+        string,
+        { spend: number; impressions: number; clicks: number; conversions: number; videoViews: number }
+      >()
       matched.forEach((row) => {
-        const existing = groupedByDate.get(row.date) ?? { spend: 0, impressions: 0, clicks: 0, conversions: 0 }
+        const existing =
+          groupedByDate.get(row.date) ?? { spend: 0, impressions: 0, clicks: 0, conversions: 0, videoViews: 0 }
         groupedByDate.set(row.date, {
           spend: existing.spend + (row.spend ?? 0),
           impressions: existing.impressions + (row.impressions ?? 0),
           clicks: existing.clicks + (row.clicks ?? 0),
           conversions: existing.conversions + (row.conversions ?? 0),
+          videoViews: existing.videoViews + (row.videoViews ?? 0),
         })
       })
 
-      const deliverableKey = deriveDeliverableKey(item.buy_type) ?? "conversions"
+      const deliverableKey = deriveDeliverableKey(item.buy_type)
 
       const actualsDaily = dateRange.map((date) => {
-        const day = groupedByDate.get(date) ?? { spend: 0, impressions: 0, clicks: 0, conversions: 0 }
+        const day =
+          groupedByDate.get(date) ?? { spend: 0, impressions: 0, clicks: 0, conversions: 0, videoViews: 0 }
         const deliverable_value =
           deliverableKey === "impressions"
             ? day.impressions
             : deliverableKey === "clicks"
               ? day.clicks
-              : day.conversions
+              : deliverableKey === "videoViews"
+                ? day.videoViews
+                : day.conversions
         return {
           date,
           spend: day.spend,
           impressions: day.impressions,
           clicks: day.clicks,
           conversions: day.conversions,
+          videoViews: day.videoViews,
           deliverable_value,
         }
       })
@@ -1098,7 +1564,6 @@ export default function ProgrammaticPacingContainer({
     }
   }
 
-  // REFACTORED: Removed isLoading and error state - data is always available from server
   function renderPanel(kind: PanelKind) {
     const isDisplay = kind === "display"
     const metrics = isDisplay ? displayMetrics : videoMetrics
@@ -1107,7 +1572,9 @@ export default function ProgrammaticPacingContainer({
     const label = isDisplay ? "Prog Display" : "Prog Video"
 
     if (!metrics.length) {
-      return null
+      if (!isLoading && !error) {
+        return null
+      }
     }
 
     return (
@@ -1131,118 +1598,129 @@ export default function ProgrammaticPacingContainer({
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* REFACTORED: Removed error display - no client-side fetching means no errors */}
+          {error ? (
+            <div className="rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {error}
+            </div>
+          ) : null}
 
-          {/* REFACTORED: Removed loading skeleton - data is always available */}
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <SmallProgressCard
-              label="Budget pacing"
-              value={formatCurrency(aggregate.spend.actualToDate)}
-              helper={`Delivered ${formatCurrency(aggregate.spend.actualToDate)} • Planned ${formatCurrency(bookedTotals.spend)}`}
-              pacingPct={aggregate.spend.pacingPct}
-              progressRatio={
-                bookedTotals.spend > 0
-                  ? Math.max(0, Math.min(1, aggregate.spend.actualToDate / bookedTotals.spend))
-                  : 0
-              }
-              accentColor={palette.budget}
-            />
-            <SmallProgressCard
-              label="Deliverable pacing"
-              value={formatWholeNumber(aggregate.deliverable?.actualToDate)}
-              helper={`Delivered ${formatWholeNumber(aggregate.deliverable?.actualToDate)} • Planned ${formatWholeNumber(bookedTotals.deliverables)}`}
-              pacingPct={aggregate.deliverable?.pacingPct}
-              progressRatio={
-                bookedTotals.deliverables > 0
-                  ? Math.max(
-                      0,
-                      Math.min(
-                        1,
-                        (aggregate.deliverable?.actualToDate ?? 0) / bookedTotals.deliverables
-                      )
-                    )
-                  : 0
-              }
-              accentColor={palette.deliverable}
-            />
-          </div>
+          {isLoading ? (
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div className="h-32 animate-pulse rounded-2xl bg-muted" />
+              <div className="h-32 animate-pulse rounded-2xl bg-muted" />
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <SmallProgressCard
+                  label="Budget pacing"
+                  value={formatCurrency(aggregate.spend.actualToDate)}
+                  helper={`Delivered ${formatCurrency(aggregate.spend.actualToDate)} • Planned ${formatCurrency(bookedTotals.spend)}`}
+                  pacingPct={aggregate.spend.pacingPct}
+                  progressRatio={
+                    bookedTotals.spend > 0
+                      ? Math.max(0, Math.min(1, aggregate.spend.actualToDate / bookedTotals.spend))
+                      : 0
+                  }
+                  accentColor={palette.budget}
+                />
+                <SmallProgressCard
+                  label="Deliverable pacing"
+                  value={formatWholeNumber(aggregate.deliverable?.actualToDate)}
+                  helper={`Delivered ${formatWholeNumber(aggregate.deliverable?.actualToDate)} • Planned ${formatWholeNumber(bookedTotals.deliverables)}`}
+                  pacingPct={aggregate.deliverable?.pacingPct}
+                  progressRatio={
+                    bookedTotals.deliverables > 0
+                      ? Math.max(
+                          0,
+                          Math.min(
+                            1,
+                            (aggregate.deliverable?.actualToDate ?? 0) / bookedTotals.deliverables
+                          )
+                        )
+                      : 0
+                  }
+                  accentColor={palette.deliverable}
+                />
+              </div>
 
-          {/* Charts and KPIs - always rendered since data is available */}
-          <div className="space-y-4 rounded-2xl border border-muted/60 bg-muted/10 p-4">
-            <KpiCallouts
-              totals={summarizeActuals(metrics.flatMap((metric) => metric.actualsDaily))}
-            />
-            <ActualsDailyDeliveryChart
-              series={aggregate.series}
-              asAtDate={aggregate.asAtDate}
-              deliverableLabel="Deliverables"
-              chartRef={aggregateChartRef}
-            />
-          </div>
+              <div className="space-y-4 rounded-2xl border border-muted/60 bg-muted/10 p-4">
+                <KpiCallouts
+                  totals={summarizeActuals(metrics.flatMap((metric) => metric.actualsDaily))}
+                />
+                <ActualsDailyDeliveryChart
+                  series={aggregate.series}
+                  asAtDate={aggregate.asAtDate}
+                  deliverableLabel="Deliverables"
+                  chartRef={aggregateChartRef}
+                />
+              </div>
 
-          <Accordion type="multiple" defaultValue={[]}>
-            {metrics.map((metric) => (
-              <AccordionItem key={metric.lineItem.line_item_id} value={String(metric.lineItem.line_item_id)}>
-                <AccordionTrigger className="rounded-xl px-3 py-2 text-left text-sm font-semibold">
-                  <div className="flex w-full items-center justify-between gap-2">
-                    <div className="flex flex-col text-left">
-                      <span>{metric.lineItem.line_item_name || metric.lineItem.line_item_id || "Line item"}</span>
-                      <span className="text-xs font-normal text-muted-foreground">
-                        {metric.lineItem.buy_type || "—"}
-                      </span>
-                    </div>
-                    <Badge variant="secondary" className="rounded-full px-3 py-1 text-[11px]">
-                      {formatCurrency(metric.lineItem.total_budget)}
-                    </Badge>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent className="space-y-3">
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <SmallProgressCard
-                      label="Budget pacing"
-                      value={formatCurrency(metric.pacing.spend.actualToDate)}
-                      helper={`Delivered ${formatCurrency(metric.pacing.spend.actualToDate)} • Booked ${formatCurrency(metric.booked.spend)}`}
-                      pacingPct={metric.pacing.spend.pacingPct}
-                      progressRatio={
-                        metric.booked.spend > 0
-                          ? Math.max(0, Math.min(1, metric.pacing.spend.actualToDate / metric.booked.spend))
-                          : 0
-                      }
-                      accentColor={palette.budget}
-                    />
-                    <SmallProgressCard
-                      label="Deliverable pacing"
-                      value={formatWholeNumber(metric.pacing.deliverable?.actualToDate)}
-                      helper={`Delivered ${formatWholeNumber(metric.pacing.deliverable?.actualToDate)} • Booked ${formatWholeNumber(metric.booked.deliverables)}`}
-                      pacingPct={metric.pacing.deliverable?.pacingPct}
-                      progressRatio={
-                        metric.booked.deliverables > 0
-                          ? Math.max(
-                              0,
-                              Math.min(
-                                1,
-                                (metric.pacing.deliverable?.actualToDate ?? 0) / metric.booked.deliverables
-                              )
-                            )
-                          : 0
-                      }
-                      accentColor={palette.deliverable}
-                    />
-                  </div>
-                  <div className="space-y-3 rounded-2xl border border-muted/60 bg-muted/10 p-3">
-                    <KpiCallouts totals={summarizeActuals(metric.actualsDaily)} />
-                    <ActualsDailyDeliveryChart
-                      series={metric.pacing.series}
-                      asAtDate={metric.pacing.asAtDate}
-                      deliverableLabel="Deliverables"
-                      chartRef={setLineChartRef(String(metric.lineItem.line_item_id))}
-                    />
-                  </div>
-                  <DeliveryTable rows={metric.matchedRows} />
-                </AccordionContent>
-              </AccordionItem>
-            ))}
-          </Accordion>
+              <Accordion type="multiple" defaultValue={[]}>
+                {metrics.map((metric) => (
+                  <AccordionItem key={metric.lineItem.line_item_id} value={String(metric.lineItem.line_item_id)}>
+                    <AccordionTrigger className="rounded-xl px-3 py-2 text-left text-sm font-semibold">
+                      <div className="flex w-full items-center justify-between gap-2">
+                        <div className="flex flex-col text-left">
+                          <span>{metric.lineItem.line_item_name || metric.lineItem.line_item_id || "Line item"}</span>
+                          <span className="text-xs font-normal text-muted-foreground">
+                            {metric.lineItem.buy_type || "—"}
+                          </span>
+                        </div>
+                        <Badge variant="secondary" className="rounded-full px-3 py-1 text-[11px]">
+                          {formatCurrency(metric.lineItem.total_budget)}
+                        </Badge>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="space-y-3">
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        <SmallProgressCard
+                          label="Budget pacing"
+                          value={formatCurrency(metric.pacing.spend.actualToDate)}
+                          helper={`Delivered ${formatCurrency(metric.pacing.spend.actualToDate)} • Booked ${formatCurrency(metric.booked.spend)}`}
+                          pacingPct={metric.pacing.spend.pacingPct}
+                          progressRatio={
+                            metric.booked.spend > 0
+                              ? Math.max(0, Math.min(1, metric.pacing.spend.actualToDate / metric.booked.spend))
+                              : 0
+                          }
+                          accentColor={palette.budget}
+                        />
+                        <SmallProgressCard
+                          label={`${getDeliverableLabel(metric.deliverableKey)} pacing`}
+                          value={formatWholeNumber(metric.pacing.deliverable?.actualToDate)}
+                          helper={`Delivered ${formatWholeNumber(metric.pacing.deliverable?.actualToDate)} ${getDeliverableLabel(metric.deliverableKey)} • Booked ${formatWholeNumber(metric.booked.deliverables)} ${getDeliverableLabel(metric.deliverableKey)}`}
+                          pacingPct={metric.pacing.deliverable?.pacingPct}
+                          progressRatio={
+                            metric.booked.deliverables > 0
+                              ? Math.max(
+                                  0,
+                                  Math.min(
+                                    1,
+                                    (metric.pacing.deliverable?.actualToDate ?? 0) / metric.booked.deliverables
+                                  )
+                                )
+                              : 0
+                          }
+                          accentColor={palette.deliverable}
+                        />
+                      </div>
+                      <div className="space-y-3 rounded-2xl border border-muted/60 bg-muted/10 p-3">
+                        <KpiCallouts totals={summarizeActuals(metric.actualsDaily)} />
+                        <ActualsDailyDeliveryChart
+                          series={metric.pacing.series}
+                          asAtDate={metric.pacing.asAtDate}
+                          deliverableLabel={getDeliverableLabel(metric.deliverableKey)}
+                          chartRef={setLineChartRef(String(metric.lineItem.line_item_id))}
+                        />
+                      </div>
+                      <DeliveryTable rows={metric.matchedRows} showVideoViews={kind === "video"} />
+                    </AccordionContent>
+                  </AccordionItem>
+                ))}
+              </Accordion>
+            </>
+          )}
         </CardContent>
       </Card>
     )

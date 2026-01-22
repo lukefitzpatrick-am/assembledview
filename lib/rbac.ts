@@ -279,19 +279,38 @@ export function isClientRole(role: UserRole | null | undefined): boolean {
 
 export function getUserClientIdentifier(user: User | null | undefined): string | null {
   if (!user) return null;
-  const claimValue =
-    getClaimArray(user, CLIENT_NAMESPACE_CANDIDATES)[0] ||
-    user['app_metadata']?.client ||
-    user['app_metadata']?.client_id ||
-    user['app_metadata']?.clientId ||
-    user['app_metadata']?.client_slug ||
-    user['app_metadata']?.clientSlug ||
-    user['user_metadata']?.clientSlug ||
-    user['user_metadata']?.client_id;
+  
+  // Only read from app_metadata.client_slug (never use client_id)
+  const clientSlug = user['app_metadata']?.client_slug;
+  
+  if (!clientSlug) return null;
+  if (typeof clientSlug === 'string') return clientSlug;
+  return null;
+}
 
-  if (!claimValue) return null;
-  if (typeof claimValue === 'string') return claimValue;
-  if (typeof claimValue === 'number') return String(claimValue);
+/**
+ * Get MBA numbers assigned to a user from app_metadata
+ */
+export function getUserMbaNumbers(user: User | null | undefined): string[] {
+  if (!user) return [];
+  const mbaNumbers = user['app_metadata']?.mba_numbers;
+  if (!mbaNumbers) return [];
+  if (Array.isArray(mbaNumbers)) {
+    return mbaNumbers.filter((mba): mba is string => typeof mba === 'string' && mba.trim().length > 0);
+  }
+  return [];
+}
+
+/**
+ * Get primary MBA number assigned to a user from app_metadata
+ */
+export function getUserPrimaryMbaNumber(user: User | null | undefined): string | null {
+  if (!user) return null;
+  const primaryMba = user['app_metadata']?.primary_mba_number;
+  if (!primaryMba) return null;
+  if (typeof primaryMba === 'string' && primaryMba.trim().length > 0) {
+    return primaryMba.trim();
+  }
   return null;
 }
 

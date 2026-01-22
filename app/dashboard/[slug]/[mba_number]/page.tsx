@@ -4,11 +4,9 @@ import { Skeleton } from "@/components/ui/skeleton"
 import CampaignActions from "./components/CampaignActions"
 import ExpectedSpendToDateCard from "./components/ExpectedSpendToDateCard"
 import { auth0 } from "@/lib/auth0"
-import { getPrimaryRole, getUserClientIdentifier } from "@/lib/rbac"
-import { redirect } from "next/navigation"
+import { getPrimaryRole, getUserClientIdentifier, getUserMbaNumbers } from "@/lib/rbac"
+import { redirect, notFound } from "next/navigation"
 import { headers } from "next/headers"
-import { getCampaignPacingData } from "@/lib/snowflake/pacing-service"
-import { checkConnectionHealth } from "@/lib/snowflake/pool"
 import { createPerfTimer, logPerf } from "@/lib/utils/perf"
 import { calculateExpectedSpendToDateFromDeliverySchedule } from "@/lib/spend/expectedSpend"
 
@@ -20,6 +18,7 @@ const SocialPacingContainer = dynamic(() => import("@/components/dashboard/pacin
 const ProgrammaticPacingContainer = dynamic(
   () => import("@/components/dashboard/pacing/programmatic/ProgrammaticPacingContainer")
 )
+const PacingDataProviderWrapper = dynamic(() => import("@/components/dashboard/pacing/PacingDataProviderWrapper"))
 
 interface CampaignDetailPageProps {
   params: Promise<{
@@ -34,7 +33,7 @@ interface CampaignDetailPageProps {
 const DEBUG_LINE_ITEMS = process.env.NEXT_PUBLIC_DEBUG_LINEITEMS === "true"
 const DEBUG_BRAND = process.env.NEXT_PUBLIC_DEBUG_BRAND === "true"
 const DEBUG_SPEND = process.env.NEXT_PUBLIC_DEBUG_SPEND === "true"
-const DEBUG_SNOWFLAKE = process.env.NEXT_PUBLIC_DEBUG_SNOWFLAKE === "true"
+const DEBUG_PACING = process.env.NEXT_PUBLIC_DEBUG_PACING === "true"
 
 function parseAmountSafe(value: any) {
   if (typeof value === "number") return value
@@ -234,6 +233,109 @@ function getBrandGradientStyle(brandColour?: string) {
   return { backgroundImage: `linear-gradient(90deg, ${start} 0%, ${mid} 45%, ${end} 100%)` }
 }
 
+/**
+ * Resolves running media types from campaign data.
+ * Supports multiple possible shapes and falls back to inferring from line items.
+ */
+function resolveRunningMediaTypes(
+  campaignData: any,
+  campaign: any,
+  lineItemsMap: Record<string, any[]>
+): string[] {
+  // Try to get running media types from campaign data
+  const runningMediaTypes =
+    campaignData?.runningMediaTypes ??
+    campaign?.runningMediaTypes ??
+    campaign?.running_media_types ??
+    campaign?.running_media_channels ??
+    campaign?.mediaTypesRunning ??
+    campaign?.media_types_running
+
+  if (Array.isArray(runningMediaTypes) && runningMediaTypes.length > 0) {
+    return runningMediaTypes.map((type: any) => String(type).toLowerCase())
+  }
+
+  // Fall back to inferring from line items
+  const inferredTypes: string[] = []
+  const allLineItems = Object.values(lineItemsMap).flat()
+
+  for (const item of allLineItems) {
+    if (!item || typeof item !== "object") continue
+
+    const isRunning =
+      item.is_running === true ||
+      item.running === true ||
+      (typeof item.status === "string" &&
+        (item.status.toLowerCase() === "running" || item.status.toLowerCase() === "active")) ||
+      (typeof item.line_item_status === "string" &&
+        (item.line_item_status.toLowerCase() === "running" ||
+          item.line_item_status.toLowerCase() === "active"))
+
+    if (isRunning) {
+      // Try to determine media type from item properties
+      const mediaType =
+        item.media_type ??
+        item.mediaType ??
+        item.media_channel ??
+        item.mediaChannel ??
+        item.channel
+
+      if (mediaType) {
+        const normalizedType = String(mediaType).toLowerCase().replace(/\s+/g, "")
+        if (!inferredTypes.includes(normalizedType)) {
+          inferredTypes.push(normalizedType)
+        }
+      }
+    }
+  }
+
+  return inferredTypes
+}
+
+/**
+ * Checks if a line item is running based on various flag patterns.
+ */
+function isLineItemRunning(item: any): boolean {
+  if (!item || typeof item !== "object") return false
+
+  return (
+    item.is_running === true ||
+    item.running === true ||
+    (typeof item.status === "string" &&
+      (item.status.toLowerCase() === "running" || item.status.toLowerCase() === "active")) ||
+    (typeof item.line_item_status === "string" &&
+      (item.line_item_status.toLowerCase() === "running" ||
+        item.line_item_status.toLowerCase() === "active"))
+  )
+}
+
+/**
+ * Normalizes a media type string to match expected keys.
+ */
+function normalizeMediaType(type: string): string {
+  return String(type)
+    .toLowerCase()
+    .replace(/[\s_-]+/g, "")
+    .replace(/^social(media)?$/, "socialmedia")
+    .replace(/^programmaticdisplay$|^progdisplay$/, "progdisplay")
+    .replace(/^programmaticvideo$|^progvideo$/, "progvideo")
+}
+
+/**
+ * Gets line items from a map by trying multiple key candidates.
+ * Returns the first array found, or an empty array if none found.
+ */
+function getLineItems(map: Record<string, any>, keys: string[]): any[] {
+  if (!map || typeof map !== "object") return []
+  for (const key of keys) {
+    const value = map[key]
+    if (Array.isArray(value)) {
+      return value
+    }
+  }
+  return []
+}
+
 function BrandFrame({ children, brandColour }: { children: ReactNode; brandColour?: string }) {
   const gradientStyle = getBrandGradientStyle(brandColour)
   return (
@@ -331,8 +433,56 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
     redirect(`/auth/login?returnTo=/dashboard/${slug}/${mba_number}`)
   }
 
-  if (role === "client" && userClientSlug && userClientSlug !== slug) {
-    redirect(`/dashboard/${userClientSlug}`)
+  // Log for debugging
+  console.log("[dashboard/[slug]/[mba_number]] Tenant safety check", {
+    email: user.email,
+    role,
+    requestedSlug: slug,
+    requestedMba: mba_number,
+    userClientSlug,
+    app_metadata: user['app_metadata'],
+  })
+
+  // Enforce tenant safety: client users can only access their own slug
+  if (role === "client") {
+    if (!userClientSlug) {
+      console.error("[dashboard/[slug]/[mba_number]] Client user missing client_slug in app_metadata", {
+        email: user.email,
+        requestedSlug: slug,
+        requestedMba: mba_number,
+        app_metadata: user['app_metadata'],
+      })
+      notFound()
+    }
+
+    // Case-insensitive comparison for slug
+    if (userClientSlug.toLowerCase() !== slug.toLowerCase()) {
+      console.warn("[dashboard/[slug]/[mba_number]] Tenant mismatch - client attempted to access another client's campaign", {
+        email: user.email,
+        userClientSlug,
+        requestedSlug: slug,
+        requestedMba: mba_number,
+      })
+      notFound()
+    }
+
+    // Check if mba_number is in the user's assigned MBA numbers
+    const userMbaNumbers = getUserMbaNumbers(user)
+    if (userMbaNumbers.length > 0) {
+      // Case-insensitive comparison for MBA numbers
+      const mbaMatches = userMbaNumbers.some(
+        (mba) => mba.toLowerCase() === mba_number.toLowerCase()
+      )
+      if (!mbaMatches) {
+        console.warn("[dashboard/[slug]/[mba_number]] MBA number not assigned to user", {
+          email: user.email,
+          userClientSlug,
+          requestedMba: mba_number,
+          assignedMbaNumbers: userMbaNumbers,
+        })
+        notFound()
+      }
+    }
   }
 
   let campaignData: any = null
@@ -399,17 +549,107 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
   const metrics = campaignData.metrics || {}
   const billingSchedule = campaignData.billingSchedule
   const deliverySchedule = campaignData.deliverySchedule || []
-  const socialItems = Array.isArray(lineItemsMap.socialMedia) ? lineItemsMap.socialMedia : []
-  const progDisplayItems = Array.isArray(lineItemsMap.progDisplay) ? lineItemsMap.progDisplay : []
-  const progVideoItems = Array.isArray(lineItemsMap.progVideo) ? lineItemsMap.progVideo : []
+  
+  // Resolve running media types
+  const runningMediaTypes = resolveRunningMediaTypes(campaignData, campaign, lineItemsMap)
+  
+  // Get all line items using resilient getter
+  const socialKeys = ["socialMedia", "social", "paidSocial", "social_media", "social_media_line_items"]
+  const progDisplayKeys = ["progDisplay", "programmaticDisplay", "dv360Display", "programmatic_display"]
+  const progVideoKeys = ["progVideo", "programmaticVideo", "dv360Video", "programmatic_video"]
+  
+  const socialItems = getLineItems(lineItemsMap, socialKeys)
+  const progDisplayItems = getLineItems(lineItemsMap, progDisplayKeys)
+  const progVideoItems = getLineItems(lineItemsMap, progVideoKeys)
+  
+  // Track which keys were actually used (for debug logging)
+  let socialKeyUsed: string | null = null
+  let progDisplayKeyUsed: string | null = null
+  let progVideoKeyUsed: string | null = null
+  
+  for (const key of socialKeys) {
+    if (Array.isArray(lineItemsMap[key])) {
+      socialKeyUsed = key
+      break
+    }
+  }
+  for (const key of progDisplayKeys) {
+    if (Array.isArray(lineItemsMap[key])) {
+      progDisplayKeyUsed = key
+      break
+    }
+  }
+  for (const key of progVideoKeys) {
+    if (Array.isArray(lineItemsMap[key])) {
+      progVideoKeyUsed = key
+      break
+    }
+  }
+  
+  // Determine if media types are running
+  const normalizedRunningTypes = runningMediaTypes.map(normalizeMediaType)
+  const isSocialRunning =
+    normalizedRunningTypes.includes("socialmedia") ||
+    normalizedRunningTypes.includes("social") ||
+    (runningMediaTypes.length === 0 && socialItems.some(isLineItemRunning))
+  const isProgrammaticDisplayRunning =
+    normalizedRunningTypes.includes("progdisplay") ||
+    normalizedRunningTypes.includes("programmaticdisplay") ||
+    (runningMediaTypes.length === 0 && progDisplayItems.some(isLineItemRunning))
+  const isProgrammaticVideoRunning =
+    normalizedRunningTypes.includes("progvideo") ||
+    normalizedRunningTypes.includes("programmaticvideo") ||
+    (runningMediaTypes.length === 0 && progVideoItems.some(isLineItemRunning))
+  
+  // Filter line items to running-only (kept for debugging)
+  const socialItemsRunning = socialItems.filter(isLineItemRunning)
+  const progDisplayItemsRunning = progDisplayItems.filter(isLineItemRunning)
+  const progVideoItemsRunning = progVideoItems.filter(isLineItemRunning)
+  
+  // Create "active" arrays based on existence of items (not running flags)
+  const socialItemsActive = socialItems
+  const progDisplayItemsActive = progDisplayItems
+  const progVideoItemsActive = progVideoItems
+  
+  // Build pacingLineItemIds from active arrays (not running-only arrays)
+  // Accept multiple id field variations
+  const extractLineItemId = (item: any): string | null => {
+    if (!item || typeof item !== "object") return null
+    const id = item.line_item_id ?? item.lineItemId ?? item.LINE_ITEM_ID
+    return id ? String(id) : null
+  }
+  
   const pacingLineItemIds = Array.from(
     new Set(
-      [...socialItems, ...progDisplayItems, ...progVideoItems]
-        .map((item) => item?.line_item_id)
-        .filter(Boolean)
-        .map((id) => String(id))
+      [...socialItemsActive, ...progDisplayItemsActive, ...progVideoItemsActive]
+        .map(extractLineItemId)
+        .filter((id): id is string => Boolean(id))
     )
   )
+  
+  // DEBUG logging
+  if (DEBUG_PACING) {
+    const sampleIds = pacingLineItemIds.slice(0, 5)
+    console.log("[PACING DEBUG] Media types and line items", {
+      keysUsed: {
+        social: socialKeyUsed,
+        progDisplay: progDisplayKeyUsed,
+        progVideo: progVideoKeyUsed,
+      },
+      resolvedRunningMediaTypes: runningMediaTypes,
+      normalizedRunningTypes,
+      isSocialRunning,
+      isProgrammaticDisplayRunning,
+      isProgrammaticVideoRunning,
+      lineItemCounts: {
+        social: { total: socialItems.length, running: socialItemsRunning.length, active: socialItemsActive.length },
+        progDisplay: { total: progDisplayItems.length, running: progDisplayItemsRunning.length, active: progDisplayItemsActive.length },
+        progVideo: { total: progVideoItems.length, running: progVideoItemsRunning.length, active: progVideoItemsActive.length },
+      },
+      pacingLineItemIdsCount: pacingLineItemIds.length,
+      sampleLineItemIds: sampleIds,
+    })
+  }
   const debugLineItemCounts = Object.entries(lineItemsMap).map(
     ([key, value]) => `${key}: ${Array.isArray(value) ? value.length : 0}`
   )
@@ -474,155 +714,7 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
     })
   }
 
-  // ============================================================================
-  // OPTIMIZED: Smart pacing data fetch with date range calculation and logging
-  // ============================================================================
-  let initialPacingRows: any[] = []
-  if (pacingLineItemIds.length > 0) {
-    // Smart date range calculation
-    const MAX_RANGE_DAYS = 180
-    const DEFAULT_RANGE_DAYS = 90
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-
-    let pacingStartDate: string
-    let pacingEndDate: string
-
-    // Calculate end date: use campaign end date or today, whichever is earlier
-    if (endDate) {
-      const campaignEnd = new Date(endDate)
-      campaignEnd.setHours(0, 0, 0, 0)
-      pacingEndDate = (campaignEnd <= today ? campaignEnd : today).toISOString().slice(0, 10)
-    } else {
-      pacingEndDate = today.toISOString().slice(0, 10)
-    }
-
-    // Calculate start date: use campaign start date or default to 90 days ago
-    if (startDate) {
-      const campaignStart = new Date(startDate)
-      campaignStart.setHours(0, 0, 0, 0)
-      pacingStartDate = campaignStart.toISOString().slice(0, 10)
-    } else {
-      // Default to 90 days ago if no campaign start date
-      const defaultStart = new Date(today.getTime() - DEFAULT_RANGE_DAYS * 24 * 60 * 60 * 1000)
-      pacingStartDate = defaultStart.toISOString().slice(0, 10)
-    }
-
-    // Clamp to max 180 days to prevent excessive queries
-    const startDateObj = new Date(pacingStartDate)
-    const endDateObj = new Date(pacingEndDate)
-    const rangeDays = Math.ceil((endDateObj.getTime() - startDateObj.getTime()) / (24 * 60 * 60 * 1000))
-    if (rangeDays > MAX_RANGE_DAYS) {
-      const clampedStart = new Date(endDateObj.getTime() - MAX_RANGE_DAYS * 24 * 60 * 60 * 1000)
-      pacingStartDate = clampedStart.toISOString().slice(0, 10)
-    }
-
-    // =========================================================================
-    // HEALTH CHECK: DEBUG ONLY - Log Snowflake connectivity status
-    // Disabled by default to avoid consuming pool capacity before pacing fetch
-    // Enable with NEXT_PUBLIC_DEBUG_SNOWFLAKE=true for diagnostics
-    // =========================================================================
-    let healthCheckResult: { healthy: boolean; error?: string } | null = null
-    
-    if (DEBUG_SNOWFLAKE) {
-      const healthCheckStart = performance.now()
-      try {
-        const result = await checkConnectionHealth()
-        healthCheckResult = { healthy: result.healthy, error: result.error }
-        
-        logPerf("Snowflake health check", healthCheckStart, {
-          healthy: result.healthy,
-          acquireMs: result.acquireMs,
-          queryMs: result.queryMs,
-          totalMs: result.totalMs,
-          error: result.error,
-        })
-        
-        if (!result.healthy) {
-          console.warn("[SSR Pacing] Snowflake health check failed (will still attempt pacing fetch)", {
-            mba_number,
-            error: result.error,
-            totalMs: result.totalMs,
-          })
-        }
-      } catch (healthErr) {
-        // Health check itself threw an error (shouldn't happen, but be safe)
-        healthCheckResult = { healthy: false, error: healthErr instanceof Error ? healthErr.message : String(healthErr) }
-        logPerf("Snowflake health check (error)", healthCheckStart, {
-          error: healthCheckResult.error,
-        })
-        console.warn("[SSR Pacing] Snowflake health check error (will still attempt pacing fetch)", {
-          mba_number,
-          error: healthCheckResult.error,
-        })
-      }
-    }
-
-    // =========================================================================
-    // PACING FETCH: Always attempt regardless of health check result
-    // =========================================================================
-    const pacingFetchStart = performance.now()
-
-    try {
-      initialPacingRows = await getCampaignPacingData(
-        mba_number,
-        pacingLineItemIds,
-        pacingStartDate,
-        pacingEndDate
-      )
-
-      // Log performance with channel breakdown
-      const channelCounts = initialPacingRows.reduce((acc, row) => {
-        const channel = row.channel ?? "unknown"
-        acc[channel] = (acc[channel] ?? 0) + 1
-        return acc
-      }, {} as Record<string, number>)
-
-      logPerf("Pacing data fetch", pacingFetchStart, {
-        mba: mba_number,
-        lineItems: pacingLineItemIds.length,
-        rows: initialPacingRows.length,
-        dateRange: `${pacingStartDate} to ${pacingEndDate}`,
-        channels: channelCounts,
-        healthCheckPassed: healthCheckResult?.healthy ?? "not_run",
-      })
-
-      // =========================================================================
-      // SANITY LOG: Alert when we expected data but got none
-      // Helps diagnose date-range mismatch vs data actually missing
-      // =========================================================================
-      if (initialPacingRows.length === 0) {
-        console.warn("[SSR Pacing] Query returned 0 rows despite having line items", {
-          mba_number,
-          lineItemCount: pacingLineItemIds.length,
-          sampleLineItemIds: pacingLineItemIds.slice(0, 5),
-          dateRange: { start: pacingStartDate, end: pacingEndDate },
-          healthCheckPassed: healthCheckResult?.healthy ?? "not_run",
-          healthCheckError: healthCheckResult?.error,
-        })
-      }
-    } catch (err) {
-      // Log failed fetch with health check context
-      logPerf("Pacing data fetch (failed)", pacingFetchStart, {
-        mba: mba_number,
-        lineItems: pacingLineItemIds.length,
-        error: err instanceof Error ? err.message : String(err),
-        healthCheckPassed: healthCheckResult?.healthy ?? "not_run",
-      })
-      console.error("[SSR Pacing] Query failed", {
-        mba_number,
-        lineItemCount: pacingLineItemIds.length,
-        sampleLineItemIds: pacingLineItemIds.slice(0, 5),
-        dateRange: { start: pacingStartDate, end: pacingEndDate },
-        error: err instanceof Error ? err.message : String(err),
-        stack: err instanceof Error ? err.stack : undefined,
-        healthCheckPassed: healthCheckResult?.healthy ?? "not_run",
-        healthCheckError: healthCheckResult?.error,
-      })
-      // Graceful fallback - page should still render without pacing data
-      initialPacingRows = []
-    }
-  }
+  const initialPacingRows: any[] = []
 
   // Log total SSR time
   pageTimer.total({
@@ -630,9 +722,9 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
     hasError: !!error,
     pacingRows: initialPacingRows.length,
     lineItemCounts: {
-      social: socialItems.length,
-      progDisplay: progDisplayItems.length,
-      progVideo: progVideoItems.length,
+      social: { total: socialItems.length, running: socialItemsRunning.length, active: socialItemsActive.length },
+      progDisplay: { total: progDisplayItems.length, running: progDisplayItemsRunning.length, active: progDisplayItemsActive.length },
+      progVideo: { total: progVideoItems.length, running: progVideoItemsRunning.length, active: progVideoItemsActive.length },
     },
   })
 
@@ -722,32 +814,51 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
         />
       </Suspense>
 
-      {socialItems.length ? (
+      {pacingLineItemIds.length > 0 ? (
         <Suspense fallback={<Skeleton className="h-[480px] w-full rounded-3xl" />}>
-          <SocialPacingContainer
-            clientSlug={slug}
+          <PacingDataProviderWrapper
             mbaNumber={mba_number}
-            socialLineItems={socialItems}
+            pacingLineItemIds={pacingLineItemIds}
             campaignStart={startDate}
             campaignEnd={endDate}
-            initialPacingRows={initialPacingRows}
+            clientSlug={slug}
+            socialItemsActive={socialItemsActive}
+            progDisplayItemsActive={progDisplayItemsActive}
+            progVideoItemsActive={progVideoItemsActive}
           />
         </Suspense>
-      ) : null}
+      ) : (
+        <>
+          {socialItemsActive.length > 0 ? (
+            <Suspense fallback={<Skeleton className="h-[480px] w-full rounded-3xl" />}>
+              <SocialPacingContainer
+                clientSlug={slug}
+                mbaNumber={mba_number}
+                socialLineItems={socialItemsActive}
+                campaignStart={startDate}
+                campaignEnd={endDate}
+                initialPacingRows={undefined}
+                pacingLineItemIds={pacingLineItemIds}
+              />
+            </Suspense>
+          ) : null}
 
-      {(progDisplayItems.length || progVideoItems.length) ? (
-        <Suspense fallback={<Skeleton className="h-[480px] w-full rounded-3xl" />}>
-          <ProgrammaticPacingContainer
-            clientSlug={slug}
-            mbaNumber={mba_number}
-            progDisplayLineItems={progDisplayItems}
-            progVideoLineItems={progVideoItems}
-            campaignStart={startDate}
-            campaignEnd={endDate}
-            initialPacingRows={initialPacingRows}
-          />
-        </Suspense>
-      ) : null}
+          {(progDisplayItemsActive.length > 0 || progVideoItemsActive.length > 0) ? (
+            <Suspense fallback={<Skeleton className="h-[480px] w-full rounded-3xl" />}>
+              <ProgrammaticPacingContainer
+                clientSlug={slug}
+                mbaNumber={mba_number}
+                progDisplayLineItems={progDisplayItemsActive}
+                progVideoLineItems={progVideoItemsActive}
+                campaignStart={startDate}
+                campaignEnd={endDate}
+                initialPacingRows={undefined}
+                pacingLineItemIds={pacingLineItemIds}
+              />
+            </Suspense>
+          ) : null}
+        </>
+      )}
 
       {DEBUG_LINE_ITEMS ? (
         <div className="rounded-2xl border border-dashed border-muted/70 bg-background/80 p-3 text-sm text-muted-foreground">

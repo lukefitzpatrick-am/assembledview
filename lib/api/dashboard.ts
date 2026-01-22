@@ -716,8 +716,8 @@ export async function getClientDashboardData(slug: string): Promise<ClientDashbo
       isBookedApprovedCompleted(campaign.status)
     )
 
-    // Build delivery schedule map using latest version per MBA (version_number priority, then updated_at)
-    const deliveryScheduleByMBA: Record<string, any[]> = {}
+    // Build delivery schedule map using highest booked/approved/completed version per MBA
+    const bookedApprovedVersionByMBA: Record<string, any> = {}
     Object.entries(versionsByMBA).forEach(([mbaNumber, versions]: [string, any[]]) => {
       const sorted = versions
         .slice()
@@ -729,12 +729,19 @@ export async function getClientDashboardData(slug: string): Promise<ClientDashbo
           const bUpdated = parseDateSafe(b.updated_at) ?? new Date(0)
           return bUpdated.getTime() - aUpdated.getTime()
         })
-      const chosen = sorted[0]
+      const bookedApprovedCompleted = sorted.find((v: any) => isBookedApprovedCompleted(v.campaign_status))
+      if (bookedApprovedCompleted) {
+        bookedApprovedVersionByMBA[mbaNumber] = bookedApprovedCompleted
+      }
+    })
+
+    const deliveryScheduleByMBA: Record<string, any[]> = {}
+    Object.entries(bookedApprovedVersionByMBA).forEach(([mbaNumber, version]: [string, any]) => {
       const schedule =
-        (chosen as any)?.deliverySchedule ||
-        (chosen as any)?.delivery_schedule ||
-        (chosen as any)?.billingSchedule ||
-        (chosen as any)?.billing_schedule
+        (version as any)?.deliverySchedule ||
+        (version as any)?.delivery_schedule ||
+        (version as any)?.billingSchedule ||
+        (version as any)?.billing_schedule
       const normalized = normalizeSchedule(schedule)
       if (normalized.length > 0) {
         deliveryScheduleByMBA[mbaNumber] = normalized
@@ -792,7 +799,7 @@ export async function getClientDashboardData(slug: string): Promise<ClientDashbo
       })
     })
 
-    // Calculate spend windows from delivery schedules (includes line items + fees)
+    // Calculate spend windows from delivery schedules for booked/approved/completed campaigns
     const windows = { last30d: last30dWindow, fy: { start: fyStart, end: fyEnd } }
     const spendTotals = Object.entries(deliveryScheduleByMBA).reduce(
       (acc, [_, schedule]) => {

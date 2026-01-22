@@ -1,6 +1,7 @@
 "use client"
 
-import { useMemo, useRef } from "react"
+import React, { useEffect, useMemo, useRef, useState } from "react"
+import { useUser } from "@/components/AuthWrapper"
 import {
   Accordion,
   AccordionContent,
@@ -54,6 +55,7 @@ type SocialPacingContainerProps = {
   campaignStart?: string
   campaignEnd?: string
   initialPacingRows?: CombinedPacingRow[]
+  pacingLineItemIds?: string[]
 }
 
 type LineItemMetrics = {
@@ -76,6 +78,7 @@ const palette = {
 }
 
 const DEBUG_PACING = process.env.NEXT_PUBLIC_DEBUG_PACING === "true"
+const IS_DEV = process.env.NODE_ENV !== "production"
 
 function isMetaPlatform(value: string | undefined) {
   if (!value) return false
@@ -149,6 +152,92 @@ function endOfDay(date: Date) {
 
 function toISO(date: Date) {
   return startOfDay(date).toISOString().slice(0, 10)
+}
+
+/**
+ * Get today's date in Australia/Melbourne timezone as ISO string "YYYY-MM-DD"
+ */
+function getMelbourneTodayISO(): string {
+  const now = new Date()
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Australia/Melbourne",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  })
+  const parts = formatter.formatToParts(now)
+  const year = parts.find((p) => p.type === "year")?.value ?? ""
+  const month = parts.find((p) => p.type === "month")?.value ?? ""
+  const day = parts.find((p) => p.type === "day")?.value ?? ""
+  return `${year}-${month}-${day}`
+}
+
+/**
+ * Get yesterday's date in Australia/Melbourne timezone as ISO string "YYYY-MM-DD"
+ */
+function getMelbourneYesterdayISO(): string {
+  const now = new Date()
+  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Australia/Melbourne",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  })
+  const parts = formatter.formatToParts(yesterday)
+  const year = parts.find((p) => p.type === "year")?.value ?? ""
+  const month = parts.find((p) => p.type === "month")?.value ?? ""
+  const day = parts.find((p) => p.type === "day")?.value ?? ""
+  return `${year}-${month}-${day}`
+}
+
+function computePacingRange(campaignStart?: string, campaignEnd?: string) {
+  const MAX_RANGE_DAYS = 180
+  const DEFAULT_RANGE_DAYS = 90
+  const msPerDay = 24 * 60 * 60 * 1000
+  
+  const melbourneTodayISO = getMelbourneTodayISO()
+  const melbourneYesterdayISO = getMelbourneYesterdayISO()
+  
+  // Parse campaign end date if provided
+  let campaignEndDateISO: string | null = null
+  if (campaignEnd) {
+    const parsed = parseDateSafe(campaignEnd)
+    if (parsed) {
+      campaignEndDateISO = toISO(parsed)
+    }
+  }
+  
+  // Determine end date: use campaign end if it's before today (completed), otherwise use yesterday
+  const endISO = campaignEndDateISO && campaignEndDateISO < melbourneTodayISO
+    ? campaignEndDateISO
+    : melbourneYesterdayISO
+  
+  // Parse start date
+  let startDate: Date | null = null
+  if (campaignStart) {
+    startDate = parseDateSafe(campaignStart)
+  }
+  
+  if (!startDate) {
+    // Default to DEFAULT_RANGE_DAYS before end date
+    const endDate = parseDateSafe(endISO)
+    if (endDate) {
+      startDate = new Date(endDate.getTime() - DEFAULT_RANGE_DAYS * msPerDay)
+    } else {
+      startDate = new Date(Date.now() - DEFAULT_RANGE_DAYS * msPerDay)
+    }
+  }
+  
+  const endDate = parseDateSafe(endISO) ?? new Date()
+  const rangeDays = Math.ceil((endDate.getTime() - startDate.getTime()) / msPerDay)
+  
+  // Clamp start to MAX_RANGE_DAYS before end
+  if (rangeDays > MAX_RANGE_DAYS) {
+    startDate = new Date(endDate.getTime() - MAX_RANGE_DAYS * msPerDay)
+  }
+
+  return { start: toISO(startDate), end: endISO }
 }
 
 function parseDateSafe(value?: string | null): Date | null {
@@ -349,10 +438,23 @@ function getLineItemNameCandidate(item: SocialLineItem) {
 }
 
 function resolveDeliverableKey(buyType: string | undefined): ReturnType<typeof getDeliverableKey> {
-  if (!buyType) return null
+  if (!buyType) return "impressions"
   const normalized = buyType.toLowerCase()
-  if (deliverableMapping[normalized]) return deliverableMapping[normalized]
-  return getDeliverableKey(normalized.toUpperCase() as BuyType)
+  return deliverableMapping[normalized] ?? "impressions"
+}
+
+function getDeliverableLabel(deliverableKey: ReturnType<typeof getDeliverableKey> | null) {
+  switch (deliverableKey) {
+    case "clicks":
+      return "Clicks"
+    case "results":
+      return "Conversions"
+    case "video_3s_views":
+      return "Video Views"
+    case "impressions":
+    default:
+      return "Impressions"
+  }
 }
 
 function normalizeLineItems(lineItems: SocialLineItem[]) {
@@ -689,6 +791,7 @@ function DeliveryTable({ rows }: { rows: MetaPacingRow[] }) {
   const COLS =
     "120px minmax(200px, 1fr) minmax(220px, 1fr) 120px 120px 120px 120px 120px"
 
+  // Sort by dateDay (ISO format YYYY-MM-DD, so localeCompare works correctly for chronological order)
   const sorted = [...rows].sort((a, b) => a.dateDay.localeCompare(b.dateDay))
   const derivedRows = sorted.map((row) => deriveDeliveryRow(row))
 
@@ -929,27 +1032,358 @@ export default function SocialPacingContainer({
   campaignStart,
   campaignEnd,
   initialPacingRows,
-}: SocialPacingContainerProps) {
-  // Filter initialPacingRows by channel using useMemo - no client-side fetching
-  const metaRows = useMemo(() => {
-    if (!Array.isArray(initialPacingRows)) return []
-    return initialPacingRows
-      .filter((row) => row.channel === "meta")
-      .map(mapCombinedRowToMeta)
+  pacingLineItemIds,
+}: SocialPacingContainerProps): React.ReactElement {
+  const { user, isLoading: authLoading } = useUser()
+  const [pacingRows, setPacingRows] = useState<CombinedPacingRow[]>(initialPacingRows ?? [])
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const pendingFetchKeyRef = useRef<string | null>(null)
+  const lastSuccessfulFetchKeyRef = useRef<string | null>(null)
+  const retryCountRef = useRef<number>(0)
+  const cancelledRef = useRef<boolean>(false)
+
+  // Extract line item ID with multiple field fallbacks
+  const extractLineItemId = (item: SocialLineItem): string | null => {
+    const id = item.line_item_id ?? item.lineItemId ?? item.LINE_ITEM_ID
+    return cleanId(id)
+  }
+
+  const socialLineItemIds = useMemo(() => {
+    const idsFromItems = (socialLineItems ?? [])
+      .map(extractLineItemId)
+      .filter(Boolean) as string[]
+    const uniqueItems = Array.from(new Set(idsFromItems))
+    if (!pacingLineItemIds?.length) {
+      return uniqueItems
+    }
+    const pacingSet = new Set(
+      pacingLineItemIds.map((id) => cleanId(id)).filter(Boolean) as string[]
+    )
+    return uniqueItems.filter((id) => pacingSet.has(id))
+  }, [pacingLineItemIds, socialLineItems])
+
+  // Stable string key for dependency tracking
+  const idsKey = useMemo(() => socialLineItemIds.join(","), [socialLineItemIds])
+
+  const pacingRange = useMemo(
+    () => computePacingRange(campaignStart, campaignEnd),
+    [campaignStart, campaignEnd]
+  )
+
+  useEffect(() => {
+    if (initialPacingRows?.length) {
+      setPacingRows(initialPacingRows)
+      setIsLoading(false)
+      setError(null)
+    }
   }, [initialPacingRows])
 
+  // Safe JSON parser with content-type check
+  const parseJsonSafely = async (response: Response): Promise<any> => {
+    const contentType = response.headers.get("content-type") || ""
+    if (!contentType.includes("application/json")) {
+      const text = await response.text()
+      throw new Error(`Expected JSON but got ${contentType}. Response: ${text.slice(0, 200)}`)
+    }
+    return response.json()
+  }
+
+  // Fetch with retry logic
+  const fetchPacingData = async (
+    mbaNum: string,
+    lineItemIds: string[],
+    startDate: string,
+    endDate: string,
+    retryAttempt = 0
+  ): Promise<void> => {
+    cancelledRef.current = false
+    setIsLoading(true)
+    setError(null)
+
+    const fetchKey = `${mbaNum}|${lineItemIds.join(",")}|${startDate}|${endDate}`
+    const attemptCount = retryAttempt + 1
+
+    if (IS_DEV) {
+      console.log("[PACING UI] calling /api/pacing/bulk", {
+        fetchKey,
+        attemptCount,
+        mbaNumber: mbaNum,
+        count: lineItemIds.length,
+        startDate,
+        endDate,
+      })
+    }
+
+    let response: Response | null = null
+    try {
+      response = await fetch("/api/pacing/bulk", {
+        method: "POST",
+        credentials: "include",
+        cache: "no-store",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          mbaNumber: mbaNum,
+          lineItemIds,
+          startDate,
+          endDate,
+        }),
+      })
+
+      // Check for auth-related status codes
+      if (response.status === 401 || response.status === 403 || response.status === 302) {
+        if (retryAttempt === 0) {
+          if (IS_DEV) {
+            console.log("[PACING UI] Auth failure, retrying after delay", {
+              fetchKey,
+              attemptCount,
+              status: response.status,
+              contentType: response.headers.get("content-type"),
+            })
+          }
+          // Retry once after 400ms
+          setTimeout(() => {
+            if (!cancelledRef.current) {
+              fetchPacingData(mbaNum, lineItemIds, startDate, endDate, 1)
+            }
+          }, 400)
+          return
+        } else {
+          // Already retried, surface error
+          pendingFetchKeyRef.current = null
+          const errorText = await response.text().catch(() => "Authentication failed")
+          throw new Error(`Authentication failed (${response.status}): ${errorText.slice(0, 200)}`)
+        }
+      }
+
+      if (!response.ok) {
+        pendingFetchKeyRef.current = null
+        throw new Error(`Pacing request failed (${response.status})`)
+      }
+
+      const data = await parseJsonSafely(response)
+
+      if (cancelledRef.current) return
+
+      const rows = Array.isArray(data?.rows) ? data.rows : []
+      
+      // Check for error in response
+      const hasError = Boolean(data?.error)
+      const hasRows = rows.length > 0
+      
+      // If there's an error, always set error state (even if rows exist)
+      if (hasError) {
+        const errorMsg = String(data.error)
+        setError(errorMsg)
+        pendingFetchKeyRef.current = null
+        
+        if (IS_DEV || DEBUG_PACING) {
+          console.log("[PACING UI] API returned error", {
+            fetchKey,
+            attemptCount,
+            error: errorMsg,
+            rowsCount: rows.length,
+          })
+        }
+        
+        // Still set rows if they exist, but mark as error
+        if (hasRows) {
+          setPacingRows(rows)
+        }
+        
+        // Don't commit key on error
+        return
+      }
+
+      // Successful: no error field
+      if (IS_DEV || DEBUG_PACING) {
+        console.log("[PACING UI] Fetch successful", {
+          fetchKey,
+          attemptCount,
+          rowsCount: rows.length,
+        })
+      }
+      
+      // Commit the fetch key as successful immediately before setting state
+      lastSuccessfulFetchKeyRef.current = fetchKey
+      pendingFetchKeyRef.current = null
+      setPacingRows(rows)
+      setError(null)
+      retryCountRef.current = 0
+    } catch (err) {
+      if (cancelledRef.current) return
+
+      const errorMessage = err instanceof Error ? err.message : String(err)
+      
+      // Clear pending key on any failure
+      pendingFetchKeyRef.current = null
+      
+      // Check if it's a non-JSON HTML response (likely auth redirect)
+      if (errorMessage.includes("Expected JSON but got") && retryAttempt === 0) {
+        if (IS_DEV) {
+          console.log("[PACING UI] Non-JSON response, retrying after delay", {
+            fetchKey,
+            attemptCount,
+            error: errorMessage,
+          })
+        }
+        setTimeout(() => {
+          if (!cancelledRef.current) {
+            fetchPacingData(mbaNum, lineItemIds, startDate, endDate, 1)
+          }
+        }, 400)
+        return
+      }
+
+      // Don't set empty data on auth failures - just set error
+      const isAuthError = response?.status === 401 || response?.status === 403 || response?.status === 302
+      if (IS_DEV) {
+        console.log("[PACING UI] Fetch error", {
+          fetchKey,
+          attemptCount,
+          error: errorMessage,
+          isAuthError,
+          keyCommitted: false,
+        })
+      }
+      setError(errorMessage)
+    } finally {
+      if (!cancelledRef.current) {
+        setIsLoading(false)
+      }
+    }
+  }
+
+  useEffect(() => {
+    // Guard: Skip auto-fetch if initialPacingRows is provided (from PacingDataProvider)
+    if (initialPacingRows !== undefined) {
+      if (IS_DEV || DEBUG_PACING) {
+        console.log("[PACING UI] Skipping fetch - initialPacingRows provided", {
+          rowsCount: initialPacingRows?.length ?? 0,
+        })
+      }
+      return
+    }
+
+    // Guard: Wait for auth to be ready
+    if (authLoading) {
+      if (IS_DEV || DEBUG_PACING) {
+        console.log("[PACING UI] Skipping fetch - auth loading")
+      }
+      return
+    }
+
+    // Guard: Ensure user exists
+    if (!user) {
+      if (IS_DEV || DEBUG_PACING) {
+        console.log("[PACING UI] Skipping fetch - no user")
+      }
+      return
+    }
+
+    // Guard: Ensure slug and mbaNumber are defined
+    if (!clientSlug || !mbaNumber) {
+      if (IS_DEV || DEBUG_PACING) {
+        console.log("[PACING UI] Skipping fetch - missing params", {
+          hasSlug: !!clientSlug,
+          hasMbaNumber: !!mbaNumber,
+        })
+      }
+      return
+    }
+
+    // Guard: Ensure we have line item IDs
+    if (!socialLineItemIds.length) {
+      if (IS_DEV || DEBUG_PACING) {
+        console.log("[PACING UI] Skipping fetch - no line item IDs", {
+          idsKey,
+          idsCount: socialLineItemIds.length,
+        })
+      }
+      return
+    }
+
+    // Guard: Ensure we have a valid date range
+    if (!pacingRange.start || !pacingRange.end) {
+      if (IS_DEV || DEBUG_PACING) {
+        console.log("[PACING UI] Skipping fetch - invalid date range", {
+          start: pacingRange.start,
+          end: pacingRange.end,
+        })
+      }
+      return
+    }
+
+    const fetchKey = `${mbaNumber}|${idsKey}|${pacingRange.start}|${pacingRange.end}`
+    
+    // Skip if this key is already pending
+    if (pendingFetchKeyRef.current === fetchKey) {
+      if (IS_DEV || DEBUG_PACING) {
+        console.log("[PACING UI] Skipping fetch - key already pending", { fetchKey })
+      }
+      return
+    }
+    
+    // Skip if this key was successfully fetched (but allow retry if ids change)
+    if (lastSuccessfulFetchKeyRef.current === fetchKey) {
+      if (IS_DEV || DEBUG_PACING) {
+        console.log("[PACING UI] Skipping fetch - key already successful", { fetchKey })
+      }
+      return
+    }
+    
+    // DEV logging: derived IDs and range
+    if (IS_DEV || DEBUG_PACING) {
+      console.log("[PACING UI] Preparing fetch", {
+        idsKey,
+        idsCount: socialLineItemIds.length,
+        sampleIds: socialLineItemIds.slice(0, 10),
+        pacingRange: { start: pacingRange.start, end: pacingRange.end },
+        fetchKey,
+      })
+    }
+    
+    // Set pending key and commit successful key immediately before calling fetch
+    pendingFetchKeyRef.current = fetchKey
+    // Note: lastSuccessfulFetchKeyRef will be set inside fetchPacingData on success
+
+    fetchPacingData(mbaNumber, socialLineItemIds, pacingRange.start, pacingRange.end)
+
+    return () => {
+      cancelledRef.current = true
+    }
+  }, [
+    authLoading,
+    user,
+    clientSlug,
+    mbaNumber,
+    pacingRange.end,
+    pacingRange.start,
+    idsKey,
+    socialLineItemIds,
+    initialPacingRows,
+  ])
+
+  // Filter pacingRows by channel using useMemo
+  const metaRows = useMemo(() => {
+    if (!Array.isArray(pacingRows)) return []
+    return pacingRows
+      .filter((row) => row.channel === "meta")
+      .map(mapCombinedRowToMeta)
+  }, [pacingRows])
+
   const tiktokRows = useMemo(() => {
-    if (!Array.isArray(initialPacingRows)) return []
-    return initialPacingRows
+    if (!Array.isArray(pacingRows)) return []
+    return pacingRows
       .filter((row) => row.channel === "tiktok")
       .map(mapCombinedRowToMeta)
-  }, [initialPacingRows])
+  }, [pacingRows])
 
   // Combine rows for filtering in lineItemMetrics
   const socialRows = useMemo(() => [...metaRows, ...tiktokRows], [metaRows, tiktokRows])
-
-  // Data is already available from server - no loading state needed
-  const isLoading = false
 
   // Use props directly - no state management needed
   const resolvedCampaignStart = campaignStart
@@ -981,7 +1415,7 @@ export default function SocialPacingContainer({
   const metaRanges = useMemo(
     () =>
       metaItems.map((item) => ({
-        lineItemId: cleanId(item.line_item_id),
+        lineItemId: extractLineItemId(item),
         ...resolveLineItemRange(item, resolvedCampaignStart, resolvedCampaignEnd),
       })),
     [metaItems, resolvedCampaignStart, resolvedCampaignEnd]
@@ -990,7 +1424,7 @@ export default function SocialPacingContainer({
   const tiktokRanges = useMemo(
     () =>
       tiktokItems.map((item) => ({
-        lineItemId: cleanId(item.line_item_id),
+        lineItemId: extractLineItemId(item),
         fallbackName:
           (item as any).line_item_name ||
           (item as any).creative_targeting ||
@@ -1026,7 +1460,7 @@ export default function SocialPacingContainer({
     return activeItems.map((item) => {
       const bursts = item.bursts ?? parseBursts(item.bursts_json)
       const window = getLineItemWindow(bursts, resolvedCampaignStart, resolvedCampaignEnd)
-      const targetId = cleanId(item.line_item_id)
+      const targetId = extractLineItemId(item)
       const matches = socialRows.reduce(
         (acc, r) => {
           const rid = getRowLineItemId(r)
@@ -1324,6 +1758,11 @@ export default function SocialPacingContainer({
         {/* Description removed per request */}
       </CardHeader>
       <CardContent className="space-y-4">
+        {error ? (
+          <div className="rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {error}
+          </div>
+        ) : null}
         {isLoading ? (
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <div className="h-32 animate-pulse rounded-2xl bg-muted" />
@@ -1445,10 +1884,10 @@ export default function SocialPacingContainer({
                     }
                     accentColor={palette.budget}
                   />
-                  <SmallProgressCard
-                    label="Deliverable pacing"
+                    <SmallProgressCard
+                      label={`${getDeliverableLabel(metric.deliverableKey)} pacing`}
                     value={formatWholeNumber(metric.pacing.deliverable?.actualToDate)}
-                    helper={`Delivered ${formatWholeNumber(metric.pacing.deliverable?.actualToDate)} • Booked ${formatWholeNumber(metric.booked.deliverables)}`}
+                      helper={`Delivered ${formatWholeNumber(metric.pacing.deliverable?.actualToDate)} ${getDeliverableLabel(metric.deliverableKey)} • Booked ${formatWholeNumber(metric.booked.deliverables)} ${getDeliverableLabel(metric.deliverableKey)}`}
                     pacingPct={metric.pacing.deliverable?.pacingPct}
                     progressRatio={
                       metric.booked.deliverables > 0
@@ -1470,7 +1909,7 @@ export default function SocialPacingContainer({
                   <ActualsDailyDeliveryChart
                     series={metric.pacing.series}
                     asAtDate={metric.pacing.asAtDate}
-                    deliverableLabel="Deliverables"
+                    deliverableLabel={getDeliverableLabel(metric.deliverableKey)}
                     chartRef={setLineChartRef(String(metric.lineItem.line_item_id))}
                   />
                 </div>
