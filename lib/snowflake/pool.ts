@@ -811,17 +811,16 @@ async function connectConnection(
       reject(new Error(`[snowflake] connect timeout after ~${elapsed}ms`))
     }, timeoutMs)
 
-    connection.connect({
-      complete: (err) => {
-        if (settled) return
-        settled = true
-        if (timeoutId) clearTimeout(timeoutId)
-        if (err) {
-          reject(err)
-        } else {
-          resolve()
-        }
-      },
+    connection.connect((err) => {
+      if (settled) return
+      settled = true
+      if (timeoutId) clearTimeout(timeoutId)
+      if (err) {
+        console.error("[snowflake][serverless] connect error", { requestId, error: getErrorMessage(err) })
+        reject(err)
+      } else {
+        resolve()
+      }
     })
   })
 }
@@ -1357,19 +1356,20 @@ export async function checkConnectionHealth(): Promise<HealthCheckResult> {
     }
   } finally {
     // Step 3: Always release/destroy
-    if (!connection) return
-    try {
-      if (MODE === "serverless") {
-        try {
-          connection.destroy(() => {})
-        } catch {
-          // ignore
+    if (connection) {
+      try {
+        if (MODE === "serverless") {
+          try {
+            connection.destroy(() => {})
+          } catch {
+            // ignore
+          }
+        } else {
+          await releaseConnection(connection, "health-check")
         }
-      } else {
-        await releaseConnection(connection, "health-check")
+      } catch (err) {
+        console.warn("[snowflake][health] Failed to release/destroy connection", getErrorMessage(err))
       }
-    } catch (err) {
-      console.warn("[snowflake][health] Failed to release/destroy connection", getErrorMessage(err))
     }
   }
 }
