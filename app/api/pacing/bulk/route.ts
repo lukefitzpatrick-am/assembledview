@@ -94,8 +94,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Fetch pacing data
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), INTERNAL_TIMEOUT_MS)
+    const ac = new AbortController()
+    const timer = setTimeout(() => ac.abort(), INTERNAL_TIMEOUT_MS)
 
     let rows: Awaited<ReturnType<typeof getCampaignPacingData>>
     try {
@@ -104,18 +104,19 @@ export async function POST(request: NextRequest) {
         normalizedLineItemIds,
         { startDate, endDate },
         {
-        requestId,
-        signal: controller.signal,
+          requestId,
+          signal: ac.signal,
         }
       )
     } catch (err) {
-      if (controller.signal.aborted) {
+      const isAbortError = Boolean(err && typeof err === "object" && (err as any).name === "AbortError")
+      if (isAbortError || ac.signal.aborted) {
         console.warn("[api/pacing/bulk] timeout", { requestId, ms: Date.now() - t0 })
-        return NextResponse.json({ ok: false, error: "Pacing request timed out" }, { status: 504 })
+        return NextResponse.json({ ok: false, error: "Timed out" }, { status: 504 })
       }
       throw err
     } finally {
-      clearTimeout(timeoutId)
+      clearTimeout(timer)
     }
 
     console.info("[api/pacing/bulk] timing", { requestId, stage: "snowflake_done", ms: Date.now() - t0 })

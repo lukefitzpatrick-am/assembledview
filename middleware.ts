@@ -78,26 +78,46 @@ export async function middleware(request: NextRequest) {
   const isAdmin = roles.includes('admin');
   const clientSlug = getUserClientIdentifier(session.user);
   let redirectTarget: string | null = null;
+  let reason: string | null = null;
 
   // Client users: redirect home + enforce tenant dashboard slug.
+  // IMPORTANT: This must run BEFORE any unauthorized redirects so that
+  // clients never get sent to /unauthorized for "/" or "/dashboard".
   if (isClient) {
     if (!clientSlug) {
       redirectTarget = '/unauthorized';
-    } else if (pathname === '/' || pathname === '/dashboard') {
+      reason = 'client-missing-slug';
+    } else if (pathname === '/') {
       redirectTarget = `/dashboard/${clientSlug}`;
-    } else if (pathname.startsWith('/dashboard') && !isAllowedClientDashboardPath(pathname, clientSlug)) {
+      reason = 'client-root-redirect';
+    } else if (pathname === '/dashboard') {
       redirectTarget = `/dashboard/${clientSlug}`;
+      reason = 'client-dashboard-redirect';
+    } else if (pathname.startsWith('/dashboard')) {
+      const base = `/dashboard/${clientSlug}`;
+      if (pathname === base || pathname.startsWith(`${base}/`)) {
+        // allow
+      } else {
+        redirectTarget = base;
+        reason = 'client-cross-tenant-block';
+      }
+    } else if (pathname === '/learning' || pathname === '/forbidden' || pathname === '/unauthorized') {
+      // allow these pages
+    } else {
+      redirectTarget = `/dashboard/${clientSlug}`;
+      reason = 'client-non-dashboard-redirect';
     }
   }
 
   if (DEBUG_AUTH_ENABLED) {
     console.log('[middleware auth debug]', {
       path: pathname,
-      roles,
-      clientSlug,
       isClient,
-      isAdmin,
       redirectTarget,
+      reason,
+      clientSlug,
+      roles,
+      isAdmin,
     });
   }
 
@@ -106,24 +126,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Non-client users (admins/managers) can proceed.
-  if (!isClient) return continueResponse;
-
-  // Allow access to learning, forbidden, unauthorized pages
-  if (pathname === '/learning' || pathname === '/forbidden' || pathname === '/unauthorized') {
-    return continueResponse;
-  }
-
-  // For dashboard routes, let the page components handle tenant checks
-  // (they will use notFound() if there's a mismatch)
-  if (pathname.startsWith('/dashboard/')) {
-    return continueResponse;
-  }
-
-  // For other routes, redirect to client dashboard
-  if (!clientSlug) {
-    return NextResponse.redirect(new URL('/unauthorized', request.url));
-  }
-  return NextResponse.redirect(new URL(`/dashboard/${clientSlug}`, request.url));
+  return continueResponse;
 }
 
 export const config = {

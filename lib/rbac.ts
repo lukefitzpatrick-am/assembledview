@@ -398,7 +398,16 @@ export function isClientRole(role: UserRole | null | undefined): boolean {
 }
 
 export function getUserClientIdentifier(user: User | null | undefined): string | null {
-  return getUserClientSlugWithSource(user).clientSlug;
+  const info = getUserClientSlugWithSource(user);
+
+  if (DEBUG_AUTH_ENABLED) {
+    console.log('[RBAC debug] client slug resolution', {
+      source: info.source,
+      clientSlug: info.clientSlug,
+    });
+  }
+
+  return info.clientSlug;
 }
 
 /**
