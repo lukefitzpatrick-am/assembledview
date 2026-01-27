@@ -109,6 +109,19 @@ export default function PacingDataProvider({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const allLineItemIds = useMemo(() => {
+    return uniq(
+      [
+        ...(metaLineItemIds ?? []),
+        ...(tiktokLineItemIds ?? []),
+        ...(progDisplayLineItemIds ?? []),
+        ...(progVideoLineItemIds ?? []),
+      ]
+        .map((id) => cleanId(id))
+        .filter(Boolean) as string[]
+    )
+  }, [metaLineItemIds, tiktokLineItemIds, progDisplayLineItemIds, progVideoLineItemIds])
+
   const allIdsKey = useMemo(() => {
     return [
       `meta:${metaLineItemIds.join(",")}`,
@@ -119,11 +132,7 @@ export default function PacingDataProvider({
   }, [metaLineItemIds, tiktokLineItemIds, progDisplayLineItemIds, progVideoLineItemIds])
 
   useEffect(() => {
-    const anyIds =
-      metaLineItemIds.length ||
-      tiktokLineItemIds.length ||
-      progDisplayLineItemIds.length ||
-      progVideoLineItemIds.length
+    const anyIds = allLineItemIds.length
 
     if (!anyIds) {
       setRows([])
@@ -151,185 +160,27 @@ export default function PacingDataProvider({
       setLoading(true)
       setError(null)
 
-      const tasks: Array<Promise<{ channel: string; rows: CombinedPacingRow[] }>> = []
-
-      if (metaLineItemIds.length) {
-        tasks.push(
-          postJson<{ rows: any[] }>("/api/pacing/social/meta", {
+      try {
+        const data = await postJson<{ ok: boolean; rows: CombinedPacingRow[]; error?: string }>(
+          "/api/pacing/bulk",
+          {
             mbaNumber,
-            lineItemIds: metaLineItemIds,
+            lineItemIds: allLineItemIds,
             startDate,
             endDate,
-          }).then((data) => ({
-            channel: "meta",
-            rows: (Array.isArray(data?.rows) ? data.rows : []).map((r) => ({
-              channel: "meta",
-              dateDay: String(r?.dateDay ?? ""),
-              adsetName: r?.adsetName ?? null,
-              entityName: r?.adsetName ?? null,
-              campaignId: null,
-              campaignName: r?.campaignName ?? null,
-              adsetId: r?.adsetId ?? null,
-              entityId: r?.adsetId ?? null,
-              lineItemId: cleanId(r?.lineItemId) ?? null,
-              amountSpent: Number(r?.amountSpent ?? 0),
-              impressions: Number(r?.impressions ?? 0),
-              clicks: Number(r?.clicks ?? 0),
-              results: Number(r?.results ?? 0),
-              video3sViews: Number(r?.video3sViews ?? 0),
-              maxFivetranSyncedAt: r?.maxFivetranSyncedAt ?? null,
-              updatedAt: r?.updatedAt ?? null,
-            })) as CombinedPacingRow[],
-          }))
+          }
         )
+
+        const nextRows = Array.isArray(data?.rows) ? data.rows : []
+        setRows(nextRows)
+        setError(data && (data as any).error ? String((data as any).error) : null)
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : String(err)
+        setError(errorMessage)
+        setRows([])
+      } finally {
+        setLoading(false)
       }
-
-      if (tiktokLineItemIds.length) {
-        tasks.push(
-          postJson<{ rows: any[] }>("/api/pacing/social/tiktok", {
-            mbaNumber,
-            lineItemIds: tiktokLineItemIds,
-            startDate,
-            endDate,
-          }).then((data) => ({
-            channel: "tiktok",
-            rows: (Array.isArray(data?.rows) ? data.rows : []).map((r) => ({
-              channel: "tiktok",
-              dateDay: String(r?.dateDay ?? ""),
-              adsetName: r?.adsetName ?? null,
-              entityName: r?.adsetName ?? null,
-              campaignId: null,
-              campaignName: r?.campaignName ?? null,
-              adsetId: r?.adsetId ?? null,
-              entityId: r?.adsetId ?? null,
-              lineItemId: cleanId(r?.lineItemId) ?? null,
-              amountSpent: Number(r?.amountSpent ?? 0),
-              impressions: Number(r?.impressions ?? 0),
-              clicks: Number(r?.clicks ?? 0),
-              results: Number(r?.results ?? 0),
-              video3sViews: Number(r?.video3sViews ?? 0),
-              maxFivetranSyncedAt: r?.maxFivetranSyncedAt ?? null,
-              updatedAt: r?.updatedAt ?? null,
-            })) as CombinedPacingRow[],
-          }))
-        )
-      }
-
-      if (progDisplayLineItemIds.length) {
-        tasks.push(
-          postJson<{ rows: any[] }>("/api/pacing/programmatic/display", {
-            mbaNumber,
-            lineItemIds: progDisplayLineItemIds,
-            startDate,
-            endDate,
-          }).then((data) => ({
-            channel: "programmatic-display",
-            rows: (Array.isArray(data?.rows) ? data.rows : []).map((r) => ({
-              channel: "programmatic-display",
-              dateDay: String(r?.date ?? ""),
-              adsetName: r?.lineItem ?? null,
-              entityName: r?.lineItem ?? null,
-              campaignId: null,
-              campaignName: r?.insertionOrder ?? null,
-              adsetId: null,
-              entityId: null,
-              lineItemId: cleanId(r?.lineItemId ?? r?.matchedPostfix) ?? null,
-              amountSpent: Number(r?.spend ?? 0),
-              impressions: Number(r?.impressions ?? 0),
-              clicks: Number(r?.clicks ?? 0),
-              results: Number(r?.conversions ?? 0),
-              video3sViews: Number(r?.video3sViews ?? 0),
-              maxFivetranSyncedAt: r?.maxFivetranSyncedAt ?? null,
-              updatedAt: r?.updatedAt ?? null,
-            })) as CombinedPacingRow[],
-          }))
-        )
-      }
-
-      if (progVideoLineItemIds.length) {
-        tasks.push(
-          postJson<{ rows: any[] }>("/api/pacing/programmatic/video", {
-            mbaNumber,
-            lineItemIds: progVideoLineItemIds,
-            startDate,
-            endDate,
-          }).then((data) => ({
-            channel: "programmatic-video",
-            rows: (Array.isArray(data?.rows) ? data.rows : []).map((r) => ({
-              channel: "programmatic-video",
-              dateDay: String(r?.date ?? ""),
-              adsetName: r?.lineItem ?? null,
-              entityName: r?.lineItem ?? null,
-              campaignId: null,
-              campaignName: r?.insertionOrder ?? null,
-              adsetId: null,
-              entityId: null,
-              lineItemId: cleanId(r?.lineItemId ?? r?.matchedPostfix) ?? null,
-              amountSpent: Number(r?.spend ?? 0),
-              impressions: Number(r?.impressions ?? 0),
-              clicks: Number(r?.clicks ?? 0),
-              results: Number(r?.conversions ?? 0),
-              video3sViews: Number(r?.video3sViews ?? 0),
-              maxFivetranSyncedAt: r?.maxFivetranSyncedAt ?? null,
-              updatedAt: r?.updatedAt ?? null,
-            })) as CombinedPacingRow[],
-          }))
-        )
-      }
-
-      const settled = await Promise.allSettled(tasks)
-
-      const merged: CombinedPacingRow[] = []
-      const errors: string[] = []
-
-      settled.forEach((result) => {
-        if (result.status === "fulfilled") {
-          merged.push(...result.value.rows)
-        } else {
-          errors.push(result.reason instanceof Error ? result.reason.message : String(result.reason))
-        }
-      })
-
-      // De-dupe and stable sort
-      const deduped = uniq(
-        merged.map((r) =>
-          [
-            r.channel,
-            r.dateDay,
-            r.lineItemId ?? "",
-            r.adsetId ?? "",
-            r.campaignName ?? "",
-            r.adsetName ?? "",
-          ].join("|")
-        )
-      )
-
-      const lookup = new Map<string, CombinedPacingRow>()
-      merged.forEach((r) => {
-        const key = [
-          r.channel,
-          r.dateDay,
-          r.lineItemId ?? "",
-          r.adsetId ?? "",
-          r.campaignName ?? "",
-          r.adsetName ?? "",
-        ].join("|")
-        lookup.set(key, r)
-      })
-
-      const finalRows = deduped
-        .map((k) => lookup.get(k))
-        .filter(Boolean) as CombinedPacingRow[]
-
-      finalRows.sort((a, b) => {
-        const d = String(a.dateDay ?? "").localeCompare(String(b.dateDay ?? ""))
-        if (d !== 0) return d
-        return String(a.channel ?? "").localeCompare(String(b.channel ?? ""))
-      })
-
-      setRows(finalRows)
-      setError(errors.length ? errors.join(" | ") : null)
-      setLoading(false)
     }
 
     fetchAll().catch((err) => {
@@ -338,7 +189,7 @@ export default function PacingDataProvider({
       setRows([])
       setLoading(false)
     })
-  }, [mbaNumber, allIdsKey, campaignStart, campaignEnd])
+  }, [mbaNumber, allIdsKey, campaignStart, campaignEnd, allLineItemIds])
 
   return <>{children({ rows, loading, error })}</>
 }

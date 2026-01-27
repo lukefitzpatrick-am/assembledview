@@ -783,38 +783,37 @@ function ActualsDailyDeliveryChart({
   )
 }
 
-function DeliveryTable({ rows }: { rows: MetaPacingRow[] }) {
-  if (!rows.length) {
-    return <div className="text-sm text-muted-foreground">No delivery rows matched to this line item yet.</div>
+function DeliveryTable({
+  daily,
+}: {
+  daily: Array<{
+    date: string
+    spend: number
+    impressions: number
+    clicks: number
+    results: number
+    video_3s_views: number
+    deliverable_value?: number
+  }>
+}) {
+  if (!daily.length) {
+    return <div className="text-sm text-muted-foreground">No daily delivery data is available for this line item yet.</div>
   }
 
-  const COLS =
-    "120px minmax(200px, 1fr) minmax(220px, 1fr) 120px 120px 120px 120px 120px"
+  const COLS = "120px 120px 140px 120px 120px 120px 120px"
 
-  // Sort by dateDay (ISO format YYYY-MM-DD, so localeCompare works correctly for chronological order)
-  const sorted = [...rows].sort((a, b) => a.dateDay.localeCompare(b.dateDay))
-  const derivedRows = sorted.map((row) => deriveDeliveryRow(row))
-
-  const totals = derivedRows.reduce(
+  const sorted = [...daily].sort((a, b) => String(a.date).localeCompare(String(b.date)))
+  const totals = sorted.reduce(
     (acc, row) => ({
-      spend: acc.spend + row.spend,
-      impressions: acc.impressions + row.impressions,
-      clicks: acc.clicks + row.clicks,
-      results: acc.results + row.results,
-      video3sViews: acc.video3sViews + row.video3sViews,
+      spend: acc.spend + (row.spend ?? 0),
+      deliverables: acc.deliverables + (row.deliverable_value ?? row.results ?? 0),
+      impressions: acc.impressions + (row.impressions ?? 0),
+      clicks: acc.clicks + (row.clicks ?? 0),
+      results: acc.results + (row.results ?? 0),
+      video3sViews: acc.video3sViews + ((row as any).video3sViews ?? row.video_3s_views ?? 0),
     }),
-    { spend: 0, impressions: 0, clicks: 0, results: 0, video3sViews: 0 }
+    { spend: 0, deliverables: 0, impressions: 0, clicks: 0, results: 0, video3sViews: 0 }
   )
-  const totalsRow = {
-    dateDay: "Totals",
-    campaignName: "—",
-    adsetName: "",
-    spend: totals.spend,
-    impressions: totals.impressions,
-    clicks: totals.clicks,
-    results: totals.results,
-    video3sViews: totals.video3sViews,
-  }
 
   return (
     <div className="rounded-xl border overflow-hidden">
@@ -822,9 +821,8 @@ function DeliveryTable({ rows }: { rows: MetaPacingRow[] }) {
         <div className="sticky top-0 z-10 bg-muted/70 backdrop-blur border-b px-3 py-2 text-xs font-semibold text-muted-foreground">
           <div className="grid items-center" style={{ gridTemplateColumns: COLS }}>
             <div>Date</div>
-            <div>Campaign</div>
-            <div>Ad set</div>
             <div className="text-right">Spend</div>
+            <div className="text-right">Deliverables</div>
             <div className="text-right">Impressions</div>
             <div className="text-right">Clicks</div>
             <div className="text-right">Results</div>
@@ -832,33 +830,35 @@ function DeliveryTable({ rows }: { rows: MetaPacingRow[] }) {
           </div>
         </div>
 
-        {derivedRows.map((row, idx) => (
-          <div
-            key={`${row.dateDay}-${row.adsetName}-${idx}`}
-            className="grid items-center border-b last:border-b-0 px-3 py-2 text-sm"
-            style={{ gridTemplateColumns: COLS }}
-          >
-            <div className="font-medium">{row.dateDay}</div>
-            <div className="truncate">{row.campaignName}</div>
-            <div className="truncate">{row.adsetName}</div>
-            <div className="text-right">{formatCurrency(row.spend)}</div>
-            <div className="text-right">{formatNumber(row.impressions)}</div>
-            <div className="text-right">{formatNumber(row.clicks)}</div>
-            <div className="text-right">{formatNumber(row.results)}</div>
-            <div className="text-right">{formatNumber(row.video3sViews)}</div>
-          </div>
-        ))}
+        {sorted.map((row) => {
+          const deliverables = row.deliverable_value ?? row.results ?? 0
+          const video3sViews = (row as any).video3sViews ?? row.video_3s_views ?? 0
+          return (
+            <div
+              key={String(row.date)}
+              className="grid items-center border-b last:border-b-0 px-3 py-2 text-sm"
+              style={{ gridTemplateColumns: COLS }}
+            >
+              <div className="font-medium">{formatDateAU(row.date)}</div>
+              <div className="text-right">{formatCurrency(row.spend)}</div>
+              <div className="text-right">{formatWholeNumber(deliverables)}</div>
+              <div className="text-right">{formatNumber(row.impressions)}</div>
+              <div className="text-right">{formatNumber(row.clicks)}</div>
+              <div className="text-right">{formatNumber(row.results)}</div>
+              <div className="text-right">{formatNumber(video3sViews)}</div>
+            </div>
+          )
+        })}
 
         <div className="sticky bottom-0 z-10 bg-background/95 backdrop-blur border-t px-3 py-2 text-sm font-semibold">
           <div className="grid items-center" style={{ gridTemplateColumns: COLS }}>
-            <div>{totalsRow.dateDay}</div>
-            <div>{totalsRow.campaignName}</div>
-            <div>{totalsRow.adsetName}</div>
-            <div className="text-right">{formatCurrency(totalsRow.spend)}</div>
-            <div className="text-right">{formatNumber(totalsRow.impressions)}</div>
-            <div className="text-right">{formatNumber(totalsRow.clicks)}</div>
-            <div className="text-right">{formatNumber(totalsRow.results)}</div>
-            <div className="text-right">{formatNumber(totalsRow.video3sViews)}</div>
+            <div>Totals</div>
+            <div className="text-right">{formatCurrency(totals.spend)}</div>
+            <div className="text-right">{formatWholeNumber(totals.deliverables)}</div>
+            <div className="text-right">{formatNumber(totals.impressions)}</div>
+            <div className="text-right">{formatNumber(totals.clicks)}</div>
+            <div className="text-right">{formatNumber(totals.results)}</div>
+            <div className="text-right">{formatNumber(totals.video3sViews)}</div>
           </div>
         </div>
       </div>
@@ -1913,7 +1913,7 @@ export default function SocialPacingContainer({
                     chartRef={setLineChartRef(String(metric.lineItem.line_item_id))}
                   />
                 </div>
-                <DeliveryTable rows={metric.matchedRows} />
+                <DeliveryTable daily={metric.actualsDaily} />
               </AccordionContent>
             </AccordionItem>
           ))}

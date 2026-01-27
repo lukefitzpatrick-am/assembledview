@@ -2,6 +2,11 @@ export type BillingBurst = {
   startDate: Date;
   endDate:   Date;
   mediaAmount: number;       // NEW
+  /**
+   * Media amount for the delivery schedule (pacing). This can differ from `mediaAmount`
+   * when the client pays for media: billing media is $0, but delivery media should remain.
+   */
+  deliveryMediaAmount?: number;
   feeAmount:   number;       // NEW
   totalAmount: number;       // keep for backwards-compatibility or remove if unused
   mediaType:   string;

@@ -144,22 +144,17 @@ export function filterLineItemsByPlanNumber(
     const versionMatch = versionCandidates.some((value) => String(value ?? "").trim() === requestedVersion)
     const mbaMatch = itemMba === requestedMba
 
-    if (!mbaMatch || !versionMatch) {
-      console.log(
-        `[${mediaType}] Filtered out item: mba=${itemMba} (need ${requestedMba}), versions=${versionCandidates.join(
-          ","
-        )} (need ${requestedVersion})`
-      )
-    }
-
     return versionMatch && mbaMatch
   })
 
   if (filteredData.length !== data.length) {
+    // Avoid per-item log spam when callers accidentally over-fetch many historic versions.
     console.warn(
       `[${mediaType}] Warning: ${data.length - filteredData.length} items were filtered out. Only items matching both mba_number and version are returned.`
     )
-    console.log(`[${mediaType}] Kept ${filteredData.length} items matching mba_number=${requestedMba} and version=${requestedVersion}`)
+    console.log(
+      `[${mediaType}] Kept ${filteredData.length} items matching mba_number=${requestedMba} and version=${requestedVersion}`
+    )
   }
 
   return sortByLineItemNumber(filteredData);

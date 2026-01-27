@@ -24,6 +24,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { SavingModal, type SaveStatusItem } from "@/components/ui/saving-modal"
 import type { BillingBurst, BillingMonth, BillingLineItem } from "@/lib/billing/types" // adjust path if needed
 import { buildBillingScheduleJSON } from "@/lib/billing/buildBillingSchedule"
+import { getScheduleHeaders } from "@/lib/billing/scheduleHeaders"
 import { generateMediaPlan, MediaPlanHeader, LineItem, MediaItems } from '@/lib/generateMediaPlan'
 import { generateNamingWorkbook } from '@/lib/namingConventions'
 import { MBAData } from '@/lib/generateMBA'
@@ -73,7 +74,6 @@ const mediaPlanSchema = z.object({
   mp_plannumber: z.string(),
   mp_television: z.boolean(),
   mp_radio: z.boolean(),
-  mp_production: z.boolean(),
   mp_production: z.boolean(),
   mp_newspaper: z.boolean(),
   mp_magazines: z.boolean(),
@@ -200,7 +200,6 @@ const mediaKeyMap: { [key: string]: string } = {
   mp_integration: 'integration',
   mp_influencers: 'influencers',
   mp_production: 'production',
-  mp_production: 'production',
 };
 // Add these type declarations at the top of the file
 type BillingMonths = {
@@ -308,7 +307,6 @@ export default function CreateMediaPlan() {
     mp_progaudio: 'Programmatic Audio',
     mp_progooh: 'Programmatic OOH',
     mp_influencers: 'Influencers',
-    mp_production: 'Production',
     mp_production: 'Production',
   };
   const [partialMBAError, setPartialMBAError] = useState<string | null>(null);
@@ -499,6 +497,7 @@ export default function CreateMediaPlan() {
   const [originalManualBillingTotal, setOriginalManualBillingTotal] = useState<string>("$0.00");
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
   const [autoBillingMonths, setAutoBillingMonths] = useState<BillingMonth[]>([]);
+  const [autoDeliveryMonths, setAutoDeliveryMonths] = useState<BillingMonth[]>([]);
   const deliveryScheduleSnapshotRef = useRef<BillingMonth[] | null>(null);
   const [billingMonths, setBillingMonths] = useState<BillingMonth[]>([])
   const [billingTotal, setBillingTotal] = useState("$0.00")  
@@ -525,7 +524,6 @@ export default function CreateMediaPlan() {
       mp_plannumber: "1",
       mp_television: false,
       mp_radio: false,
-      mp_production: false,
       mp_production: false,
       mp_newspaper: false,
       mp_magazines: false,
@@ -564,6 +562,28 @@ export default function CreateMediaPlan() {
   // Use useWatch to properly watch form values without causing infinite loops
   const campaignStart = useWatch({ control: form.control, name: "mp_campaigndates_start" })
   const campaignEnd = useWatch({ control: form.control, name: "mp_campaigndates_end" })
+  const mbaNumber = useWatch({ control: form.control, name: "mba_number" })
+  const planNumber = useWatch({ control: form.control, name: "mp_plannumber" })
+
+  const deepCloneBillingMonths = (months: BillingMonth[]): BillingMonth[] => {
+    if (typeof globalThis.structuredClone === "function") {
+      return globalThis.structuredClone(months) as BillingMonth[]
+    }
+    return JSON.parse(JSON.stringify(months)) as BillingMonth[]
+  }
+
+  // Reset the delivery schedule snapshot only when the campaign date range changes,
+  // or when a new MBA/version is started.
+  const deliverySnapshotKeyRef = useRef<string | null>(null)
+  useEffect(() => {
+    const startKey = campaignStart ? toDateOnlyString(campaignStart) : ""
+    const endKey = campaignEnd ? toDateOnlyString(campaignEnd) : ""
+    const key = `${startKey}|${endKey}|${mbaNumber ?? ""}|${planNumber ?? ""}`
+    if (deliverySnapshotKeyRef.current && deliverySnapshotKeyRef.current !== key) {
+      deliveryScheduleSnapshotRef.current = null
+    }
+    deliverySnapshotKeyRef.current = key
+  }, [campaignStart, campaignEnd, mbaNumber, planNumber])
   
   // Watch all media type boolean fields to prevent infinite loops
   const watchedMediaTypes = useWatch({
@@ -930,25 +950,32 @@ export default function CreateMediaPlan() {
     const end   = form.watch("mp_campaigndates_end");
     if (!start || !end) return;
 
-    // 1. Build a more detailed map to hold costs per media type for each month.
-    const map: Record<string, {
+    type MonthEntry = {
       totalMedia: number;
       totalFee: number;
-    adServing: number,
-    productionTotal: number;
+      adServing: number;
+      productionTotal: number;
       mediaCosts: Record<string, number>;
-  }> = {};
+    };
+
+    // 1. Build month maps for billing and delivery schedules.
+    // - billing: media is billable (can be $0 when clientPaysForMedia)
+    // - delivery: media is delivered (should remain even when clientPaysForMedia)
+    const billingMap: Record<string, MonthEntry> = {};
+    const deliveryMap: Record<string, MonthEntry> = {};
   
   let cur = new Date(start);
   while (cur <= end) {
       const key = format(cur, "MMMM yyyy");
-      map[key] = {
+      const base: MonthEntry = {
           totalMedia: 0,
           totalFee: 0,
           adServing: 0,
           productionTotal: 0,
           mediaCosts: { search: 0, socialMedia: 0, progAudio: 0, cinema: 0, digiAudio: 0, digiDisplay: 0, digiVideo: 0, progDisplay: 0, progVideo: 0, progBvod: 0, progOoh: 0, television: 0, radio: 0, newspaper: 0, magazines: 0, ooh: 0, bvod: 0, integration: 0, influencers: 0, production: 0 }
       };
+      billingMap[key] = { ...base, mediaCosts: { ...base.mediaCosts } };
+      deliveryMap[key] = { ...base, mediaCosts: { ...base.mediaCosts } };
       cur.setMonth(cur.getMonth() + 1);
       cur.setDate(1);
   }
@@ -964,23 +991,29 @@ export default function CreateMediaPlan() {
       let d = new Date(s);
       while (d <= e) {
           const key = format(d, "MMMM yyyy");
-          if (map[key]) {
+          if (billingMap[key] && deliveryMap[key]) {
               const monthStart = new Date(d.getFullYear(), d.getMonth(), 1);
               const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0);
               const sliceStart = Math.max(s.getTime(), monthStart.getTime());
               const sliceEnd = Math.min(e.getTime(), monthEnd.getTime());
               const daysInMonth = Math.ceil((sliceEnd - sliceStart) / (1000 * 60 * 60 * 24)) + 1;
               
-              const mediaShare = burst.mediaAmount * (daysInMonth / daysTotal);
-              const feeShare = burst.feeAmount * (daysInMonth / daysTotal);
+              const ratio = daysInMonth / daysTotal;
+              const billingMediaShare = burst.mediaAmount * ratio;
+              const deliveryMediaShare = (burst.deliveryMediaAmount ?? burst.mediaAmount) * ratio;
+              const feeShare = burst.feeAmount * ratio;
 
-              map[key].mediaCosts[mediaType] += mediaShare;
+              billingMap[key].mediaCosts[mediaType] += billingMediaShare;
+              deliveryMap[key].mediaCosts[mediaType] += deliveryMediaShare;
               if (mediaType === 'production') {
-                map[key].productionTotal += mediaShare;
+                billingMap[key].productionTotal += billingMediaShare;
+                deliveryMap[key].productionTotal += deliveryMediaShare;
               } else {
-                map[key].totalMedia += mediaShare;
+                billingMap[key].totalMedia += billingMediaShare;
+                deliveryMap[key].totalMedia += deliveryMediaShare;
               }
-              map[key].totalFee += feeShare;
+              billingMap[key].totalFee += feeShare;
+              deliveryMap[key].totalFee += feeShare;
           }
           d.setMonth(d.getMonth() + 1);
           d.setDate(1);
@@ -1030,7 +1063,7 @@ export default function CreateMediaPlan() {
   
     while (d <= e) {
       const monthKey = format(d, "MMMM yyyy")
-      if (map[monthKey]) {
+      if (billingMap[monthKey] && deliveryMap[monthKey]) {
         const monthStart = new Date(d.getFullYear(), d.getMonth(), 1)
         const monthEnd   = new Date(d.getFullYear(), d.getMonth()+1, 0)
         const sliceStart = Math.max(s.getTime(), monthStart.getTime())
@@ -1051,7 +1084,8 @@ export default function CreateMediaPlan() {
             ? (share / 1000) * rate
             : (share * rate)
   
-        map[monthKey].adServing += cost
+        billingMap[monthKey].adServing += cost
+        deliveryMap[monthKey].adServing += cost
       }
       d.setMonth(d.getMonth()+1)
       d.setDate(1)
@@ -1069,7 +1103,7 @@ export default function CreateMediaPlan() {
   progOohBursts.forEach(b => distributeAdServing(b, 'progOoh'))
   progDisplayBursts.forEach(b => distributeAdServing(b, 'progDisplay'))
 
-  const months: BillingMonth[] = Object.entries(map).map(
+  const billingMonthsCalculated: BillingMonth[] = Object.entries(billingMap).map(
       ([monthYear, { totalMedia, totalFee, adServing, productionTotal, mediaCosts }]) => ({
           monthYear,
           mediaTotal: formatter.format(totalMedia),
@@ -1101,18 +1135,52 @@ export default function CreateMediaPlan() {
              }
       })
   ); 
+
+  const deliveryMonthsCalculated: BillingMonth[] = Object.entries(deliveryMap).map(
+    ([monthYear, { totalMedia, totalFee, adServing, productionTotal, mediaCosts }]) => ({
+      monthYear,
+      mediaTotal: formatter.format(totalMedia),
+      feeTotal: formatter.format(totalFee),
+      totalAmount: formatter.format(totalMedia + totalFee + adServing + productionTotal),
+      adservingTechFees: formatter.format(adServing),
+      production: formatter.format(productionTotal || 0),
+      mediaCosts: {
+        search: formatter.format(mediaCosts.search || 0),
+        socialMedia: formatter.format(mediaCosts.socialMedia || 0),
+        digiAudio: formatter.format(mediaCosts.digiAudio || 0),
+        digiDisplay: formatter.format(mediaCosts.digiDisplay || 0),
+        digiVideo: formatter.format(mediaCosts.digiVideo || 0),
+        progAudio: formatter.format(mediaCosts.progAudio || 0),
+        cinema: formatter.format(mediaCosts.cinema || 0),
+        progDisplay: formatter.format(mediaCosts.progDisplay || 0),
+        progVideo: formatter.format(mediaCosts.progVideo || 0),
+        progBvod: formatter.format(mediaCosts.progBvod || 0),
+        progOoh: formatter.format(mediaCosts.progOoh || 0),
+        bvod: formatter.format(mediaCosts.bvod || 0),
+        television: formatter.format(mediaCosts.television || 0),
+        radio: formatter.format(mediaCosts.radio || 0),
+        newspaper: formatter.format(mediaCosts.newspaper || 0),
+        magazines: formatter.format(mediaCosts.magazines || 0),
+        ooh: formatter.format(mediaCosts.ooh || 0),
+        integration: formatter.format(mediaCosts.integration || 0),
+        influencers: formatter.format(mediaCosts.influencers || 0),
+        production: formatter.format(mediaCosts.production || 0),
+      }
+    })
+  );
  
-  // Capture the very first auto-calculated schedule for delivery snapshot
-  if (!deliveryScheduleSnapshotRef.current && months.length > 0) {
-    deliveryScheduleSnapshotRef.current = months.map(synthesizeLineItemsFromTotals);
+  // Capture the very first auto-calculated *delivery* schedule for delivery snapshot
+  if (!deliveryScheduleSnapshotRef.current && deliveryMonthsCalculated.length > 0) {
+    deliveryScheduleSnapshotRef.current = deepCloneBillingMonths(deliveryMonthsCalculated);
   }
 
-  setAutoBillingMonths(months);
+  setAutoBillingMonths(billingMonthsCalculated);
+  setAutoDeliveryMonths(deliveryMonthsCalculated);
 
   // Preserve manual edits but always capture the auto snapshot
   if (!isManualBilling) {
-    setBillingMonths(months);
-    const grandTotal = months.reduce((sum, m) => sum + parseFloat(m.totalAmount.replace(/[^0-9.-]/g, "")), 0);
+    setBillingMonths(billingMonthsCalculated);
+    const grandTotal = billingMonthsCalculated.reduce((sum, m) => sum + parseFloat(m.totalAmount.replace(/[^0-9.-]/g, "")), 0);
     setBillingTotal(formatter.format(grandTotal));
   }
 }
@@ -1454,7 +1522,7 @@ export default function CreateMediaPlan() {
 
   const handleMagazineLineItemsStateChange = useCallback((items: LineItem[]) => {
     markUnsavedChanges();
-    setMagazineLineItems(items);
+    setMagazineItems(items);
   }, [markUnsavedChanges]);
 
   useEffect(() => {
@@ -2384,7 +2452,16 @@ export default function CreateMediaPlan() {
       }
     }
 
-    return { ...month, lineItems: { ...(month.lineItems || {}), ...lineItems } };
+    // Merge as a TRUE fallback: never overwrite existing non-empty line items.
+    const merged: Record<string, BillingLineItem[]> = { ...(month.lineItems || {}) };
+    Object.entries(lineItems).forEach(([key, items]) => {
+      const existing = (merged as any)[key] as BillingLineItem[] | undefined;
+      if (!existing || existing.length === 0) {
+        (merged as any)[key] = items;
+      }
+    });
+
+    return { ...month, lineItems: merged };
   }
   // Helper function to get header labels for media types
   function getMediaTypeHeaders(mediaKey: string): { header1: string; header2: string } {
@@ -2407,7 +2484,7 @@ export default function CreateMediaPlan() {
       case 'progBvod':
       case 'progAudio':
       case 'progOoh':
-        return { header1: 'Platform', header2: 'Bid Strategy' };
+        return { header1: 'Platform', header2: 'Targeting' };
       case 'ooh':
       case 'cinema':
         return { header1: 'Network', header2: 'Format' };
@@ -2420,7 +2497,8 @@ export default function CreateMediaPlan() {
   function generateBillingLineItems(
     mediaLineItems: any[],
     mediaType: string,
-    months: BillingMonth[]
+    months: BillingMonth[],
+    mode: "billing" | "delivery" = "billing"
   ): BillingLineItem[] {
     if (!mediaLineItems || mediaLineItems.length === 0) return [];
 
@@ -2428,59 +2506,11 @@ export default function CreateMediaPlan() {
     const monthKeys = months.map(m => m.monthYear);
 
     mediaLineItems.forEach((lineItem, index) => {
-      // Determine header fields based on media type
-      let header1 = '';
-      let header2 = '';
-      let itemId = '';
-
-      switch (mediaType) {
-        case 'television':
-          header1 = lineItem.network || '';
-          header2 = lineItem.station || '';
-          itemId = `${mediaType}-${lineItem.network || ''}-${lineItem.station || ''}-${index}`;
-          break;
-        case 'radio':
-          // Radio can have network/station or platform/bid_strategy depending on the source
-          header1 = lineItem.network || lineItem.platform || '';
-          header2 = lineItem.station || lineItem.bid_strategy || lineItem.bidStrategy || '';
-          itemId = `${mediaType}-${header1}-${header2}-${index}`;
-          break;
-        case 'newspaper':
-        case 'magazines':
-          header1 = lineItem.network || lineItem.publisher || '';
-          header2 = lineItem.title || '';
-          itemId = `${mediaType}-${header1}-${header2}-${index}`;
-          break;
-        case 'digiDisplay':
-        case 'digiAudio':
-        case 'digiVideo':
-        case 'bvod':
-          header1 = lineItem.publisher || '';
-          header2 = lineItem.site || '';
-          itemId = `${mediaType}-${header1}-${header2}-${index}`;
-          break;
-        case 'search':
-        case 'socialMedia':
-        case 'progDisplay':
-        case 'progVideo':
-        case 'progBvod':
-        case 'progAudio':
-        case 'progOoh':
-          header1 = lineItem.platform || '';
-          header2 = lineItem.bid_strategy || lineItem.bidStrategy || '';
-          itemId = `${mediaType}-${header1}-${header2}-${index}`;
-          break;
-        case 'ooh':
-        case 'cinema':
-          header1 = lineItem.network || '';
-          header2 = lineItem.format || '';
-          itemId = `${mediaType}-${header1}-${header2}-${index}`;
-          break;
-        default:
-          header1 = lineItem.network || lineItem.platform || lineItem.publisher || '';
-          header2 = lineItem.station || lineItem.site || lineItem.title || '';
-          itemId = `${mediaType}-${index}`;
-      }
+      const { header1, header2 } = getScheduleHeaders(mediaType, lineItem);
+      const itemId = `${mediaType}-${header1 || "Item"}-${header2 || "Details"}-${index}`;
+      const clientPaysForMedia = Boolean(
+        (lineItem as any)?.client_pays_for_media ?? (lineItem as any)?.clientPaysForMedia
+      );
 
       // Initialize monthly amounts
       const monthlyAmounts: Record<string, number> = {};
@@ -2500,34 +2530,36 @@ export default function CreateMediaPlan() {
         bursts = lineItem.bursts;
       }
 
-      // Distribute each burst across months
-      bursts.forEach((burst: any) => {
-        const startDate = new Date(burst.startDate);
-        const endDate = new Date(burst.endDate);
-        const budget = parseFloat(burst.budget?.replace(/[^0-9.-]/g, '') || '0') || 
-                      parseFloat(burst.buyAmount?.replace(/[^0-9.-]/g, '') || '0') || 0;
+      // Distribute each burst across months, unless billing mode + client pays (media should be $0).
+      if (!(mode === "billing" && clientPaysForMedia)) {
+        bursts.forEach((burst: any) => {
+          const startDate = new Date(burst.startDate);
+          const endDate = new Date(burst.endDate);
+          const budget = parseFloat(burst.budget?.replace(/[^0-9.-]/g, '') || '0') || 
+                        parseFloat(burst.buyAmount?.replace(/[^0-9.-]/g, '') || '0') || 0;
 
-        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime()) || budget === 0) return;
+          if (isNaN(startDate.getTime()) || isNaN(endDate.getTime()) || budget === 0) return;
 
-        const daysTotal = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-        if (daysTotal <= 0) return;
+          const daysTotal = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+          if (daysTotal <= 0) return;
 
-        let currentDate = new Date(startDate);
-        while (currentDate <= endDate) {
-          const monthKey = format(currentDate, "MMMM yyyy");
-          if (monthlyAmounts.hasOwnProperty(monthKey)) {
-            const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-            const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
-            const sliceStart = Math.max(startDate.getTime(), monthStart.getTime());
-            const sliceEnd = Math.min(endDate.getTime(), monthEnd.getTime());
-            const daysInMonth = Math.ceil((sliceEnd - sliceStart) / (1000 * 60 * 60 * 24)) + 1;
-            const share = budget * (daysInMonth / daysTotal);
-            monthlyAmounts[monthKey] += share;
+          let currentDate = new Date(startDate);
+          while (currentDate <= endDate) {
+            const monthKey = format(currentDate, "MMMM yyyy");
+            if (monthlyAmounts.hasOwnProperty(monthKey)) {
+              const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+              const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+              const sliceStart = Math.max(startDate.getTime(), monthStart.getTime());
+              const sliceEnd = Math.min(endDate.getTime(), monthEnd.getTime());
+              const daysInMonth = Math.ceil((sliceEnd - sliceStart) / (1000 * 60 * 60 * 24)) + 1;
+              const share = budget * (daysInMonth / daysTotal);
+              monthlyAmounts[monthKey] += share;
+            }
+            currentDate.setMonth(currentDate.getMonth() + 1);
+            currentDate.setDate(1);
           }
-          currentDate.setMonth(currentDate.getMonth() + 1);
-          currentDate.setDate(1);
-        }
-      });
+        });
+      }
 
       // Create or update line item
       const totalAmount = Object.values(monthlyAmounts).reduce((sum, val) => sum + val, 0);
@@ -2575,7 +2607,7 @@ export default function CreateMediaPlan() {
     
     Object.entries(mediaTypeMap).forEach(([mediaTypeKey, { lineItems, key }]) => {
       if (form.watch(mediaTypeKey as keyof MediaPlanFormValues) && lineItems) {
-        const billingLineItems = generateBillingLineItems(lineItems, key, deepCopiedMonths);
+        const billingLineItems = generateBillingLineItems(lineItems, key, deepCopiedMonths, "billing");
         if (billingLineItems.length > 0) {
           allLineItems[key] = billingLineItems;
         }
@@ -2836,98 +2868,115 @@ export default function CreateMediaPlan() {
       // 1. Gather form values
       const fv = form.getValues();
   
-      const attachLineItemsToMonths = (months: BillingMonth[]): BillingMonth[] => {
-        let monthsWithLineItems = [...months];
+      const attachLineItemsToMonths = (
+        months: BillingMonth[],
+        mode: "billing" | "delivery"
+      ): BillingMonth[] => {
+        let monthsWithLineItems = (months || []).map(month => ({
+          ...month,
+          lineItems: month.lineItems || {},
+        }));
 
-        const hasLineItems = monthsWithLineItems.some(
-          month => month.lineItems && Object.keys(month.lineItems).length > 0
-        );
-
-        // Only synthesize line items when none exist yet; preserve any user edits
-        if (!hasLineItems && monthsWithLineItems.length > 0) {
-          const mediaTypeMap: Record<string, { lineItems: any[], key: string }> = {
-            'mp_television': { lineItems: televisionMediaLineItems, key: 'television' },
-            'mp_radio': { lineItems: radioMediaLineItems, key: 'radio' },
-            'mp_newspaper': { lineItems: newspaperMediaLineItems, key: 'newspaper' },
-            'mp_magazines': { lineItems: magazineMediaLineItems, key: 'magazines' },
-            'mp_ooh': { lineItems: oohMediaLineItems, key: 'ooh' },
-            'mp_cinema': { lineItems: cinemaMediaLineItems, key: 'cinema' },
-            'mp_digidisplay': { lineItems: digiDisplayMediaLineItems, key: 'digiDisplay' },
-            'mp_digiaudio': { lineItems: digiAudioMediaLineItems, key: 'digiAudio' },
-            'mp_digivideo': { lineItems: digiVideoMediaLineItems, key: 'digiVideo' },
-            'mp_bvod': { lineItems: bvodMediaLineItems, key: 'bvod' },
-            'mp_integration': { lineItems: integrationMediaLineItems, key: 'integration' },
-            'mp_search': { lineItems: searchMediaLineItems, key: 'search' },
-            'mp_socialmedia': { lineItems: socialMediaMediaLineItems, key: 'socialMedia' },
-            'mp_progdisplay': { lineItems: progDisplayMediaLineItems, key: 'progDisplay' },
-            'mp_progvideo': { lineItems: progVideoMediaLineItems, key: 'progVideo' },
-            'mp_progbvod': { lineItems: progBvodMediaLineItems, key: 'progBvod' },
-            'mp_progaudio': { lineItems: progAudioMediaLineItems, key: 'progAudio' },
-            'mp_progooh': { lineItems: progOohMediaLineItems, key: 'progOoh' },
-            'mp_influencers': { lineItems: influencersMediaLineItems, key: 'influencers' },
-            'mp_production': { lineItems: consultingMediaLineItems, key: 'production' },
-          };
-
-          const allLineItems: Record<string, BillingLineItem[]> = {};
-          
-          Object.entries(mediaTypeMap).forEach(([mediaTypeKey, { lineItems, key }]) => {
-            if (fv[mediaTypeKey as keyof typeof fv] && lineItems && lineItems.length > 0) {
-              const billingLineItems = generateBillingLineItems(lineItems, key, monthsWithLineItems);
-              if (billingLineItems.length > 0) {
-                allLineItems[key] = billingLineItems;
-              }
-            }
-          });
-
-          monthsWithLineItems = monthsWithLineItems.map(month => {
-            const monthCopy = { ...month };
-            if (!monthCopy.lineItems) monthCopy.lineItems = {};
-            Object.entries(allLineItems).forEach(([key, lineItems]) => {
-              if (!(monthCopy.lineItems as any)[key]) {
-                (monthCopy.lineItems as any)[key] = lineItems;
-              }
-            });
-            return monthCopy;
-          });
-        } else {
-          // Ensure lineItems key exists without overwriting existing edits
-          monthsWithLineItems = monthsWithLineItems.map(month => ({
-            ...month,
-            lineItems: month.lineItems || {},
-          }));
+        if (monthsWithLineItems.length === 0) {
+          return [];
         }
 
-        // Final safeguard: ensure each month has at least one line item using totals
+        const isAutoLineItems = (items: any): boolean => {
+          if (!Array.isArray(items) || items.length === 0) return false;
+          return items.every((li) => String(li?.header1 || "").trim() === "Auto");
+        };
+
+        const shouldReplace = (existing: any): boolean => {
+          if (!existing) return true;
+          if (Array.isArray(existing) && existing.length === 0) return true;
+          // Replace synthesized “Auto” line items with detailed line items
+          if (isAutoLineItems(existing)) return true;
+          return false;
+        };
+
+        const mediaTypeMap: Record<string, { lineItems: any[], key: string }> = {
+          'mp_television': { lineItems: televisionMediaLineItems, key: 'television' },
+          'mp_radio': { lineItems: radioMediaLineItems, key: 'radio' },
+          'mp_newspaper': { lineItems: newspaperMediaLineItems, key: 'newspaper' },
+          'mp_magazines': { lineItems: magazineMediaLineItems, key: 'magazines' },
+          'mp_ooh': { lineItems: oohMediaLineItems, key: 'ooh' },
+          'mp_cinema': { lineItems: cinemaMediaLineItems, key: 'cinema' },
+          'mp_digidisplay': { lineItems: digiDisplayMediaLineItems, key: 'digiDisplay' },
+          'mp_digiaudio': { lineItems: digiAudioMediaLineItems, key: 'digiAudio' },
+          'mp_digivideo': { lineItems: digiVideoMediaLineItems, key: 'digiVideo' },
+          'mp_bvod': { lineItems: bvodMediaLineItems, key: 'bvod' },
+          'mp_integration': { lineItems: integrationMediaLineItems, key: 'integration' },
+          'mp_search': { lineItems: searchMediaLineItems, key: 'search' },
+          'mp_socialmedia': { lineItems: socialMediaMediaLineItems, key: 'socialMedia' },
+          'mp_progdisplay': { lineItems: progDisplayMediaLineItems, key: 'progDisplay' },
+          'mp_progvideo': { lineItems: progVideoMediaLineItems, key: 'progVideo' },
+          'mp_progbvod': { lineItems: progBvodMediaLineItems, key: 'progBvod' },
+          'mp_progaudio': { lineItems: progAudioMediaLineItems, key: 'progAudio' },
+          'mp_progooh': { lineItems: progOohMediaLineItems, key: 'progOoh' },
+          'mp_influencers': { lineItems: influencersMediaLineItems, key: 'influencers' },
+          'mp_production': { lineItems: consultingMediaLineItems, key: 'production' },
+        };
+
+        const allLineItems: Record<string, BillingLineItem[]> = {};
+        Object.entries(mediaTypeMap).forEach(([mediaTypeKey, { lineItems, key }]) => {
+          if (fv[mediaTypeKey as keyof typeof fv] && lineItems && lineItems.length > 0) {
+            const billingLineItems = generateBillingLineItems(lineItems, key, monthsWithLineItems, mode);
+            if (billingLineItems.length > 0) {
+              allLineItems[key] = billingLineItems;
+            }
+          }
+        });
+
+        monthsWithLineItems = monthsWithLineItems.map(month => {
+          const monthCopy = { ...month, lineItems: month.lineItems || {} };
+          Object.entries(allLineItems).forEach(([key, lineItems]) => {
+            const existing = (monthCopy.lineItems as any)[key];
+            if (shouldReplace(existing)) {
+              (monthCopy.lineItems as any)[key] = lineItems;
+            }
+          });
+          return monthCopy;
+        });
+
+        // Final safeguard: ensure each month has at least one line item using totals (without overwriting)
         return monthsWithLineItems.map(synthesizeLineItemsFromTotals);
       };
 
-      const billingMonthsSource = isManualBilling && manualBillingMonths.length > 0 
-        ? manualBillingMonths 
-        : billingMonths;
+      const hasManualBillingMonths = isManualBilling && manualBillingMonths.length > 0
+      const billingScheduleSource = hasManualBillingMonths ? "manual" : "billing"
+      const billingMonthsSource = hasManualBillingMonths ? manualBillingMonths : billingMonths
+      const billingMonthsWithLineItems = attachLineItemsToMonths(
+        deepCloneBillingMonths(billingMonthsSource),
+        "billing"
+      );
 
-      const billingMonthsWithLineItems = attachLineItemsToMonths(billingMonthsSource);
+      const snapshot = deliveryScheduleSnapshotRef.current
+      const deliveryScheduleSource =
+        snapshot && snapshot.length > 0
+          ? "snapshot"
+          : (autoDeliveryMonths.length > 0 ? "auto" : "billing")
 
-      // Always preserve the first auto-calculated schedule for deliverySchedule
+      // Always preserve the first auto-calculated schedule for deliverySchedule.
+      // Clone the source so we never mutate the snapshot ref.
       const deliveryMonthsSource =
-        (deliveryScheduleSnapshotRef.current && deliveryScheduleSnapshotRef.current.length > 0)
-          ? deliveryScheduleSnapshotRef.current
-          : (autoBillingMonths.length > 0
-            ? autoBillingMonths
-            : billingMonths);
+        snapshot && snapshot.length > 0
+          ? deepCloneBillingMonths(snapshot)
+          : (autoDeliveryMonths.length > 0
+            ? deepCloneBillingMonths(autoDeliveryMonths)
+            : deepCloneBillingMonths(billingMonths))
+
+      if (process.env.NODE_ENV !== "production") {
+        console.log(`deliverySource = ${deliveryScheduleSource}`, {
+          firstMonthYear: deliveryMonthsSource[0]?.monthYear,
+        })
+        console.log(`billingFirstMonthYear = ${billingMonthsSource[0]?.monthYear}`)
+      }
 
       const deliveryMonthsPrepared = (deliveryMonthsSource || []).map(synthesizeLineItemsFromTotals);
-      const deliveryMonthsWithLineItems = attachLineItemsToMonths(deliveryMonthsPrepared);
-
-      // Align non-line-item fields (fees, ad serving, production) with billing schedule
-      const deliveryMonthsAligned = deliveryMonthsWithLineItems.map(month => {
-        const billingMatch = billingMonthsWithLineItems.find(m => m.monthYear === month.monthYear);
-        return {
-          ...month,
-          feeTotal: month.feeTotal ?? billingMatch?.feeTotal,
-          adservingTechFees: month.adservingTechFees ?? billingMatch?.adservingTechFees,
-          production: month.production ?? billingMatch?.production,
-        };
-      });
+      const deliveryMonthsWithLineItems = attachLineItemsToMonths(
+        deliveryMonthsPrepared,
+        "delivery"
+      );
   
       // 3. Build version payload (include only top‑level and toggles)
       // Transform billing schedule to hierarchical structure (Media Type → line items)
@@ -2938,10 +2987,12 @@ export default function CreateMediaPlan() {
         );
       }
 
-      let deliveryScheduleJSON = buildBillingScheduleJSON(deliveryMonthsAligned);
-      if (!deliveryScheduleJSON.length && deliveryMonthsAligned.length > 0) {
+      // Build delivery schedule JSON ONLY from delivery months (snapshot-derived baseline).
+      // Do NOT read feeTotal/adservingTechFees/production from billing months.
+      let deliveryScheduleJSON = buildBillingScheduleJSON(deliveryMonthsWithLineItems);
+      if (!deliveryScheduleJSON.length && deliveryMonthsWithLineItems.length > 0) {
         deliveryScheduleJSON = buildBillingScheduleJSON(
-          deliveryMonthsAligned.map(synthesizeLineItemsFromTotals)
+          deliveryMonthsWithLineItems.map(synthesizeLineItemsFromTotals)
         );
       }
       

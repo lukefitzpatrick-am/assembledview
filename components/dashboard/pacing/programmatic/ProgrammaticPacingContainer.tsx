@@ -527,6 +527,7 @@ function buildAggregatedMetrics(lineItemMetrics: LineItemMetrics[], asAtDate?: s
       impressions: 0,
       clicks: 0,
       conversions: Number(values.deliverable.toFixed(2)),
+      videoViews: 0,
       deliverable_value: Number(values.deliverable.toFixed(2)),
     }
   })
@@ -691,27 +692,32 @@ function ActualsDailyDeliveryChart({
   )
 }
 
-function DeliveryTable({ rows, showVideoViews = false }: { rows: Dv360DailyRow[]; showVideoViews?: boolean }) {
-  if (!rows.length) {
-    return <div className="text-sm text-muted-foreground">No delivery rows matched to this line item yet.</div>
+function DeliveryTable({
+  daily,
+  showVideoViews = false,
+}: {
+  daily: LineItemMetrics["actualsDaily"]
+  showVideoViews?: boolean
+}) {
+  if (!daily.length) {
+    return <div className="text-sm text-muted-foreground">No daily delivery data is available for this line item yet.</div>
   }
 
   const COLS = showVideoViews
-    ? "120px minmax(200px, 1fr) minmax(200px, 1fr) 120px 120px 120px 120px 140px"
-    : "120px minmax(200px, 1fr) minmax(200px, 1fr) 120px 120px 120px 120px"
+    ? "120px 120px 140px 120px 120px 120px 140px"
+    : "120px 120px 140px 120px 120px 120px"
 
-  // Sort by date (ISO format YYYY-MM-DD, so localeCompare works correctly for chronological order)
-  const sorted = [...rows].sort((a, b) => a.date.localeCompare(b.date))
-
+  const sorted = [...daily].sort((a, b) => String(a.date).localeCompare(String(b.date)))
   const totals = sorted.reduce(
     (acc, row) => ({
-      spend: acc.spend + row.spend,
-      impressions: acc.impressions + row.impressions,
-      clicks: acc.clicks + row.clicks,
-      conversions: acc.conversions + row.conversions,
+      spend: acc.spend + (row.spend ?? 0),
+      deliverables: acc.deliverables + (row.deliverable_value ?? 0),
+      impressions: acc.impressions + (row.impressions ?? 0),
+      clicks: acc.clicks + (row.clicks ?? 0),
+      conversions: acc.conversions + (row.conversions ?? 0),
       videoViews: acc.videoViews + (row.videoViews ?? 0),
     }),
-    { spend: 0, impressions: 0, clicks: 0, conversions: 0, videoViews: 0 }
+    { spend: 0, deliverables: 0, impressions: 0, clicks: 0, conversions: 0, videoViews: 0 }
   )
 
   return (
@@ -720,9 +726,8 @@ function DeliveryTable({ rows, showVideoViews = false }: { rows: Dv360DailyRow[]
         <div className="sticky top-0 z-10 bg-muted/70 backdrop-blur border-b px-3 py-2 text-xs font-semibold text-muted-foreground">
           <div className="grid items-center" style={{ gridTemplateColumns: COLS }}>
             <div>Date</div>
-            <div>Line item</div>
-            <div>Insertion order</div>
             <div className="text-right">Spend</div>
+            <div className="text-right">Deliverables</div>
             <div className="text-right">Impressions</div>
             <div className="text-right">Clicks</div>
             <div className="text-right">Conversions</div>
@@ -730,16 +735,15 @@ function DeliveryTable({ rows, showVideoViews = false }: { rows: Dv360DailyRow[]
           </div>
         </div>
 
-        {sorted.map((row, idx) => (
+        {sorted.map((row) => (
           <div
-            key={`${row.date}-${row.lineItem}-${idx}`}
+            key={String(row.date)}
             className="grid items-center border-b last:border-b-0 px-3 py-2 text-sm"
             style={{ gridTemplateColumns: COLS }}
           >
             <div className="font-medium">{formatDateAU(row.date)}</div>
-            <div className="truncate">{row.lineItem || "—"}</div>
-            <div className="truncate">{row.insertionOrder || "—"}</div>
             <div className="text-right">{formatCurrency(row.spend)}</div>
+            <div className="text-right">{formatWholeNumber(row.deliverable_value)}</div>
             <div className="text-right">{formatNumber(row.impressions)}</div>
             <div className="text-right">{formatNumber(row.clicks)}</div>
             <div className="text-right">{formatNumber(row.conversions)}</div>
@@ -750,9 +754,8 @@ function DeliveryTable({ rows, showVideoViews = false }: { rows: Dv360DailyRow[]
         <div className="sticky bottom-0 z-10 bg-background/95 backdrop-blur border-t px-3 py-2 text-sm font-semibold">
           <div className="grid items-center" style={{ gridTemplateColumns: COLS }}>
             <div>Totals</div>
-            <div>—</div>
-            <div>—</div>
             <div className="text-right">{formatCurrency(totals.spend)}</div>
+            <div className="text-right">{formatWholeNumber(totals.deliverables)}</div>
             <div className="text-right">{formatNumber(totals.impressions)}</div>
             <div className="text-right">{formatNumber(totals.clicks)}</div>
             <div className="text-right">{formatNumber(totals.conversions)}</div>
@@ -1714,7 +1717,7 @@ export default function ProgrammaticPacingContainer({
                           chartRef={setLineChartRef(String(metric.lineItem.line_item_id))}
                         />
                       </div>
-                      <DeliveryTable rows={metric.matchedRows} showVideoViews={kind === "video"} />
+                      <DeliveryTable daily={metric.actualsDaily} showVideoViews={kind === "video"} />
                     </AccordionContent>
                   </AccordionItem>
                 ))}

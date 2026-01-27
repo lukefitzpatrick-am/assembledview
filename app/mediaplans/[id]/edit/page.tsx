@@ -17,6 +17,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
+import { toDateOnlyString } from "@/lib/timezone"
 import { getSearchBursts } from "@/components/media-containers/SearchContainer"
 import { getSocialMediaBursts } from "@/components/media-containers/SocialMediaContainer"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
@@ -66,6 +67,7 @@ import {
 import { BillingSchedule, type BillingScheduleType } from "@/components/billing/BillingSchedule"
 import type { BillingSchedule as BillingScheduleInterface } from "@/types/billing"
 import { buildBillingScheduleJSON } from "@/lib/billing/buildBillingSchedule"
+import { getScheduleHeaders } from "@/lib/billing/scheduleHeaders"
 import type { BillingMonth, BillingLineItem } from "@/lib/billing/types"
 import { checkMediaDatesOutsideCampaign } from "@/lib/utils/mediaPlanValidation"
 
@@ -304,7 +306,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
     isManual: false,
     campaignId: ""
   })
-  const deliveryScheduleSnapshotRef = useRef<any>(null)
+  const deliveryScheduleSnapshotRef = useRef<BillingMonth[] | null>(null)
   const [isClientModalOpen, setIsClientModalOpen] = useState(false)
   const hasFetchedContainerDataRef = useRef(false)
   const [hasDateWarning, setHasDateWarning] = useState(false)
@@ -353,6 +355,25 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
   const campaignStartDate = useWatch({ control: form.control, name: 'mp_campaigndates_start' })
   const campaignEndDate = useWatch({ control: form.control, name: 'mp_campaigndates_end' })
   const campaignBudget = useWatch({ control: form.control, name: 'mp_campaignbudget' })
+
+  const deepCloneBillingMonths = (months: BillingMonth[]): BillingMonth[] => {
+    if (typeof globalThis.structuredClone === "function") {
+      return globalThis.structuredClone(months) as BillingMonth[]
+    }
+    return JSON.parse(JSON.stringify(months)) as BillingMonth[]
+  }
+
+  // Reset snapshot only when campaign date range changes OR we switch to a new campaign (id).
+  const deliverySnapshotKeyRef = useRef<string | null>(null)
+  useEffect(() => {
+    const startKey = campaignStartDate ? toDateOnlyString(campaignStartDate) : ""
+    const endKey = campaignEndDate ? toDateOnlyString(campaignEndDate) : ""
+    const key = `${startKey}|${endKey}|${id ?? ""}`
+    if (deliverySnapshotKeyRef.current && deliverySnapshotKeyRef.current !== key) {
+      deliveryScheduleSnapshotRef.current = null
+    }
+    deliverySnapshotKeyRef.current = key
+  }, [campaignStartDate, campaignEndDate, id])
   
   // Watch individual media types to prevent infinite re-renders
   // const watchedMediaTypes = useWatch({ control: form.control, name: MEDIA_TYPE_KEYS })
@@ -809,59 +830,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
     const monthKeys = months.map(m => m.monthYear);
 
     mediaLineItems.forEach((lineItem, index) => {
-      let header1 = '';
-      let header2 = '';
-      let itemId = '';
-
-      switch (mediaType) {
-        case 'television':
-          header1 = lineItem.network || '';
-          header2 = lineItem.station || '';
-          itemId = `${mediaType}-${lineItem.network || ''}-${lineItem.station || ''}-${index}`;
-          break;
-        case 'radio':
-          header1 = lineItem.network || lineItem.platform || '';
-          header2 = lineItem.station || lineItem.bid_strategy || lineItem.bidStrategy || '';
-          itemId = `${mediaType}-${header1}-${header2}-${index}`;
-          break;
-        case 'newspaper':
-        case 'magazines':
-          header1 = lineItem.network || lineItem.publisher || '';
-          header2 = lineItem.title || '';
-          itemId = `${mediaType}-${header1}-${header2}-${index}`;
-          break;
-        case 'digiDisplay':
-        case 'digiAudio':
-        case 'digiVideo':
-        case 'bvod':
-          header1 = lineItem.publisher || '';
-          header2 = lineItem.site || '';
-          itemId = `${mediaType}-${header1}-${header2}-${index}`;
-          break;
-        case 'search':
-        case 'socialMedia':
-        case 'progDisplay':
-        case 'progVideo':
-        case 'progBvod':
-        case 'progAudio':
-        case 'progOoh':
-          header1 = lineItem.platform || '';
-          header2 = lineItem.bid_strategy || lineItem.bidStrategy || '';
-          itemId = `${mediaType}-${header1}-${header2}-${index}`;
-          break;
-        case 'ooh':
-        case 'cinema':
-        case 'integration':
-        case 'influencers':
-          header1 = lineItem.network || lineItem.publisher || lineItem.platform || '';
-          header2 = lineItem.station || lineItem.site || lineItem.title || '';
-          itemId = `${mediaType}-${header1}-${header2}-${index}`;
-          break;
-        default:
-          header1 = lineItem.network || lineItem.publisher || lineItem.platform || 'Item';
-          header2 = lineItem.station || lineItem.site || lineItem.title || 'Details';
-          itemId = `${mediaType}-${index}`;
-      }
+      const { header1, header2 } = getScheduleHeaders(mediaType, lineItem);
+      const itemId = `${mediaType}-${header1 || "Item"}-${header2 || "Details"}-${index}`;
 
       if (!lineItemsMap.has(itemId)) {
         lineItemsMap.set(itemId, {
@@ -912,24 +882,61 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
 
   // Build billing schedule JSON from available data
   const buildBillingScheduleForSave = useCallback((): any[] => {
-    // Prefer the edited billing schedule; if nothing has been edited yet, fall back to the
-    // untouched delivery snapshot so we at least persist the original schedule.
-    const baseSchedule =
-      billingSchedule && billingSchedule.length > 0
-        ? billingSchedule
-        : (Array.isArray(deliveryScheduleSnapshotRef.current) ? deliveryScheduleSnapshotRef.current : []);
-
-    if (!baseSchedule || baseSchedule.length === 0) {
-      return [];
-    }
-
-    // If the data is already in the final JSON shape (e.g. we fell back to the snapshot), return it directly.
-    if ((baseSchedule as any[])[0] && "mediaTypes" in (baseSchedule as any[])[0]) {
-      return baseSchedule as any[];
-    }
-
-    // Convert to BillingMonth format from the editable BillingScheduleType[]
+    // Requirement: billingSchedule saves the *post-change* schedule.
+    // - If manual billing is active and manual months exist, use them.
+    // - Else use the current editable billingSchedule (auto/post-change).
     const currencyFormatter = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
+
+    if (isManualBilling && manualBillingMonths.length > 0) {
+      const manualMonthsAsBillingMonths: BillingMonth[] = manualBillingMonths.map((m) => {
+        const numeric = parseFloat(String(m.amount).replace(/[^0-9.-]/g, "")) || 0
+        return {
+          monthYear: m.monthYear,
+          mediaTotal: currencyFormatter.format(numeric),
+          feeTotal: currencyFormatter.format(0),
+          totalAmount: currencyFormatter.format(numeric),
+          adservingTechFees: currencyFormatter.format(0),
+          production: currencyFormatter.format(0),
+          mediaCosts: {
+            search: currencyFormatter.format(numeric),
+            socialMedia: currencyFormatter.format(0),
+            television: currencyFormatter.format(0),
+            radio: currencyFormatter.format(0),
+            newspaper: currencyFormatter.format(0),
+            magazines: currencyFormatter.format(0),
+            ooh: currencyFormatter.format(0),
+            cinema: currencyFormatter.format(0),
+            digiDisplay: currencyFormatter.format(0),
+            digiAudio: currencyFormatter.format(0),
+            digiVideo: currencyFormatter.format(0),
+            bvod: currencyFormatter.format(0),
+            integration: currencyFormatter.format(0),
+            progDisplay: currencyFormatter.format(0),
+            progVideo: currencyFormatter.format(0),
+            progBvod: currencyFormatter.format(0),
+            progAudio: currencyFormatter.format(0),
+            progOoh: currencyFormatter.format(0),
+            influencers: currencyFormatter.format(0),
+            production: currencyFormatter.format(0),
+          },
+          lineItems: {
+            search: numeric > 0 ? [{
+              id: `manual-billing-${m.monthYear}`,
+              header1: "Manual",
+              header2: "Manual allocation",
+              monthlyAmounts: { [m.monthYear]: numeric },
+              totalAmount: numeric,
+            }] : [],
+          },
+        }
+      })
+      return buildBillingScheduleJSON(manualMonthsAsBillingMonths)
+    }
+
+    const baseSchedule = billingSchedule && billingSchedule.length > 0 ? billingSchedule : []
+    if (!baseSchedule || baseSchedule.length === 0) return []
+
+    // Convert to BillingMonth format from the editable BillingScheduleType[].
     const billingMonthsWithLineItems: BillingMonth[] = (baseSchedule as BillingScheduleType).map((scheduleEntry: BillingScheduleType[0]) => {
       const monthData: BillingMonth = {
         monthYear: scheduleEntry.month,
@@ -958,6 +965,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
           progAudio: currencyFormatter.format(0),
           progOoh: currencyFormatter.format(0),
           influencers: currencyFormatter.format(0),
+          production: currencyFormatter.format(0),
         },
         lineItems: {}
       };
@@ -1018,15 +1026,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
     });
 
     const billingJson = buildBillingScheduleJSON(billingMonthsWithLineItems);
-
-    // If we still have nothing (e.g. all amounts zero), fall back to the delivery snapshot so data is not lost.
-    if (!billingJson.length && Array.isArray(deliveryScheduleSnapshotRef.current)) {
-      return deliveryScheduleSnapshotRef.current;
-    }
-
     return billingJson;
   }, [
     isManualBilling,
+    manualBillingMonths,
     billingSchedule,
     televisionMediaLineItems,
     radioMediaLineItems,
@@ -1079,7 +1082,139 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
       
       // Build billing schedule JSON
       const billingScheduleJSON = buildBillingScheduleForSave();
-      const deliveryScheduleJSON = deliveryScheduleSnapshotRef.current || [];
+
+      // deliverySchedule must always save the FIRST auto-calculated schedule for this plan/version.
+      const hasManualBillingMonths = isManualBilling && manualBillingMonths.length > 0
+      const billingScheduleSource = hasManualBillingMonths ? "manual" : "billing"
+
+      const autoMonthsFromCurrentSchedule: BillingMonth[] = (billingSchedule || []).map((entry) => {
+        const formatter = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
+        const searchAmount = entry.searchAmount || 0;
+        const socialAmount = entry.socialAmount || 0;
+        const productionAmount = entry.productionAmount || 0;
+        const feeAmount = entry.feeAmount || 0;
+        const totalAmount = entry.totalAmount || 0;
+
+        return {
+          monthYear: entry.month,
+          mediaTotal: formatter.format(searchAmount + socialAmount),
+          feeTotal: formatter.format(feeAmount),
+          totalAmount: formatter.format(totalAmount),
+          adservingTechFees: formatter.format(0),
+          production: formatter.format(productionAmount),
+          mediaCosts: {
+            search: formatter.format(searchAmount),
+            socialMedia: formatter.format(socialAmount),
+            television: formatter.format(0),
+            radio: formatter.format(0),
+            newspaper: formatter.format(0),
+            magazines: formatter.format(0),
+            ooh: formatter.format(0),
+            cinema: formatter.format(0),
+            digiDisplay: formatter.format(0),
+            digiAudio: formatter.format(0),
+            digiVideo: formatter.format(0),
+            bvod: formatter.format(0),
+            integration: formatter.format(0),
+            progDisplay: formatter.format(0),
+            progVideo: formatter.format(0),
+            progBvod: formatter.format(0),
+            progAudio: formatter.format(0),
+            progOoh: formatter.format(0),
+            influencers: formatter.format(0),
+            production: formatter.format(productionAmount),
+          },
+          lineItems: {
+            search: searchAmount > 0 ? [{
+              id: `auto-search-${entry.month}`,
+              header1: "Auto",
+              header2: "Auto allocation",
+              monthlyAmounts: { [entry.month]: searchAmount },
+              totalAmount: searchAmount,
+            }] : [],
+            socialMedia: socialAmount > 0 ? [{
+              id: `auto-social-${entry.month}`,
+              header1: "Auto",
+              header2: "Auto allocation",
+              monthlyAmounts: { [entry.month]: socialAmount },
+              totalAmount: socialAmount,
+            }] : [],
+          },
+        }
+      })
+
+      const snapshot = deliveryScheduleSnapshotRef.current
+      const currencyFormatter = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
+      const billingFallbackMonths: BillingMonth[] = hasManualBillingMonths
+        ? manualBillingMonths.map((m) => {
+            const numeric = parseFloat(String(m.amount).replace(/[^0-9.-]/g, "")) || 0
+            return {
+              monthYear: m.monthYear,
+              mediaTotal: currencyFormatter.format(numeric),
+              feeTotal: currencyFormatter.format(0),
+              totalAmount: currencyFormatter.format(numeric),
+              adservingTechFees: currencyFormatter.format(0),
+              production: currencyFormatter.format(0),
+              mediaCosts: {
+                search: currencyFormatter.format(numeric),
+                socialMedia: currencyFormatter.format(0),
+                television: currencyFormatter.format(0),
+                radio: currencyFormatter.format(0),
+                newspaper: currencyFormatter.format(0),
+                magazines: currencyFormatter.format(0),
+                ooh: currencyFormatter.format(0),
+                cinema: currencyFormatter.format(0),
+                digiDisplay: currencyFormatter.format(0),
+                digiAudio: currencyFormatter.format(0),
+                digiVideo: currencyFormatter.format(0),
+                bvod: currencyFormatter.format(0),
+                integration: currencyFormatter.format(0),
+                progDisplay: currencyFormatter.format(0),
+                progVideo: currencyFormatter.format(0),
+                progBvod: currencyFormatter.format(0),
+                progAudio: currencyFormatter.format(0),
+                progOoh: currencyFormatter.format(0),
+                influencers: currencyFormatter.format(0),
+                production: currencyFormatter.format(0),
+              },
+              lineItems: {
+                search: numeric > 0 ? [{
+                  id: `manual-billing-${m.monthYear}`,
+                  header1: "Manual",
+                  header2: "Manual allocation",
+                  monthlyAmounts: { [m.monthYear]: numeric },
+                  totalAmount: numeric,
+                }] : [],
+              },
+            }
+          })
+        : []
+      const deliveryScheduleSource =
+        snapshot && snapshot.length > 0
+          ? "snapshot"
+          : (autoMonthsFromCurrentSchedule.length > 0 ? "auto" : "billing")
+
+      const deliveryMonthsSource =
+        snapshot && snapshot.length > 0
+          ? deepCloneBillingMonths(snapshot)
+          : (autoMonthsFromCurrentSchedule.length > 0
+            ? deepCloneBillingMonths(autoMonthsFromCurrentSchedule)
+            : deepCloneBillingMonths(billingFallbackMonths))
+
+      if (process.env.NODE_ENV !== "production") {
+        console.log(`delivery schedule source = ${deliveryScheduleSource}`, {
+          monthCount: deliveryMonthsSource.length,
+          firstMonthYear: deliveryMonthsSource[0]?.monthYear,
+        })
+        console.log(`billing schedule source = ${billingScheduleSource}`, {
+          monthCount: hasManualBillingMonths ? manualBillingMonths.length : autoMonthsFromCurrentSchedule.length,
+          firstMonthYear: hasManualBillingMonths
+            ? manualBillingMonths[0]?.monthYear
+            : autoMonthsFromCurrentSchedule[0]?.monthYear,
+        })
+      }
+
+      const deliveryScheduleJSON = buildBillingScheduleJSON(deliveryMonthsSource)
       
       // Create new version in media_plan_versions table
       const response = await fetch(`/api/mediaplans/${id}`, {
@@ -1774,8 +1909,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
       campaignId: id || ""
     });
 
-    // Capture the first auto-calculated delivery schedule (no manual overrides)
-    if (!deliveryScheduleSnapshotRef.current) {
+    // Capture the first auto-calculated schedule for delivery snapshot (once).
+    if (!deliveryScheduleSnapshotRef.current && schedule.length > 0) {
       const formatter = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
       const snapshotMonths: BillingMonth[] = schedule.map(entry => {
         const searchAmount = entry.searchAmount || 0;
@@ -1831,23 +1966,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
           },
         };
       });
-
-      const deliveryJson = buildBillingScheduleJSON(snapshotMonths);
-      deliveryScheduleSnapshotRef.current = deliveryJson.length ? deliveryJson : buildBillingScheduleJSON(
-        snapshotMonths.map(month => ({
-          ...month,
-          lineItems: {
-            ...month.lineItems,
-            search: month.lineItems?.search?.length ? month.lineItems.search : [{
-              id: `fallback-search-${month.monthYear}`,
-              header1: "Auto",
-              header2: "Total",
-              monthlyAmounts: { [month.monthYear]: parseFloat(String(month.mediaTotal).replace(/[^0-9.-]/g, "")) || 0 },
-              totalAmount: parseFloat(String(month.mediaTotal).replace(/[^0-9.-]/g, "")) || 0,
-            }],
-          },
-        }))
-      );
+      deliveryScheduleSnapshotRef.current = deepCloneBillingMonths(snapshotMonths)
     }
   }, [feesearch, feesocial, isManualBilling, id]);
 

@@ -93,7 +93,7 @@ const burstSchema = z.object({
 
 const lineItemSchema = z.object({
   platform: z.string().min(1, "Platform is required"),
-  bidStrategy: z.string().min(1, "Bid Strategy is required"),
+  bidStrategy: z.string().min(1, "Targeting is required"),
   buyType: z.string().min(1, "Buy Type is required"),
   creativeTargeting: z.string().optional().default(""),
   creative: z.string().optional().default(""),
@@ -145,34 +145,29 @@ export function getSearchBursts(
 
   return lineItems.flatMap(li =>
     li.bursts.map(burst => {
-      let mediaAmount = parseFloat(
-        burst.budget.replace(/[^0-9.]/g, "")
-      ) || 0
+      const rawBudget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0
 
       const pct = feesearch || 0
       let feeAmount = 0
+      let deliveryMediaAmount = rawBudget
+      let mediaAmount = rawBudget
 
-      if (li.budgetIncludesFees && li.clientPaysForMedia) {
-        // Both true: budget is gross, extract fee only, mediaAmount = 0
-        // Media = 0
-        // Fees = Budget * (Fee / 100)
-        feeAmount = mediaAmount * (pct / 100)
-        mediaAmount = 0
-      } else if (li.budgetIncludesFees) {
-        // Only budgetIncludesFees: budget is gross, split into media and fee
-        // Media = Budget * ((100 - Fee) / 100)
-        // Fees = Budget * (Fee / 100)
-        feeAmount = mediaAmount * (pct / 100)
-        mediaAmount = mediaAmount * ((100 - pct) / 100)
+      // Delivery schedule should always include media delivery, even if billing media is $0.
+      if (li.budgetIncludesFees) {
+        feeAmount = rawBudget * (pct / 100)
+        const netMedia = rawBudget * ((100 - pct) / 100)
+        deliveryMediaAmount = netMedia
+        mediaAmount = li.clientPaysForMedia ? 0 : netMedia
       } else if (li.clientPaysForMedia) {
-        // Only clientPaysForMedia: budget is net media, only fee is billed
-        feeAmount   = (mediaAmount / (100 - pct)) * pct
+        // Budget is net media, only fee is billed
+        feeAmount = (rawBudget / (100 - pct)) * pct
+        deliveryMediaAmount = rawBudget
         mediaAmount = 0
       } else {
-        // Neither: budget is net media, fee calculated on top
-        // Media = Budget (unchanged)
-        // Fees = Budget * (Fee / (100 - Fee))
-        feeAmount = (mediaAmount * pct) / (100 - pct)
+        // Budget is net media, fee billed on top
+        feeAmount = (rawBudget * pct) / (100 - pct)
+        deliveryMediaAmount = rawBudget
+        mediaAmount = rawBudget
       }
 
       return {
@@ -180,6 +175,7 @@ export function getSearchBursts(
         endDate:   burst.endDate,
 
         mediaAmount,
+        deliveryMediaAmount,
         feeAmount,
         totalAmount: mediaAmount + feeAmount,
 
@@ -1106,7 +1102,7 @@ useEffect(() => {
                             <span className="font-medium">Buy Type:</span> {formatBuyTypeForDisplay(form.watch(`lineItems.${lineItemIndex}.buyType`))}
                           </div>
                           <div>
-                            <span className="font-medium">Bid Strategy:</span> {form.watch(`lineItems.${lineItemIndex}.bidStrategy`) || 'Not selected'}
+                            <span className="font-medium">Targeting:</span> {form.watch(`lineItems.${lineItemIndex}.bidStrategy`) || 'Not selected'}
                           </div>
                           <div>
                             <span className="font-medium">Bursts:</span> {form.watch(`lineItems.${lineItemIndex}.bursts`, []).length}
@@ -1157,7 +1153,7 @@ useEffect(() => {
                                 name={`lineItems.${lineItemIndex}.bidStrategy`}
                                 render={({ field }) => (
                                   <FormItem className="flex items-center space-x-2">
-                                    <FormLabel className="w-24 text-sm">Bid Strategy</FormLabel>
+                                    <FormLabel className="w-24 text-sm">Targeting</FormLabel>
                                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                                       <FormControl>
                                         <SelectTrigger className="h-9 w-full flex-1 rounded-md border">

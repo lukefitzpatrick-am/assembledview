@@ -562,43 +562,98 @@ function deriveEnabledMediaTypes(versionData: Record<string, any> = {}) {
   return enabled.length > 0 ? enabled : (Object.keys(MEDIA_TYPE_ENDPOINTS) as Array<keyof MediaLineItems>)
 }
 
-function filterByMbaAndVersion(items: any[], mbaNumber: string, versionNumber: number): any[] {
+function filterByMbaAndVersion(
+  items: any[],
+  mbaNumber: string,
+  versionNumber: number,
+  mediaPlanVersionId?: number | null
+): any[] {
   if (!Array.isArray(items)) return []
   const normalizedMba = normalise(mbaNumber)
   const versionStr = String(versionNumber)
+  const versionIdStr =
+    mediaPlanVersionId !== null && mediaPlanVersionId !== undefined
+      ? String(mediaPlanVersionId)
+      : null
 
   return items.filter((item) => {
     if (normalise(item?.mba_number) !== normalizedMba) return false
 
     const mpPlanNumber = item?.mp_plannumber ?? item?.mp_plan_number ?? item?.mpPlanNumber
-    const mediaPlanVersion = item?.media_plan_version ?? item?.media_plan_version_id
+    const mediaPlanVersion = item?.media_plan_version
+    const mediaPlanVersionId = item?.media_plan_version_id ?? item?.media_plan_versionID
     const versionNumberField = item?.version_number
 
-    if (mpPlanNumber !== null && mpPlanNumber !== undefined && String(mpPlanNumber).trim() !== "") {
-      return String(mpPlanNumber).trim() === versionStr
+    const hasVersionIdCandidate =
+      (mediaPlanVersion !== null && mediaPlanVersion !== undefined && String(mediaPlanVersion).trim() !== "") ||
+      (mediaPlanVersionId !== null && mediaPlanVersionId !== undefined && String(mediaPlanVersionId).trim() !== "")
+
+    // If we know the media_plan_versions.id, prefer matching by that foreign key when present.
+    // This prevents mp_plannumber/version_number mismatches from pulling in unrelated rows.
+    if (versionIdStr && hasVersionIdCandidate) {
+      const candidates = [mediaPlanVersion, mediaPlanVersionId]
+      return candidates.some((value) => String(value ?? "").trim() === versionIdStr)
     }
 
-    if (mediaPlanVersion !== null && mediaPlanVersion !== undefined && String(mediaPlanVersion).trim() !== "") {
-      return String(mediaPlanVersion).trim() === versionStr
-    }
-
-    if (versionNumberField !== null && versionNumberField !== undefined && String(versionNumberField).trim() !== "") {
-      return String(versionNumberField).trim() === versionStr
-    }
-
-    return false
+    // Fallback for legacy rows without a version-id FK:
+    // match by version_number/mp_plannumber fields.
+    const versionCandidates = [mpPlanNumber, versionNumberField]
+    return versionCandidates.some((value) => String(value ?? "").trim() === versionStr)
   })
 }
 
 async function fetchXanoTableForMediaType(
   mediaType: keyof MediaLineItems,
   mbaNumber: string,
-  versionNumber: number
+  versionNumber: number,
+  mediaPlanVersionId?: number | null
 ): Promise<any[]> {
   const endpoint = MEDIA_TYPE_ENDPOINTS[mediaType]
   const url = xanoUrl(endpoint, ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
-  const data = await fetchAllXanoPages(url, { mba_number: mbaNumber }, `MBA_${mediaType}`)
-  return filterByMbaAndVersion(data, mbaNumber, versionNumber)
+
+  // IMPORTANT:
+  // Query Xano with BOTH mba_number + a version-scoping parameter to avoid scanning
+  // all historic versions and filtering in-memory.
+  //
+  // Different media tables use different version fields, so we try a small fallback chain.
+  const attempts: Array<Record<string, string | number | boolean | null | undefined>> = [
+    // Best: filter by the media_plan_versions primary key (foreign-key relationship).
+    ...(mediaPlanVersionId !== null && mediaPlanVersionId !== undefined
+      ? [
+          { mba_number: mbaNumber, media_plan_version: mediaPlanVersionId },
+          { mba_number: mbaNumber, media_plan_version_id: mediaPlanVersionId },
+        ]
+      : []),
+    // Next best: filter by the human-visible version number (legacy fields).
+    { mba_number: mbaNumber, mp_plannumber: versionNumber },
+    { mba_number: mbaNumber, version_number: versionNumber },
+    // Some older tables may store the version number in media_plan_version directly.
+    { mba_number: mbaNumber, media_plan_version: versionNumber },
+  ]
+
+  let bestFiltered: any[] = []
+  let bestRawCount = Number.POSITIVE_INFINITY
+
+  for (const params of attempts) {
+    const raw = await fetchAllXanoPages(url, params, `MBA_${mediaType}`)
+    const filtered = filterByMbaAndVersion(raw, mbaNumber, versionNumber, mediaPlanVersionId)
+
+    // Prefer attempts that return the most matching rows; tie-break by smallest raw payload.
+    if (
+      filtered.length > bestFiltered.length ||
+      (filtered.length === bestFiltered.length && raw.length < bestRawCount)
+    ) {
+      bestFiltered = filtered
+      bestRawCount = raw.length
+    }
+
+    // If the server-side filter worked (payload is already version-scoped), stop early.
+    if (raw.length > 0 && raw.length === filtered.length) {
+      break
+    }
+  }
+
+  return bestFiltered
 }
 
 // GET latest version by MBA number
@@ -760,6 +815,11 @@ export async function GET(
     if (mba_number && !skipLineItems) {
       try {
         const versionNumberForLineItems = targetVersionNumber
+        const mediaPlanVersionIdForLineItems =
+          versionData?.id !== undefined && versionData?.id !== null
+            ? (typeof versionData.id === "string" ? parseInt(versionData.id, 10) : Number(versionData.id))
+            : null
+
         console.log(
           `[API] Fetching Xano line items for MBA: ${mba_number}, version: ${versionNumberForLineItems}`
         )
@@ -767,7 +827,12 @@ export async function GET(
         const results = await Promise.all(
           enabledMediaTypes.map(async (mediaType) => {
             try {
-              const items = await fetchXanoTableForMediaType(mediaType, mba_number, versionNumberForLineItems)
+              const items = await fetchXanoTableForMediaType(
+                mediaType,
+                mba_number,
+                versionNumberForLineItems,
+                Number.isNaN(mediaPlanVersionIdForLineItems as any) ? null : mediaPlanVersionIdForLineItems
+              )
               return { mediaType, items }
             } catch (error) {
               console.warn(`[API] Failed to fetch ${mediaType} line items`, error)

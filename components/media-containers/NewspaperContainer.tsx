@@ -152,34 +152,29 @@ export function getNewspapersBursts(
 
   return newspaperlineItems.flatMap(li =>
     li.bursts.map(burst => {
-      let mediaAmount = parseFloat(
-        burst.budget.replace(/[^0-9.]/g, "")
-      ) || 0
+      const rawBudget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0
 
       const pct = feenewspapers || 0
       let feeAmount = 0
+      let deliveryMediaAmount = rawBudget
+      let mediaAmount = rawBudget
 
-      if (li.budgetIncludesFees && li.clientPaysForMedia) {
-        // Both true: budget is gross, extract fee only, mediaAmount = 0
-        // Media = 0
-        // Fees = Budget * (Fee / 100)
-        feeAmount = mediaAmount * (pct / 100)
-        mediaAmount = 0
-      } else if (li.budgetIncludesFees) {
-        // Only budgetIncludesFees: budget is gross, split into media and fee
-        // Media = Budget * ((100 - Fee) / 100)
-        // Fees = Budget * (Fee / 100)
-        feeAmount = mediaAmount * (pct / 100)
-        mediaAmount = mediaAmount * ((100 - pct) / 100)
+      // Delivery schedule should always include media delivery, even if billing media is $0.
+      if (li.budgetIncludesFees) {
+        feeAmount = rawBudget * (pct / 100)
+        const netMedia = rawBudget * ((100 - pct) / 100)
+        deliveryMediaAmount = netMedia
+        mediaAmount = li.clientPaysForMedia ? 0 : netMedia
       } else if (li.clientPaysForMedia) {
-        // Only clientPaysForMedia: budget is net media, only fee is billed
-        feeAmount   = (mediaAmount / (100 - pct)) * pct
+        // Budget is net media, only fee is billed
+        feeAmount = (rawBudget / (100 - pct)) * pct
+        deliveryMediaAmount = rawBudget
         mediaAmount = 0
       } else {
-        // Neither: budget is net media, fee calculated on top
-        // Media = Budget (unchanged)
-        // Fees = Budget * (Fee / (100 - Fee))
-        feeAmount = (mediaAmount * pct) / (100 - pct)
+        // Budget is net media, fee billed on top
+        feeAmount = (rawBudget * pct) / (100 - pct)
+        deliveryMediaAmount = rawBudget
+        mediaAmount = rawBudget
       }
 
       return {
@@ -187,6 +182,7 @@ export function getNewspapersBursts(
         endDate:   burst.endDate,
 
         mediaAmount,
+        deliveryMediaAmount,
         feeAmount,
         totalAmount: mediaAmount + feeAmount,
 

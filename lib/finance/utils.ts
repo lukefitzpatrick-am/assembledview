@@ -29,7 +29,11 @@ export interface FinanceCampaignData {
 export interface BillingScheduleEntry {
   monthYear: string
   mediaTypes?: Array<{
-    mediaType: string
+    // Billing schedule payloads vary; tolerate multiple property names.
+    mediaType?: string
+    media_type?: string
+    type?: string
+    name?: string
     lineItems: Array<{
       lineItemId: string
       header1: string
@@ -40,6 +44,47 @@ export interface BillingScheduleEntry {
   adservingTechFees?: string
   production?: string
   feeTotal?: string
+}
+
+/**
+ * Merge duplicate finance line items by exact match on:
+ * - itemCode
+ * - mediaType
+ * - description
+ *
+ * Amounts are summed and rounded to 2 decimals.
+ * Order is preserved (first occurrence wins).
+ */
+export function mergeFinanceLineItems(items: FinanceLineItem[]): FinanceLineItem[] {
+  if (!items || items.length === 0) return []
+
+  const byKey = new Map<string, FinanceLineItem>()
+  const merged: FinanceLineItem[] = []
+
+  for (const item of items) {
+    const key = `${item.itemCode}||${item.mediaType}||${item.description}`
+    const existing = byKey.get(key)
+    if (!existing) {
+      const copy: FinanceLineItem = {
+        itemCode: item.itemCode,
+        mediaType: item.mediaType,
+        description: item.description,
+        amount: item.amount,
+      }
+      byKey.set(key, copy)
+      merged.push(copy)
+      continue
+    }
+
+    existing.amount += item.amount
+  }
+
+  // Round to 2dp to keep currency display/export stable
+  for (const item of merged) {
+    item.amount = Math.round(item.amount * 100) / 100
+  }
+
+  return merged
 }
 
 /**

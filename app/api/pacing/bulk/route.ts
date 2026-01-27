@@ -137,7 +137,7 @@ export async function POST(request: NextRequest) {
         rowsReturned: rows.length,
         maxDateDay,
         channels: channelCounts,
-        note: "If underlying Snowflake query is truncated, newest dates may be missing",
+        note: "If underlying Snowflake query is truncated, oldest dates may be missing",
       })
     }
 

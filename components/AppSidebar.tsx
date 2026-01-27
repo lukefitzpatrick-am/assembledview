@@ -166,6 +166,11 @@ export function AppSidebar() {
                           <Link href="/finance/retainers">Retainers</Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild className="hover:text-[#B5D337]">
+                          <Link href="/finance/accrual">Accrual</Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
                     </SidebarMenuSub>
                   )}
                 </SidebarMenuItem>

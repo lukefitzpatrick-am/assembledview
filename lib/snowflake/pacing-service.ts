@@ -1,6 +1,7 @@
 import "server-only"
 
 import { querySnowflake } from "@/lib/snowflake/query"
+import { getMelbourneTodayISO, getMelbourneYesterdayISO } from "@/lib/dates/melbourne"
 
 type Channel = "meta" | "tiktok" | "programmatic-display" | "programmatic-video"
 
@@ -56,48 +57,17 @@ type GetCampaignPacingDataParams = {
   endDate?: string
 }
 
-/**
- * Get yesterday's date in Australia/Melbourne timezone as ISO string "YYYY-MM-DD"
- */
-function getMelbourneYesterdayISO(): string {
-  const now = new Date()
-  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000)
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Australia/Melbourne",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  })
-  const parts = formatter.formatToParts(yesterday)
-  const year = parts.find((p) => p.type === "year")?.value ?? ""
-  const month = parts.find((p) => p.type === "month")?.value ?? ""
-  const day = parts.find((p) => p.type === "day")?.value ?? ""
-  return `${year}-${month}-${day}`
-}
-
-/**
- * Get today's date in Australia/Melbourne timezone as ISO string "YYYY-MM-DD"
- */
-function getMelbourneTodayISO(): string {
-  const now = new Date()
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Australia/Melbourne",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  })
-  const parts = formatter.formatToParts(now)
-  const year = parts.find((p) => p.type === "year")?.value ?? ""
-  const month = parts.find((p) => p.type === "month")?.value ?? ""
-  const day = parts.find((p) => p.type === "day")?.value ?? ""
-  return `${year}-${month}-${day}`
-}
-
 function normalizeDateString(value?: string | null) {
   if (!value) return null
-  const parsed = new Date(value)
+  const trimmed = String(value).trim()
+
+  // Treat YYYY-MM-DD as an already-normalized ISO date.
+  // Important: `new Date('YYYY-MM-DD')` is parsed as UTC, and applying setHours()
+  // in a non-UTC environment can shift the day backwards (e.g. AU local dev).
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed
+
+  const parsed = new Date(trimmed)
   if (Number.isNaN(parsed.getTime())) return null
-  parsed.setHours(0, 0, 0, 0)
   return parsed.toISOString().slice(0, 10)
 }
 
@@ -224,7 +194,8 @@ export async function getCampaignPacingData(
   WHERE bounds.end_date IS NOT NULL
     AND CAST(DATE_DAY AS DATE) BETWEEN bounds.start_date AND bounds.end_date
     AND LOWER(LINE_ITEM_ID) IN (${placeholders})
-  ORDER BY CAST(DATE_DAY AS DATE) ASC, CHANNEL ASC
+  -- Important: order newest-first under LIMIT so recent days aren't truncated away.
+  ORDER BY CAST(DATE_DAY AS DATE) DESC, CHANNEL ASC
   LIMIT ${QUERY_ROW_LIMIT}
 `
 
@@ -252,7 +223,7 @@ export async function getCampaignPacingData(
   console.info("[pacing-service][timing] query", { requestId, ms: queryDurationMs, rows: rows.length })
 
   // If we hit the hard row limit, Snowflake will drop the newest days first
-  // because we order ASC. This is a common cause of “missing latest N days”.
+  // when ordering ASC. We order DESC, so this will drop the oldest rows first.
   const hitRowLimit = rows.length === QUERY_ROW_LIMIT
   if (hitRowLimit) {
     console.warn("[Pacing] Potential truncation: query hit row limit", {
@@ -261,7 +232,7 @@ export async function getCampaignPacingData(
       rawRowsReturned: rows.length,
       lineItemCount: normalizedIds.length,
       dateRange: { start, end },
-      note: "ORDER BY date ASC means latest dates may be missing if truncated",
+      note: "ORDER BY date DESC means oldest dates may be missing if truncated",
     })
   }
 
@@ -374,7 +345,7 @@ export async function getCampaignPacingData(
     }
   }
 
-  return filteredRows.map((row) => {
+  const mappedRows = filteredRows.map((row) => {
     const channel = String(row.CHANNEL ?? "").toLowerCase() as Channel
     const dateDay = normalizeDateString(row.DATE_DAY) ?? String(row.DATE_DAY ?? "")
     const lineItemId =
@@ -401,4 +372,15 @@ export async function getCampaignPacingData(
       updatedAt: row.UPDATED_AT ?? null,
     }
   })
+
+  // Preserve existing consumer expectations (ascending by date) even though we query DESC under the LIMIT.
+  mappedRows.sort((a, b) => {
+    const dateCmp = String(a.dateDay ?? "").localeCompare(String(b.dateDay ?? ""))
+    if (dateCmp !== 0) return dateCmp
+    const channelCmp = String(a.channel ?? "").localeCompare(String(b.channel ?? ""))
+    if (channelCmp !== 0) return channelCmp
+    return String(a.lineItemId ?? "").localeCompare(String(b.lineItemId ?? ""))
+  })
+
+  return mappedRows
 }

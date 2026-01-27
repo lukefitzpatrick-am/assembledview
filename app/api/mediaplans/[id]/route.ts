@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import axios from "axios"
 import { xanoUrl } from "@/lib/api/xano"
+import { filterLineItemsByPlanNumber } from "@/lib/api/mediaPlanVersionHelper"
 
 // GET a single media plan by ID
 export async function GET(
@@ -51,30 +52,53 @@ export async function GET(
     
     if (mbaNumber) {
       try {
-        // Query ONLY by mba_number to scan entire database
-        // Then filter by version_number/mp_plannumber in JavaScript
-        console.log(`[API] Fetching line items for MBA ${mbaNumber}${versionNumber !== undefined && versionNumber !== null ? ` (will filter by version ${versionNumber} in JS)` : ' (no version filter)'}`)
-        console.log(`[API] Strategy: Query all records matching mba_number, then filter by version_number/mp_plannumber in JavaScript`)
-        
-        // Helper function to filter line items by version
-        const filterByVersion = (items: any[], versionNum: number | undefined | null): any[] => {
-          if (!Array.isArray(items)) return []
-          if (versionNum === undefined || versionNum === null) {
-            return items.filter((item: any) => item.mba_number === mbaNumber)
+        const hasVersion = versionNumber !== undefined && versionNumber !== null
+        console.log(
+          `[API] Fetching line items for MBA ${mbaNumber}${hasVersion ? ` (version ${versionNumber})` : " (no version filter)"}`
+        )
+
+        const versionParam = hasVersion ? String(versionNumber) : ""
+
+        // Query Xano with both mba_number + version-scoping parameter to avoid over-fetching
+        // and then keep an in-memory filter as a safety net.
+        const fetchVersionScoped = async (endpoint: string, mediaTypeLabel: string) => {
+          const baseUrl = xanoUrl(endpoint, ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
+          if (!hasVersion) {
+            const res = await axios.get(`${baseUrl}?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] }))
+            return Array.isArray(res.data) ? res.data : []
           }
-          return items.filter((item: any) => {
-            const itemVersion = typeof item.version_number === 'string' 
-              ? parseInt(item.version_number, 10) 
-              : item.version_number
-            const itemPlan = typeof item.mp_plannumber === 'string'
-              ? parseInt(item.mp_plannumber, 10)
-              : item.mp_plannumber
-            return (itemVersion === versionNum || itemPlan === versionNum) && 
-                   item.mba_number === mbaNumber
-          })
+
+          const attempts: Array<Record<string, any>> = [
+            { mba_number: mbaNumber, mp_plannumber: versionNumber },
+            { mba_number: mbaNumber, version_number: versionNumber },
+          ]
+
+          let bestFiltered: any[] = []
+          let bestRawCount = Number.POSITIVE_INFINITY
+
+          for (const params of attempts) {
+            const res = await axios.get(baseUrl, { headers, params }).catch(() => ({ data: [] }))
+            const raw = Array.isArray(res.data) ? res.data : []
+            const filtered = filterLineItemsByPlanNumber(raw, mbaNumber, versionParam, mediaTypeLabel)
+
+            if (
+              filtered.length > bestFiltered.length ||
+              (filtered.length === bestFiltered.length && raw.length < bestRawCount)
+            ) {
+              bestFiltered = filtered
+              bestRawCount = raw.length
+            }
+
+            // If the server-side filter worked, stop early.
+            if (raw.length > 0 && raw.length === filtered.length) {
+              break
+            }
+          }
+
+          return bestFiltered
         }
         
-        // Fetch line items for all media types in parallel - query ONLY by mba_number
+        // Fetch line items for all media types in parallel - version scoped
         const [
           televisionItems,
           radioItems,
@@ -96,48 +120,48 @@ export async function GET(
           progOohItems,
           influencersItems
         ] = await Promise.all([
-          axios.get(`${xanoUrl("television_line_items", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
-          axios.get(`${xanoUrl("radio_line_items", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
-          axios.get(`${xanoUrl("search_line_items", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
-          axios.get(`${xanoUrl("social_media_line_items", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
-          axios.get(`${xanoUrl("newspaper_line_items", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
-          axios.get(`${xanoUrl("magazines_line_items", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
-          axios.get(`${xanoUrl("ooh_line_items", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
-          axios.get(`${xanoUrl("cinema_line_items", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
-          axios.get(`${xanoUrl("digital_display_line_items", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
-          axios.get(`${xanoUrl("digital_audio_line_items", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
-          axios.get(`${xanoUrl("digital_video_line_items", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
-          axios.get(`${xanoUrl("bvod_line_items", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
-          axios.get(`${xanoUrl("integration_line_items", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
-          axios.get(`${xanoUrl("prog_display_line_items", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
-          axios.get(`${xanoUrl("prog_video_line_items", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
-          axios.get(`${xanoUrl("prog_bvod_line_items", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
-          axios.get(`${xanoUrl("prog_audio_line_items", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
-          axios.get(`${xanoUrl("prog_ooh_line_items", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] })),
-          axios.get(`${xanoUrl("influencers_line_items", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] }))
+          fetchVersionScoped("television_line_items", "television"),
+          fetchVersionScoped("radio_line_items", "radio"),
+          fetchVersionScoped("search_line_items", "search"),
+          fetchVersionScoped("social_media_line_items", "socialMedia"),
+          fetchVersionScoped("newspaper_line_items", "newspaper"),
+          fetchVersionScoped("magazines_line_items", "magazines"),
+          fetchVersionScoped("ooh_line_items", "ooh"),
+          fetchVersionScoped("cinema_line_items", "cinema"),
+          fetchVersionScoped("digital_display_line_items", "digitalDisplay"),
+          fetchVersionScoped("digital_audio_line_items", "digitalAudio"),
+          fetchVersionScoped("digital_video_line_items", "digitalVideo"),
+          fetchVersionScoped("bvod_line_items", "bvod"),
+          fetchVersionScoped("integration_line_items", "integration"),
+          fetchVersionScoped("prog_display_line_items", "progDisplay"),
+          fetchVersionScoped("prog_video_line_items", "progVideo"),
+          fetchVersionScoped("prog_bvod_line_items", "progBvod"),
+          fetchVersionScoped("prog_audio_line_items", "progAudio"),
+          fetchVersionScoped("prog_ooh_line_items", "progOoh"),
+          fetchVersionScoped("influencers_line_items", "influencers"),
         ])
         
-        // Filter all results by version_number/mp_plannumber in JavaScript
+        // Results are already version-scoped and safety-filtered
         lineItemsData = {
-          television: filterByVersion(televisionItems.data || [], versionNumber),
-          radio: filterByVersion(radioItems.data || [], versionNumber),
-          search: filterByVersion(searchItems.data || [], versionNumber),
-          socialMedia: filterByVersion(socialMediaItems.data || [], versionNumber),
-          newspaper: filterByVersion(newspaperItems.data || [], versionNumber),
-          magazines: filterByVersion(magazinesItems.data || [], versionNumber),
-          ooh: filterByVersion(oohItems.data || [], versionNumber),
-          cinema: filterByVersion(cinemaItems.data || [], versionNumber),
-          digitalDisplay: filterByVersion(digitalDisplayItems.data || [], versionNumber),
-          digitalAudio: filterByVersion(digitalAudioItems.data || [], versionNumber),
-          digitalVideo: filterByVersion(digitalVideoItems.data || [], versionNumber),
-          bvod: filterByVersion(bvodItems.data || [], versionNumber),
-          integration: filterByVersion(integrationItems.data || [], versionNumber),
-          progDisplay: filterByVersion(progDisplayItems.data || [], versionNumber),
-          progVideo: filterByVersion(progVideoItems.data || [], versionNumber),
-          progBvod: filterByVersion(progBvodItems.data || [], versionNumber),
-          progAudio: filterByVersion(progAudioItems.data || [], versionNumber),
-          progOoh: filterByVersion(progOohItems.data || [], versionNumber),
-          influencers: filterByVersion(influencersItems.data || [], versionNumber)
+          television: televisionItems || [],
+          radio: radioItems || [],
+          search: searchItems || [],
+          socialMedia: socialMediaItems || [],
+          newspaper: newspaperItems || [],
+          magazines: magazinesItems || [],
+          ooh: oohItems || [],
+          cinema: cinemaItems || [],
+          digitalDisplay: digitalDisplayItems || [],
+          digitalAudio: digitalAudioItems || [],
+          digitalVideo: digitalVideoItems || [],
+          bvod: bvodItems || [],
+          integration: integrationItems || [],
+          progDisplay: progDisplayItems || [],
+          progVideo: progVideoItems || [],
+          progBvod: progBvodItems || [],
+          progAudio: progAudioItems || [],
+          progOoh: progOohItems || [],
+          influencers: influencersItems || [],
         }
       } catch (lineItemsError) {
         console.error("Error fetching line items:", lineItemsError)
@@ -197,6 +221,19 @@ export async function PUT(
   try {
     const { id } = params
     const data = await request.json()
+
+    function parseSchedule(input: any, name: string) {
+      if (input == null) return null
+      if (Array.isArray(input) || typeof input === "object") return input
+      if (typeof input === "string" && input.trim() !== "") {
+        try {
+          return JSON.parse(input)
+        } catch {
+          throw new Error(`${name} must be valid JSON`)
+        }
+      }
+      return null
+    }
     
     console.log(`Creating new version for media plan with ID: ${id}`)
     console.log("Update data:", data)
@@ -222,6 +259,16 @@ export async function PUT(
     )
     const allVersions = Array.isArray(allVersionsResponse.data) ? allVersionsResponse.data : [allVersionsResponse.data]
     const nextVersionNumber = Math.max(...allVersions.map(v => v.version_number)) + 1
+
+    let parsedBillingSchedule: any = null
+    let parsedDeliverySchedule: any = null
+    try {
+      parsedBillingSchedule = parseSchedule(data.billingSchedule, "billingSchedule")
+      parsedDeliverySchedule = parseSchedule(data.deliverySchedule, "deliverySchedule")
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e)
+      return NextResponse.json({ error: message }, { status: 400 })
+    }
     
     // Format the data to match the media_plan_versions schema
     const newVersionData = {
@@ -256,10 +303,10 @@ export async function PUT(
       mp_progaudio: data.mp_progaudio || currentVersion.mp_progaudio || false,
       mp_progooh: data.mp_progooh || currentVersion.mp_progooh || false,
     mp_influencers: data.mp_influencers || currentVersion.mp_influencers || false,
-    billingSchedule: data.billingSchedule || currentVersion.billingSchedule || null,
-    deliverySchedule: data.deliverySchedule || currentVersion.deliverySchedule || null,
+    billingSchedule: parsedBillingSchedule,
+    deliverySchedule: parsedDeliverySchedule,
     // Alias to tolerate snake_case in Xano input
-    delivery_schedule: data.deliverySchedule || currentVersion.delivery_schedule || currentVersion.deliverySchedule || null,
+    delivery_schedule: parsedDeliverySchedule,
     media_plan_master_id: currentVersion.media_plan_master_id
     }
     

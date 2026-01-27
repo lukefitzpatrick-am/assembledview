@@ -128,7 +128,7 @@ export default function PacingDataProviderWrapper({
                   socialLineItems={socialItemsActive}
                   campaignStart={campaignStart}
                   campaignEnd={campaignEnd}
-                  initialPacingRows={rows.length ? rows : undefined}
+                  initialPacingRows={rows}
                   pacingLineItemIds={pacingLineItemIds}
                 />
               ) : null}
@@ -141,7 +141,7 @@ export default function PacingDataProviderWrapper({
                   progVideoLineItems={progVideoItemsActive}
                   campaignStart={campaignStart}
                   campaignEnd={campaignEnd}
-                  initialPacingRows={rows.length ? rows : undefined}
+                  initialPacingRows={rows}
                   pacingLineItemIds={pacingLineItemIds}
                 />
               ) : null}

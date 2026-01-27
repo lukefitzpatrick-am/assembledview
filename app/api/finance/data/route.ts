@@ -5,6 +5,7 @@ import {
   formatInvoiceDate,
   extractLineItemsFromBillingSchedule,
   extractServiceAmountsFromBillingSchedule,
+  mergeFinanceLineItems,
 } from "@/lib/finance/utils"
 import { xanoUrl } from "@/lib/api/xano"
 
@@ -158,6 +159,9 @@ export async function GET(request: NextRequest) {
         publisherMap
       )
 
+      // Merge duplicates within this MBA by exact match on (itemCode, mediaType, description)
+      const mergedLineItems = mergeFinanceLineItems(financeLineItems)
+
       // Extract service amounts from billing schedule
       const serviceAmounts = extractServiceAmountsFromBillingSchedule(
         billingSchedule,
@@ -166,7 +170,7 @@ export async function GET(request: NextRequest) {
       )
 
       // Calculate total campaign amount (line items + services)
-      const totalLineItemsAmount = financeLineItems.reduce((sum, item) => sum + item.amount, 0)
+      const totalLineItemsAmount = mergedLineItems.reduce((sum, item) => sum + item.amount, 0)
       const totalServicesAmount =
         serviceAmounts.adservingTechFees +
         serviceAmounts.production +
@@ -187,8 +191,8 @@ export async function GET(request: NextRequest) {
       })
 
       // Production - check if we have both agencies
-      const hasAdvertisingAssociates = financeLineItems.some((li) => li.itemCode.startsWith("G."))
-      const hasAssembledMedia = financeLineItems.some((li) => li.itemCode.startsWith("D."))
+      const hasAdvertisingAssociates = mergedLineItems.some((li) => li.itemCode.startsWith("G."))
+      const hasAssembledMedia = mergedLineItems.some((li) => li.itemCode.startsWith("D."))
 
       if (hasAdvertisingAssociates) {
         serviceRows.push({
@@ -220,7 +224,7 @@ export async function GET(request: NextRequest) {
         paymentDays: client?.payment_days || 30,
         paymentTerms: client?.payment_terms || "Net 30 days",
         invoiceDate: formatInvoiceDate(year, month),
-        lineItems: financeLineItems,
+        lineItems: mergedLineItems,
         serviceRows: serviceRows,
         total: totalCampaignAmount,
       }
