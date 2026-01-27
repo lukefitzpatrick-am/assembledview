@@ -1,7 +1,7 @@
 "use client";
 
 import { ReactNode, useEffect } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { AuthLoadingState } from "@/components/AuthLoadingState";
 
@@ -13,13 +13,17 @@ export function AdminGuard({ children }: AdminGuardProps) {
   const { user, isLoading, isAdmin } = useAuthContext();
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
 
   useEffect(() => {
     if (isLoading) return;
 
-    const search = searchParams?.toString();
-    const returnTo = search ? `${pathname}?${search}` : pathname || "/";
+    // Avoid `useSearchParams()` here to prevent Next.js prerender/Suspense requirements.
+    // We only need a best-effort "returnTo" for the login redirect.
+    const search =
+      typeof window !== "undefined" && typeof window.location?.search === "string"
+        ? window.location.search
+        : "";
+    const returnTo = `${pathname || "/"}${search || ""}`;
 
     if (!user) {
       router.replace(`/auth/login?returnTo=${encodeURIComponent(returnTo || "/dashboard")}`);
@@ -29,7 +33,7 @@ export function AdminGuard({ children }: AdminGuardProps) {
     if (!isAdmin) {
       router.replace("/dashboard");
     }
-  }, [isAdmin, isLoading, pathname, router, searchParams, user]);
+  }, [isAdmin, isLoading, pathname, router, user]);
 
   if (isLoading) {
     return <AuthLoadingState message="Checking permissions..." />;
