@@ -496,8 +496,50 @@ export default function RadioContainer({
   // Data loading for edit mode
   useEffect(() => {
     if (initialLineItems && initialLineItems.length > 0) {
+      // Defensive dedupe: upstream API pagination bugs can cause repeated rows.
+      // Keep first occurrence per stable identifier.
+      const dedupedInitialLineItems = (() => {
+        const seen = new Set<string>();
+        const deduped: any[] = [];
+
+        for (const item of initialLineItems) {
+          const primaryKey =
+            (item?.line_item_id || item?.lineItemId || item?.id) ??
+            "";
+
+          if (primaryKey && String(primaryKey).trim()) {
+            const key = `id:${String(primaryKey).trim()}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            deduped.push(item);
+            continue;
+          }
+
+          // Fallback key when id fields are missing (should be rare)
+          const fallbackKey = JSON.stringify({
+            market: item?.market ?? "",
+            network: item?.network ?? item?.platform ?? item?.publisher ?? "",
+            station: item?.station ?? item?.site ?? "",
+            buy_type: item?.buy_type ?? item?.buyType ?? "",
+            placement: item?.placement ?? "",
+          });
+          const key = `fallback:${fallbackKey}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          deduped.push(item);
+        }
+
+        if (deduped.length !== initialLineItems.length) {
+          console.warn(
+            `[RadioContainer] Deduped initialLineItems from ${initialLineItems.length} to ${deduped.length}`
+          );
+        }
+
+        return deduped;
+      })();
+
       // Create a unique key from the line items to detect if they've changed
-      const lineItemsKey = JSON.stringify(initialLineItems.map((item: any) => ({
+      const lineItemsKey = JSON.stringify(dedupedInitialLineItems.map((item: any) => ({
         id: item.id,
         market: item.market,
         network: item.network,
@@ -511,13 +553,13 @@ export default function RadioContainer({
         return;
       }
       
-      console.log("[RadioContainer] Loading initialLineItems:", initialLineItems);
+      console.log("[RadioContainer] Loading initialLineItems:", dedupedInitialLineItems);
       
       // Mark as processed and store the key
       hasProcessedInitialLineItemsRef.current = true;
       lastProcessedLineItemsRef.current = lineItemsKey;
       
-      const transformedLineItems = initialLineItems.map((item: any, index: number) => {
+      const transformedLineItems = dedupedInitialLineItems.map((item: any, index: number) => {
         console.log(`[RadioContainer] Processing item ${index}:`, {
           market: item.market,
           network: item.network,

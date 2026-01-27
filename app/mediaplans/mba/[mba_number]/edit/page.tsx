@@ -2342,15 +2342,70 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         bursts = lineItem.bursts;
       }
 
-      // Distribute each burst across months, unless billing mode + client pays (media should be $0).
-      if (!(mode === "billing" && clientPaysForMedia)) {
-        bursts.forEach((burst: any) => {
+      const inferredLineItemFeePct = (() => {
+        // Some containers (e.g. Social Media) store `budget_includes_fees` on the LINE ITEM, not per-burst,
+        // and do not include fee % in `bursts_json`. In those cases we infer fee% from totalMedia vs raw budgets.
+        const budgetIncludesFees = Boolean(
+          (lineItem as any)?.budget_includes_fees ?? (lineItem as any)?.budgetIncludesFees
+        );
+        if (!budgetIncludesFees) return 0;
+
+        const parseMoney = (v: any) =>
+          parseFloat(String(v ?? "").replace(/[^0-9.-]/g, "")) || 0;
+
+        const sumRawBudgets = (bursts || []).reduce((sum: number, b: any) => {
+          const raw = parseMoney(b?.budget) || parseMoney(b?.buyAmount);
+          return sum + raw;
+        }, 0);
+
+        const totalMediaRaw =
+          (lineItem as any)?.totalMedia ?? (lineItem as any)?.total_media ?? 0;
+        const totalMedia = typeof totalMediaRaw === "number" ? totalMediaRaw : parseMoney(totalMediaRaw);
+
+        if (sumRawBudgets <= 0) return 0;
+        const pct = (1 - totalMedia / sumRawBudgets) * 100;
+        return Math.max(0, Math.min(100, pct));
+      })();
+
+      // Distribute each burst across months.
+      // IMPORTANT: line item amounts should reflect *media* only (net of fees when budget includes fees),
+      // and should be $0 in billing mode when the client pays for media.
+      bursts.forEach((burst: any) => {
           const startDate = new Date(burst.startDate);
           const endDate = new Date(burst.endDate);
           const budget = parseFloat(burst.budget?.replace(/[^0-9.-]/g, '') || '0') || 
                         parseFloat(burst.buyAmount?.replace(/[^0-9.-]/g, '') || '0') || 0;
 
-          if (isNaN(startDate.getTime()) || isNaN(endDate.getTime()) || budget === 0) return;
+          const feePctRaw =
+            (burst.feePercentage ?? burst.fee_percentage ??
+              (lineItem as any)?.feePercentage ?? (lineItem as any)?.fee_percentage) as any;
+          const feePctCandidate = Number(feePctRaw);
+          const feePct = Number.isFinite(feePctCandidate)
+            ? Math.max(0, Math.min(100, feePctCandidate))
+            : inferredLineItemFeePct;
+
+          const budgetIncludesFees = Boolean(
+            burst.budgetIncludesFees ??
+              burst.budget_includes_fees ??
+              (lineItem as any)?.budgetIncludesFees ??
+              (lineItem as any)?.budget_includes_fees
+          );
+          const burstClientPaysForMedia = Boolean(
+            burst.clientPaysForMedia ??
+              burst.client_pays_for_media ??
+              (lineItem as any)?.clientPaysForMedia ??
+              (lineItem as any)?.client_pays_for_media ??
+              clientPaysForMedia
+          );
+
+          // Convert "budget" into the net media amount used for schedule line items
+          const netMedia = budgetIncludesFees ? (budget * (100 - feePct)) / 100 : budget;
+          const effectiveBudget =
+            mode === "billing"
+              ? (burstClientPaysForMedia ? 0 : netMedia)
+              : netMedia; // delivery schedule should always reflect delivered media
+
+          if (isNaN(startDate.getTime()) || isNaN(endDate.getTime()) || effectiveBudget === 0) return;
 
           const daysTotal = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
           if (daysTotal <= 0) return;
@@ -2364,14 +2419,13 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               const sliceStart = Math.max(startDate.getTime(), monthStart.getTime());
               const sliceEnd = Math.min(endDate.getTime(), monthEnd.getTime());
               const daysInMonth = Math.ceil((sliceEnd - sliceStart) / (1000 * 60 * 60 * 24)) + 1;
-              const share = budget * (daysInMonth / daysTotal);
+              const share = effectiveBudget * (daysInMonth / daysTotal);
               monthlyAmounts[monthKey] += share;
             }
             currentDate.setMonth(currentDate.getMonth() + 1);
             currentDate.setDate(1);
           }
         });
-      }
 
       // Create or update line item
       const totalAmount = Object.values(monthlyAmounts).reduce((sum, val) => sum + val, 0);

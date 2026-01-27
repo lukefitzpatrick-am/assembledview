@@ -171,7 +171,7 @@ export function buildDescription(
     if (lineItem.publisher) parts.push(lineItem.publisher)
     if (lineItem.site) parts.push(lineItem.site)
   }
-  // Programmatic: Platform & Bid strategy
+  // Programmatic: Platform & Targeting
   else if (
     [
       "progDisplay",
@@ -182,12 +182,26 @@ export function buildDescription(
     ].includes(mediaTypeKey)
   ) {
     if (lineItem.platform) parts.push(lineItem.platform)
-    if (lineItem.bid_strategy) parts.push(lineItem.bid_strategy)
+    // Finance requirement: description should be Platform + Targeting (not Platform + Bid Strategy)
+    const targeting =
+      lineItem.targeting ??
+      lineItem.creative_targeting ??
+      lineItem.creativeTargeting ??
+      lineItem.targeting_attribute ??
+      lineItem.targetingAttribute
+    if (targeting) parts.push(targeting)
   }
-  // Search/Social: Platform & Bid strategy (or similar)
+  // Search/Social: Platform & Targeting
   else if (mediaTypeKey === "search" || mediaTypeKey === "socialMedia") {
     if (lineItem.platform) parts.push(lineItem.platform)
-    if (lineItem.bid_strategy) parts.push(lineItem.bid_strategy)
+    // Finance requirement: description should be Platform + Targeting (not Platform + Bid Strategy)
+    const targeting =
+      lineItem.targeting ??
+      lineItem.creative_targeting ??
+      lineItem.creativeTargeting ??
+      lineItem.targeting_attribute ??
+      lineItem.targetingAttribute
+    if (targeting) parts.push(targeting)
   }
   // Cinema/OOH: Network & Format
   else if (mediaTypeKey === "cinema" || mediaTypeKey === "ooh") {
@@ -567,13 +581,34 @@ export function extractLineItemsFromBillingSchedule(
       // Build item code
       const itemCode = buildItemCode(billingAgency, mediaTypeDisplayName)
 
-      // Build description from header1 & header2, applying natural language formatting
+      // Build description from header1 & header2, applying natural language formatting.
+      // Finance requirement: for Search/Social/Programmatic, description should be Platform + Targeting
+      // (not Platform + Bid Strategy).
       const descriptionParts: string[] = []
       if (lineItem.header1) {
         descriptionParts.push(formatDescriptionToNaturalLanguage(lineItem.header1))
       }
-      if (lineItem.header2) {
-        descriptionParts.push(formatDescriptionToNaturalLanguage(lineItem.header2))
+      const useTargetingInsteadOfBidStrategy = [
+        "search",
+        "socialMedia",
+        "progDisplay",
+        "progVideo",
+        "progBvod",
+        "progAudio",
+        "progOoh",
+      ].includes(mediaTypeKey)
+
+      const secondPart = useTargetingInsteadOfBidStrategy
+        ? (lineItem as any).targeting ??
+          (lineItem as any).creative_targeting ??
+          (lineItem as any).creativeTargeting ??
+          (lineItem as any).targeting_attribute ??
+          (lineItem as any).targetingAttribute ??
+          lineItem.header2
+        : lineItem.header2
+
+      if (secondPart) {
+        descriptionParts.push(formatDescriptionToNaturalLanguage(secondPart))
       }
       const description = descriptionParts.join(" ") || mediaTypeDisplayName
 
