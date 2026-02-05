@@ -165,7 +165,7 @@ export default function FinanceMediaPage() {
         worksheet.getCell(rowIndex, 2).value = item.mediaType
         worksheet.getCell(rowIndex, 3).value = item.description
         worksheet.getCell(rowIndex, 4).value = item.amount
-        worksheet.getCell(rowIndex, 4).numFmt = "$#,##0.00##"
+        worksheet.getCell(rowIndex, 4).numFmt = "$#,##0.00"
         rowIndex++
       })
 
@@ -174,7 +174,7 @@ export default function FinanceMediaPage() {
         worksheet.getCell(rowIndex, 1).value = service.itemCode
         worksheet.getCell(rowIndex, 2).value = service.service
         worksheet.getCell(rowIndex, 4).value = service.amount
-        worksheet.getCell(rowIndex, 4).numFmt = "$#,##0.00##"
+        worksheet.getCell(rowIndex, 4).numFmt = "$#,##0.00"
         rowIndex++
       })
 
@@ -183,7 +183,7 @@ export default function FinanceMediaPage() {
       worksheet.getCell(rowIndex, 1).value = "Total"
       worksheet.getCell(rowIndex, 1).font = { bold: true }
       worksheet.getCell(rowIndex, 4).value = campaign.total
-      worksheet.getCell(rowIndex, 4).numFmt = "$#,##0.00##"
+      worksheet.getCell(rowIndex, 4).numFmt = "$#,##0.00"
       worksheet.getCell(rowIndex, 4).font = { bold: true }
       rowIndex++
 
@@ -255,7 +255,12 @@ export default function FinanceMediaPage() {
                 <TableCell>{item.mediaType}</TableCell>
                 <TableCell>{item.description}</TableCell>
                 <TableCell className="text-right">
-                  {formatMoney(item.amount, { locale: "en-AU", currency: "AUD" })}
+                  {formatMoney(item.amount, {
+                    locale: "en-AU",
+                    currency: "AUD",
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
                 </TableCell>
               </TableRow>
             ))}
@@ -266,7 +271,12 @@ export default function FinanceMediaPage() {
                 <TableCell>{service.service}</TableCell>
                 <TableCell></TableCell>
                 <TableCell className="text-right">
-                  {formatMoney(service.amount, { locale: "en-AU", currency: "AUD" })}
+                  {formatMoney(service.amount, {
+                    locale: "en-AU",
+                    currency: "AUD",
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
                 </TableCell>
               </TableRow>
             ))}
@@ -276,7 +286,12 @@ export default function FinanceMediaPage() {
                 Total
               </TableCell>
               <TableCell className="text-right">
-                {formatMoney(totalAmount, { locale: "en-AU", currency: "AUD" })}
+                {formatMoney(totalAmount, {
+                  locale: "en-AU",
+                  currency: "AUD",
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
               </TableCell>
             </TableRow>
           </TableBody>

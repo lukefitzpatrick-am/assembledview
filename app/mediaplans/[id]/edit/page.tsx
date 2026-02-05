@@ -503,14 +503,26 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
     // Convert to array format
     const updatedBillingMonths = Object.entries(billingMonthsMap).map(([monthYear, amount]) => ({
       monthYear,
-      amount: formatMoney(amount, { locale: "en-AU", currency: "AUD" }),
+      amount: formatMoney(amount, {
+        locale: "en-AU",
+        currency: "AUD",
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }),
     }));
 
     setBillingMonths(updatedBillingMonths);
 
     // Calculate total billing
     const totalAmount = Object.values(billingMonthsMap).reduce((sum, value) => sum + value, 0);
-    setBillingTotal(formatMoney(totalAmount, { locale: "en-AU", currency: "AUD" }));
+    setBillingTotal(
+      formatMoney(totalAmount, {
+        locale: "en-AU",
+        currency: "AUD",
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })
+    );
   }, [searchBursts, socialMediaBursts]);
 
   // Fetch the media plan data
@@ -786,7 +798,14 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
       return sum + amount;
     }, 0);
     
-    setManualBillingTotal(formatMoney(total, { locale: "en-US", currency: "USD" }));
+    setManualBillingTotal(
+      formatMoney(total, {
+        locale: "en-US",
+        currency: "USD",
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })
+    );
   };
 
   const handleManualBillingSave = () => {
@@ -1712,7 +1731,14 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
               {investmentPerMonth.map((item, index) => (
                 <div key={index} className="flex items-center justify-between">
                   <span>{item.monthYear}</span>
-                  <span className="font-medium">${item.amount}</span>
+                  <span className="font-medium">
+                    {formatMoney(item.amount, {
+                      locale: "en-US",
+                      currency: "USD",
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </span>
                 </div>
               ))}
             </div>
@@ -2215,6 +2241,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                           const formattedValue = new Intl.NumberFormat("en-US", {
                             style: "currency",
                             currency: "USD",
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
                           }).format(Number(value) || 0)
                           e.target.value = formattedValue
                         }}
@@ -2312,7 +2340,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                       }
                       return (
                         <div key={medium.name} className="text-sm font-medium">
-                          {formatMoney(total, { locale: "en-US", currency: "USD" })}
+                          {formatMoney(total, {
+                            locale: "en-US",
+                            currency: "USD",
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
                         </div>
                       );
                     }
@@ -2328,7 +2361,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
               <div className="grid grid-cols-2 gap-4 mb-2">
                 <div className="text-sm font-semibold">Gross Media Total</div>
                 <div className="text-sm font-semibold text-right">
-                  {formatMoney(grossMediaTotal, { locale: "en-US", currency: "USD" })}
+                  {formatMoney(grossMediaTotal, {
+                    locale: "en-US",
+                    currency: "USD",
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
                 </div>
               </div>
 
@@ -2336,7 +2374,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
               <div className="grid grid-cols-2 gap-4 mb-2">
                 <div className="text-sm font-semibold">Assembled Fee</div>
                 <div className="text-sm font-semibold text-right">
-                  {formatMoney(calculateAssembledFee(), { locale: "en-US", currency: "USD" })}
+                  {formatMoney(calculateAssembledFee(), {
+                    locale: "en-US",
+                    currency: "USD",
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
                 </div>
               </div>
 
@@ -2344,7 +2387,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
               <div className="grid grid-cols-2 gap-4 mb-2">
                 <div className="text-sm font-semibold">Ad Serving & Tech Fees</div>
                 <div className="text-sm font-semibold text-right">
-                  {formatMoney(calculateAdServingFees(), { locale: "en-US", currency: "USD" })}
+                  {formatMoney(calculateAdServingFees(), {
+                    locale: "en-US",
+                    currency: "USD",
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
                 </div>
               </div>
 
@@ -2352,7 +2400,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
               <div className="grid grid-cols-2 gap-4">
                 <div className="text-sm font-semibold">Production</div>
                 <div className="text-sm font-semibold text-right">
-                  {formatMoney(calculateProductionCosts(), { locale: "en-US", currency: "USD" })}
+                  {formatMoney(calculateProductionCosts(), {
+                    locale: "en-US",
+                    currency: "USD",
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
                 </div>
               </div>
 
@@ -2360,7 +2413,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
               <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-gray-400">
                 <div className="text-sm font-bold">Total Investment (ex GST)</div>
                 <div className="text-sm font-bold text-right">
-                  {formatMoney(calculateTotalInvestment(), { locale: "en-US", currency: "USD" })}
+                  {formatMoney(calculateTotalInvestment(), {
+                    locale: "en-US",
+                    currency: "USD",
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
                 </div>
               </div>
             </div>

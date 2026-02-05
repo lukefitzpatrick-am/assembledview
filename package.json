@@ -89,10 +89,10 @@
   },
   "overrides": {
     "@google-cloud/storage": {
-      "fast-xml-parser": "4.3.5"
+      "fast-xml-parser": "5.3.4"
     },
     "snowflake-sdk": {
-      "fast-xml-parser": "4.3.5"
+      "fast-xml-parser": "5.3.4"
     }
   },
   "devDependencies": {

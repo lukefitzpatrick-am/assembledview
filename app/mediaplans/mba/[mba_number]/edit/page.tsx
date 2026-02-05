@@ -900,7 +900,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       style: "currency",
       currency: "AUD",
       minimumFractionDigits: 2,
-      maximumFractionDigits: 4,
+      maximumFractionDigits: 2,
     });
 
     // Distribute ad serving fees
@@ -3945,7 +3945,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       clientContact: fv.mp_clientcontact,
       planVersion: resolvedPlanVersion,
       poNumber: fv.mp_ponumber,
-      campaignBudget: new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(fv.mp_campaignbudget),
+      campaignBudget: new Intl.NumberFormat("en-AU", {
+        style: "currency",
+        currency: "AUD",
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(fv.mp_campaignbudget),
       campaignStatus: fv.mp_campaignstatus,
       campaignStart: format(fv.mp_campaigndates_start, "dd/MM/yyyy"),
       campaignEnd: format(fv.mp_campaigndates_end, "dd/MM/yyyy"),
@@ -5390,7 +5395,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   return (
     <div
       className="w-full px-4 py-6 space-y-4"
-      style={stickyBarHeight ? { paddingBottom: stickyBarHeight * 2 } : undefined}
+      style={{
+        // Always keep iOS home-indicator / mobile browser UI from covering content
+        paddingBottom: "env(safe-area-inset-bottom)",
+      }}
     >
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3">
@@ -5889,19 +5897,19 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                     <TableRow className="font-bold">
                       <TableCell>Grand Total</TableCell>
                       <TableCell align="right">
-                        {new Intl.NumberFormat("en-AU", { style:"currency", currency:"AUD" })
+                        {new Intl.NumberFormat("en-AU", { style:"currency", currency:"AUD", minimumFractionDigits: 2, maximumFractionDigits: 2 })
                           .format(billingMonths.reduce((acc, m) => acc + parseFloat(m.mediaTotal.replace(/[^0-9.-]/g,"")), 0))}
                       </TableCell>
                       <TableCell align="right">
-                        {new Intl.NumberFormat("en-AU", { style:"currency", currency:"AUD" })
+                        {new Intl.NumberFormat("en-AU", { style:"currency", currency:"AUD", minimumFractionDigits: 2, maximumFractionDigits: 2 })
                           .format(billingMonths.reduce((acc, m) => acc + parseFloat(m.feeTotal.replace(/[^0-9.-]/g,"")), 0))}
                       </TableCell>
                       <TableCell align="right">
-                        {new Intl.NumberFormat("en-AU", { style:"currency", currency:"AUD" })
+                        {new Intl.NumberFormat("en-AU", { style:"currency", currency:"AUD", minimumFractionDigits: 2, maximumFractionDigits: 2 })
                           .format(billingMonths.reduce((acc, m) => acc + parseFloat(m.adservingTechFees.replace(/[^0-9.-]/g,"")), 0))}
                       </TableCell>
                       <TableCell align="right">
-                        {new Intl.NumberFormat("en-AU", { style:"currency", currency:"AUD" })
+                        {new Intl.NumberFormat("en-AU", { style:"currency", currency:"AUD", minimumFractionDigits: 2, maximumFractionDigits: 2 })
                           .format(billingMonths.reduce((acc, m) => acc + parseFloat((m.production || "$0").replace(/[^0-9.-]/g,"")), 0))}
                       </TableCell>
                       <TableCell align="right" className="font-semibold">{billingTotal}</TableCell>
@@ -6408,7 +6416,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                                     <TableCell>{lineItem.header1}</TableCell>
                                     <TableCell>{lineItem.header2}</TableCell>
                                     {manualBillingMonths.map((month, monthIndex) => {
-                                      const currencyFormatter = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" })
+                                      const currencyFormatter = new Intl.NumberFormat("en-AU", {
+                                        style: "currency",
+                                        currency: "AUD",
+                                        minimumFractionDigits: 2,
+                                        maximumFractionDigits: 2,
+                                      })
                                       const monthAmount = lineItem.monthlyAmounts?.[month.monthYear] || 0
                                       return (
                                         <TableCell key={month.monthYear} align="right">
@@ -6450,7 +6463,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                                       )
                                     })}
                                     <TableCell className="text-right font-semibold">
-                                      {new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(lineItem.totalAmount || 0)}
+                                      {new Intl.NumberFormat("en-AU", {
+                                        style: "currency",
+                                        currency: "AUD",
+                                        minimumFractionDigits: 2,
+                                        maximumFractionDigits: 2,
+                                      }).format(lineItem.totalAmount || 0)}
                                     </TableCell>
                                   </TableRow>
                                 ))}
@@ -6463,12 +6481,22 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                                     const subtotal = lineItems.reduce((sum, li) => sum + (li.monthlyAmounts?.[m.monthYear] || 0), 0)
                                     return (
                                       <TableCell key={m.monthYear} className="text-right">
-                                        {new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(subtotal)}
+                                        {new Intl.NumberFormat("en-AU", {
+                                          style: "currency",
+                                          currency: "AUD",
+                                          minimumFractionDigits: 2,
+                                          maximumFractionDigits: 2,
+                                        }).format(subtotal)}
                                       </TableCell>
                                     )
                                   })}
                                   <TableCell className="text-right">
-                                    {new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(
+                                    {new Intl.NumberFormat("en-AU", {
+                                      style: "currency",
+                                      currency: "AUD",
+                                      minimumFractionDigits: 2,
+                                      maximumFractionDigits: 2,
+                                    }).format(
                                       lineItems.reduce((sum, li) => sum + (li.totalAmount || 0), 0)
                                     )}
                                   </TableCell>
@@ -6525,7 +6553,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                               </TableCell>
                             ))}
                             <TableCell className="text-right font-semibold">
-                              {new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(
+                              {new Intl.NumberFormat("en-AU", {
+                                style: "currency",
+                                currency: "AUD",
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              }).format(
                                 manualBillingMonths.reduce(
                                   (acc, m) => acc + (parseFloat(String(m.feeTotal || "$0").replace(/[^0-9.-]/g, "")) || 0),
                                   0
@@ -6559,7 +6592,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                               </TableCell>
                             ))}
                             <TableCell className="text-right font-semibold">
-                              {new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(
+                              {new Intl.NumberFormat("en-AU", {
+                                style: "currency",
+                                currency: "AUD",
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              }).format(
                                 manualBillingMonths.reduce(
                                   (acc, m) =>
                                     acc + (parseFloat(String(m.adservingTechFees || "$0").replace(/[^0-9.-]/g, "")) || 0),
@@ -6597,7 +6635,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                               </TableCell>
                             ))}
                             <TableCell className="text-right font-semibold">
-                              {new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(
+                              {new Intl.NumberFormat("en-AU", {
+                                style: "currency",
+                                currency: "AUD",
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              }).format(
                                 manualBillingMonths.reduce(
                                   (acc, m) => acc + (parseFloat(String(m.production || "$0").replace(/[^0-9.-]/g, "")) || 0),
                                   0
@@ -6619,12 +6662,22 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                     <p className="font-bold">Budget Mismatch Error</p>
                     <p>
                       Campaign Budget:{" "}
-                      {new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(billingError.campaignBudget)}
+                      {new Intl.NumberFormat("en-AU", {
+                        style: "currency",
+                        currency: "AUD",
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      }).format(billingError.campaignBudget)}
                     </p>
                     <p>Billing Total: {manualBillingTotal}</p>
                     <p>
                       Difference:{" "}
-                      {new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(Math.abs(billingError.difference))}
+                      {new Intl.NumberFormat("en-AU", {
+                        style: "currency",
+                        currency: "AUD",
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      }).format(Math.abs(billingError.difference))}
                       {billingError.difference > 0 ? " over" : " under"} budget
                     </p>
                     <p className="text-sm mt-1">The billing total must be within $2.00 of the campaign budget.</p>
@@ -6871,10 +6924,16 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         </DialogContent>
       </Dialog>
       
+      {/* Spacer so the fixed save bar never covers the last field */}
+      <div
+        aria-hidden="true"
+        style={{ height: stickyBarHeight ? stickyBarHeight + 24 : 160 }}
+      />
+
       {/* Sticky Banner */}
       <div
         ref={stickyBarRef}
-        className="fixed bottom-0 left-[240px] right-0 bg-background/95 backdrop-blur-sm border-t p-4 z-50 flex justify-between items-center"
+        className="fixed bottom-0 left-0 right-0 md:left-[var(--sidebar-width)] bg-background/95 backdrop-blur-sm border-t p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] z-50 flex justify-between items-center"
       >
         <p className="text-red-500 text-lg font-bold">Don't forget to reset or update the billing schedule</p>
         <div className="flex space-x-2">

@@ -1107,7 +1107,7 @@ export default function CreateMediaPlan() {
       style: "currency",
       currency: "AUD",
       minimumFractionDigits: 2,
-      maximumFractionDigits: 4,
+      maximumFractionDigits: 2,
   });
 
   //distribute ad serving fees
@@ -2978,7 +2978,7 @@ export default function CreateMediaPlan() {
   ) {
     const copy = [...manualBillingMonths];
     const numericValue = parseFloat(rawValue.replace(/[^0-9.-]/g, "")) || 0;
-    const formatter = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
+    const formatter = mbaCurrencyFormatter;
     const formattedValue = formatter.format(numericValue);
 
     // Handle line item changes
@@ -4397,7 +4397,10 @@ const handleSaveAll = async () => {
   return (
     <div
       className="w-full min-h-screen"
-      style={stickyBarHeight ? { paddingBottom: stickyBarHeight * 2 } : undefined}
+      style={{
+        // Always keep iOS home-indicator / mobile browser UI from covering content
+        paddingBottom: "env(safe-area-inset-bottom)",
+      }}
     >
       <div className="flex items-center justify-between p-4 gap-4">
         <h1 className="text-4xl font-bold">Create a Campaign</h1>
@@ -4850,20 +4853,24 @@ const handleSaveAll = async () => {
                     <TableRow className="font-bold">
                       <TableCell>Grand Total</TableCell>
                       <TableCell align="right">
-                        {new Intl.NumberFormat("en-AU", { style:"currency", currency:"AUD" })
-                          .format(billingMonths.reduce((acc, m) => acc + parseFloat(m.mediaTotal.replace(/[^0-9.-]/g,"")), 0))}
+                        {mbaCurrencyFormatter.format(
+                          billingMonths.reduce((acc, m) => acc + parseFloat(m.mediaTotal.replace(/[^0-9.-]/g, "")), 0)
+                        )}
                       </TableCell>
                       <TableCell align="right">
-                        {new Intl.NumberFormat("en-AU", { style:"currency", currency:"AUD" })
-                          .format(billingMonths.reduce((acc, m) => acc + parseFloat(m.feeTotal.replace(/[^0-9.-]/g,"")), 0))}
+                        {mbaCurrencyFormatter.format(
+                          billingMonths.reduce((acc, m) => acc + parseFloat(m.feeTotal.replace(/[^0-9.-]/g, "")), 0)
+                        )}
                       </TableCell>
                       <TableCell align="right">
-                        {new Intl.NumberFormat("en-AU", { style:"currency", currency:"AUD" })
-                          .format(billingMonths.reduce((acc, m) => acc + parseFloat(m.adservingTechFees.replace(/[^0-9.-]/g,"")), 0))}
+                        {mbaCurrencyFormatter.format(
+                          billingMonths.reduce((acc, m) => acc + parseFloat(m.adservingTechFees.replace(/[^0-9.-]/g, "")), 0)
+                        )}
                       </TableCell>
                       <TableCell align="right">
-                        {new Intl.NumberFormat("en-AU", { style:"currency", currency:"AUD" })
-                          .format(billingMonths.reduce((acc, m) => acc + parseFloat((m.production || "$0").replace(/[^0-9.-]/g,"")), 0))}
+                        {mbaCurrencyFormatter.format(
+                          billingMonths.reduce((acc, m) => acc + parseFloat((m.production || "$0").replace(/[^0-9.-]/g, "")), 0)
+                        )}
                       </TableCell>
                       <TableCell align="right" className="font-semibold">{billingTotal}</TableCell>
                     </TableRow>
@@ -4936,7 +4943,7 @@ const handleSaveAll = async () => {
                                   <TableCell key={month.monthYear} align="right">
                                     <Input
                                       className="text-right w-28"
-                                      value={currencyFormatter.format(monthAmount)}
+                                      value={mbaCurrencyFormatter.format(monthAmount)}
                                       onBlur={(e) =>
                                         handleManualBillingChange(
                                           monthIndex,
@@ -4972,7 +4979,7 @@ const handleSaveAll = async () => {
                                   </TableCell>
                                 );
                               })}
-                              <TableCell className="text-right font-semibold">{currencyFormatter.format(lineItem.totalAmount)}</TableCell>
+                              <TableCell className="text-right font-semibold">{mbaCurrencyFormatter.format(lineItem.totalAmount)}</TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
@@ -4984,11 +4991,13 @@ const handleSaveAll = async () => {
                               const subtotal = lineItems.reduce((sum, li) => sum + (li.monthlyAmounts?.[m.monthYear] || 0), 0);
                               return (
                                 <TableCell key={m.monthYear} className="text-right">
-                                  {currencyFormatter.format(subtotal)}
+                                  {mbaCurrencyFormatter.format(subtotal)}
                                 </TableCell>
                               );
                             })}
-                            <TableCell className="text-right">{currencyFormatter.format(lineItems.reduce((sum, li) => sum + (li.totalAmount || 0), 0))}</TableCell>
+                            <TableCell className="text-right">
+                              {mbaCurrencyFormatter.format(lineItems.reduce((sum, li) => sum + (li.totalAmount || 0), 0))}
+                            </TableCell>
                           </TableRow>
                         </TableFooter>
                       </Table>
@@ -5042,7 +5051,7 @@ const handleSaveAll = async () => {
                         </TableCell>
                       ))}
                       <TableCell className="text-right font-semibold">
-                        {currencyFormatter.format(
+                        {mbaCurrencyFormatter.format(
                           manualBillingMonths.reduce(
                             (acc, m) => acc + (parseFloat(String(m.feeTotal || "$0").replace(/[^0-9.-]/g, "")) || 0),
                             0
@@ -5076,7 +5085,7 @@ const handleSaveAll = async () => {
                         </TableCell>
                       ))}
                       <TableCell className="text-right font-semibold">
-                        {currencyFormatter.format(
+                        {mbaCurrencyFormatter.format(
                           manualBillingMonths.reduce(
                             (acc, m) => acc + (parseFloat(String(m.adservingTechFees || "$0").replace(/[^0-9.-]/g, "")) || 0),
                             0
@@ -5113,7 +5122,7 @@ const handleSaveAll = async () => {
                         </TableCell>
                       ))}
                       <TableCell className="text-right font-semibold">
-                        {currencyFormatter.format(
+                        {mbaCurrencyFormatter.format(
                           manualBillingMonths.reduce(
                             (acc, m) => acc + (parseFloat(String(m.production || "$0").replace(/[^0-9.-]/g, "")) || 0),
                             0
@@ -5133,10 +5142,10 @@ const handleSaveAll = async () => {
           {billingError.show && (
             <div className="mt-2 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
               <p className="font-bold">Budget Mismatch Error</p>
-              <p>Campaign Budget: {currencyFormatter.format(billingError.campaignBudget)}</p>
+              <p>Campaign Budget: {mbaCurrencyFormatter.format(billingError.campaignBudget)}</p>
               <p>Billing Total: {manualBillingTotal}</p>
               <p>
-                Difference: {currencyFormatter.format(Math.abs(billingError.difference))}
+                Difference: {mbaCurrencyFormatter.format(Math.abs(billingError.difference))}
                 {billingError.difference > 0 ? " over" : " under"} budget
               </p>
               <p className="text-sm mt-1">The billing total must be within $2.00 of the campaign budget.</p>
@@ -5178,11 +5187,11 @@ const handleSaveAll = async () => {
     </DialogHeader>
     <div className="space-y-2 py-4">
       <p className="font-semibold">Campaign Budget:</p>
-      <p className="text-lg">{currencyFormatter.format(billingError.campaignBudget)}</p>
+      <p className="text-lg">{mbaCurrencyFormatter.format(billingError.campaignBudget)}</p>
       <p className="font-semibold mt-4">Billing Total:</p>
       <p className="text-lg">{manualBillingTotal}</p>
       <p className="font-semibold mt-4 text-red-600">Difference:</p>
-      <p className="text-lg text-red-600">{currencyFormatter.format(Math.abs(billingError.difference))} 
+      <p className="text-lg text-red-600">{mbaCurrencyFormatter.format(Math.abs(billingError.difference))} 
         {billingError.difference > 0 ? ' over' : ' under'} budget</p>
       <p className="text-sm text-gray-600 mt-4">
         The billing schedule total must be within $2.00 of the campaign budget. Please adjust the values to match.
@@ -5909,10 +5918,16 @@ const handleSaveAll = async () => {
         </DialogContent>
       </Dialog>
 
+      {/* Spacer so the fixed save bar never covers the last field */}
+      <div
+        aria-hidden="true"
+        style={{ height: stickyBarHeight ? stickyBarHeight + 24 : 160 }}
+      />
+
       {/* Sticky Action Bar */}
       <div
         ref={stickyBarRef}
-        className="fixed bottom-0 left-[240px] right-0 bg-background/95 backdrop-blur-sm border-t p-4 flex justify-between items-center z-50"
+        className="fixed bottom-0 left-0 right-0 md:left-[var(--sidebar-width)] bg-background/95 backdrop-blur-sm border-t p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] flex justify-between items-center z-50"
       >
         <div>
           {hasDateWarning && (

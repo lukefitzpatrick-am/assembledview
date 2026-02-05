@@ -67,9 +67,9 @@ export function AddPublisherForm({ onSuccess }: AddPublisherFormProps) {
   const [isSaving, setIsSaving] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
 
-  const formatPercentage = (value: string) => {
-    const numericValue = value.replace(/[^0-9.]/g, "")
-    return numericValue ? `${Number.parseFloat(numericValue).toFixed(2)}%` : ""
+  const numberOrUndefined = (value: string, valueAsNumber: number) => {
+    if (value === "") return undefined
+    return Number.isFinite(valueAsNumber) ? valueAsNumber : undefined
   }
 
   const form = useForm<PublisherFormValues>({
@@ -315,15 +315,23 @@ export function AddPublisherForm({ onSuccess }: AddPublisherFormProps) {
                   <FormItem>
                     <FormLabel className="whitespace-nowrap">{`${medium.charAt(0).toUpperCase() + medium.slice(1)} Commission`}</FormLabel>
                     <FormControl>
-                      <Input
-                        type="text"
-                        {...field}
-                        value={formatPercentage(field.value.toString())}
-                        onChange={(e) => {
-                          const numericValue = e.target.value.replace(/[^0-9.]/g, "")
-                          field.onChange(numericValue ? Number.parseFloat(numericValue) : 0)
-                        }}
-                      />
+                      <div className="relative">
+                        <Input
+                          {...field}
+                          className="pr-7"
+                          type="number"
+                          inputMode="decimal"
+                          step="0.01"
+                          min={0}
+                          max={100}
+                          value={(field.value as number | undefined) ?? ""}
+                          onChange={(e) => field.onChange(numberOrUndefined(e.target.value, e.target.valueAsNumber))}
+                          placeholder="0"
+                        />
+                        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                          %
+                        </span>
+                      </div>
                     </FormControl>
                     <FormMessage />
                   </FormItem>

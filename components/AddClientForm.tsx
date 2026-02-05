@@ -253,14 +253,9 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
     }
   }
 
-  const formatCurrency = (value: string) => {
-    const numericValue = value.replace(/[^0-9.]/g, "")
-    return numericValue ? `$${Number(numericValue).toFixed(2)}` : ""
-  }
-
-  const formatPercentage = (value: string) => {
-    const numericValue = value.replace(/[^0-9.]/g, "")
-    return numericValue ? `${Number(numericValue).toFixed(2)}%` : ""
+  const numberOrUndefined = (value: string, valueAsNumber: number) => {
+    if (value === "") return undefined
+    return Number.isFinite(valueAsNumber) ? valueAsNumber : undefined
   }
 
   return (
@@ -602,15 +597,22 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
                 <FormItem>
                   <FormLabel>Monthly Retainer</FormLabel>
                   <FormControl>
-                    <Input
-                      {...field}
-                      type="text"
-                      value={formatCurrency(field.value.toString())}
-                      onChange={(e) => {
-                        const numericValue = e.target.value.replace(/[^0-9.]/g, "")
-                        field.onChange(numericValue ? Number(numericValue) : 0)
-                      }}
-                    />
+                    <div className="relative">
+                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                        $
+                      </span>
+                      <Input
+                        {...field}
+                        className="pl-7"
+                        type="number"
+                        inputMode="decimal"
+                        step="0.01"
+                        min={0}
+                        value={field.value ?? ""}
+                        onChange={(e) => field.onChange(numberOrUndefined(e.target.value, e.target.valueAsNumber))}
+                        placeholder="0.00"
+                      />
+                    </div>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -625,15 +627,22 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
                 <FormItem>
                   <FormLabel>Organic Social Retainer</FormLabel>
                   <FormControl>
-                    <Input
-                      {...field}
-                      type="text"
-                      value={formatCurrency(field.value.toString())}
-                      onChange={(e) => {
-                        const numericValue = e.target.value.replace(/[^0-9.]/g, "")
-                        field.onChange(numericValue ? Number(numericValue) : 0)
-                      }}
-                    />
+                    <div className="relative">
+                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                        $
+                      </span>
+                      <Input
+                        {...field}
+                        className="pl-7"
+                        type="number"
+                        inputMode="decimal"
+                        step="0.01"
+                        min={0}
+                        value={field.value ?? ""}
+                        onChange={(e) => field.onChange(numberOrUndefined(e.target.value, e.target.valueAsNumber))}
+                        placeholder="0.00"
+                      />
+                    </div>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -691,15 +700,23 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
                     <FormItem>
                       <FormLabel>{`${feeType.charAt(0).toUpperCase() + feeType.slice(1)} Fee`}</FormLabel>
                       <FormControl>
-                        <Input
-                          {...field}
-                          type="text"
-                          value={formatPercentage(field.value.toString())}
-                          onChange={(e) => {
-                            const numericValue = e.target.value.replace(/[^0-9.]/g, "")
-                            field.onChange(numericValue ? Number(numericValue) : 0)
-                          }}
-                        />
+                        <div className="relative">
+                          <Input
+                            {...field}
+                            className="pr-7"
+                            type="number"
+                            inputMode="decimal"
+                            step="0.01"
+                            min={0}
+                            max={100}
+                            value={field.value ?? ""}
+                            onChange={(e) => field.onChange(numberOrUndefined(e.target.value, e.target.valueAsNumber))}
+                            placeholder="0"
+                          />
+                          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                            %
+                          </span>
+                        </div>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -720,15 +737,22 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
                   <FormItem>
                     <FormLabel>{`Ad Serve ${adServType.charAt(0).toUpperCase() + adServType.slice(1)}`}</FormLabel>
                     <FormControl>
-                      <Input
-                        {...field}
-                        type="text"
-                        value={formatCurrency(field.value.toString())}
-                        onChange={(e) => {
-                          const numericValue = e.target.value.replace(/[^0-9.]/g, "")
-                          field.onChange(numericValue ? Number(numericValue) : 0)
-                        }}
-                      />
+                      <div className="relative">
+                        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                          $
+                        </span>
+                        <Input
+                          {...field}
+                          className="pl-7"
+                          type="number"
+                          inputMode="decimal"
+                          step="0.01"
+                          min={0}
+                          value={field.value ?? ""}
+                          onChange={(e) => field.onChange(numberOrUndefined(e.target.value, e.target.valueAsNumber))}
+                          placeholder="0.00"
+                        />
+                      </div>
                     </FormControl>
                     <FormMessage />
                   </FormItem>

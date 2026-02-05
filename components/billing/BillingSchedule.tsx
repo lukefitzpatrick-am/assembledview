@@ -6,6 +6,13 @@ import { Input } from "@/components/ui/input";
 import { format } from "date-fns";
 import { addMonths, eachDayOfInterval, startOfMonth, endOfMonth, isWithinInterval } from "date-fns";
 
+const usd2Formatter = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
 export type BillingScheduleType = {
   month: string;
   searchAmount: number;
@@ -204,7 +211,11 @@ export function BillingSchedule({
     const budgetDiff = Math.abs(total - campaignBudget);
 
     if (budgetDiff > 10) {
-      alert(`Total amount (${total}) must be within $10 of campaign budget (${campaignBudget})`);
+      alert(
+        `Total amount (${usd2Formatter.format(total)}) must be within $10 of campaign budget (${usd2Formatter.format(
+          campaignBudget
+        )})`
+      );
       return;
     }
 
@@ -313,10 +324,7 @@ export function BillingSchedule({
                         />
                       </TableCell>
                       <TableCell>
-                        {new Intl.NumberFormat('en-US', {
-                          style: 'currency',
-                          currency: 'USD'
-                        }).format(month.totalAmount)}
+                        {usd2Formatter.format(month.totalAmount)}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -324,10 +332,10 @@ export function BillingSchedule({
               </Table>
               <div className="flex justify-between">
                 <div className="text-lg font-medium">
-                  Total: {new Intl.NumberFormat('en-US', {
-                    style: 'currency',
-                    currency: 'USD'
-                  }).format((isManualBilling ? manualSchedule : autoSchedule).reduce((sum, month) => sum + month.totalAmount, 0))}
+                  Total:{" "}
+                  {usd2Formatter.format(
+                    (isManualBilling ? manualSchedule : autoSchedule).reduce((sum, month) => sum + month.totalAmount, 0)
+                  )}
                 </div>
                 <div className="space-x-2">
                   {isManualBilling ? (
@@ -358,34 +366,19 @@ export function BillingSchedule({
             <TableRow key={month.month}>
               <TableCell>{month.month}</TableCell>
               <TableCell>
-                {new Intl.NumberFormat('en-US', {
-                  style: 'currency',
-                  currency: 'USD'
-                }).format(month.searchAmount)}
+                {usd2Formatter.format(month.searchAmount)}
               </TableCell>
               <TableCell>
-                {new Intl.NumberFormat('en-US', {
-                  style: 'currency',
-                  currency: 'USD'
-                }).format(month.socialAmount)}
+                {usd2Formatter.format(month.socialAmount)}
               </TableCell>
             <TableCell>
-              {new Intl.NumberFormat('en-US', {
-                style: 'currency',
-                currency: 'USD'
-              }).format(month.productionAmount)}
+              {usd2Formatter.format(month.productionAmount)}
             </TableCell>
               <TableCell>
-                {new Intl.NumberFormat('en-US', {
-                  style: 'currency',
-                  currency: 'USD'
-                }).format(month.feeAmount)}
+                {usd2Formatter.format(month.feeAmount)}
               </TableCell>
               <TableCell>
-                {new Intl.NumberFormat('en-US', {
-                  style: 'currency',
-                  currency: 'USD'
-                }).format(month.totalAmount)}
+                {usd2Formatter.format(month.totalAmount)}
               </TableCell>
             </TableRow>
           ))}
@@ -395,28 +388,30 @@ export function BillingSchedule({
       <div className="text-lg font-medium">
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <div>Search Total: {new Intl.NumberFormat('en-US', {
-              style: 'currency',
-              currency: 'USD'
-            }).format((isManualBilling ? manualSchedule : autoSchedule).reduce((sum, month) => sum + month.searchAmount, 0))}</div>
-            <div>Social Total: {new Intl.NumberFormat('en-US', {
-              style: 'currency',
-              currency: 'USD'
-            }).format((isManualBilling ? manualSchedule : autoSchedule).reduce((sum, month) => sum + month.socialAmount, 0))}</div>
-                  <div>Production Total: {new Intl.NumberFormat('en-US', {
-                    style: 'currency',
-                    currency: 'USD'
-                  }).format((isManualBilling ? manualSchedule : autoSchedule).reduce((sum, month) => sum + month.productionAmount, 0))}</div>
-            <div>Fee Total: {new Intl.NumberFormat('en-US', {
-              style: 'currency',
-              currency: 'USD'
-            }).format((isManualBilling ? manualSchedule : autoSchedule).reduce((sum, month) => sum + month.feeAmount, 0))}</div>
+            <div>
+              Search Total:{" "}
+              {usd2Formatter.format((isManualBilling ? manualSchedule : autoSchedule).reduce((sum, month) => sum + month.searchAmount, 0))}
+            </div>
+            <div>
+              Social Total:{" "}
+              {usd2Formatter.format((isManualBilling ? manualSchedule : autoSchedule).reduce((sum, month) => sum + month.socialAmount, 0))}
+            </div>
+            <div>
+              Production Total:{" "}
+              {usd2Formatter.format(
+                (isManualBilling ? manualSchedule : autoSchedule).reduce((sum, month) => sum + month.productionAmount, 0)
+              )}
+            </div>
+            <div>
+              Fee Total:{" "}
+              {usd2Formatter.format((isManualBilling ? manualSchedule : autoSchedule).reduce((sum, month) => sum + month.feeAmount, 0))}
+            </div>
           </div>
           <div className="text-right">
-            <div>Total Campaign Billing Amount: {new Intl.NumberFormat('en-US', {
-              style: 'currency',
-              currency: 'USD'
-            }).format((isManualBilling ? manualSchedule : autoSchedule).reduce((sum, month) => sum + month.totalAmount, 0))}</div>
+            <div>
+              Total Campaign Billing Amount:{" "}
+              {usd2Formatter.format((isManualBilling ? manualSchedule : autoSchedule).reduce((sum, month) => sum + month.totalAmount, 0))}
+            </div>
           </div>
         </div>
       </div>
