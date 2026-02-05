@@ -11,11 +11,12 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Combobox } from "@/components/ui/combobox"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { formatMoney } from "@/lib/utils/money"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { toDateOnlyString } from "@/lib/timezone"
 import { getSearchBursts } from "@/components/media-containers/SearchContainer"
@@ -139,6 +140,7 @@ type MediaPlanFormValues = z.infer<typeof mediaPlanSchema>
 interface Client {
   id: number
   clientname_input: string
+  mp_client_name?: string
   mbaidentifier: string
   feesearch: number
   feesocial: number
@@ -501,14 +503,14 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
     // Convert to array format
     const updatedBillingMonths = Object.entries(billingMonthsMap).map(([monthYear, amount]) => ({
       monthYear,
-      amount: `$${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      amount: formatMoney(amount, { locale: "en-AU", currency: "AUD" }),
     }));
 
     setBillingMonths(updatedBillingMonths);
 
     // Calculate total billing
     const totalAmount = Object.values(billingMonthsMap).reduce((sum, value) => sum + value, 0);
-    setBillingTotal(`$${totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+    setBillingTotal(formatMoney(totalAmount, { locale: "en-AU", currency: "AUD" }));
   }, [searchBursts, socialMediaBursts]);
 
   // Fetch the media plan data
@@ -784,12 +786,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
       return sum + amount;
     }, 0);
     
-    setManualBillingTotal(new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(total));
+    setManualBillingTotal(formatMoney(total, { locale: "en-US", currency: "USD" }));
   };
 
   const handleManualBillingSave = () => {
@@ -2032,26 +2029,22 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Client Name</FormLabel>
-                    <Select
-                      onValueChange={(value) => {
-                        field.onChange(value)
-                        handleClientSelect(clients.find(c => c.id.toString() === value) || null)
-                      }}
-                      defaultValue={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a client" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {clients.map((client) => (
-                          <SelectItem key={client.id} value={client.clientname_input}>
-                            {client.clientname_input}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <FormControl>
+                      <Combobox
+                        value={field.value}
+                        onValueChange={(value) => {
+                          field.onChange(value)
+                          handleClientSelect(clients.find((c) => c.clientname_input === value) || null)
+                        }}
+                        placeholder="Select a client"
+                        searchPlaceholder="Search clients..."
+                        options={clients.map((client) => ({
+                          value: client.clientname_input,
+                          label: client.clientname_input,
+                          keywords: `${client.mp_client_name ?? ""} ${client.mbaidentifier ?? ""}`.trim(),
+                        }))}
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -2063,21 +2056,19 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Campaign Status</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select status" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="Draft">Draft</SelectItem>
-                        <SelectItem value="Active">Active</SelectItem>
-                        <SelectItem value="Completed">Completed</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <FormControl>
+                      <Combobox
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        placeholder="Select status"
+                        searchPlaceholder="Search statuses..."
+                        options={[
+                          { value: "Active", label: "Active" },
+                          { value: "Completed", label: "Completed" },
+                          { value: "Draft", label: "Draft" },
+                        ]}
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -2321,12 +2312,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                       }
                       return (
                         <div key={medium.name} className="text-sm font-medium">
-                          {new Intl.NumberFormat('en-US', {
-                            style: 'currency',
-                            currency: 'USD',
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2
-                          }).format(total)}
+                          {formatMoney(total, { locale: "en-US", currency: "USD" })}
                         </div>
                       );
                     }
@@ -2342,12 +2328,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
               <div className="grid grid-cols-2 gap-4 mb-2">
                 <div className="text-sm font-semibold">Gross Media Total</div>
                 <div className="text-sm font-semibold text-right">
-                  {new Intl.NumberFormat('en-US', {
-                    style: 'currency',
-                    currency: 'USD',
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2
-                  }).format(grossMediaTotal)}
+                  {formatMoney(grossMediaTotal, { locale: "en-US", currency: "USD" })}
                 </div>
               </div>
 
@@ -2355,12 +2336,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
               <div className="grid grid-cols-2 gap-4 mb-2">
                 <div className="text-sm font-semibold">Assembled Fee</div>
                 <div className="text-sm font-semibold text-right">
-                  {new Intl.NumberFormat('en-US', {
-                    style: 'currency',
-                    currency: 'USD',
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2
-                  }).format(calculateAssembledFee())}
+                  {formatMoney(calculateAssembledFee(), { locale: "en-US", currency: "USD" })}
                 </div>
               </div>
 
@@ -2368,12 +2344,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
               <div className="grid grid-cols-2 gap-4 mb-2">
                 <div className="text-sm font-semibold">Ad Serving & Tech Fees</div>
                 <div className="text-sm font-semibold text-right">
-                  {new Intl.NumberFormat('en-US', {
-                    style: 'currency',
-                    currency: 'USD',
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2
-                  }).format(calculateAdServingFees())}
+                  {formatMoney(calculateAdServingFees(), { locale: "en-US", currency: "USD" })}
                 </div>
               </div>
 
@@ -2381,12 +2352,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
               <div className="grid grid-cols-2 gap-4">
                 <div className="text-sm font-semibold">Production</div>
                 <div className="text-sm font-semibold text-right">
-                  {new Intl.NumberFormat('en-US', {
-                    style: 'currency',
-                    currency: 'USD',
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2
-                  }).format(calculateProductionCosts())}
+                  {formatMoney(calculateProductionCosts(), { locale: "en-US", currency: "USD" })}
                 </div>
               </div>
 
@@ -2394,12 +2360,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
               <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-gray-400">
                 <div className="text-sm font-bold">Total Investment (ex GST)</div>
                 <div className="text-sm font-bold text-right">
-                  {new Intl.NumberFormat('en-US', {
-                    style: 'currency',
-                    currency: 'USD',
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2
-                  }).format(calculateTotalInvestment())}
+                  {formatMoney(calculateTotalInvestment(), { locale: "en-US", currency: "USD" })}
                 </div>
               </div>
             </div>

@@ -42,6 +42,30 @@ async function parseJsonOrText<T = any>(response: Response): Promise<T> {
   return (await response.text()) as unknown as T
 }
 
+export async function uploadMediaPlanVersionDocuments(
+  versionId: number,
+  files: { mediaPlan?: File; mbaPdf?: File; mpClientName?: string }
+) {
+  const formData = new FormData()
+  if (files.mediaPlan) formData.append("media_plan", files.mediaPlan, files.mediaPlan.name)
+  if (files.mbaPdf) formData.append("mba_pdf", files.mbaPdf, files.mbaPdf.name)
+  if (typeof files.mpClientName === "string" && files.mpClientName.trim()) {
+    formData.append("mp_client_name", files.mpClientName.trim())
+  }
+
+  const response = await fetch(`/api/mediaplans/versions/${versionId}/documents`, {
+    method: "POST",
+    body: formData,
+  })
+
+  if (!response.ok) {
+    const message = await extractResponseMessage(response)
+    throw new Error(message || "Failed to upload documents")
+  }
+
+  return parseJsonOrText(response)
+}
+
 // Media Plan Line Item Interfaces based on provided schemas
 interface CinemaLineItem {
   id: number;
@@ -522,7 +546,12 @@ interface MediaPlanVersion {
   campaign_start_date: string;
   campaign_end_date: string;
   brand: string;
-  client_name: string;
+  /**
+   * Xano field name on media_plan_versions table.
+   * Keep `client_name` temporarily for backward compatibility with older callers.
+   */
+  mp_client_name: string;
+  client_name?: string;
   client_contact: string;
   po_number: string;
   mp_campaignbudget: number;
@@ -726,9 +755,12 @@ export async function createMediaPlan(data: {
  */
 export async function createMediaPlanVersion(data: MediaPlanVersion) {
   try {
-    // Ensure client_name is always a non-empty string
-    if (!data.client_name || typeof data.client_name !== 'string' || data.client_name.trim() === '') {
-      throw new Error("client_name is required and must be a non-empty string");
+    const resolvedClientName =
+      (typeof (data as any).mp_client_name === "string" && (data as any).mp_client_name.trim()) ||
+      (typeof (data as any).client_name === "string" && (data as any).client_name.trim()) ||
+      ""
+    if (!resolvedClientName) {
+      throw new Error("mp_client_name is required and must be a non-empty string")
     }
     
     // Validate required fields match Xano expectations
@@ -741,7 +773,7 @@ export async function createMediaPlanVersion(data: MediaPlanVersion) {
       campaign_start_date: 'string',
       campaign_end_date: 'string',
       brand: 'string',
-      client_name: 'string',
+      mp_client_name: 'string',
       client_contact: 'string',
       po_number: 'string',
       mp_campaignbudget: 'number',
@@ -784,10 +816,16 @@ export async function createMediaPlanVersion(data: MediaPlanVersion) {
       }
     });
     
+    // Ensure correct field is sent to Xano
+    ;(sanitizedData as any).mp_client_name = resolvedClientName
+    if ((sanitizedData as any).client_name) {
+      delete (sanitizedData as any).client_name
+    }
+    
     // Log the payload for debugging
     console.log("Creating media plan version with payload:", JSON.stringify(sanitizedData, null, 2));
-    console.log("client_name value:", sanitizedData.client_name);
-    console.log("client_name type:", typeof sanitizedData.client_name);
+    console.log("mp_client_name value:", (sanitizedData as any).mp_client_name);
+    console.log("mp_client_name type:", typeof (sanitizedData as any).mp_client_name);
     
     const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_versions`, {
       method: 'POST',
@@ -827,20 +865,20 @@ export async function createMediaPlanVersion(data: MediaPlanVersion) {
       errorMessage = errorData.message || errorData.error || errorData.detail || errorMessage;
       
       // Check if the error mentions "Unable to locate input" - this suggests Xano can't find the field
-      if (errorMessage.includes("Unable to locate input") || errorMessage.includes("client_name")) {
+      if (errorMessage.includes("Unable to locate input") || errorMessage.includes("mp_client_name") || errorMessage.includes("client_name")) {
         const missingField = errorMessage.match(/Unable to locate input: (\w+)/)?.[1] || "unknown field";
         console.error("Xano query error detected. The endpoint input block needs to explicitly declare input fields.");
         console.error(`Missing field in Xano script: ${missingField}`);
         console.error("Payload structure:", {
-          hasClientName: !!sanitizedData.client_name,
-          clientNameValue: sanitizedData.client_name,
-          clientNameType: typeof sanitizedData.client_name,
+          hasClientName: !!(sanitizedData as any).mp_client_name,
+          clientNameValue: (sanitizedData as any).mp_client_name,
+          clientNameType: typeof (sanitizedData as any).mp_client_name,
           allKeys: Object.keys(sanitizedData),
           payloadKeys: Object.keys(sanitizedData).sort(),
           expectedKeys: [
             'media_plan_master_id', 'version_number', 'mba_number', 'campaign_name',
             'campaign_status', 'campaign_start_date', 'campaign_end_date', 'brand',
-            'client_name', 'client_contact', 'po_number', 'mp_campaignbudget',
+            'mp_client_name', 'client_contact', 'po_number', 'mp_campaignbudget',
             'fixed_fee', 'mp_television', 'mp_radio', 'mp_newspaper', 'mp_magazines',
             'mp_ooh', 'mp_cinema', 'mp_digidisplay', 'mp_digiaudio', 'mp_digivideo',
             'mp_bvod', 'mp_integration', 'mp_search', 'mp_socialmedia', 'mp_progdisplay',
@@ -850,11 +888,11 @@ export async function createMediaPlanVersion(data: MediaPlanVersion) {
         });
         console.error("Xano Script Fix Required:");
         console.error("The Xano script's 'input' block must explicitly declare all input fields.");
-        console.error("Example: input { client_name: string, media_plan_master_id: integer, ... }");
+        console.error("Example: input { mp_client_name: string, media_plan_master_id: integer, ... }");
         console.error("Remove or modify the 'dblink' configuration in the input block if it's preventing field parsing.");
         
         // Provide a more helpful error message
-        errorMessage = `Xano endpoint configuration error: The input field '${missingField}' is not declared in the Xano script's input block. Please update the Xano script to explicitly declare all input fields (client_name, media_plan_master_id, etc.) in the input block.`;
+        errorMessage = `Xano endpoint configuration error: The input field '${missingField}' is not declared in the Xano script's input block. Please update the Xano script to explicitly declare all input fields (mp_client_name, media_plan_master_id, etc.) in the input block.`;
       }
       
       // If we got an empty object but status is 500, provide a more helpful message

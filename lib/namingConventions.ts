@@ -334,7 +334,7 @@ export async function generateNamingWorkbook(inputs: NamingWorkbookInputs): Prom
             if (val instanceof Date) cell.numFmt = "dd/mm/yyyy";
           }
           if (colIdx === 7 || colIdx === 8) {
-            cell.numFmt = "$#,##0.00";
+            cell.numFmt = "$#,##0.00##";
           }
         });
         currentRow++;

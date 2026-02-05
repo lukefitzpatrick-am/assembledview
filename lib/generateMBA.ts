@@ -37,8 +37,20 @@ export interface MBAData {
 
 // Helper function to format currency
 const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(amount);
+  return new Intl.NumberFormat("en-AU", {
+    style: "currency",
+    currency: "AUD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
 };
+
+const parseCurrency = (value: string | number | null | undefined): number => {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0
+  if (!value) return 0
+  const parsed = Number.parseFloat(String(value).replace(/[^0-9.-]/g, ""))
+  return Number.isFinite(parsed) ? parsed : 0
+}
 
 // Helper to fetch the logo and convert it to a format jspdf can use
 // Works in both browser and Node.js environments
@@ -231,7 +243,7 @@ export async function generateMBA(mbaData: MBAData): Promise<Blob> {
   doc.setFont("helvetica", "normal");
   mbaData.billingSchedule.forEach(b => {
     doc.text(b.monthYear, margin.left, y);
-    doc.text(b.totalAmount, margin.left + pageW, y, { align: 'right' });
+    doc.text(formatCurrency(parseCurrency(b.totalAmount)), margin.left + pageW, y, { align: 'right' });
     y += lineHeight;
   });
 

@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Combobox } from "@/components/ui/combobox"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { CalendarIcon, Plus, Trash2, Download, Save } from "lucide-react"
@@ -586,21 +586,22 @@ export default function EditScopePage() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Project Status</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select status" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="Draft">Draft</SelectItem>
-                            <SelectItem value="Submitted">Submitted</SelectItem>
-                            <SelectItem value="Approved">Approved</SelectItem>
-                            <SelectItem value="In-Progress">In-Progress</SelectItem>
-                            <SelectItem value="Completed">Completed</SelectItem>
-                            <SelectItem value="Cancelled">Cancelled</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <FormControl>
+                          <Combobox
+                            value={field.value}
+                            onValueChange={field.onChange}
+                            placeholder="Select status"
+                            searchPlaceholder="Search statuses..."
+                            options={[
+                              { value: "Approved", label: "Approved" },
+                              { value: "Cancelled", label: "Cancelled" },
+                              { value: "Completed", label: "Completed" },
+                              { value: "Draft", label: "Draft" },
+                              { value: "In-Progress", label: "In-Progress" },
+                              { value: "Submitted", label: "Submitted" },
+                            ]}
+                          />
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -908,23 +909,18 @@ export default function EditScopePage() {
                             control={form.control}
                             name={`billing_schedule.${index}.month`}
                             render={({ field: formField }) => (
-                              <Select
-                                value={formField.value}
-                                onValueChange={formField.onChange}
-                              >
-                                <FormControl>
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Select month" />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                  {monthYearOptions.map((option) => (
-                                    <SelectItem key={option.value} value={option.value}>
-                                      {option.label}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              <FormControl>
+                                <Combobox
+                                  value={formField.value}
+                                  onValueChange={formField.onChange}
+                                  placeholder="Select month"
+                                  searchPlaceholder="Search months..."
+                                  options={monthYearOptions.map((option) => ({
+                                    value: option.value,
+                                    label: option.label,
+                                  }))}
+                                />
+                              </FormControl>
                             )}
                           />
                         </TableCell>

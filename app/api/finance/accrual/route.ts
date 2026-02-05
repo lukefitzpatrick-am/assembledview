@@ -36,6 +36,23 @@ type XanoVersion = {
   billing_schedule?: unknown
 }
 
+type XanoLineItemRow = {
+  mba_number?: unknown
+  mp_plannumber?: unknown
+  version_number?: unknown
+  media_plan_version?: unknown
+  media_plan_version_id?: unknown
+
+  // Deterministic line item identifier (matches deliverySchedule.lineItemId)
+  line_item_id?: unknown
+  lineItemId?: unknown
+  id?: unknown
+
+  // Flag
+  client_pays_for_media?: unknown
+  clientPaysForMedia?: unknown
+}
+
 function safeString(v: unknown): string {
   return String(v ?? "").trim()
 }
@@ -178,6 +195,126 @@ async function fetchXanoJson<T>(request: NextRequest, url: string): Promise<T> {
   return (await res.json()) as T
 }
 
+const XANO_LINE_ITEM_ENDPOINTS = [
+  "television_line_items",
+  "radio_line_items",
+  "search_line_items",
+  "social_media_line_items",
+  "newspaper_line_items",
+  "magazines_line_items",
+  "ooh_line_items",
+  "cinema_line_items",
+  "digital_display_line_items",
+  "digital_audio_line_items",
+  "digital_video_line_items",
+  "bvod_line_items",
+  "integration_line_items",
+  "prog_display_line_items",
+  "prog_video_line_items",
+  "prog_bvod_line_items",
+  "prog_audio_line_items",
+  "prog_ooh_line_items",
+  "influencers_line_items",
+] as const
+
+function buildXanoUrlWithParams(
+  endpoint: string,
+  params: Record<string, string | number | boolean | null | undefined>,
+  baseKeys: string[]
+) {
+  const url = new URL(xanoUrl(endpoint, baseKeys))
+  for (const [k, v] of Object.entries(params)) {
+    if (v === null || v === undefined) continue
+    url.searchParams.set(k, String(v))
+  }
+  return url.toString()
+}
+
+function parseNumericId(value: unknown): number | null {
+  if (value === null || value === undefined) return null
+  const n = typeof value === "string" ? Number.parseInt(value, 10) : Number(value)
+  return Number.isFinite(n) ? n : null
+}
+
+function matchesMbaAndVersion(args: {
+  item: XanoLineItemRow
+  mbaNumber: string
+  versionNumber: number
+  mediaPlanVersionId: number | null
+}): boolean {
+  const mbaMatch = normalizeKey(args.item?.mba_number) === normalizeKey(args.mbaNumber)
+  if (!mbaMatch) return false
+
+  const versionStr = String(args.versionNumber)
+  const versionIdStr = args.mediaPlanVersionId !== null ? String(args.mediaPlanVersionId) : null
+
+  const mediaPlanVersion = safeString(args.item?.media_plan_version)
+  const mediaPlanVersionId = safeString(args.item?.media_plan_version_id)
+  const mpPlanNumber = safeString(args.item?.mp_plannumber)
+  const versionNumberField = safeString(args.item?.version_number)
+
+  const hasVersionIdCandidate = Boolean(mediaPlanVersion || mediaPlanVersionId)
+
+  // Prefer matching by media_plan_versions.id when present on the row
+  if (versionIdStr && hasVersionIdCandidate) {
+    return [mediaPlanVersion, mediaPlanVersionId].some((v) => v && v === versionIdStr)
+  }
+
+  // Fallback to human version number fields
+  return [mpPlanNumber, versionNumberField, mediaPlanVersion].some((v) => v && v === versionStr)
+}
+
+async function fetchVersionScopedLineItems(args: {
+  request: NextRequest
+  endpoint: (typeof XANO_LINE_ITEM_ENDPOINTS)[number]
+  mbaNumber: string
+  versionNumber: number
+  mediaPlanVersionId: number | null
+}): Promise<XanoLineItemRow[]> {
+  const baseKeys = ["XANO_MEDIA_CONTAINERS_BASE_URL", "XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]
+
+  const attempts: Array<Record<string, string | number>> = [
+    ...(args.mediaPlanVersionId !== null
+      ? [
+          { mba_number: args.mbaNumber, media_plan_version: args.mediaPlanVersionId },
+          { mba_number: args.mbaNumber, media_plan_version_id: args.mediaPlanVersionId },
+        ]
+      : []),
+    { mba_number: args.mbaNumber, mp_plannumber: args.versionNumber },
+    { mba_number: args.mbaNumber, version_number: args.versionNumber },
+    // Some tables store the version number in media_plan_version
+    { mba_number: args.mbaNumber, media_plan_version: args.versionNumber },
+  ]
+
+  let bestFiltered: XanoLineItemRow[] = []
+  let bestRawCount = Number.POSITIVE_INFINITY
+
+  for (const params of attempts) {
+    const url = buildXanoUrlWithParams(args.endpoint, params, baseKeys)
+    const raw = await fetchXanoJson<any[]>(args.request, url).catch(() => [])
+    const rawArray = Array.isArray(raw) ? (raw as XanoLineItemRow[]) : []
+
+    const filtered = rawArray.filter((item) =>
+      matchesMbaAndVersion({
+        item,
+        mbaNumber: args.mbaNumber,
+        versionNumber: args.versionNumber,
+        mediaPlanVersionId: args.mediaPlanVersionId,
+      })
+    )
+
+    if (filtered.length > bestFiltered.length || (filtered.length === bestFiltered.length && rawArray.length < bestRawCount)) {
+      bestFiltered = filtered
+      bestRawCount = rawArray.length
+    }
+
+    // Stop early when server-side filtering already returned only matches
+    if (rawArray.length > 0 && rawArray.length === filtered.length) break
+  }
+
+  return bestFiltered
+}
+
 function responseNoStore(payload: AccrualApiResponse, init?: ResponseInit) {
   const res = NextResponse.json(payload, init)
   res.headers.set("Cache-Control", "no-store, max-age=0")
@@ -236,6 +373,46 @@ export async function GET(request: NextRequest) {
 
     const chosen = pickLatestVersions(versionsArray, mastersArray)
 
+    // Build a lookup of client_pays_for_media flags by deterministic line item id (matches deliverySchedule.lineItemId).
+    // Non-fatal: failures here should not prevent accrual from loading.
+    const clientPaysForMediaByLineItemId: Record<string, boolean> = {}
+    try {
+      for (const v of chosen) {
+        const mbaNumber = safeString(v.mba_number)
+        if (!mbaNumber) continue
+        const versionNumber = extractVersionNumber(v) ?? 0
+        const mediaPlanVersionId = parseNumericId(v.id)
+
+        const results = await Promise.allSettled(
+          XANO_LINE_ITEM_ENDPOINTS.map((endpoint) =>
+            fetchVersionScopedLineItems({
+              request,
+              endpoint,
+              mbaNumber,
+              versionNumber,
+              mediaPlanVersionId,
+            })
+          )
+        )
+
+        for (const r of results) {
+          if (r.status !== "fulfilled") continue
+          for (const item of r.value) {
+            const lineItemId = normalizeKey(item?.line_item_id ?? item?.lineItemId ?? item?.id)
+            if (!lineItemId) continue
+            const flag = Boolean(item?.client_pays_for_media ?? item?.clientPaysForMedia)
+            if (flag) clientPaysForMediaByLineItemId[lineItemId] = true
+            else if (!(lineItemId in clientPaysForMediaByLineItemId)) clientPaysForMediaByLineItemId[lineItemId] = false
+          }
+        }
+      }
+    } catch {
+      // ignore (non-fatal)
+    }
+
+    const clientPaysForMediaFlagsLoadedCount = Object.keys(clientPaysForMediaByLineItemId).length
+    const clientPaysForMediaTrueCount = Object.values(clientPaysForMediaByLineItemId).filter(Boolean).length
+
     const rows = computeAccrualRows({
       months: monthsNormalized,
       versions: chosen.map((v) => ({
@@ -247,6 +424,7 @@ export async function GET(request: NextRequest) {
         deliverySchedule: v.deliverySchedule ?? v.delivery_schedule ?? null,
         billingSchedule: v.billingSchedule ?? v.billing_schedule ?? null,
       })),
+      clientPaysForMediaByLineItemId,
     })
 
     return responseNoStore({
@@ -258,6 +436,8 @@ export async function GET(request: NextRequest) {
         mastersCount: mastersArray.length,
         versionsCount: versionsArray.length,
         chosenVersionsCount: chosen.length,
+        clientPaysForMediaFlagsLoadedCount,
+        clientPaysForMediaTrueCount,
       },
     })
   } catch (error) {

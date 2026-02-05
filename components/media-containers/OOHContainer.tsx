@@ -7,7 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Combobox } from "@/components/ui/combobox"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Textarea } from "@/components/ui/textarea"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
@@ -26,6 +26,7 @@ import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
 import type { LineItem } from '@/lib/generateMediaPlan'
 import { LoadingDots } from "@/components/ui/loading-dots"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
+import { formatMoney } from "@/lib/utils/money"
 
 // Format Dates
 const formatDateString = (d?: Date | string): string => {
@@ -225,7 +226,7 @@ export function calculateInvestmentPerMonth(form, feeooh) {
 
   return Object.entries(monthlyInvestment).map(([monthYear, amount]) => ({
     monthYear,
-    amount: `$${amount.toFixed(2)}`,
+    amount: formatMoney(amount, { locale: "en-US", currency: "USD" }),
   }));
 }
 
@@ -275,7 +276,7 @@ export function calculateBurstInvestmentPerMonth(form, feeooh) {
 
   return Object.entries(monthlyInvestment).map(([monthYear, amount]) => ({
     monthYear,
-    amount: amount.toFixed(2),
+    amount: amount.toFixed(4),
   }));
 }
 
@@ -898,7 +899,7 @@ useEffect(() => {
         endDate:   formatDateString(burst.endDate),
         deliverables: burst.calculatedValue ?? 0,
         deliverablesAmount: burst.budget,
-        grossMedia: mediaAmount.toFixed(2),
+        grossMedia: String(mediaAmount),
         line_item_id: lineItemId,
         lineItemId: lineItemId,
         line_item: lineNumber,
@@ -1007,9 +1008,9 @@ useEffect(() => {
                   <span>
                     {getDeliverablesLabel(form.getValues(`lineItems.${item.index - 1}.buyType`))}: {item.deliverables.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                   </span>
-                  <span>Media: ${item.media.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                  <span>Fee: ${item.fee.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                  <span>Total Cost: ${item.totalCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                  <span>Media: {formatMoney(item.media, { locale: "en-US", currency: "USD" })}</span>
+                  <span>Fee: {formatMoney(item.fee, { locale: "en-US", currency: "USD" })}</span>
+                  <span>Total Cost: {formatMoney(item.totalCost, { locale: "en-US", currency: "USD" })}</span>
                 </div>
               </div>
             ))}
@@ -1018,9 +1019,9 @@ useEffect(() => {
             <div className="pt-4 border-t font-medium flex justify-between">
               <span>OOH Media Totals:</span>
               <div className="flex space-x-4">
-                <span>Media: ${overallTotals.overallMedia.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                <span>Fees ({feeooh}%): ${overallTotals.overallFee.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                <span>Total Cost: ${overallTotals.overallCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                <span>Media: {formatMoney(overallTotals.overallMedia, { locale: "en-US", currency: "USD" })}</span>
+                <span>Fees ({feeooh}%): {formatMoney(overallTotals.overallFee, { locale: "en-US", currency: "USD" })}</span>
+                <span>Total Cost: {formatMoney(overallTotals.overallCost, { locale: "en-US", currency: "USD" })}</span>
               </div>
             </div>
           </CardContent>
@@ -1066,15 +1067,11 @@ useEffect(() => {
                           </div>
                           <div className="flex items-center space-x-2">
                             <div className="text-sm font-medium">
-                              Total: {new Intl.NumberFormat('en-US', {
-                                style: 'currency',
-                                currency: 'USD',
-                                minimumFractionDigits: 2,
-                                maximumFractionDigits: 2
-                              }).format(
+                              Total: {formatMoney(
                                 form.getValues(`lineItems.${lineItemIndex}.budgetIncludesFees`)
                                   ? totalMedia
-                                  : totalMedia + (totalMedia / (100 - (feeooh || 0))) * (feeooh || 0)
+                                  : totalMedia + (totalMedia / (100 - (feeooh || 0))) * (feeooh || 0),
+                                { locale: "en-US", currency: "USD" }
                               )}
                             </div>
                             <Button
@@ -1131,25 +1128,20 @@ useEffect(() => {
                                 render={({ field }) => (
                                   <FormItem className="flex items-center space-x-2">
                                     <FormLabel className="w-24 text-sm">Network</FormLabel>
-                                    <Select
-                                      onValueChange={(value) => {
-                                        field.onChange(value)
-                                      }}
-                                      value={field.value}
-                                    >
-                                      <FormControl>
-                                        <SelectTrigger className="h-9 w-full flex-1 rounded-md border">
-                                          <SelectValue placeholder="Select" />
-                                        </SelectTrigger>
-                                      </FormControl>
-                                      <SelectContent>
-                                        {publishers.map((publisher) => (
-                                          <SelectItem key={publisher.id} value={publisher.publisher_name}>
-                                            {publisher.publisher_name}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
+                                    <FormControl>
+                                      <Combobox
+                                        value={field.value}
+                                        onValueChange={(value) => field.onChange(value)}
+                                        placeholder="Select"
+                                        searchPlaceholder="Search networks..."
+                                        emptyText={publishers.length === 0 ? "No networks available." : "No networks found."}
+                                        buttonClassName="h-9 w-full flex-1 rounded-md"
+                                        options={publishers.map((publisher) => ({
+                                          value: publisher.publisher_name,
+                                          label: publisher.publisher_name,
+                                        }))}
+                                      />
+                                    </FormControl>
                                     <FormMessage />
                                   </FormItem>
                                 )}
@@ -1162,22 +1154,24 @@ useEffect(() => {
                                 render={({ field }) => (
                                   <FormItem className="flex items-center space-x-2">
                                     <FormLabel className="w-24 text-sm">Format</FormLabel>
-                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                      <FormControl>
-                                        <SelectTrigger className="h-9 w-full flex-1 rounded-md border">
-                                          <SelectValue placeholder="Select" />
-                                        </SelectTrigger>
-                                      </FormControl>
-                                      <SelectContent>
-                                        <SelectItem value="large_format">Large Format</SelectItem>
-                                        <SelectItem value="small_format">Small Format</SelectItem>
-                                        <SelectItem value="retail">Retail</SelectItem>
-                                        <SelectItem value="street_furniture">Street Furniture</SelectItem>
-                                        <SelectItem value="transit">Transit</SelectItem>
-                                        <SelectItem value="active">Active</SelectItem>
-                                        <SelectItem value="other">Other</SelectItem>
-                                      </SelectContent>
-                                    </Select>
+                                    <FormControl>
+                                      <Combobox
+                                        value={field.value}
+                                        onValueChange={field.onChange}
+                                        placeholder="Select"
+                                        searchPlaceholder="Search formats..."
+                                        buttonClassName="h-9 w-full flex-1 rounded-md"
+                                        options={[
+                                          { value: "active", label: "Active" },
+                                          { value: "large_format", label: "Large Format" },
+                                          { value: "other", label: "Other" },
+                                          { value: "retail", label: "Retail" },
+                                          { value: "small_format", label: "Small Format" },
+                                          { value: "street_furniture", label: "Street Furniture" },
+                                          { value: "transit", label: "Transit" },
+                                        ]}
+                                      />
+                                    </FormControl>
                                     <FormMessage />
                                   </FormItem>
                                 )}
@@ -1190,20 +1184,22 @@ useEffect(() => {
                                 render={({ field }) => (
                                   <FormItem className="flex items-center space-x-2">
                                     <FormLabel className="w-24 text-sm">Buy Type</FormLabel>
-                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                      <FormControl>
-                                        <SelectTrigger className="h-9 w-full flex-1 rounded-md border">
-                                          <SelectValue placeholder="Select" />
-                                        </SelectTrigger>
-                                      </FormControl>
-                                      <SelectContent>
-                                        <SelectItem value="cpm">CPM</SelectItem>
-                                        <SelectItem value="panels">Panels</SelectItem>
-                                        <SelectItem value="fixed_cost">Fixed Cost</SelectItem>
-                                        <SelectItem value="package">Package</SelectItem>
-                                        <SelectItem value="bonus">Bonus</SelectItem>
-                                      </SelectContent>
-                                    </Select>
+                                    <FormControl>
+                                      <Combobox
+                                        value={field.value}
+                                        onValueChange={field.onChange}
+                                        placeholder="Select"
+                                        searchPlaceholder="Search buy types..."
+                                        buttonClassName="h-9 w-full flex-1 rounded-md"
+                                        options={[
+                                          { value: "bonus", label: "Bonus" },
+                                          { value: "cpm", label: "CPM" },
+                                          { value: "fixed_cost", label: "Fixed Cost" },
+                                          { value: "package", label: "Package" },
+                                          { value: "panels", label: "Panels" },
+                                        ]}
+                                      />
+                                    </FormControl>
                                     <FormMessage />
                                   </FormItem>
                                 )}
@@ -1368,12 +1364,10 @@ useEffect(() => {
                                                 }}
                                                 onBlur={(e) => {
                                                   const value = e.target.value;
-                                                  const formattedValue = new Intl.NumberFormat("en-US", {
-                                                    style: "currency",
+                                                  const formattedValue = formatMoney(Number.parseFloat(value) || 0, {
+                                                    locale: "en-US",
                                                     currency: "USD",
-                                                    minimumFractionDigits: 2,
-                                                    maximumFractionDigits: 2,
-                                                  }).format(Number.parseFloat(value) || 0);
+                                                  });
                                                   field.onChange(formattedValue);
                                                   handleValueChange(lineItemIndex, burstIndex);
                                                 }}
@@ -1408,12 +1402,10 @@ useEffect(() => {
                                                 }}
                                                 onBlur={(e) => {
                                                   const value = e.target.value;
-                                                  const formattedValue = new Intl.NumberFormat("en-US", {
-                                                    style: "currency",
+                                                  const formattedValue = formatMoney(Number.parseFloat(value) || 0, {
+                                                    locale: "en-US",
                                                     currency: "USD",
-                                                    minimumFractionDigits: 2,
-                                                    maximumFractionDigits: 2,
-                                                  }).format(Number.parseFloat(value) || 0);
+                                                  });
                                                   field.onChange(formattedValue);
                                                   handleValueChange(lineItemIndex, burstIndex);
                                                 }}
@@ -1611,16 +1603,11 @@ useEffect(() => {
                                       <Input
                                         type="text"
                                         className="w-full h-10 text-sm"
-                                        value={new Intl.NumberFormat("en-US", {
-                                          style: "currency",
-                                          currency: "USD",
-                                          minimumFractionDigits: 2,
-                                          maximumFractionDigits: 2,
-                                        }).format(
+                                        value={formatMoney(
                                           form.getValues(`lineItems.${lineItemIndex}.budgetIncludesFees`)
                                             ? (parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (100 - (feeooh || 0))
                                             : parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0")
-                                        )}
+                                        , { locale: "en-US", currency: "USD" })}
                                         readOnly
                                       />
                                     </div>
@@ -1629,16 +1616,11 @@ useEffect(() => {
                                       <Input
                                         type="text"
                                         className="w-full h-10 text-sm"
-                                        value={new Intl.NumberFormat("en-US", {
-                                          style: "currency",
-                                          currency: "USD",
-                                          minimumFractionDigits: 2,
-                                          maximumFractionDigits: 2,
-                                        }).format(
+                                        value={formatMoney(
                                           form.getValues(`lineItems.${lineItemIndex}.budgetIncludesFees`)
                                             ? (parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (feeooh || 0)
                                             : (parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / (100 - (feeooh || 0))) * (feeooh || 0)
-                                        )}
+                                        , { locale: "en-US", currency: "USD" })}
                                         readOnly
                                       />
                                     </div>

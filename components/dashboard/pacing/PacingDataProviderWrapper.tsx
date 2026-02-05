@@ -12,6 +12,8 @@ type PacingDataProviderWrapperProps = {
   pacingLineItemIds: string[]
   campaignStart?: string
   campaignEnd?: string
+  fromDate?: string
+  toDate?: string
   clientSlug: string
   socialItemsActive: any[]
   progDisplayItemsActive: any[]
@@ -23,6 +25,8 @@ export default function PacingDataProviderWrapper({
   pacingLineItemIds,
   campaignStart,
   campaignEnd,
+  fromDate,
+  toDate,
   clientSlug,
   socialItemsActive,
   progDisplayItemsActive,
@@ -99,6 +103,9 @@ export default function PacingDataProviderWrapper({
     return Array.from(new Set(ids)).sort()
   }, [progVideoItemsActive, pacingIdSet])
 
+  const effectiveStart = fromDate ?? campaignStart
+  const effectiveEnd = toDate ?? campaignEnd
+
   return (
     <PacingDataProvider
       mbaNumber={mbaNumber}
@@ -108,6 +115,8 @@ export default function PacingDataProviderWrapper({
       progVideoLineItemIds={progVideoLineItemIds}
       campaignStart={campaignStart}
       campaignEnd={campaignEnd}
+      fromDate={effectiveStart}
+      toDate={effectiveEnd}
     >
       {({ rows, loading, error }: { rows: CombinedPacingRow[]; loading: boolean; error: string | null }) => (
         <>
@@ -126,8 +135,8 @@ export default function PacingDataProviderWrapper({
                   clientSlug={clientSlug}
                   mbaNumber={mbaNumber}
                   socialLineItems={socialItemsActive}
-                  campaignStart={campaignStart}
-                  campaignEnd={campaignEnd}
+                  campaignStart={effectiveStart}
+                  campaignEnd={effectiveEnd}
                   initialPacingRows={rows}
                   pacingLineItemIds={pacingLineItemIds}
                 />
@@ -139,8 +148,8 @@ export default function PacingDataProviderWrapper({
                   mbaNumber={mbaNumber}
                   progDisplayLineItems={progDisplayItemsActive}
                   progVideoLineItems={progVideoItemsActive}
-                  campaignStart={campaignStart}
-                  campaignEnd={campaignEnd}
+                  campaignStart={effectiveStart}
+                  campaignEnd={effectiveEnd}
                   initialPacingRows={rows}
                   pacingLineItemIds={pacingLineItemIds}
                 />

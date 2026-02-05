@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server"
 import { xanoUrl } from "@/lib/api/xano"
 
-async function proxy(request: Request, params: { path: string[] }) {
-  const path = (params?.path || []).join("/")
+type Ctx = { params: Promise<{ path: string[] }> }
+
+async function proxy(request: Request, ctx: Ctx) {
+  const { path: parts } = await ctx.params
+  const path = (parts || []).join("/")
   if (!path) {
     return NextResponse.json({ error: "Missing media plan path" }, { status: 400 })
   }
@@ -35,18 +38,18 @@ async function proxy(request: Request, params: { path: string[] }) {
   })
 }
 
-export async function GET(request: Request, context: { params: { path: string[] } }) {
-  return proxy(request, context.params)
+export async function GET(request: Request, context: Ctx) {
+  return proxy(request, context)
 }
 
-export async function POST(request: Request, context: { params: { path: string[] } }) {
-  return proxy(request, context.params)
+export async function POST(request: Request, context: Ctx) {
+  return proxy(request, context)
 }
 
-export async function PUT(request: Request, context: { params: { path: string[] } }) {
-  return proxy(request, context.params)
+export async function PUT(request: Request, context: Ctx) {
+  return proxy(request, context)
 }
 
-export async function DELETE(request: Request, context: { params: { path: string[] } }) {
-  return proxy(request, context.params)
+export async function DELETE(request: Request, context: Ctx) {
+  return proxy(request, context)
 }

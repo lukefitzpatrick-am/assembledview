@@ -50,6 +50,26 @@ const currencyFormatter = new Intl.NumberFormat('en-AU', {
   maximumFractionDigits: 2,
 });
 
+function parseMoney(value: unknown): number {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0
+  }
+  if (typeof value === "string") {
+    const parsed = parseFloat(value.replace(/[^0-9.-]/g, ""))
+    return Number.isFinite(parsed) ? parsed : 0
+  }
+  return 0
+}
+
+function coerceMoneyString(value: unknown): string | undefined {
+  if (value === null || value === undefined) return undefined
+  if (typeof value === "string") return value
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return currencyFormatter.format(value)
+  }
+  return String(value)
+}
+
 /**
  * Transforms BillingMonth[] data into the required hierarchy:
  * Month → Media Types → Line Items (header1, header2, $ amount)
@@ -63,9 +83,10 @@ export function buildBillingScheduleJSON(billingMonths: BillingMonth[]): Billing
   return billingMonths.reduce<BillingScheduleEntry[]>((acc, month) => {
     // Process even if there are no line items, as we may have fee/ad serving data
     const hasLineItems = month.lineItems && Object.keys(month.lineItems).length > 0;
-    const hasFeeOrAdServing = (month.feeTotal && parseFloat(month.feeTotal.replace(/[^0-9.-]/g, '')) !== 0) ||
-                               (month.adservingTechFees && parseFloat(month.adservingTechFees.replace(/[^0-9.-]/g, '')) !== 0) ||
-                               (month.production && parseFloat(month.production.replace(/[^0-9.-]/g, '')) !== 0);
+    const hasFeeOrAdServing =
+      parseMoney((month as any).feeTotal) !== 0 ||
+      parseMoney((month as any).adservingTechFees) !== 0 ||
+      parseMoney((month as any).production) !== 0;
     
     if (!hasLineItems && !hasFeeOrAdServing) {
       return acc;
@@ -73,7 +94,7 @@ export function buildBillingScheduleJSON(billingMonths: BillingMonth[]): Billing
 
     const mediaTypes: BillingScheduleMediaType[] = [];
 
-    Object.entries(month.lineItems).forEach(([mediaKey, lineItems]) => {
+    Object.entries(month.lineItems ?? {}).forEach(([mediaKey, lineItems]) => {
       if (!lineItems || lineItems.length === 0) {
         return;
       }
@@ -108,18 +129,21 @@ export function buildBillingScheduleJSON(billingMonths: BillingMonth[]): Billing
     };
 
     // Include feeTotal if present and not empty/zero
-    if (month.feeTotal && month.feeTotal.trim() !== '' && parseFloat(month.feeTotal.replace(/[^0-9.-]/g, '')) !== 0) {
-      entry.feeTotal = month.feeTotal;
+    const feeTotalValue = coerceMoneyString((month as any).feeTotal)
+    if (feeTotalValue && feeTotalValue.trim() !== "" && parseMoney((month as any).feeTotal) !== 0) {
+      entry.feeTotal = feeTotalValue
     }
 
     // Include adservingTechFees if present and not empty/zero
-    if (month.adservingTechFees && month.adservingTechFees.trim() !== '' && parseFloat(month.adservingTechFees.replace(/[^0-9.-]/g, '')) !== 0) {
-      entry.adservingTechFees = month.adservingTechFees;
+    const adservingValue = coerceMoneyString((month as any).adservingTechFees)
+    if (adservingValue && adservingValue.trim() !== "" && parseMoney((month as any).adservingTechFees) !== 0) {
+      entry.adservingTechFees = adservingValue
     }
 
     // Include production if present and not empty/zero
-    if (month.production && month.production.trim() !== '' && parseFloat(month.production.replace(/[^0-9.-]/g, '')) !== 0) {
-      entry.production = month.production;
+    const productionValue = coerceMoneyString((month as any).production)
+    if (productionValue && productionValue.trim() !== "" && parseMoney((month as any).production) !== 0) {
+      entry.production = productionValue
     }
 
     // Only add entry if it has media types or fee/ad serving data

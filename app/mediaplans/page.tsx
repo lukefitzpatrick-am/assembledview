@@ -16,6 +16,15 @@ import { compareValues, SortableTableHeader, SortDirection } from "@/components/
 import { PlanUpload } from "@/components/PlanUpload"
 import type { PlanParseResult } from "@/lib/planParser"
 
+const slugifyClientName = (name?: string | null) => {
+  if (!name || typeof name !== "string") return ""
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .trim()
+}
+
 // Define the MediaPlan interface to handle both MediaPlanMaster and MediaPlanVersions
 interface MediaPlan {
   id: number;
@@ -403,6 +412,7 @@ export default function MediaPlansPage() {
             {CAMPAIGN_STATUSES.map((status) => {
               const plans = getMediaPlansByStatus(status)
               const sortedPlans = applySortForStatus(plans, status)
+              const shouldScrollTable = sortedPlans.length > 12
               return (
                 <Card key={status} className="w-full">
                   <CardHeader>
@@ -417,7 +427,7 @@ export default function MediaPlansPage() {
                     {plans.length === 0 ? (
                       <p className="text-muted-foreground text-center py-4">No {status.toLowerCase()} media plans</p>
                     ) : (
-                      <div className="overflow-x-auto">
+                      <div className={`overflow-x-auto ${shouldScrollTable ? "max-h-[1008px] overflow-y-auto" : ""}`}>
                         <Table>
                           <TableHeader>
                             <TableRow>
@@ -490,13 +500,27 @@ export default function MediaPlansPage() {
                                   </div>
                                 </TableCell>
                                 <TableCell className="w-20">
-                                  <Button 
-                                    variant="outline" 
-                                    size="sm"
-                                    onClick={() => router.push(`/mediaplans/mba/${plan.mba_number}/edit?version=${plan.version_number}`)}
-                                  >
-                                    Edit
-                                  </Button>
+                                  <div className="flex flex-col items-start gap-2">
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm"
+                                      onClick={() => router.push(`/mediaplans/mba/${plan.mba_number}/edit?version=${plan.version_number}`)}
+                                    >
+                                      Edit
+                                    </Button>
+                                    <Button
+                                      variant="secondary"
+                                      size="sm"
+                                      disabled={!slugifyClientName(plan.mp_client_name)}
+                                      onClick={() => {
+                                        const slug = slugifyClientName(plan.mp_client_name)
+                                        if (!slug) return
+                                        router.push(`/dashboard/${slug}/${plan.mba_number}`)
+                                      }}
+                                    >
+                                      View
+                                    </Button>
+                                  </div>
                                 </TableCell>
                               </TableRow>
                             ))}

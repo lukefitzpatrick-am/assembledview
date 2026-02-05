@@ -7,7 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Combobox } from "@/components/ui/combobox"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger,} from "@/components/ui/dialog"
 import { PlusCircle } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -28,6 +28,7 @@ import { ChevronDown, Copy, Plus, Trash2 } from "lucide-react"
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
 import type { LineItem } from '@/lib/generateMediaPlan'
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
+import { formatMoney } from "@/lib/utils/money"
 
 // Format Dates
 const formatDateString = (d?: Date | string): string => {
@@ -225,7 +226,7 @@ export function calculateInvestmentPerMonth(form, feeradio) {
 
   return Object.entries(monthlyInvestment).map(([monthYear, amount]) => ({
     monthYear,
-    amount: `$${amount.toFixed(2)}`,
+    amount: formatMoney(amount, { locale: "en-US", currency: "USD" }),
   }));
 }
 
@@ -275,7 +276,7 @@ export function calculateBurstInvestmentPerMonth(form, feeradio) {
 
   return Object.entries(monthlyInvestment).map(([monthYear, amount]) => ({
     monthYear,
-    amount: amount.toFixed(2),
+    amount: amount.toFixed(4),
   }));
 }
 
@@ -1124,7 +1125,7 @@ useEffect(() => {
         buyingDemo:   lineItem.buyingDemo,
         buyType:      lineItem.buyType,
         deliverablesAmount: burst.budget,
-        grossMedia: mediaAmount.toFixed(2),
+        grossMedia: String(mediaAmount),
         line_item_id: lineItemId,
         lineItemId: lineItemId,
         line_item: lineNumber,
@@ -1235,9 +1236,9 @@ useEffect(() => {
                   <span>
                     {getDeliverablesLabel(form.getValues(`radiolineItems.${item.index - 1}.buyType`))}: {item.deliverables.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                   </span>
-                  <span>Media: ${item.media.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                  <span>Fee: ${item.fee.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                  <span>Total Cost: ${item.totalCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                  <span>Media: {formatMoney(item.media, { locale: "en-US", currency: "USD" })}</span>
+                  <span>Fee: {formatMoney(item.fee, { locale: "en-US", currency: "USD" })}</span>
+                  <span>Total Cost: {formatMoney(item.totalCost, { locale: "en-US", currency: "USD" })}</span>
                 </div>
               </div>
             ))}
@@ -1246,9 +1247,9 @@ useEffect(() => {
             <div className="pt-4 border-t font-medium flex justify-between">
               <span>Radio Media Totals:</span>
               <div className="flex space-x-4">
-                <span>Media: ${overallTotals.overallMedia.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                <span>Fees ({feeradio}%): ${overallTotals.overallFee.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                <span>Total Cost: ${overallTotals.overallCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                <span>Media: {formatMoney(overallTotals.overallMedia, { locale: "en-US", currency: "USD" })}</span>
+                <span>Fees ({feeradio}%): {formatMoney(overallTotals.overallFee, { locale: "en-US", currency: "USD" })}</span>
+                <span>Total Cost: {formatMoney(overallTotals.overallCost, { locale: "en-US", currency: "USD" })}</span>
               </div>
             </div>
           </CardContent>
@@ -1305,15 +1306,11 @@ useEffect(() => {
                           </div>
                           <div className="flex items-center space-x-2">
                             <div className="text-sm font-medium">
-                              Total: {new Intl.NumberFormat('en-US', {
-                                style: 'currency',
-                                currency: 'USD',
-                                minimumFractionDigits: 2,
-                                maximumFractionDigits: 2
-                              }).format(
+                              Total: {formatMoney(
                                 form.getValues(`radiolineItems.${lineItemIndex}.budgetIncludesFees`)
                                   ? totalMedia
-                                  : totalMedia + (totalMedia / (100 - (feeradio || 0))) * (feeradio || 0)
+                                  : totalMedia + (totalMedia / (100 - (feeradio || 0))) * (feeradio || 0),
+                                { locale: "en-US", currency: "USD" }
                               )}
                             </div>
                             <Button
@@ -1369,22 +1366,22 @@ useEffect(() => {
                                 render={({ field }) => (
                                   <FormItem className="flex items-center space-x-2">
                                     <FormLabel className="w-24 text-sm">Network</FormLabel>
-                                    <Select onValueChange={(value) => {
-                                      field.onChange(value);
-                                       }} defaultValue={field.value}>
-                                      <FormControl>
-                                        <SelectTrigger className="h-9 w-full flex-1 rounded-md border">
-                                          <SelectValue placeholder="Select Network" />
-                                        </SelectTrigger>
-                                      </FormControl>
-                                      <SelectContent>
-                                        {publishers.map((publisher) => (
-                                          <SelectItem key={publisher.id} value={publisher.publisher_name}>
-                                            {publisher.publisher_name}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
+                                    <FormControl>
+                                      <Combobox
+                                        value={field.value}
+                                        onValueChange={(value) => {
+                                          field.onChange(value)
+                                        }}
+                                        placeholder="Select Network"
+                                        searchPlaceholder="Search networks..."
+                                        emptyText={publishers.length === 0 ? "No networks available." : "No networks found."}
+                                        buttonClassName="h-9 w-full flex-1 rounded-md"
+                                        options={publishers.map((publisher) => ({
+                                          value: publisher.publisher_name,
+                                          label: publisher.publisher_name,
+                                        }))}
+                                      />
+                                    </FormControl>
                                     <FormMessage />
                                   </FormItem>
                                 )}
@@ -1397,35 +1394,25 @@ useEffect(() => {
                                       <FormItem className="flex items-center space-x-2">
                                         <FormLabel className="w-24 text-sm">Station</FormLabel>
                                         <div className="flex-1 flex items-center space-x-1">
-                                          <Select
-                                            onValueChange={field.onChange}
-                                            value={field.value} // Ensure value is controlled
-                                            disabled={!selectedNetwork} // Disable if no network is selected
-                                          >
-                                            <FormControl>
-                                              <SelectTrigger className="h-9 w-full rounded-md border">
-                                                <SelectValue placeholder={selectedNetwork ? "Select Station" : "Select Network first"} />
-                                              </SelectTrigger>
-                                            </FormControl>
-                                            <SelectContent>
-                                              {filteredRadioStations.length > 0 ? (
-                                                filteredRadioStations.map((radioStation) => ( //
-                                                  <SelectItem 
-                                                  key={radioStation.id} 
-                                                  value={radioStation.station || `station-${radioStation.id}`} // Guard against empty string
-                                                >
-                                                  {radioStation.station}
-                                                  </SelectItem>
-                                                ))
-                                              ) : (
-                                                selectedNetwork && ( <div className="p-2 text-sm text-muted-foreground text-center">
-                                                No stations found for "{selectedNetwork}".<br />
-                                                Click the <PlusCircle className="inline h-4 w-4 mx-1 text-blue-500" /> icon to add one.
-                                              </div>
-                                            )
-                                              )}
-                                            </SelectContent>
-                                          </Select>
+                                          <FormControl>
+                                            <Combobox
+                                              value={field.value}
+                                              onValueChange={field.onChange}
+                                              disabled={!selectedNetwork}
+                                              placeholder={selectedNetwork ? "Select Station" : "Select Network first"}
+                                              searchPlaceholder="Search stations..."
+                                              emptyText={
+                                                selectedNetwork
+                                                  ? `No stations found for "${selectedNetwork}".`
+                                                  : "Select Network first"
+                                              }
+                                              buttonClassName="h-9 w-full rounded-md"
+                                              options={filteredRadioStations.map((radioStation) => ({
+                                                value: radioStation.station || `station-${radioStation.id}`,
+                                                label: radioStation.station || "(Unnamed station)",
+                                              }))}
+                                            />
+                                          </FormControl>
                                             <Button
                                               type="button"
                                               variant="ghost"
@@ -1461,25 +1448,22 @@ useEffect(() => {
                                 render={({ field }) => (
                                   <FormItem className="flex items-center space-x-2">
                                     <FormLabel className="w-24 text-sm">Buy Type</FormLabel>
-                                    <Select
-                                      onValueChange={(value) =>
-                                        handleBuyTypeChange(lineItemIndex, value)
-                                      }
-                                      defaultValue={field.value}
-                                    >
-                                      <FormControl>
-                                        <SelectTrigger className="h-9 w-full flex-1 rounded-md border">
-                                          <SelectValue placeholder="Select" />
-                                        </SelectTrigger>
-                                      </FormControl>
-                                      <SelectContent>
-                                        <SelectItem value="spots">Spots</SelectItem>
-                                        <SelectItem value="cpm">CPM</SelectItem>
-                                        <SelectItem value="package">Package</SelectItem>
-                                        <SelectItem value="bonus">Bonus</SelectItem>
-                                        <SelectItem value="fixed_cost">Fixed Cost</SelectItem>
-                                      </SelectContent>
-                                    </Select>
+                                    <FormControl>
+                                      <Combobox
+                                        value={field.value}
+                                        onValueChange={(value) => handleBuyTypeChange(lineItemIndex, value)}
+                                        placeholder="Select"
+                                        searchPlaceholder="Search buy types..."
+                                        buttonClassName="h-9 w-full flex-1 rounded-md"
+                                        options={[
+                                          { value: "bonus", label: "Bonus" },
+                                          { value: "cpm", label: "CPM" },
+                                          { value: "fixed_cost", label: "Fixed Cost" },
+                                          { value: "package", label: "Package" },
+                                          { value: "spots", label: "Spots" },
+                                        ]}
+                                      />
+                                    </FormControl>
                                     <FormMessage />
                                   </FormItem>
                                 )}
@@ -1638,12 +1622,10 @@ useEffect(() => {
                                               }}
                                               onBlur={(e) => {
                                                 const value = e.target.value;
-                                                const formattedValue = new Intl.NumberFormat("en-US", {
-                                                  style: "currency",
+                                                const formattedValue = formatMoney(Number.parseFloat(value) || 0, {
+                                                  locale: "en-US",
                                                   currency: "USD",
-                                                  minimumFractionDigits: 2,
-                                                  maximumFractionDigits: 2,
-                                                }).format(Number.parseFloat(value) || 0);
+                                                });
                                                 field.onChange(formattedValue);
                                                 handleValueChange(lineItemIndex, burstIndex);
                                               }}
@@ -1674,12 +1656,10 @@ useEffect(() => {
                                               }}
                                               onBlur={(e) => {
                                                 const value = e.target.value;
-                                                const formattedValue = new Intl.NumberFormat("en-US", {
-                                                  style: "currency",
+                                                const formattedValue = formatMoney(Number.parseFloat(value) || 0, {
+                                                  locale: "en-US",
                                                   currency: "USD",
-                                                  minimumFractionDigits: 2,
-                                                  maximumFractionDigits: 2,
-                                                }).format(Number.parseFloat(value) || 0);
+                                                });
                                                 field.onChange(formattedValue);
                                                 handleValueChange(lineItemIndex, burstIndex);
                                               }}
@@ -1865,16 +1845,11 @@ useEffect(() => {
                                       <Input
                                         type="text"
                                         className="w-full h-10 text-sm"
-                                        value={new Intl.NumberFormat("en-US", {
-                                          style: "currency",
-                                          currency: "USD",
-                                          minimumFractionDigits: 2,
-                                          maximumFractionDigits: 2,
-                                        }).format(
+                                        value={formatMoney(
                                           form.getValues(`radiolineItems.${lineItemIndex}.budgetIncludesFees`)
                                             ? (parseFloat(form.getValues(`radiolineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (100 - (feeradio || 0))
                                             : parseFloat(form.getValues(`radiolineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0")
-                                        )}
+                                        , { locale: "en-US", currency: "USD" })}
                                         readOnly
                                       />
                                     </div>
@@ -1883,16 +1858,11 @@ useEffect(() => {
                                       <Input
                                         type="text"
                                         className="w-full h-10 text-sm"
-                                        value={new Intl.NumberFormat("en-US", {
-                                          style: "currency",
-                                          currency: "USD",
-                                          minimumFractionDigits: 2,
-                                          maximumFractionDigits: 2,
-                                        }).format(
+                                        value={formatMoney(
                                           form.getValues(`radiolineItems.${lineItemIndex}.budgetIncludesFees`)
                                             ? (parseFloat(form.getValues(`radiolineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (feeradio || 0)
                                             : (parseFloat(form.getValues(`radiolineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / (100 - (feeradio || 0))) * (feeradio || 0)
-                                        )}
+                                        , { locale: "en-US", currency: "USD" })}
                                         readOnly
                                       />
                                     </div>
@@ -2026,21 +1996,17 @@ useEffect(() => {
           Network
         </Label>
         {/* Assuming 'publishers' contains the list of available networks */}
-        <Select
+        <Combobox
           value={newStationNetwork}
           onValueChange={setNewStationNetwork}
-        >
-          <SelectTrigger className="col-span-3 h-9">
-            <SelectValue placeholder="Select Network" />
-          </SelectTrigger>
-          <SelectContent>
-            {publishers.map((publisher) => ( //
-              <SelectItem key={publisher.id} value={publisher.publisher_name}>
-                {publisher.publisher_name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          placeholder="Select Network"
+          searchPlaceholder="Search networks..."
+          buttonClassName="col-span-3 h-9"
+          options={publishers.map((publisher) => ({
+            value: publisher.publisher_name,
+            label: publisher.publisher_name,
+          }))}
+        />
       </div>
       <div className="grid grid-cols-4 items-center gap-4">
         <Label htmlFor="newStationName" className="text-right">

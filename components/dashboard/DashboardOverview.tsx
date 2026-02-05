@@ -5,8 +5,11 @@ import { motion } from "framer-motion"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { MultiSelectCombobox } from "@/components/ui/multi-select-combobox"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { BarChart3, TrendingUp, ShoppingCart, Users } from "lucide-react"
+import { BarChart3, TrendingUp, ShoppingCart, Users, Search } from "lucide-react"
 import { format } from "date-fns"
 import { PieChart } from "@/components/charts/PieChart"
 import { StackedColumnChart } from "@/components/charts/StackedColumnChart"
@@ -95,6 +98,22 @@ type SortState = {
 const LIVE_STATUSES = ["booked", "approved", "completed"]
 
 const normalizeStatus = (status?: string | null) => (status || "").toString().toLowerCase().trim()
+
+const normalizeClientFilterValue = (value: string) =>
+  value
+    .toString()
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, " ")
+
+const slugifyClientName = (name?: string | null) => {
+  if (!name || typeof name !== "string") return ""
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .trim()
+}
 
 const getTodayBounds = () => {
   const startOfToday = new Date()
@@ -313,6 +332,11 @@ export default function DashboardOverview({
   const [liveScopesSort, setLiveScopesSort] = useState<SortState>({ column: "", direction: null })
   const [dueSoonSort, setDueSoonSort] = useState<SortState>({ column: "", direction: null })
   const [finishedSort, setFinishedSort] = useState<SortState>({ column: "", direction: null })
+  const [campaignSearch, setCampaignSearch] = useState("")
+  const [campaignClientFilters, setCampaignClientFilters] = useState<string[]>([])
+  const [savedViewLoaded, setSavedViewLoaded] = useState(false)
+  const [savedViewExists, setSavedViewExists] = useState(false)
+  const [savedViewJustSaved, setSavedViewJustSaved] = useState(false)
 
   const getNextDirection = (current: SortDirection) => (current === "asc" ? "desc" : current === "desc" ? null : "asc")
 
@@ -340,6 +364,66 @@ export default function DashboardOverview({
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  const viewStorageKey = (() => {
+    if (!user) return null
+    const anyUser = user as any
+    const id = (anyUser?.sub || anyUser?.email || anyUser?.name || "").toString().trim()
+    if (!id) return null
+    return `dashboard:view:v1:${id}:clientFilters`
+  })()
+
+  useEffect(() => {
+    if (!mounted) return
+    if (!user) return
+    if (!viewStorageKey) return
+    if (savedViewLoaded) return
+
+    try {
+      const raw = window.localStorage.getItem(viewStorageKey)
+      if (!raw) {
+        setSavedViewExists(false)
+        setSavedViewLoaded(true)
+        return
+      }
+
+      const parsed = JSON.parse(raw)
+      const values = Array.isArray(parsed) ? parsed.map((v) => (typeof v === "string" ? v : "")).filter(Boolean) : []
+      if (values.length > 0) {
+        setCampaignClientFilters(values)
+      }
+      setSavedViewExists(true)
+    } catch {
+      // Ignore invalid JSON / storage errors.
+      setSavedViewExists(false)
+    } finally {
+      setSavedViewLoaded(true)
+    }
+  }, [mounted, savedViewLoaded, user, viewStorageKey])
+
+  const handleSaveView = () => {
+    if (!viewStorageKey) return
+    try {
+      window.localStorage.setItem(viewStorageKey, JSON.stringify(campaignClientFilters))
+      setSavedViewExists(true)
+      setSavedViewJustSaved(true)
+      window.setTimeout(() => setSavedViewJustSaved(false), 1500)
+    } catch {
+      // If storage fails (quota/private mode), just no-op.
+    }
+  }
+
+  const handleClearSavedView = () => {
+    if (!viewStorageKey) return
+    try {
+      window.localStorage.removeItem(viewStorageKey)
+    } catch {
+      // no-op
+    } finally {
+      setSavedViewExists(false)
+      setSavedViewJustSaved(false)
+    }
+  }
 
   useEffect(() => {
     if (mounted && !isLoading && !user) {
@@ -625,6 +709,37 @@ export default function DashboardOverview({
     })
   }
 
+  const normalizeSearch = (value: string) => value.toLowerCase().trim()
+
+  const applyCampaignFilters = (plans: MediaPlan[]) => {
+    const searchLower = normalizeSearch(campaignSearch)
+    const selectedClients = new Set(
+      campaignClientFilters.map((value) => normalizeClientFilterValue(value)).filter(Boolean)
+    )
+
+    if (!searchLower && selectedClients.size === 0) return plans
+
+    return plans.filter((plan) => {
+      const clientKey = normalizeClientFilterValue(plan.mp_clientname || "")
+      if (selectedClients.size > 0 && !selectedClients.has(clientKey)) return false
+
+      if (!searchLower) return true
+
+      const haystack = [
+        plan.mp_clientname,
+        plan.mp_campaignname,
+        plan.mp_mba_number,
+        plan.mp_brand,
+        plan.mp_campaignstatus,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+
+      return haystack.includes(searchLower)
+    })
+  }
+
   const safeDate = (value: string) => {
     const d = new Date(value)
     return isNaN(d.getTime()) ? new Date(0) : d
@@ -694,10 +809,31 @@ export default function DashboardOverview({
     })
   }
 
-  const liveCampaigns = showTables ? getLiveCampaigns() : []
+  const latestPlansForFilters = getLatestPlanVersions(mediaPlans)
+  const clientFilterOptions = (() => {
+    const map = new Map<string, string>()
+
+    for (const plan of latestPlansForFilters) {
+      const label = (plan.mp_clientname || "").toString().trim()
+      if (!label) continue
+      const key = normalizeClientFilterValue(label)
+      if (!key) continue
+      if (!map.has(key)) map.set(key, label)
+    }
+
+    return Array.from(map.entries())
+      .sort((a, b) => a[1].localeCompare(b[1]))
+      .map(([value, label]) => ({
+        value,
+        label,
+        keywords: `${label} ${value}`,
+      })) as const
+  })()
+
+  const liveCampaigns = showTables ? applyCampaignFilters(getLiveCampaigns()) : []
   const liveScopes = showTables ? getLiveScopes() : []
-  const campaignsDueToStart = showTables ? getCampaignsDueToStart() : []
-  const campaignsFinishedRecently = showTables ? getCampaignsFinishedRecently() : []
+  const campaignsDueToStart = showTables ? applyCampaignFilters(getCampaignsDueToStart()) : []
+  const campaignsFinishedRecently = showTables ? applyCampaignFilters(getCampaignsFinishedRecently()) : []
 
   const liveCampaignSelectors = {
     client: (plan: MediaPlan): SortableValue => plan.mp_clientname || "",
@@ -722,9 +858,63 @@ export default function DashboardOverview({
   const sortedDueSoon = applySort(campaignsDueToStart, dueSoonSort, liveCampaignSelectors)
   const sortedFinished = applySort(campaignsFinishedRecently, finishedSort, liveCampaignSelectors)
 
+  const shouldScrollLiveCampaigns = sortedLiveCampaigns.length > 12
+  const shouldScrollLiveScopes = sortedLiveScopes.length > 12
+  const shouldScrollDueSoon = sortedDueSoon.length > 12
+  const shouldScrollFinished = sortedFinished.length > 12
+
   return (
     <div className="w-full h-full flex flex-col">
-      <h1 className="text-4xl font-bold p-4">{title}</h1>
+      <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-4xl font-bold">{title}</h1>
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+          <div className="relative w-full sm:w-72">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={campaignSearch}
+              onChange={(e) => setCampaignSearch(e.target.value)}
+              placeholder="Search campaigns..."
+              className="pl-10"
+            />
+          </div>
+          <div className="grid w-full grid-cols-1 gap-2 sm:w-[520px] sm:grid-cols-[1fr_auto]">
+            <MultiSelectCombobox
+              options={clientFilterOptions}
+              values={campaignClientFilters}
+              onValuesChange={setCampaignClientFilters}
+              placeholder="All clients"
+              allSelectedText="All clients"
+              selectAllText="Select all"
+              clearAllText="Clear all"
+              searchPlaceholder="Filter clients..."
+              emptyText="No clients found."
+            />
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                className="whitespace-nowrap"
+                onClick={handleSaveView}
+                disabled={!viewStorageKey}
+                title={!viewStorageKey ? "Sign in to save a view" : undefined}
+              >
+                {savedViewJustSaved ? "Saved" : "Save as view"}
+              </Button>
+              {savedViewExists ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="whitespace-nowrap"
+                  onClick={handleClearSavedView}
+                  disabled={!viewStorageKey}
+                >
+                  Clear saved
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Metrics Cards */}
       {showMetrics && (
@@ -779,7 +969,7 @@ export default function DashboardOverview({
                 ) : liveCampaigns.length === 0 ? (
                   <p className="text-muted-foreground text-center py-4">No live campaigns</p>
                 ) : (
-                  <div className="overflow-x-auto">
+                  <div className={`overflow-x-auto ${shouldScrollLiveCampaigns ? "max-h-[1008px] overflow-y-auto" : ""}`}>
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -791,6 +981,7 @@ export default function DashboardOverview({
                           <SortableTableHeader label="Budget" direction={liveCampaignSort.column === "budget" ? liveCampaignSort.direction : null} onToggle={() => toggleSort("budget", liveCampaignSort, setLiveCampaignSort)} />
                           <SortableTableHeader label="Version" direction={liveCampaignSort.column === "version" ? liveCampaignSort.direction : null} onToggle={() => toggleSort("version", liveCampaignSort, setLiveCampaignSort)} />
                           <TableHead>Media Types</TableHead>
+                          <TableHead className="w-24">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -806,6 +997,31 @@ export default function DashboardOverview({
                             <TableCell>
                               <div className="flex flex-wrap gap-1">
                                 {getMediaTypeTags(plan)}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-col items-start gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() =>
+                                    router.push(`/mediaplans/mba/${plan.mp_mba_number}/edit?version=${plan.mp_version}`)
+                                  }
+                                >
+                                  Edit
+                                </Button>
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  disabled={!slugifyClientName(plan.mp_clientname)}
+                                  onClick={() => {
+                                    const slug = slugifyClientName(plan.mp_clientname)
+                                    if (!slug) return
+                                    router.push(`/dashboard/${slug}/${plan.mp_mba_number}`)
+                                  }}
+                                >
+                                  View
+                                </Button>
                               </div>
                             </TableCell>
                           </TableRow>
@@ -835,7 +1051,7 @@ export default function DashboardOverview({
                 ) : liveScopes.length === 0 ? (
                   <p className="text-muted-foreground text-center py-4">No live scopes of work</p>
                 ) : (
-                  <div className="overflow-x-auto">
+                  <div className={`overflow-x-auto ${shouldScrollLiveScopes ? "max-h-[1008px] overflow-y-auto" : ""}`}>
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -887,7 +1103,7 @@ export default function DashboardOverview({
                 ) : campaignsDueToStart.length === 0 ? (
                   <p className="text-muted-foreground text-center py-4">No campaigns starting in the next 10 days</p>
                 ) : (
-                  <div className="overflow-x-auto">
+                  <div className={`overflow-x-auto ${shouldScrollDueSoon ? "max-h-[1008px] overflow-y-auto" : ""}`}>
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -899,6 +1115,7 @@ export default function DashboardOverview({
                           <SortableTableHeader label="Budget" direction={dueSoonSort.column === "budget" ? dueSoonSort.direction : null} onToggle={() => toggleSort("budget", dueSoonSort, setDueSoonSort)} />
                           <SortableTableHeader label="Status" direction={dueSoonSort.column === "status" ? dueSoonSort.direction : null} onToggle={() => toggleSort("status", dueSoonSort, setDueSoonSort)} />
                           <TableHead>Media Types</TableHead>
+                          <TableHead className="w-24">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -916,6 +1133,31 @@ export default function DashboardOverview({
                             <TableCell>
                               <div className="flex flex-wrap gap-1">
                                 {getMediaTypeTags(plan)}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-col items-start gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() =>
+                                    router.push(`/mediaplans/mba/${plan.mp_mba_number}/edit?version=${plan.mp_version}`)
+                                  }
+                                >
+                                  Edit
+                                </Button>
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  disabled={!slugifyClientName(plan.mp_clientname)}
+                                  onClick={() => {
+                                    const slug = slugifyClientName(plan.mp_clientname)
+                                    if (!slug) return
+                                    router.push(`/dashboard/${slug}/${plan.mp_mba_number}`)
+                                  }}
+                                >
+                                  View
+                                </Button>
                               </div>
                             </TableCell>
                           </TableRow>
@@ -945,7 +1187,7 @@ export default function DashboardOverview({
                 ) : campaignsFinishedRecently.length === 0 ? (
                   <p className="text-muted-foreground text-center py-4">No campaigns finished in the past 40 days</p>
                 ) : (
-                  <div className="overflow-x-auto">
+                  <div className={`overflow-x-auto ${shouldScrollFinished ? "max-h-[1008px] overflow-y-auto" : ""}`}>
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -957,6 +1199,7 @@ export default function DashboardOverview({
                           <SortableTableHeader label="Budget" direction={finishedSort.column === "budget" ? finishedSort.direction : null} onToggle={() => toggleSort("budget", finishedSort, setFinishedSort)} />
                           <SortableTableHeader label="Status" direction={finishedSort.column === "status" ? finishedSort.direction : null} onToggle={() => toggleSort("status", finishedSort, setFinishedSort)} />
                           <TableHead>Media Types</TableHead>
+                          <TableHead className="w-24">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -974,6 +1217,31 @@ export default function DashboardOverview({
                             <TableCell>
                               <div className="flex flex-wrap gap-1">
                                 {getMediaTypeTags(plan)}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-col items-start gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() =>
+                                    router.push(`/mediaplans/mba/${plan.mp_mba_number}/edit?version=${plan.mp_version}`)
+                                  }
+                                >
+                                  Edit
+                                </Button>
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  disabled={!slugifyClientName(plan.mp_clientname)}
+                                  onClick={() => {
+                                    const slug = slugifyClientName(plan.mp_clientname)
+                                    if (!slug) return
+                                    router.push(`/dashboard/${slug}/${plan.mp_mba_number}`)
+                                  }}
+                                >
+                                  View
+                                </Button>
                               </div>
                             </TableCell>
                           </TableRow>

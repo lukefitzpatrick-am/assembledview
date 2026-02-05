@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server"
 import { xanoUrl } from "@/lib/api/xano"
 
-type Params = { params: { path: string[] } }
+type Params = { params: Promise<{ path: string[] }> }
 
 async function proxyRequest(request: Request, { params }: Params, method: string) {
-  const path = (params?.path || []).join("/")
+  const { path: parts } = await params
+  const path = (parts || []).join("/")
   if (!path) {
     return NextResponse.json({ error: "Missing media detail path" }, { status: 400 })
   }

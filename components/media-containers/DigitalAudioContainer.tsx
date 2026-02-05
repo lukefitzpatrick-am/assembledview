@@ -7,7 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Combobox } from "@/components/ui/combobox"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger,} from "@/components/ui/dialog"
 import { PlusCircle } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -29,6 +29,7 @@ import { cn } from "@/lib/utils"
 import { ChevronDown, Copy, Plus, Trash2 } from "lucide-react"
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
 import type { LineItem } from '@/lib/generateMediaPlan'
+import { formatMoney } from "@/lib/utils/money"
 
 // Format Dates
 const formatDateString = (d?: Date | string): string => {
@@ -221,7 +222,7 @@ export function calculateInvestmentPerMonth(form, feedigiaudio) {
 
   return Object.entries(monthlyInvestment).map(([monthYear, amount]) => ({
     monthYear,
-    amount: `$${amount.toFixed(2)}`,
+    amount: formatMoney(amount, { locale: "en-US", currency: "USD" }),
   }));
 }
 
@@ -271,7 +272,7 @@ export function calculateBurstInvestmentPerMonth(form, feedigiaudio) {
 
   return Object.entries(monthlyInvestment).map(([monthYear, amount]) => ({
     monthYear,
-    amount: amount.toFixed(2),
+    amount: amount.toFixed(4),
   }));
 }
 
@@ -905,7 +906,7 @@ useEffect(() => {
         buyingDemo:   lineItem.buyingDemo,
         buyType:      lineItem.buyType,
         deliverablesAmount: burst.budget,
-        grossMedia: mediaAmount.toFixed(2),
+        grossMedia: String(mediaAmount),
         line_item_id: lineItemId,
         lineItemId,
         line_item: lineItemIndex + 1,
@@ -1013,9 +1014,9 @@ useEffect(() => {
                   <span>
                     {getDeliverablesLabel(form.getValues(`digiaudiolineItems.${item.index - 1}.buyType`))}: {item.deliverables.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                   </span>
-                  <span>Media: ${item.media.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                  <span>Fee: ${item.fee.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                  <span>Total Cost: ${item.totalCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                  <span>Media: {formatMoney(item.media, { locale: "en-US", currency: "USD" })}</span>
+                  <span>Fee: {formatMoney(item.fee, { locale: "en-US", currency: "USD" })}</span>
+                  <span>Total Cost: {formatMoney(item.totalCost, { locale: "en-US", currency: "USD" })}</span>
                 </div>
               </div>
             ))}
@@ -1024,9 +1025,9 @@ useEffect(() => {
             <div className="pt-4 border-t font-medium flex justify-between">
               <span>Digital Audio Totals:</span>
               <div className="flex space-x-4">
-                <span>Media: ${overallTotals.overallMedia.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                <span>Fees ({feedigiaudio}%): ${overallTotals.overallFee.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                <span>Total Cost: ${overallTotals.overallCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                <span>Media: {formatMoney(overallTotals.overallMedia, { locale: "en-US", currency: "USD" })}</span>
+                <span>Fees ({feedigiaudio}%): {formatMoney(overallTotals.overallFee, { locale: "en-US", currency: "USD" })}</span>
+                <span>Total Cost: {formatMoney(overallTotals.overallCost, { locale: "en-US", currency: "USD" })}</span>
               </div>
             </div>
           </CardContent>
@@ -1081,15 +1082,11 @@ useEffect(() => {
                           </div>
                           <div className="flex items-center space-x-2">
                             <div className="text-sm font-medium">
-                              Total: {new Intl.NumberFormat('en-US', {
-                                style: 'currency',
-                                currency: 'USD',
-                                minimumFractionDigits: 2,
-                                maximumFractionDigits: 2
-                              }).format(
+                              Total: {formatMoney(
                                 form.getValues(`digiaudiolineItems.${lineItemIndex}.budgetIncludesFees`)
                                   ? totalMedia
-                                  : totalMedia + (totalMedia / (100 - (feedigiaudio || 0))) * (feedigiaudio || 0)
+                                  : totalMedia + (totalMedia / (100 - (feedigiaudio || 0))) * (feedigiaudio || 0),
+                                { locale: "en-US", currency: "USD" }
                               )}
                             </div>
                             <Button
@@ -1145,27 +1142,24 @@ useEffect(() => {
                                 render={({ field }) => (
                                   <FormItem className="flex items-center space-x-2">
                                     <FormLabel className="w-24 text-sm">Publisher</FormLabel>
-                                     <Select
-                                      onValueChange={(value) => {
-                                        field.onChange(value);
-                                        form.setValue(`digiaudiolineItems.${lineItemIndex}.platform`, value, { shouldDirty: true });
-                                        form.setValue(`digiaudiolineItems.${lineItemIndex}.site`, "", { shouldDirty: true });
-                                      }}
-                                      value={field.value}
-                                    >
-                                      <FormControl>
-                                        <SelectTrigger className="h-9 w-full flex-1 rounded-md border">
-                                          <SelectValue placeholder="Select Publisher" />
-                                        </SelectTrigger>
-                                      </FormControl>
-                                      <SelectContent>
-                                        {publishers.map((publisher) => (
-                                          <SelectItem key={publisher.id} value={publisher.publisher_name}>
-                                            {publisher.publisher_name}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
+                                    <FormControl>
+                                      <Combobox
+                                        value={field.value}
+                                        onValueChange={(value) => {
+                                          field.onChange(value)
+                                          form.setValue(`digiaudiolineItems.${lineItemIndex}.platform`, value, { shouldDirty: true })
+                                          form.setValue(`digiaudiolineItems.${lineItemIndex}.site`, "", { shouldDirty: true })
+                                        }}
+                                        placeholder="Select Publisher"
+                                        searchPlaceholder="Search publishers..."
+                                        emptyText={publishers.length === 0 ? "No publishers available." : "No publishers found."}
+                                        buttonClassName="h-9 w-full flex-1 rounded-md"
+                                        options={publishers.map((publisher) => ({
+                                          value: publisher.publisher_name,
+                                          label: publisher.publisher_name,
+                                        }))}
+                                      />
+                                    </FormControl>
                                     <FormMessage />
                                   </FormItem>
                                 )}
@@ -1178,35 +1172,25 @@ useEffect(() => {
                                   <FormItem className="flex items-center space-x-2">
                                     <FormLabel className="w-24 text-sm">Station</FormLabel>
                                         <div className="flex-1 flex items-center space-x-1">
-                                          <Select
-                                            onValueChange={field.onChange}
-                                            value={field.value} // Ensure value is controlled
-                                            disabled={!selectedPublisher} // Disable if no network is selected
-                                          >
-                                            <FormControl>
-                                              <SelectTrigger className="h-9 w-full rounded-md border">
-                                                <SelectValue placeholder={selectedPublisher ? "Select Site" : "Select Publisher first"} />
-                                              </SelectTrigger>
-                                            </FormControl>
-                                            <SelectContent>
-                                              {filteredDigiAudioSites.length > 0 ? (
-                                                filteredDigiAudioSites.map((digiaudioSite) => ( //
-                                                  <SelectItem 
-                                                  key={digiaudioSite.id} 
-                                                  value={digiaudioSite.site || `site-${digiaudioSite.id}`} // Guard against empty string
-                                                >
-                                                  {digiaudioSite.site}
-                                                  </SelectItem>
-                                                ))
-                                              ) : (
-                                                selectedPublisher && ( <div className="p-2 text-sm text-muted-foreground text-center">
-                                                No sites found for "{selectedPublisher}".<br />
-                                                Click the <PlusCircle className="inline h-4 w-4 mx-1 text-blue-500" /> icon to add one.
-                                              </div>
-                                            )
-                                              )}
-                                            </SelectContent>
-                                          </Select>
+                                          <FormControl>
+                                            <Combobox
+                                              value={field.value}
+                                              onValueChange={field.onChange}
+                                              disabled={!selectedPublisher}
+                                              placeholder={selectedPublisher ? "Select Site" : "Select Publisher first"}
+                                              searchPlaceholder="Search sites..."
+                                              emptyText={
+                                                selectedPublisher
+                                                  ? `No sites found for \"${selectedPublisher}\".`
+                                                  : "Select Publisher first"
+                                              }
+                                              buttonClassName="h-9 w-full rounded-md"
+                                              options={filteredDigiAudioSites.map((digiaudioSite) => ({
+                                                value: digiaudioSite.site || `site-${digiaudioSite.id}`,
+                                                label: digiaudioSite.site || "(Unnamed site)",
+                                              }))}
+                                            />
+                                          </FormControl>
                                             <Button
                                               type="button"
                                               variant="ghost"
@@ -1242,25 +1226,22 @@ useEffect(() => {
                                 render={({ field }) => (
                                   <FormItem className="flex items-center space-x-2">
                                     <FormLabel className="w-24 text-sm">Buy Type</FormLabel>
-                                    <Select
-                                      onValueChange={(value) =>
-                                        handleBuyTypeChange(lineItemIndex, value)
-                                      }
-                                      defaultValue={field.value}
-                                    >
-                                      <FormControl>
-                                        <SelectTrigger className="h-9 w-full flex-1 rounded-md border">
-                                          <SelectValue placeholder="Select" />
-                                        </SelectTrigger>
-                                      </FormControl>
-                                      <SelectContent>
-                                        <SelectItem value="cpc">CPC</SelectItem>
-                                        <SelectItem value="cpm">CPM</SelectItem>
-                                        <SelectItem value="cpv">CPV</SelectItem>
-                                        <SelectItem value="bonus">Bonus</SelectItem>
-                                        <SelectItem value="fixed_cost">Fixed Cost</SelectItem>
-                                      </SelectContent>
-                                    </Select>
+                                    <FormControl>
+                                      <Combobox
+                                        value={field.value}
+                                        onValueChange={(value) => handleBuyTypeChange(lineItemIndex, value)}
+                                        placeholder="Select"
+                                        searchPlaceholder="Search buy types..."
+                                        buttonClassName="h-9 w-full flex-1 rounded-md"
+                                        options={[
+                                          { value: "bonus", label: "Bonus" },
+                                          { value: "cpc", label: "CPC" },
+                                          { value: "cpm", label: "CPM" },
+                                          { value: "cpv", label: "CPV" },
+                                          { value: "fixed_cost", label: "Fixed Cost" },
+                                        ]}
+                                      />
+                                    </FormControl>
                                     <FormMessage />
                                   </FormItem>
                                 )}
@@ -1417,12 +1398,10 @@ useEffect(() => {
                                               }}
                                               onBlur={(e) => {
                                                 const value = e.target.value;
-                                                const formattedValue = new Intl.NumberFormat("en-US", {
-                                                  style: "currency",
+                                                const formattedValue = formatMoney(Number.parseFloat(value) || 0, {
+                                                  locale: "en-US",
                                                   currency: "USD",
-                                                  minimumFractionDigits: 2,
-                                                  maximumFractionDigits: 2,
-                                                }).format(Number.parseFloat(value) || 0);
+                                                });
                                                 field.onChange(formattedValue);
                                                 handleValueChange(lineItemIndex, burstIndex);
                                               }}
@@ -1451,12 +1430,10 @@ useEffect(() => {
                                               }}
                                               onBlur={(e) => {
                                                 const value = e.target.value;
-                                                const formattedValue = new Intl.NumberFormat("en-US", {
-                                                  style: "currency",
+                                                const formattedValue = formatMoney(Number.parseFloat(value) || 0, {
+                                                  locale: "en-US",
                                                   currency: "USD",
-                                                  minimumFractionDigits: 2,
-                                                  maximumFractionDigits: 2,
-                                                }).format(Number.parseFloat(value) || 0);
+                                                });
                                                 field.onChange(formattedValue);
                                                 handleValueChange(lineItemIndex, burstIndex);
                                               }}
@@ -1642,16 +1619,11 @@ useEffect(() => {
                                       <Input
                                         type="text"
                                         className="w-full h-10 text-sm"
-                                        value={new Intl.NumberFormat("en-US", {
-                                          style: "currency",
-                                          currency: "USD",
-                                          minimumFractionDigits: 2,
-                                          maximumFractionDigits: 2,
-                                        }).format(
+                                        value={formatMoney(
                                           form.getValues(`digiaudiolineItems.${lineItemIndex}.budgetIncludesFees`)
                                             ? (parseFloat(form.getValues(`digiaudiolineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (100 - (feedigiaudio || 0))
                                             : parseFloat(form.getValues(`digiaudiolineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0")
-                                        )}
+                                        , { locale: "en-US", currency: "USD" })}
                                         readOnly
                                       />
                                     </div>
@@ -1660,16 +1632,11 @@ useEffect(() => {
                                       <Input
                                         type="text"
                                         className="w-full h-10 text-sm"
-                                        value={new Intl.NumberFormat("en-US", {
-                                          style: "currency",
-                                          currency: "USD",
-                                          minimumFractionDigits: 2,
-                                          maximumFractionDigits: 2,
-                                        }).format(
+                                        value={formatMoney(
                                           form.getValues(`digiaudiolineItems.${lineItemIndex}.budgetIncludesFees`)
                                             ? (parseFloat(form.getValues(`digiaudiolineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (feedigiaudio || 0)
                                             : (parseFloat(form.getValues(`digiaudiolineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / (100 - (feedigiaudio || 0))) * (feedigiaudio || 0)
-                                        )}
+                                        , { locale: "en-US", currency: "USD" })}
                                         readOnly
                                       />
                                     </div>
@@ -1796,21 +1763,17 @@ useEffect(() => {
           
         </Label>
         {/* Assuming 'publishers' contains the list of available networks */}
-        <Select
+        <Combobox
           value={newSitePlatform}
           onValueChange={setNewSitePlatform}
-        >
-          <SelectTrigger className="col-span-3 h-9">
-            <SelectValue placeholder="Select Network" />
-          </SelectTrigger>
-          <SelectContent>
-            {publishers.map((publisher) => ( //
-              <SelectItem key={publisher.id} value={publisher.publisher_name}>
-                {publisher.publisher_name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          placeholder="Select Publisher"
+          searchPlaceholder="Search publishers..."
+          buttonClassName="col-span-3 h-9"
+          options={publishers.map((publisher) => ({
+            value: publisher.publisher_name,
+            label: publisher.publisher_name,
+          }))}
+        />
       </div>
       <div className="grid grid-cols-4 items-center gap-4">
         <Label htmlFor="newStationName" className="text-right">

@@ -9,6 +9,7 @@ const DEFAULT_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini"
 type BuildSystemPromptInput = {
   pageContext?: PageContext
   xanoDataSummary?: string
+  snowflakeDataSummary?: string
   customInstructions?: string
 }
 
@@ -21,12 +22,38 @@ export type PageField = {
   required?: boolean
   type?: string
   options?: { label: string; value: string }[] | string[]
+  /**
+   * Semantic hint for the model to understand what this field represents.
+   * Examples: "client_name", "campaign_name", "media_type", "budget", "date", "status", "boolean_toggle"
+   */
+  semanticType?: string
+  /**
+   * Grouping hint for UI sections or logical bundles.
+   * Examples: "campaign", "billing", "delivery", "search_container", "social_container"
+   */
+  group?: string
+  /**
+   * Where this value came from.
+   */
+  source?: "xano" | "computed" | "ui"
 }
 
 export type PageContext = {
   route?: { pathname?: string; clientSlug?: string; mbaSlug?: string } | string
   fields?: PageField[]
   generatedAt?: string
+  entities?: {
+    clientSlug?: string
+    clientName?: string
+    mbaNumber?: string
+    campaignName?: string
+    mediaTypes?: string[]
+  }
+  pageText?: {
+    title?: string
+    headings?: string[]
+    breadcrumbs?: string[]
+  }
 }
 
 export type FormPatchUpdate = { fieldId: string; value: unknown }
@@ -44,6 +71,7 @@ const jsonReplyContract = [
 export function buildSystemPrompt({
   pageContext,
   xanoDataSummary,
+  snowflakeDataSummary,
   customInstructions,
 }: BuildSystemPromptInput) {
   const hardRules = [
@@ -66,6 +94,36 @@ export function buildSystemPrompt({
         .join("\n")}`
     : undefined
 
+  const entitiesSummary =
+    pageContext?.entities && typeof pageContext.entities === "object"
+      ? `Page entities:\n${[
+          pageContext.entities.clientName ? `- clientName: ${pageContext.entities.clientName}` : undefined,
+          pageContext.entities.clientSlug ? `- clientSlug: ${pageContext.entities.clientSlug}` : undefined,
+          pageContext.entities.campaignName ? `- campaignName: ${pageContext.entities.campaignName}` : undefined,
+          pageContext.entities.mbaNumber ? `- mbaNumber: ${pageContext.entities.mbaNumber}` : undefined,
+          Array.isArray(pageContext.entities.mediaTypes) && pageContext.entities.mediaTypes.length
+            ? `- mediaTypes: ${pageContext.entities.mediaTypes.join(", ")}`
+            : undefined,
+        ]
+          .filter(Boolean)
+          .join("\n")}`
+      : undefined
+
+  const pageTextSummary =
+    pageContext?.pageText && typeof pageContext.pageText === "object"
+      ? `Page text:\n${[
+          pageContext.pageText.title ? `- title: ${pageContext.pageText.title}` : undefined,
+          Array.isArray(pageContext.pageText.breadcrumbs) && pageContext.pageText.breadcrumbs.length
+            ? `- breadcrumbs: ${pageContext.pageText.breadcrumbs.join(" > ")}`
+            : undefined,
+          Array.isArray(pageContext.pageText.headings) && pageContext.pageText.headings.length
+            ? `- headings: ${pageContext.pageText.headings.join(" | ")}`
+            : undefined,
+        ]
+          .filter(Boolean)
+          .join("\n")}`
+      : undefined
+
   const parts = [
     avaIdentity,
     avaBoundaries,
@@ -74,12 +132,24 @@ export function buildSystemPrompt({
     `Response contract:\n${jsonReplyContract}`,
   ]
 
+  if (entitiesSummary) {
+    parts.push(entitiesSummary)
+  }
+
+  if (pageTextSummary) {
+    parts.push(pageTextSummary)
+  }
+
   if (editableFieldSummary) {
     parts.push(editableFieldSummary)
   }
 
   if (xanoDataSummary) {
     parts.push(`Relevant Xano data:\n${xanoDataSummary}`)
+  }
+
+  if (snowflakeDataSummary) {
+    parts.push(`Relevant Snowflake delivery data:\n${snowflakeDataSummary}`)
   }
 
   if (customInstructions) {

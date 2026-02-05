@@ -24,6 +24,7 @@ import {
   PacingSeriesPoint,
   getDeliverableKey,
 } from "@/lib/pacing/calcPacing"
+import { mapDeliverableMetric } from "@/lib/pacing/deliverables/mapDeliverableMetric"
 import type { ActualsDaily, BuyType, Burst } from "@/lib/pacing/mockMetaPacing"
 import {
   MetaPacingRow,
@@ -265,14 +266,6 @@ function inclusiveDays(start: Date, end: Date): number {
   return Math.floor(diff / msPerDay) + 1
 }
 
-const deliverableMapping: Record<string, "impressions" | "clicks" | "results" | "video_3s_views" | null> = {
-  cpm: "impressions",
-  cpc: "clicks",
-  cpa: "results",
-  leads: "results",
-  cpv: "video_3s_views",
-}
-
 function parseCurrency(value: unknown): number {
   if (value === null || value === undefined) return 0
   if (typeof value === "number") return Number.isFinite(value) ? value : 0
@@ -387,7 +380,8 @@ function formatCurrency(value: number | undefined) {
   return new Intl.NumberFormat("en-AU", {
     style: "currency",
     currency: "AUD",
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4,
   }).format(value ?? 0)
 }
 
@@ -396,7 +390,7 @@ function formatCurrency2dp(value: number | undefined) {
     style: "currency",
     currency: "AUD",
     minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    maximumFractionDigits: 4,
   }).format(value ?? 0)
 }
 
@@ -437,10 +431,22 @@ function getLineItemNameCandidate(item: SocialLineItem) {
   )
 }
 
-function resolveDeliverableKey(buyType: string | undefined): ReturnType<typeof getDeliverableKey> {
-  if (!buyType) return "impressions"
-  const normalized = buyType.toLowerCase()
-  return deliverableMapping[normalized] ?? "impressions"
+function resolveDeliverableKey(
+  buyType: string | undefined,
+  platform?: string | undefined
+): ReturnType<typeof getDeliverableKey> {
+  const metric = mapDeliverableMetric({ channel: "social", buyType, platform })
+  switch (metric) {
+    case "VIDEO_3S_VIEWS":
+      return "video_3s_views"
+    case "RESULTS":
+      return "results"
+    case "CLICKS":
+      return "clicks"
+    case "IMPRESSIONS":
+    default:
+      return "impressions"
+  }
 }
 
 function getDeliverableLabel(deliverableKey: ReturnType<typeof getDeliverableKey> | null) {
@@ -1514,7 +1520,7 @@ export default function SocialPacingContainer({
             ]
           : []
       const burstsToUse = hasSchedule ? bursts : fallbackBurst
-      const deliverableKey = resolveDeliverableKey(item.buy_type)
+      const deliverableKey = resolveDeliverableKey(item.buy_type, item.platform)
 
       const dailyLookup = new Map<string, (typeof deliverySummary.daily)[number]>()
       deliverySummary.daily.forEach((day) => dailyLookup.set(day.dateDay, day))

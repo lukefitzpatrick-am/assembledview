@@ -4,11 +4,13 @@ import { Skeleton } from "@/components/ui/skeleton"
 import CampaignActions from "./components/CampaignActions"
 import ExpectedSpendToDateCard from "./components/ExpectedSpendToDateCard"
 import { auth0 } from "@/lib/auth0"
-import { getPrimaryRole, getUserClientIdentifier, getUserMbaNumbers } from "@/lib/rbac"
+import { getPrimaryRole, getUserClientIdentifier, getUserMbaNumbers, isAdminRole } from "@/lib/rbac"
 import { redirect, notFound } from "next/navigation"
 import { headers } from "next/headers"
 import { createPerfTimer, logPerf } from "@/lib/utils/perf"
 import { calculateExpectedSpendToDateFromDeliverySchedule } from "@/lib/spend/expectedSpend"
+import AdminDateRangeSelector from "./components/AdminDateRangeSelector"
+import { getMelbourneTodayISO, getMelbourneYesterdayISO } from "@/lib/dates/melbourne"
 
 const CampaignInfoHeader = dynamic(() => import("@/components/dashboard/campaign/CampaignInfoHeader"))
 const CampaignSummaryRow = dynamic(() => import("@/components/dashboard/campaign/CampaignSummaryRow"))
@@ -18,6 +20,7 @@ const SocialPacingContainer = dynamic(() => import("@/components/dashboard/pacin
 const ProgrammaticPacingContainer = dynamic(
   () => import("@/components/dashboard/pacing/programmatic/ProgrammaticPacingContainer")
 )
+const SearchPacingContainer = dynamic(() => import("@/components/dashboard/pacing/search/SearchPacingContainer"))
 const PacingDataProviderWrapper = dynamic(() => import("@/components/dashboard/pacing/PacingDataProviderWrapper"))
 
 interface CampaignDetailPageProps {
@@ -27,6 +30,8 @@ interface CampaignDetailPageProps {
   }>
   searchParams?: Promise<{
     version?: string
+    startDate?: string
+    endDate?: string
   }>
 }
 
@@ -34,6 +39,19 @@ const DEBUG_LINE_ITEMS = process.env.NEXT_PUBLIC_DEBUG_LINEITEMS === "true"
 const DEBUG_BRAND = process.env.NEXT_PUBLIC_DEBUG_BRAND === "true"
 const DEBUG_SPEND = process.env.NEXT_PUBLIC_DEBUG_SPEND === "true"
 const DEBUG_PACING = process.env.NEXT_PUBLIC_DEBUG_PACING === "true"
+
+function isTruthyFlag(value: unknown): boolean {
+  if (value === true) return true
+  if (value === 1) return true
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase()
+    return ["true", "1", "yes", "y", "on"].includes(normalized)
+  }
+  if (typeof value === "number") {
+    return Number.isFinite(value) && value !== 0
+  }
+  return false
+}
 
 function parseAmountSafe(value: any) {
   if (typeof value === "number") return value
@@ -59,6 +77,51 @@ function deriveSpendToDate(deliverySchedule: any[]) {
     }
     return sum
   }, 0)
+}
+
+function toISODateOnlySafe(value: unknown): string | null {
+  if (!value) return null
+  if (typeof value === "string") {
+    const trimmed = value.trim()
+    if (!trimmed) return null
+    const m = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+    if (m) return trimmed
+    const d = new Date(trimmed)
+    return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10)
+  }
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 10)
+  }
+  const d = new Date(value as any)
+  return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10)
+}
+
+function clampISODateOnly(value: string | null | undefined, min: string | null, max: string | null): string | null {
+  if (!value) return null
+  const iso = toISODateOnlySafe(value)
+  if (!iso) return null
+  if (min && iso < min) return min
+  if (max && iso > max) return max
+  return iso
+}
+
+function computeEffectiveDateRange(opts: {
+  campaignStartISO: string | null
+  campaignEndISO: string | null
+  requestedStartISO: string | null
+  requestedEndISO: string | null
+}): { startISO: string | null; endISO: string | null } {
+  const { campaignStartISO, campaignEndISO, requestedStartISO, requestedEndISO } = opts
+
+  const startClamped = clampISODateOnly(requestedStartISO, campaignStartISO, campaignEndISO) ?? campaignStartISO
+  const endClamped = clampISODateOnly(requestedEndISO, campaignStartISO, campaignEndISO) ?? campaignEndISO
+
+  if (startClamped && endClamped && startClamped > endClamped) {
+    // If user swapped them, normalize to a valid window by swapping.
+    return { startISO: endClamped, endISO: startClamped }
+  }
+
+  return { startISO: startClamped, endISO: endClamped }
 }
 
 function getCurrentMelbourneYearMonth() {
@@ -346,7 +409,7 @@ function BrandFrame({ children, brandColour }: { children: ReactNode; brandColou
   )
 }
 
-async function fetchCampaignData(mbaNumber: string, version?: string) {
+async function fetchCampaignData(mbaNumber: string, opts?: { version?: string; startDate?: string; endDate?: string }) {
   const headerList = await headers()
   const host =
     headerList.get("x-forwarded-host") ||
@@ -361,8 +424,14 @@ async function fetchCampaignData(mbaNumber: string, version?: string) {
   const runtimeBase = host ? `${protocol}://${host}` : ""
   const baseUrl = envBase || runtimeBase
   const queryParts: string[] = []
-  if (version) {
-    queryParts.push(`version=${encodeURIComponent(version)}`)
+  if (opts?.version) {
+    queryParts.push(`version=${encodeURIComponent(opts.version)}`)
+  }
+  if (opts?.startDate) {
+    queryParts.push(`startDate=${encodeURIComponent(opts.startDate)}`)
+  }
+  if (opts?.endDate) {
+    queryParts.push(`endDate=${encodeURIComponent(opts.endDate)}`)
   }
   const queryString = queryParts.length ? `?${queryParts.join("&")}` : ""
   const urlPath = `/api/mediaplans/mba/${encodeURIComponent(mbaNumber)}${queryString}`
@@ -417,7 +486,9 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
   const pageTimer = createPerfTimer(`CampaignPage[${(await params).mba_number}]`)
 
   const { slug, mba_number } = await params
-  const { version } = searchParams ? await searchParams : {}
+  const { version, startDate: requestedStartDateParam, endDate: requestedEndDateParam } = searchParams
+    ? await searchParams
+    : {}
   const parsedVersion = version ? Number(version) : undefined
   const versionNumberFromQuery = Number.isFinite(parsedVersion) ? parsedVersion : undefined
 
@@ -426,6 +497,7 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
   const session = await auth0.getSession()
   const user = session?.user
   const role = getPrimaryRole(user)
+  const isAdmin = isAdminRole(role)
   const userClientSlug = getUserClientIdentifier(user)
   logPerf("Auth check", authStart, { hasUser: !!user, role })
 
@@ -494,7 +566,11 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
   // Campaign data fetch with timing
   const campaignFetchStart = performance.now()
   try {
-    campaignData = await fetchCampaignData(mba_number, version)
+    campaignData = await fetchCampaignData(mba_number, {
+      version,
+      startDate: isAdmin ? requestedStartDateParam : undefined,
+      endDate: isAdmin ? requestedEndDateParam : undefined,
+    })
     campaign = campaignData?.campaign ?? campaignData
     campaignVersion = campaignData?.versionData ?? campaignData?.mediaPlanVersion ?? campaignData?.campaign ?? campaignData ?? {}
     resolvedVersionNumber = Number(
@@ -549,7 +625,41 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
   const metrics = campaignData.metrics || {}
   const billingSchedule = campaignData.billingSchedule
   const deliverySchedule = campaignData.deliverySchedule || []
+
+  const resolveXanoOrigin = (raw: string | undefined): string => {
+    if (!raw || typeof raw !== "string") return ""
+    try {
+      const url = new URL(raw)
+      return url.origin
+    } catch {
+      return ""
+    }
+  }
+
+  const xanoFileOrigin =
+    resolveXanoOrigin(process.env.XANO_SAVE_FILE_BASE_URL) ||
+    resolveXanoOrigin(process.env.XANO_MEDIA_PLANS_BASE_URL) ||
+    resolveXanoOrigin(process.env.XANO_MEDIAPLANS_BASE_URL)
+
+  // Public File metadata fields are stored on media_plan_versions
+  const mediaPlanFileMeta =
+    campaignVersion?.media_plan ??
+    campaign?.media_plan ??
+    campaignData?.media_plan ??
+    null
+  const mbaPdfFileMeta =
+    campaignVersion?.mba_pdf ??
+    campaign?.mba_pdf ??
+    campaignData?.mba_pdf ??
+    null
   
+  const mpSearchEnabled = isTruthyFlag(
+    campaign?.mp_search ??
+      campaignVersion?.mp_search ??
+      campaignData?.mp_search ??
+      campaignData?.versionData?.mp_search
+  )
+
   // Resolve running media types
   const runningMediaTypes = resolveRunningMediaTypes(campaignData, campaign, lineItemsMap)
   
@@ -670,6 +780,17 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
   const startDate = campaign?.campaign_start_date || campaign?.mp_campaigndates_start
   const endDate = campaign?.campaign_end_date || campaign?.mp_campaigndates_end
 
+  const campaignStartISO = toISODateOnlySafe(startDate)
+  const campaignEndISO = toISODateOnlySafe(endDate)
+  const requestedStartISO = isAdmin ? toISODateOnlySafe(requestedStartDateParam) : null
+  const requestedEndISO = isAdmin ? toISODateOnlySafe(requestedEndDateParam) : null
+  const { startISO: effectiveStartISO, endISO: effectiveEndISO } = computeEffectiveDateRange({
+    campaignStartISO,
+    campaignEndISO,
+    requestedStartISO,
+    requestedEndISO,
+  })
+
   const monthlySpendToDate = deriveSpendToDateFromMonthlySpend(monthlySpend)
   const deliverySpendToDate = deriveSpendToDate(deliverySchedule)
   const actualSpend = (monthlySpendToDate > 0 ? monthlySpendToDate : deliverySpendToDate) || metrics.actualSpendToDate || 0
@@ -690,10 +811,67 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
   }
   const expectedSpendToDate = calculateExpectedSpendToDateFromDeliverySchedule(
     deliverySchedule,
-    startDate,
-    endDate
+    effectiveStartISO ?? startDate,
+    effectiveEndISO ?? endDate
   )
   const expectedSpend = expectedSpendToDate || metrics.expectedSpendToDate || 0
+
+  const searchStartISO = (() => {
+    if (!Array.isArray(deliverySchedule) || deliverySchedule.length === 0) return null
+
+    const getChannel = (entry: any) =>
+      String(
+        entry?.channel ??
+          entry?.media_channel ??
+          entry?.mediaType ??
+          entry?.media_type ??
+          entry?.publisher ??
+          entry?.placement ??
+          ""
+      )
+        .trim()
+        .toLowerCase()
+
+    const isSearchEntry = (entry: any) => getChannel(entry).includes("search")
+
+    const extractDateISO = (entry: any): string | null => {
+      const candidates = [
+        entry?.startDate,
+        entry?.start_date,
+        entry?.date,
+        entry?.DATE,
+        entry?.periodStart,
+        entry?.period_start,
+        entry?.month,
+        entry?.monthYear,
+      ]
+      for (const candidate of candidates) {
+        const iso = toISODateOnlySafe(candidate)
+        if (iso) return iso
+      }
+      return null
+    }
+
+    const dates = deliverySchedule
+      .filter(isSearchEntry)
+      .map(extractDateISO)
+      .filter((v): v is string => Boolean(v))
+      .sort()
+
+    return dates.length ? dates[0] : null
+  })()
+
+  const searchEndISO = (() => {
+    const melbourneTodayISO = getMelbourneTodayISO()
+    const melbourneYesterdayISO = getMelbourneYesterdayISO()
+
+    const status = String(campaign?.campaign_status ?? campaign?.campaignStatus ?? campaignVersion?.campaign_status ?? "")
+      .trim()
+      .toLowerCase()
+
+    const completed = status.includes("completed") || (campaignEndISO ? campaignEndISO < melbourneTodayISO : false)
+    return completed ? (campaignEndISO ?? melbourneYesterdayISO) : melbourneYesterdayISO
+  })()
 
   if (DEBUG_SPEND) {
     const monthCount = Array.isArray(deliverySchedule)
@@ -753,6 +931,7 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
 
   return (
     <div className="w-full space-y-6 rounded-3xl bg-[#DEE5F4] p-4 pb-40 md:p-6 md:pb-48">
+      {isAdmin ? <AdminDateRangeSelector campaignStart={campaignStartISO ?? startDate} campaignEnd={campaignEndISO ?? endDate} /> : null}
       <BrandFrame brandColour={brandColour}>
         <Suspense fallback={<Skeleton className="h-40 w-full rounded-3xl" />}>
           <CampaignInfoHeader campaign={campaign} />
@@ -767,8 +946,8 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
               daysInCampaign: metrics.daysInCampaign,
               daysElapsed: metrics.daysElapsed,
               daysRemaining: metrics.daysRemaining,
-              startDate,
-              endDate,
+              startDate: effectiveStartISO ?? startDate,
+              endDate: effectiveEndISO ?? endDate,
             }}
             spend={{
               budget,
@@ -781,8 +960,8 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
               <Suspense fallback={<Skeleton className="h-32 w-full rounded-2xl" />}>
                 <ExpectedSpendToDateCard
                   mbaNumber={mba_number}
-                  campaignStart={startDate}
-                  campaignEnd={endDate}
+                  campaignStart={effectiveStartISO ?? startDate}
+                  campaignEnd={effectiveEndISO ?? endDate}
                   budget={budget}
                   actualSpend={actualSpend}
                   expectedSpend={expectedSpend}
@@ -807,8 +986,8 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
       <Suspense fallback={<Skeleton className="h-[420px] w-full rounded-3xl" />}>
         <MediaPlanVizSection
           lineItems={lineItemsMap}
-          campaignStart={startDate}
-          campaignEnd={endDate}
+          campaignStart={effectiveStartISO ?? startDate}
+          campaignEnd={effectiveEndISO ?? endDate}
           clientSlug={slug}
           mbaNumber={mba_number}
         />
@@ -819,8 +998,8 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
           <PacingDataProviderWrapper
             mbaNumber={mba_number}
             pacingLineItemIds={pacingLineItemIds}
-            campaignStart={startDate}
-            campaignEnd={endDate}
+            campaignStart={effectiveStartISO ?? startDate}
+            campaignEnd={effectiveEndISO ?? endDate}
             clientSlug={slug}
             socialItemsActive={socialItemsActive}
             progDisplayItemsActive={progDisplayItemsActive}
@@ -835,8 +1014,8 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
                 clientSlug={slug}
                 mbaNumber={mba_number}
                 socialLineItems={socialItemsActive}
-                campaignStart={startDate}
-                campaignEnd={endDate}
+                campaignStart={effectiveStartISO ?? startDate}
+                campaignEnd={effectiveEndISO ?? endDate}
                 initialPacingRows={undefined}
                 pacingLineItemIds={pacingLineItemIds}
               />
@@ -850,8 +1029,8 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
                 mbaNumber={mba_number}
                 progDisplayLineItems={progDisplayItemsActive}
                 progVideoLineItems={progVideoItemsActive}
-                campaignStart={startDate}
-                campaignEnd={endDate}
+                campaignStart={effectiveStartISO ?? startDate}
+                campaignEnd={effectiveEndISO ?? endDate}
                 initialPacingRows={undefined}
                 pacingLineItemIds={pacingLineItemIds}
               />
@@ -859,6 +1038,17 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
           ) : null}
         </>
       )}
+
+      {mpSearchEnabled && searchStartISO && searchEndISO ? (
+        <Suspense fallback={<Skeleton className="h-[480px] w-full rounded-3xl" />}>
+          <SearchPacingContainer
+            clientSlug={slug}
+            mbaNumber={mba_number}
+            startDate={searchStartISO}
+            endDate={searchEndISO}
+          />
+        </Suspense>
+      ) : null}
 
       {DEBUG_LINE_ITEMS ? (
         <div className="rounded-2xl border border-dashed border-muted/70 bg-background/80 p-3 text-sm text-muted-foreground">
@@ -871,7 +1061,15 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
         </div>
       ) : null}
 
-      <CampaignActions mbaNumber={mba_number} campaign={campaign} lineItems={lineItemsMap} billingSchedule={billingSchedule} />
+      <CampaignActions
+        mbaNumber={mba_number}
+        campaign={campaign}
+        lineItems={lineItemsMap}
+        billingSchedule={billingSchedule}
+        xanoFileOrigin={xanoFileOrigin}
+        mediaPlanFileMeta={mediaPlanFileMeta}
+        mbaPdfFileMeta={mbaPdfFileMeta}
+      />
     </div>
   )
 }

@@ -279,7 +279,7 @@ export async function PUT(
       campaign_start_date: data.mp_campaigndates_start || currentVersion.campaign_start_date,
       campaign_end_date: data.mp_campaigndates_end || currentVersion.campaign_end_date,
       brand: data.mp_brand || currentVersion.brand,
-      client_name: data.mp_client_name || currentVersion.client_name,
+      mp_client_name: data.mp_client_name || data.mp_clientname || currentVersion.mp_client_name || currentVersion.client_name,
       client_contact: data.mp_clientcontact || currentVersion.client_contact,
       po_number: data.mp_ponumber || currentVersion.po_number,
       mp_campaignbudget: data.mp_campaignbudget || currentVersion.mp_campaignbudget,

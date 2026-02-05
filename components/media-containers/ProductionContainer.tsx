@@ -14,6 +14,7 @@ import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { CalendarIcon, Check, ChevronDown, ChevronsUpDown, Copy, Plus, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { formatMoney } from "@/lib/utils/money"
 import type { BillingBurst } from "@/lib/billing/types"
 import { formatBurstLabel } from "@/lib/bursts"
 import type { LineItem } from "@/lib/generateMediaPlan"
@@ -179,7 +180,7 @@ const buildInvestmentByMonth = (bursts: BillingBurst[]) => {
   })
   return Object.entries(monthly).map(([monthYear, amount]) => ({
     monthYear,
-    amount: `$${amount.toFixed(2)}`,
+    amount: formatMoney(amount, { locale: "en-US", currency: "USD" }),
   }))
 }
 
@@ -203,7 +204,7 @@ const mapLineItemsForExport = (
         deliverables: burst.amount || 0,
         buyType: "production",
         deliverablesAmount: (burst.cost || 0).toString(),
-        grossMedia: mediaAmount.toFixed(2),
+        grossMedia: String(mediaAmount),
         line_item_id: lineId,
         line_item: lineIndex + 1,
       }
@@ -442,7 +443,7 @@ export default function ProductionContainer({
           <CardTitle className="text-lg font-semibold flex items-center justify-between">
             <span>Production Summary</span>
             <span className="text-sm font-medium">
-              Media: ${totals.totalMedia.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              Media: {formatMoney(totals.totalMedia, { locale: "en-US", currency: "USD" })}
             </span>
           </CardTitle>
         </CardHeader>
@@ -473,7 +474,7 @@ export default function ProductionContainer({
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="text-sm font-medium whitespace-nowrap">
-                        Media: ${lineItemMediaTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        Media: {formatMoney(lineItemMediaTotal, { locale: "en-US", currency: "USD" })}
                       </div>
                       <Button
                         type="button"
@@ -786,7 +787,7 @@ export default function ProductionContainer({
                               <div>
                                 <p className="text-xs text-muted-foreground">Media (Cost x Amount)</p>
                                 <p className="font-semibold">
-                                  ${mediaValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                  {formatMoney(mediaValue, { locale: "en-US", currency: "USD" })}
                                 </p>
                               </div>
                               <div className="text-xs text-muted-foreground flex items-center">

@@ -1,3 +1,5 @@
+import type { PageContext } from "@/lib/openai"
+
 export type AssistantActionHandlers = {
   /**
    * Update the budget for a specific burst within a media type.
@@ -27,6 +29,7 @@ export type AssistantActionHandlers = {
 export type AssistantContext = {
   summary?: unknown
   actions?: AssistantActionHandlers
+  pageContext?: PageContext
 }
 
 const GLOBAL_KEY = "__AV_ASSISTANT__"

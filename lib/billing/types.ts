@@ -24,6 +24,16 @@ export type BillingLineItem = {
   header2: string; // Second column header (Station/Title/Site/Bid Strategy/Format)
   monthlyAmounts: Record<string, number>; // Month key -> amount for that month
   totalAmount: number;
+  /**
+   * Manual billing UI helper: if true, this line item is "pre-billed"
+   * (all spend moved into the first billing month).
+   */
+  preBill?: boolean;
+  /**
+   * Manual billing UI helper: snapshot of monthlyAmounts before pre-bill was applied,
+   * so unchecking can restore the previous distribution.
+   */
+  preBillSnapshot?: Record<string, number>;
 };
 
 export type BillingMonth = {

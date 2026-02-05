@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useMemo } from "react";
-import { FileText, Users, Building2, LayoutDashboard, PlusCircle, ChevronDown, ChevronRight, UserCircle, DollarSign, BarChart3, ClipboardList, BookOpen } from "lucide-react";
+import { FileText, Users, Building2, LayoutDashboard, PlusCircle, ChevronDown, ChevronRight, UserCircle, DollarSign, BarChart3, ClipboardList, BookOpen, TrendingUp } from "lucide-react";
 import { UserMenu } from "@/components/UserMenu";
 import {
   Sidebar,
@@ -60,6 +60,7 @@ export function AppSidebar() {
     { title: "Home", icon: LayoutDashboard, href: "/dashboard" },
     { title: "Campaigns", icon: FileText, href: "/mediaplans" },
     { title: "Scopes of Work", icon: ClipboardList, href: "/scopes-of-work" },
+    { title: "Pacing", icon: TrendingUp, href: "/pacing" },
     { title: "Publishers", icon: Building2, href: "/publishers" },
     { title: "Clients", icon: Users, href: "/clients" },
     { title: "Learning", icon: BookOpen, href: "/learning" },

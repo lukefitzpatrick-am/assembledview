@@ -12,6 +12,8 @@ type PacingDataProviderProps = {
   progVideoLineItemIds: string[]
   campaignStart?: string
   campaignEnd?: string
+  fromDate?: string
+  toDate?: string
   children: (props: { rows: CombinedPacingRow[]; loading: boolean; error: string | null }) => ReactNode
 }
 
@@ -59,6 +61,15 @@ function parseDateSafe(value?: string | null): Date | null {
   return d
 }
 
+function normalizeISODateOnly(value?: string | null): string | null {
+  if (!value) return null
+  const trimmed = String(value).trim()
+  if (!trimmed) return null
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed
+  const parsed = parseDateSafe(trimmed)
+  return parsed ? parsed.toISOString().slice(0, 10) : null
+}
+
 function cleanId(v: unknown): string | null {
   const s = String(v ?? "").trim().toLowerCase()
   if (!s || s === "undefined" || s === "null") return null
@@ -103,6 +114,8 @@ export default function PacingDataProvider({
   progVideoLineItemIds,
   campaignStart,
   campaignEnd,
+  fromDate,
+  toDate,
   children,
 }: PacingDataProviderProps) {
   const [rows, setRows] = useState<CombinedPacingRow[]>([])
@@ -146,15 +159,13 @@ export default function PacingDataProvider({
     const melbourneYesterdayISO = getMelbourneYesterdayISO()
 
     let campaignEndDateISO: string | null = null
-    if (campaignEnd) {
-      const parsed = parseDateSafe(campaignEnd)
-      if (parsed) campaignEndDateISO = parsed.toISOString().slice(0, 10)
-    }
+    const endCandidate = toDate ?? campaignEnd
+    campaignEndDateISO = normalizeISODateOnly(endCandidate)
 
     const endDate =
       campaignEndDateISO && campaignEndDateISO < melbourneTodayISO ? campaignEndDateISO : melbourneYesterdayISO
 
-    const startDate = campaignStart || undefined
+    const startDate = normalizeISODateOnly(fromDate ?? campaignStart) || undefined
 
     const fetchAll = async () => {
       setLoading(true)
@@ -189,7 +200,7 @@ export default function PacingDataProvider({
       setRows([])
       setLoading(false)
     })
-  }, [mbaNumber, allIdsKey, campaignStart, campaignEnd, allLineItemIds])
+  }, [mbaNumber, allIdsKey, campaignStart, campaignEnd, fromDate, toDate, allLineItemIds])
 
   return <>{children({ rows, loading, error })}</>
 }

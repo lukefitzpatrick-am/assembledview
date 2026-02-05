@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Combobox } from "@/components/ui/combobox"
 import { SavingModal } from "@/components/ui/saving-modal"
 import { SuccessModal } from "@/components/ui/success-modal"
 import { Badge } from "@/components/ui/badge"
@@ -319,22 +319,23 @@ export function EditClientForm({ client, onSuccess }: EditClientFormProps) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>State</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-          <SelectTrigger>
-            <SelectValue placeholder="Select State" />
-          </SelectTrigger>
-                    </FormControl>
-          <SelectContent>
-            <SelectItem value="NSW">NSW</SelectItem>
-            <SelectItem value="VIC">VIC</SelectItem>
-            <SelectItem value="QLD">QLD</SelectItem>
-            <SelectItem value="SA">SA</SelectItem>
-            <SelectItem value="WA">WA</SelectItem>
-            <SelectItem value="TAS">TAS</SelectItem>
-            <SelectItem value="ACT">ACT</SelectItem>
-          </SelectContent>
-        </Select>
+                  <FormControl>
+                    <Combobox
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      placeholder="Select State"
+                      searchPlaceholder="Search states..."
+                      options={[
+                        { value: "ACT", label: "ACT" },
+                        { value: "NSW", label: "NSW" },
+                        { value: "QLD", label: "QLD" },
+                        { value: "SA", label: "SA" },
+                        { value: "TAS", label: "TAS" },
+                        { value: "VIC", label: "VIC" },
+                        { value: "WA", label: "WA" },
+                      ]}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}

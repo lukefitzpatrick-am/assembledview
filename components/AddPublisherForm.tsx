@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Combobox } from "@/components/ui/combobox"
 import { SavingModal } from "@/components/ui/saving-modal"
 import { SuccessModal } from "@/components/ui/success-modal"
 
@@ -187,17 +187,18 @@ export function AddPublisherForm({ onSuccess }: AddPublisherFormProps) {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Publisher Type</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select publisher type" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="direct">Direct</SelectItem>
-                    <SelectItem value="internal_biddable">Internal Biddable</SelectItem>
-                  </SelectContent>
-                </Select>
+                <FormControl>
+                  <Combobox
+                    value={field.value}
+                    onValueChange={field.onChange}
+                    placeholder="Select publisher type"
+                    searchPlaceholder="Search publisher types..."
+                    options={[
+                      { value: "direct", label: "Direct" },
+                      { value: "internal_biddable", label: "Internal Biddable" },
+                    ]}
+                  />
+                </FormControl>
                 <FormMessage />
               </FormItem>
             )}
@@ -209,17 +210,18 @@ export function AddPublisherForm({ onSuccess }: AddPublisherFormProps) {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Billing Agency</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select billing agency" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="assembled media">assembled media</SelectItem>
-                    <SelectItem value="advertising associates">advertising associates</SelectItem>
-                  </SelectContent>
-                </Select>
+                <FormControl>
+                  <Combobox
+                    value={field.value}
+                    onValueChange={field.onChange}
+                    placeholder="Select billing agency"
+                    searchPlaceholder="Search billing agencies..."
+                    options={[
+                      { value: "advertising associates", label: "Advertising Associates" },
+                      { value: "assembled media", label: "Assembled Media" },
+                    ]}
+                  />
+                </FormControl>
                 <FormMessage />
               </FormItem>
             )}

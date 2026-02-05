@@ -543,9 +543,15 @@ function slugifyClientName(name: string): string {
 /**
  * Compute merged accrual rows for selected months across the chosen versions.
  */
-export function computeAccrualRows(args: { versions: VersionInput[]; months: string[] }): AccrualRow[] {
+export function computeAccrualRows(args: {
+  versions: VersionInput[]
+  months: string[]
+  clientPaysForMediaByLineItemId?: Record<string, boolean>
+}): AccrualRow[] {
   const monthsSet = new Set(args.months)
   if (!monthsSet.size) return []
+
+  const clientPaysForMediaByLineItemId: Record<string, boolean> = args.clientPaysForMediaByLineItemId ?? {}
 
   const aggregate = new Map<
     string,
@@ -579,6 +585,9 @@ export function computeAccrualRows(args: { versions: VersionInput[]; months: str
       mbaNumber,
       versionNumber,
     })
+      // Exclude delivery for line items where Xano says client pays for media.
+      // Keys are compared using lowercase ids (buildLineItemKey returns lowercase when an id exists).
+      .filter((line) => clientPaysForMediaByLineItemId[String(line.lineItemKey ?? "").trim().toLowerCase()] !== true)
     const billing = flattenSchedule({
       source: "billing",
       schedule: v.billingSchedule,

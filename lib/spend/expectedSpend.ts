@@ -1,3 +1,5 @@
+import { roundMoney4 } from "@/lib/utils/money"
+
 const MELBOURNE_TZ = "Australia/Melbourne"
 
 const MONTH_NAMES = [
@@ -38,7 +40,8 @@ export const formatCurrencyAUD = (value: number) =>
   new Intl.NumberFormat("en-AU", {
     style: "currency",
     currency: "AUD",
-    maximumFractionDigits: 2,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4,
   }).format(value)
 
 export const calculateExpectedSpendToDateFromDeliverySchedule = (
@@ -96,7 +99,7 @@ export const calculateExpectedSpendToDateFromDeliverySchedule = (
     expectedSpend += plannedSpend * fraction
   }
 
-  return Number(expectedSpend.toFixed(2))
+  return roundMoney4(expectedSpend)
 }
 
 const normalizeDeliverySchedule = (deliverySchedule: unknown): DeliveryMonth[] => {

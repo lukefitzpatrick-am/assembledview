@@ -17,6 +17,7 @@ import { SmallProgressCard } from "@/components/dashboard/pacing/SmallProgressCa
 import { downloadCSV } from "@/lib/utils/csv-export"
 import type { PacingRow as CombinedPacingRow } from "@/lib/snowflake/pacing-service"
 import type { Dv360DailyRow } from "@/lib/pacing/dv360/dv360Pacing"
+import { mapDeliverableMetric } from "@/lib/pacing/deliverables/mapDeliverableMetric"
 
 type ProgrammaticLineItem = {
   line_item_id: string
@@ -96,17 +97,6 @@ const palette = {
 
 const DEBUG_PACING = process.env.NEXT_PUBLIC_DEBUG_PACING === "true"
 const IS_DEV = process.env.NODE_ENV !== "production"
-
-const deliverableMapping: Record<
-  string,
-  "impressions" | "clicks" | "conversions" | "videoViews" | null
-> = {
-  cpm: "impressions",
-  cpc: "clicks",
-  cpv: "videoViews",
-  cpa: "conversions",
-  leads: "conversions",
-}
 
 function cleanId(v: any) {
   const s = String(v ?? "").trim()
@@ -416,7 +406,8 @@ function formatCurrency(value: number | undefined) {
   return new Intl.NumberFormat("en-AU", {
     style: "currency",
     currency: "AUD",
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4,
   }).format(value ?? 0)
 }
 
@@ -425,7 +416,7 @@ function formatCurrency2dp(value: number | undefined) {
     style: "currency",
     currency: "AUD",
     minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    maximumFractionDigits: 4,
   }).format(value ?? 0)
 }
 
@@ -468,10 +459,22 @@ function buildCumulativeSeries(dates: string[], actualsDaily: LineItemMetrics["a
   })
 }
 
-function deriveDeliverableKey(buyType?: string | null): LineItemMetrics["deliverableKey"] {
-  if (!buyType) return "impressions"
-  const normalized = String(buyType).toLowerCase()
-  return deliverableMapping[normalized] ?? "impressions"
+function deriveDeliverableKey(
+  buyType?: string | null,
+  platform?: string | null
+): LineItemMetrics["deliverableKey"] {
+  const metric = mapDeliverableMetric({ channel: "programmatic", buyType, platform })
+  switch (metric) {
+    case "VIDEO_3S_VIEWS":
+      return "videoViews"
+    case "RESULTS":
+      return "conversions"
+    case "CLICKS":
+      return "clicks"
+    case "IMPRESSIONS":
+    default:
+      return "impressions"
+  }
 }
 
 function getDeliverableLabel(key: LineItemMetrics["deliverableKey"]) {
@@ -1339,7 +1342,7 @@ export default function ProgrammaticPacingContainer({
         })
       })
 
-      const deliverableKey = deriveDeliverableKey(item.buy_type)
+      const deliverableKey = deriveDeliverableKey(item.buy_type, item.platform)
 
       const actualsDaily = dateRange.map((date) => {
         const day =

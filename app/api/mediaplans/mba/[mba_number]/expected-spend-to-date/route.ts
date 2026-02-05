@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { normaliseLineItemsByType } from "@/lib/mediaplan/normalizeLineItem"
 import { parseDateOnlyString } from "@/lib/timezone"
+import { roundMoney4 } from "@/lib/utils/money"
 
 const DEBUG_SPEND = process.env.NEXT_PUBLIC_DEBUG_SPEND === "true"
 
@@ -117,7 +118,7 @@ function computeExpectedSpendToDate(params: {
     return sum + clamped
   }, 0)
 
-  return Number(total.toFixed(2))
+  return roundMoney4(total)
 }
 
 function parseMonthLabel(label: any): { start: Date; end: Date } | null {
@@ -285,7 +286,7 @@ function computeExpectedFromMonthlySpend(params: {
     })
   }
 
-  return Number(total.toFixed(2))
+  return roundMoney4(total)
 }
 
 export async function GET(

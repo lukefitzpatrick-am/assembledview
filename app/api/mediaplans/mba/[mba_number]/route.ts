@@ -3,6 +3,7 @@ import axios from "axios"
 import { parseDateOnlyString, toMelbourneDateString } from "@/lib/timezone"
 import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
 import { getXanoBaseUrl, xanoUrl } from "@/lib/api/xano"
+import { roundMoney4 } from "@/lib/utils/money"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -175,6 +176,47 @@ function safeParseDate(value: any): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed
 }
 
+function normalizeISODateOnlySafe(value: any): string | null {
+  if (!value) return null
+  if (typeof value === "string") {
+    const trimmed = value.trim()
+    if (!trimmed) return null
+    const m = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+    if (m) return trimmed
+    const parsed = safeParseDate(trimmed)
+    return parsed ? toMelbourneDateString(parsed) : null
+  }
+  const parsed = safeParseDate(value)
+  return parsed ? toMelbourneDateString(parsed) : null
+}
+
+function clampISODateOnly(value: string | null, min: string | null, max: string | null): string | null {
+  if (!value) return null
+  const iso = normalizeISODateOnlySafe(value)
+  if (!iso) return null
+  if (min && iso < min) return min
+  if (max && iso > max) return max
+  return iso
+}
+
+function computeEffectiveDateRange(opts: {
+  campaignStartISO: string | null
+  campaignEndISO: string | null
+  requestedStartISO: string | null
+  requestedEndISO: string | null
+}): { startISO: string | null; endISO: string | null } {
+  const { campaignStartISO, campaignEndISO, requestedStartISO, requestedEndISO } = opts
+
+  const startClamped = clampISODateOnly(requestedStartISO, campaignStartISO, campaignEndISO) ?? campaignStartISO
+  const endClamped = clampISODateOnly(requestedEndISO, campaignStartISO, campaignEndISO) ?? campaignEndISO
+
+  if (startClamped && endClamped && startClamped > endClamped) {
+    return { startISO: endClamped, endISO: startClamped }
+  }
+
+  return { startISO: startClamped, endISO: endClamped }
+}
+
 function getMonthLabel(value: any): string {
   if (!value) return "Unknown"
   const date = new Date(value)
@@ -261,6 +303,94 @@ function startOfDay(date: Date) {
 function endOfDay(date: Date) {
   const next = new Date(date)
   next.setHours(23, 59, 59, 999)
+  return next
+}
+
+function overlapsRange(itemStart: Date, itemEnd: Date, rangeStart: Date, rangeEnd: Date): boolean {
+  const aStart = startOfDay(itemStart).getTime()
+  const aEnd = startOfDay(itemEnd).getTime()
+  const bStart = startOfDay(rangeStart).getTime()
+  const bEnd = startOfDay(rangeEnd).getTime()
+  return aStart <= bEnd && aEnd >= bStart
+}
+
+function filterBillingScheduleByRange(billingSchedule: any[], rangeStart: Date, rangeEnd: Date): any[] {
+  if (!Array.isArray(billingSchedule)) return []
+  return billingSchedule.filter((entry) => {
+    const monthStart = extractMonthDate(entry)
+    if (!monthStart) return true
+    const monthEnd = endOfDay(new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0))
+    return overlapsRange(monthStart, monthEnd, rangeStart, rangeEnd)
+  })
+}
+
+function extractDeliveryEntryDate(entry: any): Date | null {
+  const raw =
+    entry?.date ??
+    entry?.DATE ??
+    entry?.startDate ??
+    entry?.start_date ??
+    entry?.periodStart ??
+    entry?.period_start ??
+    entry?.month ??
+    entry?.monthYear
+  return safeParseDate(raw)
+}
+
+function filterDeliveryScheduleByRange(deliverySchedule: any[], rangeStart: Date, rangeEnd: Date): any[] {
+  if (!Array.isArray(deliverySchedule)) return []
+  return deliverySchedule.filter((entry) => {
+    const d = extractDeliveryEntryDate(entry)
+    if (!d) return true
+    const day = startOfDay(d)
+    return day >= startOfDay(rangeStart) && day <= startOfDay(rangeEnd)
+  })
+}
+
+function extractLineItemDateRange(item: any): { start: Date | null; end: Date | null } {
+  if (!item || typeof item !== "object") return { start: null, end: null }
+  const startCandidates = [
+    item.start_date,
+    item.startDate,
+    item.flight_start,
+    item.flightStart,
+    item.period_start,
+    item.periodStart,
+    item.campaign_start_date,
+    item.campaignStartDate,
+    item.begin_date,
+    item.beginDate,
+  ]
+  const endCandidates = [
+    item.end_date,
+    item.endDate,
+    item.flight_end,
+    item.flightEnd,
+    item.period_end,
+    item.periodEnd,
+    item.campaign_end_date,
+    item.campaignEndDate,
+    item.finish_date,
+    item.finishDate,
+  ]
+  const start = startCandidates.map(safeParseDate).find(Boolean) ?? null
+  const end = endCandidates.map(safeParseDate).find(Boolean) ?? null
+  return { start, end }
+}
+
+function filterLineItemsDataByRange(lineItems: MediaLineItems, rangeStart: Date, rangeEnd: Date): MediaLineItems {
+  const next = createEmptyLineItems()
+  ;(Object.keys(lineItems) as Array<keyof MediaLineItems>).forEach((key) => {
+    const items = Array.isArray(lineItems[key]) ? lineItems[key] : []
+    next[key] = items.filter((item) => {
+      const { start, end } = extractLineItemDateRange(item)
+      if (!start && !end) return true
+      const itemStart = start ?? end
+      const itemEnd = end ?? start
+      if (!itemStart || !itemEnd) return true
+      return overlapsRange(itemStart, itemEnd, rangeStart, rangeEnd)
+    })
+  })
   return next
 }
 
@@ -362,7 +492,7 @@ function calculateExpectedSpendToDate(billingSchedule: any, startDate: string, e
     expected += amount * (elapsedDays / totalDays)
   })
 
-  return Number(expected.toFixed(2))
+  return roundMoney4(expected)
 }
 
 function summarizeBillingSchedule(billingSchedule: any[]): {
@@ -744,6 +874,8 @@ export async function GET(
     const url = new URL(request.url)
     const requestedVersionParam = url.searchParams.get('version')
     const requestedVersionNumber = requestedVersionParam ? parseInt(requestedVersionParam, 10) : null
+    const requestedStartDateParam = url.searchParams.get("startDate")
+    const requestedEndDateParam = url.searchParams.get("endDate")
     
     // Fetch ALL versions for this MBA to derive target and latest
     const versionsResponse = await axios.get(
@@ -850,14 +982,6 @@ export async function GET(
       }
     }
 
-    const countsPerType = Object.entries(lineItemsData).reduce(
-      (acc, [key, items]) => {
-        acc[key] = Array.isArray(items) ? items.length : 0
-        return acc
-      },
-      {} as Record<string, number>
-    )
-    
     // Combine master, version, and line items data
     // Explicitly include billingSchedule from versionData to ensure it's not lost
     // Check for billingSchedule in various possible field names (camelCase, snake_case, etc.)
@@ -906,8 +1030,26 @@ export async function GET(
       masterData.campaign_end_date ||
       masterData.mp_campaigndates_end
 
-    const timeElapsed = startDate && endDate ? calculateTimeElapsed(startDate, endDate) : 0
-    const dayMetrics = startDate && endDate ? calculateDayMetrics(startDate, endDate) : { daysInCampaign: 0, daysElapsed: 0, daysRemaining: 0 }
+    const campaignStartISO = normalizeISODateOnlySafe(startDate)
+    const campaignEndISO = normalizeISODateOnlySafe(endDate)
+    const { startISO: effectiveStartISO, endISO: effectiveEndISO } = computeEffectiveDateRange({
+      campaignStartISO,
+      campaignEndISO,
+      requestedStartISO: normalizeISODateOnlySafe(requestedStartDateParam),
+      requestedEndISO: normalizeISODateOnlySafe(requestedEndDateParam),
+    })
+
+    const effectiveStartForMetrics = effectiveStartISO ?? campaignStartISO
+    const effectiveEndForMetrics = effectiveEndISO ?? campaignEndISO
+
+    const timeElapsed =
+      effectiveStartForMetrics && effectiveEndForMetrics
+        ? calculateTimeElapsed(effectiveStartForMetrics, effectiveEndForMetrics)
+        : 0
+    const dayMetrics =
+      effectiveStartForMetrics && effectiveEndForMetrics
+        ? calculateDayMetrics(effectiveStartForMetrics, effectiveEndForMetrics)
+        : { daysInCampaign: 0, daysElapsed: 0, daysRemaining: 0 }
 
     const clientName =
       versionData?.mp_client_name ||
@@ -918,15 +1060,53 @@ export async function GET(
 
     const clientBrandColour = await fetchClientBrandColour(clientName)
 
-    const expectedSpendToDate = parsedBillingSchedule && Array.isArray(parsedBillingSchedule) && startDate && endDate
-      ? calculateExpectedSpendToDate(parsedBillingSchedule, startDate, endDate)
-      : 0
+    let effectiveStartDateObj: Date | null = null
+    let effectiveEndDateObj: Date | null = null
+    if (effectiveStartForMetrics && effectiveEndForMetrics) {
+      effectiveStartDateObj = parseDateOnlyString(effectiveStartForMetrics)
+      effectiveEndDateObj = parseDateOnlyString(effectiveEndForMetrics)
+    }
 
-    const billingSpend = parsedBillingSchedule && Array.isArray(parsedBillingSchedule)
-      ? summarizeBillingSchedule(parsedBillingSchedule)
+    const filteredBillingSchedule =
+      parsedBillingSchedule && Array.isArray(parsedBillingSchedule) && effectiveStartDateObj && effectiveEndDateObj
+        ? filterBillingScheduleByRange(parsedBillingSchedule, effectiveStartDateObj, effectiveEndDateObj)
+        : parsedBillingSchedule
+
+    const billingSpend =
+      filteredBillingSchedule && Array.isArray(filteredBillingSchedule)
+        ? summarizeBillingSchedule(filteredBillingSchedule)
       : { spendByMediaChannel: [], monthlySpend: [] }
 
-    const deliveryScheduleMetrics = normalizeDeliverySchedule(parsedDeliverySchedule)
+    const filteredDeliverySchedule =
+      parsedDeliverySchedule && Array.isArray(parsedDeliverySchedule) && effectiveStartDateObj && effectiveEndDateObj
+        ? filterDeliveryScheduleByRange(parsedDeliverySchedule, effectiveStartDateObj, effectiveEndDateObj)
+        : parsedDeliverySchedule
+
+    const deliveryScheduleMetrics = normalizeDeliverySchedule(filteredDeliverySchedule)
+
+    if (effectiveStartDateObj && effectiveEndDateObj) {
+      lineItemsData = filterLineItemsDataByRange(lineItemsData, effectiveStartDateObj, effectiveEndDateObj)
+    }
+
+    const countsPerType = Object.entries(lineItemsData).reduce(
+      (acc, [key, items]) => {
+        acc[key] = Array.isArray(items) ? items.length : 0
+        return acc
+      },
+      {} as Record<string, number>
+    )
+
+    const expectedSpendToDate =
+      filteredBillingSchedule &&
+      Array.isArray(filteredBillingSchedule) &&
+      (effectiveStartForMetrics ?? startDate) &&
+      (effectiveEndForMetrics ?? endDate)
+        ? calculateExpectedSpendToDate(
+            filteredBillingSchedule,
+            (effectiveStartForMetrics ?? startDate) as string,
+            (effectiveEndForMetrics ?? endDate) as string
+          )
+        : 0
 
     // Ensure version_number is explicitly set from versionData to avoid being overridden by masterData
     // If a specific version was requested, we MUST use that version (it should already be in versionData)
@@ -983,7 +1163,7 @@ export async function GET(
       versionNumber: actualVersionNumber,
       versionData,
       version_number: actualVersionNumber, // Explicitly set to ensure correct version is returned
-      billingSchedule: parsedBillingSchedule,
+      billingSchedule: filteredBillingSchedule,
       deliverySchedule: deliveryScheduleMetrics.raw,
       lineItems: lineItemsData,
       metrics: {
@@ -1167,6 +1347,8 @@ export async function PUT(
 
     // Format the data to match the media_plan_versions schema
     const mpProductionFlag = isTruthyFlag(data.mp_production) || isTruthyFlag(data.mp_fixedfee)
+    const resolvedClientName =
+      data.mp_client_name || data.mp_clientname || data.client_name || masterData.mp_client_name
     const newVersionData = {
       media_plan_master_id: masterData.id,
       version_number: nextVersionNumber,
@@ -1176,7 +1358,7 @@ export async function PUT(
       campaign_start_date: normalizedCampaignStartDate,
       campaign_end_date: normalizedCampaignEndDate,
       brand: data.mp_brand || "",
-      client_name: data.mp_client_name || masterData.mp_client_name,
+      mp_client_name: resolvedClientName,
       client_contact: data.mp_clientcontact || "",
       po_number: data.mp_ponumber || "",
       mp_campaignbudget: data.mp_campaignbudget || masterData.mp_campaignbudget,
@@ -1202,7 +1384,9 @@ export async function PUT(
       mp_progooh: isTruthyFlag(data.mp_progooh),
       mp_influencers: isTruthyFlag(data.mp_influencers),
       billingSchedule: data.billingSchedule || null,
-      deliverySchedule: data.deliverySchedule || null,
+      // Accept either casing from client; persist both keys to tolerate Xano schema/input naming.
+      deliverySchedule: data.deliverySchedule ?? data.delivery_schedule ?? null,
+      delivery_schedule: data.deliverySchedule ?? data.delivery_schedule ?? null,
     }
     
     // Create new version in media_plan_versions table

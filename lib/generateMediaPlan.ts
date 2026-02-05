@@ -402,7 +402,7 @@ export async function generateMediaPlan(
   style('D5', { value: 'Plan Date', bold: true, align: 'right', fontSize: headerFontSize }); style('E5', { value: (new Date()).toLocaleDateString('en-AU', {timeZone: 'UTC'}), align: 'left', fontSize: headerFontSize, fill: greyFill, numFmt: 'dd/mm/yyyy' });
   style('D6', { value: 'PO Number', bold: true, align: 'right', fontSize: headerFontSize }); style('E6', { value: poNumber, align: 'left', fontSize: headerFontSize, fill: greyFill });
   // Right column
-  style('F3', { value: 'Campaign Budget', bold: true, align: 'right', fontSize: headerFontSize }); style('G3', { value: parseFloat(campaignBudget.replace(/[^0-9.-]+/g,"")) || 0, align: 'left', fontSize: headerFontSize, fill: greyFill, numFmt: '$#,##0.00' });
+  style('F3', { value: 'Campaign Budget', bold: true, align: 'right', fontSize: headerFontSize }); style('G3', { value: parseFloat(campaignBudget.replace(/[^0-9.-]+/g,"")) || 0, align: 'left', fontSize: headerFontSize, fill: greyFill, numFmt: '$#,##0.00##' });
   style('F4', { value: 'Campaign Status', bold: true, align: 'right', fontSize: headerFontSize }); style('G4', { value: campaignStatus, align: 'left', fontSize: headerFontSize, fill: greyFill });
   style('F5', { value: 'Campaign Start Date', bold: true, align: 'right', fontSize: headerFontSize }); style('G5', { value: parseDateStringDDMMYYYY(campaignStart), align: 'left', fontSize: headerFontSize, fill: greyFill, numFmt: 'dd/mm/yyyy' });
   style('F6', { value: 'Campaign End Date', bold: true, align: 'right', fontSize: headerFontSize }); style('G6', { value: parseDateStringDDMMYYYY(campaignEnd), align: 'left', fontSize: headerFontSize, fill: greyFill, numFmt: 'dd/mm/yyyy' });
@@ -768,7 +768,7 @@ export async function generateMediaPlan(
           } else if (i === 8) { // Default Deliverables
              cellStyleOptions.numFmt = '#,##0'; cellStyleOptions.align = 'right';
           } else if (i === 11 || i === 12) { // Avg Rate & Gross Media
-             cellStyleOptions.numFmt = '$#,##0.00'; cellStyleOptions.align = 'right';
+             cellStyleOptions.numFmt = '$#,##0.00##'; cellStyleOptions.align = 'right';
           } else if ((sectionType === 'Television' || sectionType === 'Radio' || sectionType === 'Cinema') && i === 7) { // Length/Duration column
               cellStyleOptions.align = 'center';
           } else if (sectionType === 'Press' && i === 7) { // Ad Size column
@@ -811,7 +811,7 @@ export async function generateMediaPlan(
 
     const sumGrossMedia = items.reduce((s, x) => s + x.grossMedia, 0);
     style(sheet.getCell(r, 14), {
-      value: sumGrossMedia, bold: true, align: 'right', numFmt: '$#,##0.00', fill: totalFill, fontColor: 'FF000000'
+      value: sumGrossMedia, bold: true, align: 'right', numFmt: '$#,##0.00##', fill: totalFill, fontColor: 'FF000000'
     });
 
     // Add exterior border around the entire section
@@ -1528,7 +1528,7 @@ export async function generateMediaPlan(
           value: item.gross_amount,
           fontSize: 15,
           align: 'right',
-          numFmt: '$#,##0.00'
+          numFmt: '$#,##0.00##'
         });
         currentRow++;
       });
@@ -1549,7 +1549,7 @@ export async function generateMediaPlan(
         value: totals.gross_media,
         fontSize: 15,
         align: 'right',
-        numFmt: '$#,##0.00'
+        numFmt: '$#,##0.00##'
       });
       currentRow++;
 
@@ -1563,7 +1563,7 @@ export async function generateMediaPlan(
         value: totals.service_fee,
         fontSize: 15,
         align: 'right',
-        numFmt: '$#,##0.00'
+        numFmt: '$#,##0.00##'
       });
       currentRow++;
 
@@ -1577,7 +1577,7 @@ export async function generateMediaPlan(
         value: totals.production,
         fontSize: 15,
         align: 'right',
-        numFmt: '$#,##0.00'
+        numFmt: '$#,##0.00##'
       });
       currentRow++;
 
@@ -1591,7 +1591,7 @@ export async function generateMediaPlan(
         value: totals.adserving,
         fontSize: 15,
         align: 'right',
-        numFmt: '$#,##0.00'
+        numFmt: '$#,##0.00##'
       });
       currentRow++;
 
@@ -1609,7 +1609,7 @@ export async function generateMediaPlan(
         fontSize: 15,
         bold: true,
         align: 'right',
-        numFmt: '$#,##0.00',
+        numFmt: '$#,##0.00##',
         fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6E6E6' } }
       });
       currentRow++;
@@ -1626,7 +1626,7 @@ export async function generateMediaPlan(
         fontSize: 15,
         bold: true,
         align: 'right',
-        numFmt: '$#,##0.00',
+        numFmt: '$#,##0.00##',
         fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD4E6F1' } }
       });
       const tableEndRow = currentRow;

@@ -11,17 +11,12 @@ import {
 } from "@/components/ui/table"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { Combobox } from "@/components/ui/combobox"
 import { Loader2, Download } from "lucide-react"
 import ExcelJS from "exceljs"
 import { saveAs } from "file-saver"
 import { format, addMonths, startOfMonth } from "date-fns"
+import { formatMoney } from "@/lib/utils/money"
 
 interface FinanceLineItem {
   itemCode: string
@@ -161,7 +156,7 @@ export default function FinanceSOWPage() {
         worksheet.getCell(rowIndex, 2).value = item.mediaType
         worksheet.getCell(rowIndex, 3).value = item.description
         worksheet.getCell(rowIndex, 4).value = item.amount
-        worksheet.getCell(rowIndex, 4).numFmt = "$#,##0.00"
+        worksheet.getCell(rowIndex, 4).numFmt = "$#,##0.00##"
         rowIndex++
       })
 
@@ -169,7 +164,7 @@ export default function FinanceSOWPage() {
         worksheet.getCell(rowIndex, 1).value = service.itemCode
         worksheet.getCell(rowIndex, 2).value = service.service
         worksheet.getCell(rowIndex, 4).value = service.amount
-        worksheet.getCell(rowIndex, 4).numFmt = "$#,##0.00"
+        worksheet.getCell(rowIndex, 4).numFmt = "$#,##0.00##"
         rowIndex++
       })
 
@@ -177,7 +172,7 @@ export default function FinanceSOWPage() {
       worksheet.getCell(rowIndex, 1).value = "Total"
       worksheet.getCell(rowIndex, 1).font = { bold: true }
       worksheet.getCell(rowIndex, 4).value = campaign.total
-      worksheet.getCell(rowIndex, 4).numFmt = "$#,##0.00"
+      worksheet.getCell(rowIndex, 4).numFmt = "$#,##0.00##"
       worksheet.getCell(rowIndex, 4).font = { bold: true }
       rowIndex += 3
     })
@@ -239,7 +234,7 @@ export default function FinanceSOWPage() {
                 <TableCell>{item.mediaType}</TableCell>
                 <TableCell>{item.description}</TableCell>
                 <TableCell className="text-right">
-                  ${item.amount.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {formatMoney(item.amount, { locale: "en-AU", currency: "AUD" })}
                 </TableCell>
               </TableRow>
             ))}
@@ -249,7 +244,7 @@ export default function FinanceSOWPage() {
                 <TableCell>{service.service}</TableCell>
                 <TableCell></TableCell>
                 <TableCell className="text-right">
-                  ${service.amount.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {formatMoney(service.amount, { locale: "en-AU", currency: "AUD" })}
                 </TableCell>
               </TableRow>
             ))}
@@ -258,7 +253,7 @@ export default function FinanceSOWPage() {
                 Total
               </TableCell>
               <TableCell className="text-right">
-                ${totalAmount.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {formatMoney(totalAmount, { locale: "en-AU", currency: "AUD" })}
               </TableCell>
             </TableRow>
           </TableBody>
@@ -272,21 +267,17 @@ export default function FinanceSOWPage() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Finance - Scopes of Work</h1>
         <div className="flex gap-4 items-center">
-          <Select
+          <Combobox
             value={selectedMonthYear}
-            onValueChange={(value) => setSelectedMonthYear(value)}
-          >
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Select month/year" />
-            </SelectTrigger>
-            <SelectContent>
-              {monthYearOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            onValueChange={setSelectedMonthYear}
+            placeholder="Select month/year"
+            searchPlaceholder="Search months..."
+            buttonClassName="w-[200px]"
+            options={monthYearOptions.map((option) => ({
+              value: option.value,
+              label: option.label,
+            }))}
+          />
           <Button onClick={loadData} disabled={loading}>
             {loading ? (
               <>

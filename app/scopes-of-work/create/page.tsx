@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Combobox } from "@/components/ui/combobox"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { CalendarIcon, Plus, Trash2, Download, Save } from "lucide-react"
@@ -331,34 +331,25 @@ export default function CreateScopePage() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Client Name</FormLabel>
-                        <Select
-                          onValueChange={(value) => {
-                            const selectedClient = clients.find((client) => client.id.toString() === value)
-                            if (selectedClient) {
-                              field.onChange(selectedClient.mp_client_name)
-                            }
-                          }}
-                          value={clients.find((client) => client.mp_client_name === field.value)?.id.toString() || ""}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select client" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {clients.length === 0 ? (
-                              <div className="p-2 text-sm text-muted-foreground text-center">
-                                {isLoading ? "Loading clients..." : "No clients available"}
-                              </div>
-                            ) : (
-                              clients.map((client) => (
-                                <SelectItem key={client.id} value={client.id.toString()}>
-                                  {client.mp_client_name}
-                                </SelectItem>
-                              ))
-                            )}
-                          </SelectContent>
-                        </Select>
+                        <FormControl>
+                          <Combobox
+                            value={clients.find((client) => client.mp_client_name === field.value)?.id.toString() || ""}
+                            onValueChange={(value) => {
+                              const selectedClient = clients.find((client) => client.id.toString() === value)
+                              if (selectedClient) {
+                                field.onChange(selectedClient.mp_client_name)
+                              }
+                            }}
+                            placeholder="Select client"
+                            searchPlaceholder="Search clients..."
+                            emptyText={isLoading ? "Loading clients..." : "No clients available."}
+                            options={clients.map((client) => ({
+                              value: client.id.toString(),
+                              label: client.mp_client_name,
+                              keywords: client.mbaidentifier,
+                            }))}
+                          />
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -475,21 +466,22 @@ export default function CreateScopePage() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Project Status</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select status" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="Draft">Draft</SelectItem>
-                            <SelectItem value="Submitted">Submitted</SelectItem>
-                            <SelectItem value="Approved">Approved</SelectItem>
-                            <SelectItem value="In-Progress">In-Progress</SelectItem>
-                            <SelectItem value="Completed">Completed</SelectItem>
-                            <SelectItem value="Cancelled">Cancelled</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <FormControl>
+                          <Combobox
+                            value={field.value}
+                            onValueChange={field.onChange}
+                            placeholder="Select status"
+                            searchPlaceholder="Search statuses..."
+                            options={[
+                              { value: "Approved", label: "Approved" },
+                              { value: "Cancelled", label: "Cancelled" },
+                              { value: "Completed", label: "Completed" },
+                              { value: "Draft", label: "Draft" },
+                              { value: "In-Progress", label: "In-Progress" },
+                              { value: "Submitted", label: "Submitted" },
+                            ]}
+                          />
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -797,23 +789,18 @@ export default function CreateScopePage() {
                             control={form.control}
                             name={`billing_schedule.${index}.month`}
                             render={({ field: formField }) => (
-                              <Select
-                                value={formField.value}
-                                onValueChange={formField.onChange}
-                              >
-                                <FormControl>
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Select month" />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                  {monthYearOptions.map((option) => (
-                                    <SelectItem key={option.value} value={option.value}>
-                                      {option.label}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              <FormControl>
+                                <Combobox
+                                  value={formField.value}
+                                  onValueChange={formField.onChange}
+                                  placeholder="Select month"
+                                  searchPlaceholder="Search months..."
+                                  options={monthYearOptions.map((option) => ({
+                                    value: option.value,
+                                    label: option.label,
+                                  }))}
+                                />
+                              </FormControl>
                             )}
                           />
                         </TableCell>

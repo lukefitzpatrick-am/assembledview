@@ -89,7 +89,7 @@ export function calculatePacing(params: {
       runningDeliverable += getDeliverableValue(day, deliverableKey)
     }
     actualCumulative.set(day.date, {
-      spend: Number(runningSpend.toFixed(2)),
+      spend: Number(runningSpend.toFixed(4)),
       deliverable: Number(runningDeliverable.toFixed(2)),
     })
   })
@@ -142,11 +142,11 @@ export function calculatePacing(params: {
   const result: PacingResult = {
     asAtDate: actualAsAt,
     spend: {
-      actualToDate: Number(actualSpendToDate.toFixed(2)),
-      expectedToDate: Number(expectedSpendToDate.toFixed(2)),
-      delta: Number(spendDelta.toFixed(2)),
+      actualToDate: Number(actualSpendToDate.toFixed(4)),
+      expectedToDate: Number(expectedSpendToDate.toFixed(4)),
+      delta: Number(spendDelta.toFixed(4)),
       pacingPct: Number(spendPacing.toFixed(2)),
-      goalTotal: Number(spendGoalTotal.toFixed(2)),
+      goalTotal: Number(spendGoalTotal.toFixed(4)),
     },
     series,
   }
@@ -247,8 +247,8 @@ function buildDailySeries({
     const actual = actualDailyMap.get(date) ?? { spend: 0, deliverable: 0 }
     return {
       date,
-      expectedSpend: Number(expected.spend.toFixed(2)),
-      actualSpend: Number(actual.spend.toFixed(2)),
+      expectedSpend: Number(expected.spend.toFixed(4)),
+      actualSpend: Number(actual.spend.toFixed(4)),
       expectedDeliverable: deliverableKeyExists
         ? Number(expected.deliverable.toFixed(2))
         : 0,

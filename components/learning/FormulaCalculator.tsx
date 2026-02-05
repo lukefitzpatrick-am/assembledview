@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import { FormulaDSL, FormulaVariable } from "@/src/lib/learning/types";
 import { formatValue } from "@/src/lib/learning/evaluator";
 import { OUTPUT_KEY, formatNumericInput, roundToTwo, solveForOutput, solveForVariable } from "@/src/lib/learning/solver";
@@ -134,19 +134,20 @@ export function FormulaCalculator({ formula, fallbackText }: Props) {
       <div className="grid gap-3 sm:grid-cols-2 items-end">
         <div className="space-y-1.5">
           <Label className="text-sm font-medium text-foreground">Solving for</Label>
-          <Select value={solveFor} onValueChange={setSolveFor}>
-            <SelectTrigger>
-              <SelectValue placeholder="Choose target" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="output">{formula.output?.label || "Output"}</SelectItem>
-              {formula.variables.map((variable) => (
-                <SelectItem key={variable.key} value={variable.key}>
-                  {variable.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Combobox
+            value={solveFor}
+            onValueChange={setSolveFor}
+            placeholder="Choose target"
+            searchPlaceholder="Search fields..."
+            options={[
+              { value: "output", label: formula.output?.label || "Output", keywords: "output result" },
+              ...formula.variables.map((variable) => ({
+                value: variable.key,
+                label: variable.label,
+                keywords: variable.key,
+              })),
+            ]}
+          />
         </div>
         <p className="text-xs text-muted-foreground">
           Enter the other fields; the selected one will auto-calculate with 2-decimal rounding.

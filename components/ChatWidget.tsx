@@ -6,12 +6,13 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { getAssistantContext } from "@/lib/assistantBridge"
-import type { PageContext } from "@/lib/openai"
+import type { FormPatch, ModelChatReply, PageContext } from "@/lib/openai"
 import type { ChatMode } from "@/src/ava/modes"
 
 type ChatWidgetProps = {
   getPageContext?: () => Promise<PageContext | undefined> | PageContext | undefined
   pageContext?: PageContext
+  saveSelector?: string
   mode?: ChatMode
   initialMessages?: ChatCompletionMessageParam[]
   className?: string
@@ -20,6 +21,7 @@ type ChatWidgetProps = {
 export function ChatWidget({
   getPageContext,
   pageContext,
+  saveSelector,
   mode = "general",
   initialMessages = [],
   className,
@@ -29,7 +31,6 @@ export function ChatWidget({
   const [input, setInput] = useState("")
   const [messages, setMessages] = useState<ChatCompletionMessageParam[]>(initialMessages)
   const [error, setError] = useState<string | null>(null)
-  const [isUploading, setIsUploading] = useState(false)
   const [position, setPosition] = useState({ x: 0, y: 0 })
   const [dragState, setDragState] = useState<{ offsetX: number; offsetY: number } | null>(null)
   const [isDragging, setIsDragging] = useState(false)
@@ -86,38 +87,6 @@ export function ChatWidget({
     }
   }, [dragState])
 
-  const handleUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files
-    if (!files || files.length === 0) return
-
-    const formData = new FormData()
-    Array.from(files).forEach((file) => formData.append("files", file))
-
-    setIsUploading(true)
-    setError(null)
-
-    try {
-      const response = await fetch("/api/processPlan", {
-        method: "POST",
-        body: formData,
-      })
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error || "Upload failed")
-
-      const summary =
-        `Uploaded ${data.sources?.length || 0} file(s); extracted ${data.items?.length || 0} items.` +
-        (data.sources?.[0]?.fileName ? ` First file: ${data.sources[0].fileName}` : "")
-      appendAssistantNote(summary)
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Upload failed"
-      setError(message)
-      appendAssistantNote(`Upload error: ${message}`)
-    } finally {
-      setIsUploading(false)
-      event.target.value = ""
-    }
-  }, [appendAssistantNote])
-
   async function sendMessage() {
     if (!input.trim()) return
     setIsSending(true)
@@ -142,13 +111,36 @@ export function ChatWidget({
         body: JSON.stringify(payload),
       })
 
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error || "Chat failed")
+      let data: any
+      try {
+        data = await response.json()
+      } catch {
+        throw new Error("Sorry — I couldn’t understand that response. Please try again.")
+      }
+      if (!response.ok) {
+        if (response.status === 403) {
+          throw new Error(data?.error || "AVA is available to Admin users only.")
+        }
+        throw new Error(data?.error || "Chat failed")
+      }
 
-      const assistantContent = data.replyText ?? data.reply ?? ""
+      const parsedReply = coerceModelChatReply(data)
+      const assistantContent = parsedReply.replyText
       const assistantMessage: ChatCompletionMessageParam = { role: "assistant", content: assistantContent }
       setMessages((prev) => [...prev, assistantMessage])
-      await maybeHandleAssistantAction(assistantContent, appendAssistantNote)
+
+      const didApplyPatch = await maybeApplyPatch({
+        patch: parsedReply.patch,
+        pageContext: resolvedPageContext,
+        saveSelectorProp: saveSelector,
+        appendAssistantNote,
+      })
+
+      // Legacy fallback (secondary): action JSON embedded in replyText, or response includes { action: ... }.
+      if (!didApplyPatch) {
+        await maybeHandleAssistantAction(assistantContent, appendAssistantNote)
+        await maybeHandleAssistantActionObject(data, appendAssistantNote)
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to send message"
       setError(message)
@@ -187,25 +179,7 @@ export function ChatWidget({
               onMouseDown={startDrag}
             >
               <p className="text-sm font-semibold text-slate-900">AssembledView Assistant</p>
-              <p className="text-xs text-slate-500">Ask about this page, Xano data, or upload results</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <input
-                id="chat-upload-input"
-                type="file"
-                className="hidden"
-                multiple
-                accept=".pdf,.csv,.xlsx,.xls,.doc,.docx,.txt,.png,.jpg,.jpeg,.gif,.webp"
-                onChange={handleUpload}
-              />
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={isUploading}
-                onClick={() => document.getElementById("chat-upload-input")?.click()}
-              >
-                {isUploading ? "Uploading..." : "Upload"}
-              </Button>
+              <p className="text-xs text-slate-500">Ask about this page, Xano data, or delivery</p>
             </div>
           </div>
 
@@ -253,6 +227,94 @@ export function ChatWidget({
   )
 }
 
+function coerceModelChatReply(data: any): ModelChatReply {
+  // Preferred: server response already contains { replyText, patch }.
+  if (data && typeof data === "object" && !Array.isArray(data) && typeof data.replyText === "string") {
+    return {
+      replyText: data.replyText,
+      patch: isFormPatch(data.patch) ? data.patch : null,
+    }
+  }
+
+  // Fallback: older server/client paths may return a raw model string in `reply`.
+  if (data && typeof data === "object" && typeof data.reply === "string") {
+    try {
+      const parsed = JSON.parse(stripJsonFences(data.reply))
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed) && typeof parsed.replyText === "string") {
+        return {
+          replyText: parsed.replyText,
+          patch: isFormPatch(parsed.patch) ? parsed.patch : null,
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  throw new Error("Sorry — I couldn’t understand that response. Please try again.")
+}
+
+function stripJsonFences(raw: string) {
+  return raw.trim().replace(/^```json\s*/i, "").replace(/```$/i, "").trim()
+}
+
+function isFormPatch(patch: unknown): patch is FormPatch {
+  if (patch === null) return true as any
+  if (!patch || typeof patch !== "object" || Array.isArray(patch)) return false
+  const updates = (patch as any).updates
+  if (!Array.isArray(updates)) return false
+  for (const u of updates) {
+    if (!u || typeof u !== "object") return false
+    if (typeof (u as any).fieldId !== "string") return false
+  }
+  return true
+}
+
+async function maybeApplyPatch({
+  patch,
+  pageContext,
+  saveSelectorProp,
+  appendAssistantNote,
+}: {
+  patch: FormPatch | null
+  pageContext: PageContext | undefined
+  saveSelectorProp: string | undefined
+  appendAssistantNote: (content: string) => void
+}): Promise<boolean> {
+  if (!patch?.updates?.length) return false
+
+  const ctx = getAssistantContext()
+  const actions = ctx?.actions
+  const setField = actions?.setField
+  if (typeof setField !== "function") {
+    appendAssistantNote("I have updates to apply, but this page hasn’t registered form edit handlers yet.")
+    return true
+  }
+
+  for (const update of patch.updates) {
+    try {
+      await setField({ fieldId: update.fieldId, value: update.value })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error"
+      appendAssistantNote(`Could not update ${update.fieldId}: ${message}`)
+    }
+  }
+
+  const saveSelectorFromContext =
+    pageContext && typeof (pageContext as any).saveSelector === "string" ? (pageContext as any).saveSelector : undefined
+  const selectorToClick = saveSelectorProp || saveSelectorFromContext
+  if (selectorToClick && typeof actions?.click === "function") {
+    try {
+      await actions.click({ selector: selectorToClick })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error"
+      appendAssistantNote(`Saved changes could not be clicked automatically: ${message}`)
+    }
+  }
+
+  return true
+}
+
 function extractActionFromReply(reply: string): any | null {
   if (!reply) return null
   const fence = /```json\s*([\s\S]*?)\s*```/i.exec(reply)
@@ -286,3 +348,18 @@ async function maybeHandleAssistantAction(reply: string, appendAssistantNote: (c
   }
 }
 
+async function maybeHandleAssistantActionObject(data: any, appendAssistantNote: (content: string) => void) {
+  if (!data || typeof data !== "object" || Array.isArray(data) || typeof data.action !== "string") return
+  const ctx = getAssistantContext()
+  const actions = ctx?.actions
+  const handler = actions?.[data.action as keyof typeof actions]
+  if (typeof handler !== "function") return
+
+  try {
+    const result = await handler(data as any)
+    if (result) appendAssistantNote(String(result))
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Action failed"
+    appendAssistantNote(`Action error: ${message}`)
+  }
+}

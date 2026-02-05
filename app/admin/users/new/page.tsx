@@ -4,6 +4,7 @@ import { FormEvent, Suspense, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Combobox } from "@/components/ui/combobox";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { AdminGuard } from "@/components/guards/AdminGuard";
 
@@ -49,6 +50,12 @@ export default function NewAdminUserPage() {
     setError(null);
 
     try {
+      if (role === "client" && !clientSlug) {
+        setStatus("error");
+        setError("Client is required when role is Client.");
+        return;
+      }
+
       const response = await fetch("/api/admin/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -140,34 +147,35 @@ export default function NewAdminUserPage() {
 
           <div className="flex flex-col gap-2">
             <Label htmlFor="role">Role</Label>
-            <select
-              id="role"
+            <Combobox
               value={role}
-              onChange={(e) => setRole(e.target.value as Role)}
-              className="rounded-md border border-input bg-background px-3 py-2 text-sm"
-            >
-              <option value="admin">Admin</option>
-              <option value="client">Client</option>
-            </select>
+              onValueChange={(value) => {
+                setRole(value as Role);
+                if (value !== "client") setClientSlug("");
+              }}
+              placeholder="Select role"
+              searchPlaceholder="Search roles..."
+              options={[
+                { value: "admin", label: "Admin" },
+                { value: "client", label: "Client" },
+              ]}
+            />
           </div>
 
           {role === "client" && (
             <div className="flex flex-col gap-2">
               <Label htmlFor="clientId">Client</Label>
-              <select
-                id="clientId"
+              <Combobox
                 value={clientSlug}
-                onChange={(e) => setClientSlug(e.target.value)}
-                required
-                className="rounded-md border border-input bg-background px-3 py-2 text-sm"
-              >
-                <option value="">Select client</option>
-                {clients.map((client) => (
-                  <option key={client.id} value={client.slug ?? String(client.id)}>
-                    {client.mp_client_name}
-                  </option>
-                ))}
-              </select>
+                onValueChange={setClientSlug}
+                placeholder="Select client"
+                searchPlaceholder="Search clients..."
+                emptyText={clients.length === 0 ? "No clients available." : "No clients found."}
+                options={clients.map((client) => ({
+                  value: client.slug ?? String(client.id),
+                  label: client.mp_client_name,
+                }))}
+              />
               <p className="text-xs text-muted-foreground">
                 Client users are restricted to their assigned client dashboards.
               </p>

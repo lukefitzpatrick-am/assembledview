@@ -123,7 +123,7 @@ export default function MediaTable({ lineItems }: MediaTableProps) {
       style: 'currency',
       currency: 'AUD',
       minimumFractionDigits: 2,
-      maximumFractionDigits: 2
+      maximumFractionDigits: 4
     }).format(num || 0)
   }
 

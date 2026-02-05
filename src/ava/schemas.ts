@@ -5,8 +5,41 @@ export const pageContextSchema: JsonSchema = {
   additionalProperties: false,
   properties: {
     route: {
-      type: "string",
       description: "Current route or page identifier.",
+      oneOf: [
+        { type: "string" },
+        {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            pathname: { type: "string" },
+            clientSlug: { type: "string" },
+            mbaSlug: { type: "string" },
+          },
+        },
+      ],
+    },
+    entities: {
+      type: "object",
+      additionalProperties: false,
+      description: "Entity-level context cues for the current page.",
+      properties: {
+        clientSlug: { type: "string" },
+        clientName: { type: "string" },
+        mbaNumber: { type: "string" },
+        campaignName: { type: "string" },
+        mediaTypes: { type: "array", items: { type: "string" } },
+      },
+    },
+    pageText: {
+      type: "object",
+      additionalProperties: false,
+      description: "Visible page text cues (hardcoded or extracted).",
+      properties: {
+        title: { type: "string" },
+        headings: { type: "array", items: { type: "string" } },
+        breadcrumbs: { type: "array", items: { type: "string" } },
+      },
     },
     fields: {
       type: "array",
@@ -21,6 +54,9 @@ export const pageContextSchema: JsonSchema = {
           editable: { type: "boolean" },
           required: { type: "boolean" },
           type: { type: "string" },
+          semanticType: { type: "string" },
+          group: { type: "string" },
+          source: { type: "string", enum: ["xano", "computed", "ui"] },
           options: {
             type: "array",
             items: { type: "string" },
