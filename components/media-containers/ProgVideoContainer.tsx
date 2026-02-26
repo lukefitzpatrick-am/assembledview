@@ -12,9 +12,8 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Textarea } from "@/components/ui/textarea"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/components/ui/use-toast"
-import { getPublishersForProgVideo, getClientInfo } from "@/lib/api"
+import { getPublishersForProgVideo } from "@/lib/api"
 import { formatBurstLabel } from "@/lib/bursts"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
@@ -25,7 +24,7 @@ import { CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ChevronDown, Copy, Plus, Trash2 } from "lucide-react"
 import { LoadingDots } from "@/components/ui/loading-dots"
-import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
+import type { BillingBurst } from "@/lib/billing/types"
 import type { LineItem } from '@/lib/generateMediaPlan'
 import { formatMoney } from "@/lib/utils/money"
 
@@ -572,48 +571,6 @@ export default function ProgVideoContainer({
     
     return { lineItemTotals, overallMedia, overallFee, overallCost };
   }, [watchedLineItems, feeprogvideo]);
-
-  const performanceTotals = useMemo(() => {
-    const totals = {
-      impressions: { value: 0, lineItems: 0, bursts: 0 },
-      clicks: { value: 0, lineItems: 0, bursts: 0 },
-      conversions: { value: 0, lineItems: 0, bursts: 0 },
-      videoViews: { value: 0, lineItems: 0, bursts: 0 },
-    };
-
-    watchedLineItems.forEach((lineItem) => {
-      const buyType = (lineItem.buyType || "").toLowerCase();
-      const bidStrategy = (lineItem.bidStrategy || "").toLowerCase();
-      let bucket: keyof typeof totals | null = null;
-
-      if (bidStrategy === "target_cpa") {
-        bucket = "conversions";
-      } else if (bidStrategy === "completed_views") {
-        bucket = "videoViews";
-      } else if (buyType === "cpv") {
-        bucket = "videoViews";
-      } else if (buyType === "cpc") {
-        bucket = "clicks";
-      } else if (buyType === "cpm") {
-        bucket = "impressions";
-      }
-
-      if (!bucket) return;
-
-      totals[bucket].lineItems += 1;
-      totals[bucket].bursts += lineItem.bursts?.length ?? 0;
-      lineItem.bursts?.forEach((burst) => {
-        totals[bucket].value += Number(burst.calculatedValue ?? 0);
-      });
-    });
-
-    return totals;
-  }, [watchedLineItems]);
-
-  const formatKpiValue = useCallback(
-    (value: number) => value.toLocaleString(undefined, { maximumFractionDigits: 0 }),
-    []
-  );
   
   // Callback handlers
   const handleLineItemValueChange = useCallback((lineItemIndex: number) => {
@@ -989,57 +946,6 @@ useEffect(() => {
             <CardTitle className="pt-4 border-t font-bold text-lg flex justify-between">Prog Video Media</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              {[
-                {
-                  label: "Impressions",
-                  value: performanceTotals.impressions.value,
-                  lineItems: performanceTotals.impressions.lineItems,
-                  bursts: performanceTotals.impressions.bursts,
-                },
-                {
-                  label: "Clicks",
-                  value: performanceTotals.clicks.value,
-                  lineItems: performanceTotals.clicks.lineItems,
-                  bursts: performanceTotals.clicks.bursts,
-                },
-                {
-                  label: "Conversions",
-                  value: performanceTotals.conversions.value,
-                  lineItems: performanceTotals.conversions.lineItems,
-                  bursts: performanceTotals.conversions.bursts,
-                },
-                {
-                  label: "Video Views",
-                  value: performanceTotals.videoViews.value,
-                  lineItems: performanceTotals.videoViews.lineItems,
-                  bursts: performanceTotals.videoViews.bursts,
-                },
-              ].map((card) => (
-                <Card key={card.label} className="rounded-2xl border-muted/70 shadow-sm">
-                  <CardContent className="flex flex-col gap-1.5 p-3 sm:p-3.5">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="text-xs font-medium text-muted-foreground">{card.label}</div>
-                      <div className="flex flex-wrap items-center justify-end gap-1">
-                        <Badge
-                          variant="secondary"
-                          className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold leading-none"
-                        >
-                          Line items {card.lineItems}
-                        </Badge>
-                        <Badge
-                          variant="secondary"
-                          className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold leading-none"
-                        >
-                          Bursts {card.bursts}
-                        </Badge>
-                      </div>
-                    </div>
-                    <div className="text-3xl font-semibold leading-tight">{formatKpiValue(card.value)}</div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
             {overallTotals.lineItemTotals.map((item) => (
               <div key={item.index} className="flex justify-between border-b pb-2">
                 <span className="font-medium">Line Item {item.index}</span>

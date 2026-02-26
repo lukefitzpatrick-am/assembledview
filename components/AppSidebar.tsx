@@ -21,10 +21,12 @@ import {
 import Link from "next/link";
 import Image from "next/image";  // Import Next.js Image component
 import { useAuthContext } from "@/contexts/AuthContext";
+import { getClientDisplayName, slugifyClientNameForUrl } from "@/lib/clients/slug";
 
 interface Client {
   id: number;
   mp_client_name: string;
+  slug?: string;
 }
 
 export function AppSidebar() {
@@ -67,13 +69,24 @@ export function AppSidebar() {
     { title: "Create Campaign", icon: PlusCircle, href: "/mediaplans/create" },
   ]), []);
 
+  const formatClientSlugLabel = (slug: string) => {
+    const s = String(slug ?? "").trim()
+    if (!s) return ""
+    return s
+      .replace(/[_-]+/g, " ")
+      .split(" ")
+      .filter(Boolean)
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+      .join(" ")
+  }
+
   const clientMenuItems = useMemo(() => {
     const links = [
       { title: "Learning", icon: BookOpen, href: "/learning" },
     ];
     if (userClient) {
       links.unshift({
-        title: userClient.toUpperCase(),
+        title: formatClientSlugLabel(userClient) || userClient.toUpperCase(),
         icon: LayoutDashboard,
         href: `/dashboard/${userClient}`,
       });
@@ -197,20 +210,16 @@ export function AppSidebar() {
                   {isClientsExpanded && (
                     <SidebarMenuSub>
                       {clients
-                        .filter((client) => client.mp_client_name && client.mp_client_name.trim() !== '')
+                        .filter((client) => getClientDisplayName(client) !== '')
                         .map((client) => {
-                          // Convert client name to slug format
-                          const slug = client.mp_client_name
-                            .toLowerCase()
-                            .replace(/[^a-z0-9\s-]/g, '')
-                            .replace(/\s+/g, '-')
-                            .trim()
+                          const label = getClientDisplayName(client)
+                          const slug = client.slug || slugifyClientNameForUrl(label)
                           
                           return (
                             <SidebarMenuSubItem key={client.id}>
                               <SidebarMenuSubButton asChild className="hover:text-[#B5D337]">
                                 <Link href={`/dashboard/${slug}`}>
-                                  {client.mp_client_name}
+                                  {label}
                                 </Link>
                               </SidebarMenuSubButton>
                             </SidebarMenuSubItem>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { motion } from "framer-motion"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -13,12 +13,14 @@ import { BarChart3, TrendingUp, ShoppingCart, Users, Search } from "lucide-react
 import { format } from "date-fns"
 import { PieChart } from "@/components/charts/PieChart"
 import { StackedColumnChart } from "@/components/charts/StackedColumnChart"
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { AuthPageLoading } from "@/components/AuthLoadingState"
 import axios from "axios"
 import { mediaTypeTheme } from "@/lib/utils"
 import { compareValues, SortableTableHeader, SortDirection } from "@/components/ui/sortable-table-header"
 import { useAuthContext } from "@/contexts/AuthContext"
+import { setAssistantContext } from "@/lib/assistantBridge"
+import type { PageContext, PageField } from "@/lib/openai"
 
 // Types reused from the original dashboard page
 type MediaPlan = {
@@ -318,6 +320,7 @@ export default function DashboardOverview({
 }: DashboardOverviewProps) {
   const { user, isLoading, error: authError, userRole, userClient, isClient } = useAuthContext()
   const router = useRouter()
+  const pathname = usePathname()
   const [mediaPlans, setMediaPlans] = useState<MediaPlan[]>([])
   const [scopes, setScopes] = useState<ScopeOfWork[]>([])
   const [monthlyPublisherSpend, setMonthlyPublisherSpend] = useState<Array<{ month: string; data: Array<{ publisher: string; amount: number }> }>>([])
@@ -610,6 +613,474 @@ export default function DashboardOverview({
       setLoading(false)
     }
   }, [mounted, user, isClient, showMetrics, showTables])
+
+  const getEnabledMediaTypes = useCallback((plan: MediaPlan): string[] => {
+    const entries: Array<[string, boolean]> = [
+      ["television", Boolean(plan.mp_television)],
+      ["radio", Boolean(plan.mp_radio)],
+      ["newspaper", Boolean(plan.mp_newspaper)],
+      ["magazines", Boolean(plan.mp_magazines)],
+      ["ooh", Boolean(plan.mp_ooh)],
+      ["cinema", Boolean(plan.mp_cinema)],
+      ["digidisplay", Boolean(plan.mp_digidisplay)],
+      ["digiaudio", Boolean(plan.mp_digiaudio)],
+      ["digivideo", Boolean(plan.mp_digivideo)],
+      ["bvod", Boolean(plan.mp_bvod)],
+      ["integration", Boolean(plan.mp_integration)],
+      ["search", Boolean(plan.mp_search)],
+      ["socialmedia", Boolean(plan.mp_socialmedia)],
+      ["progdisplay", Boolean(plan.mp_progdisplay)],
+      ["progvideo", Boolean(plan.mp_progvideo)],
+      ["progbvod", Boolean(plan.mp_progbvod)],
+      ["progaudio", Boolean(plan.mp_progaudio)],
+      ["progooh", Boolean(plan.mp_progooh)],
+      ["influencers", Boolean(plan.mp_influencers)],
+    ]
+    return entries.filter(([, enabled]) => enabled).map(([key]) => key)
+  }, [])
+
+  const getPageContext = useCallback((): PageContext => {
+    const latestPlans = getLatestPlanVersions(mediaPlans)
+
+    const buildClientFilterOptions = () => {
+      const map = new Map<string, string>()
+      for (const plan of latestPlans) {
+        const label = (plan.mp_clientname || "").toString().trim()
+        if (!label) continue
+        const key = normalizeClientFilterValue(label)
+        if (!key) continue
+        if (!map.has(key)) map.set(key, label)
+      }
+      return Array.from(map.entries())
+        .sort((a, b) => a[1].localeCompare(b[1]))
+        .map(([value, label]) => ({ value, label }))
+    }
+
+    const clientFilterOptions = buildClientFilterOptions()
+    const normalizeSearch = (value: string) => value.toLowerCase().trim()
+
+    const applyCampaignFilters = (plans: MediaPlan[]) => {
+      const searchLower = normalizeSearch(campaignSearch)
+      const selectedClients = new Set(
+        campaignClientFilters.map((value) => normalizeClientFilterValue(value)).filter(Boolean)
+      )
+      if (!searchLower && selectedClients.size === 0) return plans
+
+      return plans.filter((plan) => {
+        const clientKey = normalizeClientFilterValue(plan.mp_clientname || "")
+        if (selectedClients.size > 0 && !selectedClients.has(clientKey)) return false
+        if (!searchLower) return true
+        const haystack = [
+          plan.mp_clientname,
+          plan.mp_campaignname,
+          plan.mp_mba_number,
+          plan.mp_brand,
+          plan.mp_campaignstatus,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+        return haystack.includes(searchLower)
+      })
+    }
+
+    const getLiveCampaigns = () => {
+      const { startOfToday, endOfToday } = getTodayBounds()
+      return latestPlans.filter((plan) => {
+        const status = normalizeStatus(plan.mp_campaignstatus)
+        if (!LIVE_STATUSES.includes(status)) return false
+        const startDate = new Date(plan.mp_campaigndates_start)
+        const endDate = new Date(plan.mp_campaigndates_end)
+        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return false
+        return startDate <= endOfToday && endDate >= startOfToday
+      })
+    }
+
+    const getCampaignsDueToStart = () => {
+      const { startOfToday, endOfToday } = getTodayBounds()
+      const tenDaysAhead = new Date(endOfToday)
+      tenDaysAhead.setDate(endOfToday.getDate() + 10)
+      return latestPlans.filter((plan) => {
+        const startDate = new Date(plan.mp_campaigndates_start)
+        if (isNaN(startDate.getTime())) return false
+        return startDate >= startOfToday && startDate <= tenDaysAhead
+      })
+    }
+
+    const getCampaignsFinishedRecently = () => {
+      const { endOfToday } = getTodayBounds()
+      const fortyDaysAgo = new Date(endOfToday)
+      fortyDaysAgo.setDate(endOfToday.getDate() - 40)
+      return latestPlans.filter((plan) => {
+        const status = normalizeStatus(plan.mp_campaignstatus)
+        if (!LIVE_STATUSES.includes(status)) return false
+        const endDate = new Date(plan.mp_campaigndates_end)
+        if (isNaN(endDate.getTime())) return false
+        return endDate >= fortyDaysAgo && endDate <= endOfToday
+      })
+    }
+
+    const getLiveScopes = () =>
+      scopes.filter((scope) => scope.project_status === "Approved" || scope.project_status === "In-Progress")
+
+    const safeDate = (value: string) => {
+      const d = new Date(value)
+      return isNaN(d.getTime()) ? new Date(0) : d
+    }
+
+    const liveCampaignSelectors = {
+      client: (plan: MediaPlan) => plan.mp_clientname || "",
+      campaign: (plan: MediaPlan) => plan.mp_campaignname || "",
+      mba: (plan: MediaPlan) => plan.mp_mba_number || "",
+      startDate: (plan: MediaPlan) => safeDate(plan.mp_campaigndates_start),
+      endDate: (plan: MediaPlan) => safeDate(plan.mp_campaigndates_end),
+      budget: (plan: MediaPlan) => plan.mp_campaignbudget || 0,
+      version: (plan: MediaPlan) => plan.mp_version || 0,
+      status: (plan: MediaPlan) => plan.mp_campaignstatus || "",
+    }
+
+    const scopeSelectors = {
+      project: (scope: ScopeOfWork) => scope.project_name || "",
+      client: (scope: ScopeOfWork) => scope.client_name || "",
+      scopeDate: (scope: ScopeOfWork) => safeDate(scope.scope_date),
+      status: (scope: ScopeOfWork) => scope.project_status || "",
+    }
+
+    const liveCampaigns = showTables ? applyCampaignFilters(getLiveCampaigns()) : []
+    const liveScopes = showTables ? getLiveScopes() : []
+    const campaignsDueToStart = showTables ? applyCampaignFilters(getCampaignsDueToStart()) : []
+    const campaignsFinishedRecently = showTables ? applyCampaignFilters(getCampaignsFinishedRecently()) : []
+
+    const sortedLiveCampaigns = applySort(liveCampaigns, liveCampaignSort, liveCampaignSelectors)
+    const sortedLiveScopes = applySort(liveScopes, liveScopesSort, scopeSelectors)
+    const sortedDueSoon = applySort(campaignsDueToStart, dueSoonSort, liveCampaignSelectors)
+    const sortedFinished = applySort(campaignsFinishedRecently, finishedSort, liveCampaignSelectors)
+
+    const previewCampaign = (plan: MediaPlan) => ({
+      clientName: plan.mp_clientname,
+      campaignName: plan.mp_campaignname,
+      mbaNumber: plan.mp_mba_number,
+      version: plan.mp_version,
+      status: plan.mp_campaignstatus,
+      startDate: plan.mp_campaigndates_start,
+      endDate: plan.mp_campaigndates_end,
+      budget: plan.mp_campaignbudget,
+      mediaTypes: getEnabledMediaTypes(plan),
+    })
+
+    const previewScope = (scope: ScopeOfWork) => ({
+      projectName: scope.project_name,
+      clientName: scope.client_name,
+      scopeDate: scope.scope_date,
+      status: scope.project_status,
+    })
+
+    const fields: PageField[] = [
+      {
+        id: "dashboard_campaignSearch",
+        label: "Campaign search",
+        type: "string",
+        value: campaignSearch,
+        editable: true,
+        semanticType: "search_query",
+        group: "filters",
+        source: "ui",
+      },
+      {
+        id: "dashboard_campaignClientFilters",
+        label: "Client filters",
+        type: "string[]",
+        value: campaignClientFilters,
+        editable: true,
+        semanticType: "client_filter",
+        group: "filters",
+        source: "ui",
+        options: clientFilterOptions.map((o) => o.label),
+      },
+      {
+        id: "dashboard_sort_liveCampaigns",
+        label: "Sort: Live Campaigns",
+        type: "sort_state",
+        value: liveCampaignSort,
+        editable: true,
+        semanticType: "sort",
+        group: "sort",
+        source: "ui",
+      },
+      {
+        id: "dashboard_sort_liveScopes",
+        label: "Sort: Live Scopes",
+        type: "sort_state",
+        value: liveScopesSort,
+        editable: true,
+        semanticType: "sort",
+        group: "sort",
+        source: "ui",
+      },
+      {
+        id: "dashboard_sort_dueSoon",
+        label: "Sort: Campaigns Starting Soon",
+        type: "sort_state",
+        value: dueSoonSort,
+        editable: true,
+        semanticType: "sort",
+        group: "sort",
+        source: "ui",
+      },
+      {
+        id: "dashboard_sort_finished",
+        label: "Sort: Campaigns Finished Recently",
+        type: "sort_state",
+        value: finishedSort,
+        editable: true,
+        semanticType: "sort",
+        group: "sort",
+        source: "ui",
+      },
+      {
+        id: "dashboard_action_openCampaign",
+        label: "Open a campaign in dashboard (set MBA number)",
+        type: "action",
+        value: "",
+        editable: true,
+        semanticType: "navigation",
+        group: "actions",
+        source: "ui",
+      },
+      {
+        id: "dashboard_action_openEdit",
+        label: "Open media plan edit (set MBA number, optionally version)",
+        type: "action",
+        value: "",
+        editable: true,
+        semanticType: "navigation",
+        group: "actions",
+        source: "ui",
+      },
+      {
+        id: "dashboard_action_saveView",
+        label: "Save current client filters as view (set true)",
+        type: "action",
+        value: false,
+        editable: true,
+        semanticType: "action",
+        group: "actions",
+        source: "ui",
+      },
+      {
+        id: "dashboard_action_clearSavedView",
+        label: "Clear saved view (set true)",
+        type: "action",
+        value: false,
+        editable: true,
+        semanticType: "action",
+        group: "actions",
+        source: "ui",
+      },
+    ]
+
+    return {
+      route: { pathname: pathname || "/dashboard" },
+      fields,
+      generatedAt: new Date().toISOString(),
+      pageText: {
+        title,
+        headings: [title],
+        breadcrumbs: ["Dashboard"],
+      },
+      state: {
+        loading,
+        error: fetchError || (authError instanceof Error ? authError.message : authError ? String(authError) : null),
+        filters: {
+          campaignSearch,
+          campaignClientFilters,
+          availableClientFilters: clientFilterOptions.map((o) => o.label),
+          savedViewExists,
+        },
+        sort: {
+          liveCampaignSort,
+          liveScopesSort,
+          dueSoonSort,
+          finishedSort,
+        },
+        counts: {
+          metrics: dashboardMetrics.map((m) => ({ title: m.title, value: m.value })),
+          liveCampaigns: liveCampaigns.length,
+          liveScopes: liveScopes.length,
+          campaignsStartingSoon: campaignsDueToStart.length,
+          campaignsFinishedRecently: campaignsFinishedRecently.length,
+        },
+        preview: {
+          liveCampaigns: sortedLiveCampaigns.slice(0, 6).map(previewCampaign),
+          liveScopes: sortedLiveScopes.slice(0, 6).map(previewScope),
+          campaignsStartingSoon: sortedDueSoon.slice(0, 6).map(previewCampaign),
+          campaignsFinishedRecently: sortedFinished.slice(0, 6).map(previewCampaign),
+        },
+      },
+    }
+  }, [
+    applySort,
+    authError,
+    campaignClientFilters,
+    campaignSearch,
+    dashboardMetrics,
+    dueSoonSort,
+    fetchError,
+    finishedSort,
+    getEnabledMediaTypes,
+    liveCampaignSort,
+    liveScopesSort,
+    loading,
+    mediaPlans,
+    pathname,
+    savedViewExists,
+    scopes,
+    showTables,
+    title,
+  ])
+
+  const handleSetField = useCallback(
+    async ({ fieldId, value }: { fieldId?: string; selector?: string; value: any }) => {
+      const id = (fieldId || "").toString()
+
+      const parseSortState = (input: any): SortState => {
+        if (!input) return { column: "", direction: null }
+        if (typeof input === "object" && !Array.isArray(input)) {
+          const column = typeof input.column === "string" ? input.column : ""
+          const direction: SortDirection =
+            input.direction === "asc" || input.direction === "desc" || input.direction === null ? input.direction : null
+          return { column, direction }
+        }
+        if (typeof input === "string") {
+          const raw = input.trim()
+          if (!raw) return { column: "", direction: null }
+          const [column, dirRaw] = raw.split(/\s+/)
+          const dir = (dirRaw || "").toLowerCase()
+          const direction: SortDirection = dir === "asc" ? "asc" : dir === "desc" ? "desc" : null
+          return { column, direction }
+        }
+        return { column: "", direction: null }
+      }
+
+      if (id === "dashboard_campaignSearch") {
+        setCampaignSearch(typeof value === "string" ? value : value == null ? "" : String(value))
+        return "Updated dashboard campaign search."
+      }
+
+      if (id === "dashboard_campaignClientFilters") {
+        const next = Array.isArray(value)
+          ? value.map((v) => (typeof v === "string" ? v : String(v))).filter(Boolean)
+          : typeof value === "string"
+            ? [value].filter(Boolean)
+            : []
+        setCampaignClientFilters(next)
+        return "Updated dashboard client filters."
+      }
+
+      if (id === "dashboard_sort_liveCampaigns") {
+        setLiveCampaignSort(parseSortState(value))
+        return "Updated sort for Live Campaigns."
+      }
+      if (id === "dashboard_sort_liveScopes") {
+        setLiveScopesSort(parseSortState(value))
+        return "Updated sort for Live Scopes."
+      }
+      if (id === "dashboard_sort_dueSoon") {
+        setDueSoonSort(parseSortState(value))
+        return "Updated sort for Campaigns Starting Soon."
+      }
+      if (id === "dashboard_sort_finished") {
+        setFinishedSort(parseSortState(value))
+        return "Updated sort for Campaigns Finished Recently."
+      }
+
+      if (id === "dashboard_action_saveView") {
+        if (Boolean(value)) handleSaveView()
+        return "Saved dashboard view."
+      }
+
+      if (id === "dashboard_action_clearSavedView") {
+        if (Boolean(value)) handleClearSavedView()
+        return "Cleared saved dashboard view."
+      }
+
+      if (id === "dashboard_action_openCampaign") {
+        const mbaNumber =
+          typeof value === "string"
+            ? value.trim()
+            : value && typeof value === "object" && typeof value.mbaNumber === "string"
+              ? value.mbaNumber.trim()
+              : value != null
+                ? String(value).trim()
+                : ""
+        if (!mbaNumber) throw new Error("MBA number is required.")
+
+        const latestPlans = getLatestPlanVersions(mediaPlans)
+        const match = latestPlans.find((p) => String(p.mp_mba_number) === mbaNumber)
+        const clientSlug =
+          value && typeof value === "object" && typeof value.clientSlug === "string"
+            ? value.clientSlug
+            : match
+              ? slugifyClientName(match.mp_clientname)
+              : ""
+        if (!clientSlug) throw new Error("Could not determine client slug for that MBA number.")
+        router.push(`/dashboard/${encodeURIComponent(clientSlug)}/${encodeURIComponent(mbaNumber)}`)
+        return `Opened dashboard for ${clientSlug} / MBA ${mbaNumber}.`
+      }
+
+      if (id === "dashboard_action_openEdit") {
+        const mbaNumber =
+          typeof value === "string"
+            ? value.trim()
+            : value && typeof value === "object" && typeof value.mbaNumber === "string"
+              ? value.mbaNumber.trim()
+              : value != null
+                ? String(value).trim()
+                : ""
+        if (!mbaNumber) throw new Error("MBA number is required.")
+
+        const latestPlans = getLatestPlanVersions(mediaPlans)
+        const match = latestPlans.find((p) => String(p.mp_mba_number) === mbaNumber)
+        const version =
+          value && typeof value === "object" && (typeof value.version === "number" || typeof value.version === "string")
+            ? value.version
+            : match
+              ? match.mp_version
+              : undefined
+
+        const versionQuery = version ? `?version=${encodeURIComponent(String(version))}` : ""
+        router.push(`/mediaplans/mba/${encodeURIComponent(mbaNumber)}/edit${versionQuery}`)
+        return `Opened media plan edit for MBA ${mbaNumber}${version ? ` (v${version})` : ""}.`
+      }
+
+      throw new Error(`Unsupported fieldId: ${id || "(missing)"}`)
+    },
+    [
+      handleClearSavedView,
+      handleSaveView,
+      mediaPlans,
+      router,
+      setCampaignClientFilters,
+      setCampaignSearch,
+      setDueSoonSort,
+      setFinishedSort,
+      setLiveCampaignSort,
+      setLiveScopesSort,
+    ]
+  )
+
+  useEffect(() => {
+    if (!mounted || isLoading) return
+    if (!user || isClient) return
+    if (authError || fetchError) return
+
+    setAssistantContext({
+      pageContext: getPageContext(),
+      actions: {
+        setField: handleSetField,
+      },
+    })
+  }, [authError, fetchError, getPageContext, handleSetField, isClient, isLoading, mounted, user])
 
   if (!mounted || isLoading) {
     return <AuthPageLoading message="Loading dashboard..." />

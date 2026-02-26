@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils"
 import { getAssistantContext } from "@/lib/assistantBridge"
 import type { FormPatch, ModelChatReply, PageContext } from "@/lib/openai"
 import type { ChatMode } from "@/src/ava/modes"
+import { ChevronDown, ChevronUp } from "lucide-react"
 
 type ChatWidgetProps = {
   getPageContext?: () => Promise<PageContext | undefined> | PageContext | undefined
@@ -27,6 +28,7 @@ export function ChatWidget({
   className,
 }: ChatWidgetProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const [isCollapsed, setIsCollapsed] = useState(false)
   const [isSending, setIsSending] = useState(false)
   const [input, setInput] = useState("")
   const [messages, setMessages] = useState<ChatCompletionMessageParam[]>(initialMessages)
@@ -165,12 +167,17 @@ export function ChatWidget({
         size="lg"
         variant={isOpen ? "secondary" : "default"}
       >
-        {isOpen ? "Close AVA" : "Ask AVA"}
+        {isOpen ? "Close Ava" : "Ask Ava"}
       </Button>
 
       {isOpen && (
-        <div className="mt-3 w-96 rounded-xl border border-slate-200 bg-white shadow-2xl">
-          <div className="flex items-center justify-between border-b px-4 py-3">
+        <div
+          className={cn(
+            "mt-3 rounded-xl border border-slate-200 bg-white shadow-2xl",
+            isCollapsed ? "w-80" : "w-96"
+          )}
+        >
+          <div className="flex items-center justify-between border-b px-4 py-3 gap-3">
             <div
               className={cn(
                 "cursor-grab select-none",
@@ -178,32 +185,44 @@ export function ChatWidget({
               )}
               onMouseDown={startDrag}
             >
-              <p className="text-sm font-semibold text-slate-900">AssembledView Assistant</p>
+              <p className="text-sm font-semibold text-slate-900">Ava</p>
               <p className="text-xs text-slate-500">Ask about this page, Xano data, or delivery</p>
             </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsCollapsed((v) => !v)}
+              aria-label={isCollapsed ? "Expand Ava chat" : "Collapse Ava chat"}
+              title={isCollapsed ? "Expand" : "Collapse"}
+            >
+              {isCollapsed ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </Button>
           </div>
 
-          <div className="flex h-80 flex-col gap-3 overflow-y-auto bg-slate-50 px-3 py-3">
-            {messages.length === 0 && <p className="text-sm text-slate-500">How can I help?</p>}
+          {!isCollapsed && (
+            <div className="flex h-80 flex-col gap-3 overflow-y-auto bg-slate-50 px-3 py-3">
+              {messages.length === 0 && <p className="text-sm text-slate-500">How can I help?</p>}
 
-            {messages.map((msg, idx) => (
-              <div key={idx} className="flex flex-col gap-1">
-                <p
-                  className={cn(
-                    "max-w-[90%] whitespace-pre-line rounded-lg px-3 py-2 text-sm shadow-sm",
-                    msg.role === "user"
-                      ? "ml-auto bg-blue-600 text-white"
-                      : "mr-auto bg-white text-slate-800 border border-slate-200"
-                  )}
-                >
-                  {msg.content as string}
-                </p>
-              </div>
-            ))}
+              {messages.map((msg, idx) => (
+                <div key={idx} className="flex flex-col gap-1">
+                  <p
+                    className={cn(
+                      "max-w-[90%] whitespace-pre-line rounded-lg px-3 py-2 text-sm shadow-sm",
+                      msg.role === "user"
+                        ? "ml-auto bg-blue-600 text-white"
+                        : "mr-auto bg-white text-slate-800 border border-slate-200"
+                    )}
+                  >
+                    {msg.content as string}
+                  </p>
+                </div>
+              ))}
 
-            {isSending && <p className="text-xs text-slate-500">Thinking...</p>}
-            {error && <p className="text-xs text-red-600">{error}</p>}
-          </div>
+              {isSending && <p className="text-xs text-slate-500">Thinking...</p>}
+              {error && <p className="text-xs text-red-600">{error}</p>}
+            </div>
+          )}
 
           <div className="flex items-center gap-2 border-t px-3 py-3">
             <Input

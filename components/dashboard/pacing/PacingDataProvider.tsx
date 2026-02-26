@@ -3,6 +3,7 @@
 import type { ReactNode } from "react"
 import { useEffect, useMemo, useState } from "react"
 import type { PacingRow as CombinedPacingRow } from "@/lib/snowflake/pacing-service"
+import type { SearchPacingResponse } from "@/lib/snowflake/search-pacing-service"
 
 type PacingDataProviderProps = {
   mbaNumber: string
@@ -14,7 +15,16 @@ type PacingDataProviderProps = {
   campaignEnd?: string
   fromDate?: string
   toDate?: string
-  children: (props: { rows: CombinedPacingRow[]; loading: boolean; error: string | null }) => ReactNode
+  searchEnabled?: boolean
+  searchLineItemIds?: string[]
+  searchStartDate?: string
+  searchEndDate?: string
+  children: (props: {
+    rows: CombinedPacingRow[]
+    search: SearchPacingResponse | null
+    loading: boolean
+    error: string | null
+  }) => ReactNode
 }
 
 /**
@@ -116,9 +126,14 @@ export default function PacingDataProvider({
   campaignEnd,
   fromDate,
   toDate,
+  searchEnabled,
+  searchLineItemIds,
+  searchStartDate,
+  searchEndDate,
   children,
 }: PacingDataProviderProps) {
   const [rows, setRows] = useState<CombinedPacingRow[]>([])
+  const [search, setSearch] = useState<SearchPacingResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -144,11 +159,33 @@ export default function PacingDataProvider({
     ].join("|")
   }, [metaLineItemIds, tiktokLineItemIds, progDisplayLineItemIds, progVideoLineItemIds])
 
-  useEffect(() => {
-    const anyIds = allLineItemIds.length
+  const normalizedSearchLineItemIds = useMemo(() => {
+    const ids = (searchLineItemIds ?? [])
+      .map((id) => cleanId(id))
+      .filter(Boolean) as string[]
+    return uniq(ids)
+  }, [searchLineItemIds])
 
-    if (!anyIds) {
+  const includeSearch = useMemo(() => {
+    return searchEnabled === true && normalizedSearchLineItemIds.length > 0
+  }, [searchEnabled, normalizedSearchLineItemIds.length])
+
+  const searchKey = useMemo(() => {
+    return [
+      includeSearch ? "1" : "0",
+      `ids:${normalizedSearchLineItemIds.join(",")}`,
+      `start:${searchStartDate ?? ""}`,
+      `end:${searchEndDate ?? ""}`,
+    ].join("|")
+  }, [includeSearch, normalizedSearchLineItemIds, searchStartDate, searchEndDate])
+
+  useEffect(() => {
+    const anyBulkIds = allLineItemIds.length > 0
+    const anySearch = includeSearch
+
+    if (!anyBulkIds && !anySearch) {
       setRows([])
+      setSearch(null)
       setLoading(false)
       setError(null)
       return
@@ -172,23 +209,34 @@ export default function PacingDataProvider({
       setError(null)
 
       try {
-        const data = await postJson<{ ok: boolean; rows: CombinedPacingRow[]; error?: string }>(
+        const data = await postJson<{
+          ok: boolean
+          rows?: CombinedPacingRow[]
+          search?: SearchPacingResponse | null
+          error?: string
+        }>(
           "/api/pacing/bulk",
           {
             mbaNumber,
             lineItemIds: allLineItemIds,
             startDate,
             endDate,
+            includeSearch,
+            searchLineItemIds: normalizedSearchLineItemIds,
+            searchStartDate,
+            searchEndDate,
           }
         )
 
-        const nextRows = Array.isArray(data?.rows) ? data.rows : []
+        const nextRows = Array.isArray((data as any)?.rows) ? ((data as any).rows as CombinedPacingRow[]) : []
         setRows(nextRows)
+        setSearch(includeSearch ? ((data as any)?.search ?? null) : null)
         setError(data && (data as any).error ? String((data as any).error) : null)
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : String(err)
         setError(errorMessage)
         setRows([])
+        setSearch(null)
       } finally {
         setLoading(false)
       }
@@ -200,7 +248,7 @@ export default function PacingDataProvider({
       setRows([])
       setLoading(false)
     })
-  }, [mbaNumber, allIdsKey, campaignStart, campaignEnd, fromDate, toDate, allLineItemIds])
+  }, [mbaNumber, allIdsKey, searchKey, campaignStart, campaignEnd, fromDate, toDate, allLineItemIds, includeSearch])
 
-  return <>{children({ rows, loading, error })}</>
+  return <>{children({ rows, search, loading, error })}</>
 }

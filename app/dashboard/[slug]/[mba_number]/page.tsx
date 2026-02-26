@@ -665,21 +665,30 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
   
   // Get all line items using resilient getter
   const socialKeys = ["socialMedia", "social", "paidSocial", "social_media", "social_media_line_items"]
+  const searchKeys = ["search", "paidSearch", "paid_search", "search_line_items", "searchLineItems"]
   const progDisplayKeys = ["progDisplay", "programmaticDisplay", "dv360Display", "programmatic_display"]
   const progVideoKeys = ["progVideo", "programmaticVideo", "dv360Video", "programmatic_video"]
   
   const socialItems = getLineItems(lineItemsMap, socialKeys)
+  const searchItems = getLineItems(lineItemsMap, searchKeys)
   const progDisplayItems = getLineItems(lineItemsMap, progDisplayKeys)
   const progVideoItems = getLineItems(lineItemsMap, progVideoKeys)
   
   // Track which keys were actually used (for debug logging)
   let socialKeyUsed: string | null = null
+  let searchKeyUsed: string | null = null
   let progDisplayKeyUsed: string | null = null
   let progVideoKeyUsed: string | null = null
   
   for (const key of socialKeys) {
     if (Array.isArray(lineItemsMap[key])) {
       socialKeyUsed = key
+      break
+    }
+  }
+  for (const key of searchKeys) {
+    if (Array.isArray(lineItemsMap[key])) {
+      searchKeyUsed = key
       break
     }
   }
@@ -718,6 +727,7 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
   
   // Create "active" arrays based on existence of items (not running flags)
   const socialItemsActive = socialItems
+  const searchItemsActive = searchItems
   const progDisplayItemsActive = progDisplayItems
   const progVideoItemsActive = progVideoItems
   
@@ -729,6 +739,14 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
     return id ? String(id) : null
   }
   
+  const searchLineItemIds = Array.from(
+    new Set(
+      (searchItemsActive ?? [])
+        .map(extractLineItemId)
+        .filter((id): id is string => Boolean(id))
+    )
+  )
+
   const pacingLineItemIds = Array.from(
     new Set(
       [...socialItemsActive, ...progDisplayItemsActive, ...progVideoItemsActive]
@@ -743,6 +761,7 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
     console.log("[PACING DEBUG] Media types and line items", {
       keysUsed: {
         social: socialKeyUsed,
+        search: searchKeyUsed,
         progDisplay: progDisplayKeyUsed,
         progVideo: progVideoKeyUsed,
       },
@@ -753,11 +772,13 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
       isProgrammaticVideoRunning,
       lineItemCounts: {
         social: { total: socialItems.length, running: socialItemsRunning.length, active: socialItemsActive.length },
+        search: { total: searchItems.length, active: searchItemsActive.length },
         progDisplay: { total: progDisplayItems.length, running: progDisplayItemsRunning.length, active: progDisplayItemsActive.length },
         progVideo: { total: progVideoItems.length, running: progVideoItemsRunning.length, active: progVideoItemsActive.length },
       },
       pacingLineItemIdsCount: pacingLineItemIds.length,
       sampleLineItemIds: sampleIds,
+      searchLineItemIdsCount: searchLineItemIds.length,
     })
   }
   const debugLineItemCounts = Object.entries(lineItemsMap).map(
@@ -873,6 +894,8 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
     return completed ? (campaignEndISO ?? melbourneYesterdayISO) : melbourneYesterdayISO
   })()
 
+  const effectiveSearchStartISO = searchStartISO ?? effectiveStartISO ?? campaignStartISO ?? toISODateOnlySafe(startDate)
+
   if (DEBUG_SPEND) {
     const monthCount = Array.isArray(deliverySchedule)
       ? deliverySchedule.length
@@ -893,6 +916,10 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
   }
 
   const initialPacingRows: any[] = []
+
+  const shouldUsePacingWrapper =
+    pacingLineItemIds.length > 0 ||
+    (mpSearchEnabled && searchLineItemIds.length > 0 && Boolean(effectiveSearchStartISO) && Boolean(searchEndISO))
 
   // Log total SSR time
   pageTimer.total({
@@ -993,7 +1020,7 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
         />
       </Suspense>
 
-      {pacingLineItemIds.length > 0 ? (
+      {shouldUsePacingWrapper ? (
         <Suspense fallback={<Skeleton className="h-[480px] w-full rounded-3xl" />}>
           <PacingDataProviderWrapper
             mbaNumber={mba_number}
@@ -1004,6 +1031,12 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
             socialItemsActive={socialItemsActive}
             progDisplayItemsActive={progDisplayItemsActive}
             progVideoItemsActive={progVideoItemsActive}
+            mpSearchEnabled={mpSearchEnabled}
+            searchLineItemIds={searchLineItemIds}
+            searchItemsActive={searchItemsActive}
+            searchCampaignPlannedEndDate={campaignEndISO ?? effectiveEndISO ?? endDate}
+            searchStartDate={effectiveSearchStartISO}
+            searchEndDate={searchEndISO}
           />
         </Suspense>
       ) : (
@@ -1018,6 +1051,20 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
                 campaignEnd={effectiveEndISO ?? endDate}
                 initialPacingRows={undefined}
                 pacingLineItemIds={pacingLineItemIds}
+              />
+            </Suspense>
+          ) : null}
+
+          {mpSearchEnabled && searchLineItemIds.length > 0 && effectiveSearchStartISO && searchEndISO ? (
+            <Suspense fallback={<Skeleton className="h-[480px] w-full rounded-3xl" />}>
+              <SearchPacingContainer
+                clientSlug={slug}
+                mbaNumber={mba_number}
+                lineItemIds={searchLineItemIds}
+                searchLineItems={searchItemsActive}
+                campaignPlannedEndDate={campaignEndISO ?? effectiveEndISO ?? endDate}
+                startDate={effectiveSearchStartISO}
+                endDate={searchEndISO}
               />
             </Suspense>
           ) : null}
@@ -1038,17 +1085,6 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
           ) : null}
         </>
       )}
-
-      {mpSearchEnabled && searchStartISO && searchEndISO ? (
-        <Suspense fallback={<Skeleton className="h-[480px] w-full rounded-3xl" />}>
-          <SearchPacingContainer
-            clientSlug={slug}
-            mbaNumber={mba_number}
-            startDate={searchStartISO}
-            endDate={searchEndISO}
-          />
-        </Suspense>
-      ) : null}
 
       {DEBUG_LINE_ITEMS ? (
         <div className="rounded-2xl border border-dashed border-muted/70 bg-background/80 p-3 text-sm text-muted-foreground">

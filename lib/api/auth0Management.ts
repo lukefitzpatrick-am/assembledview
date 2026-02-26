@@ -11,6 +11,12 @@ type CreatedUser = {
 
 type Role = 'admin' | 'client';
 
+type Auth0User = {
+  user_id: string;
+  email?: string;
+  app_metadata?: Record<string, unknown>;
+};
+
 export class Auth0HttpError extends Error {
   status: number;
   body: unknown;
@@ -95,6 +101,59 @@ async function getManagementToken(): Promise<string> {
     throw new Error('Auth0 management token response missing access_token');
   }
   return json.access_token;
+}
+
+export async function searchAuth0Users(params: {
+  q: string;
+  perPage?: number;
+  fields?: string[];
+}): Promise<Auth0User[]> {
+  const token = await getManagementToken();
+  const perPage = Number(params.perPage ?? 100);
+  const safePerPage = Number.isFinite(perPage) && perPage > 0 && perPage <= 100 ? perPage : 100;
+  const fields = params.fields?.length ? params.fields.join(',') : 'user_id,email,app_metadata';
+
+  const results: Auth0User[] = [];
+  let page = 0;
+
+  while (true) {
+    const url = new URL(`https://${getManagementDomain()}/api/v2/users`);
+    url.searchParams.set('search_engine', 'v3');
+    url.searchParams.set('q', params.q);
+    url.searchParams.set('per_page', String(safePerPage));
+    url.searchParams.set('page', String(page));
+    url.searchParams.set('include_totals', 'false');
+    url.searchParams.set('fields', fields);
+    url.searchParams.set('include_fields', 'true');
+
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorBody = await parseResponseBody(response);
+      throw new Auth0HttpError('Failed to search Auth0 users', response.status, errorBody);
+    }
+
+    const pageData = (await response.json()) as unknown;
+    const users = Array.isArray(pageData) ? (pageData as Auth0User[]) : [];
+    results.push(...users);
+
+    if (users.length < safePerPage) break;
+    page += 1;
+  }
+
+  return results;
+}
+
+export async function listAuth0UsersByClientSlug(clientSlug: string): Promise<Auth0User[]> {
+  const normalized = String(clientSlug ?? '').trim().toLowerCase();
+  if (!normalized) return [];
+  // Auth0 search syntax: app_metadata.client_slug:"value"
+  return searchAuth0Users({ q: `app_metadata.client_slug:"${normalized}"` });
 }
 
 export async function createAuth0User(params: {

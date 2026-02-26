@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getCampaignPacingData } from "@/lib/snowflake/pacing-service"
+import { getSearchPacingData, type SearchPacingResponse } from "@/lib/snowflake/search-pacing-service"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -14,6 +15,10 @@ type RequestBody = {
   lineItemIds?: string[]
   startDate?: string
   endDate?: string
+  includeSearch?: boolean
+  searchLineItemIds?: string[]
+  searchStartDate?: string
+  searchEndDate?: string
 }
 
 const DEBUG = process.env.NEXT_PUBLIC_DEBUG_PACING === "true"
@@ -70,17 +75,15 @@ export async function POST(request: NextRequest) {
     // Validate and normalize lineItemIds
     const rawLineItemIds = body?.lineItemIds
     const normalizedLineItemIds = normalizeLineItemIds(rawLineItemIds)
-    if (normalizedLineItemIds.length === 0) {
-      console.info("[api/pacing/bulk] timing", { requestId, stage: "validate", ms: Date.now() - t0 })
-      return NextResponse.json(
-        { ok: false, error: "lineItemIds is required and must be a non-empty array" },
-        { status: 400 }
-      )
-    }
+    // Note: we allow empty lineItemIds when includeSearch is true (search-only pacing).
 
     // Optional date parameters
     const startDate = body?.startDate
     const endDate = body?.endDate
+    const includeSearch = body?.includeSearch === true
+    const searchLineItemIds = Array.isArray(body?.searchLineItemIds) ? body.searchLineItemIds : []
+    const searchStartDate = body?.searchStartDate
+    const searchEndDate = body?.searchEndDate
 
     console.info("[api/pacing/bulk] timing", { requestId, stage: "parsed_validated", ms: Date.now() - t0 })
 
@@ -90,24 +93,63 @@ export async function POST(request: NextRequest) {
         lineItemIdsCount: normalizedLineItemIds.length,
         startDate,
         endDate,
+        includeSearch,
+        searchLineItemIdsCount: searchLineItemIds.length,
+        searchStartDate,
+        searchEndDate,
       })
     }
 
-    // Fetch pacing data
+    // If we're not returning any bulk rows, only allow the request when Search pacing was explicitly requested.
+    if (normalizedLineItemIds.length === 0 && !includeSearch) {
+      return NextResponse.json(
+        { ok: false, error: "lineItemIds is required and must be a non-empty array" },
+        { status: 400 }
+      )
+    }
+
+    // Fetch pacing data (bulk rows + optional search payload)
     const ac = new AbortController()
     const timer = setTimeout(() => ac.abort(), INTERNAL_TIMEOUT_MS)
 
     let rows: Awaited<ReturnType<typeof getCampaignPacingData>>
+    let search: SearchPacingResponse | null = null
     try {
-      rows = await getCampaignPacingData(
-        mbaNumber,
-        normalizedLineItemIds,
-        { startDate, endDate },
-        {
-          requestId,
-          signal: ac.signal,
-        }
-      )
+      const rowsPromise =
+        normalizedLineItemIds.length > 0
+          ? getCampaignPacingData(
+              mbaNumber,
+              normalizedLineItemIds,
+              { startDate, endDate },
+              {
+                requestId,
+                signal: ac.signal,
+              }
+            )
+          : Promise.resolve([])
+
+      const searchPromise = includeSearch
+        ? getSearchPacingData({
+            lineItemIds: searchLineItemIds,
+            startDate: searchStartDate ?? startDate,
+            endDate: searchEndDate ?? endDate,
+            requestId,
+            signal: ac.signal,
+          }).catch((err) => {
+            const message = err instanceof Error ? err.message : String(err)
+            return {
+              totals: { cost: 0, clicks: 0, conversions: 0, revenue: 0, impressions: 0, topImpressionPct: null },
+              daily: [],
+              lineItems: [],
+              keywords: [],
+              error: message || "Search pacing failed",
+            } satisfies SearchPacingResponse
+          })
+        : Promise.resolve(null)
+
+      const results = await Promise.all([rowsPromise, searchPromise])
+      rows = results[0]
+      search = results[1]
     } catch (err) {
       const isAbortError = Boolean(err && typeof err === "object" && (err as any).name === "AbortError")
       if (isAbortError || ac.signal.aborted) {
@@ -148,6 +190,8 @@ export async function POST(request: NextRequest) {
         maxDateDay,
         channels: channelCounts,
         hitRowLimit,
+        includeSearch,
+        searchOk: includeSearch ? Boolean(search && !search.error) : undefined,
       })
     }
 
@@ -157,6 +201,7 @@ export async function POST(request: NextRequest) {
       ok: true,
       rows,
       count: rows.length,
+      ...(includeSearch ? { search } : {}),
       ...(DEBUG
         ? {
             _debug: {

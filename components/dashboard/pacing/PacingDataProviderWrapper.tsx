@@ -3,9 +3,11 @@
 import { useMemo } from "react"
 import PacingDataProvider from "./PacingDataProvider"
 import SocialPacingContainer from "./social/SocialPacingContainer"
+import SearchPacingContainer from "./search/SearchPacingContainer"
 import ProgrammaticPacingContainer from "./programmatic/ProgrammaticPacingContainer"
 import { Skeleton } from "@/components/ui/skeleton"
 import type { PacingRow as CombinedPacingRow } from "@/lib/snowflake/pacing-service"
+import type { SearchPacingResponse } from "@/lib/snowflake/search-pacing-service"
 
 type PacingDataProviderWrapperProps = {
   mbaNumber: string
@@ -18,6 +20,12 @@ type PacingDataProviderWrapperProps = {
   socialItemsActive: any[]
   progDisplayItemsActive: any[]
   progVideoItemsActive: any[]
+  mpSearchEnabled?: boolean
+  searchLineItemIds?: string[]
+  searchItemsActive?: any[]
+  searchCampaignPlannedEndDate?: string
+  searchStartDate?: string | null
+  searchEndDate?: string | null
 }
 
 export default function PacingDataProviderWrapper({
@@ -31,6 +39,12 @@ export default function PacingDataProviderWrapper({
   socialItemsActive,
   progDisplayItemsActive,
   progVideoItemsActive,
+  mpSearchEnabled,
+  searchLineItemIds,
+  searchItemsActive,
+  searchCampaignPlannedEndDate,
+  searchStartDate,
+  searchEndDate,
 }: PacingDataProviderWrapperProps) {
   const cleanId = (v: unknown): string | null => {
     const s = String(v ?? "").trim().toLowerCase()
@@ -106,6 +120,10 @@ export default function PacingDataProviderWrapper({
   const effectiveStart = fromDate ?? campaignStart
   const effectiveEnd = toDate ?? campaignEnd
 
+  const includeSearch = Boolean(
+    mpSearchEnabled && (searchLineItemIds?.length ?? 0) > 0 && searchStartDate && searchEndDate
+  )
+
   return (
     <PacingDataProvider
       mbaNumber={mbaNumber}
@@ -117,8 +135,22 @@ export default function PacingDataProviderWrapper({
       campaignEnd={campaignEnd}
       fromDate={effectiveStart}
       toDate={effectiveEnd}
+      searchEnabled={includeSearch}
+      searchLineItemIds={searchLineItemIds ?? []}
+      searchStartDate={searchStartDate ?? undefined}
+      searchEndDate={searchEndDate ?? undefined}
     >
-      {({ rows, loading, error }: { rows: CombinedPacingRow[]; loading: boolean; error: string | null }) => (
+      {({
+        rows,
+        search,
+        loading,
+        error,
+      }: {
+        rows: CombinedPacingRow[]
+        search: SearchPacingResponse | null
+        loading: boolean
+        error: string | null
+      }) => (
         <>
           {error ? (
             <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -139,6 +171,22 @@ export default function PacingDataProviderWrapper({
                   campaignEnd={effectiveEnd}
                   initialPacingRows={rows}
                   pacingLineItemIds={pacingLineItemIds}
+                />
+              ) : null}
+
+              {mpSearchEnabled &&
+              (searchLineItemIds?.length ?? 0) > 0 &&
+              searchStartDate &&
+              searchEndDate ? (
+                <SearchPacingContainer
+                  clientSlug={clientSlug}
+                  mbaNumber={mbaNumber}
+                  lineItemIds={searchLineItemIds ?? []}
+                  searchLineItems={searchItemsActive ?? []}
+                  campaignPlannedEndDate={searchCampaignPlannedEndDate}
+                  startDate={searchStartDate}
+                  endDate={searchEndDate}
+                  initialSearchData={search}
                 />
               ) : null}
 

@@ -162,7 +162,14 @@ function validatePatchAgainstPageContext(patch: FormPatch | null, pageContext?: 
 
   const fields = pageContext?.fields || []
   if (!fields.length) {
-    throw new ValidationError("pageContext.fields is required when proposing a patch")
+    // No fields were provided for this page; treat as read-only and ignore patches.
+    return null
+  }
+
+  const editableFieldCount = fields.filter((f: any) => (f?.editable === true)).length
+  if (editableFieldCount === 0) {
+    // This page exposes no editable fields; ignore patches rather than erroring.
+    return null
   }
 
   const allowedFields = new Map(

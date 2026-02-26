@@ -58,11 +58,11 @@ export function SmallProgressCard({
             {helper ? <div className="text-xs text-muted-foreground">{helper}</div> : null}
           </div>
           <div className="flex flex-col items-end gap-2">
-            <Badge variant="secondary" className="rounded-full px-3 py-1 text-[11px] font-semibold">
+            <Badge variant="secondary" className="rounded-full px-3.5 py-1.5 text-xs font-semibold leading-none">
               {typeof pacingPct === "number" ? `${pacingPct.toFixed(2)}%` : "—"}
             </Badge>
             {!hideStatus ? (
-              <Badge className={cn("rounded-full px-3 py-1 text-[11px] font-medium", statusCopy[status].badge)}>
+              <Badge className={cn("rounded-full px-3.5 py-1.5 text-xs font-medium leading-none", statusCopy[status].badge)}>
                 {statusCopy[status].label}
               </Badge>
             ) : null}

@@ -32,6 +32,7 @@ import {
   summariseDelivery,
 } from "@/lib/pacing/social/metaPacing"
 import { downloadCSV } from "@/lib/utils/csv-export"
+import { cn } from "@/lib/utils"
 import type { PacingRow as CombinedPacingRow } from "@/lib/snowflake/pacing-service"
 
 type SocialLineItem = {
@@ -928,24 +929,30 @@ function KpiCallouts({ totals }: { totals: ActualKpis }) {
     value: string
     pill1Label: string
     pill1Value: string
+    pill1Danger?: boolean
     pill2Label: string
     pill2Value: string
+    pill2Danger?: boolean
   }> = [
     {
       label: "Impressions",
       value: formatNumber(totals.impressions),
       pill1Label: "CPM",
       pill1Value: formatCurrency2dp(totals.cpm),
+      pill1Danger: totals.cpm > 15,
       pill2Label: "CTR",
       pill2Value: formatPercent(totals.ctr),
+      pill2Danger: totals.ctr < 0.1,
     },
     {
       label: "Clicks",
       value: formatNumber(totals.clicks),
       pill1Label: "CTR",
       pill1Value: formatPercent(totals.ctr),
+      pill1Danger: totals.ctr < 0.1,
       pill2Label: "CPC",
       pill2Value: formatCurrency2dp(totals.cpc),
+      pill2Danger: totals.cpc > 5,
     },
     {
       label: "Conversions",
@@ -954,6 +961,7 @@ function KpiCallouts({ totals }: { totals: ActualKpis }) {
       pill1Value: formatPercent(totals.cvr),
       pill2Label: "CPA",
       pill2Value: formatCurrency2dp(totals.cost_per_result),
+      pill2Danger: totals.cost_per_result > 150,
     },
     {
       label: "Views",
@@ -972,16 +980,22 @@ function KpiCallouts({ totals }: { totals: ActualKpis }) {
           <CardContent className="flex flex-col gap-1.5 p-3 sm:p-3.5">
             <div className="flex items-start justify-between gap-2">
               <div className="text-xs font-medium text-muted-foreground">{card.label}</div>
-              <div className="flex flex-wrap items-center justify-end gap-1">
+              <div className="flex flex-col items-end gap-1">
                 <Badge
                   variant="secondary"
-                  className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold leading-none"
+                  className={cn(
+                    "rounded-full px-3 py-1 text-xs font-semibold leading-none",
+                    card.pill1Danger ? "bg-destructive/15 text-destructive" : null
+                  )}
                 >
                   {card.pill1Label} {card.pill1Value}
                 </Badge>
                 <Badge
                   variant="secondary"
-                  className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold leading-none"
+                  className={cn(
+                    "rounded-full px-3 py-1 text-xs font-semibold leading-none",
+                    card.pill2Danger ? "bg-destructive/15 text-destructive" : null
+                  )}
                 >
                   {card.pill2Label} {card.pill2Value}
                 </Badge>

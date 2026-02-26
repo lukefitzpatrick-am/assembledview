@@ -41,6 +41,15 @@ export const pageContextSchema: JsonSchema = {
         breadcrumbs: { type: "array", items: { type: "string" } },
       },
     },
+    state: {
+      type: "object",
+      description: "Structured snapshot of current UI state (filters, sort, counts, previews).",
+      additionalProperties: true,
+    },
+    saveSelector: {
+      type: "string",
+      description: "Optional selector to click after applying an AI patch.",
+    },
     fields: {
       type: "array",
       description: "Fields present on the page and their editability.",

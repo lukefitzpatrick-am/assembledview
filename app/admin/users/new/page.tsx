@@ -7,10 +7,11 @@ import { Label } from "@/components/ui/label";
 import { Combobox } from "@/components/ui/combobox";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { AdminGuard } from "@/components/guards/AdminGuard";
+import { getClientDisplayName, slugifyClientNameForUrl } from "@/lib/clients/slug";
 
 type Status = "idle" | "loading" | "success" | "error";
 type Role = "admin" | "client";
-type ClientOption = { id: number; mp_client_name: string; slug?: string };
+type ClientOption = { id: number; mp_client_name: string; slug: string };
 
 export default function NewAdminUserPage() {
   const { isAdmin } = useAuthContext();
@@ -33,7 +34,18 @@ export default function NewAdminUserPage() {
         if (!resp.ok) throw new Error("Failed to fetch clients");
         const data = await resp.json();
         if (Array.isArray(data)) {
-          setClients(data);
+          const normalized = data
+            .map((raw: any) => {
+              const name = getClientDisplayName(raw);
+              const slug = slugifyClientNameForUrl(name);
+              return {
+                id: Number(raw?.id),
+                mp_client_name: String(name),
+                slug,
+              } satisfies ClientOption;
+            })
+            .filter((c: ClientOption) => Number.isFinite(c.id) && Boolean(c.slug));
+          setClients(normalized);
         }
       } catch (err) {
         console.error("Failed to load clients list", err);
@@ -164,7 +176,7 @@ export default function NewAdminUserPage() {
 
           {role === "client" && (
             <div className="flex flex-col gap-2">
-              <Label htmlFor="clientId">Client</Label>
+              <Label htmlFor="clientSlug">Client</Label>
               <Combobox
                 value={clientSlug}
                 onValueChange={setClientSlug}
@@ -172,7 +184,7 @@ export default function NewAdminUserPage() {
                 searchPlaceholder="Search clients..."
                 emptyText={clients.length === 0 ? "No clients available." : "No clients found."}
                 options={clients.map((client) => ({
-                  value: client.slug ?? String(client.id),
+                  value: client.slug,
                   label: client.mp_client_name,
                 }))}
               />

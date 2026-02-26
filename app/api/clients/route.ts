@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
 import axios from "axios"
+import { getClientDisplayName, slugifyClientNameForUrl } from "@/lib/clients/slug"
+import { getCachedClients, invalidateClientsCache, setCachedClients } from "@/lib/cache/clientsCache"
 
 export const runtime = "nodejs"
 
@@ -12,11 +14,17 @@ const MAX_RETRIES = Number(process.env.XANO_MAX_RETRIES ?? 1)
 const OVERALL_TIMEOUT_MS = Number(process.env.XANO_OVERALL_TIMEOUT_MS ?? 6000)
 const CACHE_TTL_MS = Number(process.env.CLIENTS_CACHE_TTL_MS ?? 5 * 60 * 1000)
 
-let cachedClients: any[] | null = null
-let cacheExpiresAt = 0
-
 if (!process.env.XANO_CLIENTS_BASE_URL && !process.env.XANO_BASE_URL) {
   console.warn("XANO_CLIENTS_BASE_URL is not set; falling back to default clients base URL")
+}
+
+function withClientSlug(raw: any) {
+  const name = getClientDisplayName(raw)
+
+  return {
+    ...raw,
+    slug: slugifyClientNameForUrl(name),
+  }
 }
 
 // Create an axios instance with default config
@@ -72,34 +80,32 @@ async function withOverallTimeout<T>(promise: Promise<T>): Promise<T> {
   }
 }
 
-function getCachedClients() {
-  if (cachedClients && cacheExpiresAt > Date.now()) {
-    return cachedClients
-  }
-  return null
-}
-
-function setCachedClients(data: any[]) {
-  cachedClients = data
-  cacheExpiresAt = Date.now() + CACHE_TTL_MS
-}
-
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const cached = getCachedClients()
-    if (cached) {
-      return NextResponse.json(cached)
+    const url = new URL(request.url)
+    const refreshRaw = url.searchParams.get("refresh")
+    const bypassCache = refreshRaw === "1" || refreshRaw === "true" || refreshRaw === "yes"
+
+    if (!bypassCache) {
+      const cached = getCachedClients()
+      if (cached) {
+        return NextResponse.json(cached)
+      }
     }
 
     // For now, allow access for development
     // In production, you would validate the Auth0 session here
     const response = await withOverallTimeout(retryApiCall(() => apiClient.get(clientsUrl)))
 
-    if (Array.isArray(response.data)) {
-      setCachedClients(response.data)
+    const payload = Array.isArray(response.data)
+      ? response.data.map(withClientSlug)
+      : response.data
+
+    if (Array.isArray(payload)) {
+      setCachedClients(payload, CACHE_TTL_MS)
     }
 
-    return NextResponse.json(response.data)
+    return NextResponse.json(payload)
   } catch (error) {
     console.error("Failed to fetch clients:", error)
     const cached = getCachedClients()
@@ -158,6 +164,8 @@ export async function POST(req: Request) {
     )
 
     console.log("API response:", JSON.stringify(response.data, null, 2))
+    // Invalidate the GET cache so new clients appear immediately in dropdowns.
+    invalidateClientsCache()
     return NextResponse.json(response.data, { status: 201 })
   } catch (error) {
     console.error("Failed to create client:", error)

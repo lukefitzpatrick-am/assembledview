@@ -17,7 +17,13 @@ const basePayloadSchema = z.object({
   email: z.string().trim().email('Valid email is required'),
   password: z.string().min(1, 'Password is required'),
   role: z.enum(['admin', 'client']).default('client'),
-  clientSlug: z.string().trim().optional(),
+  clientSlug: z
+    .string()
+    .trim()
+    .optional()
+    .refine((value) => value === undefined || !/^\d+$/.test(value), {
+      message: 'Client slug must be a slug (e.g. "bic"), not a numeric ID',
+    }),
   mbaNumbers: z.array(z.string().trim()).optional(),
   primaryMbaNumber: z.string().trim().optional(),
 });
@@ -71,6 +77,8 @@ export async function POST(request: NextRequest) {
     }
 
     const { firstName, lastName, email, password, role, clientSlug, mbaNumbers, primaryMbaNumber } = parsed.data;
+    const normalizedClientSlug =
+      role === 'client' && clientSlug ? clientSlug.trim().toLowerCase() : undefined;
 
     // Fail fast before touching Auth0.
     ensureRoleEnv(role);
@@ -91,7 +99,7 @@ export async function POST(request: NextRequest) {
         firstName,
         lastName,
         password,
-        clientSlug: role === 'client' ? clientSlug : undefined,
+        clientSlug: normalizedClientSlug,
         mbaNumbers: role === 'client' ? mbaNumbers : undefined,
         primaryMbaNumber: role === 'client' ? primaryMbaNumber : undefined,
       });
@@ -104,7 +112,7 @@ export async function POST(request: NextRequest) {
       // Build app_metadata with role and client info
       const appMetadata: Record<string, unknown> = { role };
       if (role === 'client') {
-        if (clientSlug) appMetadata.client_slug = clientSlug;
+        if (normalizedClientSlug) appMetadata.client_slug = normalizedClientSlug;
         if (mbaNumbers && Array.isArray(mbaNumbers) && mbaNumbers.length > 0) {
           appMetadata.mba_numbers = mbaNumbers.filter(Boolean);
         }
@@ -199,6 +207,8 @@ export async function PUT(request: NextRequest) {
     }
 
     const { firstName, lastName, email, role, clientSlug, mbaNumbers, primaryMbaNumber, userId } = parsed.data;
+    const normalizedClientSlug =
+      role === 'client' && clientSlug ? clientSlug.trim().toLowerCase() : undefined;
 
     if (role) {
       await assignRoleToUser(userId, role);
@@ -207,7 +217,7 @@ export async function PUT(request: NextRequest) {
     // Build app_metadata with role and client info
     const appMetadata: Record<string, unknown> = { role };
     if (role === 'client') {
-      if (clientSlug) appMetadata.client_slug = clientSlug;
+      if (normalizedClientSlug) appMetadata.client_slug = normalizedClientSlug;
       if (mbaNumbers && Array.isArray(mbaNumbers) && mbaNumbers.length > 0) {
         appMetadata.mba_numbers = mbaNumbers.filter(Boolean);
       }

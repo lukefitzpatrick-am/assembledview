@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import axios from "axios"
+import { invalidateClientsCache } from "@/lib/cache/clientsCache"
 
 const DEFAULT_CLIENTS_BASE_URL = "https://xg4h-uyzs-dtex.a2.xano.io/api:9v_k2NR8"
 const clientsBaseUrl = (process.env.XANO_CLIENTS_BASE_URL || process.env.XANO_BASE_URL || DEFAULT_CLIENTS_BASE_URL).replace(/\/$/, "")
@@ -14,6 +15,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     const { id } = await params
     const body = await req.json()
     const response = await axios.put(`${clientsUrl}/${id}`, body)
+    invalidateClientsCache()
     return NextResponse.json(response.data)
   } catch (error) {
     console.error("Failed to update client:", error)
@@ -26,6 +28,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const { id } = await params
     const body = await req.json()
     const response = await axios.patch(`${clientsUrl}/${id}`, body)
+    invalidateClientsCache()
     return NextResponse.json(response.data)
   } catch (error) {
     console.error("Failed to patch client:", error)

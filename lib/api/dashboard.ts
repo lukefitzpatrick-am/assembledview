@@ -6,6 +6,7 @@ import {
 } from './media-containers'
 import axios from 'axios'
 import { xanoUrl } from '@/lib/api/xano'
+import { slugifyClientNameForUrl } from '@/lib/clients/slug'
 
 const MELBOURNE_TZ = 'Australia/Melbourne'
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -104,7 +105,7 @@ function hasBookedApprovedCompletedTag(value: any): boolean {
 }
 
 function slugifyClientName(name: string): string {
-  return normalizeClientName(name).replace(/\s+/g, '-')
+  return slugifyClientNameForUrl(normalizeClientName(name))
 }
 
 function getAustralianFinancialYear(date = new Date()) {
@@ -595,7 +596,7 @@ export async function getClientDashboardData(slug: string): Promise<ClientDashbo
           completedCampaignsList: [],
           spendByMediaType: [],
           spendByCampaign: [],
-          monthlySpend: []
+          monthlySpend: fyMonths.map((month) => ({ month, data: [] }))
         }
       }
 
@@ -859,100 +860,6 @@ export async function getClientDashboardData(slug: string): Promise<ClientDashbo
         .map(([mediaType, amount]) => ({ mediaType, amount }))
         .filter(item => item.amount > 0)
     }))
-
-    // Fallbacks when delivery schedule yields no spend but we still have booked/approved campaigns
-    if (spendByMediaType.length === 0 || spendByCampaign.length === 0 || monthlySpend.every(m => (m.data || []).length === 0)) {
-      const fallbackMediaTypeSpend: Record<string, number> = {}
-      const fallbackCampaignSpend: Record<string, number> = {}
-      const monthlyMap: Record<string, Record<string, number>> = {}
-      fyMonths.forEach(month => { monthlyMap[month] = {} })
-
-      const monthLabelFromDate = (date: Date) => fyMonths[(date.getMonth() + 12 - 6) % 12]
-      
-      bookedApprovedCampaigns.forEach(campaign => {
-        const campaignStartRaw = parseDateSafe(campaign.startDate) || fyStart
-        const campaignEndRaw = parseDateSafe(campaign.endDate) || fyEnd
-        const mediaTypes = campaign.mediaTypes.length > 0 ? campaign.mediaTypes : ['Unspecified']
-
-        // Clamp to FY window
-        let overlapStart = new Date(Math.max(campaignStartRaw.getTime(), fyStart.getTime()))
-        let overlapEnd = new Date(Math.min(campaignEndRaw.getTime(), fyEnd.getTime()))
-
-        // If dates are inverted or no overlap, still allocate whole budget evenly across FY
-        if (overlapEnd < overlapStart) {
-          overlapStart = fyStart
-          overlapEnd = fyEnd
-        }
-
-        const totalCampaignDays = Math.max(1, Math.ceil((campaignEndRaw.getTime() - campaignStartRaw.getTime()) / (1000 * 60 * 60 * 24)) + 1)
-        const overlapDays = Math.max(1, Math.ceil((overlapEnd.getTime() - overlapStart.getTime()) / (1000 * 60 * 60 * 24)) + 1)
-        const dailyRate = totalCampaignDays > 0 ? campaign.budget / totalCampaignDays : 0
-        const proratedBudget = dailyRate * overlapDays
-
-        fallbackCampaignSpend[`${campaign.campaignName} (${campaign.mbaNumber})`] = (fallbackCampaignSpend[`${campaign.campaignName} (${campaign.mbaNumber})`] || 0) + (proratedBudget || campaign.budget || 0)
-
-        const mediaSplit = (proratedBudget || campaign.budget || 0) / mediaTypes.length
-        mediaTypes.forEach(type => {
-          fallbackMediaTypeSpend[type] = (fallbackMediaTypeSpend[type] || 0) + mediaSplit
-        })
-
-        // Monthly allocation across overlap window
-        let cursor = new Date(overlapStart)
-        while (cursor <= overlapEnd) {
-          const monthStart = new Date(cursor.getFullYear(), cursor.getMonth(), 1)
-          const monthEnd = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0)
-          const segStart = cursor
-          const segEnd = new Date(Math.min(monthEnd.getTime(), overlapEnd.getTime()))
-          const segDays = Math.max(1, Math.ceil((segEnd.getTime() - segStart.getTime()) / (1000 * 60 * 60 * 24)) + 1)
-          const segAmount = (dailyRate || 0) * segDays || mediaSplit
-          const monthLabel = monthLabelFromDate(segStart)
-
-          mediaTypes.forEach(type => {
-            const share = segAmount / mediaTypes.length
-            monthlyMap[monthLabel][type] = (monthlyMap[monthLabel][type] || 0) + share
-          })
-
-          // Move cursor to first day of next month
-          cursor = new Date(monthEnd.getFullYear(), monthEnd.getMonth() + 1, 1)
-        }
-      })
-
-      const fallbackTotal = Object.values(fallbackMediaTypeSpend).reduce((sum, n) => sum + n, 0)
-
-      if (spendByMediaType.length === 0 && fallbackTotal > 0) {
-        spendByMediaType = Object.entries(fallbackMediaTypeSpend)
-          .map(([mediaType, amount]) => ({
-            mediaType,
-            amount,
-            percentage: fallbackTotal > 0 ? (amount / fallbackTotal) * 100 : 0
-          }))
-          .filter(item => item.amount > 0)
-          .sort((a, b) => b.amount - a.amount)
-      }
-
-      if (spendByCampaign.length === 0 && Object.keys(fallbackCampaignSpend).length > 0) {
-        const totalSpend = Object.values(fallbackCampaignSpend).reduce((sum, n) => sum + n, 0)
-        spendByCampaign = Object.entries(fallbackCampaignSpend)
-          .map(([campaignName, amount]) => ({
-            campaignName: campaignName.split(' (')[0],
-            mbaNumber: campaignName.match(/\(([^)]+)\)/)?.[1] || '',
-            amount,
-            percentage: totalSpend > 0 ? (amount / totalSpend) * 100 : 0
-          }))
-          .filter(item => item.amount > 0)
-          .sort((a, b) => b.amount - a.amount)
-      }
-
-      const monthlyHasData = monthlySpend.some(m => (m.data || []).some(d => d.amount > 0))
-      if (!monthlyHasData) {
-        monthlySpend = fyMonths.map(month => ({
-          month,
-          data: Object.entries(monthlyMap[month] || {})
-            .map(([mediaType, amount]) => ({ mediaType, amount }))
-            .filter(item => item.amount > 0)
-        }))
-      }
-    }
 
     // Ensure charts only show booked media types/campaigns with spend in the FY
     spendByMediaType = spendByMediaType.filter(item => item.amount > 0)

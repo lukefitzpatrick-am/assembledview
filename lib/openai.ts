@@ -42,6 +42,15 @@ export type PageContext = {
   route?: { pathname?: string; clientSlug?: string; mbaSlug?: string } | string
   fields?: PageField[]
   generatedAt?: string
+  /**
+   * Structured, read-only snapshot of the current UI state.
+   * Use this for "what's happening on this page?" questions (filters, sort, counts, previews).
+   */
+  state?: Record<string, any>
+  /**
+   * Optional selector to click after applying a patch (where supported).
+   */
+  saveSelector?: string
   entities?: {
     clientSlug?: string
     clientName?: string
@@ -77,6 +86,7 @@ export function buildSystemPrompt({
   const hardRules = [
     "- Ava can only propose edits for field IDs present in provided PageContext and marked editable.",
     "- Do not emit any content outside the required JSON shape.",
+    "- If there are no editable fields in the PageContext, you must return patch as null.",
   ].join("\n")
 
   const editableFields =
@@ -124,6 +134,15 @@ export function buildSystemPrompt({
           .join("\n")}`
       : undefined
 
+  const pageStateSummary =
+    pageContext?.state && typeof pageContext.state === "object"
+      ? `Page state snapshot (UI):\n${stringifyAvaContext(pageContext.state, {
+          maxArrayItems: 6,
+          maxStringLength: 400,
+          maxOutputChars: 6000,
+        })}`
+      : undefined
+
   const parts = [
     avaIdentity,
     avaBoundaries,
@@ -138,6 +157,10 @@ export function buildSystemPrompt({
 
   if (pageTextSummary) {
     parts.push(pageTextSummary)
+  }
+
+  if (pageStateSummary) {
+    parts.push(pageStateSummary)
   }
 
   if (editableFieldSummary) {
@@ -157,6 +180,51 @@ export function buildSystemPrompt({
   }
 
   return parts.join("\n\n")
+}
+
+function stringifyAvaContext(
+  value: unknown,
+  {
+    maxArrayItems,
+    maxStringLength,
+    maxOutputChars,
+  }: { maxArrayItems: number; maxStringLength: number; maxOutputChars: number }
+): string {
+  const seen = new WeakSet<object>()
+
+  const coerce = (input: any, depth: number): any => {
+    if (input === null || input === undefined) return input
+    if (typeof input === "number" || typeof input === "boolean") return input
+    if (typeof input === "string") {
+      if (input.length <= maxStringLength) return input
+      return `${input.slice(0, maxStringLength)}…`
+    }
+    if (input instanceof Date) return input.toISOString()
+    if (Array.isArray(input)) {
+      const head = input.slice(0, maxArrayItems).map((v) => coerce(v, depth + 1))
+      return input.length > maxArrayItems ? [...head, `… (${input.length - maxArrayItems} more)`] : head
+    }
+    if (typeof input === "object") {
+      if (seen.has(input)) return "[Circular]"
+      seen.add(input)
+      if (depth > 6) return "[MaxDepth]"
+      const out: Record<string, any> = {}
+      for (const [k, v] of Object.entries(input)) {
+        out[k] = coerce(v, depth + 1)
+      }
+      return out
+    }
+    return String(input)
+  }
+
+  let raw = ""
+  try {
+    raw = JSON.stringify(coerce(value, 0), null, 2)
+  } catch {
+    raw = "Unserializable page state."
+  }
+  if (raw.length <= maxOutputChars) return raw
+  return `${raw.slice(0, maxOutputChars)}\n… (truncated)`
 }
 
 function getClient() {
