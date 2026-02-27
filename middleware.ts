@@ -101,7 +101,7 @@ export async function middleware(request: NextRequest) {
         redirectTarget = base;
         reason = 'client-cross-tenant-block';
       }
-    } else if (pathname === '/learning' || pathname === '/forbidden' || pathname === '/unauthorized') {
+    } else if (pathname === '/learning' || pathname.startsWith('/learning/') || pathname === '/forbidden' || pathname === '/unauthorized') {
       // allow these pages
     } else {
       redirectTarget = `/dashboard/${clientSlug}`;
