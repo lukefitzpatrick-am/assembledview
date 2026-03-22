@@ -1,4 +1,4 @@
-import { roundMoney4 } from "@/lib/utils/money"
+import { roundMoney2 } from "@/lib/utils/money"
 
 const MELBOURNE_TZ = "Australia/Melbourne"
 
@@ -19,7 +19,10 @@ const MONTH_NAMES = [
 
 type DeliveryMonth = {
   monthYear?: string
+  month?: string
+  billingMonth?: string
   lineItems?: Array<{ amount?: unknown }>
+  mediaTypes?: Array<{ lineItems?: Array<{ amount?: unknown }> }>
   feeTotal?: unknown
   production?: unknown
   adservingTechFees?: unknown
@@ -74,7 +77,7 @@ export const calculateExpectedSpendToDateFromDeliverySchedule = (
   let expectedSpend = 0
 
   for (const month of months) {
-    const parsedMonth = parseMonthYear(month?.monthYear)
+    const parsedMonth = parseMonthYear(month?.monthYear ?? month?.month ?? month?.billingMonth)
     if (!parsedMonth) continue
 
     const currentMonthKey = monthKey(parsedMonth.year, parsedMonth.monthIndex + 1)
@@ -99,7 +102,7 @@ export const calculateExpectedSpendToDateFromDeliverySchedule = (
     expectedSpend += plannedSpend * fraction
   }
 
-  return roundMoney4(expectedSpend)
+  return roundMoney2(expectedSpend)
 }
 
 const normalizeDeliverySchedule = (deliverySchedule: unknown): DeliveryMonth[] => {
@@ -129,18 +132,30 @@ const normalizeDeliverySchedule = (deliverySchedule: unknown): DeliveryMonth[] =
 }
 
 const getMonthPlannedSpend = (month: DeliveryMonth): number => {
+  let total = 0
+
+  // Flat structure: month.lineItems[]
   const lineItems = Array.isArray(month.lineItems) ? month.lineItems : []
-  const lineItemsTotal = lineItems.reduce(
+  total += lineItems.reduce(
     (sum, item) => sum + parseCurrencyValue(item?.amount),
     0
   )
 
-  return (
-    lineItemsTotal +
+  // Nested structure: month.mediaTypes[].lineItems[] (deliverySchedule from media_plan_versions)
+  const mediaTypes = Array.isArray(month.mediaTypes) ? month.mediaTypes : []
+  mediaTypes.forEach((mt: { lineItems?: Array<{ amount?: unknown }> }) => {
+    const items = Array.isArray(mt?.lineItems) ? mt.lineItems : []
+    items.forEach((li) => {
+      total += parseCurrencyValue(li?.amount)
+    })
+  })
+
+  total +=
     parseCurrencyValue(month.feeTotal) +
     parseCurrencyValue(month.production) +
     parseCurrencyValue(month.adservingTechFees)
-  )
+
+  return total
 }
 
 const parseCurrencyValue = (value: unknown): number => {

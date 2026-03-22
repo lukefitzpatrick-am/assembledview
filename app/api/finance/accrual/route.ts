@@ -204,7 +204,7 @@ const XANO_LINE_ITEM_ENDPOINTS = [
   "magazines_line_items",
   "ooh_line_items",
   "cinema_line_items",
-  "digital_display_line_items",
+  "media_plan_digi_display",
   "digital_audio_line_items",
   "digital_video_line_items",
   "bvod_line_items",

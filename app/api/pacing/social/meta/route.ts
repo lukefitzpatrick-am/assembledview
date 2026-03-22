@@ -1,6 +1,7 @@
 import crypto from "node:crypto"
 import { NextRequest, NextResponse } from "next/server"
 import { buildPacingCacheKey, getPacingCache } from "@/lib/pacing/pacingCache"
+import { SOCIAL_PACING_TABLE } from "@/lib/pacing/social-channels"
 import { queryPacingFact } from "@/lib/snowflake/pacing-fact"
 import { getMelbourneYesterdayISO } from "@/lib/dates/melbourne"
 
@@ -203,7 +204,7 @@ export async function POST(request: NextRequest) {
       count: cacheResult.value.length,
       // TEMPORARY DEBUG FIELDS - Remove after verification
       _debug: {
-        object_name: "ASSEMBLEDVIEW.MART.PACING_FACT",
+        object_name: SOCIAL_PACING_TABLE,
         max_date_day: maxDateDay,
         max_synced_at: maxSyncedAt,
         server_timestamp: new Date().toISOString(),

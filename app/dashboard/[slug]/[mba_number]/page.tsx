@@ -399,6 +399,34 @@ function getLineItems(map: Record<string, any>, keys: string[]): any[] {
   return []
 }
 
+/**
+ * Collects line items from all given keys in the map, merges and dedupes.
+ * Use this when we need every item (e.g. all search line item IDs for Snowflake)
+ * and the API may use different keys.
+ */
+function getAllLineItemsFromKeys(map: Record<string, any>, keys: string[]): any[] {
+  if (!map || typeof map !== "object") return []
+  const seen = new Set<string>()
+  const result: any[] = []
+  const extractId = (item: any) =>
+    item?.line_item_id ?? item?.lineItemId ?? item?.LINE_ITEM_ID
+  for (const key of keys) {
+    const value = map[key]
+    if (!Array.isArray(value)) continue
+    for (const item of value) {
+      const id = extractId(item)
+      const keyStr = id ? String(id).trim().toLowerCase() : null
+      if (keyStr && !seen.has(keyStr)) {
+        seen.add(keyStr)
+        result.push(item)
+      } else if (!keyStr) {
+        result.push(item)
+      }
+    }
+  }
+  return result
+}
+
 function BrandFrame({ children, brandColour }: { children: ReactNode; brandColour?: string }) {
   const gradientStyle = getBrandGradientStyle(brandColour)
   return (
@@ -671,6 +699,7 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
   
   const socialItems = getLineItems(lineItemsMap, socialKeys)
   const searchItems = getLineItems(lineItemsMap, searchKeys)
+  const searchItemsAllKeys = getAllLineItemsFromKeys(lineItemsMap, searchKeys)
   const progDisplayItems = getLineItems(lineItemsMap, progDisplayKeys)
   const progVideoItems = getLineItems(lineItemsMap, progVideoKeys)
   
@@ -727,7 +756,7 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
   
   // Create "active" arrays based on existence of items (not running flags)
   const socialItemsActive = socialItems
-  const searchItemsActive = searchItems
+  const searchItemsActive = searchItemsAllKeys.length > 0 ? searchItemsAllKeys : searchItems
   const progDisplayItemsActive = progDisplayItems
   const progVideoItemsActive = progVideoItems
   
@@ -741,7 +770,7 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
   
   const searchLineItemIds = Array.from(
     new Set(
-      (searchItemsActive ?? [])
+      (searchItemsAllKeys ?? searchItemsActive ?? [])
         .map(extractLineItemId)
         .filter((id): id is string => Boolean(id))
     )
@@ -772,7 +801,7 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
       isProgrammaticVideoRunning,
       lineItemCounts: {
         social: { total: socialItems.length, running: socialItemsRunning.length, active: socialItemsActive.length },
-        search: { total: searchItems.length, active: searchItemsActive.length },
+        search: { total: searchItems.length, allKeys: searchItemsAllKeys.length, active: searchItemsActive.length },
         progDisplay: { total: progDisplayItems.length, running: progDisplayItemsRunning.length, active: progDisplayItemsActive.length },
         progVideo: { total: progVideoItems.length, running: progVideoItemsRunning.length, active: progVideoItemsActive.length },
       },

@@ -64,6 +64,15 @@ export function formatMoney(value: MoneyInput, options: MoneyFormatOptions = {})
 }
 
 /**
+ * Rounds a numeric currency value to 2 decimals (standard currency).
+ * - Returns 0 for non-finite values.
+ */
+export function roundMoney2(value: number): number {
+  if (!Number.isFinite(value)) return 0
+  return Math.round(value * 100) / 100
+}
+
+/**
  * Rounds a numeric currency value to 4 decimals (fractional cents).
  * - Returns 0 for non-finite values.
  */

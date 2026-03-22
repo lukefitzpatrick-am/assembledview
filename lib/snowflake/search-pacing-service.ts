@@ -140,7 +140,12 @@ export async function getSearchPacingData(opts: {
   }
 
   const placeholders = lineItemIds.map(() => "?").join(", ")
-  const dailyBinds = [...lineItemIds, start, end]
+  // Match by LINE_ITEM_ID or LINE_ITEM_NAME so we capture all rows when media plan uses either format
+  const whereClause = `(
+        LOWER(TRIM(COALESCE(CAST(LINE_ITEM_ID AS VARCHAR), ''))) IN (${placeholders})
+        OR LOWER(TRIM(COALESCE(LINE_ITEM_NAME, ''))) IN (${placeholders})
+      )`
+  const dailyBinds = [...lineItemIds, ...lineItemIds, start, end]
 
   const dailySql = `
       SELECT
@@ -152,7 +157,7 @@ export async function getSearchPacingData(opts: {
         SUM(REVENUE) AS REVENUE,
         SUM(IMPRESSIONS * TOP_IMPRESSION_PERCENTAGE) / NULLIF(SUM(IMPRESSIONS), 0) AS TOP_IMPRESSION_PCT
       FROM ASSEMBLEDVIEW.MART.SEARCH_PACING_FACT
-      WHERE LOWER(LINE_ITEM_ID) IN (${placeholders})
+      WHERE ${whereClause}
         AND CAST(DATE_DAY AS DATE) BETWEEN TO_DATE(?) AND TO_DATE(?)
       GROUP BY CAST(DATE_DAY AS DATE)
       ORDER BY CAST(DATE_DAY AS DATE) ASC
@@ -210,7 +215,7 @@ export async function getSearchPacingData(opts: {
 
   const lineItemDailySql = `
       SELECT
-        LOWER(LINE_ITEM_ID) AS LINE_ITEM_ID,
+        LOWER(TRIM(COALESCE(CAST(LINE_ITEM_ID AS VARCHAR), ''))) AS LINE_ITEM_ID,
         MAX(LINE_ITEM_NAME) AS LINE_ITEM_NAME,
         TO_VARCHAR(CAST(DATE_DAY AS DATE), 'YYYY-MM-DD') AS "DATE",
         SUM(CLICKS) AS CLICKS,
@@ -220,10 +225,10 @@ export async function getSearchPacingData(opts: {
         SUM(REVENUE) AS REVENUE,
         SUM(IMPRESSIONS * TOP_IMPRESSION_PERCENTAGE) / NULLIF(SUM(IMPRESSIONS), 0) AS TOP_IMPRESSION_PCT
       FROM ASSEMBLEDVIEW.MART.SEARCH_PACING_FACT
-      WHERE LOWER(LINE_ITEM_ID) IN (${placeholders})
+      WHERE ${whereClause}
         AND CAST(DATE_DAY AS DATE) BETWEEN TO_DATE(?) AND TO_DATE(?)
-      GROUP BY LOWER(LINE_ITEM_ID), CAST(DATE_DAY AS DATE)
-      ORDER BY LOWER(LINE_ITEM_ID) ASC, CAST(DATE_DAY AS DATE) ASC
+      GROUP BY LOWER(TRIM(COALESCE(CAST(LINE_ITEM_ID AS VARCHAR), ''))), CAST(DATE_DAY AS DATE)
+      ORDER BY LOWER(TRIM(COALESCE(CAST(LINE_ITEM_ID AS VARCHAR), ''))) ASC, CAST(DATE_DAY AS DATE) ASC
       LIMIT ${QUERY_ROW_LIMIT}
     `
 

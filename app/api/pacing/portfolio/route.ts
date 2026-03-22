@@ -2,6 +2,7 @@ import crypto from "node:crypto"
 import { NextRequest, NextResponse } from "next/server"
 import { querySnowflake } from "@/lib/snowflake/query"
 import { get as cacheGet, set as cacheSet } from "@/lib/cache/ttlCache"
+import { SOCIAL_PACING_TABLE } from "@/lib/pacing/social-channels"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -133,6 +134,7 @@ export async function POST(request: NextRequest) {
     const idChunk = chunks[i]
     const placeholders = idChunk.map(() => "?").join(", ")
 
+    // Union SOCIAL_PACING_FACT (social channels) + PACING_FACT (programmatic) for portfolio totals
     const sql = `
       SELECT
         LOWER(LINE_ITEM_ID) AS LINE_ITEM_ID,
@@ -142,14 +144,22 @@ export async function POST(request: NextRequest) {
         SUM(CLICKS) AS CLICKS,
         SUM(RESULTS) AS RESULTS,
         SUM(VIDEO_3S_VIEWS) AS VIDEO_3S_VIEWS
-      FROM ASSEMBLEDVIEW.MART.VW_PACING_FACT
-      WHERE LOWER(LINE_ITEM_ID) IN (${placeholders})
-        AND CAST(DATE_DAY AS DATE) BETWEEN TO_DATE(?) AND TO_DATE(?)
+      FROM (
+        SELECT LINE_ITEM_ID, DATE_DAY, AMOUNT_SPENT, IMPRESSIONS, CLICKS, RESULTS, VIDEO_3S_VIEWS
+        FROM ${SOCIAL_PACING_TABLE}
+        WHERE LOWER(LINE_ITEM_ID) IN (${placeholders})
+          AND CAST(DATE_DAY AS DATE) BETWEEN TO_DATE(?) AND TO_DATE(?)
+        UNION ALL
+        SELECT LINE_ITEM_ID, DATE_DAY, AMOUNT_SPENT, IMPRESSIONS, CLICKS, RESULTS, VIDEO_3S_VIEWS
+        FROM ASSEMBLEDVIEW.MART.PACING_FACT
+        WHERE LOWER(LINE_ITEM_ID) IN (${placeholders})
+          AND CAST(DATE_DAY AS DATE) BETWEEN TO_DATE(?) AND TO_DATE(?)
+      ) combined
       GROUP BY LOWER(LINE_ITEM_ID), CAST(DATE_DAY AS DATE)
       ORDER BY CAST(DATE_DAY AS DATE) ASC
     `
 
-    const binds = [...idChunk, start, end]
+    const binds = [...idChunk, start, end, ...idChunk, start, end]
     const rows = await querySnowflake<SnowflakeRow>(sql, binds, {
       requestId,
       label: "pacing_portfolio",

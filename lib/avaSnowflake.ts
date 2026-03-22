@@ -1,6 +1,10 @@
 import "server-only"
 
 import { querySnowflake } from "@/lib/snowflake/query"
+import {
+  isSocialMediaType,
+  SOCIAL_PACING_TABLE,
+} from "@/lib/pacing/social-channels"
 
 type AvaSnowflakeParams = {
   mbaNumber?: string
@@ -83,6 +87,11 @@ function safeNumber(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null
 }
 
+function isProgrammaticMediaType(mt: string): boolean {
+  const lower = mt.toLowerCase()
+  return /\b(programmatic|display|video)\b/.test(lower)
+}
+
 async function queryFacts({
   mbaNumber,
   mediaType,
@@ -120,20 +129,50 @@ async function queryFacts({
 
   const whereClause = `WHERE ${filters.join(" AND ")}`
 
-  // Use aggregation only (no large row pulls).
-  const sql = `
+  const selectClause = `
     SELECT
       MAX(CAST(DATE_DAY AS DATE)) AS LATEST_DELIVERY_DATE,
       SUM(AMOUNT_SPENT) AS SPEND_TO_DATE,
       SUM(IMPRESSIONS) AS IMPRESSIONS,
       SUM(CLICKS) AS CLICKS,
       SUM(RESULTS) AS CONVERSIONS
-    FROM ASSEMBLEDVIEW.MART.PACING_FACT
-    ${whereClause}
   `
 
-  const rows = await querySnowflake<any>(sql, binds, { label: "ava_snowflake_summary" })
-  const row = rows?.[0] ?? null
+  // Route by mediaType: social channels in SOCIAL_PACING_FACT, non-social in PACING_FACT.
+  const mt = (mediaType && typeof mediaType === "string" ? mediaType.trim() : "").toLowerCase()
+  const useSocial = !mt || isSocialMediaType(mt) || (!isSocialMediaType(mt) && !isProgrammaticMediaType(mt))
+  const useNonSocial = !mt || isProgrammaticMediaType(mt) || (!isSocialMediaType(mt) && !isProgrammaticMediaType(mt))
+
+  const runQuery = async (table: string, label: string) => {
+    const sql = `${selectClause} FROM ${table} ${whereClause}`
+    const rows = await querySnowflake<any>(sql, binds, { label })
+    return rows?.[0] ?? null
+  }
+
+  let row: any = null
+  if (useSocial && useNonSocial) {
+    const [socialRow, nonSocialRow] = await Promise.all([
+      runQuery(SOCIAL_PACING_TABLE, "ava_snowflake_summary_social"),
+      runQuery("ASSEMBLEDVIEW.MART.PACING_FACT", "ava_snowflake_summary_non_social"),
+    ])
+    // Aggregate: take MAX of dates, SUM of metrics
+    const latestDate = [socialRow?.LATEST_DELIVERY_DATE, nonSocialRow?.LATEST_DELIVERY_DATE]
+      .filter(Boolean)
+      .sort()
+      .slice(-1)[0]
+    row = {
+      LATEST_DELIVERY_DATE: latestDate ?? null,
+      SPEND_TO_DATE: (safeNumber(socialRow?.SPEND_TO_DATE) ?? 0) + (safeNumber(nonSocialRow?.SPEND_TO_DATE) ?? 0),
+      IMPRESSIONS: (safeNumber(socialRow?.IMPRESSIONS) ?? 0) + (safeNumber(nonSocialRow?.IMPRESSIONS) ?? 0),
+      CLICKS: (safeNumber(socialRow?.CLICKS) ?? 0) + (safeNumber(nonSocialRow?.CLICKS) ?? 0),
+      CONVERSIONS: (safeNumber(socialRow?.CONVERSIONS) ?? 0) + (safeNumber(nonSocialRow?.CONVERSIONS) ?? 0),
+    }
+  } else if (useSocial) {
+    row = await runQuery(SOCIAL_PACING_TABLE, "ava_snowflake_summary_social")
+  } else {
+    row = await runQuery("ASSEMBLEDVIEW.MART.PACING_FACT", "ava_snowflake_summary_non_social")
+  }
+
   const facts: AvaSnowflakeFacts = {
     latestDeliveryDate: row?.LATEST_DELIVERY_DATE ? String(row.LATEST_DELIVERY_DATE).slice(0, 10) : null,
     spendToDate: safeNumber(row?.SPEND_TO_DATE),

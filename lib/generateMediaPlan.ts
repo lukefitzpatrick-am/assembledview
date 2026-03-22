@@ -220,6 +220,15 @@ function formatBuyType(buyType: string | undefined): string {
     .join(' ');
 }
 
+// Section title to mediaCosts key mapping for delivery schedule
+const SECTION_TO_MEDIA_KEY: Record<string, string> = {
+  'Television': 'television', 'Radio': 'radio', 'Newspaper': 'newspaper', 'Magazines': 'magazines',
+  'OOH': 'ooh', 'Cinema': 'cinema', 'Digital Display': 'digiDisplay', 'Digital Audio': 'digiAudio',
+  'Digital Video': 'digiVideo', 'BVOD': 'bvod', 'Search': 'search', 'Social Media': 'socialMedia',
+  'Programmatic Display': 'progDisplay', 'Programmatic Video': 'progVideo', 'Programmatic BVOD': 'progBvod',
+  'Programmatic Audio': 'progAudio', 'Programmatic OOH': 'progOoh', 'Production': 'production',
+};
+
 export async function generateMediaPlan(
   header: MediaPlanHeader,
   mediaItems: MediaItems,
@@ -519,7 +528,85 @@ export async function generateMediaPlan(
     });
     dayCell.border = lightDashedBorder;
   }
-  
+
+  // Build month-to-column mapping for date columns (partial months merge)
+  type MonthRange = { monthYear: string; startCol: number; endCol: number };
+  const monthRanges: MonthRange[] = [];
+  let currentMonth = '';
+  let rangeStart = firstDateCol;
+  for (
+    let d = new Date(firstSunday.getTime()), col = firstDateCol;
+    d.getTime() <= lastSunday.getTime();
+    d.setUTCDate(d.getUTCDate() + 1), col++
+  ) {
+    const monthYear = d.toLocaleString('en-AU', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+    if (monthYear !== currentMonth && currentMonth) {
+      monthRanges.push({ monthYear: currentMonth, startCol: rangeStart, endCol: col - 1 });
+      rangeStart = col;
+    }
+    currentMonth = monthYear;
+  }
+  if (currentMonth) {
+    monthRanges.push({ monthYear: currentMonth, startCol: rangeStart, endCol: lastDateCol });
+  }
+
+  // Calculate monthly media by channel from line items (same logic as billing/delivery schedule)
+  type MediaKey = 'search' | 'socialMedia' | 'television' | 'radio' | 'newspaper' | 'magazines' | 'ooh' | 'cinema' | 'digiDisplay' | 'digiAudio' | 'digiVideo' | 'bvod' | 'integration' | 'progDisplay' | 'progVideo' | 'progBvod' | 'progAudio' | 'progOoh' | 'production';
+  const MEDIA_ITEMS_KEYS: { key: keyof MediaItems; mediaKey: MediaKey }[] = [
+    { key: 'television', mediaKey: 'television' }, { key: 'radio', mediaKey: 'radio' },
+    { key: 'newspaper', mediaKey: 'newspaper' }, { key: 'magazines', mediaKey: 'magazines' },
+    { key: 'ooh', mediaKey: 'ooh' }, { key: 'cinema', mediaKey: 'cinema' },
+    { key: 'digiDisplay', mediaKey: 'digiDisplay' }, { key: 'digiAudio', mediaKey: 'digiAudio' },
+    { key: 'digiVideo', mediaKey: 'digiVideo' }, { key: 'bvod', mediaKey: 'bvod' },
+    { key: 'search', mediaKey: 'search' }, { key: 'socialMedia', mediaKey: 'socialMedia' },
+    { key: 'progDisplay', mediaKey: 'progDisplay' }, { key: 'progVideo', mediaKey: 'progVideo' },
+    { key: 'progBvod', mediaKey: 'progBvod' }, { key: 'progAudio', mediaKey: 'progAudio' },
+    { key: 'progOoh', mediaKey: 'progOoh' }, { key: 'integration', mediaKey: 'integration' },
+    { key: 'production', mediaKey: 'production' },
+  ];
+
+  const monthlyByChannel: Record<string, Record<string, number>> = {};
+  function distributeBurstToMonths(
+    startDate: string,
+    endDate: string,
+    mediaAmount: number,
+    mediaKey: MediaKey
+  ) {
+    const s = parseDateStringYYYYMMDD(startDate);
+    const e = parseDateStringYYYYMMDD(endDate);
+    if (isNaN(s.getTime()) || isNaN(e.getTime()) || s > e) return;
+    const daysTotal = Math.ceil((e.getTime() - s.getTime()) / msPerDay) + 1;
+    if (daysTotal <= 0) return;
+
+    let d = new Date(s.getTime());
+    while (d <= e) {
+      const monthYear = d.toLocaleString('en-AU', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+      const monthStart = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
+      const monthEnd = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0));
+      const sliceStart = Math.max(s.getTime(), monthStart.getTime());
+      const sliceEnd = Math.min(e.getTime(), monthEnd.getTime());
+      const daysInMonth = Math.ceil((sliceEnd - sliceStart) / msPerDay) + 1;
+      const ratio = daysInMonth / daysTotal;
+      const share = mediaAmount * ratio;
+
+      if (!monthlyByChannel[mediaKey]) monthlyByChannel[mediaKey] = {};
+      monthlyByChannel[mediaKey][monthYear] = (monthlyByChannel[mediaKey][monthYear] || 0) + share;
+
+      d.setUTCMonth(d.getUTCMonth() + 1);
+      d.setUTCDate(1);
+    }
+  }
+
+  for (const { key, mediaKey } of MEDIA_ITEMS_KEYS) {
+    const items = mediaItems[key] || [];
+    for (const item of items) {
+      const amt = parseFloat(String(item.grossMedia ?? item.deliverablesAmount).replace(/[^0-9.-]+/g, '')) || 0;
+      if (amt > 0 && item.startDate && item.endDate) {
+        distributeBurstToMonths(item.startDate, item.endDate, amt, mediaKey);
+      }
+    }
+  }
+
   // Standard headers for data section (B-N)
   const BIDDABLE_DATA_HEADERS = [
       'Market', 'Platform', 'Bid Strategy', 'Targeting', 'Creative', 'Start Date', 'End Date',
@@ -580,7 +667,7 @@ export async function generateMediaPlan(
       sectionType === 'Production' ? PRODUCTION_HEADERS :
       biddableHeaders;
   
-    // --- Section Title & Header Rendering (No changes needed) ---
+    // --- Section Title & Header Rendering ---
     const headerLastColNum = Math.max(14, lastDateCol);
     sheet.mergeCells(r, 2, r, headerLastColNum);
     style(sheet.getCell(r, 2), {
@@ -592,20 +679,41 @@ export async function generateMediaPlan(
       fontColor: 'FFFFFFFF'
     });
     r++;
-  
+
+    // Grey header row (Buy Type, Avg Rate, Gross Media, etc.) - month names in date columns on SAME row
     const headerFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF808080' } };
     headersToUse.forEach((h, i) => {
       style(sheet.getCell(r, 2 + i), {
-        value: h, bold: true, align: 'left', fill: headerFill, fontColor: 'FFFFFFFF'
+        value: h, bold: true, align: 'left', fill: headerFill, fontColor: 'FFFFFFFF', fontSize: 14
       });
     });
+    for (const { monthYear, startCol, endCol } of monthRanges) {
+      if (startCol < endCol) {
+        try {
+          sheet.mergeCells(r, startCol, r, endCol);
+        } catch {
+          // Cell may already be part of a merge
+        }
+      }
+      const cell = sheet.getCell(r, startCol);
+      style(cell, {
+        value: monthYear,
+        fontSize: 14,
+        align: 'center',
+        verticalAlign: 'middle',
+        fill: headerFill,
+        fontColor: 'FFFFFFFF'
+      });
+      cell.border = lightDashedBorder;
+    }
     r++;
-  
+
+    // Blank row with borders on date columns
     for (let cIdx = firstDateCol; cIdx <= lastDateCol; cIdx++) {
       sheet.getCell(r, cIdx).border = lightDashedBorder;
     }
     r++;
-  
+
     const dataSectionStartRow = r;
   
     // --- Data Row Rendering ---
@@ -813,6 +921,33 @@ export async function generateMediaPlan(
     style(sheet.getCell(r, 14), {
       value: sumGrossMedia, bold: true, align: 'right', numFmt: '$#,##0.00##', fill: totalFill, fontColor: 'FF000000'
     });
+
+    // Monthly costs in date columns (calculated from line items - same as page)
+    const mediaKey = SECTION_TO_MEDIA_KEY[title] as MediaKey | undefined;
+    if (mediaKey && monthlyByChannel[mediaKey]) {
+      for (const { monthYear, startCol, endCol } of monthRanges) {
+        const amount = monthlyByChannel[mediaKey][monthYear] ?? 0;
+        if (startCol < endCol) {
+          try {
+            sheet.mergeCells(r, startCol, r, endCol);
+          } catch {
+            // Cell may already be part of a merge
+          }
+        }
+        const cell = sheet.getCell(r, startCol);
+        style(cell, {
+          value: amount,
+          fontSize: 14,
+          bold: true,
+          align: 'center',
+          verticalAlign: 'middle',
+          fill: totalFill,
+          fontColor: 'FF000000',
+          numFmt: '$#,##0.00##'
+        });
+        cell.border = lightDashedBorder;
+      }
+    }
 
     // Add exterior border around the entire section
     const sectionStartRow = startRow;
@@ -1495,6 +1630,59 @@ export async function generateMediaPlan(
       });
 
       currentRow += (groupedProduction.length + 5);
+  }
+
+  // --- Grand Total Row by Month (before MBA table) ---
+  if (monthRanges.length > 0 && Object.keys(monthlyByChannel).length > 0) {
+    const headerLastColNum = Math.max(14, lastDateCol);
+    const totalFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFBDDC52' } };
+
+    for (let colNum = 2; colNum <= headerLastColNum; colNum++) {
+      style(sheet.getCell(currentRow, colNum), { fill: totalFill });
+    }
+    sheet.mergeCells(currentRow, 2, currentRow, 12);
+    style(sheet.getCell(currentRow, 2), {
+      value: 'Total',
+      bold: true,
+      align: 'right',
+      fill: totalFill,
+      fontColor: 'FF000000'
+    });
+
+    style(sheet.getCell(currentRow, 14), {
+      value: mbaData?.totals?.gross_media ?? 0,
+      bold: true,
+      align: 'right',
+      numFmt: '$#,##0.00##',
+      fill: totalFill,
+      fontColor: 'FF000000'
+    });
+
+    for (const { monthYear, startCol, endCol } of monthRanges) {
+      const totalForMonth = Object.keys(monthlyByChannel).reduce((sum, key) => {
+        return sum + (monthlyByChannel[key]?.[monthYear] ?? 0);
+      }, 0);
+      if (startCol < endCol) {
+        try {
+          sheet.mergeCells(currentRow, startCol, currentRow, endCol);
+        } catch {
+          // Cell may already be part of a merge
+        }
+      }
+      const cell = sheet.getCell(currentRow, startCol);
+      style(cell, {
+        value: totalForMonth,
+        fontSize: 14,
+        bold: true,
+        align: 'center',
+        verticalAlign: 'middle',
+        fill: totalFill,
+        fontColor: 'FF000000',
+        numFmt: '$#,##0.00##'
+      });
+      cell.border = lightDashedBorder;
+    }
+    currentRow++;
   }
 
   // --- MBA Details Section ---

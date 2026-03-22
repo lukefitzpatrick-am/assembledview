@@ -128,7 +128,7 @@ export async function GET(
           fetchVersionScoped("magazines_line_items", "magazines"),
           fetchVersionScoped("ooh_line_items", "ooh"),
           fetchVersionScoped("cinema_line_items", "cinema"),
-          fetchVersionScoped("digital_display_line_items", "digitalDisplay"),
+          fetchVersionScoped("media_plan_digi_display", "digitalDisplay"),
           fetchVersionScoped("digital_audio_line_items", "digitalAudio"),
           fetchVersionScoped("digital_video_line_items", "digitalVideo"),
           fetchVersionScoped("bvod_line_items", "bvod"),

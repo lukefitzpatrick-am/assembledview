@@ -30,6 +30,13 @@ import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
 import type { LineItem } from '@/lib/generateMediaPlan'
 import { formatMoney } from "@/lib/utils/money"
 
+// Safely parse budget/deliverable values (handles number or string from API)
+function parseBudgetSafe(val: unknown): number {
+  if (val == null) return 0;
+  if (typeof val === "number" && Number.isFinite(val)) return val;
+  return parseFloat(String(val).replace(/[^0-9.-]+/g, "")) || 0;
+}
+
 // Format Dates
 const formatDateString = (d?: Date | string): string => {
   if (!d) return '';
@@ -130,8 +137,8 @@ export function getDigiDisplayBursts(
   const digidisplaylineItems = form.getValues("digidisplaylineItems") || []
 
   return digidisplaylineItems.flatMap(li =>
-    li.bursts.map(burst => {
-      const rawBudget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0
+    (li.bursts || []).map(burst => {
+      const rawBudget = parseBudgetSafe(burst?.budget)
 
       const pct = feedigidisplay || 0
       let feeAmount = 0
@@ -182,10 +189,10 @@ export function calculateInvestmentPerMonth(form, feedigidisplay) {
   let monthlyInvestment: Record<string, number> = {};
 
   digidisplaylineItems.forEach((lineItem) => {
-    lineItem.bursts.forEach((burst) => {
+    (lineItem.bursts || []).forEach((burst) => {
       const startDate = new Date(burst.startDate);
       const endDate = new Date(burst.endDate);
-      const lineMedia = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0;
+      const lineMedia = parseBudgetSafe(burst?.budget);
       const feePercentage = feedigidisplay || 0;
 
       // ✅ Corrected total investment calculation
@@ -229,11 +236,11 @@ export function calculateBurstInvestmentPerMonth(form, feedigidisplay) {
   let monthlyInvestment: Record<string, number> = {};
 
   digidisplaylineItems.forEach((lineItem) => {
-    lineItem.bursts.forEach((burst) => {
+    (lineItem.bursts || []).forEach((burst) => {
       const startDate = new Date(burst.startDate);
       const endDate = new Date(burst.endDate);
       const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-      const burstBudget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0;
+      const burstBudget = parseBudgetSafe(burst?.budget);
       const feePercentage = feedigidisplay || 0;
       
       // Calculate total investment including fees
@@ -490,15 +497,17 @@ export default function DigiDisplayContainer({
         }
 
         const bursts = parsedBursts.length > 0 ? parsedBursts.map((burst: any) => ({
-          budget: burst.budget || "",
-          buyAmount: burst.buyAmount || "",
+          budget: burst.budget != null ? String(burst.budget) : "",
+          buyAmount: burst.buyAmount != null ? String(burst.buyAmount) : "",
           startDate: burst.startDate ? new Date(burst.startDate) : (campaignStartDate || new Date()),
           endDate: burst.endDate ? new Date(burst.endDate) : (campaignEndDate || new Date()),
+          calculatedValue: typeof burst.calculatedValue === "number" ? burst.calculatedValue : (parseBudgetSafe(burst.calculatedValue) || 0),
         })) : [{
           budget: "",
           buyAmount: "",
           startDate: campaignStartDate || new Date(),
           endDate: campaignEndDate || new Date(),
+          calculatedValue: 0,
         }];
 
         return {
@@ -537,8 +546,8 @@ export default function DigiDisplayContainer({
     const transformedLineItems = formLineItems.map((lineItem, index) => {
       // Calculate totalMedia from raw budget amounts (for display in MBA section)
       let totalMedia = 0;
-      lineItem.bursts.forEach((burst) => {
-        const budget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0;
+      (lineItem?.bursts || []).forEach((burst) => {
+        const budget = parseBudgetSafe(burst?.budget);
         if (lineItem.budgetIncludesFees) {
           // Budget is gross, extract media portion
           const base = budget / (1 + (feedigidisplay || 0) / 100);
@@ -591,14 +600,14 @@ export default function DigiDisplayContainer({
     let overallFee = 0;
     let overallCost = 0;
     
-    const lineItemTotals = watchedLineItems.map((lineItem, index) => {
+    const lineItemTotals = (watchedLineItems || []).map((lineItem, index) => {
       let lineMedia = 0;
       let lineDeliverables = 0;
       let lineFee = 0;
       let lineCost = 0;
     
-      lineItem.bursts.forEach((burst) => {
-        const budget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0;
+      (lineItem?.bursts || []).forEach((burst) => {
+        const budget = parseBudgetSafe(burst?.budget);
         // Always calculate media for display purposes (ignore clientPaysForMedia)
         if (lineItem.budgetIncludesFees) {
           // Budget is gross, split into media and fee
@@ -611,7 +620,7 @@ export default function DigiDisplayContainer({
           const fee = feedigidisplay ? (budget / (100 - feedigidisplay)) * feedigidisplay : 0;
           lineFee += fee;
         }
-        lineDeliverables += burst.calculatedValue || 0;
+        lineDeliverables += (typeof burst?.calculatedValue === "number" ? burst.calculatedValue : parseBudgetSafe(burst?.calculatedValue)) || 0;
       });
     
       lineCost = lineMedia + lineFee;
@@ -644,10 +653,10 @@ export default function DigiDisplayContainer({
       let lineFee = 0;
       let lineDeliverables = 0;
 
-      lineItem.bursts.forEach((burst) => {
-        const budget = parseFloat(burst?.budget?.replace(/[^0-9.]/g, "") || "0");
+      (lineItem?.bursts || []).forEach((burst) => {
+        const budget = parseBudgetSafe(burst?.budget);
         lineMedia += budget;
-        lineDeliverables += burst?.calculatedValue || 0;
+        lineDeliverables += (typeof burst?.calculatedValue === "number" ? burst.calculatedValue : parseBudgetSafe(burst?.calculatedValue)) || 0;
       });
 
       lineFee = feedigidisplay ? (lineMedia / (100 - feedigidisplay)) * feedigidisplay : 0;
@@ -943,12 +952,12 @@ useEffect(() => {
   const calculatedBursts = getDigiDisplayBursts(form, feedigidisplay || 0);
   let burstIndex = 0;
 
-  const items: LineItem[] = form.getValues('digidisplaylineItems').flatMap((lineItem, lineItemIndex) =>
-    lineItem.bursts.map(burst => {
+  const items: LineItem[] = (form.getValues('digidisplaylineItems') || []).flatMap((lineItem, lineItemIndex) =>
+    (lineItem?.bursts || []).map(burst => {
       const computedBurst = calculatedBursts[burstIndex++];
       const mediaAmount = computedBurst
         ? computedBurst.mediaAmount
-        : parseFloat(String(burst.budget).replace(/[^0-9.-]+/g, "")) || 0;
+        : parseBudgetSafe(burst?.budget);
       const lineItemId = buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.digitalDisplay, lineItemIndex + 1);
 
       return {
@@ -1010,8 +1019,8 @@ useEffect(() => {
   const getBursts = () => {
     const formLineItems = form.getValues("digidisplaylineItems") || [];
     return formLineItems.flatMap(item =>
-      item.bursts.map(burst => {
-        const budget = parseFloat(burst.budget?.replace(/[^0-9.]/g, "") || "0");
+      (item?.bursts || []).map(burst => {
+        const budget = parseBudgetSafe(burst?.budget);
         let mediaAmount = 0;
         let feeAmount = 0;
 
@@ -1106,10 +1115,9 @@ useEffect(() => {
                     let totalMedia = 0;
                     let totalCalculatedValue = 0;
 
-                    lineItem.bursts.forEach((burst) => {
-                      const budget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0;
-                      totalMedia += budget;
-                      totalCalculatedValue += burst.calculatedValue || 0;
+                    (lineItem?.bursts || []).forEach((burst) => {
+                      totalMedia += parseBudgetSafe(burst?.budget);
+                      totalCalculatedValue += (typeof burst?.calculatedValue === "number" ? burst.calculatedValue : parseBudgetSafe(burst?.calculatedValue)) || 0;
                     });
 
                     return { totalMedia, totalCalculatedValue };

@@ -1,4 +1,9 @@
 import { querySnowflake } from "@/lib/snowflake/query"
+import {
+  isSocialPacingChannel,
+  SOCIAL_PACING_CHANNEL_TYPES,
+  SOCIAL_PACING_TABLE,
+} from "@/lib/pacing/social-channels"
 
 const QUERY_ROW_LIMIT = 50000
 const MAX_RANGE_DAYS = 180
@@ -55,14 +60,19 @@ export async function queryPacingFact(params: QueryPacingFactParams, options: Qu
 
   const placeholders = ids.map(() => "?").join(", ")
 
+  // Social channels live in SOCIAL_PACING_FACT. Non-social (programmatic) remains in PACING_FACT.
+  const tableName = isSocialPacingChannel(channel)
+    ? SOCIAL_PACING_TABLE
+    : "ASSEMBLEDVIEW.MART.PACING_FACT"
+
   // Snowflake CHANNEL values may not be normalised (case/wording varies),
   // so we match using LOWER() + LIKE patterns (same intent as bulk pacing query).
   const channelWhere = (() => {
     switch (channel) {
-      case "meta":
-        return "LOWER(CHANNEL) LIKE '%meta%'"
-      case "tiktok":
-        return "LOWER(CHANNEL) LIKE '%tiktok%'"
+      case SOCIAL_PACING_CHANNEL_TYPES[0]:
+        return `LOWER(CHANNEL) LIKE '%${SOCIAL_PACING_CHANNEL_TYPES[0]}%'`
+      case SOCIAL_PACING_CHANNEL_TYPES[1]:
+        return `LOWER(CHANNEL) LIKE '%${SOCIAL_PACING_CHANNEL_TYPES[1]}%'`
       case "programmatic-display":
         return "LOWER(CHANNEL) LIKE '%programmatic%' AND LOWER(CHANNEL) LIKE '%display%'"
       case "programmatic-video":
@@ -88,7 +98,7 @@ export async function queryPacingFact(params: QueryPacingFactParams, options: Qu
     VIDEO_3S_VIEWS,
     MAX_FIVETRAN_SYNCED_AT,
     UPDATED_AT
-  FROM ASSEMBLEDVIEW.MART.PACING_FACT
+  FROM ${tableName}
   WHERE ${channelWhere}
     AND LINE_ITEM_ID IN (${placeholders})
     AND CAST(DATE_DAY AS DATE) BETWEEN TO_DATE(?) AND TO_DATE(?)

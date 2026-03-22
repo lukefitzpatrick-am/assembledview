@@ -325,6 +325,7 @@ export function getMediaTypeKeyFromTableName(tableName: string): string {
     ooh_line_items: "ooh",
     cinema_line_items: "cinema",
     digital_display_line_items: "digitalDisplay",
+    media_plan_digi_display: "digitalDisplay",
     digital_audio_line_items: "digitalAudio",
     digital_video_line_items: "digitalVideo",
     bvod_line_items: "bvod",

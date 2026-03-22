@@ -150,6 +150,11 @@ interface Client {
   feeprogaudio: number
   feeprogooh: number
   feecontentcreator: number
+  feedigidisplay?: number
+  feedigiaudio?: number
+  feedigivideo?: number
+  feebvod?: number
+  feeintegration?: number
   adservvideo: number
   adservimp: number
   adservdisplay: number
@@ -288,6 +293,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
   const [oohMediaLineItems, setOohMediaLineItems] = useState<any[]>([])
   const [cinemaMediaLineItems, setCinemaMediaLineItems] = useState<any[]>([])
   const [digitalDisplayMediaLineItems, setDigitalDisplayMediaLineItems] = useState<any[]>([])
+  const [digitalDisplayItems, setDigitalDisplayItems] = useState<any[]>([])
   const [digitalAudioMediaLineItems, setDigitalAudioMediaLineItems] = useState<any[]>([])
   const [digitalVideoMediaLineItems, setDigitalVideoMediaLineItems] = useState<any[]>([])
   const [bvodMediaLineItems, setBvodMediaLineItems] = useState<any[]>([])
@@ -1666,6 +1672,24 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
         },
         body: JSON.stringify({
           ...formData,
+          search: searchMediaLineItems,
+          socialMedia: socialMediaMediaLineItems,
+          digiAudio: digitalAudioMediaLineItems,
+          digiDisplay: digitalDisplayItems,
+          digiVideo: digitalVideoMediaLineItems,
+          bvod: bvodMediaLineItems,
+          progDisplay: progDisplayMediaLineItems,
+          progVideo: progVideoMediaLineItems,
+          progBvod: progBvodMediaLineItems,
+          progOoh: progOohMediaLineItems,
+          progAudio: progAudioMediaLineItems,
+          newspaper: newspaperMediaLineItems,
+          magazines: magazinesMediaLineItems,
+          television: televisionMediaLineItems,
+          radio: radioMediaLineItems,
+          ooh: oohMediaLineItems,
+          cinema: cinemaMediaLineItems,
+          integration: integrationMediaLineItems,
           search_bursts: searchBursts,
           social_media_bursts: socialMediaBursts,
           investment_by_month: investmentPerMonth,
@@ -1683,7 +1707,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
       a.href = url
       const version = mediaPlan?.version_number ?? 1
       const mediaPlanBase = `${formData.mp_campaignname}_MediaPlan`
-      a.download = `${formData.mp_clientname}-${mediaPlanBase}-v${version}.pdf`
+      a.download = `${formData.mp_clientname}-${mediaPlanBase}-v${version}.xlsx`
       document.body.appendChild(a)
       a.click()
       window.URL.revokeObjectURL(url)
@@ -2593,11 +2617,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                       {medium.name === "mp_digidisplay" && (
                         <DigitalDisplayContainer
                           clientId={selectedClientId}
-                          feedigidisplay={selectedClient?.feesearch || 0}
+                          feedigidisplay={selectedClient?.feedigidisplay ?? 0}
                           onTotalMediaChange={handleTotalMediaChange}
                           onBurstsChange={handleBurstsChange}
                           onInvestmentChange={handleInvestmentChange}
-                          onLineItemsChange={() => {}}
+                          onLineItemsChange={setDigitalDisplayItems}
                           onMediaLineItemsChange={handleDigitalDisplayMediaLineItemsChange}
                           campaignStartDate={form.watch("mp_campaigndates_start")}
                           campaignEndDate={form.watch("mp_campaigndates_end")}

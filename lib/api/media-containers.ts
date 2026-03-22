@@ -70,7 +70,7 @@ export const MEDIA_CONTAINER_ENDPOINTS = {
   magazines: 'magazines_line_items',
   ooh: 'ooh_line_items',
   cinema: 'cinema_line_items',
-  digitalDisplay: 'digital_display_line_items',
+  digitalDisplay: 'media_plan_digi_display',
   digitalAudio: 'digital_audio_line_items',
   digitalVideo: 'digital_video_line_items',
   bvod: 'bvod_line_items',

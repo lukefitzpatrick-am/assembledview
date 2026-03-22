@@ -46,7 +46,8 @@ export async function POST(request: Request) {
     }
 
     // Generate the Excel workbook
-    const workbook = await generateMediaPlan(header, mediaItems)
+    const mbaData = data.mbaData
+    const workbook = await generateMediaPlan(header, mediaItems, mbaData)
     
     // Convert workbook to buffer
     const buffer = await workbook.xlsx.writeBuffer()

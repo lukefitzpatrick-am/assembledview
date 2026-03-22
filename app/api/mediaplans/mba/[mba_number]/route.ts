@@ -1096,6 +1096,16 @@ export async function GET(
       {} as Record<string, number>
     )
 
+    if (countsPerType.search > 0) {
+      console.log(`[API] Search line items for mba_number=${mba_number}`, {
+        searchCount: countsPerType.search,
+        searchIds: (lineItemsData.search ?? [])
+          .map((li: any) => li?.line_item_id ?? li?.lineItemId ?? li?.LINE_ITEM_ID)
+          .filter(Boolean)
+          .slice(0, 20),
+      })
+    }
+
     const expectedSpendToDate =
       filteredBillingSchedule &&
       Array.isArray(filteredBillingSchedule) &&

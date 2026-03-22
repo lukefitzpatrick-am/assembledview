@@ -2,6 +2,10 @@ import "server-only"
 
 import { querySnowflake } from "@/lib/snowflake/query"
 import { getMelbourneTodayISO, getMelbourneYesterdayISO } from "@/lib/dates/melbourne"
+import {
+  getSocialChannelSqlCondition,
+  SOCIAL_PACING_TABLE,
+} from "@/lib/pacing/social-channels"
 
 type Channel = "meta" | "tiktok" | "programmatic-display" | "programmatic-video"
 
@@ -154,20 +158,8 @@ export async function getCampaignPacingData(
   const buildStart = Date.now()
   const placeholders = normalizedIds.map(() => "?").join(", ")
 
-  const sql = `
-  /* QUERY_TAG: bulk_pacing */
-  WITH maxd AS (
-    SELECT MAX(CAST(DATE_DAY AS DATE)) AS max_date
-    FROM ASSEMBLEDVIEW.MART.PACING_FACT
-    WHERE LOWER(LINE_ITEM_ID) IN (${placeholders})
-  ),
-  bounds AS (
-    SELECT
-      TO_DATE(?) AS start_date,
-      LEAST(TO_DATE(?), maxd.max_date) AS end_date
-    FROM maxd
-  )
-  SELECT
+  // Shared SELECT shape for both queries (identical column list for merge).
+  const selectShape = `
     /* normalised channel values for the app */
     CASE
       WHEN LOWER(CHANNEL) LIKE '%meta%' THEN 'meta'
@@ -190,17 +182,44 @@ export async function getCampaignPacingData(
     VIDEO_3S_VIEWS,
     MAX_FIVETRAN_SYNCED_AT,
     UPDATED_AT
+  `
+
+  // Social channels from SOCIAL_PACING_FACT.
+  const socialSql = `
+  /* QUERY_TAG: bulk_pacing_social */
+  WITH bounds AS (
+    SELECT TO_DATE(?) AS start_date, TO_DATE(?) AS end_date
+  )
+  SELECT ${selectShape}
+  FROM ${SOCIAL_PACING_TABLE}, bounds
+  WHERE bounds.end_date IS NOT NULL
+    AND CAST(DATE_DAY AS DATE) BETWEEN bounds.start_date AND bounds.end_date
+    AND (${getSocialChannelSqlCondition()})
+    AND LOWER(LINE_ITEM_ID) IN (${placeholders})
+  ORDER BY CAST(DATE_DAY AS DATE) DESC, CHANNEL ASC
+  LIMIT ${QUERY_ROW_LIMIT}
+  `
+
+  // Non-social (programmatic) from PACING_FACT.
+  const nonSocialSql = `
+  /* QUERY_TAG: bulk_pacing_non_social */
+  WITH bounds AS (
+    SELECT TO_DATE(?) AS start_date, TO_DATE(?) AS end_date
+  )
+  SELECT ${selectShape}
   FROM ASSEMBLEDVIEW.MART.PACING_FACT, bounds
   WHERE bounds.end_date IS NOT NULL
     AND CAST(DATE_DAY AS DATE) BETWEEN bounds.start_date AND bounds.end_date
+    AND (
+      (LOWER(CHANNEL) LIKE '%programmatic%' AND LOWER(CHANNEL) LIKE '%display%')
+      OR (LOWER(CHANNEL) LIKE '%programmatic%' AND LOWER(CHANNEL) LIKE '%video%')
+    )
     AND LOWER(LINE_ITEM_ID) IN (${placeholders})
-  -- Important: order newest-first under LIMIT so recent days aren't truncated away.
   ORDER BY CAST(DATE_DAY AS DATE) DESC, CHANNEL ASC
   LIMIT ${QUERY_ROW_LIMIT}
-`
+  `
 
-  // binds order: ids for maxd, then start/end bounds, then ids for final select
-  const binds = [...normalizedIds, start, end, ...normalizedIds]
+  const binds = [start, end, ...normalizedIds]
   console.info("[pacing-service][timing] build", {
     requestId,
     ms: Date.now() - buildStart,
@@ -212,19 +231,27 @@ export async function getCampaignPacingData(
   // ============================================================================
   const queryStartTime = Date.now()
 
-  const rows = await querySnowflake<RawRow>(sql, binds, {
-    requestId,
-    signal: options?.signal,
-    label: "pacing_bulk",
-  })
+  const [socialRows, nonSocialRows] = await Promise.all([
+    querySnowflake<RawRow>(socialSql, binds, {
+      requestId,
+      signal: options?.signal,
+      label: "pacing_bulk_social",
+    }),
+    querySnowflake<RawRow>(nonSocialSql, binds, {
+      requestId,
+      signal: options?.signal,
+      label: "pacing_bulk_non_social",
+    }),
+  ])
+
+  const rows = [...socialRows, ...nonSocialRows]
 
   // Calculate query duration
   const queryDurationMs = Date.now() - queryStartTime
   console.info("[pacing-service][timing] query", { requestId, ms: queryDurationMs, rows: rows.length })
 
-  // If we hit the hard row limit, Snowflake will drop the newest days first
-  // when ordering ASC. We order DESC, so this will drop the oldest rows first.
-  const hitRowLimit = rows.length === QUERY_ROW_LIMIT
+  // If either query hit the row limit, we may have truncated (oldest dates dropped first).
+  const hitRowLimit = socialRows.length === QUERY_ROW_LIMIT || nonSocialRows.length === QUERY_ROW_LIMIT
   if (hitRowLimit) {
     console.warn("[Pacing] Potential truncation: query hit row limit", {
       mbaNumber,
@@ -295,7 +322,7 @@ export async function getCampaignPacingData(
     // Log query plan details
     console.log("[Pacing] Query plan details", {
       mbaNumber,
-      sql: sql.trim().slice(0, 200) + "...",
+      queries: "social + non-social",
       bindCount: binds.length,
       placeholderCount: normalizedIds.length,
       dateBinds: { start, end },
@@ -311,21 +338,23 @@ export async function getCampaignPacingData(
       unknownChannels: unknownChannels.size ? Array.from(unknownChannels) : undefined,
     })
 
-    // Probe query when zero rows returned
+    // Probe query when zero rows returned (check both tables)
     if (filteredRows.length === 0) {
       try {
         const probePlaceholders = normalizedIds.map(() => "?").join(", ")
-        const probeSql = `
-          SELECT DISTINCT CHANNEL, LINE_ITEM_ID
-          FROM ASSEMBLEDVIEW.MART.PACING_FACT
-          WHERE LINE_ITEM_ID IN (${probePlaceholders})
-          LIMIT 10
-        `
-        const probeMatches = await querySnowflake<{ CHANNEL: string; LINE_ITEM_ID: string }>(
-          probeSql,
-          normalizedIds,
-          { requestId, signal: options?.signal, label: "pacing_zero_row_probe" }
-        )
+        const [socialProbe, nonSocialProbe] = await Promise.all([
+          querySnowflake<{ CHANNEL: string; LINE_ITEM_ID: string }>(
+            `SELECT DISTINCT CHANNEL, LINE_ITEM_ID FROM ${SOCIAL_PACING_TABLE} WHERE LOWER(LINE_ITEM_ID) IN (${probePlaceholders}) LIMIT 10`,
+            normalizedIds,
+            { requestId, signal: options?.signal, label: "pacing_zero_row_probe_social" }
+          ),
+          querySnowflake<{ CHANNEL: string; LINE_ITEM_ID: string }>(
+            `SELECT DISTINCT CHANNEL, LINE_ITEM_ID FROM ASSEMBLEDVIEW.MART.PACING_FACT WHERE LOWER(LINE_ITEM_ID) IN (${probePlaceholders}) LIMIT 10`,
+            normalizedIds,
+            { requestId, signal: options?.signal, label: "pacing_zero_row_probe_non_social" }
+          ),
+        ])
+        const probeMatches = [...socialProbe, ...nonSocialProbe]
 
         console.log("[Pacing] Zero-row probe results", {
           mbaNumber,
