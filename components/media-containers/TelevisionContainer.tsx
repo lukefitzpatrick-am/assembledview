@@ -1,6 +1,14 @@
 "use client"
 
-import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react"
+import {
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useMemo,
+  useCallback,
+  type RefCallback,
+} from "react"
 import { useForm, useFieldArray, UseFormReturn } from "react-hook-form"
 import { useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -130,6 +138,135 @@ const televisionFormSchema = z.object({
 })
 
 type TelevisionFormValues = z.infer<typeof televisionFormSchema>
+
+type TelevisionTarpsRhfField = {
+  name: string
+  value: string | undefined
+  onChange: (value: string) => void
+  onBlur: () => void
+  ref: RefCallback<HTMLInputElement>
+}
+
+/** FormField render callbacks are not components; hooks must live here. */
+function TelevisionTarpsBurstField({
+  form,
+  lineItemIndex,
+  burstIndex,
+  field,
+}: {
+  form: UseFormReturn<TelevisionFormValues>
+  lineItemIndex: number
+  burstIndex: number
+  field: TelevisionTarpsRhfField
+}) {
+  const buyTypeWatch = useWatch({
+    control: form.control,
+    name: `televisionlineItems.${lineItemIndex}.buyType`,
+  })
+  const budgetValue = useWatch({
+    control: form.control,
+    name: `televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.budget`,
+  })
+  const buyAmountValue = useWatch({
+    control: form.control,
+    name: `televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount`,
+  })
+
+  const calculatedValue = useMemo(() => {
+    const budget = parseFloat(String(budgetValue)?.replace(/[^0-9.]/g, "") || "0")
+    const buyAmount = parseFloat(String(buyAmountValue)?.replace(/[^0-9.]/g, "") || "1")
+
+    switch (buyTypeWatch) {
+      case "cpt":
+      case "spots":
+        return buyAmount !== 0 ? budget / buyAmount : "0"
+      case "cpm":
+        return buyAmount !== 0 ? (budget / buyAmount) * 1000 : "0"
+      case "fixed_cost":
+        return "1"
+      default:
+        return "0"
+    }
+  }, [budgetValue, buyAmountValue, buyTypeWatch])
+
+  useEffect(() => {
+    if (buyTypeWatch === "bonus") return
+    const currentValue = form.getValues(
+      `televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.tarps`
+    )
+    const newValue = String(calculatedValue)
+
+    if (currentValue !== newValue) {
+      form.setValue(
+        `televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.tarps`,
+        newValue
+      )
+    }
+  }, [calculatedValue, lineItemIndex, burstIndex, form, buyTypeWatch])
+
+  if (buyTypeWatch === "bonus") {
+    return (
+      <FormItem>
+        <FormLabel className="text-xs">Bonus Deliverables</FormLabel>
+        <FormControl>
+          <Input
+            type="number"
+            min={0}
+            step={1}
+            className="w-full"
+            value={field.value ?? ""}
+            onChange={(e) => {
+              const value = e.target.value.replace(/[^0-9]/g, "")
+              field.onChange(value)
+            }}
+          />
+        </FormControl>
+        <FormMessage />
+      </FormItem>
+    )
+  }
+
+  let title = "Calculated Value"
+  switch (buyTypeWatch) {
+    case "cpt":
+      title = "TARPs"
+      break
+    case "spots":
+      title = "Spots"
+      break
+    case "package":
+      title = "Package"
+      break
+    case "bonus":
+      title = "Bonus"
+      break
+    case "cpm":
+      title = "Impressions"
+      break
+    case "fixed_cost":
+      title = "Fixed Cost"
+      break
+  }
+
+  const displayNumeric =
+    typeof calculatedValue === "number"
+      ? calculatedValue
+      : parseFloat(String(calculatedValue)) || 0
+
+  return (
+    <FormItem>
+      <FormLabel className="text-xs">{title}</FormLabel>
+      <FormControl>
+        <Input
+          type="text"
+          className="w-full min-w-[8rem] h-10 text-sm"
+          value={displayNumeric.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+          readOnly
+        />
+      </FormControl>
+    </FormItem>
+  )
+}
 
 interface Publisher {
   id: number;
@@ -1946,111 +2083,14 @@ useEffect(() => {
                                     <FormField
                                       control={form.control}
                                       name={`televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.tarps`}
-                                      render={({ field }) => {
-                                        // Hooks must always run in the same order, so keep these at the top.
-                                        const buyTypeWatch = useWatch({
-                                          control: form.control,
-                                          name: `televisionlineItems.${lineItemIndex}.buyType`,
-                                        });
-                                        const budgetValue = useWatch({
-                                          control: form.control,
-                                          name: `televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.budget`,
-                                        });
-                                        const buyAmountValue = useWatch({
-                                          control: form.control,
-                                          name: `televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount`,
-                                        });
-
-                                        const calculatedValue = useMemo(() => {
-                                          const budget = parseFloat(String(budgetValue)?.replace(/[^0-9.]/g, "") || "0");
-                                          const buyAmount = parseFloat(String(buyAmountValue)?.replace(/[^0-9.]/g, "") || "1");
-
-                                          switch (buyTypeWatch) {
-                                            case "cpt":
-                                            case "spots":
-                                              return buyAmount !== 0 ? budget / buyAmount : "0";
-                                            case "cpm":
-                                              return buyAmount !== 0 ? (budget / buyAmount) * 1000 : "0";
-                                            case "fixed_cost":
-                                              return "1";
-                                            default:
-                                              return "0";
-                                          }
-                                        }, [budgetValue, buyAmountValue, buyTypeWatch]);
-
-                                        useEffect(() => {
-                                          if (buyTypeWatch === "bonus") return;
-                                          const currentValue = form.getValues(
-                                            `televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.tarps`
-                                          );
-                                          const newValue = String(calculatedValue);
-
-                                          if (currentValue !== newValue) {
-                                            form.setValue(
-                                              `televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.tarps`,
-                                              newValue
-                                            );
-                                          }
-                                        }, [calculatedValue, lineItemIndex, burstIndex, form, buyTypeWatch]);
-
-                                        if (buyTypeWatch === "bonus") {
-                                          return (
-                                            <FormItem>
-                                              <FormLabel className="text-xs">Bonus Deliverables</FormLabel>
-                                              <FormControl>
-                                                <Input
-                                                  type="number"
-                                                  min={0}
-                                                  step={1}
-                                                  className="w-full"
-                                                  value={field.value ?? ""}
-                                                  onChange={(e) => {
-                                                    const value = e.target.value.replace(/[^0-9]/g, "");
-                                                    field.onChange(value);
-                                                  }}
-                                                />
-                                              </FormControl>
-                                              <FormMessage />
-                                            </FormItem>
-                                          );
-                                        }
-
-                                        let title = "Calculated Value";
-                                        switch (buyTypeWatch) {
-                                          case "cpt":
-                                            title = "TARPs";
-                                            break;
-                                          case "spots":
-                                            title = "Spots";
-                                            break;
-                                          case "package":
-                                            title = "Package";
-                                            break;
-                                          case "bonus":
-                                            title = "Bonus";
-                                            break;
-                                          case "cpm":
-                                            title = "Impressions";
-                                            break;
-                                          case "fixed_cost":
-                                            title = "Fixed Cost";
-                                            break;
-                                        }
-
-                                        return (
-                                          <FormItem>
-                                            <FormLabel className="text-xs">{title}</FormLabel>
-                                            <FormControl>
-                                              <Input
-                                                type="text"
-                                                className="w-full min-w-[8rem] h-10 text-sm"
-                                                value={calculatedValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                                                readOnly
-                                              />
-                                            </FormControl>
-                                          </FormItem>
-                                        );
-                                      }}
+                                      render={({ field }) => (
+                                        <TelevisionTarpsBurstField
+                                          form={form}
+                                          lineItemIndex={lineItemIndex}
+                                          burstIndex={burstIndex}
+                                          field={field as TelevisionTarpsRhfField}
+                                        />
+                                      )}
                                     />
 
                                     <div className="space-y-1">
