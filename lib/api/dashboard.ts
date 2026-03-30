@@ -1058,7 +1058,7 @@ async function fetchXanoClientsWithSlugsForHub(): Promise<any[]> {
 export async function getClientHubSummariesForAdminHub(): Promise<ClientHubSummary[]> {
   try {
     const rows = await fetchXanoClientsWithSlugsForHub()
-    return getClientHubSummaries(rows)
+    return await getClientHubSummaries(rows)
   } catch (e) {
     console.error('getClientHubSummariesForAdminHub', e)
     return []
