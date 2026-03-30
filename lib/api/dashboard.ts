@@ -15,8 +15,9 @@ import {
   getSpendByCampaignFromLineItems 
 } from './media-containers'
 import axios from 'axios'
-import { xanoUrl } from '@/lib/api/xano'
+import { parseXanoListPayload, xanoUrl } from '@/lib/api/xano'
 import { getClientDisplayName, slugifyClientNameForUrl } from '@/lib/clients/slug'
+import { findClientRawByDashboardSlug } from '@/lib/clients/xanoClientSlugMatch'
 
 const MELBOURNE_TZ = 'Australia/Melbourne'
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -450,45 +451,43 @@ function normalizeSchedule(schedule: any): any[] {
 
 export async function getClientBySlug(slug: string): Promise<Client | null> {
   try {
-    // Fetch all clients from Xano
     const response = await apiClient.get(xanoUrl("clients", "XANO_CLIENTS_BASE_URL"))
-    const payload = response.data
-    const clientsRaw = Array.isArray(payload)
-      ? payload
-      : Array.isArray(payload?.data)
-        ? payload.data
-        : Array.isArray(payload?.items)
-          ? payload.items
-          : Array.isArray(payload?.result)
-            ? payload.result
-            : []
-    const clients = Array.isArray(clientsRaw) ? clientsRaw : []
-    
-    // Debug logging
-    console.log('Looking for slug:', slug)
-    
-    // Find client by converting name to slug
-    const client = (Array.isArray(clients) ? clients : []).find((c: any) => {
-      const clientSlug = c.mp_client_name
-        ?.toLowerCase()
-        .replace(/[^a-z0-9\s-]/g, '')
-        .replace(/\s+/g, '-')
-        .trim()
-      return clientSlug === slug
-    })
-    
-    if (!client) {
-      console.log('Client not found for slug:', slug)
+    const clients = parseXanoListPayload(response.data)
+
+    const raw = findClientRawByDashboardSlug(clients, slug) as Record<string, any> | null
+    if (!raw) {
+      if (isDashboardDebug()) {
+        console.log('Client not found for slug:', slug)
+      }
       return null
     }
-    
+
+    const name = getClientDisplayName(raw)
+    const idVal = raw.id
+    const brandColour =
+      typeof raw.brand_colour === 'string' && raw.brand_colour.trim()
+        ? raw.brand_colour.trim()
+        : typeof raw.brandColour === 'string' && raw.brandColour.trim()
+          ? raw.brandColour.trim()
+          : undefined
+
     return {
-      id: client.id.toString(),
-      name: client.mp_client_name,
-      slug: slug,
-      createdAt: client.created_at || new Date().toISOString(),
-      updatedAt: client.updated_at || new Date().toISOString(),
-      brandColour: client.brand_colour
+      id: idVal != null ? String(idVal) : '',
+      name,
+      slug,
+      createdAt:
+        typeof raw.created_at === 'number'
+          ? new Date(raw.created_at).toISOString()
+          : typeof raw.created_at === 'string' && raw.created_at.trim()
+            ? raw.created_at
+            : new Date().toISOString(),
+      updatedAt:
+        typeof raw.updated_at === 'number'
+          ? new Date(raw.updated_at).toISOString()
+          : typeof raw.updated_at === 'string' && raw.updated_at.trim()
+            ? raw.updated_at
+            : new Date().toISOString(),
+      brandColour,
     }
   } catch (error) {
     console.error('Error fetching client by slug:', error)
@@ -503,14 +502,7 @@ async function fetchMediaPlanVersionsArray(): Promise<any[]> {
   for (const baseKey of baseKeys) {
     try {
       const versionsResponse = await apiClient.get(xanoUrl('media_plan_versions', baseKey))
-      const payload = versionsResponse.data
-      return Array.isArray(payload)
-        ? payload
-        : Array.isArray(payload?.data)
-          ? payload.data
-          : Array.isArray(payload?.items)
-            ? payload.items
-            : []
+      return parseXanoListPayload(versionsResponse.data)
     } catch (error: any) {
       lastError = error
       if (error?.response?.status === 404) {
@@ -1047,7 +1039,7 @@ export async function getClientHubSummaries(rawClients: any[]): Promise<ClientHu
 
 async function fetchXanoClientsWithSlugsForHub(): Promise<any[]> {
   const response = await apiClient.get(xanoUrl('clients', 'XANO_CLIENTS_BASE_URL'))
-  const rows = Array.isArray(response.data) ? response.data : []
+  const rows = parseXanoListPayload(response.data)
   return rows.map((raw: any) => ({
     ...raw,
     slug: raw.slug || slugifyClientNameForUrl(getClientDisplayName(raw)),
@@ -1076,7 +1068,7 @@ export async function getGlobalMonthlySpend(): Promise<GlobalMonthlySpend[]> {
   const versionsResponse = await apiClient.get(
     xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
   )
-  const allVersions = Array.isArray(versionsResponse.data) ? versionsResponse.data : []
+  const allVersions = parseXanoListPayload(versionsResponse.data)
 
   const versionsByMBA = allVersions.reduce((acc: Record<string, any[]>, version: any) => {
     const mbaNumber = version?.mba_number
@@ -1149,7 +1141,7 @@ export async function getGlobalMonthlyPublisherSpend(): Promise<GlobalMonthlyPub
   const versionsResponse = await apiClient.get(
     xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
   )
-  const allVersions = Array.isArray(versionsResponse.data) ? versionsResponse.data : []
+  const allVersions = parseXanoListPayload(versionsResponse.data)
 
   const versionsByMBA = allVersions.reduce((acc: Record<string, any[]>, version: any) => {
     const mbaNumber = version?.mba_number
@@ -1232,7 +1224,7 @@ export async function getGlobalMonthlyClientSpend(): Promise<{
   let clientColors: Record<string, string> = {}
   try {
     const clientsResp = await apiClient.get(xanoUrl("clients", "XANO_CLIENTS_BASE_URL"))
-    const clients = Array.isArray(clientsResp.data) ? clientsResp.data : []
+    const clients = parseXanoListPayload(clientsResp.data)
     clientColors = clients.reduce((acc: Record<string, string>, c: any) => {
       if (c.mp_client_name && c.brand_colour) {
         acc[c.mp_client_name] = c.brand_colour
@@ -1246,7 +1238,7 @@ export async function getGlobalMonthlyClientSpend(): Promise<{
   const versionsResponse = await apiClient.get(
     xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
   )
-  const allVersions = Array.isArray(versionsResponse.data) ? versionsResponse.data : []
+  const allVersions = parseXanoListPayload(versionsResponse.data)
 
   const versionsByMBA = allVersions.reduce((acc: Record<string, any[]>, version: any) => {
     const mbaNumber = version?.mba_number
@@ -1421,7 +1413,7 @@ export async function getPublisherDashboardData(publisher: Publisher): Promise<P
   const versionsResponse = await apiClient.get(
     xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]),
   )
-  const allVersions = Array.isArray(versionsResponse.data) ? versionsResponse.data : []
+  const allVersions = parseXanoListPayload(versionsResponse.data)
 
   const versionsByMBA = allVersions.reduce((acc: Record<string, any[]>, version: any) => {
     const mbaNumber = version?.mba_number

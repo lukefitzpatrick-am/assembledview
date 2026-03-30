@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import axios from "axios"
 import { parseDateOnlyString, toMelbourneDateString } from "@/lib/timezone"
 import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
-import { getXanoBaseUrl, xanoUrl } from "@/lib/api/xano"
+import { getXanoBaseUrl, parseXanoListPayload, xanoUrl } from "@/lib/api/xano"
 import { roundMoney4 } from "@/lib/utils/money"
 
 export const dynamic = "force-dynamic"
@@ -239,9 +239,11 @@ async function fetchClientBrandColour(clientName?: string | null): Promise<strin
   if (!clientName) return null
   try {
     const response = await axios.get(xanoUrl("clients", "XANO_CLIENTS_BASE_URL"))
-    const clients = Array.isArray(response.data) ? response.data : []
+    const clients = parseXanoListPayload(response.data)
     const targetSlug = slugifyClientName(clientName)
-    const match = clients.find((client: any) => slugifyClientName(client?.mp_client_name || client?.name) === targetSlug)
+    const match = clients.find((client: any) => slugifyClientName(client?.mp_client_name || client?.name) === targetSlug) as
+      | { brand_colour?: unknown; brandColor?: unknown }
+      | undefined
     const colour = match?.brand_colour ?? match?.brandColor ?? match?.brand_colour
     if (typeof colour === "string" && colour.trim()) {
       return colour.trim()

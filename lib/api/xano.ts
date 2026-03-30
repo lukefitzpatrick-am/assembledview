@@ -29,3 +29,19 @@ export function xanoUrl(path: string, keys: EnvKey = DEFAULT_ENV_KEYS): string {
   const trimmedPath = path.replace(/^\//, "")
   return `${base}/${trimmedPath}`
 }
+
+/**
+ * Normalizes Xano list responses: bare array or wrapped in `{ data }`, `{ items }`, or `{ result }`.
+ * Production API groups sometimes return a wrapped shape while others return a raw array.
+ */
+/** Returns a list; items are untyped (Xano row shapes vary by endpoint). */
+export function parseXanoListPayload(payload: unknown): any[] {
+  if (Array.isArray(payload)) return payload
+  if (payload && typeof payload === "object") {
+    const p = payload as Record<string, unknown>
+    if (Array.isArray(p.data)) return p.data
+    if (Array.isArray(p.items)) return p.items
+    if (Array.isArray(p.result)) return p.result
+  }
+  return []
+}
