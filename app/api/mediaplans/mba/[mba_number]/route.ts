@@ -876,6 +876,11 @@ export async function GET(
     const requestedVersionNumber = requestedVersionParam ? parseInt(requestedVersionParam, 10) : null
     const requestedStartDateParam = url.searchParams.get("startDate")
     const requestedEndDateParam = url.searchParams.get("endDate")
+    const billingScheduleFullParam = url.searchParams.get("billingScheduleFull")
+    const billingScheduleFull =
+      billingScheduleFullParam === "1" ||
+      billingScheduleFullParam === "true" ||
+      billingScheduleFullParam === "yes"
     
     // Fetch ALL versions for this MBA to derive target and latest
     const versionsResponse = await axios.get(
@@ -1001,6 +1006,14 @@ export async function GET(
         parsedBillingSchedule = billingSchedule
       }
     }
+
+    // Coerce `{ months: [...] }` or double-encoded JSON to a top-level array for clients and filters
+    if (parsedBillingSchedule && typeof parsedBillingSchedule === 'object' && !Array.isArray(parsedBillingSchedule)) {
+      const innerMonths = (parsedBillingSchedule as any).months
+      if (Array.isArray(innerMonths)) {
+        parsedBillingSchedule = innerMonths
+      }
+    }
     
     const deliveryScheduleSource =
       versionData.deliverySchedule ||
@@ -1068,7 +1081,11 @@ export async function GET(
     }
 
     const filteredBillingSchedule =
-      parsedBillingSchedule && Array.isArray(parsedBillingSchedule) && effectiveStartDateObj && effectiveEndDateObj
+      parsedBillingSchedule &&
+      Array.isArray(parsedBillingSchedule) &&
+      effectiveStartDateObj &&
+      effectiveEndDateObj &&
+      !billingScheduleFull
         ? filterBillingScheduleByRange(parsedBillingSchedule, effectiveStartDateObj, effectiveEndDateObj)
         : parsedBillingSchedule
 

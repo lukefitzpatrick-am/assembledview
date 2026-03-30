@@ -8,13 +8,16 @@ export type MoneyFormatOptions = {
    */
   minimumFractionDigits?: number
   /**
-   * Defaults to 4 (supports fractional cents).
+   * Defaults to 2 (standard currency display for budgets, media, fees).
    */
   maximumFractionDigits?: number
 }
 
 const DEFAULT_MIN_FRACTION = 2
-const DEFAULT_MAX_FRACTION = 4
+const DEFAULT_MAX_FRACTION = 2
+
+/** Used for buy amounts, rates, and average rates (higher precision). */
+const RATE_MAX_FRACTION = 4
 
 const formatterCache = new Map<string, Intl.NumberFormat>()
 
@@ -54,13 +57,26 @@ function parseMoneyInput(value: MoneyInput): number | null {
 }
 
 /**
- * Formats a money value with **min 2 / max 4** decimal places.
+ * Formats a money value with **min 2 / max 2** decimal places (budgets, media, fees).
  * - If the value is null/empty/invalid, returns an empty string.
  */
 export function formatMoney(value: MoneyInput, options: MoneyFormatOptions = {}): string {
   const parsed = parseMoneyInput(value)
   if (parsed === null) return ""
   return getNumberFormat(options).format(parsed)
+}
+
+/**
+ * Formats a rate value (buy amounts, rates, average rates) with up to 4 decimal places.
+ * - If the value is null/empty/invalid, returns an empty string.
+ */
+export function formatRate(value: MoneyInput, options: MoneyFormatOptions = {}): string {
+  const parsed = parseMoneyInput(value)
+  if (parsed === null) return ""
+  return getNumberFormat({
+    maximumFractionDigits: RATE_MAX_FRACTION,
+    ...options,
+  }).format(parsed)
 }
 
 /**
@@ -73,11 +89,11 @@ export function roundMoney2(value: number): number {
 }
 
 /**
- * Rounds a numeric currency value to 4 decimals (fractional cents).
+ * Rounds a numeric currency value to 4 decimals (for rates / fractional precision).
  * - Returns 0 for non-finite values.
  */
 export function roundMoney4(value: number): number {
   if (!Number.isFinite(value)) return 0
-  return Number(value.toFixed(DEFAULT_MAX_FRACTION))
+  return Number(value.toFixed(RATE_MAX_FRACTION))
 }
 

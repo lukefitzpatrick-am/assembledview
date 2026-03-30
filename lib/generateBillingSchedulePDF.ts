@@ -25,14 +25,19 @@ export interface BillingSchedulePDFData {
   }>;
 }
 
-// Helper function to format currency
+// Helper function to format currency (2 decimal places for budgets, media, fees)
 const formatCurrency = (amount: number | string) => {
+  const options = {
+    style: "currency" as const,
+    currency: "AUD" as const,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  };
   if (typeof amount === 'string') {
-    // Extract numeric value from currency string
-    const num = parseFloat(amount.replace(/[^0-9.-]+/g, '')) || 0
-    return new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(num);
+    const num = parseFloat(amount.replace(/[^0-9.-]+/g, '')) || 0;
+    return new Intl.NumberFormat("en-AU", options).format(num);
   }
-  return new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(amount);
+  return new Intl.NumberFormat("en-AU", options).format(amount);
 };
 
 // Helper to fetch the logo and convert it to a format jspdf can use

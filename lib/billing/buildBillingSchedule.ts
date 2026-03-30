@@ -5,6 +5,7 @@ type BillingScheduleLineItem = {
   header1: string;
   header2: string;
   amount: string;
+  clientPaysForMedia?: boolean;
 };
 
 type BillingScheduleMediaType = {
@@ -16,8 +17,8 @@ export type BillingScheduleEntry = {
   monthYear: string;
   mediaTypes: BillingScheduleMediaType[];
   adservingTechFees?: string;
-  production?: string;
-  feeTotal?: string;
+  production: string;
+  feeTotal: string;
 };
 
 const mediaTypeLabels: Record<string, string> = {
@@ -108,6 +109,7 @@ export function buildBillingScheduleJSON(billingMonths: BillingMonth[]): Billing
             header1: item.header1,
             header2: item.header2,
             amount: currencyFormatter.format(amountValue),
+            ...(item.clientPaysForMedia ? { clientPaysForMedia: true } : {}),
             __amountValue: amountValue,
           };
         })
@@ -122,32 +124,21 @@ export function buildBillingScheduleJSON(billingMonths: BillingMonth[]): Billing
       }
     });
 
-    // Build the entry with media types and optional fee/ad serving fields
     const entry: BillingScheduleEntry = {
       monthYear: month.monthYear,
+      feeTotal: coerceMoneyString((month as any).feeTotal) || "$0.00",
+      production: coerceMoneyString((month as any).production) || "$0.00",
       mediaTypes,
     };
 
-    // Include feeTotal if present and not empty/zero
-    const feeTotalValue = coerceMoneyString((month as any).feeTotal)
-    if (feeTotalValue && feeTotalValue.trim() !== "" && parseMoney((month as any).feeTotal) !== 0) {
-      entry.feeTotal = feeTotalValue
-    }
-
-    // Include adservingTechFees if present and not empty/zero
-    const adservingValue = coerceMoneyString((month as any).adservingTechFees)
+    // adservingTechFees remains optional
+    const adservingValue = coerceMoneyString((month as any).adservingTechFees);
     if (adservingValue && adservingValue.trim() !== "" && parseMoney((month as any).adservingTechFees) !== 0) {
-      entry.adservingTechFees = adservingValue
-    }
-
-    // Include production if present and not empty/zero
-    const productionValue = coerceMoneyString((month as any).production)
-    if (productionValue && productionValue.trim() !== "" && parseMoney((month as any).production) !== 0) {
-      entry.production = productionValue
+      entry.adservingTechFees = adservingValue;
     }
 
     // Only add entry if it has media types or fee/ad serving data
-    if (mediaTypes.length > 0 || entry.feeTotal || entry.adservingTechFees || entry.production) {
+    if (mediaTypes.length > 0 || parseMoney(entry.feeTotal) !== 0 || entry.adservingTechFees || parseMoney(entry.production) !== 0) {
       acc.push(entry);
     }
 

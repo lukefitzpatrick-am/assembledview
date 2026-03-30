@@ -1,23 +1,23 @@
 "use client"
 
-import React, { useEffect, useMemo, useRef, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useUser } from "@/components/AuthWrapper"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
-import {
-  ChartContainer,
-  ChartLegend,
-  ChartLegendContent,
-  ChartTooltip,
-} from "@/components/ui/chart"
+import { CartesianGrid, Line, LineChart, Tooltip, XAxis, YAxis } from "recharts"
+import { ChartContainer, ChartLegend, ChartLegendContent } from "@/components/ui/chart"
+import { Sparkline } from "@/components/charts/Sparkline"
 import { SmallProgressCard } from "@/components/dashboard/pacing/SmallProgressCard"
 import { downloadCSV } from "@/lib/utils/csv-export"
 import type { PacingRow as CombinedPacingRow } from "@/lib/snowflake/pacing-service"
 import type { Dv360DailyRow } from "@/lib/pacing/dv360/dv360Pacing"
 import { mapDeliverableMetric } from "@/lib/pacing/deliverables/mapDeliverableMetric"
+import { CHART_NEUTRAL } from "@/lib/charts/theme"
+import { assignEntityColors } from "@/lib/charts/registry"
+import { PACING_CHART_STROKE } from "@/lib/charts/dashboardTheme"
+import { pacingDeviationBorderClass, pacingDeviationSparklineClass } from "@/lib/pacing/pacingDeviationStyle"
+import { cn } from "@/lib/utils"
 
 type ProgrammaticLineItem = {
   line_item_id: string
@@ -42,6 +42,7 @@ type ProgrammaticPacingContainerProps = {
   campaignEnd?: string
   initialPacingRows?: CombinedPacingRow[]
   pacingLineItemIds?: string[]
+  brandColour?: string
 }
 
 type PacingSeriesPoint = {
@@ -90,11 +91,6 @@ type LineItemMetrics = {
   deliverableKey: "impressions" | "clicks" | "conversions" | "videoViews"
 }
 
-const palette = {
-  budget: "#4f8fcb",
-  deliverable: "#15c7c9",
-}
-
 const DEBUG_PACING = process.env.NEXT_PUBLIC_DEBUG_PACING === "true"
 const IS_DEV = process.env.NODE_ENV !== "production"
 
@@ -104,6 +100,20 @@ function cleanId(v: any) {
   const lower = s.toLowerCase()
   if (lower === "undefined" || lower === "null") return null
   return lower
+}
+
+function extractProgrammaticLineItemId(item: ProgrammaticLineItem): string | null {
+  const id = item.line_item_id ?? item.lineItemId ?? item.LINE_ITEM_ID
+  return cleanId(id)
+}
+
+async function parseResponseJsonSafely(response: Response): Promise<any> {
+  const contentType = response.headers.get("content-type") || ""
+  if (!contentType.includes("application/json")) {
+    const text = await response.text()
+    throw new Error(`Expected JSON but got ${contentType}. Response: ${text.slice(0, 200)}`)
+  }
+  return response.json()
 }
 
 function parseDateSafe(value?: string | null): Date | null {
@@ -407,7 +417,7 @@ function formatCurrency(value: number | undefined) {
     style: "currency",
     currency: "AUD",
     minimumFractionDigits: 2,
-    maximumFractionDigits: 4,
+    maximumFractionDigits: 2,
   }).format(value ?? 0)
 }
 
@@ -416,7 +426,7 @@ function formatCurrency2dp(value: number | undefined) {
     style: "currency",
     currency: "AUD",
     minimumFractionDigits: 2,
-    maximumFractionDigits: 4,
+    maximumFractionDigits: 2,
   }).format(value ?? 0)
 }
 
@@ -475,6 +485,151 @@ function deriveDeliverableKey(
     default:
       return "impressions"
   }
+}
+
+function buildProgrammaticLineItemMetrics(
+  items: ProgrammaticLineItem[],
+  apiRows: Dv360DailyRow[],
+  dateSeries: string[],
+  fallbackStart?: string,
+  fallbackEnd?: string,
+): LineItemMetrics[] {
+  const today = startOfDay(new Date())
+  const todayISO = toISO(today)
+
+  return items.map((item) => {
+    const bursts = item.bursts ?? parseBursts(item.bursts_json)
+    const window = getLineItemWindow(bursts, fallbackStart, fallbackEnd)
+    const targetId = extractProgrammaticLineItemId(item)
+
+    const matched = apiRows.filter((row) => {
+      if (!targetId) return false
+      return row.matchedPostfix === targetId
+    })
+
+    const dateRange =
+      window.startDate && window.endDate
+        ? eachDay(window.startDate, window.endDate)
+        : dateSeries.length
+          ? dateSeries
+          : Array.from(new Set(matched.map((m) => m.date))).sort()
+
+    const groupedByDate = new Map<
+      string,
+      { spend: number; impressions: number; clicks: number; conversions: number; videoViews: number }
+    >()
+    matched.forEach((row) => {
+      const existing =
+        groupedByDate.get(row.date) ?? { spend: 0, impressions: 0, clicks: 0, conversions: 0, videoViews: 0 }
+      groupedByDate.set(row.date, {
+        spend: existing.spend + (row.spend ?? 0),
+        impressions: existing.impressions + (row.impressions ?? 0),
+        clicks: existing.clicks + (row.clicks ?? 0),
+        conversions: existing.conversions + (row.conversions ?? 0),
+        videoViews: existing.videoViews + (row.videoViews ?? 0),
+      })
+    })
+
+    const deliverableKey = deriveDeliverableKey(item.buy_type, item.platform)
+
+    const actualsDaily = dateRange.map((date) => {
+      const day =
+        groupedByDate.get(date) ?? { spend: 0, impressions: 0, clicks: 0, conversions: 0, videoViews: 0 }
+      const deliverable_value =
+        deliverableKey === "impressions"
+          ? day.impressions
+          : deliverableKey === "clicks"
+            ? day.clicks
+            : deliverableKey === "videoViews"
+              ? day.videoViews
+              : day.conversions
+      return {
+        date,
+        spend: day.spend,
+        impressions: day.impressions,
+        clicks: day.clicks,
+        conversions: day.conversions,
+        videoViews: day.videoViews,
+        deliverable_value,
+      }
+    })
+
+    const asAtDate = window.endDate
+      ? toISO(new Date(Math.min(today.getTime(), window.endDate.getTime())))
+      : todayISO
+
+    const deliveredTotals = actualsDaily.reduce(
+      (acc, day) => {
+        if (asAtDate && day.date > asAtDate) return acc
+        return {
+          spend: acc.spend + day.spend,
+          deliverables: acc.deliverables + day.deliverable_value,
+        }
+      },
+      { spend: 0, deliverables: 0 },
+    )
+
+    const hasSchedule = (bursts ?? []).length > 0
+    const fallbackBurst: any[] =
+      !hasSchedule && window.startISO && window.endISO
+        ? [
+            {
+              start_date: window.startISO,
+              end_date: window.endISO,
+              media_investment: item.total_budget ?? 0,
+              deliverables: item.goal_deliverable_total ?? 0,
+              budget_number: item.total_budget ?? 0,
+              calculated_value_number: item.goal_deliverable_total ?? 0,
+            },
+          ]
+        : []
+    const burstsToUse = hasSchedule ? bursts : fallbackBurst
+
+    const booked = sumBookedFromBursts(burstsToUse ?? [])
+    const shouldSpend = computeShouldToDateFromBursts(burstsToUse ?? [], asAtDate, "spend")
+    const shouldDeliverables = computeShouldToDateFromBursts(burstsToUse ?? [], asAtDate, "deliverables")
+
+    const pacing: PacingResult = {
+      asAtDate,
+      spend: {
+        actualToDate: Number(deliveredTotals.spend.toFixed(2)),
+        expectedToDate: Number(shouldSpend.toFixed(2)),
+        delta: Number((deliveredTotals.spend - shouldSpend).toFixed(2)),
+        pacingPct: Number((shouldSpend > 0 ? (deliveredTotals.spend / shouldSpend) * 100 : 0).toFixed(2)),
+        goalTotal: Number(booked.spend.toFixed(2)),
+      },
+      series: buildCumulativeSeries(dateRange, actualsDaily),
+    }
+
+    pacing.deliverable = {
+      actualToDate: Number(deliveredTotals.deliverables.toFixed(2)),
+      expectedToDate: Number(shouldDeliverables.toFixed(2)),
+      delta: Number((deliveredTotals.deliverables - shouldDeliverables).toFixed(2)),
+      pacingPct: Number(
+        (shouldDeliverables > 0 ? (deliveredTotals.deliverables / shouldDeliverables) * 100 : 0).toFixed(2),
+      ),
+      goalTotal: Number(booked.deliverables.toFixed(2)),
+    }
+
+    return {
+      lineItem: item,
+      pacing,
+      bursts: burstsToUse ?? [],
+      window,
+      actualsDaily,
+      matchedRows: matched,
+      booked,
+      delivered: {
+        spend: Number(deliveredTotals.spend.toFixed(2)),
+        deliverables: Number(deliveredTotals.deliverables.toFixed(2)),
+      },
+      shouldToDate: {
+        spend: Number(shouldSpend.toFixed(2)),
+        deliverables: Number(shouldDeliverables.toFixed(2)),
+      },
+      deliverableKey,
+    }
+  })
 }
 
 function getDeliverableLabel(key: LineItemMetrics["deliverableKey"]) {
@@ -603,23 +758,33 @@ function ActualsDailyDeliveryChart({
   asAtDate,
   deliverableLabel,
   chartRef,
+  brandColour,
 }: {
   series: PacingSeriesPoint[]
   asAtDate: string | null
   deliverableLabel: string
   chartRef?: React.Ref<HTMLDivElement>
+  brandColour?: string
 }) {
+  const spendName = "Actual spend"
+  const delName = `${deliverableLabel} actual`
+  const { spendColor, deliverableColor } = React.useMemo(() => {
+    const m = assignEntityColors([spendName, delName], "generic")
+    return { spendColor: brandColour ?? m.get(spendName)!, deliverableColor: m.get(delName)! }
+  }, [deliverableLabel, brandColour])
+
   return (
-    <ChartContainer
-      config={{
-        spendActual: { label: "Actual spend", color: palette.budget },
-        deliverableActual: { label: `${deliverableLabel} actual`, color: palette.deliverable },
-      }}
-      className="h-[320px] w-full"
-      ref={chartRef}
-    >
-      <LineChart data={series} height={320} margin={{ left: 12, right: 12, top: 4, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 4" strokeOpacity={0.12} stroke="hsl(var(--muted-foreground))" />
+    <div className="space-y-2">
+      <ChartContainer
+        config={{
+          spendActual: { label: spendName, color: spendColor },
+          deliverableActual: { label: delName, color: deliverableColor },
+        }}
+        className="h-[320px] w-full"
+        ref={chartRef}
+      >
+        <LineChart data={series} height={320} margin={{ left: 12, right: 12, top: 4, bottom: 0 }}>
+        <CartesianGrid strokeDasharray="3 4" strokeOpacity={0.12} stroke={PACING_CHART_STROKE.grid} />
         <XAxis
           dataKey="date"
           tickLine={false}
@@ -646,52 +811,66 @@ function ActualsDailyDeliveryChart({
           type="monotone"
           yAxisId="left"
           dataKey="actualSpend"
-          name="Actual spend"
-          stroke={palette.budget}
+          name={spendName}
+          stroke={spendColor}
           strokeWidth={2.6}
           dot={false}
-          activeDot={{ r: 4, stroke: palette.budget, strokeWidth: 1 }}
+          cursor="default"
+          activeDot={{ r: 4, stroke: spendColor, strokeWidth: 1 }}
         />
         <Line
           type="monotone"
           yAxisId="right"
           dataKey="actualDeliverable"
-          name={`${deliverableLabel} actual`}
-          stroke={palette.deliverable}
+          name={delName}
+          stroke={deliverableColor}
           strokeWidth={2.4}
           dot={false}
-          activeDot={{ r: 4, stroke: palette.deliverable, strokeWidth: 1 }}
+          cursor="default"
+          activeDot={{ r: 4, stroke: deliverableColor, strokeWidth: 1 }}
         />
-        <ChartTooltip
+        <Tooltip
           content={({ active, payload }) => {
             if (!active || !payload?.length) return null
             const point = payload[0].payload as PacingSeriesPoint
-            const dateLabel = point.date ? formatDateAU(point.date) : null
             return (
-              <div className="min-w-[220px] rounded-md border bg-popover p-3 shadow-md text-xs">
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <div className="font-semibold leading-tight">Daily delivery</div>
-                  {dateLabel ? (
-                    <div className="text-[11px] text-muted-foreground">{dateLabel}</div>
-                  ) : null}
-                </div>
-                <div className="space-y-1.5">
-                  <div className="flex justify-between gap-4">
-                    <span>Actual spend</span>
-                    <span className="font-medium">{formatCurrency(point.actualSpend)}</span>
+              <div className="animate-in fade-in-0 zoom-in-95 duration-150">
+                <div className="w-72 rounded-xl border border-border/70 bg-popover/80 p-3 text-popover-foreground shadow-lg backdrop-blur-md">
+                  <p className="mb-2 truncate text-sm font-semibold text-foreground">
+                    {point.date ? formatDateAU(point.date) : "—"}
+                  </p>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-3 text-sm">
+                      <span className="flex min-w-0 items-center gap-2 text-muted-foreground">
+                        <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: spendColor }} />
+                        <span className="truncate">{spendName}</span>
+                      </span>
+                      <span className="shrink-0 font-mono text-sm font-medium tabular-nums text-foreground">
+                        {formatCurrency(point.actualSpend)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3 text-sm">
+                      <span className="flex min-w-0 items-center gap-2 text-muted-foreground">
+                        <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: deliverableColor }} />
+                        <span className="truncate">{delName}</span>
+                      </span>
+                      <span className="shrink-0 font-mono text-sm font-medium tabular-nums text-foreground">
+                        {formatWholeNumber(point.actualDeliverable)}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex justify-between gap-4">
-                    <span>{deliverableLabel} actual</span>
-                    <span className="font-medium">{formatWholeNumber(point.actualDeliverable)}</span>
-                  </div>
-                  <div className="pt-2 text-[10px] text-muted-foreground">As at {asAtDate ?? "—"}</div>
+                  <p className="mt-3 border-t border-border/80 pt-2 text-xs text-muted-foreground">
+                    As at {asAtDate ?? "—"}
+                  </p>
                 </div>
               </div>
             )
           }}
         />
-      </LineChart>
-    </ChartContainer>
+        </LineChart>
+      </ChartContainer>
+      <p className="text-xs text-muted-foreground">Read-only chart: hover lines and legend for details.</p>
+    </div>
   )
 }
 
@@ -738,10 +917,13 @@ function DeliveryTable({
           </div>
         </div>
 
-        {sorted.map((row) => (
+        {sorted.map((row, ri) => (
           <div
             key={String(row.date)}
-            className="grid items-center border-b last:border-b-0 px-3 py-2 text-sm"
+            className={cn(
+              "grid items-center border-b px-3 py-2 text-sm transition-colors last:border-b-0 hover:bg-muted/30",
+              ri % 2 === 1 ? "bg-muted/15" : "bg-background"
+            )}
             style={{ gridTemplateColumns: COLS }}
           >
             <div className="font-medium">{formatDateAU(row.date)}</div>
@@ -816,28 +998,26 @@ function KpiCallouts({ totals }: { totals: ReturnType<typeof summarizeActuals> }
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {cards.map((card) => (
-        <Card key={card.label} className="rounded-2xl border-muted/70 shadow-sm">
-          <CardContent className="flex flex-col gap-1.5 p-3 sm:p-3.5">
-            <div className="flex items-start justify-between gap-2">
-              <div className="text-xs font-medium text-muted-foreground">{card.label}</div>
-              <div className="flex flex-wrap items-center justify-end gap-1">
-                <Badge
-                  variant="secondary"
-                  className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold leading-none"
-                >
-                  {card.pill1Label} {card.pill1Value}
-                </Badge>
-                <Badge
-                  variant="secondary"
-                  className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold leading-none"
-                >
-                  {card.pill2Label} {card.pill2Value}
-                </Badge>
-              </div>
+        <div key={card.label} className="rounded-xl bg-muted/30 px-3 py-2">
+          <div className="flex items-start justify-between gap-2">
+            <div className="text-xs font-medium text-muted-foreground">{card.label}</div>
+            <div className="flex flex-wrap items-center justify-end gap-1">
+              <Badge
+                variant="secondary"
+                className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold leading-none"
+              >
+                {card.pill1Label} {card.pill1Value}
+              </Badge>
+              <Badge
+                variant="secondary"
+                className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold leading-none"
+              >
+                {card.pill2Label} {card.pill2Value}
+              </Badge>
             </div>
-            <div className="text-3xl font-semibold leading-tight">{card.value}</div>
-          </CardContent>
-        </Card>
+          </div>
+          <div className="mt-1 text-sm font-semibold leading-tight text-foreground">{card.value}</div>
+        </div>
       ))}
     </div>
   )
@@ -854,6 +1034,7 @@ export default function ProgrammaticPacingContainer({
   campaignEnd,
   initialPacingRows,
   pacingLineItemIds,
+  brandColour,
 }: ProgrammaticPacingContainerProps): React.ReactElement | null {
   const { user, isLoading: authLoading } = useUser()
   const [pacingRows, setPacingRows] = useState<CombinedPacingRow[]>(initialPacingRows ?? [])
@@ -883,12 +1064,6 @@ export default function ProgrammaticPacingContainer({
   const resolvedCampaignStart = campaignStart
   const resolvedCampaignEnd = campaignEnd
 
-  // Extract line item ID with multiple field fallbacks
-  const extractLineItemId = (item: ProgrammaticLineItem): string | null => {
-    const id = item.line_item_id ?? item.lineItemId ?? item.LINE_ITEM_ID
-    return cleanId(id)
-  }
-
   // REFACTORED: Normalize line items directly from props
   const normalizedDisplay = useMemo(
     (): ProgrammaticLineItem[] =>
@@ -898,7 +1073,7 @@ export default function ProgrammaticPacingContainer({
           return platform === "dv360" || platform === "youtube - dv360" || platform === "youtube-dv360"
         })
         .flatMap((item) => {
-          const id = extractLineItemId(item)
+          const id = extractProgrammaticLineItemId(item)
           if (!id) return []
           return [{
             ...item,
@@ -917,7 +1092,7 @@ export default function ProgrammaticPacingContainer({
           return platform === "dv360" || platform === "youtube - dv360" || platform === "youtube-dv360"
         })
         .flatMap((item) => {
-          const id = extractLineItemId(item)
+          const id = extractProgrammaticLineItemId(item)
           if (!id) return []
           return [{
             ...item,
@@ -930,7 +1105,7 @@ export default function ProgrammaticPacingContainer({
 
   const programmaticLineItemIds = useMemo(() => {
     const idsFromItems = [...normalizedDisplay, ...normalizedVideo]
-      .map((item) => extractLineItemId(item))
+      .map((item) => extractProgrammaticLineItemId(item))
       .filter(Boolean) as string[]
     const uniqueItems = Array.from(new Set(idsFromItems))
     if (!pacingLineItemIds?.length) {
@@ -958,18 +1133,8 @@ export default function ProgrammaticPacingContainer({
     }
   }, [initialPacingRows])
 
-  // Safe JSON parser with content-type check
-  const parseJsonSafely = async (response: Response): Promise<any> => {
-    const contentType = response.headers.get("content-type") || ""
-    if (!contentType.includes("application/json")) {
-      const text = await response.text()
-      throw new Error(`Expected JSON but got ${contentType}. Response: ${text.slice(0, 200)}`)
-    }
-    return response.json()
-  }
-
   // Fetch with retry logic
-  const fetchPacingData = async (
+  const fetchPacingData = useCallback(async (
     mbaNum: string,
     lineItemIds: string[],
     startDate: string,
@@ -1043,7 +1208,7 @@ export default function ProgrammaticPacingContainer({
         throw new Error(`Pacing request failed (${response.status})`)
       }
 
-      const data = await parseJsonSafely(response)
+      const data = await parseResponseJsonSafely(response)
 
       if (cancelledRef.current) return
 
@@ -1134,7 +1299,7 @@ export default function ProgrammaticPacingContainer({
         setIsLoading(false)
       }
     }
-  }
+  }, [])
 
   useEffect(() => {
     // Guard: Skip auto-fetch if initialPacingRows is provided (from PacingDataProvider)
@@ -1244,6 +1409,7 @@ export default function ProgrammaticPacingContainer({
     idsKey,
     programmaticLineItemIds,
     initialPacingRows,
+    fetchPacingData,
   ])
 
   // Compute date ranges for display line items
@@ -1299,156 +1465,27 @@ export default function ProgrammaticPacingContainer({
     return []
   }, [videoQueryRange.start, videoQueryRange.end])
 
-  function buildLineItemMetrics(
-    items: ProgrammaticLineItem[],
-    apiRows: Dv360DailyRow[],
-    dateSeries: string[],
-    fallbackStart?: string,
-    fallbackEnd?: string
-  ): LineItemMetrics[] {
-    const today = startOfDay(new Date())
-    const todayISO = toISO(today)
-
-    return items.map((item) => {
-      const bursts = item.bursts ?? parseBursts(item.bursts_json)
-      const window = getLineItemWindow(bursts, fallbackStart, fallbackEnd)
-      const targetId = extractLineItemId(item)
-
-      const matched = apiRows.filter((row) => {
-        if (!targetId) return false
-        return row.matchedPostfix === targetId
-      })
-
-      const dateRange =
-        window.startDate && window.endDate
-          ? eachDay(window.startDate, window.endDate)
-          : dateSeries.length
-            ? dateSeries
-            : Array.from(new Set(matched.map((m) => m.date))).sort()
-
-      const groupedByDate = new Map<
-        string,
-        { spend: number; impressions: number; clicks: number; conversions: number; videoViews: number }
-      >()
-      matched.forEach((row) => {
-        const existing =
-          groupedByDate.get(row.date) ?? { spend: 0, impressions: 0, clicks: 0, conversions: 0, videoViews: 0 }
-        groupedByDate.set(row.date, {
-          spend: existing.spend + (row.spend ?? 0),
-          impressions: existing.impressions + (row.impressions ?? 0),
-          clicks: existing.clicks + (row.clicks ?? 0),
-          conversions: existing.conversions + (row.conversions ?? 0),
-          videoViews: existing.videoViews + (row.videoViews ?? 0),
-        })
-      })
-
-      const deliverableKey = deriveDeliverableKey(item.buy_type, item.platform)
-
-      const actualsDaily = dateRange.map((date) => {
-        const day =
-          groupedByDate.get(date) ?? { spend: 0, impressions: 0, clicks: 0, conversions: 0, videoViews: 0 }
-        const deliverable_value =
-          deliverableKey === "impressions"
-            ? day.impressions
-            : deliverableKey === "clicks"
-              ? day.clicks
-              : deliverableKey === "videoViews"
-                ? day.videoViews
-                : day.conversions
-        return {
-          date,
-          spend: day.spend,
-          impressions: day.impressions,
-          clicks: day.clicks,
-          conversions: day.conversions,
-          videoViews: day.videoViews,
-          deliverable_value,
-        }
-      })
-
-      const asAtDate = window.endDate
-        ? toISO(new Date(Math.min(today.getTime(), window.endDate.getTime())))
-        : todayISO
-
-      const deliveredTotals = actualsDaily.reduce(
-        (acc, day) => {
-          if (asAtDate && day.date > asAtDate) return acc
-          return {
-            spend: acc.spend + day.spend,
-            deliverables: acc.deliverables + day.deliverable_value,
-          }
-        },
-        { spend: 0, deliverables: 0 }
-      )
-
-      const hasSchedule = (bursts ?? []).length > 0
-      const fallbackBurst: any[] =
-        !hasSchedule && window.startISO && window.endISO
-          ? [
-              {
-                start_date: window.startISO,
-                end_date: window.endISO,
-                media_investment: item.total_budget ?? 0,
-                deliverables: item.goal_deliverable_total ?? 0,
-                budget_number: item.total_budget ?? 0,
-                calculated_value_number: item.goal_deliverable_total ?? 0,
-              },
-            ]
-          : []
-      const burstsToUse = hasSchedule ? bursts : fallbackBurst
-
-      const booked = sumBookedFromBursts(burstsToUse ?? [])
-      const shouldSpend = computeShouldToDateFromBursts(burstsToUse ?? [], asAtDate, "spend")
-      const shouldDeliverables = computeShouldToDateFromBursts(burstsToUse ?? [], asAtDate, "deliverables")
-
-      const pacing: PacingResult = {
-        asAtDate,
-        spend: {
-          actualToDate: Number(deliveredTotals.spend.toFixed(2)),
-          expectedToDate: Number(shouldSpend.toFixed(2)),
-          delta: Number((deliveredTotals.spend - shouldSpend).toFixed(2)),
-          pacingPct: Number((shouldSpend > 0 ? (deliveredTotals.spend / shouldSpend) * 100 : 0).toFixed(2)),
-          goalTotal: Number(booked.spend.toFixed(2)),
-        },
-        series: buildCumulativeSeries(dateRange, actualsDaily),
-      }
-
-      pacing.deliverable = {
-        actualToDate: Number(deliveredTotals.deliverables.toFixed(2)),
-        expectedToDate: Number(shouldDeliverables.toFixed(2)),
-        delta: Number((deliveredTotals.deliverables - shouldDeliverables).toFixed(2)),
-        pacingPct: Number((shouldDeliverables > 0 ? (deliveredTotals.deliverables / shouldDeliverables) * 100 : 0).toFixed(2)),
-        goalTotal: Number(booked.deliverables.toFixed(2)),
-      }
-
-      return {
-        lineItem: item,
-        pacing,
-        bursts: burstsToUse ?? [],
-        window,
-        actualsDaily,
-        matchedRows: matched,
-        booked,
-        delivered: {
-          spend: Number(deliveredTotals.spend.toFixed(2)),
-          deliverables: Number(deliveredTotals.deliverables.toFixed(2)),
-        },
-        shouldToDate: {
-          spend: Number(shouldSpend.toFixed(2)),
-          deliverables: Number(shouldDeliverables.toFixed(2)),
-        },
-        deliverableKey,
-      }
-    })
-  }
-
   const displayMetrics = useMemo(
-    () => buildLineItemMetrics(normalizedDisplay, displayRows, displayDateSeries, displayQueryRange.start, displayQueryRange.end),
-    [normalizedDisplay, displayRows, displayDateSeries, displayQueryRange.start, displayQueryRange.end]
+    () =>
+      buildProgrammaticLineItemMetrics(
+        normalizedDisplay,
+        displayRows,
+        displayDateSeries,
+        displayQueryRange.start,
+        displayQueryRange.end,
+      ),
+    [normalizedDisplay, displayRows, displayDateSeries, displayQueryRange.start, displayQueryRange.end],
   )
   const videoMetrics = useMemo(
-    () => buildLineItemMetrics(normalizedVideo, videoRows, videoDateSeries, videoQueryRange.start, videoQueryRange.end),
-    [normalizedVideo, videoRows, videoDateSeries, videoQueryRange.start, videoQueryRange.end]
+    () =>
+      buildProgrammaticLineItemMetrics(
+        normalizedVideo,
+        videoRows,
+        videoDateSeries,
+        videoQueryRange.start,
+        videoQueryRange.end,
+      ),
+    [normalizedVideo, videoRows, videoDateSeries, videoQueryRange.start, videoQueryRange.end],
   )
 
   // Compute the "as at" date for aggregate metrics (clamped to today or campaign end)
@@ -1538,7 +1575,7 @@ export default function ProgrammaticPacingContainer({
   async function exportElementPng(el: HTMLElement, filename: string) {
     const html2canvas = (await import("html2canvas")).default
     const canvas = await html2canvas(el, {
-      backgroundColor: "#ffffff",
+      backgroundColor: CHART_NEUTRAL.surface,
       scale: 2,
     })
     const dataUrl = canvas.toDataURL("image/png")
@@ -1570,12 +1607,15 @@ export default function ProgrammaticPacingContainer({
     }
   }
 
-  function renderPanel(kind: PanelKind) {
+  function renderKindSection(kind: PanelKind) {
     const isDisplay = kind === "display"
     const metrics = isDisplay ? displayMetrics : videoMetrics
     const aggregate = isDisplay ? aggregateDisplay : aggregateVideo
     const bookedTotals = isDisplay ? displayBookedTotals : videoBookedTotals
     const label = isDisplay ? "Prog Display" : "Prog Video"
+    const progAggregateAccent = assignEntityColors(["Actual spend", "Deliverables actual"], "generic")
+    const spendAccent = brandColour ?? progAggregateAccent.get("Actual spend")!
+    const sectionActuals = summarizeActuals(metrics.flatMap((m) => m.actualsDaily))
 
     if (!metrics.length) {
       if (!isLoading && !error) {
@@ -1584,52 +1624,72 @@ export default function ProgrammaticPacingContainer({
     }
 
     return (
-      <Card className="rounded-3xl border-muted/70 bg-background/90 shadow-sm">
-        <CardHeader className="pb-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <CardTitle className="text-base">{label} Performance</CardTitle>
-              <Badge variant="outline" className="rounded-full px-3 py-1 text-[11px]">
-                {clientSlug} • {mbaNumber}
-              </Badge>
+      <div className="space-y-6">
+        <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-start lg:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-base font-semibold text-foreground">{label} performance</span>
+            <Badge variant="outline" className="rounded-full px-3 py-1 text-[11px]">
+              {clientSlug} • {mbaNumber}
+            </Badge>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => handleExportCSVs(kind)}>
+              Export CSVs
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => handleExportCharts(kind)}>
+              Export charts (PNG)
+            </Button>
+          </div>
+        </div>
+
+        {!isLoading ? (
+          <div className="flex flex-wrap gap-2">
+            <div className="rounded-xl bg-muted/30 px-3 py-2">
+              <p className="text-xs text-muted-foreground">Total spend</p>
+              <p className="text-sm font-semibold text-foreground">{formatCurrency(aggregate.spend.actualToDate)}</p>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => handleExportCSVs(kind)}>
-                Export CSVs
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => handleExportCharts(kind)}>
-                Export charts (PNG)
-              </Button>
+            <div className="rounded-xl bg-muted/30 px-3 py-2">
+              <p className="text-xs text-muted-foreground">Impressions</p>
+              <p className="text-sm font-semibold text-foreground">{formatNumber(sectionActuals.impressions)}</p>
+            </div>
+            <div className="rounded-xl bg-muted/30 px-3 py-2">
+              <p className="text-xs text-muted-foreground">Avg CPM</p>
+              <p className="text-sm font-semibold text-foreground">
+                {sectionActuals.impressions > 0 ? formatCurrency2dp(sectionActuals.cpm) : "—"}
+              </p>
+            </div>
+            <div className="rounded-xl bg-muted/30 px-3 py-2">
+              <p className="text-xs text-muted-foreground">Budget pacing</p>
+              <p className="text-sm font-semibold text-foreground">{aggregate.spend.pacingPct.toFixed(1)}%</p>
             </div>
           </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {error ? (
-            <div className="rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              {error}
-            </div>
-          ) : null}
+        ) : null}
 
-          {isLoading ? (
+        {error ? (
+          <div className="rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+        ) : null}
+
+        {isLoading ? (
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div className="h-32 animate-pulse rounded-2xl bg-muted" />
+            <div className="h-32 animate-pulse rounded-2xl bg-muted" />
+          </div>
+        ) : (
+          <>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <div className="h-32 animate-pulse rounded-2xl bg-muted" />
-              <div className="h-32 animate-pulse rounded-2xl bg-muted" />
-            </div>
-          ) : (
-            <>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <SmallProgressCard
-                  label="Budget pacing"
-                  value={formatCurrency(aggregate.spend.actualToDate)}
-                  helper={`Delivered ${formatCurrency(aggregate.spend.actualToDate)} • Planned ${formatCurrency(bookedTotals.spend)}`}
-                  pacingPct={aggregate.spend.pacingPct}
-                  progressRatio={
-                    bookedTotals.spend > 0
-                      ? Math.max(0, Math.min(1, aggregate.spend.actualToDate / bookedTotals.spend))
-                      : 0
-                  }
-                  accentColor={palette.budget}
-                />
+              <SmallProgressCard
+                label="Budget pacing"
+                value={formatCurrency(aggregate.spend.actualToDate)}
+                helper={`Delivered ${formatCurrency(aggregate.spend.actualToDate)} • Planned ${formatCurrency(bookedTotals.spend)}`}
+                pacingPct={aggregate.spend.pacingPct}
+                progressRatio={
+                  bookedTotals.spend > 0
+                    ? Math.max(0, Math.min(1, aggregate.spend.actualToDate / bookedTotals.spend))
+                    : 0
+                }
+                accentColor={spendAccent}
+                embedded
+              />
                 <SmallProgressCard
                   label="Deliverable pacing"
                   value={formatWholeNumber(aggregate.deliverable?.actualToDate)}
@@ -1646,89 +1706,118 @@ export default function ProgrammaticPacingContainer({
                         )
                       : 0
                   }
-                  accentColor={palette.deliverable}
+                  accentColor={progAggregateAccent.get("Deliverables actual")!}
+                  embedded
                 />
               </div>
 
-              <div className="space-y-4 rounded-2xl border border-muted/60 bg-muted/10 p-4">
-                <KpiCallouts
-                  totals={summarizeActuals(metrics.flatMap((metric) => metric.actualsDaily))}
-                />
-                <ActualsDailyDeliveryChart
-                  series={aggregate.series}
-                  asAtDate={aggregate.asAtDate}
-                  deliverableLabel="Deliverables"
-                  chartRef={aggregateChartRef}
-                />
-              </div>
+            <div className="space-y-4">
+              <KpiCallouts totals={sectionActuals} />
+              <ActualsDailyDeliveryChart
+                series={aggregate.series}
+                asAtDate={aggregate.asAtDate}
+                deliverableLabel="Deliverables"
+                chartRef={aggregateChartRef}
+                brandColour={brandColour}
+              />
+            </div>
 
-              <Accordion type="multiple" defaultValue={[]}>
-                {metrics.map((metric) => (
-                  <AccordionItem key={metric.lineItem.line_item_id} value={String(metric.lineItem.line_item_id)}>
-                    <AccordionTrigger className="rounded-xl px-3 py-2 text-left text-sm font-semibold">
-                      <div className="flex w-full items-center justify-between gap-2">
-                        <div className="flex flex-col text-left">
-                          <span>{metric.lineItem.line_item_name || metric.lineItem.line_item_id || "Line item"}</span>
+            <Accordion type="multiple" defaultValue={[]}>
+              {metrics.map((metric, accIdx) => {
+                const spendPacing = metric.pacing.spend.pacingPct ?? 0
+                const pacingTone = pacingDeviationBorderClass(spendPacing)
+                const sparklineTone = pacingDeviationSparklineClass(spendPacing)
+                return (
+                  <AccordionItem
+                    key={metric.lineItem.line_item_id}
+                    value={String(metric.lineItem.line_item_id)}
+                    className={cn(
+                      "campaign-section-enter mb-3 overflow-hidden rounded-xl border border-border bg-card transition-all duration-200 hover:bg-muted/20 data-[state=open]:shadow-sm",
+                      pacingTone
+                    )}
+                    style={{ animationDelay: `${accIdx * 60}ms` }}
+                  >
+                    <AccordionTrigger className="px-4 py-3 text-left text-sm font-semibold hover:no-underline">
+                      <div className="grid w-full grid-cols-[1fr_auto] items-center gap-2">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <div className={cn("h-[28px] w-[80px]", sparklineTone)}>
+                            <Sparkline data={metric.pacing.series.map((p) => Number(p.actualSpend ?? 0))} height={28} />
+                          </div>
+                          <div className="flex flex-col text-left">
+                          <span className="truncate font-medium">{metric.lineItem.line_item_name || metric.lineItem.line_item_id || "Line item"}</span>
                           <span className="text-xs font-normal text-muted-foreground">
                             {metric.lineItem.buy_type || "—"}
                           </span>
                         </div>
-                        <Badge variant="secondary" className="rounded-full px-3 py-1 text-[11px]">
+                        </div>
+                        <Badge className="rounded-full bg-muted px-3 py-1 text-[11px] text-foreground">
                           {formatCurrency(metric.lineItem.total_budget)}
                         </Badge>
                       </div>
                     </AccordionTrigger>
-                    <AccordionContent className="space-y-3">
+                    <AccordionContent className="space-y-3 border-t bg-muted/5 p-4 data-[state=open]:animate-in data-[state=open]:fade-in-0">
                       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                        <SmallProgressCard
-                          label="Budget pacing"
-                          value={formatCurrency(metric.pacing.spend.actualToDate)}
-                          helper={`Delivered ${formatCurrency(metric.pacing.spend.actualToDate)} • Booked ${formatCurrency(metric.booked.spend)}`}
-                          pacingPct={metric.pacing.spend.pacingPct}
-                          progressRatio={
-                            metric.booked.spend > 0
-                              ? Math.max(0, Math.min(1, metric.pacing.spend.actualToDate / metric.booked.spend))
-                              : 0
-                          }
-                          accentColor={palette.budget}
-                        />
-                        <SmallProgressCard
-                          label={`${getDeliverableLabel(metric.deliverableKey)} pacing`}
-                          value={formatWholeNumber(metric.pacing.deliverable?.actualToDate)}
-                          helper={`Delivered ${formatWholeNumber(metric.pacing.deliverable?.actualToDate)} ${getDeliverableLabel(metric.deliverableKey)} • Booked ${formatWholeNumber(metric.booked.deliverables)} ${getDeliverableLabel(metric.deliverableKey)}`}
-                          pacingPct={metric.pacing.deliverable?.pacingPct}
-                          progressRatio={
-                            metric.booked.deliverables > 0
-                              ? Math.max(
-                                  0,
-                                  Math.min(
-                                    1,
-                                    (metric.pacing.deliverable?.actualToDate ?? 0) / metric.booked.deliverables
-                                  )
-                                )
-                              : 0
-                          }
-                          accentColor={palette.deliverable}
-                        />
+                        {(() => {
+                          const delLbl = getDeliverableLabel(metric.deliverableKey)
+                          const delActualName = `${delLbl} actual`
+                          const liAccent = assignEntityColors(["Actual spend", delActualName], "generic")
+                          return (
+                            <>
+                              <SmallProgressCard
+                                label="Budget pacing"
+                                value={formatCurrency(metric.pacing.spend.actualToDate)}
+                                helper={`Delivered ${formatCurrency(metric.pacing.spend.actualToDate)} • Booked ${formatCurrency(metric.booked.spend)}`}
+                                pacingPct={metric.pacing.spend.pacingPct}
+                                progressRatio={
+                                  metric.booked.spend > 0
+                                    ? Math.max(0, Math.min(1, metric.pacing.spend.actualToDate / metric.booked.spend))
+                                    : 0
+                                }
+                                accentColor={brandColour ?? liAccent.get("Actual spend")!}
+                                embedded
+                              />
+                              <SmallProgressCard
+                                label={`${delLbl} pacing`}
+                                value={formatWholeNumber(metric.pacing.deliverable?.actualToDate)}
+                                helper={`Delivered ${formatWholeNumber(metric.pacing.deliverable?.actualToDate)} ${delLbl} • Booked ${formatWholeNumber(metric.booked.deliverables)} ${delLbl}`}
+                                pacingPct={metric.pacing.deliverable?.pacingPct}
+                                progressRatio={
+                                  metric.booked.deliverables > 0
+                                    ? Math.max(
+                                        0,
+                                        Math.min(
+                                          1,
+                                          (metric.pacing.deliverable?.actualToDate ?? 0) / metric.booked.deliverables
+                                        )
+                                      )
+                                    : 0
+                                }
+                                accentColor={liAccent.get(delActualName)!}
+                                embedded
+                              />
+                            </>
+                          )
+                        })()}
                       </div>
-                      <div className="space-y-3 rounded-2xl border border-muted/60 bg-muted/10 p-3">
+                      <div className="space-y-3">
                         <KpiCallouts totals={summarizeActuals(metric.actualsDaily)} />
                         <ActualsDailyDeliveryChart
                           series={metric.pacing.series}
                           asAtDate={metric.pacing.asAtDate}
                           deliverableLabel={getDeliverableLabel(metric.deliverableKey)}
                           chartRef={setLineChartRef(String(metric.lineItem.line_item_id))}
+                          brandColour={brandColour}
                         />
                       </div>
                       <DeliveryTable daily={metric.actualsDaily} showVideoViews={kind === "video"} />
                     </AccordionContent>
                   </AccordionItem>
-                ))}
+                )
+              })}
               </Accordion>
             </>
           )}
-        </CardContent>
-      </Card>
+      </div>
     )
   }
 
@@ -1737,9 +1826,9 @@ export default function ProgrammaticPacingContainer({
   }
 
   return (
-    <div className="space-y-5">
-      {renderPanel("display")}
-      {renderPanel("video")}
+    <div className="space-y-4">
+      {renderKindSection("display")}
+      {renderKindSection("video")}
       {DEBUG_PACING ? (
         <div className="rounded-2xl border border-dashed border-muted/70 bg-background/80 p-3 text-sm text-muted-foreground">
           <div className="font-semibold text-foreground mb-1">Pacing debug</div>

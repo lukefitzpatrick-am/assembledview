@@ -43,6 +43,7 @@ export async function POST(request: Request) {
       ooh: data.ooh || [],
       cinema: data.cinema || [],
       integration: data.integration || [],
+      production: data.production || [],
     }
 
     // Generate the Excel workbook

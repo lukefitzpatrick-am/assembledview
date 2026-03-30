@@ -411,6 +411,15 @@ export function getUserClientIdentifier(user: User | null | undefined): string |
 }
 
 /**
+ * All normalised tenant slugs from Auth0 claims (`client_slugs` then `client_slug` namespaces).
+ * Used to scope read-only reporting APIs (e.g. Finance Forecast) for non-admin users when claims are present.
+ */
+export function getUserClientSlugs(user: User | null | undefined): string[] {
+  if (!user) return [];
+  return scanClientSlugNamespaces(user).slugs;
+}
+
+/**
  * Get MBA numbers assigned to a user from app_metadata
  */
 export function getUserMbaNumbers(user: User | null | undefined): string[] {
@@ -484,7 +493,7 @@ export function canAccessPage(user: User, page: string): boolean {
     case 'mediaplans':
       return hasRole(user, ['admin', 'manager']);
     case 'clients':
-      return hasRole(user, ['admin', 'manager']);
+      return hasRole(user, ['admin']);
     case 'publishers':
       return hasRole(user, ['admin', 'manager']);
     case 'finance':

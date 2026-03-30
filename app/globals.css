@@ -2,16 +2,31 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    border-radius: 9999px;
+    background-color: hsl(var(--border) / 0.7);
+  }
+}
+
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Base shadcn tokens */
+    --background: 210 20% 99%;
+    --foreground: 222 34% 12%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 222 34% 12%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 222 34% 12%;
 
     --primary: 210 57% 55%;
     --primary-foreground: 210 40% 98%;
@@ -19,8 +34,8 @@
     --secondary: 180 80% 44%;
     --secondary-foreground: 222.2 47.4% 11.2%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 210 26% 95%;
+    --muted-foreground: 215 16% 42%;
 
     --accent: 84 64% 52%;
     --accent-foreground: 222.2 47.4% 11.2%;
@@ -28,8 +43,8 @@
     --destructive: 16 100% 50%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
+    --border: 214 22% 88%;
+    --input: 214 22% 88%;
     --ring: 180 80% 44%;
 
     --radius: 0.5rem;
@@ -38,17 +53,84 @@
     --sidebar-width-icon: 3rem;
 
     --scrollbar-width: 17px; /* Standard scrollbar width */
+
+    /*
+     * Sidebar-specific semantic tokens (separate from general page tokens)
+     */
+    --sidebar-bg: 220 55% 14%; /* deep navy surface (light mode) */
+    --sidebar-fg: 210 40% 98%; /* high-contrast text on navy */
+    --sidebar-muted: 214 22% 82%; /* secondary labels / muted text */
+    --sidebar-border: 220 36% 20%; /* subtle separators on navy */
+    --sidebar-hover-bg: 220 48% 18%; /* obvious hover state */
+    --sidebar-hover-fg: 210 40% 98%;
+    --sidebar-active-bg: 220 52% 22%; /* selected item surface */
+    --sidebar-active-fg: 0 0% 100%;
+    --sidebar-icon: 214 24% 86%; /* default icon tone */
+    --sidebar-ring: 84 64% 52%; /* visible focus ring on navy */
+
+    /* Back-compat shadcn/ui sidebar tokens */
+    --sidebar-background: var(--sidebar-bg);
+    --sidebar-foreground: var(--sidebar-fg);
+    --sidebar-primary: 210 57% 55%;
+    --sidebar-primary-foreground: 210 40% 98%;
+    --sidebar-accent: var(--sidebar-hover-bg);
+    --sidebar-accent-foreground: var(--sidebar-hover-fg);
+    --sidebar-border: var(--sidebar-border);
+
+    /* ------------------------------------------------------------
+     * Semantic app tokens (use these in components vs raw colors)
+     * ------------------------------------------------------------ */
+    --app-bg: 210 20% 99%;
+    --app-fg: 222 34% 12%;
+
+    --surface-panel: 0 0% 100%;
+    --surface-muted: 220 26% 95%;
+    --surface-elevated: 0 0% 100%;
+    --surface-input: 0 0% 100%;
+    --surface-popover: 0 0% 100%;
+
+    --table-row: 0 0% 100%;
+    --table-row-hover: 210 26% 94%;
+    --table-row-active: 210 26% 92%;
+
+    --state-active: 210 26% 92%;
+
+    --status-success: 158 62% 34%;
+    --status-success-foreground: 0 0% 100%;
+    --status-warning: 38 92% 48%;
+    --status-warning-foreground: 20 14% 6%;
+    --status-danger: 16 100% 50%;
+    --status-danger-foreground: 0 0% 100%;
+    --status-accent: 84 64% 52%;
+    --status-accent-foreground: 222 34% 12%;
+
+    /* Dashboard + pacing design tokens (available to charts/components via CSS vars) */
+    --dashboard-surface: #dee5f4;
+    --dashboard-card: #ffffff;
+    --dashboard-card-hover: #fafbfc;
+    --dashboard-border: #e2e8f0;
+    --dashboard-border-hover: #cbd5e1;
+
+    --pacing-ahead: #10b981;
+    --pacing-ahead-bg: rgba(16, 185, 129, 0.1);
+    --pacing-on-track: #0ea5e9;
+    --pacing-on-track-bg: rgba(14, 165, 233, 0.1);
+    --pacing-behind: #f59e0b;
+    --pacing-behind-bg: rgba(245, 158, 11, 0.1);
+    --pacing-critical: #ef4444;
+    --pacing-critical-bg: rgba(239, 68, 68, 0.1);
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    /* Softer dark surfaces (avoid harsh pure-black) */
+    --background: 222 22% 10%;
+    --foreground: 210 25% 96%;
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
+    --card: 222 20% 13%;
+    --card-foreground: 210 25% 96%;
 
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 222 20% 14%;
+    --popover-foreground: 210 25% 96%;
 
     --primary: 210 57% 55%;
     --primary-foreground: 222.2 47.4% 11.2%;
@@ -56,8 +138,8 @@
     --secondary: 180 80% 44%;
     --secondary-foreground: 210 40% 98%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 222 16% 18%;
+    --muted-foreground: 215 18% 72%;
 
     --accent: 84 64% 52%;
     --accent-foreground: 210 40% 98%;
@@ -65,9 +147,73 @@
     --destructive: 16 100% 50%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
+    --border: 222 14% 24%;
+    --input: 222 14% 24%;
     --ring: 180 80% 44%;
+
+    /*
+     * Sidebar semantics (dark mode) — distinct from light mode navy
+     */
+    --sidebar-bg: 224 22% 9%; /* near-slate */
+    --sidebar-fg: 210 25% 96%;
+    --sidebar-muted: 215 18% 74%;
+    --sidebar-border: 222 14% 18%;
+    --sidebar-hover-bg: 222 18% 14%;
+    --sidebar-hover-fg: 210 25% 96%;
+    --sidebar-active-bg: 222 18% 18%;
+    --sidebar-active-fg: 0 0% 100%;
+    --sidebar-icon: 215 18% 78%;
+    --sidebar-ring: 180 80% 44%; /* cyan reads well on dark */
+
+    /* Back-compat shadcn/ui sidebar tokens */
+    --sidebar-background: var(--sidebar-bg);
+    --sidebar-foreground: var(--sidebar-fg);
+    --sidebar-primary: 210 57% 55%;
+    --sidebar-primary-foreground: 222.2 47.4% 11.2%;
+    --sidebar-accent: var(--sidebar-hover-bg);
+    --sidebar-accent-foreground: var(--sidebar-hover-fg);
+    --sidebar-border: var(--sidebar-border);
+
+    /* Semantic app tokens */
+    --app-bg: 222 22% 10%;
+    --app-fg: 210 25% 96%;
+
+    --surface-panel: 222 20% 13%;
+    --surface-muted: 222 18% 16%;
+    --surface-elevated: 222 18% 15%;
+    --surface-input: 222 18% 15%;
+    --surface-popover: 222 20% 14%;
+
+    --table-row: 222 20% 13%;
+    --table-row-hover: 222 18% 16%;
+    --table-row-active: 222 18% 18%;
+
+    --state-active: 222 18% 18%;
+
+    --status-success: 158 62% 40%;
+    --status-success-foreground: 0 0% 100%;
+    --status-warning: 38 92% 56%;
+    --status-warning-foreground: 20 14% 6%;
+    --status-danger: 16 100% 58%;
+    --status-danger-foreground: 0 0% 100%;
+    --status-accent: 84 64% 56%;
+    --status-accent-foreground: 222 22% 10%;
+
+    /* Keep dashboard + pacing vars explicit in dark mode for chart parity */
+    --dashboard-surface: #dee5f4;
+    --dashboard-card: #ffffff;
+    --dashboard-card-hover: #fafbfc;
+    --dashboard-border: #e2e8f0;
+    --dashboard-border-hover: #cbd5e1;
+
+    --pacing-ahead: #10b981;
+    --pacing-ahead-bg: rgba(16, 185, 129, 0.1);
+    --pacing-on-track: #0ea5e9;
+    --pacing-on-track-bg: rgba(14, 165, 233, 0.1);
+    --pacing-behind: #f59e0b;
+    --pacing-behind-bg: rgba(245, 158, 11, 0.1);
+    --pacing-critical: #ef4444;
+    --pacing-critical-bg: rgba(239, 68, 68, 0.1);
   }
 }
 
@@ -75,39 +221,43 @@
   * {
     @apply border-border;
   }
+  html {
+    @apply bg-surface-muted;
+    font-size: 80%;
+  }
   body {
-    @apply bg-background text-foreground font-sans;
+    @apply bg-surface-muted text-foreground font-sans;
   }
 }
 
 /* Custom button styles */
 .btn-primary {
-  @apply bg-primary text-white hover:bg-primary-hover focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2;
+  @apply bg-primary text-white hover:bg-primary-hover focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2;
 }
 
 .btn-secondary {
-  @apply bg-secondary text-white hover:bg-secondary-hover focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2;
+  @apply bg-secondary text-white hover:bg-secondary-hover focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2;
 }
 
 .btn-success {
-  @apply bg-success text-white hover:bg-success-hover focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2;
+  @apply bg-success text-white hover:bg-success-hover focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2;
 }
 
 .btn-warning {
-  @apply bg-warning text-foreground hover:bg-warning-hover focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2;
+  @apply bg-warning text-foreground hover:bg-warning-hover focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2;
 }
 
 .btn-danger {
-  @apply bg-error text-white hover:bg-error-hover focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2;
+  @apply bg-error text-white hover:bg-error-hover focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2;
 }
 
 /* Form element styles */
 .form-input {
-  @apply bg-white border-border focus:border-info focus:ring-2 focus:ring-info;
+  @apply bg-surface-input border-border focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2;
 }
 
 .form-select {
-  @apply bg-white border-border focus:border-info focus:ring-2 focus:ring-info;
+  @apply bg-surface-input border-border focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2;
 }
 
 .form-checkbox {
@@ -140,3 +290,98 @@
   width: var(--sidebar-width);
 }
 
+@layer components {
+  .dashboard-card {
+    @apply rounded-2xl border border-border/60 bg-card shadow-card transition-all duration-200;
+  }
+
+  .dashboard-card:hover {
+    @apply -translate-y-0.5 shadow-card-hover;
+  }
+
+  .dashboard-card-flat {
+    @apply rounded-2xl border border-border/60 bg-card;
+  }
+
+  .status-bar {
+    @apply h-1 w-full rounded-t-2xl;
+  }
+
+  .status-bar-ahead {
+    background: linear-gradient(90deg, var(--pacing-ahead) 0%, transparent 100%);
+  }
+
+  .status-bar-on-track {
+    background: linear-gradient(90deg, var(--pacing-on-track) 0%, transparent 100%);
+  }
+
+  .status-bar-behind {
+    background: linear-gradient(90deg, var(--pacing-behind) 0%, transparent 100%);
+  }
+
+  .status-bar-critical {
+    background: linear-gradient(90deg, var(--pacing-critical) 0%, transparent 100%);
+  }
+
+  .chart-tooltip {
+    @apply rounded-xl border border-border bg-popover/95 p-4 shadow-tooltip backdrop-blur-sm;
+  }
+
+  .skeleton-shimmer {
+    background: linear-gradient(
+      90deg,
+      hsl(var(--muted)) 0%,
+      hsl(var(--muted) / 0.5) 50%,
+      hsl(var(--muted)) 100%
+    );
+    background-size: 200% 100%;
+    @apply animate-shimmer;
+  }
+
+  .mp-totals-wrap {
+    @apply flex flex-wrap items-center justify-end gap-x-4 gap-y-2;
+  }
+
+  .mp-burst-header {
+    @apply grid text-sm font-semibold bg-muted px-0 py-2;
+    grid-template-columns: minmax(9rem, 1.1fr) minmax(9rem, 1.1fr) minmax(12rem, 1.2fr)
+      minmax(12rem, 1.2fr) minmax(9rem, 1fr) minmax(9rem, 1fr) minmax(8rem, 1fr);
+  }
+
+  .mp-burst-grid {
+    @apply grid;
+    grid-template-columns: minmax(9rem, 1.1fr) minmax(9rem, 1.1fr) minmax(12rem, 1.2fr)
+      minmax(12rem, 1.2fr) minmax(9rem, 1fr) minmax(9rem, 1fr) minmax(8rem, 1fr);
+  }
+
+  /* In burst cards only, align side columns with input controls (not labels). */
+  .mp-burst-card .mp-burst-label-column,
+  .mp-burst-card .mp-burst-action-column {
+    align-self: flex-start;
+    padding-top: 1.35rem;
+  }
+
+  @media (max-width: 1023px) {
+    .mp-burst-header,
+    .mp-burst-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 639px) {
+    .mp-burst-header,
+    .mp-burst-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+}
+
+@media print {
+  .dashboard-export-btn {
+    display: none;
+  }
+
+  .dashboard-card {
+    break-inside: avoid;
+  }
+}

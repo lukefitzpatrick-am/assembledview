@@ -108,7 +108,7 @@ export default function MediaPlanPage({ params }: { params: Promise<{ id: string
 
   // Get media type badges
   const getMediaTypeBadges = (plan: MediaPlan) => {
-    const badges = []
+    const badges: string[] = []
     
     if (plan.mp_television) badges.push("TV")
     if (plan.mp_radio) badges.push("Radio")

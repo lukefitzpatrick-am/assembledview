@@ -3,34 +3,17 @@
 import { useMemo, useState, Fragment } from 'react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import { ChevronDown, ChevronRight, ChevronsUpDown } from 'lucide-react'
 import { format } from 'date-fns'
 import { NormalisedLineItem, groupByLineItemId } from '@/lib/mediaplan/normalizeLineItem'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { getMediaColor, getMediaLabel } from '@/lib/charts/registry'
+import { cn } from '@/lib/utils'
 
 interface MediaTableProps {
   lineItems: Record<string, NormalisedLineItem[]>
-}
-
-const MEDIA_TYPE_DISPLAY_NAMES: Record<string, string> = {
-  television: 'Television',
-  radio: 'Radio',
-  newspaper: 'Newspaper',
-  magazines: 'Magazines',
-  ooh: 'OOH',
-  cinema: 'Cinema',
-  digitalDisplay: 'Digital Display',
-  digitalAudio: 'Digital Audio',
-  digitalVideo: 'Digital Video',
-  bvod: 'BVOD',
-  integration: 'Integration',
-  search: 'Search',
-  socialMedia: 'Social Media',
-  progDisplay: 'Programmatic Display',
-  progVideo: 'Programmatic Video',
-  progBvod: 'Programmatic BVOD',
-  progAudio: 'Programmatic Audio',
-  progOoh: 'Programmatic OOH',
-  influencers: 'Influencers'
 }
 
 type GroupedItem = {
@@ -93,6 +76,10 @@ function groupLineItems(items: NormalisedLineItem[]): GroupedItem[] {
 
 export default function MediaTable({ lineItems }: MediaTableProps) {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
+  const [expandedMediaTypes, setExpandedMediaTypes] = useState<Set<string>>(new Set())
+  const [search, setSearch] = useState('')
+  const [sortBy, setSortBy] = useState<'period' | 'budget' | 'deliverables'>('period')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
 
   const toggleGroup = (key: string) => {
     const newExpanded = new Set(expandedGroups)
@@ -102,6 +89,13 @@ export default function MediaTable({ lineItems }: MediaTableProps) {
       newExpanded.add(key)
     }
     setExpandedGroups(newExpanded)
+  }
+
+  const toggleMediaType = (mediaType: string) => {
+    const next = new Set(expandedMediaTypes)
+    if (next.has(mediaType)) next.delete(mediaType)
+    else next.add(mediaType)
+    setExpandedMediaTypes(next)
   }
 
   const formatDate = (dateString: string | undefined) => {
@@ -123,7 +117,7 @@ export default function MediaTable({ lineItems }: MediaTableProps) {
       style: 'currency',
       currency: 'AUD',
       minimumFractionDigits: 2,
-      maximumFractionDigits: 4
+      maximumFractionDigits: 2
     }).format(num || 0)
   }
 
@@ -137,8 +131,32 @@ export default function MediaTable({ lineItems }: MediaTableProps) {
       }
     })
 
-    return result
-  }, [lineItems])
+    const query = search.trim().toLowerCase()
+    const filtered: Record<string, GroupedItem[]> = {}
+
+    Object.entries(result).forEach(([mediaType, groups]) => {
+      const sorted = [...groups].sort((a, b) => {
+        const aPeriod = a.groupStartDate.localeCompare(b.groupStartDate)
+        const budgetDelta = a.totalMedia - b.totalMedia
+        const deliverableDelta = a.totalDeliverables - b.totalDeliverables
+        const delta =
+          sortBy === 'period' ? aPeriod : sortBy === 'budget' ? budgetDelta : deliverableDelta
+        return sortDir === 'asc' ? delta : -delta
+      })
+
+      const filteredGroups = query
+        ? sorted.filter((group) =>
+            `${group.publisher || ''} ${group.title || ''} ${group.market || ''} ${group.targeting || ''}`
+              .toLowerCase()
+              .includes(query)
+          )
+        : sorted
+
+      if (filteredGroups.length) filtered[mediaType] = filteredGroups
+    })
+
+    return filtered
+  }, [lineItems, search, sortBy, sortDir])
 
   const hasLineItems = Object.values(lineItems).some(items => items && items.length > 0)
 
@@ -151,33 +169,104 @@ export default function MediaTable({ lineItems }: MediaTableProps) {
   }
 
   return (
-    <div className="space-y-6">
+    <TooltipProvider delayDuration={120}>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => setExpandedMediaTypes(new Set(Object.keys(groupedData)))}
+        >
+          Expand all
+        </Button>
+        <Button type="button" size="sm" variant="outline" onClick={() => setExpandedMediaTypes(new Set())}>
+          Collapse all
+        </Button>
+        <Input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Filter rows..."
+          className="h-8 w-full max-w-[240px]"
+        />
+      </div>
+
       {Object.entries(groupedData).map(([mediaType, groups]) => {
         if (!groups || groups.length === 0) return null
 
-        const displayName = MEDIA_TYPE_DISPLAY_NAMES[mediaType] || mediaType
+        const displayName = getMediaLabel(mediaType)
         const totalSpend = groups.reduce((sum, group) => sum + group.totalMedia, 0)
         const totalItems = groups.reduce((sum, group) => sum + group.bursts.length, 0)
+        const isTypeExpanded = expandedMediaTypes.has(mediaType)
 
         return (
-          <div key={mediaType} className="space-y-2">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">{displayName}</h3>
+          <div key={mediaType} className="space-y-2 rounded-xl border border-border/60">
+            <button
+              type="button"
+              className="flex w-full items-center justify-between rounded-t-xl bg-muted/20 px-3 py-2 text-left"
+              onClick={() => toggleMediaType(mediaType)}
+            >
+              <div className="flex items-center gap-2">
+                <span className="h-5 w-1.5 rounded-full" style={{ backgroundColor: getMediaColor(mediaType) }} />
+                <h3 className="text-sm font-semibold">{displayName}</h3>
+              </div>
               <Badge variant="outline">
                 {groups.length} {groups.length === 1 ? 'group' : 'groups'} • {totalItems} {totalItems === 1 ? 'burst' : 'bursts'} • Total: {formatCurrency(totalSpend)}
               </Badge>
-            </div>
-            <div className="rounded-md border overflow-x-auto">
+            </button>
+            {isTypeExpanded ? (
+            <div className="max-h-[520px] overflow-auto rounded-b-xl">
               <Table>
-                <TableHeader>
+                <TableHeader className="sticky top-0 z-20 bg-background">
                   <TableRow>
                     <TableHead className="w-8"></TableHead>
                     <TableHead>Market</TableHead>
                     <TableHead>Details</TableHead>
-                    <TableHead>Period</TableHead>
-                    <TableHead>Deliverables</TableHead>
-                    <TableHead>Gross Media</TableHead>
+                    <TableHead>
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1"
+                        onClick={() => {
+                          setSortBy('period')
+                          setSortDir((prev) => (sortBy === 'period' && prev === 'asc' ? 'desc' : 'asc'))
+                        }}
+                      >
+                        Period
+                        <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground" />
+                      </button>
+                    </TableHead>
+                    <TableHead>
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1"
+                        onClick={() => {
+                          setSortBy('deliverables')
+                          setSortDir((prev) => (sortBy === 'deliverables' && prev === 'asc' ? 'desc' : 'asc'))
+                        }}
+                      >
+                        Deliverables
+                        <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground" />
+                      </button>
+                    </TableHead>
+                    <TableHead>
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1"
+                        onClick={() => {
+                          setSortBy('budget')
+                          setSortDir((prev) => (sortBy === 'budget' && prev === 'asc' ? 'desc' : 'asc'))
+                        }}
+                      >
+                        Gross Media
+                        <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground" />
+                      </button>
+                    </TableHead>
                     <TableHead>Bursts</TableHead>
+                  </TableRow>
+                  <TableRow>
+                    <TableHead colSpan={7} className="bg-muted/20">
+                      <div className="text-xs text-muted-foreground">Filter row active: {search ? `"${search}"` : 'none'}</div>
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -197,15 +286,31 @@ export default function MediaTable({ lineItems }: MediaTableProps) {
 
                     return (
                       <Fragment key={groupKey}>
-                        <TableRow className="cursor-pointer hover:bg-gray-50" onClick={() => toggleGroup(groupKey)}>
+                        <TableRow
+                          className={cn(
+                            "cursor-pointer transition-colors hover:bg-muted/20",
+                            groupIndex % 2 === 1 && "bg-muted/[0.04]"
+                          )}
+                          onClick={() => toggleGroup(groupKey)}
+                        >
                           <TableCell>
-                            <button className="p-1 hover:bg-gray-100 rounded">
+                            <button className="rounded p-1 hover:bg-muted/40">
                               {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                             </button>
                           </TableCell>
                           <TableCell className="font-medium">{group.market || '—'}</TableCell>
                           <TableCell className="text-sm text-muted-foreground">
-                            {details.length > 0 ? details.join(' • ') : `Line item ${group.lineItemId || '—'}`}
+                            <div className="flex items-start gap-2">
+                              <span className="mt-1 h-2 w-2 rounded-full" style={{ backgroundColor: getMediaColor(mediaType) }} />
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="line-clamp-1">
+                                    {details.length > 0 ? details.join(' • ') : `Line item ${group.lineItemId || '—'}`}
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent>{details.length > 0 ? details.join(' • ') : `Line item ${group.lineItemId || '—'}`}</TooltipContent>
+                              </Tooltip>
+                            </div>
                           </TableCell>
                           <TableCell>
                             {formatDate(group.groupStartDate)} - {formatDate(group.groupEndDate)}
@@ -225,14 +330,37 @@ export default function MediaTable({ lineItems }: MediaTableProps) {
                               : burstBudget
 
                           return (
-                            <TableRow key={`${groupKey}-burst-${burstIndex}`} className="bg-gray-50">
+                            <TableRow
+                              key={`${groupKey}-burst-${burstIndex}`}
+                              className={cn(
+                                "bg-muted/[0.08] transition-all duration-200",
+                                "animate-in fade-in-0"
+                              )}
+                            >
                               <TableCell></TableCell>
-                              <TableCell className="text-sm text-muted-foreground pl-8">
+                              <TableCell className="pl-8 text-sm text-muted-foreground">
                                 Burst {burstIndex + 1}
                               </TableCell>
                               <TableCell></TableCell>
                               <TableCell className="text-sm">
-                                {formatDate(burst.startDate)} - {formatDate(burst.endDate)}
+                                <div className="space-y-1">
+                                  <span>{formatDate(burst.startDate)} - {formatDate(burst.endDate)}</span>
+                                  <div className="h-1.5 w-40 overflow-hidden rounded-full bg-muted">
+                                    <div
+                                      className="h-full rounded-full"
+                                      style={{
+                                        width: `${Math.min(
+                                          100,
+                                          Math.max(
+                                            0,
+                                            ((burstDeliverablesAmount || 0) / Math.max(group.totalMedia || 1, 1)) * 100
+                                          )
+                                        )}%`,
+                                        backgroundColor: getMediaColor(mediaType),
+                                      }}
+                                    />
+                                  </div>
+                                </div>
                               </TableCell>
                               <TableCell className="text-sm">
                                 {(burst.deliverables ?? 0).toLocaleString()}
@@ -250,9 +378,11 @@ export default function MediaTable({ lineItems }: MediaTableProps) {
                 </TableBody>
               </Table>
             </div>
+            ) : null}
           </div>
         )
       })}
     </div>
+    </TooltipProvider>
   )
 }

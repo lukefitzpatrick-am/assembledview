@@ -1,13 +1,6 @@
-const FALLBACK_PALETTE = [
-  "#6366f1",
-  "#22c55e",
-  "#f97316",
-  "#06b6d4",
-  "#f43f5e",
-  "#a855f7",
-  "#0ea5e9",
-  "#f59e0b",
-]
+import { FALLBACK_PALETTE as REGISTRY_FALLBACK } from "@/lib/charts/registry"
+
+const FALLBACK_PALETTE = [...REGISTRY_FALLBACK]
 
 function isValidHexColour(value?: string) {
   if (!value) return false

@@ -1,19 +1,22 @@
 import { NextRequest, NextResponse } from "next/server"
 import axios from "axios"
 import {
-  campaignOverlapsMonth,
   formatInvoiceDate,
   extractLineItemsFromBillingSchedule,
   extractServiceAmountsFromBillingSchedule,
   mergeFinanceLineItems,
+  financeClientNamesMatch,
 } from "@/lib/finance/utils"
 import { xanoUrl } from "@/lib/api/xano"
+import { fetchRelevantPlanVersionsForFinanceMonth } from "@/lib/finance/relevantPlanVersions"
 
 
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
     const monthParam = searchParams.get("month") // Format: YYYY-MM
+    const clientFilterRaw = searchParams.get("client")
+    const clientFilter = clientFilterRaw ? decodeURIComponent(clientFilterRaw.trim()) : ""
 
     if (!monthParam) {
       return NextResponse.json(
@@ -22,84 +25,12 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const [year, month] = monthParam.split("-").map(Number)
-    if (!year || !month || month < 1 || month > 12) {
-      return NextResponse.json(
-        { error: "Invalid month format. Use YYYY-MM" },
-        { status: 400 }
-      )
+    const versionsResult = await fetchRelevantPlanVersionsForFinanceMonth(monthParam)
+    if ("error" in versionsResult) {
+      return NextResponse.json({ error: versionsResult.error }, { status: versionsResult.status })
     }
 
-    // Fetch all media plan masters to get latest version numbers
-    const mastersResponse = await axios.get(
-      xanoUrl("media_plan_master", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
-    )
-    const masters = Array.isArray(mastersResponse.data) ? mastersResponse.data : []
-
-    // Create a map of MBA number to latest version info (use masters first, then fallback to versions)
-    const mbaToVersionMap = new Map<string, { masterId?: number; versionNumber: number }>()
-    masters.forEach((master: any) => {
-      if (master.mba_number && master.version_number) {
-        const versionNumber = Number(master.version_number) || 0
-        const existing = mbaToVersionMap.get(master.mba_number)
-        if (!existing || versionNumber > existing.versionNumber) {
-          mbaToVersionMap.set(master.mba_number, {
-            masterId: master.id,
-            versionNumber,
-          })
-        }
-      }
-    })
-
-    // Fetch all media plan versions
-    const versionsResponse = await axios.get(
-      xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
-    )
-    const allVersions = Array.isArray(versionsResponse.data) ? versionsResponse.data : []
-
-    // Ensure we have latest version info even if master entry is missing
-    allVersions.forEach((version: any) => {
-      if (!version.mba_number) return
-      const versionNumber = Number(version.version_number) || 0
-      const existing = mbaToVersionMap.get(version.mba_number)
-      if (!existing || versionNumber > existing.versionNumber) {
-        mbaToVersionMap.set(version.mba_number, {
-          masterId: version.media_plan_master_id,
-          versionNumber,
-        })
-      }
-    })
-
-    // Filter to only latest versions that overlap with selected month
-    const relevantVersions = allVersions.filter((version: any) => {
-      if (!version.mba_number) return false
-      const versionInfo = mbaToVersionMap.get(version.mba_number)
-      if (!versionInfo) return false
-
-      const isLatestVersionNumber =
-        Number(version.version_number) === Number(versionInfo.versionNumber)
-
-      // If master id is present in both, ensure it matches; otherwise rely on version number only
-      const masterIdMatches =
-        !version.media_plan_master_id ||
-        !versionInfo.masterId ||
-        version.media_plan_master_id === versionInfo.masterId
-
-      if (!isLatestVersionNumber || !masterIdMatches) {
-        return false
-      }
-
-      // Check if campaign dates overlap with selected month
-      if (version.campaign_start_date && version.campaign_end_date) {
-        return campaignOverlapsMonth(
-          version.campaign_start_date,
-          version.campaign_end_date,
-          year,
-          month
-        )
-      }
-      return false
-    })
+    const { year, month, allVersions, relevantVersions } = versionsResult
 
     // Fetch clients and publishers in parallel
     const [clientsResponse, publishersResponse] = await Promise.all([
@@ -238,21 +169,30 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    const filterByClient = (list: typeof bookedApprovedCampaigns) => {
+      if (!clientFilter) return list
+      return list.filter((c) => financeClientNamesMatch(c.clientName, clientFilter))
+    }
+
+    const bookedFiltered = filterByClient(bookedApprovedCampaigns)
+    const otherFiltered = filterByClient(otherCampaigns)
+
     const meta = {
       selectedMonth: monthParam,
+      clientFilter: clientFilter || undefined,
       totalVersions: allVersions.length,
       relevantVersions: relevantVersions.length,
-      bookedApprovedCount: bookedApprovedCampaigns.length,
-      otherCount: otherCampaigns.length,
+      bookedApprovedCount: bookedFiltered.length,
+      otherCount: otherFiltered.length,
       notice:
-        bookedApprovedCampaigns.length === 0 && otherCampaigns.length === 0
+        bookedFiltered.length === 0 && otherFiltered.length === 0
           ? "No finance data after filtering latest versions, date overlap, and zero-amount totals."
           : undefined,
     }
 
     return NextResponse.json({
-      bookedApproved: bookedApprovedCampaigns,
-      other: otherCampaigns,
+      bookedApproved: bookedFiltered,
+      other: otherFiltered,
       meta,
     })
   } catch (error: any) {

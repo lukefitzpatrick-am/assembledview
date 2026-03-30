@@ -28,6 +28,11 @@ export interface ComboboxProps {
   buttonClassName?: string
   contentClassName?: string
   align?: "start" | "center" | "end"
+  /** For spreadsheet-style grid focus (e.g. expert mode). */
+  id?: string
+  onOpenChange?: (open: boolean) => void
+  /** Fires when the trigger button receives focus (e.g. Tab); use with expert grids for paste anchoring. */
+  onTriggerFocus?: () => void
 }
 
 export function Combobox({
@@ -42,8 +47,19 @@ export function Combobox({
   buttonClassName,
   contentClassName,
   align = "start",
+  id,
+  onOpenChange,
+  onTriggerFocus,
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false)
+
+  const setOpenBoth = React.useCallback(
+    (next: boolean) => {
+      setOpen(next)
+      onOpenChange?.(next)
+    },
+    [onOpenChange]
+  )
 
   const sortedOptions = React.useMemo(
     () => sortByLabel(options, (o) => o.label),
@@ -56,15 +72,17 @@ export function Combobox({
   )
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={setOpenBoth}>
       <PopoverTrigger asChild>
         <Button
+          id={id}
           type="button"
           variant="outline"
           role="combobox"
           aria-expanded={open}
           className={cn("w-full justify-between", buttonClassName)}
           disabled={disabled}
+          onFocus={() => onTriggerFocus?.()}
         >
           <span className={cn("truncate", !selected ? "text-muted-foreground" : undefined, className)}>
             {selected ? selected.label : placeholder}
@@ -92,7 +110,7 @@ export function Combobox({
                     disabled={option.disabled}
                     onSelect={() => {
                       onValueChange(option.value)
-                      setOpen(false)
+                      setOpenBoth(false)
                     }}
                   >
                     <Check className={cn("mr-2 h-4 w-4", isSelected ? "opacity-100" : "opacity-0")} />

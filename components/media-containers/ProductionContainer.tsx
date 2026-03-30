@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useForm, useFieldArray, UseFormReturn, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
@@ -10,9 +10,8 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
-import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { CalendarIcon, Check, ChevronDown, ChevronsUpDown, Copy, Plus, Trash2 } from "lucide-react"
+import { Check, ChevronDown, ChevronsUpDown, Copy, Plus, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { formatMoney } from "@/lib/utils/money"
 import type { BillingBurst } from "@/lib/billing/types"
@@ -20,6 +19,34 @@ import { formatBurstLabel } from "@/lib/bursts"
 import type { LineItem } from "@/lib/generateMediaPlan"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
+import { SingleDatePicker } from "@/components/ui/single-date-picker"
+import {
+  defaultMediaBurstStartDate,
+  defaultMediaBurstEndDate,
+  hasCampaignDateWindow,
+} from "@/lib/date-picker-anchor"
+import MediaContainerTimelineCollapsible from "@/components/media-containers/MediaContainerTimelineCollapsible"
+import {
+  MP_BURST_ACTION_COLUMN,
+  MP_BURST_CARD,
+  MP_BURST_CARD_CONTENT,
+  MP_BURST_GRID_5,
+  MP_BURST_HEADER_INNER,
+  MP_BURST_HEADER_ROW,
+  MP_BURST_HEADER_SHELL,
+  MP_BURST_LABEL_COLUMN,
+  MP_BURST_LABEL_HEADING,
+  MP_BURST_ROW_SHELL,
+  MP_BURST_SECTION_OUTER,
+} from "@/lib/mediaplan/burstSectionLayout"
+import {
+  getMediaTypeThemeHex,
+  mediaTypeAccentTextStyle,
+  mediaTypeLineItemBadgeStyle,
+  mediaTypeSummaryStripeStyle,
+} from "@/lib/mediaplan/mediaTypeAccents"
+
+const MEDIA_ACCENT_HEX = getMediaTypeThemeHex("production")
 
 const burstSchema = z.object({
   cost: z.number().min(0, "Cost is required"),
@@ -29,7 +56,7 @@ const burstSchema = z.object({
 })
 
 const lineItemSchema = z.object({
-  mediaType: z.string().min(1, "Media type is required"),
+  mediaType: z.string().min(1, "Production type is required"),
   publisher: z.string().optional(),
   description: z.string().optional(),
   market: z.string().optional(),
@@ -90,12 +117,6 @@ interface ProductionContainerProps {
   initialLineItems?: any[]
 }
 
-const getYesterday = () => {
-  const today = new Date()
-  today.setDate(today.getDate() - 1)
-  return toDateOnly(today) || today
-}
-
 const getPeriodEnd = (start: Date) => {
   const end = new Date(start)
   end.setMonth(end.getMonth() + 1)
@@ -107,17 +128,6 @@ const addDays = (date: Date, days: number) => {
   const next = new Date(date)
   next.setDate(next.getDate() + days)
   return toDateOnly(next) || next
-}
-
-const defaultBurst = (): z.infer<typeof burstSchema> => {
-  const startDate = getYesterday()
-  const endDate = getPeriodEnd(startDate)
-  return {
-    cost: 0,
-    amount: 0,
-    startDate,
-    endDate,
-  }
 }
 
 const buildMediaTypeOptions = (mediaTypes: Array<string | MediaTypeOption>): MediaTypeOption[] => {
@@ -231,6 +241,17 @@ export default function ProductionContainer({
   const mediaTypeOptions = useMemo(() => buildMediaTypeOptions(mediaTypes), [mediaTypes])
   const [openMediaIndex, setOpenMediaIndex] = useState<number | null>(null)
 
+  const makeDefaultBurst = useCallback((): z.infer<typeof burstSchema> => {
+    const startRaw = defaultMediaBurstStartDate(campaignStartDate, campaignEndDate)
+    const startDate = toDateOnly(startRaw) || startRaw
+    let endRaw = defaultMediaBurstEndDate(campaignStartDate, campaignEndDate)
+    let endDate = toDateOnly(endRaw) || endRaw
+    if (!hasCampaignDateWindow(campaignStartDate, campaignEndDate)) {
+      endDate = getPeriodEnd(startDate)
+    }
+    return { cost: 0, amount: 0, startDate, endDate }
+  }, [campaignStartDate, campaignEndDate])
+
   // Keep stable references to parent callbacks to avoid effect loops
   const totalMediaChangeRef = useRef(onTotalMediaChange)
   const burstsChangeRef = useRef(onBurstsChange)
@@ -268,7 +289,7 @@ export default function ProductionContainer({
           description: "",
           market: "",
           lineItemId: "",
-          bursts: [defaultBurst()],
+          bursts: [makeDefaultBurst()],
         },
       ],
     },
@@ -310,8 +331,20 @@ export default function ProductionContainer({
           const cost = typeof burst.cost === "string" ? parseFloat(burst.cost.replace(/[^0-9.-]/g, "")) || 0 : Number(burst.cost || 0)
           const amountRaw = burst.amount ?? burst.deliverables ?? 0
           const amount = typeof amountRaw === "string" ? parseFloat(amountRaw.replace(/[^0-9.-]/g, "")) || 0 : Number(amountRaw || 0)
-          const startDate = toDateOnly(burst.startDate || burst.start_date) || getYesterday()
-          const endDate = toDateOnly(burst.endDate || burst.end_date) || getPeriodEnd(startDate)
+          const fallbackStart = defaultMediaBurstStartDate(campaignStartDate, campaignEndDate)
+          const startDate =
+            toDateOnly(burst.startDate || burst.start_date) ??
+            toDateOnly(fallbackStart) ??
+            fallbackStart
+          let endDate = toDateOnly(burst.endDate || burst.end_date)
+          if (!endDate) {
+            if (hasCampaignDateWindow(campaignStartDate, campaignEndDate)) {
+              const fe = defaultMediaBurstEndDate(campaignStartDate, campaignEndDate)
+              endDate = toDateOnly(fe) || fe
+            } else {
+              endDate = getPeriodEnd(startDate)
+            }
+          }
           return { cost, amount, startDate, endDate }
         })
 
@@ -321,14 +354,14 @@ export default function ProductionContainer({
           description: item.description || item.creative || "",
           market: item.market || "",
           lineItemId: item.line_item_id || item.lineItemId || `${campaignId || "MBA"}PROD${idx + 1}`,
-          bursts: bursts.length > 0 ? bursts : [defaultBurst()],
+          bursts: bursts.length > 0 ? bursts : [makeDefaultBurst()],
         }
       })
       form.setValue("lineItems", normalized, { shouldDirty: false })
     } catch (err) {
       console.warn("[ProductionContainer] Failed to hydrate initial line items", err)
     }
-  }, [initialLineItems, form, campaignId])
+  }, [initialLineItems, form, campaignId, campaignStartDate, campaignEndDate, makeDefaultBurst])
 
   const totals = useMemo(() => {
     const totalMedia = watchedLineItems?.reduce((sum, li) => {
@@ -379,7 +412,7 @@ export default function ProductionContainer({
       description: "",
       market: "",
       lineItemId: "",
-      bursts: [defaultBurst()],
+      bursts: [makeDefaultBurst()],
     })
   }
 
@@ -398,7 +431,10 @@ export default function ProductionContainer({
     const currentBursts = form.getValues(`lineItems.${lineItemIndex}.bursts`) || []
     const lastBurst = currentBursts[currentBursts.length - 1]
     const lastEndDate = toDateOnly(lastBurst?.endDate)
-    const nextStart = lastEndDate ? addDays(lastEndDate, 1) : getYesterday()
+    const anchor =
+      toDateOnly(defaultMediaBurstStartDate(campaignStartDate, campaignEndDate)) ??
+      defaultMediaBurstStartDate(campaignStartDate, campaignEndDate)
+    const nextStart = lastEndDate ? addDays(lastEndDate, 1) : anchor
     const nextEnd = getPeriodEnd(nextStart)
     form.setValue(`lineItems.${lineItemIndex}.bursts`, [
       ...currentBursts,
@@ -417,7 +453,10 @@ export default function ProductionContainer({
     if (!burst) return
     const lastBurst = currentBursts[currentBursts.length - 1]
     const lastEndDate = toDateOnly(lastBurst?.endDate)
-    const startDate = lastEndDate ? addDays(lastEndDate, 1) : getYesterday()
+    const anchor =
+      toDateOnly(defaultMediaBurstStartDate(campaignStartDate, campaignEndDate)) ??
+      defaultMediaBurstStartDate(campaignStartDate, campaignEndDate)
+    const startDate = lastEndDate ? addDays(lastEndDate, 1) : anchor
     const endDate = getPeriodEnd(startDate)
     const cloned = { ...burst, startDate, endDate }
     const updated = [
@@ -438,20 +477,42 @@ export default function ProductionContainer({
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg font-semibold flex items-center justify-between">
-            <span>Production Summary</span>
-            <span className="text-sm font-medium">
-              Media: {formatMoney(totals.totalMedia, { locale: "en-US", currency: "USD" })}
-            </span>
-          </CardTitle>
+      <Card className="overflow-hidden border-0 shadow-md">
+        <div className="h-1" style={mediaTypeSummaryStripeStyle(MEDIA_ACCENT_HEX)} />
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base font-semibold tracking-tight">Production</CardTitle>
         </CardHeader>
+        <CardContent className="space-y-0 pt-0">
+          <div className="flex items-center justify-between py-2">
+            <span className="text-sm font-semibold">Total</span>
+            <div className="text-right">
+              <span className="text-[11px] text-muted-foreground font-normal block">Media</span>
+              <span
+                className="text-sm font-semibold tabular-nums"
+                style={mediaTypeAccentTextStyle(MEDIA_ACCENT_HEX)}
+              >
+                {formatMoney(totals.totalMedia, { locale: "en-US", currency: "USD" })}
+              </span>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground pt-3 border-t border-border/40">
+            Production line items use the same schedule grid and media plan export as other channels. No agency fees apply.
+          </p>
+          <MediaContainerTimelineCollapsible
+            mediaTypeKey="production"
+            lineItems={watchedLineItems}
+            campaignStartDate={campaignStartDate}
+            campaignEndDate={campaignEndDate}
+          />
+        </CardContent>
       </Card>
 
       <Form {...form}>
         <div className="space-y-6">
           {lineItemFields.map((field, lineItemIndex) => {
+            const sectionId = `production-line-item-${lineItemIndex}`
+            const burstsId = `${sectionId}-bursts`
+            const footerId = `${sectionId}-footer`
             const lineItemId =
               form.watch(`lineItems.${lineItemIndex}.lineItemId`) ||
               `${mbaNumber || "MBA"}PROD${lineItemIndex + 1}`
@@ -463,50 +524,49 @@ export default function ProductionContainer({
               ) || 0
 
             return (
-              <Card key={field.id} className="space-y-4">
-                <CardHeader className="flex flex-col gap-2">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <CardTitle className="text-lg font-semibold">
-                        Production Line Item {lineItemIndex + 1}
-                      </CardTitle>
-                      <div className="text-sm text-muted-foreground">ID: {lineItemId}</div>
+              <Card key={field.id} className="overflow-hidden border border-border/50 shadow-sm hover:shadow-md transition-shadow duration-200 space-y-6">
+                <CardHeader className="pb-2 bg-muted/30">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold"
+                        style={mediaTypeLineItemBadgeStyle(MEDIA_ACCENT_HEX)}
+                      >
+                        {lineItemIndex + 1}
+                      </div>
+                      <div>
+                        <CardTitle className="text-sm font-semibold tracking-tight">Production Line Item</CardTitle>
+                        <span className="font-mono text-[11px] text-muted-foreground">{lineItemId}</span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <div className="text-sm font-medium whitespace-nowrap">
-                        Media: {formatMoney(lineItemMediaTotal, { locale: "en-US", currency: "USD" })}
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        <span className="block text-[11px] text-muted-foreground">Total</span>
+                        <span className="text-sm font-bold tabular-nums">
+                          {formatMoney(lineItemMediaTotal, { locale: "en-US", currency: "USD" })}
+                        </span>
                       </div>
                       <Button
                         type="button"
-                        variant="outline"
+                        variant="ghost"
                         size="sm"
+                        className="h-8 w-8 shrink-0 rounded-full p-0"
                         onClick={() => {
-                          const details = document.getElementById(`production-line-item-${lineItemIndex}`)
-                          const bursts = document.getElementById(`production-line-item-${lineItemIndex}-bursts`)
-                          const footer = document.getElementById(`production-line-item-${lineItemIndex}-footer`)
-                          details?.classList.toggle("hidden")
-                          bursts?.classList.toggle("hidden")
-                          footer?.classList.toggle("hidden")
+                          document.getElementById(sectionId)?.classList.toggle("hidden")
+                          document.getElementById(burstsId)?.classList.toggle("hidden")
+                          document.getElementById(footerId)?.classList.toggle("hidden")
                         }}
                       >
                         <ChevronDown className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button variant="outline" size="sm" type="button" onClick={() => handleDuplicateLineItem(lineItemIndex)}>
-                      <Copy className="h-4 w-4 mr-1" /> Duplicate
-                    </Button>
-                    <Button variant="destructive" size="sm" type="button" onClick={() => removeLineItem(lineItemIndex)}>
-                      <Trash2 className="h-4 w-4 mr-1" /> Remove
-                    </Button>
-                  </div>
                 </CardHeader>
 
                 <div className="px-6 py-2 border-b">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
                     <div>
-                      <span className="font-medium">Media Type:</span>{" "}
+                      <span className="font-medium">Production type:</span>{" "}
                       {form.watch(`lineItems.${lineItemIndex}.mediaType`) || "Not selected"}
                     </div>
                     <div>
@@ -523,98 +583,106 @@ export default function ProductionContainer({
                   </div>
                 </div>
 
-                <div id={`production-line-item-${lineItemIndex}`} className="space-y-4">
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      <FormField
-                        control={form.control}
-                        name={`lineItems.${lineItemIndex}.mediaType`}
-                        render={({ field }) => {
-                          const selectedOption = mediaTypeOptions.find((option) => option.value === field.value)
-                          const isOpen = openMediaIndex === lineItemIndex
+                <div id={sectionId} className="px-6 py-5">
+                  <CardContent className="space-y-5 p-0">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4">
+                      <div className="space-y-4">
+                        <FormField
+                          control={form.control}
+                          name={`lineItems.${lineItemIndex}.mediaType`}
+                          render={({ field }) => {
+                            const selectedOption = mediaTypeOptions.find((option) => option.value === field.value)
+                            const isOpen = openMediaIndex === lineItemIndex
 
-                          return (
-                            <FormItem>
-                              <FormLabel>Media Type</FormLabel>
-                              <Popover open={isOpen} onOpenChange={(open) => setOpenMediaIndex(open ? lineItemIndex : null)}>
-                                <PopoverTrigger asChild>
-                                  <Button
-                                    variant="outline"
-                                    role="combobox"
-                                    aria-expanded={isOpen}
-                                    className="w-full justify-between"
-                                  >
-                                    <span className="truncate">
-                                      {selectedOption ? selectedOption.label : "Select media type"}
-                                    </span>
-                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                  </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-[280px] p-0" align="start">
-                                  <Command>
-                                    <CommandInput placeholder="Search media types..." />
-                                    <CommandList>
-                                      <CommandEmpty>No media types found.</CommandEmpty>
-                                      <CommandGroup>
-                                        {mediaTypeOptions.map((option) => {
-                                          const isSelected = option.value === field.value
-                                          return (
-                                            <CommandItem
-                                              key={option.value}
-                                              value={option.label}
-                                              onSelect={() => {
-                                                field.onChange(option.value)
-                                                setOpenMediaIndex(null)
-                                              }}
-                                            >
-                                              <Check
-                                                className={cn(
-                                                  "mr-2 h-4 w-4",
-                                                  isSelected ? "opacity-100" : "opacity-0"
-                                                )}
-                                              />
-                                              <span className="truncate">{option.label}</span>
-                                            </CommandItem>
-                                          )
-                                        })}
-                                      </CommandGroup>
-                                    </CommandList>
-                                  </Command>
-                                </PopoverContent>
-                              </Popover>
+                            return (
+                              <FormItem className="flex flex-col space-y-1.5">
+                                <FormLabel className="text-sm text-muted-foreground font-medium">Production type</FormLabel>
+                                <Popover open={isOpen} onOpenChange={(open) => setOpenMediaIndex(open ? lineItemIndex : null)}>
+                                  <PopoverTrigger asChild>
+                                    <Button
+                                      variant="outline"
+                                      role="combobox"
+                                      aria-expanded={isOpen}
+                                      className="w-full h-9 justify-between rounded-md"
+                                    >
+                                      <span className="truncate">
+                                        {selectedOption ? selectedOption.label : "Select production type"}
+                                      </span>
+                                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                    </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-[280px] p-0" align="start">
+                                    <Command>
+                                      <CommandInput placeholder="Search production types..." />
+                                      <CommandList>
+                                        <CommandEmpty>No production types found.</CommandEmpty>
+                                        <CommandGroup>
+                                          {mediaTypeOptions.map((option) => {
+                                            const isSelected = option.value === field.value
+                                            return (
+                                              <CommandItem
+                                                key={option.value}
+                                                value={option.label}
+                                                onSelect={() => {
+                                                  field.onChange(option.value)
+                                                  setOpenMediaIndex(null)
+                                                }}
+                                              >
+                                                <Check
+                                                  className={cn(
+                                                    "mr-2 h-4 w-4",
+                                                    isSelected ? "opacity-100" : "opacity-0"
+                                                  )}
+                                                />
+                                                <span className="truncate">{option.label}</span>
+                                              </CommandItem>
+                                            )
+                                          })}
+                                        </CommandGroup>
+                                      </CommandList>
+                                    </Command>
+                                  </PopoverContent>
+                                </Popover>
+                                <FormMessage />
+                              </FormItem>
+                            )
+                          }}
+                        />
+                      </div>
+
+                      <div className="space-y-4">
+                        <FormField
+                          control={form.control}
+                          name={`lineItems.${lineItemIndex}.publisher`}
+                          render={({ field }) => (
+                            <FormItem className="flex flex-col space-y-1.5">
+                              <FormLabel className="text-sm text-muted-foreground font-medium">Publisher</FormLabel>
+                              <FormControl>
+                                <Input {...field} placeholder="Publisher" className="h-10 text-sm" />
+                              </FormControl>
                               <FormMessage />
                             </FormItem>
-                          )
-                        }}
-                      />
+                          )}
+                        />
+                      </div>
 
-                      <FormField
-                        control={form.control}
-                        name={`lineItems.${lineItemIndex}.publisher`}
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Publisher</FormLabel>
-                            <FormControl>
-                              <Input {...field} placeholder="Publisher" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                      <div className="space-y-4">
+                        <FormField
+                          control={form.control}
+                          name={`lineItems.${lineItemIndex}.market`}
+                          render={({ field }) => (
+                            <FormItem className="flex flex-col space-y-1.5">
+                              <FormLabel className="text-sm text-muted-foreground font-medium">Market</FormLabel>
+                              <FormControl>
+                                <Input {...field} placeholder="Market" className="h-10 text-sm" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
 
-                      <FormField
-                        control={form.control}
-                        name={`lineItems.${lineItemIndex}.market`}
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Market</FormLabel>
-                            <FormControl>
-                              <Input {...field} placeholder="Market" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                      <div className="space-y-4" aria-hidden />
                     </div>
 
                     <FormField
@@ -622,64 +690,69 @@ export default function ProductionContainer({
                       name={`lineItems.${lineItemIndex}.description`}
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Description</FormLabel>
+                          <FormLabel className="text-sm text-muted-foreground font-medium">Description</FormLabel>
                           <FormControl>
-                            <Textarea {...field} placeholder="Description" className="min-h-[80px]" />
+                            <Textarea {...field} placeholder="Description" className="min-h-[96px] text-sm rounded-md border border-border/50 bg-muted/30 transition-colors focus:bg-background" />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
-
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-semibold text-base">Bursts</h4>
-                      <Button type="button" size="sm" onClick={() => handleAddBurst(lineItemIndex)}>
-                        <Plus className="h-4 w-4 mr-1" /> Add Burst
-                      </Button>
-                    </div>
                   </CardContent>
+                </div>
 
-                  <div id={`production-line-item-${lineItemIndex}-bursts`} className="space-y-3 px-6 pb-4">
-                    {lineItemBursts.map((burst, burstIndex) => {
-                      const mediaValue = (burst.cost || 0) * (burst.amount || 0)
-                      return (
-                        <Card key={`${lineItemIndex}-${burstIndex}`} className="bg-muted/30">
-                          <CardContent className="pt-4 space-y-4">
-                            <div className="flex items-center justify-between">
-                              <div className="font-medium">
-                                {formatBurstLabel(burstIndex + 1, burst.startDate, burst.endDate)}
-                              </div>
-                              <div className="flex gap-2">
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleDuplicateBurst(lineItemIndex, burstIndex)}
-                                >
-                                  <Copy className="h-4 w-4 mr-1" /> Duplicate
-                                </Button>
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => handleRemoveBurst(lineItemIndex, burstIndex)}
-                                >
-                                  <Trash2 className="h-4 w-4 mr-1" /> Remove
-                                </Button>
-                              </div>
+                <div id={burstsId} className={MP_BURST_SECTION_OUTER}>
+                  <div className={MP_BURST_HEADER_SHELL}>
+                    <div className={MP_BURST_HEADER_INNER}>
+                      <div className={MP_BURST_LABEL_COLUMN} aria-hidden />
+                      <div className={MP_BURST_HEADER_ROW}>
+                        <div
+                          className={cn(
+                            MP_BURST_GRID_5,
+                            "gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground",
+                          )}
+                        >
+                          <span>Cost</span>
+                          <span>Quantity</span>
+                          <div className="col-span-2 grid grid-cols-2 gap-2">
+                            <span>Start Date</span>
+                            <span>End Date</span>
+                          </div>
+                          <span>Production Total</span>
+                        </div>
+                        <div className={MP_BURST_ACTION_COLUMN}>
+                          <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                            Actions
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  {lineItemBursts.map((burst, burstIndex) => {
+                    const mediaValue = (burst.cost || 0) * (burst.amount || 0)
+                    return (
+                      <Card key={`${lineItemIndex}-${burstIndex}`} className={MP_BURST_CARD}>
+                        <CardContent className={MP_BURST_CARD_CONTENT}>
+                          <div className={MP_BURST_ROW_SHELL}>
+                            <div className={MP_BURST_LABEL_COLUMN}>
+                              <h4 className={MP_BURST_LABEL_HEADING}>
+                                {formatBurstLabel(burstIndex + 1, burst.startDate, burst.endDate, {
+                                  noun: "Production",
+                                })}
+                              </h4>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div className={cn(MP_BURST_GRID_5, "gap-2")}>
                               <FormField
                                 control={form.control}
                                 name={`lineItems.${lineItemIndex}.bursts.${burstIndex}.cost`}
                                 render={({ field }) => (
                                   <FormItem>
-                                    <FormLabel>Cost ($)</FormLabel>
                                     <FormControl>
                                       <Input
                                         type="number"
                                         step="0.01"
+                                        className="h-10 w-full min-w-0 text-sm"
                                         value={field.value ?? 0}
                                         onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
                                       />
@@ -694,11 +767,11 @@ export default function ProductionContainer({
                                 name={`lineItems.${lineItemIndex}.bursts.${burstIndex}.amount`}
                                 render={({ field }) => (
                                   <FormItem>
-                                    <FormLabel>Amount</FormLabel>
                                     <FormControl>
                                       <Input
                                         type="number"
                                         step="1"
+                                        className="h-10 w-full min-w-0 text-sm"
                                         value={field.value ?? 0}
                                         onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
                                       />
@@ -708,109 +781,132 @@ export default function ProductionContainer({
                                 )}
                               />
 
-                              <FormField
-                                control={form.control}
-                                name={`lineItems.${lineItemIndex}.bursts.${burstIndex}.startDate`}
-                                render={({ field }) => (
-                                  <FormItem>
-                                    <FormLabel>Start Date</FormLabel>
-                                    <Popover>
-                                      <PopoverTrigger asChild>
-                                        <FormControl>
-                                          <Button
-                                            variant={"outline"}
-                                            className={cn(
-                                              "w-full pl-2 text-left font-normal",
-                                              !field.value && "text-muted-foreground"
-                                            )}
-                                          >
-                                            {field.value ? format(field.value, "dd/MM/yy") : <span>Pick date</span>}
-                                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                          </Button>
-                                        </FormControl>
-                                      </PopoverTrigger>
-                                      <PopoverContent className="w-auto p-0" align="start">
-                                        <Calendar
-                                          mode="single"
-                                          selected={field.value}
-                                          onSelect={field.onChange}
-                                          initialFocus
+                              <div className="col-span-2 grid grid-cols-2 gap-2">
+                                <FormField
+                                  control={form.control}
+                                  name={`lineItems.${lineItemIndex}.bursts.${burstIndex}.startDate`}
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormControl>
+                                        <SingleDatePicker
+                                          ref={field.ref}
+                                          name={field.name}
+                                          onBlur={field.onBlur}
+                                          value={field.value}
+                                          onChange={field.onChange}
+                                          className="h-10 w-full pl-2 text-left text-sm font-normal"
+                                          calendarContext="media-burst"
+                                          mediaBurstRole="start"
+                                          campaignStartDate={campaignStartDate}
+                                          campaignEndDate={campaignEndDate}
                                         />
-                                      </PopoverContent>
-                                    </Popover>
-                                    <FormMessage />
-                                  </FormItem>
-                                )}
-                              />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
 
-                              <FormField
-                                control={form.control}
-                                name={`lineItems.${lineItemIndex}.bursts.${burstIndex}.endDate`}
-                                render={({ field }) => (
-                                  <FormItem>
-                                    <FormLabel>End Date</FormLabel>
-                                    <Popover>
-                                      <PopoverTrigger asChild>
-                                        <FormControl>
-                                          <Button
-                                            variant={"outline"}
-                                            className={cn(
-                                              "w-full pl-2 text-left font-normal",
-                                              !field.value && "text-muted-foreground"
-                                            )}
-                                          >
-                                            {field.value ? format(field.value, "dd/MM/yy") : <span>Pick date</span>}
-                                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                          </Button>
-                                        </FormControl>
-                                      </PopoverTrigger>
-                                      <PopoverContent className="w-auto p-0" align="start">
-                                        <Calendar
-                                          mode="single"
-                                          selected={field.value}
-                                          onSelect={field.onChange}
-                                          initialFocus
+                                <FormField
+                                  control={form.control}
+                                  name={`lineItems.${lineItemIndex}.bursts.${burstIndex}.endDate`}
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormControl>
+                                        <SingleDatePicker
+                                          ref={field.ref}
+                                          name={field.name}
+                                          onBlur={field.onBlur}
+                                          value={field.value}
+                                          onChange={field.onChange}
+                                          className="h-10 w-full pl-2 text-left text-sm font-normal"
+                                          calendarContext="media-burst"
+                                          mediaBurstRole="end"
+                                          campaignStartDate={campaignStartDate}
+                                          campaignEndDate={campaignEndDate}
                                         />
-                                      </PopoverContent>
-                                    </Popover>
-                                    <FormMessage />
-                                  </FormItem>
-                                )}
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                              </div>
+
+                              <Input
+                                type="text"
+                                className="h-10 w-full min-w-0 text-sm tabular-nums bg-muted/30 border-border/40 text-muted-foreground"
+                                readOnly
+                                title="Production total (cost × quantity)"
+                                value={formatMoney(mediaValue, { locale: "en-US", currency: "USD" })}
                               />
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                              <div>
-                                <p className="text-xs text-muted-foreground">Calculated Value</p>
-                                <p className="font-semibold">{burst.amount || 0}</p>
-                              </div>
-                              <div>
-                                <p className="text-xs text-muted-foreground">Media (Cost x Amount)</p>
-                                <p className="font-semibold">
-                                  {formatMoney(mediaValue, { locale: "en-US", currency: "USD" })}
-                                </p>
-                              </div>
-                              <div className="text-xs text-muted-foreground flex items-center">
-                                No fees applied to production bursts.
-                              </div>
+                            <div className={MP_BURST_ACTION_COLUMN}>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => handleAddBurst(lineItemIndex)}
+                                title="Add burst"
+                              >
+                                <Plus className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => handleDuplicateBurst(lineItemIndex, burstIndex)}
+                                title="Duplicate burst"
+                              >
+                                <Copy className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-destructive/70 hover:text-destructive hover:bg-destructive/10"
+                                onClick={() => handleRemoveBurst(lineItemIndex, burstIndex)}
+                                title="Remove burst"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
                             </div>
-                          </CardContent>
-                        </Card>
-                      )
-                    })}
-                  </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )
+                  })}
                 </div>
 
-                {lineItemIndex === lineItemFields.length - 1 && (
-                  <CardFooter
-                    id={`production-line-item-${lineItemIndex}-footer`}
-                    className="flex justify-end"
+                <CardFooter id={footerId} className="flex items-center justify-between pt-4 pb-4 bg-muted/20 border-t border-border/40">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive/70 hover:text-destructive hover:bg-destructive/10"
+                    onClick={() => removeLineItem(lineItemIndex)}
                   >
-                    <Button type="button" onClick={handleAddLineItem}>
-                      <Plus className="h-4 w-4 mr-1" /> Add Line Item
+                    <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                    Remove
+                  </Button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button type="button" variant="outline" size="sm" onClick={() => handleAddBurst(lineItemIndex)}>
+                      <Plus className="h-3.5 w-3.5 mr-1.5" />
+                      Add Burst
                     </Button>
-                  </CardFooter>
-                )}
+                    <Button type="button" variant="outline" size="sm" onClick={() => handleDuplicateLineItem(lineItemIndex)}>
+                      <Copy className="h-3.5 w-3.5 mr-1.5" />
+                      Duplicate
+                    </Button>
+                    {lineItemIndex === lineItemFields.length - 1 && (
+                      <Button type="button" size="sm" onClick={handleAddLineItem}>
+                        <Plus className="h-3.5 w-3.5 mr-1.5" />
+                        Add Line Item
+                      </Button>
+                    )}
+                  </div>
+                </CardFooter>
               </Card>
             )
           })}

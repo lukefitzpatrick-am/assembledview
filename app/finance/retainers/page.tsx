@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Loader2 } from "lucide-react"
 
 type Client = {
   id: number
@@ -47,29 +46,40 @@ export default function FinanceRetainersPage() {
   const safeText = (val?: string) => (val && val.trim() ? val : "N/A")
 
   return (
-    <div className="container mx-auto p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Finance - Retainers</h1>
+    <div className="w-full max-w-none px-4 pb-12 pt-0 md:px-6">
+      <div className="relative -mx-4 mb-6 border-b border-border/40 bg-gradient-to-br from-primary/5 via-background to-background px-4 pb-6 pt-8 md:-mx-6 md:px-6">
+        <h1 className="text-2xl font-bold tracking-tight">Finance — Retainers</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Monthly client retainer amounts and payment terms.</p>
       </div>
 
-      <Card>
+      <Card className="overflow-hidden border-border/40 shadow-sm">
+        <div className="h-1 bg-gradient-to-r from-primary via-primary/70 to-primary/40" />
         <CardHeader>
-          <CardTitle>Client Retainers</CardTitle>
+          <CardTitle className="text-base font-semibold">Client Retainers</CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="flex items-center justify-center py-10">
-              <Loader2 className="h-6 w-6 animate-spin" />
+            <div className="flex flex-col items-center justify-center gap-3 py-16">
+              <div className="relative h-10 w-10">
+                <div className="absolute inset-0 rounded-full border-2 border-muted" />
+                <div className="absolute inset-0 rounded-full border-2 border-t-primary animate-spin" />
+              </div>
+              <span className="text-sm text-muted-foreground">Loading clients…</span>
             </div>
           ) : error ? (
-            <div className="text-center text-red-600 py-6">{error}</div>
+            <div className="flex flex-col items-center gap-2 py-12">
+              <span className="h-2.5 w-2.5 rounded-full bg-destructive" />
+              <p className="text-sm font-medium text-destructive">{error}</p>
+            </div>
           ) : clients.length === 0 ? (
-            <div className="text-center text-gray-500 py-6">No clients found.</div>
+            <div className="py-16 text-center">
+              <p className="text-sm text-muted-foreground">No clients found.</p>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <Table>
-                <TableHeader>
-                  <TableRow>
+                <TableHeader className="bg-muted/30">
+                  <TableRow className="border-b border-border/20 transition-colors hover:bg-muted/30">
                     <TableHead>Client Name</TableHead>
                     <TableHead>Monthly Retainer</TableHead>
                     <TableHead>Payment Days</TableHead>
@@ -77,9 +87,12 @@ export default function FinanceRetainersPage() {
                     <TableHead>MBA Identifier</TableHead>
                   </TableRow>
                 </TableHeader>
-                <TableBody>
+                <TableBody className="[&_tr:nth-child(even)]:bg-muted/5">
                   {clients.map((client) => (
-                    <TableRow key={client.id}>
+                    <TableRow
+                      key={client.id}
+                      className="border-b border-border/20 transition-colors hover:bg-muted/30"
+                    >
                       <TableCell>{client.mp_client_name || client.clientname_input || "Unknown"}</TableCell>
                       <TableCell>{formatCurrency(client.monthlyretainer)}</TableCell>
                       <TableCell>{client.payment_days ?? 30}</TableCell>

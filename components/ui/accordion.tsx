@@ -22,9 +22,12 @@ AccordionItem.displayName = "AccordionItem"
 
 const AccordionTrigger = React.forwardRef<
   React.ElementRef<typeof AccordionPrimitive.Trigger>,
-  React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Trigger>
->(({ className, children, ...props }, ref) => (
-  <AccordionPrimitive.Header className="flex">
+  React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Trigger> & {
+    /** Renders beside the trigger, outside the trigger button (e.g. checkboxes). */
+    leading?: React.ReactNode
+  }
+>(({ className, children, leading, ...props }, ref) => {
+  const trigger = (
     <AccordionPrimitive.Trigger
       ref={ref}
       className={cn(
@@ -36,8 +39,19 @@ const AccordionTrigger = React.forwardRef<
       {children}
       <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
     </AccordionPrimitive.Trigger>
-  </AccordionPrimitive.Header>
-))
+  )
+
+  if (leading != null) {
+    return (
+      <AccordionPrimitive.Header className="flex w-full min-w-0 items-center gap-2">
+        <span className="inline-flex shrink-0 items-center py-4">{leading}</span>
+        {trigger}
+      </AccordionPrimitive.Header>
+    )
+  }
+
+  return <AccordionPrimitive.Header className="flex">{trigger}</AccordionPrimitive.Header>
+})
 AccordionTrigger.displayName = AccordionPrimitive.Trigger.displayName
 
 const AccordionContent = React.forwardRef<

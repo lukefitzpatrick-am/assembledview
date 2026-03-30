@@ -16,6 +16,17 @@ type Props = {
   fallbackText?: string;
 };
 
+function parseFormulaCalculatorNumber(raw: string | undefined, label: string): number {
+  if (raw === undefined || raw === "") {
+    throw new Error(`${label} is required`);
+  }
+  const parsed = Number(raw);
+  if (Number.isNaN(parsed)) {
+    throw new Error(`${label} must be a number`);
+  }
+  return parsed;
+}
+
 export function FormulaCalculator({ formula, fallbackText }: Props) {
   const [values, setValues] = useState<Record<string, string>>({});
   const [result, setResult] = useState<string>("");
@@ -35,24 +46,16 @@ export function FormulaCalculator({ formula, fallbackText }: Props) {
     return variable?.label || solveFor;
   }, [formula.output?.label, formula.variables, solveFor]);
 
-  const parseNumber = (raw: string | undefined, label: string) => {
-    if (raw === undefined || raw === "") {
-      throw new Error(`${label} is required`);
-    }
-    const parsed = Number(raw);
-    if (Number.isNaN(parsed)) {
-      throw new Error(`${label} must be a number`);
-    }
-    return parsed;
-  };
-
-  const hasAllValues = (variables: FormulaVariable[]) => {
-    return variables.every((variable) => {
-      if (solveFor === variable.key) return true;
-      const raw = values[variable.key];
-      return raw !== undefined && raw !== "";
-    });
-  };
+  const hasAllValues = useCallback(
+    (variables: FormulaVariable[]) => {
+      return variables.every((variable) => {
+        if (solveFor === variable.key) return true;
+        const raw = values[variable.key];
+        return raw !== undefined && raw !== "";
+      });
+    },
+    [solveFor, values],
+  );
 
   const autoCalculate = useCallback(() => {
     if (isUnmapped) return;
@@ -66,7 +69,10 @@ export function FormulaCalculator({ formula, fallbackText }: Props) {
         }
         const numericValues: Record<string, number> = {};
         for (const variable of formula.variables) {
-          numericValues[variable.key] = parseNumber(values[variable.key], variable.label);
+          numericValues[variable.key] = parseFormulaCalculatorNumber(
+            values[variable.key],
+            variable.label,
+          );
         }
         const numericResult = solveForOutput(formula, numericValues);
         setResult(formatValue(roundToTwo(numericResult), formula.format));
@@ -82,14 +88,17 @@ export function FormulaCalculator({ formula, fallbackText }: Props) {
 
       const numericValues: Record<string, number> = {};
       for (const variable of otherVariables) {
-        numericValues[variable.key] = parseNumber(values[variable.key], variable.label);
+        numericValues[variable.key] = parseFormulaCalculatorNumber(
+          values[variable.key],
+          variable.label,
+        );
       }
 
       const solvedValue = solveForVariable({
         formula,
         solveFor,
         values: numericValues,
-        desiredOutput: parseNumber(desiredOutput, formula.output.label || "Output"),
+        desiredOutput: parseFormulaCalculatorNumber(desiredOutput, formula.output.label || "Output"),
       });
 
       const rounded = formatNumericInput(solvedValue);
@@ -102,7 +111,7 @@ export function FormulaCalculator({ formula, fallbackText }: Props) {
       setError(err instanceof Error ? err.message : "Could not calculate");
       setResult("");
     }
-  }, [formula, isUnmapped, solveFor, values]);
+  }, [formula, hasAllValues, isUnmapped, solveFor, values]);
 
   const handleChange = (key: string, value: string) => {
     setValues((prev) => ({ ...prev, [key]: value }));

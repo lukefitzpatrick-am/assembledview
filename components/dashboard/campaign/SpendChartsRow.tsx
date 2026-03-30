@@ -1,8 +1,16 @@
 "use client"
 
-import { useMemo } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { SpendChannelCharts } from "@/components/dashboard/pacing/SpendChannelCharts"
+import { useMemo, useState } from "react"
+import { ChartNoAxesColumnDecreasing, Layers } from "lucide-react"
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
+
+import MediaChannelPieChart from "@/app/dashboard/[slug]/[mba_number]/components/MediaChannelPieChart"
+import MonthlySpendStackedChart from "@/app/dashboard/[slug]/[mba_number]/components/MonthlySpendStackedChart"
+import SpendByPublisherChart from "@/app/dashboard/[slug]/[mba_number]/components/SpendByPublisherChart"
+import { useUnifiedTooltip } from "@/components/charts/UnifiedTooltip"
+import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/layout/Panel"
+import { Button } from "@/components/ui/button"
+import { formatCurrencyFull } from "@/lib/format/currency"
 
 type ChannelSpend = {
   mediaType: string
@@ -15,12 +23,15 @@ type MonthlySpendEntry = {
 }
 
 type SpendChartsRowProps = {
-  spendByChannel: ChannelSpend[]
-  monthlySpendByChannel: MonthlySpendEntry[]
+  spendByChannel: Record<string, number> | ChannelSpend[]
+  monthlySpendByChannel: Record<string, Record<string, number>> | MonthlySpendEntry[]
   deliverySchedule?: any[]
+  brandColour?: string
+  /** Line items by media type — used for spend-by-publisher chart */
+  lineItemsMap?: Record<string, any[]>
 }
 
-const palette = ["#6366f1", "#22c55e", "#f97316", "#06b6d4", "#f43f5e", "#a855f7", "#0ea5e9", "#f59e0b"]
+const CHART_PLOT_HEIGHT = 300
 
 const parseAmount = (value: any): number => {
   if (value === null || value === undefined) return 0
@@ -95,7 +106,20 @@ const getMonthLabel = (value: any): string => {
   return String(value)
 }
 
-export default function SpendChartsRow({ spendByChannel, monthlySpendByChannel, deliverySchedule }: SpendChartsRowProps) {
+type MonthlySpendByChannel = {
+  month: string
+  [channel: string]: string | number
+}
+
+export default function SpendChartsRow({
+  spendByChannel,
+  monthlySpendByChannel,
+  deliverySchedule,
+  brandColour,
+  lineItemsMap = {},
+}: SpendChartsRowProps) {
+  const [viewMode, setViewMode] = useState<"current" | "comparison">("current")
+
   const derivedFromDelivery = useMemo(() => {
     const parsedSchedule = Array.isArray(deliverySchedule)
       ? deliverySchedule
@@ -184,10 +208,11 @@ export default function SpendChartsRow({ spendByChannel, monthlySpendByChannel, 
     })
 
     const channelData = Object.entries(channelTotals).map(([channel, spend]) => ({ channel, spend }))
+    const campaignMap: Record<string, number> = {}
 
-    const monthlyData = Object.entries(monthlyMap)
+    const monthlyData: MonthlySpendByChannel[] = Object.entries(monthlyMap)
       .map(([month, data]) => {
-        const row: Record<string, number | string> = { month }
+        const row: MonthlySpendByChannel = { month }
         Object.entries(data).forEach(([mediaType, amount]) => {
           row[mediaType] = amount
         })
@@ -200,45 +225,247 @@ export default function SpendChartsRow({ spendByChannel, monthlySpendByChannel, 
         return aDate - bDate
       })
 
-    return { channelData, monthlyData }
+    parsedSchedule.forEach((entry) => {
+      const campaignName =
+        entry?.campaignName || entry?.campaign_name || entry?.campaign || entry?.plan_name || entry?.name || null
+      if (!campaignName) return
+      const amount = parseAmount(entry?.spend ?? entry?.amount ?? entry?.budget ?? entry?.value ?? entry?.media_investment)
+      if (amount <= 0) return
+      campaignMap[String(campaignName)] = (campaignMap[String(campaignName)] || 0) + amount
+    })
+
+    return { channelData, monthlyData, campaignData: Object.entries(campaignMap).map(([label, value]) => ({ label, value })) }
   }, [deliverySchedule])
 
   const channelData = useMemo(() => {
     if (derivedFromDelivery?.channelData?.length) return derivedFromDelivery.channelData
-    return spendByChannel.map((entry, idx) => ({
-      channel: entry.mediaType || `Channel ${idx + 1}`,
-      spend: entry.amount ?? 0,
-    }))
+    if (Array.isArray(spendByChannel)) {
+      return spendByChannel.map((entry, idx) => ({
+        channel: entry.mediaType || `Channel ${idx + 1}`,
+        spend: entry.amount ?? 0,
+      }))
+    }
+    return Object.entries(spendByChannel || {}).map(([channel, spend]) => ({ channel, spend: Number(spend) || 0 }))
   }, [derivedFromDelivery, spendByChannel])
-
-  const channelColors = useMemo(() => {
-    const map: Record<string, string> = {}
-    channelData.forEach((entry, idx) => {
-      const key = entry.channel || `Channel ${idx + 1}`
-      map[key] = palette[idx % palette.length]
-    })
-    return map
-  }, [channelData])
 
   const monthlyData = useMemo(() => {
     if (derivedFromDelivery?.monthlyData?.length) return derivedFromDelivery.monthlyData
-    return monthlySpendByChannel.map((entry) => {
-      const row: Record<string, number | string> = { month: entry.month }
-      entry.data.forEach((d) => {
-        row[d.mediaType] = d.amount ?? 0
+    if (Array.isArray(monthlySpendByChannel)) {
+      return monthlySpendByChannel.map((entry) => {
+        const row: MonthlySpendByChannel = {
+          month: entry.month,
+        }
+        entry.data.forEach((d) => {
+          row[d.mediaType] = d.amount ?? 0
+        })
+        return row
+      })
+    }
+    return Object.entries(monthlySpendByChannel || {}).map(([month, mediaSpend]) => {
+      const row: MonthlySpendByChannel = {
+        month,
+      }
+      Object.entries(mediaSpend || {}).forEach(([mediaType, amount]) => {
+        row[mediaType] = Number(amount) || 0
       })
       return row
     })
   }, [derivedFromDelivery, monthlySpendByChannel])
 
+  const asAtDate = useMemo(() => {
+    const source = monthlyData[monthlyData.length - 1]?.month
+    if (!source) return "—"
+    return String(source)
+  }, [monthlyData])
+
+  const dateRangeLabel = useMemo(() => {
+    const months = monthlyData.map((m) => parseMonthYearLabel(String(m.month))).filter(Boolean) as Date[]
+    if (!months.length) return undefined
+    const sorted = months.sort((a, b) => a.getTime() - b.getTime())
+    const fmt = (d: Date) => d.toLocaleDateString("en-US", { month: "short", year: "numeric" })
+    return `${fmt(sorted[0])} - ${fmt(sorted[sorted.length - 1])}`
+  }, [monthlyData])
+
+  const totalSpendToDate = useMemo(
+    () => channelData.reduce((sum, c) => sum + (Number(c.spend) || 0), 0),
+    [channelData],
+  )
+  const largestChannel = useMemo(() => {
+    if (!channelData.length) return "—"
+    const top = [...channelData].sort((a, b) => b.spend - a.spend)[0]
+    return top?.channel ?? "—"
+  }, [channelData])
+  const monthWithHighestSpend = useMemo(() => {
+    if (!monthlyData.length) return "—"
+    const totals = monthlyData.map((m) => {
+      const total = Object.entries(m)
+        .filter(([k]) => k !== "month")
+        .reduce((sum, [, v]) => sum + (Number(v) || 0), 0)
+      return { month: String(m.month), total }
+    })
+    const top = totals.sort((a, b) => b.total - a.total)[0]
+    return top?.month ?? "—"
+  }, [monthlyData])
+
+  const comparisonMonthly = useMemo(() => {
+    return monthlyData.map((row) => {
+      const actual = Object.entries(row)
+        .filter(([k]) => k !== "month")
+        .reduce((sum, [, v]) => sum + (Number(v) || 0), 0)
+      return {
+        month: String(row.month),
+        planned: actual * 1.05,
+        actual,
+      }
+    })
+  }, [monthlyData])
+
+  const currency = (value: number) => formatCurrencyFull(value, "AUD")
+
+  const mediaChannelPieData = useMemo(() => {
+    const total = channelData.reduce((s, c) => s + (Number(c.spend) || 0), 0)
+    return channelData.map((c) => ({
+      mediaType: c.channel,
+      amount: Number(c.spend) || 0,
+      percentage: total > 0 ? ((Number(c.spend) || 0) / total) * 100 : 0,
+    }))
+  }, [channelData])
+
+  const monthlySpendStackedInput = useMemo(
+    () =>
+      monthlyData.map((row) => ({
+        month: String(row.month),
+        data: Object.entries(row)
+          .filter(([k]) => k !== "month")
+          .map(([mediaType, amount]) => ({
+            mediaType,
+            amount: Number(amount) || 0,
+          })),
+      })),
+    [monthlyData],
+  )
+
+  const comparisonAreaTooltip = useUnifiedTooltip({
+    formatValue: currency,
+    showPercentages: false,
+  })
+
+  if (!channelData.length && !monthlyData.length) {
+    return (
+      <Panel className="border-border/60 bg-card shadow-none">
+        <PanelHeader className="p-4">
+          <PanelTitle className="text-base">Spend &amp; delivery insights</PanelTitle>
+        </PanelHeader>
+        <PanelContent standalone className="flex flex-col items-center justify-center gap-3 p-8 text-center">
+          <span className="rounded-full bg-muted p-3 text-muted-foreground">
+            <ChartNoAxesColumnDecreasing className="h-5 w-5" />
+          </span>
+          <p className="text-sm font-medium text-foreground">No spend data available for this period</p>
+          <p className="text-xs text-muted-foreground">Try adjusting your selected date range and refresh.</p>
+        </PanelContent>
+      </Panel>
+    )
+  }
+
   return (
-    <Card className="w-full rounded-3xl border-muted/70 bg-background/90 shadow-sm">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base">Channel spend</CardTitle>
-      </CardHeader>
-      <CardContent className="pt-1">
-        <SpendChannelCharts channelData={channelData} monthlyData={monthlyData} channelColors={channelColors} />
-      </CardContent>
-    </Card>
+    <section className="w-full space-y-4 rounded-2xl border border-border/60 bg-card p-4 md:p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="space-y-1">
+          <h3 className="text-lg font-semibold tracking-tight text-foreground">Spend &amp; delivery insights</h3>
+          <p className="text-sm text-muted-foreground">Channel distribution and monthly trends</p>
+        </div>
+        {dateRangeLabel ? (
+          <span className="inline-flex rounded-full border border-border/60 bg-muted/40 px-3 py-1 text-xs text-muted-foreground">
+            {dateRangeLabel}
+          </span>
+        ) : null}
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <Panel className="border-border/60 bg-background/80 shadow-none">
+          <PanelContent standalone className="p-4">
+            <p className="text-xs text-muted-foreground">Total spend to date</p>
+            <p className="text-lg font-semibold">{currency(totalSpendToDate)}</p>
+          </PanelContent>
+        </Panel>
+        <Panel className="border-border/60 bg-background/80 shadow-none">
+          <PanelContent standalone className="p-4">
+            <p className="text-xs text-muted-foreground">Largest channel</p>
+            <p className="text-lg font-semibold">{largestChannel}</p>
+          </PanelContent>
+        </Panel>
+        <Panel className="border-border/60 bg-background/80 shadow-none">
+          <PanelContent standalone className="p-4">
+            <p className="text-xs text-muted-foreground">Month with highest spend</p>
+            <p className="text-lg font-semibold">{monthWithHighestSpend}</p>
+          </PanelContent>
+        </Panel>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="inline-flex rounded-md border border-input bg-background p-0.5 print:hidden">
+          <Button size="sm" variant={viewMode === "current" ? "secondary" : "ghost"} onClick={() => setViewMode("current")}>
+            Current view
+          </Button>
+          <Button size="sm" variant={viewMode === "comparison" ? "secondary" : "ghost"} onClick={() => setViewMode("comparison")}>
+            Comparison view
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:items-stretch">
+        <MediaChannelPieChart data={mediaChannelPieData} />
+        <SpendByPublisherChart lineItems={lineItemsMap} chartHeight={CHART_PLOT_HEIGHT} />
+      </div>
+
+      <div className="rounded-2xl border border-border/60 bg-card p-5">
+        <div className="mb-4 flex items-start gap-2.5">
+          <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted/50 text-muted-foreground">
+            <Layers className="h-4 w-4" aria-hidden />
+          </span>
+          <div className="min-w-0 space-y-0.5">
+            <h3 className="text-sm font-semibold text-foreground">Monthly spend by channel</h3>
+            <p className="text-xs text-muted-foreground">
+              {viewMode === "current" ? (
+                <>Stacked gross media by month · As at {asAtDate}</>
+              ) : (
+                <>Planned vs actual trend (illustrative comparison)</>
+              )}
+            </p>
+          </div>
+        </div>
+
+        {viewMode === "current" ? (
+          <MonthlySpendStackedChart
+            data={monthlySpendStackedInput}
+            chartHeight={CHART_PLOT_HEIGHT}
+            hideFooterNote
+          />
+        ) : (
+          <ResponsiveContainer width="100%" height={CHART_PLOT_HEIGHT}>
+            <AreaChart data={comparisonMonthly} margin={{ left: 8, right: 8, top: 4, bottom: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.1} />
+              <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#64748b" }} />
+              <YAxis
+                tickFormatter={(v) => `${Math.round((Number(v) || 0) / 1000)}K`}
+                tick={{ fontSize: 11, fill: "#64748b" }}
+              />
+              <Tooltip content={comparisonAreaTooltip} wrapperStyle={{ cursor: "default" }} />
+              <Area type="monotone" dataKey="planned" stroke="#94a3b8" fill="#94a3b8" fillOpacity={0.15} />
+              <Area
+                type="monotone"
+                dataKey="actual"
+                stroke={brandColour || "#334155"}
+                fill={brandColour || "#334155"}
+                fillOpacity={0.15}
+                isAnimationActive
+                animationDuration={800}
+                animationEasing="ease-out"
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+    </section>
   )
 }

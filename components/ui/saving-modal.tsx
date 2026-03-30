@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Check, X } from "lucide-react"
@@ -39,7 +40,9 @@ export function SavingModal({ isOpen, items = [], isSaving = false, onClose }: S
         }
       }}
     >
-      <DialogContent className="sm:max-w-[500px] flex flex-col min-h-[200px] gap-4 bg-background border-2 border-secondary">
+      <DialogContent className="flex min-h-[200px] flex-col overflow-hidden border-2 border-secondary bg-background p-0 sm:max-w-[500px]">
+        <div className="h-1 shrink-0 bg-gradient-to-r from-primary via-primary/70 to-primary/40" />
+        <div className="flex flex-col gap-4 p-6">
         <DialogTitle className="text-lg font-semibold">
           {hasErrors ? "Saving with Errors" : allComplete ? "Saving Complete" : "Saving Changes"}
         </DialogTitle>
@@ -86,10 +89,13 @@ export function SavingModal({ isOpen, items = [], isSaving = false, onClose }: S
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center gap-4">
-            <img
+            <Image
               src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Data%20Sophistication-qgeiUdEIVkx6q4ceYsDFi1w38pwqjv.gif"
               alt="Saving..."
-              className="w-16 h-16"
+              width={64}
+              height={64}
+              unoptimized
+              className="h-16 w-16"
             />
             <DialogDescription className="text-lg font-semibold text-foreground">
               Saving changes...
@@ -109,6 +115,7 @@ export function SavingModal({ isOpen, items = [], isSaving = false, onClose }: S
             </Button>
           </div>
         )}
+        </div>
       </DialogContent>
     </Dialog>
   )

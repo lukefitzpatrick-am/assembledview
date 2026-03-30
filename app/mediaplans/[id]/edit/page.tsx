@@ -10,11 +10,11 @@ import { format } from "date-fns"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Combobox } from "@/components/ui/combobox"
-import { Calendar } from "@/components/ui/calendar"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { CalendarIcon } from "lucide-react"
+import { MultiSelectCombobox, type MultiSelectOption } from "@/components/ui/multi-select-combobox"
+import { SingleDatePicker } from "@/components/ui/single-date-picker"
 import { cn } from "@/lib/utils"
 import { formatMoney } from "@/lib/utils/money"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
@@ -22,7 +22,17 @@ import { toDateOnlyString } from "@/lib/timezone"
 import { getSearchBursts } from "@/components/media-containers/SearchContainer"
 import { getSocialMediaBursts } from "@/components/media-containers/SocialMediaContainer"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { toast } from "@/components/ui/use-toast"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { CampaignExportsSection } from "@/components/dashboard/CampaignExportsSection"
+import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
+import { Download, FileText, Loader2, MoreHorizontal } from "lucide-react"
 import { SavingModal } from "@/components/ui/saving-modal"
 import { OutcomeModal } from "@/components/outcome-modal"
 import { 
@@ -68,6 +78,7 @@ import {
 import { BillingSchedule, type BillingScheduleType } from "@/components/billing/BillingSchedule"
 import type { BillingSchedule as BillingScheduleInterface } from "@/types/billing"
 import { buildBillingScheduleJSON } from "@/lib/billing/buildBillingSchedule"
+import { appendPartialApprovalToBillingSchedule, buildPartialApprovalNote, type PartialApprovalLineItem, type PartialApprovalMetadata } from "@/lib/mediaplan/partialMba"
 import { getScheduleHeaders } from "@/lib/billing/scheduleHeaders"
 import type { BillingMonth, BillingLineItem } from "@/lib/billing/types"
 import { checkMediaDatesOutsideCampaign } from "@/lib/utils/mediaPlanValidation"
@@ -209,6 +220,18 @@ const mediaTypes: Array<{
   { name: 'mp_influencers', label: "Influencers", component: InfluencersContainer },
 ];
 
+function MediaContainerSuspenseFallback({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-3 px-6 py-8">
+      <div className="relative h-5 w-5 shrink-0">
+        <div className="absolute inset-0 rounded-full border-2 border-muted" />
+        <div className="absolute inset-0 animate-spin rounded-full border-2 border-t-primary" />
+      </div>
+      <span className="text-sm text-muted-foreground">Loading {label}…</span>
+    </div>
+  )
+}
+
 export default function EditMediaPlan({ params }: { params: Promise<{ id: string }> }) {
   // Extract the id from params
   const [id, setId] = useState<string>('')
@@ -318,6 +341,19 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
   const [isClientModalOpen, setIsClientModalOpen] = useState(false)
   const hasFetchedContainerDataRef = useRef(false)
   const [hasDateWarning, setHasDateWarning] = useState(false)
+  const [isPartialMBA, setIsPartialMBA] = useState(false)
+  const [isPartialMBAModalOpen, setIsPartialMBAModalOpen] = useState(false)
+  const [partialMBAValues, setPartialMBAValues] = useState({
+    mediaTotals: {} as Record<string, number>,
+    grossMedia: 0,
+    assembledFee: 0,
+    adServing: 0,
+    production: 0,
+  })
+  const [partialMBAMonthYears, setPartialMBAMonthYears] = useState<string[]>([])
+  const [partialMBALineItemsByMedia, setPartialMBALineItemsByMedia] = useState<Record<string, PartialApprovalLineItem[]>>({})
+  const [partialMBASelectedLineItemIds, setPartialMBASelectedLineItemIds] = useState<Record<string, string[]>>({})
+  const [partialApprovalMetadata, setPartialApprovalMetadata] = useState<PartialApprovalMetadata | null>(null)
 
   const form = useForm<MediaPlanFormValues>({
     resolver: zodResolver(mediaPlanSchema),
@@ -363,6 +399,25 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
   const campaignStartDate = useWatch({ control: form.control, name: 'mp_campaigndates_start' })
   const campaignEndDate = useWatch({ control: form.control, name: 'mp_campaigndates_end' })
   const campaignBudget = useWatch({ control: form.control, name: 'mp_campaignbudget' })
+  const mbanumberWatched = useWatch({ control: form.control, name: "mbanumber" })
+
+  const stickyBarRef = useRef<HTMLDivElement | null>(null)
+  const [stickyBarHeight, setStickyBarHeight] = useState(0)
+
+  useEffect(() => {
+    const el = stickyBarRef.current
+    if (!el) return
+    const update = () => setStickyBarHeight(el.getBoundingClientRect().height || 0)
+    update()
+    if (typeof ResizeObserver === "undefined") return
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    window.addEventListener("resize", update)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener("resize", update)
+    }
+  }, [])
 
   const deepCloneBillingMonths = (months: BillingMonth[]): BillingMonth[] => {
     if (typeof globalThis.structuredClone === "function") {
@@ -529,7 +584,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
         maximumFractionDigits: 2,
       })
     );
-  }, [searchBursts, socialMediaBursts]);
+  }, [form, searchBursts, socialMediaBursts]);
 
   // Fetch the media plan data
   useEffect(() => {
@@ -646,7 +701,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
     }
 
     fetchMediaPlan()
-  }, [id, setMbaNumber])
+  }, [form, id, setMbaNumber])
 
   // Remove problematic useEffect hooks that cause infinite loops
   // Billing schedule will be calculated manually when needed
@@ -692,7 +747,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
         form.setValue("mbaidentifier", client.mbaidentifier || "")
       }
     }
-  }, [clients, selectedClientId, mediaPlan, selectedClient])
+  }, [clients, form, selectedClientId, mediaPlan, selectedClient])
 
   // Fetch container data for all enabled media types when the media plan is loaded
   useEffect(() => {
@@ -749,7 +804,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
     };
     
     fetchContainerData();
-  }, [mediaPlan?.mba_number, mediaPlan?.version_number]);
+  }, [mediaPlan, mediaPlan?.mba_number, mediaPlan?.version_number]);
 
   // Reset the fetch flag when media plan changes
   useEffect(() => {
@@ -835,6 +890,171 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
     setIsManualBillingModalOpen(false);
   };
 
+  const parseMoney = (value: unknown): number => {
+    if (typeof value === "number") return Number.isFinite(value) ? value : 0
+    if (typeof value === "string") {
+      const parsed = parseFloat(value.replace(/[^0-9.-]/g, ""))
+      return Number.isFinite(parsed) ? parsed : 0
+    }
+    return 0
+  }
+
+  const calculateAssembledFee = useCallback(() => {
+    let total = 0
+    if (feesearch) total += searchFeeTotal
+    if (feesocial) total += socialMediaFeeTotal
+    if (feeprogdisplay) total += (grossMediaTotal * feeprogdisplay) / 100
+    if (feeprogvideo) total += (grossMediaTotal * feeprogvideo) / 100
+    if (feeprogbvod) total += (grossMediaTotal * feeprogbvod) / 100
+    if (feeprogaudio) total += (grossMediaTotal * feeprogaudio) / 100
+    if (feeprogooh) total += (grossMediaTotal * feeprogooh) / 100
+    if (feecontentcreator) total += (grossMediaTotal * feecontentcreator) / 100
+    return total
+  }, [
+    feesearch,
+    feesocial,
+    feeprogdisplay,
+    feeprogvideo,
+    feeprogbvod,
+    feeprogaudio,
+    feeprogooh,
+    feecontentcreator,
+    searchFeeTotal,
+    socialMediaFeeTotal,
+    grossMediaTotal,
+  ])
+
+  const calculateAdServingFees = useCallback(() => {
+    let total = 0
+    if (adservvideo) total += (grossMediaTotal * adservvideo) / 100
+    if (adservimp) total += (grossMediaTotal * adservimp) / 100
+    if (adservdisplay) total += (grossMediaTotal * adservdisplay) / 100
+    if (adservaudio) total += (grossMediaTotal * adservaudio) / 100
+    return total
+  }, [adservvideo, adservimp, adservdisplay, adservaudio, grossMediaTotal])
+
+  const calculateProductionCosts = useCallback(() => {
+    return billingSchedule.reduce((sum, month) => sum + (month.productionAmount || 0), 0)
+  }, [billingSchedule])
+
+  const buildPartialLineItems = useCallback((selectedMonths: string[]) => {
+    const selectedSet = new Set(selectedMonths)
+    const source = (billingSchedule || []).filter((entry: any) =>
+      selectedSet.size ? selectedSet.has(entry.monthYear) : true
+    )
+    const byMedia: Record<string, Record<string, PartialApprovalLineItem>> = {}
+    source.forEach((entry: any) => {
+      ;(entry.mediaTypes || []).forEach((mediaType: any) => {
+        const mediaKey = String(mediaType.mediaType || "Other")
+        if (!byMedia[mediaKey]) byMedia[mediaKey] = {}
+        ;(mediaType.lineItems || []).forEach((lineItem: any) => {
+          const id = String(lineItem.lineItemId || lineItem.id || `${mediaKey}-${lineItem.header1}-${lineItem.header2}`)
+          if (!byMedia[mediaKey][id]) {
+            byMedia[mediaKey][id] = {
+              lineItemId: id,
+              header1: String(lineItem.header1 || ""),
+              header2: String(lineItem.header2 || ""),
+              amount: 0,
+            }
+          }
+          byMedia[mediaKey][id].amount += parseMoney(lineItem.amount)
+        })
+      })
+    })
+    return byMedia
+  }, [billingSchedule])
+
+  const recomputePartialFromSelections = useCallback((selectedMonths: string[], selectedByMedia: Record<string, string[]>) => {
+    const byMedia = buildPartialLineItems(selectedMonths)
+    const channels = Object.entries(byMedia).map(([mediaKey, items]) => {
+      const all = Object.values(items)
+      const selectedSet = new Set(selectedByMedia[mediaKey] || all.map(i => i.lineItemId))
+      const selectedItems = all.filter((item) => selectedSet.has(item.lineItemId))
+      const selectedTotal = selectedItems.reduce((sum, item) => sum + item.amount, 0)
+      const fullTotal = all.reduce((sum, item) => sum + item.amount, 0)
+      return {
+        mediaKey,
+        mediaType: mediaKey,
+        selectedLineItemIds: selectedItems.map((item) => item.lineItemId),
+        selectedTotal: formatMoney(selectedTotal, { locale: "en-US", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        fullChannelTotal: formatMoney(fullTotal, { locale: "en-US", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        selectedCount: selectedItems.length,
+        totalCount: all.length,
+      }
+    })
+    const mediaTotals = Object.fromEntries(
+      channels.map((c) => [c.mediaKey, parseMoney(c.selectedTotal)])
+    )
+    const grossMedia = Object.values(mediaTotals).reduce((sum, val) => sum + val, 0)
+    setPartialMBAValues((prev) => ({ ...prev, mediaTotals, grossMedia }))
+    setPartialMBALineItemsByMedia(Object.fromEntries(Object.entries(byMedia).map(([k, v]) => [k, Object.values(v)])))
+    setPartialApprovalMetadata({
+      isPartial: true,
+      selectedMonthYears: [...selectedMonths],
+      channels,
+      totals: {
+        grossMedia: formatMoney(grossMedia, { locale: "en-US", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        assembledFee: formatMoney(partialMBAValues.assembledFee, { locale: "en-US", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        adServing: formatMoney(partialMBAValues.adServing, { locale: "en-US", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        production: formatMoney(partialMBAValues.production, { locale: "en-US", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        totalInvestment: formatMoney(grossMedia + partialMBAValues.assembledFee + partialMBAValues.adServing + partialMBAValues.production, { locale: "en-US", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      },
+      note: buildPartialApprovalNote(channels, selectedMonths),
+      updatedAt: new Date().toISOString(),
+    })
+  }, [buildPartialLineItems, partialMBAValues.assembledFee, partialMBAValues.adServing, partialMBAValues.production])
+
+  const handlePartialMBAOpen = useCallback(() => {
+    const months = (billingSchedule || []).map((entry: any) => String(entry.monthYear)).filter(Boolean)
+    setPartialMBAMonthYears(months)
+    const byMedia = buildPartialLineItems(months)
+    const selectedIds = Object.fromEntries(Object.entries(byMedia).map(([mediaKey, items]) => [mediaKey, Object.keys(items)]))
+    setPartialMBASelectedLineItemIds(selectedIds)
+    setPartialMBAValues({
+      mediaTotals: {},
+      grossMedia: 0,
+      assembledFee: calculateAssembledFee(),
+      adServing: calculateAdServingFees(),
+      production: calculateProductionCosts(),
+    })
+    recomputePartialFromSelections(months, selectedIds)
+    setIsPartialMBAModalOpen(true)
+  }, [
+    billingSchedule,
+    buildPartialLineItems,
+    recomputePartialFromSelections,
+    calculateAssembledFee,
+    calculateAdServingFees,
+    calculateProductionCosts,
+  ])
+
+  const handlePartialMBAMonthsChange = (nextMonthYears: string[]) => {
+    setPartialMBAMonthYears(nextMonthYears)
+    recomputePartialFromSelections(nextMonthYears, partialMBASelectedLineItemIds)
+  }
+
+  const handlePartialLineItemToggle = (mediaKey: string, lineItemId: string, enabled: boolean) => {
+    const existing = new Set(partialMBASelectedLineItemIds[mediaKey] || [])
+    if (enabled) existing.add(lineItemId)
+    else existing.delete(lineItemId)
+    const next = { ...partialMBASelectedLineItemIds, [mediaKey]: Array.from(existing) }
+    setPartialMBASelectedLineItemIds(next)
+    recomputePartialFromSelections(partialMBAMonthYears, next)
+  }
+
+  const handlePartialMBAChannelToggle = (mediaKey: string, enabled: boolean) => {
+    const all = (partialMBALineItemsByMedia[mediaKey] || []).map((i) => i.lineItemId)
+    const next = { ...partialMBASelectedLineItemIds, [mediaKey]: enabled ? all : [] }
+    setPartialMBASelectedLineItemIds(next)
+    recomputePartialFromSelections(partialMBAMonthYears, next)
+  }
+
+  const handlePartialMBASave = () => {
+    setIsPartialMBA(true)
+    setIsPartialMBAModalOpen(false)
+    toast({ title: "Success", description: "Partial MBA details have been saved." })
+  }
+
   const handleResetBilling = () => {
     setIsManualBilling(false);
     // Billing schedule calculation removed to prevent infinite loops
@@ -854,6 +1074,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
     mediaLineItems.forEach((lineItem, index) => {
       const { header1, header2 } = getScheduleHeaders(mediaType, lineItem);
       const itemId = `${mediaType}-${header1 || "Item"}-${header2 || "Details"}-${index}`;
+      const clientPaysForMedia = Boolean(
+        (lineItem as any)?.client_pays_for_media ?? (lineItem as any)?.clientPaysForMedia
+      );
 
       if (!lineItemsMap.has(itemId)) {
         lineItemsMap.set(itemId, {
@@ -862,6 +1085,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
           header2,
           monthlyAmounts: {},
           totalAmount: 0,
+          ...(clientPaysForMedia ? { clientPaysForMedia: true } : {}),
         });
       }
 
@@ -952,7 +1176,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
           },
         }
       })
-      return buildBillingScheduleJSON(manualMonthsAsBillingMonths)
+      return appendPartialApprovalToBillingSchedule({
+        billingSchedule: buildBillingScheduleJSON(manualMonthsAsBillingMonths),
+        metadata: isPartialMBA ? partialApprovalMetadata : null,
+      })
     }
 
     const baseSchedule = billingSchedule && billingSchedule.length > 0 ? billingSchedule : []
@@ -1048,7 +1275,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
     });
 
     const billingJson = buildBillingScheduleJSON(billingMonthsWithLineItems);
-    return billingJson;
+    return appendPartialApprovalToBillingSchedule({
+      billingSchedule: billingJson,
+      metadata: isPartialMBA ? partialApprovalMetadata : null,
+    });
   }, [
     isManualBilling,
     manualBillingMonths,
@@ -1073,7 +1303,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
     progOohMediaLineItems,
     influencersMediaLineItems,
     generateBillingLineItems,
-    form
+    form,
+    isPartialMBA,
+    partialApprovalMetadata,
   ]);
 
   const generateMBANumber = async (mbaidentifier: string) => {
@@ -1890,33 +2122,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
     setInfluencersMediaLineItems(lineItems);
   }, []);
 
-  // Add calculation functions
-  const calculateAssembledFee = () => {
-    let total = 0
-    if (feesearch) total += searchFeeTotal
-    if (feesocial) total += socialMediaFeeTotal
-    if (feeprogdisplay) total += (grossMediaTotal * feeprogdisplay) / 100
-    if (feeprogvideo) total += (grossMediaTotal * feeprogvideo) / 100
-    if (feeprogbvod) total += (grossMediaTotal * feeprogbvod) / 100
-    if (feeprogaudio) total += (grossMediaTotal * feeprogaudio) / 100
-    if (feeprogooh) total += (grossMediaTotal * feeprogooh) / 100
-    if (feecontentcreator) total += (grossMediaTotal * feecontentcreator) / 100
-    return total
-  }
-
-  const calculateAdServingFees = () => {
-    let total = 0
-    if (adservvideo) total += (grossMediaTotal * adservvideo) / 100
-    if (adservimp) total += (grossMediaTotal * adservimp) / 100
-    if (adservdisplay) total += (grossMediaTotal * adservdisplay) / 100
-    if (adservaudio) total += (grossMediaTotal * adservaudio) / 100
-    return total
-  }
-
-  const calculateProductionCosts = () => {
-    return billingSchedule.reduce((sum, month) => sum + (month.productionAmount || 0), 0)
-  }
-
   const calculateTotalInvestment = () => {
     return grossMediaTotal + calculateAssembledFee() + calculateAdServingFees() + calculateProductionCosts()
   }
@@ -1956,8 +2161,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
       campaignId: id || ""
     });
 
-    // Capture the first auto-calculated schedule for delivery snapshot (once).
-    if (!deliveryScheduleSnapshotRef.current && schedule.length > 0) {
+    // Keep delivery snapshot in sync with latest auto-calculation (e.g. after fee % loads)
+    if (schedule.length > 0) {
       const formatter = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
       const snapshotMonths: BillingMonth[] = schedule.map(entry => {
         const searchAmount = entry.searchAmount || 0;
@@ -2044,7 +2249,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <h2 className="text-2xl font-semibold mb-2">Loading...</h2>
-          <p className="text-gray-500">Please wait while we load your media plan.</p>
+          <p className="text-muted-foreground">Please wait while we load your media plan.</p>
         </div>
       </div>
     )
@@ -2055,7 +2260,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <h2 className="text-2xl font-semibold mb-2">Error</h2>
-          <p className="text-gray-500">{error}</p>
+          <p className="text-muted-foreground">{error}</p>
           <Button onClick={() => router.push("/mediaplans")} className="mt-4">
             Return to Media Plans
           </Button>
@@ -2065,20 +2270,34 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
   }
 
   return (
-    <div className="w-full px-4 py-6 space-y-4">
-      <h1 className="text-3xl font-bold">Edit Media Plan</h1>
+    <div
+      className="w-full min-h-screen"
+      style={{
+        paddingBottom: "env(safe-area-inset-bottom)",
+      }}
+    >
+      <div className="mx-auto w-full max-w-[1920px] px-4 sm:px-5 md:px-6 xl:px-8 2xl:px-10 pt-0 pb-24 space-y-6">
+        <MediaPlanEditorHero
+          className="mb-2"
+          title="Edit Media Plan"
+          detail={<p>Update campaign details, media types, and line items.</p>}
+        />
 
-      <Form {...form}>
-        <form className="w-full space-y-6">
-          <div className="space-y-6">
-            <h3 className="text-lg font-semibold">Campaign Details</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="w-full">
+          <Form {...form}>
+            <form className="space-y-6">
+              <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 xl:gap-7 2xl:gap-8 xl:items-stretch">
+                <div className="flex h-full min-w-0 flex-col gap-4 overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm xl:col-span-2">
+                  <div className="border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
+                    <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Campaign Details</h3>
+                  </div>
+                  <div className="grid w-full flex-1 grid-cols-1 gap-4 px-6 pb-6 md:grid-cols-2 xl:grid-cols-3">
               <FormField
                 control={form.control}
                 name="mp_clientname"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Client Name</FormLabel>
+                    <FormLabel className="text-sm font-medium text-muted-foreground">Client Name</FormLabel>
                     <FormControl>
                       <Combobox
                         value={field.value}
@@ -2102,10 +2321,38 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
 
               <FormField
                 control={form.control}
+                name="mp_campaignname"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-sm font-medium text-muted-foreground">Campaign Name</FormLabel>
+                    <FormControl>
+                      <Input {...field} value={String(field.value)} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="mp_brand"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-sm font-medium text-muted-foreground">Brand</FormLabel>
+                    <FormControl>
+                      <Input {...field} value={String(field.value)} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
                 name="mp_campaignstatus"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Campaign Status</FormLabel>
+                    <FormLabel className="text-sm font-medium text-muted-foreground">Campaign Status</FormLabel>
                     <FormControl>
                       <Combobox
                         value={field.value}
@@ -2126,104 +2373,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
 
               <FormField
                 control={form.control}
-                name="mp_campaignname"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Campaign Name</FormLabel>
-                    <FormControl>
-                      <Input {...field} value={String(field.value)} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="mp_brand"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Brand</FormLabel>
-                    <FormControl>
-                      <Input {...field} value={String(field.value)} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="mp_campaigndates_start"
-                render={({ field }) => (
-                  <FormItem className="flex flex-col">
-                    <FormLabel>Campaign Start Date</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            variant={"outline"}
-                            className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
-                          >
-                            {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={field.value}
-                          onSelect={field.onChange}
-                          disabled={(date) => date > new Date("2100-01-01")}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="mp_campaigndates_end"
-                render={({ field }) => (
-                  <FormItem className="flex flex-col">
-                    <FormLabel>Campaign End Date</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            variant={"outline"}
-                            className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
-                          >
-                            {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={field.value}
-                          onSelect={field.onChange}
-                          disabled={(date) => date > new Date("2100-01-01")}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
                 name="mp_clientcontact"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Client Contact</FormLabel>
+                    <FormLabel className="text-sm font-medium text-muted-foreground">Client Contact</FormLabel>
                     <FormControl>
                       <Input {...field} />
                     </FormControl>
@@ -2237,9 +2390,61 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                 name="mp_ponumber"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>PO Number</FormLabel>
+                    <FormLabel className="text-sm font-medium text-muted-foreground">PO Number</FormLabel>
                     <FormControl>
                       <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="mp_campaigndates_start"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-sm font-medium text-muted-foreground">Campaign Start Date</FormLabel>
+                    <FormControl>
+                      <SingleDatePicker
+                        ref={field.ref}
+                        name={field.name}
+                        onBlur={field.onBlur}
+                        value={field.value}
+                        onChange={field.onChange}
+                        className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
+                        calendarContext="general"
+                        dateFormat="PPP"
+                        placeholder={<span>Pick a date</span>}
+                        iconClassName="ml-auto h-4 w-4 opacity-50"
+                        isDateDisabled={(date) => date > new Date("2100-01-01")}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="mp_campaigndates_end"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-sm font-medium text-muted-foreground">Campaign End Date</FormLabel>
+                    <FormControl>
+                      <SingleDatePicker
+                        ref={field.ref}
+                        name={field.name}
+                        onBlur={field.onBlur}
+                        value={field.value}
+                        onChange={field.onChange}
+                        className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
+                        calendarContext="general"
+                        dateFormat="PPP"
+                        placeholder={<span>Pick a date</span>}
+                        iconClassName="ml-auto h-4 w-4 opacity-50"
+                        isDateDisabled={(date) => date > new Date("2100-01-01")}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -2251,7 +2456,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                 name="mp_campaignbudget"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Campaign Budget</FormLabel>
+                    <FormLabel className="text-sm font-medium text-muted-foreground">Campaign Budget</FormLabel>
                     <FormControl>
                       <Input
                         type="text"
@@ -2282,9 +2487,18 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                 name="mbaidentifier"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>MBA Identifier</FormLabel>
-                    <div className="p-2 bg-gray-100 rounded-md">{field.value || "No client selected"}</div>
-                    <FormDescription>This field is automatically populated based on the selected client.</FormDescription>
+                    <FormLabel className="text-sm font-medium text-muted-foreground">MBA Identifier</FormLabel>
+                    <div
+                      className={cn(
+                        "flex h-10 w-full items-center rounded-md border border-border/40 bg-muted/30 px-3 py-2 text-sm text-foreground",
+                        !field.value && "text-muted-foreground"
+                      )}
+                    >
+                      <span className="truncate">{field.value || "No client selected"}</span>
+                    </div>
+                    <FormDescription className="text-[11px]">
+                      This field is automatically populated based on the selected client.
+                    </FormDescription>
                   </FormItem>
                 )}
               />
@@ -2294,188 +2508,209 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                 name="mbanumber"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>MBA Number</FormLabel>
-                    <div className="p-2 bg-gray-100 rounded-md">{field.value || "No MBA Number generated"}</div>
-                    <FormDescription>This field is automatically generated based on the MBA Identifier.</FormDescription>
+                    <FormLabel className="text-sm font-medium text-muted-foreground">MBA Number</FormLabel>
+                    <div
+                      className={cn(
+                        "flex h-10 w-full items-center rounded-md border border-border/40 bg-muted/30 px-3 py-2 text-sm text-foreground",
+                        !field.value && "text-muted-foreground"
+                      )}
+                    >
+                      <span className="truncate">{field.value || "No MBA Number generated"}</span>
+                    </div>
+                    <FormDescription className="text-[11px]">
+                      This field is automatically generated based on the MBA Identifier.
+                    </FormDescription>
                   </FormItem>
                 )}
               />
-            </div>
-          </div>
 
-          <div className="space-y-6">
-            <h3 className="text-lg font-semibold">Media Types</h3>
-            <div className="border border-gray-200 rounded-lg p-6 mt-6">
-              <h2 className="text-xl font-semibold mb-4">Select Media Types</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 w-full">
-                {mediaTypes.map(({ name, label }) => (
-                  <FormField
-                    key={name}
-                    control={form.control}
-                    name={name as FormFieldName}
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-center space-x-3 space-y-0">
-                        <FormControl>
-                          <Switch
-                            checked={field.value as boolean}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                        <FormLabel className="font-normal">{label}</FormLabel>
-                      </FormItem>
+              <FormItem>
+                <FormLabel className="text-sm font-medium text-muted-foreground">Media Plan Version</FormLabel>
+                <div className="flex h-10 w-full items-center rounded-md border border-border/40 bg-muted/30 px-3 py-2 text-sm text-foreground">
+                  <span className="truncate">
+                    {mediaPlan?.version_number != null ? String(mediaPlan.version_number) : "—"}
+                  </span>
+                </div>
+                <FormDescription className="text-[11px]">This is the media plan version.</FormDescription>
+              </FormItem>
+                  </div>
+                </div>
+
+                <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm xl:col-span-1">
+                  <div className="border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
+                    <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Media Types</h3>
+                  </div>
+                  <div className="grid min-h-0 w-full flex-1 grid-cols-1 content-start gap-x-3 gap-y-1.5 px-6 py-4 md:grid-cols-2">
+              {mediaTypes.map(({ name, label }) => (
+                <FormField
+                  key={name}
+                  control={form.control}
+                  name={name as FormFieldName}
+                  render={({ field }) => (
+                    <FormItem className="flex items-center gap-3 space-y-0 py-0.5">
+                      <FormControl className="shrink-0">
+                        <Switch
+                          checked={field.value as boolean}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                      <FormLabel className="font-normal leading-snug min-w-0 flex-1 cursor-pointer">{label}</FormLabel>
+                    </FormItem>
+                  )}
+                />
+              ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 xl:gap-7 2xl:gap-8 xl:items-stretch">
+                {/* MBA Details Section */}
+                <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
+                    <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">MBA Details</h3>
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      {isPartialMBA ? (
+                        <>
+                          <Button variant="outline" size="sm" type="button" className="shrink-0" onClick={handlePartialMBAOpen}>
+                            Edit partial MBA
+                          </Button>
+                          <Button variant="outline" size="sm" type="button" className="shrink-0" onClick={() => setIsPartialMBA(false)}>
+                            Reset to Auto
+                          </Button>
+                        </>
+                      ) : (
+                        <Button variant="outline" size="sm" type="button" className="shrink-0" onClick={handlePartialMBAOpen}>
+                          Partial MBA
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="space-y-3 px-6 py-4">
+                    {mediaTypes.map((medium) => {
+                      const isEnabled = form.watch(medium.name as FormFieldName)
+                      if (!isEnabled) return null
+                      const total = isPartialMBA
+                        ? partialMBAValues.mediaTotals[medium.label] || 0
+                        : medium.name === "mp_search"
+                          ? searchTotal
+                          : medium.name === "mp_socialmedia"
+                            ? socialmediaTotal
+                            : 0
+                      return (
+                        <div key={medium.name} className="flex items-center justify-between py-1">
+                          <span className="text-sm text-muted-foreground">{medium.label}</span>
+                          <span className="text-sm font-medium tabular-nums">
+                            {formatMoney(total, {
+                              locale: "en-US",
+                              currency: "USD",
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}
+                          </span>
+                        </div>
+                      )
+                    })}
+                    <div className="border-t border-border/40" />
+                    <div className="flex items-center justify-between py-1">
+                      <span className="text-sm font-semibold">Gross Media</span>
+                      <span className="text-sm font-semibold tabular-nums">
+                        {formatMoney(isPartialMBA ? partialMBAValues.grossMedia : grossMediaTotal, {
+                          locale: "en-US",
+                          currency: "USD",
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between py-1">
+                      <span className="text-sm font-semibold">Assembled Fee</span>
+                      <span className="text-sm font-semibold tabular-nums">
+                        {formatMoney(isPartialMBA ? partialMBAValues.assembledFee : calculateAssembledFee(), {
+                          locale: "en-US",
+                          currency: "USD",
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between py-1">
+                      <span className="text-sm font-semibold">Ad Serving & Tech</span>
+                      <span className="text-sm font-semibold tabular-nums">
+                        {formatMoney(isPartialMBA ? partialMBAValues.adServing : calculateAdServingFees(), {
+                          locale: "en-US",
+                          currency: "USD",
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between py-1">
+                      <span className="text-sm font-semibold">Production</span>
+                      <span className="text-sm font-semibold tabular-nums">
+                        {formatMoney(isPartialMBA ? partialMBAValues.production : calculateProductionCosts(), {
+                          locale: "en-US",
+                          currency: "USD",
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </span>
+                    </div>
+                    <div className="border-t-2 border-primary/20 pt-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-bold">Total Investment (ex GST)</span>
+                        <span className="text-sm font-bold tabular-nums text-primary">
+                          {formatMoney(
+                            isPartialMBA
+                              ? partialMBAValues.grossMedia +
+                                  partialMBAValues.assembledFee +
+                                  partialMBAValues.adServing +
+                                  partialMBAValues.production
+                              : calculateTotalInvestment(),
+                            {
+                              locale: "en-US",
+                              currency: "USD",
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            }
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                    {isPartialMBA && partialApprovalMetadata?.note ? (
+                      <div className="mt-3 rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
+                        <div className="mb-1 font-semibold text-foreground">Partial approval changes</div>
+                        <div>{partialApprovalMetadata.note}</div>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+
+                {/* Billing Schedule Section */}
+                <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
+                    <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Billing Schedule</h3>
+                    {!isManualBilling ? (
+                      <Button
+                        type="button"
+                        className="shrink-0"
+                        onClick={() => {
+                          setManualBillingMonths([...billingMonths])
+                          setManualBillingTotal(billingTotal)
+                          setIsManualBillingModalOpen(true)
+                        }}
+                      >
+                        Edit Billing
+                      </Button>
+                    ) : (
+                      <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={handleResetBilling}>
+                        Reset to Automatic
+                      </Button>
                     )}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
+                  </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 border border-gray-200 rounded-lg p-6 mt-6">
-            {/* MBA Details Section */}
-            <div className="flex flex-col space-y-4">
-              <h3 className="text-lg font-semibold mb-4">MBA Details</h3>
-              
-              {/* Dynamic Media Totals */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="flex flex-col space-y-3">
-                  {mediaTypes.map((medium) => {
-                    const isEnabled = form.watch(medium.name as FormFieldName);
-                    if (isEnabled) {
-                      return (
-                        <div key={medium.name} className="text-sm font-medium">
-                          {medium.label}
-                        </div>
-                      );
-                    }
-                    return null;
-                  })}
-                </div>
-
-                {/* Corresponding Media Totals */}
-                <div className="flex flex-col space-y-3 text-right">
-                  {mediaTypes.map((medium) => {
-                    const isEnabled = form.watch(medium.name as FormFieldName);
-                    if (isEnabled) {
-                      let total = 0;
-                      if (medium.name === 'mp_search') {
-                        total = searchTotal;
-                      } else if (medium.name === 'mp_socialmedia') {
-                        total = socialmediaTotal;
-                      }
-                      return (
-                        <div key={medium.name} className="text-sm font-medium">
-                          {formatMoney(total, {
-                            locale: "en-US",
-                            currency: "USD",
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}
-                        </div>
-                      );
-                    }
-                    return null;
-                  })}
-                </div>
-              </div>
-
-              {/* Separator */}
-              <div className="border-t border-gray-400 my-4"></div>
-
-              {/* Gross Media Total */}
-              <div className="grid grid-cols-2 gap-4 mb-2">
-                <div className="text-sm font-semibold">Gross Media Total</div>
-                <div className="text-sm font-semibold text-right">
-                  {formatMoney(grossMediaTotal, {
-                    locale: "en-US",
-                    currency: "USD",
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
-                </div>
-              </div>
-
-              {/* Assembled Fee */}
-              <div className="grid grid-cols-2 gap-4 mb-2">
-                <div className="text-sm font-semibold">Assembled Fee</div>
-                <div className="text-sm font-semibold text-right">
-                  {formatMoney(calculateAssembledFee(), {
-                    locale: "en-US",
-                    currency: "USD",
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
-                </div>
-              </div>
-
-              {/* Ad Serving and Tech Fees */}
-              <div className="grid grid-cols-2 gap-4 mb-2">
-                <div className="text-sm font-semibold">Ad Serving & Tech Fees</div>
-                <div className="text-sm font-semibold text-right">
-                  {formatMoney(calculateAdServingFees(), {
-                    locale: "en-US",
-                    currency: "USD",
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
-                </div>
-              </div>
-
-              {/* Production Costs */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="text-sm font-semibold">Production</div>
-                <div className="text-sm font-semibold text-right">
-                  {formatMoney(calculateProductionCosts(), {
-                    locale: "en-US",
-                    currency: "USD",
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
-                </div>
-              </div>
-
-              {/* Total Investment (ex GST) */}
-              <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-gray-400">
-                <div className="text-sm font-bold">Total Investment (ex GST)</div>
-                <div className="text-sm font-bold text-right">
-                  {formatMoney(calculateTotalInvestment(), {
-                    locale: "en-US",
-                    currency: "USD",
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
-                </div>
-              </div>
-            </div>
-
-            {/* Billing Schedule Section */}
-            <div className="flex flex-col space-y-4 border border-gray-300 rounded-lg p-6 mt-6">
-              <div className="flex justify-between items-center">
-                <h3 className="text-lg font-semibold">Billing Schedule</h3>
-                {!isManualBilling ? (
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setManualBillingMonths([...billingMonths]);
-                      setManualBillingTotal(billingTotal);
-                      setIsManualBillingModalOpen(true);
-                    }}
-                    className="bg-[#fd7adb] text-white font-bold hover:bg-[#fd7adb]/90"
-                  >
-                    Manual Billing
-                  </Button>
-                ) : (
-                  <Button
-                    variant="outline"
-                    onClick={handleResetBilling}
-                    className="bg-[#fd7adb] text-white font-bold hover:bg-[#fd7adb]/90"
-                  >
-                    Reset to Automatic
-                  </Button>
-                )}
-              </div>
-
+                  <div className="min-w-0 flex-1 overflow-x-auto px-6 py-4">
               {billingMonths.length === 0 ? (
-                <p className="text-sm text-gray-500">No billing schedule available. Select campaign dates to generate.</p>
+                <p className="text-sm text-muted-foreground">No billing schedule available. Select campaign dates to generate.</p>
               ) : (
                 <div className="flex flex-col space-y-4">
                   {billingMonths.map((month, index) => (
@@ -2483,33 +2718,47 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                       <span className="text-sm font-medium">{month.monthYear}</span>
                       <input
                         type="text"
-                        className="border border-gray-300 rounded px-3 py-2"
+                        className="border border-border rounded px-3 py-2"
                         placeholder="$0.00"
                         value={month.amount}
                         readOnly
                       />
                     </div>
                   ))}
-                  <div className="border-t border-gray-400 my-4"></div>
+                  <div className="border-t border-border my-4"></div>
                   <div className="flex items-center justify-between font-semibold text-lg">
                     <span>Total Billing:</span>
                     <span>{billingTotal}</span>
                   </div>
                 </div>
               )}
-            </div>
-          </div>
+                  </div>
+                </div>
 
-          <div className="space-y-6">
-            <h3 className="text-lg font-semibold">Media Containers</h3>
-            <div className="space-y-4">
-              {/* Media Containers */}
+                <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm">
+                  <div className="border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
+                    <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">KPIs</h3>
+                  </div>
+                  <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-4">
+                    <p className="text-center text-sm text-muted-foreground">Coming soon</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div className="relative pb-2 pt-8">
+                  <div className="absolute inset-x-0 top-4 h-px bg-border/50" />
+                  <h3 className="relative inline-block bg-background pr-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                    Media Containers
+                  </h3>
+                </div>
+                <div className="space-y-6">
               {mediaTypes.map((medium) => {
                 if (!form.watch(medium.name as any)) return null;
                 
                 return (
                   <div key={medium.name} className="mt-4">
-                    <Suspense fallback={<div>Loading {medium.label}...</div>}>
+                    <Suspense fallback={<MediaContainerSuspenseFallback label={medium.label} />}>
                       {medium.name === "mp_television" && (
                         <TelevisionContainer
                           clientId={selectedClientId}
@@ -2840,8 +3089,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                   </div>
                 );
               })}
-            </div>
-          </div>
+                </div>
+              </div>
 
 
 
@@ -2854,8 +3103,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
             campaignBudget={Number(campaignBudget || 0)}
             onBillingScheduleChange={handleBillingScheduleChange}
           />
-        </form>
-      </Form>
+            </form>
+          </Form>
+        </div>
+      </div>
 
       <SavingModal isOpen={isSaving} />
 
@@ -2886,7 +3137,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                 />
               </div>
             ))}
-            <div className="border-t border-gray-400 my-4"></div>
+            <div className="border-t border-border my-4"></div>
             <div className="flex items-center justify-between font-semibold text-lg">
               <span>Total:</span>
               <span>{manualBillingTotal}</span>
@@ -2903,52 +3154,196 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
             </Button>
             <Button 
               onClick={handleManualBillingSave}
-              className="bg-[#008e5e] text-white hover:bg-[#008e5e]/90"
+              className="bg-success text-white hover:bg-success-hover"
             >
               Save Changes
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      
-      {/* Sticky Banner */}
-      <div className="fixed bottom-0 left-0 right-0 bg-background border-t p-4 flex justify-between items-center z-50">
-        <div>
+
+      <Dialog open={isPartialMBAModalOpen} onOpenChange={setIsPartialMBAModalOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Partial MBA Override</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 p-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Delivery months</label>
+              <MultiSelectCombobox
+                options={(billingSchedule || []).map((m: any): MultiSelectOption => ({ value: m.monthYear, label: m.monthYear }))}
+                values={partialMBAMonthYears}
+                onValuesChange={handlePartialMBAMonthsChange}
+                placeholder="Select months"
+                allSelectedText="All months"
+              />
+            </div>
+            <h4 className="font-semibold text-md border-b pb-2">Media Totals (Expandable by line item)</h4>
+            <Accordion type="multiple" className="w-full">
+              {Object.entries(partialMBALineItemsByMedia).map(([mediaKey, items]) => (
+                <AccordionItem key={mediaKey} value={mediaKey}>
+                  <AccordionTrigger
+                    leading={
+                      <Checkbox
+                        checked={(partialMBASelectedLineItemIds[mediaKey] || []).length > 0}
+                        onCheckedChange={(next) => handlePartialMBAChannelToggle(mediaKey, Boolean(next))}
+                      />
+                    }
+                  >
+                    <div className="flex w-full items-center justify-between pr-4">
+                      <span className="text-sm font-medium">{mediaKey}</span>
+                      <span className="text-sm">
+                        {formatMoney(partialMBAValues.mediaTotals[mediaKey] || 0, {
+                          locale: "en-US",
+                          currency: "USD",
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </span>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <div className="space-y-2 pl-2">
+                      {items.map((item) => {
+                        const checked = (partialMBASelectedLineItemIds[mediaKey] || []).includes(item.lineItemId)
+                        return (
+                          <div key={item.lineItemId} className="flex items-center justify-between gap-2 text-sm">
+                            <label className="flex items-center gap-2">
+                              <Checkbox
+                                checked={checked}
+                                onCheckedChange={(next) => handlePartialLineItemToggle(mediaKey, item.lineItemId, Boolean(next))}
+                              />
+                              <span>{item.header1} {item.header2}</span>
+                            </label>
+                            <span>
+                              {formatMoney(item.amount, {
+                                locale: "en-US",
+                                currency: "USD",
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              ))}
+            </Accordion>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsPartialMBAModalOpen(false)}>Cancel</Button>
+            <Button onClick={handlePartialMBASave}>Save Partial MBA</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <div
+        aria-hidden="true"
+        style={{ height: stickyBarHeight ? stickyBarHeight + 24 : 120 }}
+      />
+
+      {/* Sticky action bar: single centered pill (main column only, excludes sidebar) */}
+      <div
+        ref={stickyBarRef}
+        className="fixed bottom-0 left-0 right-0 z-50 flex justify-center md:left-[var(--sidebar-width)]"
+      >
+        <div className="inline-flex max-w-full flex-col items-center gap-2 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-2">
           {hasDateWarning && (
-            <div className="text-red-600 text-sm font-medium">
-              Warning: Media Placement outside campaign dates
+            <div className="flex items-center gap-2 text-sm font-medium text-destructive">
+              <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-destructive" />
+              Warning: Media placement outside campaign dates
             </div>
           )}
-        </div>
-        <div className="flex space-x-2">
-          <Button
-            onClick={handleSaveCampaign}
-            disabled={isSaving || isLoading}
-            className="bg-[#008e5e] text-white hover:bg-[#008e5e]/90"
+          <CampaignExportsSection
+            variant="embedded"
+            mbaNumber={mbanumberWatched?.trim() ? String(mbanumberWatched) : "—"}
+            isBusy={isSaving || modalLoading || loading}
+            ariaStatus=""
+            className="z-40 max-w-[min(98vw,88rem)]"
           >
-            {isSaving ? "Saving..." : "Save Campaign"}
-          </Button>
-        <Button
-          onClick={handleGenerateMBA}
-          disabled={isLoading}
-          className="bg-[#fd7adb] text-white hover:bg-[#fd7adb]/90"
-        >
-          {isLoading ? "Generating..." : "Generate MBA"}
-        </Button>
-        <Button
-          onClick={handleDownloadMediaPlan}
-          disabled={isLoading}
-          className="bg-[#B5D337] text-white hover:bg-[#B5D337]/90"
-        >
-          {isLoading ? "Downloading..." : "Download Media Plan"}
-        </Button>
-        <Button
-          onClick={handleSaveAndGenerateAll}
-          disabled={isLoading}
-          className="bg-[#472477] text-white hover:bg-[#472477]/90"
-        >
-          {isLoading ? "Processing..." : "Save & Generate All"}
-        </Button>
+            <Button
+              type="button"
+              onClick={handleSaveCampaign}
+              disabled={isSaving || loading || modalLoading}
+              className="h-9 shrink-0 rounded-full bg-success px-4 text-white shadow-sm hover:bg-success-hover focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {isSaving ? "Saving..." : "Save Campaign"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleGenerateMBA}
+              disabled={loading || modalLoading}
+              className="h-9 shrink-0 rounded-full border-border px-4 focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {modalLoading && modalTitle === "Generating MBA" ? "Generating..." : "Generate MBA"}
+            </Button>
+            <div className="md:hidden">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-9 rounded-full px-4 focus-visible:ring-2 focus-visible:ring-ring"
+                    disabled={loading || modalLoading}
+                  >
+                    <MoreHorizontal className="mr-1.5 h-4 w-4" />
+                    More
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onClick={handleDownloadMediaPlan}
+                    disabled={loading || modalLoading}
+                  >
+                    Download media plan
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={handleSaveAndGenerateAll}
+                    disabled={loading || modalLoading || isSaving}
+                  >
+                    Save &amp; generate all
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            <Button
+              type="button"
+              onClick={handleDownloadMediaPlan}
+              disabled={loading || modalLoading}
+              className="hidden h-9 rounded-full px-4 py-2 text-white md:inline-flex bg-lime hover:bg-lime/90 focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {modalLoading && modalTitle === "Downloading Media Plan" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4" />
+              )}
+              <span className="ml-2">
+                {modalLoading && modalTitle === "Downloading Media Plan"
+                  ? "Downloading..."
+                  : "Media Plan"}
+              </span>
+            </Button>
+            <Button
+              type="button"
+              onClick={handleSaveAndGenerateAll}
+              disabled={loading || modalLoading || isSaving}
+              className="hidden h-9 rounded-full px-4 py-2 text-white md:inline-flex bg-brand-dark hover:bg-brand-dark/90 focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {(modalLoading && modalTitle === "Processing") || isSaving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <FileText className="h-4 w-4" />
+              )}
+              <span className="ml-2">
+                {(modalLoading && modalTitle === "Processing") || isSaving
+                  ? "Processing..."
+                  : "Save & Generate All"}
+              </span>
+            </Button>
+          </CampaignExportsSection>
         </div>
       </div>
     </div>

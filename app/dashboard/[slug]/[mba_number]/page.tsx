@@ -1,27 +1,11 @@
-import dynamic from "next/dynamic"
-import { Suspense, type ReactNode } from "react"
-import { Skeleton } from "@/components/ui/skeleton"
-import CampaignActions from "./components/CampaignActions"
-import ExpectedSpendToDateCard from "./components/ExpectedSpendToDateCard"
+import CampaignPageAssembly from "./components/CampaignPageAssembly"
 import { auth0 } from "@/lib/auth0"
 import { getPrimaryRole, getUserClientIdentifier, getUserMbaNumbers, isAdminRole } from "@/lib/rbac"
 import { redirect, notFound } from "next/navigation"
 import { headers } from "next/headers"
 import { createPerfTimer, logPerf } from "@/lib/utils/perf"
 import { calculateExpectedSpendToDateFromDeliverySchedule } from "@/lib/spend/expectedSpend"
-import AdminDateRangeSelector from "./components/AdminDateRangeSelector"
 import { getMelbourneTodayISO, getMelbourneYesterdayISO } from "@/lib/dates/melbourne"
-
-const CampaignInfoHeader = dynamic(() => import("@/components/dashboard/campaign/CampaignInfoHeader"))
-const CampaignSummaryRow = dynamic(() => import("@/components/dashboard/campaign/CampaignSummaryRow"))
-const SpendChartsRow = dynamic(() => import("@/components/dashboard/campaign/SpendChartsRow"))
-const MediaPlanVizSection = dynamic(() => import("@/components/dashboard/campaign/MediaPlanVizSection"))
-const SocialPacingContainer = dynamic(() => import("@/components/dashboard/pacing/social/SocialPacingContainer"))
-const ProgrammaticPacingContainer = dynamic(
-  () => import("@/components/dashboard/pacing/programmatic/ProgrammaticPacingContainer")
-)
-const SearchPacingContainer = dynamic(() => import("@/components/dashboard/pacing/search/SearchPacingContainer"))
-const PacingDataProviderWrapper = dynamic(() => import("@/components/dashboard/pacing/PacingDataProviderWrapper"))
 
 interface CampaignDetailPageProps {
   params: Promise<{
@@ -425,16 +409,6 @@ function getAllLineItemsFromKeys(map: Record<string, any>, keys: string[]): any[
     }
   }
   return result
-}
-
-function BrandFrame({ children, brandColour }: { children: ReactNode; brandColour?: string }) {
-  const gradientStyle = getBrandGradientStyle(brandColour)
-  return (
-    <div className="overflow-hidden rounded-3xl border border-muted/70 bg-background/90 shadow-sm">
-      {gradientStyle ? <div className="h-3" style={gradientStyle} aria-hidden /> : null}
-      <div>{children}</div>
-    </div>
-  )
 }
 
 async function fetchCampaignData(mbaNumber: string, opts?: { version?: string; startDate?: string; endDate?: string }) {
@@ -985,156 +959,46 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
     })
   }
 
+  const showPacingSection =
+    shouldUsePacingWrapper ||
+    socialItemsActive.length > 0 ||
+    (mpSearchEnabled && searchLineItemIds.length > 0 && Boolean(effectiveSearchStartISO) && Boolean(searchEndISO)) ||
+    progDisplayItemsActive.length > 0 ||
+    progVideoItemsActive.length > 0
+
   return (
-    <div className="w-full space-y-6 rounded-3xl bg-[#DEE5F4] p-4 pb-40 md:p-6 md:pb-48">
-      {isAdmin ? <AdminDateRangeSelector campaignStart={campaignStartISO ?? startDate} campaignEnd={campaignEndISO ?? endDate} /> : null}
-      <BrandFrame brandColour={brandColour}>
-        <Suspense fallback={<Skeleton className="h-40 w-full rounded-3xl" />}>
-          <CampaignInfoHeader campaign={campaign} />
-        </Suspense>
-      </BrandFrame>
-
-      <BrandFrame>
-        <Suspense fallback={<Skeleton className="h-32 w-full rounded-3xl" />}>
-          <CampaignSummaryRow
-            time={{
-              timeElapsedPct: metrics.timeElapsed,
-              daysInCampaign: metrics.daysInCampaign,
-              daysElapsed: metrics.daysElapsed,
-              daysRemaining: metrics.daysRemaining,
-              startDate: effectiveStartISO ?? startDate,
-              endDate: effectiveEndISO ?? endDate,
-            }}
-            spend={{
-              budget,
-              actualSpend,
-              expectedSpend,
-            }}
-            accentColorTime={brandColour || "#6366f1"}
-            accentColorSpend={brandColour || "#8b5cf6"}
-            spendCardNode={
-              <Suspense fallback={<Skeleton className="h-32 w-full rounded-2xl" />}>
-                <ExpectedSpendToDateCard
-                  mbaNumber={mba_number}
-                  campaignStart={effectiveStartISO ?? startDate}
-                  campaignEnd={effectiveEndISO ?? endDate}
-                  budget={budget}
-                  actualSpend={actualSpend}
-                  expectedSpend={expectedSpend}
-                  deliverySchedule={deliverySchedule}
-                  hideStatus
-                />
-              </Suspense>
-            }
-            hideStatus
-          />
-        </Suspense>
-      </BrandFrame>
-
-      <Suspense fallback={<Skeleton className="h-[360px] w-full rounded-3xl" />}>
-        <SpendChartsRow
-          spendByChannel={spendByChannel}
-          monthlySpendByChannel={monthlySpend}
-          deliverySchedule={deliverySchedule}
-        />
-      </Suspense>
-
-      <Suspense fallback={<Skeleton className="h-[420px] w-full rounded-3xl" />}>
-        <MediaPlanVizSection
-          lineItems={lineItemsMap}
-          campaignStart={effectiveStartISO ?? startDate}
-          campaignEnd={effectiveEndISO ?? endDate}
-          clientSlug={slug}
-          mbaNumber={mba_number}
-        />
-      </Suspense>
-
-      {shouldUsePacingWrapper ? (
-        <Suspense fallback={<Skeleton className="h-[480px] w-full rounded-3xl" />}>
-          <PacingDataProviderWrapper
-            mbaNumber={mba_number}
-            pacingLineItemIds={pacingLineItemIds}
-            campaignStart={effectiveStartISO ?? startDate}
-            campaignEnd={effectiveEndISO ?? endDate}
-            clientSlug={slug}
-            socialItemsActive={socialItemsActive}
-            progDisplayItemsActive={progDisplayItemsActive}
-            progVideoItemsActive={progVideoItemsActive}
-            mpSearchEnabled={mpSearchEnabled}
-            searchLineItemIds={searchLineItemIds}
-            searchItemsActive={searchItemsActive}
-            searchCampaignPlannedEndDate={campaignEndISO ?? effectiveEndISO ?? endDate}
-            searchStartDate={effectiveSearchStartISO}
-            searchEndDate={searchEndISO}
-          />
-        </Suspense>
-      ) : (
-        <>
-          {socialItemsActive.length > 0 ? (
-            <Suspense fallback={<Skeleton className="h-[480px] w-full rounded-3xl" />}>
-              <SocialPacingContainer
-                clientSlug={slug}
-                mbaNumber={mba_number}
-                socialLineItems={socialItemsActive}
-                campaignStart={effectiveStartISO ?? startDate}
-                campaignEnd={effectiveEndISO ?? endDate}
-                initialPacingRows={undefined}
-                pacingLineItemIds={pacingLineItemIds}
-              />
-            </Suspense>
-          ) : null}
-
-          {mpSearchEnabled && searchLineItemIds.length > 0 && effectiveSearchStartISO && searchEndISO ? (
-            <Suspense fallback={<Skeleton className="h-[480px] w-full rounded-3xl" />}>
-              <SearchPacingContainer
-                clientSlug={slug}
-                mbaNumber={mba_number}
-                lineItemIds={searchLineItemIds}
-                searchLineItems={searchItemsActive}
-                campaignPlannedEndDate={campaignEndISO ?? effectiveEndISO ?? endDate}
-                startDate={effectiveSearchStartISO}
-                endDate={searchEndISO}
-              />
-            </Suspense>
-          ) : null}
-
-          {(progDisplayItemsActive.length > 0 || progVideoItemsActive.length > 0) ? (
-            <Suspense fallback={<Skeleton className="h-[480px] w-full rounded-3xl" />}>
-              <ProgrammaticPacingContainer
-                clientSlug={slug}
-                mbaNumber={mba_number}
-                progDisplayLineItems={progDisplayItemsActive}
-                progVideoLineItems={progVideoItemsActive}
-                campaignStart={effectiveStartISO ?? startDate}
-                campaignEnd={effectiveEndISO ?? endDate}
-                initialPacingRows={undefined}
-                pacingLineItemIds={pacingLineItemIds}
-              />
-            </Suspense>
-          ) : null}
-        </>
-      )}
-
-      {DEBUG_LINE_ITEMS ? (
-        <div className="rounded-2xl border border-dashed border-muted/70 bg-background/80 p-3 text-sm text-muted-foreground">
-          <div className="font-semibold text-foreground mb-1">Line item debug</div>
-          <ul className="space-y-1">
-            {debugLineItemCounts.length
-              ? debugLineItemCounts.map((entry) => <li key={entry}>{entry}</li>)
-              : <li>No line items loaded</li>}
-          </ul>
-        </div>
-      ) : null}
-
-      <CampaignActions
-        mbaNumber={mba_number}
-        campaign={campaign}
-        lineItems={lineItemsMap}
-        billingSchedule={billingSchedule}
-        xanoFileOrigin={xanoFileOrigin}
-        mediaPlanFileMeta={mediaPlanFileMeta}
-        mbaPdfFileMeta={mbaPdfFileMeta}
-      />
-    </div>
+    <CampaignPageAssembly
+      isAdmin={isAdmin}
+      slug={slug}
+      mbaNumber={mba_number}
+      campaign={campaign}
+      metrics={metrics}
+      budget={budget}
+      actualSpend={actualSpend}
+      expectedSpend={expectedSpend}
+      startDate={effectiveStartISO ?? startDate}
+      endDate={effectiveEndISO ?? endDate}
+      campaignStartISO={campaignStartISO}
+      campaignEndISO={campaignEndISO}
+      brandColour={brandColour}
+      deliverySchedule={deliverySchedule}
+      spendByChannel={spendByChannel}
+      monthlySpend={monthlySpend}
+      lineItemsMap={lineItemsMap}
+      billingSchedule={billingSchedule}
+      xanoFileOrigin={xanoFileOrigin}
+      mediaPlanFileMeta={mediaPlanFileMeta}
+      mbaPdfFileMeta={mbaPdfFileMeta}
+      showPacingSection={showPacingSection}
+      socialItemsActive={socialItemsActive}
+      searchItemsActive={searchItemsActive}
+      searchLineItemIds={searchLineItemIds}
+      mpSearchEnabled={mpSearchEnabled}
+      effectiveSearchStartISO={effectiveSearchStartISO}
+      searchEndISO={searchEndISO}
+      progDisplayItemsActive={progDisplayItemsActive}
+      progVideoItemsActive={progVideoItemsActive}
+      pacingLineItemIds={pacingLineItemIds}
+    />
   )
 }

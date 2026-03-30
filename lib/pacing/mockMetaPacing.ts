@@ -1,6 +1,7 @@
 export type BuyType =
   | "CPM"
   | "CPC"
+  | "CPA"
   | "CPV"
   | "LEADS"
   | "BONUS"

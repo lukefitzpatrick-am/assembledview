@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 
 export default function SupportPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center p-6 bg-gray-50">
+    <div className="flex min-h-screen items-center justify-center bg-muted p-6">
       <Card className="w-full max-w-md">
         <CardHeader>
           <h1 className="text-2xl font-semibold">

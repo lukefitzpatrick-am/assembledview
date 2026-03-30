@@ -24,6 +24,8 @@ export type BillingLineItem = {
   header2: string; // Second column header (Station/Title/Site/Bid Strategy/Format)
   monthlyAmounts: Record<string, number>; // Month key -> amount for that month
   totalAmount: number;
+  /** When true, client pays supplier directly; excluded from agency publisher-invoice views. */
+  clientPaysForMedia?: boolean;
   /**
    * Manual billing UI helper: if true, this line item is "pre-billed"
    * (all spend moved into the first billing month).
@@ -34,6 +36,15 @@ export type BillingLineItem = {
    * so unchecking can restore the previous distribution.
    */
   preBillSnapshot?: Record<string, number>;
+  feeMonthlyAmounts?: Record<string, number>;
+  totalFeeAmount?: number;
+  adServingMonthlyAmounts?: Record<string, number>;
+  totalAdServingAmount?: number;
+  /**
+   * When true, validation treats this row as intentionally kept from an older save even if it no longer
+   * maps to a current media line item (non-blocking on campaign save).
+   */
+  legacySaved?: boolean;
 };
 
 export type BillingMonth = {

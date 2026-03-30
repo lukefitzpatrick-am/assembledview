@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -52,6 +52,39 @@ interface BillingScheduleProps {
   onBillingScheduleChange: (schedule: BillingScheduleType) => void;
 }
 
+function getMonthsBetweenDates(start: Date, end: Date) {
+  const months: Date[] = [];
+  let current = startOfMonth(start);
+  while (current <= endOfMonth(end)) {
+    months.push(current);
+    current = addMonths(current, 1);
+  }
+  return months;
+}
+
+type BillingBurstDateRange = { startDate: Date; endDate: Date };
+
+function getDaysInMonthForBurst(month: Date, burst: BillingBurstDateRange) {
+  const monthStart = startOfMonth(month);
+  const monthEnd = endOfMonth(month);
+  const burstStart = new Date(burst.startDate);
+  const burstEnd = new Date(burst.endDate);
+
+  const days = eachDayOfInterval({
+    start: new Date(Math.max(monthStart.getTime(), burstStart.getTime())),
+    end: new Date(Math.min(monthEnd.getTime(), burstEnd.getTime())),
+  });
+
+  return days.length;
+}
+
+function getTotalDaysInBurst(burst: BillingBurstDateRange) {
+  const start = new Date(burst.startDate);
+  const end = new Date(burst.endDate);
+  const days = eachDayOfInterval({ start, end });
+  return days.length;
+}
+
 export function BillingSchedule({
   searchBursts,
   socialMediaBursts,
@@ -65,16 +98,7 @@ export function BillingSchedule({
   const [manualSchedule, setManualSchedule] = useState<BillingScheduleType>([]);
   const [autoSchedule, setAutoSchedule] = useState<BillingScheduleType>([]);
 
-  // Calculate auto billing schedule
-  useEffect(() => {
-    if (!isManualBilling) {
-      const schedule = calculateAutoBillingSchedule();
-      setAutoSchedule(schedule);
-      onBillingScheduleChange(schedule);
-    }
-  }, [searchBursts, socialMediaBursts, campaignStartDate, campaignEndDate]);
-
-  const calculateAutoBillingSchedule = () => {
+  const calculateAutoBillingSchedule = useCallback(() => {
     const schedule: BillingScheduleType = [];
     const months = getMonthsBetweenDates(campaignStartDate, campaignEndDate);
 
@@ -173,38 +197,21 @@ export function BillingSchedule({
     });
 
     return schedule;
-  };
+  }, [
+    campaignEndDate,
+    campaignStartDate,
+    productionBursts,
+    searchBursts,
+    socialMediaBursts,
+  ]);
 
-  const getMonthsBetweenDates = (start: Date, end: Date) => {
-    const months: Date[] = [];
-    let current = startOfMonth(start);
-    while (current <= endOfMonth(end)) {
-      months.push(current);
-      current = addMonths(current, 1);
+  useEffect(() => {
+    if (!isManualBilling) {
+      const schedule = calculateAutoBillingSchedule();
+      setAutoSchedule(schedule);
+      onBillingScheduleChange(schedule);
     }
-    return months;
-  };
-
-  const getDaysInMonthForBurst = (month: Date, burst: any) => {
-    const monthStart = startOfMonth(month);
-    const monthEnd = endOfMonth(month);
-    const burstStart = new Date(burst.startDate);
-    const burstEnd = new Date(burst.endDate);
-
-    const days = eachDayOfInterval({
-      start: new Date(Math.max(monthStart.getTime(), burstStart.getTime())),
-      end: new Date(Math.min(monthEnd.getTime(), burstEnd.getTime()))
-    });
-
-    return days.length;
-  };
-
-  const getTotalDaysInBurst = (burst: any) => {
-    const start = new Date(burst.startDate);
-    const end = new Date(burst.endDate);
-    const days = eachDayOfInterval({ start, end });
-    return days.length;
-  };
+  }, [calculateAutoBillingSchedule, isManualBilling, onBillingScheduleChange]);
 
   const handleManualBillingSave = () => {
     const total = manualSchedule.reduce((sum, month) => sum + month.totalAmount, 0);
@@ -229,10 +236,20 @@ export function BillingSchedule({
     onBillingScheduleChange(autoSchedule);
   };
 
+  const scheduleTableHeadClass =
+    "h-8 px-1.5 py-1 text-[10px] font-medium whitespace-nowrap leading-tight"
+  const scheduleTableCellClass = "px-1.5 py-1 text-[10px] tabular-nums leading-tight"
+
+  const showProductionColumn = useMemo(() => {
+    const schedule = isManualBilling ? manualSchedule : autoSchedule
+    const total = schedule.reduce((s, m) => s + (m.productionAmount || 0), 0)
+    return total > 0.005
+  }, [isManualBilling, manualSchedule, autoSchedule])
+
   return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h3 className="text-lg font-medium">Billing Schedule</h3>
+    <div className="space-y-3 text-sm">
+      <div className="flex justify-between items-center gap-2">
+        <h3 className="text-base font-medium">Billing Schedule</h3>
         <Dialog>
           <DialogTrigger asChild>
             <Button variant="outline">
@@ -243,24 +260,25 @@ export function BillingSchedule({
             <DialogHeader>
               <DialogTitle>Manual Billing Schedule</DialogTitle>
             </DialogHeader>
-            <div className="space-y-4">
-              <Table>
+            <div className="space-y-3">
+              <Table className="text-[10px] min-w-0">
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Month</TableHead>
-                    <TableHead>Search</TableHead>
-                    <TableHead>Social</TableHead>
-                <TableHead>Production</TableHead>
-                    <TableHead>Fee</TableHead>
-                    <TableHead>Total</TableHead>
+                    <TableHead className={scheduleTableHeadClass}>Month</TableHead>
+                    <TableHead className={scheduleTableHeadClass}>Search</TableHead>
+                    <TableHead className={scheduleTableHeadClass}>Social</TableHead>
+                    <TableHead className={scheduleTableHeadClass}>Production</TableHead>
+                    <TableHead className={scheduleTableHeadClass}>Fee</TableHead>
+                    <TableHead className={scheduleTableHeadClass}>Total</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {(isManualBilling ? manualSchedule : autoSchedule).map((month, index) => (
                     <TableRow key={month.month}>
-                      <TableCell>{month.month}</TableCell>
-                      <TableCell>
+                      <TableCell className={scheduleTableCellClass}>{month.month}</TableCell>
+                      <TableCell className={scheduleTableCellClass}>
                         <Input
+                          className="h-7 px-1.5 text-[10px]"
                           type="number"
                           value={month.searchAmount}
                           onChange={(e) => {
@@ -275,8 +293,9 @@ export function BillingSchedule({
                           }}
                         />
                       </TableCell>
-                      <TableCell>
+                      <TableCell className={scheduleTableCellClass}>
                         <Input
+                          className="h-7 px-1.5 text-[10px]"
                           type="number"
                           value={month.socialAmount}
                           onChange={(e) => {
@@ -291,24 +310,26 @@ export function BillingSchedule({
                           }}
                         />
                       </TableCell>
-                      <TableCell>
+                      <TableCell className={scheduleTableCellClass}>
                         <Input
+                          className="h-7 px-1.5 text-[10px]"
                           type="number"
                           value={month.productionAmount}
                           onChange={(e) => {
                             const newSchedule = [...(isManualBilling ? manualSchedule : autoSchedule)];
                             newSchedule[index].productionAmount = Number(e.target.value);
-                            newSchedule[index].totalAmount = 
-                              newSchedule[index].searchAmount + 
-                              newSchedule[index].socialAmount + 
-                              newSchedule[index].productionAmount + 
+                            newSchedule[index].totalAmount =
+                              newSchedule[index].searchAmount +
+                              newSchedule[index].socialAmount +
+                              newSchedule[index].productionAmount +
                               newSchedule[index].feeAmount;
                             setManualSchedule(newSchedule);
                           }}
                         />
                       </TableCell>
-                      <TableCell>
+                      <TableCell className={scheduleTableCellClass}>
                         <Input
+                          className="h-7 px-1.5 text-[10px]"
                           type="number"
                           value={month.feeAmount}
                           onChange={(e) => {
@@ -323,15 +344,15 @@ export function BillingSchedule({
                           }}
                         />
                       </TableCell>
-                      <TableCell>
+                      <TableCell className={scheduleTableCellClass}>
                         {usd2Formatter.format(month.totalAmount)}
                       </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
-              <div className="flex justify-between">
-                <div className="text-lg font-medium">
+              <div className="flex justify-between gap-2">
+                <div className="text-sm font-medium">
                   Total:{" "}
                   {usd2Formatter.format(
                     (isManualBilling ? manualSchedule : autoSchedule).reduce((sum, month) => sum + month.totalAmount, 0)
@@ -350,34 +371,38 @@ export function BillingSchedule({
         </Dialog>
       </div>
 
-      <Table>
+      <Table className="text-[10px] min-w-0">
         <TableHeader>
           <TableRow>
-            <TableHead>Month</TableHead>
-            <TableHead>Search Amount</TableHead>
-            <TableHead>Social Amount</TableHead>
-            <TableHead>Production Amount</TableHead>
-            <TableHead>Fee Amount</TableHead>
-            <TableHead>Total Amount</TableHead>
+            <TableHead className={scheduleTableHeadClass}>Month</TableHead>
+            <TableHead className={scheduleTableHeadClass}>Search Amount</TableHead>
+            <TableHead className={scheduleTableHeadClass}>Social Amount</TableHead>
+            {showProductionColumn ? (
+              <TableHead className={scheduleTableHeadClass}>Production Amount</TableHead>
+            ) : null}
+            <TableHead className={scheduleTableHeadClass}>Fee Amount</TableHead>
+            <TableHead className={scheduleTableHeadClass}>Total Amount</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {(isManualBilling ? manualSchedule : autoSchedule).map((month) => (
             <TableRow key={month.month}>
-              <TableCell>{month.month}</TableCell>
-              <TableCell>
+              <TableCell className={scheduleTableCellClass}>{month.month}</TableCell>
+              <TableCell className={scheduleTableCellClass}>
                 {usd2Formatter.format(month.searchAmount)}
               </TableCell>
-              <TableCell>
+              <TableCell className={scheduleTableCellClass}>
                 {usd2Formatter.format(month.socialAmount)}
               </TableCell>
-            <TableCell>
-              {usd2Formatter.format(month.productionAmount)}
-            </TableCell>
-              <TableCell>
+              {showProductionColumn ? (
+                <TableCell className={scheduleTableCellClass}>
+                  {usd2Formatter.format(month.productionAmount)}
+                </TableCell>
+              ) : null}
+              <TableCell className={scheduleTableCellClass}>
                 {usd2Formatter.format(month.feeAmount)}
               </TableCell>
-              <TableCell>
+              <TableCell className={scheduleTableCellClass}>
                 {usd2Formatter.format(month.totalAmount)}
               </TableCell>
             </TableRow>
@@ -385,8 +410,8 @@ export function BillingSchedule({
         </TableBody>
       </Table>
 
-      <div className="text-lg font-medium">
-        <div className="grid grid-cols-2 gap-4">
+      <div className="text-xs font-medium">
+        <div className="grid grid-cols-2 gap-3 min-w-0">
           <div>
             <div>
               Search Total:{" "}
@@ -396,12 +421,14 @@ export function BillingSchedule({
               Social Total:{" "}
               {usd2Formatter.format((isManualBilling ? manualSchedule : autoSchedule).reduce((sum, month) => sum + month.socialAmount, 0))}
             </div>
-            <div>
-              Production Total:{" "}
-              {usd2Formatter.format(
-                (isManualBilling ? manualSchedule : autoSchedule).reduce((sum, month) => sum + month.productionAmount, 0)
-              )}
-            </div>
+            {showProductionColumn ? (
+              <div>
+                Production Total:{" "}
+                {usd2Formatter.format(
+                  (isManualBilling ? manualSchedule : autoSchedule).reduce((sum, month) => sum + month.productionAmount, 0)
+                )}
+              </div>
+            ) : null}
             <div>
               Fee Total:{" "}
               {usd2Formatter.format((isManualBilling ? manualSchedule : autoSchedule).reduce((sum, month) => sum + month.feeAmount, 0))}

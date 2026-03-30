@@ -1,7 +1,18 @@
-import { MediaPlanViz, MediaPlanVizGroup, MediaPlanVizRow } from "@/components/dashboard/pacing/MediaPlanViz"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { sortChannels } from "@/lib/mediaplan/channelMap"
-import { parseBurstArray } from "@/lib/mediaplan/deriveBursts"
+ "use client"
+
+import { useMemo, useState } from "react"
+import { BarChart3, CalendarRange, Rows3 } from "lucide-react"
+import { ResponsiveContainer, AreaChart, Area } from "recharts"
+
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/layout/Panel"
+import { normaliseLineItemsByType, type NormalisedLineItem } from "@/lib/mediaplan/normalizeLineItem"
+import { formatCurrencyCompact, formatCurrencyFull } from "@/lib/format/currency"
+import { cn } from "@/lib/utils"
+import { getMediaChannelColor } from "@/lib/media/channelColors"
+import MediaGanttChart from "@/app/dashboard/[slug]/[mba_number]/components/MediaGanttChart"
+import MediaTable from "@/app/dashboard/[slug]/[mba_number]/components/MediaTable"
 
 export type MediaPlanVizSectionProps = {
   lineItems: Record<string, any[]>
@@ -9,6 +20,8 @@ export type MediaPlanVizSectionProps = {
   campaignEnd?: string
   clientSlug?: string
   mbaNumber?: string
+  defaultView?: "timeline" | "table" | "summary"
+  onViewChange?: (view: string) => void
 }
 
 const MEDIA_ORDER = [
@@ -35,145 +48,6 @@ const MEDIA_ORDER = [
   "consulting",
 ]
 
-function parseDateSafe(value?: string | Date | null) {
-  if (!value) return null
-  const date = value instanceof Date ? value : new Date(value)
-  return Number.isNaN(date.getTime()) ? null : date
-}
-
-function formatCompactNumber(value?: number) {
-  if (value === null || value === undefined) return undefined
-  return new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(value)
-}
-
-function formatCurrency(value?: number) {
-  if (value === undefined || value === null) return undefined
-  return new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 }).format(value)
-}
-
-function parseNumeric(value: any): number | undefined {
-  if (value === null || value === undefined) return undefined
-  if (typeof value === "number") return Number.isFinite(value) ? value : undefined
-  if (typeof value === "string") {
-    const cleaned = value.replace(/[^0-9.-]+/g, "")
-    const parsed = Number(cleaned)
-    return Number.isFinite(parsed) ? parsed : undefined
-  }
-  return undefined
-}
-
-function parseBursts(item: any) {
-  const raw =
-    item?.bursts_json ??
-    item?.bursts ??
-    item?.burst_schedule ??
-    item?.flight_schedule ??
-    item?.burstSchedule ??
-    item?.flightSchedule ??
-    item?.flights
-
-  const parsed = parseBurstArray(raw)
-  if (parsed.length) return parsed
-
-  // Fallback: single burst from start/end when provided
-  const start = item?.start_date || item?.startDate
-  const end = item?.end_date || item?.endDate || start
-  if (start || end) {
-    return [
-      {
-        start_date: start,
-        end_date: end,
-        budget:
-          parseNumeric(item?.budget) ||
-          parseNumeric(item?.buyAmount) ||
-          parseNumeric(item?.totalMedia) ||
-          parseNumeric(item?.grossMedia),
-      },
-    ]
-  }
-
-  return []
-}
-
-function deriveTitle(mediaType: string, item: any, fallbackIndex: number) {
-  const rawName =
-    item?.line_item_name ||
-    item?.name ||
-    item?.lineItemName ||
-    item?.campaign_name ||
-    item?.ad_set_name
-
-  const platform = item?.platform || item?.site || item?.publisher || item?.network || item?.channel
-  const placement = item?.placement || item?.placement_name
-  const audience = item?.targeting || item?.audience || item?.segment
-  const creative = item?.creative || item?.ad_name
-  const channel = item?.channel || item?.market || item?.region
-
-  const parts = [platform, placement, audience, creative, channel].filter(Boolean)
-  const composed = parts.length ? parts.join(" • ") : null
-
-  const isAutoName = rawName && /auto\s*allocation/i.test(rawName)
-
-  if (rawName && !isAutoName) return rawName
-  if (composed) return composed
-
-  return `Line item ${fallbackIndex + 1}`
-}
-
-function buildSubtitle(item: any) {
-  const parts: string[] = []
-
-  const platform = item?.platform || item?.site || item?.publisher || item?.network || item?.channel
-  const placement = item?.placement || item?.placement_name
-  const targeting = item?.targeting || item?.audience || item?.segment
-  const geo = item?.market || item?.dma || item?.region
-  const creative = item?.creative || item?.ad_name
-  const buyType = item?.buy_type || item?.buyType || item?.channel
-
-  const rate =
-    parseNumeric(item?.unit_cost) ||
-    parseNumeric(item?.unitCost) ||
-    parseNumeric(item?.cpm) ||
-    parseNumeric(item?.cpc) ||
-    parseNumeric(item?.cpv) ||
-    parseNumeric(item?.rate)
-
-  const deliverableValue =
-    parseNumeric(item?.deliverables) ||
-    parseNumeric(item?.impressions) ||
-    parseNumeric(item?.clicks) ||
-    parseNumeric(item?.spots) ||
-    parseNumeric(item?.tarps) ||
-    parseNumeric(item?.timps) ||
-    parseNumeric(item?.views) ||
-    parseNumeric(item?.units)
-
-  const deliverableLabel =
-    item?.deliverable_label ||
-    item?.deliverableLabel ||
-    (item?.impressions ? "Impressions" : undefined) ||
-    (item?.views ? "Views" : undefined) ||
-    (item?.spots ? "Spots" : undefined) ||
-    (item?.tarps ? "TARPs" : undefined) ||
-    (item?.timps ? "TIMPs" : undefined) ||
-    (item?.units ? "Units" : undefined)
-
-  if (platform) parts.push(platform)
-  if (placement) parts.push(placement)
-  if (targeting) parts.push(targeting)
-  if (geo) parts.push(geo)
-  if (creative) parts.push(creative)
-  if (buyType) parts.push(buyType)
-
-  if (deliverableValue) {
-    const deliverableText = `${formatCompactNumber(deliverableValue)}${deliverableLabel ? ` ${deliverableLabel}` : ""}`
-    const rateText = rate ? ` @ ${formatCurrency(rate)}` : ""
-    parts.push(`${deliverableText}${rateText}`)
-  }
-
-  return parts.join(" • ")
-}
-
 function formatMediaTypeLabel(key: string) {
   return key
     .replace(/([a-z])([A-Z])/g, "$1 $2")
@@ -184,134 +58,150 @@ function formatMediaTypeLabel(key: string) {
     .join(" ")
 }
 
-function buildGroups(lineItems: Record<string, any[]>, campaignStart?: string, campaignEnd?: string): MediaPlanVizGroup[] {
-  const byMediaType = new Map<string, MediaPlanVizRow[]>()
-
-  Object.entries(lineItems || {}).forEach(([mediaType, items]) => {
-    if (!Array.isArray(items) || !items.length) return
-
-    items.forEach((item, idx) => {
-      const bursts = parseBursts(item)
-
-      if (!bursts.length) return
-
-      const datedBursts = bursts
-        .map((burst) => {
-          const start = parseDateSafe(burst?.start_date ?? burst?.startDate ?? item?.start_date ?? campaignStart)
-          const end = parseDateSafe(burst?.end_date ?? burst?.endDate ?? item?.end_date ?? campaignEnd ?? burst?.start_date)
-          if (!start || !end) return null
-          const safeStart = start <= end ? start : end
-          const safeEnd = end >= start ? end : start
-          const spend =
-            parseNumeric(burst?.budget) ||
-            parseNumeric(burst?.media_investment) ||
-            parseNumeric(burst?.amount) ||
-            parseNumeric(burst?.spend) ||
-            parseNumeric(burst?.investment) ||
-            parseNumeric(burst?.buyAmount)
-          const deliverables =
-            parseNumeric(burst?.deliverables) ||
-            parseNumeric(burst?.deliverable) ||
-            parseNumeric(burst?.deliverablesAmount) ||
-            parseNumeric(burst?.impressions) ||
-            parseNumeric(burst?.spots)
-          return {
-            start: safeStart,
-            end: safeEnd,
-            spend,
-            deliverables,
-            label: deliverables ? formatCompactNumber(deliverables) : undefined,
-          }
-        })
-        .filter(Boolean) as {
-        start: Date
-        end: Date
-        spend?: number
-        deliverables?: number
-        label?: string
-      }[]
-
-      if (!datedBursts.length) return
-
-      const rowStart = datedBursts.reduce((min, b) => (b.start < min ? b.start : min), datedBursts[0].start)
-      const rowEnd = datedBursts.reduce((max, b) => (b.end > max ? b.end : max), datedBursts[0].end)
-
-      const budgetFromBursts = datedBursts.reduce((sum, b) => sum + (b.spend || 0), 0)
-      const budget =
-        budgetFromBursts ||
-        parseNumeric(item?.budget) ||
-        parseNumeric(item?.buyAmount) ||
-        parseNumeric(item?.cost) ||
-        parseNumeric(item?.totalMedia) ||
-        parseNumeric(item?.grossMedia)
-
-      const row: MediaPlanVizRow = {
-        id: String(item?.line_item_id ?? item?.id ?? `${mediaType}-${idx}`),
-        title: deriveTitle(mediaType, item, idx),
-        budget,
-        start: rowStart.toISOString(),
-        end: rowEnd.toISOString(),
-        bursts: datedBursts.map((burst, burstIdx) => ({
-          id: `${mediaType}-${idx}-burst-${burstIdx}`,
-          start: burst.start.toISOString(),
-          end: burst.end.toISOString(),
-          label: burst.label,
-          deliverables: burst.deliverables,
-          spend: burst.spend,
-        })),
-      }
-
-      const rows = byMediaType.get(mediaType) ?? []
-      rows.push(row)
-      byMediaType.set(mediaType, rows)
-    })
-  })
-
-  const groups: MediaPlanVizGroup[] = Array.from(byMediaType.entries()).map(([mediaType, rows]) => ({
-    channel: formatMediaTypeLabel(mediaType),
-    rows: rows.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime() || a.title.localeCompare(b.title)),
-  }))
-
-  const orderMap = new Map(MEDIA_ORDER.map((key, idx) => [key.toLowerCase(), idx]))
-  return sortChannels(groups).sort((a, b) => {
-    const aKey = a.channel.toLowerCase().replace(/\s+/g, "")
-    const bKey = b.channel.toLowerCase().replace(/\s+/g, "")
-    const aIdx = orderMap.get(aKey) ?? Number.MAX_SAFE_INTEGER
-    const bIdx = orderMap.get(bKey) ?? Number.MAX_SAFE_INTEGER
-    if (aIdx === bIdx) return a.channel.localeCompare(b.channel)
-    return aIdx - bIdx
-  })
-}
-
 export default function MediaPlanVizSection({
   lineItems,
   campaignStart,
   campaignEnd,
-  clientSlug,
-  mbaNumber,
+  defaultView = "timeline",
+  onViewChange,
 }: MediaPlanVizSectionProps) {
-  const groups = buildGroups(lineItems, campaignStart, campaignEnd)
+  const [view, setView] = useState<"timeline" | "table" | "summary">(defaultView)
+  const normalised = useMemo(() => normaliseLineItemsByType(lineItems || {}), [lineItems])
+  const lineItemCount = useMemo(
+    () => Object.values(normalised).reduce((sum, items) => sum + (Array.isArray(items) ? items.length : 0), 0),
+    [normalised]
+  )
 
-  if (!groups.length) {
+  const mediaSummary = useMemo(() => {
+    const rows = Object.entries(normalised).map(([mediaType, items]) => {
+      const typed = (items || []) as NormalisedLineItem[]
+      const totalBudget = typed.reduce(
+        (sum, item) => sum + item.bursts.reduce((burstSum, burst) => burstSum + (burst.deliverablesAmount || burst.budget || 0), 0),
+        0
+      )
+      const starts = typed.flatMap((item) => item.bursts.map((burst) => burst.startDate)).filter(Boolean)
+      const ends = typed.flatMap((item) => item.bursts.map((burst) => burst.endDate)).filter(Boolean)
+      const sparkline = typed
+        .flatMap((item) => item.bursts.map((burst) => Number(burst.deliverablesAmount || burst.budget || 0)))
+        .slice(0, 12)
+      return {
+        mediaType,
+        label: formatMediaTypeLabel(mediaType),
+        totalBudget,
+        lineItemCount: typed.length,
+        rangeStart: starts.length ? starts.sort()[0] : undefined,
+        rangeEnd: ends.length ? ends.sort()[ends.length - 1] : undefined,
+        sparkline: sparkline.length ? sparkline : [0],
+      }
+    })
+    const orderMap = new Map(MEDIA_ORDER.map((key, idx) => [key.toLowerCase(), idx]))
+    return rows
+      .filter((row) => row.lineItemCount > 0)
+      .sort((a, b) => (orderMap.get(a.mediaType.toLowerCase()) ?? 999) - (orderMap.get(b.mediaType.toLowerCase()) ?? 999))
+  }, [normalised])
+
+  const hasData = lineItemCount > 0
+  const changeView = (next: "timeline" | "table" | "summary") => {
+    setView(next)
+    onViewChange?.(next)
+  }
+
+  if (!hasData) {
     return (
-      <Card className="rounded-3xl border-muted/70 bg-background/90 shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-base">Media plan visualisation</CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">No media plan data available.</CardContent>
-      </Card>
+      <Panel className="border-border/60 shadow-sm">
+        <PanelHeader>
+          <PanelTitle className="text-base">Media plan</PanelTitle>
+        </PanelHeader>
+        <PanelContent>
+          <p className="text-sm text-muted-foreground">No media plan data available.</p>
+        </PanelContent>
+      </Panel>
     )
   }
 
   return (
-    <div className="space-y-3">
-      <MediaPlanViz
-        groups={groups}
-        campaignStart={campaignStart}
-        campaignEnd={campaignEnd}
-        clientSlug={clientSlug}
-        mbaNumber={mbaNumber}
-      />
-    </div>
+    <Panel className="border-border/60 bg-card shadow-sm">
+      <PanelHeader className="flex flex-col gap-3 border-b border-border/60">
+        <div className="flex items-center justify-between gap-2">
+          <PanelTitle className="text-base">Media plan</PanelTitle>
+          <Badge variant="outline" className="rounded-full">
+            {lineItemCount} line items
+          </Badge>
+        </div>
+        <div className="inline-flex w-fit items-center gap-1 rounded-full border border-border/60 bg-muted/30 p-1">
+          <Button
+            type="button"
+            size="sm"
+            variant={view === "timeline" ? "secondary" : "ghost"}
+            className={cn("h-8 rounded-full px-3 text-xs", view === "timeline" && "font-semibold")}
+            onClick={() => changeView("timeline")}
+          >
+            <CalendarRange className="mr-1.5 h-3.5 w-3.5" />
+            Timeline
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={view === "table" ? "secondary" : "ghost"}
+            className={cn("h-8 rounded-full px-3 text-xs", view === "table" && "font-semibold")}
+            onClick={() => changeView("table")}
+          >
+            <Rows3 className="mr-1.5 h-3.5 w-3.5" />
+            Table
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={view === "summary" ? "secondary" : "ghost"}
+            className={cn("h-8 rounded-full px-3 text-xs", view === "summary" && "font-semibold")}
+            onClick={() => changeView("summary")}
+          >
+            <BarChart3 className="mr-1.5 h-3.5 w-3.5" />
+            Summary
+          </Button>
+        </div>
+      </PanelHeader>
+
+      <PanelContent standalone className="p-4">
+        {view === "timeline" ? (
+          <MediaGanttChart lineItems={normalised} startDate={campaignStart || ""} endDate={campaignEnd || ""} />
+        ) : null}
+
+        {view === "table" ? <MediaTable lineItems={normalised} /> : null}
+
+        {view === "summary" ? (
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {mediaSummary.map((row) => (
+              <article key={row.mediaType} className="space-y-2 rounded-xl border border-border/60 bg-background/70 p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <h4 className="text-sm font-semibold text-foreground">{row.label}</h4>
+                  <Badge variant="secondary" className="rounded-full text-[11px]">
+                    {row.lineItemCount} items
+                  </Badge>
+                </div>
+                <p className="text-xl font-semibold text-foreground">{formatCurrencyFull(row.totalBudget)}</p>
+                <p className="text-xs text-muted-foreground">
+                  {row.rangeStart || "—"} - {row.rangeEnd || "—"}
+                </p>
+                <div className="h-14 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={row.sparkline.map((value, idx) => ({ idx, value }))} margin={{ top: 2, right: 2, left: 2, bottom: 2 }}>
+                      <Area
+                        type="monotone"
+                        dataKey="value"
+                        stroke={getMediaChannelColor(row.mediaType)}
+                        fill={getMediaChannelColor(row.mediaType)}
+                        fillOpacity={0.22}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+                <p className="text-xs text-muted-foreground">Total budget: {formatCurrencyCompact(row.totalBudget)}</p>
+              </article>
+            ))}
+          </div>
+        ) : null}
+      </PanelContent>
+    </Panel>
   )
 }

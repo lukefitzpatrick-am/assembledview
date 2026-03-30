@@ -1,7 +1,14 @@
+"use client"
+
+import { useMemo, useState } from "react"
+import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { PacingStatusBadge } from "@/components/dashboard/PacingStatusBadge"
 import { Separator } from "@/components/ui/separator"
+import { getMediaChannelBadgeStyle } from "@/lib/media/channelColors"
 import { cn } from "@/lib/utils"
+import { CalendarDays, ChevronDown, Download, FileText, Share2 } from "lucide-react"
 
 type CampaignInfoHeaderProps = {
   campaign: any
@@ -67,29 +74,6 @@ const mediaTypeLabels: Record<string, string> = {
   mp_production: "Production",
 }
 
-const mediaTypeClasses: Record<string, string> = {
-  Television: "bg-blue-100 text-blue-800 ring-blue-200",
-  Radio: "bg-amber-100 text-amber-800 ring-amber-200",
-  Newspaper: "bg-stone-200 text-stone-900 ring-stone-300",
-  Magazines: "bg-pink-100 text-pink-800 ring-pink-200",
-  OOH: "bg-emerald-100 text-emerald-800 ring-emerald-200",
-  Cinema: "bg-rose-100 text-rose-800 ring-rose-200",
-  "Digital Display": "bg-sky-100 text-sky-800 ring-sky-200",
-  "Digital Audio": "bg-teal-100 text-teal-800 ring-teal-200",
-  "Digital Video": "bg-indigo-100 text-indigo-800 ring-indigo-200",
-  BVOD: "bg-purple-100 text-purple-800 ring-purple-200",
-  Integration: "bg-fuchsia-100 text-fuchsia-800 ring-fuchsia-200",
-  Search: "bg-orange-100 text-orange-800 ring-orange-200",
-  "Social Media": "bg-blue-100 text-blue-800 ring-blue-200",
-  "Programmatic Display": "bg-cyan-100 text-cyan-800 ring-cyan-200",
-  "Programmatic Video": "bg-violet-100 text-violet-800 ring-violet-200",
-  "Programmatic BVOD": "bg-purple-100 text-purple-800 ring-purple-200",
-  "Programmatic Audio": "bg-lime-100 text-lime-800 ring-lime-200",
-  "Programmatic OOH": "bg-green-100 text-green-800 ring-green-200",
-  Influencers: "bg-yellow-100 text-yellow-800 ring-yellow-200",
-  Production: "bg-slate-200 text-slate-900 ring-slate-300",
-}
-
 function isTruthyFlag(value: any) {
   if (value === undefined || value === null) return false
   if (typeof value === "boolean") return value
@@ -125,6 +109,9 @@ function resolveClientName(campaign: any): string {
 }
 
 export default function CampaignInfoHeader({ campaign, className }: CampaignInfoHeaderProps) {
+  const [mobileExpanded, setMobileExpanded] = useState(false)
+  const [activeCategory, setActiveCategory] = useState<"all" | "traditional" | "digital" | "programmatic">("all")
+
   const name =
     campaign?.campaign_name ||
     campaign?.mp_campaignname ||
@@ -151,18 +138,82 @@ export default function CampaignInfoHeader({ campaign, className }: CampaignInfo
   const planDate = campaign?.plan_date || campaign?.created_at || campaign?.date || campaign?.updated_at
   const poNumber = campaign?.po_number || campaign?.poNumber || campaign?.purchase_order_number
   const contact = campaign?.client_contact || campaign?.contact_name || campaign?.contactName
+  const pacingPct =
+    Number(
+      campaign?.pacingPct ??
+        campaign?.pacing_pct ??
+        campaign?.pacing_percentage ??
+        campaign?.pacing ??
+        0
+    ) || 0
+  const spendToDate =
+    Number(
+      campaign?.spend_to_date ??
+        campaign?.spendToDate ??
+        campaign?.actual_spend ??
+        campaign?.actualSpend ??
+        0
+    ) || 0
 
   const mediaTypes = Object.entries(mediaTypeLabels)
     .filter(([key]) => isTruthyFlag((campaign as any)?.[key]))
-    .map(([, label]) => label)
+    .map(([key, label]) => ({ key: key.replace(/^mp_/, ""), label }))
+
+  const groupedMediaTypes = useMemo(() => {
+    const traditional = mediaTypes.filter((m) =>
+      ["television", "radio", "newspaper", "magazines", "ooh", "cinema"].includes(m.key)
+    )
+    const programmatic = mediaTypes.filter((m) => m.key.startsWith("prog"))
+    const digital = mediaTypes.filter(
+      (m) => !traditional.some((t) => t.key === m.key) && !programmatic.some((p) => p.key === m.key)
+    )
+    return { traditional, digital, programmatic }
+  }, [mediaTypes])
+
+  const flatFilteredMedia =
+    activeCategory === "all"
+      ? mediaTypes
+      : groupedMediaTypes[
+          activeCategory as Exclude<typeof activeCategory, "all">
+        ]
+
+  const startDate = new Date(campaign?.startDate || campaign?.campaign_start_date || campaign?.start_date)
+  const endDate = new Date(campaign?.endDate || campaign?.campaign_end_date || campaign?.end_date)
+  const now = new Date()
+  const totalDays =
+    !Number.isNaN(startDate.getTime()) && !Number.isNaN(endDate.getTime())
+      ? Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1)
+      : null
+  const elapsedDays =
+    totalDays && !Number.isNaN(startDate.getTime())
+      ? Math.max(0, Math.min(totalDays, Math.ceil((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1))
+      : null
+  const daysRemaining =
+    !Number.isNaN(endDate.getTime())
+      ? Math.max(0, Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
+      : null
+
+  const downloadUrl =
+    campaign?.download_url || campaign?.media_plan_download_url || campaign?.mediaPlanDownloadUrl || null
 
   return (
-    <Card className={cn("relative rounded-3xl border-muted/70 bg-background/90 shadow-sm", className)}>
-      <CardHeader className="pb-4">
+    <div className={cn("relative", className)}>
+      <div className="pb-4">
+        <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
+          <Link
+            href={`/dashboard/${encodeURIComponent(campaign?.slug || campaign?.client_slug || "")}`}
+            className="transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
+          >
+            {client || "Client"}
+          </Link>
+          <span>/</span>
+          <span className="truncate text-foreground">{name}</span>
+        </div>
+
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-2">
-            <CardTitle className="text-[28px] font-semibold leading-tight md:text-[32px]">{name}</CardTitle>
-            <div className="flex flex-wrap items-center gap-2 text-sm md:text-base text-muted-foreground">
+            <h2 className="text-[28px] font-semibold leading-tight tracking-tight md:text-[32px]">{name}</h2>
+            <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground md:text-base">
               {brand ? <span className="font-medium text-foreground">{brand}</span> : null}
               {brand && mba ? <span className="text-muted-foreground/60">•</span> : null}
               {mba ? (
@@ -177,44 +228,143 @@ export default function CampaignInfoHeader({ campaign, className }: CampaignInfo
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <Badge className="rounded-full bg-primary/15 px-4 py-2 text-[14px] md:text-[16px] font-semibold text-primary">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge className="rounded-full bg-primary/15 px-4 py-2 text-[14px] font-semibold text-primary md:text-[16px]">
               {parseCurrency(budget)}
             </Badge>
-            <Badge
-              variant="secondary"
-              className="rounded-full px-4 py-2 text-[14px] md:text-[16px] font-semibold capitalize"
-            >
+            <div className="transition-all duration-300 animate-in fade-in-0">
+              <PacingStatusBadge pacingPct={pacingPct} size="md" showIcon showLabel className="capitalize" />
+            </div>
+            <Badge variant="secondary" className="rounded-full px-4 py-2 text-[14px] font-semibold capitalize md:text-[16px]">
               {status}
             </Badge>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={() => {
+                if (downloadUrl) window.open(downloadUrl, "_blank", "noopener,noreferrer")
+              }}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Download Media Plan
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={() => window.print()}
+            >
+              <FileText className="mr-2 h-4 w-4" />
+              Export Report
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={async () => {
+                await navigator.clipboard.writeText(window.location.href)
+              }}
+            >
+              <Share2 className="mr-2 h-4 w-4" />
+              Share Dashboard
+            </Button>
           </div>
         </div>
-      </CardHeader>
-      <CardContent className="pt-0">
-        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-muted/60 bg-muted/10 px-3 py-2 text-sm md:text-base">
+      </div>
+
+      <div className="mb-4 rounded-xl border border-border/60 bg-muted/10 px-3 py-2">
+        <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-3 sm:text-sm">
+          <div className="rounded-md bg-background/70 px-3 py-2">
+            <p className="text-muted-foreground">Days elapsed</p>
+            <p className="font-semibold text-foreground">
+              {elapsedDays ?? "—"} / {totalDays ?? "—"}
+            </p>
+          </div>
+          <div className="rounded-md bg-background/70 px-3 py-2">
+            <p className="text-muted-foreground">Budget spent</p>
+            <p className="font-semibold text-foreground">
+              {parseCurrency(spendToDate)} / {parseCurrency(budget)}
+            </p>
+          </div>
+          <div className="rounded-md bg-background/70 px-3 py-2">
+            <p className="text-muted-foreground">Pacing</p>
+            <div className="mt-1 inline-flex items-center gap-2">
+              <PacingStatusBadge pacingPct={pacingPct} size="sm" />
+              <span className="text-foreground">{daysRemaining ?? "—"}d left</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="border-t border-border/60 pt-4">
+        <div className="hidden flex-wrap items-center gap-2 rounded-lg border border-border/60 bg-muted/10 px-3 py-2 text-sm md:flex md:text-base">
           <InfoChip label="Client Contact" value={contact} />
           <InfoChip label="Plan Version" value={planVersion} />
           <InfoChip label="Plan Date" value={formatDate(planDate)} />
           <InfoChip label="PO Number" value={poNumber} />
         </div>
-      </CardContent>
+        <div className="md:hidden">
+          <Button
+            type="button"
+            variant="ghost"
+            className="h-8 px-2 text-xs"
+            onClick={() => setMobileExpanded((prev) => !prev)}
+            aria-expanded={mobileExpanded}
+          >
+            <CalendarDays className="mr-2 h-4 w-4" />
+            {mobileExpanded ? "Hide details" : "Show details"}
+            <ChevronDown className={cn("ml-1 h-3.5 w-3.5 transition-transform", mobileExpanded && "rotate-180")} />
+          </Button>
+          {mobileExpanded ? (
+            <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-border/60 bg-muted/10 px-3 py-2 text-sm">
+              <InfoChip label="Client Contact" value={contact} />
+              <InfoChip label="Plan Version" value={planVersion} />
+              <InfoChip label="Plan Date" value={formatDate(planDate)} />
+              <InfoChip label="PO Number" value={poNumber} />
+            </div>
+          ) : null}
+        </div>
+      </div>
 
       {mediaTypes.length ? (
-        <div className="pointer-events-none absolute bottom-4 right-4 flex max-w-[60%] flex-wrap justify-end gap-2">
-          {mediaTypes.map((label) => (
-            <Badge
-              key={label}
-              variant="secondary"
-              className={cn(
-                "pointer-events-auto rounded-full px-3 py-1 text-[11px] font-semibold",
-                mediaTypeClasses[label] ?? "bg-muted text-foreground ring-muted"
-              )}
-            >
-              {label}
-            </Badge>
-          ))}
+        <div className="mt-4 border-t border-border/60 pt-4">
+          <div className="mb-2 flex items-center gap-2">
+            <Button type="button" variant={activeCategory === "all" ? "secondary" : "outline"} size="sm" onClick={() => setActiveCategory("all")}>
+              All
+            </Button>
+            <Button type="button" variant={activeCategory === "traditional" ? "secondary" : "outline"} size="sm" onClick={() => setActiveCategory("traditional")}>
+              Traditional
+            </Button>
+            <Button type="button" variant={activeCategory === "digital" ? "secondary" : "outline"} size="sm" onClick={() => setActiveCategory("digital")}>
+              Digital
+            </Button>
+            <Button type="button" variant={activeCategory === "programmatic" ? "secondary" : "outline"} size="sm" onClick={() => setActiveCategory("programmatic")}>
+              Programmatic
+            </Button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {flatFilteredMedia.slice(0, 5).map(({ key, label }) => (
+              <Badge
+                key={key}
+                variant="secondary"
+                className={cn("rounded-full border px-3 py-1 text-[11px] font-semibold cursor-pointer focus-visible:ring-2 focus-visible:ring-ring")}
+                style={getMediaChannelBadgeStyle(key)}
+              >
+                {label}
+              </Badge>
+            ))}
+            {flatFilteredMedia.length > 5 ? (
+              <Badge variant="outline" className="rounded-full px-3 py-1 text-[11px] font-semibold">
+                +{flatFilteredMedia.length - 5} more
+              </Badge>
+            ) : null}
+          </div>
         </div>
       ) : null}
-    </Card>
+    </div>
   )
 }

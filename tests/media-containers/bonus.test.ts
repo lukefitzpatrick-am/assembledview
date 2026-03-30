@@ -55,6 +55,28 @@ assert.equal(tvBursts[0].feeAmount, 0, "TV bonus should keep fee at 0")
 assert.equal(tvBursts[0].deliverables, 12, "TV bonus keeps editable deliverables")
 assert.equal(tvBursts[0].buyType, "bonus")
 
+const tvPackageForm = {
+  getValues: (field: string) =>
+    field === "televisionlineItems"
+      ? [
+          {
+            buyType: "package_inclusions",
+            budgetIncludesFees: false,
+            clientPaysForMedia: false,
+            bursts: [
+              {
+                budget: "0",
+                buyAmount: "0",
+                tarps: "5",
+                startDate: today,
+                endDate: today,
+              },
+            ],
+          },
+        ]
+      : [],
+} as any
+
 const socialBursts = getSocialMediaBursts(socialForm, 0)
 assert.equal(socialBursts[0].mediaAmount, 0, "Social bonus should keep media at 0")
 assert.equal(socialBursts[0].feeAmount, 0, "Social bonus should keep fee at 0")
@@ -64,6 +86,12 @@ assert.equal(
   "Social bonus keeps editable deliverables"
 )
 assert.equal(socialBursts[0].buyType, "bonus")
+
+const tvPackageBursts = getTelevisionBursts(tvPackageForm, 0)
+assert.equal(tvPackageBursts[0].mediaAmount, 0, "TV package inclusions should keep media at 0")
+assert.equal(tvPackageBursts[0].feeAmount, 0, "TV package inclusions should keep fee at 0")
+assert.equal(tvPackageBursts[0].deliverables, 5, "TV package inclusions keeps editable deliverables")
+assert.equal(tvPackageBursts[0].buyType, "package_inclusions")
 
 console.log("Bonus buy type burst helpers passed")
 

@@ -32,6 +32,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { buildMediaChannelColorMap } from "@/lib/media/channelColors"
 
 // Define types for the chart data
 type ChartDataPoint = {
@@ -241,7 +242,15 @@ export default function ClientTemplate() {
 
   // Generate campaign data for the table
   const generateCampaignData = () => {
-    const campaigns = []
+    type CampaignRow = {
+      name: string
+      startDate: string
+      endDate: string
+      budget: string
+      channels: string
+      mbaNumber: string
+    }
+    const campaigns: CampaignRow[] = []
     const channelOptions = ["Search", "Social Media", "BVOD", "Television", "OOH", "Radio"]
     const mbaNumbers = ["MBA-2023-001", "MBA-2023-002", "MBA-2023-003", "MBA-2023-004", "MBA-2023-005", "MBA-2023-006", "MBA-2023-007"]
     
@@ -271,7 +280,7 @@ export default function ClientTemplate() {
       
       // Generate fixed channels
       const numChannels = (i % 4) + 1 // Deterministic number of channels based on index
-      const channels = []
+      const channels: string[] = []
       const availableChannels = [...channelOptions]
       
       for (let j = 0; j < numChannels; j++) {
@@ -297,7 +306,7 @@ export default function ClientTemplate() {
   // Generate data for the media channel split pie chart
   const generateMediaChannelData = () => {
     const mediaTypes = ["Search", "Social Media", "BVOD", "Television", "OOH", "Radio"]
-    const colors = ["#3b82f6", "#10b981", "#8b5cf6", "#f59e0b", "#ef4444", "#06b6d4"]
+    const colorMap = buildMediaChannelColorMap(mediaTypes)
     
     // Use fixed percentages to avoid hydration errors
     const percentages = [15, 20, 10, 25, 15, 15]
@@ -306,10 +315,10 @@ export default function ClientTemplate() {
     const data = mediaTypes.map((mediaType, index) => ({
       name: mediaType,
       value: percentages[index],
-      color: colors[index]
+      color: colorMap[mediaType]
     }))
     
-    return { data, colors }
+    return { data, colors: mediaTypes.map((mediaType) => colorMap[mediaType]) }
   }
 
   // Generate data for the publisher spend bar chart

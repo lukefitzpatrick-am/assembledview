@@ -9,7 +9,9 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Input } from "@/components/ui/input"
 import { format } from "date-fns"
-import { PlusCircle, Search } from "lucide-react"
+import { PlusCircle, Search, FileText } from "lucide-react"
+import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
+import { cn } from "@/lib/utils"
 
 // Define the ScopeOfWork interface
 interface ScopeOfWork {
@@ -143,112 +145,170 @@ export default function ScopesOfWorkPage() {
     }
   }
 
+  const getStatusGradient = (status: string) => {
+    switch (status) {
+      case "Draft":
+        return "bg-gradient-to-r from-gray-500 via-gray-400 to-gray-300"
+      case "Submitted":
+        return "bg-gradient-to-r from-blue-500 via-blue-400 to-blue-300"
+      case "Approved":
+        return "bg-gradient-to-r from-green-500 via-green-400 to-green-300"
+      case "In-Progress":
+        return "bg-gradient-to-r from-purple-500 via-purple-400 to-purple-300"
+      case "Completed":
+        return "bg-gradient-to-r from-teal-500 via-teal-400 to-teal-300"
+      case "Cancelled":
+        return "bg-gradient-to-r from-red-500 via-red-400 to-red-300"
+      default:
+        return "bg-gradient-to-r from-gray-500 via-gray-400 to-gray-300"
+    }
+  }
+
   return (
     <div className="w-full min-h-screen">
-      <div className="w-full px-4 py-6 space-y-4">
-        <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold">Scopes of Work</h1>
-          <div className="flex items-center space-x-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-              <Input
-                placeholder="Search scopes..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 w-64"
-              />
+      <div className="w-full space-y-6 px-4 py-6 md:px-6">
+        <MediaPlanEditorHero
+          className="mb-2"
+          title="Scopes of Work"
+          Icon={FileText}
+          detail={
+            <p>Create, search, and edit scopes of work across all project statuses.</p>
+          }
+          actions={
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Search scopes..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-64 pl-10"
+                />
+              </div>
+              <Button onClick={() => router.push("/scopes-of-work/create")}>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Create scope
+              </Button>
             </div>
-            <Button onClick={() => router.push("/scopes-of-work/create")}>
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Create Scope
-            </Button>
-          </div>
+          }
+        />
+
+        <div className="space-y-4">
+              {error && (
+                <div className="bg-destructive/10 border border-destructive/30 text-destructive px-5 py-4 rounded-lg text-sm">
+                  <p>{error}</p>
+                </div>
+              )}
+
+              {loading ? (
+                <div className="space-y-6">
+                  {PROJECT_STATUSES.map((status) => (
+                    <Card key={status} className="w-full border-0 shadow-md overflow-hidden">
+                      <div className="h-1 bg-muted/40" />
+                      <CardHeader className="pb-3 pt-4 px-5">
+                        <CardTitle className="flex items-center justify-between">
+                          <span className="text-lg font-semibold">{status}</span>
+                          <Skeleton className="h-5 w-16 rounded-full" />
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="px-5 pb-5">
+                        <div className="space-y-2">
+                          <Skeleton className="h-8 w-full rounded" />
+                          <Skeleton className="h-8 w-[95%] rounded" />
+                          <Skeleton className="h-8 w-[90%] rounded" />
+                          <Skeleton className="h-8 w-[85%] rounded" />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {PROJECT_STATUSES.map((status) => {
+                    const statusScopes = getScopesByStatus(status)
+                    return (
+                      <Card key={status} className="w-full border-0 shadow-md overflow-hidden">
+                        <div className={cn("h-1", getStatusGradient(status))} />
+                        <CardHeader className="pb-3 pt-4 px-5">
+                          <CardTitle className="flex items-center justify-between">
+                            <span className="text-lg font-semibold">{status}</span>
+                            <Badge
+                              className={cn(
+                                getStatusBadgeColor(status),
+                                "text-white text-xs font-medium"
+                              )}
+                            >
+                              {statusScopes.length} {statusScopes.length === 1 ? "Scope" : "Scopes"}
+                            </Badge>
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="px-5 pb-5">
+                          {statusScopes.length === 0 ? (
+                            <p className="text-muted-foreground/70 text-center py-8 text-sm">
+                              No {status.toLowerCase()} scopes of work
+                            </p>
+                          ) : (
+                            <div className="overflow-x-auto">
+                              <Table>
+                                <TableHeader>
+                                  <TableRow className="border-b border-border/40">
+                                    <TableHead className="font-semibold text-[11px] uppercase tracking-wider text-muted-foreground">
+                                      Project Name
+                                    </TableHead>
+                                    <TableHead className="font-semibold text-[11px] uppercase tracking-wider text-muted-foreground">
+                                      Scope Date
+                                    </TableHead>
+                                    <TableHead className="font-semibold text-[11px] uppercase tracking-wider text-muted-foreground">
+                                      Version
+                                    </TableHead>
+                                    <TableHead className="font-semibold text-[11px] uppercase tracking-wider text-muted-foreground">
+                                      Project Overview
+                                    </TableHead>
+                                    <TableHead className="font-semibold text-[11px] uppercase tracking-wider text-muted-foreground text-right">
+                                      Actions
+                                    </TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  {statusScopes.map((scope) => (
+                                    <TableRow
+                                      key={scope.id}
+                                      className="border-b border-border/20 hover:bg-muted/30 transition-colors"
+                                    >
+                                      <TableCell className="font-medium">{scope.project_name}</TableCell>
+                                      <TableCell>{formatDate(scope.scope_date)}</TableCell>
+                                      <TableCell>{scope.scope_version || "N/A"}</TableCell>
+                                      <TableCell>
+                                        <div
+                                          className="max-w-lg truncate text-muted-foreground/80"
+                                          title={scope.project_overview}
+                                        >
+                                          {scope.project_overview || "N/A"}
+                                        </div>
+                                      </TableCell>
+                                      <TableCell className="text-right">
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          className="hover:bg-muted/50 transition-colors"
+                                          onClick={() => router.push(`/scopes-of-work/${scope.id}/edit`)}
+                                        >
+                                          Edit
+                                        </Button>
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    )
+                  })}
+                </div>
+              )}
         </div>
-
-        {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-            <p>{error}</p>
-          </div>
-        )}
-
-        {loading ? (
-          <div className="space-y-4">
-            {PROJECT_STATUSES.map((status) => (
-              <Card key={status}>
-                <CardHeader>
-                  <CardTitle>{status}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    <Skeleton className="h-10 w-full" />
-                    <Skeleton className="h-10 w-full" />
-                    <Skeleton className="h-10 w-full" />
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : (
-          <div className="space-y-8">
-            {PROJECT_STATUSES.map((status) => {
-              const statusScopes = getScopesByStatus(status)
-              return (
-                <Card key={status} className="w-full">
-                  <CardHeader>
-                    <CardTitle className="flex items-center justify-between">
-                      <span>{status}</span>
-                      <Badge className={getStatusBadgeColor(status)}>
-                        {statusScopes.length} {statusScopes.length === 1 ? "Scope" : "Scopes"}
-                      </Badge>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {statusScopes.length === 0 ? (
-                      <p className="text-muted-foreground text-center py-4">No {status.toLowerCase()} scopes of work</p>
-                    ) : (
-                      <div className="overflow-x-auto">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead className="w-40">Project Name</TableHead>
-                              <TableHead className="w-32">Scope Date</TableHead>
-                              <TableHead className="w-24">Version</TableHead>
-                              <TableHead className="w-96">Project Overview</TableHead>
-                              <TableHead className="w-20">Actions</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {statusScopes.map((scope) => (
-                              <TableRow key={scope.id}>
-                                <TableCell className="font-medium w-40">{scope.project_name}</TableCell>
-                                <TableCell className="w-32">{formatDate(scope.scope_date)}</TableCell>
-                                <TableCell className="w-24">{scope.scope_version || "N/A"}</TableCell>
-                                <TableCell className="w-96">
-                                  <div className="max-w-md truncate" title={scope.project_overview}>
-                                    {scope.project_overview || "N/A"}
-                                  </div>
-                                </TableCell>
-                                <TableCell className="w-20">
-                                  <Button 
-                                    variant="outline" 
-                                    size="sm"
-                                    onClick={() => router.push(`/scopes-of-work/${scope.id}/edit`)}
-                                  >
-                                    Edit
-                                  </Button>
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )
-            })}
-          </div>
-        )}
       </div>
     </div>
   )

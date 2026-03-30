@@ -6,8 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Download } from 'lucide-react'
 import { LoadingDots } from '@/components/ui/loading-dots'
-import CampaignTimeChart from './CampaignTimeChart'
-import CampaignSpendChart from './CampaignSpendChart'
+import CampaignSummaryRow from '@/components/dashboard/campaign/CampaignSummaryRow'
 import MediaChannelPieChart from './MediaChannelPieChart'
 import MonthlySpendStackedChart from './MonthlySpendStackedChart'
 import MediaTable from './MediaTable'
@@ -250,6 +249,21 @@ export default function CampaignDetailContent({ slug, mbaNumber }: CampaignDetai
     })),
   }))
 
+  const campaignStartDate = new Date(data.campaign.campaignStartDate)
+  const campaignEndDate = new Date(data.campaign.campaignEndDate)
+  const daysInCampaign =
+    !Number.isNaN(campaignStartDate.getTime()) && !Number.isNaN(campaignEndDate.getTime())
+      ? Math.max(1, Math.ceil((campaignEndDate.getTime() - campaignStartDate.getTime()) / (1000 * 60 * 60 * 24)) + 1)
+      : undefined
+  const daysElapsed =
+    daysInCampaign && !Number.isNaN(campaignStartDate.getTime())
+      ? Math.max(0, Math.min(daysInCampaign, Math.ceil((Date.now() - campaignStartDate.getTime()) / (1000 * 60 * 60 * 24)) + 1))
+      : undefined
+  const daysRemaining =
+    !Number.isNaN(campaignEndDate.getTime())
+      ? Math.max(0, Math.ceil((campaignEndDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+      : undefined
+
   return (
     <div className="space-y-8 pb-24">
       {/* Campaign Header */}
@@ -327,14 +341,21 @@ export default function CampaignDetailContent({ slug, mbaNumber }: CampaignDetai
         </CardContent>
       </Card>
 
-      {/* Time and Spend Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <CampaignTimeChart timeElapsed={data.metrics.timeElapsedPercent} />
-        <CampaignSpendChart 
-          expectedSpend={data.metrics.expectedSpendToDate}
-          campaignBudget={data.campaign.campaignBudget}
-        />
-      </div>
+      <CampaignSummaryRow
+        time={{
+          timeElapsedPct: data.metrics.timeElapsedPercent,
+          daysInCampaign: daysInCampaign ?? 0,
+          daysElapsed: daysElapsed ?? 0,
+          daysRemaining: daysRemaining ?? 0,
+          startDate: data.campaign.campaignStartDate,
+          endDate: data.campaign.campaignEndDate,
+        }}
+        spend={{
+          budget: data.campaign.campaignBudget,
+          actualSpend: data.metrics.actualSpendToDate,
+          expectedSpend: data.metrics.expectedSpendToDate,
+        }}
+      />
 
       {/* Media Channel Pie Chart */}
       <MediaChannelPieChart data={spendByChannelData} />
@@ -357,7 +378,7 @@ export default function CampaignDetailContent({ slug, mbaNumber }: CampaignDetai
         <Button
           onClick={handleDownloadMediaPlan}
           disabled={downloadingMediaPlan}
-          className="bg-[#B5D337] text-white hover:bg-[#B5D337]/90"
+          className="bg-lime text-white hover:bg-lime/90"
         >
           {downloadingMediaPlan ? 'Downloading...' : 'Download Media Plan'}
           <Download className="h-4 w-4 ml-2" />
@@ -365,7 +386,7 @@ export default function CampaignDetailContent({ slug, mbaNumber }: CampaignDetai
         <Button
           onClick={handleDownloadBillingSchedule}
           disabled={downloadingBilling}
-          className="bg-[#472477] text-white hover:bg-[#472477]/90"
+          className="bg-brand-dark text-white hover:bg-brand-dark/90"
         >
           {downloadingBilling ? 'Downloading...' : 'Download Billing Schedule'}
           <Download className="h-4 w-4 ml-2" />

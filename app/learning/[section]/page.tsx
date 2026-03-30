@@ -81,7 +81,7 @@ export default function LearningSectionPage({ params }: PageProps) {
     if (id && terms.find((t) => t.id === id)) {
       setActiveTermId(id);
     }
-  }, [searchParams, terms]);
+  }, [searchParams]);
 
   useEffect(() => {
     const timer = setTimeout(() => {

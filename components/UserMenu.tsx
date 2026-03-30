@@ -21,8 +21,8 @@ export function UserMenu() {
   if (isLoading) {
     return (
       <div className="flex items-center space-x-2">
-        <div className="h-8 w-8 bg-gray-200 rounded-full animate-pulse" />
-        <div className="h-4 w-20 bg-gray-200 rounded animate-pulse" />
+        <div className="h-8 w-8 animate-pulse rounded-full bg-muted" />
+        <div className="h-4 w-20 animate-pulse rounded bg-muted" />
       </div>
     );
   }
@@ -36,7 +36,7 @@ export function UserMenu() {
     return (
       <button 
         onClick={login}
-        className="text-sm font-medium text-gray-700 hover:text-gray-900"
+        className="text-sm font-medium text-muted-foreground hover:text-foreground"
       >
         Sign In
       </button>
@@ -51,7 +51,7 @@ export function UserMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-100 transition-colors bg-white w-full">
+        <button className="flex w-full items-center space-x-3 rounded-lg bg-background p-2 transition-colors hover:bg-accent">
           <Avatar className="h-8 w-8">
             <AvatarImage src={user.picture} alt={displayName} />
             <AvatarFallback className="text-xs">
@@ -59,7 +59,7 @@ export function UserMenu() {
             </AvatarFallback>
           </Avatar>
           <div className="flex flex-col items-start min-w-0 flex-1">
-            <span className="text-sm font-medium text-gray-900 truncate">
+            <span className="truncate text-sm font-medium text-foreground">
               {displayName}
             </span>
             {primaryRole && (

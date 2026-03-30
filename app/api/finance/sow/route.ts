@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import axios from "axios"
-import { formatInvoiceDate, matchMonthYear, parseBillingScheduleAmount } from "@/lib/finance/utils"
+import {
+  formatInvoiceDate,
+  matchMonthYear,
+  parseBillingScheduleAmount,
+  financeClientNamesMatch,
+} from "@/lib/finance/utils"
 import { xanoUrl } from "@/lib/api/xano"
 
 type ScopeOfWork = {
@@ -133,6 +138,8 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
     const monthParam = searchParams.get("month") // YYYY-MM
+    const clientFilterRaw = searchParams.get("client")
+    const clientFilter = clientFilterRaw ? decodeURIComponent(clientFilterRaw.trim()) : ""
 
     if (!monthParam) {
       return NextResponse.json({ error: "Month parameter is required (format: YYYY-MM)" }, { status: 400 })
@@ -150,6 +157,11 @@ export async function GET(request: NextRequest) {
     const other: FinanceCampaignData[] = []
 
     scopes.forEach((scope) => {
+      const scopeClientName = scope.client_name || ""
+      if (clientFilter && !financeClientNamesMatch(scopeClientName, clientFilter)) {
+        return
+      }
+
       const billingSchedule = parseJSON(scope.billingSchedule ?? scope.billing_schedule)
       const lineItemsFromSchedule = extractLineItemsFromSchedule(billingSchedule, year, month)
       const fallbackLineItems = extractLineItemsFromCost(scope.cost)
@@ -186,6 +198,7 @@ export async function GET(request: NextRequest) {
       other,
       meta: {
         selectedMonth: monthParam,
+        clientFilter: clientFilter || undefined,
         totalScopes: scopes.length,
         bookedApprovedCount: bookedApproved.length,
         otherCount: other.length,

@@ -25,7 +25,7 @@ export default function UnauthorizedPage() {
   if (!mounted || isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
+        <div className="h-32 w-32 animate-spin rounded-full border-b-2 border-foreground"></div>
       </div>
     );
   }
@@ -40,20 +40,20 @@ export default function UnauthorizedPage() {
         {/* Error Icon and Title */}
         <div className="text-center space-y-4">
           <div className="flex justify-center">
-            <div className="p-4 bg-red-100 rounded-full">
-              <AlertTriangle className="h-16 w-16 text-red-600" />
+            <div className="rounded-full bg-destructive/10 p-4">
+              <AlertTriangle className="h-16 w-16 text-destructive" />
             </div>
           </div>
-          <h1 className="text-4xl font-bold text-gray-900">Oooops!</h1>
-          <p className="text-xl text-gray-600">
-            You don't have permission to access this page
+          <h1 className="text-4xl font-bold text-foreground">Oooops!</h1>
+          <p className="text-xl text-muted-foreground">
+            You don&apos;t have permission to access this page
           </p>
         </div>
 
         {/* Error Message */}
         <div className="text-center space-y-4">
-          <h2 className="text-2xl font-semibold text-gray-800">
-            You don't have permission to view this page
+          <h2 className="text-2xl font-semibold text-foreground">
+            You don&apos;t have permission to view this page
           </h2>
         </div>
 

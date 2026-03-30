@@ -39,6 +39,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import PacingGaugeCard from "@/components/dashboard/PacingGaugeCard"
+import { CHART_PACING as palette } from "@/lib/charts/theme"
 import { downloadCSV } from "@/lib/utils/csv-export"
 import { calcExpectedFromBursts } from "@/lib/pacing/calcExpected"
 import {
@@ -75,18 +76,6 @@ type LineItemWithMetrics = {
 }
 
 type AggregatedActual = ActualsDaily & { deliverable_value?: number }
-
-const palette = {
-  budget: "#4f8fcb",
-  deliverable: "#15c7c9",
-  accent: "#b5d337",
-  brand: "#9801b5",
-  highlight: "#fd7adb",
-  warning: "#ffcf2a",
-  alert: "#ff9700",
-  error: "#ff6003",
-  success: "#008e5e",
-}
 
 const clampRatio = (value: number) => Math.min(Math.max(value, 0), 1)
 const round2 = (n: number) => Number((n || 0).toFixed(2))
@@ -136,7 +125,7 @@ export default function MetaPacingPanel({
     }
   }, [clientSlug, mbaSlug])
 
-  const lineItems = data?.lineItems ?? []
+  const lineItems = useMemo(() => data?.lineItems ?? [], [data])
 
   const lineItemMetrics: LineItemWithMetrics[] = useMemo(
     () =>
@@ -834,6 +823,7 @@ function ActualsDailyDeliveryChart({
           stroke={palette.budget}
           strokeWidth={2.6}
           dot={false}
+          cursor="default"
           activeDot={{ r: 4, stroke: palette.budget, strokeWidth: 1 }}
         />
         <Line
@@ -844,6 +834,7 @@ function ActualsDailyDeliveryChart({
           stroke={palette.deliverable}
           strokeWidth={2.3}
           dot={false}
+          cursor="default"
           activeDot={{ r: 4, stroke: palette.deliverable, strokeWidth: 1 }}
         />
         <ChartTooltip
@@ -1175,7 +1166,7 @@ function deriveRow(row: AdSetRow): DerivedAdSetRow {
 
   return {
     ...row,
-    campaign_name: row.campaign_name ?? (row as Record<string, string | undefined>).campaign ?? "",
+    campaign_name: row.campaign_name ?? (row as unknown as Record<string, string | undefined>).campaign ?? "",
     cpm,
     ctr,
     cpc,

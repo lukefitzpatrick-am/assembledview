@@ -15,7 +15,7 @@ export function DynamicBreadcrumbs() {
   const pathname = usePathname()
   
   // Split the pathname into segments and remove empty strings
-  const segments = pathname.split('/').filter(Boolean)
+  const segments = (pathname ?? "").split("/").filter(Boolean)
   
   // If we're on the home page, just show Dashboard
   if (segments.length === 0) {

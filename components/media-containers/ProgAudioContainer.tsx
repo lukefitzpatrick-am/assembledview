@@ -1,10 +1,11 @@
 "use client"
 
-import { useState, useEffect, useRef, useMemo, useCallback } from "react"
-import { useForm, useFieldArray, UseFormReturn } from "react-hook-form"
+import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react"
+import { useForm, useFieldArray, UseFormReturn, type Resolver } from "react-hook-form"
 import { useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Combobox } from "@/components/ui/combobox"
@@ -13,20 +14,64 @@ import { Textarea } from "@/components/ui/textarea"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { useToast } from "@/components/ui/use-toast"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { getPublishersForProgAudio, getClientInfo } from "@/lib/api"
 import { formatBurstLabel } from "@/lib/bursts"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
-import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ChevronDown, Copy, Plus, Trash2 } from "lucide-react"
-import { LoadingDots } from "@/components/ui/loading-dots"
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
 import type { LineItem } from '@/lib/generateMediaPlan'
 import { formatMoney } from "@/lib/utils/money"
+import {
+  CpcFamilyBurstCalculatedField,
+  getCpcFamilyBurstCalculatedColumnLabel,
+} from "@/components/media-containers/burst-calculated-fields"
+import {
+  MP_BURST_ACTION_COLUMN,
+  MP_BURST_CARD,
+  MP_BURST_CARD_CONTENT,
+  MP_BURST_GRID_7,
+  MP_BURST_HEADER_INNER,
+  MP_BURST_HEADER_SHELL,
+  MP_BURST_LABEL_COLUMN,
+  MP_BURST_SECTION_OUTER,
+
+  MP_BURST_HEADER_ROW,
+  MP_BURST_LABEL_HEADING,
+  MP_BURST_ROW_SHELL,} from "@/lib/mediaplan/burstSectionLayout"
+import { SingleDatePicker } from "@/components/ui/single-date-picker"
+import { defaultMediaBurstStartDate, defaultMediaBurstEndDate } from "@/lib/date-picker-anchor"
+import MediaContainerTimelineCollapsible from "@/components/media-containers/MediaContainerTimelineCollapsible"
+import {
+  ProgAudioExpertGrid,
+  createEmptyProgAudioExpertRow,
+} from "@/components/media-containers/ProgAudioExpertGrid"
+import type { ProgAudioExpertScheduleRow } from "@/lib/mediaplan/expertModeWeeklySchedule"
+import {
+  mapProgAudioExpertRowsToStandardLineItems,
+  mapStandardProgAudioLineItemsToExpertRows,
+  type StandardProgAudioFormLineItem,
+} from "@/lib/mediaplan/expertOohRadioMappings"
+import {
+  mergeProgAudioStandardFromExpertWithPrevious,
+  serializeProgAudioExpertRowsBaseline,
+  serializeProgAudioStandardLineItemsBaseline,
+} from "@/lib/mediaplan/expertModeSwitch"
+import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
+import { getMediaTypeThemeHex, rgbaFromHex } from "@/lib/mediaplan/mediaTypeAccents"
+
+const PROG_AUDIO_MEDIA_HEX = getMediaTypeThemeHex("progaudio")
 
 // Format Dates
 const formatDateString = (d?: Date | string): string => {
@@ -55,6 +100,11 @@ const formatDateString = (d?: Date | string): string => {
   
   return `${year}-${month}-${day}`;
 };
+
+function netMediaFeeMarkup(rawBudget: number, budgetIncludesFees: boolean, feePct: number): number {
+  if (!budgetIncludesFees) return rawBudget;
+  return rawBudget / (1 + (feePct || 0) / 100);
+}
 
 // Exported utility function to get bursts
 export function getAllBursts(form) {
@@ -274,7 +324,7 @@ export function calculateBurstInvestmentPerMonth(form, feeprogaudio) {
 
   return Object.entries(monthlyInvestment).map(([monthYear, amount]) => ({
     monthYear,
-    amount: amount.toFixed(4),
+    amount: amount.toFixed(2),
   }));
 }
 
@@ -306,7 +356,7 @@ export default function ProgAudioContainer({
   
   // Form initialization
   const form = useForm<ProgAudioFormValues>({
-    resolver: zodResolver(progAudioFormSchema) as any,
+    resolver: zodResolver(progAudioFormSchema) as Resolver<ProgAudioFormValues>,
     defaultValues: {
       lineItems: [
         {
@@ -325,8 +375,8 @@ export default function ProgAudioContainer({
             {
               budget: "",
               buyAmount: "",
-              startDate: new Date(),
-              endDate: new Date(),
+              startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
+              endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
               calculatedValue: 0,
               fee: 0,
             },
@@ -347,7 +397,134 @@ export default function ProgAudioContainer({
   } = useFieldArray({
     control: form.control,
     name: "lineItems",
-  });
+  })
+
+  const progAudioStandardBaselineRef = useRef("")
+  const [expertProgAudioRows, setExpertProgAudioRows] = useState<
+    ProgAudioExpertScheduleRow[]
+  >([])
+  const [progAudioExpertModalOpen, setProgAudioExpertModalOpen] =
+    useState(false)
+  const [progAudioExpertExitConfirmOpen, setProgAudioExpertExitConfirmOpen] =
+    useState(false)
+  const [expertSegmentAttention, setExpertSegmentAttention] = useState(true)
+  const progAudioExpertRowsBaselineRef = useRef("")
+  const progAudioExpertModalOpenRef = useRef(false)
+  progAudioExpertModalOpenRef.current = progAudioExpertModalOpen
+
+  const progAudioExpertWeekColumns = useMemo(
+    () => buildWeeklyGanttColumnsFromCampaign(campaignStartDate, campaignEndDate),
+    [campaignStartDate, campaignEndDate]
+  )
+
+  useLayoutEffect(() => {
+    progAudioStandardBaselineRef.current =
+      serializeProgAudioStandardLineItemsBaseline(
+        form.getValues("lineItems") as StandardProgAudioFormLineItem[]
+      )
+  }, [form])
+
+  useEffect(() => {
+    const id = window.setTimeout(() => setExpertSegmentAttention(false), 2800)
+    return () => window.clearTimeout(id)
+  }, [])
+
+  const handleExpertProgAudioRowsChange = useCallback(
+    (next: ProgAudioExpertScheduleRow[]) => {
+      setExpertProgAudioRows(next)
+    },
+    []
+  )
+
+  const openProgAudioExpertModal = useCallback(() => {
+    const mapped = mapStandardProgAudioLineItemsToExpertRows(
+      (form.getValues("lineItems") || []) as StandardProgAudioFormLineItem[],
+      progAudioExpertWeekColumns,
+      campaignStartDate,
+      campaignEndDate
+    )
+    const weekKeys = progAudioExpertWeekColumns.map((c) => c.weekKey)
+    const rows: ProgAudioExpertScheduleRow[] =
+      mapped.length > 0
+        ? mapped
+        : [
+            createEmptyProgAudioExpertRow(
+              typeof crypto !== "undefined" && crypto.randomUUID
+                ? crypto.randomUUID()
+                : `progaudio-expert-${Date.now()}`,
+              campaignStartDate,
+              campaignEndDate,
+              weekKeys
+            ),
+          ]
+    progAudioExpertRowsBaselineRef.current =
+      serializeProgAudioExpertRowsBaseline(rows)
+    setExpertProgAudioRows(rows)
+    setProgAudioExpertExitConfirmOpen(false)
+    setProgAudioExpertModalOpen(true)
+  }, [campaignStartDate, campaignEndDate, form, progAudioExpertWeekColumns])
+
+  const dismissProgAudioExpertExitConfirm = useCallback(() => {
+    setProgAudioExpertExitConfirmOpen(false)
+  }, [])
+
+  const confirmProgAudioExpertExitWithoutSaving = useCallback(() => {
+    setProgAudioExpertExitConfirmOpen(false)
+    setProgAudioExpertModalOpen(false)
+  }, [])
+
+  const handleProgAudioExpertModalOpenChange = useCallback(
+    (open: boolean) => {
+      if (open) {
+        setProgAudioExpertModalOpen(true)
+        return
+      }
+      const dirty =
+        serializeProgAudioExpertRowsBaseline(expertProgAudioRows) !==
+        progAudioExpertRowsBaselineRef.current
+      if (!dirty) {
+        setProgAudioExpertModalOpen(false)
+        return
+      }
+      setProgAudioExpertExitConfirmOpen(true)
+    },
+    [expertProgAudioRows]
+  )
+
+  const handleProgAudioExpertApply = useCallback(() => {
+    const prevLineItems = form.getValues("lineItems") || []
+    const standard = mapProgAudioExpertRowsToStandardLineItems(
+      expertProgAudioRows,
+      progAudioExpertWeekColumns,
+      campaignStartDate,
+      campaignEndDate,
+      {
+        feePctProgAudio: feeprogaudio,
+        budgetIncludesFees: Boolean(prevLineItems[0]?.budgetIncludesFees),
+      }
+    )
+    const merged = mergeProgAudioStandardFromExpertWithPrevious(
+      standard,
+      prevLineItems as StandardProgAudioFormLineItem[]
+    )
+    form.setValue("lineItems", merged as ProgAudioFormValues["lineItems"], {
+      shouldDirty: true,
+      shouldValidate: false,
+    })
+    progAudioStandardBaselineRef.current =
+      serializeProgAudioStandardLineItemsBaseline(
+        form.getValues("lineItems") as StandardProgAudioFormLineItem[]
+      )
+    setProgAudioExpertExitConfirmOpen(false)
+    setProgAudioExpertModalOpen(false)
+  }, [
+    campaignStartDate,
+    campaignEndDate,
+    expertProgAudioRows,
+    feeprogaudio,
+    form,
+    progAudioExpertWeekColumns,
+  ])
 
   const handleDuplicateLineItem = useCallback((lineItemIndex: number) => {
     const items = form.getValues("lineItems") || [];
@@ -385,6 +562,7 @@ export default function ProgAudioContainer({
 
   // Data loading for edit mode
   useEffect(() => {
+    if (progAudioExpertModalOpenRef.current) return
     if (initialLineItems && initialLineItems.length > 0) {
       const transformedLineItems = initialLineItems.map((item: any) => ({
         platform: item.platform || item.site || "",
@@ -411,8 +589,8 @@ export default function ProgAudioContainer({
         })) : [{
           budget: "",
           buyAmount: "",
-          startDate: campaignStartDate || new Date(),
-          endDate: campaignEndDate || new Date(),
+          startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
+          endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
           calculatedValue: 0,
           fee: 0,
         }],
@@ -478,7 +656,7 @@ export default function ProgAudioContainer({
     });
 
     onMediaLineItemsChange(transformedLineItems);
-  }, [watchedLineItems, mbaNumber, feeprogaudio, onMediaLineItemsChange]);
+  }, [watchedLineItems, mbaNumber, feeprogaudio, form, onMediaLineItemsChange]);
   
   // Memoized calculations
   // Note: For display purposes, always show media amounts regardless of clientPaysForMedia
@@ -535,6 +713,7 @@ export default function ProgAudioContainer({
     let overallMedia = 0;
     let overallFee = 0;
     let overallCost = 0;
+    let overallDeliverableCount = 0;
 
     lineItems.forEach((lineItem) => {
       let lineMedia = 0;
@@ -543,17 +722,25 @@ export default function ProgAudioContainer({
 
       lineItem.bursts.forEach((burst) => {
         const budget = parseFloat(burst?.budget?.replace(/[^0-9.]/g, "") || "0");
-        lineMedia += budget;
+        if (lineItem.budgetIncludesFees) {
+          const base = budget / (1 + (feeprogaudio || 0) / 100);
+          lineMedia += base;
+          lineFee += budget - base;
+        } else {
+          lineMedia += budget;
+          const fee = feeprogaudio ? (budget / (100 - feeprogaudio)) * feeprogaudio : 0;
+          lineFee += fee;
+        }
         lineDeliverables += burst?.calculatedValue || 0;
       });
 
-      lineFee = feeprogaudio ? (lineMedia / (100 - feeprogaudio)) * feeprogaudio : 0;
       overallMedia += lineMedia;
       overallFee += lineFee;
       overallCost += lineMedia + lineFee;
+      overallDeliverableCount += lineDeliverables;
     });
 
-    setOverallDeliverables(overallMedia);
+    setOverallDeliverables(overallDeliverableCount);
     onTotalMediaChange(overallMedia, overallFee);
   }, [form, feeprogaudio, onTotalMediaChange]);
 
@@ -561,7 +748,7 @@ export default function ProgAudioContainer({
     (lineItemIndex: number, value: string) => {
       form.setValue(`lineItems.${lineItemIndex}.buyType`, value);
 
-      if (value === "bonus") {
+      if (value === "bonus" || value === "package_inclusions") {
         const currentBursts =
           form.getValues(`lineItems.${lineItemIndex}.bursts`) || [];
         const zeroedBursts = currentBursts.map((burst: any) => ({
@@ -581,9 +768,12 @@ export default function ProgAudioContainer({
     [form, handleLineItemValueChange]
   );
 
-  const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number) => {
+  const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number, budgetIncludesFeesOverride?: boolean) => {
     const burst = form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}`);
-    const budget = parseFloat(burst?.budget?.replace(/[^0-9.]/g, "") || "0");
+    const lineItem = form.getValues(`lineItems.${lineItemIndex}`);
+    const rawBudget = parseFloat(burst?.budget?.replace(/[^0-9.]/g, "") || "0");
+    const budgetIncludesFees = budgetIncludesFeesOverride ?? Boolean(lineItem?.budgetIncludesFees);
+    const budget = netMediaFeeMarkup(rawBudget, budgetIncludesFees, feeprogaudio || 0);
     const buyAmount = parseFloat(burst?.buyAmount?.replace(/[^0-9.]/g, "") || "1");
     const buyType = form.getValues(`lineItems.${lineItemIndex}.buyType`);
 
@@ -618,7 +808,7 @@ export default function ProgAudioContainer({
 
       handleLineItemValueChange(lineItemIndex);
     }
-  }, [form, handleLineItemValueChange]);
+  }, [feeprogaudio, form, handleLineItemValueChange]);
 
   const handleAppendBurst = useCallback((lineItemIndex: number) => {
     const currentBursts = form.getValues(`lineItems.${lineItemIndex}.bursts`) || [];
@@ -775,7 +965,7 @@ useEffect(() => {
     overallTotals.overallMedia,
     overallTotals.overallFee
   )
-}, [overallTotals.overallMedia, overallTotals.overallFee]) // Removed onTotalMediaChange dependency to prevent infinite loops
+}, [overallTotals.overallFee, overallTotals.overallMedia, onTotalMediaChange])
 
 useEffect(() => {
   // convert each form lineItem into the shape needed for Excel
@@ -813,7 +1003,7 @@ useEffect(() => {
   
   // push it up to page.tsx
   onLineItemsChange(items);
-}, [watchedLineItems, feeprogaudio, mbaNumber]);
+}, [watchedLineItems, feeprogaudio, form, mbaNumber, onLineItemsChange]);
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -845,7 +1035,7 @@ useEffect(() => {
     }, 300); // 300ms debounce
 
     return () => clearTimeout(timeoutId);
-  }, [watchedLineItems, feeprogaudio]); // Removed callback dependencies to prevent infinite loops
+  }, [watchedLineItems, feeprogaudio, form, onBurstsChange, onInvestmentChange]);
 
   const getBursts = () => {
     const formLineItems = form.getValues("lineItems") || [];
@@ -899,45 +1089,165 @@ useEffect(() => {
   return (
     <div className="space-y-6">
       <div className="mb-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="pt-4 border-t font-bold text-lg flex justify-between">Prog Audio Media</CardTitle>
+        <Card className="overflow-hidden border-0 shadow-md">
+          <div className="h-1 bg-gradient-to-r from-primary via-primary/70 to-primary/40" />
+          <CardHeader className="pb-3">
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <CardTitle className="text-base font-semibold tracking-tight">
+                    Prog Audio Media
+                  </CardTitle>
+                  {progAudioExpertModalOpen ? (
+                    <Badge
+                      variant="outline"
+                      className="border-2 text-[10px] font-semibold uppercase tracking-wider shadow-sm"
+                      style={{
+                        borderColor: rgbaFromHex(PROG_AUDIO_MEDIA_HEX, 0.55),
+                        backgroundColor: rgbaFromHex(PROG_AUDIO_MEDIA_HEX, 0.14),
+                        color: PROG_AUDIO_MEDIA_HEX,
+                      }}
+                    >
+                      Expert schedule open
+                    </Badge>
+                  ) : null}
+                </div>
+                <div
+                  role="group"
+                  aria-label="Prog Audio Media entry mode"
+                  className="inline-flex shrink-0 rounded-lg border border-border bg-muted/50 p-0.5"
+                >
+                  <button
+                    type="button"
+                    aria-pressed={!progAudioExpertModalOpen}
+                    className={cn(
+                      "rounded-md px-3 py-1.5 text-xs font-medium transition-all",
+                      !progAudioExpertModalOpen
+                        ? "text-white shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                    style={
+                      !progAudioExpertModalOpen
+                        ? { backgroundColor: PROG_AUDIO_MEDIA_HEX }
+                        : undefined
+                    }
+                    onClick={() => {
+                      if (progAudioExpertModalOpen) {
+                        handleProgAudioExpertModalOpenChange(false)
+                      }
+                    }}
+                  >
+                    Standard
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={progAudioExpertModalOpen}
+                    className={cn(
+                      "rounded-md px-3 py-1.5 text-xs font-medium transition-all",
+                      progAudioExpertModalOpen
+                        ? "text-white shadow-sm"
+                        : "text-muted-foreground hover:text-foreground",
+                      expertSegmentAttention &&
+                        !progAudioExpertModalOpen &&
+                        "animate-pulse"
+                    )}
+                    style={{
+                      ...(progAudioExpertModalOpen
+                        ? { backgroundColor: PROG_AUDIO_MEDIA_HEX }
+                        : {}),
+                      ...(expertSegmentAttention && !progAudioExpertModalOpen
+                        ? {
+                            boxShadow: `0 0 0 2px ${rgbaFromHex(PROG_AUDIO_MEDIA_HEX, 0.45)}`,
+                          }
+                        : {}),
+                    }}
+                    onClick={() => {
+                      if (!progAudioExpertModalOpen) {
+                        openProgAudioExpertModal()
+                      }
+                    }}
+                  >
+                    Expert
+                  </button>
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  {overallTotals.lineItemTotals.length} line item
+                  {overallTotals.lineItemTotals.length !== 1 ? "s" : ""}
+                </span>
+              </div>
+            </div>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-0">
             {overallTotals.lineItemTotals.map((item) => (
-              <div key={item.index} className="flex justify-between border-b pb-2">
-                <span className="font-medium">Line Item {item.index}</span>
-                <div className="flex space-x-4">
-                  <span>
-                    {getDeliverablesLabel(form.getValues(`lineItems.${item.index - 1}.buyType`))}: {item.deliverables.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                  </span>
-                  <span>Media: {formatMoney(item.media, { locale: "en-US", currency: "USD" })}</span>
-                  <span>Fee: {formatMoney(item.fee, { locale: "en-US", currency: "USD" })}</span>
-                  <span>Total Cost: {formatMoney(item.totalCost, { locale: "en-US", currency: "USD" })}</span>
+              <div
+                key={item.index}
+                className="flex items-center justify-between py-2.5 border-b border-border/40 last:border-b-0"
+              >
+                <span className="text-sm font-medium text-muted-foreground">Line {item.index}</span>
+                <div className="flex items-center gap-6 text-sm tabular-nums">
+                  <div className="text-right">
+                    <span className="text-[11px] text-muted-foreground block">
+                      {getDeliverablesLabel(form.getValues(`lineItems.${item.index - 1}.buyType`))}
+                    </span>
+                    <span>{item.deliverables.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[11px] text-muted-foreground block">Media</span>
+                    <span>{formatMoney(item.media, { locale: "en-US", currency: "USD" })}</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[11px] text-muted-foreground block">Fee</span>
+                    <span>{formatMoney(item.fee, { locale: "en-US", currency: "USD" })}</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[11px] text-muted-foreground block">Total</span>
+                    <span className="font-semibold">{formatMoney(item.totalCost, { locale: "en-US", currency: "USD" })}</span>
+                  </div>
                 </div>
               </div>
             ))}
-  
-            {/* Overall Totals */}
-            <div className="pt-4 border-t font-medium flex justify-between">
-              <span>Prog Audio Media Totals:</span>
-              <div className="flex space-x-4">
-                <span>Media: {formatMoney(overallTotals.overallMedia, { locale: "en-US", currency: "USD" })}</span>
-                <span>Fees ({feeprogaudio}%): {formatMoney(overallTotals.overallFee, { locale: "en-US", currency: "USD" })}</span>
-                <span>Total Cost: {formatMoney(overallTotals.overallCost, { locale: "en-US", currency: "USD" })}</span>
+
+            <div className="flex items-center justify-between pt-3 mt-1 border-t-2 border-primary/20">
+              <span className="text-sm font-semibold">Total</span>
+              <div className="flex items-center gap-6 text-sm font-semibold tabular-nums">
+                <div className="text-right">
+                  <span className="text-[11px] text-muted-foreground font-normal block">Media</span>
+                  <span>{formatMoney(overallTotals.overallMedia, { locale: "en-US", currency: "USD" })}</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-[11px] text-muted-foreground font-normal block">Fee ({feeprogaudio}%)</span>
+                  <span>{formatMoney(overallTotals.overallFee, { locale: "en-US", currency: "USD" })}</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-[11px] text-muted-foreground font-normal block">Total</span>
+                  <span className="text-primary">{formatMoney(overallTotals.overallCost, { locale: "en-US", currency: "USD" })}</span>
+                </div>
               </div>
             </div>
+            <MediaContainerTimelineCollapsible
+              mediaTypeKey="progAudio"
+              lineItems={watchedLineItems}
+              campaignStartDate={campaignStartDate}
+              campaignEndDate={campaignEndDate}
+            />
           </CardContent>
         </Card>
       </div>
   
       <div>
         {isLoading ? (
-          <div className="flex justify-center items-center h-20">
-        <LoadingDots size="md" />
+          <div className="flex flex-col items-center justify-center py-12 gap-3">
+            <div className="relative h-10 w-10">
+              <div className="absolute inset-0 rounded-full border-2 border-muted" />
+              <div className="absolute inset-0 rounded-full border-2 border-t-primary animate-spin" />
+            </div>
+            <span className="text-sm text-muted-foreground">Loading...</span>
           </div>
         ) : (
           <div className="space-y-6">
+            {progAudioExpertModalOpen ? null : (
             <Form {...form}>
               <div className="space-y-6">
                 {lineItemFields.map((field, lineItemIndex) => {
@@ -961,26 +1271,35 @@ useEffect(() => {
                   const { totalMedia, totalCalculatedValue } = getTotals(lineItemIndex);
 
                   return (
-                    <Card key={field.id} className="space-y-6">
-                      <CardHeader className="pb-2">
-                        <div className="flex justify-between items-center">
-                          <div className="flex items-center space-x-2">
-                            <CardTitle className="text-lg font-medium">Prog Audio Line Item {lineItemIndex + 1}</CardTitle>
-                            <div className="text-sm text-muted-foreground">ID: {`${mbaNumber}ML${lineItemIndex + 1}`}</div>
+                    <Card key={field.id} className="overflow-hidden border border-border/50 shadow-sm hover:shadow-md transition-shadow duration-200 space-y-6">
+                      <CardHeader className="pb-2 bg-muted/30">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                              {lineItemIndex + 1}
+                            </div>
+                            <div>
+                              <CardTitle className="text-sm font-semibold tracking-tight">Prog Audio Line Item</CardTitle>
+                              <span className="font-mono text-[11px] text-muted-foreground">{`${mbaNumber}ML${lineItemIndex + 1}`}</span>
+                            </div>
                           </div>
-                          <div className="flex items-center space-x-2">
-                            <div className="text-sm font-medium">
-                              Total: {formatMoney(
-                                form.getValues(`lineItems.${lineItemIndex}.budgetIncludesFees`)
-                                  ? totalMedia
-                                  : totalMedia + (totalMedia / (100 - (feeprogaudio || 0))) * (feeprogaudio || 0),
-                                { locale: "en-US", currency: "USD" }
-                              )}
+                          <div className="flex items-center gap-3">
+                            <div className="text-right">
+                              <span className="block text-[11px] text-muted-foreground">Total</span>
+                              <span className="text-sm font-bold tabular-nums">
+                                {formatMoney(
+                                  form.getValues(`lineItems.${lineItemIndex}.budgetIncludesFees`)
+                                    ? totalMedia
+                                    : totalMedia + (totalMedia / (100 - (feeprogaudio || 0))) * (feeprogaudio || 0),
+                                  { locale: "en-US", currency: "USD" }
+                                )}
+                              </span>
                             </div>
                             <Button
                               type="button"
-                              variant="outline" 
+                              variant="ghost"
                               size="sm"
+                              className="h-8 w-8 shrink-0 rounded-full p-0"
                               onClick={() => {
                                 const element = document.getElementById(sectionId);
                                 const bursts = document.getElementById(burstsId);
@@ -1015,12 +1334,9 @@ useEffect(() => {
                       </div>
                       
                       {/* Detailed Content - Collapsible */}
-                      <div
-                        id={sectionId}
-                        className="bg-white rounded-xl shadow p-6 mb-6"
-                      >
-                        <CardContent className="space-y-6">
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                      <div id={sectionId} className="px-6 py-5">
+                        <CardContent className="space-y-5 p-0">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4">
                             
                             {/* Column 1 - Dropdowns */}
                             <div className="space-y-4">
@@ -1028,8 +1344,8 @@ useEffect(() => {
                                 control={form.control}
                                 name={`lineItems.${lineItemIndex}.platform`}
                                 render={({ field }) => (
-                                  <FormItem className="flex items-center space-x-2">
-                                    <FormLabel className="w-24 text-sm">Platform</FormLabel>
+                                  <FormItem className="flex flex-col space-y-1.5">
+                                    <FormLabel className="text-sm text-muted-foreground font-medium">Platform</FormLabel>
                                     <FormControl>
                                       <Combobox
                                         value={field.value}
@@ -1053,8 +1369,8 @@ useEffect(() => {
                                 control={form.control}
                                 name={`lineItems.${lineItemIndex}.bidStrategy`}
                                 render={({ field }) => (
-                                  <FormItem className="flex items-center space-x-2">
-                                    <FormLabel className="w-24 text-sm">Targeting</FormLabel>
+                                  <FormItem className="flex flex-col space-y-1.5">
+                                    <FormLabel className="text-sm text-muted-foreground font-medium">Targeting</FormLabel>
                                     <FormControl>
                                       <Combobox
                                         value={field.value}
@@ -1079,8 +1395,8 @@ useEffect(() => {
                                 control={form.control}
                                 name={`lineItems.${lineItemIndex}.buyType`}
                                 render={({ field }) => (
-                                  <FormItem className="flex items-center space-x-2">
-                                    <FormLabel className="w-24 text-sm">Buy Type</FormLabel>
+                                  <FormItem className="flex flex-col space-y-1.5">
+                                    <FormLabel className="text-sm text-muted-foreground font-medium">Buy Type</FormLabel>
                                     <FormControl>
                                       <Combobox
                                         value={field.value}
@@ -1090,6 +1406,7 @@ useEffect(() => {
                                         buttonClassName="h-9 w-full flex-1 rounded-md"
                                         options={[
                                           { value: "bonus", label: "Bonus" },
+                                          { value: "package_inclusions", label: "Package Inclusions" },
                                           { value: "cpc", label: "CPC" },
                                           { value: "cpm", label: "CPM" },
                                           { value: "cpv", label: "CPV" },
@@ -1105,25 +1422,25 @@ useEffect(() => {
 
                             {/* Column 2 - Targeting and Buying Demo */}
                             <div className="space-y-4">
-                              <FormItem className="flex items-center space-x-2"> 
-                                <FormLabel className="block text-sm mb-1 self-start mt-4">Targeting</FormLabel>
+                              <FormItem className="flex flex-col space-y-1.5">
+                                <FormLabel className="text-sm text-muted-foreground font-medium">Targeting</FormLabel>
                                 <FormControl>
                                   <Textarea
                                     {...form.register(`lineItems.${lineItemIndex}.creativeTargeting`)}
                                     placeholder="Enter targeting details"
-                                    className="w-full h-24 text-sm rounded-md border"
+                                    className="w-full h-24 text-sm rounded-md border border-border/50 bg-muted/30 transition-colors focus:bg-background"
                                   />
                                 </FormControl>
                                 <FormMessage />
                               </FormItem>
 
-                              <FormItem className="flex items-center space-x-2">
-                                <FormLabel className="block text-sm mb-1">Buying Demo</FormLabel>
+                              <FormItem className="flex flex-col space-y-1.5">
+                                <FormLabel className="text-sm text-muted-foreground font-medium">Buying Demo</FormLabel>
                                 <FormControl>
                                   <Textarea
                                     {...form.register(`lineItems.${lineItemIndex}.buyingDemo`)}
                                     placeholder="Enter buying demo details"
-                                    className="w-full min-h-0 h-10 text-sm rounded-md border"
+                                    className="w-full min-h-0 h-10 text-sm rounded-md border border-border/50 bg-muted/30 transition-colors focus:bg-background"
                                   />
                                 </FormControl>
                                 <FormMessage />
@@ -1132,25 +1449,25 @@ useEffect(() => {
 
                             {/* Column 3 - Creative */}
                             <div className="space-y-4">
-                              <FormItem className="flex items-center space-x-2">
-                                <FormLabel className="block text-sm mb-1 self-start mt-4">Creative</FormLabel>
+                              <FormItem className="flex flex-col space-y-1.5">
+                                <FormLabel className="text-sm text-muted-foreground font-medium">Creative</FormLabel>
                                 <FormControl>
                                   <Textarea
                                     {...form.register(`lineItems.${lineItemIndex}.creative`)}
                                     placeholder="Enter creative details"
-                                    className="w-full h-24 text-sm rounded-md border"
+                                    className="w-full h-24 text-sm rounded-md border border-border/50 bg-muted/30 transition-colors focus:bg-background"
                                   />
                                 </FormControl>
                                 <FormMessage />
                               </FormItem>
 
-                              <FormItem className="flex items-center space-x-2">
-                                <FormLabel className="block text-sm mb-1">Market</FormLabel>
+                              <FormItem className="flex flex-col space-y-1.5">
+                                <FormLabel className="text-sm text-muted-foreground font-medium">Market</FormLabel>
                                 <FormControl>
                                   <Textarea
                                     {...form.register(`lineItems.${lineItemIndex}.market`)}
                                     placeholder="Enter market or Geo Targeting"
-                                    className="w-full min-h-0 h-10 text-sm rounded-md border"
+                                    className="w-full min-h-0 h-10 text-sm rounded-md border border-border/50 bg-muted/30 transition-colors focus:bg-background"
                                   />
                                 </FormControl>
                                 <FormMessage />
@@ -1158,8 +1475,9 @@ useEffect(() => {
                             </div>
 
                             {/* Column 4 - Checkboxes */}
-                            <div className="flex flex-col justify-between">
-                              <div className="space-y-3">
+                            <div className="space-y-4">
+                              <div className="space-y-3 rounded-lg border border-border/30 bg-muted/20 p-4">
+                                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Options</span>
                                 <FormField
                                   control={form.control}
                                   name={`lineItems.${lineItemIndex}.fixedCostMedia`}
@@ -1192,7 +1510,15 @@ useEffect(() => {
                                   render={({ field }) => (
                                     <FormItem className="flex items-center space-x-2">
                                       <FormControl>
-                                        <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                                        <Checkbox
+                                          checked={field.value}
+                                          onCheckedChange={(checked) => {
+                                            field.onChange(checked);
+                                            const bursts = form.getValues(`lineItems.${lineItemIndex}.bursts`) || [];
+                                            bursts.forEach((_, bi) => handleValueChange(lineItemIndex, bi, !!checked));
+                                            handleLineItemValueChange(lineItemIndex);
+                                          }}
+                                        />
                                       </FormControl>
                                       <FormLabel className="text-sm">Budget Includes Fees</FormLabel>
                                     </FormItem>
@@ -1221,9 +1547,9 @@ useEffect(() => {
                       <div id={burstsId} className="space-y-4">
                         {form.watch(`lineItems.${lineItemIndex}.bursts`, []).map((burstField, burstIndex) => {
                           return (
-                            <Card key={`${lineItemIndex}-${burstIndex}`} className="border border-gray-200 bg-muted/30 mx-2">
-                              <CardContent className="py-2 px-4">
-                                <div className="flex items-center gap-3">
+                            <Card key={`${lineItemIndex}-${burstIndex}`} className={MP_BURST_CARD}>
+                              <CardContent className={MP_BURST_CARD_CONTENT}>
+                                <div className={MP_BURST_ROW_SHELL}>
                                   <div className="w-24 flex-shrink-0">
                                     <h4 className="text-sm font-medium">
                                       {formatBurstLabel(
@@ -1306,33 +1632,21 @@ useEffect(() => {
                                         render={({ field }) => (
                                           <FormItem>
                                             <FormLabel className="text-xs">Start Date</FormLabel>
-                                            <Popover>
-                                              <PopoverTrigger asChild>
-                                                <FormControl>
-                                                  <Button
-                                                    variant={"outline"}
-                                                    className={cn(
-                                                      "w-full h-10 pl-2 text-left font-normal text-sm",
-                                                      !field.value && "text-muted-foreground",
-                                                    )}
-                                                  >
-                                                    {field.value ? format(field.value, "dd/MM/yy") : <span>Pick date</span>}
-                                                    <CalendarIcon className="ml-auto h-3 w-3 opacity-50" />
-                                                  </Button>
-                                                </FormControl>
-                                              </PopoverTrigger>
-                                              <PopoverContent className="w-auto p-0" align="start">
-                                                <Calendar
-                                                  mode="single"
-                                                  selected={field.value}
-                                                  onSelect={field.onChange}
-                                                  disabled={(date) =>
-                                                    date > new Date("2100-01-01")
-                                                  }
-                                                  initialFocus
-                                                />
-                                              </PopoverContent>
-                                            </Popover>
+                                            <FormControl>
+                                              <SingleDatePicker
+                                                ref={field.ref}
+                                                name={field.name}
+                                                onBlur={field.onBlur}
+                                                value={field.value}
+                                                onChange={field.onChange}
+                                                className="w-full h-10 pl-2 text-left font-normal text-sm"
+                                                calendarContext="media-burst"
+                                                mediaBurstRole="start"
+                                                campaignStartDate={campaignStartDate}
+                                                campaignEndDate={campaignEndDate}
+                                                isDateDisabled={(date) => date > new Date("2100-01-01")}
+                                              />
+                                            </FormControl>
                                             <FormMessage />
                                           </FormItem>
                                         )}
@@ -1344,33 +1658,21 @@ useEffect(() => {
                                         render={({ field }) => (
                                           <FormItem>
                                             <FormLabel className="text-xs">End Date</FormLabel>
-                                            <Popover>
-                                              <PopoverTrigger asChild>
-                                                <FormControl>
-                                                  <Button
-                                                    variant={"outline"}
-                                                    className={cn(
-                                                      "w-full h-10 pl-2 text-left font-normal text-sm",
-                                                      !field.value && "text-muted-foreground",
-                                                    )}
-                                                  >
-                                                    {field.value ? format(field.value, "dd/MM/yy") : <span>Pick date</span>}
-                                                    <CalendarIcon className="ml-auto h-3 w-3 opacity-50" />
-                                                  </Button>
-                                                </FormControl>
-                                              </PopoverTrigger>
-                                              <PopoverContent className="w-auto p-0" align="start">
-                                                <Calendar
-                                                  mode="single"
-                                                  selected={field.value}
-                                                  onSelect={field.onChange}
-                                                  disabled={(date) =>
-                                                    date > new Date("2100-01-01")
-                                                  }
-                                                  initialFocus
-                                                />
-                                              </PopoverContent>
-                                            </Popover>
+                                            <FormControl>
+                                              <SingleDatePicker
+                                                ref={field.ref}
+                                                name={field.name}
+                                                onBlur={field.onBlur}
+                                                value={field.value}
+                                                onChange={field.onChange}
+                                                className="w-full h-10 pl-2 text-left font-normal text-sm"
+                                                calendarContext="media-burst"
+                                                mediaBurstRole="end"
+                                                campaignStartDate={campaignStartDate}
+                                                campaignEndDate={campaignEndDate}
+                                                isDateDisabled={(date) => date > new Date("2100-01-01")}
+                                              />
+                                            </FormControl>
                                             <FormMessage />
                                           </FormItem>
                                         )}
@@ -1380,93 +1682,19 @@ useEffect(() => {
                                     <FormField
                                       control={form.control}
                                       name={`lineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`}
-                                      render={({ field }) => {
-                                        const buyType = useWatch({
-                                          control: form.control,
-                                          name: `lineItems.${lineItemIndex}.buyType`,
-                                        });
-                                        const budgetValue = useWatch({
-                                          control: form.control,
-                                          name: `lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`,
-                                        });
-                                        const buyAmountValue = useWatch({
-                                          control: form.control,
-                                          name: `lineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount`,
-                                        });
-
-                                        const calculatedValue = useMemo(() => {
-                                          const budget = parseFloat(
-                                            String(budgetValue)?.replace(/[^0-9.]/g, "") || "0"
-                                          );
-                                          const buyAmount = parseFloat(
-                                            String(buyAmountValue)?.replace(/[^0-9.]/g, "") || "1"
-                                          );
-
-                                          switch (buyType) {
-                                            case "cpc":
-                                            case "cpv":
-                                              return buyAmount !== 0 ? budget / buyAmount : "0";
-                                            case "cpm":
-                                              return buyAmount !== 0 ? (budget / buyAmount) * 1000 : "0";
-                                            case "fixed_cost":
-                                              return "1";
-                                            default:
-                                              return "0";
-                                          }
-                                        }, [budgetValue, buyAmountValue, buyType]);
-
-                                        if (buyType === "bonus") {
-                                          return (
-                                            <FormItem>
-                                              <FormLabel className="text-xs">Bonus Deliverables</FormLabel>
-                                              <FormControl>
-                                                <Input
-                                                  type="number"
-                                                  min={0}
-                                                  step={1}
-                                                  className="w-full"
-                                                  value={field.value ?? ""}
-                                                  onChange={(e) => {
-                                                    const value = e.target.value.replace(/[^0-9]/g, "");
-                                                    field.onChange(value);
-                                                  }}
-                                                />
-                                              </FormControl>
-                                              <FormMessage />
-                                            </FormItem>
-                                          );
-                                        }
-
-                                        let title = "Calculated Value";
-                                        switch (buyType) {
-                                          case "cpc":
-                                            title = "Clicks";
-                                            break;
-                                          case "cpv":
-                                            title = "Views";
-                                            break;
-                                          case "cpm":
-                                            title = "Impressions";
-                                            break;
-                                          case "fixed_cost":
-                                            title = "Fixed Cost";
-                                            break;
-                                        }
-
-                                        return (
-                                          <FormItem>
-                                            <FormLabel className="text-xs">{title}</FormLabel>
-                                            <FormControl>
-                                              <Input
-                                                type="text"
-                                                className="w-full min-w-[8rem] h-10 text-sm"
-                                                value={Number(calculatedValue).toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                                                readOnly
-                                              />
-                                            </FormControl>
-                                          </FormItem>
-                                        );
-                                      }}
+                                      render={({ field }) => (
+                                        <CpcFamilyBurstCalculatedField
+                                          form={form}
+                                          itemsKey="lineItems"
+                                          lineItemIndex={lineItemIndex}
+                                          burstIndex={burstIndex}
+                                          field={field}
+                                          feePct={feeprogaudio || 0}
+                                          netMedia={netMediaFeeMarkup}
+                                          variant="cpcCpvCpm"
+                                          bonusInputClassName="w-full"
+                                        />
+                                      )}
                                     />
 
                                     <div className="space-y-1">
@@ -1497,35 +1725,36 @@ useEffect(() => {
                                     </div>
                                   </div>
                                   
-                                  <div className="flex items-end gap-2 self-end pb-1">
+                                  <div className={MP_BURST_ACTION_COLUMN}>
                                     <Button
                                       type="button"
-                                      variant="outline"
-                                      size="sm"
-                                      className="h-10 text-sm px-3"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8"
                                       onClick={() => handleAppendBurst(lineItemIndex)}
+                                      title="Add burst"
                                     >
-                                      <Plus className="h-4 w-4 mr-1" />
-                                      Add
+                                      <Plus className="h-4 w-4" />
                                     </Button>
                                     <Button
                                       type="button"
-                                      variant="outline"
-                                      size="sm"
-                                      className="h-10 text-sm px-3"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8"
                                       onClick={() => handleDuplicateBurst(lineItemIndex)}
+                                      title="Duplicate burst"
                                     >
-                                      <Copy className="h-4 w-4 mr-1" />
-                                      Duplicate
+                                      <Copy className="h-3.5 w-3.5" />
                                     </Button>
                                     <Button
                                       type="button"
-                                      variant="outline"
-                                      size="sm"
-                                      className="h-10 text-sm px-3"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8 text-destructive/70 hover:text-destructive hover:bg-destructive/10"
                                       onClick={() => handleRemoveBurst(lineItemIndex, burstIndex)}
+                                      title="Remove burst"
                                     >
-                                      <Trash2 className="h-4 w-4" />
+                                      <Trash2 className="h-3.5 w-3.5" />
                                     </Button>
                                   </div>
                                 </div>
@@ -1535,64 +1764,142 @@ useEffect(() => {
                         })}
                       </div>
 
-                      <CardFooter id={footerId} className="flex justify-end space-x-2 pt-2">
+                      <CardFooter id={footerId} className="flex items-center justify-between pt-4 pb-4 bg-muted/20 border-t border-border/40">
                         <Button
                           type="button"
-                          variant="outline"
-                          onClick={() => handleDuplicateLineItem(lineItemIndex)}
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive/70 hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => removeLineItem(lineItemIndex)}
                         >
-                          <Copy className="h-4 w-4 mr-2" />
-                          Duplicate Line Item
+                          <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                          Remove
                         </Button>
-                        {lineItemIndex === lineItemFields.length - 1 && (
-                          <Button
-                            type="button"
-                            onClick={() =>
-                              appendLineItem({
-                                platform: "",
-                                bidStrategy: "",
-                                buyType: "",
-                                site: "",
-                                placement: "",
-                                targetingAttribute: "",
-                                creativeTargeting: "",
-                                creative: "",
-                                buyingDemo: "",
-                                market: "",
-                                fixedCostMedia: false,
-                                clientPaysForMedia: false,
-                                budgetIncludesFees: false,
-                                noadserving: false,
-                                bursts: [
-                                  {
-                                    budget: "",
-                                    buyAmount: "",
-                                    startDate: new Date(),
-                                    endDate: new Date(),
-                                    calculatedValue: 0,
-                                    fee: 0,
-                                  },
-                                ],
-                              })
-                            }
-                          >
-                            <Plus className="h-4 w-4 mr-2" />
-                            Add Line Item
+                        <div className="flex items-center gap-2">
+                          <Button type="button" variant="outline" size="sm" onClick={() => handleDuplicateLineItem(lineItemIndex)}>
+                            <Copy className="h-3.5 w-3.5 mr-1.5" />
+                            Duplicate
                           </Button>
-                        )}
-                        <Button type="button" variant="destructive" onClick={() => removeLineItem(lineItemIndex)}>
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Remove Line Item
-                        </Button>
+                          {lineItemIndex === lineItemFields.length - 1 && (
+                                                    <Button
+                                                      type="button"
+                                                      size="sm"
+                                                      onClick={() =>
+                                                        appendLineItem({
+                                                          platform: "",
+                                                          bidStrategy: "",
+                                                          buyType: "",
+                                                          site: "",
+                                                          placement: "",
+                                                          targetingAttribute: "",
+                                                          creativeTargeting: "",
+                                                          creative: "",
+                                                          buyingDemo: "",
+                                                          market: "",
+                                                          fixedCostMedia: false,
+                                                          clientPaysForMedia: false,
+                                                          budgetIncludesFees: false,
+                                                          noadserving: false,
+                                                          bursts: [
+                                                            {
+                                                              budget: "",
+                                                              buyAmount: "",
+                                                              startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
+                                                              endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
+                                                              calculatedValue: 0,
+                                                              fee: 0,
+                                                            },
+                                                          ],
+                                                        })
+                                                      }
+                                                    >
+                                                      <Plus className="h-3.5 w-3.5 mr-1.5" />
+                                                      Add Line Item
+                                                    </Button>
+                                                  )}
+                        </div>
                       </CardFooter>
                     </Card>
                   );
                 })}
               </div>
             </Form>
+            )}
           </div>
         )}
       </div>
+
+      <Dialog
+        open={progAudioExpertModalOpen}
+        onOpenChange={handleProgAudioExpertModalOpenChange}
+      >
+        <DialogContent className="max-w-[95vw] w-[95vw] max-h-[95vh] h-[95vh] flex flex-col p-4 gap-0 overflow-hidden">
+          <DialogHeader className="flex-shrink-0 pb-2">
+            <DialogTitle>Prog Audio Media Expert Mode</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 overflow-auto">
+            <ProgAudioExpertGrid
+              campaignStartDate={campaignStartDate}
+              campaignEndDate={campaignEndDate}
+              feeprogaudio={feeprogaudio}
+              rows={expertProgAudioRows}
+              onRowsChange={handleExpertProgAudioRowsChange}
+              publishers={publishers}
+            />
+          </div>
+          <DialogFooter className="flex-shrink-0 border-t pt-3 mt-2">
+            <Button type="button" onClick={handleProgAudioExpertApply}>
+              Apply
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={progAudioExpertExitConfirmOpen}
+        onOpenChange={(open) => {
+          if (!open) dismissProgAudioExpertExitConfirm()
+        }}
+      >
+        <DialogContent
+          className="z-[100] sm:max-w-md"
+          onClick={(e) => {
+            if (
+              (e.target as HTMLElement).closest(
+                "[data-progaudioexpert-exit-yes]"
+              )
+            ) {
+              return
+            }
+            dismissProgAudioExpertExitConfirm()
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>Leave Prog Audio Media Expert Mode?</DialogTitle>
+            <DialogDescription>
+              You have unsaved changes in Expert Mode. Apply saves them to the
+              Prog Audio Media section; leaving now discards those edits.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={dismissProgAudioExpertExitConfirm}
+            >
+              No, keep editing
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              data-progaudioexpert-exit-yes
+              onClick={confirmProgAudioExpertExitWithoutSaving}
+            >
+              Yes, leave without saving
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

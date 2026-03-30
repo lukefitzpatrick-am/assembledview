@@ -38,7 +38,7 @@ export default function AccountPage() {
   if (!mounted || isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
+        <div className="h-32 w-32 animate-spin rounded-full border-b-2 border-foreground"></div>
       </div>
     );
   }
@@ -107,10 +107,10 @@ export default function AccountPage() {
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between p-4 border rounded-lg">
               <div className="flex items-center space-x-3">
-                <Key className="h-5 w-5 text-gray-500" />
+                <Key className="h-5 w-5 text-muted-foreground" />
                 <div>
                   <h3 className="font-medium">Password</h3>
-                  <p className="text-sm text-gray-500">Update your password</p>
+                  <p className="text-sm text-muted-foreground">Update your password</p>
                 </div>
               </div>
               <Button variant="outline" onClick={handlePasswordChange}>
@@ -120,10 +120,10 @@ export default function AccountPage() {
 
             <div className="flex items-center justify-between p-4 border rounded-lg">
               <div className="flex items-center space-x-3">
-                <User className="h-5 w-5 text-gray-500" />
+                <User className="h-5 w-5 text-muted-foreground" />
                 <div>
                   <h3 className="font-medium">Profile Information</h3>
-                  <p className="text-sm text-gray-500">Update your name, email, and avatar</p>
+                  <p className="text-sm text-muted-foreground">Update your name, email, and avatar</p>
                 </div>
               </div>
               <Button variant="outline" onClick={handleProfileEdit}>
@@ -133,10 +133,10 @@ export default function AccountPage() {
 
             <div className="flex items-center justify-between p-4 border rounded-lg">
               <div className="flex items-center space-x-3">
-                <Bell className="h-5 w-5 text-gray-500" />
+                <Bell className="h-5 w-5 text-muted-foreground" />
                 <div>
                   <h3 className="font-medium">Email Verification</h3>
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-muted-foreground">
                     Status: {user.email_verified ? 'Verified' : 'Not Verified'}
                   </p>
                 </div>
@@ -161,10 +161,10 @@ export default function AccountPage() {
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between p-4 border rounded-lg">
               <div className="flex items-center space-x-3">
-                <Download className="h-5 w-5 text-gray-500" />
+                <Download className="h-5 w-5 text-muted-foreground" />
                 <div>
                   <h3 className="font-medium">Export Data</h3>
-                  <p className="text-sm text-gray-500">Download all your data</p>
+                  <p className="text-sm text-muted-foreground">Download all your data</p>
                 </div>
               </div>
               <Button variant="outline" onClick={handleExportData}>
@@ -198,7 +198,7 @@ export default function AccountPage() {
               </div>
               
               {userRoles.length === 0 && (
-                <p className="text-gray-500 text-sm">No roles assigned</p>
+                <p className="text-sm text-muted-foreground">No roles assigned</p>
               )}
             </div>
 
@@ -208,27 +208,27 @@ export default function AccountPage() {
               <h3 className="font-medium">Available Features</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
                 <div className="flex items-center space-x-2">
-                  <div className={`w-2 h-2 rounded-full ${isAdmin || isManager ? 'bg-green-500' : 'bg-gray-300'}`} />
+                  <div className={`w-2 h-2 rounded-full ${isAdmin || isManager ? "bg-success" : "bg-muted"}`} />
                   <span>Media Plans Management</span>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <div className={`w-2 h-2 rounded-full ${isAdmin || isManager ? 'bg-green-500' : 'bg-gray-300'}`} />
+                  <div className={`w-2 h-2 rounded-full ${isAdmin || isManager ? "bg-success" : "bg-muted"}`} />
                   <span>Client Management</span>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <div className={`w-2 h-2 rounded-full ${isAdmin || isManager ? 'bg-green-500' : 'bg-gray-300'}`} />
+                  <div className={`w-2 h-2 rounded-full ${isAdmin || isManager ? "bg-success" : "bg-muted"}`} />
                   <span>Publisher Management</span>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <div className={`w-2 h-2 rounded-full ${isAdmin ? 'bg-green-500' : 'bg-gray-300'}`} />
+                  <div className={`w-2 h-2 rounded-full ${isAdmin ? "bg-success" : "bg-muted"}`} />
                   <span>User Management</span>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <div className={`w-2 h-2 rounded-full ${isAdmin || isManager ? 'bg-green-500' : 'bg-gray-300'}`} />
+                  <div className={`w-2 h-2 rounded-full ${isAdmin || isManager ? "bg-success" : "bg-muted"}`} />
                   <span>Financial Reports</span>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <div className={`w-2 h-2 rounded-full ${isAdmin ? 'bg-green-500' : 'bg-gray-300'}`} />
+                  <div className={`w-2 h-2 rounded-full ${isAdmin ? "bg-success" : "bg-muted"}`} />
                   <span>System Administration</span>
                 </div>
               </div>

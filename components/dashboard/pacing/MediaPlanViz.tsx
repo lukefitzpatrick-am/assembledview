@@ -5,6 +5,9 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Panel, PanelContent, PanelHeader, PanelTitle, PanelActions } from "@/components/layout/Panel"
+import { CHART_NEUTRAL } from "@/lib/charts/theme"
+import { getMediaChannelColor } from "@/lib/media/channelColors"
 import { downloadCSV } from "@/lib/utils/csv-export"
 
 export type MediaPlanVizBurst = {
@@ -37,6 +40,8 @@ type Props = {
   campaignEnd?: string
   clientSlug?: string
   mbaNumber?: string
+  /** Use Panel shell instead of Card (dashboard route). */
+  embedded?: boolean
 }
 
 function parseDateSafe(value?: string) {
@@ -114,7 +119,6 @@ function ratioBetween(date: Date, start: Date, end: Date) {
   return (date.getTime() - start.getTime()) / total
 }
 
-const palette = ["#4f46e5", "#22c55e", "#f97316", "#06b6d4", "#f43f5e", "#a855f7", "#0ea5e9"]
 const ROW_LAYOUT = {
   labelWidth: 260,
   budgetWidth: 140,
@@ -168,7 +172,7 @@ function sanitizeFilename(value: string) {
   )
 }
 
-export function MediaPlanViz({ groups, campaignStart, campaignEnd, clientSlug, mbaNumber }: Props) {
+export function MediaPlanViz({ groups, campaignStart, campaignEnd, clientSlug, mbaNumber, embedded = false }: Props) {
   const cardRef = useRef<HTMLDivElement | null>(null)
 
   const { start, end } = getRange(groups, campaignStart, campaignEnd)
@@ -229,7 +233,7 @@ export function MediaPlanViz({ groups, campaignStart, campaignEnd, clientSlug, m
     if (!cardRef.current) return
     const html2canvas = (await import("html2canvas")).default
     const canvas = await html2canvas(cardRef.current, {
-      backgroundColor: "#ffffff",
+      backgroundColor: CHART_NEUTRAL.surface,
       scale: 2,
     })
     const link = document.createElement("a")
@@ -238,23 +242,19 @@ export function MediaPlanViz({ groups, campaignStart, campaignEnd, clientSlug, m
     link.click()
   }
 
-  return (
-    <div ref={cardRef}>
-      <Card className="rounded-2xl border-muted/70 shadow-sm">
-        <CardHeader className="pb-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <CardTitle className="text-base">Media plan visualisation</CardTitle>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button variant="outline" size="sm" onClick={handleExportCsv}>
-                Export CSV
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleExportPng}>
-                Export PNG
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="pt-0 space-y-1">
+  const headerActions = (
+    <div className="flex flex-wrap items-center gap-2">
+      <Button variant="outline" size="sm" onClick={handleExportCsv}>
+        Export CSV
+      </Button>
+      <Button variant="outline" size="sm" onClick={handleExportPng}>
+        Export PNG
+      </Button>
+    </div>
+  )
+
+  const body = (
+    <>
           <div className="overflow-x-auto">
             <div className="min-w-[900px] space-y-1">
               <div className="grid items-center text-xs text-muted-foreground" style={gridStyle}>
@@ -292,14 +292,14 @@ export function MediaPlanViz({ groups, campaignStart, campaignEnd, clientSlug, m
           </div>
 
           <Accordion type="multiple" defaultValue={groups.map((g) => g.channel)} className="space-y-0">
-            {groups.map((group, groupIdx) => (
+            {groups.map((group) => (
               <AccordionItem key={group.channel} value={group.channel} className="border-none">
                 <AccordionTrigger className="text-sm font-semibold">{group.channel}</AccordionTrigger>
                 <AccordionContent>
                   <ScrollArea className="w-full rounded-xl border bg-muted/10">
                     <div className="min-w-[900px] p-3 space-y-2">
                       <div className="space-y-1.5">
-                        {group.rows.map((row, idx) => {
+                        {group.rows.map((row) => {
                           const rowBursts = row.bursts?.length
                             ? row.bursts
                             : [{ id: `${row.id}-single`, start: row.start, end: row.end, deliverables: undefined, spend: row.budget }]
@@ -353,7 +353,7 @@ export function MediaPlanViz({ groups, campaignStart, campaignEnd, clientSlug, m
                                       style={{
                                         left: `${startRatio}%`,
                                         width: `${width}%`,
-                                        background: palette[(groupIdx + idx + burstIdx) % palette.length],
+                                        background: getMediaChannelColor(group.channel),
                                       }}
                                     >
                                       {primaryLabel ? (
@@ -380,7 +380,33 @@ export function MediaPlanViz({ groups, campaignStart, campaignEnd, clientSlug, m
               </AccordionItem>
             ))}
           </Accordion>
-        </CardContent>
+    </>
+  )
+
+  if (embedded) {
+    return (
+      <div ref={cardRef}>
+        <Panel className="border-muted/70 shadow-sm">
+          <PanelHeader className="pb-3">
+            <PanelTitle className="text-base">Media plan visualisation</PanelTitle>
+            <PanelActions>{headerActions}</PanelActions>
+          </PanelHeader>
+          <PanelContent className="space-y-1 pt-0">{body}</PanelContent>
+        </Panel>
+      </div>
+    )
+  }
+
+  return (
+    <div ref={cardRef}>
+      <Card className="rounded-lg border-border shadow-sm">
+        <CardHeader className="pb-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <CardTitle className="text-base font-semibold leading-none tracking-tight">Media plan visualisation</CardTitle>
+            {headerActions}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-1 pt-0">{body}</CardContent>
       </Card>
     </div>
   )

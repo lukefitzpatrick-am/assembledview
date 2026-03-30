@@ -1,4 +1,14 @@
-import { ClientDashboardData, Campaign, Client, GlobalMonthlySpend, GlobalMonthlyPublisherSpend, GlobalMonthlyClientSpend } from '@/lib/types/dashboard'
+import {
+  ClientDashboardData,
+  Campaign,
+  Client,
+  ClientHubSummary,
+  GlobalMonthlySpend,
+  GlobalMonthlyPublisherSpend,
+  GlobalMonthlyClientSpend,
+} from '@/lib/types/dashboard'
+import type { Publisher, PublisherDashboardData, PublisherCampaignRow } from '@/lib/types/publisher'
+import { buildAllowedScheduleLabels } from '@/lib/publisher/scheduleLabels'
 import { 
   aggregateMonthlySpendByMediaType, 
   getSpendByMediaTypeFromLineItems, 
@@ -6,7 +16,7 @@ import {
 } from './media-containers'
 import axios from 'axios'
 import { xanoUrl } from '@/lib/api/xano'
-import { slugifyClientNameForUrl } from '@/lib/clients/slug'
+import { getClientDisplayName, slugifyClientNameForUrl } from '@/lib/clients/slug'
 
 const MELBOURNE_TZ = 'Australia/Melbourne'
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -442,13 +452,23 @@ export async function getClientBySlug(slug: string): Promise<Client | null> {
   try {
     // Fetch all clients from Xano
     const response = await apiClient.get(xanoUrl("clients", "XANO_CLIENTS_BASE_URL"))
-    const clients = response.data
+    const payload = response.data
+    const clientsRaw = Array.isArray(payload)
+      ? payload
+      : Array.isArray(payload?.data)
+        ? payload.data
+        : Array.isArray(payload?.items)
+          ? payload.items
+          : Array.isArray(payload?.result)
+            ? payload.result
+            : []
+    const clients = Array.isArray(clientsRaw) ? clientsRaw : []
     
     // Debug logging
     console.log('Looking for slug:', slug)
     
     // Find client by converting name to slug
-    const client = clients.find((c: any) => {
+    const client = (Array.isArray(clients) ? clients : []).find((c: any) => {
       const clientSlug = c.mp_client_name
         ?.toLowerCase()
         .replace(/[^a-z0-9\s-]/g, '')
@@ -476,139 +496,164 @@ export async function getClientBySlug(slug: string): Promise<Client | null> {
   }
 }
 
-export async function getClientDashboardData(slug: string): Promise<ClientDashboardData | null> {
-  if (!slug || typeof slug !== 'string' || slug.trim().length === 0) {
-    console.error('Invalid slug provided for dashboard:', slug)
+async function fetchMediaPlanVersionsArray(): Promise<any[]> {
+  const baseKeys = ['XANO_MEDIA_PLANS_BASE_URL', 'XANO_MEDIAPLANS_BASE_URL'] as const
+  let lastError: any = null
+
+  for (const baseKey of baseKeys) {
+    try {
+      const versionsResponse = await apiClient.get(xanoUrl('media_plan_versions', baseKey))
+      const payload = versionsResponse.data
+      return Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload?.data)
+          ? payload.data
+          : Array.isArray(payload?.items)
+            ? payload.items
+            : []
+    } catch (error: any) {
+      lastError = error
+      if (error?.response?.status === 404) {
+        continue
+      }
+      throw error
+    }
+  }
+
+  if (isDashboardDebug()) {
+    console.warn('Dashboard: media_plan_versions unavailable on configured Xano base URLs')
+  }
+  if (lastError?.response?.status === 404) {
+    return []
+  }
+  throw lastError ?? new Error('Failed to fetch media_plan_versions')
+}
+
+function buildYtdCountBySlugFromMaster(
+  masterPlans: any[],
+  fyWindow: ReturnType<typeof getAustralianFinancialYearWindow>
+): Record<string, number> {
+  const counts: Record<string, number> = {}
+  for (const plan of masterPlans) {
+    const nameCandidates = [
+      plan?.mp_client_name,
+      plan?.client_name,
+      plan?.mp_clientname,
+      plan?.client,
+    ].filter((n: any) => typeof n === 'string' && n.trim().length > 0)
+
+    if (nameCandidates.length === 0) continue
+
+    const statusFromFields = plan?.campaign_status ?? plan?.status ?? plan?.mp_campaignstatus
+    const statusMatches =
+      isBookedApprovedCompleted(statusFromFields) ||
+      hasBookedApprovedCompletedTag(
+        plan?.tags ??
+          plan?.tag ??
+          plan?.campaign_tags ??
+          plan?.campaignTags ??
+          plan?.campaign_status ??
+          plan?.status ??
+          plan?.mp_campaignstatus
+      )
+    if (!statusMatches) continue
+
+    const startDate =
+      parseDateSafe(
+        plan?.campaign_start_date ??
+          plan?.mp_campaigndates_start ??
+          plan?.campaign_start ??
+          plan?.start_date ??
+          plan?.startDate
+      ) ?? null
+    const endDate =
+      parseDateSafe(
+        plan?.campaign_end_date ??
+          plan?.mp_campaigndates_end ??
+          plan?.campaign_end ??
+          plan?.end_date ??
+          plan?.endDate
+      ) ?? null
+
+    if (!startDate || !endDate) continue
+    if (!(startDate <= fyWindow.end && endDate >= fyWindow.start)) continue
+
+    const primarySlug = slugifyClientName(nameCandidates[0])
+    if (!primarySlug) continue
+    counts[primarySlug] = (counts[primarySlug] || 0) + 1
+  }
+  return counts
+}
+
+function rawClientToFallbackClient(raw: any): Client | null {
+  const name = getClientDisplayName(raw)
+  if (!name) return null
+  const slug = String(raw.slug || slugifyClientNameForUrl(name)).trim()
+  return {
+    id: String(raw.id ?? ''),
+    name,
+    slug,
+    createdAt: raw.created_at || new Date().toISOString(),
+    updatedAt: raw.updated_at || new Date().toISOString(),
+    brandColour: raw.brand_colour,
+  }
+}
+
+function buildClientDashboardDataFromVersions(
+  targetSlug: string,
+  allVersions: any[],
+  ctx: {
+    fallbackClient: Client | null
+    totalCampaignsYTDFromMaster: number | null
+    urlSlug: string
+  }
+): ClientDashboardData | null {
+  const { fallbackClient, totalCampaignsYTDFromMaster, urlSlug } = ctx
+
+  const clientVersions = allVersions.filter((version: any) => {
+    const nameCandidates = [
+      version?.mp_client_name,
+      version?.client_name,
+      version?.mp_clientname,
+      version?.client,
+    ].filter((n: any) => typeof n === 'string' && n.trim().length > 0)
+
+    if (nameCandidates.length === 0) return false
+
+    return nameCandidates.some((name: string) => slugifyClientName(name) === targetSlug)
+  })
+
+  const { start: fyStart, end: fyEnd, months: fyMonths } = getAustralianFinancialYear(new Date())
+
+  if (clientVersions.length === 0) {
+    console.warn('No media_plan_versions found for slug:', urlSlug)
+
+    if (fallbackClient) {
+      return {
+        clientName: fallbackClient.name,
+        brandColour: fallbackClient.brandColour,
+        liveCampaigns: 0,
+        totalCampaignsYTD: totalCampaignsYTDFromMaster ?? 0,
+        spendPast30Days: 0,
+        totalSpend: 0,
+        liveCampaignsList: [],
+        planningCampaignsList: [],
+        completedCampaignsList: [],
+        spendByMediaType: [],
+        spendByCampaign: [],
+        monthlySpend: fyMonths.map((month) => ({ month, data: [] })),
+      }
+    }
+
     return null
   }
-  
-  const sanitizedSlug = slug.trim()
-  const targetSlug = slugifyClientName(sanitizedSlug)
 
-  try {
-    let fallbackClient: Client | null = null
-    try {
-      fallbackClient = await getClientBySlug(targetSlug)
-    } catch (err) {
-      console.warn('Dashboard: skipping client fallback lookup due to error', err)
-      fallbackClient = null
-    }
-
-    // Pull media plan versions and filter by client slug derived from mp_client_name
-    const versionsResponse = await apiClient.get(
-      xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
-    )
-    const allVersions = Array.isArray(versionsResponse.data) ? versionsResponse.data : []
-
-    const clientVersions = allVersions.filter((version: any) => {
-      const nameCandidates = [
-        version?.mp_client_name,
-        version?.client_name,
-        version?.mp_clientname,
-        version?.client
-      ].filter((n: any) => typeof n === 'string' && n.trim().length > 0)
-
-      if (nameCandidates.length === 0) return false
-
-      return nameCandidates.some((name: string) => slugifyClientName(name) === targetSlug)
-    })
-
-    const { start: fyStart, end: fyEnd, months: fyMonths } = getAustralianFinancialYear(new Date())
-    const fyWindow = getAustralianFinancialYearWindow(new Date())
-    let totalCampaignsYTDFromMaster: number | null = null
-    let masterEndpointUsed: string | null = null
-
-    try {
-      const { data: masterData, endpoint } = await fetchMediaPlanMasterWithFallback()
-      masterEndpointUsed = endpoint
-      const masterPlans = Array.isArray(masterData) ? masterData : []
-      const clientMasterPlans = masterPlans.filter((plan: any) => {
-        const nameCandidates = [
-          plan?.mp_client_name,
-          plan?.client_name,
-          plan?.mp_clientname,
-          plan?.client
-        ].filter((n: any) => typeof n === 'string' && n.trim().length > 0)
-
-        if (nameCandidates.length === 0) return false
-
-        return nameCandidates.some((name: string) => slugifyClientName(name) === targetSlug)
-      })
-
-      totalCampaignsYTDFromMaster = clientMasterPlans.filter((plan: any) => {
-        const statusFromFields = plan?.campaign_status ?? plan?.status ?? plan?.mp_campaignstatus
-        const statusMatches =
-          isBookedApprovedCompleted(statusFromFields) ||
-          hasBookedApprovedCompletedTag(
-            plan?.tags ??
-              plan?.tag ??
-              plan?.campaign_tags ??
-              plan?.campaignTags ??
-              plan?.campaign_status ??
-              plan?.status ??
-              plan?.mp_campaignstatus
-          )
-        if (!statusMatches) return false
-
-        const startDate =
-          parseDateSafe(
-            plan?.campaign_start_date ??
-              plan?.mp_campaigndates_start ??
-              plan?.campaign_start ??
-              plan?.start_date ??
-              plan?.startDate
-          ) ?? null
-        const endDate =
-          parseDateSafe(
-            plan?.campaign_end_date ??
-              plan?.mp_campaigndates_end ??
-              plan?.campaign_end ??
-              plan?.end_date ??
-              plan?.endDate
-          ) ?? null
-
-        if (!startDate || !endDate) return false
-
-        return startDate <= fyWindow.end && endDate >= fyWindow.start
-      }).length
-    } catch (error) {
-      console.warn('Dashboard: failed to load media plan master for totals', error)
-    }
-
-    if (isDashboardDebug() && masterEndpointUsed) {
-      console.log(`Dashboard: master totals sourced from ${masterEndpointUsed}`)
-    }
-
-    if (clientVersions.length === 0) {
-      console.warn('No media_plan_versions found for slug:', sanitizedSlug)
-
-      // Fallback: if client exists in Xano clients table but has no plans yet, return empty dashboard shell
-      if (fallbackClient) {
-        return {
-          clientName: fallbackClient.name,
-          brandColour: fallbackClient.brandColour,
-          liveCampaigns: 0,
-          totalCampaignsYTD: totalCampaignsYTDFromMaster ?? 0,
-          spendPast30Days: 0,
-          totalSpend: 0,
-          liveCampaignsList: [],
-          planningCampaignsList: [],
-          completedCampaignsList: [],
-          spendByMediaType: [],
-          spendByCampaign: [],
-          monthlySpend: fyMonths.map((month) => ({ month, data: [] }))
-        }
-      }
-
-      return null
-    }
-
-    const clientName =
+  const clientName =
       clientVersions[0].mp_client_name ||
       clientVersions[0].client_name ||
       clientVersions[0].mp_clientname ||
       fallbackClient?.name ||
-      sanitizedSlug
+      urlSlug
     const brandColour =
       clientVersions[0].brand_colour ||
       clientVersions[0].brandColour ||
@@ -671,10 +716,12 @@ export async function getClientDashboardData(slug: string): Promise<ClientDashbo
       if (version.mp_progooh) mediaTypes.push('Programmatic OOH')
       if (version.mp_influencers) mediaTypes.push('Influencers')
 
+      const vn = Number(version.version_number)
       return {
         mbaNumber: version.mba_number || '',
         campaignName: version.campaign_name || '',
         versionNumber: `v${version.version_number || 1}`,
+        version_number: Number.isFinite(vn) && vn > 0 ? vn : 1,
         budget: parseFloat(version.mp_campaignbudget) || 0,
         startDate: version.campaign_start_date || '',
         endDate: version.campaign_end_date || '',
@@ -894,15 +941,133 @@ export async function getClientDashboardData(slug: string): Promise<ClientDashbo
     })
 
     return result
+}
+
+export async function getClientDashboardData(slug: string): Promise<ClientDashboardData | null> {
+  if (!slug || typeof slug !== 'string' || slug.trim().length === 0) {
+    console.error('Invalid slug provided for dashboard:', slug)
+    return null
+  }
+
+  const sanitizedSlug = slug.trim()
+  const targetSlug = slugifyClientName(sanitizedSlug)
+
+  try {
+    let fallbackClient: Client | null = null
+    try {
+      fallbackClient = await getClientBySlug(targetSlug)
+    } catch (err) {
+      console.warn('Dashboard: skipping client fallback lookup due to error', err)
+      fallbackClient = null
+    }
+
+    const allVersions = await fetchMediaPlanVersionsArray()
+    const fyWindow = getAustralianFinancialYearWindow(new Date())
+    let totalCampaignsYTDFromMaster: number | null = null
+    let masterEndpointUsed: string | null = null
+
+    try {
+      const { data: masterData, endpoint } = await fetchMediaPlanMasterWithFallback()
+      masterEndpointUsed = endpoint
+      const masterPlans = Array.isArray(masterData) ? masterData : []
+      const ytdMap = buildYtdCountBySlugFromMaster(masterPlans, fyWindow)
+      totalCampaignsYTDFromMaster = Object.prototype.hasOwnProperty.call(ytdMap, targetSlug)
+        ? ytdMap[targetSlug]!
+        : null
+    } catch (error) {
+      console.warn('Dashboard: failed to load media plan master for totals', error)
+    }
+
+    if (isDashboardDebug() && masterEndpointUsed) {
+      console.log(`Dashboard: master totals sourced from ${masterEndpointUsed}`)
+    }
+
+    return buildClientDashboardDataFromVersions(targetSlug, allVersions, {
+      fallbackClient,
+      totalCampaignsYTDFromMaster,
+      urlSlug: sanitizedSlug,
+    })
   } catch (error) {
     console.error('Error fetching dashboard data:', error)
     return null
   }
 }
 
+export async function getClientHubSummaries(rawClients: any[]): Promise<ClientHubSummary[]> {
+  if (!Array.isArray(rawClients) || rawClients.length === 0) return []
+
+  const fyWindow = getAustralianFinancialYearWindow(new Date())
+  const [allVersions, masterBundle] = await Promise.all([
+    fetchMediaPlanVersionsArray(),
+    fetchMediaPlanMasterWithFallback().catch(() => ({ data: [] as any[], endpoint: null as string | null })),
+  ])
+  const masterPlans = Array.isArray(masterBundle.data) ? masterBundle.data : []
+  const ytdMap = buildYtdCountBySlugFromMaster(masterPlans, fyWindow)
+
+  const summaries: ClientHubSummary[] = []
+  for (const raw of rawClients) {
+    const fallback = rawClientToFallbackClient(raw)
+    if (!fallback) continue
+
+    const slugUrl = String(raw.slug || slugifyClientNameForUrl(fallback.name)).trim()
+    if (!slugUrl) continue
+
+    const targetSlug = slugifyClientName(slugUrl)
+    const totalCampaignsYTDFromMaster = Object.prototype.hasOwnProperty.call(ytdMap, targetSlug)
+      ? ytdMap[targetSlug]!
+      : null
+
+    const dashboard = buildClientDashboardDataFromVersions(targetSlug, allVersions, {
+      fallbackClient: fallback,
+      totalCampaignsYTDFromMaster,
+      urlSlug: slugUrl,
+    })
+    if (!dashboard) continue
+
+    const idNum = Number(raw.id)
+    const fromRaw =
+      typeof raw.brand_colour === 'string' && raw.brand_colour.trim()
+        ? raw.brand_colour.trim()
+        : typeof raw.brandColour === 'string' && raw.brandColour.trim()
+          ? raw.brandColour.trim()
+          : undefined
+    summaries.push({
+      id: Number.isFinite(idNum) ? idNum : 0,
+      slug: slugUrl,
+      clientName: dashboard.clientName,
+      liveCampaigns: dashboard.liveCampaigns,
+      totalSpend: dashboard.totalSpend,
+      brandColour: dashboard.brandColour || fromRaw,
+    })
+  }
+
+  summaries.sort((a, b) => a.clientName.localeCompare(b.clientName, undefined, { sensitivity: 'base' }))
+  return summaries
+}
+
+async function fetchXanoClientsWithSlugsForHub(): Promise<any[]> {
+  const response = await apiClient.get(xanoUrl('clients', 'XANO_CLIENTS_BASE_URL'))
+  const rows = Array.isArray(response.data) ? response.data : []
+  return rows.map((raw: any) => ({
+    ...raw,
+    slug: raw.slug || slugifyClientNameForUrl(getClientDisplayName(raw)),
+  }))
+}
+
+/** Server-only: loads clients from Xano and builds hub cards in one batched pass (no self-HTTP). */
+export async function getClientHubSummariesForAdminHub(): Promise<ClientHubSummary[]> {
+  try {
+    const rows = await fetchXanoClientsWithSlugsForHub()
+    return getClientHubSummaries(rows)
+  } catch (e) {
+    console.error('getClientHubSummariesForAdminHub', e)
+    return []
+  }
+}
+
 /**
  * Global monthly spend (all clients), sourced from deliverySchedule on media_plan_versions
- * with billingSchedule as a fallback. Rules: booked/approved, highest version per MBA,
+ * with billingSchedule as a fallback. Rules: booked/approved/completed, highest matching version per MBA,
  * current AU FY (Jul–Jun).
  */
 export async function getGlobalMonthlySpend(): Promise<GlobalMonthlySpend[]> {
@@ -976,7 +1141,7 @@ export async function getGlobalMonthlySpend(): Promise<GlobalMonthlySpend[]> {
 
 /**
  * Global monthly spend split by publisher (header1), sourced from deliverySchedule on media_plan_versions
- * with billingSchedule as a fallback. Rules: booked/approved, highest version per MBA, current AU FY (Jul–Jun).
+ * with billingSchedule as a fallback. Rules: booked/approved/completed, highest matching version per MBA, current AU FY (Jul–Jun).
  */
 export async function getGlobalMonthlyPublisherSpend(): Promise<GlobalMonthlyPublisherSpend[]> {
   const { start: fyStart, end: fyEnd, months: fyMonths } = getAustralianFinancialYear(new Date())
@@ -1054,7 +1219,7 @@ export async function getGlobalMonthlyPublisherSpend(): Promise<GlobalMonthlyPub
 
 /**
  * Global monthly spend split by client, sourced from deliverySchedule on media_plan_versions
- * with billingSchedule as fallback. Rules: booked/approved, highest version per MBA,
+ * with billingSchedule as fallback. Rules: booked/approved/completed, highest matching version per MBA,
  * current AU FY (Jul–Jun). Attempts to use client brand colours from Xano clients table when available.
  */
 export async function getGlobalMonthlyClientSpend(): Promise<{
@@ -1209,4 +1374,183 @@ export async function getMonthlySpendData(slug: string): Promise<Array<{
 }>> {
   const dashboardData = await getClientDashboardData(slug)
   return dashboardData?.monthlySpend || []
+}
+
+function lineItemMatchesPublisher(li: any, publisherName: string, publisherId: string): boolean {
+  const h1 = String(li?.header1 ?? li?.publisher ?? "").trim()
+  if (!h1) return false
+  const n = h1.toLowerCase()
+  if (n === publisherName.trim().toLowerCase()) return true
+  const id = String(publisherId ?? "").trim()
+  if (id && n === id.toLowerCase()) return true
+  return false
+}
+
+function lineItemIsFixedCostMedia(li: any): boolean {
+  const v = li?.fixed_cost_media ?? li?.fixedCostMedia
+  if (v === true || v === 1) return true
+  if (typeof v === "string" && ["true", "yes", "1"].includes(v.trim().toLowerCase())) return true
+  return false
+}
+
+/** Targeting-related text from schedule line items (matches media container save shape). */
+function lineItemTargetingFragments(li: any): string[] {
+  const keys = ["targeting", "creative_targeting", "creativeTargeting", "adset_targeting"] as const
+  const parts: string[] = []
+  for (const k of keys) {
+    const s = String(li?.[k] ?? "").trim()
+    if (s) parts.push(s)
+  }
+  if (parts.length === 0) {
+    const h2 = String(li?.header2 ?? "").trim()
+    if (h2) parts.push(h2)
+  }
+  return parts
+}
+
+/**
+ * FY-scoped analytics for a publisher: delivery/billing schedules on booked/approved/completed
+ * media_plan_versions, filtered by pub_* → schedule media labels and line item header1 match.
+ */
+export async function getPublisherDashboardData(publisher: Publisher): Promise<PublisherDashboardData> {
+  const { start: fyStart, end: fyEnd, months: fyMonths } = getAustralianFinancialYear(new Date())
+  const monthLabelFromDate = (date: Date) => fyMonths[(date.getMonth() + 12 - 6) % 12]
+
+  const allowedLabels = buildAllowedScheduleLabels(publisher as unknown as Record<string, unknown>)
+
+  const versionsResponse = await apiClient.get(
+    xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]),
+  )
+  const allVersions = Array.isArray(versionsResponse.data) ? versionsResponse.data : []
+
+  const versionsByMBA = allVersions.reduce((acc: Record<string, any[]>, version: any) => {
+    const mbaNumber = version?.mba_number
+    if (!mbaNumber) return acc
+    acc[mbaNumber] = acc[mbaNumber] || []
+    acc[mbaNumber].push(version)
+    return acc
+  }, {} as Record<string, any[]>)
+
+  const chosenByMBA: Record<string, any> = {}
+  Object.entries(versionsByMBA).forEach(([, versions]) => {
+    const list = versions as { version_number?: number; campaign_status?: string; mba_number?: string }[]
+    const sorted = list.slice().sort((a, b) => (b.version_number || 0) - (a.version_number || 0))
+    const picked = sorted.find((v: any) => isBookedApprovedCompleted(v.campaign_status))
+    if (picked) {
+      const mba = picked.mba_number
+      if (mba) chosenByMBA[mba] = picked
+    }
+  })
+
+  const campaignRows: PublisherCampaignRow[] = []
+  const deliveryMonthlyMap: Record<string, Record<string, number>> = {}
+  fyMonths.forEach((m) => {
+    deliveryMonthlyMap[m] = {}
+  })
+  const clientSpend: Record<string, number> = {}
+
+  const name = publisher.publisher_name
+  const pid = publisher.publisherid
+
+  for (const [mbaNumber, version] of Object.entries(chosenByMBA)) {
+    const schedule = normalizeSchedule(
+      (version as any)?.deliverySchedule ||
+        (version as any)?.delivery_schedule ||
+        (version as any)?.billingSchedule ||
+        (version as any)?.billing_schedule,
+    )
+
+    let campaignPublisherSpend = 0
+    const mediaTypesHit = new Set<string>()
+    let anyFixedCostMedia = false
+    const targetingFragments = new Set<string>()
+
+    for (const entry of schedule) {
+      const monthDate = parseMonthYear(getMonthYearValue(entry))
+      if (!monthDate || monthDate < fyStart || monthDate > fyEnd) continue
+
+      const monthLabel = monthLabelFromDate(monthDate)
+      const mediaTypes = Array.isArray(entry?.mediaTypes) ? entry.mediaTypes : []
+
+      if (mediaTypes.length === 0) continue
+
+      for (const mt of mediaTypes) {
+        const mediaTypeLabel =
+          mt?.mediaType ||
+          mt?.media_type ||
+          mt?.type ||
+          mt?.name ||
+          mt?.channel ||
+          "Unspecified"
+
+        if (allowedLabels.size > 0 && !allowedLabels.has(mediaTypeLabel)) continue
+
+        const lineItems = Array.isArray(mt?.lineItems) ? mt.lineItems : []
+        for (const li of lineItems) {
+          if (!lineItemMatchesPublisher(li, name, pid)) continue
+          const amount = parseMoney(li?.amount)
+          if (amount <= 0) continue
+          campaignPublisherSpend += amount
+          mediaTypesHit.add(mediaTypeLabel)
+          if (lineItemIsFixedCostMedia(li)) anyFixedCostMedia = true
+          for (const frag of lineItemTargetingFragments(li)) {
+            targetingFragments.add(frag)
+          }
+          deliveryMonthlyMap[monthLabel][mediaTypeLabel] =
+            (deliveryMonthlyMap[monthLabel][mediaTypeLabel] || 0) + amount
+        }
+      }
+    }
+
+    if (campaignPublisherSpend > 0) {
+      const clientName =
+        (version as any).mp_client_name ||
+        (version as any).client_name ||
+        (version as any).mp_clientname ||
+        "Unknown"
+      const campaignName = (version as any).campaign_name || ""
+      const startDate =
+        (version as any).campaign_start_date || (version as any).mp_campaigndates_start || ""
+      const endDate = (version as any).campaign_end_date || (version as any).mp_campaigndates_end || ""
+
+      clientSpend[clientName] = (clientSpend[clientName] || 0) + campaignPublisherSpend
+
+      campaignRows.push({
+        mbaNumber,
+        clientName,
+        campaignName,
+        startDate,
+        endDate,
+        publisherSpendFy: campaignPublisherSpend,
+        mediaTypes: Array.from(mediaTypesHit).sort(),
+        fixedCostMedia: anyFixedCostMedia ? "Yes" : "No",
+        targetingDetails: Array.from(targetingFragments).join("; "),
+      })
+    }
+  }
+
+  const totalClient = Object.values(clientSpend).reduce((a, b) => a + b, 0)
+  const spendByClient = Object.entries(clientSpend)
+    .map(([clientName, amount]) => ({
+      clientName,
+      amount,
+      percentage: totalClient > 0 ? (amount / totalClient) * 100 : 0,
+    }))
+    .filter((x) => x.amount > 0)
+    .sort((a, b) => b.amount - a.amount)
+
+  const monthlySpend = fyMonths.map((month) => ({
+    month,
+    data: Object.entries(deliveryMonthlyMap[month] || {})
+      .map(([mediaType, amount]) => ({ mediaType, amount }))
+      .filter((item) => item.amount > 0),
+  }))
+
+  campaignRows.sort((a, b) => b.publisherSpendFy - a.publisherSpendFy)
+
+  return {
+    campaigns: campaignRows,
+    monthlySpend,
+    spendByClient,
+  }
 }

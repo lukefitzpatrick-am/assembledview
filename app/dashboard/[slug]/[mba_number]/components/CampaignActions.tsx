@@ -2,9 +2,16 @@
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Download, FileText } from 'lucide-react'
+import { Check, Download, FileText, Loader2, MoreHorizontal } from 'lucide-react'
 import { toast } from '@/components/ui/use-toast'
-import { format } from 'date-fns'
+import { cn } from '@/lib/utils'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { CampaignExportsSection } from '@/components/dashboard/CampaignExportsSection'
 
 type XanoPublicFile = {
   access?: string
@@ -25,6 +32,7 @@ interface CampaignActionsProps {
   xanoFileOrigin: string
   mediaPlanFileMeta: XanoPublicFile | null
   mbaPdfFileMeta: XanoPublicFile | null
+  variant?: 'floating' | 'inline' | 'minimal'
 }
 
 function bufferToBase64(buffer: ArrayBuffer): string {
@@ -36,15 +44,29 @@ function bufferToBase64(buffer: ArrayBuffer): string {
 
 export default function CampaignActions({
   mbaNumber,
-  campaign,
+  campaign: _campaign,
   lineItems,
   billingSchedule,
   xanoFileOrigin,
   mediaPlanFileMeta,
   mbaPdfFileMeta,
+  variant = 'floating',
 }: CampaignActionsProps) {
   const [isDownloadingMediaPlan, setIsDownloadingMediaPlan] = useState(false)
   const [isDownloadingMba, setIsDownloadingMba] = useState(false)
+  const [isDownloadingBilling, setIsDownloadingBilling] = useState(false)
+  const [completedAction, setCompletedAction] = useState<"mediaPlan" | "mba" | "billing" | null>(null)
+  const [ariaStatus, setAriaStatus] = useState("")
+  const lineItemCount = Object.values(lineItems || {}).reduce(
+    (sum, items) => sum + (Array.isArray(items) ? items.length : 0),
+    0
+  )
+  const isBusy = isDownloadingMediaPlan || isDownloadingMba || isDownloadingBilling
+
+  const markSuccess = (action: "mediaPlan" | "mba" | "billing") => {
+    setCompletedAction(action)
+    setTimeout(() => setCompletedAction((current) => (current === action ? null : current)), 1200)
+  }
 
   const downloadFromXano = async (opts: {
     label: string
@@ -84,8 +106,28 @@ export default function CampaignActions({
     document.body.removeChild(a)
   }
 
+  const downloadBillingAsJson = async () => {
+    if (!billingSchedule) {
+      throw new Error("Billing schedule not found for this campaign.")
+    }
+    const payload =
+      typeof billingSchedule === "string"
+        ? billingSchedule
+        : JSON.stringify(billingSchedule, null, 2)
+    const blob = new Blob([payload], { type: "application/json;charset=utf-8" })
+    const objectUrl = window.URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = objectUrl
+    a.download = `billing-schedule-${mbaNumber}.json`
+    document.body.appendChild(a)
+    a.click()
+    window.URL.revokeObjectURL(objectUrl)
+    document.body.removeChild(a)
+  }
+
   const handleDownloadMediaPlan = async () => {
     setIsDownloadingMediaPlan(true)
+    setAriaStatus("Downloading media plan")
     try {
       await downloadFromXano({
         label: "Media plan",
@@ -97,6 +139,8 @@ export default function CampaignActions({
         title: 'Success',
         description: 'Media plan downloaded successfully',
       })
+      setAriaStatus("Media plan downloaded successfully")
+      markSuccess("mediaPlan")
     } catch (error) {
       console.error('Error downloading media plan:', error)
       toast({
@@ -104,6 +148,7 @@ export default function CampaignActions({
         description: error instanceof Error ? error.message : 'Failed to download media plan',
         variant: 'destructive',
       })
+      setAriaStatus("Media plan download failed")
     } finally {
       setIsDownloadingMediaPlan(false)
     }
@@ -111,6 +156,7 @@ export default function CampaignActions({
 
   const handleDownloadMba = async () => {
     setIsDownloadingMba(true)
+    setAriaStatus("Downloading MBA")
     try {
       await downloadFromXano({
         label: "MBA",
@@ -122,6 +168,8 @@ export default function CampaignActions({
         title: 'Success',
         description: 'MBA downloaded successfully',
       })
+      setAriaStatus("MBA downloaded successfully")
+      markSuccess("mba")
     } catch (error) {
       console.error('Error downloading MBA:', error)
       toast({
@@ -129,52 +177,129 @@ export default function CampaignActions({
         description: error instanceof Error ? error.message : 'Failed to download MBA',
         variant: 'destructive',
       })
+      setAriaStatus("MBA download failed")
     } finally {
       setIsDownloadingMba(false)
     }
   }
 
+  const handleDownloadBilling = async () => {
+    setIsDownloadingBilling(true)
+    setAriaStatus("Downloading billing schedule")
+    try {
+      await downloadBillingAsJson()
+      toast({
+        title: "Success",
+        description: "Billing schedule downloaded successfully",
+      })
+      setAriaStatus("Billing schedule downloaded successfully")
+      markSuccess("billing")
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to download billing schedule",
+        variant: "destructive",
+      })
+      setAriaStatus("Billing schedule download failed")
+    } finally {
+      setIsDownloadingBilling(false)
+    }
+  }
+
+  const showFloating = variant === "floating"
+  const showInline = variant === "inline"
+  const showMinimal = variant === "minimal"
+
+  const ActionIcon = ({
+    action,
+    loading,
+    icon,
+  }: {
+    action: "mediaPlan" | "mba" | "billing"
+    loading: boolean
+    icon: React.ReactNode
+  }) => {
+    if (loading) return <Loader2 className="h-4 w-4 animate-spin" />
+    if (completedAction === action) return <Check className="h-4 w-4 animate-in zoom-in-75 duration-200" />
+    return <>{icon}</>
+  }
+
+  const exportsVariant = showFloating ? "floating" : showInline ? "inline" : "minimal"
+
   return (
-    <div className="fixed bottom-0 left-0 right-0 md:left-[240px] bg-background/95 backdrop-blur-sm border-t z-50 shadow-lg">
-      <div className="mx-auto flex w-full items-center justify-end gap-4 px-4 py-4 lg:px-6">
-        <div className="flex space-x-2">
-          <Button
-            onClick={handleDownloadMediaPlan}
-            disabled={isDownloadingMediaPlan}
-            className="bg-[#B5D337] text-white hover:bg-[#B5D337]/90"
-          >
-            {isDownloadingMediaPlan ? (
-              <>
-                <Download className="mr-2 h-4 w-4 animate-spin" />
-                Downloading...
-              </>
-            ) : (
-              <>
-                <Download className="mr-2 h-4 w-4" />
+    <CampaignExportsSection
+      variant={exportsVariant}
+      mbaNumber={mbaNumber}
+      lineItemCount={lineItemCount}
+      isBusy={isBusy}
+      ariaStatus={ariaStatus}
+    >
+      {showFloating ? (
+        <div className="md:hidden">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-9 rounded-full px-4 focus-visible:ring-2 focus-visible:ring-ring"
+                disabled={isBusy}
+              >
+                <MoreHorizontal className="mr-1.5 h-4 w-4" />
+                Downloads
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleDownloadMediaPlan} disabled={isBusy}>
                 Download Media Plan
-              </>
-            )}
-          </Button>
-          <Button
-            onClick={handleDownloadMba}
-            disabled={isDownloadingMba}
-            className="bg-[#472477] text-white hover:bg-[#472477]/90"
-          >
-            {isDownloadingMba ? (
-              <>
-                <FileText className="mr-2 h-4 w-4 animate-spin" />
-                Downloading...
-              </>
-            ) : (
-              <>
-                <FileText className="mr-2 h-4 w-4" />
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleDownloadMba} disabled={isBusy}>
                 Download MBA
-              </>
-            )}
-          </Button>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleDownloadBilling} disabled={isBusy}>
+                Download Billing
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
-      </div>
-    </div>
+      ) : null}
+
+      <Button
+        onClick={handleDownloadMediaPlan}
+        disabled={isBusy}
+        className={cn(
+          "h-9 rounded-full px-4 py-2 text-white",
+          showFloating ? "hidden md:inline-flex" : "inline-flex",
+          "bg-lime hover:bg-lime/90 focus-visible:ring-2 focus-visible:ring-ring",
+        )}
+      >
+        <ActionIcon action="mediaPlan" loading={isDownloadingMediaPlan} icon={<Download className="h-4 w-4" />} />
+        <span className="ml-2">Media Plan</span>
+      </Button>
+      <Button
+        onClick={handleDownloadMba}
+        disabled={isBusy}
+        className={cn(
+          "h-9 rounded-full px-4 py-2 text-white",
+          showFloating ? "hidden md:inline-flex" : "inline-flex",
+          "bg-brand-dark hover:bg-brand-dark/90 focus-visible:ring-2 focus-visible:ring-ring",
+        )}
+      >
+        <ActionIcon action="mba" loading={isDownloadingMba} icon={<FileText className="h-4 w-4" />} />
+        <span className="ml-2">MBA</span>
+      </Button>
+      <Button
+        onClick={handleDownloadBilling}
+        disabled={isBusy}
+        className={cn(
+          "h-9 rounded-full px-4 py-2",
+          showFloating ? "hidden md:inline-flex" : "inline-flex",
+          "bg-muted text-foreground hover:bg-muted/80 focus-visible:ring-2 focus-visible:ring-ring",
+        )}
+      >
+        <ActionIcon action="billing" loading={isDownloadingBilling} icon={<Download className="h-4 w-4" />} />
+        <span className="ml-2">Billing</span>
+      </Button>
+    </CampaignExportsSection>
   )
 }
 

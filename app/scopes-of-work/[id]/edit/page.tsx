@@ -11,9 +11,8 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Combobox } from "@/components/ui/combobox"
-import { Calendar } from "@/components/ui/calendar"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { CalendarIcon, Plus, Trash2, Download, Save } from "lucide-react"
+import { SingleDatePicker } from "@/components/ui/single-date-picker"
+import { Plus, Trash2, Download, Save } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "@/components/ui/use-toast"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table"
@@ -24,26 +23,26 @@ const scopeSchema = z.object({
   contact_name: z.string().min(1, "Contact name is required"),
   contact_email: z.string().email("Invalid email address"),
   scope_date: z.date(),
-  scope_version: z.number().default(1),
+  scope_version: z.number(),
   project_name: z.string().min(1, "Project name is required"),
   project_status: z.string().min(1, "Project status is required"),
-  project_overview: z.string().default(""),
-  deliverables: z.string().default(""),
-  tasks_steps: z.string().default(""),
-  timelines: z.string().default(""),
-  responsibilities: z.string().default(""),
-  requirements: z.string().default(""),
-  assumptions: z.string().default(""),
-  exclusions: z.string().default(""),
+  project_overview: z.string(),
+  deliverables: z.string(),
+  tasks_steps: z.string(),
+  timelines: z.string(),
+  responsibilities: z.string(),
+  requirements: z.string(),
+  assumptions: z.string(),
+  exclusions: z.string(),
   cost: z.array(z.object({
-    expense_category: z.string().default(""),
-    description: z.string().default(""),
-    cost: z.number().default(0),
+    expense_category: z.string(),
+    description: z.string(),
+    cost: z.number(),
   })).min(3, "At least 3 cost items are required"),
-  payment_terms_and_conditions: z.string().default(""),
+  payment_terms_and_conditions: z.string(),
   billing_schedule: z.array(z.object({
     month: z.string().min(1, "Month is required"),
-    cost: z.number().default(0),
+    cost: z.number(),
   })).min(1, "At least one billing schedule item is required"),
   scope_id: z.string().optional(),
 })
@@ -344,8 +343,8 @@ export default function EditScopePage() {
   const handleCostBlur = (index: number) => {
     const currentCost = form.getValues("cost")
     const costValue = currentCost[index].cost
-    if (typeof costValue === "string") {
-      const numericValue = parseFloat(costValue.toString().replace(/[^0-9.]/g, "")) || 0
+    const numericValue = parseFloat(String(costValue ?? "").replace(/[^0-9.]/g, "")) || 0
+    if (currentCost[index].cost !== numericValue) {
       currentCost[index].cost = numericValue
       form.setValue("cost", currentCost)
     }
@@ -509,30 +508,23 @@ export default function EditScopePage() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Scope Date</FormLabel>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <FormControl>
-                              <Button
-                                variant={"outline"}
-                                className={cn(
-                                  "w-full pl-3 text-left font-normal",
-                                  !field.value && "text-muted-foreground"
-                                )}
-                              >
-                                {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
-                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                              </Button>
-                            </FormControl>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                              mode="single"
-                              selected={field.value}
-                              onSelect={field.onChange}
-                              initialFocus
-                            />
-                          </PopoverContent>
-                        </Popover>
+                        <FormControl>
+                          <SingleDatePicker
+                            ref={field.ref}
+                            name={field.name}
+                            onBlur={field.onBlur}
+                            value={field.value}
+                            onChange={field.onChange}
+                            className={cn(
+                              "w-full pl-3 text-left font-normal",
+                              !field.value && "text-muted-foreground"
+                            )}
+                            calendarContext="general"
+                            dateFormat="PPP"
+                            placeholder={<span>Pick a date</span>}
+                            iconClassName="ml-auto h-4 w-4 opacity-50"
+                          />
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -941,8 +933,8 @@ export default function EditScopePage() {
                                   formField.onBlur()
                                   const currentBilling = form.getValues("billing_schedule")
                                   const costValue = currentBilling[index].cost
-                                  if (typeof costValue === "string") {
-                                    const numericValue = parseFloat(costValue.toString().replace(/[^0-9.]/g, "")) || 0
+                                  const numericValue = parseFloat(String(costValue ?? "").replace(/[^0-9.]/g, "")) || 0
+                                  if (currentBilling[index].cost !== numericValue) {
                                     currentBilling[index].cost = numericValue
                                     form.setValue("billing_schedule", currentBilling)
                                   }

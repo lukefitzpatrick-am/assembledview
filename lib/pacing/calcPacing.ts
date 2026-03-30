@@ -193,7 +193,7 @@ function getDeliverableValue(
   if (key === "deliverable_value") {
     return day.deliverable_value ?? 0
   }
-  return (day as Record<string, number>)[key] || 0
+  return (day as unknown as Record<string, number>)[key] || 0
 }
 
 function findLatestOnOrBefore(

@@ -2,18 +2,20 @@
 
 import { ReactNode } from "react";
 import { Auth0Provider } from "@auth0/nextjs-auth0/client";
+import { ThemeProvider } from "@/components/theme-provider";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  // Use environment variable if available, otherwise let Auth0Provider handle it
-  // Don't use window.location.origin during SSR to avoid hydration mismatches
-  const baseURL = 
-    process.env.NEXT_PUBLIC_AUTH0_BASE_URL || 
-    process.env.AUTH0_BASE_URL || 
-    undefined; // Let Auth0Provider use its default if not set
-
+  // Base URL is configured via Auth0 env vars for the SDK route handlers; the
+  // client Auth0Provider only supplies SWR fallback for the user profile.
   return (
-    <Auth0Provider baseURL={baseURL}>
-      {children}
-    </Auth0Provider>
+    <ThemeProvider
+      attribute="class"
+      defaultTheme="system"
+      enableSystem
+      disableTransitionOnChange
+      storageKey="av-theme"
+    >
+      <Auth0Provider>{children}</Auth0Provider>
+    </ThemeProvider>
   );
 }

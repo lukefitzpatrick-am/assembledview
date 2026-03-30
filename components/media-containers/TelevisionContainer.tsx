@@ -1,11 +1,12 @@
 "use client"
 
-import { useState, useEffect, useRef, useMemo, useCallback } from "react"
+import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react"
 import { useForm, useFieldArray, UseFormReturn } from "react-hook-form"
 import { useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Combobox } from "@/components/ui/combobox"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger,} from "@/components/ui/dialog"
@@ -28,6 +29,33 @@ import { ChevronDown, Copy, Plus, Trash2 } from "lucide-react"
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
 import type { LineItem } from '@/lib/generateMediaPlan'
 import { formatMoney } from "@/lib/utils/money"
+import MediaContainerTimelineCollapsible from "@/components/media-containers/MediaContainerTimelineCollapsible"
+import {
+  getMediaTypeThemeHex,
+  mediaTypeAccentTextStyle,
+  mediaTypeLineItemBadgeStyle,
+  mediaTypeSummaryStripeStyle,
+  mediaTypeTotalsRowStyle,
+  rgbaFromHex,
+} from "@/lib/mediaplan/mediaTypeAccents"
+import {
+  TelevisionExpertGrid,
+  createEmptyTelevisionExpertRow,
+} from "@/components/media-containers/TelevisionExpertGrid"
+import type { TelevisionExpertScheduleRow } from "@/lib/mediaplan/expertModeWeeklySchedule"
+import {
+  mapTvExpertRowsToStandardLineItems,
+  mapStandardTvLineItemsToExpertRows,
+  type StandardTelevisionFormLineItem,
+} from "@/lib/mediaplan/expertOohRadioMappings"
+import {
+  mergeTelevisionStandardFromExpertWithPrevious,
+  serializeTelevisionExpertRowsBaseline,
+  serializeTelevisionStandardLineItemsBaseline,
+} from "@/lib/mediaplan/expertModeSwitch"
+import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
+
+const MEDIA_ACCENT_HEX = getMediaTypeThemeHex("television")
 
 // Format Dates
 const formatDateString = (d?: Date | string): string => {
@@ -313,6 +341,21 @@ export default function TelevisionContainer({
   const { toast } = useToast()
   const { mbaNumber } = useMediaPlanContext()
   const [overallDeliverables, setOverallDeliverables] = useState(0);
+  const [expertTvRows, setExpertTvRows] = useState<TelevisionExpertScheduleRow[]>(
+    []
+  )
+  const [tvExpertModalOpen, setTvExpertModalOpen] = useState(false)
+  const [tvExpertExitConfirmOpen, setTvExpertExitConfirmOpen] = useState(false)
+  const [expertSegmentAttention, setExpertSegmentAttention] = useState(true)
+  const tvStandardBaselineRef = useRef("")
+  const tvExpertRowsBaselineRef = useRef("")
+  const tvExpertModalOpenRef = useRef(false)
+  tvExpertModalOpenRef.current = tvExpertModalOpen
+
+  const tvExpertWeekColumns = useMemo(
+    () => buildWeeklyGanttColumnsFromCampaign(campaignStartDate, campaignEndDate),
+    [campaignStartDate, campaignEndDate]
+  )
 
   // Stable ID generator for line items to keep duplicates distinct in exports
   const createLineItemId = () => {
@@ -439,8 +482,115 @@ export default function TelevisionContainer({
     },
   }) as any;
 
+  useLayoutEffect(() => {
+    tvStandardBaselineRef.current = serializeTelevisionStandardLineItemsBaseline(
+      form.getValues("televisionlineItems")
+    )
+  }, [form])
+
+  useEffect(() => {
+    const id = window.setTimeout(() => setExpertSegmentAttention(false), 2800)
+    return () => window.clearTimeout(id)
+  }, [])
+
+  const handleExpertTvRowsChange = useCallback(
+    (next: TelevisionExpertScheduleRow[]) => {
+      setExpertTvRows(next)
+    },
+    []
+  )
+
+  const openTvExpertModal = useCallback(() => {
+    const mapped = mapStandardTvLineItemsToExpertRows(
+      (form.getValues("televisionlineItems") || []) as StandardTelevisionFormLineItem[],
+      tvExpertWeekColumns,
+      campaignStartDate,
+      campaignEndDate
+    )
+    const weekKeys = tvExpertWeekColumns.map((c) => c.weekKey)
+    const rows: TelevisionExpertScheduleRow[] =
+      mapped.length > 0
+        ? mapped
+        : [
+            createEmptyTelevisionExpertRow(
+              typeof crypto !== "undefined" && crypto.randomUUID
+                ? crypto.randomUUID()
+                : `tv-expert-${Date.now()}`,
+              campaignStartDate,
+              campaignEndDate,
+              weekKeys
+            ),
+          ]
+    tvExpertRowsBaselineRef.current = serializeTelevisionExpertRowsBaseline(rows)
+    setExpertTvRows(rows)
+    setTvExpertExitConfirmOpen(false)
+    setTvExpertModalOpen(true)
+  }, [campaignStartDate, campaignEndDate, form, tvExpertWeekColumns])
+
+  const dismissTvExpertExitConfirm = useCallback(() => {
+    setTvExpertExitConfirmOpen(false)
+  }, [])
+
+  const confirmTvExpertExitWithoutSaving = useCallback(() => {
+    setTvExpertExitConfirmOpen(false)
+    setTvExpertModalOpen(false)
+  }, [])
+
+  const handleTvExpertModalOpenChange = useCallback(
+    (open: boolean) => {
+      if (open) {
+        setTvExpertModalOpen(true)
+        return
+      }
+      const dirty =
+        serializeTelevisionExpertRowsBaseline(expertTvRows) !==
+        tvExpertRowsBaselineRef.current
+      if (!dirty) {
+        setTvExpertModalOpen(false)
+        return
+      }
+      setTvExpertExitConfirmOpen(true)
+    },
+    [expertTvRows]
+  )
+
+  const handleTvExpertApply = useCallback(() => {
+    const prevLineItems = form.getValues("televisionlineItems") || []
+    const standard = mapTvExpertRowsToStandardLineItems(
+      expertTvRows,
+      tvExpertWeekColumns,
+      campaignStartDate,
+      campaignEndDate,
+      {
+        feePctTelevision: feetelevision,
+        budgetIncludesFees: Boolean(prevLineItems[0]?.budgetIncludesFees),
+      }
+    )
+    const merged = mergeTelevisionStandardFromExpertWithPrevious(
+      standard,
+      prevLineItems as StandardTelevisionFormLineItem[]
+    )
+    form.setValue("televisionlineItems", merged as any, {
+      shouldDirty: true,
+      shouldValidate: false,
+    })
+    tvStandardBaselineRef.current = serializeTelevisionStandardLineItemsBaseline(
+      form.getValues("televisionlineItems")
+    )
+    setTvExpertExitConfirmOpen(false)
+    setTvExpertModalOpen(false)
+  }, [
+    campaignStartDate,
+    campaignEndDate,
+    expertTvRows,
+    feetelevision,
+    form,
+    tvExpertWeekColumns,
+  ])
+
   // Data loading for edit mode
   useEffect(() => {
+    if (tvExpertModalOpenRef.current) return
     if (initialLineItems && initialLineItems.length > 0) {
       // Create a unique key from the line items to detect if they've changed
       const lineItemsKey = JSON.stringify(initialLineItems.map((item: any) => ({
@@ -1133,42 +1283,167 @@ useEffect(() => {
   return (
     <div className="space-y-6">
       <div className="mb-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="pt-4 border-t font-bold text-lg flex justify-between">Television Media</CardTitle>
+        <Card className="overflow-hidden border-0 shadow-md">
+          <div className="h-1" style={mediaTypeSummaryStripeStyle(MEDIA_ACCENT_HEX)} />
+          <CardHeader className="pb-3">
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <CardTitle className="text-base font-semibold tracking-tight">
+                    Television Media
+                  </CardTitle>
+                  {tvExpertModalOpen ? (
+                    <Badge
+                      variant="outline"
+                      className="border-2 text-[10px] font-semibold uppercase tracking-wider shadow-sm"
+                      style={{
+                        borderColor: rgbaFromHex(MEDIA_ACCENT_HEX, 0.55),
+                        backgroundColor: rgbaFromHex(MEDIA_ACCENT_HEX, 0.14),
+                        color: MEDIA_ACCENT_HEX,
+                      }}
+                    >
+                      Expert schedule open
+                    </Badge>
+                  ) : null}
+                </div>
+                <div
+                  role="group"
+                  aria-label="Television entry mode"
+                  className="inline-flex shrink-0 rounded-lg border border-border bg-muted/50 p-0.5"
+                >
+                  <button
+                    type="button"
+                    aria-pressed={!tvExpertModalOpen}
+                    className={cn(
+                      "rounded-md px-3 py-1.5 text-xs font-medium transition-all",
+                      !tvExpertModalOpen
+                        ? "text-white shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                    style={
+                      !tvExpertModalOpen
+                        ? { backgroundColor: MEDIA_ACCENT_HEX }
+                        : undefined
+                    }
+                    onClick={() => {
+                      if (tvExpertModalOpen) {
+                        handleTvExpertModalOpenChange(false)
+                      }
+                    }}
+                  >
+                    Standard
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={tvExpertModalOpen}
+                    className={cn(
+                      "rounded-md px-3 py-1.5 text-xs font-medium transition-all",
+                      tvExpertModalOpen
+                        ? "text-white shadow-sm"
+                        : "text-muted-foreground hover:text-foreground",
+                      expertSegmentAttention &&
+                        !tvExpertModalOpen &&
+                        "animate-pulse"
+                    )}
+                    style={{
+                      ...(tvExpertModalOpen
+                        ? { backgroundColor: MEDIA_ACCENT_HEX }
+                        : {}),
+                      ...(expertSegmentAttention && !tvExpertModalOpen
+                        ? {
+                            boxShadow: `0 0 0 2px ${rgbaFromHex(MEDIA_ACCENT_HEX, 0.45)}`,
+                          }
+                        : {}),
+                    }}
+                    onClick={() => {
+                      if (!tvExpertModalOpen) {
+                        openTvExpertModal()
+                      }
+                    }}
+                  >
+                    Expert
+                  </button>
+                </div>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm text-muted-foreground">Card-based entry</p>
+                <span className="text-xs text-muted-foreground tabular-nums sm:text-right">
+                  {overallTotals.lineItemTotals.length} line item
+                  {overallTotals.lineItemTotals.length !== 1 ? "s" : ""}
+                </span>
+              </div>
+            </div>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-0">
             {overallTotals.lineItemTotals.map((item) => (
-              <div key={item.index} className="flex justify-between border-b pb-2">
-                <span className="font-medium">Line Item {item.index}</span>
-                <div className="flex space-x-4">
-                  <span>
-                    {getDeliverablesLabel(form.getValues(`televisionlineItems.${item.index - 1}.buyType`))}: {item.deliverables.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                  </span>
-                  <span>Media: {formatMoney(item.media, { locale: "en-US", currency: "USD" })}</span>
-                  <span>Fee: {formatMoney(item.fee, { locale: "en-US", currency: "USD" })}</span>
-                  <span>Total Cost: {formatMoney(item.totalCost, { locale: "en-US", currency: "USD" })}</span>
+              <div
+                key={item.index}
+                className="flex items-center justify-between py-2.5 border-b border-border/40 last:border-b-0"
+              >
+                <span className="text-sm font-medium text-muted-foreground">Line {item.index}</span>
+                <div className="flex items-center gap-6 text-sm tabular-nums">
+                  <div className="text-right">
+                    <span className="text-[11px] text-muted-foreground block">
+                      {getDeliverablesLabel(form.watch(`televisionlineItems.${item.index - 1}.buyType`))}
+                    </span>
+                    <span>{item.deliverables.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[11px] text-muted-foreground block">Media</span>
+                    <span>{formatMoney(item.media, { locale: "en-US", currency: "USD" })}</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[11px] text-muted-foreground block">Fee</span>
+                    <span>{formatMoney(item.fee, { locale: "en-US", currency: "USD" })}</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[11px] text-muted-foreground block">Total</span>
+                    <span className="font-semibold">{formatMoney(item.totalCost, { locale: "en-US", currency: "USD" })}</span>
+                  </div>
                 </div>
               </div>
             ))}
-  
-            {/* Overall Totals */}
-            <div className="pt-4 border-t font-medium flex justify-between">
-              <span>Television Media Totals:</span>
-              <div className="flex space-x-4">
-                <span>Media: {formatMoney(overallTotals.overallMedia, { locale: "en-US", currency: "USD" })}</span>
-                <span>Fees ({feetelevision}%): {formatMoney(overallTotals.overallFee, { locale: "en-US", currency: "USD" })}</span>
-                <span>Total Cost: {formatMoney(overallTotals.overallCost, { locale: "en-US", currency: "USD" })}</span>
+
+            <div
+              className="flex items-center justify-between border-t-2 border-solid pt-3 mt-1"
+              style={mediaTypeTotalsRowStyle(MEDIA_ACCENT_HEX)}
+            >
+              <span className="text-sm font-semibold">Total</span>
+              <div className="flex items-center gap-6 text-sm font-semibold tabular-nums">
+                <div className="text-right">
+                  <span className="text-[11px] text-muted-foreground font-normal block">Media</span>
+                  <span>{formatMoney(overallTotals.overallMedia, { locale: "en-US", currency: "USD" })}</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-[11px] text-muted-foreground font-normal block">Fee ({feetelevision}%)</span>
+                  <span>{formatMoney(overallTotals.overallFee, { locale: "en-US", currency: "USD" })}</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-[11px] text-muted-foreground font-normal block">Total</span>
+                  <span style={mediaTypeAccentTextStyle(MEDIA_ACCENT_HEX)}>
+                    {formatMoney(overallTotals.overallCost, { locale: "en-US", currency: "USD" })}
+                  </span>
+                </div>
               </div>
             </div>
+            <MediaContainerTimelineCollapsible
+              mediaTypeKey="television"
+              lineItems={watchedLineItems}
+              campaignStartDate={campaignStartDate}
+              campaignEndDate={campaignEndDate}
+            />
           </CardContent>
         </Card>
       </div>
   
       <div>
         {isLoading ? (
-          <div className="flex justify-center items-center h-20">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <div className="flex flex-col items-center justify-center py-12 gap-3">
+            <div className="relative h-10 w-10">
+              <div className="absolute inset-0 rounded-full border-2 border-muted" />
+              <div className="absolute inset-0 rounded-full border-2 border-t-primary animate-spin" />
+            </div>
+            <span className="text-sm text-muted-foreground">Loading...</span>
           </div>
         ) : (
           <div className="space-y-6">
@@ -1206,26 +1481,38 @@ useEffect(() => {
                   const { totalMedia, totalTarps } = getTotals(lineItemIndex);
 
                   return (
-                    <Card key={field.id} className="space-y-6">
-                      <CardHeader className="pb-2">
-                        <div className="flex justify-between items-center">
-                          <div className="flex items-center space-x-2">
-                            <CardTitle className="text-lg font-medium">Television Line Item {lineItemIndex + 1}</CardTitle>
-                            <div className="text-sm text-muted-foreground">ID: {`${mbaNumber}TV${lineItemIndex + 1}`}</div>
+                    <Card key={field.id} className="overflow-hidden border border-border/50 shadow-sm hover:shadow-md transition-shadow duration-200 space-y-6">
+                      <CardHeader className="pb-2 bg-muted/30">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div
+                              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold"
+                              style={mediaTypeLineItemBadgeStyle(MEDIA_ACCENT_HEX)}
+                            >
+                              {lineItemIndex + 1}
+                            </div>
+                            <div>
+                              <CardTitle className="text-sm font-semibold tracking-tight">Television Line Item</CardTitle>
+                              <span className="font-mono text-[11px] text-muted-foreground">{`${mbaNumber}TV${lineItemIndex + 1}`}</span>
+                            </div>
                           </div>
-                          <div className="flex items-center space-x-2">
-                            <div className="text-sm font-medium">
-                              Total: {formatMoney(
-                                form.getValues(`televisionlineItems.${lineItemIndex}.budgetIncludesFees`)
-                                  ? totalMedia
-                                  : totalMedia + (totalMedia / (100 - (feetelevision || 0))) * (feetelevision || 0),
-                                { locale: "en-US", currency: "USD" }
-                              )}
+                          <div className="flex items-center gap-3">
+                            <div className="text-right">
+                              <span className="block text-[11px] text-muted-foreground">Total</span>
+                              <span className="text-sm font-bold tabular-nums">
+                                {formatMoney(
+                                  form.getValues(`televisionlineItems.${lineItemIndex}.budgetIncludesFees`)
+                                    ? totalMedia
+                                    : totalMedia + (totalMedia / (100 - (feetelevision || 0))) * (feetelevision || 0),
+                                  { locale: "en-US", currency: "USD" }
+                                )}
+                              </span>
                             </div>
                             <Button
                               type="button"
-                              variant="outline" 
+                              variant="ghost"
                               size="sm"
+                              className="h-8 w-8 shrink-0 rounded-full p-0"
                               onClick={() => {
                                 const element = document.getElementById(sectionId);
                                 const bursts = document.getElementById(burstsId);
@@ -1260,12 +1547,9 @@ useEffect(() => {
                       </div>
                       
                       {/* Detailed Content - Collapsible */}
-                      <div
-                        id={sectionId}
-                        className="bg-white rounded-xl shadow p-6 mb-6"
-                      >
-                        <CardContent className="space-y-6">
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                      <div id={sectionId} className="px-6 py-5">
+                        <CardContent className="space-y-5 p-0">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4">
                             
                             {/* Column 1 - Dropdowns */}
                             <div className="space-y-4">
@@ -1273,8 +1557,8 @@ useEffect(() => {
                                 control={form.control}
                                 name={`televisionlineItems.${lineItemIndex}.network`}
                                 render={({ field }) => (
-                                  <FormItem className="flex items-center space-x-2">
-                                    <FormLabel className="w-24 text-sm">Network</FormLabel>
+                                  <FormItem className="flex flex-col space-y-1.5">
+                                    <FormLabel className="text-sm text-muted-foreground font-medium">Network</FormLabel>
                                     <FormControl>
                                       <Combobox
                                         value={field.value}
@@ -1300,9 +1584,9 @@ useEffect(() => {
                                     control={form.control}
                                     name={`televisionlineItems.${lineItemIndex}.station`}
                                     render={({ field }) => (
-                                      <FormItem className="flex items-center space-x-2">
-                                        <FormLabel className="w-24 text-sm">Station</FormLabel>
-                                        <div className="flex-1 flex items-center space-x-1">
+                                      <FormItem className="flex flex-col space-y-1.5">
+                                        <FormLabel className="text-sm text-muted-foreground font-medium">Station</FormLabel>
+                                        <div className="flex flex-1 items-center space-x-1">
                                           <FormControl>
                                             <Combobox
                                               value={field.value}
@@ -1355,8 +1639,8 @@ useEffect(() => {
                                 control={form.control}
                                 name={`televisionlineItems.${lineItemIndex}.buyType`}
                                 render={({ field }) => (
-                                  <FormItem className="flex items-center space-x-2">
-                                    <FormLabel className="w-24 text-sm">Buy Type</FormLabel>
+                                  <FormItem className="flex flex-col space-y-1.5">
+                                    <FormLabel className="text-sm text-muted-foreground font-medium">Buy Type</FormLabel>
                                     <FormControl>
                                       <Combobox
                                         value={field.value}
@@ -1382,25 +1666,25 @@ useEffect(() => {
 
                             {/* Column 2 - Targeting and Buying Demo */}
                             <div className="space-y-4">
-                              <FormItem className="flex items-center space-x-2"> 
-                                <FormLabel className="block text-sm mb-1 self-start mt-4">Placement</FormLabel>
+                              <FormItem className="flex flex-col space-y-1.5">
+                                <FormLabel className="text-sm text-muted-foreground font-medium">Placement</FormLabel>
                                 <FormControl>
                                   <Textarea
                                     {...form.register(`televisionlineItems.${lineItemIndex}.placement`)}
                                     placeholder="Enter placement details"
-                                    className="w-full h-24 text-sm rounded-md border"
+                                    className="w-full h-24 text-sm rounded-md border border-border/50 bg-muted/30 transition-colors focus:bg-background"
                                   />
                                 </FormControl>
                                 <FormMessage />
                               </FormItem>
 
-                              <FormItem className="flex items-center space-x-2">
-                                <FormLabel className="block text-sm mb-1">Buying Demo</FormLabel>
+                              <FormItem className="flex flex-col space-y-1.5">
+                                <FormLabel className="text-sm text-muted-foreground font-medium">Buying Demo</FormLabel>
                                 <FormControl>
                                   <Textarea
                                     {...form.register(`televisionlineItems.${lineItemIndex}.buyingDemo`)}
                                     placeholder="Enter buying demo details"
-                                    className="w-full min-h-0 h-10 text-sm rounded-md border"
+                                    className="w-full min-h-0 h-10 text-sm rounded-md border border-border/50 bg-muted/30 transition-colors focus:bg-background"
                                   />
                                 </FormControl>
                                 <FormMessage />
@@ -1409,46 +1693,47 @@ useEffect(() => {
 
                             {/* Column 3 - Creative */}
                             <div className="space-y-4">
-                              <FormItem className="flex items-center space-x-2">
-                                <FormLabel className="block text-sm mb-1 self-start mt-4">Daypart</FormLabel>
+                              <FormItem className="flex flex-col space-y-1.5">
+                                <FormLabel className="text-sm text-muted-foreground font-medium">Daypart</FormLabel>
                                 <FormControl>
                                   <Textarea
                                     {...form.register(`televisionlineItems.${lineItemIndex}.daypart`)}
                                     placeholder="Enter daypart details"
-                                    className="w-full min-h-0 h-10 text-sm rounded-md border"
+                                    className="w-full min-h-0 h-10 text-sm rounded-md border border-border/50 bg-muted/30 transition-colors focus:bg-background"
                                   />
                                 </FormControl>
                                 <FormMessage />
                               </FormItem>
 
-                              <FormItem className="flex items-center space-x-2">
-                                <FormLabel className="block text-sm mb-1 self-start mt-4">Creative Length</FormLabel>
+                              <FormItem className="flex flex-col space-y-1.5">
+                                <FormLabel className="text-sm text-muted-foreground font-medium">Creative Length</FormLabel>
                                 <FormControl>
                                   <Textarea
                                     {...form.register(`televisionlineItems.${lineItemIndex}.creative`)}
-                                    placeholder="Enter daypart details"
-                                    className="w-full min-h-0 h-10 text-sm rounded-md border"
+                                    placeholder="Enter creative length details"
+                                    className="w-full min-h-0 h-10 text-sm rounded-md border border-border/50 bg-muted/30 transition-colors focus:bg-background"
                                   />
                                 </FormControl>
                                 <FormMessage />
                               </FormItem>
 
-                              <FormItem className="flex items-center space-x-2">
-                                <FormLabel className="block text-sm mb-1">Market</FormLabel>
+                              <FormItem className="flex flex-col space-y-1.5">
+                                <FormLabel className="text-sm text-muted-foreground font-medium">Market</FormLabel>
                                 <FormControl>
                                   <Textarea
                                     {...form.register(`televisionlineItems.${lineItemIndex}.market`)}
                                     placeholder="Enter market or Geo Targeting"
-                                    className="w-full min-h-0 h-10 text-sm rounded-md border"
+                                    className="w-full min-h-0 h-10 text-sm rounded-md border border-border/50 bg-muted/30 transition-colors focus:bg-background"
                                   />
                                 </FormControl>
                                 <FormMessage />
                               </FormItem>
                             </div>
 
-                            {/* Column 4 - Checkboxes */}
-                            <div className="flex flex-col justify-between">
-                              <div className="space-y-3">
+                            {/* Column 4 - Options */}
+                            <div className="space-y-4">
+                              <div className="space-y-3 rounded-lg border border-border/30 bg-muted/20 p-4">
+                                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Options</span>
                                 <FormField
                                   control={form.control}
                                   name={`televisionlineItems.${lineItemIndex}.fixedCostMedia`}
@@ -1834,61 +2119,66 @@ useEffect(() => {
                         })}
                       </div>
 
-                      <CardFooter id={footerId} className="flex justify-end space-x-2 pt-2">
+                      <CardFooter id={footerId} className="flex items-center justify-between pt-4 pb-4 bg-muted/20 border-t border-border/40">
                         <Button
                           type="button"
-                          variant="outline"
-                          onClick={() => handleDuplicateLineItem(lineItemIndex)}
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive/70 hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => removeLineItem(lineItemIndex)}
                         >
-                          <Copy className="h-4 w-4 mr-2" />
-                          Duplicate Line Item
+                          <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                          Remove
                         </Button>
-                        {lineItemIndex === lineItemFields.length - 1 && (
-                          <Button
-                            type="button"
-                            onClick={() =>
-                              appendLineItem({
-                                network: "",
-                                bidStrategy: "",
-                                station: "",
-                                daypart: "",
-                                placement: "",
-                                buyType: "",
-                                creativeTargeting: "",
-                                creative: "",
-                                buyingDemo: "",
-                                market: "",
-                                fixedCostMedia: false,
-                                clientPaysForMedia: false,
-                                budgetIncludesFees: false,
-                                noadserving: false,
-                              ...(() => {
-                                const id = createLineItemId();
-                                return { lineItemId: id, line_item_id: id };
-                              })(),
-                              line_item: lineItemFields.length + 1,
-                              lineItem: lineItemFields.length + 1,
-                                bursts: [
-                                  {
-                                    budget: "",
-                                    buyAmount: "",
-                                    startDate: new Date(),
-                                    endDate: new Date(),
-                                    size: "30s",
-                                    tarps: "",
-                                  },
-                                ],
-                              })
-                            }
-                          >
-                            <Plus className="h-4 w-4 mr-2" />
-                            Add Line Item
+                        <div className="flex items-center gap-2">
+                          <Button type="button" variant="outline" size="sm" onClick={() => handleDuplicateLineItem(lineItemIndex)}>
+                            <Copy className="h-3.5 w-3.5 mr-1.5" />
+                            Duplicate
                           </Button>
-                        )}
-                        <Button type="button" variant="destructive" onClick={() => removeLineItem(lineItemIndex)}>
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Remove Line Item
-                        </Button>
+                          {lineItemIndex === lineItemFields.length - 1 && (
+                                                    <Button
+                                                      type="button"
+                                                      size="sm"
+                                                      onClick={() =>
+                                                        appendLineItem({
+                                                          network: "",
+                                                          bidStrategy: "",
+                                                          station: "",
+                                                          daypart: "",
+                                                          placement: "",
+                                                          buyType: "",
+                                                          creativeTargeting: "",
+                                                          creative: "",
+                                                          buyingDemo: "",
+                                                          market: "",
+                                                          fixedCostMedia: false,
+                                                          clientPaysForMedia: false,
+                                                          budgetIncludesFees: false,
+                                                          noadserving: false,
+                                                        ...(() => {
+                                                          const id = createLineItemId();
+                                                          return { lineItemId: id, line_item_id: id };
+                                                        })(),
+                                                        line_item: lineItemFields.length + 1,
+                                                        lineItem: lineItemFields.length + 1,
+                                                          bursts: [
+                                                            {
+                                                              budget: "",
+                                                              buyAmount: "",
+                                                              startDate: new Date(),
+                                                              endDate: new Date(),
+                                                              size: "30s",
+                                                              tarps: "",
+                                                            },
+                                                          ],
+                                                        })
+                                                      }
+                                                    >
+                                                      <Plus className="h-3.5 w-3.5 mr-1.5" />
+                                                      Add Line Item
+                                                    </Button>
+                                                  )}
+                        </div>
                       </CardFooter>
                     </Card>
                   );
@@ -1900,63 +2190,123 @@ useEffect(() => {
       </div>
       {/* Add Station Dialog */}
 <Dialog open={isAddStationDialogOpen} onOpenChange={setIsAddStationDialogOpen}>
-  <DialogContent className="sm:max-w-[425px]">
-    <DialogHeader>
-      <DialogTitle>Add New TV Station</DialogTitle>
-      <DialogDescription>
-        Enter the details for the new TV station.
-      </DialogDescription>
-    </DialogHeader>
-    <div className="grid gap-4 py-4">
-    <div className="grid grid-cols-4 items-center gap-4">
-        <Label htmlFor="dialogDisplayNetworkName" className="text-right">
-          Network
-        </Label>
-        <Input
-          id="dialogDisplayNetworkName"
-          value={newStationNetwork} // This is pre-filled from the line item
-          readOnly
-          className="col-span-3 bg-gray-100 focus:ring-0 pointer-events-none" // Style to indicate read-only
-        />
+  <DialogContent className="sm:max-w-[425px] overflow-hidden p-0">
+    <div className="h-1" style={mediaTypeSummaryStripeStyle(MEDIA_ACCENT_HEX)} />
+    <div className="p-6">
+      <DialogHeader>
+        <DialogTitle>Add New TV Station</DialogTitle>
+        <DialogDescription>
+          Enter the details for the new TV station.
+        </DialogDescription>
+      </DialogHeader>
+      <div className="grid gap-4 py-4">
+        <div className="space-y-1.5">
+          <Label htmlFor="newStationNetwork" className="text-sm font-medium text-muted-foreground">
+            Network
+          </Label>
+          <Combobox
+            value={newStationNetwork}
+            onValueChange={setNewStationNetwork}
+            placeholder="Select Network"
+            searchPlaceholder="Search networks..."
+            buttonClassName="w-full h-9"
+            options={publishers.map((publisher) => ({
+              value: publisher.publisher_name,
+              label: publisher.publisher_name,
+            }))}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="newStationName" className="text-sm font-medium text-muted-foreground">
+            Station Name
+          </Label>
+          <Input
+            id="newStationName"
+            value={newStationName}
+            onChange={(e) => setNewStationName(e.target.value)}
+            className="w-full"
+            placeholder="e.g., Channel 9"
+          />
+        </div>
       </div>
-      <div className="grid grid-cols-4 items-center gap-4">
-        <Label htmlFor="newStationNetwork" className="text-right">
-          Network
-        </Label>
-        {/* Assuming 'publishers' contains the list of available networks */}
-        <Combobox
-          value={newStationNetwork}
-          onValueChange={setNewStationNetwork}
-          placeholder="Select Network"
-          searchPlaceholder="Search networks..."
-          buttonClassName="col-span-3 h-9"
-          options={publishers.map((publisher) => ({
-            value: publisher.publisher_name,
-            label: publisher.publisher_name,
-          }))}
-        />
-      </div>
-      <div className="grid grid-cols-4 items-center gap-4">
-        <Label htmlFor="newStationName" className="text-right">
-          Station Name
-        </Label>
-        <Input
-          id="newStationName"
-          value={newStationName}
-          onChange={(e) => setNewStationName(e.target.value)}
-          className="col-span-3"
-          placeholder="e.g., Channel 9"
-        />
-      </div>
+      <DialogFooter>
+        <Button type="button" variant="outline" onClick={() => setIsAddStationDialogOpen(false)}>Cancel</Button>
+        <Button type="button" onClick={handleAddNewStation} disabled={isLoading}>
+          {isLoading ? "Adding..." : "Add Station"}
+        </Button>
+      </DialogFooter>
     </div>
-    <DialogFooter>
-      <Button type="button" variant="outline" onClick={() => setIsAddStationDialogOpen(false)}>Cancel</Button>
-      <Button type="button" onClick={handleAddNewStation} disabled={isLoading}>
-        {isLoading ? "Adding..." : "Add Station"}
-      </Button>
-    </DialogFooter>
   </DialogContent>
 </Dialog>
+
+      <Dialog
+        open={tvExpertModalOpen}
+        onOpenChange={handleTvExpertModalOpenChange}
+      >
+        <DialogContent className="max-w-[95vw] w-[95vw] max-h-[95vh] h-[95vh] flex flex-col p-4 gap-0 overflow-hidden">
+          <DialogHeader className="flex-shrink-0 pb-2">
+            <DialogTitle>Television Expert Mode</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 overflow-auto">
+            <TelevisionExpertGrid
+              campaignStartDate={campaignStartDate}
+              campaignEndDate={campaignEndDate}
+              feetelevision={feetelevision}
+              rows={expertTvRows}
+              onRowsChange={handleExpertTvRowsChange}
+              publishers={publishers}
+              tvStations={tvStations}
+            />
+          </div>
+          <DialogFooter className="flex-shrink-0 border-t pt-3 mt-2">
+            <Button type="button" onClick={handleTvExpertApply}>
+              Apply
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={tvExpertExitConfirmOpen}
+        onOpenChange={(open) => {
+          if (!open) dismissTvExpertExitConfirm()
+        }}
+      >
+        <DialogContent
+          className="z-[100] sm:max-w-md"
+          onClick={(e) => {
+            if ((e.target as HTMLElement).closest("[data-tv-expert-exit-yes]")) {
+              return
+            }
+            dismissTvExpertExitConfirm()
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>Leave Television Expert Mode?</DialogTitle>
+            <DialogDescription>
+              You have unsaved changes in Expert Mode. Apply saves them to the
+              Television section; leaving now discards those edits.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={dismissTvExpertExitConfirm}
+            >
+              No, keep editing
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              data-tv-expert-exit-yes
+              onClick={confirmTvExpertExitWithoutSaving}
+            >
+              Yes, leave without saving
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

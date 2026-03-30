@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Edit } from "lucide-react"
 import { EditClientForm } from "@/components/EditClientForm"
@@ -49,12 +49,8 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
     })
   }, [params])
 
-  useEffect(() => {
+  const fetchClient = useCallback(async () => {
     if (!id) return
-    fetchClient()
-  }, [id])
-
-  async function fetchClient() {
     try {
       setLoading(true)
       const response = await fetch(`/api/clients/${id}`)
@@ -69,7 +65,12 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
     } finally {
       setLoading(false)
     }
-  }
+  }, [id])
+
+  useEffect(() => {
+    if (!id) return
+    void fetchClient()
+  }, [id, fetchClient])
 
   if (loading) {
     return <div>Loading...</div>
@@ -186,7 +187,7 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
             <DialogTitle>Edit Client</DialogTitle>
           </DialogHeader>
           <EditClientForm
-            client={client}
+            client={{ ...client, keyphone: client.keyphone != null ? String(client.keyphone) : "" }}
             onSuccess={() => {
               setIsEditDialogOpen(false)
               fetchClient()

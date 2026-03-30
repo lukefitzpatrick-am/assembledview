@@ -3,8 +3,16 @@
 import { useEffect, useMemo, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import {
+  Panel,
+  PanelActions,
+  PanelContent,
+  PanelDescription,
+  PanelHeader,
+  PanelTitle,
+} from "@/components/layout/Panel"
+import { PanelRow, PanelRowCell } from "@/components/layout/PanelRow"
 import { Button } from "@/components/ui/button"
 import { Combobox } from "@/components/ui/combobox"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
@@ -33,23 +41,23 @@ function SummaryCard({
   helper: string
 }) {
   return (
-    <Card className="overflow-hidden rounded-3xl border-muted/70 bg-background/90 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-      <CardContent className="p-6">
+    <Panel className="overflow-hidden border-muted/70 bg-card shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+      <PanelContent standalone className="p-6">
         <div className="space-y-1">
           <div className="text-sm font-medium text-muted-foreground">{label}</div>
           <div className="text-3xl font-semibold leading-tight">{value}</div>
           <div className="text-xs text-muted-foreground">{helper}</div>
         </div>
-      </CardContent>
-    </Card>
+      </PanelContent>
+    </Panel>
   )
 }
 
 function EmptyState() {
   return (
-    <Card className="rounded-3xl border border-muted/70 bg-background/90 shadow-sm">
-      <CardContent className="flex flex-col items-center gap-3 p-10 text-center">
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+    <Panel className="border-muted/70 bg-card shadow-sm">
+      <PanelContent standalone className="flex flex-col items-center gap-3 p-10 text-center">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-400">
           <FolderOpen className="h-6 w-6" />
         </div>
         <div className="space-y-1">
@@ -58,11 +66,8 @@ function EmptyState() {
             Select a saved view and date window to load pacing.
           </div>
         </div>
-        <div className="text-xs text-muted-foreground">
-          This page is scaffolded—data wiring comes next.
-        </div>
-      </CardContent>
-    </Card>
+      </PanelContent>
+    </Panel>
   )
 }
 
@@ -129,14 +134,25 @@ function formatCurrency(value: number | undefined) {
     style: "currency",
     currency: "AUD",
     minimumFractionDigits: 2,
-    maximumFractionDigits: 4,
+    maximumFractionDigits: 2,
   }).format(value ?? 0)
 }
 
 function statusBadge(status: PaceStatus | null) {
-  if (status === "UNDER") return { label: "Under", className: "bg-amber-100 text-amber-800" }
-  if (status === "OVER") return { label: "Over", className: "bg-red-100 text-red-800" }
-  return { label: "On", className: "bg-green-100 text-green-800" }
+  if (status === "UNDER")
+    return {
+      label: "Under",
+      className: "bg-amber-500/15 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300",
+    }
+  if (status === "OVER")
+    return {
+      label: "Over",
+      className: "bg-red-500/15 text-red-700 dark:bg-red-500/20 dark:text-red-300",
+    }
+  return {
+    label: "On",
+    className: "bg-emerald-500/15 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300",
+  }
 }
 
 export default function PacingPageClient({
@@ -187,7 +203,8 @@ export default function PacingPageClient({
 
   function replaceQuery(next: URLSearchParams) {
     const qs = next.toString()
-    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+    const base = pathname ?? "/"
+    router.replace(qs ? `${base}?${qs}` : base, { scroll: false })
   }
 
   function setQueryParam(key: string, value: string | null) {
@@ -454,312 +471,355 @@ export default function PacingPageClient({
 
   return (
     <div className="space-y-6">
-      <Card className="overflow-hidden rounded-3xl border border-muted/70 bg-background/90 shadow-sm">
-        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <Panel className="overflow-hidden border-muted/70 bg-card shadow-sm">
+        <PanelHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
             <div className="mt-1 flex h-10 w-10 items-center justify-center rounded-full border border-border/50 bg-muted/60 text-muted-foreground">
               <TrendingUp className="h-5 w-5" />
             </div>
             <div className="space-y-1">
-              <CardTitle className="text-3xl font-semibold leading-tight">Pacing</CardTitle>
-              <CardDescription className="text-base">
+              <PanelTitle className="text-3xl font-semibold leading-tight">Pacing</PanelTitle>
+              <PanelDescription className="text-base">
                 Portfolio pacing across saved client selections.
-              </CardDescription>
+              </PanelDescription>
             </div>
           </div>
 
-          <Badge variant="outline" className="w-fit rounded-full px-3 py-1 text-[11px]">
-            Admin
-          </Badge>
-        </CardHeader>
+          <PanelActions className="pt-0">
+            <Badge variant="outline" className="w-fit rounded-full px-3 py-1 text-[11px]">
+              Admin
+            </Badge>
+          </PanelActions>
+        </PanelHeader>
 
-        <CardContent className="space-y-4">
-          <div className="grid gap-3 md:grid-cols-3">
-            <div className="space-y-1.5">
-              <div className="text-xs font-medium text-muted-foreground">Saved view</div>
-              <Combobox
-                options={savedViewOptions}
-                value={selectedViewId ?? ""}
-                onValueChange={(next) => {
-                  const nextId = next?.trim() || null
-                  setSelectedViewId(nextId)
-                  setQueryParam("view", nextId)
-                  router.refresh()
-                }}
-                placeholder="Select a saved view"
-                searchPlaceholder="Search saved views..."
-                emptyText="No saved views"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <div className="text-xs font-medium text-muted-foreground">Clients</div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="w-full justify-between"
-                    disabled={!selectedView || clientsLoading}
-                  >
-                    <span className="truncate">{selectedClientsLabel}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {clientsLoading ? "Loading..." : ""}
-                    </span>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-[320px]">
-                  <DropdownMenuLabel>Select clients</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  {clients.length ? (
-                    clients.map((c) => {
-                      const checked = pendingClientSlugs.includes(c.slug)
-                      return (
-                        <DropdownMenuCheckboxItem
-                          key={c.slug}
-                          checked={checked}
-                          onCheckedChange={(nextChecked) => {
-                            setPendingClientSlugs((prev) => {
-                              const set = new Set(prev)
-                              if (nextChecked) set.add(c.slug)
-                              else set.delete(c.slug)
-                              return Array.from(set).sort()
-                            })
-                          }}
-                        >
-                          {c.name}
-                        </DropdownMenuCheckboxItem>
-                      )
-                    })
-                  ) : (
-                    <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                      No clients found.
-                    </div>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <div className="text-[11px] text-muted-foreground">
-                Client selection is saved to the current view.
+        <PanelContent className="space-y-6">
+          <PanelRow
+            title="View controls"
+            helperText="Pick a saved view, adjust the client set, and choose how the reporting window is calculated."
+          >
+            <PanelRowCell span="third">
+              <div className="space-y-1.5">
+                <div className="text-xs font-medium text-muted-foreground">Saved view</div>
+                <Combobox
+                  options={savedViewOptions}
+                  value={selectedViewId ?? ""}
+                  onValueChange={(next) => {
+                    const nextId = next?.trim() || null
+                    setSelectedViewId(nextId)
+                    setQueryParam("view", nextId)
+                    router.refresh()
+                  }}
+                  placeholder="Select a saved view"
+                  searchPlaceholder="Search saved views..."
+                  emptyText="No saved views"
+                />
               </div>
-            </div>
+            </PanelRowCell>
 
-            <div className="space-y-1.5">
-              <div className="text-xs font-medium text-muted-foreground">Date window</div>
-              <Tabs
-                value={dateWindow}
-                onValueChange={(v) => {
-                  const next = v as DateWindowKey
-                  setDateWindow(next)
-                  setQueryParam("window", next)
-                  router.refresh()
-                }}
-              >
-                <TabsList className="w-full justify-between">
-                  <TabsTrigger value="LAST_30" className="text-xs">Last 30</TabsTrigger>
-                  <TabsTrigger value="LAST_60" className="text-xs">Last 60</TabsTrigger>
-                  <TabsTrigger value="LAST_90" className="text-xs">Last 90</TabsTrigger>
-                  <TabsTrigger value="CAMPAIGN_DATES" className="text-xs">Campaign</TabsTrigger>
-                </TabsList>
-              </Tabs>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-muted/60 bg-muted/10 p-3">
-            <div className="flex items-center gap-2 text-sm">
-              <ListFilter className="h-4 w-4 text-muted-foreground" />
-              <span className="font-medium">Filters</span>
-              <span className="text-muted-foreground">
-                {selectedView ? `View: ${selectedView.name}` : "Select a saved view to begin"}
-              </span>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    New view
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Create saved view</DialogTitle>
-                    <DialogDescription>
-                      Save a set of clients and a default date window.
-                    </DialogDescription>
-                  </DialogHeader>
-
-                  <div className="space-y-4">
-                    <div className="space-y-1.5">
-                      <div className="text-sm font-medium">Name</div>
-                      <Input
-                        value={newViewName}
-                        onChange={(e) => setNewViewName(e.target.value)}
-                        placeholder="e.g. Top 10 clients"
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <div className="text-sm font-medium">Clients</div>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="outline" className="w-full justify-between" disabled={clientsLoading}>
-                            <span className="truncate">
-                              {newViewClients.length
-                                ? `${newViewClients.length} selected`
-                                : clientsLoading
-                                  ? "Loading clients..."
-                                  : "Select clients"}
-                            </span>
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent className="w-[320px]">
-                          <DropdownMenuLabel>Select clients</DropdownMenuLabel>
-                          <DropdownMenuSeparator />
-                          {clients.length ? (
-                            clients.map((c) => {
-                              const checked = newViewClients.includes(c.slug)
-                              return (
-                                <DropdownMenuCheckboxItem
-                                  key={c.slug}
-                                  checked={checked}
-                                  onCheckedChange={(nextChecked) => {
-                                    setNewViewClients((prev) => {
-                                      const set = new Set(prev)
-                                      if (nextChecked) set.add(c.slug)
-                                      else set.delete(c.slug)
-                                      return Array.from(set).sort()
-                                    })
-                                  }}
-                                >
-                                  {c.name}
-                                </DropdownMenuCheckboxItem>
-                              )
-                            })
-                          ) : (
-                            <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                              No clients found.
-                            </div>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <div className="text-sm font-medium">Default date window</div>
-                      <Tabs
-                        value={newViewDefaultWindow}
-                        onValueChange={(v) => setNewViewDefaultWindow(v as DateWindowKey)}
-                      >
-                        <TabsList className="w-full justify-between">
-                          <TabsTrigger value="LAST_30" className="text-xs">Last 30</TabsTrigger>
-                          <TabsTrigger value="LAST_60" className="text-xs">Last 60</TabsTrigger>
-                          <TabsTrigger value="LAST_90" className="text-xs">Last 90</TabsTrigger>
-                          <TabsTrigger value="CAMPAIGN_DATES" className="text-xs">Campaign</TabsTrigger>
-                        </TabsList>
-                      </Tabs>
-                    </div>
-
-                    {error ? (
-                      <div className="rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                        {error}
+            <PanelRowCell span="third">
+              <div className="space-y-1.5">
+                <div className="text-xs font-medium text-muted-foreground">Clients</div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-between"
+                      disabled={!selectedView || clientsLoading}
+                    >
+                      <span className="truncate">{selectedClientsLabel}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {clientsLoading ? "Loading..." : ""}
+                      </span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-[320px]">
+                    <DropdownMenuLabel>Select clients</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {clients.length ? (
+                      clients.map((c) => {
+                        const checked = pendingClientSlugs.includes(c.slug)
+                        return (
+                          <DropdownMenuCheckboxItem
+                            key={c.slug}
+                            checked={checked}
+                            onCheckedChange={(nextChecked) => {
+                              setPendingClientSlugs((prev) => {
+                                const set = new Set(prev)
+                                if (nextChecked) set.add(c.slug)
+                                else set.delete(c.slug)
+                                return Array.from(set).sort()
+                              })
+                            }}
+                          >
+                            {c.name}
+                          </DropdownMenuCheckboxItem>
+                        )
+                      })
+                    ) : (
+                      <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                        No clients found.
                       </div>
-                    ) : null}
-                  </div>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <div className="text-[11px] text-muted-foreground">
+                  Client selection is saved to the current view.
+                </div>
+              </div>
+            </PanelRowCell>
 
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setCreateOpen(false)} disabled={isBusy}>
-                      Cancel
-                    </Button>
-                    <Button onClick={handleCreateView} disabled={isBusy}>
-                      <Save className="mr-2 h-4 w-4" />
-                      Create
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+            <PanelRowCell span="third">
+              <div className="space-y-1.5">
+                <div className="text-xs font-medium text-muted-foreground">Date window</div>
+                <Tabs
+                  value={dateWindow}
+                  onValueChange={(v) => {
+                    const next = v as DateWindowKey
+                    setDateWindow(next)
+                    setQueryParam("window", next)
+                    router.refresh()
+                  }}
+                >
+                  <TabsList className="w-full justify-between">
+                    <TabsTrigger value="LAST_30" className="text-xs">Last 30</TabsTrigger>
+                    <TabsTrigger value="LAST_60" className="text-xs">Last 60</TabsTrigger>
+                    <TabsTrigger value="LAST_90" className="text-xs">Last 90</TabsTrigger>
+                    <TabsTrigger value="CAMPAIGN_DATES" className="text-xs">Campaign</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
+            </PanelRowCell>
+          </PanelRow>
 
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleUpdateView}
-                disabled={!selectedView || isBusy}
-              >
-                <RefreshCw className="mr-2 h-4 w-4" />
-                Update view
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleDeleteView}
-                disabled={!selectedView || isBusy}
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete
-              </Button>
-            </div>
-          </div>
+          <PanelRow
+            title="Saved views"
+            helperText="Create views for reusable client groupings. Update persists client picks and default window to the selected view."
+            actions={
+              <div className="flex flex-wrap items-center gap-2">
+                <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="sm">
+                      New view
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Create saved view</DialogTitle>
+                      <DialogDescription>
+                        Save a set of clients and a default date window.
+                      </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-4">
+                      <div className="space-y-1.5">
+                        <div className="text-sm font-medium">Name</div>
+                        <Input
+                          value={newViewName}
+                          onChange={(e) => setNewViewName(e.target.value)}
+                          placeholder="e.g. Top 10 clients"
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <div className="text-sm font-medium">Clients</div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="outline" className="w-full justify-between" disabled={clientsLoading}>
+                              <span className="truncate">
+                                {newViewClients.length
+                                  ? `${newViewClients.length} selected`
+                                  : clientsLoading
+                                    ? "Loading clients..."
+                                    : "Select clients"}
+                              </span>
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent className="w-[320px]">
+                            <DropdownMenuLabel>Select clients</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            {clients.length ? (
+                              clients.map((c) => {
+                                const checked = newViewClients.includes(c.slug)
+                                return (
+                                  <DropdownMenuCheckboxItem
+                                    key={c.slug}
+                                    checked={checked}
+                                    onCheckedChange={(nextChecked) => {
+                                      setNewViewClients((prev) => {
+                                        const set = new Set(prev)
+                                        if (nextChecked) set.add(c.slug)
+                                        else set.delete(c.slug)
+                                        return Array.from(set).sort()
+                                      })
+                                    }}
+                                  >
+                                    {c.name}
+                                  </DropdownMenuCheckboxItem>
+                                )
+                              })
+                            ) : (
+                              <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                                No clients found.
+                              </div>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <div className="text-sm font-medium">Default date window</div>
+                        <Tabs
+                          value={newViewDefaultWindow}
+                          onValueChange={(v) => setNewViewDefaultWindow(v as DateWindowKey)}
+                        >
+                          <TabsList className="w-full justify-between">
+                            <TabsTrigger value="LAST_30" className="text-xs">Last 30</TabsTrigger>
+                            <TabsTrigger value="LAST_60" className="text-xs">Last 60</TabsTrigger>
+                            <TabsTrigger value="LAST_90" className="text-xs">Last 90</TabsTrigger>
+                            <TabsTrigger value="CAMPAIGN_DATES" className="text-xs">Campaign</TabsTrigger>
+                          </TabsList>
+                        </Tabs>
+                      </div>
+
+                      {error ? (
+                        <div
+                          role="alert"
+                          className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+                        >
+                          {error}
+                        </div>
+                      ) : null}
+                    </div>
+
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setCreateOpen(false)} disabled={isBusy}>
+                        Cancel
+                      </Button>
+                      <Button onClick={handleCreateView} disabled={isBusy}>
+                        <Save className="mr-2 h-4 w-4" />
+                        Create
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleUpdateView}
+                  disabled={!selectedView || isBusy}
+                >
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Update view
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDeleteView}
+                  disabled={!selectedView || isBusy}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete
+                </Button>
+              </div>
+            }
+          >
+            <PanelRowCell span="full">
+              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border/60 bg-muted/10 px-3 py-2.5 text-sm">
+                <ListFilter className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <span className="font-medium text-foreground">Active view</span>
+                <span className="text-muted-foreground">
+                  {selectedView ? selectedView.name : "Select a saved view to begin"}
+                </span>
+              </div>
+            </PanelRowCell>
+          </PanelRow>
 
           {error && !createOpen ? (
-            <div className="rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            <div
+              role="alert"
+              className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+            >
               {error}
             </div>
           ) : null}
-        </CardContent>
-      </Card>
+        </PanelContent>
+      </Panel>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <PanelRow
+        title="Portfolio summary"
+        helperText="Roll-up totals for the current window and pace distribution across campaigns."
+      >
         {isLoading ? (
           <>
-            <Skeleton className="h-28 w-full rounded-3xl" />
-            <Skeleton className="h-28 w-full rounded-3xl" />
-            <Skeleton className="h-28 w-full rounded-3xl" />
-            <Skeleton className="h-28 w-full rounded-3xl" />
+            <PanelRowCell span="quarter">
+              <Skeleton className="h-28 w-full rounded-lg" />
+            </PanelRowCell>
+            <PanelRowCell span="quarter">
+              <Skeleton className="h-28 w-full rounded-lg" />
+            </PanelRowCell>
+            <PanelRowCell span="quarter">
+              <Skeleton className="h-28 w-full rounded-lg" />
+            </PanelRowCell>
+            <PanelRowCell span="quarter">
+              <Skeleton className="h-28 w-full rounded-lg" />
+            </PanelRowCell>
           </>
         ) : (
           <>
-            <SummaryCard
-              label="Spend"
-              value={summary ? formatCurrency(summary.spentToDate) : "—"}
-              helper={portfolio ? `As at ${portfolio.dataAsAt}` : "Delivered in selected window"}
-            />
-            <SummaryCard
-              label="Planned"
-              value={summary ? formatCurrency(summary.plannedTotal) : "—"}
-              helper={portfolio ? `Window ${portfolio.window.startDate} → ${portfolio.window.endDate}` : "Planned total (all line items)"}
-            />
-            <SummaryCard
-              label="Campaigns under / on / over"
-              value={summary ? `${summary.underCount} / ${summary.onCount} / ${summary.overCount}` : "—"}
-              helper="Spend pace status (90–110% = On)"
-            />
-            <SummaryCard
-              label="Selected view"
-              value={selectedView ? selectedView.name : "—"}
-              helper={selectedView ? `${selectedView.client_slugs.length} clients` : "Pick a view to load pacing"}
-            />
+            <PanelRowCell span="quarter">
+              <SummaryCard
+                label="Spend"
+                value={summary ? formatCurrency(summary.spentToDate) : "—"}
+                helper={portfolio ? `As at ${portfolio.dataAsAt}` : "Delivered in selected window"}
+              />
+            </PanelRowCell>
+            <PanelRowCell span="quarter">
+              <SummaryCard
+                label="Planned"
+                value={summary ? formatCurrency(summary.plannedTotal) : "—"}
+                helper={portfolio ? `Window ${portfolio.window.startDate} → ${portfolio.window.endDate}` : "Planned total (all line items)"}
+              />
+            </PanelRowCell>
+            <PanelRowCell span="quarter">
+              <SummaryCard
+                label="Campaigns under / on / over"
+                value={summary ? `${summary.underCount} / ${summary.onCount} / ${summary.overCount}` : "—"}
+                helper="Spend pace status (90–110% = On)"
+              />
+            </PanelRowCell>
+            <PanelRowCell span="quarter">
+              <SummaryCard
+                label="Selected view"
+                value={selectedView ? selectedView.name : "—"}
+                helper={selectedView ? `${selectedView.client_slugs.length} clients` : "Pick a view to load pacing"}
+              />
+            </PanelRowCell>
           </>
         )}
-      </div>
+      </PanelRow>
 
-      <Card className="rounded-3xl border border-muted/70 bg-background/90 shadow-sm">
-        <CardHeader className="border-b border-muted/40">
-          <div className="flex items-center justify-between gap-3">
+      <Panel className="border-muted/70 bg-card shadow-sm">
+        <PanelHeader className="border-b border-border/50 pb-4">
+          <div className="flex flex-1 flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <CardTitle className="text-base">Clients</CardTitle>
-              <CardDescription>
-                Grouped by Client → Campaign (placeholder)
-              </CardDescription>
+              <PanelTitle className="text-base">Clients & line items</PanelTitle>
+              <PanelDescription>
+                Grouped by client and campaign. Open a line item for pacing drill-down.
+              </PanelDescription>
             </div>
-            <Badge variant="secondary" className="rounded-full px-3 py-1 text-[11px]">
+            <Badge variant="secondary" className="w-fit rounded-full px-3 py-1 text-[11px]">
               {portfolio
                 ? `${portfolio.clients.reduce((sum, c) => sum + c.campaigns.length, 0)} campaigns`
                 : "0 campaigns"}
             </Badge>
           </div>
-        </CardHeader>
-        <CardContent className="p-6">
+        </PanelHeader>
+        <PanelContent>
           {!selectedView ? (
             <EmptyState />
           ) : !portfolio ? (
-            <div className="rounded-2xl border border-muted/60 bg-muted/10 p-4 text-sm text-muted-foreground">
+            <div className="rounded-lg border border-border/60 bg-muted/10 p-4 text-sm text-muted-foreground">
               No portfolio data loaded yet. If you just created a view, click “Apply window”, or try refreshing.
             </div>
           ) : (
@@ -786,7 +846,7 @@ export default function PacingPageClient({
                           return (
                             <div
                               key={`${campaign.mbaNumber}:${campaign.campaignName}`}
-                              className="rounded-2xl border border-muted/60 bg-background/80 p-3 shadow-sm"
+                              className="rounded-lg border border-border/60 bg-muted/5 p-3 shadow-sm"
                             >
                               <div className="flex flex-wrap items-start justify-between gap-2">
                                 <div className="space-y-0.5">
@@ -818,7 +878,7 @@ export default function PacingPageClient({
                                     <button
                                       key={li.lineItemId}
                                       type="button"
-                                      className="w-full rounded-xl border border-muted/60 bg-muted/10 px-3 py-2 text-left transition hover:bg-muted/20"
+                                      className="w-full rounded-lg border border-border/60 bg-muted/10 px-3 py-2 text-left transition hover:bg-muted/20"
                                       onClick={() => {
                                         setSelectedLineItemId(li.lineItemId)
                                         setDrawerOpen(true)
@@ -856,8 +916,8 @@ export default function PacingPageClient({
               )}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </PanelContent>
+      </Panel>
 
       <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
         <SheetContent side="right" className="w-full sm:max-w-3xl overflow-y-auto">
@@ -869,20 +929,22 @@ export default function PacingPageClient({
             <div className="mt-6 text-sm text-muted-foreground">Select a line item to view details.</div>
           ) : (
             <div className="mt-4 space-y-5">
-              <div className="rounded-2xl border border-muted/60 bg-muted/10 p-3 text-sm">
-                <div className="font-semibold">{selectedLineItem.platform || selectedLineItem.lineItemId}</div>
-                <div className="text-xs text-muted-foreground">
-                  {selectedLineItem.channelGroup} • {selectedLineItem.buyType} • {selectedLineItem.lineItemId}
-                </div>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  <Badge variant="secondary" className="rounded-full px-3 py-1 text-[11px]">
-                    As at {portfolio?.dataAsAt ?? "—"}
-                  </Badge>
-                  <Badge variant="secondary" className="rounded-full px-3 py-1 text-[11px]">
-                    Spend {formatCurrency(selectedLineItem.spendToDate)} / {formatCurrency(selectedLineItem.plannedSpendToDate)}
-                  </Badge>
-                </div>
-              </div>
+              <Panel className="border-border/60 bg-muted/10 shadow-none">
+                <PanelContent standalone className="p-3 text-sm">
+                  <div className="font-semibold">{selectedLineItem.platform || selectedLineItem.lineItemId}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {selectedLineItem.channelGroup} • {selectedLineItem.buyType} • {selectedLineItem.lineItemId}
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <Badge variant="secondary" className="rounded-full px-3 py-1 text-[11px]">
+                      As at {portfolio?.dataAsAt ?? "—"}
+                    </Badge>
+                    <Badge variant="secondary" className="rounded-full px-3 py-1 text-[11px]">
+                      Spend {formatCurrency(selectedLineItem.spendToDate)} / {formatCurrency(selectedLineItem.plannedSpendToDate)}
+                    </Badge>
+                  </div>
+                </PanelContent>
+              </Panel>
 
               {selectedLineItem.channelGroup === "social" ? (
                 <SocialPacingContainer

@@ -9,8 +9,15 @@ import {
 } from "@/components/ui/accordion"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import {
+  Panel,
+  PanelContent,
+  PanelDescription,
+  PanelHeader,
+  PanelTitle,
+} from "@/components/layout/Panel"
+import { PanelRow, PanelRowCell } from "@/components/layout/PanelRow"
 import {
   Table,
   TableBody,
@@ -30,6 +37,7 @@ import { SmallProgressCard } from "@/components/dashboard/pacing/SmallProgressCa
 import { SpendChannelCharts, type ChannelSpend, type MonthlySpendByChannel } from "@/components/dashboard/pacing/SpendChannelCharts"
 import { MediaPlanViz } from "@/components/dashboard/pacing/MediaPlanViz"
 import { downloadCSV } from "@/lib/utils/csv-export"
+import { buildMediaChannelColorMap } from "@/lib/media/channelColors"
 import { calcExpectedFromBursts } from "@/lib/pacing/calcExpected"
 import {
   PacingResult,
@@ -42,6 +50,7 @@ import {
   LineItem,
   mockMetaPacing,
 } from "@/lib/pacing/mockMetaPacing"
+import { CHART_PACING as palette } from "@/lib/charts/theme"
 
 // Note: swap mockMetaPacing + mock channel grouping with real Xano + Snowflake joins here later.
 
@@ -86,18 +95,6 @@ type LineItemWithMetrics = {
 }
 
 type AggregatedActual = ActualsDaily & { deliverable_value?: number }
-
-const palette = {
-  budget: "#4f8fcb",
-  deliverable: "#15c7c9",
-  accent: "#b5d337",
-  brand: "#9801b5",
-  highlight: "#fd7adb",
-  warning: "#ffcf2a",
-  alert: "#ff9700",
-  error: "#ff6003",
-  success: "#008e5e",
-}
 
 const clampRatio = (value: number) => Math.min(Math.max(value, 0), 1)
 
@@ -314,14 +311,6 @@ export default function MetaPacingDemoPage() {
   }, [lineItemMetrics])
 
   const channelAggregates = useMemo(() => {
-    const channelColors: Record<string, string> = {
-      "Social Media": "#4f46e5",
-      Production: "#f97316",
-      Television: "#10b981",
-      BVOD: "#6366f1",
-      "Programmatic Video": "#0ea5e9",
-    }
-
     const channelData: ChannelSpend[] = [
       { channel: "Social Media", spend: 75588 },
       { channel: "Production", spend: 47211 },
@@ -329,6 +318,7 @@ export default function MetaPacingDemoPage() {
       { channel: "BVOD", spend: 132801 },
       { channel: "Programmatic Video", spend: 30000 },
     ]
+    const channelColors = buildMediaChannelColorMap(channelData.map((entry) => entry.channel))
 
     // Mock monthly distribution proportional to spend with simple spread
     const months = ["Dec 2025", "Jan 2026", "Feb 2026", "Mar 2026", "Apr 2026"]
@@ -432,129 +422,98 @@ export default function MetaPacingDemoPage() {
     return { start: min.toISOString().slice(0, 10), end: max.toISOString().slice(0, 10) }
   }
 
+  const vizRow = (
+    id: string,
+    title: string,
+    subtitle: string,
+    budget: number,
+    schedule: Record<string, number>
+  ) => {
+    const { start, end } = getScheduleRange(schedule)
+    return {
+      id,
+      title,
+      subtitle,
+      budget,
+      start,
+      end,
+      bursts: [{ id: `${id}-burst`, start, end }],
+    }
+  }
+
   const mediaPlanGroups = [
     {
       channel: "TV",
       rows: [
-        {
-          id: "tv-1",
-          title: '15" First Run TVC (Nine)',
-          subtitle: "Spots • 18+ • 50 deliverables",
-          budget: 289990,
-          ...getScheduleRange({ "2025-12-01": 50 }),
-        },
-        {
-          id: "tv-2",
-          title: "Solus Broadcast Billboards (Premiere & Encore)",
-          subtitle: "Bonus • 4 deliverables",
-          budget: 0,
-          ...getScheduleRange({ "2025-12-01": 4 }),
-        },
-        {
-          id: "tv-3",
-          title: '15" TVCs - $60k Bonus Commitment',
-          subtitle: "Bonus • 1 deliverable",
-          budget: 0,
-          ...getScheduleRange({ "2025-12-01": 1 }),
-        },
-        {
-          id: "tv-4",
-          title: "In-show 4 Colours Pen + BONUS Vivid Marker Integration",
-          subtitle: "Bonus • 4 deliverables",
-          budget: 0,
-          ...getScheduleRange({ "2025-12-01": 4 }),
-        },
+        vizRow("tv-1", '15" First Run TVC (Nine)', "Spots • 18+ • 50 deliverables", 289990, { "2025-12-01": 50 }),
+        vizRow("tv-2", "Solus Broadcast Billboards (Premiere & Encore)", "Bonus • 4 deliverables", 0, { "2025-12-01": 4 }),
+        vizRow("tv-3", '15" TVCs - $60k Bonus Commitment', "Bonus • 1 deliverable", 0, { "2025-12-01": 1 }),
+        vizRow("tv-4", "In-show 4 Colours Pen + BONUS Vivid Marker Integration", "Bonus • 4 deliverables", 0, {
+          "2025-12-01": 4,
+        }),
       ],
     },
     {
       channel: "BVOD",
       rows: [
-        {
-          id: "bvod-1",
-          title: "NineNow • 15\" pre & mid rolls",
-          subtitle: "CPM • 3,055,583 deliverables @ $36",
-          budget: 110001,
-          ...getScheduleRange({
-            "2025-12-01": 1018528,
-            "2025-12-02": 1018528,
-            "2025-12-03": 1018528,
-          }),
-        },
-        {
-          id: "bvod-2",
-          title: "TVNZ On Demand • 15\" pre & mid rolls",
-          subtitle: "CPM • 518,182 deliverables @ $44",
-          budget: 22800,
-          ...getScheduleRange({
-            "2025-12-01": 172727,
-            "2025-12-02": 172727,
-            "2025-12-03": 172727,
-          }),
-        },
+        vizRow("bvod-1", "NineNow • 15\" pre & mid rolls", "CPM • 3,055,583 deliverables @ $36", 110001, {
+          "2025-12-01": 1018528,
+          "2025-12-02": 1018528,
+          "2025-12-03": 1018528,
+        }),
+        vizRow("bvod-2", "TVNZ On Demand • 15\" pre & mid rolls", "CPM • 518,182 deliverables @ $44", 22800, {
+          "2025-12-01": 172727,
+          "2025-12-02": 172727,
+          "2025-12-03": 172727,
+        }),
       ],
     },
     {
       channel: "Social",
       rows: [
-        {
-          id: "social-meta",
-          title: "Meta • Feed & Stories – Static & UGC",
-          subtitle: "CPM • 5,399,143 deliverables @ $7",
-          budget: 37794,
-          ...getScheduleRange({
-            "2025-12-01": 1330000,
-            "2025-12-02": 1409143,
-            "2025-12-03": 1330000,
-            "2025-12-04": 1330000,
-          }),
-        },
-        {
-          id: "social-tiktok",
-          title: "TikTok • Feed & Stories – Static & UGC",
-          subtitle: "CPM • 5,399,143 deliverables @ $7",
-          budget: 37794,
-          ...getScheduleRange({
-            "2025-12-01": 1330000,
-            "2025-12-02": 1409143,
-            "2025-12-03": 1330000,
-            "2025-12-04": 1330000,
-          }),
-        },
+        vizRow("social-meta", "Meta • Feed & Stories – Static & UGC", "CPM • 5,399,143 deliverables @ $7", 37794, {
+          "2025-12-01": 1330000,
+          "2025-12-02": 1409143,
+          "2025-12-03": 1330000,
+          "2025-12-04": 1330000,
+        }),
+        vizRow("social-tiktok", "TikTok • Feed & Stories – Static & UGC", "CPM • 5,399,143 deliverables @ $7", 37794, {
+          "2025-12-01": 1330000,
+          "2025-12-02": 1409143,
+          "2025-12-03": 1330000,
+          "2025-12-04": 1330000,
+        }),
       ],
     },
     {
       channel: "YouTube",
       rows: [
-        {
-          id: "yt-dv360",
-          title: "YouTube DV360 • Completed Views",
-          subtitle: "CPV • 1,000,000 deliverables",
-          budget: 30000,
-          ...getScheduleRange({
-            "2025-12-01": 333333,
-            "2025-12-02": 333333,
-            "2025-12-03": 333333,
-          }),
-        },
+        vizRow("yt-dv360", "YouTube DV360 • Completed Views", "CPV • 1,000,000 deliverables", 30000, {
+          "2025-12-01": 333333,
+          "2025-12-02": 333333,
+          "2025-12-03": 333333,
+        }),
       ],
     },
   ]
 
   return (
-    <div className="space-y-6 rounded-3xl bg-[#DEE5F4] p-4 md:p-6">
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-semibold">Meta Social Pacing (Demo)</h1>
-          <Badge variant="secondary">Mock Data</Badge>
+    <div className="space-y-6 rounded-3xl bg-surface-muted p-4 md:p-6">
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 space-y-2">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-semibold tracking-tight">Meta Social Pacing (Demo)</h1>
+            <Badge variant="secondary">Mock Data</Badge>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Demo view using mock JSON. Charts mirror the production pacing layout and can be swapped to a real API
+            later. 100% = on target.
+          </p>
         </div>
-        <p className="text-sm text-muted-foreground">
-          Demo view using mock JSON. Charts mirror the production pacing layout and can be swapped to a real API later.
-          100% = on target.
-        </p>
-      </div>
+      </header>
 
-      <Card className="rounded-2xl border-muted/70 shadow-sm">
-        <CardContent className="space-y-5 pt-4">
+      <Panel className="border-muted/70 bg-card shadow-sm">
+        <PanelContent standalone className="space-y-5">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="space-y-2">
               <div className="text-[32px] md:text-[38px] font-semibold leading-tight">
@@ -584,54 +543,74 @@ export default function MetaPacingDemoPage() {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-start gap-2 rounded-2xl border border-muted/60 bg-muted/5 px-3 py-1 text-sm md:text-base">
+          <div className="flex flex-wrap items-start gap-2 rounded-lg border border-border/60 bg-muted/5 px-3 py-2 text-sm md:text-base">
             <InlineChip label="Client Contact" value={campaignInfo.clientContact} />
             <InlineChip label="Plan Version" value={campaignInfo.planVersion} />
             <InlineChip label="Plan Date" value={campaignInfo.planDate} />
             <InlineChip label="PO Number" value={campaignInfo.poNumber} />
           </div>
-        </CardContent>
-      </Card>
+        </PanelContent>
+      </Panel>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <SmallProgressCard
-          label="Campaign time"
-          value={`${elapsedInfo.elapsedDays} of ${elapsedInfo.totalDays} days`}
-          helper={`${campaignInfo.campaignStartDate} → ${campaignInfo.campaignEndDate} (as of today)`}
-          progressRatio={elapsedInfo.progress}
-          pacingPct={elapsedInfo.progress * 100}
-          accentColor="#4f46e5"
-          footer="Elapsed vs total campaign days"
-          hideStatus
-        />
-        <SmallProgressCard
-          label="Spend to date"
-          value={spendCard.totalBudgetDisplay}
-          helper={`Expected ${spendCard.expectedSpendDisplay}`}
-          progressRatio={clampRatio(spendCard.actualToDate / spendCard.totalBudgetValue)}
-          pacingPct={spendCard.pacingPct}
-          accentColor="#4f46e5"
-          footer={
-            `Pacing ${formatPercent(spendCard.pacingPct)} · Actual ${formatCurrency(spendCard.actualToDate)}`
-          }
-          hideStatus
-        />
-      </div>
+      <PanelRow
+        title="Campaign progress"
+        helperText="Elapsed time in flight and spend vs planned to date for the mock campaign shell."
+      >
+        <PanelRowCell span="half">
+          <SmallProgressCard
+            embedded
+            label="Campaign time"
+            value={`${elapsedInfo.elapsedDays} of ${elapsedInfo.totalDays} days`}
+            helper={`${campaignInfo.campaignStartDate} → ${campaignInfo.campaignEndDate} (as of today)`}
+            progressRatio={elapsedInfo.progress}
+            pacingPct={elapsedInfo.progress * 100}
+            accentColor="#4f46e5"
+            footer="Elapsed vs total campaign days"
+            hideStatus
+          />
+        </PanelRowCell>
+        <PanelRowCell span="half">
+          <SmallProgressCard
+            embedded
+            label="Spend to date"
+            value={spendCard.totalBudgetDisplay}
+            helper={`Expected ${spendCard.expectedSpendDisplay}`}
+            progressRatio={clampRatio(spendCard.actualToDate / spendCard.totalBudgetValue)}
+            pacingPct={spendCard.pacingPct}
+            accentColor="#4f46e5"
+            footer={
+              `Pacing ${formatPercent(spendCard.pacingPct)} · Actual ${formatCurrency(spendCard.actualToDate)}`
+            }
+            hideStatus
+          />
+        </PanelRowCell>
+      </PanelRow>
 
-      <SpendChannelCharts
-        channelData={channelAggregates.channelData}
-        monthlyData={channelAggregates.monthlyData}
-        channelColors={channelAggregates.channelColors}
-      />
+      <Panel className="border-muted/70 bg-card shadow-sm">
+        <PanelHeader className="pb-3">
+          <PanelTitle className="text-base">Channel mix</PanelTitle>
+          <PanelDescription className="text-sm">
+            High-level spend share and monthly pacing by channel (mock aggregates).
+          </PanelDescription>
+        </PanelHeader>
+        <PanelContent>
+          <SpendChannelCharts
+            embedded
+            channelData={channelAggregates.channelData}
+            monthlyData={channelAggregates.monthlyData}
+            channelColors={channelAggregates.channelColors}
+          />
+        </PanelContent>
+      </Panel>
 
-      <Card className="rounded-2xl border-muted/70 shadow-sm">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Media plan visualisation</CardTitle>
-          <CardDescription className="text-sm text-muted-foreground">
+      <Panel className="border-muted/70 bg-card shadow-sm">
+        <PanelHeader className="pb-3">
+          <PanelTitle className="text-base">Media plan visualisation</PanelTitle>
+          <PanelDescription className="text-sm text-muted-foreground">
             Collapsible view of the media plan by channel.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="pt-0">
+          </PanelDescription>
+        </PanelHeader>
+        <PanelContent className="pt-0">
           <Accordion type="single" collapsible defaultValue={undefined}>
             <AccordionItem value="media-plan">
               <AccordionTrigger className="text-sm font-semibold">Channels</AccordionTrigger>
@@ -640,19 +619,23 @@ export default function MetaPacingDemoPage() {
               </AccordionContent>
             </AccordionItem>
           </Accordion>
-        </CardContent>
-      </Card>
+        </PanelContent>
+      </Panel>
 
-      <Card className="rounded-2xl border-muted/70 shadow-sm">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg">Social delivery</CardTitle>
-          <CardDescription className="text-sm">
+      <Panel className="border-muted/70 bg-card shadow-sm">
+        <PanelHeader className="pb-3">
+          <PanelTitle className="text-lg">Social delivery</PanelTitle>
+          <PanelDescription className="text-sm">
             Delivery and spend overview for Meta (mock). 100% = on track.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
+          </PanelDescription>
+        </PanelHeader>
+        <PanelContent className="space-y-6">
+          <p className="text-sm text-muted-foreground">
+            Budget and deliverable pacing for the aggregated mock Meta line items.
+          </p>
           <div className="grid gap-4 md:grid-cols-2">
             <SmallProgressCard
+              embedded
               label="Budget pacing"
               value={formatCurrency(socialBudgetCard.actual)}
               helper={`Expected ${formatCurrency(socialBudgetCard.expected)}`}
@@ -662,6 +645,7 @@ export default function MetaPacingDemoPage() {
               footer={`Goal ${formatCurrency(socialBudgetCard.total)}`}
             />
             <SmallProgressCard
+              embedded
               label="Deliverable pacing"
               value={formatNumber(4_395_525)}
               helper={
@@ -680,20 +664,20 @@ export default function MetaPacingDemoPage() {
             />
           </div>
 
-          <Card className="rounded-2xl border-muted/70 shadow-none">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Daily delivery</CardTitle>
-              <CardDescription className="text-xs">
+          <Panel className="border-border/60 bg-muted/5 shadow-none">
+            <PanelHeader className="pb-2">
+              <PanelTitle className="text-base">Daily delivery</PanelTitle>
+              <PanelDescription className="text-xs">
                 Actual spend vs impressions delivered per day.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="pt-2">
+              </PanelDescription>
+            </PanelHeader>
+            <PanelContent className="pt-2">
               <DualAxisDailyPacingChart
                 series={containerMetrics.pacing.series}
                 asAtDate={containerMetrics.pacing.asAtDate}
               />
-            </CardContent>
-          </Card>
+            </PanelContent>
+          </Panel>
 
           <Accordion type="single" collapsible defaultValue={undefined}>
             <AccordionItem value="delivery">
@@ -719,17 +703,17 @@ export default function MetaPacingDemoPage() {
               </AccordionContent>
             </AccordionItem>
           </Accordion>
-        </CardContent>
-      </Card>
+        </PanelContent>
+      </Panel>
 
-      <Card className="rounded-2xl border-muted/70 shadow-sm">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-xl font-semibold">Line items</CardTitle>
-          <CardDescription className="text-sm text-muted-foreground">
+      <Panel className="border-muted/70 bg-card shadow-sm">
+        <PanelHeader className="pb-3">
+          <PanelTitle className="text-xl font-semibold">Line items</PanelTitle>
+          <PanelDescription className="text-sm text-muted-foreground">
             Collapsed by default. Each section mirrors the container layout.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="pt-0">
+          </PanelDescription>
+        </PanelHeader>
+        <PanelContent className="pt-0">
           <Accordion type="multiple" defaultValue={[]}>
             {lineItemMetrics.map((item) => (
               <AccordionItem key={item.data.line_item_id} value={item.data.line_item_id}>
@@ -767,13 +751,14 @@ export default function MetaPacingDemoPage() {
                 </AccordionTrigger>
                 <AccordionContent className="pt-2">
                   {item.data.buy_type === "FIXED COST" ? (
-                    <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+                    <div className="rounded-lg border border-dashed border-border/70 bg-muted/5 p-4 text-sm text-muted-foreground">
                       Charts are hidden for fixed-cost buys. Table remains available.
                     </div>
                   ) : (
                     <div className="space-y-6">
                       <div className="grid gap-4 md:grid-cols-2">
                         <SmallProgressCard
+                          embedded
                           label="Budget pacing"
                           value={item.pacing.spend ? formatCurrency(item.pacing.spend.actualToDate) : "$0"}
                           helper={
@@ -791,6 +776,7 @@ export default function MetaPacingDemoPage() {
                           footer={`Goal ${formatCurrency(item.expected.totals.spend)}`}
                         />
                         <SmallProgressCard
+                          embedded
                           label="Deliverable pacing"
                           value={
                             item.pacing.deliverable
@@ -866,20 +852,20 @@ export default function MetaPacingDemoPage() {
                         />
                       </div>
 
-                      <Card className="rounded-2xl border-muted/70 shadow-none">
-                        <CardHeader className="pb-4">
-                          <CardTitle className="text-base">Daily delivery</CardTitle>
-                          <CardDescription className="text-xs">
+                      <Panel className="border-border/60 bg-muted/5 shadow-none">
+                        <PanelHeader className="pb-4">
+                          <PanelTitle className="text-base">Daily delivery</PanelTitle>
+                          <PanelDescription className="text-xs">
                             Actual spend vs impressions delivered per day.
-                          </CardDescription>
-                        </CardHeader>
-                        <CardContent className="pt-2">
+                          </PanelDescription>
+                        </PanelHeader>
+                        <PanelContent className="pt-2">
                           <DualAxisDailyPacingChart
                             series={item.pacing.series}
                             asAtDate={item.pacing.asAtDate}
                           />
-                        </CardContent>
-                      </Card>
+                        </PanelContent>
+                      </Panel>
                     </div>
                   )}
 
@@ -905,8 +891,8 @@ export default function MetaPacingDemoPage() {
               </AccordionItem>
             ))}
           </Accordion>
-        </CardContent>
-      </Card>
+        </PanelContent>
+      </Panel>
     </div>
   )
 }
@@ -921,7 +907,7 @@ function MetricCalloutCard({
   chips: { label: string; value: string }[]
 }) {
   return (
-    <div className="flex flex-col gap-2 rounded-2xl border border-muted/70 bg-background/80 p-4 shadow-sm">
+    <div className="flex flex-col gap-2 rounded-lg border border-border bg-card p-4 shadow-sm">
       <div className="flex items-center justify-between gap-3">
         <span className="text-sm font-medium text-muted-foreground">{title}</span>
         <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
@@ -989,6 +975,7 @@ function DualAxisDailyPacingChart({
           stroke={palette.budget}
           strokeWidth={2.4}
           dot={false}
+          cursor="default"
           activeDot={{ r: 5, stroke: palette.budget, strokeWidth: 1 }}
         />
         <Line
@@ -999,6 +986,7 @@ function DualAxisDailyPacingChart({
           stroke={palette.deliverable}
           strokeWidth={2.4}
           dot={false}
+          cursor="default"
           activeDot={{ r: 5, stroke: palette.deliverable, strokeWidth: 1 }}
         />
         <ChartTooltip
@@ -1050,7 +1038,7 @@ function TooltipContent({
   if (!item) return null
 
   return (
-    <div className="min-w-[240px] rounded-md border bg-popover p-3 shadow-md text-xs">
+    <div className="min-w-[240px] rounded-md border border-border bg-popover p-3 text-popover-foreground shadow-md text-xs">
       <div className="mb-2 flex items-center justify-between gap-2">
         <div className="font-semibold leading-tight">{title}</div>
         {date ? <div className="text-[11px] text-muted-foreground">{date}</div> : null}
@@ -1113,34 +1101,41 @@ function DeliveryTable({
   }
 
   return (
-    <Card className="rounded-2xl border-muted/70 shadow-none">
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between gap-3">
+    <Panel className="border-border/60 bg-muted/5 shadow-none">
+      <PanelHeader className="pb-2">
+        <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <CardTitle className="text-base">Delivery (API)</CardTitle>
-            <CardDescription className="text-xs">Latest rows from /api/testing/meta-basic-ad-set</CardDescription>
+            <PanelTitle className="text-base">Delivery (API)</PanelTitle>
+            <PanelDescription className="text-xs">Latest rows from /api/testing/meta-basic-ad-set</PanelDescription>
           </div>
-          <Button variant="outline" size="sm" onClick={handleDownload} disabled={loading || !sortedRows.length}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="shrink-0"
+            onClick={handleDownload}
+            disabled={loading || !sortedRows.length}
+          >
             Download CSV
           </Button>
         </div>
-      </CardHeader>
-      <CardContent className="pt-2">
+      </PanelHeader>
+      <PanelContent className="pt-2">
         {error ? (
-          <Card className="border-destructive/50 bg-destructive/5">
-            <CardContent className="flex items-center justify-between py-3">
-              <div className="text-sm text-destructive">{error}</div>
-              <Button variant="secondary" size="sm" onClick={onRetry}>
-                Retry
-              </Button>
-            </CardContent>
-          </Card>
+          <div
+            role="alert"
+            className="mb-3 flex items-center justify-between gap-3 rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3"
+          >
+            <div className="text-sm text-destructive">{error}</div>
+            <Button variant="secondary" size="sm" onClick={onRetry}>
+              Retry
+            </Button>
+          </div>
         ) : null}
 
         {loading ? (
           <div className="text-sm text-muted-foreground">Loading delivery data…</div>
         ) : (
-          <ScrollArea className="h-[420px] w-full rounded-xl border">
+          <ScrollArea className="h-[420px] w-full rounded-lg border border-border">
             <div className="min-w-[1150px]">
               <Table>
                 <TableHeader className="bg-muted/50">
@@ -1182,7 +1177,7 @@ function DeliveryTable({
                       <TableCell className="text-right">{formatDateAU(row._FIVETRAN_SYNCED)}</TableCell>
                     </TableRow>
                   ))}
-                  <TableRow className="sticky bottom-0 z-20 bg-background/95 backdrop-blur supports-[backdrop-filter]:backdrop-blur font-semibold">
+                  <TableRow className="sticky bottom-0 z-20 bg-card/95 backdrop-blur supports-[backdrop-filter]:backdrop-blur font-semibold">
                     <TableCell>Totals</TableCell>
                     <TableCell className="text-right">{formatNumber(totals.impressions)}</TableCell>
                     <TableCell className="text-right">{formatNumber(totals.clicks)}</TableCell>
@@ -1205,8 +1200,8 @@ function DeliveryTable({
             </div>
           </ScrollArea>
         )}
-      </CardContent>
-    </Card>
+      </PanelContent>
+    </Panel>
   )
 }
 
@@ -1247,7 +1242,7 @@ function AdSetTable({ rows }: { rows: LineItem["adSetRows"] }) {
   })
 
   return (
-    <ScrollArea className="w-full rounded-md border">
+    <ScrollArea className="w-full rounded-lg border border-border">
       <div className="min-w-[1100px]">
         <Table>
           <TableHeader className="bg-muted/50">

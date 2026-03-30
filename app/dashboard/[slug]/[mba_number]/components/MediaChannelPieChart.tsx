@@ -1,6 +1,25 @@
 "use client"
 
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts'
+import { useCallback, useMemo, useState } from "react"
+import { PieChart as PieChartIcon } from "lucide-react"
+import {
+  PieChart as RechartsPieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
+  Sector,
+} from "recharts"
+
+import { formatCurrencyCompact } from "@/lib/format/currency"
+import { getMediaColor, getMediaLabel } from "@/lib/charts/registry"
+import { cn } from "@/lib/utils"
+
+const TOOLTIP_SHELL_CLASS =
+  "rounded-xl border border-border/60 bg-popover/95 p-3 text-popover-foreground shadow-xl backdrop-blur-md"
+
+/** Aggregated "Other" bucket key — normalises to a stable colour via registry. */
+const OTHER_MEDIA_KEY = "other"
 
 interface MediaChannelPieChartProps {
   data: Array<{
@@ -10,77 +29,201 @@ interface MediaChannelPieChartProps {
   }>
 }
 
-const COLORS = [
-  '#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8',
-  '#82ca9d', '#ffc658', '#ff7300', '#8dd1e1', '#d084d0',
-  '#ffb347', '#87ceeb', '#dda0dd', '#f0e68c', '#ff7f50',
-  '#40e0d0', '#ee82ee', '#98d8c8'
-]
+type ChartRow = {
+  mediaType: string
+  amount: number
+  percentage: number
+}
+
+const MAX_SLICES = 8
+const TOP_N_BEFORE_OTHER = 7
+
+function buildChartSeries(
+  raw: MediaChannelPieChartProps["data"] | undefined,
+): { series: ChartRow[]; total: number } {
+  if (!raw?.length) return { series: [], total: 0 }
+  const rows = raw.map((r) => ({
+    mediaType: r.mediaType,
+    amount: Number(r.amount) || 0,
+  }))
+  const positive = rows.filter((r) => r.amount > 0)
+  const total = positive.reduce((s, r) => s + r.amount, 0)
+  if (total <= 0) return { series: [], total: 0 }
+
+  const sorted = [...positive].sort((a, b) => b.amount - a.amount)
+
+  let slices: Array<{ mediaType: string; amount: number }>
+  if (sorted.length <= MAX_SLICES) {
+    slices = sorted
+  } else {
+    const top = sorted.slice(0, TOP_N_BEFORE_OTHER)
+    const restSum = sorted.slice(TOP_N_BEFORE_OTHER).reduce((s, r) => s + r.amount, 0)
+    slices = [...top, { mediaType: OTHER_MEDIA_KEY, amount: restSum }]
+  }
+
+  const series: ChartRow[] = slices.map((r) => ({
+    ...r,
+    percentage: total > 0 ? (r.amount / total) * 100 : 0,
+  }))
+
+  return { series, total }
+}
+
+type ActiveShapeProps = {
+  cx?: number
+  cy?: number
+  startAngle?: number
+  endAngle?: number
+  innerRadius?: number
+  outerRadius?: number
+  fill?: string
+}
+
+function renderActiveShape(props: ActiveShapeProps) {
+  const { cx, cy, startAngle, endAngle, innerRadius: ir, outerRadius: or, fill } = props
+  if (
+    cx == null ||
+    cy == null ||
+    startAngle == null ||
+    endAngle == null ||
+    ir == null ||
+    or == null ||
+    !fill
+  ) {
+    return <g />
+  }
+  return (
+    <Sector
+      cx={cx}
+      cy={cy}
+      innerRadius={ir}
+      outerRadius={or + 6}
+      startAngle={startAngle}
+      endAngle={endAngle}
+      fill={fill}
+      stroke="hsl(var(--background))"
+      strokeWidth={2}
+    />
+  )
+}
 
 export default function MediaChannelPieChart({ data }: MediaChannelPieChartProps) {
-  if (!data || data.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-80 text-muted-foreground">
-        No spend data available
-      </div>
-    )
-  }
+  const { series: chartSeries, total: totalAmount } = useMemo(() => buildChartSeries(data), [data])
+  const [activeIndex, setActiveIndex] = useState<number | null>(null)
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('en-AU', {
-      style: 'currency',
-      currency: 'AUD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(value)
-  }
+  const renderTooltip = useCallback(
+    (tooltipProps: { active?: boolean; payload?: Array<{ payload?: ChartRow }> }) => {
+      if (!tooltipProps.active || !tooltipProps.payload?.length) return null
+      const row = tooltipProps.payload[0]?.payload
+      if (!row) return null
+      const amount = Number(row.amount) || 0
+      const pct = totalAmount > 0 ? (amount / totalAmount) * 100 : 0
+      const label = getMediaLabel(row.mediaType)
 
-  const totalAmount = data.reduce((sum, entry) => sum + (Number(entry.amount) || 0), 0)
-
-  const CustomTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      const data = payload[0]
       return (
-        <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
-          <p className="font-semibold">{data.name}</p>
-          <p className="text-blue-600">{formatCurrency(Number(data.value) || 0)}</p>
-          <p className="text-sm text-gray-500">{data.payload.percentage.toFixed(1)}%</p>
-          <p className="mt-2 border-t pt-2 text-sm font-semibold">
-            Total: {formatCurrency(totalAmount)}
+        <div className={TOOLTIP_SHELL_CLASS}>
+          <p className="font-semibold text-foreground">{label}</p>
+          <p className="mt-1 font-mono text-sm tabular-nums text-foreground">
+            {formatCurrencyCompact(amount)}
           </p>
+          <p className="mt-0.5 text-xs text-muted-foreground">{pct.toFixed(1)}%</p>
+          <div className="my-2 border-t border-border/60" />
+          <div className="flex items-center justify-between gap-4 text-xs font-medium text-foreground">
+            <span>Total</span>
+            <span className="font-mono tabular-nums">{formatCurrencyCompact(totalAmount)}</span>
+          </div>
         </div>
       )
-    }
-    return null
-  }
+    },
+    [totalAmount],
+  )
+
+  const isEmpty = chartSeries.length === 0
 
   return (
-    <ResponsiveContainer width="100%" height={320}>
-      <PieChart>
-        <Pie
-          data={data}
-          cx="50%"
-          cy="50%"
-          labelLine={false}
-          label={({ name, percentage }) => `${name}: ${percentage.toFixed(1)}%`}
-          outerRadius={100}
-          fill="#8884d8"
-          dataKey="amount"
-          nameKey="mediaType"
-        >
-          {data.map((entry, index) => (
-            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-          ))}
-        </Pie>
-        <Tooltip content={<CustomTooltip />} />
-        <Legend 
-          formatter={(value, entry: any) => (
-            <span style={{ color: entry.color }}>
-              {value}: {formatCurrency(entry.payload.amount)}
-            </span>
+    <div className="rounded-2xl border border-border/60 bg-card p-5">
+      <div className="mb-4 flex items-start gap-2.5">
+        <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted/50 text-muted-foreground">
+          <PieChartIcon className="h-4 w-4" aria-hidden />
+        </span>
+        <div className="min-w-0 space-y-0.5">
+          <h3 className="text-sm font-semibold text-foreground">Spend by Media Type</h3>
+          <p className="text-xs text-muted-foreground">Total: {formatCurrencyCompact(totalAmount)}</p>
+        </div>
+      </div>
+
+      {isEmpty ? (
+        <div
+          className={cn(
+            "flex min-h-[200px] items-center justify-center px-4 py-8 text-sm text-muted-foreground",
           )}
-        />
-      </PieChart>
-    </ResponsiveContainer>
+        >
+          No spend data available
+        </div>
+      ) : (
+        <>
+          <div className="relative w-full">
+            <ResponsiveContainer width="100%" height={300}>
+              <RechartsPieChart>
+                <Pie
+                  data={chartSeries}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={70}
+                  outerRadius={110}
+                  paddingAngle={2}
+                  dataKey="amount"
+                  nameKey="mediaType"
+                  stroke="hsl(var(--background))"
+                  strokeWidth={2}
+                  label={false}
+                  cursor="default"
+                  isAnimationActive
+                  animationDuration={400}
+                  animationEasing="ease-out"
+                  activeIndex={activeIndex ?? undefined}
+                  activeShape={renderActiveShape}
+                  onMouseEnter={(_, index) => setActiveIndex(index)}
+                  onMouseLeave={() => setActiveIndex(null)}
+                >
+                  {chartSeries.map((entry, index) => (
+                    <Cell key={`${entry.mediaType}-${index}`} fill={getMediaColor(entry.mediaType)} />
+                  ))}
+                </Pie>
+                <Tooltip content={renderTooltip} wrapperStyle={{ cursor: "default", outline: "none" }} />
+              </RechartsPieChart>
+            </ResponsiveContainer>
+
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+              <div className="text-center">
+                <p className="text-xl font-bold tabular-nums text-foreground sm:text-2xl">
+                  {formatCurrencyCompact(totalAmount)}
+                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">Total</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+            {chartSeries.map((row, index) => (
+              <div
+                key={`${row.mediaType}-${index}`}
+                className="inline-flex min-w-0 max-w-full items-center gap-1.5"
+              >
+                <span
+                  className="h-[6px] w-[6px] shrink-0 rounded-full"
+                  style={{ backgroundColor: getMediaColor(row.mediaType) }}
+                  aria-hidden
+                />
+                <span className="truncate text-foreground">{getMediaLabel(row.mediaType)}</span>
+                <span className="shrink-0 tabular-nums text-muted-foreground">
+                  {formatCurrencyCompact(row.amount)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
   )
 }

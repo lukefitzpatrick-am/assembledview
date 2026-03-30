@@ -1,0 +1,57 @@
+const fs = require("fs")
+const p = require("path").join(__dirname, "../components/media-containers/TelevisionExpertGrid.tsx")
+let s = fs.readFileSync(p, "utf8")
+const pairs = [
+  ["deriveRadioExpertRowScheduleYmdFromRow", "deriveTelevisionExpertRowScheduleYmdFromRow"],
+  ["RadioExpertMergedWeekSpan", "TelevisionExpertMergedWeekSpan"],
+  ["RadioExpertScheduleRow", "TelevisionExpertScheduleRow"],
+  ["RadioExpertGridProps", "TelevisionExpertGridProps"],
+  ["export function RadioExpertGrid", "export function TelevisionExpertGrid"],
+  ["DEBUG_RADIO_MERGE", "DEBUG_TV_MERGE"],
+  ["RADIO_WEEK_CELL_VISUAL_CLASSES", "TV_WEEK_CELL_VISUAL_CLASSES"],
+  ["radioExpertWeekColLayoutStyle", "tvExpertWeekColLayoutStyle"],
+  ["RADIO_EXPERT_WEEK_SCROLLER_EDGE", "TV_EXPERT_WEEK_SCROLLER_EDGE"],
+  ["RADIO_EXPERT_WEEK_COL_WIDTH_PX", "TV_EXPERT_WEEK_COL_WIDTH_PX"],
+  ["radioExpertHeaderCellBgStyle", "tvExpertHeaderCellBgStyle"],
+  ["radioExpertTotalsRowBgStyle", "tvExpertTotalsRowBgStyle"],
+  ["RadioExpertFocusedCell", "TelevisionExpertFocusedCell"],
+  ["RadioRowMergeSpanMeta", "TelevisionRowMergeSpanMeta"],
+  ["RadioRowMergeMap", "TelevisionRowMergeMap"],
+  ["RadioWeekMergeSelectionNormalized", "TelevisionWeekMergeSelectionNormalized"],
+  ["normalizeRadioWeekMergeSelection", "normalizeTelevisionWeekMergeSelection"],
+  ["RadioWeekRectSelection", "TelevisionWeekRectSelection"],
+  ["normalizeRadioWeekRect", "normalizeTelevisionWeekRect"],
+  ["radioWeekCellInRect", "tvWeekCellInRect"],
+  ["radioWeekRangeOutlineFlags", "tvWeekRangeOutlineFlags"],
+  ["radioWeekOutlineEdgeClasses", "tvWeekOutlineEdgeClasses"],
+  ["radioWeekCellInMergePulseHighlight", "tvWeekCellInMergePulseHighlight"],
+  ["RadioMultiCellSelection", "TelevisionMultiCellSelection"],
+  ["RadioCopiedCells", "TelevisionCopiedCells"],
+  ["deriveRadioMergeEligibility", "deriveTelevisionMergeEligibility"],
+  ["normalizeRadioBuyTypePaste", "normalizeTelevisionBuyTypePaste"],
+  ["normalizeRadioFormatPaste", "normalizeTelevisionFormatPaste"],
+  ["normalizeRadioNetworkPaste", "normalizeTelevisionNetworkPaste"],
+  ["normalizeRadioStationPaste", "normalizeTelevisionStationPaste"],
+  ["RADIO_BUY_TYPE_OPTIONS", "TV_BUY_TYPE_OPTIONS"],
+  ["RADIO_DESCRIPTOR_CORE", "TV_DESCRIPTOR_CORE"],
+  ["RADIO_BILLING_FLAG_KEYS", "TV_BILLING_FLAG_KEYS"],
+  ["RADIO_DESCRIPTOR_TAIL", "TV_DESCRIPTOR_TAIL"],
+  ["createEmptyRadioExpertRow", "createEmptyTelevisionExpertRow"],
+  ["radioDescriptorKeys", "tvDescriptorKeys"],
+  ["radio-expert-", "tv-expert-"],
+  ["Radio — Expert Schedule", "Television — Expert Schedule"],
+  ['getMediaTypeThemeHex("radio")', 'getMediaTypeThemeHex("television")'],
+  ["feeradio", "feetelevision"],
+  ["@link RadioContainer", "@link TelevisionContainer"],
+  ["radioStations = []", "tvStations = []"],
+  ["radioStations?:", "tvStations?:"],
+  ["radioStations,", "tvStations,"],
+  ["[radioStations]", "[tvStations]"],
+  ["[Radio merge]", "[TV merge]"],
+  ["Radio Merge Debug", "TV Merge Debug"],
+]
+for (const [a, b] of pairs) {
+  s = s.split(a).join(b)
+}
+fs.writeFileSync(p, s)
+console.log("ok")

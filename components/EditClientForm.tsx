@@ -12,6 +12,7 @@ import { Combobox } from "@/components/ui/combobox"
 import { SavingModal } from "@/components/ui/saving-modal"
 import { SuccessModal } from "@/components/ui/success-modal"
 import { Badge } from "@/components/ui/badge"
+import { cn } from "@/lib/utils"
 
 const optionalString = z.string().optional().or(z.literal(""))
 const clientSchema = z.object({
@@ -98,9 +99,14 @@ interface EditClientFormProps {
   // Accept partial client data from the list API while requiring an id
   client: Partial<ClientFormValues> & { id: number }
   onSuccess: () => void
+  /**
+   * `panel` — slide-over / narrow shell (~sm:max-w-2xl): stack sooner, avoid 3–4 columns
+   * that assume a full-width page at the `md` viewport breakpoint.
+   */
+  layout?: "page" | "panel"
 }
 
-export function EditClientForm({ client, onSuccess }: EditClientFormProps) {
+export function EditClientForm({ client, onSuccess, layout = "page" }: EditClientFormProps) {
   const [isSaving, setIsSaving] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
 
@@ -166,6 +172,24 @@ export function EditClientForm({ client, onSuccess }: EditClientFormProps) {
     return numericValue ? `${Number(numericValue).toFixed(2)}%` : ""
   }
 
+  const isPanel = layout === "panel"
+  const grid2 = cn(
+    "grid grid-cols-1 gap-4",
+    isPanel ? "sm:grid-cols-2" : "md:grid-cols-2"
+  )
+  const grid3 = cn(
+    "grid grid-cols-1 gap-4",
+    isPanel ? "sm:grid-cols-2 xl:grid-cols-3" : "md:grid-cols-3"
+  )
+  const gridCommission = cn(
+    "grid gap-4",
+    isPanel ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" : "grid-cols-2 md:grid-cols-3"
+  )
+  const grid4 = cn(
+    "grid gap-4",
+    isPanel ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4" : "grid-cols-2 md:grid-cols-4"
+  )
+
   const platformIdFields: { name: keyof ClientFormValues; label: string }[] = [
     { name: "idgoogleads", label: "Google Ads" },
     { name: "idmeta", label: "Meta" },
@@ -187,8 +211,11 @@ export function EditClientForm({ client, onSuccess }: EditClientFormProps) {
   return (
     <>
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <form
+        onSubmit={form.handleSubmit(onSubmit)}
+        className={cn("w-full min-w-0 space-y-8", isPanel && "pb-16")}
+      >
+          <div className={grid2}>
             <FormField
               control={form.control}
               name="clientname_input"
@@ -222,7 +249,7 @@ export function EditClientForm({ client, onSuccess }: EditClientFormProps) {
             />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className={grid2}>
             <FormField
               control={form.control}
               name="abn"
@@ -268,7 +295,7 @@ export function EditClientForm({ client, onSuccess }: EditClientFormProps) {
             />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className={grid2}>
             <FormField
               control={form.control}
               name="legalbusinessname"
@@ -298,7 +325,7 @@ export function EditClientForm({ client, onSuccess }: EditClientFormProps) {
             />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className={grid3}>
             <FormField
               control={form.control}
               name="suburb"
@@ -361,7 +388,7 @@ export function EditClientForm({ client, onSuccess }: EditClientFormProps) {
             />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className={grid2}>
             <FormField
               control={form.control}
               name="payment_days"
@@ -401,9 +428,9 @@ export function EditClientForm({ client, onSuccess }: EditClientFormProps) {
             />
           </div>
 
-          <div className="border p-4 rounded-md">
+          <div className="min-w-0 rounded-md border p-4">
             <h3 className="text-lg font-semibold mb-4">Key Contact</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className={grid2}>
               <FormField
                 control={form.control}
                 name="keyfirstname"
@@ -468,9 +495,9 @@ export function EditClientForm({ client, onSuccess }: EditClientFormProps) {
             </div>
           </div>
 
-          <div className="border p-4 rounded-md">
+          <div className="min-w-0 rounded-md border p-4">
             <h3 className="text-lg font-semibold mb-4">Billing Contact</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className={grid2}>
               <FormField
                 control={form.control}
                 name="billingfirstname"
@@ -535,9 +562,9 @@ export function EditClientForm({ client, onSuccess }: EditClientFormProps) {
             </div>
           </div>
 
-          <div className="border p-4 rounded-md">
+          <div className="min-w-0 rounded-md border p-4">
             <h3 className="text-lg font-semibold mb-4">Financial Information</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className={grid2}>
               <FormField
                 control={form.control}
                 name="monthlyretainer"
@@ -584,9 +611,9 @@ export function EditClientForm({ client, onSuccess }: EditClientFormProps) {
             </div>
           </div>
 
-          <div className="border p-4 rounded-md">
+          <div className="min-w-0 rounded-md border p-4">
             <h3 className="text-lg font-semibold mb-4">Commission Retained</h3>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div className={gridCommission}>
               {[
                 "television",
                 "radio",
@@ -621,9 +648,9 @@ export function EditClientForm({ client, onSuccess }: EditClientFormProps) {
             </div>
           </div>
 
-          <div className="border p-4 rounded-md">
+          <div className="min-w-0 rounded-md border p-4">
             <h3 className="text-lg font-semibold mb-4">Fees</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className={grid4}>
               {[
                 { name: "feesocial", label: "Social Media" },
                 { name: "feesearch", label: "Search" },
@@ -660,9 +687,9 @@ export function EditClientForm({ client, onSuccess }: EditClientFormProps) {
             </div>
           </div>
 
-          <div className="border p-4 rounded-md">
+          <div className="min-w-0 rounded-md border p-4">
             <h3 className="text-lg font-semibold mb-4">Ad Serving Fees</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className={grid4}>
               {[
                 { name: "adservvideo", label: "Video" },
                 { name: "adservimp", label: "Impression" },
@@ -695,9 +722,9 @@ export function EditClientForm({ client, onSuccess }: EditClientFormProps) {
             </div>
           </div>
 
-          <div className="border p-4 rounded-md">
+          <div className="min-w-0 rounded-md border p-4">
             <h3 className="text-lg font-semibold mb-4">Platform IDs</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className={grid2}>
               {platformIdFields.map((platform) => (
                 <FormField
                   key={platform.name}
@@ -727,7 +754,12 @@ export function EditClientForm({ client, onSuccess }: EditClientFormProps) {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Brand Colour</FormLabel>
-                <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-4">
+                <div
+                  className={cn(
+                    "flex flex-col gap-2",
+                    !isPanel && "md:flex-row md:items-center md:gap-4"
+                  )}
+                >
                   <FormControl>
                     <Input
                       {...field}
@@ -754,8 +786,14 @@ export function EditClientForm({ client, onSuccess }: EditClientFormProps) {
             )}
           />
 
-          <div className="flex justify-end gap-4">
-            <Button type="submit" disabled={isSaving}>
+          <div
+            className={cn(
+              "flex justify-end gap-4 pt-2",
+              isPanel &&
+                "sticky bottom-0 z-10 -mx-1 border-t border-border/70 bg-background/95 py-4 backdrop-blur-sm supports-[backdrop-filter]:bg-background/85"
+            )}
+          >
+            <Button type="submit" disabled={isSaving} className={isPanel ? "min-w-[8.5rem]" : undefined}>
               {isSaving ? "Saving..." : "Save Changes"}
             </Button>
           </div>

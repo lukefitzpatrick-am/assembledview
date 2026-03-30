@@ -19,14 +19,17 @@ const toValidDate = (value: unknown): Date | null => {
  * - If start and end dates are valid and fall in the same month/year, appends
  *   ` - MMM` (e.g., `Burst 1 - Feb`).
  * - If dates are missing, invalid, or span different months, returns just
- *   `Burst {index}`.
+ *   `{noun} {index}` (default noun: `Burst`).
+ * - Pass `options.noun` to override the prefix (e.g. `"Production"`).
  */
 export function formatBurstLabel(
   displayIndex: number,
   startDate?: unknown,
-  endDate?: unknown
+  endDate?: unknown,
+  options?: { noun?: string }
 ): string {
-  const baseLabel = `Burst ${displayIndex}`;
+  const noun = options?.noun ?? "Burst";
+  const baseLabel = `${noun} ${displayIndex}`;
 
   const start = toValidDate(startDate);
   const end = toValidDate(endDate);

@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo } from "react"
+import { useCallback, useMemo } from "react"
 import PacingDataProvider from "./PacingDataProvider"
 import SocialPacingContainer from "./social/SocialPacingContainer"
 import SearchPacingContainer from "./search/SearchPacingContainer"
@@ -8,6 +8,41 @@ import ProgrammaticPacingContainer from "./programmatic/ProgrammaticPacingContai
 import { Skeleton } from "@/components/ui/skeleton"
 import type { PacingRow as CombinedPacingRow } from "@/lib/snowflake/pacing-service"
 import type { SearchPacingResponse } from "@/lib/snowflake/search-pacing-service"
+
+function cleanPacingLineItemId(v: unknown): string | null {
+  const s = String(v ?? "").trim().toLowerCase()
+  if (!s || s === "undefined" || s === "null") return null
+  return s
+}
+
+function extractPacingLineItemIdFromItem(item: any): string | null {
+  const id = item?.line_item_id ?? item?.lineItemId ?? item?.LINE_ITEM_ID
+  return cleanPacingLineItemId(id)
+}
+
+function isMetaPlatformString(value: unknown) {
+  return /\b(meta|facebook|instagram|ig)\b/i.test(String(value ?? ""))
+}
+
+function isTikTokPlatformString(value: unknown) {
+  return /\btik\s*tok\b/i.test(String(value ?? ""))
+}
+
+function classifySocialPacingPlatform(item: any): "meta" | "tiktok" | null {
+  const platform = String(item?.platform ?? "").trim()
+  if (platform) {
+    if (isMetaPlatformString(platform)) return "meta"
+    if (isTikTokPlatformString(platform)) return "tiktok"
+  }
+  const fallbackName = String(
+    item?.line_item_name ?? item?.lineItemName ?? item?.creative_targeting ?? item?.creative ?? "",
+  )
+    .trim()
+    .toUpperCase()
+  if (/(^|[^A-Z])(FB|IG|META)([^A-Z]|$)/.test(fallbackName)) return "meta"
+  if (/(^|[^A-Z])(TT|TIKTOK)([^A-Z]|$)/.test(fallbackName)) return "tiktok"
+  return null
+}
 
 type PacingDataProviderWrapperProps = {
   mbaNumber: string
@@ -46,76 +81,49 @@ export default function PacingDataProviderWrapper({
   searchStartDate,
   searchEndDate,
 }: PacingDataProviderWrapperProps) {
-  const cleanId = (v: unknown): string | null => {
-    const s = String(v ?? "").trim().toLowerCase()
-    if (!s || s === "undefined" || s === "null") return null
-    return s
-  }
-
-  const extractLineItemId = (item: any): string | null => {
-    const id = item?.line_item_id ?? item?.lineItemId ?? item?.LINE_ITEM_ID
-    return cleanId(id)
-  }
-
   const pacingIdSet = useMemo(() => {
-    const ids = (pacingLineItemIds ?? []).map((id) => cleanId(id)).filter(Boolean) as string[]
+    const ids = (pacingLineItemIds ?? []).map((id) => cleanPacingLineItemId(id)).filter(Boolean) as string[]
     return new Set(ids)
   }, [pacingLineItemIds])
 
-  const filterByPacingSet = (id: string | null) => {
-    if (!id) return false
-    if (pacingIdSet.size === 0) return true
-    return pacingIdSet.has(id)
-  }
-
-  const isMetaPlatform = (value: unknown) => /\b(meta|facebook|instagram|ig)\b/i.test(String(value ?? ""))
-  const isTikTokPlatform = (value: unknown) => /\btik\s*tok\b/i.test(String(value ?? ""))
-
-  const classifySocialPlatform = (item: any): "meta" | "tiktok" | null => {
-    const platform = String(item?.platform ?? "").trim()
-    if (platform) {
-      if (isMetaPlatform(platform)) return "meta"
-      if (isTikTokPlatform(platform)) return "tiktok"
-    }
-    const fallbackName = String(
-      item?.line_item_name ?? item?.lineItemName ?? item?.creative_targeting ?? item?.creative ?? ""
-    )
-      .trim()
-      .toUpperCase()
-    if (/(^|[^A-Z])(FB|IG|META)([^A-Z]|$)/.test(fallbackName)) return "meta"
-    if (/(^|[^A-Z])(TT|TIKTOK)([^A-Z]|$)/.test(fallbackName)) return "tiktok"
-    return null
-  }
+  const filterByPacingSet = useCallback(
+    (id: string | null) => {
+      if (!id) return false
+      if (pacingIdSet.size === 0) return true
+      return pacingIdSet.has(id)
+    },
+    [pacingIdSet],
+  )
 
   const metaLineItemIds = useMemo(() => {
     const ids = (socialItemsActive ?? [])
-      .filter((item) => classifySocialPlatform(item) === "meta")
-      .map(extractLineItemId)
+      .filter((item) => classifySocialPacingPlatform(item) === "meta")
+      .map(extractPacingLineItemIdFromItem)
       .filter(filterByPacingSet) as string[]
     return Array.from(new Set(ids)).sort()
-  }, [socialItemsActive, pacingIdSet])
+  }, [socialItemsActive, filterByPacingSet])
 
   const tiktokLineItemIds = useMemo(() => {
     const ids = (socialItemsActive ?? [])
-      .filter((item) => classifySocialPlatform(item) === "tiktok")
-      .map(extractLineItemId)
+      .filter((item) => classifySocialPacingPlatform(item) === "tiktok")
+      .map(extractPacingLineItemIdFromItem)
       .filter(filterByPacingSet) as string[]
     return Array.from(new Set(ids)).sort()
-  }, [socialItemsActive, pacingIdSet])
+  }, [socialItemsActive, filterByPacingSet])
 
   const progDisplayLineItemIds = useMemo(() => {
     const ids = (progDisplayItemsActive ?? [])
-      .map(extractLineItemId)
+      .map(extractPacingLineItemIdFromItem)
       .filter(filterByPacingSet) as string[]
     return Array.from(new Set(ids)).sort()
-  }, [progDisplayItemsActive, pacingIdSet])
+  }, [progDisplayItemsActive, filterByPacingSet])
 
   const progVideoLineItemIds = useMemo(() => {
     const ids = (progVideoItemsActive ?? [])
-      .map(extractLineItemId)
+      .map(extractPacingLineItemIdFromItem)
       .filter(filterByPacingSet) as string[]
     return Array.from(new Set(ids)).sort()
-  }, [progVideoItemsActive, pacingIdSet])
+  }, [progVideoItemsActive, filterByPacingSet])
 
   const effectiveStart = fromDate ?? campaignStart
   const effectiveEnd = toDate ?? campaignEnd
@@ -161,7 +169,7 @@ export default function PacingDataProviderWrapper({
           {loading ? (
             <Skeleton className="h-[480px] w-full rounded-3xl" />
           ) : (
-            <>
+            <div className="space-y-4">
               {socialItemsActive.length > 0 ? (
                 <SocialPacingContainer
                   clientSlug={clientSlug}
@@ -202,7 +210,7 @@ export default function PacingDataProviderWrapper({
                   pacingLineItemIds={pacingLineItemIds}
                 />
               ) : null}
-            </>
+            </div>
           )}
         </>
       )}

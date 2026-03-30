@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { CHART_GAUGE } from "@/lib/charts/theme"
 import { cn } from "@/lib/utils"
 
 export const DIAL_HEIGHT = 100
@@ -29,16 +30,10 @@ const getStatus = (pacing: number) => {
   return "On track"
 }
 
-const palette = {
-  error: "#ff6003",
-  warning: "#ffcf2a",
-  success: "#008e5e",
-}
-
 const getBandColor = (pacing: number) => {
-  if (pacing < 80) return { stroke: palette.error, fill: "rgba(255, 96, 3, 0.32)" }
-  if (pacing < 100) return { stroke: palette.warning, fill: "rgba(255, 207, 42, 0.32)" }
-  return { stroke: palette.success, fill: "rgba(0, 142, 94, 0.3)" }
+  if (pacing < 80) return CHART_GAUGE.behind
+  if (pacing < 100) return CHART_GAUGE.atRisk
+  return CHART_GAUGE.onTrack
 }
 
 const arcPath = (
@@ -91,7 +86,7 @@ export default function PacingGaugeCard({
   ]
 
   const statusClass =
-    status === "On track" ? "bg-[#008e5e] text-white border-[#008e5e]" : ""
+    status === "On track" ? "border-success bg-success text-white" : ""
 
   return (
     <Card className={cn("h-full", className)}>

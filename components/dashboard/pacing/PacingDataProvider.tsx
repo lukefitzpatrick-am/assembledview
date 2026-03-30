@@ -248,7 +248,20 @@ export default function PacingDataProvider({
       setRows([])
       setLoading(false)
     })
-  }, [mbaNumber, allIdsKey, searchKey, campaignStart, campaignEnd, fromDate, toDate, allLineItemIds, includeSearch])
+  }, [
+    mbaNumber,
+    allIdsKey,
+    searchKey,
+    campaignStart,
+    campaignEnd,
+    fromDate,
+    toDate,
+    allLineItemIds,
+    includeSearch,
+    normalizedSearchLineItemIds,
+    searchEndDate,
+    searchStartDate,
+  ])
 
   return <>{children({ rows, search, loading, error })}</>
 }

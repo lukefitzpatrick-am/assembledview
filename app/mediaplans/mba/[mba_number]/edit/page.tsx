@@ -14,17 +14,43 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Combobox } from "@/components/ui/combobox"
 import { MultiSelectCombobox, type MultiSelectOption } from "@/components/ui/multi-select-combobox"
-import { Calendar } from "@/components/ui/calendar"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { CalendarIcon, X } from "lucide-react"
+import { SingleDatePicker } from "@/components/ui/single-date-picker"
+import { Download, FileText, Loader2, MoreHorizontal, X } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { CampaignExportsSection } from "@/components/dashboard/CampaignExportsSection"
+import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { formatMoney } from "@/lib/utils/money"
-import { computePartialMbaOverridesFromDeliveryMonths } from "@/lib/mediaplan/partialMba"
+import {
+  appendPartialApprovalToBillingSchedule,
+  billingMonthsHaveDetailedLineItems,
+  computeLineItemTotalsFromDeliveryMonths,
+  hydratePartialMbaFromSavedMetadata,
+  recomputePartialMbaFromSelections,
+  type PartialApprovalLineItem,
+  type PartialApprovalMetadata,
+  type PartialMbaValues,
+} from "@/lib/mediaplan/partialMba"
 import { setAssistantContext } from "@/lib/assistantBridge"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { getSearchBursts } from "@/components/media-containers/SearchContainer"
 import { getSocialMediaBursts } from "@/components/media-containers/SocialMediaContainer"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription, DialogClose } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Table, TableBody, TableCell, TableHeader, TableRow, TableHead, TableFooter } from "@/components/ui/table"
 import { toast } from "@/components/ui/use-toast"
@@ -74,17 +100,839 @@ import {
   saveProductionLineItems,
   uploadMediaPlanVersionDocuments
 } from "@/lib/api"
-import { BillingSchedule, type BillingScheduleType } from "@/components/billing/BillingSchedule"
-import type { BillingSchedule as BillingScheduleInterface, BillingMonth as BillingMonthInterface } from "@/types/billing"
 import type { BillingMonth, BillingLineItem as BillingLineItemType, BillingBurst } from "@/lib/billing/types"
 import { buildBillingScheduleJSON } from "@/lib/billing/buildBillingSchedule"
 import { getScheduleHeaders } from "@/lib/billing/scheduleHeaders"
+import {
+  applyCostBucketFromAutoReferenceAggregates,
+  buildWorkingMonthsFromAutoReference,
+  copySingleLineItemFromAutoTemplate,
+  deepCloneBillingMonthsState,
+} from "@/lib/billing/resetFromAutoReference"
 import { generateMediaPlan, MediaPlanHeader, LineItem, MediaItems } from '@/lib/generateMediaPlan'
 import { generateNamingWorkbook } from '@/lib/namingConventions'
 import { saveAs } from 'file-saver'
 import { filterLineItemsByPlanNumber } from '@/lib/api/mediaPlanVersionHelper'
 import { toDateOnlyString, parseDateOnlyString } from "@/lib/timezone"
 
+/** Stable id for billing rows so merge/save validation align with persisted `lineItemId` / `line_item_id`. */
+function billingStableLineItemId(mediaType: string, lineItem: any, index: number): string {
+  const raw = lineItem?.line_item_id ?? lineItem?.id
+  if (raw != null && String(raw).trim() !== "") {
+    return `billing-${mediaType}::${String(raw)}`
+  }
+  return `billing-${mediaType}::new-${index}`
+}
+
+/** Normalize for Set / comparisons so template vs working ids always match when logically the same. */
+function billingLineItemIdKey(id: unknown): string {
+  return String(id ?? "").trim()
+}
+
+function billingHeadersMatch(
+  a: { header1?: string; header2?: string },
+  b: { header1?: string; header2?: string }
+): boolean {
+  return (
+    String(a.header1 ?? "").trim() === String(b.header1 ?? "").trim() &&
+    String(a.header2 ?? "").trim() === String(b.header2 ?? "").trim()
+  )
+}
+
+/** True when id is from stable media line_item mapping (not legacy composite ids). */
+function isStableBillingLineItemId(id: string | undefined): boolean {
+  return Boolean(id && String(id).startsWith("billing-"))
+}
+
+function parseAudMoney(val: unknown): number {
+  return parseFloat(String(val ?? "").replace(/[^0-9.-]/g, "")) || 0
+}
+
+const BILLING_INTEGRITY_EPS = 0.02
+
+/**
+ * Blocking integrity: month-level rollups, production vs mediaCosts.production, line sums vs media cost columns.
+ * Does not judge manual vs burst intent — only internal consistency of saved billing rows.
+ */
+function collectBillingMonthStructuralBlockingIssues(
+  months: BillingMonth[],
+  fmt: Intl.NumberFormat
+): string[] {
+  const blocking: string[] = []
+
+  for (const month of months) {
+    const my = month.monthYear
+    const fee = parseAudMoney(month.feeTotal)
+    const adserv = parseAudMoney(month.adservingTechFees)
+    const prodTop = parseAudMoney(month.production)
+    const mc = month.mediaCosts
+    const prodMc = mc ? parseAudMoney(mc.production) : 0
+
+    if (Math.abs(prodTop - prodMc) > BILLING_INTEGRITY_EPS) {
+      blocking.push(
+        `${my}: Production total (${fmt.format(prodTop)}) does not match the production figure under media costs (${fmt.format(prodMc)}).`
+      )
+    }
+
+    let mediaSumNonProduction = 0
+    if (mc) {
+      for (const [mk, raw] of Object.entries(mc)) {
+        if (mk === "production") continue
+        mediaSumNonProduction += parseAudMoney(raw)
+      }
+    }
+
+    const mediaTotalLbl = parseAudMoney(month.mediaTotal)
+    if (Math.abs(mediaSumNonProduction - mediaTotalLbl) > BILLING_INTEGRITY_EPS) {
+      blocking.push(
+        `${my}: Media subtotal (${fmt.format(mediaTotalLbl)}) must equal the sum of non-production media cost columns (${fmt.format(mediaSumNonProduction)}).`
+      )
+    }
+
+    const totalLbl = parseAudMoney(month.totalAmount)
+    const composed = mediaTotalLbl + fee + adserv + prodTop
+    if (Math.abs(totalLbl - composed) > BILLING_INTEGRITY_EPS) {
+      blocking.push(
+        `${my}: Grand total (${fmt.format(totalLbl)}) must equal media subtotal + agency fee + tech fees + production (${fmt.format(composed)}).`
+      )
+    }
+
+    if (month.lineItems && mc) {
+      for (const mk of Object.keys(month.lineItems)) {
+        const items = month.lineItems[mk as keyof typeof month.lineItems] as BillingLineItemType[] | undefined
+        if (!items?.length) continue
+        const lineSum = items.reduce((s, li) => s + (li.monthlyAmounts?.[my] || 0), 0)
+        if (!(mk in mc)) continue
+        const costParsed = parseAudMoney((mc as Record<string, string>)[mk])
+        if (Math.abs(lineSum - costParsed) > BILLING_INTEGRITY_EPS) {
+          blocking.push(
+            `${my} · ${mk}: Sum of line items for this month (${fmt.format(lineSum)}) does not match the media cost column (${fmt.format(costParsed)}).`
+          )
+        }
+      }
+    }
+  }
+
+  return blocking
+}
+
+type BillingSaveValidationResult = {
+  /** Must be fixed before campaign save (modal can bypass with “Save anyway”). */
+  blockingErrors: string[]
+  /** Intentional manual differences vs auto/bursts — informational on save, not blockers. */
+  preservedManualOverrides: string[]
+  hasAnyIssue: boolean
+}
+
+function calculateExpectedLineItemFeeTotal(sourceLineItem: any): number {
+  let bursts: any[] = []
+  if (typeof sourceLineItem?.bursts_json === "string") {
+    try {
+      bursts = JSON.parse(sourceLineItem.bursts_json)
+    } catch {
+      bursts = []
+    }
+  } else if (Array.isArray(sourceLineItem?.bursts_json)) {
+    bursts = sourceLineItem.bursts_json
+  } else if (Array.isArray(sourceLineItem?.bursts)) {
+    bursts = sourceLineItem.bursts
+  }
+
+  const parseMoney = (v: any) => parseFloat(String(v ?? "").replace(/[^0-9.-]/g, "")) || 0
+
+  return bursts.reduce((sum: number, burst: any) => {
+    const budget = parseMoney(burst?.budget) || parseMoney(burst?.buyAmount)
+    const feePctRaw =
+      burst?.feePercentage ??
+      burst?.fee_percentage ??
+      sourceLineItem?.feePercentage ??
+      sourceLineItem?.fee_percentage
+    const feePct = Number.isFinite(Number(feePctRaw)) ? Math.max(0, Math.min(100, Number(feePctRaw))) : 0
+    const budgetIncludesFees = Boolean(
+      burst?.budgetIncludesFees ??
+        burst?.budget_includes_fees ??
+        sourceLineItem?.budgetIncludesFees ??
+        sourceLineItem?.budget_includes_fees
+    )
+    const clientPaysForMedia = Boolean(
+      burst?.clientPaysForMedia ??
+        burst?.client_pays_for_media ??
+        sourceLineItem?.clientPaysForMedia ??
+        sourceLineItem?.client_pays_for_media
+    )
+
+    if (budget <= 0 || feePct <= 0) return sum
+    if (budgetIncludesFees) return sum + (budget * feePct) / 100
+    if (feePct >= 100) return sum
+    return (
+      sum +
+      (clientPaysForMedia ? (budget / (100 - feePct)) * feePct : (budget * feePct) / (100 - feePct))
+    )
+  }, 0)
+}
+
+/** JSON deep clone for billing month graphs (merge helpers at file scope). */
+function cloneBillingMonthGraph<T>(x: T): T {
+  return JSON.parse(JSON.stringify(x)) as T
+}
+
+/**
+ * Build one row per campaign month from the auto template order: overlapping months are a deep clone of
+ * **working** data (unchanged). Months that only exist on the auto template are cloned from the template.
+ */
+function appendMissingMonthsOnly(
+  oldMonths: BillingMonth[],
+  templateMonths: BillingMonth[]
+): BillingMonth[] {
+  const oldByKey = new Map(oldMonths.map((m) => [m.monthYear, m]))
+  return templateMonths.map((t) => {
+    const prev = oldByKey.get(t.monthYear)
+    if (prev) return cloneBillingMonthGraph(prev)
+    return cloneBillingMonthGraph(t)
+  })
+}
+
+/**
+ * Ensure every campaign month key exists on a *new* template line item; preserves template amounts where present.
+ */
+function seedLineItemMonthKeysFromTemplate(
+  templateLi: BillingLineItemType,
+  allCampaignMonthKeys: string[]
+): BillingLineItemType {
+  const li = cloneBillingMonthGraph(templateLi)
+  const monthlyAmounts: Record<string, number> = { ...li.monthlyAmounts }
+  for (const k of allCampaignMonthKeys) {
+    if (!(k in monthlyAmounts)) monthlyAmounts[k] = 0
+  }
+  li.monthlyAmounts = monthlyAmounts
+  li.totalAmount = Object.values(monthlyAmounts).reduce((s, v) => s + (v || 0), 0)
+  return li
+}
+
+/**
+ * Append line items that appear in the auto template but not in saved billing for this media type.
+ * If an id already exists but was seeded with $0 and the template now has real amounts, merge those in
+ * (burst data arriving after the first append). Other existing rows are unchanged.
+ */
+function appendMissingLineItemsOnly(
+  existingItems: BillingLineItemType[],
+  templateItems: BillingLineItemType[],
+  allCampaignMonthKeys: string[]
+): { list: BillingLineItemType[]; didAppend: boolean } {
+  const list = existingItems.map((li) => cloneBillingMonthGraph(li))
+  const oldIds = new Set(list.map((li) => billingLineItemIdKey(li.id)))
+  let didAppend = false
+  for (const tLi of templateItems) {
+    const tid = billingLineItemIdKey(tLi.id)
+    if (!tid) continue
+    if (oldIds.has(tid)) {
+      // ID exists — check if it was seeded with $0 and template now has real amounts
+      const existing = list.find((li) => billingLineItemIdKey(li.id) === tid)
+      if (existing && existing.totalAmount === 0 && tLi.totalAmount > 0) {
+        // Replace the $0 placeholder with the real template data
+        const seeded = seedLineItemMonthKeysFromTemplate(tLi, allCampaignMonthKeys)
+        existing.monthlyAmounts = seeded.monthlyAmounts
+        existing.totalAmount = seeded.totalAmount
+        if (seeded.feeMonthlyAmounts) existing.feeMonthlyAmounts = seeded.feeMonthlyAmounts
+        if (seeded.totalFeeAmount != null) existing.totalFeeAmount = seeded.totalFeeAmount
+        if (seeded.adServingMonthlyAmounts) existing.adServingMonthlyAmounts = seeded.adServingMonthlyAmounts
+        if (seeded.totalAdServingAmount != null) existing.totalAdServingAmount = seeded.totalAdServingAmount
+        didAppend = true // signal that amounts changed so bucket delta recalcs
+      }
+      continue
+    }
+    list.push(seedLineItemMonthKeysFromTemplate(tLi, allCampaignMonthKeys))
+    oldIds.add(tid)
+    didAppend = true
+  }
+  return { list, didAppend }
+}
+
+/**
+ * New media key on the auto template: seed the full template line list for that key only (no changes to other keys).
+ */
+function appendMissingMediaTypesOnly(
+  templateItems: BillingLineItemType[],
+  allCampaignMonthKeys: string[]
+): BillingLineItemType[] {
+  return templateItems.map((tLi) => seedLineItemMonthKeysFromTemplate(tLi, allCampaignMonthKeys))
+}
+
+const isBillingAppendDebug =
+  typeof process !== "undefined" && process.env.NODE_ENV === "development"
+
+function billingAppendDebug(...args: unknown[]) {
+  if (isBillingAppendDebug) console.log("[billing-append]", ...args)
+}
+
+/**
+ * `billingPlanStructureKey` uses `flag#id1(bursts),…`; an empty tail (`mp_bvod#`) means the media type is on but
+ * no billing line-item ids are materialized yet (containers / transforms / API).
+ */
+function billingStructureKeyHasPendingEmptyLineSlots(structureKey: string): boolean {
+  if (!structureKey?.trim()) return false
+  return structureKey.split("|").some((seg) => {
+    const hash = seg.indexOf("#")
+    if (hash < 0) return false
+    return seg.slice(hash + 1).trim() === ""
+  })
+}
+
+/** Enabled media types need at least one line-item row before we treat that key as ready for template generation. */
+function isMediaTypeReadyForBillingAppend(enabled: boolean, lineItems: any[] | null | undefined): boolean {
+  if (!enabled) return true
+  return Array.isArray(lineItems) && lineItems.length > 0
+}
+
+/**
+ * Used only for **new** campaign months cloned from the auto template: set each `mediaCosts` bucket from
+ * line items for that key only, then derive month rollups from **those** sums plus existing fee / tech /
+ * production strings — does not re-sum unrelated `mediaCosts` keys that may exist on the cloned row.
+ */
+function recomputeFullMonthFromLineItems(row: BillingMonth, formatter: Intl.NumberFormat) {
+  if (!row.mediaCosts) row.mediaCosts = {} as BillingMonth["mediaCosts"]
+  const mc = row.mediaCosts as Record<string, string>
+  let mediaSumExcludingProduction = 0
+  if (row.lineItems) {
+    for (const mk of Object.keys(row.lineItems)) {
+      const lis = row.lineItems[mk as keyof typeof row.lineItems] as BillingLineItemType[]
+      if (!lis?.length) continue
+      const sum = lis.reduce((s, li) => s + (li.monthlyAmounts[row.monthYear] || 0), 0)
+      mc[mk] = formatter.format(sum)
+      if (mk !== "production") mediaSumExcludingProduction += sum
+    }
+  }
+  const feeTotal = parseFloat(String(row.feeTotal || "$0").replace(/[^0-9.-]/g, "")) || 0
+  const adServingTotal = parseFloat(String(row.adservingTechFees || "$0").replace(/[^0-9.-]/g, "")) || 0
+  const productionTotal =
+    parseFloat(String(row.production || row.mediaCosts?.production || "$0").replace(/[^0-9.-]/g, "")) || 0
+  row.mediaTotal = formatter.format(mediaSumExcludingProduction)
+  row.totalAmount = formatter.format(mediaSumExcludingProduction + feeTotal + adServingTotal + productionTotal)
+}
+
+/**
+ * Append path only: bump month rollups by numeric deltas without re-reading every bucket.
+ * Does not modify feeTotal, adservingTechFees, or production.
+ */
+function incrementMonthTotalsForNewEntries(
+  row: BillingMonth,
+  opts: { deltaNonProductionMedia: number; deltaAppliedToTotal: number },
+  formatter: Intl.NumberFormat
+) {
+  const { deltaNonProductionMedia, deltaAppliedToTotal } = opts
+  if (deltaNonProductionMedia === 0 && deltaAppliedToTotal === 0) return
+
+  if (deltaNonProductionMedia !== 0) {
+    const prevMedia = parseBucketMoney(row.mediaTotal)
+    row.mediaTotal = formatter.format(prevMedia + deltaNonProductionMedia)
+  }
+  if (deltaAppliedToTotal !== 0) {
+    const prevTotal = parseBucketMoney(row.totalAmount)
+    row.totalAmount = formatter.format(prevTotal + deltaAppliedToTotal)
+  }
+}
+
+function parseBucketMoney(val: unknown): number {
+  return parseFloat(String(val ?? "$0").replace(/[^0-9.-]/g, "")) || 0
+}
+
+/** Sum of template line items’ amounts for `monthYear` whose ids are not in `existingIds` (normalized keys). */
+function sumTemplateLineAmountsForNewIds(
+  templateItems: BillingLineItemType[],
+  existingIds: Set<string>,
+  monthYear: string
+): number {
+  return templateItems
+    .filter((t) => !existingIds.has(billingLineItemIdKey(t.id)))
+    .reduce((s, t) => s + (t.monthlyAmounts[monthYear] || 0), 0)
+}
+
+/**
+ * Working month has no line items for this media key: insert template lines and set `mediaCosts[mediaKey]`
+ * from prior bucket + template line sums for this month. Returns the **numeric bucket delta** for rollup bumps.
+ */
+function appendNewMediaTypeIntoWorkingMonth(
+  base: BillingMonth,
+  mediaKey: string,
+  templateItems: BillingLineItemType[],
+  allCampaignMonthKeys: string[],
+  formatter: Intl.NumberFormat
+): { bucketDelta: number; mediaKey: string } | null {
+  if (!templateItems.length) return null
+
+  if (!base.lineItems) base.lineItems = {}
+  if (!base.mediaCosts) base.mediaCosts = {} as BillingMonth["mediaCosts"]
+
+  const priorBucket = parseBucketMoney((base.mediaCosts as Record<string, string>)[mediaKey])
+  const seeded = appendMissingMediaTypesOnly(templateItems, allCampaignMonthKeys)
+  ;(base.lineItems as Record<string, BillingLineItemType[]>)[mediaKey] = seeded
+
+  const sumNewLines = templateItems.reduce(
+    (s, t) => s + (t.monthlyAmounts[base.monthYear] || 0),
+    0
+  )
+  const nextBucket = priorBucket + sumNewLines
+  const bucketDelta = nextBucket - priorBucket
+  ;(base.mediaCosts as Record<string, string>)[mediaKey] = formatter.format(nextBucket)
+
+  billingAppendDebug("appendNewMediaTypeIntoWorkingMonth", {
+    monthYear: base.monthYear,
+    mediaKey,
+    lineItemCount: seeded.length,
+    priorBucket,
+    sumNewLines,
+    bucketDelta,
+    mediaCostForKey: formatter.format(nextBucket),
+  })
+
+  return { bucketDelta, mediaKey }
+}
+
+/**
+ * Merge auto template into an *existing* saved month: append-only structure and **constant-add** bucket updates.
+ * Existing line items (by id) and existing month bucket strings are preserved; only **new** template line ids
+ * contribute dollar deltas to `mediaCosts`. Month fee / tech / production strings are never derived here.
+ */
+function mergeAppendIntoExistingMonth(
+  base: BillingMonth,
+  templateRow: BillingMonth,
+  allCampaignMonthKeys: string[],
+  formatter: Intl.NumberFormat
+): BillingMonth {
+  const templateMediaKeys = templateRow.lineItems
+    ? Object.keys(templateRow.lineItems).filter((mk) => {
+        const arr = templateRow.lineItems![mk as keyof typeof templateRow.lineItems] as
+          | BillingLineItemType[]
+          | undefined
+        return Array.isArray(arr) && arr.length > 0
+      })
+    : []
+
+  if (templateMediaKeys.length === 0) {
+    return base
+  }
+
+  const newMediaKeysForMonth = templateMediaKeys.filter((mk) => {
+    const ex =
+      (base.lineItems?.[mk as keyof typeof base.lineItems] as BillingLineItemType[] | undefined) ?? []
+    return ex.length === 0
+  })
+  if (newMediaKeysForMonth.length > 0) {
+    billingAppendDebug("mergeAppendIntoExistingMonth: new media keys on saved month", {
+      monthYear: base.monthYear,
+      newMediaKeysForMonth,
+    })
+  }
+
+  if (!base.lineItems) base.lineItems = {}
+  if (!base.mediaCosts) base.mediaCosts = {} as BillingMonth["mediaCosts"]
+
+  let deltaNonProductionMedia = 0
+  let deltaAppliedToTotal = 0
+
+  for (const mk of templateMediaKeys) {
+    const templateItems =
+      (templateRow.lineItems![mk as keyof typeof templateRow.lineItems] as BillingLineItemType[]) ?? []
+    const existingItems =
+      (base.lineItems![mk as keyof typeof base.lineItems] as BillingLineItemType[] | undefined) ?? []
+
+    if (existingItems.length === 0) {
+      const added = appendNewMediaTypeIntoWorkingMonth(base, mk, templateItems, allCampaignMonthKeys, formatter)
+      if (added && added.bucketDelta !== 0) {
+        deltaAppliedToTotal += added.bucketDelta
+        if (added.mediaKey !== "production") deltaNonProductionMedia += added.bucketDelta
+      }
+    } else {
+      const priorBucket = parseBucketMoney((base.mediaCosts as Record<string, string>)[mk])
+      const { list, didAppend } = appendMissingLineItemsOnly(
+        existingItems,
+        templateItems,
+        allCampaignMonthKeys
+      )
+      if (didAppend) {
+        ;(base.lineItems as Record<string, BillingLineItemType[]>)[mk] = list
+        // Recalculate bucket from updated list — covers both new IDs and $0-to-real updates
+        const newBucket = list.reduce((s, li) => s + (li.monthlyAmounts[base.monthYear] || 0), 0)
+        const delta = newBucket - priorBucket
+        if (delta !== 0) {
+          ;(base.mediaCosts as Record<string, string>)[mk] = formatter.format(newBucket)
+          deltaAppliedToTotal += delta
+          if (mk !== "production") deltaNonProductionMedia += delta
+          billingAppendDebug("append line items (existing media key)", {
+            monthYear: base.monthYear,
+            mediaKey: mk,
+            delta,
+            newBucket: formatter.format(newBucket),
+          })
+        } else {
+          billingAppendDebug("append line items zero delta (ids added/updated, $0 this month)", {
+            monthYear: base.monthYear,
+            mediaKey: mk,
+          })
+        }
+      }
+    }
+  }
+
+  if (deltaNonProductionMedia !== 0 || deltaAppliedToTotal !== 0) {
+    incrementMonthTotalsForNewEntries(
+      base,
+      { deltaNonProductionMedia, deltaAppliedToTotal },
+      formatter
+    )
+  }
+  return base
+}
+
+/**
+ * Append-only: working is authoritative. Template supplies **new** months, media keys, and line-item ids only.
+ * Existing months: line items with matching ids are unchanged; `mediaCosts` for a key change only by **adding**
+ * auto amounts for newly appended line ids (never full re-sum of that bucket). New months: row is template-derived
+ * then totals derived once from those line-item buckets (+ fee / tech / production strings). Existing months:
+ * use `incrementMonthTotalsForNewEntries` only — no full re-sum of all buckets. Full replace from auto remains only
+ * via Edit Billing reset.
+ */
+function appendAutoLineItemTemplateIntoWorking(
+  workingMonths: BillingMonth[],
+  templateWithLineItems: BillingMonth[],
+  formatter: Intl.NumberFormat
+): BillingMonth[] {
+  if (!templateWithLineItems.length) return workingMonths
+
+  const oldByKey = new Map(workingMonths.map((m) => [m.monthYear, m]))
+  const allCampaignMonthKeys = templateWithLineItems.map((m) => m.monthYear)
+  const combinedRows = appendMissingMonthsOnly(workingMonths, templateWithLineItems)
+
+  let newCampaignMonths = 0
+  const out = combinedRows.map((row, i) => {
+    const tRow = templateWithLineItems[i]
+    if (!oldByKey.has(tRow.monthYear)) {
+      newCampaignMonths++
+      const fresh = cloneBillingMonthGraph(row)
+      recomputeFullMonthFromLineItems(fresh, formatter)
+      billingAppendDebug("new campaign month row", {
+        monthYear: tRow.monthYear,
+        mediaKeys: fresh.lineItems ? Object.keys(fresh.lineItems) : [],
+      })
+      return fresh
+    }
+    return mergeAppendIntoExistingMonth(row, tRow, allCampaignMonthKeys, formatter)
+  })
+
+  billingAppendDebug("appendAutoLineItemTemplateIntoWorking done", {
+    workingInputMonths: workingMonths.length,
+    templateMonths: templateWithLineItems.length,
+    newCampaignMonths,
+    outputMonths: out.length,
+  })
+
+  return out
+}
+
+/**
+ * Build line-item template: prefer burst-derived auto months; if auto is empty but working has rows, use working
+ * as the month skeleton so toggling media types still merges (attach reads live form + containers).
+ */
+function buildWorkingBillingAppendTemplate(
+  autoReferenceMonths: BillingMonth[],
+  workingMonths: BillingMonth[],
+  attachLineItemsToMonths: (months: BillingMonth[], mode: "billing" | "delivery") => BillingMonth[]
+): BillingMonth[] {
+  const skeleton = autoReferenceMonths.length > 0 ? autoReferenceMonths : workingMonths
+  if (!skeleton.length) return []
+  return attachLineItemsToMonths(cloneBillingMonthGraph(skeleton), "billing")
+}
+
+/**
+ * Append-only: merges template from auto ref + containers into working. New months/keys/line ids only;
+ * existing line ids unchanged (preserved-state model).
+ */
+function appendAutoReferenceIntoWorkingBilling(
+  workingMonths: BillingMonth[],
+  autoReferenceMonths: BillingMonth[],
+  formatter: Intl.NumberFormat,
+  attachLineItemsToMonths: (months: BillingMonth[], mode: "billing" | "delivery") => BillingMonth[]
+): BillingMonth[] {
+  billingAppendDebug("appendAutoReferenceIntoWorkingBilling", {
+    autoRefMonths: autoReferenceMonths.length,
+    workingMonths: workingMonths.length,
+    skeleton: autoReferenceMonths.length > 0 ? "autoReference" : "working",
+  })
+  const templateWithLineItems = buildWorkingBillingAppendTemplate(
+    autoReferenceMonths,
+    workingMonths,
+    attachLineItemsToMonths
+  )
+  return appendAutoLineItemTemplateIntoWorking(workingMonths, templateWithLineItems, formatter)
+}
+
+/** Unwrap string / `{ months: [...] }` / top-level array from media_plan_versions or API. */
+function normalizeBillingScheduleToArray(raw: unknown): any[] | null {
+  if (raw == null || raw === "") return null
+  let v: any = raw
+  if (typeof v === "string") {
+    const t = v.trim()
+    if (!t) return null
+    try {
+      v = JSON.parse(t)
+    } catch {
+      return null
+    }
+  }
+  if (Array.isArray(v)) return v.length > 0 ? v : null
+  if (v && typeof v === "object" && Array.isArray((v as any).months)) {
+    const m = (v as any).months
+    return m.length > 0 ? m : null
+  }
+  return null
+}
+
+const parseMoneySaved = (val: unknown) =>
+  parseFloat(String(val ?? "").replace(/[^0-9.-]/g, "")) || 0
+
+/**
+ * Parse persisted billingSchedule JSON from `media_plan_versions` into `BillingMonth[]` for hydrate → working/saved.
+ * (Fees only affect search/social fee estimate when saved feeTotal absent.)
+ */
+function parseSavedBillingSchedulePayload(
+  billingSchedule: unknown,
+  fees: { searchFee: number; socialFee: number }
+): {
+  months: BillingMonth[]
+  billingTotalFormatted: string
+  partial:
+    | {
+        hydrate: ReturnType<typeof hydratePartialMbaFromSavedMetadata>
+        metadata: PartialApprovalMetadata
+      }
+    | null
+} | null {
+  const parsed = normalizeBillingScheduleToArray(billingSchedule)
+  if (!parsed) return null
+
+  const { searchFee, socialFee } = fees
+  const currencyFormatter = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" })
+  const mediaTypeLabelMap: Record<string, string> = {
+    Search: "search",
+    "Social Media": "socialMedia",
+    Television: "television",
+    Radio: "radio",
+    Newspaper: "newspaper",
+    Magazines: "magazines",
+    OOH: "ooh",
+    Cinema: "cinema",
+    "Digital Display": "digiDisplay",
+    "Digital Audio": "digiAudio",
+    "Digital Video": "digiVideo",
+    BVOD: "bvod",
+    Integration: "integration",
+    "Programmatic Display": "progDisplay",
+    "Programmatic Video": "progVideo",
+    "Programmatic BVOD": "progBvod",
+    "Programmatic Audio": "progAudio",
+    "Programmatic OOH": "progOoh",
+    Influencers: "influencers",
+  }
+
+  const parsedBillingMonthRows: BillingMonth[] = parsed.map((entry: any) => {
+    const monthYear =
+      entry.monthYear || entry.month_year || entry.month || entry.month_label || ""
+    const mediaCosts: BillingMonth["mediaCosts"] = {
+      search: "$0.00",
+      socialMedia: "$0.00",
+      television: "$0.00",
+      radio: "$0.00",
+      newspaper: "$0.00",
+      magazines: "$0.00",
+      ooh: "$0.00",
+      cinema: "$0.00",
+      digiDisplay: "$0.00",
+      digiAudio: "$0.00",
+      digiVideo: "$0.00",
+      bvod: "$0.00",
+      integration: "$0.00",
+      progDisplay: "$0.00",
+      progVideo: "$0.00",
+      progBvod: "$0.00",
+      progAudio: "$0.00",
+      progOoh: "$0.00",
+      influencers: "$0.00",
+      production: "$0.00",
+    }
+
+    let totalMedia = 0
+    let totalFee = 0
+    const lineItems: Record<string, BillingLineItemType[]> = {}
+
+    const mediaTypesRaw = entry.mediaTypes ?? entry.media_types
+    if (mediaTypesRaw && Array.isArray(mediaTypesRaw)) {
+      mediaTypesRaw.forEach((mediaType: any) => {
+        const label =
+          mediaType.mediaType ||
+          mediaType.media_type ||
+          mediaType.type ||
+          mediaType.name ||
+          ""
+        const mediaKey = mediaTypeLabelMap[label] || String(label).toLowerCase()
+
+        if (mediaType.lineItems && Array.isArray(mediaType.lineItems)) {
+          const mediaTotal = mediaType.lineItems.reduce((sum: number, item: any) => {
+            const amountStr = item.amount || item.__amountValue || "0"
+            const amount =
+              typeof amountStr === "string"
+                ? parseFloat(amountStr.replace(/[^0-9.]/g, ""))
+                : amountStr
+            return sum + (amount || 0)
+          }, 0)
+
+          mediaCosts[mediaKey] = currencyFormatter.format(mediaTotal)
+          totalMedia += mediaTotal
+
+          let feePercentage = 0
+          if (mediaKey === "search") feePercentage = searchFee
+          else if (mediaKey === "socialMedia") feePercentage = socialFee
+          const feeAmount = (mediaTotal * feePercentage) / 100
+          totalFee += feeAmount
+
+          lineItems[mediaKey] = mediaType.lineItems.map((item: any) => {
+            const amount =
+              parseFloat((item.amount || item.__amountValue || "0").toString().replace(/[^0-9.]/g, "")) || 0
+            const monthlyAmounts: Record<string, number> = {}
+            parsed.forEach((e: any) => {
+              const m = e.monthYear || e.month || ""
+              monthlyAmounts[m] = m === monthYear ? amount : 0
+            })
+
+            const rawLiId = item.lineItemId ?? item.line_item_id
+            return {
+              id:
+                rawLiId != null && String(rawLiId).trim() !== ""
+                  ? String(rawLiId)
+                  : `${mediaKey}-${item.header1}-${item.header2}`,
+              header1: item.header1 || "",
+              header2: item.header2 || "",
+              monthlyAmounts,
+              totalAmount: amount,
+            }
+          })
+        }
+      })
+    }
+
+    let finalFeeTotal = totalFee
+    if (entry.feeTotal) {
+      const savedFeeTotal = parseFloat(entry.feeTotal.toString().replace(/[^0-9.]/g, "")) || 0
+      if (savedFeeTotal > 0) {
+        finalFeeTotal = savedFeeTotal
+      }
+    }
+
+    const adservingTechFees =
+      parseFloat((entry.adservingTechFees || entry.adServing || "0").toString().replace(/[^0-9.]/g, "")) || 0
+    const production = parseFloat((entry.production || "0").toString().replace(/[^0-9.]/g, "")) || 0
+    let totalAmountNum = totalMedia + finalFeeTotal + adservingTechFees + production
+
+    // Legacy / MBA PDF shape: month row with totalAmount only (no mediaTypes)
+    if (
+      Object.keys(lineItems).length === 0 &&
+      (!entry.mediaTypes || !Array.isArray(entry.mediaTypes) || entry.mediaTypes.length === 0)
+    ) {
+      const legacyTotal = parseMoneySaved(entry.totalAmount ?? entry.amount)
+      const feeLegacy = parseMoneySaved(entry.feeTotal)
+      const adservLegacy = parseMoneySaved(entry.adservingTechFees ?? entry.adServing)
+      const prodLegacy = parseMoneySaved(entry.production)
+      if (
+        monthYear &&
+        (legacyTotal > 0 || feeLegacy > 0 || adservLegacy > 0 || prodLegacy > 0)
+      ) {
+        const inferredMedia =
+          legacyTotal > 0
+            ? Math.max(0, legacyTotal - feeLegacy - adservLegacy - prodLegacy)
+            : totalMedia
+        const useMedia = inferredMedia > 0 ? inferredMedia : totalMedia
+        const useFee = feeLegacy > 0 ? feeLegacy : finalFeeTotal
+        const useAd = adservLegacy > 0 ? adservLegacy : adservingTechFees
+        const useProd = prodLegacy > 0 ? prodLegacy : production
+        totalAmountNum =
+          legacyTotal > 0 ? legacyTotal : useMedia + useFee + useAd + useProd
+        return {
+          monthYear,
+          mediaTotal: currencyFormatter.format(useMedia),
+          feeTotal: currencyFormatter.format(useFee),
+          totalAmount: currencyFormatter.format(totalAmountNum),
+          adservingTechFees: currencyFormatter.format(useAd),
+          production: currencyFormatter.format(useProd),
+          mediaCosts,
+          lineItems: undefined,
+        }
+      }
+    }
+
+    return {
+      monthYear,
+      mediaTotal: currencyFormatter.format(totalMedia),
+      feeTotal: currencyFormatter.format(finalFeeTotal),
+      totalAmount: currencyFormatter.format(totalAmountNum),
+      adservingTechFees: currencyFormatter.format(adservingTechFees),
+      production: currencyFormatter.format(production),
+      mediaCosts,
+      lineItems: Object.keys(lineItems).length > 0 ? lineItems : undefined,
+    }
+  })
+
+  // Consolidate monthlyAmounts across all months for each line item
+  const allMonthKeys = parsedBillingMonthRows.map((m) => m.monthYear)
+  parsedBillingMonthRows.forEach((month) => {
+    if (!month.lineItems) return
+    Object.entries(month.lineItems).forEach(([mediaKey, items]) => {
+      (items as BillingLineItemType[]).forEach((item) => {
+        // Ensure all month keys exist
+        allMonthKeys.forEach((mk) => {
+          if (!(mk in item.monthlyAmounts)) {
+            item.monthlyAmounts[mk] = 0
+          }
+        })
+        // Find this item's amount in other months and merge
+        parsedBillingMonthRows.forEach((otherMonth) => {
+          if (otherMonth.monthYear === month.monthYear) return
+          const otherItems = (otherMonth.lineItems as Record<string, BillingLineItemType[]> | undefined)?.[
+            mediaKey
+          ]
+          const match = otherItems?.find((oi) => oi.id === item.id)
+          if (match && match.monthlyAmounts[otherMonth.monthYear]) {
+            item.monthlyAmounts[otherMonth.monthYear] = match.monthlyAmounts[otherMonth.monthYear]
+          }
+        })
+        item.totalAmount = Object.values(item.monthlyAmounts).reduce((sum, v) => sum + v, 0)
+      })
+    })
+  })
+
+  const total = parsedBillingMonthRows.reduce((sum, m) => {
+    return sum + parseFloat(m.totalAmount.replace(/[^0-9.]/g, ""))
+  }, 0)
+  const billingTotalFormatted = currencyFormatter.format(total)
+
+  const partialEntry = parsed.find((e: any) => e?.partialApproval ?? e?.partial_approval)
+  const savedPartial = (partialEntry?.partialApproval ?? partialEntry?.partial_approval) as
+    | PartialApprovalMetadata
+    | undefined
+  const partial =
+    savedPartial?.isPartial === true
+      ? { hydrate: hydratePartialMbaFromSavedMetadata(savedPartial), metadata: savedPartial }
+      : null
+
+  return { months: parsedBillingMonthRows, billingTotalFormatted, partial }
+}
+
+/** Grand total line for the billing table from month `totalAmount` strings (aligned with auto-calculate). */
+function formatGrandTotalFromBillingMonths(months: BillingMonth[], formatter: Intl.NumberFormat): string {
+  const grandTotal = months.reduce(
+    (sum, m) => sum + (parseFloat(String(m.totalAmount || "$0").replace(/[^0-9.-]/g, "")) || 0),
+    0
+  )
+  return formatter.format(grandTotal)
+}
 
 // Define media type keys as a const array
 const MEDIA_TYPE_KEYS = [
@@ -208,6 +1056,18 @@ interface Client {
   postcode?: string | number
 }
 
+function MediaContainerSuspenseFallback({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-3 px-6 py-8">
+      <div className="relative h-5 w-5 shrink-0">
+        <div className="absolute inset-0 rounded-full border-2 border-muted" />
+        <div className="absolute inset-0 animate-spin rounded-full border-2 border-t-primary" />
+      </div>
+      <span className="text-sm text-muted-foreground">Loading {label}…</span>
+    </div>
+  )
+}
+
 // Lazy-loaded components for each media type
 const TelevisionContainer = lazy(() => import("@/components/media-containers/TelevisionContainer"))
 const RadioContainer = lazy(() => import("@/components/media-containers/RadioContainer"))
@@ -236,7 +1096,6 @@ const mediaTypes: Array<{
   label: string;
   component: React.LazyExoticComponent<any>;
 }> = [
-  { name: 'mp_production', label: "Production", component: ProductionContainer },
   { name: 'mp_television', label: "Television", component: TelevisionContainer },
   { name: 'mp_radio', label: "Radio", component: RadioContainer },
   { name: 'mp_newspaper', label: "Newspaper", component: NewspaperContainer },
@@ -256,6 +1115,7 @@ const mediaTypes: Array<{
   { name: 'mp_progaudio', label: "Programmatic Audio", component: ProgAudioContainer },
   { name: 'mp_progooh', label: "Programmatic OOH", component: ProgOOHContainer },
   { name: 'mp_influencers', label: "Influencers", component: InfluencersContainer },
+  { name: 'mp_production', label: "Production", component: ProductionContainer },
 ];
 
 // Media key map for billing schedule
@@ -482,8 +1342,22 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const [progAudioTotal, setProgAudioTotal] = useState(0)
   const [progOohTotal, setProgOohTotal] = useState(0)
   const [influencersTotal, setInfluencersTotal] = useState(0)
-  const [billingTotal, setBillingTotal] = useState("$0.00")
-  const [billingMonths, setBillingMonths] = useState<BillingMonth[]>([])
+  /**
+   * Billing preserved-state model:
+   * - savedBillingMonths — last persisted baseline (media_plan_versions hydrate or last successful save).
+   * - workingBillingMonths — live UI schedule; preserved; append-only on the main page (new months, media keys, line ids).
+   * - autoReferenceBillingMonths — burst-derived reference; append template for new structure; Edit Billing resets; never wholesale-overwrites existing working rows without explicit reset.
+   * - Existing line rows stay fixed until edited in Edit Billing, per-line reset there, or full reset there (container/burst edits alone do not refresh them).
+   * - manualBillingMonths — Edit Billing modal draft only.
+   */
+  const [savedBillingMonths, setSavedBillingMonths] = useState<BillingMonth[]>([])
+  const savedBillingMonthsRef = useRef<BillingMonth[]>([])
+  useEffect(() => {
+    savedBillingMonthsRef.current = savedBillingMonths
+  }, [savedBillingMonths])
+  const [workingBillingMonths, setWorkingBillingMonths] = useState<BillingMonth[]>([])
+  const [manualBillingMonths, setManualBillingMonths] = useState<BillingMonth[]>([])
+  const [autoReferenceBillingMonths, setAutoReferenceBillingMonths] = useState<BillingMonth[]>([])
   const [burstsData, setBurstsData] = useState<any[]>([])
   const [investmentPerMonth, setInvestmentPerMonth] = useState<any[]>([])
   const [searchBursts, setSearchBursts] = useState<any[]>([])
@@ -509,8 +1383,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const [influencersBursts, setInfluencersBursts] = useState<any[]>([])
   const [isManualBilling, setIsManualBilling] = useState(false)
   const [isManualBillingModalOpen, setIsManualBillingModalOpen] = useState(false)
-  const [manualBillingMonths, setManualBillingMonths] = useState<BillingMonth[]>([])
-  const [manualBillingTotal, setManualBillingTotal] = useState("$0.00")
   const [manualBillingCostPreBill, setManualBillingCostPreBill] = useState<{
     fee: boolean;
     adServing: boolean;
@@ -521,16 +1393,67 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     adServing?: string[];
     production?: string[];
   }>({})
-  const [autoBillingMonths, setAutoBillingMonths] = useState<BillingMonth[]>([])
+  const autoReferenceBillingMonthsRef = useRef<BillingMonth[]>([])
   const [autoDeliveryMonths, setAutoDeliveryMonths] = useState<BillingMonth[]>([])
   const deliveryScheduleSnapshotRef = useRef<BillingMonth[] | null>(null)
-  const [originalManualBillingMonths, setOriginalManualBillingMonths] = useState<BillingMonth[]>([])
-  const [originalManualBillingTotal, setOriginalManualBillingTotal] = useState<string>("$0.00")
-  const [billingError, setBillingError] = useState<{show: boolean, campaignBudget: number, difference: number}>({
+  const [billingError, setBillingError] = useState<{
+    show: boolean
+    blockingErrors: string[]
+    preservedOverrides: string[]
+  }>({
     show: false,
-    campaignBudget: 0,
-    difference: 0
+    blockingErrors: [],
+    preservedOverrides: [],
   })
+  const [fullBillingResetConfirmOpen, setFullBillingResetConfirmOpen] = useState(false)
+  const workingBillingMonthsRef = useRef<BillingMonth[]>([])
+  /**
+   * Assigned each render after `attachLineItemsToMonths` exists. Reset handlers use `.current` so they never
+   * depend on a stale closure over the callback.
+   */
+  const attachLineItemsToMonthsRef = useRef<
+    (months: BillingMonth[], mode: "billing" | "delivery") => BillingMonth[]
+  >((months) => months)
+  /**
+   * Synchronous mirror of `hasPersistedBillingSchedule` so `calculateBillingSchedule` and other callbacks
+   * respect persisted billing before the next paint (state alone can lag one tick behind fetch completion).
+   */
+  const hasPersistedBillingScheduleRef = useRef(false)
+  /** True when a server-backed billing baseline exists (`savedBillingMonths` from version hydrate or after a successful save with months). */
+  const [hasPersistedBillingSchedule, setHasPersistedBillingSchedule] = useState(false)
+
+  useEffect(() => {
+    hasPersistedBillingScheduleRef.current = hasPersistedBillingSchedule
+  }, [hasPersistedBillingSchedule])
+
+  const billingTotalDisplayFromWorking = useMemo(
+    () =>
+      formatGrandTotalFromBillingMonths(
+        workingBillingMonths,
+        new Intl.NumberFormat("en-AU", {
+          style: "currency",
+          currency: "AUD",
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })
+      ),
+    [workingBillingMonths]
+  )
+
+  const billingTotalDisplayFromManual = useMemo(
+    () =>
+      formatGrandTotalFromBillingMonths(
+        manualBillingMonths,
+        new Intl.NumberFormat("en-AU", {
+          style: "currency",
+          currency: "AUD",
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })
+      ),
+    [manualBillingMonths]
+  )
+
   const [isPartialMBA, setIsPartialMBA] = useState(false)
   const [isPartialMBAModalOpen, setIsPartialMBAModalOpen] = useState(false)
   const [partialMBAError, setPartialMBAError] = useState<string | null>(null)
@@ -550,6 +1473,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   })
   const [partialMBAMonthYears, setPartialMBAMonthYears] = useState<string[]>([])
   const [partialMBAMediaEnabled, setPartialMBAMediaEnabled] = useState<Record<string, boolean>>({})
+  const [partialMBALineItemsByMedia, setPartialMBALineItemsByMedia] = useState<Record<string, PartialApprovalLineItem[]>>({})
+  const [partialMBASelectedLineItemIds, setPartialMBASelectedLineItemIds] = useState<Record<string, string[]>>({})
+  const [partialApprovalMetadata, setPartialApprovalMetadata] = useState<PartialApprovalMetadata | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [saveStatus, setSaveStatus] = useState<SaveStatusItem[]>([])
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false)
@@ -580,6 +1506,16 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const [influencersFeeTotal, setInfluencersFeeTotal] = useState(0)
   const [grossMediaTotal, setGrossMediaTotal] = useState(0)
   const [totalInvestment, setTotalInvestment] = useState(0)
+  const mbaCurrencyFormatter = useMemo(
+    () =>
+      new Intl.NumberFormat("en-AU", {
+        style: "currency",
+        currency: "AUD",
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }),
+    []
+  )
   const [error, setError] = useState<string | null>(null)
   const [mediaPlan, setMediaPlan] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -649,14 +1585,53 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const [progAudioMediaLineItems, setProgAudioMediaLineItems] = useState<any[]>([])
   const [progOohMediaLineItems, setProgOohMediaLineItems] = useState<any[]>([])
   const [influencersMediaLineItems, setInfluencersMediaLineItems] = useState<any[]>([])
-  
-  const [billingSchedule, setBillingSchedule] = useState<BillingScheduleType>([])
-  const [billingScheduleData, setBillingScheduleData] = useState<BillingScheduleInterface>({
-    months: [],
-    overrides: [],
-    isManual: false,
-    campaignId: ""
-  })
+
+  const editLineItemCount = useMemo(() => {
+    return (
+      televisionLineItems.length +
+      radioLineItems.length +
+      newspaperLineItems.length +
+      magazinesLineItems.length +
+      oohLineItems.length +
+      cinemaLineItems.length +
+      digitalDisplayLineItems.length +
+      digitalAudioLineItems.length +
+      digitalVideoLineItems.length +
+      bvodLineItems.length +
+      integrationLineItems.length +
+      consultingLineItems.length +
+      searchLineItems.length +
+      socialMediaLineItems.length +
+      progDisplayLineItems.length +
+      progVideoLineItems.length +
+      progBvodLineItems.length +
+      progAudioLineItems.length +
+      progOohLineItems.length +
+      influencersLineItems.length
+    )
+  }, [
+    televisionLineItems,
+    radioLineItems,
+    newspaperLineItems,
+    magazinesLineItems,
+    oohLineItems,
+    cinemaLineItems,
+    digitalDisplayLineItems,
+    digitalAudioLineItems,
+    digitalVideoLineItems,
+    bvodLineItems,
+    integrationLineItems,
+    consultingLineItems,
+    searchLineItems,
+    socialMediaLineItems,
+    progDisplayLineItems,
+    progVideoLineItems,
+    progBvodLineItems,
+    progAudioLineItems,
+    progOohLineItems,
+    influencersLineItems,
+  ])
+
   const [isClientModalOpen, setIsClientModalOpen] = useState(false)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const navigationHydratedRef = useRef(false)
@@ -675,6 +1650,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       mp_campaignbudget: 0,
       mbaidentifier: "",
       mbanumber: "",
+      mp_plannumber: "",
       ...Object.fromEntries(
         MEDIA_TYPE_KEYS.map(key => [key, false])
       ) as MediaFields,
@@ -743,12 +1719,61 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const campaignEndDate = useWatch({ control: form.control, name: 'mp_campaigndates_end' })
   const campaignBudget = useWatch({ control: form.control, name: 'mp_campaignbudget' })
 
-  const deepCloneBillingMonths = (months: BillingMonth[]): BillingMonth[] => {
+  /** When any media on/off toggles, line-item API load re-runs so newly enabled types are not stuck with []. */
+  const enabledMediaFlagsFingerprint = useMemo(() => {
+    return [
+      mpSearch,
+      mpSocialMedia,
+      mpTelevision,
+      mpRadio,
+      mpNewspaper,
+      mpMagazines,
+      mpOoh,
+      mpCinema,
+      mpDigidisplay,
+      mpDigiaudio,
+      mpDigivideo,
+      mpBvod,
+      mpIntegration,
+      mpConsulting,
+      mpProgdisplay,
+      mpProgvideo,
+      mpProgbvod,
+      mpProgaudio,
+      mpProgooh,
+      mpInfluencers,
+    ]
+      .map((on) => (on ? "1" : "0"))
+      .join("")
+  }, [
+    mpSearch,
+    mpSocialMedia,
+    mpTelevision,
+    mpRadio,
+    mpNewspaper,
+    mpMagazines,
+    mpOoh,
+    mpCinema,
+    mpDigidisplay,
+    mpDigiaudio,
+    mpDigivideo,
+    mpBvod,
+    mpIntegration,
+    mpConsulting,
+    mpProgdisplay,
+    mpProgvideo,
+    mpProgbvod,
+    mpProgaudio,
+    mpProgooh,
+    mpInfluencers,
+  ])
+
+  const deepCloneBillingMonths = useCallback((months: BillingMonth[]): BillingMonth[] => {
     if (typeof globalThis.structuredClone === "function") {
       return globalThis.structuredClone(months) as BillingMonth[]
     }
     return JSON.parse(JSON.stringify(months)) as BillingMonth[]
-  }
+  }, [])
 
   // Reset snapshot only when campaign dates change OR we switch to a new MBA/version context.
   const deliverySnapshotKeyRef = useRef<string | null>(null)
@@ -761,38 +1786,46 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     }
     deliverySnapshotKeyRef.current = key
   }, [campaignStartDate, campaignEndDate, mbaNumber, selectedVersionNumber])
+
+  useEffect(() => {
+    const v = selectedVersionNumber ?? mediaPlan?.version_number
+    if (v != null && v !== undefined) {
+      form.setValue("mp_plannumber", String(v), { shouldDirty: false })
+    }
+  }, [selectedVersionNumber, mediaPlan?.version_number, form])
   
-  // Helper function to get ad serving rate for media type (matching create page)
-  function getRateForMediaType(mediaType: string): number {
-    switch(mediaType) {
-      case 'progVideo':
-      case 'progBvod':
-      case 'digiVideo':
-      case 'digi video':
-      case 'bvod':
-      case 'BVOD':
-      case 'Prog BVOD':
-      case 'Digi Video':
-      case 'Prog Video':
+  const getRateForMediaType = useCallback((mediaType: string): number => {
+    switch (mediaType) {
+      case "progVideo":
+      case "progBvod":
+      case "digiVideo":
+      case "digi video":
+      case "bvod":
+      case "BVOD":
+      case "Prog BVOD":
+      case "Digi Video":
+      case "Prog Video":
         return adservvideo ?? 0
-      case 'progAudio':
-      case 'digiAudio':
-      case 'digi audio':
+      case "progAudio":
+      case "digiAudio":
+      case "digi audio":
         return adservaudio ?? 0
-      case 'progDisplay':
-      case 'digiDisplay':
-      case 'digi display':
+      case "progDisplay":
+      case "digiDisplay":
+      case "digi display":
         return adservdisplay ?? 0
       default:
         return adservimp ?? 0
     }
-  }
+  }, [adservvideo, adservaudio, adservdisplay, adservimp])
 
-  // Calculate billing schedule function (matching create page exactly)
+  /**
+   * Burst pipeline: updates `autoReferenceBillingMonths` + delivery only. Never mutates `workingBillingMonths`
+   * (see preserved-state block above; working changes via hydrate, append-only merge, or Edit Billing).
+   */
   const calculateBillingSchedule = useCallback((
     startOverride?: Date | string | null,
-    endOverride?: Date | string | null,
-    forceApply?: boolean
+    endOverride?: Date | string | null
   ) => {
     const startRaw = startOverride ?? form.watch("mp_campaigndates_start");
     const endRaw = endOverride ?? form.watch("mp_campaigndates_end");
@@ -1023,19 +2056,14 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       };
     });
 
-    // Capture the very first auto-calculated *delivery* schedule for delivery snapshot (once).
-    if (!deliveryScheduleSnapshotRef.current && deliveryMonthsCalculated.length > 0) {
+    // Keep delivery snapshot in sync with latest auto-calculation (e.g. after fee % loads)
+    if (deliveryMonthsCalculated.length > 0) {
       deliveryScheduleSnapshotRef.current = deepCloneBillingMonths(deliveryMonthsCalculated)
     }
   
-    setAutoBillingMonths(billingMonthsCalculated);
-    setAutoDeliveryMonths(deliveryMonthsCalculated);
-
-    if (!isManualBilling || forceApply) {
-      setBillingMonths(billingMonthsCalculated);
-      const grandTotal = billingMonthsCalculated.reduce((sum, m) => sum + parseFloat(m.totalAmount.replace(/[^0-9.-]/g, "")), 0);
-      setBillingTotal(formatter.format(grandTotal));
-    }
+    autoReferenceBillingMonthsRef.current = billingMonthsCalculated
+    setAutoReferenceBillingMonths(billingMonthsCalculated)
+    setAutoDeliveryMonths(deliveryMonthsCalculated)
   }, [
     searchBursts,
     socialMediaBursts,
@@ -1057,11 +2085,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     oohBursts,
     consultingBursts,
     influencersBursts,
-    adservvideo,
-    adservimp,
-    adservdisplay,
     adservaudio,
-    form
+    getRateForMediaType,
+    deepCloneBillingMonths,
+    form,
   ]);
 
   // Fetch the media plan data
@@ -1126,18 +2153,37 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       setProgAudioBursts([])
       setProgOohBursts([])
       setInfluencersBursts([])
-      setBillingMonths([])
-      setBillingTotal("$0.00")
-      
-      // Reset line items load flag for new MBA number
-      hasAttemptedLineItemsLoad.current = false
-      
+      setSavedBillingMonths([])
+      savedBillingMonthsRef.current = []
+      setWorkingBillingMonths([])
+      setAutoReferenceBillingMonths([])
+      autoReferenceBillingMonthsRef.current = []
+      hasPersistedBillingScheduleRef.current = false
+      setHasPersistedBillingSchedule(false)
+      setIsManualBilling(false)
+      workingBillingMonthsRef.current = []
+      setManualBillingMonths([])
+      setIsManualBillingModalOpen(false)
+      setFullBillingResetConfirmOpen(false)
+      setBillingError({ show: false, blockingErrors: [], preservedOverrides: [] })
+      setManualBillingCostPreBill({ fee: false, adServing: false, production: false })
+      manualBillingCostPreBillSnapshotRef.current = {}
+      deliveryScheduleSnapshotRef.current = null
+      setIsPartialMBA(false)
+      setPartialApprovalMetadata(null)
+      setPartialMBALineItemsByMedia({})
+      setPartialMBASelectedLineItemIds({})
+      setPartialMBAMediaEnabled({})
+
+      // Allow line-item fetch to run again for this MBA/version + enabled-media set
+      lastLineItemsLoadKeyRef.current = ""
+
       try {
         // Add timestamp cache-busting parameter - load line items immediately
         const timestamp = Date.now()
         // Include version parameter if available
         const versionParam = versionNumber ? `&version=${encodeURIComponent(versionNumber)}` : ''
-        const apiUrl = `/api/mediaplans/mba/${encodeURIComponent(mbaNumber)}?t=${timestamp}${versionParam}`
+        const apiUrl = `/api/mediaplans/mba/${encodeURIComponent(mbaNumber)}?t=${timestamp}&billingScheduleFull=1${versionParam}`
         console.log(`[FETCH] Calling API: ${apiUrl}`)
         
         const response = await fetch(apiUrl, {
@@ -1346,6 +2392,47 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         
         // Set the media plan data (needed for version number display)
         setMediaPlan(data)
+
+        const rawBillingSchedule =
+          data.billingSchedule ??
+          (data as { billing_schedule?: unknown }).billing_schedule ??
+          (data as { versionData?: { billingSchedule?: unknown; billing_schedule?: unknown } }).versionData
+            ?.billingSchedule ??
+          (data as { versionData?: { billing_schedule?: unknown } }).versionData?.billing_schedule
+
+        const billingHydrated = parseSavedBillingSchedulePayload(rawBillingSchedule, {
+          searchFee: feesearch ?? 0,
+          socialFee: feesocial ?? 0,
+        })
+        if (billingHydrated) {
+          console.log("[BILLING LOAD] Hydrating billing schedule from fetch (batched with media plan)")
+          const persistedMonths = billingHydrated.months
+          const deepSaved = JSON.parse(JSON.stringify(persistedMonths)) as BillingMonth[]
+          const deepWorking = JSON.parse(JSON.stringify(persistedMonths)) as BillingMonth[]
+          hasPersistedBillingScheduleRef.current = true
+          setHasPersistedBillingSchedule(true)
+          setIsManualBilling(true)
+          setSavedBillingMonths(deepSaved)
+          savedBillingMonthsRef.current = deepSaved
+          setWorkingBillingMonths(deepWorking)
+          workingBillingMonthsRef.current = deepWorking
+          if (billingHydrated.partial) {
+            const h = billingHydrated.partial.hydrate
+            setPartialApprovalMetadata(billingHydrated.partial.metadata)
+            setIsPartialMBA(true)
+            setPartialMBAValues(h.partialMBAValues)
+            setPartialMBAMonthYears(h.partialMBAMonthYears)
+            setPartialMBASelectedLineItemIds(h.partialMBASelectedLineItemIds)
+            setPartialMBAMediaEnabled(h.partialMBAMediaEnabled)
+            setOriginalPartialMBAValues(JSON.parse(JSON.stringify(h.partialMBAValues)))
+          }
+        } else {
+          hasPersistedBillingScheduleRef.current = false
+          setSavedBillingMonths([])
+          savedBillingMonthsRef.current = []
+          setHasPersistedBillingSchedule(false)
+          setIsManualBilling(false)
+        }
         
         // Parse dates properly - handle both timestamp and date string formats
         const parseDate = (dateValue: any) => {
@@ -1397,6 +2484,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           mp_campaignbudget: Number(data.mp_campaignbudget) || Number(data.campaign_budget) || 0,
           mbaidentifier: data.mbaidentifier || "", // Will be set from client lookup if needed
           mbanumber: data.mba_number || data.mbanumber || mbaNumber || "",
+          mp_plannumber: String(loadedVersionNumber ?? 1),
           mp_television: Boolean(data.mp_television),
           mp_radio: Boolean(data.mp_radio),
           mp_newspaper: Boolean(data.mp_newspaper),
@@ -1452,9 +2540,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           console.log("[DATA LOAD] Loading line items from API response")
           try {
             // Use version from API response (which should match requested version), with fallbacks
-            const versionForFiltering = data.version_number?.toString() 
-              || versionNumber?.toString() 
-              || (mediaPlan?.version_number || 1).toString()
+            const versionForFiltering =
+              data.version_number?.toString() ||
+              versionNumber?.toString() ||
+              (loadedVersionNumber ?? 1).toString()
             console.log(`[DATA LOAD] Filtering line items with version: ${versionForFiltering} (from ${data.version_number ? 'API response' : versionNumber ? 'query params' : 'fallback'})`)
             
             // Map API line items to state setters with filtering
@@ -1565,8 +2654,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           }
         }
         
-        // Billing schedule will be loaded in a separate useEffect after client fees are set
-        
         if (!isCancelled) {
           setLoading(false)
           setIsLoading(false) // Also set isLoading to false so buttons are enabled
@@ -1589,7 +2676,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     return () => {
       isCancelled = true
     }
-  }, [mbaNumber, versionNumber, setContextMbaNumber])
+  }, [applyClientFees, form, mbaNumber, versionNumber, setContextMbaNumber])
 
   // Fetch clients
   useEffect(() => {
@@ -1682,178 +2769,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         console.warn("[CLIENT LOOKUP] No matching client found for:", selectedClientId)
       }
     }
-  }, [clients, selectedClientId, mediaPlan, selectedClient, form])
+  }, [applyClientFees, clients, selectedClientId, mediaPlan, selectedClient, form])
 
-  // Load billing schedule from database - load even if fees aren't set yet (use 0 as default)
-  useEffect(() => {
-    if (!mediaPlan?.billingSchedule) {
-      return
-    }
-    
-    // Use 0 as default for fees if not yet loaded (fees will be recalculated when they become available)
-    const searchFee = feesearch ?? 0
-    const socialFee = feesocial ?? 0
-
-    try {
-      console.log("[BILLING LOAD] Loading billing schedule from version data")
-      const parsedBillingSchedule = typeof mediaPlan.billingSchedule === 'string' 
-        ? JSON.parse(mediaPlan.billingSchedule) 
-        : mediaPlan.billingSchedule
-      
-      // Transform billing schedule JSON to BillingMonth[] format
-      if (Array.isArray(parsedBillingSchedule) && parsedBillingSchedule.length > 0) {
-        const currencyFormatter = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
-        const mediaTypeLabelMap: Record<string, string> = {
-          'Search': 'search',
-          'Social Media': 'socialMedia',
-          'Television': 'television',
-          'Radio': 'radio',
-          'Newspaper': 'newspaper',
-          'Magazines': 'magazines',
-          'OOH': 'ooh',
-          'Cinema': 'cinema',
-          'Digital Display': 'digiDisplay',
-          'Digital Audio': 'digiAudio',
-          'Digital Video': 'digiVideo',
-          'BVOD': 'bvod',
-          'Integration': 'integration',
-          'Programmatic Display': 'progDisplay',
-          'Programmatic Video': 'progVideo',
-          'Programmatic BVOD': 'progBvod',
-          'Programmatic Audio': 'progAudio',
-          'Programmatic OOH': 'progOoh',
-          'Influencers': 'influencers'
-        }
-
-        const billingMonths: BillingMonth[] = parsedBillingSchedule.map((entry: any) => {
-          const monthYear = entry.monthYear || entry.month || ""
-          const mediaCosts: BillingMonth['mediaCosts'] = {
-            search: '$0.00',
-            socialMedia: '$0.00',
-            television: '$0.00',
-            radio: '$0.00',
-            newspaper: '$0.00',
-            magazines: '$0.00',
-            ooh: '$0.00',
-            cinema: '$0.00',
-            digiDisplay: '$0.00',
-            digiAudio: '$0.00',
-            digiVideo: '$0.00',
-            bvod: '$0.00',
-            integration: '$0.00',
-            progDisplay: '$0.00',
-            progVideo: '$0.00',
-            progBvod: '$0.00',
-            progAudio: '$0.00',
-            progOoh: '$0.00',
-          influencers: '$0.00',
-          production: '$0.00'
-          }
-          
-          let totalMedia = 0
-          let totalFee = 0
-          const lineItems: Record<string, BillingLineItemType[]> = {}
-          
-          // Process each media type
-          if (entry.mediaTypes && Array.isArray(entry.mediaTypes)) {
-            entry.mediaTypes.forEach((mediaType: any) => {
-              const mediaKey = mediaTypeLabelMap[mediaType.mediaType] || mediaType.mediaType.toLowerCase()
-              
-              if (mediaType.lineItems && Array.isArray(mediaType.lineItems)) {
-                // Calculate media total for this media type
-                const mediaTotal = mediaType.lineItems.reduce((sum: number, item: any) => {
-                  const amountStr = item.amount || item.__amountValue || "0"
-                  const amount = typeof amountStr === 'string' 
-                    ? parseFloat(amountStr.replace(/[^0-9.]/g, "")) 
-                    : amountStr
-                  return sum + (amount || 0)
-                }, 0)
-                
-                mediaCosts[mediaKey] = currencyFormatter.format(mediaTotal)
-                totalMedia += mediaTotal
-                
-                // Calculate fee for this media type
-                let feePercentage = 0
-                if (mediaKey === 'search') feePercentage = searchFee
-                else if (mediaKey === 'socialMedia') feePercentage = socialFee
-                // Add other fee percentages as needed
-                const feeAmount = mediaTotal * feePercentage / 100
-                totalFee += feeAmount
-                
-                // Build line items for this media type
-                lineItems[mediaKey] = mediaType.lineItems.map((item: any) => {
-                  const amount = parseFloat((item.amount || item.__amountValue || "0").toString().replace(/[^0-9.]/g, "")) || 0
-                  // Build monthly amounts for all months
-                  const monthlyAmounts: Record<string, number> = {}
-                  parsedBillingSchedule.forEach((e: any) => {
-                    const m = e.monthYear || e.month || ""
-                    monthlyAmounts[m] = (m === monthYear) ? amount : 0
-                  })
-                  
-                  return {
-                    id: item.lineItemId || `${mediaKey}-${item.header1}-${item.header2}`,
-                    header1: item.header1 || '',
-                    header2: item.header2 || '',
-                    monthlyAmounts,
-                    totalAmount: amount
-                  }
-                })
-              }
-            })
-          }
-          
-          // Use saved feeTotal if available, otherwise use calculated fee
-          let finalFeeTotal = totalFee
-          if (entry.feeTotal) {
-            const savedFeeTotal = parseFloat((entry.feeTotal).toString().replace(/[^0-9.]/g, "")) || 0
-            if (savedFeeTotal > 0) {
-              finalFeeTotal = savedFeeTotal
-            }
-          }
-          
-          // Calculate totals
-          const adservingTechFees = parseFloat((entry.adservingTechFees || entry.adServing || "0").toString().replace(/[^0-9.]/g, "")) || 0
-          const production = parseFloat((entry.production || "0").toString().replace(/[^0-9.]/g, "")) || 0
-          const totalAmount = totalMedia + finalFeeTotal + adservingTechFees + production
-          
-          return {
-            monthYear,
-            mediaTotal: currencyFormatter.format(totalMedia),
-            feeTotal: currencyFormatter.format(finalFeeTotal),
-            totalAmount: currencyFormatter.format(totalAmount),
-            adservingTechFees: currencyFormatter.format(adservingTechFees),
-            production: currencyFormatter.format(production),
-            mediaCosts,
-            lineItems: Object.keys(lineItems).length > 0 ? lineItems : undefined
-          }
-        })
-        
-        // Set billing months and calculate total
-        setBillingMonths(billingMonths)
-        const total = billingMonths.reduce((sum, m) => {
-          return sum + parseFloat(m.totalAmount.replace(/[^0-9.]/g, ""))
-        }, 0)
-        setBillingTotal(currencyFormatter.format(total))
-        
-        // Also populate manual billing months so manual billing modal has the data
-        const deepCopiedMonths = JSON.parse(JSON.stringify(billingMonths))
-        setManualBillingMonths(deepCopiedMonths)
-        setOriginalManualBillingMonths(JSON.parse(JSON.stringify(deepCopiedMonths)))
-        setManualBillingTotal(currencyFormatter.format(total))
-        setOriginalManualBillingTotal(currencyFormatter.format(total))
-        
-        // Set as manual billing since it's loaded from saved data
-        setIsManualBilling(true)
-        
-        console.log("[BILLING LOAD] Billing schedule loaded as manual:", billingMonths)
-      }
-    } catch (billingError) {
-      console.error("[BILLING LOAD] Error parsing billing schedule:", billingError)
-    }
-  }, [mediaPlan?.billingSchedule, feesearch, feesocial, mbaNumber])
-
-  // Track if we've already attempted to load line items to prevent duplicate loads
-  const hasAttemptedLineItemsLoad = useRef(false)
+  const lastLineItemsLoadKeyRef = useRef("")
   const lastCampaignDatesRef = useRef<{ start: string; end: string } | null>(null)
 
   // Load all line items immediately for enabled media types when media plan is loaded
@@ -1863,13 +2781,29 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         return
       }
 
-      // Skip if we've already attempted to load (line items from API response are handled separately)
-      if (hasAttemptedLineItemsLoad.current) {
+      const versionToUseEarly =
+        versionNumber != null && versionNumber !== ""
+          ? typeof versionNumber === "string"
+            ? parseInt(versionNumber, 10)
+            : Number(versionNumber)
+          : mediaPlan.version_number != null
+            ? typeof mediaPlan.version_number === "string"
+              ? parseInt(mediaPlan.version_number, 10)
+              : Number(mediaPlan.version_number)
+            : NaN
+
+      if (!Number.isFinite(versionToUseEarly)) {
         return
       }
 
+      const loadKey = `${mbaNumber}|${versionToUseEarly}|${enabledMediaFlagsFingerprint}`
+      if (lastLineItemsLoadKeyRef.current === loadKey) {
+        return
+      }
+      lastLineItemsLoadKeyRef.current = loadKey
+
       console.log("[DATA LOAD] Loading line items for all enabled media types")
-      
+
       // Get enabled media types from form values directly (not form.watch which may not be reactive)
       const formValues = form.getValues()
       const enabledFlags = [
@@ -1897,24 +2831,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
       if (enabledFlags.length === 0) {
         console.log("[DATA LOAD] No enabled media types to load")
-        hasAttemptedLineItemsLoad.current = true
         return
       }
 
-      hasAttemptedLineItemsLoad.current = true
-
       try {
-        // Use version from query params if available, otherwise use mediaPlan.version_number
-        const versionToUse = versionNumber 
-          ? (typeof versionNumber === 'string' ? parseInt(versionNumber, 10) : parseInt(versionNumber, 10))
-          : (mediaPlan.version_number 
-            ? (typeof mediaPlan.version_number === 'string' ? parseInt(mediaPlan.version_number, 10) : mediaPlan.version_number)
-            : null)
-        
-        if (!versionToUse) {
-          console.warn("[DATA LOAD] No version number available for line items")
-          return
-        }
+        const versionToUse = versionToUseEarly
         
         console.log(`[DATA LOAD] Loading line items with version: ${versionToUse} (from ${versionNumber ? 'query params' : 'mediaPlan'})`)
         
@@ -1958,7 +2879,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     }
 
     loadAllLineItems()
-  }, [mbaNumber, mediaPlan?.version_number, versionNumber, form])
+  }, [mbaNumber, mediaPlan?.version_number, versionNumber, form, enabledMediaFlagsFingerprint])
 
   const handleClientSelect = (client: Client | null) => {
     if (client) {
@@ -2050,42 +2971,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   }, [])
 
   const handleInvestmentChange = useCallback((investmentByMonth) => {
-    markUnsavedChanges();
-    setInvestmentPerMonth(investmentByMonth);
-    // Initialize manual billing months with the investment data
-    const currencyFormatter = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
-    const formattedBillingMonths: BillingMonth[] = investmentByMonth.map(month => ({
-      monthYear: month.monthYear,
-      mediaTotal: currencyFormatter.format(0),
-      feeTotal: currencyFormatter.format(0),
-      totalAmount: currencyFormatter.format(parseFloat(month.amount.toString().replace(/[^0-9.-]/g, "")) || 0),
-      adservingTechFees: currencyFormatter.format(0),
-      production: currencyFormatter.format(0),
-      mediaCosts: {
-        search: currencyFormatter.format(0),
-        socialMedia: currencyFormatter.format(0),
-        television: currencyFormatter.format(0),
-        radio: currencyFormatter.format(0),
-        newspaper: currencyFormatter.format(0),
-        magazines: currencyFormatter.format(0),
-        ooh: currencyFormatter.format(0),
-        cinema: currencyFormatter.format(0),
-        digiDisplay: currencyFormatter.format(0),
-        digiAudio: currencyFormatter.format(0),
-        digiVideo: currencyFormatter.format(0),
-        bvod: currencyFormatter.format(0),
-        integration: currencyFormatter.format(0),
-        progDisplay: currencyFormatter.format(0),
-        progVideo: currencyFormatter.format(0),
-        progBvod: currencyFormatter.format(0),
-        progAudio: currencyFormatter.format(0),
-        progOoh: currencyFormatter.format(0),
-        influencers: currencyFormatter.format(0),
-        production: currencyFormatter.format(0),
-      }
-    }));
-    setManualBillingMonths(formattedBillingMonths);
-  }, []);
+    markUnsavedChanges()
+    setInvestmentPerMonth(investmentByMonth)
+    // Billing rows are not regenerated from investment on the main page — use Edit Billing for any reset/rebuild.
+  }, [markUnsavedChanges])
 
   // Create stable callback functions to prevent infinite loops
   const handleTotalMediaChange = useCallback((total) => {
@@ -2098,8 +2987,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
   // Manual Billing Functions (matching create page)
   function handleManualBillingOpen() {
-    // Copy current billing months to modal state
-    const deepCopiedMonths = JSON.parse(JSON.stringify(billingMonths));
+    // Clone `workingBillingMonths` into modal-local state; working stays unchanged until explicit save.
+    // After load from `media_plan_versions`, only append missing line-item IDs from auto; do not rebuild from containers or re-total months here.
+    const sourceMonths = workingBillingMonths
+    const deepCopiedMonths = JSON.parse(JSON.stringify(sourceMonths)) as BillingMonth[]
 
     // Generate line items for each media type
     const mediaTypeMap: Record<string, { lineItems: any[], key: string }> = {
@@ -2122,11 +3013,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       'mp_progooh': { lineItems: progOohMediaLineItems, key: 'progOoh' },
       'mp_influencers': { lineItems: influencersMediaLineItems, key: 'influencers' },
       'mp_integration': { lineItems: integrationMediaLineItems, key: 'integration' },
+      'mp_production': { lineItems: consultingMediaLineItems, key: 'production' },
     };
 
-    // Generate line items once and attach to all months
+    // Generate line items once and attach to all months (per–line-item reset uses `autoReferenceBillingMonths` + attach, not modal-open snapshots).
     const allLineItems: Record<string, BillingLineItemType[]> = {};
-    
+
     Object.entries(mediaTypeMap).forEach(([mediaTypeKey, { lineItems, key }]) => {
       if (form.getValues(mediaTypeKey as any) && lineItems) {
         const billingLineItems = generateBillingLineItems(lineItems, key, deepCopiedMonths, "billing");
@@ -2167,22 +3059,91 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       if (month.production === undefined) {
         month.production = currencyFormatter.format(0);
       }
-      Object.entries(allLineItems).forEach(([key, lineItems]) => {
-        (month.lineItems as any)[key] = lineItems;
-      });
     });
 
-    // For the "Reset" functionality
-    setOriginalManualBillingMonths(JSON.parse(JSON.stringify(deepCopiedMonths)));
-    setOriginalManualBillingTotal(billingTotal);
-    
-    // Set the state for the modal to use
-    setManualBillingMonths(deepCopiedMonths);
-    setManualBillingTotal(billingTotal);
+    // Inject auto-generated line items: for media keys with no existing items, add all.
+    // For media keys that already have items, add only NEW items (by ID) without replacing existing.
+    Object.entries(allLineItems).forEach(([mediaKey, generatedList]) => {
+      deepCopiedMonths.forEach((m) => {
+        if (!m.lineItems) m.lineItems = {}
+        const li = m.lineItems as Record<string, BillingLineItemType[]>
+        const existing = li[mediaKey]
+
+        if (!existing || existing.length === 0) {
+          // No existing items for this media type — inject all generated
+          li[mediaKey] = generatedList
+        } else {
+          const existingIds = new Set(existing.map((item) => billingLineItemIdKey(item.id)))
+          const newItems = generatedList.filter((item) => {
+            const kid = billingLineItemIdKey(item.id)
+            return Boolean(kid) && !existingIds.has(kid)
+          })
+          if (newItems.length > 0) {
+            li[mediaKey] = [...existing, ...newItems]
+          }
+        }
+      })
+    })
+
+    if (!hasPersistedBillingScheduleRef.current) {
+      // Second pass: for months that have mediaCosts > $0 for a media type but no lineItems,
+      // generate line items from media containers so they appear as editable rows in the modal.
+      // This handles saved billing that only had month-level mediaCosts without line item breakdown.
+      // Skipped after version hydration: container-derived rows would overwrite authoritative saved amounts.
+      deepCopiedMonths.forEach((m) => {
+        if (!m.lineItems) m.lineItems = {}
+        const li = m.lineItems as Record<string, BillingLineItemType[]>
+
+        Object.entries(mediaTypeMap).forEach(([mediaTypeKey, { lineItems: containerItems, key }]) => {
+          if (!form.getValues(mediaTypeKey as any) || !containerItems?.length) return
+          // Already has line items for this key — skip
+          if (li[key] && li[key].length > 0) return
+          // Check if mediaCosts has a non-zero value for this key
+          const mediaCostVal =
+            parseFloat(String((m.mediaCosts as any)?.[key] ?? "$0").replace(/[^0-9.-]/g, "")) || 0
+          if (mediaCostVal <= 0) return
+
+          // Generate from container data so user can see and edit individual line items
+          const generated = generateBillingLineItems(containerItems, key, deepCopiedMonths, "billing")
+          if (generated.length > 0) {
+            li[key] = generated
+          }
+        })
+      })
+
+      // Recalculate mediaCosts from line items for months where we just generated them,
+      // so the modal subtotals match the line item amounts (not the old mediaCosts strings).
+      const currFmt = new Intl.NumberFormat("en-AU", {
+        style: "currency",
+        currency: "AUD",
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })
+      deepCopiedMonths.forEach((m) => {
+        if (!m.lineItems) return
+        let mediaTotalNum = 0
+        Object.entries(m.lineItems).forEach(([mk, items]) => {
+          const arr = items as BillingLineItemType[]
+          if (!arr?.length) return
+          const sum = arr.reduce((s, item) => s + (item.monthlyAmounts?.[m.monthYear] || 0), 0)
+          if (m.mediaCosts && mk in m.mediaCosts) {
+            ;(m.mediaCosts as Record<string, string>)[mk] = currFmt.format(sum)
+          }
+          if (mk !== "production") mediaTotalNum += sum
+        })
+        m.mediaTotal = currFmt.format(mediaTotalNum)
+        const fee = parseFloat(String(m.feeTotal || "$0").replace(/[^0-9.-]/g, "")) || 0
+        const adserv = parseFloat(String(m.adservingTechFees || "$0").replace(/[^0-9.-]/g, "")) || 0
+        const prod = parseFloat(String(m.production || "$0").replace(/[^0-9.-]/g, "")) || 0
+        m.totalAmount = currFmt.format(mediaTotalNum + fee + adserv + prod)
+      })
+    }
+
+    setManualBillingMonths(deepCopiedMonths)
     // UI-only state: reset pre-bill toggles for cost rows on open
     setManualBillingCostPreBill({ fee: false, adServing: false, production: false })
     manualBillingCostPreBillSnapshotRef.current = {}
-    setIsManualBillingModalOpen(true);
+    setIsManualBillingModalOpen(true)
   }
 
   function handleManualBillingChange(
@@ -2193,7 +3154,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     lineItemId?: string,
     monthYear?: string
   ) {
-    const copy = [...manualBillingMonths];
+    const copy = [...manualBillingMonths]
     const numericValue = parseFloat(rawValue.replace(/[^0-9.-]/g, "")) || 0;
     const formatter = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
     const formattedValue = formatter.format(numericValue);
@@ -2303,13 +3264,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     copy[index].mediaTotal = formatter.format(mediaTotal);
     copy[index].totalAmount = formatter.format(mediaTotal + feeTotal + adServingTotal + productionTotal);
 
-    const grandTotal = copy.reduce(
-      (acc, m) => acc + parseFloat(m.totalAmount.replace(/[^0-9.-]/g, "")),
-      0
-    );
-
-    setManualBillingTotal(formatter.format(grandTotal));
-    setManualBillingMonths(copy);
+    setManualBillingMonths(copy)
   }
 
   const recalculateManualBillingTotals = (months: BillingMonth[], formatter: Intl.NumberFormat) => {
@@ -2385,8 +3340,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       ;(month.mediaCosts as any)[mediaKey] = formatter.format(mediaTypeTotal)
     })
 
-    const grandTotalNumber = recalculateManualBillingTotals(copy, formatter)
-    setManualBillingTotal(formatter.format(grandTotalNumber))
+    recalculateManualBillingTotals(copy, formatter)
     setManualBillingMonths(copy)
   }
 
@@ -2425,53 +3379,28 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       manualBillingCostPreBillSnapshotRef.current[costKey] = undefined
     }
 
-    const grandTotalNumber = recalculateManualBillingTotals(copy, formatter)
-    setManualBillingTotal(formatter.format(grandTotalNumber))
+    recalculateManualBillingTotals(copy, formatter)
     setManualBillingMonths(copy)
     setManualBillingCostPreBill((prev) => ({ ...prev, [costKey]: nextChecked }))
   }
 
-  function handleManualBillingSave() {
-    const campaignBudget = form.getValues("mp_campaignbudget") || 0;
-    const currentManualTotalNumber = parseFloat(manualBillingTotal.replace(/[^0-9.-]/g, "")) || 0;
-    const difference = Math.abs(currentManualTotalNumber - campaignBudget);
+  /**
+   * Level 1 — cost-bucket reset (modal draft): copy fee / tech fee / production strings from **auto reference**
+   * aggregates only (`autoReferenceBillingMonthsRef` mirrors burst-derived `autoReferenceBillingMonths`).
+   */
+  function handleManualBillingCostResetToAuto(costKey: "fee" | "adServing" | "production") {
+    const copy = [...manualBillingMonths]
+    if (copy.length === 0) return
 
-    if (difference > 2) {
-      setBillingError({
-        show: true,
-        campaignBudget,
-        difference: currentManualTotalNumber - campaignBudget
-      });
-      return;
-    }
+    const formatter = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD", minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    applyCostBucketFromAutoReferenceAggregates(copy, autoReferenceBillingMonthsRef.current, costKey, formatter)
 
-    setBillingMonths(JSON.parse(JSON.stringify(manualBillingMonths)));
-    setBillingTotal(manualBillingTotal);
-    setIsManualBilling(true);
-    setIsManualBillingModalOpen(false);
-    setBillingError({ show: false, campaignBudget: 0, difference: 0 });
-    toast({ title: "Success", description: "Manual billing schedule has been saved." });
-  }
+    // Clear pre-bill state for this cost key
+    setManualBillingCostPreBill((prev) => ({ ...prev, [costKey]: false }))
+    manualBillingCostPreBillSnapshotRef.current[costKey] = undefined
 
-  function handleManualBillingReset() {
-    setManualBillingMonths(JSON.parse(JSON.stringify(originalManualBillingMonths)));
-    setManualBillingTotal(originalManualBillingTotal);
-    toast({ title: "Schedule Reset", description: "Your changes have been discarded." });
-  }
-
-  async function handleResetBilling() {
-    // Refresh client fee/ad-serving settings so containers recompute with current defaults
-    await refreshClientFeesFromApi()
-    // Allow fee props to flow to containers and container effects to recompute bursts
-    await waitForStateFlush()
-    await waitForStateFlush()
-
-    setIsManualBilling(false)
-    // Clear manual billing state to ensure clean reset
-    setManualBillingMonths([])
-    setManualBillingTotal("$0.00")
-    // Trigger auto calculation
-    calculateBillingSchedule(campaignStartDate, campaignEndDate, true)
+    recalculateManualBillingTotals(copy, formatter)
+    setManualBillingMonths(copy)
   }
 
   const generateMBANumber = async (mbaidentifier: string) => {
@@ -2522,6 +3451,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         return { header1: 'Network', header2: 'Format' };
       case 'cinema':
         return { header1: 'Network', header2: 'Format' };
+      case 'production':
+        return { header1: 'Production', header2: 'Item' };
       default:
         return { header1: 'Item', header2: 'Details' };
     }
@@ -2541,7 +3472,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
     mediaLineItems.forEach((lineItem, index) => {
       const { header1, header2 } = getScheduleHeaders(mediaType, lineItem);
-      const itemId = `${mediaType}-${header1 || "Item"}-${header2 || "Details"}-${index}`;
+      const itemId = billingStableLineItemId(mediaType, lineItem, index);
       const clientPaysForMedia = Boolean(
         (lineItem as any)?.client_pays_for_media ?? (lineItem as any)?.clientPaysForMedia
       );
@@ -2649,6 +3580,95 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           }
         });
 
+      // Calculate fee amounts per month for this line item
+      const feeMonthlyAmounts: Record<string, number> = {}
+      const adServingMonthlyAmounts: Record<string, number> = {}
+      monthKeys.forEach((key) => {
+        feeMonthlyAmounts[key] = 0
+        adServingMonthlyAmounts[key] = 0
+      })
+
+      bursts.forEach((burst: any) => {
+        const startDate = new Date(burst.startDate)
+        const endDate = new Date(burst.endDate)
+        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return
+
+        const budget =
+          parseFloat(burst.budget?.replace?.(/[^0-9.-]/g, "") || String(burst.budget || "0")) ||
+          parseFloat(burst.buyAmount?.replace?.(/[^0-9.-]/g, "") || String(burst.buyAmount || "0")) ||
+          0
+
+        const feePctRaw = (burst.feePercentage ??
+          burst.fee_percentage ??
+          (lineItem as any)?.feePercentage ??
+          (lineItem as any)?.fee_percentage) as any
+        const feePctCandidate = Number(feePctRaw)
+        const feePct = Number.isFinite(feePctCandidate)
+          ? Math.max(0, Math.min(100, feePctCandidate))
+          : inferredLineItemFeePct
+
+        const budgetIncludesFees = Boolean(
+          burst.budgetIncludesFees ??
+            burst.budget_includes_fees ??
+            (lineItem as any)?.budgetIncludesFees ??
+            (lineItem as any)?.budget_includes_fees
+        )
+        const burstClientPaysForMedia = Boolean(
+          burst.clientPaysForMedia ??
+            burst.client_pays_for_media ??
+            (lineItem as any)?.clientPaysForMedia ??
+            (lineItem as any)?.client_pays_for_media ??
+            clientPaysForMedia
+        )
+
+        // Fee calculation
+        let feeForBurst = 0
+        if (budget > 0 && feePct > 0) {
+          if (budgetIncludesFees) {
+            feeForBurst = (budget * feePct) / 100
+          } else if (feePct < 100) {
+            feeForBurst = burstClientPaysForMedia
+              ? (budget / (100 - feePct)) * feePct
+              : (budget * feePct) / (100 - feePct)
+          }
+        }
+        if (mode === "billing" && burstClientPaysForMedia) feeForBurst = 0
+
+        // Ad serving calculation
+        const deliverables = Number(burst.deliverables || 0)
+        const noAdserving = Boolean(burst.noAdserving)
+        let adServingForBurst = 0
+        if (!noAdserving && deliverables > 0) {
+          const buyType = burst.buyType?.toLowerCase?.() || ""
+          const isCpm = buyType === "cpm"
+          const rate = getRateForMediaType(mediaType)
+          adServingForBurst = isCpm ? (deliverables / 1000) * rate : deliverables * rate
+        }
+
+        const daysTotal = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1
+        if (daysTotal <= 0) return
+
+        let currentDate = new Date(startDate)
+        while (currentDate <= endDate) {
+          const monthKey = format(currentDate, "MMMM yyyy")
+          if (feeMonthlyAmounts.hasOwnProperty(monthKey)) {
+            const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
+            const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0)
+            const sliceStart = Math.max(startDate.getTime(), monthStart.getTime())
+            const sliceEnd = Math.min(endDate.getTime(), monthEnd.getTime())
+            const daysInMonth = Math.ceil((sliceEnd - sliceStart) / (1000 * 60 * 60 * 24)) + 1
+            const ratio = daysInMonth / daysTotal
+            feeMonthlyAmounts[monthKey] += feeForBurst * ratio
+            adServingMonthlyAmounts[monthKey] += adServingForBurst * ratio
+          }
+          currentDate.setMonth(currentDate.getMonth() + 1)
+          currentDate.setDate(1)
+        }
+      })
+
+      const totalFeeAmount = Object.values(feeMonthlyAmounts).reduce((sum, val) => sum + val, 0)
+      const totalAdServingAmount = Object.values(adServingMonthlyAmounts).reduce((sum, val) => sum + val, 0)
+
       // Create or update line item
       const totalAmount = Object.values(monthlyAmounts).reduce((sum, val) => sum + val, 0);
       lineItemsMap.set(itemId, {
@@ -2656,12 +3676,65 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         header1,
         header2,
         monthlyAmounts,
-        totalAmount
+        totalAmount,
+        feeMonthlyAmounts,
+        totalFeeAmount,
+        adServingMonthlyAmounts,
+        totalAdServingAmount,
+        ...(clientPaysForMedia ? { clientPaysForMedia: true } : {}),
       });
     });
 
     return Array.from(lineItemsMap.values());
-  }, []);
+  }, [getRateForMediaType]);
+
+  /**
+   * Level 2 — per–line-item reset (modal draft): copy that row from the auto template built as
+   * `attachLineItemsToMonths(deepClone(autoReferenceBillingMonths), "billing")` — same source as append-merge,
+   * not ad-hoc container regen during the click handler.
+   */
+  const handleManualBillingLineItemResetToAuto = useCallback((mediaKey: string, lineItemId: string) => {
+    const autoAgg = autoReferenceBillingMonthsRef.current
+    if (!autoAgg.length) {
+      toast({
+        variant: "destructive",
+        title: "Cannot reset this line",
+        description:
+          "No auto billing reference. Set campaign dates and bursts, or open Edit Billing and use Reset billing to auto there.",
+      })
+      return
+    }
+
+    const template = attachLineItemsToMonthsRef.current(
+      deepCloneBillingMonthsState(autoAgg),
+      "billing"
+    )
+    const copy = deepCloneBillingMonthsState(manualBillingMonths)
+    const ok = copySingleLineItemFromAutoTemplate(copy, template, mediaKey, lineItemId)
+    if (!ok) {
+      toast({
+        variant: "destructive",
+        title: "Cannot reset this line",
+        description: "This row is not present on the auto template for these months.",
+      })
+      return
+    }
+
+    const formatter = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" })
+    copy.forEach((month) => {
+      const monthLineItems = month?.lineItems?.[mediaKey as keyof typeof month.lineItems] as
+        | BillingLineItemType[]
+        | undefined
+      if (!monthLineItems) return
+      const mediaTypeTotal = monthLineItems.reduce((sum, li) => sum + (li.monthlyAmounts?.[month.monthYear] || 0), 0)
+      if (month.mediaCosts && mediaKey in month.mediaCosts) {
+        ;(month.mediaCosts as Record<string, string>)[mediaKey] = formatter.format(mediaTypeTotal)
+      }
+    })
+
+    recalculateManualBillingTotals(copy, formatter)
+    setManualBillingMonths(copy)
+  }, [manualBillingMonths])
 
   const attachLineItemsToMonths = useCallback((
     months: BillingMonth[],
@@ -2670,13 +3743,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     if (!months || months.length === 0) return [];
 
     let monthsWithLineItems = [...months];
-    const hasLineItems = monthsWithLineItems.some(
-      month => (month as any).lineItems && Object.keys((month as any).lineItems).length > 0
-    );
-
-    if (hasLineItems) {
-      return monthsWithLineItems;
-    }
 
     const mediaTypeMap: Record<string, { lineItems: any[], key: string }> = {
       'mp_television': { lineItems: televisionMediaLineItems, key: 'television' },
@@ -2714,16 +3780,34 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       }
     });
 
-    monthsWithLineItems = monthsWithLineItems.map(month => {
-      const monthCopy = { ...month };
-      if (!monthCopy.lineItems) monthCopy.lineItems = {};
-      Object.entries(allLineItems).forEach(([key, lineItems]) => {
-        (monthCopy.lineItems as any)[key] = lineItems;
-      });
-      return monthCopy;
-    });
+    Object.entries(allLineItems).forEach(([key, generatedList]) => {
+      monthsWithLineItems = monthsWithLineItems.map((month) => {
+        const monthCopy = { ...month }
+        if (!monthCopy.lineItems) {
+          monthCopy.lineItems = {}
+        } else {
+          monthCopy.lineItems = { ...monthCopy.lineItems }
+        }
+        const li = monthCopy.lineItems as Record<string, BillingLineItemType[]>
+        const existing = li[key]
 
-    return monthsWithLineItems;
+        if (!existing || existing.length === 0) {
+          li[key] = generatedList
+        } else {
+          const existingIds = new Set(existing.map((lineItem) => billingLineItemIdKey(lineItem.id)))
+          const newItems = generatedList.filter((lineItem) => {
+            const kid = billingLineItemIdKey(lineItem.id)
+            return Boolean(kid) && !existingIds.has(kid)
+          })
+          if (newItems.length > 0) {
+            li[key] = [...existing, ...newItems]
+          }
+        }
+        return monthCopy
+      })
+    })
+
+    return monthsWithLineItems
   }, [
     form,
     televisionMediaLineItems,
@@ -2745,110 +3829,106 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     progAudioMediaLineItems,
     progOohMediaLineItems,
     influencersMediaLineItems,
+    consultingMediaLineItems,
     generateBillingLineItems
   ]);
 
-  // Build billing schedule JSON from available data
-  const buildBillingScheduleForSave = useCallback((): Record<string, any> => {
-    // Get months from billingMonths or manualBillingMonths
-    const months = isManualBilling && manualBillingMonths.length > 0 
-      ? manualBillingMonths 
-      : billingMonths;
+  // Keep ref always current — assigned during render so timeouts / handlers never read a stale `attachLineItemsToMonths`.
+  attachLineItemsToMonthsRef.current = attachLineItemsToMonths
 
-    if (!months || months.length === 0) {
-      return {};
+  /**
+   * Full billing reset — **Edit Billing modal only** (confirmed in dialog). Refreshes auto ref, then replaces
+   * **workingBillingMonths** from `autoReferenceBillingMonths` + attached line items. Does not update `savedBillingMonths`
+   * until campaign save succeeds.
+   */
+  const handleResetBillingScheduleToAuto = useCallback(() => {
+    if (campaignStartDate && campaignEndDate) {
+      calculateBillingSchedule(campaignStartDate, campaignEndDate)
+    } else {
+      calculateBillingSchedule(null, null)
     }
 
-    // Check if manualBillingMonths has lineItems structure (BillingMonth[])
-    const hasLineItemsStructure = isManualBilling && 
-      manualBillingMonths.length > 0 && 
-      'lineItems' in (manualBillingMonths[0] as any);
-
-    if (hasLineItemsStructure) {
-      // Use the lineItems structure directly - cast to correct type for buildBillingScheduleJSON
-      return buildBillingScheduleJSON(manualBillingMonths as unknown as import("@/lib/billing/types").BillingMonth[]);
+    const autoRows = autoReferenceBillingMonthsRef.current
+    if (!autoRows.length) {
+      toast({
+        variant: "destructive",
+        title: "Cannot reset billing",
+        description: "No auto billing schedule yet. Set campaign dates and media bursts first.",
+      })
+      return
     }
 
-    // Otherwise, generate from media line items
-    const currencyFormatter = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
-    const billingMonthsWithLineItems: import("@/lib/billing/types").BillingMonth[] = months.map(month => {
-      const monthData: import("@/lib/billing/types").BillingMonth = {
-        monthYear: month.monthYear,
-        mediaTotal: typeof month === 'object' && 'mediaTotal' in month ? (month as any).mediaTotal : '0',
-        feeTotal: typeof month === 'object' && 'feeTotal' in month ? (month as any).feeTotal : '0',
-        totalAmount: typeof month === 'object' && 'totalAmount' in month ? (month as any).totalAmount : (typeof month === 'object' && 'amount' in month ? (month as any).amount : '0'),
-        adservingTechFees: typeof month === 'object' && 'adservingTechFees' in month ? (month as any).adservingTechFees : '0',
-        production: typeof month === 'object' && 'production' in month ? (month as any).production : '0',
-        mediaCosts: {
-          search: currencyFormatter.format(0),
-          socialMedia: currencyFormatter.format(0),
-          television: currencyFormatter.format(0),
-          radio: currencyFormatter.format(0),
-          newspaper: currencyFormatter.format(0),
-          magazines: currencyFormatter.format(0),
-          ooh: currencyFormatter.format(0),
-          cinema: currencyFormatter.format(0),
-          digiDisplay: currencyFormatter.format(0),
-          digiAudio: currencyFormatter.format(0),
-          digiVideo: currencyFormatter.format(0),
-          bvod: currencyFormatter.format(0),
-          integration: currencyFormatter.format(0),
-          progDisplay: currencyFormatter.format(0),
-          progVideo: currencyFormatter.format(0),
-          progBvod: currencyFormatter.format(0),
-          progAudio: currencyFormatter.format(0),
-          progOoh: currencyFormatter.format(0),
-        influencers: currencyFormatter.format(0),
-        production: currencyFormatter.format(0),
-        },
-        lineItems: {}
-      };
+    const next = buildWorkingMonthsFromAutoReference(autoRows, attachLineItemsToMonthsRef.current)
+    setWorkingBillingMonths(next)
+    workingBillingMonthsRef.current = next
+    setIsManualBilling(false)
+    setManualBillingMonths([])
+    setManualBillingCostPreBill({ fee: false, adServing: false, production: false })
+    manualBillingCostPreBillSnapshotRef.current = {}
+  }, [calculateBillingSchedule, campaignStartDate, campaignEndDate])
 
-      // Generate line items for each enabled media type
-      const mediaTypeMap: Record<string, { lineItems: any[], key: string }> = {
-        'mp_television': { lineItems: televisionMediaLineItems, key: 'television' },
-        'mp_radio': { lineItems: radioMediaLineItems, key: 'radio' },
-        'mp_newspaper': { lineItems: newspaperMediaLineItems, key: 'newspaper' },
-        'mp_magazines': { lineItems: magazinesMediaLineItems, key: 'magazines' },
-        'mp_ooh': { lineItems: oohMediaLineItems, key: 'ooh' },
-        'mp_cinema': { lineItems: cinemaMediaLineItems, key: 'cinema' },
-        'mp_digidisplay': { lineItems: digitalDisplayMediaLineItems, key: 'digiDisplay' },
-        'mp_digiaudio': { lineItems: digitalAudioMediaLineItems, key: 'digiAudio' },
-        'mp_digivideo': { lineItems: digitalVideoMediaLineItems, key: 'digiVideo' },
-        'mp_bvod': { lineItems: bvodMediaLineItems, key: 'bvod' },
-        'mp_integration': { lineItems: integrationMediaLineItems, key: 'integration' },
-        'mp_search': { lineItems: searchMediaLineItems, key: 'search' },
-        'mp_socialmedia': { lineItems: socialMediaMediaLineItems, key: 'socialMedia' },
-        'mp_progdisplay': { lineItems: progDisplayMediaLineItems, key: 'progDisplay' },
-        'mp_progvideo': { lineItems: progVideoMediaLineItems, key: 'progVideo' },
-        'mp_progbvod': { lineItems: progBvodMediaLineItems, key: 'progBvod' },
-        'mp_progaudio': { lineItems: progAudioMediaLineItems, key: 'progAudio' },
-        'mp_progooh': { lineItems: progOohMediaLineItems, key: 'progOoh' },
-        'mp_influencers': { lineItems: influencersMediaLineItems, key: 'influencers' },
-      };
+  const runConfirmedFullBillingResetToAuto = useCallback(() => {
+    setFullBillingResetConfirmOpen(false)
+    setIsManualBillingModalOpen(false)
+    setBillingError({ show: false, blockingErrors: [], preservedOverrides: [] })
+    handleResetBillingScheduleToAuto()
+    toast({
+      title: "Billing reset",
+      description: "Schedule replaced from auto reference (bursts + line items). Save the plan to update the stored baseline.",
+    })
+  }, [handleResetBillingScheduleToAuto])
 
-      Object.entries(mediaTypeMap).forEach(([mediaTypeKey, { lineItems, key }]) => {
-        // Check if media type is enabled by checking form values
-        const formValues = form.getValues();
-        const isEnabled = formValues[mediaTypeKey as keyof typeof formValues];
-        if (isEnabled && lineItems && lineItems.length > 0) {
-          const billingLineItems = generateBillingLineItems(lineItems, key, months, "billing");
-          if (billingLineItems.length > 0 && monthData.lineItems) {
-            // Type assertion needed due to TypeScript's strict checking on optional properties
-            const lineItemsObj = monthData.lineItems as Record<string, BillingLineItemType[]>;
-            lineItemsObj[key] = billingLineItems;
+  const mediaFlagsForBillingStructure = useWatch({
+    control: form.control,
+    name: [...MEDIA_TYPE_KEYS],
+  })
+
+  const billingPlanStructureKey = useMemo(() => {
+    const fv = form.getValues()
+    const parts: string[] = []
+    const seg = (flag: string, key: string, items: any[]) => {
+      if (!fv[flag as keyof MediaPlanFormValues]) return
+      const ids = (items ?? [])
+        .map((li: any, i: number) => {
+          const id = billingStableLineItemId(key, li, i)
+          // Include burst count so the key changes when bursts are added/removed
+          let burstCount = 0
+          if (typeof li?.bursts_json === 'string') {
+            try { burstCount = JSON.parse(li.bursts_json).length } catch {}
+          } else if (Array.isArray(li?.bursts_json)) {
+            burstCount = li.bursts_json.length
+          } else if (Array.isArray(li?.bursts)) {
+            burstCount = li.bursts.length
           }
-        }
-      });
-
-      return monthData;
-    });
-
-    return buildBillingScheduleJSON(billingMonthsWithLineItems as import("@/lib/billing/types").BillingMonth[]);
+          return `${id}(${burstCount})`
+        })
+        .slice()
+        .sort()
+      parts.push(`${flag}#${ids.join(",")}`)
+    }
+    seg("mp_television", "television", televisionMediaLineItems)
+    seg("mp_radio", "radio", radioMediaLineItems)
+    seg("mp_newspaper", "newspaper", newspaperMediaLineItems)
+    seg("mp_magazines", "magazines", magazinesMediaLineItems)
+    seg("mp_ooh", "ooh", oohMediaLineItems)
+    seg("mp_cinema", "cinema", cinemaMediaLineItems)
+    seg("mp_digidisplay", "digiDisplay", digitalDisplayMediaLineItems)
+    seg("mp_digiaudio", "digiAudio", digitalAudioMediaLineItems)
+    seg("mp_digivideo", "digiVideo", digitalVideoMediaLineItems)
+    seg("mp_bvod", "bvod", bvodMediaLineItems)
+    seg("mp_integration", "integration", integrationMediaLineItems)
+    seg("mp_production", "production", consultingMediaLineItems)
+    seg("mp_search", "search", searchMediaLineItems)
+    seg("mp_socialmedia", "socialMedia", socialMediaMediaLineItems)
+    seg("mp_progdisplay", "progDisplay", progDisplayMediaLineItems)
+    seg("mp_progvideo", "progVideo", progVideoMediaLineItems)
+    seg("mp_progbvod", "progBvod", progBvodMediaLineItems)
+    seg("mp_progaudio", "progAudio", progAudioMediaLineItems)
+    seg("mp_progooh", "progOoh", progOohMediaLineItems)
+    seg("mp_influencers", "influencers", influencersMediaLineItems)
+    return parts.join("|")
   }, [
-    isManualBilling,
-    manualBillingMonths,
-    billingMonths,
+    mediaFlagsForBillingStructure,
     televisionMediaLineItems,
     radioMediaLineItems,
     newspaperMediaLineItems,
@@ -2860,6 +3940,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     digitalVideoMediaLineItems,
     bvodMediaLineItems,
     integrationMediaLineItems,
+    consultingMediaLineItems,
     searchMediaLineItems,
     socialMediaMediaLineItems,
     progDisplayMediaLineItems,
@@ -2868,9 +3949,84 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     progAudioMediaLineItems,
     progOohMediaLineItems,
     influencersMediaLineItems,
-    generateBillingLineItems,
-    form
-  ]);
+  ])
+
+  /** Changes when any *MediaLineItems array gains/loses rows so append re-runs after containers/API hydrate (not only id/burst edits). */
+  const billingLineItemsLengthFingerprint = useMemo(() => {
+    const n = (a: any[] | undefined) => (Array.isArray(a) ? a.length : 0)
+    return [
+      n(televisionMediaLineItems),
+      n(radioMediaLineItems),
+      n(newspaperMediaLineItems),
+      n(magazinesMediaLineItems),
+      n(oohMediaLineItems),
+      n(cinemaMediaLineItems),
+      n(digitalDisplayMediaLineItems),
+      n(digitalAudioMediaLineItems),
+      n(digitalVideoMediaLineItems),
+      n(bvodMediaLineItems),
+      n(integrationMediaLineItems),
+      n(consultingMediaLineItems),
+      n(searchMediaLineItems),
+      n(socialMediaMediaLineItems),
+      n(progDisplayMediaLineItems),
+      n(progVideoMediaLineItems),
+      n(progBvodMediaLineItems),
+      n(progAudioMediaLineItems),
+      n(progOohMediaLineItems),
+      n(influencersMediaLineItems),
+    ].join(",")
+  }, [
+    televisionMediaLineItems,
+    radioMediaLineItems,
+    newspaperMediaLineItems,
+    magazinesMediaLineItems,
+    oohMediaLineItems,
+    cinemaMediaLineItems,
+    digitalDisplayMediaLineItems,
+    digitalAudioMediaLineItems,
+    digitalVideoMediaLineItems,
+    bvodMediaLineItems,
+    integrationMediaLineItems,
+    consultingMediaLineItems,
+    searchMediaLineItems,
+    socialMediaMediaLineItems,
+    progDisplayMediaLineItems,
+    progVideoMediaLineItems,
+    progBvodMediaLineItems,
+    progAudioMediaLineItems,
+    progOohMediaLineItems,
+    influencersMediaLineItems,
+  ])
+
+  useEffect(() => {
+    workingBillingMonthsRef.current = workingBillingMonths
+  }, [workingBillingMonths])
+
+  /** Version PUT: serialize **workingBillingMonths** (attach line items to a clone only when months lack detail). */
+  const buildBillingScheduleForSave = useCallback((): Record<string, any> => {
+    const months = workingBillingMonths
+    if (!months?.length) {
+      return {}
+    }
+
+    const typedMonths = months as unknown as import("@/lib/billing/types").BillingMonth[]
+
+    const monthsForJson: import("@/lib/billing/types").BillingMonth[] = billingMonthsHaveDetailedLineItems(months)
+      ? typedMonths
+      : attachLineItemsToMonths(deepCloneBillingMonths(months), "billing")
+
+    return appendPartialApprovalToBillingSchedule({
+      billingSchedule: buildBillingScheduleJSON(monthsForJson),
+      metadata: isPartialMBA ? partialApprovalMetadata : null,
+    })
+  }, [
+    workingBillingMonths,
+    attachLineItemsToMonths,
+    deepCloneBillingMonths,
+    isPartialMBA,
+    partialApprovalMetadata,
+  ])
 
   const buildDeliveryScheduleForSave = useCallback((): Record<string, any> => {
     const snapshot = deliveryScheduleSnapshotRef.current
@@ -2879,7 +4035,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         ? deepCloneBillingMonths(snapshot)
         : (autoDeliveryMonths.length > 0
           ? deepCloneBillingMonths(autoDeliveryMonths)
-          : deepCloneBillingMonths(billingMonths))
+          : deepCloneBillingMonths(workingBillingMonths))
 
     if (!deliveryMonths || deliveryMonths.length === 0) {
       return {};
@@ -2891,8 +4047,196 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     deepCloneBillingMonths,
     deliveryScheduleSnapshotRef,
     autoDeliveryMonths,
-    billingMonths,
+    workingBillingMonths,
   ]);
+
+  /**
+   * Single entry point for billing integrity before modal save or campaign save.
+   * - blockingErrors: broken rollups, orphan stable-id rows, impossible arithmetic.
+   * - preservedManualOverrides: drift from bursts/fees when you intentionally kept manual billing (non-blocking on campaign save).
+   */
+  const validateBillingBeforeSave = useCallback(
+    (months: BillingMonth[], options?: { feeCheck?: boolean }): BillingSaveValidationResult => {
+      const feeCheck = options?.feeCheck !== false
+      const fmt = new Intl.NumberFormat("en-AU", {
+        style: "currency",
+        currency: "AUD",
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })
+      const blockingErrors: string[] = [...collectBillingMonthStructuralBlockingIssues(months, fmt)]
+      const preservedManualOverrides: string[] = []
+
+      const first = months[0]
+      if (!first?.lineItems || Object.keys(first.lineItems).length === 0) {
+        return {
+          blockingErrors,
+          preservedManualOverrides,
+          hasAnyIssue: blockingErrors.length > 0,
+        }
+      }
+
+      const mediaTypeMap: Record<string, { lineItems: any[]; key: string }> = {
+        mp_television: { lineItems: televisionMediaLineItems, key: "television" },
+        mp_radio: { lineItems: radioMediaLineItems, key: "radio" },
+        mp_newspaper: { lineItems: newspaperMediaLineItems, key: "newspaper" },
+        mp_magazines: { lineItems: magazinesMediaLineItems, key: "magazines" },
+        mp_ooh: { lineItems: oohMediaLineItems, key: "ooh" },
+        mp_cinema: { lineItems: cinemaMediaLineItems, key: "cinema" },
+        mp_digidisplay: { lineItems: digitalDisplayMediaLineItems, key: "digiDisplay" },
+        mp_digiaudio: { lineItems: digitalAudioMediaLineItems, key: "digiAudio" },
+        mp_digivideo: { lineItems: digitalVideoMediaLineItems, key: "digiVideo" },
+        mp_bvod: { lineItems: bvodMediaLineItems, key: "bvod" },
+        mp_integration: { lineItems: integrationMediaLineItems, key: "integration" },
+        mp_production: { lineItems: consultingMediaLineItems, key: "production" },
+        mp_search: { lineItems: searchMediaLineItems, key: "search" },
+        mp_socialmedia: { lineItems: socialMediaMediaLineItems, key: "socialMedia" },
+        mp_progdisplay: { lineItems: progDisplayMediaLineItems, key: "progDisplay" },
+        mp_progvideo: { lineItems: progVideoMediaLineItems, key: "progVideo" },
+        mp_progbvod: { lineItems: progBvodMediaLineItems, key: "progBvod" },
+        mp_progaudio: { lineItems: progAudioMediaLineItems, key: "progAudio" },
+        mp_progooh: { lineItems: progOohMediaLineItems, key: "progOoh" },
+        mp_influencers: { lineItems: influencersMediaLineItems, key: "influencers" },
+      }
+
+      Object.entries(mediaTypeMap).forEach(([formKey, { lineItems, key }]) => {
+        if (!form.getValues(formKey as any) || !lineItems?.length) return
+        const expected = generateBillingLineItems(lineItems, key, months, "billing")
+        const actualGroup =
+          ((first.lineItems as Record<string, BillingLineItemType[]>)?.[key] as BillingLineItemType[]) ?? []
+        const unmatchedActual = new Map(actualGroup.map((li) => [li.id, li] as const))
+
+        for (const exp of expected) {
+          const act =
+            actualGroup.find((li) => li.id === exp.id) ??
+            actualGroup.find((li) => billingHeadersMatch(li, exp))
+          if (act) unmatchedActual.delete(act.id)
+
+          const currentMediaTotal = act
+            ? Object.values(act.monthlyAmounts || {}).reduce((sum, v) => sum + (v || 0), 0)
+            : 0
+          const mediaDiff = currentMediaTotal - exp.totalAmount
+          if (Math.abs(mediaDiff) > 0.01) {
+            preservedManualOverrides.push(
+              `${key} · "${exp.header1}" / "${exp.header2}": Manual billing total is ${fmt.format(
+                currentMediaTotal
+              )}; burst-derived media is ${fmt.format(exp.totalAmount)} — OK if you are preserving edited billing.`
+            )
+          }
+
+          if (feeCheck && act) {
+            const sourceLineItem = lineItems.find(
+              (item, idx) => billingStableLineItemId(key, item, idx) === exp.id
+            )
+            const expectedFeeTotal = sourceLineItem ? calculateExpectedLineItemFeeTotal(sourceLineItem) : 0
+            const currentFeeEstimate =
+              exp.totalAmount > 0
+                ? (currentMediaTotal / exp.totalAmount) * expectedFeeTotal
+                : expectedFeeTotal
+            const feeDiff = currentFeeEstimate - expectedFeeTotal
+            if (Math.abs(feeDiff) > 0.01) {
+              preservedManualOverrides.push(
+                `${key} · "${exp.header1}" / "${exp.header2}": Fee scaling vs bursts differs by ${feeDiff >= 0 ? "+" : "-"}${fmt.format(
+                  Math.abs(feeDiff)
+                )} (burst-implied ${fmt.format(expectedFeeTotal)}, scaled to your media ${fmt.format(
+                  currentFeeEstimate
+                )}) — OK if agency fee was edited manually.`
+              )
+            }
+          }
+        }
+
+        for (const act of unmatchedActual.values()) {
+          const rowTotal = Object.values(act.monthlyAmounts || {}).reduce((s, v) => s + (v || 0), 0)
+          const legacy =
+            Boolean((act as BillingLineItemType & { legacySaved?: boolean }).legacySaved) ||
+            !isStableBillingLineItemId(act.id)
+          if (legacy) {
+            if (Math.abs(rowTotal) > 0.01) {
+              preservedManualOverrides.push(
+                `${key} · "${act.header1}" / "${act.header2}": Kept as legacy / unlinked row (${fmt.format(
+                  rowTotal
+                )}) — not matched to current media containers.`
+              )
+            }
+            continue
+          }
+          if (Math.abs(rowTotal) <= 0.01) continue
+          blockingErrors.push(
+            `${key} · "${act.header1}" / "${act.header2}": Billing row uses a current media id but that line item no longer exists (${fmt.format(
+              rowTotal
+            )} still in billing). Remove the row or set legacySaved on the line item.`
+          )
+        }
+      })
+
+      return {
+        blockingErrors,
+        preservedManualOverrides,
+        hasAnyIssue: blockingErrors.length > 0 || preservedManualOverrides.length > 0,
+      }
+    },
+    [
+      form,
+      generateBillingLineItems,
+      televisionMediaLineItems,
+      radioMediaLineItems,
+      newspaperMediaLineItems,
+      magazinesMediaLineItems,
+      oohMediaLineItems,
+      cinemaMediaLineItems,
+      digitalDisplayMediaLineItems,
+      digitalAudioMediaLineItems,
+      digitalVideoMediaLineItems,
+      bvodMediaLineItems,
+      integrationMediaLineItems,
+      consultingMediaLineItems,
+      searchMediaLineItems,
+      socialMediaMediaLineItems,
+      progDisplayMediaLineItems,
+      progVideoMediaLineItems,
+      progBvodMediaLineItems,
+      progAudioMediaLineItems,
+      progOohMediaLineItems,
+      influencersMediaLineItems,
+    ]
+  )
+
+  const hasBillingMismatch = useMemo(() => {
+    if (!isManualBilling) return false
+    const source = workingBillingMonths
+    if (!source.length) return false
+    if (!billingMonthsHaveDetailedLineItems(source)) return false
+    const v = validateBillingBeforeSave(source, { feeCheck: false })
+    return v.hasAnyIssue
+  }, [isManualBilling, workingBillingMonths, validateBillingBeforeSave])
+
+  function handleManualBillingSave(forceIgnoreMismatch?: boolean) {
+    if (!forceIgnoreMismatch) {
+      const v = validateBillingBeforeSave(manualBillingMonths, { feeCheck: true })
+      if (v.blockingErrors.length > 0 || v.preservedManualOverrides.length > 0) {
+        setBillingError({
+          show: true,
+          blockingErrors: v.blockingErrors,
+          preservedOverrides: v.preservedManualOverrides,
+        })
+        return
+      }
+    }
+
+    const applied = JSON.parse(JSON.stringify(manualBillingMonths)) as BillingMonth[]
+    setWorkingBillingMonths(applied)
+    workingBillingMonthsRef.current = applied
+    // `savedBillingMonths` updates only after a successful campaign/version save — not from modal commit.
+    setIsManualBilling(true)
+    setIsManualBillingModalOpen(false)
+    setManualBillingMonths([])
+    setBillingError({ show: false, blockingErrors: [], preservedOverrides: [] })
+    toast({
+      title: "Billing applied",
+      description: "Working billing schedule updated. Save the plan to persist the new baseline in the version store.",
+    })
+  }
 
   // Media type display names mapping
   const mediaTypeDisplayNames: Record<string, string> = {
@@ -2945,13 +4289,43 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     
     try {
       const formValues = form.getValues()
+      let billingOverrideNotices: string[] = []
       const inferredLatest = typeof latestVersionNumber === 'number' ? latestVersionNumber : (typeof mediaPlan?.version_number === 'number' ? mediaPlan.version_number : 0)
       const targetSaveVersion = nextSaveVersionNumber ?? (inferredLatest + 1)
       
       if (!mbaNumber || !mediaPlan?.id) {
         throw new Error("MBA number and media plan ID are required")
       }
-      
+
+      if (
+        isManualBilling &&
+        workingBillingMonths.length > 0 &&
+        !isPartialMBA &&
+        workingBillingMonths[0]?.lineItems &&
+        Object.keys(workingBillingMonths[0].lineItems).length > 0
+      ) {
+        const billingValidation = validateBillingBeforeSave(workingBillingMonths, { feeCheck: true })
+        billingOverrideNotices = billingValidation.preservedManualOverrides
+        if (billingValidation.blockingErrors.length > 0) {
+          const list = billingValidation.blockingErrors
+          const head = list.slice(0, 4).join(" • ")
+          const tail = list.length > 4 ? ` (+${list.length - 4} more in toast)` : ""
+          setSaveStatus([
+            { name: "Media Plan Master", status: "error", error: "Not run — billing checks failed." },
+            { name: "Media Plan Version", status: "error", error: "Not run — billing checks failed." },
+            { name: "Billing integrity", status: "error", error: `${head}${tail}` },
+          ])
+          toast({
+            variant: "destructive",
+            title: "Cannot save campaign — billing integrity",
+            description:
+              list.slice(0, 8).join("\n") + (list.length > 8 ? `\n… and ${list.length - 8} more issue(s).` : ""),
+          })
+          setIsSaving(false)
+          return
+        }
+      }
+
       // 1. Update media_plan_master (campaign fields only, NOT version_number)
       updateSaveStatus('Media Plan Master', 'pending')
       let masterUpdateResponse: Response
@@ -3001,24 +4375,23 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       
       updateSaveStatus('Media Plan Master', 'success')
       
-      // 2. Build billing schedule JSON
+      // 2. Billing / delivery JSON — billing always from **workingBillingMonths** (see `buildBillingScheduleForSave`).
       const billingScheduleJSON = buildBillingScheduleForSave();
       const deliveryScheduleJSON = buildDeliveryScheduleForSave();
 
       // Dev-only logs right before save (required)
-      const hasManualBillingMonths = isManualBilling && manualBillingMonths.length > 0
-      const billingScheduleSource = hasManualBillingMonths ? "manual" : "billing"
-      const billingMonthsSource = hasManualBillingMonths ? manualBillingMonths : billingMonths
+      const hasWorkingBillingPayload = workingBillingMonths.length > 0
+      const billingScheduleSource = hasWorkingBillingPayload ? "working" : "empty"
 
       const snapshot = deliveryScheduleSnapshotRef.current
       const deliveryScheduleSource =
         snapshot && snapshot.length > 0
           ? "snapshot"
-          : (autoBillingMonths.length > 0 ? "auto" : "billing")
+          : (autoReferenceBillingMonths.length > 0 ? "auto" : "billing")
       const deliveryMonthsSource =
         snapshot && snapshot.length > 0
           ? snapshot
-          : (autoBillingMonths.length > 0 ? autoBillingMonths : billingMonths)
+          : (autoReferenceBillingMonths.length > 0 ? autoReferenceBillingMonths : workingBillingMonths)
 
       if (process.env.NODE_ENV !== "production") {
         console.log(`delivery schedule source = ${deliveryScheduleSource}`, {
@@ -3026,8 +4399,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           firstMonthYear: deliveryMonthsSource[0]?.monthYear,
         })
         console.log(`billing schedule source = ${billingScheduleSource}`, {
-          monthCount: billingMonthsSource.length,
-          firstMonthYear: billingMonthsSource[0]?.monthYear,
+          monthCount: workingBillingMonths.length,
+          firstMonthYear: workingBillingMonths[0]?.monthYear,
         })
       }
 
@@ -3063,7 +4436,21 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       
       const versionData = await versionResponse.json()
       updateSaveStatus('Media Plan Version', 'success')
-      
+
+      /**
+       * Persisted billing model (post–campaign save):
+       * - **workingBillingMonths** — unchanged; remains the live editor state.
+       * - **savedBillingMonths** — deep copy of working; new baseline for “last successful save” / guards.
+       * - **autoReferenceBillingMonths** — untouched here; still the calculated reference for resets.
+       */
+      const snapshotAfterSave = deepCloneBillingMonthsState(workingBillingMonths)
+      setSavedBillingMonths(snapshotAfterSave)
+      savedBillingMonthsRef.current = snapshotAfterSave
+      if (snapshotAfterSave.length > 0) {
+        hasPersistedBillingScheduleRef.current = true
+        setHasPersistedBillingSchedule(true)
+      }
+
       // Get the version number from the response (PUT endpoint increments it)
       const savedVersionNumber = versionData.nextVersionNumber 
         ?? versionData.version?.version_number 
@@ -3377,6 +4764,13 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         title: "Success", 
         description: `Saved as version ${nextVersion}` 
       })
+
+      if (billingOverrideNotices.length > 0) {
+        toast({
+          title: "Billing — manual differences kept",
+          description: `${billingOverrideNotices.length} note(s): your billing differs from burst-based auto (fees/media/legacy rows). This is allowed. Open Manual Billing to review details.`,
+        })
+      }
       
       // Navigate to mediaplans page after successful save
       setHasUnsavedChanges(false)
@@ -3852,7 +5246,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       total_inc_gst: totalExGst * 1.1,
     }
 
-    const billingMonthsExGST = billingMonths.map(month => ({
+    const billingMonthsExGST = workingBillingMonths.map((month) => ({
       monthYear: month.monthYear,
       totalAmount: month.totalAmount, // already ex GST
     }))
@@ -3921,7 +5315,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       const buyType = (item.buyType || "").toLowerCase()
       const budgetValue = parseFloat(String(item.deliverablesAmount ?? "").replace(/[^0-9.]/g, "")) || 0
       const deliverablesValue = parseFloat(String(item.deliverables ?? "").replace(/[^0-9.]/g, "")) || 0
-      return buyType === "bonus" || budgetValue > 0 || deliverablesValue > 0
+      const grossValue = parseFloat(String(item.grossMedia ?? "").replace(/[^0-9.]/g, "")) || 0
+      return buyType === "bonus" || budgetValue > 0 || deliverablesValue > 0 || grossValue > 0
     }
 
     const resolvedPlanVersion = String(
@@ -3975,7 +5370,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       ooh: oohItems.filter(shouldIncludeLineItem),
       cinema: cinemaItems.filter(shouldIncludeLineItem),
       integration: integrationItems.filter(shouldIncludeLineItem),
-      production: [],
+      production: consultingItems.filter(shouldIncludeLineItem),
     }
 
     // MBA totals for Excel
@@ -4512,16 +5907,14 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     setProgOohItems(items);
   }, [markUnsavedChanges]);
 
-  // Add calculation functions
-  const calculateGrossMediaTotal = (): number => {
-    // If manual billing is active, sum the totals from the manual schedule
-    if (isManualBilling) {
-      return billingMonths.reduce((sum, month) => {
-        const monthMediaTotal = parseFloat(month.mediaTotal.replace(/[^0-9.-]/g, ""));
-        return sum + (monthMediaTotal || 0);
-      }, 0);
+  /** Sums **workingBillingMonths** when any rows exist so header totals match the billing table (including post-save). */
+  const calculateGrossMediaTotal = useCallback((): number => {
+    if (workingBillingMonths.length > 0) {
+      return workingBillingMonths.reduce((sum, month) => {
+        const monthMediaTotal = parseFloat(month.mediaTotal.replace(/[^0-9.-]/g, ""))
+        return sum + (monthMediaTotal || 0)
+      }, 0)
     }
-    // Sum all total state variables (matching create page pattern)
     return (
       (searchTotal ?? 0) +
       (socialmediaTotal ?? 0) +
@@ -4542,19 +5935,38 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       (newspaperTotal ?? 0) +
       (magazinesTotal ?? 0) +
       (oohTotal ?? 0)
-    );
-  };
+    )
+  }, [
+    workingBillingMonths,
+    searchTotal,
+    socialmediaTotal,
+    progAudioTotal,
+    cinemaTotal,
+    digitalAudioTotal,
+    digitalDisplayTotal,
+    digitalVideoTotal,
+    bvodTotal,
+    integrationTotal,
+    progDisplayTotal,
+    progVideoTotal,
+    progBvodTotal,
+    progOohTotal,
+    influencersTotal,
+    televisionTotal,
+    radioTotal,
+    newspaperTotal,
+    magazinesTotal,
+    oohTotal,
+  ])
 
-  const calculateAssembledFee = (): number => {
-    // If manual billing is active, sum the fee totals from the manual schedule
-    if (isManualBilling) {
-      return billingMonths.reduce((sum, month) => {
-        const monthFeeTotal = parseFloat(month.feeTotal.replace(/[^0-9.-]/g, ""));
-        return sum + (monthFeeTotal || 0);
-      }, 0);
+  const calculateAssembledFee = useCallback((): number => {
+    if (workingBillingMonths.length > 0) {
+      return workingBillingMonths.reduce((sum, month) => {
+        const monthFeeTotal = parseFloat(month.feeTotal.replace(/[^0-9.-]/g, ""))
+        return sum + (monthFeeTotal || 0)
+      }, 0)
     }
 
-    // Sum all container fee totals (matching create page pattern)
     return (
       (searchFeeTotal ?? 0) +
       (socialMediaFeeTotal ?? 0) +
@@ -4575,18 +5987,37 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       (newspaperFeeTotal ?? 0) +
       (magazinesFeeTotal ?? 0) +
       (oohFeeTotal ?? 0)
-    );
-  }
+    )
+  }, [
+    workingBillingMonths,
+    searchFeeTotal,
+    socialMediaFeeTotal,
+    progAudioFeeTotal,
+    cinemaFeeTotal,
+    digitalAudioFeeTotal,
+    digitalDisplayFeeTotal,
+    digitalVideoFeeTotal,
+    bvodFeeTotal,
+    integrationFeeTotal,
+    progDisplayFeeTotal,
+    progVideoFeeTotal,
+    progBvodFeeTotal,
+    progOohFeeTotal,
+    influencersFeeTotal,
+    televisionFeeTotal,
+    radioFeeTotal,
+    newspaperFeeTotal,
+    magazinesFeeTotal,
+    oohFeeTotal,
+  ])
 
-  const calculateAdServingFees = () => {
-    // If manual billing is active, sum the ad serving totals from the manual schedule
-    if (isManualBilling) {
-      return billingMonths.reduce((sum, month) => {
-        const monthAdServingTotal = parseFloat(month.adservingTechFees.replace(/[^0-9.-]/g, ""));
-        return sum + (monthAdServingTotal || 0);
-      }, 0);
+  const calculateAdServingFees = useCallback(() => {
+    if (workingBillingMonths.length > 0) {
+      return workingBillingMonths.reduce((sum, month) => {
+        const monthAdServingTotal = parseFloat(month.adservingTechFees.replace(/[^0-9.-]/g, ""))
+        return sum + (monthAdServingTotal || 0)
+      }, 0)
     }
-    // Original logic for automated calculation
     const allBursts = [
       ...progDisplayBursts,
       ...progVideoBursts,
@@ -4595,35 +6026,48 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       ...digitalAudioBursts,
       ...digitalDisplayBursts,
       ...digitalVideoBursts,
-      ...bvodBursts
+      ...bvodBursts,
     ]
     return allBursts.reduce((sum, b) => {
-      if (b.noAdserving) return sum;
+      if (b.noAdserving) return sum
       const rate = getRateForMediaType(b.mediaType)
       const buyType = b.buyType?.toLowerCase?.() || ""
       const isCPM = buyType === "cpm"
       const isBonus = buyType === "bonus"
-      const isDigiAudio = typeof b.mediaType === "string" && b.mediaType.toLowerCase().replace(/\s+/g, "") === "digiaudio"
+      const isDigiAudio =
+        typeof b.mediaType === "string" && b.mediaType.toLowerCase().replace(/\s+/g, "") === "digiaudio"
       const isCpmOrBonusForDigiAudio = isDigiAudio && (isCPM || isBonus)
       const effectiveRate = isCpmOrBonusForDigiAudio ? (adservaudio ?? rate) : rate
-      const cost  = isCpmOrBonusForDigiAudio
-        ? (b.deliverables/1000)*effectiveRate
+      const cost = isCpmOrBonusForDigiAudio
+        ? (b.deliverables / 1000) * effectiveRate
         : isCPM
-          ? (b.deliverables/1000)*rate
-          : (b.deliverables*rate)
-          return sum + cost
+          ? (b.deliverables / 1000) * rate
+          : b.deliverables * rate
+      return sum + cost
     }, 0)
-  }
+  }, [
+    workingBillingMonths,
+    progDisplayBursts,
+    progVideoBursts,
+    progBvodBursts,
+    progAudioBursts,
+    digitalAudioBursts,
+    digitalDisplayBursts,
+    digitalVideoBursts,
+    bvodBursts,
+    getRateForMediaType,
+    adservaudio,
+  ])
 
-  const calculateProductionCosts = () => {
-    if (billingMonths && billingMonths.length > 0) {
-      return billingMonths.reduce((sum, month) => {
+  const calculateProductionCosts = useCallback(() => {
+    if (workingBillingMonths && workingBillingMonths.length > 0) {
+      return workingBillingMonths.reduce((sum, month) => {
         const monthProduction = parseFloat((month.production || "0").toString().replace(/[^0-9.-]/g, ""))
         return sum + (monthProduction || 0)
       }, 0)
     }
     return 0
-  }
+  }, [workingBillingMonths])
 
   const calculateTotalInvestment = () => {
     return grossMediaTotal + calculateAssembledFee() + calculateAdServingFees() + calculateProductionCosts()
@@ -4679,8 +6123,78 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
   // --- Partial MBA Handlers ---
 
+  function getPartialMbaPrimaryBillingMonths(): BillingMonth[] {
+    return workingBillingMonths
+  }
+
+  function getPartialMbaRawMonthsForBaseline(): BillingMonth[] {
+    const primary = getPartialMbaPrimaryBillingMonths()
+    if (billingMonthsHaveDetailedLineItems(primary)) return primary
+    return autoDeliveryMonths.length > 0 ? autoDeliveryMonths : workingBillingMonths
+  }
+
+  function getPartialMbaLineItemMonths(): BillingMonth[] {
+    const primary = getPartialMbaPrimaryBillingMonths()
+    if (billingMonthsHaveDetailedLineItems(primary)) {
+      return deepCloneBillingMonths(primary)
+    }
+    const base = autoDeliveryMonths.length > 0 ? autoDeliveryMonths : workingBillingMonths
+    return attachLineItemsToMonths(deepCloneBillingMonths(base), "delivery")
+  }
+
+  function recomputePartialMBAFromLineItems(
+    nextMonthYears: string[],
+    nextSelectedIds: Record<string, string[]>,
+    nextEnabledMedia?: Record<string, boolean>
+  ): PartialMbaValues | null {
+    const deliveryMonthsRaw = getPartialMbaRawMonthsForBaseline()
+    if (!deliveryMonthsRaw.length) return null
+
+    const deliveryMonthsWithLineItems = getPartialMbaLineItemMonths()
+
+    const enabledMediaRows = mediaTypes
+      .filter((m) => m.name !== "mp_production")
+      .filter((m) => form.watch(m.name as keyof MediaPlanFormValues) && m.component)
+      .map((m) => ({ ...m, mediaKey: mediaKeyMap[m.name] }))
+      .filter((m) => Boolean((m as any).mediaKey))
+
+    const mediaKeys = enabledMediaRows.map((m) => (m as any).mediaKey as string)
+    const mediaLabelByKey = Object.fromEntries(
+      mediaTypes
+        .filter((m) => m.name !== "mp_production")
+        .map((m) => [mediaKeyMap[m.name], m.label])
+    ) as Record<string, string>
+
+    const enabledMedia = nextEnabledMedia ?? partialMBAMediaEnabled
+
+    const fmt = (n: number) =>
+      formatMoney(n, { locale: "en-US", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+    const { values, lineItemsByMedia, metadata } = recomputePartialMbaFromSelections({
+      deliveryMonthsForBaseline: deliveryMonthsRaw,
+      deliveryMonthsForLineItems: deliveryMonthsWithLineItems,
+      selectedMonthYears: nextMonthYears,
+      selectedLineItemIdsByMedia: nextSelectedIds,
+      mediaKeys,
+      enabledMedia,
+      mediaLabelByKey,
+      formatCurrency: fmt,
+    })
+
+    setPartialMBAValues(values)
+    setPartialMBALineItemsByMedia(lineItemsByMedia)
+    setPartialApprovalMetadata(metadata)
+    return values
+  }
+
   function handlePartialMBAOpen() {
-    const deliveryMonthsSource = autoDeliveryMonths.length > 0 ? autoDeliveryMonths : billingMonths
+    if (isPartialMBA) {
+      recomputePartialMBAFromLineItems(partialMBAMonthYears, partialMBASelectedLineItemIds, partialMBAMediaEnabled)
+      setIsPartialMBAModalOpen(true)
+      return
+    }
+
+    const deliveryMonthsRaw = getPartialMbaRawMonthsForBaseline()
 
     const enabledMediaRows = mediaTypes
       .filter((m) => m.name !== "mp_production")
@@ -4690,90 +6204,79 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
     const mediaKeys = enabledMediaRows.map((m) => (m as any).mediaKey as string)
     const enabledMap = Object.fromEntries(mediaKeys.map((k) => [k, true])) as Record<string, boolean>
-    const monthYears = deliveryMonthsSource.map((m) => m.monthYear)
+    const monthYears = deliveryMonthsRaw.map((m) => m.monthYear)
 
     setPartialMBAMediaEnabled(enabledMap)
     setPartialMBAMonthYears(monthYears)
 
-    const computed =
-      deliveryMonthsSource.length > 0
-        ? computePartialMbaOverridesFromDeliveryMonths({
-            deliveryMonths: deliveryMonthsSource,
-            selectedMonthYears: monthYears,
-            mediaKeys,
-            enabledMedia: enabledMap,
-          })
-        : (() => {
-            const currentMediaTotals: Record<string, number> = {}
-            enabledMediaRows.forEach((m) => {
-              const mediaKey = (m as any).mediaKey as string
-              currentMediaTotals[mediaKey] = calculateMediaTotal(m.name)
-            })
-            return {
-              mediaTotals: currentMediaTotals,
-              grossMedia: calculateGrossMediaTotal(),
-              assembledFee: calculateAssembledFee(),
-              adServing: calculateAdServingFees(),
-              production: calculateProductionCosts(),
-            }
-          })()
+    if (!deliveryMonthsRaw.length) {
+      const currentMediaTotals: Record<string, number> = {}
+      enabledMediaRows.forEach((m) => {
+        const mediaKey = (m as any).mediaKey as string
+        currentMediaTotals[mediaKey] = calculateMediaTotal(m.name)
+      })
+      const fallback = {
+        mediaTotals: currentMediaTotals,
+        grossMedia: calculateGrossMediaTotal(),
+        assembledFee: calculateAssembledFee(),
+        adServing: calculateAdServingFees(),
+        production: calculateProductionCosts(),
+      }
+      setPartialMBAValues(fallback)
+      setPartialMBALineItemsByMedia({})
+      setPartialMBASelectedLineItemIds({})
+      setPartialApprovalMetadata(null)
+      setOriginalPartialMBAValues(JSON.parse(JSON.stringify(fallback)))
+      setIsPartialMBAModalOpen(true)
+      return
+    }
 
-    setPartialMBAValues(computed)
-    setOriginalPartialMBAValues(JSON.parse(JSON.stringify(computed)))
+    const deliveryMonthsWithLineItems = getPartialMbaLineItemMonths()
+    const lineItemsMap = computeLineItemTotalsFromDeliveryMonths({
+      deliveryMonths: deliveryMonthsWithLineItems,
+      selectedMonthYears: monthYears,
+    })
+    const selectedIds = Object.fromEntries(
+      Object.entries(lineItemsMap).map(([mediaKey, items]) => [mediaKey, Object.keys(items)])
+    ) as Record<string, string[]>
+    setPartialMBASelectedLineItemIds(selectedIds)
+    const initialValues = recomputePartialMBAFromLineItems(monthYears, selectedIds, enabledMap)
+    if (initialValues) {
+      setOriginalPartialMBAValues(JSON.parse(JSON.stringify(initialValues)))
+    }
     setIsPartialMBAModalOpen(true)
   }
 
   function handlePartialMBAMonthsChange(nextMonthYears: string[]) {
-    const deliveryMonthsSource = autoDeliveryMonths.length > 0 ? autoDeliveryMonths : billingMonths
-
-    const enabledMediaRows = mediaTypes
-      .filter((m) => m.name !== "mp_production")
-      .filter((m) => form.watch(m.name as keyof MediaPlanFormValues) && m.component)
-      .map((m) => ({ ...m, mediaKey: mediaKeyMap[m.name] }))
-      .filter((m) => Boolean((m as any).mediaKey))
-
-    const mediaKeys = enabledMediaRows.map((m) => (m as any).mediaKey as string)
+    const deliveryMonthsRaw = getPartialMbaRawMonthsForBaseline()
 
     setPartialMBAMonthYears(nextMonthYears)
-    if (deliveryMonthsSource.length === 0) return
+    if (!deliveryMonthsRaw.length) return
 
-    const computed = computePartialMbaOverridesFromDeliveryMonths({
-      deliveryMonths: deliveryMonthsSource,
-      selectedMonthYears: nextMonthYears,
-      mediaKeys,
-      enabledMedia: partialMBAMediaEnabled,
-    })
-
-    setPartialMBAValues(computed)
+    recomputePartialMBAFromLineItems(nextMonthYears, partialMBASelectedLineItemIds)
   }
 
   function handlePartialMBAToggleMedia(mediaKey: string, enabled: boolean) {
-    setPartialMBAMediaEnabled((prev) => ({ ...prev, [mediaKey]: enabled }))
-
-    if (!enabled) {
-      setPartialMBAValues((prev) => {
-        const nextMediaTotals = { ...prev.mediaTotals, [mediaKey]: 0 }
-        const nextGross = Object.values(nextMediaTotals).reduce((sum, total) => sum + total, 0)
-        return { ...prev, mediaTotals: nextMediaTotals, grossMedia: nextGross }
-      })
-      return
+    const nextEnabled = { ...partialMBAMediaEnabled, [mediaKey]: enabled }
+    setPartialMBAMediaEnabled(nextEnabled)
+    const allIds = (partialMBALineItemsByMedia[mediaKey] || []).map((item) => item.lineItemId)
+    const nextSelected = {
+      ...partialMBASelectedLineItemIds,
+      [mediaKey]: enabled ? allIds : [],
     }
+    setPartialMBASelectedLineItemIds(nextSelected)
+    recomputePartialMBAFromLineItems(partialMBAMonthYears, nextSelected, nextEnabled)
+  }
 
-    const deliveryMonthsSource = autoDeliveryMonths.length > 0 ? autoDeliveryMonths : billingMonths
-    if (deliveryMonthsSource.length === 0) return
-
-    const restored = computePartialMbaOverridesFromDeliveryMonths({
-      deliveryMonths: deliveryMonthsSource,
-      selectedMonthYears: partialMBAMonthYears,
-      mediaKeys: [mediaKey],
-      enabledMedia: { [mediaKey]: true },
-    })
-
-    setPartialMBAValues((prev) => {
-      const nextMediaTotals = { ...prev.mediaTotals, [mediaKey]: restored.mediaTotals[mediaKey] || 0 }
-      const nextGross = Object.values(nextMediaTotals).reduce((sum, total) => sum + total, 0)
-      return { ...prev, mediaTotals: nextMediaTotals, grossMedia: nextGross }
-    })
+  function handlePartialMBAToggleLineItem(mediaKey: string, lineItemId: string, enabled: boolean) {
+    const existing = new Set(partialMBASelectedLineItemIds[mediaKey] || [])
+    if (enabled) existing.add(lineItemId)
+    else existing.delete(lineItemId)
+    const nextSelected = { ...partialMBASelectedLineItemIds, [mediaKey]: Array.from(existing) }
+    setPartialMBASelectedLineItemIds(nextSelected)
+    const nextEnabled = { ...partialMBAMediaEnabled, [mediaKey]: nextSelected[mediaKey].length > 0 }
+    setPartialMBAMediaEnabled(nextEnabled)
+    recomputePartialMBAFromLineItems(partialMBAMonthYears, nextSelected, nextEnabled)
   }
 
   function handlePartialMBAChange(
@@ -4822,11 +6325,24 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     setPartialMBAError(null)
     setIsPartialMBA(true);
     setIsPartialMBAModalOpen(false);
+    if (partialApprovalMetadata) {
+      setPartialApprovalMetadata({
+        ...partialApprovalMetadata,
+        totals: {
+          grossMedia: formatMoney(grossMedia, { locale: "en-US", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+          assembledFee: formatMoney(assembledFee, { locale: "en-US", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+          adServing: formatMoney(adServing, { locale: "en-US", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+          production: formatMoney(production, { locale: "en-US", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+          totalInvestment: formatMoney(newTotalInvestment, { locale: "en-US", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        },
+        updatedAt: new Date().toISOString(),
+      })
+    }
     toast({ title: "Success", description: "Partial MBA details have been saved." });
   }
 
   function handlePartialMBAReset() {
-    const deliveryMonthsSource = autoDeliveryMonths.length > 0 ? autoDeliveryMonths : billingMonths
+    const deliveryMonthsRaw = getPartialMbaRawMonthsForBaseline()
 
     const enabledMediaRows = mediaTypes
       .filter((m) => m.name !== "mp_production")
@@ -4836,23 +6352,32 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
     const mediaKeys = enabledMediaRows.map((m) => (m as any).mediaKey as string)
     const enabledMap = Object.fromEntries(mediaKeys.map((k) => [k, true])) as Record<string, boolean>
-    const monthYears = deliveryMonthsSource.map((m) => m.monthYear)
+    const monthYears = deliveryMonthsRaw.map((m) => m.monthYear)
 
     setPartialMBAMediaEnabled(enabledMap)
     setPartialMBAMonthYears(monthYears)
 
-    const computed =
-      deliveryMonthsSource.length > 0
-        ? computePartialMbaOverridesFromDeliveryMonths({
-            deliveryMonths: deliveryMonthsSource,
-            selectedMonthYears: monthYears,
-            mediaKeys,
-            enabledMedia: enabledMap,
-          })
-        : JSON.parse(JSON.stringify(originalPartialMBAValues))
+    if (!deliveryMonthsRaw.length) {
+      const computed = JSON.parse(JSON.stringify(originalPartialMBAValues))
+      setPartialMBAValues(computed)
+      setPartialMBALineItemsByMedia({})
+      setPartialMBASelectedLineItemIds({})
+      setPartialApprovalMetadata(null)
+      toast({ title: "Reset", description: "Values restored from snapshot." })
+      return
+    }
 
-    setPartialMBAValues(computed)
-    setOriginalPartialMBAValues(JSON.parse(JSON.stringify(computed)))
+    const deliveryMonthsWithLineItems = getPartialMbaLineItemMonths()
+    const lineItemsMap = computeLineItemTotalsFromDeliveryMonths({
+      deliveryMonths: deliveryMonthsWithLineItems,
+      selectedMonthYears: monthYears,
+    })
+    const selectedIds = Object.fromEntries(
+      Object.entries(lineItemsMap).map(([mediaKey, items]) => [mediaKey, Object.keys(items)])
+    ) as Record<string, string[]>
+    setPartialMBASelectedLineItemIds(selectedIds)
+    const v = recomputePartialMBAFromLineItems(monthYears, selectedIds, enabledMap)
+    if (v) setOriginalPartialMBAValues(JSON.parse(JSON.stringify(v)))
     toast({ title: "Reset", description: "Values have been recalculated from delivery months." })
   }
 
@@ -4868,96 +6393,17 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       calculateProductionCosts();
     setTotalInvestment(newTotalInvestment);
   }, [
-    //Digital Media
-    searchTotal,
-    searchFeeTotal,
-    searchBursts,
-   
-    socialmediaTotal,
-    socialMediaFeeTotal,
-    socialMediaBursts,
-
-    integrationTotal,
-    integrationFeeTotal,
-    integrationBursts,
- 
-    digitalAudioTotal,
-    digitalAudioBursts,
-    digitalAudioFeeTotal,
-
-    digitalDisplayTotal,
-    digitalDisplayBursts,
-    digitalDisplayFeeTotal,
-
-    digitalVideoTotal,
-    digitalVideoBursts,
-    digitalVideoFeeTotal,
-     
-    bvodTotal,
-    bvodFeeTotal,
-    bvodBursts,
-
-    progAudioTotal,
-    progAudioFeeTotal,
-    progAudioBursts,
-
-    progDisplayTotal,
-    progDisplayBursts,
-    progDisplayFeeTotal,
-
-    progVideoTotal,
-    progVideoFeeTotal,
-    progVideoBursts,
-
-    progBvodTotal,
-    progBvodBursts,
-    progBvodFeeTotal,
-
-    progOohTotal,
-    progOohBursts,
-    progOohFeeTotal,
-
-    //Offline Media
-    cinemaTotal,
-    cinemaFeeTotal,
-    cinemaBursts,
-
-    televisionTotal,
-    televisionFeeTotal,
-    televisionBursts,
-
-    radioTotal,
-    radioFeeTotal,
-    radioBursts,
-
-    newspaperTotal,
-    newspaperFeeTotal,
-    newspaperBursts,
-
-    magazinesTotal,
-    magazinesFeeTotal,
-    magazinesBursts,
-
-    oohTotal,
-    oohFeeTotal,
-    oohBursts,
-
-    influencersTotal,
-    influencersFeeTotal,
-    influencersBursts,
-
-    //Ad Serving
-    adservimp,
-    adservaudio,
-    adservdisplay,
-    adservvideo,
-
-    // Manual billing state
-    isManualBilling,
-    billingMonths,
+    calculateGrossMediaTotal,
+    calculateAssembledFee,
+    calculateAdServingFees,
+    calculateProductionCosts,
   ]);
 
-  // If campaign dates change, rebuild auto schedule; preserve manual state
+  /**
+   * Main page: append-only billing — new campaign months, media keys, and line-item ids. Waits for
+   * `autoReferenceBillingMonths` after `calculateBillingSchedule`; re-runs when line-item arrays gain rows
+   * (`billingLineItemsLengthFingerprint`) so enabling a media type then loading containers/API re-appends.
+   */
   useEffect(() => {
     if (!campaignStartDate || !campaignEndDate) return
 
@@ -4965,16 +6411,132 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     const endKey = toDateOnlyString(campaignEndDate)
     lastCampaignDatesRef.current = { start: startKey, end: endKey }
 
-    calculateBillingSchedule(campaignStartDate, campaignEndDate)
-  }, [campaignStartDate, campaignEndDate, calculateBillingSchedule])
+    const tid = window.setTimeout(() => {
+      calculateBillingSchedule(campaignStartDate, campaignEndDate)
 
-  // Recalculate billing schedule when data changes (matching create page pattern)
-  // Only recalculate if NOT manual billing (to preserve manual schedule)
+      const autoRef = autoReferenceBillingMonthsRef.current
+      const source = workingBillingMonthsRef.current
+
+      const fv = form.getValues() as Record<string, unknown>
+      const mediaRows: { flag: string; billingKey: string; items: any[] }[] = [
+        { flag: "mp_television", billingKey: "television", items: televisionMediaLineItems },
+        { flag: "mp_radio", billingKey: "radio", items: radioMediaLineItems },
+        { flag: "mp_newspaper", billingKey: "newspaper", items: newspaperMediaLineItems },
+        { flag: "mp_magazines", billingKey: "magazines", items: magazinesMediaLineItems },
+        { flag: "mp_ooh", billingKey: "ooh", items: oohMediaLineItems },
+        { flag: "mp_cinema", billingKey: "cinema", items: cinemaMediaLineItems },
+        { flag: "mp_digidisplay", billingKey: "digiDisplay", items: digitalDisplayMediaLineItems },
+        { flag: "mp_digiaudio", billingKey: "digiAudio", items: digitalAudioMediaLineItems },
+        { flag: "mp_digivideo", billingKey: "digiVideo", items: digitalVideoMediaLineItems },
+        { flag: "mp_bvod", billingKey: "bvod", items: bvodMediaLineItems },
+        { flag: "mp_integration", billingKey: "integration", items: integrationMediaLineItems },
+        { flag: "mp_production", billingKey: "production", items: consultingMediaLineItems },
+        { flag: "mp_search", billingKey: "search", items: searchMediaLineItems },
+        { flag: "mp_socialmedia", billingKey: "socialMedia", items: socialMediaMediaLineItems },
+        { flag: "mp_progdisplay", billingKey: "progDisplay", items: progDisplayMediaLineItems },
+        { flag: "mp_progvideo", billingKey: "progVideo", items: progVideoMediaLineItems },
+        { flag: "mp_progbvod", billingKey: "progBvod", items: progBvodMediaLineItems },
+        { flag: "mp_progaudio", billingKey: "progAudio", items: progAudioMediaLineItems },
+        { flag: "mp_progooh", billingKey: "progOoh", items: progOohMediaLineItems },
+        { flag: "mp_influencers", billingKey: "influencers", items: influencersMediaLineItems },
+      ]
+
+      const enabledFlags = mediaRows.filter((r) => fv[r.flag]).map((r) => r.flag)
+      const enabledMissingLineItems = mediaRows
+        .filter((r) => fv[r.flag] && !isMediaTypeReadyForBillingAppend(true, r.items))
+        .map((r) => r.billingKey)
+      const enabledWithLineItems = mediaRows
+        .filter((r) => fv[r.flag] && isMediaTypeReadyForBillingAppend(true, r.items))
+        .map((r) => r.billingKey)
+
+      const pendingEmptyLineSlots = billingStructureKeyHasPendingEmptyLineSlots(billingPlanStructureKey)
+
+      if (autoRef.length === 0) {
+        billingAppendDebug("append skipped: autoReferenceBillingMonths empty", {
+          billingPlanStructureKey,
+          pendingEmptyLineSlots,
+          enabledFlags,
+          enabledMissingLineItems,
+          enabledWithLineItems,
+          workingMonths: source.length,
+          lineItemsFingerprint: billingLineItemsLengthFingerprint,
+          isManualBilling,
+        })
+        return
+      }
+
+      const formatter = new Intl.NumberFormat("en-AU", {
+        style: "currency",
+        currency: "AUD",
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })
+
+      billingAppendDebug("append readiness", {
+        billingPlanStructureKey,
+        pendingEmptyLineSlots,
+        autoRefMonths: autoRef.length,
+        workingMonths: source.length,
+        isManualBilling,
+        enabledFlags,
+        enabledMissingLineItems,
+        enabledWithLineItems,
+        lineItemsFingerprint: billingLineItemsLengthFingerprint,
+      })
+
+      const merged = appendAutoReferenceIntoWorkingBilling(
+        source,
+        autoRef,
+        formatter,
+        attachLineItemsToMonths
+      )
+      setWorkingBillingMonths(merged)
+      workingBillingMonthsRef.current = merged
+
+      billingAppendDebug("append applied", {
+        outputMonths: merged.length,
+        billingPlanStructureKey,
+        pendingEmptyLineSlots,
+      })
+    }, 250)
+
+    return () => window.clearTimeout(tid)
+  }, [
+    campaignStartDate,
+    campaignEndDate,
+    billingPlanStructureKey,
+    billingLineItemsLengthFingerprint,
+    autoReferenceBillingMonths.length,
+    attachLineItemsToMonths,
+    calculateBillingSchedule,
+    isManualBilling,
+    form,
+    televisionMediaLineItems,
+    radioMediaLineItems,
+    newspaperMediaLineItems,
+    magazinesMediaLineItems,
+    oohMediaLineItems,
+    cinemaMediaLineItems,
+    digitalDisplayMediaLineItems,
+    digitalAudioMediaLineItems,
+    digitalVideoMediaLineItems,
+    bvodMediaLineItems,
+    integrationMediaLineItems,
+    consultingMediaLineItems,
+    searchMediaLineItems,
+    socialMediaMediaLineItems,
+    progDisplayMediaLineItems,
+    progVideoMediaLineItems,
+    progBvodMediaLineItems,
+    progAudioMediaLineItems,
+    progOohMediaLineItems,
+    influencersMediaLineItems,
+  ])
+
+  // Refresh burst-derived auto reference when bursts/totals change (does not write working — append effect applies deltas).
   useEffect(() => {
-    if (isManualBilling) return; // Don't recalculate if manual billing is active
-    
     if (campaignStartDate && campaignEndDate) {
-      calculateBillingSchedule(campaignStartDate, campaignEndDate);
+      calculateBillingSchedule(campaignStartDate, campaignEndDate)
     }
   }, [
     campaignStartDate,
@@ -5043,7 +6605,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     adservaudio,
     adservdisplay,
     adservvideo,
-    isManualBilling,
     calculateBillingSchedule
   ]);
 
@@ -5068,56 +6629,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       }),
     []
   )
-
-  const handleBillingScheduleChange = useCallback((schedule: BillingScheduleType) => {
-    setBillingSchedule(schedule);
-    setBillingScheduleData({
-      months: schedule.map(entry => ({
-        monthYear: entry.month,
-        mediaTypeAmounts: {
-          search: {
-            media: entry.searchAmount,
-            fee: entry.searchAmount * (feesearch || 0) / 100,
-            isOverridden: false,
-            manualMediaAmount: null,
-            manualFeeAmount: null
-          },
-          social: {
-            media: entry.socialAmount,
-            fee: entry.socialAmount * (feesocial || 0) / 100,
-            isOverridden: false,
-            manualMediaAmount: null,
-            manualFeeAmount: null
-          }
-        },
-        totalAmount: entry.totalAmount
-      })),
-      overrides: [],
-      isManual: isManualBilling,
-      campaignId: mbaNumber || ""
-    });
-  }, [feesearch, feesocial, isManualBilling, mbaNumber]);
-
-  // Memoize BillingSchedule props to prevent re-renders
-  const memoizedSearchBursts = useMemo(() => searchBursts.map(burst => ({
-    startDate: new Date(burst.startDate),
-    endDate: new Date(burst.endDate),
-    budget: Number(burst.budget),
-    mediaType: 'search',
-    feePercentage: feesearch || 0,
-    clientPaysForMedia: Boolean((burst as any).clientPaysForMedia ?? (burst as any).client_pays_for_media),
-    budgetIncludesFees: Boolean((burst as any).budgetIncludesFees ?? (burst as any).budget_includes_fees)
-  })), [searchBursts, feesearch]);
-
-  const memoizedSocialMediaBursts = useMemo(() => socialMediaBursts.map(burst => ({
-    startDate: new Date(burst.startDate),
-    endDate: new Date(burst.endDate),
-    budget: Number(burst.budget),
-    mediaType: 'social',
-    feePercentage: feesocial || 0,
-    clientPaysForMedia: Boolean((burst as any).clientPaysForMedia ?? (burst as any).client_pays_for_media),
-    budgetIncludesFees: Boolean((burst as any).budgetIncludesFees ?? (burst as any).budget_includes_fees)
-  })), [socialMediaBursts, feesocial]);
 
   const formatVersionDate = useCallback((value: any) => {
     if (!value) return 'Unknown date'
@@ -5285,7 +6796,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         breadcrumbs: ["Media Plans", "Edit"],
       },
     };
-  }, [clientNameToSlug, form, mbaNumber, mediaTypes, pathname]);
+  }, [clientNameToSlug, form, mbaNumber, pathname]);
 
   const handleSetField = useCallback(
     async ({ fieldId, selector, value }: { fieldId?: string; selector?: string; value: any }) => {
@@ -5372,7 +6883,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <h2 className="text-2xl font-semibold mb-2">Loading...</h2>
-          <p className="text-gray-500">Please wait while we load your media plan.</p>
+          <p className="text-muted-foreground">Please wait while we load your media plan.</p>
         </div>
       </div>
     )
@@ -5383,7 +6894,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <h2 className="text-2xl font-semibold mb-2">Error</h2>
-          <p className="text-gray-500">{error}</p>
+          <p className="text-muted-foreground">{error}</p>
           <Button onClick={() => router.push("/mediaplans")} className="mt-4">
             Return to Media Plans
           </Button>
@@ -5394,80 +6905,120 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
   return (
     <div
-      className="w-full px-4 py-6 space-y-4"
+      className="w-full min-h-screen"
       style={{
         // Always keep iOS home-indicator / mobile browser UI from covering content
         paddingBottom: "env(safe-area-inset-bottom)",
       }}
     >
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-3">
-          <h1 className="text-3xl font-bold">Edit Campaign</h1>
-          <div className="text-sm text-gray-500">
-            MBA: {mbaNumber}
-          </div>
-        </div>
-        <Button variant="outline" size="sm" type="button" onClick={handleCopyPageContext}>
-          Copy Page Context
-        </Button>
-      </div>
+      <div className="mx-auto w-full max-w-[1920px] px-4 sm:px-5 md:px-6 xl:px-8 2xl:px-10 pt-0 pb-24 space-y-6">
+        <MediaPlanEditorHero
+          className="mb-2"
+          title="Edit Campaign"
+          detail={
+            <p>Update campaign settings, media types, and line item details.</p>
+          }
+          actions={
+            <Button
+              variant="ghost"
+              size="sm"
+              type="button"
+              className="text-xs"
+              onClick={handleCopyPageContext}
+            >
+              Copy Context
+            </Button>
+          }
+        />
 
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="text-sm text-gray-700 space-y-1">
-          <div>Current version: {selectedVersionNumber ?? mediaPlan?.version_number ?? "—"}</div>
-          <div>Next save version: {nextSaveVersionNumber ?? ((latestVersionNumber || 0) + 1)}</div>
-        </div>
-        {latestVersionNumber > 1 && availableVersions.length > 0 && (
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-600">Load version</span>
-            <Combobox
-              value={selectedVersionNumber ? String(selectedVersionNumber) : ""}
-              onValueChange={handleVersionSelect}
-              placeholder="Select version"
-              searchPlaceholder="Search versions..."
-              buttonClassName="w-32"
-              options={[...availableVersions].map((v) => ({
-                value: String(v.version_number),
-                label: `v${v.version_number}`,
-              }))}
-            />
-          </div>
-        )}
-      </div>
+        <div className="w-full">
+          <Dialog open={rollbackModalOpen} onOpenChange={setRollbackModalOpen}>
+            <DialogContent className="overflow-hidden p-0 sm:max-w-lg">
+              <div className="h-1 bg-gradient-to-r from-primary via-primary/70 to-primary/40" />
+              <div className="p-6">
+                <DialogHeader>
+                  <DialogTitle>Load version v{rollbackTargetVersion}</DialogTitle>
+                </DialogHeader>
+                <p className="text-sm text-foreground">
+                  Load the selected version? Unsaved changes on this page will be lost.
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Created at: {formatVersionDate(rollbackTargetCreatedAt)}
+                </p>
+                <DialogFooter className="pt-4">
+                  <Button variant="outline" onClick={() => setRollbackModalOpen(false)}>No</Button>
+                  <Button onClick={handleConfirmRollback}>Yes, load version</Button>
+                </DialogFooter>
+              </div>
+            </DialogContent>
+          </Dialog>
 
-      <Dialog open={rollbackModalOpen} onOpenChange={setRollbackModalOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Load version v{rollbackTargetVersion}</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-gray-700">
-            Load the selected version? Unsaved changes on this page will be lost.
-          </p>
-          <p className="text-xs text-gray-500 mt-1">
-            Created at: {formatVersionDate(rollbackTargetCreatedAt)}
-          </p>
-          <DialogFooter className="pt-4">
-            <Button variant="outline" onClick={() => setRollbackModalOpen(false)}>No</Button>
-            <Button onClick={handleConfirmRollback}>Yes, load version</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Form {...form}>
-        <form className="w-full space-y-6">
-          <div className="space-y-6">
-            <h3 className="text-lg font-semibold">Campaign Details</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <Form {...form}>
+          <form className="space-y-6">
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 xl:gap-7 2xl:gap-8 xl:items-stretch">
+            <div className="flex h-full min-w-0 flex-col gap-4 overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm xl:col-span-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Campaign Details</h3>
+              <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                <span>v{selectedVersionNumber ?? mediaPlan?.version_number ?? "—"}</span>
+                <span className="text-border">•</span>
+                <span>Next: v{nextSaveVersionNumber ?? (latestVersionNumber || 0) + 1}</span>
+                {latestVersionNumber > 1 && availableVersions.length > 0 && (
+                  <Combobox
+                    value={selectedVersionNumber ? String(selectedVersionNumber) : ""}
+                    onValueChange={handleVersionSelect}
+                    placeholder="Load version"
+                    searchPlaceholder="Search versions..."
+                    buttonClassName="h-7 w-28 text-xs"
+                    options={[...availableVersions].map((v) => ({
+                      value: String(v.version_number),
+                      label: `v${v.version_number}`,
+                    }))}
+                  />
+                )}
+              </div>
+            </div>
+            <div className="grid w-full flex-1 grid-cols-1 gap-4 px-6 pb-6 md:grid-cols-2 xl:grid-cols-3">
               <FormField
                 control={form.control}
                 name="mp_clientname"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Client Name</FormLabel>
+                    <FormLabel className="text-sm font-medium text-muted-foreground">Client Name</FormLabel>
                     <FormControl>
                       <Input {...field} disabled />
                     </FormControl>
-                    <FormDescription>Client cannot be changed for existing campaigns.</FormDescription>
+                    <FormDescription className="text-[11px]">
+                      Client cannot be changed for existing campaigns.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="mp_campaignname"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-sm font-medium text-muted-foreground">Campaign Name</FormLabel>
+                    <FormControl>
+                      <Input {...field} value={String(field.value)} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="mp_brand"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-sm font-medium text-muted-foreground">Brand</FormLabel>
+                    <FormControl>
+                      <Input {...field} value={String(field.value)} />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -5478,7 +7029,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 name="mp_campaignstatus"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Campaign Status</FormLabel>
+                    <FormLabel className="text-sm font-medium text-muted-foreground">Campaign Status</FormLabel>
                     <FormControl>
                       <Combobox
                         value={field.value}
@@ -5502,104 +7053,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
               <FormField
                 control={form.control}
-                name="mp_campaignname"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Campaign Name</FormLabel>
-                    <FormControl>
-                      <Input {...field} value={String(field.value)} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="mp_brand"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Brand</FormLabel>
-                    <FormControl>
-                      <Input {...field} value={String(field.value)} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="mp_campaigndates_start"
-                render={({ field }) => (
-                  <FormItem className="flex flex-col">
-                    <FormLabel>Campaign Start Date</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            variant={"outline"}
-                            className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
-                          >
-                            {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={field.value}
-                          onSelect={field.onChange}
-                          disabled={(date) => date > new Date("2100-01-01")}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="mp_campaigndates_end"
-                render={({ field }) => (
-                  <FormItem className="flex flex-col">
-                    <FormLabel>Campaign End Date</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            variant={"outline"}
-                            className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
-                          >
-                            {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={field.value}
-                          onSelect={field.onChange}
-                          disabled={(date) => date > new Date("2100-01-01")}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
                 name="mp_clientcontact"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Client Contact</FormLabel>
+                    <FormLabel className="text-sm font-medium text-muted-foreground">Client Contact</FormLabel>
                     <FormControl>
                       <Input {...field} />
                     </FormControl>
@@ -5613,9 +7070,61 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 name="mp_ponumber"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>PO Number</FormLabel>
+                    <FormLabel className="text-sm font-medium text-muted-foreground">PO Number</FormLabel>
                     <FormControl>
                       <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="mp_campaigndates_start"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-sm font-medium text-muted-foreground">Campaign Start Date</FormLabel>
+                    <FormControl>
+                      <SingleDatePicker
+                        ref={field.ref}
+                        name={field.name}
+                        onBlur={field.onBlur}
+                        value={field.value}
+                        onChange={field.onChange}
+                        className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
+                        calendarContext="general"
+                        dateFormat="PPP"
+                        placeholder={<span>Pick a date</span>}
+                        iconClassName="ml-auto h-4 w-4 opacity-50"
+                        isDateDisabled={(date) => date > new Date("2100-01-01")}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="mp_campaigndates_end"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-sm font-medium text-muted-foreground">Campaign End Date</FormLabel>
+                    <FormControl>
+                      <SingleDatePicker
+                        ref={field.ref}
+                        name={field.name}
+                        onBlur={field.onBlur}
+                        value={field.value}
+                        onChange={field.onChange}
+                        className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
+                        calendarContext="general"
+                        dateFormat="PPP"
+                        placeholder={<span>Pick a date</span>}
+                        iconClassName="ml-auto h-4 w-4 opacity-50"
+                        isDateDisabled={(date) => date > new Date("2100-01-01")}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -5627,7 +7136,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 name="mp_campaignbudget"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Campaign Budget</FormLabel>
+                    <FormLabel className="text-sm font-medium text-muted-foreground">Campaign Budget</FormLabel>
                     <FormControl>
                       <Input
                         type="text"
@@ -5638,9 +7147,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                         }}
                         onBlur={(e) => {
                           const value = e.target.value.replace(/[^0-9.]/g, "")
-                          const formattedValue = new Intl.NumberFormat("en-US", {
+                          const formattedValue = new Intl.NumberFormat("en-AU", {
                             style: "currency",
-                            currency: "USD",
+                            currency: "AUD",
                           }).format(Number(value) || 0)
                           e.target.value = formattedValue
                         }}
@@ -5656,9 +7165,18 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 name="mbaidentifier"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>MBA Identifier</FormLabel>
-                    <div className="p-2 bg-gray-100 rounded-md">{field.value || "No client selected"}</div>
-                    <FormDescription>This field is automatically populated based on the selected client.</FormDescription>
+                    <FormLabel className="text-sm font-medium text-muted-foreground">MBA Identifier</FormLabel>
+                    <div
+                      className={cn(
+                        "flex h-10 w-full items-center rounded-md border border-border/40 bg-muted/30 px-3 py-2 text-sm text-foreground",
+                        !field.value && "text-muted-foreground"
+                      )}
+                    >
+                      <span className="truncate">{field.value || "No client selected"}</span>
+                    </div>
+                    <FormDescription className="text-[11px]">
+                      This field is automatically populated based on the selected client.
+                    </FormDescription>
                   </FormItem>
                 )}
               />
@@ -5668,202 +7186,171 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 name="mbanumber"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>MBA Number</FormLabel>
-                    <div className="p-2 bg-gray-100 rounded-md">{field.value || "No MBA Number generated"}</div>
-                    <FormDescription>This field is automatically generated based on the MBA Identifier.</FormDescription>
+                    <FormLabel className="text-sm font-medium text-muted-foreground">MBA Number</FormLabel>
+                    <div
+                      className={cn(
+                        "flex h-10 w-full items-center rounded-md border border-border/40 bg-muted/30 px-3 py-2 text-sm text-foreground",
+                        !field.value && "text-muted-foreground"
+                      )}
+                    >
+                      <span className="truncate">{field.value || "No MBA Number generated"}</span>
+                    </div>
+                    <FormDescription className="text-[11px]">
+                      This field is automatically generated when the campaign is saved.
+                    </FormDescription>
                   </FormItem>
                 )}
               />
 
-              <div className="space-y-2">
-                <div className="flex gap-4">
-                  <FormItem className="flex-1">
-                    <FormLabel>Editing Version</FormLabel>
-                    <div className="p-2 bg-gray-100 rounded-md">{mediaPlan?.version_number || 1}</div>
+              <FormField
+                control={form.control}
+                name="mp_plannumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-sm font-medium text-muted-foreground">Media Plan Version</FormLabel>
+                    <div className="flex h-10 w-full items-center rounded-md border border-border/40 bg-muted/30 px-3 py-2 text-sm text-foreground">
+                      <span className="truncate">{field.value || String(selectedVersionNumber ?? mediaPlan?.version_number ?? 1)}</span>
+                    </div>
+                    <FormDescription className="text-[11px]">This is the media plan version you are editing.</FormDescription>
                   </FormItem>
-                  <FormItem className="flex-1">
-                    <FormLabel>Will Save As Version</FormLabel>
-                    <div className="p-2 bg-gray-100 rounded-md">{(mediaPlan?.version_number || 1) + 1}</div>
-                  </FormItem>
-                </div>
-                <FormDescription>Version information for this edit session.</FormDescription>
-              </div>
+                )}
+              />
             </div>
           </div>
 
-          <div className="space-y-6">
-            <h3 className="text-lg font-semibold">Media Types</h3>
-            <div className="border border-gray-200 rounded-lg p-6 mt-6">
-              <h2 className="text-xl font-semibold mb-4">Select Media Types</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 w-full">
-                {mediaTypes.map(({ name, label }) => (
-                  <FormField
-                    key={name}
-                    control={form.control}
-                    name={name as FormFieldName}
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-center space-x-3 space-y-0">
-                        <FormControl>
-                          <Switch
-                            checked={field.value as boolean}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                        <FormLabel className="font-normal">{label}</FormLabel>
-                      </FormItem>
-                    )}
-                  />
-                ))}
-              </div>
+          <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm xl:col-span-1">
+            <div className="border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Media Types</h3>
+            </div>
+            <div className="grid min-h-0 w-full flex-1 grid-cols-1 content-start gap-x-3 gap-y-1.5 px-6 py-4 md:grid-cols-2">
+              {mediaTypes.map(({ name, label }) => (
+                <FormField
+                  key={name}
+                  control={form.control}
+                  name={name as FormFieldName}
+                  render={({ field }) => (
+                    <FormItem className="flex items-center gap-3 space-y-0 py-0.5">
+                      <FormControl className="shrink-0">
+                        <Switch
+                          checked={field.value as boolean}
+                          onCheckedChange={(checked) => {
+                            field.onChange(checked)
+                            if (name === "mp_production") {
+                              form.setValue("mp_production", checked, { shouldDirty: true })
+                            }
+                          }}
+                        />
+                      </FormControl>
+                      <FormLabel className="font-normal leading-snug min-w-0 flex-1 cursor-pointer">{label}</FormLabel>
+                    </FormItem>
+                  )}
+                />
+              ))}
             </div>
           </div>
+          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6 items-stretch">
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 xl:gap-7 2xl:gap-8 xl:items-stretch">
             {/* MBA Details Section */}
-            <div className="border border-gray-300 rounded-lg p-6 flex flex-col space-y-4 h-full">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold mb-4">MBA Details</h3>
-                {isPartialMBA ? (
-                  <Button variant="outline" size="sm" type="button" onClick={() => setIsPartialMBA(false)}>Reset to Auto</Button>
-                ) : (
-                  <Button variant="outline" size="sm" type="button" onClick={handlePartialMBAOpen}>Partial MBA</Button>
-                )}
-              </div>
-              
-              {/* Dynamic Media Totals */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="flex flex-col space-y-3">
-                  {mediaTypes
-                    .filter((medium) => medium.name !== "mp_production")
-                    .map((medium) => {
-                      const isEnabled = form.watch(medium.name as FormFieldName);
-                      if (isEnabled) {
-                        return (
-                          <div key={medium.name} className="text-sm font-medium">
-                            {medium.label}
-                          </div>
-                        );
-                      }
-                      return null;
-                    })}
-                </div>
-
-                {/* Corresponding Media Totals */}
-                <div className="flex flex-col space-y-3 text-right">
-                  {mediaTypes
-                    .filter((medium) => medium.name !== "mp_production")
-                    .map((medium) => {
-                      const isEnabled = form.watch(medium.name as FormFieldName);
-                      if (isEnabled) {
-                        const mediaKey = mediaKeyMap[medium.name];
-                        const total = isPartialMBA ? partialMBAValues.mediaTotals[mediaKey] || 0 : calculateMediaTotal(medium.name);
-                        return (
-                          <div key={medium.name} className="text-sm font-medium">
-                            {formatMoney(total, {
-                              locale: "en-US",
-                              currency: "USD",
-                              minimumFractionDigits: 2,
-                              maximumFractionDigits: 2,
-                            })}
-                          </div>
-                        );
-                      }
-                      return null;
-                    })}
-                </div>
-              </div>
-
-              {/* Separator */}
-              <div className="border-t border-gray-400 my-4"></div>
-
-              {/* Gross Media Total */}
-              <div className="grid grid-cols-2 gap-4 mb-2">
-                <div className="text-sm font-semibold">Gross Media Total</div>
-                <div className="text-sm font-semibold text-right">
-                  {formatMoney(isPartialMBA ? partialMBAValues.grossMedia : grossMediaTotal, {
-                    locale: "en-US",
-                    currency: "USD",
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
-                </div>
-              </div>
-
-              {/* Assembled Fee */}
-              <div className="grid grid-cols-2 gap-4 mb-2">
-                <div className="text-sm font-semibold">Assembled Fee</div>
-                <div className="text-sm font-semibold text-right">
-                  {formatMoney(
-                    isPartialMBA ? partialMBAValues.assembledFee : calculateAssembledFee(),
-                    {
-                      locale: "en-US",
-                      currency: "USD",
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    }
+            <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm">
+              <div className="flex items-center justify-between border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
+                <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">MBA Details</h3>
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  {isPartialMBA ? (
+                    <>
+                      <Button variant="outline" size="sm" type="button" className="shrink-0" onClick={handlePartialMBAOpen}>
+                        Edit partial MBA
+                      </Button>
+                      <Button variant="outline" size="sm" type="button" className="shrink-0" onClick={() => setIsPartialMBA(false)}>
+                        Reset to Auto
+                      </Button>
+                    </>
+                  ) : (
+                    <Button variant="outline" size="sm" type="button" className="shrink-0" onClick={handlePartialMBAOpen}>
+                      Partial MBA
+                    </Button>
                   )}
                 </div>
               </div>
-
-              {/* Ad Serving and Tech Fees */}
-              <div className="grid grid-cols-2 gap-4 mb-2">
-                <div className="text-sm font-semibold">Ad Serving & Tech Fees</div>
-                <div className="text-sm font-semibold text-right">
-                  {formatMoney(isPartialMBA ? partialMBAValues.adServing : calculateAdServingFees(), {
-                    locale: "en-US",
-                    currency: "USD",
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
+              <div className="space-y-3 px-6 py-4">
+                {mediaTypes
+                  .filter((medium) => medium.name !== "mp_production")
+                  .filter((medium) => form.watch(medium.name as FormFieldName))
+                  .map((medium) => {
+                    const mediaKey = mediaKeyMap[medium.name];
+                    const total = isPartialMBA
+                      ? partialMBAValues.mediaTotals[mediaKey] || 0
+                      : calculateMediaTotal(medium.name);
+                    return (
+                      <div key={medium.name} className="flex items-center justify-between py-1">
+                        <span className="text-sm text-muted-foreground">{medium.label}</span>
+                        <span className="text-sm font-medium tabular-nums">
+                          {mbaCurrencyFormatter.format(total)}
+                        </span>
+                      </div>
+                    );
                   })}
+                <div className="border-t border-border/40" />
+                <div className="flex items-center justify-between py-1">
+                  <span className="text-sm font-semibold">Gross Media</span>
+                  <span className="text-sm font-semibold tabular-nums">
+                    {mbaCurrencyFormatter.format(isPartialMBA ? partialMBAValues.grossMedia : grossMediaTotal)}
+                  </span>
                 </div>
-              </div>
-
-              {/* Production Costs */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="text-sm font-semibold">Production</div>
-                <div className="text-sm font-semibold text-right">
-                  {formatMoney(isPartialMBA ? partialMBAValues.production : calculateProductionCosts(), {
-                    locale: "en-US",
-                    currency: "USD",
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
+                <div className="flex items-center justify-between py-1">
+                  <span className="text-sm font-semibold">Assembled Fee</span>
+                  <span className="text-sm font-semibold tabular-nums">
+                    {mbaCurrencyFormatter.format(isPartialMBA ? partialMBAValues.assembledFee : calculateAssembledFee())}
+                  </span>
                 </div>
-              </div>
-
-              {/* Total Investment (ex GST) */}
-              <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-gray-400">
-                <div className="text-sm font-bold">Total Investment (ex GST)</div>
-                <div className="text-sm font-bold text-right">
-                  {formatMoney(
-                    isPartialMBA
-                      ? partialMBAValues.grossMedia +
-                          partialMBAValues.assembledFee +
-                          partialMBAValues.adServing +
-                          partialMBAValues.production
-                      : calculateTotalInvestment(),
-                    {
-                      locale: "en-US",
-                      currency: "USD",
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    }
-                  )}
+                <div className="flex items-center justify-between py-1">
+                  <span className="text-sm font-semibold">Ad Serving & Tech</span>
+                  <span className="text-sm font-semibold tabular-nums">
+                    {mbaCurrencyFormatter.format(isPartialMBA ? partialMBAValues.adServing : calculateAdServingFees())}
+                  </span>
                 </div>
+                <div className="flex items-center justify-between py-1">
+                  <span className="text-sm font-semibold">Production</span>
+                  <span className="text-sm font-semibold tabular-nums">
+                    {mbaCurrencyFormatter.format(isPartialMBA ? partialMBAValues.production : calculateProductionCosts())}
+                  </span>
+                </div>
+                <div className="border-t-2 border-primary/20 pt-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-bold">Total Investment (ex GST)</span>
+                    <span className="text-sm font-bold tabular-nums text-primary">
+                      {mbaCurrencyFormatter.format(
+                        isPartialMBA
+                          ? partialMBAValues.grossMedia +
+                              partialMBAValues.assembledFee +
+                              partialMBAValues.adServing +
+                              partialMBAValues.production
+                          : calculateTotalInvestment()
+                      )}
+                    </span>
+                  </div>
+                </div>
+                {isPartialMBA && partialApprovalMetadata?.note ? (
+                  <div className="mt-3 rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
+                    <div className="mb-1 font-semibold text-foreground">Partial approval changes</div>
+                    <div>{partialApprovalMetadata.note}</div>
+                  </div>
+                ) : null}
               </div>
             </div>
 
-            {/* Billing Schedule Section */}
-            <div className="border border-gray-300 rounded-lg p-6 flex flex-col h-full">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold">Billing Schedule</h3>
-                {isManualBilling ? (
-                  <Button onClick={handleResetBilling} type="button">Reset Billing</Button>
-                ) : (
-                  <Button onClick={handleManualBillingOpen} type="button">Manual Billing</Button>
-                )}
+            {/* Billing Schedule Section — summary grid; detail/line edits are in Manual Billing. New months/media/lines merge in via append-only logic without full reset. */}
+            <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
+                <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Billing Schedule</h3>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button onClick={handleManualBillingOpen} type="button" className="shrink-0">
+                    Edit Billing
+                  </Button>
+                </div>
               </div>
-              <Table>
+              <div className="min-w-0 flex-1 overflow-x-auto px-6 py-4">
+              <Table className="min-w-[40rem]">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Month</TableHead>
@@ -5875,14 +7362,14 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {billingMonths.length === 0 ? (
+                  {workingBillingMonths.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center text-gray-500">
+                      <TableCell colSpan={6} className="text-center text-muted-foreground">
                         No billing schedule available. Select campaign dates to generate.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    billingMonths.map(m => (
+                    workingBillingMonths.map(m => (
                       <TableRow key={m.monthYear}>
                         <TableCell>{m.monthYear}</TableCell>
                         <TableCell align="right">{m.mediaTotal}</TableCell>
@@ -5893,35 +7380,50 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                       </TableRow>
                     ))
                   )}
-                  {billingMonths.length > 0 && (
+                  {workingBillingMonths.length > 0 && (
                     <TableRow className="font-bold">
                       <TableCell>Grand Total</TableCell>
                       <TableCell align="right">
                         {new Intl.NumberFormat("en-AU", { style:"currency", currency:"AUD", minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                          .format(billingMonths.reduce((acc, m) => acc + parseFloat(m.mediaTotal.replace(/[^0-9.-]/g,"")), 0))}
+                          .format(workingBillingMonths.reduce((acc, m) => acc + parseFloat(m.mediaTotal.replace(/[^0-9.-]/g,"")), 0))}
                       </TableCell>
                       <TableCell align="right">
                         {new Intl.NumberFormat("en-AU", { style:"currency", currency:"AUD", minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                          .format(billingMonths.reduce((acc, m) => acc + parseFloat(m.feeTotal.replace(/[^0-9.-]/g,"")), 0))}
+                          .format(workingBillingMonths.reduce((acc, m) => acc + parseFloat(m.feeTotal.replace(/[^0-9.-]/g,"")), 0))}
                       </TableCell>
                       <TableCell align="right">
                         {new Intl.NumberFormat("en-AU", { style:"currency", currency:"AUD", minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                          .format(billingMonths.reduce((acc, m) => acc + parseFloat(m.adservingTechFees.replace(/[^0-9.-]/g,"")), 0))}
+                          .format(workingBillingMonths.reduce((acc, m) => acc + parseFloat(m.adservingTechFees.replace(/[^0-9.-]/g,"")), 0))}
                       </TableCell>
                       <TableCell align="right">
                         {new Intl.NumberFormat("en-AU", { style:"currency", currency:"AUD", minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                          .format(billingMonths.reduce((acc, m) => acc + parseFloat((m.production || "$0").replace(/[^0-9.-]/g,"")), 0))}
+                          .format(workingBillingMonths.reduce((acc, m) => acc + parseFloat((m.production || "$0").replace(/[^0-9.-]/g,"")), 0))}
                       </TableCell>
-                      <TableCell align="right" className="font-semibold">{billingTotal}</TableCell>
+                      <TableCell align="right" className="font-semibold">{billingTotalDisplayFromWorking}</TableCell>
                     </TableRow>
                   )}
                 </TableBody>
               </Table>
+              </div>
             </div>
-          </div>
+
+              <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm">
+                <div className="border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
+                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">KPIs</h3>
+                </div>
+                <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-4">
+                  <p className="text-center text-sm text-muted-foreground">Coming soon</p>
+                </div>
+              </div>
+            </div>
 
           <div className="space-y-6">
-            <h3 className="text-lg font-semibold">Media Containers</h3>
+            <div className="relative pb-2 pt-8">
+              <div className="absolute inset-x-0 top-4 h-px bg-border/50" />
+              <h3 className="relative inline-block bg-background pr-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                Media Containers
+              </h3>
+            </div>
             <div className="space-y-4">
               {/* Media Containers */}
               {mediaTypes.map((medium) => {
@@ -5929,7 +7431,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 
                 return (
                   <div key={medium.name} className="mt-4">
-                    <Suspense fallback={<div>Loading {medium.label}...</div>}>
+                    <Suspense fallback={<MediaContainerSuspenseFallback label={medium.label} />}>
                       {medium.name === "mp_television" && (
                         <TelevisionContainer
                           clientId={selectedClientId}
@@ -6120,7 +7622,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                         />
                       )}
                       {medium.name === "mp_production" && (
-                        <Suspense fallback={<div>Loading Production...</div>}>
+                        <Suspense fallback={<MediaContainerSuspenseFallback label="Production" />}>
                           <ProductionContainer
                             clientId={selectedClientId}
                             feesearch={feeConsulting || 0}
@@ -6284,8 +7786,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               })}
             </div>
           </div>
-        </form>
-      </Form>
+          </form>
+          </Form>
+        </div>
 
       <Dialog
         open={isUnsavedPromptOpen}
@@ -6295,47 +7798,50 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           }
         }}
       >
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader className="flex flex-row items-start justify-between space-y-0">
-            <div className="space-y-2">
-              <DialogTitle>Leave without saving?</DialogTitle>
-              <DialogDescription>
-                You have unsaved changes. Save your campaign before leaving or continue without saving.
-              </DialogDescription>
-            </div>
-            <DialogClose asChild>
-              <button
-                type="button"
-                onClick={stayOnPage}
-                className="ml-2 rounded-md border p-1 text-sm hover:bg-muted"
-                aria-label="Close"
+        <DialogContent className="overflow-hidden p-0 sm:max-w-lg">
+          <div className="h-1 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-300" />
+          <div className="p-6">
+            <DialogHeader className="flex flex-row items-start justify-between space-y-0">
+              <div className="space-y-2">
+                <DialogTitle>Leave without saving?</DialogTitle>
+                <DialogDescription>
+                  You have unsaved changes. Save your campaign before leaving or continue without saving.
+                </DialogDescription>
+              </div>
+              <DialogClose asChild>
+                <button
+                  type="button"
+                  onClick={stayOnPage}
+                  className="ml-2 rounded-md border p-1 text-sm hover:bg-muted"
+                  aria-label="Close"
+                >
+                  <X className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </DialogClose>
+            </DialogHeader>
+            <p className="mt-3 text-sm text-muted-foreground">
+              Leaving now will discard any unsaved edits to this media plan.
+            </p>
+            <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:justify-end sm:space-x-2">
+              <Button variant="outline" className="w-full sm:w-auto" onClick={stayOnPage}>
+                No, stay on page
+              </Button>
+              <Button
+                variant="secondary"
+                className="w-full sm:w-auto"
+                onClick={async () => {
+                  stayOnPage();
+                  await handleSaveAll();
+                }}
+                disabled={isLoading || isSaving}
               >
-                <X className="h-4 w-4" aria-hidden="true" />
-              </button>
-            </DialogClose>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            Leaving now will discard any unsaved edits to this media plan.
-          </p>
-          <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:justify-end sm:space-x-2">
-            <Button variant="outline" className="w-full sm:w-auto" onClick={stayOnPage}>
-              No, stay on page
-            </Button>
-            <Button
-              variant="secondary"
-              className="w-full sm:w-auto"
-              onClick={async () => {
-                stayOnPage();
-                await handleSaveAll();
-              }}
-              disabled={isLoading || isSaving}
-            >
-              {isLoading || isSaving ? "Saving..." : "Save campaign"}
-            </Button>
-            <Button variant="destructive" className="w-full sm:w-auto" onClick={confirmNavigation}>
-              Yes, leave without saving
-            </Button>
-          </DialogFooter>
+                {isLoading || isSaving ? "Saving..." : "Save campaign"}
+              </Button>
+              <Button variant="destructive" className="w-full sm:w-auto" onClick={confirmNavigation}>
+                Yes, leave without saving
+              </Button>
+            </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -6354,20 +7860,70 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         isLoading={modalLoading}
       />
 
+      <AlertDialog open={fullBillingResetConfirmOpen} onOpenChange={setFullBillingResetConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reset all billing to auto?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>
+                  This <span className="font-medium text-foreground">replaces the entire billing schedule</span> (including
+                  saved version data) with a fresh burst-derived schedule. It is the{" "}
+                  <span className="font-medium text-foreground">only</span> action that fully rebuilds billing.
+                </p>
+                <p>
+                  Line-item resets and fee / tech / production row resets only change part of the schedule and do not do
+                  this.
+                </p>
+                <p>To undo, load an older plan version from version history if available.</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel type="button">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              type="button"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(e) => {
+                e.preventDefault()
+                runConfirmedFullBillingResetToAuto()
+              }}
+            >
+              Reset all billing to auto
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Manual Billing Modal */}
-      <Dialog open={isManualBillingModalOpen} onOpenChange={setIsManualBillingModalOpen}>
-        <DialogContent className="w-[calc(100vw-2rem)] h-[calc(100vh-2rem)] max-w-none max-h-none overflow-hidden p-0">
-          <div className="flex h-full flex-col">
-            <div className="border-b px-6 py-4">
+      <Dialog
+        open={isManualBillingModalOpen}
+        onOpenChange={(open) => {
+          setIsManualBillingModalOpen(open)
+          if (!open) {
+            setManualBillingMonths([])
+            setBillingError({ show: false, blockingErrors: [], preservedOverrides: [] })
+          }
+        }}
+      >
+        <DialogContent className="flex max-h-[90vh] max-w-5xl flex-col overflow-hidden p-0">
+          <div className="h-1 shrink-0 bg-gradient-to-r from-primary via-primary/70 to-primary/40" />
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="shrink-0 border-b px-6 py-4">
               <DialogHeader>
                 <DialogTitle>Manual Billing Schedule</DialogTitle>
               </DialogHeader>
               <p className="mt-1 text-sm text-muted-foreground">
-                Subtotals are calculated from line items. Fees, ad serving, and production are editable at the bottom.
+                <span className="font-medium text-foreground">Billing control surface:</span> the main page only adds new
+                months, media types, and line items. Any reset or rebuild of existing amounts happens here only.
+                Subtotals follow line items. <span className="font-medium text-foreground">Reset levels:</span> (1) Fee / Ad
+                serving / Production row buttons — that cost bucket only, from auto month totals. (2) Per-row Reset — that
+                line’s months from the auto snapshot. (3) “Reset billing to auto” in the footer — full schedule from bursts
+                + line items; confirms before running. Save the campaign to persist a new version baseline.
               </p>
             </div>
 
-            <div className="flex-1 overflow-auto px-6 py-4 space-y-6">
+            <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-4">
               <Accordion type="multiple" className="w-full">
                 {mediaTypes
                   .filter((medium) => medium.name !== "mp_production")
@@ -6390,6 +7946,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                             <Table>
                               <TableHeader>
                                 <TableRow>
+                                  <TableHead className="w-[90px]">Reset row</TableHead>
                                   <TableHead className="w-[90px]">Pre-bill</TableHead>
                                   <TableHead>{headers.header1}</TableHead>
                                   <TableHead>{headers.header2}</TableHead>
@@ -6398,13 +7955,25 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                                       {m.monthYear}
                                     </TableHead>
                                   ))}
-                                  <TableHead className="text-right font-bold">Total</TableHead>
+                                  <TableHead className="text-right font-bold">Media Total</TableHead>
+                                  <TableHead className="text-right">Fee Total</TableHead>
+                                  <TableHead className="text-right">Ad Serving Total</TableHead>
                                 </TableRow>
                               </TableHeader>
 
                               <TableBody>
                                 {lineItems.map((lineItem) => (
                                   <TableRow key={lineItem.id}>
+                                    <TableCell>
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleManualBillingLineItemResetToAuto(mediaKey, lineItem.id)}
+                                      >
+                                        Reset
+                                      </Button>
+                                    </TableCell>
                                     <TableCell>
                                       <Checkbox
                                         checked={Boolean(lineItem.preBill)}
@@ -6470,13 +8039,29 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                                         maximumFractionDigits: 2,
                                       }).format(lineItem.totalAmount || 0)}
                                     </TableCell>
+                                    <TableCell className="text-right text-muted-foreground">
+                                      {new Intl.NumberFormat("en-AU", {
+                                        style: "currency",
+                                        currency: "AUD",
+                                        minimumFractionDigits: 2,
+                                        maximumFractionDigits: 2,
+                                      }).format(lineItem.totalFeeAmount || 0)}
+                                    </TableCell>
+                                    <TableCell className="text-right text-muted-foreground">
+                                      {new Intl.NumberFormat("en-AU", {
+                                        style: "currency",
+                                        currency: "AUD",
+                                        minimumFractionDigits: 2,
+                                        maximumFractionDigits: 2,
+                                      }).format(lineItem.totalAdServingAmount || 0)}
+                                    </TableCell>
                                   </TableRow>
                                 ))}
                               </TableBody>
 
                               <TableFooter>
                                 <TableRow className="font-bold border-t-2 bg-muted/30">
-                                  <TableCell colSpan={3}>Subtotal</TableCell>
+                                  <TableCell colSpan={4}>Subtotal</TableCell>
                                   {manualBillingMonths.map((m) => {
                                     const subtotal = lineItems.reduce((sum, li) => sum + (li.monthlyAmounts?.[m.monthYear] || 0), 0)
                                     return (
@@ -6500,6 +8085,26 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                                       lineItems.reduce((sum, li) => sum + (li.totalAmount || 0), 0)
                                     )}
                                   </TableCell>
+                                  <TableCell className="text-right text-muted-foreground">
+                                    {new Intl.NumberFormat("en-AU", {
+                                      style: "currency",
+                                      currency: "AUD",
+                                      minimumFractionDigits: 2,
+                                      maximumFractionDigits: 2,
+                                    }).format(
+                                      lineItems.reduce((sum, li) => sum + (li.totalFeeAmount || 0), 0)
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="text-right text-muted-foreground">
+                                    {new Intl.NumberFormat("en-AU", {
+                                      style: "currency",
+                                      currency: "AUD",
+                                      minimumFractionDigits: 2,
+                                      maximumFractionDigits: 2,
+                                    }).format(
+                                      lineItems.reduce((sum, li) => sum + (li.totalAdServingAmount || 0), 0)
+                                    )}
+                                  </TableCell>
                                 </TableRow>
                               </TableFooter>
                             </Table>
@@ -6512,10 +8117,15 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 <AccordionItem value="manual-billing-costs">
                   <AccordionTrigger className="text-left">Fees, Ad Serving &amp; Production</AccordionTrigger>
                   <AccordionContent>
+                    <p className="mb-2 text-xs text-muted-foreground">
+                      Level 1 — each Reset copies only that bucket from the auto schedule (same month column); line items are
+                      unchanged.
+                    </p>
                     <div className="overflow-x-auto mt-4">
                       <Table>
                         <TableHeader>
                           <TableRow>
+                            <TableHead className="w-[70px]">Reset bucket</TableHead>
                             <TableHead className="w-[90px]">Pre-bill</TableHead>
                             <TableHead>Type</TableHead>
                             <TableHead>Details</TableHead>
@@ -6531,6 +8141,16 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                           {/* Fees */}
                           <TableRow>
                             <TableCell>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleManualBillingCostResetToAuto("fee")}
+                              >
+                                Reset
+                              </Button>
+                            </TableCell>
+                            <TableCell>
                               <Checkbox
                                 checked={manualBillingCostPreBill.fee}
                                 onCheckedChange={(next) => handleManualBillingCostPreBillToggle("fee", Boolean(next))}
@@ -6540,16 +8160,23 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                             <TableCell className="text-muted-foreground">Total</TableCell>
                             {manualBillingMonths.map((month, monthIndex) => (
                               <TableCell key={month.monthYear} align="right">
-                                <Input
-                                  className="text-right w-28"
-                                  value={month.feeTotal}
-                                  onBlur={(e) => handleManualBillingChange(monthIndex, "fee", e.target.value)}
-                                  onChange={(e) => {
-                                    const tempCopy = [...manualBillingMonths]
-                                    tempCopy[monthIndex].feeTotal = e.target.value
-                                    setManualBillingMonths(tempCopy)
-                                  }}
-                                />
+                                <div className="space-y-1">
+                                  <Input
+                                    className="text-right w-28"
+                                    value={month.feeTotal}
+                                    onBlur={(e) => handleManualBillingChange(monthIndex, "fee", e.target.value)}
+                                    onChange={(e) => {
+                                      const tempCopy = [...manualBillingMonths]
+                                      tempCopy[monthIndex].feeTotal = e.target.value
+                                      setManualBillingMonths(tempCopy)
+                                    }}
+                                  />
+                                  <div className="text-[10px] text-muted-foreground">
+                                    Auto:{" "}
+                                    {autoReferenceBillingMonthsRef.current.find((am) => am.monthYear === month.monthYear)
+                                      ?.feeTotal || "$0.00"}
+                                  </div>
+                                </div>
                               </TableCell>
                             ))}
                             <TableCell className="text-right font-semibold">
@@ -6570,6 +8197,16 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                           {/* Ad Serving */}
                           <TableRow>
                             <TableCell>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleManualBillingCostResetToAuto("adServing")}
+                              >
+                                Reset
+                              </Button>
+                            </TableCell>
+                            <TableCell>
                               <Checkbox
                                 checked={manualBillingCostPreBill.adServing}
                                 onCheckedChange={(next) => handleManualBillingCostPreBillToggle("adServing", Boolean(next))}
@@ -6579,16 +8216,23 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                             <TableCell className="text-muted-foreground">Tech fees</TableCell>
                             {manualBillingMonths.map((month, monthIndex) => (
                               <TableCell key={month.monthYear} align="right">
-                                <Input
-                                  className="text-right w-28"
-                                  value={month.adservingTechFees}
-                                  onBlur={(e) => handleManualBillingChange(monthIndex, "adServing", e.target.value)}
-                                  onChange={(e) => {
-                                    const tempCopy = [...manualBillingMonths]
-                                    tempCopy[monthIndex].adservingTechFees = e.target.value
-                                    setManualBillingMonths(tempCopy)
-                                  }}
-                                />
+                                <div className="space-y-1">
+                                  <Input
+                                    className="text-right w-28"
+                                    value={month.adservingTechFees}
+                                    onBlur={(e) => handleManualBillingChange(monthIndex, "adServing", e.target.value)}
+                                    onChange={(e) => {
+                                      const tempCopy = [...manualBillingMonths]
+                                      tempCopy[monthIndex].adservingTechFees = e.target.value
+                                      setManualBillingMonths(tempCopy)
+                                    }}
+                                  />
+                                  <div className="text-[10px] text-muted-foreground">
+                                    Auto:{" "}
+                                    {autoReferenceBillingMonthsRef.current.find((am) => am.monthYear === month.monthYear)
+                                      ?.adservingTechFees || "$0.00"}
+                                  </div>
+                                </div>
                               </TableCell>
                             ))}
                             <TableCell className="text-right font-semibold">
@@ -6610,6 +8254,16 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                           {/* Production */}
                           <TableRow>
                             <TableCell>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleManualBillingCostResetToAuto("production")}
+                              >
+                                Reset
+                              </Button>
+                            </TableCell>
+                            <TableCell>
                               <Checkbox
                                 checked={manualBillingCostPreBill.production}
                                 onCheckedChange={(next) => handleManualBillingCostPreBillToggle("production", Boolean(next))}
@@ -6619,19 +8273,28 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                             <TableCell className="text-muted-foreground">Total</TableCell>
                             {manualBillingMonths.map((month, monthIndex) => (
                               <TableCell key={month.monthYear} align="right">
-                                <Input
-                                  className="text-right w-28"
-                                  value={month.production || "$0.00"}
-                                  onBlur={(e) => handleManualBillingChange(monthIndex, "production", e.target.value, "production")}
-                                  onChange={(e) => {
-                                    const tempCopy = [...manualBillingMonths]
-                                    tempCopy[monthIndex].production = e.target.value
-                                    if (tempCopy[monthIndex].mediaCosts?.production !== undefined) {
-                                      tempCopy[monthIndex].mediaCosts.production = e.target.value
+                                <div className="space-y-1">
+                                  <Input
+                                    className="text-right w-28"
+                                    value={month.production || "$0.00"}
+                                    onBlur={(e) =>
+                                      handleManualBillingChange(monthIndex, "production", e.target.value, "production")
                                     }
-                                    setManualBillingMonths(tempCopy)
-                                  }}
-                                />
+                                    onChange={(e) => {
+                                      const tempCopy = [...manualBillingMonths]
+                                      tempCopy[monthIndex].production = e.target.value
+                                      if (tempCopy[monthIndex].mediaCosts?.production !== undefined) {
+                                        tempCopy[monthIndex].mediaCosts.production = e.target.value
+                                      }
+                                      setManualBillingMonths(tempCopy)
+                                    }}
+                                  />
+                                  <div className="text-[10px] text-muted-foreground">
+                                    Auto:{" "}
+                                    {autoReferenceBillingMonthsRef.current.find((am) => am.monthYear === month.monthYear)
+                                      ?.production || "$0.00"}
+                                  </div>
+                                </div>
                               </TableCell>
                             ))}
                             <TableCell className="text-right font-semibold">
@@ -6656,53 +8319,79 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               </Accordion>
 
               <div className="text-right">
-                <span className="font-bold">Grand Total: {manualBillingTotal}</span>
+                <span className="font-bold">Grand Total: {billingTotalDisplayFromManual}</span>
                 {billingError.show && (
-                  <div className="mt-2 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
-                    <p className="font-bold">Budget Mismatch Error</p>
-                    <p>
-                      Campaign Budget:{" "}
-                      {new Intl.NumberFormat("en-AU", {
-                        style: "currency",
-                        currency: "AUD",
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      }).format(billingError.campaignBudget)}
-                    </p>
-                    <p>Billing Total: {manualBillingTotal}</p>
-                    <p>
-                      Difference:{" "}
-                      {new Intl.NumberFormat("en-AU", {
-                        style: "currency",
-                        currency: "AUD",
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      }).format(Math.abs(billingError.difference))}
-                      {billingError.difference > 0 ? " over" : " under"} budget
-                    </p>
-                    <p className="text-sm mt-1">The billing total must be within $2.00 of the campaign budget.</p>
+                  <div className="mt-2 space-y-3 rounded border p-3 text-sm">
+                    {billingError.blockingErrors.length > 0 && (
+                      <div className="rounded border border-destructive/60 bg-destructive/10 p-3 text-destructive">
+                        <p className="font-semibold">Blocking — fix before a clean save</p>
+                        <p className="mt-1 text-xs text-destructive/90">
+                          These break internal consistency (month totals vs line items, production vs media costs, or orphan
+                          rows tied to removed media). Campaign save will be blocked until resolved.
+                        </p>
+                        <ul className="mt-2 max-h-40 list-disc space-y-1 overflow-auto pl-4">
+                          {billingError.blockingErrors.map((message, idx) => (
+                            <li key={`b-${idx}-${message.slice(0, 24)}`}>{message}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {billingError.preservedOverrides.length > 0 && (
+                      <div className="rounded border border-amber-400 bg-amber-50 p-3 text-amber-950">
+                        <p className="font-semibold">Preserved manual billing (informational)</p>
+                        <p className="mt-1 text-xs text-amber-900/90">
+                          Billing differs from current bursts or fee auto-calculation — normal if you edited amounts on purpose.
+                          Campaign save still allows these unless you fix them.
+                        </p>
+                        <ul className="mt-2 max-h-40 list-disc space-y-1 overflow-auto pl-4">
+                          {billingError.preservedOverrides.map((message, idx) => (
+                            <li key={`p-${idx}-${message.slice(0, 24)}`}>{message}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" variant="outline" onClick={() => handleManualBillingSave(true)}>
+                        Save anyway (accept all listed issues)
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() =>
+                          setBillingError({ show: false, blockingErrors: [], preservedOverrides: [] })
+                        }
+                      >
+                        Dismiss
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>
             </div>
 
-            <div className="border-t px-6 py-4">
+            <div className="shrink-0 border-t px-6 py-4">
               <DialogFooter className="sm:justify-between">
-                <Button variant="outline" onClick={handleManualBillingReset} className="sm:mr-auto">
-                  Reset to Automatic
-                </Button>
-                <div className="flex space-x-2">
+                <div className="flex flex-wrap gap-2">
                   <Button
                     variant="ghost"
                     onClick={() => {
                       setIsManualBillingModalOpen(false)
-                      setBillingError({ show: false, campaignBudget: 0, difference: 0 })
+                      setBillingError({ show: false, blockingErrors: [], preservedOverrides: [] })
                     }}
                   >
                     Cancel
                   </Button>
-                  <Button onClick={handleManualBillingSave} disabled={billingError.show}>
-                    Save Manual Schedule
+                  <Button
+                    variant="outline"
+                    type="button"
+                    onClick={() => {
+                      setFullBillingResetConfirmOpen(true)
+                    }}
+                  >
+                    Reset billing to auto
+                  </Button>
+                  <Button type="button" onClick={() => handleManualBillingSave()}>
+                    Save Billing Changes
                   </Button>
                 </div>
               </DialogFooter>
@@ -6716,11 +8405,16 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         setIsPartialMBAModalOpen(open);
         if (!open) setPartialMBAError(null);
       }}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Partial MBA Override</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 p-4">
+        <DialogContent className="flex max-h-[90vh] max-w-4xl flex-col overflow-hidden p-0">
+          <div className="h-1 shrink-0 bg-gradient-to-r from-primary via-primary/70 to-primary/40" />
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="shrink-0 px-6 pt-6">
+              <DialogHeader>
+                <DialogTitle>Partial MBA Override</DialogTitle>
+              </DialogHeader>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+          <div className="space-y-4">
             {(() => {
               const campaignBudget = form.watch("mp_campaignbudget") || 0
               const totalInvestment =
@@ -6765,73 +8459,102 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             <div className="space-y-2">
               <label className="text-sm font-medium">Delivery months</label>
               <MultiSelectCombobox
-                options={(autoDeliveryMonths.length > 0 ? autoDeliveryMonths : billingMonths).map(
-                  (m): MultiSelectOption => ({ value: m.monthYear, label: m.monthYear })
-                )}
+                options={(() => {
+                  const primary = workingBillingMonths
+                  const src = billingMonthsHaveDetailedLineItems(primary)
+                    ? primary
+                    : autoDeliveryMonths.length > 0
+                      ? autoDeliveryMonths
+                      : workingBillingMonths
+                  return src.map((m): MultiSelectOption => ({ value: m.monthYear, label: m.monthYear }))
+                })()}
                 values={partialMBAMonthYears}
                 onValuesChange={handlePartialMBAMonthsChange}
                 placeholder="Select months"
                 allSelectedText="All months"
               />
               <p className="text-xs text-muted-foreground">
-                Changing months recalculates Media, Fees, Ad Serving and Production based on the delivery schedule.
+                Changing months or line selection recalculates media from checked lines; assembled fee and ad serving scale with the share of line-item media included.
               </p>
             </div>
-            {/* Individual Media Items */}
-            <h4 className="font-semibold text-md border-b pb-2">Media Totals</h4>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex flex-col space-y-3">
-                {mediaTypes
-                  .filter((medium) => medium.name !== "mp_production")
-                  .filter((medium) => form.watch(medium.name as keyof MediaPlanFormValues) && medium.component)
-                  .map((medium) => {
-                    const mediaKey = mediaKeyMap[medium.name]
-                    const checked = partialMBAMediaEnabled[mediaKey] ?? true
-                    return (
-                      <div key={medium.name} className="flex items-center gap-2 text-sm font-medium">
-                        <Checkbox
-                          checked={checked}
-                          onCheckedChange={(next) => handlePartialMBAToggleMedia(mediaKey, Boolean(next))}
-                        />
-                        <span>{medium.label}</span>
-                      </div>
-                    )
-                  })}
-              </div>
-
-              <div className="flex flex-col space-y-3 text-right">
-                {mediaTypes
-                  .filter((medium) => medium.name !== "mp_production")
-                  .filter((medium) => form.watch(medium.name as keyof MediaPlanFormValues) && medium.component)
-                  .map((medium) => {
-                    const mediaKey = mediaKeyMap[medium.name]
-                    const checked = partialMBAMediaEnabled[mediaKey] ?? true
-                    return (
-                      <div key={medium.name} className="flex justify-end">
-                        <Input
-                          className={cn("text-right w-40", !checked ? "bg-gray-100" : undefined)}
-                          disabled={!checked}
-                          value={formatMoney(partialMBAValues.mediaTotals[mediaKey] || 0, {
-                            locale: "en-US",
-                            currency: "USD",
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}
-                          onBlur={(e) => handlePartialMBAChange("mediaTotal", e.target.value, mediaKey)}
-                          onChange={(e) => {
-                            const nextValue = parseFloat(e.target.value.replace(/[^0-9.-]/g, "")) || 0
-                            setPartialMBAValues((prev) => {
-                              const nextMediaTotals = { ...prev.mediaTotals, [mediaKey]: nextValue }
-                              const nextGross = Object.values(nextMediaTotals).reduce((sum, total) => sum + total, 0)
-                              return { ...prev, mediaTotals: nextMediaTotals, grossMedia: nextGross }
+            <h4 className="font-semibold text-md border-b pb-2">Media Totals (Expandable by line item)</h4>
+            <Accordion type="multiple" className="w-full">
+              {mediaTypes
+                .filter((medium) => medium.name !== "mp_production")
+                .filter((medium) => form.watch(medium.name as keyof MediaPlanFormValues) && medium.component)
+                .map((medium) => {
+                  const mediaKey = mediaKeyMap[medium.name]
+                  const checked = partialMBAMediaEnabled[mediaKey] ?? true
+                  const items = partialMBALineItemsByMedia[mediaKey] || []
+                  return (
+                    <AccordionItem key={medium.name} value={medium.name}>
+                      <AccordionTrigger
+                        leading={
+                          <Checkbox
+                            checked={checked}
+                            onCheckedChange={(next) => handlePartialMBAToggleMedia(mediaKey, Boolean(next))}
+                          />
+                        }
+                      >
+                        <div className="flex w-full items-center justify-between pr-4">
+                          <span className="text-sm font-medium">{medium.label}</span>
+                          <span className="text-sm">
+                            {formatMoney(partialMBAValues.mediaTotals[mediaKey] || 0, {
+                              locale: "en-US",
+                              currency: "USD",
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}
+                          </span>
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <div className="space-y-2 pl-2">
+                          {items.length === 0 ? (
+                            <p className="text-xs text-muted-foreground">No line items found for selected months.</p>
+                          ) : (
+                            items.map((item) => {
+                              const itemChecked = (partialMBASelectedLineItemIds[mediaKey] || []).includes(item.lineItemId)
+                              return (
+                                <div key={item.lineItemId} className="flex items-center justify-between gap-2 text-sm">
+                                  <label className="flex min-w-0 flex-1 items-start gap-2">
+                                    <Checkbox
+                                      className="mt-0.5"
+                                      checked={itemChecked}
+                                      onCheckedChange={(next) => handlePartialMBAToggleLineItem(mediaKey, item.lineItemId, Boolean(next))}
+                                    />
+                                    <span className="min-w-0 leading-snug">
+                                      <span className="font-medium tabular-nums text-muted-foreground">
+                                        {item.lineNumber != null ? `Line ${item.lineNumber}` : "Line —"}
+                                      </span>
+                                      {" · "}
+                                      <span className="font-medium">{item.header1 || "—"}</span>
+                                      {item.header2 ? (
+                                        <>
+                                          {" · "}
+                                          <span>{item.header2}</span>
+                                        </>
+                                      ) : null}
+                                    </span>
+                                  </label>
+                                  <span className="shrink-0 tabular-nums">
+                                    {formatMoney(item.amount, {
+                                      locale: "en-US",
+                                      currency: "USD",
+                                      minimumFractionDigits: 2,
+                                      maximumFractionDigits: 2,
+                                    })}
+                                  </span>
+                                </div>
+                              )
                             })
-                          }}
-                        />
-                      </div>
-                    )
-                  })}
-              </div>
-            </div>
+                          )}
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  )
+                })}
+            </Accordion>
             
             {/* Aggregated Totals */}
             <h4 className="font-semibold text-md border-b pb-2 pt-4">Summary Totals</h4>
@@ -6839,7 +8562,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               <div className="flex items-center justify-between">
                 <label className="text-sm font-medium">Gross Media Total</label>
                 <Input
-                  className="text-right w-48 bg-gray-100"
+                  className="text-right w-48 bg-muted"
                   value={formatMoney(partialMBAValues.grossMedia, {
                     locale: "en-US",
                     currency: "USD",
@@ -6910,7 +8633,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               </div>
             </div>
           </div>
-          <DialogFooter className="sm:justify-between pt-4">
+            </div>
+            <div className="shrink-0 border-t px-6 py-4">
+          <DialogFooter className="sm:justify-between pt-0">
             <Button variant="outline" onClick={handlePartialMBAReset} className="sm:mr-auto">
               Reset Changes
             </Button>
@@ -6921,6 +8646,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               <Button onClick={handlePartialMBASave}>Save Partial MBA</Button>
             </div>
           </DialogFooter>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
       
@@ -6930,49 +8657,124 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         style={{ height: stickyBarHeight ? stickyBarHeight + 24 : 160 }}
       />
 
-      {/* Sticky Banner */}
+      {/* Sticky action bar: single centered pill (main column only, excludes sidebar) */}
       <div
         ref={stickyBarRef}
-        className="fixed bottom-0 left-0 right-0 md:left-[var(--sidebar-width)] bg-background/95 backdrop-blur-sm border-t p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] z-50 flex justify-between items-center"
+        className="fixed bottom-0 left-0 right-0 z-50 flex justify-center md:left-[var(--sidebar-width)]"
       >
-        <p className="text-red-500 text-lg font-bold">Don't forget to reset or update the billing schedule</p>
-        <div className="flex space-x-2">
-          <Button
-            onClick={handleSaveAll}
-            disabled={isSaving || isLoading}
-            className="bg-[#008e5e] text-white hover:bg-[#008e5e]/90"
+        <div className="inline-flex max-w-full flex-col items-center gap-2 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-2">
+          {hasBillingMismatch && (
+            <div className="flex items-center gap-2 text-center text-sm font-medium text-amber-600 dark:text-amber-500">
+              <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-amber-500" aria-hidden="true" />
+              <span>
+                Billing schedule has differences from line items — open Edit Billing to review or run a full reset
+              </span>
+            </div>
+          )}
+          <CampaignExportsSection
+            variant="embedded"
+            mbaNumber={mbaNumber}
+            lineItemCount={editLineItemCount}
+            isBusy={isDownloading || isNamingDownloading || isLoading || isSaving}
+            ariaStatus=""
+            className="z-40 max-w-[min(98vw,88rem)]"
           >
-            {isSaving ? "Saving..." : "Save"}
-          </Button>
-          <Button
-            onClick={handleGenerateMBA}
-            disabled={isLoading}
-            className="bg-[#fd7adb] text-white hover:bg-[#fd7adb]/90"
-          >
-            {isLoading ? "Generating..." : "Generate MBA"}
-          </Button>
-          <Button
-            onClick={handleDownloadMediaPlan}
-            disabled={isDownloading}
-            className="bg-[#B5D337] text-white hover:bg-[#B5D337]/90"
-          >
-            {isDownloading ? "Downloading..." : "Download Media Plan"}
-          </Button>
-          <Button
-            onClick={handleDownloadNamingConventions}
-            disabled={isNamingDownloading}
-            className="bg-[#3b82f6] text-white hover:bg-[#3b82f6]/90"
-          >
-            {isNamingDownloading ? "Generating Names..." : "Download Naming Conventions"}
-          </Button>
-          <Button
-            onClick={handleSaveAndGenerateAll}
-            disabled={isLoading}
-            className="bg-[#008e5e] text-white hover:bg-[#008e5e]/90"
-          >
-            {isLoading ? "Processing..." : "Save & Generate All"}
-          </Button>
+            <Button
+              type="button"
+              onClick={handleSaveAll}
+              disabled={isSaving || isLoading}
+              className="h-9 shrink-0 rounded-full bg-success px-4 text-white shadow-sm hover:bg-success-hover focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {isSaving ? "Saving..." : "Save"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleGenerateMBA}
+              disabled={isLoading}
+              className="h-9 shrink-0 rounded-full border-border px-4 focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {isLoading ? "Generating..." : "Generate MBA"}
+            </Button>
+                <div className="md:hidden">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-9 rounded-full px-4 focus-visible:ring-2 focus-visible:ring-ring"
+                        disabled={isDownloading || isNamingDownloading || isLoading || isSaving}
+                      >
+                        <MoreHorizontal className="mr-1.5 h-4 w-4" />
+                        Downloads
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        onClick={handleDownloadMediaPlan}
+                        disabled={isDownloading || isNamingDownloading || isLoading || isSaving}
+                      >
+                        Media Plan
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={handleDownloadNamingConventions}
+                        disabled={isDownloading || isNamingDownloading || isLoading || isSaving}
+                      >
+                        Naming Conventions
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={handleSaveAndGenerateAll}
+                        disabled={isLoading || isDownloading || isSaving}
+                      >
+                        Save &amp; Generate All
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+                <Button
+                  type="button"
+                  onClick={handleDownloadMediaPlan}
+                  disabled={isDownloading || isNamingDownloading || isLoading || isSaving}
+                  className="hidden h-9 rounded-full px-4 py-2 text-white md:inline-flex bg-lime hover:bg-lime/90 focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {isDownloading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Download className="h-4 w-4" />
+                  )}
+                  <span className="ml-2">{isDownloading ? "Downloading..." : "Media Plan"}</span>
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleDownloadNamingConventions}
+                  disabled={isDownloading || isNamingDownloading || isLoading || isSaving}
+                  className="hidden h-9 rounded-full px-4 py-2 md:inline-flex bg-muted text-foreground hover:bg-muted/80 focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {isNamingDownloading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Download className="h-4 w-4" />
+                  )}
+                  <span className="ml-2">
+                    {isNamingDownloading ? "Generating Names..." : "Naming Conventions"}
+                  </span>
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleSaveAndGenerateAll}
+                  disabled={isLoading || isDownloading || isSaving}
+                  className="hidden h-9 rounded-full px-4 py-2 text-white md:inline-flex bg-brand-dark hover:bg-brand-dark/90 focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {isLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <FileText className="h-4 w-4" />
+                  )}
+                  <span className="ml-2">{isLoading ? "Processing..." : "Save & Generate All"}</span>
+                </Button>
+              </CampaignExportsSection>
         </div>
+      </div>
       </div>
     </div>
   )

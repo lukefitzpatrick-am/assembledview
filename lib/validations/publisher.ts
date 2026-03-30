@@ -1,11 +1,16 @@
 import * as z from "zod"
+import { KPI_FAMILY_PUB_FLAG } from "@/lib/publisher/scheduleLabels"
 
-const createPublisherSchema = z.object({
-  publisher_name: z.string().min(1, "Publisher name is required"),
-  publisherid: z.string().min(1, "Publisher ID is required"),
-  publishertype: z.enum(["direct", "internal biddable"]),
-  billingagency: z.enum(["assembled media", "advertising associates"]),
-  financecode: z.string().min(1, "Finance code is required"),
+const comms = z
+  .union([z.string(), z.number(), z.null(), z.undefined()])
+  .transform((v) => {
+    if (v === "" || v === null || v === undefined) return 0
+    const n = typeof v === "number" ? v : Number(String(v).trim())
+    return Number.isFinite(n) ? n : 0
+  })
+  .pipe(z.number().min(0).max(100))
+
+const publisherBooleanFields = {
   pub_television: z.boolean(),
   pub_radio: z.boolean(),
   pub_newspaper: z.boolean(),
@@ -25,30 +30,87 @@ const createPublisherSchema = z.object({
   pub_progaudio: z.boolean(),
   pub_progooh: z.boolean(),
   pub_influencers: z.boolean(),
-  radio_comms: z.number().min(0).max(100),
-  newspaper_comms: z.number().min(0).max(100),
-  television_comms: z.number().min(0).max(100),
-  magazines_comms: z.number().min(0).max(100),
-  ooh_comms: z.number().min(0).max(100),
-  cinema_comms: z.number().min(0).max(100),
-  digidisplay_comms: z.number().min(0).max(100),
-  digiaudio_comms: z.number().min(0).max(100),
-  digivideo_comms: z.number().min(0).max(100),
-  bvod_comms: z.number().min(0).max(100),
-  integration_comms: z.number().min(0).max(100),
-  search_comms: z.number().min(0).max(100),
-  progdisplay_comms: z.number().min(0).max(100),
-  progvideo_comms: z.number().min(0).max(100),
-  progbvod_comms: z.number().min(0).max(100),
-  progaudio_comms: z.number().min(0).max(100),
-  progooh_comms: z.number().min(0).max(100),
-  influencers_comms: z.number().min(0).max(100),
+}
+
+const publisherCommsFields = {
+  radio_comms: comms,
+  newspaper_comms: comms,
+  television_comms: comms,
+  magazines_comms: comms,
+  ooh_comms: comms,
+  cinema_comms: comms,
+  digidisplay_comms: comms,
+  digiaudio_comms: comms,
+  digivideo_comms: comms,
+  bvod_comms: comms,
+  integration_comms: comms,
+  search_comms: comms,
+  socialmedia_comms: comms,
+  progdisplay_comms: comms,
+  progvideo_comms: comms,
+  progbvod_comms: comms,
+  progaudio_comms: comms,
+  progooh_comms: comms,
+  influencers_comms: comms,
+}
+
+const kpiField = () => z.coerce.number().default(0)
+
+function buildKpiShape() {
+  const shape: Record<string, z.ZodTypeAny> = {}
+  const metrics = ["cpm", "cpc", "cpv", "ctr", "vtr", "frequency"] as const
+  for (const family of Object.keys(KPI_FAMILY_PUB_FLAG)) {
+    for (const m of metrics) {
+      shape[`${family}_${m}_default`] = kpiField()
+    }
+  }
+  return shape
+}
+
+const kpiShape = buildKpiShape()
+
+const publisherColourField = z
+  .union([z.string(), z.null(), z.undefined()])
+  .transform((v) => {
+    if (v === undefined || v === null) return null
+    const s = String(v).trim()
+    return s === "" ? null : s
+  })
+
+const publisherCoreFields = {
+  publisher_name: z.string().min(1, "Publisher name is required"),
+  publisherid: z.string().min(1, "Publisher ID is required"),
+  publishertype: z.enum(["direct", "internal_biddable"]),
+  billingagency: z.enum(["assembled media", "advertising associates"]),
+  financecode: z.string().min(1, "Finance code is required"),
+  ...publisherBooleanFields,
+  ...publisherCommsFields,
+}
+
+export const publisherCreateSchema = z.object({
+  ...publisherCoreFields,
+  ...kpiShape,
 })
 
-const updatePublisherSchema = createPublisherSchema.extend({
+export const publisherUpdateSchema = publisherCreateSchema.extend({
   id: z.number(),
 })
 
-export const publisherSchema = createPublisherSchema
-export const updatePublisherSchema = updatePublisherSchema
+/** Details + comms only (no KPI) for the collapsible publisher form */
+export const publisherDetailsUpdateSchema = z.object({
+  id: z.number(),
+  ...publisherCoreFields,
+  publisher_colour: publisherColourField,
+})
 
+export const publisherKpiUpdateSchema = z.object({
+  id: z.number(),
+  ...kpiShape,
+})
+
+export type PublisherCreateInput = z.input<typeof publisherCreateSchema>
+export type PublisherCreateValues = z.infer<typeof publisherCreateSchema>
+export type PublisherUpdateValues = z.infer<typeof publisherUpdateSchema>
+export type PublisherDetailsInput = z.input<typeof publisherDetailsUpdateSchema>
+export type PublisherDetailsFormValues = z.infer<typeof publisherDetailsUpdateSchema>
+export type PublisherKpiFormValues = z.infer<typeof publisherKpiUpdateSchema>

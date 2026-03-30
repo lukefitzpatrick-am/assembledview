@@ -3,7 +3,6 @@
 import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import * as z from "zod"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -11,53 +10,14 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Combobox } from "@/components/ui/combobox"
 import { SavingModal } from "@/components/ui/saving-modal"
 import { SuccessModal } from "@/components/ui/success-modal"
+import {
+  publisherCreateSchema,
+  type PublisherCreateInput,
+  type PublisherCreateValues,
+} from "@/lib/validations/publisher"
+import { defaultKpiValuesRecord } from "@/lib/publisher/scheduleLabels"
 
-const publisherSchema = z.object({
-  publisher_name: z.string().min(1, "Publisher name is required"),
-  publisherid: z.string().min(1, "Publisher ID is required"),
-  publishertype: z.enum(["direct", "internal_biddable"]),
-  billingagency: z.enum(["assembled media", "advertising associates"]),
-  financecode: z.string().min(1, "Finance code is required"),
-  pub_television: z.boolean().default(false),
-  pub_radio: z.boolean().default(false),
-  pub_newspaper: z.boolean().default(false),
-  pub_magazines: z.boolean().default(false),
-  pub_ooh: z.boolean().default(false),
-  pub_cinema: z.boolean().default(false),
-  pub_digidisplay: z.boolean().default(false),
-  pub_digiaudio: z.boolean().default(false),
-  pub_digivideo: z.boolean().default(false),
-  pub_bvod: z.boolean().default(false),
-  pub_integration: z.boolean().default(false),
-  pub_search: z.boolean().default(false),
-  pub_socialmedia: z.boolean().default(false),
-  pub_progdisplay: z.boolean().default(false),
-  pub_progvideo: z.boolean().default(false),
-  pub_progbvod: z.boolean().default(false),
-  pub_progaudio: z.boolean().default(false),
-  pub_progooh: z.boolean().default(false),
-  pub_influencers: z.boolean().default(false),
-  radio_comms: z.number().min(0).max(100).default(0),
-  newspaper_comms: z.number().min(0).max(100).default(0),
-  television_comms: z.number().min(0).max(100).default(0),
-  magazines_comms: z.number().min(0).max(100).default(0),
-  ooh_comms: z.number().min(0).max(100).default(0),
-  cinema_comms: z.number().min(0).max(100).default(0),
-  digidisplay_comms: z.number().min(0).max(100).default(0),
-  digiaudio_comms: z.number().min(0).max(100).default(0),
-  digivideo_comms: z.number().min(0).max(100).default(0),
-  bvod_comms: z.number().min(0).max(100).default(0),
-  integration_comms: z.number().min(0).max(100).default(0),
-  search_comms: z.number().min(0).max(100).default(0),
-  progdisplay_comms: z.number().min(0).max(100).default(0),
-  progvideo_comms: z.number().min(0).max(100).default(0),
-  progbvod_comms: z.number().min(0).max(100).default(0),
-  progaudio_comms: z.number().min(0).max(100).default(0),
-  progooh_comms: z.number().min(0).max(100).default(0),
-  influencers_comms: z.number().min(0).max(100).default(0),
-})
-
-type PublisherFormValues = z.infer<typeof publisherSchema>
+type PublisherFormValues = PublisherCreateValues
 
 interface AddPublisherFormProps {
   onSuccess: () => void
@@ -72,8 +32,8 @@ export function AddPublisherForm({ onSuccess }: AddPublisherFormProps) {
     return Number.isFinite(valueAsNumber) ? valueAsNumber : undefined
   }
 
-  const form = useForm<PublisherFormValues>({
-    resolver: zodResolver(publisherSchema),
+  const form = useForm<PublisherCreateInput, unknown, PublisherFormValues>({
+    resolver: zodResolver(publisherCreateSchema),
     defaultValues: {
       publisher_name: "",
       publisherid: "",
@@ -111,12 +71,14 @@ export function AddPublisherForm({ onSuccess }: AddPublisherFormProps) {
       bvod_comms: 0,
       integration_comms: 0,
       search_comms: 0,
+      socialmedia_comms: 0,
       progdisplay_comms: 0,
       progvideo_comms: 0,
       progbvod_comms: 0,
       progaudio_comms: 0,
       progooh_comms: 0,
       influencers_comms: 0,
+      ...defaultKpiValuesRecord(),
     },
   })
 
@@ -274,7 +236,10 @@ export function AddPublisherForm({ onSuccess }: AddPublisherFormProps) {
                   render={({ field }) => (
                     <FormItem className="flex flex-row items-start space-x-3 space-y-0">
                       <FormControl>
-                        <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                        <Checkbox
+                          checked={field.value === true}
+                          onCheckedChange={(c) => field.onChange(c === true)}
+                        />
                       </FormControl>
                       <div className="space-y-1 leading-none">
                         <FormLabel>{medium.charAt(0).toUpperCase() + medium.slice(1)}</FormLabel>
@@ -300,6 +265,7 @@ export function AddPublisherForm({ onSuccess }: AddPublisherFormProps) {
               "bvod",
               "integration",
               "search",
+              "socialmedia",
               "progdisplay",
               "progvideo",
               "progbvod",

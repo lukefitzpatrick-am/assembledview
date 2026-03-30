@@ -694,3 +694,20 @@ export function extractServiceAmountsFromBillingSchedule(
   }
 }
 
+/** Normalise client names for finance API filtering (aligned with dashboard matching). */
+export function normalizeFinanceClientName(name: string): string {
+  if (!name) return ""
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9\s-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+export function financeClientNamesMatch(name1: string, name2: string): boolean {
+  if (!name1 || !name2) return false
+  return normalizeFinanceClientName(name1) === normalizeFinanceClientName(name2)
+}
+

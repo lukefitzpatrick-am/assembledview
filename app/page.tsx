@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useUser } from "@auth0/nextjs-auth0/client";
 import { motion } from "framer-motion";
 import Image from "next/image";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { LoadingDots } from "@/components/ui/loading-dots";
@@ -77,17 +78,21 @@ export default function HomePage() {
               <button
                 key={index}
                 onClick={() => setCurrentSlide(index)}
-                className={`w-2 h-2 rounded-full transition-all duration-300 ${
-                  index === currentSlide ? "bg-white w-6" : "bg-white/50 hover:bg-white/75"
-                }`}
+                className="h-11 w-11 rounded-full grid place-items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/90 focus-visible:ring-offset-2 focus-visible:ring-offset-black/40"
                 aria-label={`Go to slide ${index + 1}`}
-              />
+              >
+                <span
+                  className={`block h-2 rounded-full transition-all duration-300 ${
+                    index === currentSlide ? "bg-white w-6" : "bg-white/50 hover:bg-white/75 w-2"
+                  }`}
+                />
+              </button>
             ))}
           </div>
         </div>
 
         {/* Right side - Login */}
-        <div className="w-full md:w-1/2 flex flex-col items-center justify-center p-8 bg-white">
+        <div className="flex w-full flex-col items-center justify-center bg-card p-8 md:w-1/2">
           <div className="w-full max-w-md space-y-8">
             <div className="flex justify-center">
               <Image
@@ -101,23 +106,23 @@ export default function HomePage() {
             </div>
 
             <div className="space-y-2 text-center">
-              <h1 className="text-2xl font-bold text-gray-900">Welcome back!</h1>
-              <p className="text-sm text-gray-600">Please sign in to continue to your account</p>
+              <h1 className="text-2xl font-bold text-foreground">Welcome back!</h1>
+              <p className="text-sm text-muted-foreground">Please sign in to continue to your account</p>
             </div>
 
             <div className="space-y-3">
-              <a
+              <Link
                 href="/auth/login?returnTo=/dashboard"
-                className="inline-flex w-full h-11 items-center justify-center rounded-md bg-black text-white hover:bg-gray-800"
+                className="inline-flex h-11 w-full items-center justify-center rounded-md bg-foreground text-background hover:bg-foreground/90"
               >
                 Log in
-              </a>
-              <a
+              </Link>
+              <Link
                 href="/auth/login?screen_hint=reset_password&returnTo=/dashboard"
-                className="inline-flex w-full h-11 items-center justify-center rounded-md border border-gray-300 hover:bg-gray-50 text-gray-700"
+                className="inline-flex h-11 w-full items-center justify-center rounded-md border border-border text-foreground hover:bg-muted"
               >
                 Reset Password
-              </a>
+              </Link>
             </div>
           </div>
         </div>

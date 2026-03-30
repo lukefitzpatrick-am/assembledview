@@ -133,7 +133,7 @@ export async function POST(req: Request) {
     const clientName = mp_client_name || client_name || clientname_input
 
     // Validate required fields (only client name and MBA identifier)
-    const missingFields = []
+    const missingFields: string[] = []
     if (!clientName) missingFields.push("mp_client_name")
     if (!body.mbaidentifier) missingFields.push("mbaidentifier")
 

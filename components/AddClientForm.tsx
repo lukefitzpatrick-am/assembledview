@@ -24,18 +24,14 @@ const clientSchema = z.object({
   clientname_input: z.string().min(1, "Client name is required"),
   mbaidentifier: z.string().min(1, "MBA Identifier is required"),
   clientcategory: optionalString,
-  abn: z.preprocess(
-    (val) => {
-      if (val === null || val === undefined || val === "") return ""
-      if (typeof val === "string") return normalizeAbn(val)
-      return val
-    },
-    z
-      .string()
-      .regex(/^[A-Za-z0-9]{11}$/, "ABN must contain 11 letters or numbers after removing spaces or symbols")
-      .optional()
-      .or(z.literal(""))
-  ),
+  abn: z
+    .string()
+    .transform((s) => normalizeAbn(s))
+    .pipe(
+      z.string().refine((s) => s === "" || /^[A-Za-z0-9]{11}$/.test(s), {
+        message: "ABN must contain 11 letters or numbers after removing spaces or symbols",
+      })
+    ),
   legalbusinessname: optionalString,
   streetaddress: optionalString,
   suburb: optionalString,
@@ -103,7 +99,8 @@ const clientSchema = z.object({
     .or(z.literal("")),
 })
 
-type ClientFormValues = z.infer<typeof clientSchema>
+type ClientFormInput = z.input<typeof clientSchema>
+type ClientFormValues = z.output<typeof clientSchema>
 
 interface AddClientFormProps {
   onSuccess: () => void
@@ -114,7 +111,7 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
   const [showSuccess, setShowSuccess] = useState(false)
   const [error, setError] = useState<{ title: string; message: string } | null>(null)
 
-  const form = useForm<ClientFormValues>({
+  const form = useForm<ClientFormInput, unknown, ClientFormValues>({
     resolver: zodResolver(clientSchema),
     defaultValues: {
       clientname_input: "",
@@ -406,7 +403,7 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
                   <Input 
                     {...field} 
                     type="number" 
-                    value={field.value ?? ""} 
+                    value={typeof field.value === "number" ? field.value : ""} 
                     onChange={(e) => {
                       const value = e.target.value
                       field.onChange(value === "" ? undefined : e.target.valueAsNumber)
@@ -429,7 +426,7 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
                     <Input
                       {...field}
                       type="number"
-                    value={field.value ?? ""}
+                    value={typeof field.value === "number" ? field.value : ""}
                     onChange={(e) => {
                       const value = e.target.value
                       field.onChange(value === "" ? undefined : e.target.valueAsNumber)
@@ -709,7 +706,7 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
                             step="0.01"
                             min={0}
                             max={100}
-                            value={field.value ?? ""}
+                            value={typeof field.value === "number" ? field.value : ""}
                             onChange={(e) => field.onChange(numberOrUndefined(e.target.value, e.target.valueAsNumber))}
                             placeholder="0"
                           />
@@ -748,7 +745,7 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
                           inputMode="decimal"
                           step="0.01"
                           min={0}
-                          value={field.value ?? ""}
+                          value={typeof field.value === "number" ? field.value : ""}
                           onChange={(e) => field.onChange(numberOrUndefined(e.target.value, e.target.valueAsNumber))}
                           placeholder="0.00"
                         />

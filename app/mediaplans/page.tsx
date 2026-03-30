@@ -3,18 +3,20 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
 import { Input } from "@/components/ui/input"
 import { format } from "date-fns"
-import { TableWithExport } from "@/components/ui/table-with-export"
 import { PlusCircle, Search } from "lucide-react"
-import { mediaTypeTheme } from "@/lib/utils"
+import { MediaChannelTag, mediaChannelTagRowClassName } from "@/components/dashboard/MediaChannelTag"
+import { cn } from "@/lib/utils"
 import { compareValues, SortableTableHeader, SortDirection } from "@/components/ui/sortable-table-header"
-import { PlanUpload } from "@/components/PlanUpload"
-import type { PlanParseResult } from "@/lib/planParser"
+import { PanelRow, PanelRowCell } from "@/components/layout/PanelRow"
+import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
+import { Panel, PanelActions, PanelContent, PanelHeader, PanelTitle } from "@/components/layout/Panel"
+import { useListGridLayoutPreference } from "@/lib/hooks/useListGridLayoutPreference"
+import { ListGridToggle } from "@/components/ui/list-grid-toggle"
+import { DashboardCampaignPlanCard, dashboardCampaignGridClassName } from "@/components/dashboard/DashboardEntityCards"
 
 const slugifyClientName = (name?: string | null) => {
   if (!name || typeof name !== "string") return ""
@@ -85,13 +87,13 @@ const CAMPAIGN_STATUSES = [
 
 export default function MediaPlansPage() {
   const router = useRouter()
+  const { mode: listGridMode, setMode: setListGridMode } = useListGridLayoutPreference()
   const [mediaPlans, setMediaPlans] = useState<MediaPlan[]>([])
   const [filteredPlans, setFilteredPlans] = useState<MediaPlan[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [sortStates, setSortStates] = useState<Record<string, SortState>>({})
-  const [importedPlan, setImportedPlan] = useState<PlanParseResult | null>(null)
 
   const getNextDirection = (current: SortDirection) =>
     current === "asc" ? "desc" : current === "desc" ? null : "asc"
@@ -279,51 +281,39 @@ export default function MediaPlansPage() {
       return false;
     };
 
+    /** Labels aligned with `lib/api/dashboard.ts` campaign `mediaTypes` (matches dashboard campaign cards / charts). */
     const mediaTypes = [
-      { key: "television", enabled: isEnabled(plan.mp_television) },
-      { key: "radio", enabled: isEnabled(plan.mp_radio) },
-      { key: "newspaper", enabled: isEnabled(plan.mp_newspaper) },
-      { key: "magazines", enabled: isEnabled(plan.mp_magazines) },
-      { key: "ooh", enabled: isEnabled(plan.mp_ooh) },
-      { key: "cinema", enabled: isEnabled(plan.mp_cinema) },
-      { key: "digidisplay", enabled: isEnabled(plan.mp_digidisplay) },
-      { key: "digiaudio", enabled: isEnabled(plan.mp_digiaudio) },
-      { key: "digivideo", enabled: isEnabled(plan.mp_digivideo) },
-      { key: "bvod", enabled: isEnabled(plan.mp_bvod) },
-      { key: "integration", enabled: isEnabled(plan.mp_integration) },
-      { key: "search", enabled: isEnabled(plan.mp_search) },
-      { key: "socialmedia", enabled: isEnabled(plan.mp_socialmedia) },
-      { key: "progdisplay", enabled: isEnabled(plan.mp_progdisplay) },
-      { key: "progvideo", enabled: isEnabled(plan.mp_progvideo) },
-      { key: "progbvod", enabled: isEnabled(plan.mp_progbvod) },
-      { key: "progaudio", enabled: isEnabled(plan.mp_progaudio) },
-      { key: "progooh", enabled: isEnabled(plan.mp_progooh) },
-      { key: "influencers", enabled: isEnabled(plan.mp_influencers) },
-    ];
+      { label: "Television", enabled: isEnabled(plan.mp_television) },
+      { label: "Radio", enabled: isEnabled(plan.mp_radio) },
+      { label: "Newspaper", enabled: isEnabled(plan.mp_newspaper) },
+      { label: "Magazines", enabled: isEnabled(plan.mp_magazines) },
+      { label: "OOH", enabled: isEnabled(plan.mp_ooh) },
+      { label: "Cinema", enabled: isEnabled(plan.mp_cinema) },
+      { label: "Digital Display", enabled: isEnabled(plan.mp_digidisplay) },
+      { label: "Digital Audio", enabled: isEnabled(plan.mp_digiaudio) },
+      { label: "Digital Video", enabled: isEnabled(plan.mp_digivideo) },
+      { label: "BVOD", enabled: isEnabled(plan.mp_bvod) },
+      { label: "Integration", enabled: isEnabled(plan.mp_integration) },
+      { label: "Search", enabled: isEnabled(plan.mp_search) },
+      { label: "Social Media", enabled: isEnabled(plan.mp_socialmedia) },
+      { label: "Programmatic Display", enabled: isEnabled(plan.mp_progdisplay) },
+      { label: "Programmatic Video", enabled: isEnabled(plan.mp_progvideo) },
+      { label: "Programmatic BVOD", enabled: isEnabled(plan.mp_progbvod) },
+      { label: "Programmatic Audio", enabled: isEnabled(plan.mp_progaudio) },
+      { label: "Programmatic OOH", enabled: isEnabled(plan.mp_progooh) },
+      { label: "Influencers", enabled: isEnabled(plan.mp_influencers) },
+    ]
 
-    const enabledTypes = mediaTypes.filter(({ enabled }) => enabled === true);
-    
-    // Log for debugging
+    const enabledTypes = mediaTypes.filter(({ enabled }) => enabled === true)
+
     if (enabledTypes.length > 0) {
-      console.log(`Plan ${plan.id} - Enabled media types:`, enabledTypes.map(t => t.key));
+      console.log(`Plan ${plan.id} - Enabled media types:`, enabledTypes.map((t) => t.label))
     }
 
-    return enabledTypes.map(({ key }) => {
-      const color = mediaTypeTheme.colors[key as keyof typeof mediaTypeTheme.colors];
-      if (!color) {
-        console.warn(`No color defined for media type: ${key}`);
-      }
-      return (
-        <Badge
-          key={key}
-          className="mr-1 mb-1 text-white"
-          style={{ backgroundColor: color || '#666666' }}
-        >
-          {key}
-        </Badge>
-      );
-    });
-  };
+    return enabledTypes.map(({ label }) => (
+      <MediaChannelTag key={`${plan.id}-${label}`} label={label} />
+    ))
+  }
 
   // Format currency
   const formatCurrency = (amount: number) => {
@@ -364,221 +354,245 @@ export default function MediaPlansPage() {
   }
 
   return (
-    <div className="w-full min-h-screen">
-      <div className="w-full px-4 py-6 space-y-4">
-        <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold">Media Plans</h1>
-          <div className="flex items-center space-x-4">
+    <div className="w-full max-w-none space-y-6 px-4 pb-12 pt-0 md:px-6">
+      <MediaPlanEditorHero
+        className="mb-2 pt-6 md:pt-8"
+        title="Media Plans"
+        detail={
+          <p>Search campaigns, create a new plan, and jump into edits or dashboards.</p>
+        }
+        actions={
+          <div className="flex flex-wrap items-center gap-3">
+            <ListGridToggle value={listGridMode} onChange={setListGridMode} />
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Search campaigns..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 w-64"
+                className="w-72 border-border/50 bg-background/80 pl-10 backdrop-blur-sm"
               />
             </div>
-            <Button onClick={() => router.push("/mediaplans/create")}>
+            <Button
+              className="shadow-sm"
+              onClick={() => router.push("/mediaplans/create")}
+            >
               <PlusCircle className="mr-2 h-4 w-4" />
               Create Media Plan
             </Button>
           </div>
-        </div>
-        {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-            <p>{error}</p>
-          </div>
-        )}
+        }
+      />
+      <PanelRow>
+          <PanelRowCell
+            span="full"
+            className="space-y-4 bg-surface-muted py-6 -mx-4 px-4 md:-mx-6 md:px-6"
+          >
+          {error && (
+            <Panel variant="error" errorMessage={error} className="border-border/60" />
+          )}
 
-        {loading ? (
-          <div className="space-y-4">
-            {CAMPAIGN_STATUSES.map((status) => (
-              <Card key={status}>
-                <CardHeader>
-                  <CardTitle>{status}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    <Skeleton className="h-10 w-full" />
-                    <Skeleton className="h-10 w-full" />
-                    <Skeleton className="h-10 w-full" />
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : (
-          <div className="space-y-8">
-            {CAMPAIGN_STATUSES.map((status) => {
-              const plans = getMediaPlansByStatus(status)
-              const sortedPlans = applySortForStatus(plans, status)
-              const shouldScrollTable = sortedPlans.length > 12
-              return (
-                <Card key={status} className="w-full">
-                  <CardHeader>
-                    <CardTitle className="flex items-center justify-between">
-                      <span>{status}</span>
-                      <Badge className={getStatusBadgeColor(status)}>
-                        {plans.length} {plans.length === 1 ? "Plan" : "Plans"}
-                      </Badge>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {plans.length === 0 ? (
-                      <p className="text-muted-foreground text-center py-4">No {status.toLowerCase()} media plans</p>
-                    ) : (
-                      <div className={`overflow-x-auto ${shouldScrollTable ? "max-h-[1008px] overflow-y-auto" : ""}`}>
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <SortableTableHeader
-                                label="ID"
-                                direction={getSortDirection(status, "id")}
-                                onToggle={() => toggleSortForStatus(status, "id")}
-                                className="w-16"
-                              />
-                              <SortableTableHeader
-                                label="Client Name"
-                                direction={getSortDirection(status, "client")}
-                                onToggle={() => toggleSortForStatus(status, "client")}
-                                className="w-32"
-                              />
-                              <SortableTableHeader
-                                label="MBA Number"
-                                direction={getSortDirection(status, "mba")}
-                                onToggle={() => toggleSortForStatus(status, "mba")}
-                                className="w-24"
-                              />
-                              <SortableTableHeader
-                                label="Campaign Name"
-                                direction={getSortDirection(status, "campaign")}
-                                onToggle={() => toggleSortForStatus(status, "campaign")}
-                                className="w-40"
-                              />
-                              <SortableTableHeader
-                                label="Version"
-                                direction={getSortDirection(status, "version")}
-                                onToggle={() => toggleSortForStatus(status, "version")}
-                                className="w-20"
-                              />
-                              <SortableTableHeader
-                                label="Budget"
-                                direction={getSortDirection(status, "budget")}
-                                onToggle={() => toggleSortForStatus(status, "budget")}
-                                className="w-24"
-                              />
-                              <SortableTableHeader
-                                label="Start Date"
-                                direction={getSortDirection(status, "startDate")}
-                                onToggle={() => toggleSortForStatus(status, "startDate")}
-                                className="w-24"
-                              />
-                              <SortableTableHeader
-                                label="End Date"
-                                direction={getSortDirection(status, "endDate")}
-                                onToggle={() => toggleSortForStatus(status, "endDate")}
-                                className="w-24"
-                              />
-                              <TableHead className="w-48">Media Types</TableHead>
-                              <TableHead className="w-20">Actions</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
+          {loading ? (
+            <div className="space-y-4">
+              {CAMPAIGN_STATUSES.map((status) => (
+                <Panel key={status} variant="loading" className="border-border/40 shadow-sm" />
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {CAMPAIGN_STATUSES.map((status) => {
+                const plans = getMediaPlansByStatus(status)
+                const sortedPlans = applySortForStatus(plans, status)
+                const shouldScrollTable = sortedPlans.length > 12
+
+                return (
+                  <Panel key={status} className="overflow-hidden border-border/40 shadow-sm">
+                    <PanelHeader className="border-b border-border/40 bg-muted/20 pb-3">
+                      <PanelTitle className="flex items-center gap-2.5">
+                        <div
+                          className={cn(
+                            "h-2.5 w-2.5 rounded-full",
+                            status === "Booked" && "bg-purple-500",
+                            status === "Approved" && "bg-green-500",
+                            status === "Planned" && "bg-blue-500",
+                            status === "Draft" && "bg-gray-400",
+                            status === "Completed" && "bg-teal-500",
+                            status === "Cancelled" && "bg-red-400",
+                          )}
+                        />
+                        <span className="text-sm font-semibold">{status}</span>
+                        <span className="text-xs tabular-nums text-muted-foreground">
+                          ({plans.length})
+                        </span>
+                      </PanelTitle>
+                      <PanelActions />
+                    </PanelHeader>
+
+                    <PanelContent className="px-0 pb-0 pt-0">
+                      {plans.length === 0 ? (
+                        <div className="py-12 text-center">
+                          <span className="text-sm text-muted-foreground/70">
+                            No {status.toLowerCase()} plans
+                          </span>
+                        </div>
+                      ) : listGridMode === "grid" ? (
+                        <div className="px-4 py-4">
+                          <div className={dashboardCampaignGridClassName(shouldScrollTable)}>
                             {sortedPlans.map((plan) => (
-                              <TableRow key={plan.id}>
-                                <TableCell className="font-medium w-16">{plan.id}</TableCell>
-                                <TableCell className="w-32">{plan.mp_client_name}</TableCell>
-                                <TableCell className="w-24">{plan.mba_number}</TableCell>
-                                <TableCell className="w-40">{plan.mp_campaignname || plan.campaign_name}</TableCell>
-                                <TableCell className="w-20">{plan.version_number}</TableCell>
-                                <TableCell className="w-24">{formatCurrency(plan.mp_campaignbudget)}</TableCell>
-                                <TableCell className="w-24">{formatDate(plan.campaign_start_date)}</TableCell>
-                                <TableCell className="w-24">{formatDate(plan.campaign_end_date)}</TableCell>
-                                <TableCell className="w-48">
-                                  <div className="flex flex-wrap">
-                                    {getMediaTypeTags(plan)}
-                                  </div>
-                                </TableCell>
-                                <TableCell className="w-20">
-                                  <div className="flex flex-col items-start gap-2">
-                                    <Button 
-                                      variant="outline" 
-                                      size="sm"
-                                      onClick={() => router.push(`/mediaplans/mba/${plan.mba_number}/edit?version=${plan.version_number}`)}
-                                    >
-                                      Edit
-                                    </Button>
-                                    <Button
-                                      variant="secondary"
-                                      size="sm"
-                                      disabled={!slugifyClientName(plan.mp_client_name)}
-                                      onClick={() => {
-                                        const slug = slugifyClientName(plan.mp_client_name)
-                                        if (!slug) return
-                                        router.push(`/dashboard/${slug}/${plan.mba_number}`)
-                                      }}
-                                    >
-                                      View
-                                    </Button>
-                                  </div>
-                                </TableCell>
-                              </TableRow>
+                              <DashboardCampaignPlanCard
+                                key={plan.id}
+                                plan={{
+                                  id: plan.id,
+                                  mp_clientname: plan.mp_client_name,
+                                  mp_campaignname: plan.mp_campaignname || plan.campaign_name || "",
+                                  mp_mba_number: plan.mba_number,
+                                  mp_version: plan.version_number,
+                                  mp_campaignstatus: plan.campaign_status,
+                                  mp_campaigndates_start: plan.campaign_start_date,
+                                  mp_campaigndates_end: plan.campaign_end_date,
+                                  mp_campaignbudget: plan.mp_campaignbudget,
+                                }}
+                                formatDate={formatDate}
+                                formatCurrency={formatCurrency}
+                                mediaTypeTags={getMediaTypeTags(plan)}
+                                showStatus={true}
+                                statusBadgeClassName={getStatusBadgeColor(plan.campaign_status)}
+                                onEdit={() =>
+                                  router.push(
+                                    `/mediaplans/mba/${plan.mba_number}/edit?version=${plan.version_number}`
+                                  )
+                                }
+                                onView={() => {
+                                  const slug = slugifyClientName(plan.mp_client_name)
+                                  if (!slug) return
+                                  router.push(`/dashboard/${slug}/${plan.mba_number}`)
+                                }}
+                                viewDisabled={!slugifyClientName(plan.mp_client_name)}
+                              />
                             ))}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )
-            })}
-          </div>
-        )}
-
-        <PlanUpload
-          onParsed={(result) => {
-            setImportedPlan(result)
-            console.log("Parsed media plan import", result)
-          }}
-          helperText="Upload PDF or CSV media plans/publisher specs. Parsed placements appear below for confirmation."
-        />
-
-        {importedPlan && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Imported media items</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <p className="text-sm text-slate-600">
-                {importedPlan.items.length} item(s) combined from {importedPlan.sources.length} file
-                {importedPlan.sources.length === 1 ? "" : "s"}.
-              </p>
-              <div className="max-h-48 overflow-y-auto space-y-2">
-                {importedPlan.items.slice(0, 5).map((item, idx) => (
-                  <div key={`${item.name}-${idx}`} className="rounded border border-slate-200 bg-white px-3 py-2">
-                    <p className="text-sm font-semibold text-slate-900">{item.name}</p>
-                    <p className="text-xs text-slate-600">
-                      {[item.channel, item.publisher].filter(Boolean).join(" • ")}
-                    </p>
-                    {(item.flightStart || item.flightEnd) && (
-                      <p className="text-xs text-slate-600">
-                        Flight: {item.flightStart || "?"} - {item.flightEnd || "?"}
-                      </p>
-                    )}
-                    {item.specs && <p className="text-xs text-slate-600">Specs: {item.specs}</p>}
-                    {item.deadlines && <p className="text-xs text-slate-600">Deadline: {item.deadlines}</p>}
-                  </div>
-                ))}
-                {importedPlan.items.length > 5 && (
-                  <p className="text-xs text-slate-500">
-                    Showing first 5 of {importedPlan.items.length}. Use the parsed data to prefill media containers.
-                  </p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div
+                          className={`overflow-x-auto ${
+                            shouldScrollTable ? "max-h-[1008px] overflow-y-auto" : ""
+                          }`}
+                        >
+                          <Table>
+                            <TableHeader className="sticky top-0 z-10 bg-muted/30">
+                              <TableRow className="border-b border-border/40 hover:bg-transparent">
+                                <SortableTableHeader
+                                  label="ID"
+                                  direction={getSortDirection(status, "id")}
+                                  onToggle={() => toggleSortForStatus(status, "id")}
+                                  className="w-16"
+                                />
+                                <SortableTableHeader
+                                  label="Client Name"
+                                  direction={getSortDirection(status, "client")}
+                                  onToggle={() => toggleSortForStatus(status, "client")}
+                                  className="w-32"
+                                />
+                                <SortableTableHeader
+                                  label="MBA Number"
+                                  direction={getSortDirection(status, "mba")}
+                                  onToggle={() => toggleSortForStatus(status, "mba")}
+                                  className="w-24"
+                                />
+                                <SortableTableHeader
+                                  label="Campaign Name"
+                                  direction={getSortDirection(status, "campaign")}
+                                  onToggle={() => toggleSortForStatus(status, "campaign")}
+                                  className="w-40"
+                                />
+                                <SortableTableHeader
+                                  label="Version"
+                                  direction={getSortDirection(status, "version")}
+                                  onToggle={() => toggleSortForStatus(status, "version")}
+                                  className="w-20"
+                                />
+                                <SortableTableHeader
+                                  label="Budget"
+                                  direction={getSortDirection(status, "budget")}
+                                  onToggle={() => toggleSortForStatus(status, "budget")}
+                                  className="w-24"
+                                />
+                                <SortableTableHeader
+                                  label="Start Date"
+                                  direction={getSortDirection(status, "startDate")}
+                                  onToggle={() => toggleSortForStatus(status, "startDate")}
+                                  className="w-24"
+                                />
+                                <SortableTableHeader
+                                  label="End Date"
+                                  direction={getSortDirection(status, "endDate")}
+                                  onToggle={() => toggleSortForStatus(status, "endDate")}
+                                  className="w-24"
+                                />
+                                <TableHead className="w-48">Media Types</TableHead>
+                                <TableHead className="w-20">Actions</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody className="[&_tr:nth-child(even)]:bg-muted/5">
+                              {sortedPlans.map((plan) => (
+                                <TableRow
+                                  key={plan.id}
+                                  className="border-b border-border/20 transition-colors duration-100 hover:bg-muted/30"
+                                >
+                                  <TableCell className="w-16 font-medium">{plan.id}</TableCell>
+                                  <TableCell className="w-32">{plan.mp_client_name}</TableCell>
+                                  <TableCell className="w-24">{plan.mba_number}</TableCell>
+                                  <TableCell className="w-40">{plan.mp_campaignname || plan.campaign_name}</TableCell>
+                                  <TableCell className="w-20">{plan.version_number}</TableCell>
+                                  <TableCell className="w-24">{formatCurrency(plan.mp_campaignbudget)}</TableCell>
+                                  <TableCell className="w-24">{formatDate(plan.campaign_start_date)}</TableCell>
+                                  <TableCell className="w-24">{formatDate(plan.campaign_end_date)}</TableCell>
+                                  <TableCell className="w-48">
+                                    <div className={mediaChannelTagRowClassName}>{getMediaTypeTags(plan)}</div>
+                                  </TableCell>
+                                  <TableCell className="w-20">
+                                    <div className="flex items-center gap-1.5">
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-8 text-xs"
+                                        onClick={() =>
+                                          router.push(
+                                            `/mediaplans/mba/${plan.mba_number}/edit?version=${plan.version_number}`
+                                          )
+                                        }
+                                      >
+                                        Edit
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-8 text-xs"
+                                        disabled={!slugifyClientName(plan.mp_client_name)}
+                                        onClick={() => {
+                                          const slug = slugifyClientName(plan.mp_client_name)
+                                          if (!slug) return
+                                          router.push(`/dashboard/${slug}/${plan.mba_number}`)
+                                        }}
+                                      >
+                                        View
+                                      </Button>
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      )}
+                    </PanelContent>
+                  </Panel>
+                )
+              })}
+            </div>
+          )}
+          </PanelRowCell>
+      </PanelRow>
     </div>
   )
 }

@@ -12,11 +12,13 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Combobox } from "@/components/ui/combobox"
-import { Loader2, Download } from "lucide-react"
+import { Download } from "lucide-react"
 import ExcelJS from "exceljs"
 import { saveAs } from "file-saver"
 import { format, addMonths, startOfMonth } from "date-fns"
+import { LoadingDots } from "@/components/ui/loading-dots"
 import { formatMoney } from "@/lib/utils/money"
+import { writeSowFinanceWorksheet, workbookToXlsxBuffer } from "@/lib/finance/excelFinanceExport"
 
 interface FinanceLineItem {
   itemCode: string
@@ -86,98 +88,8 @@ export default function FinanceSOWPage() {
 
   const exportToExcel = async (campaigns: FinanceCampaignData[], sectionName: string) => {
     const workbook = new ExcelJS.Workbook()
-    const worksheet = workbook.addWorksheet("Finance SOW Report")
-
-    worksheet.columns = [
-      { width: 20 },
-      { width: 25 },
-      { width: 40 },
-      { width: 15 },
-    ]
-
-    const headerStyle = {
-      font: { bold: true, size: 12 },
-      fill: {
-        type: "pattern" as const,
-        pattern: "solid" as const,
-        fgColor: { argb: "FFE0E0E0" },
-      },
-      border: {
-        top: { style: "thin" as const },
-        bottom: { style: "thin" as const },
-        left: { style: "thin" as const },
-        right: { style: "thin" as const },
-      },
-    }
-
-    let rowIndex = 1
-
-    campaigns.forEach((campaign) => {
-      worksheet.mergeCells(rowIndex, 1, rowIndex, 4)
-      const headerCell = worksheet.getCell(rowIndex, 1)
-      headerCell.value = `${campaign.clientName} - ${campaign.campaignName} (${campaign.mbaNumber})`
-      headerCell.font = { bold: true, size: 14 }
-      headerCell.fill = {
-        type: "pattern",
-        pattern: "solid",
-        fgColor: { argb: "FFD0D0D0" },
-      }
-      rowIndex++
-
-      const details = [
-        ["Client Name", campaign.clientName],
-        ["Scope ID", campaign.mbaNumber],
-        ["Scope Name", campaign.campaignName],
-        ["Payment Days & Payment Terms", `${campaign.paymentDays} - ${campaign.paymentTerms}`],
-        ["Invoice Date", format(new Date(campaign.invoiceDate), "dd/MM/yyyy")],
-      ]
-
-      details.forEach(([label, value]) => {
-        worksheet.getCell(rowIndex, 1).value = label
-        worksheet.getCell(rowIndex, 1).font = { bold: true }
-        worksheet.getCell(rowIndex, 2).value = value
-        rowIndex++
-      })
-
-      rowIndex++
-
-      worksheet.getCell(rowIndex, 1).value = "Item Code"
-      worksheet.getCell(rowIndex, 1).style = headerStyle
-      worksheet.getCell(rowIndex, 2).value = "Type"
-      worksheet.getCell(rowIndex, 2).style = headerStyle
-      worksheet.getCell(rowIndex, 3).value = "Description"
-      worksheet.getCell(rowIndex, 3).style = headerStyle
-      worksheet.getCell(rowIndex, 4).value = "Amount"
-      worksheet.getCell(rowIndex, 4).style = headerStyle
-      rowIndex++
-
-      campaign.lineItems.forEach((item) => {
-        worksheet.getCell(rowIndex, 1).value = item.itemCode
-        worksheet.getCell(rowIndex, 2).value = item.mediaType
-        worksheet.getCell(rowIndex, 3).value = item.description
-        worksheet.getCell(rowIndex, 4).value = item.amount
-        worksheet.getCell(rowIndex, 4).numFmt = "$#,##0.00"
-        rowIndex++
-      })
-
-      campaign.serviceRows.forEach((service) => {
-        worksheet.getCell(rowIndex, 1).value = service.itemCode
-        worksheet.getCell(rowIndex, 2).value = service.service
-        worksheet.getCell(rowIndex, 4).value = service.amount
-        worksheet.getCell(rowIndex, 4).numFmt = "$#,##0.00"
-        rowIndex++
-      })
-
-      worksheet.mergeCells(rowIndex, 1, rowIndex, 3)
-      worksheet.getCell(rowIndex, 1).value = "Total"
-      worksheet.getCell(rowIndex, 1).font = { bold: true }
-      worksheet.getCell(rowIndex, 4).value = campaign.total
-      worksheet.getCell(rowIndex, 4).numFmt = "$#,##0.00"
-      worksheet.getCell(rowIndex, 4).font = { bold: true }
-      rowIndex += 3
-    })
-
-    const buffer = await workbook.xlsx.writeBuffer()
+    await writeSowFinanceWorksheet(workbook, "Finance SOW Report", campaigns)
+    const buffer = await workbookToXlsxBuffer(workbook)
     const blob = new Blob([buffer], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     })
@@ -191,30 +103,28 @@ export default function FinanceSOWPage() {
 
     return (
       <div key={campaign.mbaNumber} className="mb-8">
-        <div className="mb-4 p-4 bg-gray-50 rounded-lg border">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <span className="font-semibold">Client Name: </span>
-              <span>{campaign.clientName}</span>
-            </div>
-            <div>
-              <span className="font-semibold">Scope ID: </span>
-              <span>{campaign.mbaNumber}</span>
-            </div>
-            <div>
-              <span className="font-semibold">Scope Name: </span>
-              <span>{campaign.campaignName}</span>
-            </div>
-            <div>
-              <span className="font-semibold">Payment Days & Payment Terms: </span>
-              <span>
-                {campaign.paymentDays} - {campaign.paymentTerms}
-              </span>
-            </div>
-            <div>
-              <span className="font-semibold">Invoice Date: </span>
-              <span>{format(new Date(campaign.invoiceDate), "dd/MM/yyyy")}</span>
-            </div>
+        <div className="mb-4 overflow-hidden rounded-lg border border-border/40 bg-muted/10">
+          <div className="border-b border-border/30 bg-muted/30 px-4 py-2.5">
+            <span className="text-sm font-semibold">{campaign.clientName}</span>
+            <span className="ml-2 text-xs text-muted-foreground">· {campaign.mbaNumber}</span>
+          </div>
+          <div className="grid grid-cols-2 gap-x-6 gap-y-2 px-4 py-3 sm:grid-cols-3">
+            {[
+              { label: "Scope", value: campaign.campaignName },
+              { label: "PO Number", value: campaign.poNumber || "N/A" },
+              { label: "Payment", value: `${campaign.paymentDays} - ${campaign.paymentTerms}` },
+              {
+                label: "Invoice Date",
+                value: format(new Date(campaign.invoiceDate), "dd/MM/yyyy"),
+              },
+            ].map((item) => (
+              <div key={item.label}>
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  {item.label}
+                </span>
+                <p className="mt-0.5 text-sm">{item.value}</p>
+              </div>
+            ))}
           </div>
         </div>
 
@@ -258,7 +168,7 @@ export default function FinanceSOWPage() {
                 </TableCell>
               </TableRow>
             ))}
-            <TableRow className="font-bold bg-gray-100">
+            <TableRow className="border-t-2 border-primary/20 bg-muted/30 font-semibold">
               <TableCell colSpan={3} className="text-right">
                 Total
               </TableCell>
@@ -278,54 +188,66 @@ export default function FinanceSOWPage() {
   }
 
   return (
-    <div className="container mx-auto p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Finance - Scopes of Work</h1>
-        <div className="flex gap-4 items-center">
-          <Combobox
-            value={selectedMonthYear}
-            onValueChange={setSelectedMonthYear}
-            placeholder="Select month/year"
-            searchPlaceholder="Search months..."
-            buttonClassName="w-[200px]"
-            options={monthYearOptions.map((option) => ({
-              value: option.value,
-              label: option.label,
-            }))}
-          />
-          <Button onClick={loadData} disabled={loading}>
-            {loading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Loading...
-              </>
-            ) : (
-              "Load"
-            )}
-          </Button>
+    <div className="w-full max-w-none px-4 pb-12 pt-0 md:px-6">
+      <div className="relative -mx-4 mb-6 border-b border-border/40 bg-gradient-to-br from-primary/5 via-background to-background px-4 pb-6 pt-8 md:-mx-6 md:px-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Finance — Scopes of Work</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Monthly scope of work billing by campaign.
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-3">
+            <Combobox
+              value={selectedMonthYear}
+              onValueChange={setSelectedMonthYear}
+              placeholder="Select month/year"
+              searchPlaceholder="Search months..."
+              buttonClassName="w-[200px]"
+              options={monthYearOptions.map((option) => ({
+                value: option.value,
+                label: option.label,
+              }))}
+            />
+            <Button onClick={loadData} disabled={loading} className="shadow-sm">
+              {loading ? (
+                <>
+                  <LoadingDots size="sm" className="mr-2" />
+                  Loading...
+                </>
+              ) : (
+                "Load"
+              )}
+            </Button>
+          </div>
         </div>
       </div>
 
       {loading && (
-        <div className="flex justify-center items-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin" />
+        <div className="flex flex-col items-center justify-center gap-3 py-16">
+          <div className="relative h-10 w-10">
+            <div className="absolute inset-0 rounded-full border-2 border-muted" />
+            <div className="absolute inset-0 rounded-full border-2 border-t-primary animate-spin" />
+          </div>
+          <span className="text-sm text-muted-foreground">Loading…</span>
         </div>
       )}
 
       {!loading && (bookedApproved.length > 0 || other.length > 0) && (
         <>
           {bookedApproved.length > 0 && (
-            <Card className="mb-6">
+            <Card className="mb-6 overflow-hidden border-border/40 shadow-sm">
+              <div className="h-1 bg-gradient-to-r from-primary via-primary/70 to-primary/40" />
               <CardHeader>
-                <div className="flex justify-between items-center">
-                  <CardTitle>Approved / In-Progress Scopes</CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base font-semibold">Approved / In progress</CardTitle>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => exportToExcel(bookedApproved, "BookedApproved")}
                   >
                     <Download className="mr-2 h-4 w-4" />
-                    Export to Excel
+                    Export Excel
                   </Button>
                 </div>
               </CardHeader>
@@ -336,17 +258,18 @@ export default function FinanceSOWPage() {
           )}
 
           {other.length > 0 && (
-            <Card>
+            <Card className="overflow-hidden border-border/40 shadow-sm">
+              <div className="h-1 bg-gradient-to-r from-primary via-primary/70 to-primary/40" />
               <CardHeader>
-                <div className="flex justify-between items-center">
-                  <CardTitle>Other Scopes</CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base font-semibold">Other scopes</CardTitle>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => exportToExcel(other, "Other")}
                   >
                     <Download className="mr-2 h-4 w-4" />
-                    Export to Excel
+                    Export Excel
                   </Button>
                 </div>
               </CardHeader>
@@ -359,9 +282,11 @@ export default function FinanceSOWPage() {
       )}
 
       {!loading && bookedApproved.length === 0 && other.length === 0 && (
-        <Card>
-          <CardContent className="py-12 text-center text-gray-500">
-            No data available for the selected month. Click "Load" to fetch data.
+        <Card className="border-border/40 shadow-sm">
+          <CardContent className="py-16 text-center">
+            <p className="text-sm text-muted-foreground">
+              No data available for the selected month. Click &quot;Load&quot; to fetch data.
+            </p>
           </CardContent>
         </Card>
       )}
