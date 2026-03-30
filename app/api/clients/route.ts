@@ -2,21 +2,16 @@ import { NextResponse } from "next/server"
 import axios from "axios"
 import { getClientDisplayName, slugifyClientNameForUrl } from "@/lib/clients/slug"
 import { getCachedClients, invalidateClientsCache, setCachedClients } from "@/lib/cache/clientsCache"
+import { getXanoClientsCollectionUrl } from "@/lib/api/xanoClients"
 
 export const runtime = "nodejs"
 
-const DEFAULT_CLIENTS_BASE_URL = "https://xg4h-uyzs-dtex.a2.xano.io/api:9v_k2NR8"
-const clientsBaseUrl = (process.env.XANO_CLIENTS_BASE_URL || process.env.XANO_BASE_URL || DEFAULT_CLIENTS_BASE_URL).replace(/\/$/, "")
-const clientsUrl = `${clientsBaseUrl}/clients`
+const clientsUrl = getXanoClientsCollectionUrl()
 
 const API_TIMEOUT = Number(process.env.XANO_TIMEOUT_MS ?? 5000)
 const MAX_RETRIES = Number(process.env.XANO_MAX_RETRIES ?? 1)
 const OVERALL_TIMEOUT_MS = Number(process.env.XANO_OVERALL_TIMEOUT_MS ?? 6000)
 const CACHE_TTL_MS = Number(process.env.CLIENTS_CACHE_TTL_MS ?? 5 * 60 * 1000)
-
-if (!process.env.XANO_CLIENTS_BASE_URL && !process.env.XANO_BASE_URL) {
-  console.warn("XANO_CLIENTS_BASE_URL is not set; falling back to default clients base URL")
-}
 
 function withClientSlug(raw: any) {
   const name = getClientDisplayName(raw)

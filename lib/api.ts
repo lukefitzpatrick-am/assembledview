@@ -989,10 +989,19 @@ export async function getMediaPlanVersionByMasterId(masterId: number) {
 
 
 export async function getMediaPlanByMBA(mba_number: string) {
-  return fetch(`/media_plan?mba_number=${mba_number}`);
+  const q = `mba_number=${encodeURIComponent(mba_number)}`
+  const url = isBrowser
+    ? `/api/media_plans/media_plan?${q}`
+    : `${MEDIA_PLANS_BASE_URL}/media_plan?${q}`
+  return fetch(url)
 }
+
 export async function getMediaPlanVersionByMBA(mba_number: string) {
-  return fetch(`/media_plan_version?mba_number=${mba_number}`);
+  const q = `mba_number=${encodeURIComponent(mba_number)}`
+  const url = isBrowser
+    ? `/api/media_plans/media_plan_version?${q}`
+    : `${MEDIA_PLANS_BASE_URL}/media_plan_version?${q}`
+  return fetch(url)
 }
 
 async function fetchMediaDetail(path: string) {

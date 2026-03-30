@@ -1,14 +1,9 @@
 import { NextResponse } from "next/server"
 import axios from "axios"
 import { invalidateClientsCache } from "@/lib/cache/clientsCache"
+import { getXanoClientsCollectionUrl } from "@/lib/api/xanoClients"
 
-const DEFAULT_CLIENTS_BASE_URL = "https://xg4h-uyzs-dtex.a2.xano.io/api:9v_k2NR8"
-const clientsBaseUrl = (process.env.XANO_CLIENTS_BASE_URL || process.env.XANO_BASE_URL || DEFAULT_CLIENTS_BASE_URL).replace(/\/$/, "")
-const clientsUrl = `${clientsBaseUrl}/clients`
-
-if (!process.env.XANO_CLIENTS_BASE_URL && !process.env.XANO_BASE_URL) {
-  console.warn("XANO_CLIENTS_BASE_URL is not set; falling back to default clients base URL")
-}
+const clientsUrl = getXanoClientsCollectionUrl()
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {

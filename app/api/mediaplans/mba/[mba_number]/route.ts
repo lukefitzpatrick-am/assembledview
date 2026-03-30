@@ -3,6 +3,7 @@ import axios from "axios"
 import { parseDateOnlyString, toMelbourneDateString } from "@/lib/timezone"
 import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
 import { getXanoBaseUrl, parseXanoListPayload, xanoUrl } from "@/lib/api/xano"
+import { getXanoClientsCollectionUrl } from "@/lib/api/xanoClients"
 import { roundMoney4 } from "@/lib/utils/money"
 
 export const dynamic = "force-dynamic"
@@ -238,7 +239,7 @@ function slugifyClientName(name: string | null | undefined): string {
 async function fetchClientBrandColour(clientName?: string | null): Promise<string | null> {
   if (!clientName) return null
   try {
-    const response = await axios.get(xanoUrl("clients", "XANO_CLIENTS_BASE_URL"))
+    const response = await axios.get(getXanoClientsCollectionUrl())
     const clients = parseXanoListPayload(response.data)
     const targetSlug = slugifyClientName(clientName)
     const match = clients.find((client: any) => slugifyClientName(client?.mp_client_name || client?.name) === targetSlug) as

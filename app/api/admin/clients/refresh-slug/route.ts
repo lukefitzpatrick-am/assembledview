@@ -7,16 +7,11 @@ import {
   updateAuth0UserMetadata,
 } from "@/lib/api/auth0Management"
 import { getClientDisplayName, slugifyClientNameForUrl } from "@/lib/clients/slug"
+import { getXanoClientsCollectionUrl } from "@/lib/api/xanoClients"
 
 export const runtime = "nodejs"
 
-const DEFAULT_CLIENTS_BASE_URL = "https://xg4h-uyzs-dtex.a2.xano.io/api:9v_k2NR8"
-const clientsBaseUrl = (
-  process.env.XANO_CLIENTS_BASE_URL ||
-  process.env.XANO_BASE_URL ||
-  DEFAULT_CLIENTS_BASE_URL
-).replace(/\/$/, "")
-const clientsUrl = `${clientsBaseUrl}/clients`
+const clientsUrl = getXanoClientsCollectionUrl()
 
 const ADMIN_ALLOWLIST = (process.env.ADMIN_EMAIL_ALLOWLIST || "")
   .split(",")

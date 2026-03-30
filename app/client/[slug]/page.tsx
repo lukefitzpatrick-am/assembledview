@@ -3,6 +3,8 @@ import { getClientDashboardData } from '@/lib/api/dashboard'
 import { fetchXanoClientRowByUrlSlug } from '@/lib/clients/fetchClientRowByUrlSlug'
 import { ClientDashboardPageContent } from '@/components/dashboard/ClientDashboardPageContent'
 
+export const dynamic = 'force-dynamic'
+
 interface PageProps {
   params: Promise<{ slug: string }>
 }

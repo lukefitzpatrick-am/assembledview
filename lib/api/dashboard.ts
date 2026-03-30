@@ -16,6 +16,7 @@ import {
 } from './media-containers'
 import axios from 'axios'
 import { parseXanoListPayload, xanoUrl } from '@/lib/api/xano'
+import { getXanoClientsCollectionUrl } from '@/lib/api/xanoClients'
 import { getClientDisplayName, slugifyClientNameForUrl } from '@/lib/clients/slug'
 import { findClientRawByDashboardSlug } from '@/lib/clients/xanoClientSlugMatch'
 
@@ -451,7 +452,7 @@ function normalizeSchedule(schedule: any): any[] {
 
 export async function getClientBySlug(slug: string): Promise<Client | null> {
   try {
-    const response = await apiClient.get(xanoUrl("clients", "XANO_CLIENTS_BASE_URL"))
+    const response = await apiClient.get(getXanoClientsCollectionUrl())
     const clients = parseXanoListPayload(response.data)
 
     const raw = findClientRawByDashboardSlug(clients, slug) as Record<string, any> | null
@@ -1038,7 +1039,7 @@ export async function getClientHubSummaries(rawClients: any[]): Promise<ClientHu
 }
 
 async function fetchXanoClientsWithSlugsForHub(): Promise<any[]> {
-  const response = await apiClient.get(xanoUrl('clients', 'XANO_CLIENTS_BASE_URL'))
+  const response = await apiClient.get(getXanoClientsCollectionUrl())
   const rows = parseXanoListPayload(response.data)
   return rows.map((raw: any) => ({
     ...raw,
@@ -1223,7 +1224,7 @@ export async function getGlobalMonthlyClientSpend(): Promise<{
   // Fetch client colors map
   let clientColors: Record<string, string> = {}
   try {
-    const clientsResp = await apiClient.get(xanoUrl("clients", "XANO_CLIENTS_BASE_URL"))
+    const clientsResp = await apiClient.get(getXanoClientsCollectionUrl())
     const clients = parseXanoListPayload(clientsResp.data)
     clientColors = clients.reduce((acc: Record<string, string>, c: any) => {
       if (c.mp_client_name && c.brand_colour) {
