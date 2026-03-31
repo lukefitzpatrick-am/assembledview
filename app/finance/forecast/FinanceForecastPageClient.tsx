@@ -1,9 +1,9 @@
 "use client"
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { format, isValid as isValidDate } from "date-fns"
 import { saveAs } from "file-saver"
-import { Bug, Camera, ChevronDown, Download, Search } from "lucide-react"
+import { Bug, Camera, ChevronDown, ChevronRight, Download, Search } from "lucide-react"
 
 import {
   FINANCE_FORECAST_FISCAL_MONTH_ORDER,
@@ -11,8 +11,10 @@ import {
   FINANCE_FORECAST_GROUP_LABELS,
   FINANCE_FORECAST_LINE_LABELS,
   FINANCE_FORECAST_LINE_KEYS,
+  type FinanceForecastClientBlock,
   type FinanceForecastDataset,
   type FinanceForecastLine,
+  type FinanceForecastMonthlyAmounts,
   type FinanceForecastMonthKey,
   type FinanceForecastScenario,
 } from "@/lib/types/financeForecast"
@@ -108,6 +110,70 @@ const STICKY_LINE =
   "sticky left-[10.5rem] z-20 min-w-[13.5rem] w-[13.5rem] max-w-[16rem] border-r border-border/60 bg-background shadow-[4px_0_12px_-8px_rgba(0,0,0,0.15)]"
 const STICKY_HEAD = "bg-muted/95 backdrop-blur-sm"
 
+function emptyMonthlyAmounts(): FinanceForecastMonthlyAmounts {
+  const m = {} as FinanceForecastMonthlyAmounts
+  for (const k of FINANCE_FORECAST_FISCAL_MONTH_ORDER) m[k] = 0
+  return m
+}
+
+function sumForecastLines(lines: readonly FinanceForecastLine[]): {
+  monthly: FinanceForecastMonthlyAmounts
+  fy: number
+} {
+  const monthly = emptyMonthlyAmounts()
+  let fy = 0
+  for (const line of lines) {
+    for (const k of FINANCE_FORECAST_FISCAL_MONTH_ORDER) {
+      monthly[k] += line.monthly[k] ?? 0
+    }
+    fy += line.fy_total
+  }
+  return { monthly, fy }
+}
+
+function billingGroupFromBlock(block: FinanceForecastClientBlock) {
+  return block.groups.find((g) => g.group_key === FINANCE_FORECAST_GROUP_KEYS.billingBasedInformation)
+}
+
+function revenueGroupFromBlock(block: FinanceForecastClientBlock) {
+  return block.groups.find((g) => g.group_key === FINANCE_FORECAST_GROUP_KEYS.revenueFeesCommission)
+}
+
+/** Prefer computed total revenue rows per client; otherwise sum non-total body lines. */
+function clientRevenueSubtotalLines(block: FinanceForecastClientBlock): FinanceForecastLine[] {
+  const g = revenueGroupFromBlock(block)
+  if (!g) return []
+  const totals = g.lines.filter((l) => l.line_key === FINANCE_FORECAST_LINE_KEYS.totalRevenue)
+  if (totals.length > 0) return totals
+  return g.lines.filter((l) => l.line_key !== FINANCE_FORECAST_LINE_KEYS.totalRevenue)
+}
+
+function portfolioBillingTotals(blocks: readonly FinanceForecastClientBlock[]) {
+  const lines: FinanceForecastLine[] = []
+  for (const b of blocks) {
+    const g = billingGroupFromBlock(b)
+    if (g) lines.push(...g.lines)
+  }
+  return sumForecastLines(lines)
+}
+
+function portfolioRevenueTotals(blocks: readonly FinanceForecastClientBlock[]) {
+  const lines: FinanceForecastLine[] = []
+  for (const b of blocks) lines.push(...clientRevenueSubtotalLines(b))
+  return sumForecastLines(lines)
+}
+
+function combineMonthlyTotals(
+  a: { monthly: FinanceForecastMonthlyAmounts; fy: number },
+  b: { monthly: FinanceForecastMonthlyAmounts; fy: number }
+) {
+  const monthly = emptyMonthlyAmounts()
+  for (const k of FINANCE_FORECAST_FISCAL_MONTH_ORDER) {
+    monthly[k] = (a.monthly[k] ?? 0) + (b.monthly[k] ?? 0)
+  }
+  return { monthly, fy: a.fy + b.fy }
+}
+
 const SCENARIO_COPY: Record<
   FinanceForecastScenario,
   { title: string; chip: string }
@@ -153,6 +219,9 @@ export default function FinanceForecastPageClient() {
     | { kind: "duplicate"; message: string; retry_after_ms: number }
     | { kind: "error"; message: string }
   >(null)
+
+  /** Client sections expanded in the grid; omitted / not in set ⇒ collapsed (default). */
+  const [expandedClientIds, setExpandedClientIds] = useState<Set<string>>(() => new Set())
 
   const forecastLoadSucceededRef = useRef(false)
   const loadForecastRef = useRef<() => Promise<void>>(async () => {})
@@ -229,9 +298,22 @@ export default function FinanceForecastPageClient() {
   loadForecastRef.current = loadForecast
 
   useEffect(() => {
+    setExpandedClientIds(new Set())
+  }, [payload?.dataset])
+
+  useEffect(() => {
     if (!forecastLoadSucceededRef.current) return
     void loadForecastRef.current()
   }, [scenario])
+
+  const toggleClientExpanded = useCallback((clientId: string) => {
+    setExpandedClientIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(clientId)) next.delete(clientId)
+      else next.add(clientId)
+      return next
+    })
+  }, [])
 
   const canExport =
     Boolean(payload) &&
@@ -716,11 +798,14 @@ export default function FinanceForecastPageClient() {
                   </tr>
                 </thead>
                 <tbody>
+                  <PortfolioSummaryRows dataset={payload.dataset} />
                   {payload.dataset.client_blocks.map((block) => (
                     <FragmentBlockMemo
                       key={block.client_id}
                       block={block}
                       colCount={colCount}
+                      expanded={expandedClientIds.has(block.client_id)}
+                      onToggleClient={() => toggleClientExpanded(block.client_id)}
                       onOpenDetail={handleOpenDetail}
                     />
                   ))}
@@ -772,31 +857,202 @@ export default function FinanceForecastPageClient() {
   )
 }
 
+function ForecastSummaryAmountCells(props: {
+  monthly: FinanceForecastMonthlyAmounts
+  fy: number
+  cellClassName?: string
+}) {
+  const { monthly, fy, cellClassName } = props
+  return (
+    <>
+      {FINANCE_FORECAST_FISCAL_MONTH_ORDER.map((k) => (
+        <td
+          key={k}
+          className={cn(
+            "whitespace-nowrap px-2 py-1.5 text-right font-mono text-xs tabular-nums text-foreground/90",
+            cellClassName
+          )}
+        >
+          {money(monthly[k] ?? 0)}
+        </td>
+      ))}
+      <td
+        className={cn(
+          "whitespace-nowrap px-3 py-1.5 text-right font-mono text-xs font-medium tabular-nums text-foreground",
+          cellClassName
+        )}
+      >
+        {money(fy)}
+      </td>
+    </>
+  )
+}
+
+function PortfolioSummaryRows({ dataset }: { dataset: FinanceForecastDataset }) {
+  const blocks = dataset.client_blocks
+  const billing = portfolioBillingTotals(blocks)
+  const revenue = portfolioRevenueTotals(blocks)
+  const grand = combineMonthlyTotals(billing, revenue)
+  const headLabel =
+    "px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+  const lineLabel = "px-3 py-2 text-left text-xs font-semibold text-foreground"
+
+  return (
+    <>
+      <tr className="border-b border-border/70 bg-sky-500/[0.08] dark:bg-sky-950/25">
+        <td rowSpan={3} className={cn(STICKY_CLIENT, STICKY_HEAD, headLabel, "align-top")}>
+          Summary
+        </td>
+        <td className={cn(STICKY_LINE, STICKY_HEAD, lineLabel, "border-l-2 border-l-sky-500/55")}>
+          Subtotal — billing
+        </td>
+        <ForecastSummaryAmountCells monthly={billing.monthly} fy={billing.fy} />
+      </tr>
+      <tr className="border-b border-border/70 bg-violet-500/[0.07] dark:bg-violet-950/20">
+        <td className={cn(STICKY_LINE, STICKY_HEAD, lineLabel, "border-l-2 border-l-violet-500/55")}>
+          Subtotal — revenue
+        </td>
+        <ForecastSummaryAmountCells monthly={revenue.monthly} fy={revenue.fy} />
+      </tr>
+      <tr className="border-b-2 border-border bg-muted/70 font-semibold">
+        <td className={cn(STICKY_LINE, STICKY_HEAD, lineLabel)}>Grand total (billing + revenue)</td>
+        <ForecastSummaryAmountCells monthly={grand.monthly} fy={grand.fy} />
+      </tr>
+    </>
+  )
+}
+
+function ClientBillingSubtotalRow(props: {
+  clientName: string
+  monthly: FinanceForecastMonthlyAmounts
+  fy: number
+}) {
+  return (
+    <tr className="border-b border-border/50 bg-sky-500/[0.06] font-medium dark:bg-sky-950/20">
+      <td className={cn(STICKY_CLIENT, "px-3 py-1.5 align-middle text-xs text-muted-foreground")}>
+        {props.clientName}
+      </td>
+      <td className={cn(STICKY_LINE, "px-3 py-1.5 text-xs text-foreground")}>Subtotal — billing</td>
+      <ForecastSummaryAmountCells monthly={props.monthly} fy={props.fy} />
+    </tr>
+  )
+}
+
 function FragmentBlock(props: {
   block: FinanceForecastDataset["client_blocks"][number]
   colCount: number
+  expanded: boolean
+  onToggleClient: () => void
   onOpenDetail: (line: FinanceForecastLine) => void
 }) {
-  const { block, colCount, onOpenDetail } = props
+  const { block, colCount, expanded, onToggleClient, onOpenDetail } = props
+
+  const billingGroup = billingGroupFromBlock(block)
+  const billingAgg = useMemo(
+    () =>
+      billingGroup
+        ? sumForecastLines(billingGroup.lines)
+        : { monthly: emptyMonthlyAmounts(), fy: 0 },
+    [billingGroup]
+  )
+  const revenueAgg = useMemo(() => sumForecastLines(clientRevenueSubtotalLines(block)), [block])
+
+  const clientHeaderRow = (
+    <tr className="border-t-2 border-border bg-muted/30">
+      <td className={cn(STICKY_CLIENT, "px-2 py-2 align-top")}>
+        <button
+          type="button"
+          aria-expanded={expanded}
+          aria-label={expanded ? `Collapse ${block.client_name}` : `Expand ${block.client_name}`}
+          className="flex w-full items-start gap-2 rounded-md px-1 py-0.5 text-left transition-colors hover:bg-muted/50"
+          onClick={onToggleClient}
+        >
+          {expanded ? (
+            <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+          ) : (
+            <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+          )}
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold tracking-tight text-foreground">{block.client_name}</span>
+            <span className="mt-0.5 block font-mono text-[11px] font-normal text-muted-foreground">
+              {block.client_id}
+            </span>
+          </span>
+        </button>
+      </td>
+      <td className={cn(STICKY_LINE, "bg-muted/30 py-2")} />
+      {FINANCE_FORECAST_FISCAL_MONTH_ORDER.map((k) => (
+        <td key={k} className="border-b border-border/40 bg-muted/30 py-2" aria-hidden />
+      ))}
+      <td className="border-b border-border/40 bg-muted/30 py-2" aria-hidden />
+    </tr>
+  )
+
+  if (!expanded) {
+    return (
+      <>
+        <tr className="border-t-2 border-border bg-muted/30">
+          <td rowSpan={2} className={cn(STICKY_CLIENT, "px-2 py-2 align-top")}>
+            <button
+              type="button"
+              aria-expanded={false}
+              aria-label={`Expand ${block.client_name}`}
+              className="flex w-full items-start gap-2 rounded-md px-1 py-0.5 text-left transition-colors hover:bg-muted/50"
+              onClick={onToggleClient}
+            >
+              <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold tracking-tight text-foreground">{block.client_name}</span>
+                <span className="mt-0.5 block font-mono text-[11px] font-normal text-muted-foreground">
+                  {block.client_id}
+                </span>
+              </span>
+            </button>
+          </td>
+          <td
+            className={cn(
+              STICKY_LINE,
+              "border-l-2 border-l-sky-500/55 bg-sky-500/[0.05] px-3 py-1.5 text-xs font-semibold text-foreground dark:bg-sky-950/15"
+            )}
+          >
+            Subtotal — billing
+          </td>
+          <ForecastSummaryAmountCells monthly={billingAgg.monthly} fy={billingAgg.fy} />
+        </tr>
+        <tr className="bg-violet-500/[0.05] dark:bg-violet-950/15">
+          <td
+            className={cn(
+              STICKY_LINE,
+              "border-l-2 border-l-violet-500/55 px-3 py-1.5 text-xs font-semibold text-foreground"
+            )}
+          >
+            Subtotal — revenue
+          </td>
+          <ForecastSummaryAmountCells monthly={revenueAgg.monthly} fy={revenueAgg.fy} />
+        </tr>
+      </>
+    )
+  }
+
   return (
     <>
-      <tr className="border-t-2 border-border bg-muted/30">
-        <td
-          colSpan={colCount}
-          className="px-3 py-2 text-sm font-semibold tracking-tight text-foreground"
-        >
-          {block.client_name}
-          <span className="ml-2 font-mono text-xs font-normal text-muted-foreground">{block.client_id}</span>
-        </td>
-      </tr>
+      {clientHeaderRow}
       {block.groups.map((group) => (
-        <FragmentGroupMemo
-          key={group.group_key}
-          group={group}
-          clientName={block.client_name}
-          colCount={colCount}
-          onOpenDetail={onOpenDetail}
-        />
+        <Fragment key={group.group_key}>
+          <FragmentGroupMemo
+            group={group}
+            clientName={block.client_name}
+            colCount={colCount}
+            onOpenDetail={onOpenDetail}
+          />
+          {group.group_key === FINANCE_FORECAST_GROUP_KEYS.billingBasedInformation ? (
+            <ClientBillingSubtotalRow
+              clientName={block.client_name}
+              monthly={billingAgg.monthly}
+              fy={billingAgg.fy}
+            />
+          ) : null}
+        </Fragment>
       ))}
     </>
   )

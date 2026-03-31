@@ -15,8 +15,8 @@ import {
   getSpendByCampaignFromLineItems 
 } from './media-containers'
 import axios from 'axios'
-import { parseXanoListPayload, xanoUrl } from '@/lib/api/xano'
-import { getXanoClientsCollectionUrl } from '@/lib/api/xanoClients'
+import { parseXanoListPayload } from '@/lib/api/xano'
+import { getXanoClientsCollectionUrl, xanoMediaPlansUrl } from '@/lib/api/xanoClients'
 import { getClientDisplayName, slugifyClientNameForUrl } from '@/lib/clients/slug'
 import { findClientRawByDashboardSlug } from '@/lib/clients/xanoClientSlugMatch'
 
@@ -33,16 +33,31 @@ const apiClient = axios.create({
 
 const isDashboardDebug = () => process.env.NEXT_PUBLIC_DEBUG_DASHBOARD === 'true'
 
+function xanoResponseBodyPreview(data: unknown): string {
+  try {
+    const s = typeof data === 'string' ? data : JSON.stringify(data)
+    return s.length > 200 ? `${s.slice(0, 200)}...` : s
+  } catch {
+    return '[unserializable]'
+  }
+}
+
 async function fetchMediaPlanMasterWithFallback(): Promise<{ data: any; endpoint: string }> {
   const endpoints = ['media_plan_master', 'media_plans_master']
   const debug = isDashboardDebug()
   let lastError: any = null
 
   for (const endpoint of endpoints) {
+    const url = xanoMediaPlansUrl(endpoint)
+    console.error('[dashboard] fetchMediaPlanMasterWithFallback: constructed Xano URL:', url)
     try {
-      const response = await apiClient.get(
-        xanoUrl(endpoint, ['XANO_MEDIA_PLANS_BASE_URL', 'XANO_MEDIAPLANS_BASE_URL'])
-      )
+      console.error('[dashboard] Attempting fetch to:', url)
+      const response = await apiClient.get(url)
+      console.error('[dashboard] fetchMediaPlanMasterWithFallback response:', {
+        url,
+        status: response.status,
+        bodyPreview: xanoResponseBodyPreview(response.data),
+      })
       if (debug) {
         console.log(`Dashboard: fetched media plan master via ${endpoint}`)
       }
@@ -50,6 +65,14 @@ async function fetchMediaPlanMasterWithFallback(): Promise<{ data: any; endpoint
     } catch (err: any) {
       const status = err?.response?.status
       lastError = err
+      const msg = err?.message != null ? String(err.message) : String(err)
+      console.error('[dashboard] fetchMediaPlanMasterWithFallback catch:', {
+        message: msg,
+        failedUrl: url,
+        responseStatus: err?.response?.status,
+        responseBodyPreview: err?.response?.data != null ? xanoResponseBodyPreview(err.response.data) : undefined,
+        err,
+      })
 
       if (debug) {
         console.warn(`Dashboard: ${endpoint} request failed${status ? ` (status ${status})` : ''}`)
@@ -451,8 +474,16 @@ function normalizeSchedule(schedule: any): any[] {
 }
 
 export async function getClientBySlug(slug: string): Promise<Client | null> {
+  const url = getXanoClientsCollectionUrl()
+  console.error('[dashboard] getClientBySlug: constructed Xano URL:', url)
   try {
-    const response = await apiClient.get(getXanoClientsCollectionUrl())
+    console.error('[dashboard] Attempting fetch to:', url)
+    const response = await apiClient.get(url)
+    console.error('[dashboard] getClientBySlug response:', {
+      url,
+      status: response.status,
+      bodyPreview: xanoResponseBodyPreview(response.data),
+    })
     const clients = parseXanoListPayload(response.data)
 
     const raw = findClientRawByDashboardSlug(clients, slug) as Record<string, any> | null
@@ -490,36 +521,50 @@ export async function getClientBySlug(slug: string): Promise<Client | null> {
             : new Date().toISOString(),
       brandColour,
     }
-  } catch (error) {
-    console.error('Error fetching client by slug:', error)
+  } catch (error: any) {
+    const msg = error?.message != null ? String(error.message) : String(error)
+    console.error('[dashboard] getClientBySlug catch:', {
+      message: msg,
+      failedUrl: url,
+      responseStatus: error?.response?.status,
+      responseBodyPreview:
+        error?.response?.data != null ? xanoResponseBodyPreview(error.response.data) : undefined,
+      error,
+    })
     return null
   }
 }
 
 async function fetchMediaPlanVersionsArray(): Promise<any[]> {
-  const baseKeys = ['XANO_MEDIA_PLANS_BASE_URL', 'XANO_MEDIAPLANS_BASE_URL'] as const
-  let lastError: any = null
-
-  for (const baseKey of baseKeys) {
-    try {
-      const versionsResponse = await apiClient.get(xanoUrl('media_plan_versions', baseKey))
-      return parseXanoListPayload(versionsResponse.data)
-    } catch (error: any) {
-      lastError = error
-      if (error?.response?.status === 404) {
-        continue
+  const url = xanoMediaPlansUrl('media_plan_versions')
+  console.error('[dashboard] fetchMediaPlanVersionsArray: constructed Xano URL:', url)
+  try {
+    console.error('[dashboard] Attempting fetch to:', url)
+    const versionsResponse = await apiClient.get(url)
+    console.error('[dashboard] fetchMediaPlanVersionsArray response:', {
+      url,
+      status: versionsResponse.status,
+      bodyPreview: xanoResponseBodyPreview(versionsResponse.data),
+    })
+    return parseXanoListPayload(versionsResponse.data)
+  } catch (error: any) {
+    const msg = error?.message != null ? String(error.message) : String(error)
+    console.error('[dashboard] fetchMediaPlanVersionsArray catch:', {
+      message: msg,
+      failedUrl: url,
+      responseStatus: error?.response?.status,
+      responseBodyPreview:
+        error?.response?.data != null ? xanoResponseBodyPreview(error.response.data) : undefined,
+      error,
+    })
+    if (error?.response?.status === 404) {
+      if (isDashboardDebug()) {
+        console.warn('Dashboard: media_plan_versions returned 404')
       }
-      throw error
+      return []
     }
+    throw error
   }
-
-  if (isDashboardDebug()) {
-    console.warn('Dashboard: media_plan_versions unavailable on configured Xano base URLs')
-  }
-  if (lastError?.response?.status === 404) {
-    return []
-  }
-  throw lastError ?? new Error('Failed to fetch media_plan_versions')
 }
 
 function buildYtdCountBySlugFromMaster(
@@ -589,6 +634,28 @@ function rawClientToFallbackClient(raw: any): Client | null {
     createdAt: raw.created_at || new Date().toISOString(),
     updatedAt: raw.updated_at || new Date().toISOString(),
     brandColour: raw.brand_colour,
+  }
+}
+
+/** When `media_plan_versions` cannot be loaded but the client row is known — empty campaigns / zero spend. */
+function emptyDashboardForKnownClient(
+  fallbackClient: Client,
+  totalCampaignsYTDFromMaster: number | null,
+): ClientDashboardData {
+  const { months: fyMonths } = getAustralianFinancialYear(new Date())
+  return {
+    clientName: fallbackClient.name,
+    brandColour: fallbackClient.brandColour,
+    liveCampaigns: 0,
+    totalCampaignsYTD: totalCampaignsYTDFromMaster ?? 0,
+    spendPast30Days: 0,
+    totalSpend: 0,
+    liveCampaignsList: [],
+    planningCampaignsList: [],
+    completedCampaignsList: [],
+    spendByMediaType: [],
+    spendByCampaign: [],
+    monthlySpend: fyMonths.map((month) => ({ month, data: [] })),
   }
 }
 
@@ -937,6 +1004,11 @@ function buildClientDashboardDataFromVersions(
 }
 
 export async function getClientDashboardData(slug: string): Promise<ClientDashboardData | null> {
+  console.log('[dashboard] getClientDashboardData called with slug:', slug, 'ENV check:', {
+    XANO_BASE_URL: !!process.env.XANO_BASE_URL,
+    XANO_MEDIA_PLANS_BASE_URL: !!process.env.XANO_MEDIA_PLANS_BASE_URL,
+    XANO_CLIENTS_COLLECTION_URL: !!process.env.XANO_CLIENTS_COLLECTION_URL,
+  })
   if (!slug || typeof slug !== 'string' || slug.trim().length === 0) {
     console.error('Invalid slug provided for dashboard:', slug)
     return null
@@ -944,6 +1016,7 @@ export async function getClientDashboardData(slug: string): Promise<ClientDashbo
 
   const sanitizedSlug = slug.trim()
   const targetSlug = slugifyClientName(sanitizedSlug)
+  const fyWindow = getAustralianFinancialYearWindow(new Date())
 
   try {
     let fallbackClient: Client | null = null
@@ -954,15 +1027,13 @@ export async function getClientDashboardData(slug: string): Promise<ClientDashbo
       fallbackClient = null
     }
 
-    const allVersions = await fetchMediaPlanVersionsArray()
-    const fyWindow = getAustralianFinancialYearWindow(new Date())
     let totalCampaignsYTDFromMaster: number | null = null
     let masterEndpointUsed: string | null = null
 
     try {
       const { data: masterData, endpoint } = await fetchMediaPlanMasterWithFallback()
       masterEndpointUsed = endpoint
-      const masterPlans = Array.isArray(masterData) ? masterData : []
+      const masterPlans = parseXanoListPayload(masterData)
       const ytdMap = buildYtdCountBySlugFromMaster(masterPlans, fyWindow)
       totalCampaignsYTDFromMaster = Object.prototype.hasOwnProperty.call(ytdMap, targetSlug)
         ? ytdMap[targetSlug]!
@@ -975,13 +1046,29 @@ export async function getClientDashboardData(slug: string): Promise<ClientDashbo
       console.log(`Dashboard: master totals sourced from ${masterEndpointUsed}`)
     }
 
+    let allVersions: any[] = []
+    try {
+      allVersions = await fetchMediaPlanVersionsArray()
+    } catch (versionsError) {
+      console.warn('Dashboard: media_plan_versions fetch failed; using partial dashboard if client is known', versionsError)
+      if (fallbackClient) {
+        return emptyDashboardForKnownClient(fallbackClient, totalCampaignsYTDFromMaster)
+      }
+      return null
+    }
+
     return buildClientDashboardDataFromVersions(targetSlug, allVersions, {
       fallbackClient,
       totalCampaignsYTDFromMaster,
       urlSlug: sanitizedSlug,
     })
-  } catch (error) {
-    console.error('Error fetching dashboard data:', error)
+  } catch (error: any) {
+    const msg = error?.message != null ? String(error.message) : String(error)
+    console.error('[dashboard] getClientDashboardData outer catch:', {
+      message: msg,
+      failedUrl: error?.config?.url ?? '(unknown — see preceding [dashboard] Attempting fetch logs)',
+      err: error,
+    })
     return null
   }
 }
@@ -991,10 +1078,13 @@ export async function getClientHubSummaries(rawClients: any[]): Promise<ClientHu
 
   const fyWindow = getAustralianFinancialYearWindow(new Date())
   const [allVersions, masterBundle] = await Promise.all([
-    fetchMediaPlanVersionsArray(),
+    fetchMediaPlanVersionsArray().catch((err) => {
+      console.warn('getClientHubSummaries: media_plan_versions failed; continuing with empty versions', err)
+      return [] as any[]
+    }),
     fetchMediaPlanMasterWithFallback().catch(() => ({ data: [] as any[], endpoint: null as string | null })),
   ])
-  const masterPlans = Array.isArray(masterBundle.data) ? masterBundle.data : []
+  const masterPlans = parseXanoListPayload(masterBundle.data)
   const ytdMap = buildYtdCountBySlugFromMaster(masterPlans, fyWindow)
 
   const summaries: ClientHubSummary[] = []
@@ -1039,7 +1129,15 @@ export async function getClientHubSummaries(rawClients: any[]): Promise<ClientHu
 }
 
 async function fetchXanoClientsWithSlugsForHub(): Promise<any[]> {
-  const response = await apiClient.get(getXanoClientsCollectionUrl())
+  const url = getXanoClientsCollectionUrl()
+  console.error('[dashboard] fetchXanoClientsWithSlugsForHub: constructed Xano URL:', url)
+  console.error('[dashboard] Attempting fetch to:', url)
+  const response = await apiClient.get(url)
+  console.error('[dashboard] fetchXanoClientsWithSlugsForHub response:', {
+    url,
+    status: response.status,
+    bodyPreview: xanoResponseBodyPreview(response.data),
+  })
   const rows = parseXanoListPayload(response.data)
   return rows.map((raw: any) => ({
     ...raw,
@@ -1049,11 +1147,21 @@ async function fetchXanoClientsWithSlugsForHub(): Promise<any[]> {
 
 /** Server-only: loads clients from Xano and builds hub cards in one batched pass (no self-HTTP). */
 export async function getClientHubSummariesForAdminHub(): Promise<ClientHubSummary[]> {
+  console.log('[dashboard] getClientHubSummariesForAdminHub called ENV check:', {
+    XANO_BASE_URL: !!process.env.XANO_BASE_URL,
+    XANO_MEDIA_PLANS_BASE_URL: !!process.env.XANO_MEDIA_PLANS_BASE_URL,
+    XANO_CLIENTS_COLLECTION_URL: !!process.env.XANO_CLIENTS_COLLECTION_URL,
+  })
   try {
     const rows = await fetchXanoClientsWithSlugsForHub()
     return await getClientHubSummaries(rows)
-  } catch (e) {
-    console.error('getClientHubSummariesForAdminHub', e)
+  } catch (e: any) {
+    const msg = e?.message != null ? String(e.message) : String(e)
+    console.error('[dashboard] getClientHubSummariesForAdminHub catch:', {
+      message: msg,
+      failedUrl: e?.config?.url ?? '(unknown — see preceding [dashboard] Attempting fetch logs)',
+      err: e,
+    })
     return []
   }
 }
@@ -1066,9 +1174,7 @@ export async function getClientHubSummariesForAdminHub(): Promise<ClientHubSumma
 export async function getGlobalMonthlySpend(): Promise<GlobalMonthlySpend[]> {
   const { start: fyStart, end: fyEnd, months: fyMonths } = getAustralianFinancialYear(new Date())
 
-  const versionsResponse = await apiClient.get(
-    xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
-  )
+  const versionsResponse = await apiClient.get(xanoMediaPlansUrl("media_plan_versions"))
   const allVersions = parseXanoListPayload(versionsResponse.data)
 
   const versionsByMBA = allVersions.reduce((acc: Record<string, any[]>, version: any) => {
@@ -1139,9 +1245,7 @@ export async function getGlobalMonthlySpend(): Promise<GlobalMonthlySpend[]> {
 export async function getGlobalMonthlyPublisherSpend(): Promise<GlobalMonthlyPublisherSpend[]> {
   const { start: fyStart, end: fyEnd, months: fyMonths } = getAustralianFinancialYear(new Date())
 
-  const versionsResponse = await apiClient.get(
-    xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
-  )
+  const versionsResponse = await apiClient.get(xanoMediaPlansUrl("media_plan_versions"))
   const allVersions = parseXanoListPayload(versionsResponse.data)
 
   const versionsByMBA = allVersions.reduce((acc: Record<string, any[]>, version: any) => {
@@ -1236,9 +1340,7 @@ export async function getGlobalMonthlyClientSpend(): Promise<{
     console.warn('Global monthly client spend: unable to fetch client colors', err)
   }
 
-  const versionsResponse = await apiClient.get(
-    xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
-  )
+  const versionsResponse = await apiClient.get(xanoMediaPlansUrl("media_plan_versions"))
   const allVersions = parseXanoListPayload(versionsResponse.data)
 
   const versionsByMBA = allVersions.reduce((acc: Record<string, any[]>, version: any) => {
@@ -1411,9 +1513,7 @@ export async function getPublisherDashboardData(publisher: Publisher): Promise<P
 
   const allowedLabels = buildAllowedScheduleLabels(publisher as unknown as Record<string, unknown>)
 
-  const versionsResponse = await apiClient.get(
-    xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]),
-  )
+  const versionsResponse = await apiClient.get(xanoMediaPlansUrl("media_plan_versions"))
   const allVersions = parseXanoListPayload(versionsResponse.data)
 
   const versionsByMBA = allVersions.reduce((acc: Record<string, any[]>, version: any) => {

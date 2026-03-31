@@ -31,8 +31,8 @@ export function xanoUrl(path: string, keys: EnvKey = DEFAULT_ENV_KEYS): string {
 }
 
 /**
- * Normalizes Xano list responses: bare array or wrapped in `{ data }`, `{ items }`, or `{ result }`.
- * Production API groups sometimes return a wrapped shape while others return a raw array.
+ * Normalizes Xano list responses: bare array `[{...}]` or wrapped
+ * `{ data: [...] }`, `{ items: [...] }`, `{ result: [...] }`.
  */
 /** Returns a list; items are untyped (Xano row shapes vary by endpoint). */
 export function parseXanoListPayload(payload: unknown): any[] {
@@ -42,6 +42,14 @@ export function parseXanoListPayload(payload: unknown): any[] {
     if (Array.isArray(p.data)) return p.data
     if (Array.isArray(p.items)) return p.items
     if (Array.isArray(p.result)) return p.result
+    // Some stacks nest once, e.g. { data: { items: [...] } }
+    const innerData = p.data
+    if (innerData && typeof innerData === "object") {
+      const d = innerData as Record<string, unknown>
+      if (Array.isArray(d.items)) return d.items
+      if (Array.isArray(d.result)) return d.result
+      if (Array.isArray(d.data)) return d.data
+    }
   }
   return []
 }
