@@ -73,14 +73,15 @@ function parseBudgetSafe(val: unknown): number {
   return parseFloat(String(val).replace(/[^0-9.-]+/g, "")) || 0;
 }
 
-/** Net media for deliverable math; matches overallTotals when budget is gross (fee markup on net). */
+/** Net media when budget is gross incl. fee — must match `getDigiDisplayBursts` / burst row readouts (linear split). */
 function netMediaForDeliverablesDigiDisplay(
   rawBudget: number,
   budgetIncludesFees: boolean,
   feePct: number
 ): number {
   if (!budgetIncludesFees) return rawBudget;
-  return rawBudget / (1 + (feePct || 0) / 100);
+  const pct = feePct || 0;
+  return (rawBudget * (100 - pct)) / 100;
 }
 
 // Format Dates
@@ -726,9 +727,8 @@ export default function DigiDisplayContainer({
       (lineItem?.bursts || []).forEach((burst) => {
         const budget = parseBudgetSafe(burst?.budget);
         if (lineItem.budgetIncludesFees) {
-          // Budget is gross, extract media portion
-          const base = budget / (1 + (feedigidisplay || 0) / 100);
-          totalMedia += base;
+          const pct = feedigidisplay || 0;
+          totalMedia += (budget * (100 - pct)) / 100;
         } else {
           // Budget is net media
           totalMedia += budget;
@@ -787,10 +787,9 @@ export default function DigiDisplayContainer({
         const budget = parseBudgetSafe(burst?.budget);
         // Always calculate media for display purposes (ignore clientPaysForMedia)
         if (lineItem.budgetIncludesFees) {
-          // Budget is gross, split into media and fee
-          const base = budget / (1 + (feedigidisplay || 0) / 100);
-          lineMedia += base;
-          lineFee += budget - base;
+          const pct = feedigidisplay || 0;
+          lineMedia += (budget * (100 - pct)) / 100;
+          lineFee += (budget * pct) / 100;
         } else {
           // Budget is net media, fee calculated on top
           lineMedia += budget;
@@ -834,9 +833,9 @@ export default function DigiDisplayContainer({
       (lineItem?.bursts || []).forEach((burst) => {
         const budget = parseBudgetSafe(burst?.budget);
         if (lineItem.budgetIncludesFees) {
-          const base = budget / (1 + (feedigidisplay || 0) / 100);
-          lineMedia += base;
-          lineFee += budget - base;
+          const pct = feedigidisplay || 0;
+          lineMedia += (budget * (100 - pct)) / 100;
+          lineFee += (budget * pct) / 100;
         } else {
           lineMedia += budget;
           const fee = feedigidisplay ? (budget / (100 - feedigidisplay)) * feedigidisplay : 0;
@@ -1229,10 +1228,9 @@ useEffect(() => {
           feeAmount = budget * ((feedigidisplay || 0) / 100);
           mediaAmount = 0;
         } else if (item.budgetIncludesFees) {
-          // Only budgetIncludesFees: budget is gross, split into media and fee
-          const base = budget / (1 + (feedigidisplay || 0)/100);
-          feeAmount = budget - base;
-          mediaAmount = base;
+          const pct = feedigidisplay || 0;
+          mediaAmount = (budget * (100 - pct)) / 100;
+          feeAmount = (budget * pct) / 100;
         } else if (item.clientPaysForMedia) {
           // Only clientPaysForMedia: budget is net media, only fee is billed
           feeAmount = (budget / (100 - (feedigidisplay || 0))) * (feedigidisplay || 0);

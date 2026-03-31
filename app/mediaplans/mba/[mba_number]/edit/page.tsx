@@ -309,16 +309,35 @@ function seedLineItemMonthKeysFromTemplate(
   return li
 }
 
+/** Overwrite an existing billing row with burst-derived template data (Edit Billing “reset all to auto” follow mode). */
+function resyncExistingLineItemFromTemplate(
+  existing: BillingLineItemType,
+  tLi: BillingLineItemType,
+  allCampaignMonthKeys: string[]
+) {
+  const seeded = seedLineItemMonthKeysFromTemplate(tLi, allCampaignMonthKeys)
+  const preserveId = existing.id
+  const preserveLegacy = existing.legacySaved
+  Object.assign(existing, seeded)
+  existing.id = preserveId
+  if (preserveLegacy) existing.legacySaved = true
+  existing.preBill = false
+  existing.preBillSnapshot = undefined
+}
+
 /**
  * Append line items that appear in the auto template but not in saved billing for this media type.
  * If an id already exists but was seeded with $0 and the template now has real amounts, merge those in
  * (burst data arriving after the first append). Other existing rows are unchanged.
+ * With `resyncExistingFromTemplate`, every id present on the template is refreshed from the template (follow-auto mode).
  */
 function appendMissingLineItemsOnly(
   existingItems: BillingLineItemType[],
   templateItems: BillingLineItemType[],
-  allCampaignMonthKeys: string[]
+  allCampaignMonthKeys: string[],
+  opts?: { resyncExistingFromTemplate?: boolean }
 ): { list: BillingLineItemType[]; didAppend: boolean } {
+  const resync = Boolean(opts?.resyncExistingFromTemplate)
   const list = existingItems.map((li) => cloneBillingMonthGraph(li))
   const oldIds = new Set(list.map((li) => billingLineItemIdKey(li.id)))
   let didAppend = false
@@ -326,10 +345,12 @@ function appendMissingLineItemsOnly(
     const tid = billingLineItemIdKey(tLi.id)
     if (!tid) continue
     if (oldIds.has(tid)) {
-      // ID exists — check if it was seeded with $0 and template now has real amounts
       const existing = list.find((li) => billingLineItemIdKey(li.id) === tid)
-      if (existing && existing.totalAmount === 0 && tLi.totalAmount > 0) {
-        // Replace the $0 placeholder with the real template data
+      if (!existing) continue
+      if (resync) {
+        resyncExistingLineItemFromTemplate(existing, tLi, allCampaignMonthKeys)
+        didAppend = true
+      } else if (existing.totalAmount === 0 && tLi.totalAmount > 0) {
         const seeded = seedLineItemMonthKeysFromTemplate(tLi, allCampaignMonthKeys)
         existing.monthlyAmounts = seeded.monthlyAmounts
         existing.totalAmount = seeded.totalAmount
@@ -337,7 +358,7 @@ function appendMissingLineItemsOnly(
         if (seeded.totalFeeAmount != null) existing.totalFeeAmount = seeded.totalFeeAmount
         if (seeded.adServingMonthlyAmounts) existing.adServingMonthlyAmounts = seeded.adServingMonthlyAmounts
         if (seeded.totalAdServingAmount != null) existing.totalAdServingAmount = seeded.totalAdServingAmount
-        didAppend = true // signal that amounts changed so bucket delta recalcs
+        didAppend = true
       }
       continue
     }
@@ -492,13 +513,17 @@ function appendNewMediaTypeIntoWorkingMonth(
  * Merge auto template into an *existing* saved month: append-only structure and **constant-add** bucket updates.
  * Existing line items (by id) and existing month bucket strings are preserved; only **new** template line ids
  * contribute dollar deltas to `mediaCosts`. Month fee / tech / production strings are never derived here.
+ * With `resyncExistingFromTemplate`, line items and month fee / tech / production match the template, then
+ * media buckets and rollups are recomputed from line items (follow-auto after full billing reset).
  */
 function mergeAppendIntoExistingMonth(
   base: BillingMonth,
   templateRow: BillingMonth,
   allCampaignMonthKeys: string[],
-  formatter: Intl.NumberFormat
+  formatter: Intl.NumberFormat,
+  opts?: { resyncExistingFromTemplate?: boolean }
 ): BillingMonth {
+  const resync = Boolean(opts?.resyncExistingFromTemplate)
   const templateMediaKeys = templateRow.lineItems
     ? Object.keys(templateRow.lineItems).filter((mk) => {
         const arr = templateRow.lineItems![mk as keyof typeof templateRow.lineItems] as
@@ -509,6 +534,36 @@ function mergeAppendIntoExistingMonth(
     : []
 
   if (templateMediaKeys.length === 0) {
+    return base
+  }
+
+  if (resync) {
+    if (!base.lineItems) base.lineItems = {}
+    if (!base.mediaCosts) base.mediaCosts = {} as BillingMonth["mediaCosts"]
+
+    for (const mk of templateMediaKeys) {
+      const templateItems =
+        (templateRow.lineItems![mk as keyof typeof templateRow.lineItems] as BillingLineItemType[]) ?? []
+      const existingItems =
+        (base.lineItems![mk as keyof typeof base.lineItems] as BillingLineItemType[] | undefined) ?? []
+
+      if (existingItems.length === 0) {
+        appendNewMediaTypeIntoWorkingMonth(base, mk, templateItems, allCampaignMonthKeys, formatter)
+      } else {
+        const { list } = appendMissingLineItemsOnly(existingItems, templateItems, allCampaignMonthKeys, {
+          resyncExistingFromTemplate: true,
+        })
+        ;(base.lineItems as Record<string, BillingLineItemType[]>)[mk] = list
+      }
+    }
+
+    base.feeTotal = templateRow.feeTotal
+    base.adservingTechFees = templateRow.adservingTechFees
+    base.production = templateRow.production ?? base.production
+    if (base.mediaCosts && templateRow.mediaCosts?.production !== undefined) {
+      base.mediaCosts.production = templateRow.mediaCosts.production
+    }
+    recomputeFullMonthFromLineItems(base, formatter)
     return base
   }
 
@@ -595,7 +650,8 @@ function mergeAppendIntoExistingMonth(
 function appendAutoLineItemTemplateIntoWorking(
   workingMonths: BillingMonth[],
   templateWithLineItems: BillingMonth[],
-  formatter: Intl.NumberFormat
+  formatter: Intl.NumberFormat,
+  opts?: { resyncExistingFromTemplate?: boolean }
 ): BillingMonth[] {
   if (!templateWithLineItems.length) return workingMonths
 
@@ -616,7 +672,7 @@ function appendAutoLineItemTemplateIntoWorking(
       })
       return fresh
     }
-    return mergeAppendIntoExistingMonth(row, tRow, allCampaignMonthKeys, formatter)
+    return mergeAppendIntoExistingMonth(row, tRow, allCampaignMonthKeys, formatter, opts)
   })
 
   billingAppendDebug("appendAutoLineItemTemplateIntoWorking done", {
@@ -651,19 +707,21 @@ function appendAutoReferenceIntoWorkingBilling(
   workingMonths: BillingMonth[],
   autoReferenceMonths: BillingMonth[],
   formatter: Intl.NumberFormat,
-  attachLineItemsToMonths: (months: BillingMonth[], mode: "billing" | "delivery") => BillingMonth[]
+  attachLineItemsToMonths: (months: BillingMonth[], mode: "billing" | "delivery") => BillingMonth[],
+  opts?: { resyncExistingFromTemplate?: boolean }
 ): BillingMonth[] {
   billingAppendDebug("appendAutoReferenceIntoWorkingBilling", {
     autoRefMonths: autoReferenceMonths.length,
     workingMonths: workingMonths.length,
     skeleton: autoReferenceMonths.length > 0 ? "autoReference" : "working",
+    resyncExistingFromTemplate: Boolean(opts?.resyncExistingFromTemplate),
   })
   const templateWithLineItems = buildWorkingBillingAppendTemplate(
     autoReferenceMonths,
     workingMonths,
     attachLineItemsToMonths
   )
-  return appendAutoLineItemTemplateIntoWorking(workingMonths, templateWithLineItems, formatter)
+  return appendAutoLineItemTemplateIntoWorking(workingMonths, templateWithLineItems, formatter, opts)
 }
 
 /** Unwrap string / `{ months: [...] }` / top-level array from media_plan_versions or API. */
@@ -1347,7 +1405,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
    * - savedBillingMonths — last persisted baseline (media_plan_versions hydrate or last successful save).
    * - workingBillingMonths — live UI schedule; preserved; append-only on the main page (new months, media keys, line ids).
    * - autoReferenceBillingMonths — burst-derived reference; append template for new structure; Edit Billing resets; never wholesale-overwrites existing working rows without explicit reset.
-   * - Existing line rows stay fixed until edited in Edit Billing, per-line reset there, or full reset there (container/burst edits alone do not refresh them).
+   * - Existing line rows stay fixed until edited in Edit Billing, per-line reset there, or full reset there (container/burst edits alone do not refresh them — except in “follow auto” mode after a confirmed footer “Reset billing to auto”, until save or manual apply).
    * - manualBillingMonths — Edit Billing modal draft only.
    */
   const [savedBillingMonths, setSavedBillingMonths] = useState<BillingMonth[]>([])
@@ -1382,6 +1440,14 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const [progOohBursts, setProgOohBursts] = useState<any[]>([])
   const [influencersBursts, setInfluencersBursts] = useState<any[]>([])
   const [isManualBilling, setIsManualBilling] = useState(false)
+  /** Synchronous read inside `calculateBillingSchedule` / billing append timeouts (state can lag one frame). */
+  const isManualBillingRef = useRef(false)
+  isManualBillingRef.current = isManualBilling
+  /**
+   * After Edit Billing “Reset all billing to auto” (confirmed), line items and fee buckets track burst-derived
+   * auto until the next version save or until manual billing is applied from the modal.
+   */
+  const billingLineItemsFollowAutoRef = useRef(false)
   const [isManualBillingModalOpen, setIsManualBillingModalOpen] = useState(false)
   const [manualBillingCostPreBill, setManualBillingCostPreBill] = useState<{
     fee: boolean;
@@ -2064,6 +2130,28 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     autoReferenceBillingMonthsRef.current = billingMonthsCalculated
     setAutoReferenceBillingMonths(billingMonthsCalculated)
     setAutoDeliveryMonths(deliveryMonthsCalculated)
+
+    if (
+      billingLineItemsFollowAutoRef.current &&
+      !isManualBillingRef.current &&
+      billingMonthsCalculated.length > 0
+    ) {
+      const fmt = new Intl.NumberFormat("en-AU", {
+        style: "currency",
+        currency: "AUD",
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })
+      const merged = appendAutoReferenceIntoWorkingBilling(
+        workingBillingMonthsRef.current,
+        billingMonthsCalculated,
+        fmt,
+        attachLineItemsToMonthsRef.current,
+        { resyncExistingFromTemplate: true }
+      )
+      setWorkingBillingMonths(merged)
+      workingBillingMonthsRef.current = merged
+    }
   }, [
     searchBursts,
     socialMediaBursts,
@@ -2162,6 +2250,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       setHasPersistedBillingSchedule(false)
       setIsManualBilling(false)
       workingBillingMonthsRef.current = []
+      billingLineItemsFollowAutoRef.current = false
       setManualBillingMonths([])
       setIsManualBillingModalOpen(false)
       setFullBillingResetConfirmOpen(false)
@@ -3861,6 +3950,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     const next = buildWorkingMonthsFromAutoReference(autoRows, attachLineItemsToMonthsRef.current)
     setWorkingBillingMonths(next)
     workingBillingMonthsRef.current = next
+    billingLineItemsFollowAutoRef.current = true
     setIsManualBilling(false)
     setManualBillingMonths([])
     setManualBillingCostPreBill({ fee: false, adServing: false, production: false })
@@ -4229,6 +4319,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     workingBillingMonthsRef.current = applied
     // `savedBillingMonths` updates only after a successful campaign/version save — not from modal commit.
     setIsManualBilling(true)
+    billingLineItemsFollowAutoRef.current = false
     setIsManualBillingModalOpen(false)
     setManualBillingMonths([])
     setBillingError({ show: false, blockingErrors: [], preservedOverrides: [] })
@@ -4446,6 +4537,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       const snapshotAfterSave = deepCloneBillingMonthsState(workingBillingMonths)
       setSavedBillingMonths(snapshotAfterSave)
       savedBillingMonthsRef.current = snapshotAfterSave
+      billingLineItemsFollowAutoRef.current = false
       if (snapshotAfterSave.length > 0) {
         hasPersistedBillingScheduleRef.current = true
         setHasPersistedBillingSchedule(true)
@@ -6484,11 +6576,14 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         lineItemsFingerprint: billingLineItemsLengthFingerprint,
       })
 
+      const followAuto =
+        billingLineItemsFollowAutoRef.current && !isManualBillingRef.current
       const merged = appendAutoReferenceIntoWorkingBilling(
         source,
         autoRef,
         formatter,
-        attachLineItemsToMonths
+        attachLineItemsToMonths,
+        followAuto ? { resyncExistingFromTemplate: true } : undefined
       )
       setWorkingBillingMonths(merged)
       workingBillingMonthsRef.current = merged

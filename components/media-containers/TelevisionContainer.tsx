@@ -858,6 +858,7 @@ export default function TelevisionContainer({
     let overallMedia = 0;
     let overallFee = 0;
     let overallCost = 0;
+    let overallDeliverableCount = 0;
 
     televisionlineItems.forEach((lineItem) => {
       let lineMedia = 0;
@@ -866,17 +867,26 @@ export default function TelevisionContainer({
 
       lineItem.bursts.forEach((burst) => {
         const budget = parseFloat(burst?.budget?.replace(/[^0-9.]/g, "") || "0");
-        lineMedia += budget;
-        lineDeliverables += parseFloat(burst.tarps.replace(/[^0-9.]/g, "")) || 0; // Parse TARPs
+        if (lineItem.budgetIncludesFees) {
+          const pct = feetelevision || 0;
+          lineMedia += (budget * (100 - pct)) / 100;
+          lineFee += (budget * pct) / 100;
+        } else {
+          lineMedia += budget;
+          lineFee += feetelevision
+            ? (budget / (100 - feetelevision)) * feetelevision
+            : 0;
+        }
+        lineDeliverables += parseFloat(String(burst.tarps).replace(/[^0-9.]/g, "")) || 0;
       });
 
-      lineFee = feetelevision ? (lineMedia / (100 - feetelevision)) * feetelevision : 0;
       overallMedia += lineMedia;
       overallFee += lineFee;
       overallCost += lineMedia + lineFee;
+      overallDeliverableCount += lineDeliverables;
     });
 
-    setOverallDeliverables(overallMedia);
+    setOverallDeliverables(overallDeliverableCount);
     onTotalMediaChange(overallMedia, overallFee);
   }, [feetelevision, onTotalMediaChange]);
 
@@ -965,10 +975,9 @@ export default function TelevisionContainer({
         const budget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0;
         // Always calculate media for display purposes (ignore clientPaysForMedia)
         if (lineItem.budgetIncludesFees) {
-          // Budget is gross, split into media and fee
-          const base = budget / (1 + (feetelevision || 0) / 100);
-          lineMedia += base;
-          lineFee += budget - base;
+          const pct = feetelevision || 0;
+          lineMedia += (budget * (100 - pct)) / 100;
+          lineFee += (budget * pct) / 100;
         } else {
           // Budget is net media, fee calculated on top
           lineMedia += budget;
@@ -1291,9 +1300,8 @@ useEffect(() => {
     lineItem.bursts.forEach((burst) => {
       const budget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0;
       if (lineItem.budgetIncludesFees) {
-        // Budget is gross, extract media portion
-        const base = budget / (1 + (feetelevision || 0) / 100);
-        totalMedia += base;
+        const pct = feetelevision || 0;
+        totalMedia += (budget * (100 - pct)) / 100;
       } else {
         // Budget is net media
         totalMedia += budget;
@@ -1383,10 +1391,9 @@ useEffect(() => {
           feeAmount = budget * ((feetelevision || 0) / 100);
           mediaAmount = 0;
         } else if (item.budgetIncludesFees) {
-          // Only budgetIncludesFees: budget is gross, split into media and fee
-          const base = budget / (1 + (feetelevision || 0)/100);
-          feeAmount = budget - base;
-          mediaAmount = base;
+          const pct = feetelevision || 0;
+          mediaAmount = (budget * (100 - pct)) / 100;
+          feeAmount = (budget * pct) / 100;
         } else if (item.clientPaysForMedia) {
           // Only clientPaysForMedia: budget is net media, only fee is billed
           feeAmount = (budget / (100 - (feetelevision || 0))) * (feetelevision || 0);

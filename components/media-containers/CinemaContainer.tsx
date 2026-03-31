@@ -305,12 +305,15 @@ export function calculateBurstInvestmentPerMonth(form, feecinema) {
   }));
 }
 
+/** Net media when budget is gross incl. fee — must match `getCinemaBursts` / burst row readouts (linear split). */
 function cinemaLineBurstNetMedia(
   rawBudget: number,
   budgetIncludesFees: boolean,
   feePct: number
 ): number {
-  return budgetIncludesFees ? rawBudget / (1 + (feePct || 0) / 100) : rawBudget
+  if (!budgetIncludesFees) return rawBudget;
+  const pct = feePct || 0;
+  return (rawBudget * (100 - pct)) / 100
 }
 
 export default function CinemaContainer({
@@ -523,7 +526,7 @@ export default function CinemaContainer({
   const computeDeliverables = useCallback((burst: any, buyType: string, budgetIncludesFees: boolean) => {
     const rawBudget = parseFloat(burst?.budget?.replace(/[^0-9.]/g, "") || "0");
     const budget = budgetIncludesFees
-      ? rawBudget / (1 + (feecinema || 0) / 100)
+      ? (rawBudget * (100 - (feecinema || 0))) / 100
       : rawBudget;
     const buyAmount = parseFloat(burst?.buyAmount?.replace(/[^0-9.]/g, "") || "1");
 
@@ -608,9 +611,8 @@ export default function CinemaContainer({
       lineItem.bursts.forEach((burst) => {
         const budget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0;
         if (lineItem.budgetIncludesFees) {
-          // Budget is gross, extract media portion
-          const base = budget / (1 + (feecinema || 0) / 100);
-          totalMedia += base;
+          const pct = feecinema || 0;
+          totalMedia += (budget * (100 - pct)) / 100;
         } else {
           // Budget is net media
           totalMedia += budget;
@@ -673,10 +675,9 @@ export default function CinemaContainer({
         const budget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0;
         // Always calculate media for display purposes (ignore clientPaysForMedia)
         if (lineItem.budgetIncludesFees) {
-          // Budget is gross, split into media and fee
-          const base = budget / (1 + (feecinema || 0) / 100);
-          lineMedia += base;
-          lineFee += budget - base;
+          const pct = feecinema || 0;
+          lineMedia += (budget * (100 - pct)) / 100;
+          lineFee += (budget * pct) / 100;
         } else {
           // Budget is net media, fee calculated on top
           lineMedia += budget;
@@ -720,9 +721,9 @@ export default function CinemaContainer({
       lineItem.bursts.forEach((burst) => {
         const budget = parseFloat(burst?.budget?.replace(/[^0-9.]/g, "") || "0");
         if (lineItem.budgetIncludesFees) {
-          const base = budget / (1 + (feecinema || 0) / 100);
-          lineMedia += base;
-          lineFee += budget - base;
+          const pct = feecinema || 0;
+          lineMedia += (budget * (100 - pct)) / 100;
+          lineFee += (budget * pct) / 100;
         } else {
           lineMedia += budget;
           const fee = feecinema ? (budget / (100 - feecinema)) * feecinema : 0;
@@ -1102,10 +1103,9 @@ useEffect(() => {
           feeAmount = budget * ((feecinema || 0) / 100);
           mediaAmount = 0;
         } else if (item.budgetIncludesFees) {
-          // Only budgetIncludesFees: budget is gross, split into media and fee
-          const base = budget / (1 + (feecinema || 0)/100);
-          feeAmount = budget - base;
-          mediaAmount = base;
+          const pct = feecinema || 0;
+          mediaAmount = (budget * (100 - pct)) / 100;
+          feeAmount = (budget * pct) / 100;
         } else if (item.clientPaysForMedia) {
           // Only clientPaysForMedia: budget is net media, only fee is billed
           feeAmount = (budget / (100 - (feecinema || 0))) * (feecinema || 0);
