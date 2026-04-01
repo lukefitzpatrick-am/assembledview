@@ -5567,51 +5567,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const handleDownloadNamingConventions = async () => {
     setIsNamingDownloading(true);
     try {
-      const fv = form.getValues();
-      const namingVersion =
-        fv.mp_plannumber ||
-        (selectedVersionNumber ??
-          (versionNumber ? Number(versionNumber) : null) ??
-          mediaPlan?.version_number ??
-          latestVersionNumber ??
-          "1");
-
-      const mediaFlags = Object.fromEntries(
-        mediaTypes.map(medium => [medium.name, !!fv[medium.name as keyof MediaPlanFormValues]])
-      ) as Record<string, boolean>;
-
-      const workbook = await generateNamingWorkbook({
-        advertiser: fv.mp_clientname || "",
-        brand: fv.mp_brand || "",
-        campaignName: fv.mp_campaignname || "",
-        mbaNumber: fv.mbanumber || fv.mbaidentifier || mbaNumber || "",
-        startDate: fv.mp_campaigndates_start,
-        endDate: fv.mp_campaigndates_end,
-        version: String(namingVersion ?? "1"),
-        mediaFlags,
-        items: {
-          search: searchItems,
-          socialMedia: socialMediaItems,
-          digiAudio: digitalAudioItems,
-          digiDisplay: digitalDisplayItems,
-          digiVideo: digitalVideoItems,
-          bvod: bvodItems,
-          integration: integrationItems,
-          progDisplay: progDisplayItems,
-          progVideo: progVideoItems,
-          progBvod: progBvodItems,
-          progAudio: progAudioItems,
-          progOoh: progOohItems,
-        },
-      });
-
-      const arrayBuffer = await workbook.xlsx.writeBuffer();
-      const blob = new Blob([arrayBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-      const clientName = fv.mp_clientname || "client";
-      const campaignName = fv.mp_campaignname || "mediaPlan";
-      const namingBase = `NamingConventions_${campaignName}`;
-      const namingFileName = `${clientName}-${namingBase}-v${String(namingVersion ?? "1")}.xlsx`;
-      saveAs(blob, namingFileName);
+      const { blob, fileName } = await generateNamingConventionsXlsxBlob();
+      saveAs(blob, fileName);
       toast({ title: "Success", description: "Naming conventions Excel downloaded" });
     } catch (error: any) {
       console.error("Naming download error:", error);
@@ -5625,24 +5582,89 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     }
   };
 
-  const handleSaveAndGenerateAll = async () => {
+  const generateNamingConventionsXlsxBlob = async (opts?: { planVersion?: string }) => {
+    const fv = form.getValues();
+    const namingVersion =
+      opts?.planVersion ??
+      (fv.mp_plannumber ||
+        (selectedVersionNumber ??
+          (versionNumber ? Number(versionNumber) : null) ??
+          mediaPlan?.version_number ??
+          latestVersionNumber ??
+          "1"));
+
+    const mediaFlags = Object.fromEntries(
+      mediaTypes.map(medium => [medium.name, !!fv[medium.name as keyof MediaPlanFormValues]])
+    ) as Record<string, boolean>;
+
+    const workbook = await generateNamingWorkbook({
+      advertiser: fv.mp_clientname || "",
+      brand: fv.mp_brand || "",
+      campaignName: fv.mp_campaignname || "",
+      mbaNumber: fv.mbanumber || fv.mbaidentifier || mbaNumber || "",
+      startDate: fv.mp_campaigndates_start,
+      endDate: fv.mp_campaigndates_end,
+      version: String(namingVersion ?? "1"),
+      mediaFlags,
+      items: {
+        search: searchItems,
+        socialMedia: socialMediaItems,
+        digiAudio: digitalAudioItems,
+        digiDisplay: digitalDisplayItems,
+        digiVideo: digitalVideoItems,
+        bvod: bvodItems,
+        integration: integrationItems,
+        progDisplay: progDisplayItems,
+        progVideo: progVideoItems,
+        progBvod: progBvodItems,
+        progAudio: progAudioItems,
+        progOoh: progOohItems,
+      },
+    });
+
+    const arrayBuffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([arrayBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const clientName = fv.mp_clientname || "client";
+    const campaignName = fv.mp_campaignname || "mediaPlan";
+    const namingBase = `NamingConventions_${campaignName}`;
+    const fileName = `${clientName}-${namingBase}-v${String(namingVersion ?? "1")}.xlsx`;
+    return { blob, fileName };
+  };
+
+  const handleSaveAndDownloadAll = async () => {
+    setIsDownloading(true);
     try {
-      setModalLoading(true)
-      setModalTitle("Processing")
-      setModalOutcome("Saving your campaign and generating MBA number...")
-      setModalOpen(true)
+      const fv = form.getValues();
+      const [{ blob: mbaBlob, fileName: mbaFileName }, { blob: mediaPlanBlob, fileName: mediaPlanFileName }, { blob: namingBlob, fileName: namingFileName }] = await Promise.all([
+        generateMbaPdfBlob(),
+        generateMediaPlanXlsxBlob(),
+        generateNamingConventionsXlsxBlob(),
+      ]);
 
-      await handleSaveCampaign()
-      await handleGenerateMBA()
+      const JSZip = (await import("jszip")).default;
+      const zip = new JSZip();
+      zip.file(mbaFileName, mbaBlob);
+      zip.file(mediaPlanFileName, mediaPlanBlob);
+      zip.file(namingFileName, namingBlob);
+      const zipBlob = await zip.generateAsync({ type: "blob" });
 
-      setModalTitle("Success")
-      setModalOutcome("Campaign saved as new version and MBA number generated successfully")
-      setModalLoading(false)
-    } catch (error) {
-      console.error("Error in save and generate:", error)
-      setModalTitle("Error")
-      setModalOutcome(error.message || "Failed to process request")
-      setModalLoading(false)
+      const campaignNameSafe = (fv.mp_campaignname || "campaign")
+        .replace(/[^a-z0-9-_ ]/gi, "")
+        .trim()
+        .replace(/\s+/g, "-");
+      const zipFileName = `${fv.mp_clientname || "client"}-${campaignNameSafe || "campaign"}-all-files.zip`;
+      saveAs(zipBlob, zipFileName);
+
+      await handleSaveAll();
+    } catch (error: any) {
+      console.error("Error in save and download all:", error);
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to save and download all files",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDownloading(false);
     }
   }
 
@@ -8818,10 +8840,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                         Naming Conventions
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        onClick={handleSaveAndGenerateAll}
+                        onClick={handleSaveAndDownloadAll}
                         disabled={isLoading || isDownloading || isSaving}
                       >
-                        Save &amp; Generate All
+                        Save &amp; Download All
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -8856,7 +8878,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 </Button>
                 <Button
                   type="button"
-                  onClick={handleSaveAndGenerateAll}
+                  onClick={handleSaveAndDownloadAll}
                   disabled={isLoading || isDownloading || isSaving}
                   className="hidden h-9 rounded-full px-4 py-2 text-white md:inline-flex bg-brand-dark hover:bg-brand-dark/90 focus-visible:ring-2 focus-visible:ring-ring"
                 >
@@ -8865,7 +8887,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                   ) : (
                     <FileText className="h-4 w-4" />
                   )}
-                  <span className="ml-2">{isLoading ? "Processing..." : "Save & Generate All"}</span>
+                  <span className="ml-2">{isLoading || isDownloading ? "Processing..." : "Save & Download All"}</span>
                 </Button>
               </CampaignExportsSection>
         </div>

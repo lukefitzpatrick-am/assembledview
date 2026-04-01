@@ -3227,8 +3227,8 @@ export function DigitalAudioExpertGrid({
       "End Date",
       "Platform",
       "Publisher",
-      "Site",
-      "Bid Strategy",
+      "Station",
+      "Targeting",
       "Buy Type",
       "Targeting Attribute",
       "Creative Targeting",
@@ -3237,11 +3237,11 @@ export function DigitalAudioExpertGrid({
       "Market",
     ]
     const billing = [
-      "Fixed cost media",
-      "Client pays for media",
-      "Budget includes fees",
+      "Fixed Cost Media",
+      "Client Pays for Media",
+      "Budget Includes Fees",
     ]
-    const tail = ["Unit Rate", "Gross Cost", "", "Σ qty"]
+    const tail = ["Unit Rate", "Net Media", "", "Σ qty"]
     return [...core, ...billing, ...tail]
   }, [])
 
@@ -3357,7 +3357,18 @@ export function DigitalAudioExpertGrid({
                             ...digiAudioExpertHeaderCellBgStyle,
                           }}
                         >
-                          {label}
+                          {label === "Unit Rate" ? (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="cursor-help">{label}</span>
+                              </TooltipTrigger>
+                              <TooltipContent side="bottom" className="max-w-xs text-xs">
+                                Rate (CPC / CPM / CPV depending on Buy Type)
+                              </TooltipContent>
+                            </Tooltip>
+                          ) : (
+                            label
+                          )}
                         </th>
                       ))}
                       {weekColumns.map((col) => (
@@ -4809,7 +4820,7 @@ export function DigitalAudioExpertGrid({
           >
             <div className="flex flex-wrap gap-2">
               <span className="inline-flex items-baseline gap-2 rounded-full border border-border/70 bg-background/80 px-3 py-1 text-xs shadow-sm">
-                <span className="text-muted-foreground">Σ weekly qty</span>
+                <span className="text-muted-foreground">Total Deliverables</span>
                 <span className="font-semibold tabular-nums text-foreground">
                   {containerTotals.sumQty.toLocaleString(undefined, {
                     maximumFractionDigits: 2,

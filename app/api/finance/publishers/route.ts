@@ -1,87 +1,169 @@
+import axios from "axios"
 import { NextRequest, NextResponse } from "next/server"
-import { fetchRelevantPlanVersionsForFinanceMonth } from "@/lib/finance/relevantPlanVersions"
-import {
-  aggregatePublisherInvoiceContributions,
-  extractPublisherBillableMediaFromBillingSchedule,
-  type PublisherInvoiceContribution,
-} from "@/lib/finance/publisherInvoiceReport"
+import { parseXanoListPayload, xanoUrl } from "@/lib/api/xano"
+
+type BillingStatus = "draft" | "booked" | "approved" | "invoiced" | "paid" | "cancelled"
+type BillingType = "media" | "sow" | "retainer"
+
+type BillingLineItem = {
+  finance_billing_records_id: number
+  publisher_name: string | null
+  client_pays_media: boolean
+  amount: number
+}
+
+type BillingRecord = {
+  id: number
+  billing_type: BillingType
+  client_name: string
+  mba_number: string | null
+  campaign_name: string | null
+  status: BillingStatus
+  billing_month: string
+  line_items: BillingLineItem[]
+}
+
+function enumerateMonths(from: string, to: string): string[] {
+  const [fy, fm] = from.split("-").map(Number)
+  const [ty, tm] = to.split("-").map(Number)
+  if (!fy || !fm || !ty || !tm) return [from]
+  const start = new Date(fy, fm - 1, 1)
+  const end = new Date(ty, tm - 1, 1)
+  if (start > end) return [from]
+  const out: string[] = []
+  let ptr = start
+  while (ptr <= end) {
+    const y = ptr.getFullYear()
+    const m = String(ptr.getMonth() + 1).padStart(2, "0")
+    out.push(`${y}-${m}`)
+    ptr.setMonth(ptr.getMonth() + 1)
+  }
+  return out
+}
 
 export async function GET(request: NextRequest) {
   try {
-    const monthParam = request.nextUrl.searchParams.get("month")
-    if (!monthParam) {
+    const search = request.nextUrl.searchParams
+    const monthFrom = search.get("month_from")
+    const monthTo = search.get("month_to") || monthFrom
+    const rangeMode = search.get("range_mode") || "single"
+    const billingType = search.get("billing_type")
+    const status = search.get("status")
+    const clients = (search.get("clients") || "")
+      .split(",")
+      .map((c) => decodeURIComponent(c.trim()))
+      .filter(Boolean)
+
+    if (!monthFrom) {
       return NextResponse.json(
-        { error: "Month parameter is required (format: YYYY-MM)" },
+        { error: "month_from is required (format: YYYY-MM)" },
         { status: 400 }
       )
     }
 
-    const versionsResult = await fetchRelevantPlanVersionsForFinanceMonth(monthParam)
-    if ("error" in versionsResult) {
-      return NextResponse.json({ error: versionsResult.error }, { status: versionsResult.status })
-    }
+    const targetMonths = rangeMode === "range" ? enumerateMonths(monthFrom, monthTo || monthFrom) : [monthFrom]
+    const monthSet = new Set(targetMonths)
 
-    const { year, month, allVersions, relevantVersions } = versionsResult
+    const xanoRes = await axios.get(xanoUrl("finance_billing_records", "XANO_CLIENTS_BASE_URL"))
+    const rawRecords = parseXanoListPayload(xanoRes.data) as BillingRecord[]
 
-    const contributionsBooked: PublisherInvoiceContribution[] = []
-    const contributionsOther: PublisherInvoiceContribution[] = []
+    const filteredRecords = rawRecords.filter((record) => {
+      if (!monthSet.has(record.billing_month)) return false
+      if (billingType && record.billing_type !== billingType) return false
+      if (status && record.status !== status) return false
+      if (clients.length > 0 && !clients.includes(record.client_name)) return false
+      return true
+    })
 
-    for (const version of relevantVersions) {
-      const mbaNumber = String(version.mba_number ?? "")
-      let billingSchedule: any = null
-      if (version.billingSchedule) {
-        try {
-          billingSchedule =
-            typeof version.billingSchedule === "string"
-              ? JSON.parse(version.billingSchedule)
-              : version.billingSchedule
-        } catch (e) {
-          console.warn("Failed to parse billing schedule:", e)
+    const publisherMap = new Map<
+      string,
+      {
+        publisherName: string
+        subtotal: number
+        clientsMap: Map<
+          string,
+          {
+            clientName: string
+            campaignsMap: Map<
+              string,
+              {
+                billingRecordId: number
+                clientName: string
+                mbaNumber: string
+                campaignName: string
+                totalMedia: number
+                status: BillingStatus
+                billingType: BillingType
+              }
+            >
+          }
+        >
+      }
+    >()
+
+    for (const record of filteredRecords) {
+      for (const item of record.line_items || []) {
+        if (item.client_pays_media) continue
+        const amount = Number(item.amount || 0)
+        if (!amount) continue
+
+        const publisherName = item.publisher_name || "Unspecified publisher"
+        const publisher = publisherMap.get(publisherName) || {
+          publisherName,
+          subtotal: 0,
+          clientsMap: new Map(),
         }
-      }
 
-      const lines = extractPublisherBillableMediaFromBillingSchedule(billingSchedule, year, month)
-      if (lines.length === 0) continue
-
-      const clientName = version.mp_client_name || version.campaign_name || "Unknown"
-      const campaignName = version.campaign_name || "Unknown Campaign"
-
-      const status = String(version.campaign_status || "")
-        .toLowerCase()
-        .trim()
-      const bucket =
-        status === "booked" || status === "approved"
-          ? contributionsBooked
-          : contributionsOther
-
-      for (const line of lines) {
-        bucket.push({
-          publisherName: line.publisherName,
+        const clientName = record.client_name || "Unknown client"
+        const client = publisher.clientsMap.get(clientName) || {
           clientName,
-          mbaNumber,
-          campaignName,
-          amount: line.amount,
-        })
+          campaignsMap: new Map(),
+        }
+
+        const campaignKey = String(record.id)
+        const campaign = client.campaignsMap.get(campaignKey) || {
+          billingRecordId: record.id,
+          clientName,
+          mbaNumber: record.mba_number || "",
+          campaignName: record.campaign_name || "Untitled campaign",
+          totalMedia: 0,
+          status: record.status,
+          billingType: record.billing_type,
+        }
+
+        campaign.totalMedia += amount
+        client.campaignsMap.set(campaignKey, campaign)
+        publisher.subtotal += amount
+        publisher.clientsMap.set(clientName, client)
+        publisherMap.set(publisherName, publisher)
       }
     }
 
-    const bookedApproved = aggregatePublisherInvoiceContributions(contributionsBooked)
-    const other = aggregatePublisherInvoiceContributions(contributionsOther)
+    const publishers = Array.from(publisherMap.values())
+      .map((pub) => ({
+        publisherName: pub.publisherName,
+        subtotal: pub.subtotal,
+        clients: Array.from(pub.clientsMap.values())
+          .map((client) => ({
+            clientName: client.clientName,
+            campaigns: Array.from(client.campaignsMap.values()).sort((a, b) =>
+              a.campaignName.localeCompare(b.campaignName)
+            ),
+          }))
+          .sort((a, b) => a.clientName.localeCompare(b.clientName)),
+      }))
+      .sort((a, b) => a.publisherName.localeCompare(b.publisherName))
 
-    const meta = {
-      selectedMonth: monthParam,
-      totalVersions: allVersions.length,
-      relevantVersions: relevantVersions.length,
-      notice:
-        bookedApproved.grandTotal === 0 && other.grandTotal === 0
-          ? "No publisher invoice media for this month (check billing schedule and client-pays exclusions)."
-          : undefined,
-    }
+    const grandTotal = publishers.reduce((sum, pub) => sum + pub.subtotal, 0)
 
     return NextResponse.json({
-      bookedApproved,
-      other,
-      meta,
+      publishers,
+      grandTotal,
+      records: filteredRecords,
+      meta: {
+        months: targetMonths,
+        count: filteredRecords.length,
+      },
     })
   } catch (error: any) {
     console.error("Error fetching publisher finance data:", error)

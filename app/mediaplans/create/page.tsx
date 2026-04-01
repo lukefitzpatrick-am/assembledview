@@ -4405,8 +4405,50 @@ const handleSaveAll = async () => {
       .trim()
   }, []);
 
-  // Handle Save and Download All - runs in order: Generate MBA -> Download Media Plan -> Save -> Navigate to campaign
+  const generateNamingConventionsXlsxBlob = async (opts?: { planVersion?: string }) => {
+    if (typeof waitForStateFlush === "function") {
+      await waitForStateFlush();
+    }
+
+    const fv = form.getValues();
+    const version = opts?.planVersion ?? (fv.mp_plannumber || "1");
+    const clientName = fv.mp_client_name || "client";
+    const campaignName = fv.mp_campaignname || "mediaPlan";
+    const namingBase = `NamingConventions_${campaignName}`;
+    const fileName = `${clientName}-${namingBase}-v${version}.xlsx`;
+    const workbook = await generateNamingWorkbook({
+      advertiser: fv.mp_client_name || "",
+      brand: fv.mp_brand || "",
+      campaignName: fv.mp_campaignname || "",
+      mbaNumber: fv.mba_number || fv.mbaidentifier || "",
+      startDate: fv.mp_campaigndates_start,
+      endDate: fv.mp_campaigndates_end,
+      version,
+      mediaFlags: fv as unknown as Record<string, boolean>,
+      items: {
+        search: searchItems,
+        socialMedia: socialMediaItems,
+        digiAudio: digiAudioItems,
+        digiDisplay: digiDisplayItems,
+        digiVideo: digiVideoItems,
+        bvod: bvodItems,
+        integration: integrationItems,
+        progDisplay: progDisplayItems,
+        progVideo: progVideoItems,
+        progBvod: progBvodItems,
+        progAudio: progAudioItems,
+        progOoh: progOohItems,
+      },
+    });
+
+    const arrayBuffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([arrayBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    return { blob, fileName };
+  };
+
+  // Handle Save and Download All - creates a ZIP then runs the normal save modal flow
   const handleSaveAndDownloadAll = async () => {
+    setIsDownloading(true);
     try {
       const fv = form.getValues();
       
@@ -4429,43 +4471,29 @@ const handleSaveAll = async () => {
         return;
       }
 
-      // 1️⃣ Generate MBA
-      await handleGenerateMBA();
+      // 1️⃣ Build all files and download as one ZIP
+      const [{ blob: mbaBlob, fileName: mbaFileName }, { blob: mediaPlanBlob, fileName: mediaPlanFileName }, { blob: namingBlob, fileName: namingFileName }] = await Promise.all([
+        generateMbaPdfBlob(),
+        generateMediaPlanXlsxBlob(),
+        generateNamingConventionsXlsxBlob(),
+      ]);
 
-      // 2️⃣ Download Media Plan
-      await handleGenerateMediaPlan();
+      const JSZip = (await import("jszip")).default;
+      const zip = new JSZip();
+      zip.file(mbaFileName, mbaBlob);
+      zip.file(mediaPlanFileName, mediaPlanBlob);
+      zip.file(namingFileName, namingBlob);
+      const zipBlob = await zip.generateAsync({ type: "blob" });
 
-      // 3️⃣ Save master plan and version
-      setIsSaveModalOpen(true);
-      setSaveStatus([{ name: 'Media Plan Master', status: 'pending' }]);
-      let newMediaPlanId: number;
-      try {
-        newMediaPlanId = await handleSaveMediaPlan();
-      } catch (err) {
-        toast({
-          title: "Error",
-          description: "Failed to save media plan",
-          variant: "destructive",
-        });
-        return;
-      }
+      const campaignNameSafe = (fv.mp_campaignname || "campaign")
+        .replace(/[^a-z0-9-_ ]/gi, "")
+        .trim()
+        .replace(/\s+/g, "-");
+      const zipFileName = `${fv.mp_client_name || "client"}-${campaignNameSafe || "campaign"}-all-files.zip`;
+      saveAs(zipBlob, zipFileName);
 
-      try {
-        await handleSaveMediaPlanVersion(newMediaPlanId);
-      } catch (err) {
-        toast({
-          title: "Error",
-          description: "Failed to save media plan version",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // 4️⃣ Navigate to campaign screen
-    setHasUnsavedChanges(false);
-    form.reset(form.getValues());
-      const clientSlug = clientNameToSlug(fv.mp_client_name);
-      router.push(`/dashboard/${clientSlug}/${fv.mba_number}`);
+      // 2️⃣ Run the same save modal/process as the normal Save action
+      await handleSaveAll();
 
     } catch (error: any) {
       toast({
@@ -4473,50 +4501,16 @@ const handleSaveAll = async () => {
         description: error.message || "Failed to complete save and download all",
         variant: "destructive",
       });
+    } finally {
+      setIsDownloading(false);
     }
   };
 
   const handleDownloadNamingConventions = async () => {
     setIsNamingDownloading(true);
     try {
-      if (typeof waitForStateFlush === "function") {
-        await waitForStateFlush();
-      }
-
-      const fv = form.getValues();
-      const version = fv.mp_plannumber || "1";
-      const clientName = fv.mp_client_name || "client";
-      const campaignName = fv.mp_campaignname || "mediaPlan";
-      const namingBase = `NamingConventions_${campaignName}`;
-      const namingFileName = `${clientName}-${namingBase}-v${version}.xlsx`;
-      const workbook = await generateNamingWorkbook({
-        advertiser: fv.mp_client_name || "",
-        brand: fv.mp_brand || "",
-        campaignName: fv.mp_campaignname || "",
-        mbaNumber: fv.mba_number || fv.mbaidentifier || "",
-        startDate: fv.mp_campaigndates_start,
-        endDate: fv.mp_campaigndates_end,
-        version,
-        mediaFlags: fv as unknown as Record<string, boolean>,
-        items: {
-          search: searchItems,
-          socialMedia: socialMediaItems,
-          digiAudio: digiAudioItems,
-          digiDisplay: digiDisplayItems,
-          digiVideo: digiVideoItems,
-          bvod: bvodItems,
-          integration: integrationItems,
-          progDisplay: progDisplayItems,
-          progVideo: progVideoItems,
-          progBvod: progBvodItems,
-          progAudio: progAudioItems,
-          progOoh: progOohItems,
-        },
-      });
-
-      const arrayBuffer = await workbook.xlsx.writeBuffer();
-      const blob = new Blob([arrayBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-      saveAs(blob, namingFileName);
+      const { blob, fileName } = await generateNamingConventionsXlsxBlob();
+      saveAs(blob, fileName);
       toast({ title: "Success", description: "Naming conventions Excel downloaded" });
     } catch (error: any) {
       console.error("Naming download error:", error);

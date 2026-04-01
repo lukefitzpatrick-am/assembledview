@@ -1421,6 +1421,13 @@ const PROGOOH_BUY_TYPE_OPTIONS: ComboboxOption[] = [
   { value: "fixed_cost", label: "Fixed Cost" },
 ]
 
+const PROGOOH_BID_STRATEGY_OPTIONS: ComboboxOption[] = [
+  { value: "clicks", label: "Clicks" },
+  { value: "conversions", label: "Conversions" },
+  { value: "reach", label: "Reach" },
+  { value: "viewability", label: "Viewability" },
+]
+
 function normalizeProgOohBuyTypePaste(raw: string): string {
   const v = raw.trim()
   if (!v) return ""
@@ -1431,6 +1438,16 @@ function normalizeProgOohBuyTypePaste(raw: string): string {
   const byLabel = PROGOOH_BUY_TYPE_OPTIONS.find(
     (o) => o.label.toLowerCase() === v.toLowerCase()
   )
+  if (byLabel) return byLabel.value
+  return v
+}
+
+function normalizeProgOohBidStrategyPaste(raw: string): string {
+  const v = raw.trim()
+  if (!v) return ""
+  const byValue = PROGOOH_BID_STRATEGY_OPTIONS.find((o) => o.value.toLowerCase() === v.toLowerCase())
+  if (byValue) return byValue.value
+  const byLabel = PROGOOH_BID_STRATEGY_OPTIONS.find((o) => o.label.toLowerCase() === v.toLowerCase())
   if (byLabel) return byLabel.value
   return v
 }
@@ -2821,6 +2838,12 @@ export function ProgOohExpertGrid({
               buyType: normalizeProgOohBuyTypePaste(raw),
             }
             applied += 1
+          } else if (field === "bidStrategy") {
+            nextRows[targetRow] = {
+              ...cur,
+              bidStrategy: normalizeProgOohBidStrategyPaste(raw),
+            }
+            applied += 1
           } else if (field === "platform") {
             const plt = normalizeProgOohPlatformPaste(raw, platformNames)
             nextRows[targetRow] = {
@@ -3159,7 +3182,7 @@ export function ProgOohExpertGrid({
       "Start Date",
       "End Date",
       "Platform",
-      "Bid Strategy",
+      "Targeting",
       "Buy Type",
       "Creative Targeting",
       "Creative",
@@ -3169,12 +3192,12 @@ export function ProgOohExpertGrid({
       "Market",
     ]
     const billing = [
-      "Fixed cost media",
-      "Client pays for media",
-      "Budget includes fees",
-      "No ad serving",
+      "Fixed Cost Media",
+      "Client Pays for Media",
+      "Budget Includes Fees",
+      "No Ad Serving",
     ]
-    const tail = ["Unit Rate", "Gross Cost", "", "Σ qty"]
+    const tail = ["Unit Rate", "Net Media", "", "Σ qty"]
     return [...core, ...billing, ...tail]
   }, [])
 
@@ -3290,7 +3313,18 @@ export function ProgOohExpertGrid({
                             ...progOohExpertHeaderCellBgStyle,
                           }}
                         >
-                          {label}
+                          {label === "Unit Rate" ? (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="cursor-help">{label}</span>
+                              </TooltipTrigger>
+                              <TooltipContent side="bottom" className="max-w-xs text-xs">
+                                Rate (CPC / CPM / CPV depending on Buy Type)
+                              </TooltipContent>
+                            </Tooltip>
+                          ) : (
+                            label
+                          )}
                         </th>
                       ))}
                       {weekColumns.map((col) => (
@@ -3373,94 +3407,28 @@ export function ProgOohExpertGrid({
                             className={stickyTd(cStart)}
                             style={stickyStyleBody(cStart)}
                           >
-                            <Input
-                              id={expertGridCellId(
-                                domGridId,
-                                rowIndex,
-                                cStart
-                              )}
-                              readOnly
-                              tabIndex={-1}
-                              title={row.startDate}
-                              className="h-8 cursor-default border-0 bg-transparent px-0 text-[11px] tabular-nums text-muted-foreground shadow-none focus-visible:ring-0"
-                              value={formatYmdDisplay(row.startDate)}
-                            />
-                          </td>
-                          <td
-                            className={stickyTd(cEnd)}
-                            style={stickyStyleBody(cEnd)}
-                          >
-                            <Input
-                              id={expertGridCellId(domGridId, rowIndex, cEnd)}
-                              readOnly
-                              tabIndex={-1}
-                              title={row.endDate}
-                              className="h-8 cursor-default border-0 bg-transparent px-0 text-[11px] tabular-nums text-muted-foreground shadow-none focus-visible:ring-0"
-                              value={formatYmdDisplay(row.endDate)}
-                            />
-                          </td>
-                          <td
-                            className={stickyTd(cPlt)}
-                            style={stickyStyleBody(cPlt)}
-                          >
                             <Combobox
-                              id={expertGridCellId(
-                                domGridId,
-                                rowIndex,
-                                cPlt
-                              )}
-                              options={platformComboboxOptions}
-                              value={row.platform}
-                              onValueChange={(v) =>
-                                updateRow(rowIndex, { platform: v })
-                              }
-                              placeholder="Select"
-                              searchPlaceholder="Search platforms…"
-                              emptyText={
-                                platformNames.length === 0
-                                  ? "No platforms."
-                                  : "No match."
-                              }
-                              buttonClassName="h-8 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-1"
-                              onTriggerFocus={() =>
-                                handleCellFocus(rowIndex, "platform")
-                              }
-                              onOpenChange={(open) => {
-                                if (open) {
-                                  handleCellFocus(rowIndex, "platform")
-                                } else {
-                                  tryFuzzyMatch(
-                                    rowIndex,
-                                    "platform",
-                                    row.platform
-                                  )
-                                }
-                              }}
-                            />
-                          </td>
-                          <td
-                            className={stickyTd(cBid)}
-                            style={stickyStyleBody(cBid)}
-                          >
-                            <Input
                               id={expertGridCellId(
                                 domGridId,
                                 rowIndex,
                                 cBid
                               )}
-                              className="h-8 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-1"
+                              options={PROGOOH_BID_STRATEGY_OPTIONS}
                               value={row.bidStrategy}
-                              onFocus={() =>
+                              onValueChange={(v) =>
+                                updateRow(rowIndex, { bidStrategy: v })
+                              }
+                              placeholder="Select"
+                              searchPlaceholder="Search targeting…"
+                              buttonClassName="h-8 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-1"
+                              onTriggerFocus={() =>
                                 handleCellFocus(rowIndex, "bidStrategy")
                               }
-                              onKeyDown={(e) =>
-                                handleGridInputKeyDown(rowIndex, cBid, e)
-                              }
-                              onChange={(e) =>
-                                updateRow(rowIndex, {
-                                  bidStrategy: e.target.value,
-                                })
-                              }
+                              onOpenChange={(open) => {
+                                if (open) {
+                                  handleCellFocus(rowIndex, "bidStrategy")
+                                }
+                              }}
                             />
                           </td>
                           <td
@@ -4729,7 +4697,7 @@ export function ProgOohExpertGrid({
           >
             <div className="flex flex-wrap gap-2">
               <span className="inline-flex items-baseline gap-2 rounded-full border border-border/70 bg-background/80 px-3 py-1 text-xs shadow-sm">
-                <span className="text-muted-foreground">Σ weekly qty</span>
+                <span className="text-muted-foreground">Total Deliverables</span>
                 <span className="font-semibold tabular-nums text-foreground">
                   {containerTotals.sumQty.toLocaleString(undefined, {
                     maximumFractionDigits: 2,

@@ -1423,6 +1423,13 @@ const SEARCH_BUY_TYPE_OPTIONS: ComboboxOption[] = [
   { value: "fixed_cost", label: "Fixed Cost" },
 ]
 
+const SEARCH_BID_STRATEGY_OPTIONS: ComboboxOption[] = [
+  { value: "manual_cpc", label: "Manual CPC" },
+  { value: "maximize_conversions", label: "Maximise Conversions" },
+  { value: "target_cpa", label: "Target CPA" },
+  { value: "target_roas", label: "Target ROAS" },
+]
+
 function normalizeSearchBuyTypePaste(raw: string): string {
   const v = raw.trim()
   if (!v) return ""
@@ -1431,6 +1438,20 @@ function normalizeSearchBuyTypePaste(raw: string): string {
   )
   if (byValue) return byValue.value
   const byLabel = SEARCH_BUY_TYPE_OPTIONS.find(
+    (o) => o.label.toLowerCase() === v.toLowerCase()
+  )
+  if (byLabel) return byLabel.value
+  return v
+}
+
+function normaliseSearchBidStrategyPaste(raw: string): string {
+  const v = raw.trim()
+  if (!v) return ""
+  const byValue = SEARCH_BID_STRATEGY_OPTIONS.find(
+    (o) => o.value.toLowerCase() === v.toLowerCase()
+  )
+  if (byValue) return byValue.value
+  const byLabel = SEARCH_BID_STRATEGY_OPTIONS.find(
     (o) => o.label.toLowerCase() === v.toLowerCase()
   )
   if (byLabel) return byLabel.value
@@ -2816,6 +2837,12 @@ export function SearchExpertGrid({
               buyType: normalizeSearchBuyTypePaste(raw),
             }
             applied += 1
+          } else if (field === "bidStrategy") {
+            nextRows[targetRow] = {
+              ...cur,
+              bidStrategy: normaliseSearchBidStrategyPaste(raw),
+            }
+            applied += 1
           } else if (field === "platform") {
             const plt = normalizeSearchPlatformPaste(raw, platformNames)
             nextRows[targetRow] = {
@@ -3154,19 +3181,19 @@ export function SearchExpertGrid({
       "Start Date",
       "End Date",
       "Platform",
-      "Bid Strategy",
+      "Targeting",
       "Buy Type",
-      "Creative Targeting",
+      "Targeting",
       "Creative",
       "Buying Demo",
       "Market",
     ]
     const billing = [
-      "Fixed cost media",
-      "Client pays for media",
-      "Budget includes fees",
+      "Fixed Cost Media",
+      "Client Pays for Media",
+      "Budget Includes Fees",
     ]
-    const tail = ["Unit Rate", "Gross Cost", "", "Σ qty"]
+    const tail = ["Unit Rate", "Net Media", "", "Σ qty"]
     return [...core, ...billing, ...tail]
   }, [])
 
@@ -3282,7 +3309,27 @@ export function SearchExpertGrid({
                             ...searchExpertHeaderCellBgStyle,
                           }}
                         >
-                          {label}
+                          {label === "Unit Rate" ? (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="cursor-help">{label}</span>
+                              </TooltipTrigger>
+                              <TooltipContent side="bottom" className="max-w-xs text-xs">
+                                Rate (CPC / CPM / CPV depending on Buy Type)
+                              </TooltipContent>
+                            </Tooltip>
+                          ) : searchDescriptorKeys[i] === "creativeTargeting" ? (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="cursor-help">{label}</span>
+                              </TooltipTrigger>
+                              <TooltipContent side="bottom" className="max-w-xs text-xs">
+                                Creative / Keyword Targeting
+                              </TooltipContent>
+                            </Tooltip>
+                          ) : (
+                            label
+                          )}
                         </th>
                       ))}
                       {weekColumns.map((col) => (
@@ -3430,25 +3477,28 @@ export function SearchExpertGrid({
                             className={stickyTd(cBid)}
                             style={stickyStyleBody(cBid)}
                           >
-                            <Input
+                            <Combobox
                               id={expertGridCellId(
                                 domGridId,
                                 rowIndex,
                                 cBid
                               )}
-                              className="h-8 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-1"
+                              options={SEARCH_BID_STRATEGY_OPTIONS}
                               value={row.bidStrategy}
-                              onFocus={() =>
+                              onValueChange={(v) =>
+                                updateRow(rowIndex, { bidStrategy: v })
+                              }
+                              placeholder="Select"
+                              searchPlaceholder="Search strategies…"
+                              buttonClassName="h-8 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-1"
+                              onTriggerFocus={() =>
                                 handleCellFocus(rowIndex, "bidStrategy")
                               }
-                              onKeyDown={(e) =>
-                                handleGridInputKeyDown(rowIndex, cBid, e)
-                              }
-                              onChange={(e) =>
-                                updateRow(rowIndex, {
-                                  bidStrategy: e.target.value,
-                                })
-                              }
+                              onOpenChange={(open) => {
+                                if (open) {
+                                  handleCellFocus(rowIndex, "bidStrategy")
+                                }
+                              }}
                             />
                           </td>
                           <td
@@ -4632,7 +4682,7 @@ export function SearchExpertGrid({
           >
             <div className="flex flex-wrap gap-2">
               <span className="inline-flex items-baseline gap-2 rounded-full border border-border/70 bg-background/80 px-3 py-1 text-xs shadow-sm">
-                <span className="text-muted-foreground">Σ weekly qty</span>
+                <span className="text-muted-foreground">Total Deliverables</span>
                 <span className="font-semibold tabular-nums text-foreground">
                   {containerTotals.sumQty.toLocaleString(undefined, {
                     maximumFractionDigits: 2,
