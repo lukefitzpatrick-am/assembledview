@@ -29,6 +29,12 @@ export interface CampaignCardCompactProps {
   editHref?: string
   /** When true, show Edit in the toolbar and menu (typically agency / admin hub). */
   canEdit?: boolean
+  /** When false, hide the header pencil; edit stays under ⋮ only (e.g. client hub). Default true. */
+  showInlineEditButton?: boolean
+  /** Dropdown label for the dashboard link. */
+  viewMenuLabel?: string
+  /** Full `aria-label` for the card-sized dashboard link (defaults to “Open campaign {name}”). */
+  viewLinkAriaLabel?: string
   brandColour?: string
 }
 
@@ -95,6 +101,9 @@ export function CampaignCardCompact({
   href: viewHref,
   editHref,
   canEdit = false,
+  showInlineEditButton = true,
+  viewMenuLabel = "View campaign",
+  viewLinkAriaLabel,
   brandColour,
 }: CampaignCardCompactProps) {
   const shouldReduceMotion = useReducedMotion()
@@ -104,6 +113,7 @@ export function CampaignCardCompact({
   const visibleTags = mediaTypes.slice(0, 3)
   const hiddenTagCount = Math.max(0, mediaTypes.length - visibleTags.length)
   const showEdit = Boolean(canEdit && editHref)
+  const showPencil = showEdit && showInlineEditButton
   const downloadHref = buildDownloadSummaryHref(viewHref)
 
   const copyMbaNumber = async () => {
@@ -127,7 +137,7 @@ export function CampaignCardCompact({
     >
       <Link
         href={viewHref}
-        aria-label={`Open campaign ${name}`}
+        aria-label={viewLinkAriaLabel ?? `Open campaign ${name}`}
         className={cn(
           "absolute inset-0 z-0 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         )}
@@ -155,7 +165,7 @@ export function CampaignCardCompact({
             {statusTone.label}
           </span>
 
-          {showEdit ? (
+          {showPencil ? (
             <Link
               href={editHref!}
               title="Edit campaign"
@@ -191,7 +201,7 @@ export function CampaignCardCompact({
               <DropdownMenuItem asChild>
                 <Link href={viewHref} className="cursor-pointer">
                   <Eye className="h-4 w-4" />
-                  View campaign
+                  {viewMenuLabel}
                 </Link>
               </DropdownMenuItem>
               {showEdit ? (

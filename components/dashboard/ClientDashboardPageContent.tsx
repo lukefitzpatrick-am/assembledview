@@ -314,6 +314,9 @@ export function ClientDashboardPageContent({
                   href={campaign.href}
                   editHref={campaign.editHref}
                   canEdit={campaign.canEdit}
+                  showInlineEditButton={!isClientHub}
+                  viewMenuLabel={isClientHub ? "View campaign dashboard" : "View campaign"}
+                  viewLinkAriaLabel={isClientHub ? `View campaign dashboard: ${campaign.name}` : undefined}
                   brandColour={clientData.brandColour}
                 />
               </motion.div>

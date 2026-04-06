@@ -107,6 +107,32 @@ function normalizeStatus(status: any): string {
   return String(status).trim().toLowerCase()
 }
 
+/** Collapse MBA variants (trim, string) so one logical plan does not create duplicate dashboard cards. */
+function normalizeMbaKey(raw: unknown): string | null {
+  if (raw === null || raw === undefined) return null
+  const s = String(raw).trim()
+  return s.length > 0 ? s : null
+}
+
+function numericVersion(v: any): number {
+  const n = Number(v?.version_number)
+  return Number.isFinite(n) && n > 0 ? n : 0
+}
+
+/** Same rule as mediaplans editor: one row per MBA — the highest version_number (tie-break: updated_at). */
+function pickHighestVersionRow(versions: any[]): any | null {
+  if (!Array.isArray(versions) || versions.length === 0) return null
+  return versions.reduce((best, v) => {
+    const vn = numericVersion(v)
+    const bn = numericVersion(best)
+    if (vn > bn) return v
+    if (vn < bn) return best
+    const vUp = parseDateSafe(v.updated_at)?.getTime() ?? 0
+    const bUp = parseDateSafe(best.updated_at)?.getTime() ?? 0
+    return vUp >= bUp ? v : best
+  })
+}
+
 function normalizeTags(value: any): string[] {
   if (!value) return []
   if (Array.isArray(value)) {
@@ -702,32 +728,21 @@ function buildClientDashboardDataFromVersions(
 
     console.log('Dashboard: using client from media_plan_versions', { clientName, slug: targetSlug, versions: clientVersions.length })
 
-    // Keep only booked/approved/completed and highest version per MBA
+    // One row per MBA: highest version_number (matches mediaplans MBA edit — latest version wins).
     const versionsByMBA = clientVersions.reduce((acc: Record<string, any[]>, version: any) => {
-      const mbaNumber = version.mba_number
-      if (!mbaNumber) return acc
-      acc[mbaNumber] = acc[mbaNumber] || []
-      acc[mbaNumber].push(version)
+      const key = normalizeMbaKey(version.mba_number)
+      if (!key) return acc
+      acc[key] = acc[key] || []
+      acc[key].push(version)
       return acc
     }, {} as Record<string, any[]>)
 
     const selectedVersionByMBA: Record<string, any> = {}
 
-    Object.entries(versionsByMBA).forEach(([mbaNumber, versions]: [string, any[]]) => {
-      const sorted = versions
-        .slice()
-        .sort((a, b) => (b.version_number || 0) - (a.version_number || 0))
-
-      const bookedApprovedCompleted = sorted.find((v: any) => isBookedApprovedCompleted(v.campaign_status))
-
-      const chosenVersion = bookedApprovedCompleted || sorted[0]
-
+    Object.entries(versionsByMBA).forEach(([mbaKey, versions]: [string, any[]]) => {
+      const chosenVersion = pickHighestVersionRow(versions)
       if (chosenVersion) {
-        selectedVersionByMBA[mbaNumber] = chosenVersion
-      }
-
-      if (!bookedApprovedCompleted && sorted[0]) {
-        console.warn(`No booked/approved/completed version found for MBA ${mbaNumber}; using latest version ${sorted[0]?.version_number ?? 'n/a'} for dashboard lists`)
+        selectedVersionByMBA[mbaKey] = chosenVersion
       }
     })
     
@@ -786,7 +801,7 @@ function buildClientDashboardDataFromVersions(
           : 0
 
       return {
-        mbaNumber: version.mba_number || '',
+        mbaNumber: normalizeMbaKey(version.mba_number) ?? '',
         campaignName: version.campaign_name || '',
         versionNumber: `v${version.version_number || 1}`,
         version_number: Number.isFinite(vn) && vn > 0 ? vn : 1,
@@ -819,49 +834,31 @@ function buildClientDashboardDataFromVersions(
         new Date(campaign.endDate) >= currentDate
     })
 
-    const planningCampaignsList = clientCampaigns.filter(campaign => {
+    const planningCampaignsList = clientCampaigns.filter((campaign) => {
+      const end = new Date(campaign.endDate)
+      if (!Number.isNaN(end.getTime()) && end < currentDate) return false
       const status = normalizeStatus(campaign.status)
       return status === 'planning' || status === 'draft' || new Date(campaign.startDate) > currentDate
     })
 
-    const completedCampaignsList = clientCampaigns.filter(campaign => 
-      new Date(campaign.endDate) < currentDate
-    )
+    const completedCampaignsList = clientCampaigns.filter((campaign) => new Date(campaign.endDate) < currentDate)
 
     // Filter to only booked/approved/completed campaigns for spend analytics
     const bookedApprovedCampaigns = clientCampaigns.filter(campaign =>
       isBookedApprovedCompleted(campaign.status)
     )
 
-    // Build delivery schedule map using highest booked/approved/completed version per MBA
-    const bookedApprovedVersionByMBA: Record<string, any> = {}
-    Object.entries(versionsByMBA).forEach(([mbaNumber, versions]: [string, any[]]) => {
-      const sorted = versions
-        .slice()
-        .sort((a, b) => {
-          const vA = a.version_number ?? 0
-          const vB = b.version_number ?? 0
-          if (vB !== vA) return vB - vA
-          const aUpdated = parseDateSafe(a.updated_at) ?? new Date(0)
-          const bUpdated = parseDateSafe(b.updated_at) ?? new Date(0)
-          return bUpdated.getTime() - aUpdated.getTime()
-        })
-      const bookedApprovedCompleted = sorted.find((v: any) => isBookedApprovedCompleted(v.campaign_status))
-      if (bookedApprovedCompleted) {
-        bookedApprovedVersionByMBA[mbaNumber] = bookedApprovedCompleted
-      }
-    })
-
+    // Delivery / billing schedules from the same highest-version row per MBA (aligned with campaign cards).
     const deliveryScheduleByMBA: Record<string, any[]> = {}
-    Object.entries(bookedApprovedVersionByMBA).forEach(([mbaNumber, version]: [string, any]) => {
+    Object.entries(selectedVersionByMBA).forEach(([mbaKey, version]: [string, any]) => {
       const schedule =
-        (version as any)?.deliverySchedule ||
-        (version as any)?.delivery_schedule ||
-        (version as any)?.billingSchedule ||
-        (version as any)?.billing_schedule
+        version?.deliverySchedule ||
+        version?.delivery_schedule ||
+        version?.billingSchedule ||
+        version?.billing_schedule
       const normalized = normalizeSchedule(schedule)
       if (normalized.length > 0) {
-        deliveryScheduleByMBA[mbaNumber] = normalized
+        deliveryScheduleByMBA[mbaKey] = normalized
       }
     })
 
@@ -872,8 +869,9 @@ function buildClientDashboardDataFromVersions(
     fyMonths.forEach(month => { deliveryMonthlyMap[month] = {} })
     const monthLabelFromDate = (date: Date) => fyMonths[(date.getMonth() + 12 - 6) % 12]
 
-    bookedApprovedCampaigns.forEach(campaign => {
-      const schedule = deliveryScheduleByMBA[campaign.mbaNumber]
+    bookedApprovedCampaigns.forEach((campaign) => {
+      const mbaKey = normalizeMbaKey(campaign.mbaNumber)
+      const schedule = mbaKey ? deliveryScheduleByMBA[mbaKey] : undefined
       if (!schedule || !Array.isArray(schedule)) return
 
       schedule.forEach(entry => {
@@ -916,7 +914,7 @@ function buildClientDashboardDataFromVersions(
       })
     })
 
-    // Calculate spend windows from delivery schedules for booked/approved/completed campaigns
+    // Calculate spend windows from delivery schedules (booked/approved/completed campaigns only)
     const windows = { last30d: last30dWindow, fy: { start: fyStart, end: fyEnd } }
     const spendTotals = Object.entries(deliveryScheduleByMBA).reduce(
       (acc, [_, schedule]) => {
