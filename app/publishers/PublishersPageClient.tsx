@@ -4,11 +4,13 @@ import { useState, useEffect, useMemo, type CSSProperties } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { PlusCircle, Edit, X, Building2 } from "lucide-react"
+import { PlusCircle, Edit, X, Building2, Search } from "lucide-react"
 import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
 import { AddPublisherForm } from "@/components/AddPublisherForm"
 import { cn } from "@/lib/utils"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { SortableTableHeader, type SortDirection } from "@/components/ui/sortable-table-header"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { useListGridLayoutPreference } from "@/lib/hooks/useListGridLayoutPreference"
@@ -50,6 +52,8 @@ const MEDIA_TYPES = [
 ] as const
 
 const PRIMARY_FALLBACK = "hsl(var(--primary))"
+
+type PublisherSortKey = "name" | "id" | "type" | "media"
 
 function isSixDigitHex(s: string): boolean {
   return /^#[0-9A-Fa-f]{6}$/.test(s)
@@ -194,6 +198,9 @@ export function PublishersPageClient() {
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [publishers, setPublishers] = useState<Publisher[]>([])
+  const [directorySearch, setDirectorySearch] = useState("")
+  const [sortKey, setSortKey] = useState<PublisherSortKey>("name")
+  const [sortDir, setSortDir] = useState<Exclude<SortDirection, null>>("asc")
 
   useEffect(() => {
     void fetchPublishers()
@@ -219,6 +226,60 @@ export function PublishersPageClient() {
     return publishers.filter((p) => normalizePublisherFilterKey(p.publisher_name || "") === key)
   }, [publishers, publisherFilter])
 
+  const searchFilteredPublishers = useMemo(() => {
+    const q = directorySearch.trim().toLowerCase()
+    if (!q) return filteredPublishers
+    return filteredPublishers.filter((p) => {
+      const name = (p.publisher_name || "").toLowerCase()
+      const id = String(p.publisherid ?? "").toLowerCase()
+      return name.includes(q) || id.includes(q)
+    })
+  }, [filteredPublishers, directorySearch])
+
+  const sortedPublishers = useMemo(() => {
+    const arr = [...searchFilteredPublishers]
+    const mult = sortDir === "asc" ? 1 : -1
+    arr.sort((a, b) => {
+      let cmp = 0
+      switch (sortKey) {
+        case "name":
+          cmp = (a.publisher_name || "").localeCompare(b.publisher_name || "", undefined, { sensitivity: "base" })
+          break
+        case "id":
+          cmp = String(a.publisherid ?? "").localeCompare(String(b.publisherid ?? ""), undefined, { numeric: true })
+          break
+        case "type":
+          cmp = publisherTypeLabel(a.publishertype).localeCompare(
+            publisherTypeLabel(b.publishertype),
+            undefined,
+            { sensitivity: "base" }
+          )
+          break
+        case "media":
+          cmp = publisherMediaTypeLabels(a)
+            .join("\u0000")
+            .localeCompare(publisherMediaTypeLabels(b).join("\u0000"), undefined, { sensitivity: "base" })
+          break
+        default:
+          break
+      }
+      if (cmp !== 0) return mult * cmp
+      return (a.publisher_name || "").localeCompare(b.publisher_name || "", undefined, { sensitivity: "base" })
+    })
+    return arr
+  }, [searchFilteredPublishers, sortKey, sortDir])
+
+  const togglePublisherSort = (key: PublisherSortKey) => {
+    setSortKey((current) => {
+      if (current !== key) {
+        setSortDir("asc")
+        return key
+      }
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"))
+      return current
+    })
+  }
+
   const matchedRecord = useMemo(() => {
     if (!publisherFilter) return null
     const key = normalizePublisherFilterKey(publisherFilter)
@@ -226,7 +287,7 @@ export function PublishersPageClient() {
     return publishers.find((p) => normalizePublisherFilterKey(p.publisher_name || "") === key) ?? null
   }, [publishers, publisherFilter])
 
-  const csvData = filteredPublishers.map((publisher) => {
+  const csvData = sortedPublishers.map((publisher) => {
     const activeMediaTypes = publisherMediaTypeLabels(publisher).join("; ")
 
     return {
@@ -243,6 +304,7 @@ export function PublishersPageClient() {
   }
 
   const showFilterChip = Boolean(publisherFilter)
+  const showSearchQuery = Boolean(directorySearch.trim())
 
   return (
     <div className="w-full max-w-none space-y-6 px-4 pb-12 pt-0 md:px-6">
@@ -258,6 +320,16 @@ export function PublishersPageClient() {
         actions={
           <div className="flex flex-wrap items-center gap-3">
             <ListGridToggle value={listGridMode} onChange={setListGridMode} />
+            <div className="relative w-full min-w-[12rem] max-w-xs sm:w-56">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                className="h-9 pl-8"
+                placeholder="Search publishers…"
+                value={directorySearch}
+                onChange={(e) => setDirectorySearch(e.target.value)}
+                aria-label="Search publishers by name or ID"
+              />
+            </div>
             <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
               <DialogTrigger asChild>
                 <Button className="w-fit shadow-sm">
@@ -311,7 +383,9 @@ export function PublishersPageClient() {
                 </div>
               ) : (
                 <span className="text-sm text-muted-foreground">
-                  {publishers.length.toLocaleString("en-AU")} total
+                  {showSearchQuery
+                    ? `${sortedPublishers.length.toLocaleString("en-AU")} of ${publishers.length.toLocaleString("en-AU")} shown`
+                    : `${publishers.length.toLocaleString("en-AU")} total`}
                 </span>
               )}
             </div>
@@ -340,8 +414,8 @@ export function PublishersPageClient() {
           <div className="space-y-1">
             <PanelTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Directory</PanelTitle>
             <PanelDescription className="text-xs">
-              {filteredPublishers.length.toLocaleString("en-AU")} of {publishers.length.toLocaleString("en-AU")} publishers
-              {showFilterChip ? " (filtered)" : ""}.
+              {sortedPublishers.length.toLocaleString("en-AU")} of {publishers.length.toLocaleString("en-AU")} publishers
+              {showFilterChip || showSearchQuery ? " (filtered)" : ""}.
             </PanelDescription>
           </div>
           <PanelActions>
@@ -354,26 +428,47 @@ export function PublishersPageClient() {
               <TableHeader className="bg-muted/20">
                 <TableRow className="hover:bg-muted/20">
                   <TableHead className="w-[40px] p-2" />
-                  <TableHead className="min-w-0 text-foreground">Publisher</TableHead>
-                  <TableHead className="w-[14%]">ID</TableHead>
-                  <TableHead className="w-[11rem] whitespace-nowrap">Type</TableHead>
-                  <TableHead>Media types</TableHead>
-                  <TableHead className="w-[1%] text-right">Actions</TableHead>
+                  <SortableTableHeader
+                    label="Publisher"
+                    direction={sortKey === "name" ? sortDir : null}
+                    onToggle={() => togglePublisherSort("name")}
+                    className="min-w-0 [&_button]:text-foreground"
+                  />
+                  <SortableTableHeader
+                    label="ID"
+                    direction={sortKey === "id" ? sortDir : null}
+                    onToggle={() => togglePublisherSort("id")}
+                    className="w-[14%]"
+                  />
+                  <SortableTableHeader
+                    label="Type"
+                    direction={sortKey === "type" ? sortDir : null}
+                    onToggle={() => togglePublisherSort("type")}
+                    className="w-[11rem] whitespace-nowrap"
+                  />
+                  <SortableTableHeader
+                    label="Media types"
+                    direction={sortKey === "media" ? sortDir : null}
+                    onToggle={() => togglePublisherSort("media")}
+                  />
+                  <TableHead className="w-[1%] px-4 py-3 text-right font-medium text-muted-foreground">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody className="[&_tr:nth-child(even)]:bg-muted/5">
-                {filteredPublishers.length === 0 ? (
+                {sortedPublishers.length === 0 ? (
                   <TableRow className="hover:bg-transparent">
                     <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
-                      {showFilterChip
-                        ? "No publishers match this filter."
-                        : publishers.length === 0
-                          ? "No publishers loaded."
-                          : "No rows to display."}
+                      {showSearchQuery
+                        ? "No publishers match your search."
+                        : showFilterChip
+                          ? "No publishers match this filter."
+                          : publishers.length === 0
+                            ? "No publishers loaded."
+                            : "No rows to display."}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredPublishers.map((publisher) => {
+                  sortedPublishers.map((publisher) => {
                     const hubHref = publisherHubPath(publisher)
                     const dotColour = publisher.publisher_colour?.trim()
                     return (
@@ -435,17 +530,19 @@ export function PublishersPageClient() {
                 )}
               </TableBody>
             </Table>
-          ) : filteredPublishers.length === 0 ? (
+          ) : sortedPublishers.length === 0 ? (
             <p className="py-12 text-center text-muted-foreground">
-              {showFilterChip
-                ? "No publishers match this filter."
-                : publishers.length === 0
-                  ? "No publishers loaded."
-                  : "No rows to display."}
+              {showSearchQuery
+                ? "No publishers match your search."
+                : showFilterChip
+                  ? "No publishers match this filter."
+                  : publishers.length === 0
+                    ? "No publishers loaded."
+                    : "No rows to display."}
             </p>
           ) : (
             <div className="grid grid-cols-1 gap-4 p-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {filteredPublishers.map((publisher) => (
+              {sortedPublishers.map((publisher) => (
                 <PublisherGridCard key={publisher.id} publisher={publisher} />
               ))}
             </div>

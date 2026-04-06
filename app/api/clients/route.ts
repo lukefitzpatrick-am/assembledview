@@ -15,10 +15,14 @@ const CACHE_TTL_MS = Number(process.env.CLIENTS_CACHE_TTL_MS ?? 5 * 60 * 1000)
 
 function withClientSlug(raw: any) {
   const name = getClientDisplayName(raw)
+  const xanoSlugOriginal = typeof raw?.slug === "string" ? raw.slug.trim() : ""
 
   return {
     ...raw,
     slug: slugifyClientNameForUrl(name),
+    ...(xanoSlugOriginal
+      ? { xano_url_slug: slugifyClientNameForUrl(xanoSlugOriginal) }
+      : {}),
   }
 }
 

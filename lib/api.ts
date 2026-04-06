@@ -621,6 +621,84 @@ interface Magazines {
   id: number;
   title: string;
   network: string;
+  /** When Xano returns only a publisher FK, match against the selected Network (publisher id). */
+  publisherId?: number;
+}
+
+/** Xano magazine title records may use linked publisher objects or alternate field names. */
+function normalizeMagazineRecord(raw: any): Magazines {
+  const id =
+    typeof raw?.id === "number" && !Number.isNaN(raw.id) ? raw.id : Number(raw?.id) || 0
+  const title = String(
+    raw?.title ?? raw?.magazine_title ?? raw?.magazine_name ?? raw?.name ?? ""
+  ).trim()
+
+  let network = String(raw?.network ?? "").trim()
+  if (!network) network = String(raw?.publisher_name ?? "").trim()
+
+  let publisherId: number | undefined
+  const assignPublisherId = (v: unknown) => {
+    if (typeof v === "number" && !Number.isNaN(v)) publisherId = v
+    else if (typeof v === "string" && v.trim() !== "") {
+      const n = Number(v)
+      if (!Number.isNaN(n)) publisherId = n
+    }
+  }
+  assignPublisherId(raw?.publishers_id)
+  if (publisherId == null) assignPublisherId(raw?.publisher_id)
+
+  const singlePublisher = (
+    obj: Record<string, unknown> | null | undefined
+  ): { name: string; id?: number } => {
+    if (!obj || typeof obj !== "object") return { name: "" }
+    const name = String(obj.publisher_name ?? obj.name ?? "").trim()
+    let pid: number | undefined
+    if (typeof obj.id === "number" && !Number.isNaN(obj.id)) pid = obj.id
+    return { name, id: pid }
+  }
+
+  if (!network && raw?.publisher != null && typeof raw.publisher === "object") {
+    const { name, id: pid } = singlePublisher(raw.publisher as Record<string, unknown>)
+    network = name
+    if (publisherId == null && pid != null) publisherId = pid
+  }
+  if (raw?.publishers != null) {
+    const pub = raw.publishers
+    if (typeof pub === "number" && publisherId == null) assignPublisherId(pub)
+    else if (Array.isArray(pub) && pub.length > 0) {
+      const { name, id: pid } = singlePublisher(pub[0] as Record<string, unknown>)
+      if (!network) network = name
+      if (publisherId == null && pid != null) publisherId = pid
+    } else if (pub && typeof pub === "object") {
+      const { name, id: pid } = singlePublisher(pub as Record<string, unknown>)
+      if (!network) network = name
+      if (publisherId == null && pid != null) publisherId = pid
+    }
+  }
+
+  const out: Magazines = { id, title, network }
+  if (publisherId != null) out.publisherId = publisherId
+  return out
+}
+
+function unwrapMediaDetailArray(json: unknown): any[] {
+  if (Array.isArray(json)) return json
+  if (json && typeof json === "object") {
+    const o = json as Record<string, unknown>
+    for (const key of [
+      "items",
+      "records",
+      "data",
+      "result",
+      "magazines",
+      "magazine_titles",
+      "titles"
+    ] as const) {
+      const v = o[key]
+      if (Array.isArray(v)) return v as any[]
+    }
+  }
+  return []
 }
 
 interface MagazinesAdSizes {
@@ -687,6 +765,7 @@ export async function createMediaPlan(data: {
   mp_plannumber: string;
 }) {
   try {
+    const mbaTrimmed = typeof data.mba_number === "string" ? data.mba_number.trim() : String(data.mba_number ?? "").trim()
     const response = await fetch('/api/mediaplans', {
       method: 'POST',
       headers: {
@@ -695,7 +774,7 @@ export async function createMediaPlan(data: {
       body: JSON.stringify({
         mp_client_name: data.mp_client_name,
         mp_campaignname: data.mp_campaignname,
-        mbanumber: data.mba_number,
+        mbanumber: mbaTrimmed,
         mp_campaigndates_start: toMelbourneDateString(data.mp_campaigndates_start),
         mp_campaigndates_end: toMelbourneDateString(data.mp_campaigndates_end),
         mp_campaignstatus: data.mp_campaignstatus,
@@ -1030,7 +1109,8 @@ export async function getNewspapersAdSizes(): Promise<NewspapersAdSizes[]> {
 }
 
 export async function getMagazines(): Promise<Magazines[]> {
-  return fetchMediaDetail("magazines")
+  const json = await fetchMediaDetail("magazines")
+  return unwrapMediaDetailArray(json).map(normalizeMagazineRecord)
 }
 
 export async function getMagazinesAdSizes(): Promise<MagazinesAdSizes[]> {
@@ -1126,7 +1206,8 @@ export async function createMagazine(magazineData: { title: string; network: str
   if (!response.ok) {
     throw new Error("Failed to create Magazine");
   }
-  return response.json();
+  const created = await response.json()
+  return normalizeMagazineRecord(created)
 }
 
 export async function createMagazineAdSize(adSizeData: { adsize: string }): Promise<MagazinesAdSizes> {

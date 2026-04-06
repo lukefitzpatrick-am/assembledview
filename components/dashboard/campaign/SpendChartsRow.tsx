@@ -1,15 +1,12 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo } from "react"
 import { ChartNoAxesColumnDecreasing, Layers } from "lucide-react"
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 
 import MediaChannelPieChart from "@/app/dashboard/[slug]/[mba_number]/components/MediaChannelPieChart"
 import MonthlySpendStackedChart from "@/app/dashboard/[slug]/[mba_number]/components/MonthlySpendStackedChart"
 import SpendByPublisherChart from "@/app/dashboard/[slug]/[mba_number]/components/SpendByPublisherChart"
-import { useUnifiedTooltip } from "@/components/charts/UnifiedTooltip"
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/layout/Panel"
-import { Button } from "@/components/ui/button"
 import { formatCurrencyFull } from "@/lib/format/currency"
 
 type ChannelSpend = {
@@ -29,6 +26,8 @@ type SpendChartsRowProps = {
   brandColour?: string
   /** Line items by media type — used for spend-by-publisher chart */
   lineItemsMap?: Record<string, any[]>
+  /** Prorated planned spend to date (matches campaign summary when monthly data exists) */
+  campaignSpendToDate?: number
 }
 
 const CHART_PLOT_HEIGHT = 300
@@ -117,9 +116,8 @@ export default function SpendChartsRow({
   deliverySchedule,
   brandColour,
   lineItemsMap = {},
+  campaignSpendToDate,
 }: SpendChartsRowProps) {
-  const [viewMode, setViewMode] = useState<"current" | "comparison">("current")
-
   const derivedFromDelivery = useMemo(() => {
     const parsedSchedule = Array.isArray(deliverySchedule)
       ? deliverySchedule
@@ -286,10 +284,14 @@ export default function SpendChartsRow({
     return `${fmt(sorted[0])} - ${fmt(sorted[sorted.length - 1])}`
   }, [monthlyData])
 
-  const totalSpendToDate = useMemo(
+  const channelTotalsSum = useMemo(
     () => channelData.reduce((sum, c) => sum + (Number(c.spend) || 0), 0),
     [channelData],
   )
+  const totalSpendToDate =
+    typeof campaignSpendToDate === "number" && Number.isFinite(campaignSpendToDate)
+      ? campaignSpendToDate
+      : channelTotalsSum
   const largestChannel = useMemo(() => {
     if (!channelData.length) return "—"
     const top = [...channelData].sort((a, b) => b.spend - a.spend)[0]
@@ -305,19 +307,6 @@ export default function SpendChartsRow({
     })
     const top = totals.sort((a, b) => b.total - a.total)[0]
     return top?.month ?? "—"
-  }, [monthlyData])
-
-  const comparisonMonthly = useMemo(() => {
-    return monthlyData.map((row) => {
-      const actual = Object.entries(row)
-        .filter(([k]) => k !== "month")
-        .reduce((sum, [, v]) => sum + (Number(v) || 0), 0)
-      return {
-        month: String(row.month),
-        planned: actual * 1.05,
-        actual,
-      }
-    })
   }, [monthlyData])
 
   const currency = (value: number) => formatCurrencyFull(value, "AUD")
@@ -344,11 +333,6 @@ export default function SpendChartsRow({
       })),
     [monthlyData],
   )
-
-  const comparisonAreaTooltip = useUnifiedTooltip({
-    formatValue: currency,
-    showPercentages: false,
-  })
 
   if (!channelData.length && !monthlyData.length) {
     return (
@@ -402,17 +386,6 @@ export default function SpendChartsRow({
         </Panel>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="inline-flex rounded-md border border-input bg-background p-0.5 print:hidden">
-          <Button size="sm" variant={viewMode === "current" ? "secondary" : "ghost"} onClick={() => setViewMode("current")}>
-            Current view
-          </Button>
-          <Button size="sm" variant={viewMode === "comparison" ? "secondary" : "ghost"} onClick={() => setViewMode("comparison")}>
-            Comparison view
-          </Button>
-        </div>
-      </div>
-
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:items-stretch">
         <MediaChannelPieChart data={mediaChannelPieData} />
         <SpendByPublisherChart lineItems={lineItemsMap} chartHeight={CHART_PLOT_HEIGHT} />
@@ -426,45 +399,16 @@ export default function SpendChartsRow({
           <div className="min-w-0 space-y-0.5">
             <h3 className="text-sm font-semibold text-foreground">Monthly spend by channel</h3>
             <p className="text-xs text-muted-foreground">
-              {viewMode === "current" ? (
-                <>Stacked gross media by month · As at {asAtDate}</>
-              ) : (
-                <>Planned vs actual trend (illustrative comparison)</>
-              )}
+              Stacked gross media by month · As at {asAtDate}
             </p>
           </div>
         </div>
 
-        {viewMode === "current" ? (
-          <MonthlySpendStackedChart
-            data={monthlySpendStackedInput}
-            chartHeight={CHART_PLOT_HEIGHT}
-            hideFooterNote
-          />
-        ) : (
-          <ResponsiveContainer width="100%" height={CHART_PLOT_HEIGHT}>
-            <AreaChart data={comparisonMonthly} margin={{ left: 8, right: 8, top: 4, bottom: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.1} />
-              <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#64748b" }} />
-              <YAxis
-                tickFormatter={(v) => `${Math.round((Number(v) || 0) / 1000)}K`}
-                tick={{ fontSize: 11, fill: "#64748b" }}
-              />
-              <Tooltip content={comparisonAreaTooltip} wrapperStyle={{ cursor: "default" }} />
-              <Area type="monotone" dataKey="planned" stroke="#94a3b8" fill="#94a3b8" fillOpacity={0.15} />
-              <Area
-                type="monotone"
-                dataKey="actual"
-                stroke={brandColour || "#334155"}
-                fill={brandColour || "#334155"}
-                fillOpacity={0.15}
-                isAnimationActive
-                animationDuration={800}
-                animationEasing="ease-out"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        )}
+        <MonthlySpendStackedChart
+          data={monthlySpendStackedInput}
+          chartHeight={CHART_PLOT_HEIGHT}
+          hideFooterNote
+        />
       </div>
     </section>
   )

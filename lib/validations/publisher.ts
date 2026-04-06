@@ -1,5 +1,4 @@
 import * as z from "zod"
-import { KPI_FAMILY_PUB_FLAG } from "@/lib/publisher/scheduleLabels"
 
 const comms = z
   .union([z.string(), z.number(), z.null(), z.undefined()])
@@ -54,21 +53,6 @@ const publisherCommsFields = {
   influencers_comms: comms,
 }
 
-const kpiField = () => z.coerce.number().default(0)
-
-function buildKpiShape() {
-  const shape: Record<string, z.ZodTypeAny> = {}
-  const metrics = ["cpm", "cpc", "cpv", "ctr", "vtr", "frequency"] as const
-  for (const family of Object.keys(KPI_FAMILY_PUB_FLAG)) {
-    for (const m of metrics) {
-      shape[`${family}_${m}_default`] = kpiField()
-    }
-  }
-  return shape
-}
-
-const kpiShape = buildKpiShape()
-
 const publisherColourField = z
   .union([z.string(), z.null(), z.undefined()])
   .transform((v) => {
@@ -83,13 +67,13 @@ const publisherCoreFields = {
   publishertype: z.enum(["direct", "internal_biddable"]),
   billingagency: z.enum(["assembled media", "advertising associates"]),
   financecode: z.string().min(1, "Finance code is required"),
+  publisher_colour: publisherColourField,
   ...publisherBooleanFields,
   ...publisherCommsFields,
 }
 
 export const publisherCreateSchema = z.object({
   ...publisherCoreFields,
-  ...kpiShape,
 })
 
 export const publisherUpdateSchema = publisherCreateSchema.extend({
@@ -100,12 +84,6 @@ export const publisherUpdateSchema = publisherCreateSchema.extend({
 export const publisherDetailsUpdateSchema = z.object({
   id: z.number(),
   ...publisherCoreFields,
-  publisher_colour: publisherColourField,
-})
-
-export const publisherKpiUpdateSchema = z.object({
-  id: z.number(),
-  ...kpiShape,
 })
 
 export type PublisherCreateInput = z.input<typeof publisherCreateSchema>
@@ -113,4 +91,3 @@ export type PublisherCreateValues = z.infer<typeof publisherCreateSchema>
 export type PublisherUpdateValues = z.infer<typeof publisherUpdateSchema>
 export type PublisherDetailsInput = z.input<typeof publisherDetailsUpdateSchema>
 export type PublisherDetailsFormValues = z.infer<typeof publisherDetailsUpdateSchema>
-export type PublisherKpiFormValues = z.infer<typeof publisherKpiUpdateSchema>

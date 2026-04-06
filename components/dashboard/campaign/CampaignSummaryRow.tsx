@@ -1,6 +1,6 @@
 "use client"
 
-import { AlertCircle, AlertTriangle, ArrowDownRight, ArrowUpRight, Check, CircleDollarSign } from "lucide-react"
+import { ArrowDownRight, ArrowUpRight, CircleDollarSign } from "lucide-react"
 
 import { getMediaColor } from "@/lib/charts/registry"
 import { formatCurrencyCompact } from "@/lib/format/currency"
@@ -17,8 +17,12 @@ export interface CampaignSummarySectionProps {
   }
   spend: {
     budget: number
+    /** Tracked / invoiced spend — drives budget bar and remaining */
     actualSpend?: number
+    /** Prorated expectation from monthly plan (full prior months + current month linear) */
     expectedSpend?: number
+    /** Sum of all monthly plan rows — full planned media from the plan */
+    totalPlannedSpend?: number
   }
   brandColour?: string
   layout?: "side-by-side" | "stacked"
@@ -53,20 +57,6 @@ function formatAxisDate(iso: string): string {
   return new Intl.DateTimeFormat("en-AU", { day: "numeric", month: "short", year: "numeric" }).format(d)
 }
 
-function PacingVsExpectedIndicator({ actual, expected }: { actual: number; expected: number }) {
-  if (expected <= 0 || !Number.isFinite(expected)) {
-    return <span className="text-muted-foreground">—</span>
-  }
-  const relDiff = Math.abs(actual - expected) / expected
-  if (relDiff <= 0.1) {
-    return <Check className="h-3.5 w-3.5 shrink-0 text-emerald-600" aria-label="Within 10% of expected" />
-  }
-  if (relDiff <= 0.2) {
-    return <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-label="10–20% from expected" />
-  }
-  return <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-600" aria-label="More than 20% from expected" />
-}
-
 export default function CampaignSummaryRow({
   time,
   spend,
@@ -83,6 +73,10 @@ export default function CampaignSummaryRow({
     typeof spend.actualSpend === "number" && Number.isFinite(spend.actualSpend) ? spend.actualSpend : 0
   const expectedSpend =
     typeof spend.expectedSpend === "number" && Number.isFinite(spend.expectedSpend) ? spend.expectedSpend : undefined
+  const totalPlannedSpend =
+    typeof spend.totalPlannedSpend === "number" && Number.isFinite(spend.totalPlannedSpend)
+      ? spend.totalPlannedSpend
+      : undefined
 
   const utilisationPctRaw = budget > 0 ? (actualSpend / budget) * 100 : 0
   const utilisationPctDisplay = utilisationPctRaw
@@ -135,18 +129,20 @@ export default function CampaignSummaryRow({
               </div>
             </div>
             <div className="space-y-1">
-              <div className="text-xs font-medium text-muted-foreground">Actual Spend</div>
+              <div className="text-xs font-medium text-muted-foreground">Expected Spend</div>
               <div className="text-xl font-bold tabular-nums text-foreground md:text-2xl">
-                {formatCurrencyCompact(actualSpend)}
+                {expectedSpend !== undefined ? formatCurrencyCompact(expectedSpend) : "—"}
               </div>
-              {expectedSpend !== undefined ? (
-                <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
-                  <span>of expected {formatCurrencyCompact(expectedSpend)}</span>
-                  <PacingVsExpectedIndicator actual={actualSpend} expected={expectedSpend} />
+              {totalPlannedSpend !== undefined && totalPlannedSpend > 0 ? (
+                <div className="space-y-1 text-[11px] text-muted-foreground">
+                  <p>
+                    Planned campaign total:{" "}
+                    <span className="font-medium text-foreground">{formatCurrencyCompact(totalPlannedSpend)}</span>
+                  </p>
                 </div>
-              ) : (
-                <div className="text-[11px] text-muted-foreground">Expected spend unavailable</div>
-              )}
+              ) : expectedSpend === undefined ? (
+                <div className="text-[11px] text-muted-foreground">Monthly plan data unavailable</div>
+              ) : null}
             </div>
             <div className="space-y-1">
               <div className="text-xs font-medium text-muted-foreground">Remaining</div>
@@ -203,7 +199,7 @@ export default function CampaignSummaryRow({
             >
               {spendDeltaPct <= 0 ? <ArrowDownRight className="h-3.5 w-3.5" /> : <ArrowUpRight className="h-3.5 w-3.5" />}
               <span>
-                {Math.abs(spendDeltaPct).toFixed(1)}% {spendDeltaPct <= 0 ? "under" : "over"} expected
+                {Math.abs(spendDeltaPct).toFixed(1)}% {spendDeltaPct <= 0 ? "under" : "over"} monthly expectation
               </span>
             </div>
           ) : null}
@@ -275,7 +271,9 @@ export default function CampaignSummaryRow({
       {!hideStatus ? (
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
           {expectedSpend !== undefined ? (
-            <span>Vs expected: {formatCurrencyCompact(actualSpend - expectedSpend)}</span>
+            <span>
+              Tracked vs monthly expectation: {formatCurrencyCompact(actualSpend - expectedSpend)}
+            </span>
           ) : (
             <span className="text-muted-foreground/80">Expected spend not available for comparison</span>
           )}

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import axios from "axios"
 import { toMelbourneDateString } from "@/lib/timezone"
 import { xanoUrl } from "@/lib/api/xano"
+import { findExistingMasterByMbaNumber } from "@/lib/api/mediaPlanMasterLookup"
 
 export async function POST(request: Request) {
   try {
@@ -9,12 +10,37 @@ export async function POST(request: Request) {
     // In production, you would validate the Auth0 session here
     
     const data = await request.json()
+    const mbaNumberRaw = data.mbanumber ?? data.mba_number ?? ""
+    const mbaNumber = typeof mbaNumberRaw === "string" ? mbaNumberRaw.trim() : String(mbaNumberRaw).trim()
+
+    if (!mbaNumber) {
+      return NextResponse.json(
+        { error: "MBA number is required", code: "MBA_NUMBER_REQUIRED" },
+        { status: 400 }
+      )
+    }
+
+    try {
+      const existing = await findExistingMasterByMbaNumber(mbaNumber)
+      if (existing) {
+        return NextResponse.json(
+          {
+            error: `A media plan with MBA number "${mbaNumber}" already exists.`,
+            code: "MBA_NUMBER_TAKEN",
+            existingMasterId: existing.id,
+          },
+          { status: 409 }
+        )
+      }
+    } catch (preCheckErr) {
+      console.error("MBA uniqueness pre-check failed (proceeding with create):", preCheckErr)
+    }
     
     // First, create MediaPlanMaster record
     // For new media plans, version_number is always set to 1
     const mediaPlanMasterData = {
       mp_client_name: data.mp_client_name,
-      mba_number: data.mbanumber,
+      mba_number: mbaNumber,
       mp_campaignname: data.mp_campaignname,
       version_number: 1, // Always 1 for new media plans created from create page
       campaign_status: data.mp_campaignstatus || "Draft",

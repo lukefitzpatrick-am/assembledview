@@ -64,8 +64,11 @@ export interface PublisherKpiDefaults {
 
 export type PublisherKpiFieldKey = keyof PublisherKpiDefaults
 
-/** Xano publishers table shape (extended with default KPI columns). */
-export interface Publisher extends PublisherKpiDefaults {
+/**
+ * Xano publishers table shape. Legacy `*_default` KPI columns may still appear on GET responses
+ * until removed from Xano; they are no longer written by the app (use `publisher_kpi` instead).
+ */
+export interface Publisher extends Partial<PublisherKpiDefaults> {
   id: number
   created_at?: number
   publisher_name: string
@@ -149,6 +152,14 @@ export interface PublisherCampaignRow {
   targetingDetails: string
 }
 
+/** FY market share by media type from Xano `GET /publisher/{id}/market-share`. */
+export interface PublisherMediaTypeShare {
+  mediaType: string
+  thisPublisherSpend: number
+  totalMarketSpend: number
+  sharePercent: number
+}
+
 export interface PublisherDashboardData {
   campaigns: PublisherCampaignRow[]
   monthlySpend: Array<{
@@ -160,4 +171,12 @@ export interface PublisherDashboardData {
     amount: number
     percentage: number
   }>
+  shareByMediaType: PublisherMediaTypeShare[]
+}
+
+export const emptyPublisherDashboardData: PublisherDashboardData = {
+  campaigns: [],
+  monthlySpend: [],
+  spendByClient: [],
+  shareByMediaType: [],
 }

@@ -771,7 +771,7 @@ function ActualsDailyDeliveryChart({
   const { spendColor, deliverableColor } = React.useMemo(() => {
     const m = assignEntityColors([spendName, delName], "generic")
     return { spendColor: brandColour ?? m.get(spendName)!, deliverableColor: m.get(delName)! }
-  }, [deliverableLabel, brandColour])
+  }, [delName, brandColour])
 
   return (
     <div className="space-y-2">

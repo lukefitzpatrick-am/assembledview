@@ -13,6 +13,12 @@ import MediaTable from './MediaTable'
 import MediaGanttChart from './MediaGanttChart'
 import { format } from 'date-fns'
 import { normaliseLineItemsByType, NormalisedLineItem } from '@/lib/mediaplan/normalizeLineItem'
+import { normalizeDateToMelbourneISO } from '@/lib/dates/normalizeCampaignDateISO'
+import { resolveMonthlySpendForPlan } from '@/lib/spend/monthlyPlanCalendar'
+import {
+  resolveCampaignExpectedSpendToDate,
+  resolveCampaignTotalPlannedSpend,
+} from '@/lib/spend/resolveCampaignExpectedSpend'
 
 interface CampaignDetailContentProps {
   slug: string
@@ -36,13 +42,15 @@ interface CampaignData {
   }
   lineItems: Record<string, any[]>
   billingSchedule: any
+  deliverySchedule?: unknown
   metrics: {
     timeElapsedPercent: number
     expectedSpendToDate: number
     actualSpendToDate: number
     totalExpectedSpend: number
-    spendByChannel: Record<string, number>
-    monthlySpend: Record<string, Record<string, number>>
+    spendByChannel: Record<string, number> | Array<{ mediaType?: string; amount?: number }>
+    monthlySpend: Record<string, Record<string, number>> | Array<{ month: string; data: Array<{ mediaType: string; amount: number }> }>
+    deliveryMonthlySpend?: unknown
   }
   enabledMediaTypes?: string[]
 }
@@ -241,13 +249,24 @@ export default function CampaignDetailContent({ slug, mbaNumber }: CampaignDetai
     entry.percentage = totalChannelSpend > 0 ? (entry.amount / totalChannelSpend) * 100 : 0
   })
 
-  const monthlySpendData = Object.entries(data.metrics.monthlySpend || {}).map(([month, mediaSpend]) => ({
-    month,
-    data: Object.entries(mediaSpend || {}).map(([mediaType, amount]) => ({
-      mediaType,
-      amount: Number(amount) || 0,
-    })),
-  }))
+  const monthlySpendResolved = resolveMonthlySpendForPlan(
+    data.metrics.deliveryMonthlySpend,
+    data.metrics.monthlySpend,
+    data.deliverySchedule,
+  )
+
+  const monthlySpendData = Array.isArray(monthlySpendResolved)
+    ? monthlySpendResolved.map((row: { month?: string; data?: Array<{ mediaType: string; amount: number }> }) => ({
+        month: String(row.month ?? ''),
+        data: Array.isArray(row.data) ? row.data : [],
+      }))
+    : Object.entries((monthlySpendResolved as Record<string, Record<string, number>>) || {}).map(([month, mediaSpend]) => ({
+        month,
+        data: Object.entries(mediaSpend || {}).map(([mediaType, amount]) => ({
+          mediaType,
+          amount: Number(amount) || 0,
+        })),
+      }))
 
   const campaignStartDate = new Date(data.campaign.campaignStartDate)
   const campaignEndDate = new Date(data.campaign.campaignEndDate)
@@ -353,7 +372,32 @@ export default function CampaignDetailContent({ slug, mbaNumber }: CampaignDetai
         spend={{
           budget: data.campaign.campaignBudget,
           actualSpend: data.metrics.actualSpendToDate,
-          expectedSpend: data.metrics.expectedSpendToDate,
+          expectedSpend:
+            resolveCampaignExpectedSpendToDate({
+              billingSchedule: data.billingSchedule,
+              campaignStartISO: normalizeDateToMelbourneISO(data.campaign.campaignStartDate),
+              campaignEndISO: normalizeDateToMelbourneISO(data.campaign.campaignEndDate),
+              monthlySpend: monthlySpendResolved,
+              monthlyOpts: {
+                campaignStartISO: normalizeDateToMelbourneISO(data.campaign.campaignStartDate),
+                campaignEndISO: normalizeDateToMelbourneISO(data.campaign.campaignEndDate),
+              },
+              metricsExpectedSpendToDate: data.metrics.expectedSpendToDate,
+              deliverySchedule: data.deliverySchedule,
+            }) || data.metrics.expectedSpendToDate,
+          totalPlannedSpend:
+            resolveCampaignTotalPlannedSpend({
+              deliverySchedule: data.deliverySchedule,
+              monthlySpend: monthlySpendResolved,
+              monthlyOpts: {
+                campaignStartISO: normalizeDateToMelbourneISO(data.campaign.campaignStartDate),
+                campaignEndISO: normalizeDateToMelbourneISO(data.campaign.campaignEndDate),
+              },
+              billingSchedule: data.billingSchedule,
+              campaignStartISO: normalizeDateToMelbourneISO(data.campaign.campaignStartDate),
+              campaignEndISO: normalizeDateToMelbourneISO(data.campaign.campaignEndDate),
+              campaignBudget: data.campaign.campaignBudget,
+            }) || data.metrics.totalExpectedSpend,
         }}
       />
 

@@ -4,8 +4,13 @@ import { getPrimaryRole, getUserClientIdentifier, getUserMbaNumbers, isAdminRole
 import { redirect, notFound } from "next/navigation"
 import { headers } from "next/headers"
 import { createPerfTimer, logPerf } from "@/lib/utils/perf"
-import { calculateExpectedSpendToDateFromDeliverySchedule } from "@/lib/spend/expectedSpend"
 import { getMelbourneTodayISO, getMelbourneYesterdayISO } from "@/lib/dates/melbourne"
+import { normalizeDateToMelbourneISO } from "@/lib/dates/normalizeCampaignDateISO"
+import { resolveMonthlySpendForPlan } from "@/lib/spend/monthlyPlanCalendar"
+import {
+  resolveCampaignExpectedSpendToDate,
+  resolveCampaignTotalPlannedSpend,
+} from "@/lib/spend/resolveCampaignExpectedSpend"
 
 interface CampaignDetailPageProps {
   params: Promise<{
@@ -64,20 +69,7 @@ function deriveSpendToDate(deliverySchedule: any[]) {
 }
 
 function toISODateOnlySafe(value: unknown): string | null {
-  if (!value) return null
-  if (typeof value === "string") {
-    const trimmed = value.trim()
-    if (!trimmed) return null
-    const m = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/)
-    if (m) return trimmed
-    const d = new Date(trimmed)
-    return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10)
-  }
-  if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return value.toISOString().slice(0, 10)
-  }
-  const d = new Date(value as any)
-  return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10)
+  return normalizeDateToMelbourneISO(value)
 }
 
 function clampISODateOnly(value: string | null | undefined, min: string | null, max: string | null): string | null {
@@ -106,132 +98,6 @@ function computeEffectiveDateRange(opts: {
   }
 
   return { startISO: startClamped, endISO: endClamped }
-}
-
-function getCurrentMelbourneYearMonth() {
-  const now = new Date()
-  const parts = new Intl.DateTimeFormat("en-AU", {
-    timeZone: "Australia/Melbourne",
-    year: "numeric",
-    month: "numeric",
-    day: "numeric",
-  }).formatToParts(now)
-  const year = Number(parts.find((part) => part.type === "year")?.value)
-  const month = Number(parts.find((part) => part.type === "month")?.value)
-  if (Number.isFinite(year) && Number.isFinite(month)) {
-    return { year, month }
-  }
-  return { year: now.getFullYear(), month: now.getMonth() + 1 }
-}
-
-function deriveSpendToDateFromMonthlySpend(monthlySpend: any): number {
-  const { year: currentYear, month: currentMonth } = getCurrentMelbourneYearMonth()
-
-  const parseMonthLabel = (input: any): { year: number; month: number } | null => {
-    if (!input) return null
-    if (input instanceof Date && !Number.isNaN(input.getTime())) {
-      return { year: input.getFullYear(), month: input.getMonth() + 1 }
-    }
-    if (typeof input === "number" && Number.isFinite(input)) {
-      const asString = String(input)
-      if (asString.length === 6) {
-        const year = Number(asString.slice(0, 4))
-        const month = Number(asString.slice(4, 6))
-        if (month >= 1 && month <= 12) {
-          return { year, month }
-        }
-      }
-    }
-    if (typeof input === "string") {
-      const trimmed = input.trim()
-      if (!trimmed) return null
-
-      const isoLike = trimmed.match(/^(\d{4})[-/](\d{1,2})/)
-      if (isoLike) {
-        const year = Number(isoLike[1])
-        const month = Number(isoLike[2])
-        if (month >= 1 && month <= 12) {
-          return { year, month }
-        }
-      }
-
-      const monthName = trimmed.match(
-        /^(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})/i
-      )
-      if (monthName) {
-        const monthIndex =
-          [
-            "january",
-            "february",
-            "march",
-            "april",
-            "may",
-            "june",
-            "july",
-            "august",
-            "september",
-            "october",
-            "november",
-            "december",
-          ].indexOf(monthName[1].toLowerCase())
-        if (monthIndex >= 0) {
-          return { year: Number(monthName[2]), month: monthIndex + 1 }
-        }
-      }
-
-      const parsedDate = new Date(trimmed)
-      if (!Number.isNaN(parsedDate.getTime())) {
-        return { year: parsedDate.getFullYear(), month: parsedDate.getMonth() + 1 }
-      }
-    }
-    return null
-  }
-
-  const sumNumericValues = (value: any): number => {
-    if (typeof value === "number" && Number.isFinite(value)) return value
-    if (typeof value === "string") {
-      const parsed = parseAmountSafe(value)
-      return Number.isFinite(parsed) ? parsed : 0
-    }
-    if (value && typeof value === "object") {
-      return Object.values(value).reduce<number>((acc, child) => acc + sumNumericValues(child), 0)
-    }
-    return 0
-  }
-
-  const isWithinCurrentMonth = (year: number, month: number) =>
-    Number.isFinite(year) &&
-    Number.isFinite(month) &&
-    (year < currentYear || (year === currentYear && month <= currentMonth))
-
-  if (Array.isArray(monthlySpend)) {
-    const labelKeys = new Set(["monthYear", "month", "date", "label", "id", "month_label", "monthLabel"])
-    return monthlySpend.reduce((total, entry) => {
-      if (!entry || typeof entry !== "object") return total
-      const monthLabel = entry.monthYear ?? entry.month ?? entry.date ?? entry.label
-      const parsed = parseMonthLabel(monthLabel)
-      if (!parsed || !isWithinCurrentMonth(parsed.year, parsed.month)) return total
-
-      const entrySum = Object.entries(entry).reduce((acc, [key, value]) => {
-        if (labelKeys.has(key)) return acc
-        const numericValue = sumNumericValues(value)
-        return Number.isFinite(numericValue) ? acc + numericValue : acc
-      }, 0)
-
-      return total + entrySum
-    }, 0)
-  }
-
-  if (monthlySpend && typeof monthlySpend === "object") {
-    return Object.entries(monthlySpend).reduce((total, [label, value]) => {
-      const parsed = parseMonthLabel(label)
-      if (!parsed || !isWithinCurrentMonth(parsed.year, parsed.month)) return total
-      const numericValue = sumNumericValues(value)
-      return Number.isFinite(numericValue) ? total + numericValue : total
-    }, 0)
-  }
-
-  return 0
 }
 
 function normaliseHexColour(input: unknown): string | undefined {
@@ -793,10 +659,11 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
       ? metrics.deliverySpendByChannel
       : metrics.spendByMediaChannel) || []
 
-  const monthlySpend =
-    (metrics.deliveryMonthlySpend && metrics.deliveryMonthlySpend.length > 0
-      ? metrics.deliveryMonthlySpend
-      : metrics.monthlySpend) || []
+  const monthlySpend = resolveMonthlySpendForPlan(
+    metrics.deliveryMonthlySpend,
+    metrics.monthlySpend,
+    deliverySchedule,
+  )
 
   const budget = parseAmountSafe(
     campaign?.campaign_budget || campaign?.mp_campaignbudget || campaign?.total_budget || campaign?.total_media
@@ -815,30 +682,50 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
     requestedEndISO,
   })
 
-  const monthlySpendToDate = deriveSpendToDateFromMonthlySpend(monthlySpend)
   const deliverySpendToDate = deriveSpendToDate(deliverySchedule)
-  const actualSpend = (monthlySpendToDate > 0 ? monthlySpendToDate : deliverySpendToDate) || metrics.actualSpendToDate || 0
+  const metricsActual = metrics.actualSpendToDate
+  const trackedActualSpend =
+    typeof metricsActual === "number" && Number.isFinite(metricsActual) && metricsActual > 0
+      ? metricsActual
+      : deliverySpendToDate || 0
+
+  const monthlyPlanDateOpts = {
+    campaignStartISO: effectiveStartISO,
+    campaignEndISO: effectiveEndISO,
+  }
+
+  const expectedSpend = resolveCampaignExpectedSpendToDate({
+    billingSchedule,
+    campaignStartISO: effectiveStartISO,
+    campaignEndISO: effectiveEndISO,
+    monthlySpend,
+    monthlyOpts: monthlyPlanDateOpts,
+    metricsExpectedSpendToDate: metrics.expectedSpendToDate,
+    deliverySchedule,
+  })
+
+  const totalPlannedMonthlySpend = resolveCampaignTotalPlannedSpend({
+    deliverySchedule,
+    monthlySpend,
+    monthlyOpts: monthlyPlanDateOpts,
+    billingSchedule,
+    campaignStartISO: effectiveStartISO,
+    campaignEndISO: effectiveEndISO,
+    campaignBudget: budget,
+  })
+
+  const actualSpend = trackedActualSpend
+
   if (DEBUG_SPEND) {
-    console.log("[Spend Debug] spend to date resolution", {
-      monthlySpendToDate,
+    console.log("[Spend Debug] spend resolution", {
+      trackedActualSpend,
       deliverySpendToDate,
       metricsActualSpendToDate: metrics.actualSpendToDate,
-      used:
-        monthlySpendToDate > 0
-          ? "monthlySpend"
-          : deliverySpendToDate
-            ? "deliverySchedule"
-            : metrics.actualSpendToDate
-              ? "metricsActualSpendToDate"
-              : "none",
+      expectedSpend,
+      totalPlannedMonthlySpend,
+      metricsExpectedSpendToDate: metrics.expectedSpendToDate,
     })
   }
-  const expectedSpendToDate = calculateExpectedSpendToDateFromDeliverySchedule(
-    deliverySchedule,
-    effectiveStartISO ?? startDate,
-    effectiveEndISO ?? endDate
-  )
-  const expectedSpend = expectedSpendToDate || metrics.expectedSpendToDate || 0
 
   const searchStartISO = (() => {
     if (!Array.isArray(deliverySchedule) || deliverySchedule.length === 0) return null
@@ -899,25 +786,6 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
 
   const effectiveSearchStartISO = searchStartISO ?? effectiveStartISO ?? campaignStartISO ?? toISODateOnlySafe(startDate)
 
-  if (DEBUG_SPEND) {
-    const monthCount = Array.isArray(deliverySchedule)
-      ? deliverySchedule.length
-      : Array.isArray(deliverySchedule?.months)
-        ? deliverySchedule.months.length
-        : 0
-    const fallbackPath = expectedSpendToDate
-      ? "deliverySchedule"
-      : metrics.expectedSpendToDate
-        ? "metricsExpectedSpendToDate"
-        : "none"
-
-    console.log("[Spend Debug] expected spend resolution", {
-      deliveryScheduleMonths: monthCount,
-      expectedSpendToDate,
-      fallbackPath,
-    })
-  }
-
   const initialPacingRows: any[] = []
 
   const shouldUsePacingWrapper =
@@ -976,6 +844,7 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
       budget={budget}
       actualSpend={actualSpend}
       expectedSpend={expectedSpend}
+      totalPlannedMonthlySpend={totalPlannedMonthlySpend}
       startDate={effectiveStartISO ?? startDate}
       endDate={effectiveEndISO ?? endDate}
       campaignStartISO={campaignStartISO}

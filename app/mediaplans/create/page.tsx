@@ -89,6 +89,12 @@ import {
 import { checkMediaDatesOutsideCampaign } from "@/lib/utils/mediaPlanValidation"
 import { toDateOnlyString } from "@/lib/timezone"
 import { setAssistantContext } from "@/lib/assistantBridge"
+import { KPISection } from "@/components/kpis/KPISection"
+import { resolveAllKPIs } from "@/lib/kpi/resolveKPIs"
+import { mergeManualKpiOverrides } from "@/lib/kpi/mergeManualKpiOverrides"
+import { getPublisherKPIs, getClientKPIs, saveCampaignKPIs } from "@/lib/api/kpi"
+import type { PublisherKPI, ClientKPI, ResolvedKPIRow, CampaignKPI } from "@/types/kpi"
+import type { Publisher } from "@/lib/types/publisher"
 
 const mediaPlanSchema = z.object({
   mp_client_name: z.string().min(1, "Client name is required"),
@@ -628,6 +634,16 @@ export default function CreateMediaPlan() {
   const [isPartialMBAModalOpen, setIsPartialMBAModalOpen] = useState(false);
   const [hasDateWarning, setHasDateWarning] = useState(false);
 
+  const [kpiRows, setKpiRows] = useState<ResolvedKPIRow[]>([])
+  const [publisherKPIs, setPublisherKPIs] = useState<PublisherKPI[]>([])
+  const [clientKPIs, setClientKPIs] = useState<ClientKPI[]>([])
+  const [savedCampaignKPIs, setSavedCampaignKPIs] = useState<CampaignKPI[]>([])
+  const [kpiPublishers, setKpiPublishers] = useState<Publisher[]>([])
+  const [isKPILoading, setIsKPILoading] = useState(false)
+  const [kpiTrigger, setKpiTrigger] = useState(0)
+  const kpiRebuildTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const kpiRowsRef = useRef<ResolvedKPIRow[]>([])
+
   const form = useForm<MediaPlanFormValues>({
     resolver: zodResolver(mediaPlanSchema),
     defaultValues: {
@@ -671,6 +687,25 @@ export default function CreateMediaPlan() {
   useEffect(() => {
     navigationHydratedRef.current = true;
   }, []);
+
+  useEffect(() => {
+    kpiRowsRef.current = kpiRows
+  }, [kpiRows])
+
+  useEffect(() => {
+    let cancelled = false
+    fetch("/api/publishers")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((d) => {
+        if (!cancelled) setKpiPublishers(Array.isArray(d) ? d : [])
+      })
+      .catch(() => {
+        if (!cancelled) setKpiPublishers([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     const subscription = form.watch(() => {
@@ -730,6 +765,102 @@ export default function CreateMediaPlan() {
     progAudioMediaLineItems,
     progOohMediaLineItems,
     influencersMediaLineItems,
+  ])
+
+  useEffect(() => {
+    if (kpiRebuildTimerRef.current) clearTimeout(kpiRebuildTimerRef.current)
+    kpiRebuildTimerRef.current = setTimeout(() => {
+      const fv = form.getValues()
+      if (!fv.mp_client_name) return
+
+      if (
+        searchItems.length === 0 &&
+        socialMediaItems.length === 0 &&
+        televisionItems.length === 0 &&
+        progDisplayItems.length === 0
+      ) {
+        // No line items yet — clear KPI rows
+        setKpiRows([])
+        return
+      }
+
+      if (process.env.NODE_ENV !== "production") {
+        console.log("[KPI] rebuild fired", {
+          searchItemCount: searchItems.length,
+          publisherKPICount: publisherKPIs.length,
+          clientKPICount: clientKPIs.length,
+          savedKPICount: savedCampaignKPIs.length,
+          clientName: fv.mp_client_name,
+        })
+      }
+
+      const resolved = resolveAllKPIs({
+        mediaItemsByType: {
+          search: searchItems,
+          socialMedia: socialMediaItems,
+          progDisplay: progDisplayItems,
+          progVideo: progVideoItems,
+          progBvod: progBvodItems,
+          progAudio: progAudioItems,
+          progOoh: progOohItems,
+          digiDisplay: digiDisplayItems,
+          digiAudio: digiAudioItems,
+          digiVideo: digiVideoItems,
+          bvod: bvodItems,
+          integration: integrationItems,
+          television: televisionItems,
+          radio: radioItems,
+          newspaper: newspaperItems,
+          magazines: magazineItems,
+          ooh: oohItems,
+          cinema: cinemaItems,
+          influencers: influencersItems,
+          production: consultingItems,
+        },
+        clientName: fv.mp_client_name,
+        mbaNumber: fv.mba_number ?? "",
+        versionNumber: parseInt(fv.mp_plannumber ?? "1", 10),
+        campaignName: fv.mp_campaignname ?? "",
+        publisherKPIs,
+        clientKPIs,
+        savedCampaignKPIs,
+        publishers: kpiPublishers,
+      })
+      setKpiRows(mergeManualKpiOverrides(resolved, kpiRowsRef.current))
+
+      if (process.env.NODE_ENV !== "production") {
+        console.log("[KPI] resolved rows", resolved.length, resolved.slice(0, 3))
+      }
+    }, 600)
+    return () => {
+      if (kpiRebuildTimerRef.current) clearTimeout(kpiRebuildTimerRef.current)
+    }
+  }, [
+    searchItems,
+    socialMediaItems,
+    progDisplayItems,
+    progVideoItems,
+    progBvodItems,
+    progAudioItems,
+    progOohItems,
+    digiDisplayItems,
+    digiAudioItems,
+    digiVideoItems,
+    bvodItems,
+    integrationItems,
+    televisionItems,
+    radioItems,
+    newspaperItems,
+    magazineItems,
+    oohItems,
+    cinemaItems,
+    influencersItems,
+    consultingItems,
+    publisherKPIs,
+    clientKPIs,
+    savedCampaignKPIs,
+    kpiPublishers,
+    kpiTrigger,
   ])
 
   const deepCloneBillingMonths = useCallback((months: BillingMonth[]): BillingMonth[] => {
@@ -2109,6 +2240,28 @@ export default function CreateMediaPlan() {
     };
 
     const workbook = await generateMediaPlan(header, mediaItems, mbaData);
+    if (kpiRows.length > 0) {
+      const { addKPISheet } = await import("@/lib/generateMediaPlan")
+      addKPISheet(
+        workbook,
+        kpiRows.map((r) => ({
+          mediaType: r.media_type,
+          publisher: r.publisher,
+          label: r.lineItemLabel,
+          buyType: r.buyType,
+          spend: r.spend,
+          deliverables: r.deliverables,
+          ctr: r.ctr,
+          vtr: r.vtr,
+          cpv: r.cpv,
+          conversion_rate: r.conversion_rate,
+          frequency: r.frequency,
+          calculatedClicks: r.calculatedClicks,
+          calculatedViews: r.calculatedViews,
+          calculatedReach: r.calculatedReach,
+        })),
+      )
+    }
     const arrayBuffer = await workbook.xlsx.writeBuffer() as ArrayBuffer
     const blob = new Blob([ arrayBuffer ], {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -2267,7 +2420,19 @@ export default function CreateMediaPlan() {
 
     useEffect(() => {
       fetchClients()
-    }, [])  
+    }, [])
+
+  useEffect(() => {
+    getPublisherKPIs()
+      .then((data) => {
+        if (process.env.NODE_ENV !== "production") {
+          console.log("[KPI] publisher KPIs loaded:", data.length, data[0])
+        }
+        setPublisherKPIs(data)
+        setKpiTrigger((t) => t + 1)
+      })
+      .catch(console.error)
+  }, [])
 
   async function fetchClients() {
     try {
@@ -2358,6 +2523,14 @@ export default function CreateMediaPlan() {
       setAdServImp(selectedClient.adservimp);
       setAdServDisplay(selectedClient.adservdisplay);
       setAdServAudio(selectedClient.adservaudio);
+      if (selectedClient.mp_client_name) {
+        getClientKPIs(selectedClient.mp_client_name)
+          .then((data) => {
+            setClientKPIs(data)
+            setKpiTrigger((t) => t + 1)
+          })
+          .catch(console.error)
+      }
       setClientAddress(selectedClient.streetaddress);
       setClientSuburb(selectedClient.suburb);
       setClientState(selectedClient.state_dropdown);
@@ -3482,6 +3655,9 @@ export default function CreateMediaPlan() {
   }
 
   const [mediaPlanId, setMediaPlanId] = useState<number | null>(null)
+  /** Keeps latest master id for synchronous guards (double-submit) */
+  const mediaPlanIdRef = useRef<number | null>(null)
+  const saveAllInFlightRef = useRef(false)
   const [isPlanSaving, setIsPlanSaving] = useState<boolean>(false)
   const [isVersionSaving, setIsVersionSaving] = useState<boolean>(false)
   const [mediaPlanVersionId, setMediaPlanVersionId] = useState<number | null>(null)
@@ -3505,6 +3681,21 @@ export default function CreateMediaPlan() {
   }, [isSavingInProgress]);
 
   const handleSaveMediaPlan = async () => {
+    const existingId = mediaPlanIdRef.current
+    if (existingId != null) {
+      setIsSaveModalOpen(true)
+      setSaveStatus((prev) => {
+        const has = prev.some((item) => item.name === "Media Plan Master")
+        if (!has) {
+          return [...prev, { name: "Media Plan Master", status: "success" as const }]
+        }
+        return prev.map((item) =>
+          item.name === "Media Plan Master" ? { ...item, status: "success" as const } : item
+        )
+      })
+      return existingId
+    }
+
     setIsSaveModalOpen(true);
     setIsPlanSaving(true)
     // Update status for Media Plan Master
@@ -3534,7 +3725,7 @@ export default function CreateMediaPlan() {
   
       const payload = { 
         mp_client_name, 
-        mba_number, 
+        mba_number: typeof mba_number === "string" ? mba_number.trim() : mba_number, 
         mp_campaignname,
         mp_campaigndates_start,
         mp_campaigndates_end,
@@ -3545,6 +3736,7 @@ export default function CreateMediaPlan() {
       const mediaPlan = await createMediaPlan(payload)
   
       setMediaPlanId(mediaPlan.id)
+      mediaPlanIdRef.current = mediaPlan.id
       // Update status to success
       setSaveStatus(prev => prev.map(item => 
         item.name === 'Media Plan Master' 
@@ -3581,6 +3773,12 @@ export default function CreateMediaPlan() {
       )
     })
   }
+
+  const handleKPIReset = useCallback(() => {
+    setSavedCampaignKPIs([])
+    // clearing savedCampaignKPIs triggers the rebuild effect which re-resolves
+    // from publisher/client tables only
+  }, [])
 
   const handleSaveMediaPlanVersion = async (masterId: number) => {
     setIsSaveModalOpen(true);
@@ -3849,6 +4047,27 @@ export default function CreateMediaPlan() {
   
       // 3. Call Xano
       const version = await createMediaPlanVersion(payload);
+      // Save campaign KPIs (non-blocking — don't fail the campaign save if KPIs fail)
+      if (kpiRows.length > 0) {
+        updateSaveStatus("Campaign KPIs", "pending")
+        const kpiPayload: CampaignKPI[] = kpiRows.map((row) => ({
+          mp_client_name: fv.mp_client_name,
+          mba_number: fv.mba_number,
+          version_number: parseInt(fv.mp_plannumber ?? "1", 10),
+          campaign_name: fv.mp_campaignname,
+          media_type: row.media_type,
+          publisher: row.publisher,
+          bid_strategy: row.bid_strategy,
+          ctr: row.ctr,
+          cpv: row.cpv,
+          conversion_rate: row.conversion_rate,
+          vtr: row.vtr,
+          frequency: row.frequency,
+        }))
+        saveCampaignKPIs(kpiPayload)
+          .then(() => updateSaveStatus("Campaign KPIs", "success"))
+          .catch((err) => updateSaveStatus("Campaign KPIs", "error", err?.message))
+      }
       setMediaPlanVersionId(version.id);
       // Update Media Plan Version status to success
       updateSaveStatus('Media Plan Version', 'success')
@@ -4373,27 +4592,33 @@ export default function CreateMediaPlan() {
   // in page.tsx
 
 const handleSaveAll = async () => {
-  setIsSaveModalOpen(true);
-  // Initialize save status array
-  setSaveStatus([{ name: 'Media Plan Master', status: 'pending' }]);
-  
-  let newMediaPlanId: number; // ✅ Declare a local variable for the ID
-
-  // 1️⃣ Save master plan
+  if (saveAllInFlightRef.current) return
+  saveAllInFlightRef.current = true
   try {
-    newMediaPlanId = await handleSaveMediaPlan(); // ✅ Capture the returned ID
-  } catch {
-    return;
-  }
+    setIsSaveModalOpen(true);
+    // Initialize save status array
+    setSaveStatus([{ name: 'Media Plan Master', status: 'pending' }]);
+    
+    let newMediaPlanId: number; // ✅ Declare a local variable for the ID
 
-  // 2️⃣ Save version (Media Plan Version status will be initialized in handleSaveMediaPlanVersion)
-  try {
-    await handleSaveMediaPlanVersion(newMediaPlanId); // ✅ Pass the ID as an argument
-    setHasUnsavedChanges(false);
-    form.reset(form.getValues());
-    router.push('/mediaplans');
-  } catch {
-    return;
+    // 1️⃣ Save master plan
+    try {
+      newMediaPlanId = await handleSaveMediaPlan(); // ✅ Capture the returned ID
+    } catch {
+      return;
+    }
+
+    // 2️⃣ Save version (Media Plan Version status will be initialized in handleSaveMediaPlanVersion)
+    try {
+      await handleSaveMediaPlanVersion(newMediaPlanId); // ✅ Pass the ID as an argument
+      setHasUnsavedChanges(false);
+      form.reset(form.getValues());
+      router.push('/mediaplans');
+    } catch {
+      return;
+    }
+  } finally {
+    saveAllInFlightRef.current = false
   }
 };
 
@@ -5249,8 +5474,13 @@ const handleSaveAll = async () => {
                 <div className="border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
                   <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">KPIs</h3>
                 </div>
-                <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-4">
-                  <p className="text-center text-sm text-muted-foreground">Coming soon</p>
+                <div className="px-4 py-3 overflow-x-auto">
+                  <KPISection
+                    kpiRows={kpiRows}
+                    isLoading={isKPILoading}
+                    onKPIChange={setKpiRows}
+                    onReset={handleKPIReset}
+                  />
                 </div>
               </div>
             </div>
@@ -6345,10 +6575,10 @@ const handleSaveAll = async () => {
             <Button
               type="button"
               onClick={handleSaveAll}
-              disabled={isLoading}
+              disabled={isLoading || isPlanSaving || isVersionSaving}
               className="h-9 shrink-0 rounded-full bg-success px-4 text-white shadow-sm hover:bg-success-hover focus-visible:ring-2 focus-visible:ring-ring"
             >
-              {isLoading ? "Saving..." : "Save"}
+              {isLoading || isPlanSaving || isVersionSaving ? "Saving..." : "Save"}
             </Button>
             <Button
               type="button"

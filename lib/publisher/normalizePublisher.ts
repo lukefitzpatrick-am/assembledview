@@ -43,11 +43,16 @@ export function normalizePublisherRecord(raw: Publisher): Publisher {
   return out as unknown as Publisher
 }
 
+const KPI_DEFAULT_KEY = /^(?:[a-z]+)_(?:cpm|cpc|cpv|ctr|vtr|frequency)_default$/
+
 /** Ensure Xano receives canonical comms field names (drop legacy-only keys). */
 export function bodyForPublisherPut(data: Record<string, unknown>): Record<string, unknown> {
   const out = { ...data }
   for (const [legacy] of LEGACY_COMMS) {
     delete out[legacy as string]
+  }
+  for (const key of Object.keys(out)) {
+    if (KPI_DEFAULT_KEY.test(key)) delete out[key]
   }
   if (Object.prototype.hasOwnProperty.call(data, "publisher_colour")) {
     out.publisher_colour = normalizePublisherColour(data.publisher_colour)

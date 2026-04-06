@@ -60,6 +60,8 @@ interface StackedColumnChartProps {
   data: StackedColumnData[]
   /** Optional positional override; otherwise colours from `assignEntityColors`. */
   colors?: string[]
+  /** Per-series hex (or CSS) colours; merged on top of the default palette for matching keys. */
+  seriesColorByName?: Record<string, string>
   comparisonData?: StackedColumnComparisonDatum[]
   comparisonLabel?: string
   /** Default: sparse (single total label per column). */
@@ -93,6 +95,7 @@ export const StackedColumnChart = forwardRef<HTMLDivElement, StackedColumnChartP
       description,
       data,
       colors: colorsOverride,
+      seriesColorByName,
       comparisonData,
       comparisonLabel = 'Budget',
       labelMode = 'sparse',
@@ -166,15 +169,23 @@ export const StackedColumnChart = forwardRef<HTMLDivElement, StackedColumnChartP
     }, [data, rawMediaTypes])
 
     const fillMap = useMemo(() => {
+      let base: Map<string, string>
       if (colorsOverride?.length) {
-        const m = new Map<string, string>()
+        base = new Map<string, string>()
         condensedSeriesKeys.forEach((k, i) => {
-          m.set(k, colorsOverride[i % colorsOverride.length]!)
+          base.set(k, colorsOverride[i % colorsOverride.length]!)
         })
-        return m
+      } else {
+        base = assignEntityColors(condensedSeriesKeys, 'media')
       }
-      return assignEntityColors(condensedSeriesKeys, 'media')
-    }, [colorsOverride, condensedSeriesKeys])
+      if (seriesColorByName) {
+        for (const k of condensedSeriesKeys) {
+          const c = seriesColorByName[k]
+          if (c) base.set(k, c)
+        }
+      }
+      return base
+    }, [colorsOverride, condensedSeriesKeys, seriesColorByName])
 
     const visibleMediaTypes = useMemo(
       () => condensedSeriesKeys.filter((s) => !hiddenSeries.has(s)),

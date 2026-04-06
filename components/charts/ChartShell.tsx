@@ -226,7 +226,8 @@ function ChartShellLegend({
         "mt-3 flex flex-wrap items-center gap-x-3 gap-y-2",
         className
       )}
-      role="list"
+      role="toolbar"
+      aria-label="Chart legend"
     >
       {visibleSlice.map((item) => {
         const hidden = hiddenKeys.has(item.key)
@@ -234,7 +235,6 @@ function ChartShellLegend({
           <button
             key={item.key}
             type="button"
-            role="listitem"
             aria-pressed={hidden}
             className={cn(
               "inline-flex max-w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-xs transition-colors",

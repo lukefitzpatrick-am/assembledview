@@ -2,8 +2,6 @@
 
 import { format, isValid, parseISO } from "date-fns"
 import { Download, FileText } from "lucide-react"
-import { useEffect, useState } from "react"
-import { useReducedMotion } from "framer-motion"
 
 import { AccentBar } from "@/components/ui/accent-bar"
 import { AnimatedDotField } from "@/components/ui/animated-dot-field"
@@ -15,7 +13,6 @@ import {
   getBudgetUtilizationKpiTone,
 } from "@/lib/dashboard/budgetUtilKpi"
 import { formatCurrencyAUD } from "@/lib/charts/format"
-import { formatCurrencyCompact } from "@/lib/format/currency"
 import { cn, hexToRgba } from "@/lib/utils"
 
 interface CampaignHeroBannerProps {
@@ -126,32 +123,6 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
-function useCountUp(target: number, durationMs = 1000): number {
-  const shouldReduceMotion = useReducedMotion()
-  const [value, setValue] = useState(shouldReduceMotion ? target : 0)
-
-  useEffect(() => {
-    if (shouldReduceMotion) {
-      setValue(target)
-      return
-    }
-
-    let frame = 0
-    const start = performance.now()
-    const animate = (now: number) => {
-      const progress = Math.min(1, (now - start) / durationMs)
-      const eased = 1 - Math.pow(1 - progress, 3)
-      setValue(target * eased)
-      if (progress < 1) frame = requestAnimationFrame(animate)
-    }
-
-    frame = requestAnimationFrame(animate)
-    return () => cancelAnimationFrame(frame)
-  }, [durationMs, shouldReduceMotion, target])
-
-  return value
-}
-
 function formatPercent(value: number): string {
   return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(value)}%`
 }
@@ -164,7 +135,6 @@ export default function CampaignHeroBanner({
   onOpenDetails,
   onDownload,
 }: CampaignHeroBannerProps) {
-  const shouldReduceMotion = useReducedMotion()
   const subtitle = campaign.brand
     ? `${campaign.clientName} • ${campaign.brand}`
     : campaign.clientName
@@ -179,13 +149,6 @@ export default function CampaignHeroBanner({
   const pacingPct = expectedSpend > 0 ? (actualSpend / expectedSpend) * 100 : 0
 
   const pacingPillTone = expectedSpend > 0 ? pacingPctTone(pacingPct) : ("muted" as PaceTone)
-
-  const animatedSpend = useCountUp(actualSpend, 1000)
-  const animatedBudgetPct = useCountUp(normalizedBudgetUtil, 1000)
-
-  const ringRadius = 7
-  const ringCircumference = 2 * Math.PI * ringRadius
-  const ringOffset = ringCircumference * (1 - animatedBudgetPct / 100)
 
   const elapsedDisplay = clampPct(timeElapsedPct)
 
@@ -261,45 +224,6 @@ export default function CampaignHeroBanner({
           </div>
 
           <div className="flex w-full shrink-0 flex-col gap-2 sm:max-w-[220px] lg:w-[220px]">
-            <div className="rounded-xl border border-border/60 bg-card/85 p-3 shadow-sm backdrop-blur-sm">
-              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                Campaign spend
-              </p>
-              <p className="mt-1 text-lg font-semibold tabular-nums text-foreground">
-                {formatCurrencyCompact(animatedSpend)}
-              </p>
-              <p className="text-[11px] text-muted-foreground">
-                of {formatCurrencyCompact(budget)} budget
-              </p>
-              <div className="mt-2 flex items-center gap-2">
-                <svg className="h-4 w-4 shrink-0 -rotate-90" viewBox="0 0 16 16" aria-hidden>
-                  <circle cx="8" cy="8" r={ringRadius} className="fill-none stroke-border/40" strokeWidth="2" />
-                  <circle
-                    cx="8"
-                    cy="8"
-                    r={ringRadius}
-                    className={cn("fill-none transition-all", budgetKpiTone.ring)}
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeDasharray={ringCircumference}
-                    strokeDashoffset={ringOffset}
-                  />
-                </svg>
-                <p className={cn("text-lg font-semibold tabular-nums", budgetKpiTone.text)}>
-                  {formatPercent(animatedBudgetPct)}
-                </p>
-              </div>
-              <div className={cn("mt-2 h-1.5 w-full overflow-hidden rounded-full", budgetKpiTone.track)}>
-                <div
-                  className={cn("h-full rounded-full", budgetKpiTone.fill)}
-                  style={{
-                    width: `${animatedBudgetPct}%`,
-                    transition: shouldReduceMotion ? undefined : "width 750ms cubic-bezier(0.22, 1, 0.36, 1)",
-                  }}
-                  aria-hidden
-                />
-              </div>
-            </div>
             <div
               className={cn(
                 "rounded-full border px-3 py-1.5 text-xs font-medium tabular-nums",

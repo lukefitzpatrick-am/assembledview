@@ -102,7 +102,8 @@ export function ClientKpiMockSection({ urlSlug }: { urlSlug: string }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
-          Add publishers to preview default KPIs and note requirements. Saving to the database is not wired yet.
+          Add publishers to preview legacy KPI columns (if still returned by Xano) and note requirements. Live KPIs
+          use the publisher hub and <span className="font-mono text-xs">publisher_kpi</span>.
         </p>
         <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
           <DialogTrigger asChild>
@@ -147,7 +148,7 @@ export function ClientKpiMockSection({ urlSlug }: { urlSlug: string }) {
                     <div>
                       <CardTitle className="text-base">{publisher.publisher_name}</CardTitle>
                       <CardDescription className="text-xs">
-                        KPI defaults (read-only preview from publisher record)
+                        Legacy KPI columns on publisher record (if any)
                       </CardDescription>
                     </div>
                     <Button
@@ -174,9 +175,10 @@ export function ClientKpiMockSection({ urlSlug }: { urlSlug: string }) {
                           <h4 className="text-sm font-semibold">{label}</h4>
                           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-6">
                             {KPI_METRIC_KEYS.map((metric) => {
-                              const key = `${family}_${metric}_default` as keyof Publisher
-                              const val = publisher[key]
-                              const n = typeof val === 'number' ? val : Number(val)
+                              const key = `${family}_${metric}_default`
+                              const raw = (publisher as unknown as Record<string, unknown>)[key]
+                              const n =
+                                typeof raw === "number" ? raw : Number(raw)
                               return (
                                 <div key={metric} className="text-xs">
                                   <div className="font-medium uppercase text-muted-foreground">{metric}</div>

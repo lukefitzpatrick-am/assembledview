@@ -16,6 +16,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { formatCurrencyAUD } from "@/lib/charts/format"
 import { assignEntityColors } from "@/lib/charts/registry"
 import { truncateLabel, useResponsiveChartHeight } from "@/lib/charts/responsive"
+import { pickContrastingTextColorForFill } from "@/lib/charts/textOnFill"
 import { cn } from "@/lib/utils"
 
 type TreemapDatum = PieChartData & { fill: string }
@@ -44,6 +45,9 @@ function TreemapCell(props: {
   const rw = Math.max(0, Math.round(width))
   const rh = Math.max(0, Math.round(height))
 
+  const resolvedFill = fill ?? "hsl(var(--muted))"
+  const labelColor = pickContrastingTextColorForFill(resolvedFill)
+
   return (
     <g className="recharts-layer">
       <rect
@@ -51,7 +55,7 @@ function TreemapCell(props: {
         y={ry}
         width={rw}
         height={rh}
-        fill={fill ?? "hsl(var(--muted))"}
+        fill={resolvedFill}
         stroke="hsl(var(--background))"
         strokeWidth={2}
         rx={2}
@@ -66,11 +70,15 @@ function TreemapCell(props: {
           className="pointer-events-none"
         >
           <div
-            className="flex h-full w-full flex-col items-center justify-center overflow-hidden rounded-[2px] px-1 text-center font-sans font-semibold leading-tight text-foreground"
+            className={cn(
+              "flex h-full w-full flex-col items-center justify-center overflow-hidden rounded-[2px] px-1 text-center font-sans font-semibold leading-tight",
+              labelColor == null && "text-foreground",
+            )}
             style={{
               fontSize: `${fontPx}px`,
               lineHeight: showLabel ? 1.25 : 1.2,
               WebkitFontSmoothing: "subpixel-antialiased",
+              ...(labelColor ? { color: labelColor } : {}),
             }}
           >
             {showLabel ? (
@@ -92,6 +100,8 @@ export type TreemapChartProps = {
   title: string
   description?: string
   data: PieChartData[]
+  /** When set, these colours override the default palette for matching `name` keys. */
+  colorByName?: Record<string, string>
   formatValue?: (value: number) => string
   onDatumClick?: (payload: ChartDatumClickPayload) => void
   getDatumId?: (payload: ChartDatumClickCore) => string
@@ -103,6 +113,7 @@ export function TreemapChart({
   title,
   description,
   data,
+  colorByName,
   formatValue = formatCurrencyAUD,
   onDatumClick,
   getDatumId,
@@ -129,14 +140,18 @@ export function TreemapChart({
       data.map((d) => {
         const pct =
           total > 0 ? ((Number(d.value) || 0) / total) * 100 : d.percentage ?? 0
+        const profileFill = colorByName?.[d.name]
         return {
           name: d.name,
           value: d.value,
           percentage: pct,
-          fill: colorMap.get(d.name) ?? "hsl(var(--muted-foreground))",
+          fill:
+            profileFill ||
+            colorMap.get(d.name) ||
+            "hsl(var(--muted-foreground))",
         }
       }),
-    [colorMap, data, total]
+    [colorByName, colorMap, data, total]
   )
 
   const handleExportCsv = useCallback(() => {
@@ -236,6 +251,7 @@ export function TreemapChart({
                 const value = Number(row.value) || 0
                 const color =
                   row.payload?.fill ??
+                  colorByName?.[name] ??
                   colorMap.get(name) ??
                   "hsl(var(--muted-foreground))"
                 return (

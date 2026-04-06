@@ -1,6 +1,5 @@
 "use client"
 
-import { useState } from "react"
 import { BarChart3, Save } from "lucide-react"
 import { PublisherKpiForm } from "@/components/PublisherKpiForm"
 import { SlideOver } from "@/components/ui/SlideOver"
@@ -10,7 +9,7 @@ interface PublisherKpiSlideOverProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   publisher: Publisher
-  onSuccess: (updated?: Publisher) => void
+  onSuccess?: (updated?: Publisher) => void
 }
 
 export function PublisherKpiSlideOver({
@@ -19,11 +18,8 @@ export function PublisherKpiSlideOver({
   publisher,
   onSuccess,
 }: PublisherKpiSlideOverProps) {
-  const [refresh, setRefresh] = useState(0)
-
-  const handleSuccess = (updated?: Publisher) => {
-    setRefresh((n) => n + 1)
-    onSuccess(updated)
+  const handleSuccess = async () => {
+    await onSuccess?.()
   }
 
   return (
@@ -32,6 +28,7 @@ export function PublisherKpiSlideOver({
       onOpenChange={onOpenChange}
       title="KPIs & Targets"
       description={`Performance targets for ${publisher.publisher_name || "publisher"}`}
+      contentClassName="w-full sm:max-w-3xl md:max-w-4xl lg:max-w-5xl"
     >
       <div className="flex min-h-0 flex-1 flex-col">
         <div
@@ -47,7 +44,7 @@ export function PublisherKpiSlideOver({
         )}
 
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="space-y-6 p-6">
+          <div className="w-full min-w-0 space-y-6 p-6">
             <div className="flex items-center gap-3 border-b border-border pb-4">
               <div
                 className="flex h-10 w-10 items-center justify-center rounded-full"
@@ -70,17 +67,17 @@ export function PublisherKpiSlideOver({
               </div>
             </div>
 
-            <div className="rounded-xl border border-border bg-card/50 p-4">
-              <PublisherKpiForm
-                key={refresh}
-                publisher={publisher}
-                onSuccess={handleSuccess}
-              />
+            <div className="w-full min-w-0">
+              <PublisherKpiForm publisher={publisher} onSuccess={handleSuccess} />
             </div>
 
             <div className="flex items-center gap-2 rounded-lg bg-muted/50 px-4 py-3 text-sm text-muted-foreground">
               <Save className="h-4 w-4 shrink-0" />
-              <span>Changes are saved when you click the save button above.</span>
+              <span>
+                Add any number of KPI rows (media type + bid strategy + metrics). Use Save on each card, Save all, or
+                Add all strategies; stored in Xano (<span className="font-mono text-xs">publisher_kpi</span>), not on
+                the publisher record.
+              </span>
             </div>
           </div>
         </div>

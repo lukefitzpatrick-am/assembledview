@@ -5,6 +5,8 @@ import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
 import { getXanoBaseUrl, parseXanoListPayload, xanoUrl } from "@/lib/api/xano"
 import { getXanoClientsCollectionUrl } from "@/lib/api/xanoClients"
 import { roundMoney4 } from "@/lib/utils/money"
+import { extractBillingMonthStart } from "@/lib/spend/billingScheduleExpectedToDate"
+import { expectedSpendToDateFromDeliveryScheduleMonthly } from "@/lib/spend/monthlyPlanCalendar"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -320,7 +322,7 @@ function overlapsRange(itemStart: Date, itemEnd: Date, rangeStart: Date, rangeEn
 function filterBillingScheduleByRange(billingSchedule: any[], rangeStart: Date, rangeEnd: Date): any[] {
   if (!Array.isArray(billingSchedule)) return []
   return billingSchedule.filter((entry) => {
-    const monthStart = extractMonthDate(entry)
+    const monthStart = extractBillingMonthStart(entry)
     if (!monthStart) return true
     const monthEnd = endOfDay(new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0))
     return overlapsRange(monthStart, monthEnd, rangeStart, rangeEnd)
@@ -404,100 +406,6 @@ function daysBetweenInclusive(start: Date, end: Date): number {
   return Math.floor((endDay - startDay) / (1000 * 60 * 60 * 24)) + 1
 }
 
-function extractMonthDate(entry: any): Date | null {
-  const raw =
-    entry?.month ||
-    entry?.billingMonth ||
-    entry?.date ||
-    entry?.startDate ||
-    entry?.periodStart ||
-    entry?.period_start
-  const parsed = safeParseDate(raw)
-  if (!parsed) return null
-  const monthStart = new Date(parsed.getFullYear(), parsed.getMonth(), 1)
-  monthStart.setHours(0, 0, 0, 0)
-  return monthStart
-}
-
-function sumBillingEntryAmount(entry: any): number {
-  if (!entry) return 0
-  if (entry?.totalAmount) return parseAmount(entry.totalAmount)
-  if (entry?.amount) return parseAmount(entry.amount)
-
-  let total = 0
-  const mediaTypes = Array.isArray(entry?.mediaTypes) ? entry.mediaTypes : []
-  mediaTypes.forEach((mt: any) => {
-    const lineItems = Array.isArray(mt?.lineItems) ? mt.lineItems : []
-    lineItems.forEach((item: any) => {
-      total += parseAmount(item?.amount)
-    })
-  })
-  return total
-}
-
-function calculateExpectedSpendToDate(billingSchedule: any, startDate: string, endDate: string): number {
-  if (!billingSchedule || !Array.isArray(billingSchedule)) {
-    return 0
-  }
-
-  const start = safeParseDate(startDate)
-  const end = safeParseDate(endDate)
-  if (!start || !end) return 0
-  const today = new Date()
-
-  const campaignStart = startOfDay(start)
-  const campaignEnd = endOfDay(end)
-  const todayStart = startOfDay(today)
-  const todayEnd = endOfDay(today)
-
-  if (todayEnd < campaignStart) return 0
-
-  const monthlyTotals = new Map<
-    string,
-    { amount: number; monthStart: Date; monthEnd: Date }
-  >()
-
-  billingSchedule.forEach((entry: any) => {
-    const monthStart = extractMonthDate(entry)
-    if (!monthStart) return
-    const amount = sumBillingEntryAmount(entry)
-    if (!amount) return
-    const key = `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, "0")}`
-    const monthEnd = endOfDay(new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0))
-    const existing = monthlyTotals.get(key)
-    if (existing) {
-      existing.amount += amount
-    } else {
-      monthlyTotals.set(key, { amount, monthStart, monthEnd })
-    }
-  })
-
-  let expected = 0
-
-  monthlyTotals.forEach(({ amount, monthStart, monthEnd }) => {
-    const windowStart = monthStart > campaignStart ? monthStart : campaignStart
-    const windowEnd = monthEnd < campaignEnd ? monthEnd : campaignEnd
-    if (windowEnd < windowStart) return
-
-    if (todayEnd >= windowEnd) {
-      expected += amount
-      return
-    }
-
-    if (todayStart < windowStart) {
-      return
-    }
-
-    const totalDays = daysBetweenInclusive(windowStart, windowEnd)
-    const elapsedDays = Math.min(totalDays, daysBetweenInclusive(windowStart, todayStart))
-    if (totalDays <= 0 || elapsedDays <= 0) return
-
-    expected += amount * (elapsedDays / totalDays)
-  })
-
-  return roundMoney4(expected)
-}
-
 function summarizeBillingSchedule(billingSchedule: any[]): {
   spendByMediaChannel: Array<{ mediaType: string; amount: number; percentage: number }>
   monthlySpend: Array<{ month: string; data: Array<{ mediaType: string; amount: number }> }>
@@ -576,13 +484,22 @@ function summarizeBillingSchedule(billingSchedule: any[]): {
 }
 
 function normalizeDeliverySchedule(raw: any) {
-  const parsed = Array.isArray(raw) ? raw : typeof raw === "string" ? (() => {
-    try {
-      return JSON.parse(raw)
-    } catch {
-      return []
-    }
-  })() : []
+  const parsed: any[] = Array.isArray(raw)
+    ? raw
+    : typeof raw === "string"
+      ? (() => {
+          try {
+            const p = JSON.parse(raw)
+            if (Array.isArray(p)) return p
+            if (p && typeof p === "object" && Array.isArray(p.months)) return p.months
+            return []
+          } catch {
+            return []
+          }
+        })()
+      : raw && typeof raw === "object" && Array.isArray(raw.months)
+        ? raw.months
+        : []
   const spendByChannel: Record<string, number> = {}
   const monthlyMap: Record<string, Record<string, number>> = {}
 
@@ -599,6 +516,8 @@ function normalizeDeliverySchedule(raw: any) {
     const monthLabel = getMonthLabel(
       entry?.month ||
         entry?.monthYear ||
+        entry?.billingMonth ||
+        entry?.billing_month ||
         entry?.period_start ||
         entry?.periodStart ||
         entry?.date ||
@@ -1035,6 +954,17 @@ export async function GET(
       }
     }
 
+    if (
+      parsedDeliverySchedule &&
+      typeof parsedDeliverySchedule === "object" &&
+      !Array.isArray(parsedDeliverySchedule)
+    ) {
+      const innerDeliveryMonths = (parsedDeliverySchedule as { months?: unknown }).months
+      if (Array.isArray(innerDeliveryMonths)) {
+        parsedDeliverySchedule = innerDeliveryMonths
+      }
+    }
+
     const startDate =
       versionData.campaign_start_date ||
       versionData.mp_campaigndates_start ||
@@ -1126,16 +1056,16 @@ export async function GET(
       })
     }
 
+    const startForExpectedSpend =
+      effectiveStartForMetrics || normalizeISODateOnlySafe(startDate)
+    const endForExpectedSpend = effectiveEndForMetrics || normalizeISODateOnlySafe(endDate)
+
     const expectedSpendToDate =
-      filteredBillingSchedule &&
-      Array.isArray(filteredBillingSchedule) &&
-      (effectiveStartForMetrics ?? startDate) &&
-      (effectiveEndForMetrics ?? endDate)
-        ? calculateExpectedSpendToDate(
-            filteredBillingSchedule,
-            (effectiveStartForMetrics ?? startDate) as string,
-            (effectiveEndForMetrics ?? endDate) as string
-          )
+      startForExpectedSpend && endForExpectedSpend
+        ? expectedSpendToDateFromDeliveryScheduleMonthly(filteredDeliverySchedule, {
+            campaignStartISO: startForExpectedSpend,
+            campaignEndISO: endForExpectedSpend,
+          })
         : 0
 
     // Ensure version_number is explicitly set from versionData to avoid being overridden by masterData

@@ -45,11 +45,6 @@ const updateSchema = basePayloadSchema
     'Client slug is required for client role',
   );
 
-const ADMIN_ALLOWLIST = (process.env.ADMIN_EMAIL_ALLOWLIST || '')
-  .split(',')
-  .map((entry) => entry.trim().toLowerCase())
-  .filter(Boolean);
-
 function ensureRoleEnv(role: 'admin' | 'client') {
   // Role env vars must be the Auth0 Role ID (starts with rol_), not the role name.
   const key = role === 'client' ? 'AUTH0_ROLE_CLIENT_ID' : 'AUTH0_ROLE_ADMIN_ID';
@@ -62,9 +57,8 @@ function ensureRoleEnv(role: 'admin' | 'client') {
 
 export async function POST(request: NextRequest) {
   try {
-    const sessionResult = await requireAdmin(request, { allowEmails: ADMIN_ALLOWLIST });
+    const sessionResult = await requireAdmin(request);
     if ('response' in sessionResult) return sessionResult.response;
-    const userEmail = sessionResult.session?.user?.email;
 
     const json = await request.json();
     const parsed = payloadSchema.safeParse(json);
@@ -193,7 +187,7 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const sessionResult = await requireAdmin(request, { allowEmails: ADMIN_ALLOWLIST });
+    const sessionResult = await requireAdmin(request);
     if ('response' in sessionResult) return sessionResult.response;
 
     const json = await request.json();

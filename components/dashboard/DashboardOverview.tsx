@@ -143,6 +143,24 @@ const normalizeClientFilterValue = (value: string) =>
     .trim()
     .replace(/\s+/g, " ")
 
+/** Match spend labels (`mp_clientname`, version `mp_client_name`) to Xano client profile keys. */
+function resolveClientProfileColour(
+  displayName: string,
+  clientColors: Record<string, string>,
+): string | undefined {
+  if (!displayName || !clientColors || typeof clientColors !== "object") return undefined
+  if (clientColors[displayName]) return clientColors[displayName]
+  const trimmed = displayName.trim()
+  if (trimmed !== displayName && clientColors[trimmed]) return clientColors[trimmed]
+  const norm = normalizeClientFilterValue(displayName)
+  if (!norm) return undefined
+  for (const [key, colour] of Object.entries(clientColors)) {
+    if (typeof colour !== "string" || !colour) continue
+    if (normalizeClientFilterValue(key) === norm) return colour
+  }
+  return undefined
+}
+
 type MonthlyClientSpendBucket = { month: string; data: Array<{ client: string; amount: number }> }
 
 function extractClientMonthlySeries(monthly: MonthlyClientSpendBucket[], clientName: string): number[] | null {
@@ -932,6 +950,8 @@ export default function DashboardOverview({
   const [scopes, setScopes] = useState<ScopeOfWork[]>([])
   const [monthlyPublisherSpend, setMonthlyPublisherSpend] = useState<Array<{ month: string; data: Array<{ publisher: string; amount: number }> }>>([])
   const [monthlyClientSpend, setMonthlyClientSpend] = useState<Array<{ month: string; data: Array<{ client: string; amount: number }> }>>([])
+  /** `mp_client_name` → `brand_colour` from Xano (see `getGlobalMonthlyClientSpend`). */
+  const [clientProfileColors, setClientProfileColors] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [mounted, setMounted] = useState(false)
   const [fetchError, setFetchError] = useState<DashboardErrorCopy | null>(null)
@@ -1471,11 +1491,25 @@ export default function DashboardOverview({
         const monthlyClient = monthlyClientResp.ok ? await monthlyClientResp.json() : null
 
         setMonthlyPublisherSpend(Array.isArray(monthlyPub) ? monthlyPub : [])
-        setMonthlyClientSpend(monthlyClient?.data || [])
+        setMonthlyClientSpend(
+          monthlyClient && typeof monthlyClient === "object" && Array.isArray(monthlyClient.data)
+            ? monthlyClient.data
+            : [],
+        )
+        const colours =
+          monthlyClient &&
+          typeof monthlyClient === "object" &&
+          monthlyClient.clientColors &&
+          typeof monthlyClient.clientColors === "object" &&
+          !Array.isArray(monthlyClient.clientColors)
+            ? (monthlyClient.clientColors as Record<string, string>)
+            : {}
+        setClientProfileColors(colours)
       } catch (error) {
         console.error("Dashboard: Error fetching monthly breakdowns:", error)
         setMonthlyPublisherSpend([])
         setMonthlyClientSpend([])
+        setClientProfileColors({})
       }
 
       const mediaPlansResponse = await fetch("/api/media_plans").catch((err) => {
@@ -2150,6 +2184,30 @@ export default function DashboardOverview({
       },
     })
   }, [authError, fetchError, getPageContext, handleSetField, isClient, isLoading, mounted, user])
+
+  const dashboardClientTreemapColors = useMemo(() => {
+    const out: Record<string, string> = {}
+    for (const row of clientSpendData) {
+      const c = resolveClientProfileColour(row.name, clientProfileColors)
+      if (c) out[row.name] = c
+    }
+    return out
+  }, [clientSpendData, clientProfileColors])
+
+  const dashboardMonthlyClientSeriesColors = useMemo(() => {
+    const names = new Set<string>()
+    for (const m of monthlyClientSpend) {
+      for (const item of m.data) {
+        if (item.client) names.add(item.client)
+      }
+    }
+    const out: Record<string, string> = {}
+    for (const name of names) {
+      const c = resolveClientProfileColour(name, clientProfileColors)
+      if (c) out[name] = c
+    }
+    return out
+  }, [monthlyClientSpend, clientProfileColors])
 
   const clientSpendSparklineTable = useMemo(() => {
     const rows = clientSpendData.slice(0, DASHBOARD_CLIENT_SPARKLINE_TOP_N)
@@ -2977,6 +3035,7 @@ export default function DashboardOverview({
                   title="Spend via Client"
                   description="Media cost only - Current financial year"
                   data={clientSpendData}
+                  colorByName={dashboardClientTreemapColors}
                   onDatumClick={handleSpendClientPieClick}
                   className={cn("rounded-lg", chartCardQuiet)}
                 />
@@ -3007,6 +3066,7 @@ export default function DashboardOverview({
                       return acc
                     }, {} as Record<string, number>),
                   }))}
+                  seriesColorByName={dashboardMonthlyClientSeriesColors}
                   onDatumClick={handleMonthlyClientChartClick}
                   cardClassName={cn("rounded-lg", chartCardQuiet)}
                 />

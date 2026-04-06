@@ -1260,6 +1260,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const [clientPostcode, setClientPostcode] = useState("")
   const [feesearch, setFeeSearch] = useState<number | null>(null)
   const [feesocial, setFeeSocial] = useState<number | null>(null)
+  /** Latest fee values for async fetch handler (avoids stale closure without re-fetching the plan). */
+  const feeSearchRef = useRef<number | null>(null)
+  const feeSocialRef = useRef<number | null>(null)
+  feeSearchRef.current = feesearch
+  feeSocialRef.current = feesocial
   const [feeTelevision, setFeeTelevision] = useState<number | null>(null)
   const [feeRadio, setFeeRadio] = useState<number | null>(null)
   const [feeNewspapers, setFeeNewspapers] = useState<number | null>(null)
@@ -2490,8 +2495,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           (data as { versionData?: { billing_schedule?: unknown } }).versionData?.billing_schedule
 
         const billingHydrated = parseSavedBillingSchedulePayload(rawBillingSchedule, {
-          searchFee: feesearch ?? 0,
-          socialFee: feesocial ?? 0,
+          searchFee: feeSearchRef.current ?? 0,
+          socialFee: feeSocialRef.current ?? 0,
         })
         if (billingHydrated) {
           console.log("[BILLING LOAD] Hydrating billing schedule from fetch (batched with media plan)")
@@ -3974,10 +3979,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   })
 
   const billingPlanStructureKey = useMemo(() => {
-    const fv = form.getValues()
+    const flagValues = mediaFlagsForBillingStructure as Record<string, boolean | undefined>
     const parts: string[] = []
     const seg = (flag: string, key: string, items: any[]) => {
-      if (!fv[flag as keyof MediaPlanFormValues]) return
+      if (!flagValues[flag]) return
       const ids = (items ?? [])
         .map((li: any, i: number) => {
           const id = billingStableLineItemId(key, li, i)

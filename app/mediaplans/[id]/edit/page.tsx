@@ -82,7 +82,12 @@ import { appendPartialApprovalToBillingSchedule, buildPartialApprovalNote, type 
 import { getScheduleHeaders } from "@/lib/billing/scheduleHeaders"
 import type { BillingMonth, BillingLineItem } from "@/lib/billing/types"
 import { checkMediaDatesOutsideCampaign } from "@/lib/utils/mediaPlanValidation"
-
+import { KPISection } from "@/components/kpis/KPISection"
+import { resolveAllKPIs } from "@/lib/kpi/resolveKPIs"
+import { mergeManualKpiOverrides } from "@/lib/kpi/mergeManualKpiOverrides"
+import { getPublisherKPIs, getClientKPIs, getCampaignKPIs, saveCampaignKPIs } from "@/lib/api/kpi"
+import type { PublisherKPI, ClientKPI, ResolvedKPIRow, CampaignKPI } from "@/types/kpi"
+import type { Publisher } from "@/lib/types/publisher"
 
 // Define media type keys as a const array
 const MEDIA_TYPE_KEYS = [
@@ -355,6 +360,15 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
   const [partialMBASelectedLineItemIds, setPartialMBASelectedLineItemIds] = useState<Record<string, string[]>>({})
   const [partialApprovalMetadata, setPartialApprovalMetadata] = useState<PartialApprovalMetadata | null>(null)
 
+  const [kpiRows, setKpiRows] = useState<ResolvedKPIRow[]>([])
+  const [publisherKPIs, setPublisherKPIs] = useState<PublisherKPI[]>([])
+  const [clientKPIs, setClientKPIs] = useState<ClientKPI[]>([])
+  const [savedCampaignKPIs, setSavedCampaignKPIs] = useState<CampaignKPI[]>([])
+  const [kpiPublishers, setKpiPublishers] = useState<Publisher[]>([])
+  const [isKPILoading, setIsKPILoading] = useState(false)
+  const kpiRebuildTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const kpiRowsRef = useRef<ResolvedKPIRow[]>([])
+
   const form = useForm<MediaPlanFormValues>({
     resolver: zodResolver(mediaPlanSchema),
     defaultValues: {
@@ -400,6 +414,93 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
   const campaignEndDate = useWatch({ control: form.control, name: 'mp_campaigndates_end' })
   const campaignBudget = useWatch({ control: form.control, name: 'mp_campaignbudget' })
   const mbanumberWatched = useWatch({ control: form.control, name: "mbanumber" })
+
+  useEffect(() => {
+    kpiRowsRef.current = kpiRows
+  }, [kpiRows])
+
+  useEffect(() => {
+    let cancelled = false
+    fetch("/api/publishers")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((d) => {
+        if (!cancelled) setKpiPublishers(Array.isArray(d) ? d : [])
+      })
+      .catch(() => {
+        if (!cancelled) setKpiPublishers([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (kpiRebuildTimerRef.current) clearTimeout(kpiRebuildTimerRef.current)
+    kpiRebuildTimerRef.current = setTimeout(() => {
+      const fv = form.getValues()
+      if (!fv.mp_clientname || !mediaPlan) return
+      const resolved = resolveAllKPIs({
+        mediaItemsByType: {
+          search: searchMediaLineItems,
+          socialMedia: socialMediaMediaLineItems,
+          progDisplay: progDisplayMediaLineItems,
+          progVideo: progVideoMediaLineItems,
+          progBvod: progBvodMediaLineItems,
+          progAudio: progAudioMediaLineItems,
+          progOoh: progOohMediaLineItems,
+          digiDisplay: digitalDisplayMediaLineItems,
+          digiAudio: digitalAudioMediaLineItems,
+          digiVideo: digitalVideoMediaLineItems,
+          bvod: bvodMediaLineItems,
+          integration: integrationMediaLineItems,
+          television: televisionMediaLineItems,
+          radio: radioMediaLineItems,
+          newspaper: newspaperMediaLineItems,
+          magazines: magazinesMediaLineItems,
+          ooh: oohMediaLineItems,
+          cinema: cinemaMediaLineItems,
+          influencers: influencersMediaLineItems,
+        },
+        clientName: fv.mp_clientname,
+        mbaNumber: fv.mbanumber ?? "",
+        versionNumber: mediaPlan.version_number ?? 1,
+        campaignName: fv.mp_campaignname ?? "",
+        publisherKPIs,
+        clientKPIs,
+        savedCampaignKPIs,
+        publishers: kpiPublishers,
+      })
+      setKpiRows(mergeManualKpiOverrides(resolved, kpiRowsRef.current))
+    }, 600)
+    return () => {
+      if (kpiRebuildTimerRef.current) clearTimeout(kpiRebuildTimerRef.current)
+    }
+  }, [
+    searchMediaLineItems,
+    socialMediaMediaLineItems,
+    progDisplayMediaLineItems,
+    progVideoMediaLineItems,
+    progBvodMediaLineItems,
+    progAudioMediaLineItems,
+    progOohMediaLineItems,
+    digitalDisplayMediaLineItems,
+    digitalAudioMediaLineItems,
+    digitalVideoMediaLineItems,
+    bvodMediaLineItems,
+    integrationMediaLineItems,
+    televisionMediaLineItems,
+    radioMediaLineItems,
+    newspaperMediaLineItems,
+    magazinesMediaLineItems,
+    oohMediaLineItems,
+    cinemaMediaLineItems,
+    influencersMediaLineItems,
+    publisherKPIs,
+    clientKPIs,
+    savedCampaignKPIs,
+    kpiPublishers,
+    mediaPlan?.version_number,
+  ])
 
   const stickyBarRef = useRef<HTMLDivElement | null>(null)
   const [stickyBarHeight, setStickyBarHeight] = useState(0)
@@ -724,6 +825,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
     fetchClients()
   }, [])
 
+  useEffect(() => {
+    getPublisherKPIs().then(setPublisherKPIs).catch(console.error)
+  }, [])
+
   // Handle client selection after clients are loaded
   useEffect(() => {
     if (clients.length > 0 && selectedClientId && mediaPlan) {
@@ -742,7 +847,14 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
         setAdServImp(client.adservimp)
         setAdServDisplay(client.adservdisplay)
         setAdServAudio(client.adservaudio)
-        
+        const clientKpiKey =
+          (client.mp_client_name && client.mp_client_name.trim()) || client.clientname_input
+        if (clientKpiKey) {
+          getClientKPIs(clientKpiKey)
+            .then(setClientKPIs)
+            .catch(console.error)
+        }
+
         // Update the MBA identifier in the form
         form.setValue("mbaidentifier", client.mbaidentifier || "")
       }
@@ -797,6 +909,13 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
 
           await Promise.all(fetchPromises);
           console.log("All container data fetched successfully");
+          // Load saved KPIs for this version
+          try {
+            const saved = await getCampaignKPIs(mediaPlan.mba_number, mediaPlan.version_number)
+            setSavedCampaignKPIs(saved)
+          } catch (kpiErr) {
+            console.warn("Could not load saved KPIs:", kpiErr)
+          }
         } catch (error) {
           console.error("Error fetching container data:", error);
         }
@@ -825,6 +944,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
 
   const handleSocialMediaBurstsChange = useCallback((bursts) => {
     setSocialMediaBursts(bursts)
+  }, [])
+
+  const handleKPIReset = useCallback(() => {
+    setSavedCampaignKPIs([])
   }, [])
 
   const handleInvestmentChange = useCallback((investmentByMonth) => {
@@ -1494,7 +1617,26 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
       }
 
       const data = await response.json()
-      
+      // Save KPIs (non-blocking)
+      if (kpiRows.length > 0) {
+        const fv = form.getValues()
+        const kpiPayload: CampaignKPI[] = kpiRows.map((row) => ({
+          mp_client_name: fv.mp_clientname,
+          mba_number: fv.mbanumber,
+          version_number: mediaPlan?.version_number ?? 1,
+          campaign_name: fv.mp_campaignname,
+          media_type: row.media_type,
+          publisher: row.publisher,
+          bid_strategy: row.bid_strategy,
+          ctr: row.ctr,
+          cpv: row.cpv,
+          conversion_rate: row.conversion_rate,
+          vtr: row.vtr,
+          frequency: row.frequency,
+        }))
+        saveCampaignKPIs(kpiPayload).catch((err) => console.warn("KPI save failed:", err))
+      }
+
       // Then, save search data if search is enabled
       if (formData.mp_search && formData.mbanumber) {
         try {
@@ -1925,6 +2067,22 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
           search_bursts: searchBursts,
           social_media_bursts: socialMediaBursts,
           investment_by_month: investmentPerMonth,
+          kpiRows: kpiRows.map((r) => ({
+            mediaType: r.media_type,
+            publisher: r.publisher,
+            label: r.lineItemLabel,
+            buyType: r.buyType,
+            spend: r.spend,
+            deliverables: r.deliverables,
+            ctr: r.ctr,
+            vtr: r.vtr,
+            cpv: r.cpv,
+            conversion_rate: r.conversion_rate,
+            frequency: r.frequency,
+            calculatedClicks: r.calculatedClicks,
+            calculatedViews: r.calculatedViews,
+            calculatedReach: r.calculatedReach,
+          })),
         }),
       })
 
@@ -2739,8 +2897,13 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                   <div className="border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
                     <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">KPIs</h3>
                   </div>
-                  <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-4">
-                    <p className="text-center text-sm text-muted-foreground">Coming soon</p>
+                  <div className="px-4 py-3 overflow-x-auto">
+                    <KPISection
+                      kpiRows={kpiRows}
+                      isLoading={isKPILoading}
+                      onKPIChange={setKpiRows}
+                      onReset={handleKPIReset}
+                    />
                   </div>
                 </div>
               </div>

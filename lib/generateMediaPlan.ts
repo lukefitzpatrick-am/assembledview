@@ -1,5 +1,39 @@
 import ExcelJS from 'exceljs';
 
+const KPI_MEDIA_LABELS: Record<string, string> = {
+  television: 'Television', radio: 'Radio', newspaper: 'Newspaper',
+  magazines: 'Magazines', ooh: 'OOH', cinema: 'Cinema',
+  digiDisplay: 'Digital Display', digiAudio: 'Digital Audio',
+  digiVideo: 'Digital Video', bvod: 'BVOD', integration: 'Integration',
+  search: 'Search', socialMedia: 'Social Media',
+  progDisplay: 'Programmatic Display', progVideo: 'Programmatic Video',
+  progBvod: 'Programmatic BVOD', progAudio: 'Programmatic Audio',
+  progOoh: 'Programmatic OOH', influencers: 'Influencers',
+  production: 'Production',
+}
+
+// ARGB strings for ExcelJS (FF = fully opaque)
+const KPI_MEDIA_COLORS: Record<string, string> = {
+  television: 'FF1565C0', radio: 'FF6A1B9A', newspaper: 'FF37474F',
+  magazines: 'FFAD1457', ooh: 'FFE65100', cinema: 'FFB71C1C',
+  digiDisplay: 'FF00695C', digiAudio: 'FF1A237E', digiVideo: 'FF4527A0',
+  bvod: 'FFF57F17', integration: 'FF2E7D32', search: 'FF1B5E20',
+  socialMedia: 'FF0D47A1', progDisplay: 'FF263238', progVideo: 'FF311B92',
+  progBvod: 'FFF9A825', progAudio: 'FFBF360C', progOoh: 'FF558B2F',
+  influencers: 'FF880E4F', production: 'FF4E342E',
+}
+
+// Lighter tint (30% opacity approximation) for subtotal rows
+const KPI_MEDIA_TINTS: Record<string, string> = {
+  television: 'FFD6E4F5', radio: 'FFE8D5F5', newspaper: 'FFD6DEE1',
+  magazines: 'FFF5D0E0', ooh: 'FFF5D5C2', cinema: 'FFF5C2C2',
+  digiDisplay: 'FFC8E6E3', digiAudio: 'FFCFD8F5', digiVideo: 'FFD9D1F5',
+  bvod: 'FFFDE8C0', integration: 'FFC8E6C9', search: 'FFC8E6C9',
+  socialMedia: 'FFCCE0F5', progDisplay: 'FFD1D5D8', progVideo: 'FFD3CCF0',
+  progBvod: 'FFFDE8A8', progAudio: 'FFF5D0C5', progOoh: 'FFD7E8C8',
+  influencers: 'FFF2CCDC', production: 'FFD8CEC9',
+}
+
 export interface MediaPlanHeader {
   logoBase64: string;
   logoWidth: number;
@@ -15,6 +49,23 @@ export interface MediaPlanHeader {
   campaignStatus: string;
   campaignStart: string; // Expected as dd/MM/yyyy
   campaignEnd: string;   // Expected as dd/MM/yyyy
+}
+
+export interface KPISheetRow {
+  mediaType: string;
+  publisher: string;
+  label: string;
+  buyType: string;
+  spend: number;
+  deliverables: number;
+  ctr: number;
+  vtr: number;
+  cpv: number;
+  conversion_rate: number;
+  frequency: number;
+  calculatedClicks: number;
+  calculatedViews: number;
+  calculatedReach: number;
 }
 
 export interface Burst { // This is a burst *within* a GroupedItem
@@ -1852,4 +1903,147 @@ export async function generateMediaPlan(
   }
 
   return workbook;
+}
+
+export function addKPISheet(
+  workbook: ExcelJS.Workbook,
+  kpiRows: KPISheetRow[]
+): void {
+  if (!kpiRows || kpiRows.length === 0) return
+
+  const ws = workbook.addWorksheet('Campaign KPIs')
+  ws.views = [{ state: 'normal', showGridLines: false }]
+
+  // Column widths: A=3, B=28, C=32, D=18, E=14, F=14, G=10, H=10,
+  //                I=10, J=10, K=10, L=14, M=14, N=14
+  const colWidths = [3, 28, 32, 18, 14, 14, 10, 10, 10, 10, 10, 14, 14, 14]
+  colWidths.forEach((w, i) => { ws.getColumn(i + 1).width = w })
+
+  let r = 1
+
+  // Title row
+  ws.mergeCells(r, 1, r, 14)
+  const titleCell = ws.getCell(r, 1)
+  titleCell.value = 'Campaign KPIs'
+  titleCell.font = { name: 'Aptos', size: 20, bold: true }
+  titleCell.alignment = { horizontal: 'left', vertical: 'middle' }
+  ws.getRow(r).height = 30
+  r++
+
+  // Blank row
+  r++
+
+  // Group rows by mediaType preserving order of first appearance
+  const groups = new Map<string, KPISheetRow[]>()
+  for (const row of kpiRows) {
+    if (!groups.has(row.mediaType)) groups.set(row.mediaType, [])
+    groups.get(row.mediaType)!.push(row)
+  }
+
+  const COL_HEADERS = [
+    '', 'Publisher', 'Creative / Targeting', 'Buy Type',
+    'Spend', 'Deliverables', 'CTR', 'VTR', 'CPV', 'Conv Rate',
+    'Frequency', 'Est. Clicks', 'Est. Views', 'Est. Reach',
+  ]
+
+  const numFmt = (cell: ExcelJS.Cell, fmt: string, value: number, bold = false) => {
+    cell.value = value
+    cell.numFmt = fmt
+    cell.alignment = { horizontal: 'right', vertical: 'middle' }
+    if (bold) cell.font = { name: 'Aptos', size: 10, bold: true }
+  }
+
+  const txt = (cell: ExcelJS.Cell, value: string, bold = false, color?: string) => {
+    cell.value = value
+    cell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: false }
+    cell.font = { name: 'Aptos', size: 10, bold, color: color ? { argb: color } : undefined }
+  }
+
+  const fillCell = (cell: ExcelJS.Cell, argb: string) => {
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb } }
+  }
+
+  for (const [mediaType, rows] of groups) {
+    const label = KPI_MEDIA_LABELS[mediaType] ?? mediaType
+    const color = KPI_MEDIA_COLORS[mediaType] ?? 'FF333333'
+    const tint  = KPI_MEDIA_TINTS[mediaType]  ?? 'FFF0F0F0'
+
+    // — Media type header row —
+    ws.mergeCells(r, 1, r, 14)
+    const hdrCell = ws.getCell(r, 1)
+    txt(hdrCell, label, true, 'FFFFFFFF')
+    fillCell(hdrCell, color)
+    ws.getRow(r).height = 18
+    r++
+
+    // — Column header row —
+    COL_HEADERS.forEach((h, i) => {
+      const cell = ws.getCell(r, i + 1)
+      cell.value = h
+      cell.font = { name: 'Aptos', size: 9, bold: true, color: { argb: 'FF333333' } }
+      cell.alignment = { horizontal: i >= 4 ? 'right' : 'left', vertical: 'middle' }
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } }
+    })
+    ws.getRow(r).height = 14
+    r++
+
+    // — Data rows —
+    rows.forEach((row, idx) => {
+      const rowFill = idx % 2 === 0 ? 'FFFFFFFF' : 'FFF8F8F8'
+      for (let c = 1; c <= 14; c++) {
+        fillCell(ws.getCell(r, c), rowFill)
+        ws.getCell(r, c).font = { name: 'Aptos', size: 10 }
+      }
+      txt(ws.getCell(r, 2), row.publisher)
+      txt(ws.getCell(r, 3), row.label)
+      txt(ws.getCell(r, 4), row.buyType)
+      numFmt(ws.getCell(r, 5),  '$#,##0.00', row.spend)
+      numFmt(ws.getCell(r, 6),  '#,##0',     row.deliverables)
+      numFmt(ws.getCell(r, 7),  '0.00%',     row.ctr)
+      numFmt(ws.getCell(r, 8),  '0.00%',     row.vtr)
+      numFmt(ws.getCell(r, 9),  '$#,##0.00##', row.cpv)
+      numFmt(ws.getCell(r, 10), '0.00%',     row.conversion_rate)
+      numFmt(ws.getCell(r, 11), '0.0',       row.frequency)
+      numFmt(ws.getCell(r, 12), '#,##0',     row.calculatedClicks)
+      numFmt(ws.getCell(r, 13), '#,##0',     row.calculatedViews)
+      numFmt(ws.getCell(r, 14), '#,##0',     row.calculatedReach)
+      ws.getRow(r).height = 14
+      r++
+    })
+
+    // — Channel subtotal row —
+    const sumField = (f: keyof KPISheetRow) =>
+      rows.reduce((s, rw) => s + (rw[f] as number), 0)
+
+    for (let c = 1; c <= 14; c++) fillCell(ws.getCell(r, c), tint)
+    ws.mergeCells(r, 1, r, 4)
+    txt(ws.getCell(r, 1), `Total ${label}`, true)
+    fillCell(ws.getCell(r, 1), tint)
+    numFmt(ws.getCell(r, 5),  '$#,##0.00', sumField('spend'),              true)
+    numFmt(ws.getCell(r, 6),  '#,##0',     sumField('deliverables'),       true)
+    // cols 7-11 (KPI benchmarks): leave blank for subtotal
+    numFmt(ws.getCell(r, 12), '#,##0',     sumField('calculatedClicks'),   true)
+    numFmt(ws.getCell(r, 13), '#,##0',     sumField('calculatedViews'),    true)
+    numFmt(ws.getCell(r, 14), '#,##0',     sumField('calculatedReach'),    true)
+    ws.getRow(r).height = 15
+    r++
+
+    // blank gap between groups
+    r++
+  }
+
+  // — Grand total row —
+  const allRows = kpiRows
+  for (let c = 1; c <= 14; c++) fillCell(ws.getCell(r, c), 'FFBDDC52')
+  ws.mergeCells(r, 1, r, 4)
+  txt(ws.getCell(r, 1), 'Grand Total', true)
+  fillCell(ws.getCell(r, 1), 'FFBDDC52')
+  const grandSum = (f: keyof KPISheetRow) =>
+    allRows.reduce((s, rw) => s + (rw[f] as number), 0)
+  numFmt(ws.getCell(r, 5),  '$#,##0.00', grandSum('spend'),              true)
+  numFmt(ws.getCell(r, 6),  '#,##0',     grandSum('deliverables'),       true)
+  numFmt(ws.getCell(r, 12), '#,##0',     grandSum('calculatedClicks'),   true)
+  numFmt(ws.getCell(r, 13), '#,##0',     grandSum('calculatedViews'),    true)
+  numFmt(ws.getCell(r, 14), '#,##0',     grandSum('calculatedReach'),    true)
+  ws.getRow(r).height = 16
 }

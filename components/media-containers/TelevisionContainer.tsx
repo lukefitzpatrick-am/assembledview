@@ -139,6 +139,8 @@ const televisionFormSchema = z.object({
 
 type TelevisionFormValues = z.infer<typeof televisionFormSchema>
 
+const EMPTY_TELEVISION_LINE_ITEMS: TelevisionFormValues["televisionlineItems"] = []
+
 type TelevisionTarpsRhfField = {
   name: string
   value: string | undefined
@@ -468,6 +470,12 @@ export default function TelevisionContainer({
   // Add refs to track previous values
   const prevInvestmentRef = useRef<{ monthYear: string; amount: string }[]>([]);
   const prevBurstsRef = useRef<BillingBurst[]>([]);
+  const onTotalMediaChangeRef = useRef(onTotalMediaChange);
+  const onBurstsChangeRef = useRef(onBurstsChange);
+  const onInvestmentChangeRef = useRef(onInvestmentChange);
+  const onLineItemsChangeRef = useRef(onLineItemsChange);
+  const onTelevisionLineItemsChangeRef = useRef(onTelevisionLineItemsChange);
+  const onMediaLineItemsChangeRef = useRef(onMediaLineItemsChange);
   const publishersRef = useRef<Publisher[]>([]);
   const tvStationsRef = useRef<TVStation[]>([]);
   const hasProcessedInitialLineItemsRef = useRef(false);
@@ -489,20 +497,36 @@ export default function TelevisionContainer({
   const tvExpertModalOpenRef = useRef(false)
   tvExpertModalOpenRef.current = tvExpertModalOpen
 
+  useEffect(() => {
+    onTotalMediaChangeRef.current = onTotalMediaChange
+    onBurstsChangeRef.current = onBurstsChange
+    onInvestmentChangeRef.current = onInvestmentChange
+    onLineItemsChangeRef.current = onLineItemsChange
+    onTelevisionLineItemsChangeRef.current = onTelevisionLineItemsChange
+    onMediaLineItemsChangeRef.current = onMediaLineItemsChange
+  }, [
+    onTotalMediaChange,
+    onBurstsChange,
+    onInvestmentChange,
+    onLineItemsChange,
+    onTelevisionLineItemsChange,
+    onMediaLineItemsChange,
+  ])
+
   const tvExpertWeekColumns = useMemo(
     () => buildWeeklyGanttColumnsFromCampaign(campaignStartDate, campaignEndDate),
     [campaignStartDate, campaignEndDate]
   )
 
   // Stable ID generator for line items to keep duplicates distinct in exports
-  const createLineItemId = () => {
-    const base = mbaNumber || "TV";
+  const createLineItemId = useCallback(() => {
+    const base = mbaNumber || "TV"
     const rand =
       typeof crypto !== "undefined" && "randomUUID" in crypto
         ? crypto.randomUUID()
-        : `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
-    return `${base}-${rand}`;
-  };
+        : `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`
+    return `${base}-${rand}`
+  }, [mbaNumber])
 
   const [isAddStationDialogOpen, setIsAddStationDialogOpen] = useState(false);
   const [newStationName, setNewStationName] = useState("");
@@ -840,7 +864,7 @@ export default function TelevisionContainer({
         overallDeliverables: 0,
       });
     }
-  }, [initialLineItems, form, campaignStartDate, campaignEndDate]);
+  }, [initialLineItems, form, campaignStartDate, campaignEndDate, createLineItemId])
 
   // Field array hook
   const {
@@ -887,8 +911,8 @@ export default function TelevisionContainer({
     });
 
     setOverallDeliverables(overallDeliverableCount);
-    onTotalMediaChange(overallMedia, overallFee);
-  }, [feetelevision, onTotalMediaChange]);
+    onTotalMediaChangeRef.current(overallMedia, overallFee);
+  }, [feetelevision, form]);
 
   const handleDuplicateLineItem = useCallback((lineItemIndex: number) => {
     const items = form.getValues("televisionlineItems") || [];
@@ -923,7 +947,7 @@ export default function TelevisionContainer({
     };
 
     appendLineItem(clone);
-  }, [appendLineItem, form, toast]);
+  }, [appendLineItem, createLineItemId, form, toast]);
 
   const handleBuyTypeChange = useCallback(
     (lineItemIndex: number, value: string) => {
@@ -950,12 +974,15 @@ export default function TelevisionContainer({
     [form, handleLineItemValueChange]
   );
 
-  // Watch hook
-  const watchedLineItems = useWatch({ 
-    control: form.control, 
+  // Watch hook (stable fallback — avoid `|| []` which creates a new array each render)
+  const watchedLineItemsRaw = useWatch({
+    control: form.control,
     name: "televisionlineItems",
-    defaultValue: []
-  } as any) || [];
+    defaultValue: EMPTY_TELEVISION_LINE_ITEMS,
+  } as any)
+  const watchedLineItems = Array.isArray(watchedLineItemsRaw)
+    ? watchedLineItemsRaw
+    : EMPTY_TELEVISION_LINE_ITEMS
   
   // Memoized calculations
   // Note: For display purposes, always show media amounts regardless of clientPaysForMedia
@@ -1055,7 +1082,7 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
     ]);
 
     handleLineItemValueChange(lineItemIndex);
-  }, [handleLineItemValueChange, toast]);
+  }, [form, handleLineItemValueChange, toast]);
 
   const handleDuplicateBurst = useCallback((lineItemIndex: number) => {
     const currentBursts = form.getValues(`televisionlineItems.${lineItemIndex}.bursts`) || [];
@@ -1117,7 +1144,7 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
     );
 
     handleLineItemValueChange(lineItemIndex);
-  }, [handleLineItemValueChange]);
+  }, [form, handleLineItemValueChange]);
 
   const getDeliverablesLabel = useCallback((buyType: string) => {
     if (!buyType) return "Deliverables";
@@ -1230,14 +1257,11 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
   }, [clientId, toast]);
   
   // report raw totals (ignoring clientPaysForMedia) for MBA-Details
-useEffect(() => {
-  onTotalMediaChange(
-    overallTotals.overallMedia,
-    overallTotals.overallFee
-  )
-}, [overallTotals.overallMedia, overallTotals.overallFee]) // Removed onTotalMediaChange dependency to prevent infinite loops
+  useEffect(() => {
+    onTotalMediaChangeRef.current(overallTotals.overallMedia, overallTotals.overallFee)
+  }, [overallTotals.overallMedia, overallTotals.overallFee])
 
-useEffect(() => {
+  useEffect(() => {
   // convert each form lineItem into the shape needed for Excel
   const calculatedBursts = getTelevisionBursts(form, feetelevision || 0);
   let burstIndex = 0;
@@ -1281,17 +1305,17 @@ useEffect(() => {
   );
   
   // push it up to page.tsx
-  onLineItemsChange(items);
-}, [watchedLineItems, feetelevision]); // Removed onLineItemsChange dependency to prevent infinite loops
+  onLineItemsChangeRef.current(items);
+}, [watchedLineItems, feetelevision, form, createLineItemId]);
 
-// Add new useEffect to capture raw television line items data
-useEffect(() => {
+  // Add new useEffect to capture raw television line items data
+  useEffect(() => {
   const rawLineItems = form.getValues('televisionlineItems') || [];
-  onTelevisionLineItemsChange(rawLineItems);
-}, [watchedLineItems]); // Removed onTelevisionLineItemsChange dependency to prevent infinite loops
+  onTelevisionLineItemsChangeRef.current(rawLineItems);
+}, [watchedLineItems, form]);
 
-// Transform form data to API schema format
-useEffect(() => {
+  // Transform form data to API schema format
+  useEffect(() => {
   const formLineItems = form.getValues('televisionlineItems') || [];
   
   const transformedLineItems = formLineItems.map((lineItem, index) => {
@@ -1342,8 +1366,8 @@ useEffect(() => {
     };
   });
 
-  onMediaLineItemsChange(transformedLineItems);
-}, [watchedLineItems, mbaNumber, feetelevision]); // Removed onMediaLineItemsChange dependency to prevent infinite loops
+  onMediaLineItemsChangeRef.current(transformedLineItems);
+}, [watchedLineItems, mbaNumber, feetelevision, form]);
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -1354,12 +1378,12 @@ useEffect(() => {
       const hasBurstChanges = JSON.stringify(bursts) !== JSON.stringify(prevBurstsRef.current);
       
       if (hasInvestmentChanges) {
-        onInvestmentChange(investmentByMonth);
+        onInvestmentChangeRef.current(investmentByMonth);
         prevInvestmentRef.current = investmentByMonth;
       }
       
       if (hasBurstChanges) {
-        onBurstsChange(bursts);
+        onBurstsChangeRef.current(bursts);
         prevBurstsRef.current = bursts;
         
         // Calculate total media and fee for billing
@@ -1374,7 +1398,7 @@ useEffect(() => {
     }, 300); // 300ms debounce
 
     return () => clearTimeout(timeoutId);
-  }, [watchedLineItems, feetelevision]); // Removed callback dependencies to prevent infinite loops
+  }, [watchedLineItems, feetelevision, form]);
 
   const getBursts = () => {
     const formLineItems = form.getValues("televisionlineItems") || [];

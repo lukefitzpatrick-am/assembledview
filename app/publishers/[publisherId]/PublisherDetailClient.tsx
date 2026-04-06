@@ -168,6 +168,7 @@ export function PublisherDetailClient({ initialPublisher, analytics }: Publisher
         analytics={analytics}
         brandColour={publisher.publisher_colour?.trim() || undefined}
         publisherId={publisher.id}
+        publisherName={publisher.publisher_name}
       />
 
       <PublisherDetailsSlideOver

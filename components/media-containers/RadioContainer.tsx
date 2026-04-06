@@ -7,19 +7,16 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input"
 import { Combobox } from "@/components/ui/combobox"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger,} from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { PlusCircle } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Textarea } from "@/components/ui/textarea"
@@ -55,7 +52,11 @@ import {
   MP_BURST_ROW_SHELL,
   MP_BURST_SECTION_OUTER,
 } from "@/lib/mediaplan/burstSectionLayout"
-import type { MediaContainerUiMode } from "@/components/media-containers/containerUiMode"
+import {
+  getMediaTypeThemeHex,
+  mediaTypeSummaryStripeStyle,
+  rgbaFromHex,
+} from "@/lib/mediaplan/mediaTypeAccents"
 import {
   RadioExpertGrid,
   createEmptyRadioExpertRow,
@@ -90,6 +91,8 @@ const formatDateString = (d?: Date | string): string => {
   
   return `${year}-${month}-${day}`;
 };
+
+const MEDIA_ACCENT_HEX = getMediaTypeThemeHex("radio")
 
 function netMediaPctOfGross(rawBudget: number, budgetIncludesFees: boolean, feePct: number): number {
   if (!budgetIncludesFees) return rawBudget;
@@ -377,14 +380,15 @@ export default function RadioContainer({
   const { toast } = useToast()
   const { mbaNumber } = useMediaPlanContext()
   const [overallDeliverables, setOverallDeliverables] = useState(0);
-  const [containerUiMode, setContainerUiMode] = useState<MediaContainerUiMode>("standard");
   const [expertRadioRows, setExpertRadioRows] = useState<RadioExpertScheduleRow[]>([]);
-  const [radioModeSwitchDialogOpen, setRadioModeSwitchDialogOpen] = useState(false);
-  const containerUiModeRef = useRef<MediaContainerUiMode>(containerUiMode);
-  const pendingRadioModeSwitchRef = useRef<"toExpert" | "toStandard" | null>(null);
+  const [radioExpertModalOpen, setRadioExpertModalOpen] = useState(false);
+  const [radioExpertExitConfirmOpen, setRadioExpertExitConfirmOpen] = useState(false);
+  /** Brief visual cue on Expert segment so users notice the toggle on first paint. */
+  const [expertSegmentAttention, setExpertSegmentAttention] = useState(true);
+  const radioExpertModalOpenRef = useRef(false);
   const radioStandardBaselineRef = useRef<string>("");
-  const radioExpertBaselineRef = useRef<string>("");
-  containerUiModeRef.current = containerUiMode;
+  const radioExpertRowsBaselineRef = useRef<string>("");
+  radioExpertModalOpenRef.current = radioExpertModalOpen;
 
   const radioExpertWeekColumns = useMemo(
     () => buildWeeklyGanttColumnsFromCampaign(campaignStartDate, campaignEndDate),
@@ -450,7 +454,7 @@ export default function RadioContainer({
   });
 
   useLayoutEffect(() => {
-    if (containerUiModeRef.current === "expert") return;
+    if (radioExpertModalOpenRef.current) return;
     radioStandardBaselineRef.current = serializeRadioStandardLineItemsBaseline(
       form.getValues("radiolineItems")
     );
@@ -527,28 +531,16 @@ export default function RadioContainer({
 }
 };
 
-  const handleExpertRadioRowsChange = useCallback(
-    (next: RadioExpertScheduleRow[]) => {
-      setExpertRadioRows(next);
-      const lineItems = form.getValues("radiolineItems") || [];
-      const budgetIncludesFees = Boolean(lineItems[0]?.budgetIncludesFees);
-      const standard = mapRadioExpertRowsToStandardLineItems(
-        next,
-        radioExpertWeekColumns,
-        campaignStartDate,
-        campaignEndDate,
-        { feePctRadio: feeradio, budgetIncludesFees }
-      );
-      const merged = mergeRadioStandardFromExpertWithPrevious(standard, lineItems);
-      form.setValue("radiolineItems", merged as any, {
-        shouldDirty: true,
-        shouldValidate: false,
-      });
-    },
-    [campaignStartDate, campaignEndDate, feeradio, form, radioExpertWeekColumns]
-  );
+  useEffect(() => {
+    const id = window.setTimeout(() => setExpertSegmentAttention(false), 2800);
+    return () => window.clearTimeout(id);
+  }, []);
 
-  const performRadioSwitchToExpert = useCallback(() => {
+  const handleExpertRadioRowsChange = useCallback((next: RadioExpertScheduleRow[]) => {
+    setExpertRadioRows(next);
+  }, []);
+
+  const openRadioExpertModal = useCallback(() => {
     const mapped = mapStandardRadioLineItemsToExpertRows(
       form.getValues("radiolineItems") || [],
       radioExpertWeekColumns,
@@ -569,12 +561,40 @@ export default function RadioContainer({
               weekKeys
             ),
           ];
+    radioExpertRowsBaselineRef.current = serializeRadioExpertRowsBaseline(rows);
     setExpertRadioRows(rows);
-    setContainerUiMode("expert");
-    radioExpertBaselineRef.current = serializeRadioExpertRowsBaseline(rows);
+    setRadioExpertExitConfirmOpen(false);
+    setRadioExpertModalOpen(true);
   }, [campaignStartDate, campaignEndDate, form, radioExpertWeekColumns]);
 
-  const performRadioSwitchToStandard = useCallback(() => {
+  const dismissRadioExpertExitConfirm = useCallback(() => {
+    setRadioExpertExitConfirmOpen(false);
+  }, []);
+
+  const confirmRadioExpertExitWithoutSaving = useCallback(() => {
+    setRadioExpertExitConfirmOpen(false);
+    setRadioExpertModalOpen(false);
+  }, []);
+
+  const handleRadioExpertModalOpenChange = useCallback(
+    (open: boolean) => {
+      if (open) {
+        setRadioExpertModalOpen(true);
+        return;
+      }
+      const dirty =
+        serializeRadioExpertRowsBaseline(expertRadioRows) !==
+        radioExpertRowsBaselineRef.current;
+      if (!dirty) {
+        setRadioExpertModalOpen(false);
+        return;
+      }
+      setRadioExpertExitConfirmOpen(true);
+    },
+    [expertRadioRows]
+  );
+
+  const handleRadioExpertApply = useCallback(() => {
     const prevLineItems = form.getValues("radiolineItems") || [];
     const standard = mapRadioExpertRowsToStandardLineItems(
       expertRadioRows,
@@ -591,10 +611,11 @@ export default function RadioContainer({
       shouldDirty: true,
       shouldValidate: false,
     });
-    setContainerUiMode("standard");
     radioStandardBaselineRef.current = serializeRadioStandardLineItemsBaseline(
       form.getValues("radiolineItems")
     );
+    setRadioExpertExitConfirmOpen(false);
+    setRadioExpertModalOpen(false);
   }, [
     campaignStartDate,
     campaignEndDate,
@@ -603,48 +624,6 @@ export default function RadioContainer({
     form,
     radioExpertWeekColumns,
   ]);
-
-  const handleRadioModeToggleClick = useCallback(() => {
-    const unsavedStandard =
-      containerUiMode === "standard" &&
-      radioStandardBaselineRef.current !== "" &&
-      serializeRadioStandardLineItemsBaseline(form.getValues("radiolineItems")) !==
-        radioStandardBaselineRef.current;
-    const unsavedExpert =
-      containerUiMode === "expert" &&
-      radioExpertBaselineRef.current !== "" &&
-      serializeRadioExpertRowsBaseline(expertRadioRows) !== radioExpertBaselineRef.current;
-
-    if (containerUiMode === "standard" && unsavedStandard) {
-      pendingRadioModeSwitchRef.current = "toExpert";
-      setRadioModeSwitchDialogOpen(true);
-      return;
-    }
-    if (containerUiMode === "expert" && unsavedExpert) {
-      pendingRadioModeSwitchRef.current = "toStandard";
-      setRadioModeSwitchDialogOpen(true);
-      return;
-    }
-    if (containerUiMode === "standard") {
-      performRadioSwitchToExpert();
-    } else {
-      performRadioSwitchToStandard();
-    }
-  }, [
-    containerUiMode,
-    expertRadioRows,
-    form,
-    performRadioSwitchToExpert,
-    performRadioSwitchToStandard,
-  ]);
-
-  const confirmRadioModeSwitch = useCallback(() => {
-    const dir = pendingRadioModeSwitchRef.current;
-    pendingRadioModeSwitchRef.current = null;
-    setRadioModeSwitchDialogOpen(false);
-    if (dir === "toExpert") performRadioSwitchToExpert();
-    else if (dir === "toStandard") performRadioSwitchToStandard();
-  }, [performRadioSwitchToExpert, performRadioSwitchToStandard]);
 
   const handleDuplicateLineItem = useCallback((lineItemIndex: number) => {
     const items = form.getValues("radiolineItems") || [];
@@ -687,10 +666,9 @@ export default function RadioContainer({
     defaultValue: form.getValues("radiolineItems")
   });
 
-  // Data loading for edit mode (do not reset form while expert rows own derived state).
-  // Do not depend on containerUiMode — toggling Standard ↔ Expert must not re-apply initial data.
+  // Data loading for edit mode (do not reset form while the expert modal owns draft state).
   useEffect(() => {
-    if (containerUiModeRef.current === "expert") return;
+    if (radioExpertModalOpenRef.current) return;
     if (initialLineItems && initialLineItems.length > 0) {
       // Defensive dedupe: upstream API pagination bugs can cause repeated rows.
       // Keep first occurrence per stable identifier.
@@ -1433,50 +1411,92 @@ useEffect(() => {
     <div className="space-y-6">
       <div className="mb-6">
         <Card className="overflow-hidden border-0 shadow-md">
-          <div className="h-1 bg-gradient-to-r from-primary via-primary/70 to-primary/40" />
+          <div className="h-1" style={mediaTypeSummaryStripeStyle(MEDIA_ACCENT_HEX)} />
           <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <CardTitle className="text-base font-semibold tracking-tight">Radio Media</CardTitle>
-                <Badge
-                  variant={containerUiMode === "expert" ? "default" : "secondary"}
-                  className={
-                    containerUiMode === "expert"
-                      ? "bg-primary/15 text-primary border-primary/30 text-[10px] uppercase tracking-wider"
-                      : "text-[10px] uppercase tracking-wider"
-                  }
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <CardTitle className="text-base font-semibold tracking-tight">Radio Media</CardTitle>
+                  {radioExpertModalOpen ? (
+                    <Badge
+                      variant="outline"
+                      className="border-2 text-[10px] font-semibold uppercase tracking-wider shadow-sm"
+                      style={{
+                        borderColor: rgbaFromHex(MEDIA_ACCENT_HEX, 0.55),
+                        backgroundColor: rgbaFromHex(MEDIA_ACCENT_HEX, 0.14),
+                        color: MEDIA_ACCENT_HEX,
+                      }}
+                    >
+                      Expert schedule open
+                    </Badge>
+                  ) : null}
+                </div>
+                <div
+                  role="group"
+                  aria-label="Radio entry mode"
+                  className="inline-flex shrink-0 rounded-lg border border-border bg-muted/50 p-0.5"
                 >
-                  {containerUiMode === "standard" ? "Standard" : "Expert"}
-                </Badge>
+                  <button
+                    type="button"
+                    aria-pressed={!radioExpertModalOpen}
+                    className={cn(
+                      "rounded-md px-3 py-1.5 text-xs font-medium transition-all",
+                      !radioExpertModalOpen
+                        ? "text-white shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                    style={
+                      !radioExpertModalOpen
+                        ? { backgroundColor: MEDIA_ACCENT_HEX }
+                        : undefined
+                    }
+                    onClick={() => {
+                      if (radioExpertModalOpen) {
+                        handleRadioExpertModalOpenChange(false);
+                      }
+                    }}
+                  >
+                    Standard
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={radioExpertModalOpen}
+                    className={cn(
+                      "rounded-md px-3 py-1.5 text-xs font-medium transition-all",
+                      radioExpertModalOpen
+                        ? "text-white shadow-sm"
+                        : "text-muted-foreground hover:text-foreground",
+                      expertSegmentAttention &&
+                        !radioExpertModalOpen &&
+                        "animate-pulse"
+                    )}
+                    style={{
+                      ...(radioExpertModalOpen
+                        ? { backgroundColor: MEDIA_ACCENT_HEX }
+                        : {}),
+                      ...(expertSegmentAttention && !radioExpertModalOpen
+                        ? {
+                            boxShadow: `0 0 0 2px ${rgbaFromHex(MEDIA_ACCENT_HEX, 0.45)}`,
+                          }
+                        : {}),
+                    }}
+                    onClick={() => {
+                      if (!radioExpertModalOpen) {
+                        openRadioExpertModal();
+                      }
+                    }}
+                  >
+                    Expert
+                  </button>
+                </div>
               </div>
-              <span className="text-xs text-muted-foreground tabular-nums">
-                {overallTotals.lineItemTotals.length} line item
-                {overallTotals.lineItemTotals.length !== 1 ? "s" : ""}
-              </span>
-            </div>
-            <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <p className="text-sm text-muted-foreground">
-                {containerUiMode === "standard"
-                  ? "Card-based entry"
-                  : "Spreadsheet schedule entry"}
-              </p>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="text-xs gap-1.5 shrink-0"
-                onClick={handleRadioModeToggleClick}
-              >
-                {containerUiMode === "standard" ? (
-                  <>
-                    <span className="text-primary">●</span> Switch to Expert
-                  </>
-                ) : (
-                  <>
-                    <span className="text-muted-foreground">●</span> Standard Mode
-                  </>
-                )}
-              </Button>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm text-muted-foreground">Card-based entry</p>
+                <span className="text-xs text-muted-foreground tabular-nums sm:text-right">
+                  {overallTotals.lineItemTotals.length} line item
+                  {overallTotals.lineItemTotals.length !== 1 ? "s" : ""}
+                </span>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-0">
@@ -1537,17 +1557,7 @@ useEffect(() => {
       </div>
   
       <div>
-        {containerUiMode === "expert" ? (
-          <RadioExpertGrid
-            campaignStartDate={campaignStartDate}
-            campaignEndDate={campaignEndDate}
-            feeradio={feeradio}
-            rows={expertRadioRows}
-            onRowsChange={handleExpertRadioRowsChange}
-            publishers={publishers}
-            radioStations={radioStations}
-          />
-        ) : isLoading ? (
+        {isLoading ? (
           <div className="flex flex-col items-center justify-center py-12 gap-3">
             <div className="relative h-10 w-10">
               <div className="absolute inset-0 rounded-full border-2 border-muted" />
@@ -2257,30 +2267,67 @@ useEffect(() => {
   </DialogContent>
 </Dialog>
 
-      <AlertDialog
-        open={radioModeSwitchDialogOpen}
+      <Dialog open={radioExpertModalOpen} onOpenChange={handleRadioExpertModalOpenChange}>
+        <DialogContent className="max-w-[95vw] w-[95vw] max-h-[95vh] h-[95vh] flex flex-col p-4 gap-0 overflow-hidden">
+          <DialogHeader className="flex-shrink-0 pb-2">
+            <DialogTitle>Radio Expert Mode</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 overflow-auto">
+            <RadioExpertGrid
+              campaignStartDate={campaignStartDate}
+              campaignEndDate={campaignEndDate}
+              feeradio={feeradio}
+              rows={expertRadioRows}
+              onRowsChange={handleExpertRadioRowsChange}
+              publishers={publishers}
+              radioStations={radioStations}
+            />
+          </div>
+          <DialogFooter className="flex-shrink-0 border-t pt-3 mt-2">
+            <Button type="button" onClick={handleRadioExpertApply}>
+              Apply
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={radioExpertExitConfirmOpen}
         onOpenChange={(open) => {
-          if (!open) pendingRadioModeSwitchRef.current = null;
-          setRadioModeSwitchDialogOpen(open);
+          if (!open) dismissRadioExpertExitConfirm();
         }}
       >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Switch Radio mode?</AlertDialogTitle>
-            <AlertDialogDescription>
-              You have unsaved changes in {containerUiMode === "standard" ? "Standard" : "Expert"} mode.
-              Switching will continue using your current values, but other unsaved plan changes are still
-              your responsibility to save.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel type="button">Cancel</AlertDialogCancel>
-            <AlertDialogAction type="button" onClick={confirmRadioModeSwitch}>
-              Switch mode
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        <DialogContent
+          className="z-[100] sm:max-w-md"
+          onClick={(e) => {
+            if ((e.target as HTMLElement).closest("[data-radio-expert-exit-yes]")) {
+              return;
+            }
+            dismissRadioExpertExitConfirm();
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>Leave Radio Expert Mode?</DialogTitle>
+            <DialogDescription>
+              You have unsaved changes in Expert Mode. Apply saves them to the Radio section; leaving now
+              discards those edits.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={dismissRadioExpertExitConfirm}>
+              No, keep editing
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              data-radio-expert-exit-yes
+              onClick={confirmRadioExpertExitWithoutSaving}
+            >
+              Yes, leave without saving
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

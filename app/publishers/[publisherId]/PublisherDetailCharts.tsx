@@ -24,6 +24,7 @@ interface PublisherDetailChartsProps {
   analytics: PublisherDashboardData
   brandColour?: string
   publisherId: number
+  publisherName: string
 }
 
 type CampaignCsvRow = {
@@ -38,7 +39,12 @@ type CampaignCsvRow = {
   media_types: string
 }
 
-export function PublisherDetailCharts({ analytics, brandColour, publisherId }: PublisherDetailChartsProps) {
+export function PublisherDetailCharts({
+  analytics,
+  brandColour,
+  publisherId,
+  publisherName,
+}: PublisherDetailChartsProps) {
   const accent = brandColour?.trim() ?? ""
   const hasBrandColour = Boolean(accent)
   const chartColourOverride = hasBrandColour ? [accent, ...FALLBACK_PALETTE] : undefined
@@ -254,6 +260,43 @@ export function PublisherDetailCharts({ analytics, brandColour, publisherId }: P
           </PanelRowCell>
         ) : null}
       </PanelRow>
+
+      {analytics.shareByMediaType.length > 0 ? (
+        <PanelRow
+          title="Market share"
+          helperText="This publisher's FY spend as a share of total booked spend across all publishers, per media type."
+        >
+          {analytics.shareByMediaType.map((entry) => {
+            const label = MEDIA_TYPE_SLUG_TO_DASHBOARD_LABEL[entry.mediaType] ?? entry.mediaType
+            const span = analytics.shareByMediaType.length >= 3 ? "third" : "half"
+            const marketSharePieColors = [brandColour ?? FALLBACK_PALETTE[0], "#e5e7eb"] as string[]
+            return (
+              <PanelRowCell key={entry.mediaType} span={span}>
+                <PieChart
+                  title={label}
+                  description={`Share of total ${label} spend this FY`}
+                  data={[
+                    {
+                      name: publisherName,
+                      value: entry.thisPublisherSpend,
+                      percentage: entry.sharePercent,
+                    },
+                    {
+                      name: "Other publishers",
+                      value: entry.totalMarketSpend - entry.thisPublisherSpend,
+                      percentage: 100 - entry.sharePercent,
+                    },
+                  ]}
+                  colors={marketSharePieColors}
+                  cardClassName="h-full border-border/40 bg-card shadow-sm"
+                  headerClassName="border-b border-border/40 bg-muted/10 px-6 py-4"
+                  contentClassName="p-6"
+                />
+              </PanelRowCell>
+            )
+          })}
+        </PanelRow>
+      ) : null}
     </div>
   )
 }

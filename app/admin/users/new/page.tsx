@@ -7,11 +7,12 @@ import { Label } from "@/components/ui/label";
 import { Combobox } from "@/components/ui/combobox";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { AdminGuard } from "@/components/guards/AdminGuard";
-import { getClientDisplayName, slugifyClientNameForUrl } from "@/lib/clients/slug";
+import { getClientDisplayName } from "@/lib/clients/slug";
+import { resolveAuth0ClientIdentifier } from "@/lib/clients/auth0ClientIdentifier";
 
 type Status = "idle" | "loading" | "success" | "error";
 type Role = "admin" | "client";
-type ClientOption = { id: number; mp_client_name: string; slug: string };
+type ClientOption = { mp_client_name: string; auth0ClientId: string };
 
 export default function NewAdminUserPage() {
   const { isAdmin } = useAuthContext();
@@ -35,16 +36,15 @@ export default function NewAdminUserPage() {
         const data = await resp.json();
         if (Array.isArray(data)) {
           const normalized = data
-            .map((raw: any) => {
+            .map((raw: Record<string, unknown>) => {
               const name = getClientDisplayName(raw);
-              const slug = slugifyClientNameForUrl(name);
+              const auth0ClientId = resolveAuth0ClientIdentifier(raw);
               return {
-                id: Number(raw?.id),
                 mp_client_name: String(name),
-                slug,
+                auth0ClientId: auth0ClientId ?? "",
               } satisfies ClientOption;
             })
-            .filter((c: ClientOption) => Number.isFinite(c.id) && Boolean(c.slug));
+            .filter((c: ClientOption) => Boolean(c.auth0ClientId));
           setClients(normalized);
         }
       } catch (err) {
@@ -184,12 +184,12 @@ export default function NewAdminUserPage() {
                 searchPlaceholder="Search clients..."
                 emptyText={clients.length === 0 ? "No clients available." : "No clients found."}
                 options={clients.map((client) => ({
-                  value: client.slug,
+                  value: client.auth0ClientId,
                   label: client.mp_client_name,
                 }))}
               />
               <p className="text-xs text-muted-foreground">
-                Client users are restricted to their assigned client dashboards.
+                Stored in Auth0 as client slug (MBA identifier when set, otherwise the client URL slug — never the numeric Xano id).
               </p>
             </div>
           )}
@@ -210,7 +210,7 @@ export default function NewAdminUserPage() {
         </form>
 
         <div className="rounded-lg border border-border bg-muted p-4 text-sm text-muted-foreground">
-          Only allowlisted admins can use this tool. The backend uses the Auth0 Management API to create the user, mark the email as verified, generate a password-set ticket (24h), and send the invite via SendGrid (or SMTP fallback).
+          Any user with the admin role can use this tool. The backend uses the Auth0 Management API to create the user, mark the email as verified, generate a password-set ticket (24h), and send the invite via SendGrid (or SMTP fallback).
         </div>
       </div>
       </AdminGuard>

@@ -9,7 +9,7 @@ const apiClient = axios.create({
 
 export async function fetchClientKpis(clientName: string): Promise<ClientKpi[]> {
   try {
-    const response = await apiClient.get(xanoUrl("client_kpi"), {
+    const response = await apiClient.get(xanoUrl("client_kpi", "XANO_CLIENTS_BASE_URL"), {
       params: { mp_client_name: clientName },
     })
     const data = response.data
@@ -22,7 +22,7 @@ export async function fetchClientKpis(clientName: string): Promise<ClientKpi[]> 
 
 export async function createClientKpi(input: ClientKpiInput): Promise<ClientKpi | null> {
   try {
-    const response = await apiClient.post(xanoUrl("client_kpi"), input)
+    const response = await apiClient.post(xanoUrl("client_kpi", "XANO_CLIENTS_BASE_URL"), input)
     return response.data ?? null
   } catch (e) {
     console.error("createClientKpi", e)
@@ -35,7 +35,10 @@ export async function updateClientKpi(
   input: Partial<ClientKpiInput>
 ): Promise<ClientKpi | null> {
   try {
-    const response = await apiClient.patch(xanoUrl(`client_kpi/${id}`), input)
+    const response = await apiClient.patch(
+      xanoUrl(`client_kpi/${id}`, "XANO_CLIENTS_BASE_URL"),
+      input,
+    )
     return response.data ?? null
   } catch (e) {
     console.error("updateClientKpi", e)
@@ -45,7 +48,7 @@ export async function updateClientKpi(
 
 export async function deleteClientKpi(id: number): Promise<boolean> {
   try {
-    await apiClient.delete(xanoUrl(`client_kpi/${id}`))
+    await apiClient.delete(xanoUrl(`client_kpi/${id}`, "XANO_CLIENTS_BASE_URL"))
     return true
   } catch (e) {
     console.error("deleteClientKpi", e)

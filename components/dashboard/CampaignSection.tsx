@@ -45,6 +45,7 @@ export interface CampaignSectionProps {
 const DEFAULT_MAX_VISIBLE = 6
 const STATUS_PARAM = "status"
 const LOCAL_STORAGE_KEY = "dashboard_campaign_status_filter"
+const EMPTY_CAMPAIGNS: Campaign[] = []
 
 function normalizeStatus(status: string): CampaignStatus {
   const normalized = status.toLowerCase().trim()
@@ -111,7 +112,10 @@ export function CampaignSection({
   const pathname = usePathname()
   const searchParams = useSearchParams()
 
-  const sourceCampaigns = allCampaigns ?? campaignsLegacy ?? []
+  const sourceCampaigns = useMemo(
+    () => allCampaigns ?? campaignsLegacy ?? EMPTY_CAMPAIGNS,
+    [allCampaigns, campaignsLegacy]
+  )
 
   const [activeStatus, setActiveStatus] = useState<CampaignStatus>(defaultStatus)
 

@@ -5,6 +5,8 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { cn } from "@/lib/utils"
+import { cssHexFromStored, NATIVE_COLOR_INPUT_FALLBACK } from "@/lib/publisher/publisherColourFormUtils"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Combobox } from "@/components/ui/combobox"
@@ -15,7 +17,6 @@ import {
   type PublisherCreateInput,
   type PublisherCreateValues,
 } from "@/lib/validations/publisher"
-import { defaultKpiValuesRecord } from "@/lib/publisher/scheduleLabels"
 
 type PublisherFormValues = PublisherCreateValues
 
@@ -40,6 +41,7 @@ export function AddPublisherForm({ onSuccess }: AddPublisherFormProps) {
       publishertype: "direct",
       billingagency: "assembled media",
       financecode: "",
+      publisher_colour: null,
       pub_television: false,
       pub_radio: false,
       pub_newspaper: false,
@@ -78,7 +80,6 @@ export function AddPublisherForm({ onSuccess }: AddPublisherFormProps) {
       progaudio_comms: 0,
       progooh_comms: 0,
       influencers_comms: 0,
-      ...defaultKpiValuesRecord(),
     },
   })
 
@@ -203,6 +204,64 @@ export function AddPublisherForm({ onSuccess }: AddPublisherFormProps) {
                 <FormMessage />
               </FormItem>
             )}
+          />
+
+          <FormField
+            control={form.control}
+            name="publisher_colour"
+            render={({ field }) => {
+              const stored = field.value
+              const cssHex = cssHexFromStored(stored)
+              const hasValidHex = cssHex != null
+
+              return (
+                <FormItem className="flex flex-col space-y-1.5">
+                  <FormLabel className="text-sm font-medium text-muted-foreground">Brand Colour</FormLabel>
+                  <FormControl>
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={cn(
+                          "h-9 w-9 shrink-0 rounded-lg border",
+                          hasValidHex
+                            ? "border-border"
+                            : "border-dashed border-muted-foreground/40 bg-muted"
+                        )}
+                        style={hasValidHex ? { backgroundColor: cssHex } : undefined}
+                        aria-hidden
+                      />
+                      <input
+                        type="color"
+                        className="h-9 w-12 cursor-pointer rounded border-0 bg-transparent p-0"
+                        value={hasValidHex ? cssHex : NATIVE_COLOR_INPUT_FALLBACK}
+                        onChange={(e) => field.onChange(e.target.value)}
+                        aria-label="Pick brand colour"
+                      />
+                      <Input
+                        className="w-28 font-mono text-xs"
+                        placeholder="#000000"
+                        value={stored ?? ""}
+                        onChange={(e) => {
+                          const v = e.target.value
+                          field.onChange(v.trim() === "" ? null : v)
+                        }}
+                        onBlur={field.onBlur}
+                        name={field.name}
+                        ref={field.ref}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="text-xs"
+                        onClick={() => field.onChange(null)}
+                      >
+                        Clear
+                      </Button>
+                    </div>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )
+            }}
           />
 
           <div className="border border-black p-4 rounded-md">

@@ -85,6 +85,7 @@ type CampaignPageAssemblyProps = {
   budget: number
   actualSpend: number
   expectedSpend: number
+  totalPlannedMonthlySpend: number
   startDate?: string | null
   endDate?: string | null
   campaignStartISO?: string | null
@@ -121,6 +122,7 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
     budget,
     actualSpend,
     expectedSpend,
+    totalPlannedMonthlySpend,
     startDate,
     endDate,
     campaignStartISO,
@@ -244,6 +246,7 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
                 budget,
                 actualSpend,
                 expectedSpend,
+                totalPlannedSpend: totalPlannedMonthlySpend,
               }}
               brandColour={brandColour}
             />
@@ -262,6 +265,7 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
               deliverySchedule={deliverySchedule}
               brandColour={brandColour}
               lineItemsMap={lineItemsMap}
+              campaignSpendToDate={expectedSpend}
             />
             </div>
           </Suspense>

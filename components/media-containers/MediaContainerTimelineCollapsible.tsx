@@ -10,6 +10,8 @@ import { normaliseLineItemsByType } from "@/lib/mediaplan/normalizeLineItem"
 import { serializeLineItemsForGantt } from "@/lib/mediaplan/serializeLineItemsForGantt"
 import { cn } from "@/lib/utils"
 
+const EMPTY_LINE_ITEMS: unknown[] = []
+
 function campaignDateToIso(d: Date | null | undefined): string {
   if (!d || !(d instanceof Date) || Number.isNaN(d.getTime())) return ""
   return format(d, "yyyy-MM-dd")
@@ -31,7 +33,7 @@ export default function MediaContainerTimelineCollapsible({
   campaignEndDate,
   className,
 }: MediaContainerTimelineCollapsibleProps) {
-  const lineItemArray = Array.isArray(lineItems) ? lineItems : []
+  const lineItemArray = Array.isArray(lineItems) ? lineItems : EMPTY_LINE_ITEMS
 
   const normalised = useMemo(() => {
     const serialized = serializeLineItemsForGantt(lineItemArray, mediaTypeKey)

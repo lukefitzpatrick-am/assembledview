@@ -62,14 +62,3 @@ export const KPI_FAMILY_LABELS: Record<string, string> = {
 }
 
 export const KPI_METRIC_KEYS = ["cpm", "cpc", "cpv", "ctr", "vtr", "frequency"] as const
-
-/** Zero defaults for POST create body (Xano KPI columns). */
-export function defaultKpiValuesRecord(): Record<string, number> {
-  const o: Record<string, number> = {}
-  for (const family of Object.keys(KPI_FAMILY_PUB_FLAG)) {
-    for (const m of KPI_METRIC_KEYS) {
-      o[`${family}_${m}_default`] = 0
-    }
-  }
-  return o
-}

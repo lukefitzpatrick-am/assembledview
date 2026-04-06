@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation"
-import { getPublisherByPublisherId } from "@/lib/api/publishers"
+import { getPublisherByPublisherId, getPublisherMarketShare } from "@/lib/api/publishers"
 import { getPublisherDashboardData } from "@/lib/api/dashboard"
 import { normalizePublisherRecord } from "@/lib/publisher/normalizePublisher"
 import { PublisherDetailClient } from "./PublisherDetailClient"
@@ -16,7 +16,15 @@ export default async function PublisherDetailPage({ params }: PageProps) {
   }
 
   const publisher = normalizePublisherRecord(raw)
-  const analytics = await getPublisherDashboardData(publisher)
+  const [analytics, shareByMediaType] = await Promise.all([
+    getPublisherDashboardData(publisher),
+    getPublisherMarketShare(publisher.id),
+  ])
 
-  return <PublisherDetailClient initialPublisher={publisher} analytics={analytics} />
+  return (
+    <PublisherDetailClient
+      initialPublisher={publisher}
+      analytics={{ ...analytics, shareByMediaType }}
+    />
+  )
 }

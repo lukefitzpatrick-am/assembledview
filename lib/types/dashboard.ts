@@ -9,6 +9,11 @@ export interface Campaign {
   endDate: string
   mediaTypes: string[]
   status: 'live' | 'planning' | 'completed' | 'approved' | 'booked' | 'draft'
+  /**
+   * Expected spend to date from billing schedule (`lib/spend/billingScheduleExpectedToDate`),
+   * same model as mediaplans API / MBA dashboard.
+   */
+  expectedSpendToDate?: number
 }
 
 /** Admin client hub card (metrics match tenant dashboard definitions). */

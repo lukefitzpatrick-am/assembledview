@@ -55,7 +55,14 @@ function buildCampaignEditHref(mbaNumber: string, versionNumber: number): string
 }
 
 function toDashboardCampaign(slug: string, mode: CampaignLinkMode, campaign: LegacyCampaign): DashboardCampaign {
-  const spentApprox = normalizeCampaignStatus(campaign.status) === "completed" ? campaign.budget : campaign.budget * 0.72
+  const spentApprox =
+    typeof campaign.expectedSpendToDate === "number" &&
+    Number.isFinite(campaign.expectedSpendToDate) &&
+    campaign.expectedSpendToDate > 0
+      ? campaign.expectedSpendToDate
+      : normalizeCampaignStatus(campaign.status) === "completed"
+        ? campaign.budget
+        : campaign.budget * 0.72
   const canEdit = mode === "admin" || mode === "adminHub"
   return {
     id: `${campaign.mbaNumber}-${campaign.version_number}`,

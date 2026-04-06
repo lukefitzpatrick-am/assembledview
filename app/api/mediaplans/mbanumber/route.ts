@@ -5,7 +5,8 @@ const XANO_TIMEOUT_MS = Number(process.env.XANO_TIMEOUT_MS || 10_000)
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
-  const mbaidentifier = searchParams.get("mbaidentifier")
+  const mbaidentifierRaw = searchParams.get("mbaidentifier")
+  const mbaidentifier = mbaidentifierRaw?.trim() ?? ""
 
   if (!mbaidentifier) {
     return NextResponse.json({ error: "MBA Identifier is required" }, { status: 400 })
@@ -30,8 +31,9 @@ export async function GET(req: Request) {
 
     let maxNumber = 0
     for (const plan of existingPlans) {
-      if (plan && plan.mba_number && plan.mba_number.startsWith(mbaidentifier)) {
-        const numberPart = Number.parseInt(plan.mba_number.slice(-3))
+      const num = plan?.mba_number
+      if (plan && typeof num === "string" && num.startsWith(mbaidentifier)) {
+        const numberPart = Number.parseInt(num.slice(-3))
         if (!isNaN(numberPart) && numberPart > maxNumber) {
           maxNumber = numberPart
         }

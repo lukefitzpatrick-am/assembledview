@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import { BarChart3, DollarSign, FileText } from "lucide-react"
 
 import { PageHeroShell } from "@/components/dashboard/PageHeroShell"
@@ -85,11 +86,17 @@ export function HeroBanner({
 
               <div className="relative h-16 w-16 shrink-0">
                 <div
-                  className="flex h-full w-full items-center justify-center overflow-hidden rounded-full border-2 shadow-lg"
+                  className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-full border-2 shadow-lg"
                   style={{ borderColor: hexToRgba(brandColour, 0.3) }}
                 >
                   {clientLogo ? (
-                    <img src={clientLogo} alt={`${clientName} logo`} className="h-full w-full object-cover" />
+                    <Image
+                      src={clientLogo}
+                      alt={`${clientName} logo`}
+                      fill
+                      className="object-cover"
+                      sizes="64px"
+                    />
                   ) : (
                     <span
                       className="flex h-full w-full items-center justify-center text-lg font-semibold text-white"

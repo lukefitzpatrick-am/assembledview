@@ -170,6 +170,7 @@ interface Magazines {
   id: number;
   title: string;
   network: string;
+  publisherId?: number;
 }
 
 interface MagazinesAdSizes {
@@ -1556,14 +1557,26 @@ useEffect(() => {
                   };
 
                   const selectedNetwork = form.watch(`magazineslineItems.${lineItemIndex}.network`);
+                  const networkKey = (selectedNetwork || "").trim();
+                  const selectedPublisherId = publishers.find(
+                    (p) => (p.publisher_name || "").trim() === networkKey
+                  )?.id;
 
-                  // const selectedNetwork = form.watch(`televisionlineItems.${lineItemIndex}.network`); // Already exists above
-
-                  let filteredMagazines;
-                  if (!selectedNetwork) {
-                    filteredMagazines = magazines; // Show all newspapers if no network is selected
+                  let filteredMagazines: Magazines[];
+                  if (!networkKey) {
+                    filteredMagazines = magazines;
                   } else {
-                    filteredMagazines = magazines.filter(magazines => magazines.network === selectedNetwork);
+                    filteredMagazines = magazines.filter((m) => {
+                      if ((m.network || "").trim() === networkKey) return true;
+                      if (
+                        selectedPublisherId != null &&
+                        m.publisherId != null &&
+                        m.publisherId === selectedPublisherId
+                      ) {
+                        return true;
+                      }
+                      return false;
+                    });
                   }
 
 
