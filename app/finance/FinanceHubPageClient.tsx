@@ -105,6 +105,7 @@ export default function FinanceHubPageClient() {
   const [tabAnimation, setTabAnimation] = useState("opacity-100 translate-y-0")
 
   useEffect(() => {
+    if (!searchParams) return
     const tab = searchParams.get("tab")
     const mFrom = searchParams.get("from")
     const mTo = searchParams.get("to")
@@ -121,8 +122,7 @@ export default function FinanceHubPageClient() {
     }
     if (clients) setSelectedClients(clients.split(",").filter(Boolean))
     if (q) setSearchQuery(q)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [searchParams])
 
   useEffect(() => {
     const loadClients = async () => {

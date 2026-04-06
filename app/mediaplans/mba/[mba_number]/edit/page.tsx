@@ -3979,9 +3979,16 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   })
 
   const billingPlanStructureKey = useMemo(() => {
-    const flagValues = mediaFlagsForBillingStructure as Record<string, boolean | undefined>
+    const watched = mediaFlagsForBillingStructure
+    const flagValues = MEDIA_TYPE_KEYS.reduce<Partial<Record<MediaTypeKey, boolean>>>(
+      (acc, key, i) => {
+        acc[key] = Array.isArray(watched) ? watched[i] : undefined
+        return acc
+      },
+      {}
+    )
     const parts: string[] = []
-    const seg = (flag: string, key: string, items: any[]) => {
+    const seg = (flag: MediaTypeKey, key: string, items: any[]) => {
       if (!flagValues[flag]) return
       const ids = (items ?? [])
         .map((li: any, i: number) => {
