@@ -28,7 +28,11 @@ import {
   expandMonthRange,
   parseAccrualReconcilesFromEdits,
 } from "@/lib/finance/computeAccrual"
-import { fetchFinanceEditsList } from "@/lib/finance/api"
+import {
+  fetchFinanceBillingForMonths,
+  fetchFinanceEditsList,
+  fetchFinancePayablesForMonths,
+} from "@/lib/finance/api"
 import { formatMoney } from "@/lib/utils/money"
 import { cn, hexToRgba } from "@/lib/utils"
 import { useFinanceStore, type FinanceHubTab } from "@/lib/finance/useFinanceStore"
@@ -188,6 +192,8 @@ export function FinanceOverviewProvider({ children }: { children: ReactNode }) {
   const [clientProfileColors, setClientProfileColors] = useState<Record<string, string>>({})
   const [chartsLoading, setChartsLoading] = useState(true)
   const [scheduleFytd, setScheduleFytd] = useState({ billingYtd: 0, deliveryYtd: 0 })
+  const [currentMonthBillingRecords, setCurrentMonthBillingRecords] = useState<BillingRecord[]>([])
+  const [currentMonthPayablesRecords, setCurrentMonthPayablesRecords] = useState<BillingRecord[]>([])
 
   const currentMonth = format(new Date(), "yyyy-MM")
   const fyStart = useMemo(() => australianFyStartYearForDate(new Date()), [])
@@ -270,6 +276,32 @@ export function FinanceOverviewProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  useEffect(() => {
+    let cancelled = false
+    const ac = new AbortController()
+    void (async () => {
+      try {
+        const months = [currentMonth]
+        const [billing, payables] = await Promise.all([
+          fetchFinanceBillingForMonths(months, {}, ac.signal),
+          fetchFinancePayablesForMonths(months, {}),
+        ])
+        if (cancelled) return
+        setCurrentMonthBillingRecords(billing)
+        setCurrentMonthPayablesRecords(payables)
+      } catch {
+        if (!cancelled) {
+          setCurrentMonthBillingRecords([])
+          setCurrentMonthPayablesRecords([])
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+      ac.abort()
+    }
+  }, [currentMonth])
+
   const reconcileMap = useMemo(() => parseAccrualReconcilesFromEdits(editsList), [editsList])
 
   const receivables = useMemo(
@@ -301,25 +333,25 @@ export function FinanceOverviewProvider({ children }: { children: ReactNode }) {
 
   const kpiReceivablesThisMonth = useMemo(() => {
     let s = 0
-    for (const r of billingRecords) {
+    for (const r of currentMonthBillingRecords) {
       if (!isReceivableRecord(r)) continue
       if (r.billing_month !== currentMonth) continue
       if (!KPI_RECEIVABLE_STATUSES.has(r.status)) continue
       s += Number(r.total || 0)
     }
     return Math.round(s * 100) / 100
-  }, [billingRecords, currentMonth])
+  }, [currentMonthBillingRecords, currentMonth])
 
   const kpiPayablesThisMonth = useMemo(
     () =>
       sumPayableRecordsAgencyExpected(
-        payablesRecords,
+        currentMonthPayablesRecords,
         (r) =>
           r.billing_type === "payable" &&
           r.billing_month === currentMonth &&
           KPI_PAYABLE_STATUSES.has(r.status)
       ),
-    [payablesRecords, currentMonth]
+    [currentMonthPayablesRecords, currentMonth]
   )
 
   const kpiReceivablesFytd = scheduleFytd.billingYtd

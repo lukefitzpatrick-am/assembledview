@@ -336,7 +336,7 @@ export function EditableFinanceGrid({
   const rowById = useMemo(() => {
     const m = new Map<number, Row<BillingRecord>>()
     for (const row of table.getRowModel().rows) {
-      m.set(row.original.id, row)
+      m.set(row.index, row)
     }
     return m
   }, [table, records, columns])
@@ -1053,7 +1053,7 @@ export function EditableFinanceGrid({
                 }
 
                 const record = item.record
-                const row = rowById.get(record.id)
+                const row = rowById.get(item.sourceIndex)
                 if (!row) return null
 
                 const flatIndex = vi.index

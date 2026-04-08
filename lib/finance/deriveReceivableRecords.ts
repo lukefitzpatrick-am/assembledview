@@ -37,6 +37,14 @@ function financeMediaLineToBillingLine(
   }
 }
 
+function hashClientNameToId(name: string): number {
+  let h = 5381
+  for (let i = 0; i < name.length; i++) {
+    h = ((h << 5) + h) ^ name.charCodeAt(i)
+  }
+  return (Math.abs(h) % 900_000) + 100_000
+}
+
 function buildClientResolution(
   version: Record<string, unknown>,
   clientMap: Map<string, unknown>
@@ -49,7 +57,8 @@ function buildClientResolution(
   if (numeric) return { clients_id: numeric, client_name: clientName || "Unknown" }
   const rec = (clientName ? clientMap.get(clientName) : undefined) as Record<string, unknown> | undefined
   const id = rec?.id != null ? Number(rec.id) || 0 : 0
-  return { clients_id: id, client_name: clientName || "Unknown" }
+  if (id !== 0) return { clients_id: id, client_name: clientName || "Unknown" }
+  return { clients_id: hashClientNameToId(clientName), client_name: clientName }
 }
 
 /**
@@ -66,6 +75,7 @@ export function derivePlanReceivableBillingRecordsForMonth(
 ): BillingRecord[] {
   const billingMonth = `${year}-${String(month).padStart(2, "0")}`
   const out: BillingRecord[] = []
+  let syntheticId = 1
 
   for (const version of relevantVersions) {
     const status = String(version.campaign_status ?? "").toLowerCase()
@@ -114,7 +124,7 @@ export function derivePlanReceivableBillingRecordsForMonth(
       const line_items = financeMediaLines.map((li, i) => financeMediaLineToBillingLine(li, i, planLookup))
       const mediaTotal = Math.round(line_items.reduce((s, li) => s + li.amount, 0) * 100) / 100
       out.push({
-        id: 0,
+        id: syntheticId++,
         billing_type: "media",
         clients_id,
         client_name,
@@ -162,7 +172,7 @@ export function derivePlanReceivableBillingRecordsForMonth(
     if (feeLines.length > 0) {
       const feesTotal = Math.round(feeLines.reduce((s, li) => s + li.amount, 0) * 100) / 100
       out.push({
-        id: 0,
+        id: syntheticId++,
         billing_type: "sow",
         clients_id,
         client_name,
