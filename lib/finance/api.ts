@@ -117,7 +117,10 @@ async function jsonOrThrow<T>(response: Response, pathForUrl: string): Promise<T
   return (await response.json()) as T
 }
 
-export async function fetchFinanceBilling(q: FinanceBillingQuery): Promise<BillingRecord[]> {
+export async function fetchFinanceBilling(
+  q: FinanceBillingQuery,
+  init?: { signal?: AbortSignal }
+): Promise<BillingRecord[]> {
   const params = new URLSearchParams()
   params.set("billing_month", q.billing_month)
   if (q.clients_id) params.set("clients_id", q.clients_id)
@@ -127,17 +130,23 @@ export async function fetchFinanceBilling(q: FinanceBillingQuery): Promise<Billi
   if (q.status) params.set("status", q.status)
   if (q.search) params.set("search", q.search)
   const path = `/api/finance/billing?${params.toString()}`
-  const response = await fetch(path)
+  const response = await fetch(path, { signal: init?.signal })
   const payload = await jsonOrThrow<{ records?: BillingRecord[] } | BillingRecord[]>(response, path)
   return recordsFromPayload(payload)
 }
 
 export async function fetchFinanceBillingForMonths(
   months: string[],
-  params: Omit<FinanceBillingQuery, "billing_month"> = {}
+  params: Omit<FinanceBillingQuery, "billing_month"> = {},
+  signal?: AbortSignal
 ): Promise<BillingRecord[]> {
   const results = await Promise.all(
-    months.map((m) => fetchFinanceBilling({ ...params, billing_month: m }).catch(() => []))
+    months.map((m) =>
+      fetchFinanceBilling({ ...params, billing_month: m }, { signal }).catch((err: unknown) => {
+        if (err instanceof DOMException && err.name === "AbortError") throw err
+        return []
+      })
+    )
   )
   const seen = new Set<string>()
   const out: BillingRecord[] = []

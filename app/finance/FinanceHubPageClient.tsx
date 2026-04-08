@@ -1,7 +1,7 @@
 "use client"
 
 import dynamic from "next/dynamic"
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react"
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ToastAction } from "@/components/ui/toast"
 import { saveAs } from "file-saver"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
@@ -51,6 +51,21 @@ import {
   type FinanceHubFetchError,
   type FinanceHubTab,
 } from "@/lib/finance/useFinanceStore"
+
+const financeHubEffectDepPrev = new Map<string, unknown[]>()
+
+/** Set `NEXT_PUBLIC_FINANCE_DEBUG=1` to log which effect deps changed between runs (console). */
+function logFinanceHubEffectDepChanges(label: string, names: readonly string[], values: readonly unknown[]) {
+  const prev = financeHubEffectDepPrev.get(label)
+  financeHubEffectDepPrev.set(label, [...values])
+  if (process.env.NEXT_PUBLIC_FINANCE_DEBUG !== "1" || prev === undefined) return
+  if (prev.length !== names.length || values.length !== names.length) return
+  for (let i = 0; i < names.length; i++) {
+    if (!Object.is(prev[i], values[i])) {
+      console.info(`[finance-hub:${label}] dep "${names[i]}" changed`, { from: prev[i], to: values[i] })
+    }
+  }
+}
 
 const SAVED_VIEWS_KEY = "finance-hub-saved-views-v3"
 
@@ -148,15 +163,56 @@ type MonthGroup = {
   total: number
 }
 
-function useFinanceHubReceivablesData(): { loading: boolean; visibleMonthGroups: MonthGroup[] } {
+function useFinanceHubReceivablesData(activeTab: FinanceHubTab): { loading: boolean; visibleMonthGroups: MonthGroup[] } {
   const filters = useFinanceStore((s) => s.filters)
   const [records, setRecords] = useState<BillingRecord[]>([])
   const [loading, setLoading] = useState(true)
 
   const [currentMonth, nextMonth] = useMemo(() => getCurrentAndNextBillingMonths(), [])
 
+  const clientsKey = useMemo(() => filters.selectedClients.join(","), [filters.selectedClients])
+  const publishersKey = useMemo(() => filters.selectedPublishers.join(","), [filters.selectedPublishers])
+  const billingTypesKey = useMemo(
+    () => [...filters.billingTypes].sort().join(","),
+    [filters.billingTypes]
+  )
+  const statusesKey = useMemo(() => [...filters.statuses].sort().join(","), [filters.statuses])
+
   useEffect(() => {
+    logFinanceHubEffectDepChanges(
+      "receivables-billing-fetch",
+      [
+        "activeTab",
+        "currentMonth",
+        "nextMonth",
+        "includeDrafts",
+        "clientsKey",
+        "publishersKey",
+        "searchQuery",
+        "billingTypesKey",
+        "statusesKey",
+      ],
+      [
+        activeTab,
+        currentMonth,
+        nextMonth,
+        filters.includeDrafts,
+        clientsKey,
+        publishersKey,
+        filters.searchQuery,
+        billingTypesKey,
+        statusesKey,
+      ]
+    )
+
+    if (activeTab !== "billing") {
+      setRecords((prev) => (prev.length === 0 ? prev : []))
+      setLoading(false)
+      return
+    }
+
     let cancelled = false
+    const controller = new AbortController()
     setLoading(true)
     const params: Omit<FinanceBillingQuery, "billing_month"> = {}
     if (!filters.includeDrafts) params.include_drafts = false
@@ -170,25 +226,31 @@ function useFinanceHubReceivablesData(): { loading: boolean; visibleMonthGroups:
     }
     if (filters.statuses.length) params.status = filters.statuses.join(",")
 
-    void fetchFinanceBillingForMonths([currentMonth, nextMonth], params)
+    void fetchFinanceBillingForMonths([currentMonth, nextMonth], params, controller.signal)
       .then((rows) => {
-        if (!cancelled) setRecords(rows.filter((r) => isReceivableRecord(r)))
+        if (cancelled || controller.signal.aborted) return
+        setRecords(rows.filter((r) => isReceivableRecord(r)))
+      })
+      .catch((err: unknown) => {
+        if (err instanceof DOMException && err.name === "AbortError") return
       })
       .finally(() => {
-        if (!cancelled) setLoading(false)
+        if (!cancelled && !controller.signal.aborted) setLoading(false)
       })
     return () => {
       cancelled = true
+      controller.abort()
     }
   }, [
+    activeTab,
     currentMonth,
     nextMonth,
     filters.includeDrafts,
-    filters.selectedClients,
-    filters.selectedPublishers,
+    clientsKey,
+    publishersKey,
     filters.searchQuery,
-    filters.billingTypes,
-    filters.statuses,
+    billingTypesKey,
+    statusesKey,
   ])
 
   const monthGroups: MonthGroup[] = useMemo(() => {
@@ -447,9 +509,18 @@ export default function FinanceHubPageClient() {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
+  const lastWrittenQs = useRef<string>("")
+  const lastReadQs = useRef<string | null>(null)
   const activeTab = useFinanceStore((s) => s.activeTab)
   const filters = useFinanceStore((s) => s.filters)
-  const { loading: hubReceivablesLoading, visibleMonthGroups } = useFinanceHubReceivablesData()
+  const hubFetchClientsKey = useMemo(() => filters.selectedClients.join(","), [filters.selectedClients])
+  const hubFetchPublishersKey = useMemo(() => filters.selectedPublishers.join(","), [filters.selectedPublishers])
+  const hubFetchBillingTypesKey = useMemo(
+    () => [...filters.billingTypes].sort().join(","),
+    [filters.billingTypes]
+  )
+  const hubFetchStatusesKey = useMemo(() => [...filters.statuses].sort().join(","), [filters.statuses])
+  const { loading: hubReceivablesLoading, visibleMonthGroups } = useFinanceHubReceivablesData(activeTab)
   const [financeReportDownloading, setFinanceReportDownloading] = useState(false)
   const setFilters = useFinanceStore((s) => s.setFilters)
   const setActiveTab = useFinanceStore((s) => s.setActiveTab)
@@ -466,11 +537,49 @@ export default function FinanceHubPageClient() {
   const savedViewsList = useMemo(() => readSavedViews(), [savedViewNames])
 
   useEffect(() => {
-    scheduleFinanceFetchAll()
+    void scheduleFinanceFetchAll()
   }, [])
 
   useEffect(() => {
+    logFinanceHubEffectDepChanges(
+      "scheduleFinanceFetchAll",
+      [
+        "monthFrom",
+        "monthTo",
+        "includeDrafts",
+        "hubFetchClientsKey",
+        "hubFetchPublishersKey",
+        "hubFetchBillingTypesKey",
+        "hubFetchStatusesKey",
+        "searchQuery",
+      ],
+      [
+        filters.monthRange.from,
+        filters.monthRange.to,
+        filters.includeDrafts,
+        hubFetchClientsKey,
+        hubFetchPublishersKey,
+        hubFetchBillingTypesKey,
+        hubFetchStatusesKey,
+        filters.searchQuery,
+      ]
+    )
+    void scheduleFinanceFetchAll()
+  }, [
+    filters.monthRange.from,
+    filters.monthRange.to,
+    filters.includeDrafts,
+    hubFetchClientsKey,
+    hubFetchPublishersKey,
+    hubFetchBillingTypesKey,
+    hubFetchStatusesKey,
+    filters.searchQuery,
+  ])
+
+  useEffect(() => {
     if (!searchParams) return
+    const qsRead = searchParams.toString()
+    if (qsRead === lastReadQs.current) return
     const { activeTab: curTab, filters: cur, setActiveTab: applyTab, setFilters: applyFilters } =
       useFinanceStore.getState()
 
@@ -510,14 +619,16 @@ export default function FinanceHubPageClient() {
       if (nextIncludeDrafts !== cur.includeDrafts) partial.includeDrafts = nextIncludeDrafts
     }
     if (Object.keys(partial).length) applyFilters(partial)
+    lastReadQs.current = qsRead
   }, [searchParams])
 
   useEffect(() => {
     const params = buildSearchParams(activeTab, filters)
     const qs = params.toString()
     const current = searchParams?.toString() ?? ""
-    if (current === qs) return
+    if (qs === current || qs === lastWrittenQs.current) return
     router.replace(`${pathname}?${qs}`)
+    lastWrittenQs.current = qs
   }, [activeTab, filters, pathname, router, searchParams])
 
   useEffect(() => {

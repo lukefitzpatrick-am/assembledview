@@ -32,15 +32,71 @@ function normalizeHubTab(tab: string): FinanceHubTab {
 }
 
 let fetchAllDebounceTimer: ReturnType<typeof setTimeout> | null = null
+let fetchAllDebounceResolvers: Array<() => void> = []
+let fetchAllInFlight: Promise<void> | null = null
+let fetchAllInFlightSignature: string | null = null
 
-/** Debounced coordinated reload (billing + payables + draft count). */
-export function scheduleFinanceFetchAll(): void {
-  if (typeof window === "undefined") return
-  if (fetchAllDebounceTimer !== null) clearTimeout(fetchAllDebounceTimer)
-  fetchAllDebounceTimer = setTimeout(() => {
-    fetchAllDebounceTimer = null
-    void useFinanceStore.getState().fetchAll()
-  }, 200)
+/** Stable signature for billing/payables fetches (month range + filter dimensions). */
+export function buildFinanceFetchAllSignature(f: FinanceFilters): string {
+  return [
+    f.monthRange.from,
+    f.monthRange.to,
+    String(f.includeDrafts),
+    f.selectedClients.join(","),
+    f.selectedPublishers.join(","),
+    [...f.billingTypes].sort().join(","),
+    [...f.statuses].sort().join(","),
+    f.searchQuery,
+  ].join("\u001f")
+}
+
+/**
+ * Debounced coordinated reload (billing + payables + draft count).
+ * Only runs when invoked — does not subscribe to the store.
+ * Deduplicates: returns the in-flight promise if a fetch for the same filter signature is already running.
+ */
+export function scheduleFinanceFetchAll(): Promise<void> {
+  if (typeof window === "undefined") return Promise.resolve()
+
+  const sigNow = buildFinanceFetchAllSignature(useFinanceStore.getState().filters)
+  if (fetchAllInFlight && fetchAllInFlightSignature === sigNow) {
+    return fetchAllInFlight
+  }
+
+  return new Promise<void>((resolve) => {
+    fetchAllDebounceResolvers.push(resolve)
+    if (fetchAllDebounceTimer !== null) clearTimeout(fetchAllDebounceTimer)
+    fetchAllDebounceTimer = setTimeout(() => {
+      fetchAllDebounceTimer = null
+      const resolvers = fetchAllDebounceResolvers
+      fetchAllDebounceResolvers = []
+      const filters = useFinanceStore.getState().filters
+      const runSig = buildFinanceFetchAllSignature(filters)
+
+      const run = async () => {
+        if (fetchAllInFlight && fetchAllInFlightSignature === runSig) {
+          await fetchAllInFlight
+          return
+        }
+        const p = useFinanceStore
+          .getState()
+          .fetchAll()
+          .finally(() => {
+            if (fetchAllInFlight === p) {
+              fetchAllInFlight = null
+              fetchAllInFlightSignature = null
+            }
+          })
+        fetchAllInFlight = p
+        fetchAllInFlightSignature = runSig
+        await p
+      }
+
+      void run().finally(() => {
+        for (const r of resolvers) r()
+      })
+    }, 200)
+  })
 }
 
 function toHubFetchError(error: unknown, fallback: string): FinanceHubFetchError {
@@ -112,7 +168,6 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
     set((state) => ({
       filters: { ...state.filters, ...partial },
     }))
-    scheduleFinanceFetchAll()
   },
 
   setActiveTab: (tab) => set({ activeTab: normalizeHubTab(tab) }),
