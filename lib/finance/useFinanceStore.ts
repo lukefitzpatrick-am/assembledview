@@ -33,6 +33,8 @@ function normalizeHubTab(tab: string): FinanceHubTab {
 
 let fetchAllDebounceTimer: ReturnType<typeof setTimeout> | null = null
 let fetchAllDebounceResolvers: Array<() => void> = []
+/** Signature from the most recent `scheduleFinanceFetchAll` that (re)armed the debounce timer. */
+let fetchAllDebounceScheduledSig: string | null = null
 let fetchAllInFlight: Promise<void> | null = null
 let fetchAllInFlightSignature: string | null = null
 
@@ -54,6 +56,9 @@ export function buildFinanceFetchAllSignature(f: FinanceFilters): string {
  * Debounced coordinated reload (billing + payables + draft count).
  * Only runs when invoked — does not subscribe to the store.
  * Deduplicates: returns the in-flight promise if a fetch for the same filter signature is already running.
+ * Each schedule captures `sigNow` into `fetchAllDebounceScheduledSig` before arming the timer so the
+ * debounced run can reconcile that snapshot with `getState()` when the timer fires (avoids dedupe
+ * skew from only reading filters inside the timeout).
  */
 export function scheduleFinanceFetchAll(): Promise<void> {
   if (typeof window === "undefined") return Promise.resolve()
@@ -65,13 +70,18 @@ export function scheduleFinanceFetchAll(): Promise<void> {
 
   return new Promise<void>((resolve) => {
     fetchAllDebounceResolvers.push(resolve)
+    fetchAllDebounceScheduledSig = sigNow
     if (fetchAllDebounceTimer !== null) clearTimeout(fetchAllDebounceTimer)
     fetchAllDebounceTimer = setTimeout(() => {
       fetchAllDebounceTimer = null
       const resolvers = fetchAllDebounceResolvers
       fetchAllDebounceResolvers = []
-      const filters = useFinanceStore.getState().filters
-      const runSig = buildFinanceFetchAllSignature(filters)
+      const scheduledSig = fetchAllDebounceScheduledSig
+      fetchAllDebounceScheduledSig = null
+
+      const liveSig = buildFinanceFetchAllSignature(useFinanceStore.getState().filters)
+      const runSig =
+        scheduledSig !== null && liveSig !== scheduledSig ? liveSig : (scheduledSig ?? liveSig)
 
       const run = async () => {
         if (fetchAllInFlight && fetchAllInFlightSignature === runSig) {

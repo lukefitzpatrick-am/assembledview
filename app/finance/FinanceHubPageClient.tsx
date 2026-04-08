@@ -4,7 +4,7 @@ import dynamic from "next/dynamic"
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ToastAction } from "@/components/ui/toast"
 import { saveAs } from "file-saver"
-import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { usePathname } from "next/navigation"
 import { Bookmark, ChevronDown, Download, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -212,7 +212,6 @@ function useFinanceHubReceivablesData(activeTab: FinanceHubTab): { loading: bool
     }
 
     let cancelled = false
-    const controller = new AbortController()
     setLoading(true)
     const params: Omit<FinanceBillingQuery, "billing_month"> = {}
     if (!filters.includeDrafts) params.include_drafts = false
@@ -226,20 +225,17 @@ function useFinanceHubReceivablesData(activeTab: FinanceHubTab): { loading: bool
     }
     if (filters.statuses.length) params.status = filters.statuses.join(",")
 
-    void fetchFinanceBillingForMonths([currentMonth, nextMonth], params, controller.signal)
+    void fetchFinanceBillingForMonths([currentMonth, nextMonth], params)
       .then((rows) => {
-        if (cancelled || controller.signal.aborted) return
+        if (cancelled) return
         setRecords(rows.filter((r) => isReceivableRecord(r)))
       })
-      .catch((err: unknown) => {
-        if (err instanceof DOMException && err.name === "AbortError") return
-      })
+      .catch(() => {})
       .finally(() => {
-        if (!cancelled && !controller.signal.aborted) setLoading(false)
+        if (!cancelled) setLoading(false)
       })
     return () => {
       cancelled = true
-      controller.abort()
     }
   }, [
     activeTab,
@@ -506,13 +502,18 @@ function buildSearchParams(activeTab: FinanceHubTab, filters: FinanceFilters) {
 }
 
 export default function FinanceHubPageClient() {
-  const router = useRouter()
   const pathname = usePathname()
-  const searchParams = useSearchParams()
   const lastWrittenQs = useRef<string>("")
-  const lastReadQs = useRef<string | null>(null)
+  const initialSearchParamsRef = useRef<URLSearchParams | null>(null)
+  const didInitFromUrl = useRef(false)
   const activeTab = useFinanceStore((s) => s.activeTab)
   const filters = useFinanceStore((s) => s.filters)
+  const monthFromKey = filters.monthRange.from
+  const monthToKey = filters.monthRange.to
+  const clientsCsvKey = filters.selectedClients.join(",")
+  const publishersCsvKey = filters.selectedPublishers.join(",")
+  const searchQueryKey = filters.searchQuery
+  const includeDraftsKey = filters.includeDrafts ? "1" : "0"
   const hubFetchClientsKey = useMemo(() => filters.selectedClients.join(","), [filters.selectedClients])
   const hubFetchPublishersKey = useMemo(() => filters.selectedPublishers.join(","), [filters.selectedPublishers])
   const hubFetchBillingTypesKey = useMemo(
@@ -564,6 +565,18 @@ export default function FinanceHubPageClient() {
         filters.searchQuery,
       ]
     )
+    if (process.env.NEXT_PUBLIC_FINANCE_DEBUG === "1") {
+      console.log("[finance-hub] scheduleFinanceFetchAll effect fired", {
+        monthFrom: filters.monthRange.from,
+        monthTo: filters.monthRange.to,
+        includeDrafts: filters.includeDrafts,
+        hubFetchClientsKey,
+        hubFetchPublishersKey,
+        hubFetchBillingTypesKey,
+        hubFetchStatusesKey,
+        searchQuery: filters.searchQuery,
+      })
+    }
     void scheduleFinanceFetchAll()
   }, [
     filters.monthRange.from,
@@ -577,31 +590,33 @@ export default function FinanceHubPageClient() {
   ])
 
   useEffect(() => {
-    if (!searchParams) return
-    const qsRead = searchParams.toString()
-    if (qsRead === lastReadQs.current) return
+    if (didInitFromUrl.current) return
+    didInitFromUrl.current = true
+    if (initialSearchParamsRef.current === null) {
+      initialSearchParamsRef.current = new URLSearchParams(window.location.search)
+    }
+    const sp = initialSearchParamsRef.current
+
     const { activeTab: curTab, filters: cur, setActiveTab: applyTab, setFilters: applyFilters } =
       useFinanceStore.getState()
 
-    const tabParam = parseFinanceHubTabParam(searchParams.get("tab"))
+    const tabParam = parseFinanceHubTabParam(sp.get("tab"))
     if (tabParam !== curTab) applyTab(tabParam)
 
     const partial: Partial<FinanceFilters> = {}
-    const from = searchParams.get("from")
-    const to = searchParams.get("to")
+    const from = sp.get("from")
+    const to = sp.get("to")
     if (from) {
       const nextTo = to || from
       if (cur.monthRange.from !== from || cur.monthRange.to !== nextTo) {
         partial.monthRange = { from, to: nextTo }
       }
     }
-    const nextClients = searchParams.has("clients")
-      ? (searchParams.get("clients") || "").split(",").filter(Boolean)
-      : []
+    const nextClients = sp.has("clients") ? (sp.get("clients") || "").split(",").filter(Boolean) : []
     if (nextClients.join(",") !== cur.selectedClients.join(",")) partial.selectedClients = nextClients
 
-    const nextPublishers = searchParams.has("publishers")
-      ? (searchParams.get("publishers") || "")
+    const nextPublishers = sp.has("publishers")
+      ? (sp.get("publishers") || "")
           .split(",")
           .map(Number)
           .filter((n) => Number.isFinite(n))
@@ -610,26 +625,34 @@ export default function FinanceHubPageClient() {
       partial.selectedPublishers = nextPublishers
     }
 
-    const nextQ = searchParams.get("q") || ""
+    const nextQ = sp.get("q") || ""
     if (nextQ !== cur.searchQuery) partial.searchQuery = nextQ
 
     // Only sync drafts from URL when present — missing param keeps store default (excludes drafts).
-    if (searchParams.has("drafts")) {
-      const nextIncludeDrafts = searchParams.get("drafts") !== "0"
+    if (sp.has("drafts")) {
+      const nextIncludeDrafts = sp.get("drafts") !== "0"
       if (nextIncludeDrafts !== cur.includeDrafts) partial.includeDrafts = nextIncludeDrafts
     }
     if (Object.keys(partial).length) applyFilters(partial)
-    lastReadQs.current = qsRead
-  }, [searchParams])
+  }, [])
 
   useEffect(() => {
-    const params = buildSearchParams(activeTab, filters)
+    const params = buildSearchParams(activeTab, useFinanceStore.getState().filters)
     const qs = params.toString()
-    const current = searchParams?.toString() ?? ""
-    if (qs === current || qs === lastWrittenQs.current) return
-    router.replace(`${pathname}?${qs}`)
+    if (qs === lastWrittenQs.current) return
     lastWrittenQs.current = qs
-  }, [activeTab, filters, pathname, router, searchParams])
+    const newUrl = `${pathname}?${qs}`
+    window.history.replaceState(null, "", newUrl)
+  }, [
+    activeTab,
+    monthFromKey,
+    monthToKey,
+    clientsCsvKey,
+    publishersCsvKey,
+    searchQueryKey,
+    includeDraftsKey,
+    pathname,
+  ])
 
   useEffect(() => {
     if (!billingError) return
