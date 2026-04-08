@@ -20,6 +20,8 @@ import {
   isSnapshotStorageConfigured,
 } from "@/lib/finance/forecast/snapshot/xanoSnapshotQuery"
 
+export const maxDuration = 60
+
 export const dynamic = "force-dynamic"
 export const revalidate = 0
 

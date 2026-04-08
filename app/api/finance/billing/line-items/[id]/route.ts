@@ -5,6 +5,8 @@ import {
   xanoFinancePatch,
 } from "@/lib/finance/xanoFinanceApi"
 
+export const maxDuration = 60
+
 export async function PATCH(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }

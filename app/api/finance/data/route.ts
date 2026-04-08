@@ -10,6 +10,7 @@ import {
 import { xanoUrl } from "@/lib/api/xano"
 import { fetchRelevantPlanVersionsForFinanceMonth } from "@/lib/finance/relevantPlanVersions"
 
+export const maxDuration = 60
 
 export async function GET(request: NextRequest) {
   try {

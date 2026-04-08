@@ -8,10 +8,12 @@ import {
 } from "@/lib/finance/billingApiParams"
 import { derivePlanReceivableBillingRecordsForMonth, receivableMergeKey } from "@/lib/finance/deriveReceivableRecords"
 import { deriveSowBillingRecordsFromScopes, type ScopeOfWorkRow } from "@/lib/finance/deriveScopeSowReceivables"
-import { hydratePlanVersionsForBillingLineEnrichment } from "@/lib/finance/hydratePlanVersionsForBillingLineEnrichment"
 import { fetchRelevantPlanVersionsForFinanceMonth } from "@/lib/finance/relevantPlanVersions"
+import { getCachedClients, getCachedPublishers } from "@/lib/finance/xanoReferenceCache"
 import type { BillingRecord } from "@/lib/types/financeBilling"
 import { financeClientNamesMatch } from "@/lib/finance/utils"
+
+export const maxDuration = 60
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -171,9 +173,8 @@ export async function GET(request: NextRequest) {
           { status: versionsResult.status }
         )
       }
-      relevantVersions = await hydratePlanVersionsForBillingLineEnrichment(
-        versionsResult.relevantVersions as Record<string, unknown>[]
-      )
+      // Hydration removed because it caused Vercel FUNCTION_INVOCATION_TIMEOUT by fanning out across 19 Xano line-item endpoints per version.
+      relevantVersions = versionsResult.relevantVersions as Record<string, unknown>[]
     } catch (e: unknown) {
       const ax = axios.isAxiosError(e)
       const status =
@@ -186,13 +187,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ ...base, field: "billing_month" }, { status })
     }
 
-    const [clientsResponse, publishersResponse] = await Promise.all([
-      axios.get(xanoUrl("get_clients", "XANO_CLIENTS_BASE_URL")).catch(() => ({ data: [] })),
-      axios.get(xanoUrl("get_publishers", "XANO_CLIENTS_BASE_URL")).catch(() => ({ data: [] })),
-    ])
-
-    const clients = Array.isArray(clientsResponse.data) ? clientsResponse.data : []
-    const publishers = Array.isArray(publishersResponse.data) ? publishersResponse.data : []
+    const [clients, publishers] = await Promise.all([getCachedClients(), getCachedPublishers()])
     const clientMap = buildClientNameMap(clients as Record<string, unknown>[])
     const publisherNameMap = new Map<string, unknown>()
     for (const p of publishers as Record<string, unknown>[]) {

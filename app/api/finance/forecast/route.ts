@@ -6,6 +6,8 @@ import {
   normalizeScenario,
 } from "@/lib/finance/forecast/server/loadFinanceForecastDataset"
 
+export const maxDuration = 60
+
 export const dynamic = "force-dynamic"
 export const revalidate = 0
 

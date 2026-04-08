@@ -5,6 +5,8 @@ import { derivePayableRecordsForMonth } from "@/lib/finance/derivePayableRecords
 import { fetchRelevantPlanVersionsForFinanceMonth } from "@/lib/finance/relevantPlanVersions"
 import type { BillingRecord } from "@/lib/types/financeBilling"
 
+export const maxDuration = 60
+
 export const dynamic = "force-dynamic"
 export const revalidate = 0
 

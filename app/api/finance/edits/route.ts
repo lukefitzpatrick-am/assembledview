@@ -6,6 +6,8 @@ import {
   xanoFinancePost,
 } from "@/lib/finance/xanoFinanceApi"
 
+export const maxDuration = 60
+
 export async function GET(request: NextRequest) {
   try {
     const recordId = request.nextUrl.searchParams.get("finance_billing_records_id")

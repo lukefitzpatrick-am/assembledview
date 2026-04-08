@@ -6,6 +6,8 @@ import {
   xanoFinancePost,
 } from "@/lib/finance/xanoFinanceApi"
 
+export const maxDuration = 60
+
 export async function GET() {
   try {
     const data = await xanoFinanceGet(FINANCE_SAVED_VIEWS_PATH)

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { FINANCE_BILLING_LINE_ITEMS_PATH, xanoFinancePost } from "@/lib/finance/xanoFinanceApi"
 
+export const maxDuration = 60
+
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as Record<string, unknown>

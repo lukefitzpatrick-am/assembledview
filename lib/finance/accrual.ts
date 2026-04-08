@@ -532,6 +532,126 @@ function flattenSchedule(args: {
   return out
 }
 
+/**
+ * Walk schedule JSON like `flattenSchedule` (all month entries; no month filter) and collect
+ * `clientPaysForMedia` / `client_pays_for_media` flags keyed by `buildLineItemKey` (lowercased id when present).
+ */
+export function collectClientPaysForMediaFlagsFromSchedule(schedule: unknown): Record<string, boolean> {
+  const out: Record<string, boolean> = {}
+  const scheduleArray = toScheduleArray(schedule)
+  if (!scheduleArray.length) return out
+
+  const recordFlag = (
+    lineItem: any,
+    mediaType: string | undefined,
+    header1: string | undefined,
+    header2: string | undefined,
+    lineItemName: string
+  ) => {
+    const lineItemKey = buildLineItemKey({
+      lineItem,
+      mediaType,
+      header1: header1 ?? "",
+      header2: header2 ?? "",
+      lineItemName,
+    })
+    const pays = lineItem?.clientPaysForMedia === true || lineItem?.client_pays_for_media === true
+    if (pays) out[lineItemKey] = true
+    else if (!(lineItemKey in out)) out[lineItemKey] = false
+  }
+
+  for (const monthEntry of scheduleArray) {
+    const mediaTypes =
+      monthEntry?.mediaTypes ??
+      monthEntry?.media_types ??
+      monthEntry?.mediaTypeEntries ??
+      monthEntry?.channels ??
+      null
+
+    if (Array.isArray(mediaTypes)) {
+      for (const mediaTypeEntry of mediaTypes) {
+        const mediaType =
+          safeString(
+            mediaTypeEntry?.mediaType ??
+              mediaTypeEntry?.media_type ??
+              mediaTypeEntry?.type ??
+              mediaTypeEntry?.name ??
+              monthEntry?.mediaType ??
+              monthEntry?.media_type ??
+              monthEntry?.channel ??
+              monthEntry?.media_channel
+          ) || undefined
+
+        const lineItems =
+          mediaTypeEntry?.lineItems ??
+          mediaTypeEntry?.line_items ??
+          mediaTypeEntry?.items ??
+          mediaTypeEntry?.rows ??
+          null
+
+        if (Array.isArray(lineItems)) {
+          for (const lineItem of lineItems) {
+            const { header1, header2 } = extractHeaders(lineItem)
+            const explicitName =
+              lineItem?.lineItemName ??
+              lineItem?.line_item_name ??
+              lineItem?.name ??
+              lineItem?.description ??
+              lineItem?.label ??
+              lineItem?.title ??
+              null
+            const lineItemName = buildLineItemName({ mediaType, header1, header2, explicitName })
+            recordFlag(lineItem, mediaType, header1, header2, lineItemName)
+          }
+          continue
+        }
+
+        const amount = extractAmount(null, mediaTypeEntry, monthEntry)
+        if (amount !== 0) {
+          const lineItemName = buildLineItemName({ mediaType, header1: "", header2: "", explicitName: undefined })
+          recordFlag(mediaTypeEntry, mediaType, "", "", lineItemName)
+        }
+      }
+      continue
+    }
+
+    const flatLineItems = monthEntry?.lineItems ?? monthEntry?.line_items ?? monthEntry?.items ?? null
+    if (Array.isArray(flatLineItems)) {
+      const mediaType =
+        safeString(monthEntry?.mediaType ?? monthEntry?.media_type ?? monthEntry?.channel ?? "") || undefined
+      for (const lineItem of flatLineItems) {
+        const { header1, header2 } = extractHeaders(lineItem)
+        const explicitName =
+          lineItem?.lineItemName ??
+          lineItem?.line_item_name ??
+          lineItem?.name ??
+          lineItem?.description ??
+          lineItem?.label ??
+          lineItem?.title ??
+          null
+        const lineItemName = buildLineItemName({ mediaType, header1, header2, explicitName })
+        recordFlag(lineItem, mediaType, header1, header2, lineItemName)
+      }
+      continue
+    }
+
+    const mediaType =
+      safeString(monthEntry?.mediaType ?? monthEntry?.media_type ?? monthEntry?.channel ?? "") || undefined
+    const amount = extractAmount(monthEntry, null, monthEntry)
+    if (amount !== 0) {
+      const lineItemName = buildLineItemName({
+        mediaType,
+        header1: safeString(monthEntry?.header1 ?? monthEntry?.publisher ?? ""),
+        header2: safeString(monthEntry?.header2 ?? monthEntry?.placement ?? ""),
+        explicitName: monthEntry?.lineItemName ?? monthEntry?.name ?? monthEntry?.description ?? null,
+      })
+      recordFlag(monthEntry, mediaType, "", "", lineItemName)
+    }
+  }
+
+  return out
+}
+
 function slugifyClientName(name: string): string {
   return name
     .toLowerCase()

@@ -8,6 +8,8 @@ import {
 } from "@/lib/finance/scopeScheduleExtract"
 import { xanoUrl } from "@/lib/api/xano"
 
+export const maxDuration = 60
+
 type ScopeOfWork = {
   id: number
   scope_id?: string

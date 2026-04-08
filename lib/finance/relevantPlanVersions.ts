@@ -9,6 +9,22 @@ export type RelevantVersionsResult = {
   relevantVersions: any[]
 }
 
+const CACHE_TTL_MS = 30_000
+
+const relevantPlanVersionsCache = new Map<
+  string,
+  { expiresAt: number; value: RelevantVersionsResult }
+>()
+const relevantPlanVersionsInFlight = new Map<
+  string,
+  Promise<RelevantVersionsResult | { error: string; status: number }>
+>()
+
+export function clearRelevantPlanVersionsCache(): void {
+  relevantPlanVersionsCache.clear()
+  relevantPlanVersionsInFlight.clear()
+}
+
 /**
  * Latest media plan versions whose campaign dates overlap the given calendar month.
  * Shared by finance API routes (media billing, publisher invoices, etc.).
@@ -21,60 +37,85 @@ export async function fetchRelevantPlanVersionsForFinanceMonth(
     return { error: "Invalid month format. Use YYYY-MM", status: 400 }
   }
 
-  const mastersResponse = await axios.get(
-    xanoUrl("media_plan_master", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
-  )
-  const masters = Array.isArray(mastersResponse.data) ? mastersResponse.data : []
+  const now = Date.now()
+  const cached = relevantPlanVersionsCache.get(monthParam)
+  if (cached && cached.expiresAt > now) {
+    return cached.value
+  }
 
-  const mbaToVersionMap = new Map<string, { masterId?: number; versionNumber: number }>()
-  masters.forEach((master: any) => {
-    if (master.mba_number && master.version_number) {
-      const versionNumber = Number(master.version_number) || 0
-      const existing = mbaToVersionMap.get(master.mba_number)
-      if (!existing || versionNumber > existing.versionNumber) {
-        mbaToVersionMap.set(master.mba_number, {
-          masterId: master.id,
-          versionNumber,
-        })
-      }
-    }
-  })
+  const inflight = relevantPlanVersionsInFlight.get(monthParam)
+  if (inflight) {
+    return inflight
+  }
 
-  const versionsResponse = await axios.get(
-    xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
-  )
-  const allVersions = Array.isArray(versionsResponse.data) ? versionsResponse.data : []
+  const promise = (async (): Promise<RelevantVersionsResult> => {
+    try {
+      const mastersResponse = await axios.get(
+        xanoUrl("media_plan_master", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
+      )
+      const masters = Array.isArray(mastersResponse.data) ? mastersResponse.data : []
 
-  allVersions.forEach((version: any) => {
-    if (!version.mba_number) return
-    const versionNumber = Number(version.version_number) || 0
-    const existing = mbaToVersionMap.get(version.mba_number)
-    if (!existing || versionNumber > existing.versionNumber) {
-      mbaToVersionMap.set(version.mba_number, {
-        masterId: version.media_plan_master_id,
-        versionNumber,
+      const mbaToVersionMap = new Map<string, { masterId?: number; versionNumber: number }>()
+      masters.forEach((master: any) => {
+        if (master.mba_number && master.version_number) {
+          const versionNumber = Number(master.version_number) || 0
+          const existing = mbaToVersionMap.get(master.mba_number)
+          if (!existing || versionNumber > existing.versionNumber) {
+            mbaToVersionMap.set(master.mba_number, {
+              masterId: master.id,
+              versionNumber,
+            })
+          }
+        }
       })
+
+      const versionsResponse = await axios.get(
+        xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
+      )
+      const allVersions = Array.isArray(versionsResponse.data) ? versionsResponse.data : []
+
+      allVersions.forEach((version: any) => {
+        if (!version.mba_number) return
+        const versionNumber = Number(version.version_number) || 0
+        const existing = mbaToVersionMap.get(version.mba_number)
+        if (!existing || versionNumber > existing.versionNumber) {
+          mbaToVersionMap.set(version.mba_number, {
+            masterId: version.media_plan_master_id,
+            versionNumber,
+          })
+        }
+      })
+
+      const relevantVersions = allVersions.filter((version: any) => {
+        if (!version.mba_number) return false
+        const versionInfo = mbaToVersionMap.get(version.mba_number)
+        if (!versionInfo) return false
+
+        const isLatestVersionNumber = Number(version.version_number) === Number(versionInfo.versionNumber)
+        const masterIdMatches =
+          !version.media_plan_master_id ||
+          !versionInfo.masterId ||
+          version.media_plan_master_id === versionInfo.masterId
+
+        if (!isLatestVersionNumber || !masterIdMatches) return false
+
+        if (version.campaign_start_date && version.campaign_end_date) {
+          return campaignOverlapsMonth(version.campaign_start_date, version.campaign_end_date, year, month)
+        }
+        return false
+      })
+
+      const value: RelevantVersionsResult = { year, month, allVersions, relevantVersions }
+      relevantPlanVersionsCache.set(monthParam, {
+        expiresAt: Date.now() + CACHE_TTL_MS,
+        value,
+      })
+      return value
+    } finally {
+      relevantPlanVersionsInFlight.delete(monthParam)
     }
-  })
+  })()
 
-  const relevantVersions = allVersions.filter((version: any) => {
-    if (!version.mba_number) return false
-    const versionInfo = mbaToVersionMap.get(version.mba_number)
-    if (!versionInfo) return false
-
-    const isLatestVersionNumber = Number(version.version_number) === Number(versionInfo.versionNumber)
-    const masterIdMatches =
-      !version.media_plan_master_id ||
-      !versionInfo.masterId ||
-      version.media_plan_master_id === versionInfo.masterId
-
-    if (!isLatestVersionNumber || !masterIdMatches) return false
-
-    if (version.campaign_start_date && version.campaign_end_date) {
-      return campaignOverlapsMonth(version.campaign_start_date, version.campaign_end_date, year, month)
-    }
-    return false
-  })
-
-  return { year, month, allVersions, relevantVersions }
+  relevantPlanVersionsInFlight.set(monthParam, promise)
+  return promise
 }

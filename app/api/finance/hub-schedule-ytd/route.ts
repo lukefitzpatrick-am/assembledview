@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 import { getFinanceHubScheduleFytdTotals } from "@/lib/api/dashboard"
 
+export const maxDuration = 60
+
 export async function GET() {
   try {
     const result = await getFinanceHubScheduleFytdTotals()

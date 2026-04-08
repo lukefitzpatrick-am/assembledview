@@ -538,10 +538,6 @@ export default function FinanceHubPageClient() {
   const savedViewsList = useMemo(() => readSavedViews(), [savedViewNames])
 
   useEffect(() => {
-    void scheduleFinanceFetchAll()
-  }, [])
-
-  useEffect(() => {
     logFinanceHubEffectDepChanges(
       "scheduleFinanceFetchAll",
       [
@@ -587,6 +583,7 @@ export default function FinanceHubPageClient() {
     hubFetchBillingTypesKey,
     hubFetchStatusesKey,
     filters.searchQuery,
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- hubFetchClientsKey, hubFetchPublishersKey, hubFetchBillingTypesKey, and hubFetchStatusesKey are stable string equivalents of filters.selectedClients, filters.selectedPublishers, filters.billingTypes, and filters.statuses
   ])
 
   useEffect(() => {

@@ -7,6 +7,8 @@ import axios from "axios"
 import { NextRequest, NextResponse } from "next/server"
 import { parseXanoListPayload, xanoUrl } from "@/lib/api/xano"
 
+export const maxDuration = 60
+
 type BillingStatus = "draft" | "booked" | "approved" | "invoiced" | "paid" | "cancelled"
 type BillingType = "media" | "sow" | "retainer"
 

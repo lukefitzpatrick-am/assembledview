@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { FINANCE_BILLING_RECORDS_PATH, xanoFinancePatch } from "@/lib/finance/xanoFinanceApi"
 
+export const maxDuration = 60
+
 export async function PATCH(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
