@@ -145,7 +145,7 @@ const burstSchema = z.object({
 
 const lineItemSchema = z.object({
   platform: z.string().min(1, "Platform is required"),
-  bidStrategy: z.string().min(1, "Targeting is required"),
+  bidStrategy: z.string().min(1, "Bid strategy is required"),
   buyType: z.string().min(1, "Buy Type is required"),
   creativeTargeting: z.string().optional().default(""),
   creative: z.string().optional().default(""),
@@ -1432,7 +1432,7 @@ useEffect(() => {
                             <span className="font-medium">Buy Type:</span> {formatBuyTypeForDisplay(form.watch(`lineItems.${lineItemIndex}.buyType`))}
                           </div>
                           <div>
-                            <span className="font-medium">Targeting:</span> {form.watch(`lineItems.${lineItemIndex}.bidStrategy`) || 'Not selected'}
+                            <span className="font-medium">Bid strategy:</span> {form.watch(`lineItems.${lineItemIndex}.bidStrategy`) || 'Not selected'}
                           </div>
                           <div>
                             <span className="font-medium">Bursts:</span> {form.watch(`lineItems.${lineItemIndex}.bursts`, []).length}
@@ -1477,13 +1477,13 @@ useEffect(() => {
                                 name={`lineItems.${lineItemIndex}.bidStrategy`}
                                 render={({ field }) => (
                                   <FormItem className="flex flex-col space-y-1.5">
-                                    <FormLabel className="text-sm text-muted-foreground font-medium">Targeting</FormLabel>
+                                    <FormLabel className="text-sm text-muted-foreground font-medium">Bid Strategy</FormLabel>
                                     <FormControl>
                                       <Combobox
                                         value={field.value}
                                         onValueChange={field.onChange}
                                         placeholder="Select"
-                                        searchPlaceholder="Search targeting..."
+                                        searchPlaceholder="Search bid strategies..."
                                         buttonClassName="h-9 w-full flex-1 rounded-md"
                                         options={[
                                           { value: "manual_cpc", label: "Manual CPC" },

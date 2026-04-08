@@ -95,6 +95,10 @@ import { mergeManualKpiOverrides } from "@/lib/kpi/mergeManualKpiOverrides"
 import { getPublisherKPIs, getClientKPIs, saveCampaignKPIs } from "@/lib/api/kpi"
 import type { PublisherKPI, ClientKPI, ResolvedKPIRow, CampaignKPI } from "@/types/kpi"
 import type { Publisher } from "@/lib/types/publisher"
+import {
+  planHasAdvertisingAssociatesLineItem,
+  shouldIncludeMediaPlanLineItem,
+} from "@/lib/mediaplan/advertisingAssociatesExcel"
 
 const mediaPlanSchema = z.object({
   mp_client_name: z.string().min(1, "Client name is required"),
@@ -352,6 +356,7 @@ export default function CreateMediaPlan() {
   const { setMbaNumber } = useMediaPlanContext() 
   const [burstsData, setBurstsData] = useState([])
   const [isDownloading, setIsDownloading] = useState(false)
+  const [isDownloadingAa, setIsDownloadingAa] = useState(false)
   const [isNamingDownloading, setIsNamingDownloading] = useState(false)
   const [clientAddress, setClientAddress] = useState("")
   const [clientSuburb, setClientSuburb] = useState("")
@@ -765,6 +770,52 @@ export default function CreateMediaPlan() {
     progAudioMediaLineItems,
     progOohMediaLineItems,
     influencersMediaLineItems,
+  ])
+
+  const showAaMediaPlanDownload = useMemo(() => {
+    const mediaItems: MediaItems = {
+      search: searchItems.filter(shouldIncludeMediaPlanLineItem),
+      socialMedia: socialMediaItems.filter(shouldIncludeMediaPlanLineItem),
+      digiAudio: digiAudioItems.filter(shouldIncludeMediaPlanLineItem),
+      digiDisplay: digiDisplayItems.filter(shouldIncludeMediaPlanLineItem),
+      digiVideo: digiVideoItems.filter(shouldIncludeMediaPlanLineItem),
+      bvod: bvodItems.filter(shouldIncludeMediaPlanLineItem),
+      progDisplay: progDisplayItems.filter(shouldIncludeMediaPlanLineItem),
+      progVideo: progVideoItems.filter(shouldIncludeMediaPlanLineItem),
+      progBvod: progBvodItems.filter(shouldIncludeMediaPlanLineItem),
+      progOoh: progOohItems.filter(shouldIncludeMediaPlanLineItem),
+      progAudio: progAudioItems.filter(shouldIncludeMediaPlanLineItem),
+      newspaper: newspaperItems.filter(shouldIncludeMediaPlanLineItem),
+      magazines: magazineItems.filter(shouldIncludeMediaPlanLineItem),
+      television: televisionItems.filter(shouldIncludeMediaPlanLineItem),
+      radio: radioItems.filter(shouldIncludeMediaPlanLineItem),
+      ooh: oohItems.filter(shouldIncludeMediaPlanLineItem),
+      cinema: cinemaItems.filter(shouldIncludeMediaPlanLineItem),
+      integration: integrationItems.filter(shouldIncludeMediaPlanLineItem),
+      production: consultingItems.filter(shouldIncludeMediaPlanLineItem),
+    }
+    return planHasAdvertisingAssociatesLineItem(mediaItems, kpiPublishers, () => true)
+  }, [
+    searchItems,
+    socialMediaItems,
+    digiAudioItems,
+    digiDisplayItems,
+    digiVideoItems,
+    bvodItems,
+    progDisplayItems,
+    progVideoItems,
+    progBvodItems,
+    progOohItems,
+    progAudioItems,
+    newspaperItems,
+    magazineItems,
+    televisionItems,
+    radioItems,
+    oohItems,
+    cinemaItems,
+    integrationItems,
+    consultingItems,
+    kpiPublishers,
   ])
 
   useEffect(() => {
@@ -2126,18 +2177,11 @@ export default function CreateMediaPlan() {
     return { blob, fileName, planVersion: resolvedPlanVersion };
   };
 
-  const generateMediaPlanXlsxBlob = async (opts?: { planVersion?: string }) => {
+  const generateMediaPlanXlsxBlob = async (opts?: { planVersion?: string; variant?: "standard" | "aa" }) => {
     const planVersion = String(opts?.planVersion || form.getValues('mp_plannumber') || '1');
+    const variant = opts?.variant ?? "standard"
     // Allow container effects to emit latest duplicated line items before export
     await waitForStateFlush();
-
-    const shouldIncludeLineItem = (item: LineItem) => {
-      const buyType = (item.buyType || '').toLowerCase();
-      const budgetValue = parseFloat(String(item.deliverablesAmount ?? '').replace(/[^0-9.]/g, '')) || 0;
-      const deliverablesValue = parseFloat(String(item.deliverables ?? '').replace(/[^0-9.]/g, '')) || 0;
-      const grossValue = parseFloat(String(item.grossMedia ?? '').replace(/[^0-9.]/g, '')) || 0;
-      return buyType === 'bonus' || budgetValue > 0 || deliverablesValue > 0 || grossValue > 0;
-    };
 
     // fetch and encode logo
     const logoBuf = await fetch('/assembled-logo.png').then(r => r.arrayBuffer())
@@ -2180,25 +2224,25 @@ export default function CreateMediaPlan() {
         };
       });
 
-    const validSearchItems = searchItems.filter(shouldIncludeLineItem);
-    const validSocialMediaItems = socialMediaItems.filter(shouldIncludeLineItem);
-    const validDigiAudioItems = digiAudioItems.filter(shouldIncludeLineItem);
-    const validDigiDisplayItems = digiDisplayItems.filter(shouldIncludeLineItem);
-    const validDigiVideoItems = digiVideoItems.filter(shouldIncludeLineItem);
-    const validBvodItems = bvodItems.filter(shouldIncludeLineItem);
-    const validProgDisplayItems = progDisplayItems.filter(shouldIncludeLineItem);
-    const validProgVideoItems = progVideoItems.filter(shouldIncludeLineItem);
-    const validProgBvodItems = progBvodItems.filter(shouldIncludeLineItem);
-    const validProgOohItems = progOohItems.filter(shouldIncludeLineItem);
-    const validProgAudioItems = progAudioItems.filter(shouldIncludeLineItem);
-    const validNewspaperItems = newspaperItems.filter(shouldIncludeLineItem);
-    const validMagazinesItems = magazineItems.filter(shouldIncludeLineItem);
-    const validTelevisionItems = televisionItems.filter(shouldIncludeLineItem);
-    const validRadioItems = radioItems.filter(shouldIncludeLineItem);
-    const validOohItems = oohItems.filter(shouldIncludeLineItem);
-    const validCinemaItems = cinemaItems.filter(shouldIncludeLineItem);
-    const validIntegrationItems = integrationItems.filter(shouldIncludeLineItem);
-    const validConsultingItems = consultingItems.filter(shouldIncludeLineItem);
+    const validSearchItems = searchItems.filter(shouldIncludeMediaPlanLineItem);
+    const validSocialMediaItems = socialMediaItems.filter(shouldIncludeMediaPlanLineItem);
+    const validDigiAudioItems = digiAudioItems.filter(shouldIncludeMediaPlanLineItem);
+    const validDigiDisplayItems = digiDisplayItems.filter(shouldIncludeMediaPlanLineItem);
+    const validDigiVideoItems = digiVideoItems.filter(shouldIncludeMediaPlanLineItem);
+    const validBvodItems = bvodItems.filter(shouldIncludeMediaPlanLineItem);
+    const validProgDisplayItems = progDisplayItems.filter(shouldIncludeMediaPlanLineItem);
+    const validProgVideoItems = progVideoItems.filter(shouldIncludeMediaPlanLineItem);
+    const validProgBvodItems = progBvodItems.filter(shouldIncludeMediaPlanLineItem);
+    const validProgOohItems = progOohItems.filter(shouldIncludeMediaPlanLineItem);
+    const validProgAudioItems = progAudioItems.filter(shouldIncludeMediaPlanLineItem);
+    const validNewspaperItems = newspaperItems.filter(shouldIncludeMediaPlanLineItem);
+    const validMagazinesItems = magazineItems.filter(shouldIncludeMediaPlanLineItem);
+    const validTelevisionItems = televisionItems.filter(shouldIncludeMediaPlanLineItem);
+    const validRadioItems = radioItems.filter(shouldIncludeMediaPlanLineItem);
+    const validOohItems = oohItems.filter(shouldIncludeMediaPlanLineItem);
+    const validCinemaItems = cinemaItems.filter(shouldIncludeMediaPlanLineItem);
+    const validIntegrationItems = integrationItems.filter(shouldIncludeMediaPlanLineItem);
+    const validConsultingItems = consultingItems.filter(shouldIncludeMediaPlanLineItem);
 
     const mediaItems: MediaItems = {
       search:       assignLineItemIds(validSearchItems,       "SRC"),
@@ -2222,25 +2266,47 @@ export default function CreateMediaPlan() {
       production:   assignLineItemIds(validConsultingItems,   "PROD"),
     };
 
-    const mbaData = {
-      gross_media: mediaTypes
-        .filter(medium => form.watch(medium.name as keyof MediaPlanFormValues))
-        .map(medium => ({
-          media_type: medium.label,
-          gross_amount: calculateMediaTotal(medium.name),
-        })),
-      totals: {
-        gross_media: grossMediaTotal,
-        service_fee: calculateAssembledFee(),
-        production: calculateProductionCosts(),
-        adserving: calculateAdServingFees(),
-        totals_ex_gst: totalInvestment,
-        total_inc_gst: totalInvestment * 1.1,
-      }
-    };
+    const productionTotal = calculateProductionCosts()
+    const totalsExGstAa = grossMediaTotal + productionTotal
+    const mbaData =
+      variant === "aa"
+        ? {
+            gross_media: mediaTypes
+              .filter((medium) => form.watch(medium.name as keyof MediaPlanFormValues))
+              .map((medium) => ({
+                media_type: medium.label,
+                gross_amount: calculateMediaTotal(medium.name),
+              })),
+            totals: {
+              gross_media: grossMediaTotal,
+              service_fee: 0,
+              production: productionTotal,
+              adserving: 0,
+              totals_ex_gst: totalsExGstAa,
+              total_inc_gst: totalsExGstAa * 1.1,
+            },
+          }
+        : {
+            gross_media: mediaTypes
+              .filter(medium => form.watch(medium.name as keyof MediaPlanFormValues))
+              .map(medium => ({
+                media_type: medium.label,
+                gross_amount: calculateMediaTotal(medium.name),
+              })),
+            totals: {
+              gross_media: grossMediaTotal,
+              service_fee: calculateAssembledFee(),
+              production: productionTotal,
+              adserving: calculateAdServingFees(),
+              totals_ex_gst: totalInvestment,
+              total_inc_gst: totalInvestment * 1.1,
+            }
+          }
 
-    const workbook = await generateMediaPlan(header, mediaItems, mbaData);
-    if (kpiRows.length > 0) {
+    const workbook = await generateMediaPlan(header, mediaItems, mbaData, {
+      mbaTotalsLayout: variant === "aa" ? "aa" : "standard",
+    })
+    if (variant === "standard" && kpiRows.length > 0) {
       const { addKPISheet } = await import("@/lib/generateMediaPlan")
       addKPISheet(
         workbook,
@@ -2267,7 +2333,8 @@ export default function CreateMediaPlan() {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     })
     const mediaPlanBase = `MediaPlan_${header.campaignName}`;
-    const fileName = `${header.client}-${mediaPlanBase}-v${planVersion}.xlsx`;
+    const baseFileName = `${header.client}-${mediaPlanBase}-v${planVersion}.xlsx`;
+    const fileName = variant === "aa" ? `AA - ${baseFileName}` : baseFileName;
     return { blob, fileName, planVersion };
   }
 
@@ -4766,6 +4833,26 @@ const handleSaveAll = async () => {
     setIsDownloading(false)
     }
   }
+
+  const handleGenerateAdvertisingAssociatesMediaPlan = async () => {
+    setIsDownloadingAa(true)
+    try {
+      const { blob, fileName } = await generateMediaPlanXlsxBlob({ variant: "aa" })
+      saveAs(blob, fileName)
+      toast({
+        title: "Success",
+        description: "Advertising Associates media plan downloaded",
+      })
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to generate media plan",
+        variant: "destructive",
+      })
+    } finally {
+      setIsDownloadingAa(false)
+    }
+  }
   
   // Transform mediaTypes to match expected format
   const transformedMediaTypes = mediaTypes.map(media => ({
@@ -6564,6 +6651,7 @@ const handleSaveAll = async () => {
             lineItemCount={builderLineItemCount}
             isBusy={
               isDownloading ||
+              isDownloadingAa ||
               isNamingDownloading ||
               isLoading ||
               isPlanSaving ||
@@ -6598,6 +6686,7 @@ const handleSaveAll = async () => {
                         className="h-9 rounded-full px-4 focus-visible:ring-2 focus-visible:ring-ring"
                         disabled={
                           isDownloading ||
+                          isDownloadingAa ||
                           isNamingDownloading ||
                           isLoading ||
                           isPlanSaving ||
@@ -6613,6 +6702,7 @@ const handleSaveAll = async () => {
                         onClick={handleGenerateMediaPlan}
                         disabled={
                           isDownloading ||
+                          isDownloadingAa ||
                           isNamingDownloading ||
                           isLoading ||
                           isPlanSaving ||
@@ -6621,10 +6711,26 @@ const handleSaveAll = async () => {
                       >
                         Media Plan
                       </DropdownMenuItem>
+                      {showAaMediaPlanDownload ? (
+                        <DropdownMenuItem
+                          onClick={handleGenerateAdvertisingAssociatesMediaPlan}
+                          disabled={
+                            isDownloading ||
+                            isDownloadingAa ||
+                            isNamingDownloading ||
+                            isLoading ||
+                            isPlanSaving ||
+                            isVersionSaving
+                          }
+                        >
+                          Media Plan (AA)
+                        </DropdownMenuItem>
+                      ) : null}
                       <DropdownMenuItem
                         onClick={handleDownloadNamingConventions}
                         disabled={
                           isDownloading ||
+                          isDownloadingAa ||
                           isNamingDownloading ||
                           isLoading ||
                           isPlanSaving ||
@@ -6638,6 +6744,7 @@ const handleSaveAll = async () => {
                         disabled={
                           isLoading ||
                           isDownloading ||
+                          isDownloadingAa ||
                           isPlanSaving ||
                           isVersionSaving
                         }
@@ -6652,6 +6759,7 @@ const handleSaveAll = async () => {
                   onClick={handleGenerateMediaPlan}
                   disabled={
                     isDownloading ||
+                    isDownloadingAa ||
                     isNamingDownloading ||
                     isLoading ||
                     isPlanSaving ||
@@ -6668,11 +6776,36 @@ const handleSaveAll = async () => {
                     {isDownloading ? "Creating Media Plan..." : "Media Plan"}
                   </span>
                 </Button>
+                {showAaMediaPlanDownload ? (
+                  <Button
+                    type="button"
+                    onClick={handleGenerateAdvertisingAssociatesMediaPlan}
+                    disabled={
+                      isDownloading ||
+                      isDownloadingAa ||
+                      isNamingDownloading ||
+                      isLoading ||
+                      isPlanSaving ||
+                      isVersionSaving
+                    }
+                    className="hidden h-9 rounded-full px-4 py-2 text-white md:inline-flex bg-lime/80 hover:bg-lime/70 focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    {isDownloadingAa ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Download className="h-4 w-4" />
+                    )}
+                    <span className="ml-2">
+                      {isDownloadingAa ? "Creating AA Plan..." : "Media Plan (AA)"}
+                    </span>
+                  </Button>
+                ) : null}
                 <Button
                   type="button"
                   onClick={handleDownloadNamingConventions}
                   disabled={
                     isDownloading ||
+                    isDownloadingAa ||
                     isNamingDownloading ||
                     isLoading ||
                     isPlanSaving ||
@@ -6693,17 +6826,17 @@ const handleSaveAll = async () => {
                   type="button"
                   onClick={handleSaveAndDownloadAll}
                   disabled={
-                    isLoading || isDownloading || isPlanSaving || isVersionSaving
+                    isLoading || isDownloading || isDownloadingAa || isPlanSaving || isVersionSaving
                   }
                   className="hidden h-9 rounded-full px-4 py-2 text-white md:inline-flex bg-brand-dark hover:bg-brand-dark/90 focus-visible:ring-2 focus-visible:ring-ring"
                 >
-                  {isLoading || isDownloading || isPlanSaving || isVersionSaving ? (
+                  {isLoading || isDownloading || isDownloadingAa || isPlanSaving || isVersionSaving ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <FileText className="h-4 w-4" />
                   )}
                   <span className="ml-2">
-                    {isLoading || isDownloading || isPlanSaving || isVersionSaving
+                    {isLoading || isDownloading || isDownloadingAa || isPlanSaving || isVersionSaving
                       ? "Processing..."
                       : "Save & Download All"}
                   </span>

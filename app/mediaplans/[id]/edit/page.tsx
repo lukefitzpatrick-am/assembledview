@@ -33,6 +33,11 @@ import {
 import { CampaignExportsSection } from "@/components/dashboard/CampaignExportsSection"
 import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
 import { Download, FileText, Loader2, MoreHorizontal } from "lucide-react"
+import type { MediaItems } from "@/lib/generateMediaPlan"
+import {
+  planHasAdvertisingAssociatesLineItem,
+  shouldIncludeMediaPlanLineItem,
+} from "@/lib/mediaplan/advertisingAssociatesExcel"
 import { SavingModal } from "@/components/ui/saving-modal"
 import { OutcomeModal } from "@/components/outcome-modal"
 import { 
@@ -433,6 +438,51 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
       cancelled = true
     }
   }, [])
+
+  const showAaMediaPlanDownload = useMemo(() => {
+    const mediaItems: MediaItems = {
+      search: searchMediaLineItems.filter(shouldIncludeMediaPlanLineItem),
+      socialMedia: socialMediaMediaLineItems.filter(shouldIncludeMediaPlanLineItem),
+      digiAudio: digitalAudioMediaLineItems.filter(shouldIncludeMediaPlanLineItem),
+      digiDisplay: digitalDisplayMediaLineItems.filter(shouldIncludeMediaPlanLineItem),
+      digiVideo: digitalVideoMediaLineItems.filter(shouldIncludeMediaPlanLineItem),
+      bvod: bvodMediaLineItems.filter(shouldIncludeMediaPlanLineItem),
+      progDisplay: progDisplayMediaLineItems.filter(shouldIncludeMediaPlanLineItem),
+      progVideo: progVideoMediaLineItems.filter(shouldIncludeMediaPlanLineItem),
+      progBvod: progBvodMediaLineItems.filter(shouldIncludeMediaPlanLineItem),
+      progOoh: progOohMediaLineItems.filter(shouldIncludeMediaPlanLineItem),
+      progAudio: progAudioMediaLineItems.filter(shouldIncludeMediaPlanLineItem),
+      newspaper: newspaperMediaLineItems.filter(shouldIncludeMediaPlanLineItem),
+      magazines: magazinesMediaLineItems.filter(shouldIncludeMediaPlanLineItem),
+      television: televisionMediaLineItems.filter(shouldIncludeMediaPlanLineItem),
+      radio: radioMediaLineItems.filter(shouldIncludeMediaPlanLineItem),
+      ooh: oohMediaLineItems.filter(shouldIncludeMediaPlanLineItem),
+      cinema: cinemaMediaLineItems.filter(shouldIncludeMediaPlanLineItem),
+      integration: integrationMediaLineItems.filter(shouldIncludeMediaPlanLineItem),
+      production: [],
+    }
+    return planHasAdvertisingAssociatesLineItem(mediaItems, kpiPublishers, () => true)
+  }, [
+    searchMediaLineItems,
+    socialMediaMediaLineItems,
+    digitalAudioMediaLineItems,
+    digitalDisplayMediaLineItems,
+    digitalVideoMediaLineItems,
+    bvodMediaLineItems,
+    progDisplayMediaLineItems,
+    progVideoMediaLineItems,
+    progBvodMediaLineItems,
+    progOohMediaLineItems,
+    progAudioMediaLineItems,
+    newspaperMediaLineItems,
+    magazinesMediaLineItems,
+    televisionMediaLineItems,
+    radioMediaLineItems,
+    oohMediaLineItems,
+    cinemaMediaLineItems,
+    integrationMediaLineItems,
+    kpiPublishers,
+  ])
 
   useEffect(() => {
     if (kpiRebuildTimerRef.current) clearTimeout(kpiRebuildTimerRef.current)
@@ -2031,6 +2081,114 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
     }
   }
 
+  const fetchMediaPlanExcelBlob = async (
+    excelVariant: "standard" | "advertisingAssociates",
+  ): Promise<Blob> => {
+    const formData = form.getValues()
+    const logoBuf = await fetch("/assembled-logo.png").then((r) => r.arrayBuffer())
+    const bytes = new Uint8Array(logoBuf)
+    let binary = ""
+    for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]!)
+    const logoBase64 = btoa(binary)
+
+    const gross = isPartialMBA ? partialMBAValues.grossMedia : grossMediaTotal
+    const prod = isPartialMBA ? partialMBAValues.production : calculateProductionCosts()
+    const asm = isPartialMBA ? partialMBAValues.assembledFee : calculateAssembledFee()
+    const ads = isPartialMBA ? partialMBAValues.adServing : calculateAdServingFees()
+    const totalEx =
+      excelVariant === "advertisingAssociates"
+        ? gross + prod
+        : gross + asm + ads + prod
+
+    const budgetFmt = new Intl.NumberFormat("en-AU", {
+      style: "currency",
+      currency: "AUD",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(formData.mp_campaignbudget)
+
+    const payload: Record<string, unknown> = {
+      ...formData,
+      mp_client_name: formData.mp_clientname,
+      mp_campaignbudget: budgetFmt,
+      mp_campaigndates_start: format(formData.mp_campaigndates_start, "dd/MM/yyyy"),
+      mp_campaigndates_end: format(formData.mp_campaigndates_end, "dd/MM/yyyy"),
+      logoBase64,
+      logoWidth: 457,
+      logoHeight: 71,
+      version_number: String(mediaPlan?.version_number ?? 1),
+      search: searchMediaLineItems,
+      socialMedia: socialMediaMediaLineItems,
+      digiAudio: digitalAudioMediaLineItems,
+      digiDisplay: digitalDisplayItems,
+      digiVideo: digitalVideoMediaLineItems,
+      bvod: bvodMediaLineItems,
+      progDisplay: progDisplayMediaLineItems,
+      progVideo: progVideoMediaLineItems,
+      progBvod: progBvodMediaLineItems,
+      progOoh: progOohMediaLineItems,
+      progAudio: progAudioMediaLineItems,
+      newspaper: newspaperMediaLineItems,
+      magazines: magazinesMediaLineItems,
+      television: televisionMediaLineItems,
+      radio: radioMediaLineItems,
+      ooh: oohMediaLineItems,
+      cinema: cinemaMediaLineItems,
+      integration: integrationMediaLineItems,
+      search_bursts: searchBursts,
+      social_media_bursts: socialMediaBursts,
+      investment_by_month: investmentPerMonth,
+      mbaData: {
+        gross_media: [],
+        totals: {
+          gross_media: gross,
+          service_fee: excelVariant === "advertisingAssociates" ? 0 : asm,
+          production: prod,
+          adserving: excelVariant === "advertisingAssociates" ? 0 : ads,
+          totals_ex_gst: totalEx,
+          total_inc_gst: totalEx * 1.1,
+        },
+      },
+    }
+
+    if (excelVariant === "advertisingAssociates") {
+      payload.excelVariant = "advertisingAssociates"
+      payload.kpiRows = []
+    } else {
+      payload.kpiRows = kpiRows.map((r) => ({
+        mediaType: r.media_type,
+        publisher: r.publisher,
+        label: r.lineItemLabel,
+        buyType: r.buyType,
+        spend: r.spend,
+        deliverables: r.deliverables,
+        ctr: r.ctr,
+        vtr: r.vtr,
+        cpv: r.cpv,
+        conversion_rate: r.conversion_rate,
+        frequency: r.frequency,
+        calculatedClicks: r.calculatedClicks,
+        calculatedViews: r.calculatedViews,
+        calculatedReach: r.calculatedReach,
+      }))
+    }
+
+    const response = await fetch("/api/mediaplans/download", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+
+    if (!response.ok) {
+      const errJson = await response.json().catch(() => ({}))
+      throw new Error(
+        typeof errJson.error === "string" ? errJson.error : "Failed to download media plan",
+      )
+    }
+
+    return response.blob()
+  }
+
   const handleDownloadMediaPlan = async () => {
     try {
       setModalLoading(true)
@@ -2039,59 +2197,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
       setModalOpen(true)
 
       const formData = form.getValues()
-      const response = await fetch("/api/mediaplans/download", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          ...formData,
-          search: searchMediaLineItems,
-          socialMedia: socialMediaMediaLineItems,
-          digiAudio: digitalAudioMediaLineItems,
-          digiDisplay: digitalDisplayItems,
-          digiVideo: digitalVideoMediaLineItems,
-          bvod: bvodMediaLineItems,
-          progDisplay: progDisplayMediaLineItems,
-          progVideo: progVideoMediaLineItems,
-          progBvod: progBvodMediaLineItems,
-          progOoh: progOohMediaLineItems,
-          progAudio: progAudioMediaLineItems,
-          newspaper: newspaperMediaLineItems,
-          magazines: magazinesMediaLineItems,
-          television: televisionMediaLineItems,
-          radio: radioMediaLineItems,
-          ooh: oohMediaLineItems,
-          cinema: cinemaMediaLineItems,
-          integration: integrationMediaLineItems,
-          search_bursts: searchBursts,
-          social_media_bursts: socialMediaBursts,
-          investment_by_month: investmentPerMonth,
-          kpiRows: kpiRows.map((r) => ({
-            mediaType: r.media_type,
-            publisher: r.publisher,
-            label: r.lineItemLabel,
-            buyType: r.buyType,
-            spend: r.spend,
-            deliverables: r.deliverables,
-            ctr: r.ctr,
-            vtr: r.vtr,
-            cpv: r.cpv,
-            conversion_rate: r.conversion_rate,
-            frequency: r.frequency,
-            calculatedClicks: r.calculatedClicks,
-            calculatedViews: r.calculatedViews,
-            calculatedReach: r.calculatedReach,
-          })),
-        }),
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || "Failed to download media plan")
-      }
-
-      const blob = await response.blob()
+      const blob = await fetchMediaPlanExcelBlob("standard")
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
@@ -2106,10 +2212,41 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
       setModalTitle("Success")
       setModalOutcome("Media plan downloaded successfully")
       setModalLoading(false)
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error downloading media plan:", error)
       setModalTitle("Error")
-      setModalOutcome(error.message || "Failed to download media plan")
+      setModalOutcome(error?.message || "Failed to download media plan")
+      setModalLoading(false)
+    }
+  }
+
+  const handleDownloadAdvertisingAssociatesMediaPlan = async () => {
+    try {
+      setModalLoading(true)
+      setModalTitle("Downloading AA Media Plan")
+      setModalOutcome("Preparing your media plan for download...")
+      setModalOpen(true)
+
+      const formData = form.getValues()
+      const blob = await fetchMediaPlanExcelBlob("advertisingAssociates")
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      const version = mediaPlan?.version_number ?? 1
+      const mediaPlanBase = `${formData.mp_campaignname}_MediaPlan`
+      a.download = `AA - ${formData.mp_clientname}-${mediaPlanBase}-v${version}.xlsx`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+
+      setModalTitle("Success")
+      setModalOutcome("Advertising Associates media plan downloaded")
+      setModalLoading(false)
+    } catch (error: any) {
+      console.error("Error downloading AA media plan:", error)
+      setModalTitle("Error")
+      setModalOutcome(error?.message || "Failed to download media plan")
       setModalLoading(false)
     }
   }
@@ -3463,6 +3600,14 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                   >
                     Download media plan
                   </DropdownMenuItem>
+                  {showAaMediaPlanDownload ? (
+                    <DropdownMenuItem
+                      onClick={handleDownloadAdvertisingAssociatesMediaPlan}
+                      disabled={loading || modalLoading}
+                    >
+                      Media Plan (AA)
+                    </DropdownMenuItem>
+                  ) : null}
                   <DropdownMenuItem
                     onClick={handleSaveAndGenerateAll}
                     disabled={loading || modalLoading || isSaving}
@@ -3478,7 +3623,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
               disabled={loading || modalLoading}
               className="hidden h-9 rounded-full px-4 py-2 text-white md:inline-flex bg-lime hover:bg-lime/90 focus-visible:ring-2 focus-visible:ring-ring"
             >
-              {modalLoading && modalTitle === "Downloading Media Plan" ? (
+              {modalLoading &&
+              (modalTitle === "Downloading Media Plan" ||
+                modalTitle === "Downloading AA Media Plan") ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <Download className="h-4 w-4" />
@@ -3489,6 +3636,25 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                   : "Media Plan"}
               </span>
             </Button>
+            {showAaMediaPlanDownload ? (
+              <Button
+                type="button"
+                onClick={handleDownloadAdvertisingAssociatesMediaPlan}
+                disabled={loading || modalLoading}
+                className="hidden h-9 rounded-full px-4 py-2 text-white md:inline-flex bg-lime/80 hover:bg-lime/70 focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {modalLoading && modalTitle === "Downloading AA Media Plan" ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4" />
+                )}
+                <span className="ml-2">
+                  {modalLoading && modalTitle === "Downloading AA Media Plan"
+                    ? "Downloading..."
+                    : "Media Plan (AA)"}
+                </span>
+              </Button>
+            ) : null}
             <Button
               type="button"
               onClick={handleSaveAndGenerateAll}

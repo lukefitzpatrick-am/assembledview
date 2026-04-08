@@ -267,6 +267,30 @@ export async function assignRoleToUser(userId: string, role: Role): Promise<void
   }
 }
 
+export async function getAuth0UserById(userId: string): Promise<{
+  user_id?: string
+  email?: string
+  name?: string
+  given_name?: string
+  family_name?: string
+  app_metadata?: Record<string, unknown>
+  user_metadata?: Record<string, unknown>
+} | null> {
+  try {
+    const token = await getManagementToken();
+    const response = await fetch(
+      `https://${getManagementDomain()}/api/v2/users/${encodeURIComponent(userId)}?fields=user_id,email,name,given_name,family_name,app_metadata,user_metadata`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (!response.ok) {
+      return null;
+    }
+    return (await response.json()) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
 export async function deleteAuth0User(userId: string): Promise<void> {
   const token = await getManagementToken();
 

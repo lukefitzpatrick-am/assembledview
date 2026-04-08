@@ -1,61 +1,178 @@
+import { useMemo } from "react"
 import { create } from "zustand"
 import type {
   BillingLineItem,
   BillingRecord,
-  BillingStatus,
-  BillingType,
   FinanceFilters,
 } from "@/lib/types/financeBilling"
-import { fetchBillingRecords } from "@/lib/finance/api"
+import { fetchBillingRecords, fetchPayablesRecords, FinanceHttpError } from "@/lib/finance/api"
+import { getCurrentBillingMonth } from "@/lib/finance/months"
+import { expandMonthRange } from "@/lib/finance/monthRange"
+
+export type FinanceHubTab = "overview" | "billing" | "payables" | "accrual" | "forecast"
+
+/** Client-side snapshot of a failed finance list fetch (for toasts + clipboard debug). */
+export type FinanceHubFetchError = {
+  /** Full message, typically `[status] detail` from {@link FinanceHttpError}. */
+  error: string
+  field?: string
+  status?: number
+  requestUrl?: string
+}
+
+const HUB_TABS: readonly FinanceHubTab[] = ["overview", "billing", "payables", "accrual", "forecast"]
+
+export function parseFinanceHubTabParam(tab: string | null | undefined): FinanceHubTab {
+  if (!tab) return "overview"
+  return HUB_TABS.includes(tab as FinanceHubTab) ? (tab as FinanceHubTab) : "overview"
+}
+
+function normalizeHubTab(tab: string): FinanceHubTab {
+  return parseFinanceHubTabParam(tab)
+}
+
+let fetchAllDebounceTimer: ReturnType<typeof setTimeout> | null = null
+
+/** Debounced coordinated reload (billing + payables + draft count). */
+export function scheduleFinanceFetchAll(): void {
+  if (typeof window === "undefined") return
+  if (fetchAllDebounceTimer !== null) clearTimeout(fetchAllDebounceTimer)
+  fetchAllDebounceTimer = setTimeout(() => {
+    fetchAllDebounceTimer = null
+    void useFinanceStore.getState().fetchAll()
+  }, 200)
+}
+
+function toHubFetchError(error: unknown, fallback: string): FinanceHubFetchError {
+  if (error instanceof FinanceHttpError) {
+    return {
+      error: error.message,
+      field: error.field,
+      status: error.status,
+      requestUrl: error.requestUrl,
+    }
+  }
+  return {
+    error: error instanceof Error ? error.message : fallback,
+  }
+}
 
 interface FinanceStore {
   filters: FinanceFilters
-  activeTab: "billing" | "publishers"
+  activeTab: FinanceHubTab
   billingRecords: BillingRecord[]
   billingLoading: boolean
-  billingError: string | null
+  billingError: FinanceHubFetchError | null
+  /**
+   * Payable rows from delivery schedules, including client-paid lines (`client_pays_media`).
+   * For KPIs and agency totals use {@link sumPayableLineItems} / {@link sumPayableRecordsAgencyExpected}.
+   */
+  payablesRecords: BillingRecord[]
+  payablesLoading: boolean
+  payablesError: FinanceHubFetchError | null
+  pendingDraftCount: number
   setBillingRecords: (records: BillingRecord[]) => void
+  setPayablesRecords: (records: BillingRecord[]) => void
   setFilters: (partial: Partial<FinanceFilters>) => void
   setActiveTab: (tab: string) => void
   fetchBilling: () => Promise<void>
+  fetchPayables: () => Promise<void>
+  fetchAll: () => Promise<void>
+  refreshPendingDraftCount: () => Promise<void>
   updateBillingRecord: (id: number, updates: Partial<BillingRecord>) => void
   updateLineItem: (recordId: number, lineItemId: number, updates: Partial<BillingLineItem>) => void
 }
 
+const defaultMonth = getCurrentBillingMonth()
+
 const defaultFilters: FinanceFilters = {
   selectedClients: [],
-  monthRange: { from: new Date().toISOString().slice(0, 7), to: new Date().toISOString().slice(0, 7) },
-  billingTypes: ["media", "sow", "retainer"] as BillingType[],
-  statuses: ["draft", "booked", "approved", "invoiced", "paid"] as BillingStatus[],
+  selectedPublishers: [],
+  includeDrafts: false,
+  monthRange: { from: defaultMonth, to: defaultMonth },
+  billingTypes: ["media", "sow", "retainer", "payable"],
+  statuses: ["draft", "booked", "approved", "invoiced", "paid"],
   searchQuery: "",
 }
 
 export const useFinanceStore = create<FinanceStore>((set, get) => ({
   filters: defaultFilters,
-  activeTab: "billing",
+  activeTab: "overview",
   billingRecords: [],
   billingLoading: false,
   billingError: null,
+  payablesRecords: [],
+  payablesLoading: false,
+  payablesError: null,
+  pendingDraftCount: 0,
   setBillingRecords: (records) => set({ billingRecords: records }),
+  setPayablesRecords: (records) => set({ payablesRecords: records }),
 
-  setFilters: (partial) =>
+  setFilters: (partial) => {
     set((state) => ({
       filters: { ...state.filters, ...partial },
-    })),
+    }))
+    scheduleFinanceFetchAll()
+  },
 
-  setActiveTab: (tab) => set({ activeTab: tab === "publishers" ? "publishers" : "billing" }),
+  setActiveTab: (tab) => set({ activeTab: normalizeHubTab(tab) }),
+
+  refreshPendingDraftCount: async () => {
+    try {
+      const res = await fetch("/api/finance/edits", { cache: "no-store" })
+      if (!res.ok) {
+        set({ pendingDraftCount: 0 })
+        return
+      }
+      const rows = (await res.json()) as unknown
+      const list = Array.isArray(rows) ? rows : []
+      const draftCount = list.filter((row: Record<string, unknown>) => {
+        const st = row.edit_status ?? row.status
+        return st === "draft"
+      }).length
+      set({ pendingDraftCount: draftCount })
+    } catch {
+      set({ pendingDraftCount: 0 })
+    }
+  },
 
   fetchBilling: async () => {
     set({ billingLoading: true, billingError: null })
     try {
+      const months = expandMonthRange(get().filters.monthRange)
+      if (process.env.NEXT_PUBLIC_FINANCE_DEBUG === "1") {
+        console.debug("[finance] fetchBilling month fan-out", months)
+      }
       const records = await fetchBillingRecords(get().filters)
       set({ billingRecords: records, billingLoading: false, billingError: null })
     } catch (error) {
       set({
         billingLoading: false,
-        billingError: error instanceof Error ? error.message : "Failed to load billing records",
+        billingError: toHubFetchError(error, "Failed to load billing records"),
       })
     }
+  },
+
+  fetchPayables: async () => {
+    set({ payablesLoading: true, payablesError: null })
+    try {
+      const months = expandMonthRange(get().filters.monthRange)
+      if (process.env.NEXT_PUBLIC_FINANCE_DEBUG === "1") {
+        console.debug("[finance] fetchPayables month fan-out", months)
+      }
+      const records = await fetchPayablesRecords(get().filters)
+      set({ payablesRecords: records, payablesLoading: false, payablesError: null })
+    } catch (error) {
+      set({
+        payablesLoading: false,
+        payablesError: toHubFetchError(error, "Failed to load payables"),
+      })
+    }
+  },
+
+  fetchAll: async () => {
+    const { fetchBilling, fetchPayables, refreshPendingDraftCount } = get()
+    await Promise.allSettled([fetchBilling(), fetchPayables(), refreshPendingDraftCount()])
   },
 
   updateBillingRecord: (id, updates) =>
@@ -79,4 +196,12 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
     })),
 }))
 
+/** Expanded `filters.monthRange` as `YYYY-MM` strings (Accrual and other multi-month views). */
+export function useAccrualMonths(): string[] {
+  const key = useFinanceStore((s) => expandMonthRange(s.filters.monthRange).join("\u001f"))
+  return useMemo(() => (key.length === 0 ? [] : key.split("\u001f")), [key])
+}
+
 export type { FinanceStore, FinanceFilters }
+
+export { sumPayableLineItems, sumPayableRecordsAgencyExpected } from "@/lib/finance/aggregatePayablesPublisherGroups"

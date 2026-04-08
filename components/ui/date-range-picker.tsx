@@ -20,6 +20,8 @@ export interface DateRangePickerProps {
   disabled?: boolean
   className?: string
   numberOfMonths?: number
+  /** date-fns format string for the trigger label (default dd.MM.yyyy) */
+  displayFormat?: string
 }
 
 export function DateRangePicker({
@@ -29,6 +31,7 @@ export function DateRangePicker({
   disabled,
   className,
   numberOfMonths = 2,
+  displayFormat = "dd.MM.yyyy",
 }: DateRangePickerProps) {
   const [open, setOpen] = React.useState(false)
   const [month, setMonth] = React.useState(() => resolveRangePickerMonth(value))
@@ -41,8 +44,8 @@ export function DateRangePicker({
 
   const label = value?.from
     ? value.to
-      ? `${format(value.from, "dd.MM.yyyy")} - ${format(value.to, "dd.MM.yyyy")}`
-      : format(value.from, "dd.MM.yyyy")
+      ? `${format(value.from, displayFormat)} - ${format(value.to, displayFormat)}`
+      : format(value.from, displayFormat)
     : placeholder
 
   return (

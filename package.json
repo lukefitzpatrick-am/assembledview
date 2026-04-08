@@ -12,7 +12,9 @@
     "test:weekly-gantt": "node --loader ts-node/esm tests/lib/weeklyGanttColumns.test.ts",
     "test:expert-mappings": "node --loader ts-node/esm tests/lib/expertOohRadioMappings.test.ts",
     "test:expert-paste": "node --loader ts-node/esm tests/lib/expertGridPaste.test.ts",
-    "test:finance-forecast": "tsx --test tests/finance/buildFinanceForecastDataset.test.ts tests/finance/varianceEngine.test.ts"
+    "test:finance-forecast": "tsx --test tests/finance/buildFinanceForecastDataset.test.ts tests/finance/varianceEngine.test.ts",
+    "snowflake:migrate:pacing": "tsx scripts/snowflake/run-pacing-migrations.ts",
+    "pacing:backfill:search-mappings": "tsx scripts/pacing/backfill-search-mappings.ts"
   },
   "dependencies": {
     "@auth0/nextjs-auth0": "^4.11.0",
@@ -47,6 +49,8 @@
     "@radix-ui/react-tooltip": "^1.1.6",
     "@sendgrid/mail": "^8.1.6",
     "@shadcn/ui": "^0.0.4",
+    "@tanstack/react-table": "^8.21.3",
+    "@tanstack/react-virtual": "^3.13.23",
     "@types/file-saver": "^2.0.7",
     "@types/react": "latest",
     "autoprefixer": "^10.4.20",

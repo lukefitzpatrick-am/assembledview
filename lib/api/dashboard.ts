@@ -21,6 +21,7 @@ import { getClientDisplayName, slugifyClientNameForUrl } from '@/lib/clients/slu
 import { findClientRawByDashboardSlug } from '@/lib/clients/xanoClientSlugMatch'
 import { expectedSpendToDateFromDeliveryScheduleMonthly } from '@/lib/spend/monthlyPlanCalendar'
 import { normalizeDateToMelbourneISO } from '@/lib/dates/normalizeCampaignDateISO'
+import { billingMonthsInAustralianFinancialYear } from '@/lib/finance/months'
 
 const MELBOURNE_TZ = 'Australia/Melbourne'
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -314,6 +315,29 @@ function sumLineItems(entry: any): number {
   const lineItemTotal = mediaTypes.reduce((mtSum: number, mt: any) => {
     const lineItems = Array.isArray(mt?.lineItems) ? mt.lineItems : []
     const liSum = lineItems.reduce((liAcc: number, li: any) => liAcc + parseMoney(li?.amount), 0)
+    return mtSum + liSum
+  }, 0)
+
+  const feeTotal = parseMoney(entry?.feeTotal)
+  const production = parseMoney(entry?.production)
+  const adServing = parseMoney(entry?.adservingTechFees ?? entry?.adServingTechFees)
+
+  return lineItemTotal + feeTotal + production + adServing
+}
+
+function deliveryLineItemIsClientPaidDirect(li: any): boolean {
+  return li?.clientPaysForMedia === true || li?.client_pays_for_media === true
+}
+
+/** Delivery schedule month row: agency-owed media only (excludes client-paid-direct line items). Fees/production/ad serving unchanged. */
+function sumDeliveryScheduleMonthAgencyMedia(entry: any): number {
+  const mediaTypes = Array.isArray(entry?.mediaTypes) ? entry.mediaTypes : []
+  const lineItemTotal = mediaTypes.reduce((mtSum: number, mt: any) => {
+    const lineItems = Array.isArray(mt?.lineItems) ? mt.lineItems : []
+    const liSum = lineItems.reduce((liAcc: number, li: any) => {
+      if (deliveryLineItemIsClientPaidDirect(li)) return liAcc
+      return liAcc + parseMoney(li?.amount)
+    }, 0)
     return mtSum + liSum
   }, 0)
 
@@ -1402,6 +1426,90 @@ export async function getGlobalMonthlyClientSpend(): Promise<{
   }))
 
   return { data, clientColors }
+}
+
+/**
+ * Finance hub FY-to-date totals from media plan **month rows** (not Xano finance_billing_records).
+ * - **billingScheduleYtd**: sum of `sumLineItems` per month row on `billingSchedule` / `billing_schedule` only.
+ * - **deliveryScheduleYtd**: same on `deliverySchedule` / `delivery_schedule` only (no fallback to the other);
+ *   media line items with `clientPaysForMedia` / `client_pays_for_media` are excluded (aligned with payables).
+ * Version per MBA: booked/approved/completed if present, else highest `version_number` (same as global monthly charts).
+ * Months: Australian FY through current calendar month (Melbourne), inclusive.
+ */
+export async function getFinanceHubScheduleFytdTotals(): Promise<{
+  billingScheduleYtd: number
+  deliveryScheduleYtd: number
+  currentMonthIso: string
+}> {
+  const reference = new Date()
+  const parts = getTzParts(reference)
+  const currentMonthIso = `${parts.year}-${String(parts.month).padStart(2, '0')}`
+  const melbourneCalendar = new Date(parts.year, parts.month - 1, parts.day)
+
+  const fyMonthAllowed = new Set(
+    billingMonthsInAustralianFinancialYear(melbourneCalendar).filter((m) => m <= currentMonthIso)
+  )
+
+  const { start: fyStart, end: fyEnd } = getAustralianFinancialYearWindow(reference)
+
+  const versionsResponse = await apiClient.get(xanoMediaPlansUrl('media_plan_versions'))
+  const allVersions = parseXanoListPayload(versionsResponse.data)
+
+  const versionsByMBA = allVersions.reduce((acc: Record<string, any[]>, version: any) => {
+    const mbaNumber = version?.mba_number
+    if (!mbaNumber) return acc
+    acc[mbaNumber] = acc[mbaNumber] || []
+    acc[mbaNumber].push(version)
+    return acc
+  }, {} as Record<string, any[]>)
+
+  const highestApprovedVersionByMBA = Object.entries(versionsByMBA).reduce(
+    (acc: Record<string, any>, [mbaNumber, versions]: [string, any[]]) => {
+      const sorted = versions.slice().sort((a, b) => (b.version_number || 0) - (a.version_number || 0))
+      const bookedApproved = sorted.find((v: any) => isBookedApprovedCompleted(v.campaign_status))
+      if (bookedApproved) {
+        acc[mbaNumber] = bookedApproved
+        return acc
+      }
+      if (sorted[0]) {
+        acc[mbaNumber] = sorted[0]
+      }
+      return acc
+    },
+    {} as Record<string, any>
+  )
+
+  let billingScheduleYtd = 0
+  let deliveryScheduleYtd = 0
+
+  for (const version of Object.values(highestApprovedVersionByMBA)) {
+    const v = version as any
+    const billingSchedule = normalizeSchedule(v?.billingSchedule ?? v?.billing_schedule)
+    for (const entry of billingSchedule) {
+      const monthDate = parseMonthYear(getMonthYearValue(entry))
+      if (!monthDate) continue
+      if (monthDate.getTime() < fyStart.getTime() || monthDate.getTime() > fyEnd.getTime()) continue
+      const ym = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, '0')}`
+      if (!fyMonthAllowed.has(ym)) continue
+      billingScheduleYtd += sumLineItems(entry)
+    }
+
+    const deliverySchedule = normalizeSchedule(v?.deliverySchedule ?? v?.delivery_schedule)
+    for (const entry of deliverySchedule) {
+      const monthDate = parseMonthYear(getMonthYearValue(entry))
+      if (!monthDate) continue
+      if (monthDate.getTime() < fyStart.getTime() || monthDate.getTime() > fyEnd.getTime()) continue
+      const ym = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, '0')}`
+      if (!fyMonthAllowed.has(ym)) continue
+      deliveryScheduleYtd += sumDeliveryScheduleMonthAgencyMedia(entry)
+    }
+  }
+
+  return {
+    billingScheduleYtd: Math.round(billingScheduleYtd * 100) / 100,
+    deliveryScheduleYtd: Math.round(deliveryScheduleYtd * 100) / 100,
+    currentMonthIso,
+  }
 }
 
 export async function exportDashboardData(slug: string, format: 'csv' | 'json' = 'csv'): Promise<string> {

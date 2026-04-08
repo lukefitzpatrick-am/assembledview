@@ -133,3 +133,17 @@ After updating the Xano script:
 2. Verify `client_name` is correctly saved as `mp_client_name` in the database
 3. Check that all other fields are properly mapped
 
+---
+
+## Delivery schedule JSON: `clientPaysForMedia` (Media Plans group, `api:RaUx9FOa`)
+
+**Goal:** Each object in `delivery_schedule` / `deliverySchedule` month → `mediaTypes` → `lineItems` should include the same client-paid flag as billing, sourced from the media plan line row.
+
+In the Xano function stack that builds `delivery_schedule` JSON from `media_plan_*` line items (mirror the billing schedule generator’s projection), add to **each** delivery line item object:
+
+```text
+clientPaysForMedia: {source_line_item.client_pays_for_media}
+```
+
+Use the **same** `client_pays_for_media` field the billing schedule stack already reads from the source row. Do **not** change amount, `monthYear`, or other schedule logic—this field is additive only.
+

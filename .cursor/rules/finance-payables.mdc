@@ -1,0 +1,13 @@
+---
+description: Finance hub — Payables tab is the legacy Publishers view (delivery schedule)
+globs: "**/*{payable,Payables,derivePayable,payablesReport,aggregatePayables}*"
+alwaysApply: false
+---
+
+# Payables = former “Publishers”
+
+- **Payables** in the finance hub replaces the old **Publishers** finance view (`GET /api/finance/publishers`).
+- **Source data:** amounts come from **`media_plan_versions.deliverySchedule` / `delivery_schedule`** for the selected calendar month — **not** `billingSchedule` (that is receivables / client billing).
+- **Rollup:** same rules as legacy publishers API — walk **each line item**, skip `client_pays_media`, sum amounts, group **publisher → client → campaign** (one campaign row per `BillingRecord` / MBA block).
+- **Implementation:** `derivePayableRecordsForMonth`, `extractPayablesFromDeliverySchedule`, `aggregatePayablesToPublisherGroups`, `PayablesTab`, `GET /api/finance/payables`.
+- **Gaps / next steps:** enrich line-level fields from delivery JSON (descriptions, targeting), optional media-type columns, parity with any extra columns the old publishers UI or exports showed.

@@ -3180,7 +3180,7 @@ export function ProgAudioExpertGrid({
       "Start Date",
       "End Date",
       "Platform",
-      "Targeting",
+      "Bid Strategy",
       "Buy Type",
       "Targeting",
       "Creative",
@@ -3413,7 +3413,7 @@ export function ProgAudioExpertGrid({
                                 updateRow(rowIndex, { bidStrategy: v })
                               }
                               placeholder="Select"
-                              searchPlaceholder="Search targeting…"
+                              searchPlaceholder="Search bid strategies…"
                               buttonClassName="h-8 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-1"
                               onTriggerFocus={() =>
                                 handleCellFocus(rowIndex, "bidStrategy")

@@ -1,6 +1,15 @@
-export type BillingType = "media" | "sow" | "retainer"
+/** `payable` = publisher/delivery view from `media_plan_versions.deliverySchedule`, not `billingSchedule`. */
+export type BillingType = "media" | "sow" | "retainer" | "payable"
 
-export type BillingStatus = "draft" | "booked" | "approved" | "invoiced" | "paid" | "cancelled"
+export type BillingStatus =
+  | "draft"
+  | "booked"
+  | "approved"
+  | "invoiced"
+  | "paid"
+  | "cancelled"
+  | "expected"
+  | "disputed"
 
 export interface BillingLineItem {
   id: number
@@ -13,6 +22,31 @@ export interface BillingLineItem {
   amount: number
   client_pays_media: boolean
   sort_order: number
+  /** Joined from media plan row / reference tables when available (Xano or in-app enrichment). */
+  network?: string | null
+  platform?: string | null
+  placement?: string | null
+  market?: string | null
+  title?: string | null
+  ad_size?: string | null
+  site?: string | null
+  station?: string | null
+  format?: string | null
+  bid_strategy?: string | null
+  creative?: string | null
+}
+
+/** Accrual grid synthetic rows (month detail, per-client subtotal, grand total). */
+export type FinanceAccrualRowKind = "month" | "client_subtotal" | "grand_total"
+
+export interface FinanceAccrualBreakdown {
+  kind: FinanceAccrualRowKind
+  receivable_total: number
+  payable_total: number
+  fees_total: number
+  accrual: number
+  month?: string
+  clients_id?: number
 }
 
 export interface BillingRecord {
@@ -32,6 +66,7 @@ export interface BillingRecord {
   total: number
   has_pending_edits: boolean
   source_billing_schedule_id: number | null
+  finance_accrual?: FinanceAccrualBreakdown | null
 }
 
 export interface BillingEdit {
@@ -51,6 +86,10 @@ export interface BillingEdit {
 
 export interface FinanceFilters {
   selectedClients: string[]
+  /** Publisher row ids from `/api/publishers` (Xano). Empty = all. */
+  selectedPublishers: number[]
+  /** When false, downstream APIs may omit draft rows where supported. */
+  includeDrafts: boolean
   monthRange: { from: string; to: string }
   billingTypes: BillingType[]
   statuses: BillingStatus[]

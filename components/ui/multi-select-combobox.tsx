@@ -30,6 +30,14 @@ export interface MultiSelectComboboxProps {
   buttonClassName?: string
   contentClassName?: string
   align?: "start" | "center" | "end"
+  /**
+   * When true, an empty `values` array means “all options selected” (omit filter).
+   * Button shows `allSelectedText`, every row appears checked, and toggling one option
+   * narrows to an explicit list. “Select all” resets to `[]`.
+   */
+  emptyMeansAll?: boolean
+  /** Associates the trigger with an external `<Label htmlFor={id}>`. */
+  id?: string
 }
 
 export function MultiSelectCombobox({
@@ -47,16 +55,20 @@ export function MultiSelectCombobox({
   buttonClassName,
   contentClassName,
   align = "start",
+  emptyMeansAll = false,
+  id,
 }: MultiSelectComboboxProps) {
   const [open, setOpen] = React.useState(false)
 
   const valuesSet = React.useMemo(() => new Set(values), [values])
   const selectableOptions = React.useMemo(() => options.filter((o) => !o.disabled), [options])
   const allSelectableValues = React.useMemo(() => selectableOptions.map((o) => o.value), [selectableOptions])
+  const implicitAll = Boolean(emptyMeansAll && values.length === 0 && allSelectableValues.length > 0)
   const isAllSelected = React.useMemo(() => {
     if (!allSelectableValues.length) return false
+    if (implicitAll) return true
     return allSelectableValues.every((value) => valuesSet.has(value))
-  }, [allSelectableValues, valuesSet])
+  }, [allSelectableValues, implicitAll, valuesSet])
 
   const selectedLabels = React.useMemo(() => {
     const map = new Map(options.map((o) => [o.value, o.label]))
@@ -64,27 +76,43 @@ export function MultiSelectCombobox({
   }, [options, values])
 
   const buttonText = React.useMemo(() => {
-    if (!values.length) return placeholder
+    if (!values.length) {
+      if (implicitAll) return allSelectedText
+      return placeholder
+    }
     if (isAllSelected) return allSelectedText
     if (selectedLabels.length <= 2) return selectedLabels.join(", ")
     return `${values.length} selected`
-  }, [allSelectedText, isAllSelected, placeholder, selectedLabels, values.length])
+  }, [allSelectedText, implicitAll, isAllSelected, placeholder, selectedLabels, values.length])
 
   const toggle = React.useCallback(
     (value: string) => {
+      if (implicitAll) {
+        onValuesChange(allSelectableValues.filter((v) => v !== value))
+        return
+      }
       if (valuesSet.has(value)) {
         onValuesChange(values.filter((v) => v !== value))
       } else {
         onValuesChange([...values, value])
       }
     },
-    [onValuesChange, values, valuesSet]
+    [allSelectableValues, implicitAll, onValuesChange, values, valuesSet]
   )
+
+  const selectAll = React.useCallback(() => {
+    if (emptyMeansAll) {
+      onValuesChange([])
+    } else {
+      onValuesChange(allSelectableValues)
+    }
+  }, [allSelectableValues, emptyMeansAll, onValuesChange])
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
+          id={id}
           type="button"
           variant="outline"
           role="combobox"
@@ -92,7 +120,13 @@ export function MultiSelectCombobox({
           className={cn("w-full justify-between", buttonClassName)}
           disabled={disabled}
         >
-          <span className={cn("truncate", !values.length ? "text-muted-foreground" : undefined, className)}>
+          <span
+            className={cn(
+              "truncate",
+              !values.length && !implicitAll ? "text-muted-foreground" : undefined,
+              className
+            )}
+          >
             {buttonText}
           </span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -107,7 +141,7 @@ export function MultiSelectCombobox({
               variant="ghost"
               size="sm"
               disabled={disabled || selectableOptions.length === 0 || isAllSelected}
-              onClick={() => onValuesChange(allSelectableValues)}
+              onClick={selectAll}
             >
               {selectAllText}
             </Button>
@@ -125,7 +159,7 @@ export function MultiSelectCombobox({
             <CommandEmpty>{emptyText}</CommandEmpty>
             <CommandGroup>
               {options.map((option) => {
-                const isSelected = valuesSet.has(option.value)
+                const isSelected = implicitAll || valuesSet.has(option.value)
                 const searchValue = `${option.label} ${option.keywords ?? ""}`.trim()
 
                 return (

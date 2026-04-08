@@ -1,6 +1,11 @@
 import type { ReactNode } from "react"
+import { redirect } from "next/navigation"
+import { auth0 } from "@/lib/auth0"
 
-export default function PacingLayout({ children }: { children: ReactNode }) {
-  return <div className="bg-surface-muted px-4 pb-12 pt-8 md:px-6">{children}</div>
+export default async function PacingLayout({ children }: { children: ReactNode }) {
+  const session = await auth0.getSession()
+  if (!session?.user) {
+    redirect("/auth/login?returnTo=/pacing/overview")
+  }
+  return <>{children}</>
 }
-

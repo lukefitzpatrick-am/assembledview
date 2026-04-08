@@ -1,3 +1,8 @@
+/**
+ * Legacy publisher-grouped view over **Xano `finance_billing_records`** (media/sow/retainer line items).
+ * The finance hub **Payables** tab is the successor for **delivery-schedule** amounts (`media_plan_versions.deliverySchedule`);
+ * see `GET /api/finance/payables` and `aggregatePayablesToPublisherGroups`.
+ */
 import axios from "axios"
 import { NextRequest, NextResponse } from "next/server"
 import { parseXanoListPayload, xanoUrl } from "@/lib/api/xano"

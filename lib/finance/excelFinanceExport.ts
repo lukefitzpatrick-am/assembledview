@@ -1,5 +1,6 @@
 import ExcelJS from "exceljs"
 import { format } from "date-fns"
+import type { BillingRecord } from "@/lib/types/financeBilling"
 import type { FinanceCampaignData } from "@/lib/finance/utils"
 
 /** When set (e.g. client hub export), legal business name and ABN appear under client name on each section. */
@@ -11,6 +12,55 @@ export type FinanceExcelClientMeta = {
 function displayMetaValue(value: string): string {
   const t = value.trim()
   return t.length > 0 ? t : "N/A"
+}
+
+/** Parse a row from `GET /api/clients` for Excel legal header lines. */
+export function clientApiRowToFinanceExcelMeta(row: Record<string, unknown>): FinanceExcelClientMeta {
+  const legalRaw = row.legalbusinessname ?? row.legalBusinessName
+  const legal = typeof legalRaw === "string" ? legalRaw.trim() : ""
+  const v = row.abn
+  const abn = v == null ? "" : typeof v === "string" ? v.trim() : String(v).trim()
+  return { legalBusinessName: legal, abn }
+}
+
+export async function fetchFinanceHubClientMetaByClientId(): Promise<Map<number, FinanceExcelClientMeta>> {
+  if (typeof fetch === "undefined") return new Map()
+  try {
+    const res = await fetch("/api/clients")
+    if (!res.ok) return new Map()
+    const data = (await res.json()) as unknown
+    const map = new Map<number, FinanceExcelClientMeta>()
+    if (!Array.isArray(data)) return map
+    for (const raw of data) {
+      if (!raw || typeof raw !== "object") continue
+      const r = raw as Record<string, unknown>
+      const id = Number(r.id)
+      if (!Number.isFinite(id) || id <= 0) continue
+      map.set(id, clientApiRowToFinanceExcelMeta(r))
+    }
+    return map
+  } catch {
+    return new Map()
+  }
+}
+
+function legalDetailRowsForCampaign(
+  campaign: FinanceCampaignData,
+  clientMeta?: FinanceExcelClientMeta | null
+): [string, string][] {
+  if (campaign.legalBusinessName !== undefined || campaign.abn !== undefined) {
+    return [
+      ["Legal business name", displayMetaValue(campaign.legalBusinessName ?? "")],
+      ["ABN", displayMetaValue(campaign.abn ?? "")],
+    ]
+  }
+  if (clientMeta) {
+    return [
+      ["Legal business name", displayMetaValue(clientMeta.legalBusinessName)],
+      ["ABN", displayMetaValue(clientMeta.abn)],
+    ]
+  }
+  return []
 }
 
 const headerStyle = {
@@ -62,12 +112,7 @@ export async function writeMediaFinanceWorksheet(
 
     const details: [string, string][] = [
       ["Client Name", campaign.clientName],
-      ...(clientMeta
-        ? ([
-            ["Legal business name", displayMetaValue(clientMeta.legalBusinessName)],
-            ["ABN", displayMetaValue(clientMeta.abn)],
-          ] as [string, string][])
-        : []),
+      ...legalDetailRowsForCampaign(campaign, clientMeta),
       ["MBA Number", campaign.mbaNumber],
       ["PO Number", campaign.poNumber || "N/A"],
       ["Campaign Name", campaign.campaignName],
@@ -157,12 +202,7 @@ export async function writeSowFinanceWorksheet(
 
     const details: [string, string][] = [
       ["Client Name", campaign.clientName],
-      ...(clientMeta
-        ? ([
-            ["Legal business name", displayMetaValue(clientMeta.legalBusinessName)],
-            ["ABN", displayMetaValue(clientMeta.abn)],
-          ] as [string, string][])
-        : []),
+      ...legalDetailRowsForCampaign(campaign, clientMeta),
       ["Scope ID", campaign.mbaNumber],
       ["Scope Name", campaign.campaignName],
       ["Payment Days & Payment Terms", `${campaign.paymentDays} - ${campaign.paymentTerms}`],
@@ -309,3 +349,85 @@ export async function workbookToXlsxBuffer(workbook: ExcelJS.Workbook): Promise<
   const buffer = await workbook.xlsx.writeBuffer()
   return buffer as ArrayBuffer
 }
+
+function invoiceIsoForFinanceCampaign(r: BillingRecord): string {
+  const inv = r.invoice_date?.trim()
+  if (inv) return inv
+  if (r.billing_month) return `${r.billing_month}-01`
+  return new Date().toISOString().slice(0, 10)
+}
+
+export function billingRecordsToFinanceCampaigns(
+  records: BillingRecord[],
+  clientMetaByClientId?: Map<number, FinanceExcelClientMeta>
+): { media: FinanceCampaignData[]; sow: FinanceCampaignData[] } {
+  const toCampaign = (r: BillingRecord): FinanceCampaignData => {
+    const line_items = r.line_items ?? []
+    const meta = clientMetaByClientId?.get(r.clients_id)
+    const legalBlock =
+      clientMetaByClientId != null
+        ? {
+            legalBusinessName: meta?.legalBusinessName ?? "",
+            abn: meta?.abn ?? "",
+          }
+        : {}
+    return {
+      clientName: r.client_name,
+      mbaNumber: r.mba_number ?? "",
+      poNumber: r.po_number ?? undefined,
+      campaignName: r.campaign_name ?? "",
+      paymentDays: r.payment_days,
+      paymentTerms: r.payment_terms,
+      invoiceDate: invoiceIsoForFinanceCampaign(r),
+      lineItems: line_items
+        .filter((li) => li.line_type === "media")
+        .map((li) => ({
+          itemCode: li.item_code,
+          mediaType: li.media_type ?? "",
+          description: li.description ?? "",
+          amount: li.amount,
+        })),
+      serviceRows: line_items
+        .filter((li) => li.line_type === "service")
+        .map((li) => ({
+          itemCode: li.item_code,
+          service: li.description ?? "",
+          amount: li.amount,
+        })),
+      total: r.total,
+      ...legalBlock,
+    }
+  }
+
+  const media = records.filter((r) => r.billing_type === "media").map(toCampaign)
+  const sow = records.filter((r) => r.billing_type === "sow").map(toCampaign)
+  return { media, sow }
+}
+
+export type FinanceHubWorkbookMonthGroup = {
+  monthIso: string
+  monthLabel: string
+  records: BillingRecord[]
+}
+
+export async function buildFinanceHubWorkbook(
+  monthGroups: FinanceHubWorkbookMonthGroup[]
+): Promise<ArrayBuffer> {
+  const clientMetaById = await fetchFinanceHubClientMetaByClientId()
+  const workbook = new ExcelJS.Workbook()
+  for (const group of monthGroups) {
+    const { media, sow } = billingRecordsToFinanceCampaigns(group.records, clientMetaById)
+    const safeMonth = group.monthLabel.replace(/[\\/?*\[\]:]/g, "")
+    if (media.length > 0) {
+      await writeMediaFinanceWorksheet(workbook, `Media ${safeMonth}`.slice(0, 31), media, null)
+    }
+    if (sow.length > 0) {
+      await writeSowFinanceWorksheet(workbook, `SOW ${safeMonth}`.slice(0, 31), sow, null)
+    }
+  }
+  if (workbook.worksheets.length === 0) {
+    throw new Error("No media or SOW billing rows to export for the selected months.")
+  }
+  return workbookToXlsxBuffer(workbook)
+}
+

@@ -280,6 +280,11 @@ const SECTION_TO_MEDIA_KEY: Record<string, string> = {
   'Programmatic Audio': 'progAudio', 'Programmatic OOH': 'progOoh', 'Production': 'production',
 };
 
+export type GenerateMediaPlanOptions = {
+  /** 'aa' omits Service Fee and Adserving/Tech rows (caller supplies adjusted totals_ex_gst / total_inc_gst). */
+  mbaTotalsLayout?: 'standard' | 'aa'
+}
+
 export async function generateMediaPlan(
   header: MediaPlanHeader,
   mediaItems: MediaItems,
@@ -293,8 +298,10 @@ export async function generateMediaPlan(
       totals_ex_gst: number;
       total_inc_gst: number;
     };
-  }
+  },
+  options?: GenerateMediaPlanOptions
 ): Promise<ExcelJS.Workbook> {
+  const mbaTotalsLayout = options?.mbaTotalsLayout ?? 'standard'
   const {
     logoBase64,
     client,
@@ -1794,19 +1801,21 @@ export async function generateMediaPlan(
       });
       currentRow++;
 
-      style(sheet.getCell(currentRow, 13), {
-        value: 'Service Fee:',
-        fontSize: 15,
-        bold: true,
-        align: 'left'
-      });
-      style(sheet.getCell(currentRow, 14), {
-        value: totals.service_fee,
-        fontSize: 15,
-        align: 'right',
-        numFmt: '$#,##0.00'
-      });
-      currentRow++;
+      if (mbaTotalsLayout === 'standard') {
+        style(sheet.getCell(currentRow, 13), {
+          value: 'Service Fee:',
+          fontSize: 15,
+          bold: true,
+          align: 'left'
+        });
+        style(sheet.getCell(currentRow, 14), {
+          value: totals.service_fee,
+          fontSize: 15,
+          align: 'right',
+          numFmt: '$#,##0.00'
+        });
+        currentRow++;
+      }
 
       style(sheet.getCell(currentRow, 13), {
         value: 'Production:',
@@ -1822,19 +1831,21 @@ export async function generateMediaPlan(
       });
       currentRow++;
 
-      style(sheet.getCell(currentRow, 13), {
-        value: 'Adserving/Tech:',
-        fontSize: 15,
-        bold: true,
-        align: 'left'
-      });
-      style(sheet.getCell(currentRow, 14), {
-        value: totals.adserving,
-        fontSize: 15,
-        align: 'right',
-        numFmt: '$#,##0.00'
-      });
-      currentRow++;
+      if (mbaTotalsLayout === 'standard') {
+        style(sheet.getCell(currentRow, 13), {
+          value: 'Adserving/Tech:',
+          fontSize: 15,
+          bold: true,
+          align: 'left'
+        });
+        style(sheet.getCell(currentRow, 14), {
+          value: totals.adserving,
+          fontSize: 15,
+          align: 'right',
+          numFmt: '$#,##0.00'
+        });
+        currentRow++;
+      }
 
       // Add separator line
       currentRow++;

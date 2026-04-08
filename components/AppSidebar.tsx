@@ -42,7 +42,6 @@ export function AppSidebar() {
   const pathname = usePathname() ?? "";
   const { userClient, isAdmin, isLoading } = useAuthContext();
   const [isClientsExpanded, setIsClientsExpanded] = useState(false);
-  const [isFinanceExpanded, setIsFinanceExpanded] = useState(false);
   const [clients, setClients] = useState<Client[]>([]);
 
   const isCampaignsNavActive = useCallback(
@@ -78,6 +77,11 @@ export function AppSidebar() {
     }
   }
 
+  const isFinanceNavActive = useCallback(
+    () => pathname.startsWith("/finance"),
+    [pathname]
+  );
+
   const adminMenuItems = useMemo(() => ([
     { title: "Home", icon: LayoutDashboard, href: "/dashboard", exact: true as const },
     { title: "Campaigns", icon: FileText, href: "/mediaplans", exact: false as const, isActive: isCampaignsNavActive },
@@ -85,9 +89,10 @@ export function AppSidebar() {
     { title: "Pacing", icon: TrendingUp, href: "/pacing" },
     { title: "Publishers", icon: Building2, href: "/publishers" },
     { title: "Client hub", icon: Users, href: "/client", exact: true as const },
+    { title: "Finance", icon: DollarSign, href: "/finance", exact: false as const, isActive: isFinanceNavActive },
     { title: "Learning", icon: BookOpen, href: "/learning" },
     { title: "Create Campaign", icon: PlusCircle, href: "/mediaplans/create", isActive: isCreateCampaignActive },
-  ]), [isCampaignsNavActive, isCreateCampaignActive]);
+  ]), [isCampaignsNavActive, isCreateCampaignActive, isFinanceNavActive]);
 
   const formatClientSlugLabel = (slug: string) => {
     const s = String(slug ?? "").trim()
@@ -189,77 +194,6 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                 );
               })}
-
-              {isAdmin && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    type="button"
-                    onClick={() => setIsFinanceExpanded(!isFinanceExpanded)}
-                    isActive={financeSectionActive}
-                    className="flex w-full items-center justify-between"
-                  >
-                    <div className="flex items-center">
-                      <DollarSign className="mr-2 h-4 w-4 shrink-0" aria-hidden />
-                      <span>Finance</span>
-                    </div>
-                    {isFinanceExpanded ? (
-                      <ChevronDown className="h-4 w-4 shrink-0" aria-hidden />
-                    ) : (
-                      <ChevronRight className="h-4 w-4 shrink-0" aria-hidden />
-                    )}
-                  </SidebarMenuButton>
-                  {isFinanceExpanded && (
-                    <SidebarMenuSub>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={pathMatchesHref(pathname, "/finance", true)}>
-                          <Link href="/finance">Overview</Link>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={pathMatchesHref(pathname, "/finance/media")}>
-                          <Link href="/finance/media">Media</Link>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={pathMatchesHref(pathname, "/finance/publishers")}>
-                          <Link href="/finance/publishers">Publishers</Link>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={pathMatchesHref(pathname, "/finance/sow")}>
-                          <Link href="/finance/sow">Scopes of Work</Link>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={pathMatchesHref(pathname, "/finance/retainers")}>
-                          <Link href="/finance/retainers">Retainers</Link>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={pathMatchesHref(pathname, "/finance/accrual")}>
-                          <Link href="/finance/accrual">Accrual</Link>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton
-                          asChild
-                          isActive={pathMatchesHref(pathname, "/finance/forecast", true)}
-                        >
-                          <Link href="/finance/forecast">Forecast</Link>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton
-                          asChild
-                          isActive={pathMatchesHref(pathname, "/finance/forecast/snapshots/variance", true)}
-                        >
-                          <Link href="/finance/forecast/snapshots/variance">Forecast variance</Link>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                    </SidebarMenuSub>
-                  )}
-                </SidebarMenuItem>
-              )}
 
               {isAdmin && (
                 <SidebarMenuItem>

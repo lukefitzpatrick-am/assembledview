@@ -5,6 +5,13 @@ export interface FinanceLineItem {
   mediaType: string
   description: string
   amount: number
+  /** Line-item publisher / vendor (billing schedule `header1`) when available. */
+  publisherName?: string | null
+  /**
+   * Stable id from billing schedule (`lineItemId` / `line_item_id`), matching media plan rows
+   * (e.g. MBA+TV+1). Used to join finance lines back to plan tables for description enrichment.
+   */
+  planLineItemId?: string | null
 }
 
 export interface FinanceServiceRow {
@@ -24,6 +31,9 @@ export interface FinanceCampaignData {
   lineItems: FinanceLineItem[]
   serviceRows: FinanceServiceRow[]
   total: number
+  /** When set (e.g. finance hub export), shown as header rows before MBA/campaign details. */
+  legalBusinessName?: string
+  abn?: string
 }
 
 export interface BillingScheduleEntry {
@@ -62,7 +72,7 @@ export function mergeFinanceLineItems(items: FinanceLineItem[]): FinanceLineItem
   const merged: FinanceLineItem[] = []
 
   for (const item of items) {
-    const key = `${item.itemCode}||${item.mediaType}||${item.description}`
+    const key = `${item.itemCode}||${item.mediaType}||${item.description}||${item.publisherName ?? ""}||${item.planLineItemId ?? ""}`
     const existing = byKey.get(key)
     if (!existing) {
       const copy: FinanceLineItem = {
@@ -70,6 +80,8 @@ export function mergeFinanceLineItems(items: FinanceLineItem[]): FinanceLineItem
         mediaType: item.mediaType,
         description: item.description,
         amount: item.amount,
+        publisherName: item.publisherName ?? null,
+        planLineItemId: item.planLineItemId ?? null,
       }
       byKey.set(key, copy)
       merged.push(copy)
@@ -613,11 +625,24 @@ export function extractLineItemsFromBillingSchedule(
       }
       const description = descriptionParts.join(" ") || mediaTypeDisplayName
 
+      const pub =
+        lineItem.header1 != null && String(lineItem.header1).trim()
+          ? String(lineItem.header1).trim()
+          : null
+
+      const rawPlanId =
+        (lineItem as { lineItemId?: unknown }).lineItemId ??
+        (lineItem as { line_item_id?: unknown }).line_item_id
+      const planLineItemId =
+        rawPlanId != null && String(rawPlanId).trim() ? String(rawPlanId).trim() : null
+
       lineItems.push({
         itemCode,
         mediaType: mediaTypeDisplayName,
         description,
         amount,
+        publisherName: pub,
+        planLineItemId,
       })
     }
   }
@@ -710,4 +735,6 @@ export function financeClientNamesMatch(name1: string, name2: string): boolean {
   if (!name1 || !name2) return false
   return normalizeFinanceClientName(name1) === normalizeFinanceClientName(name2)
 }
+
+export { getCurrentAndNextBillingMonths } from "./months"
 
