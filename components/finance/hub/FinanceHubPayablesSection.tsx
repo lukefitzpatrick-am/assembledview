@@ -29,7 +29,6 @@ import { fetchFinancePayablesForMonths, type FinanceBillingQuery } from "@/lib/f
 import { exportPayablesPublisherDetailExcel } from "@/lib/finance/export"
 import { formatLineItemDescription } from "@/lib/finance/lineItemDescription"
 import { usePayablesHideClientPaid } from "@/components/finance/usePayablesHideClientPaid"
-import { getCurrentAndNextBillingMonths } from "@/lib/finance/utils"
 import { expandMonthRange } from "@/lib/finance/monthRange"
 import type { BillingLineItem, BillingRecord } from "@/lib/types/financeBilling"
 import type { Publisher } from "@/lib/types/publisher"
@@ -166,8 +165,6 @@ function useFinanceHubPayablesData(): {
   const [loading, setLoading] = useState(true)
   const [publishers, setPublishers] = useState<Publisher[]>([])
 
-  const [currentMonth, nextMonth] = useMemo(() => getCurrentAndNextBillingMonths(), [])
-
   useEffect(() => {
     void (async () => {
       try {
@@ -214,7 +211,14 @@ function useFinanceHubPayablesData(): {
     }
     if (filters.statuses.length) params.status = filters.statuses.join(",")
 
-    void fetchFinancePayablesForMonths([currentMonth, nextMonth], params)
+    const payableMonths = expandMonthRange(filters.monthRange)
+    if (payableMonths.length === 0) {
+      setRecords([])
+      setLoading(false)
+      return
+    }
+
+    void fetchFinancePayablesForMonths(payableMonths, params)
       .then((rows) => {
         if (!cancelled) setRecords(rows.filter((r) => r.billing_type === "payable"))
       })
@@ -225,8 +229,8 @@ function useFinanceHubPayablesData(): {
       cancelled = true
     }
   }, [
-    currentMonth,
-    nextMonth,
+    filters.monthRange.from,
+    filters.monthRange.to,
     filters.includeDrafts,
     filters.selectedClients,
     filters.selectedPublishers,

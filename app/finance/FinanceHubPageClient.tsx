@@ -23,7 +23,6 @@ import { FinanceOverviewHero, FinanceOverviewProvider } from "@/components/finan
 import { toast } from "@/components/ui/use-toast"
 import type { BillingRecord, FinanceFilters } from "@/lib/types/financeBilling"
 import { fetchFinanceBillingForMonths, type FinanceBillingQuery } from "@/lib/finance/api"
-import { getCurrentAndNextBillingMonths } from "@/lib/finance/utils"
 import { clientAccentColour, clientInitials } from "@/lib/finance/cardHelpers"
 import { expandMonthRange } from "@/lib/finance/monthRange"
 import { formatLineItemDescription } from "@/lib/finance/lineItemDescription"
@@ -168,8 +167,6 @@ function useFinanceHubReceivablesData(activeTab: FinanceHubTab): { loading: bool
   const [records, setRecords] = useState<BillingRecord[]>([])
   const [loading, setLoading] = useState(true)
 
-  const [currentMonth, nextMonth] = useMemo(() => getCurrentAndNextBillingMonths(), [])
-
   const clientsKey = useMemo(() => filters.selectedClients.join(","), [filters.selectedClients])
   const publishersKey = useMemo(() => filters.selectedPublishers.join(","), [filters.selectedPublishers])
   const billingTypesKey = useMemo(
@@ -183,8 +180,8 @@ function useFinanceHubReceivablesData(activeTab: FinanceHubTab): { loading: bool
       "receivables-billing-fetch",
       [
         "activeTab",
-        "currentMonth",
-        "nextMonth",
+        "monthRange.from",
+        "monthRange.to",
         "includeDrafts",
         "clientsKey",
         "publishersKey",
@@ -194,8 +191,8 @@ function useFinanceHubReceivablesData(activeTab: FinanceHubTab): { loading: bool
       ],
       [
         activeTab,
-        currentMonth,
-        nextMonth,
+        filters.monthRange.from,
+        filters.monthRange.to,
         filters.includeDrafts,
         clientsKey,
         publishersKey,
@@ -225,7 +222,8 @@ function useFinanceHubReceivablesData(activeTab: FinanceHubTab): { loading: bool
     }
     if (filters.statuses.length) params.status = filters.statuses.join(",")
 
-    void fetchFinanceBillingForMonths([currentMonth, nextMonth], params)
+    const billingMonths = expandMonthRange(filters.monthRange)
+    void fetchFinanceBillingForMonths(billingMonths, params)
       .then((rows) => {
         if (cancelled) return
         setRecords(rows.filter((r) => isReceivableRecord(r)))
@@ -239,8 +237,8 @@ function useFinanceHubReceivablesData(activeTab: FinanceHubTab): { loading: bool
     }
   }, [
     activeTab,
-    currentMonth,
-    nextMonth,
+    filters.monthRange.from,
+    filters.monthRange.to,
     filters.includeDrafts,
     clientsKey,
     publishersKey,
