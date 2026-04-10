@@ -415,11 +415,11 @@ export default function DigiVideoContainer({
   
   await fetchAndUpdateVideoSites();
 
-  // Optionally, select the newly added station and network in the form
   if (currentLineItemIndexForNewSite !== null) {
-    form.setValue(`digivideolineItems.${currentLineItemIndexForNewSite}.publisher`, createdSite.platform, { shouldDirty: true })
-    form.setValue(`digivideolineItems.${currentLineItemIndexForNewSite}.platform`, createdSite.platform, { shouldDirty: true })
-    form.setValue(`digivideolineItems.${currentLineItemIndexForNewSite}.site`, createdSite.site, { shouldDirty: true })
+    const idx = currentLineItemIndexForNewSite
+    form.setValue(`digivideolineItems.${idx}.publisher`, newSitePlatform, { shouldDirty: true })
+    form.setValue(`digivideolineItems.${idx}.platform`, newSitePlatform, { shouldDirty: true })
+    form.setValue(`digivideolineItems.${idx}.site`, createdSite.site, { shouldDirty: true })
   }
 
   setIsAddSiteDialogOpen(false);
@@ -482,11 +482,42 @@ export default function DigiVideoContainer({
   const {
     fields: lineItemFields,
     append: appendLineItem,
-    remove: removeLineItem,
+    remove: removeLineItemBase,
   } = useFieldArray({
     control: form.control,
     name: "digivideolineItems",
-  });
+  })
+
+  const [collapsedLineItems, setCollapsedLineItems] = useState<Set<number>>(new Set())
+
+  const toggleLineItemCollapsed = useCallback((i: number) => {
+    setCollapsedLineItems((prev) => {
+      const next = new Set(prev)
+      if (next.has(i)) next.delete(i)
+      else next.add(i)
+      return next
+    })
+  }, [])
+
+  const collapseAllLineItems = useCallback(() => {
+    const items = form.getValues("digivideolineItems") || []
+    setCollapsedLineItems(new Set(items.map((_, i) => i)))
+  }, [form])
+
+  const removeLineItem = useCallback(
+    (i: number) => {
+      setCollapsedLineItems((prev) => {
+        const next = new Set<number>()
+        prev.forEach((idx) => {
+          if (idx < i) next.add(idx)
+          else if (idx > i) next.add(idx - 1)
+        })
+        return next
+      })
+      removeLineItemBase(i)
+    },
+    [removeLineItemBase]
+  )
 
   useLayoutEffect(() => {
     digiVideoStandardBaselineRef.current =
@@ -541,8 +572,9 @@ export default function DigiVideoContainer({
 
   const confirmDigiVideoExpertExitWithoutSaving = useCallback(() => {
     setDigiVideoExpertExitConfirmOpen(false)
+    collapseAllLineItems()
     setDigiVideoExpertModalOpen(false)
-  }, [])
+  }, [collapseAllLineItems])
 
   const handleDigiVideoExpertModalOpenChange = useCallback(
     (open: boolean) => {
@@ -554,12 +586,13 @@ export default function DigiVideoContainer({
         serializeDigiVideoExpertRowsBaseline(expertDigiVideoRows) !==
         digiVideoExpertRowsBaselineRef.current
       if (!dirty) {
+        collapseAllLineItems()
         setDigiVideoExpertModalOpen(false)
         return
       }
       setDigiVideoExpertExitConfirmOpen(true)
     },
-    [expertDigiVideoRows]
+    [collapseAllLineItems, expertDigiVideoRows]
   )
 
   const handleDigiVideoExpertApply = useCallback(() => {
@@ -587,10 +620,12 @@ export default function DigiVideoContainer({
         form.getValues("digivideolineItems")
       )
     setDigiVideoExpertExitConfirmOpen(false)
+    collapseAllLineItems()
     setDigiVideoExpertModalOpen(false)
   }, [
     campaignStartDate,
     campaignEndDate,
+    collapseAllLineItems,
     expertDigiVideoRows,
     feedigivideo,
     form,
@@ -1389,7 +1424,6 @@ useEffect(() => {
             <Form {...form}>
               <div className="space-y-6">
                 {lineItemFields.map((field, lineItemIndex) => {
-                  const sectionId = `digivideo-line-item-${lineItemIndex}`;
                   const getTotals = (lineItemIndex: number) => {
                     const lineItem = form.getValues(`digivideolineItems.${lineItemIndex}`);
                     let totalMedia = 0;
@@ -1445,14 +1479,21 @@ useEffect(() => {
                               variant="ghost"
                               size="sm"
                               className="h-8 w-8 shrink-0 rounded-full p-0"
-                              onClick={() => {
-                                const element = document.getElementById(sectionId);
-                                if (element) {
-                                  element.classList.toggle('hidden');
-                                }
-                              }}
+                              aria-expanded={!collapsedLineItems.has(lineItemIndex)}
+                              aria-label={
+                                collapsedLineItems.has(lineItemIndex)
+                                  ? `Expand details for digi video line item ${lineItemIndex + 1}`
+                                  : `Collapse details for digi video line item ${lineItemIndex + 1}`
+                              }
+                              onClick={() => toggleLineItemCollapsed(lineItemIndex)}
                             >
-                              <ChevronDown className="h-4 w-4" />
+                              <ChevronDown
+                                className={cn(
+                                  "h-4 w-4 transition-transform",
+                                  collapsedLineItems.has(lineItemIndex) && "-rotate-90"
+                                )}
+                                aria-hidden
+                              />
                             </Button>
                           </div>
                         </div>
@@ -1476,8 +1517,8 @@ useEffect(() => {
                         </div>
                       </div>
                       
-                      {/* Detailed Content & Bursts - Collapsible */}
-                      <div id={sectionId} className="space-y-6 px-6 py-5">
+                      {!collapsedLineItems.has(lineItemIndex) && (
+                      <div className="space-y-6 px-6 py-5">
                           <CardContent className="space-y-5 p-0">
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4">
                               
@@ -1948,6 +1989,8 @@ useEffect(() => {
                           );
                         })}
                       </div>
+                      </div>
+                      )}
 
                       <CardFooter className="flex items-center justify-between pt-4 pb-4 bg-muted/20 border-t border-border/40">
                           <Button
@@ -2006,7 +2049,6 @@ useEffect(() => {
                                                       )}
                           </div>
                         </CardFooter>
-                      </div>
                     </Card>
                   );
                 })}
@@ -2090,7 +2132,7 @@ useEffect(() => {
         </DialogContent>
       </Dialog>
 
-    {/* Add Station Dialog */}
+    {/* Add Site dialog — publisher is locked to the line item that opened it */}
 <Dialog open={isAddSiteDialogOpen} onOpenChange={setIsAddSiteDialogOpen}>
   <DialogContent className="sm:max-w-[425px]">
     <DialogHeader>
@@ -2106,26 +2148,9 @@ useEffect(() => {
         </Label>
         <Input
           id="dialogDisplayNetworkName"
-          value={newSitePlatform} // This is pre-filled from the line item
-          readOnly
-          className="col-span-3 bg-muted focus:ring-0 pointer-events-none" // Style to indicate read-only
-        />
-      </div>
-      <div className="grid grid-cols-4 items-center gap-4">
-        <Label htmlFor="newStationNetwork" className="text-right">
-          
-        </Label>
-        {/* Assuming 'publishers' contains the list of available networks */}
-        <Combobox
           value={newSitePlatform}
-          onValueChange={setNewSitePlatform}
-          placeholder="Select Publisher"
-          searchPlaceholder="Search publishers..."
-          buttonClassName="col-span-3 h-9"
-          options={publishers.map((publisher) => ({
-            value: publisher.publisher_name,
-            label: publisher.publisher_name,
-          }))}
+          readOnly
+          className="col-span-3 bg-muted focus:ring-0 pointer-events-none"
         />
       </div>
       <div className="grid grid-cols-4 items-center gap-4">

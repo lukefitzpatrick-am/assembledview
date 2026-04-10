@@ -2403,7 +2403,7 @@ export default function CreateMediaPlan() {
     case "mp_production":
       return consultingTotal ?? 0;
       case "mp_influencers":
-        return feecontentcreator ?? 0;
+        return influencersTotal ?? 0;
       case "mp_television":
         return televisionTotal ?? 0;
       case "mp_radio":
@@ -3140,23 +3140,36 @@ export default function CreateMediaPlan() {
 
           if (isNaN(startDate.getTime()) || isNaN(endDate.getTime()) || effectiveBudget === 0) return;
 
-          const daysTotal = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+          // Normalise burst endpoints to local midnight so day counts don't drift
+          // when bursts come from UTC ISO strings (e.g. "2026-05-30T14:00:00.000Z").
+          const sLocalMidnight = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+          const eLocalMidnight = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
+
+          const daysTotal =
+            Math.round((eLocalMidnight.getTime() - sLocalMidnight.getTime()) / (1000 * 60 * 60 * 24)) + 1;
           if (daysTotal <= 0) return;
 
-          let currentDate = new Date(startDate);
-          while (currentDate <= endDate) {
+          // Walk months by constructing fresh first-of-month Dates instead of mutating
+          // with setMonth/setDate, which has a rollover bug: e.g. setting month=June on
+          // a Date whose day is 31 normalises to 1 July, silently skipping June.
+          let currentDate = new Date(sLocalMidnight.getFullYear(), sLocalMidnight.getMonth(), 1);
+          const lastMonthCursor = new Date(eLocalMidnight.getFullYear(), eLocalMidnight.getMonth(), 1);
+
+          while (currentDate <= lastMonthCursor) {
             const monthKey = format(currentDate, "MMMM yyyy");
             if (monthlyAmounts.hasOwnProperty(monthKey)) {
               const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
               const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
-              const sliceStart = Math.max(startDate.getTime(), monthStart.getTime());
-              const sliceEnd = Math.min(endDate.getTime(), monthEnd.getTime());
-              const daysInMonth = Math.ceil((sliceEnd - sliceStart) / (1000 * 60 * 60 * 24)) + 1;
-              const share = effectiveBudget * (daysInMonth / daysTotal);
-              monthlyAmounts[monthKey] += share;
+              const sliceStartMs = Math.max(sLocalMidnight.getTime(), monthStart.getTime());
+              const sliceEndMs = Math.min(eLocalMidnight.getTime(), monthEnd.getTime());
+              const daysInMonth =
+                Math.round((sliceEndMs - sliceStartMs) / (1000 * 60 * 60 * 24)) + 1;
+              if (daysInMonth > 0) {
+                const share = effectiveBudget * (daysInMonth / daysTotal);
+                monthlyAmounts[monthKey] += share;
+              }
             }
-            currentDate.setMonth(currentDate.getMonth() + 1);
-            currentDate.setDate(1);
+            currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
           }
         });
 
@@ -5550,7 +5563,14 @@ const handleSaveAll = async () => {
                           {mbaCurrencyFormatter.format(billingSchedulePreviewColumns.productionGrand)}
                         </TableCell>
                       ) : null}
-                      <TableCell align="right" className="font-semibold">{billingTotal}</TableCell>
+                      <TableCell align="right" className="font-semibold">
+                        {mbaCurrencyFormatter.format(
+                          billingMonths.reduce(
+                            (acc, m) => acc + parseFloat(m.totalAmount.replace(/[^0-9.-]/g, "")),
+                            0,
+                          ),
+                        )}
+                      </TableCell>
                     </TableRow>
                   </TableBody>
                 </Table>

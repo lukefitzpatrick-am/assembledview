@@ -421,11 +421,42 @@ export default function ProgVideoContainer({
   const {
     fields: lineItemFields,
     append: appendLineItem,
-    remove: removeLineItem,
+    remove: removeLineItemBase,
   } = useFieldArray({
     control: form.control,
     name: "lineItems",
   })
+
+  const [collapsedLineItems, setCollapsedLineItems] = useState<Set<number>>(new Set())
+
+  const toggleLineItemCollapsed = useCallback((i: number) => {
+    setCollapsedLineItems((prev) => {
+      const next = new Set(prev)
+      if (next.has(i)) next.delete(i)
+      else next.add(i)
+      return next
+    })
+  }, [])
+
+  const collapseAllLineItems = useCallback(() => {
+    const items = form.getValues("lineItems") || []
+    setCollapsedLineItems(new Set(items.map((_, i) => i)))
+  }, [form])
+
+  const removeLineItem = useCallback(
+    (i: number) => {
+      setCollapsedLineItems((prev) => {
+        const next = new Set<number>()
+        prev.forEach((idx) => {
+          if (idx < i) next.add(idx)
+          else if (idx > i) next.add(idx - 1)
+        })
+        return next
+      })
+      removeLineItemBase(i)
+    },
+    [removeLineItemBase]
+  )
 
   const progvideoStandardBaselineRef = useRef("")
   const [expertProgVideoRows, setExpertProgVideoRows] = useState<
@@ -498,8 +529,9 @@ export default function ProgVideoContainer({
 
   const confirmProgVideoExpertExitWithoutSaving = useCallback(() => {
     setProgVideoExpertExitConfirmOpen(false)
+    collapseAllLineItems()
     setProgVideoExpertModalOpen(false)
-  }, [])
+  }, [collapseAllLineItems])
 
   const handleProgVideoExpertModalOpenChange = useCallback(
     (open: boolean) => {
@@ -511,12 +543,13 @@ export default function ProgVideoContainer({
         serializeProgVideoExpertRowsBaseline(expertProgVideoRows) !==
         progvideoExpertRowsBaselineRef.current
       if (!dirty) {
+        collapseAllLineItems()
         setProgVideoExpertModalOpen(false)
         return
       }
       setProgVideoExpertExitConfirmOpen(true)
     },
-    [expertProgVideoRows]
+    [collapseAllLineItems, expertProgVideoRows]
   )
 
   const handleProgVideoExpertApply = useCallback(() => {
@@ -544,10 +577,12 @@ export default function ProgVideoContainer({
         form.getValues("lineItems") as StandardProgVideoFormLineItem[]
       )
     setProgVideoExpertExitConfirmOpen(false)
+    collapseAllLineItems()
     setProgVideoExpertModalOpen(false)
   }, [
     campaignStartDate,
     campaignEndDate,
+    collapseAllLineItems,
     expertProgVideoRows,
     feeprogvideo,
     form,
@@ -1292,7 +1327,6 @@ useEffect(() => {
             <Form {...form}>
               <div className="space-y-6">
                 {lineItemFields.map((field, lineItemIndex) => {
-                  const sectionId = `progvideo-line-item-${lineItemIndex}`;
                   const getTotals = (lineItemIndex: number) => {
                     const lineItem = form.getValues(`lineItems.${lineItemIndex}`);
                     let totalMedia = 0;
@@ -1339,14 +1373,21 @@ useEffect(() => {
                               variant="ghost"
                               size="sm"
                               className="h-8 w-8 shrink-0 rounded-full p-0"
-                              onClick={() => {
-                                const element = document.getElementById(sectionId);
-                                if (element) {
-                                  element.classList.toggle('hidden');
-                                }
-                              }}
+                              aria-expanded={!collapsedLineItems.has(lineItemIndex)}
+                              aria-label={
+                                collapsedLineItems.has(lineItemIndex)
+                                  ? `Expand details for prog video line item ${lineItemIndex + 1}`
+                                  : `Collapse details for prog video line item ${lineItemIndex + 1}`
+                              }
+                              onClick={() => toggleLineItemCollapsed(lineItemIndex)}
                             >
-                              <ChevronDown className="h-4 w-4" />
+                              <ChevronDown
+                                className={cn(
+                                  "h-4 w-4 transition-transform",
+                                  collapsedLineItems.has(lineItemIndex) && "-rotate-90"
+                                )}
+                                aria-hidden
+                              />
                             </Button>
                           </div>
                         </div>
@@ -1370,8 +1411,9 @@ useEffect(() => {
                         </div>
                       </div>
                       
-                      {/* Detailed Content & Bursts - Collapsible */}
-                      <div id={sectionId} className="space-y-6 px-6 py-5">
+                      {!collapsedLineItems.has(lineItemIndex) && (
+                      <>
+                      <div className="px-6 py-5">
                           <CardContent className="space-y-5 p-0">
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4">
                               
@@ -1578,8 +1620,8 @@ useEffect(() => {
                             </div>
                           </div>
                         </CardContent>
+                      </div>
 
-                      {/* Bursts Section */}
                       <div className={MP_BURST_SECTION_OUTER}>
                         <div className={MP_BURST_HEADER_SHELL}>
                           <div className={MP_BURST_HEADER_INNER}>
@@ -1823,6 +1865,8 @@ useEffect(() => {
                           );
                         })}
                       </div>
+                      </>
+                      )}
 
                       <CardFooter className="flex items-center justify-between pt-4 pb-4 bg-muted/20 border-t border-border/40">
                         <Button
@@ -1883,7 +1927,6 @@ useEffect(() => {
                                                   )}
                         </div>
                       </CardFooter>
-                      </div>
                     </Card>
                   );
                 })}

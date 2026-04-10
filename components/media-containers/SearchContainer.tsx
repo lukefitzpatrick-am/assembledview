@@ -365,10 +365,6 @@ export default function SearchContainer({
   const { toast } = useToast()
   const { mbaNumber } = useMediaPlanContext()
   const [overallDeliverables, setOverallDeliverables] = useState(0);
-  /** Tracks expanded/collapsed state for line item detail panels (keyed by useFieldArray field.id). */
-  const [searchLineItemDetailsExpanded, setSearchLineItemDetailsExpanded] = useState<
-    Record<string, boolean>
-  >({});
 
   const [expertSearchRows, setExpertSearchRows] = useState<SearchExpertScheduleRow[]>(
     []
@@ -426,11 +422,42 @@ export default function SearchContainer({
   const {
     fields: lineItemFields,
     append: appendLineItem,
-    remove: removeLineItem,
+    remove: removeLineItemBase,
   } = useFieldArray({
     control: form.control,
     name: "lineItems",
   });
+
+  const [collapsedLineItems, setCollapsedLineItems] = useState<Set<number>>(new Set())
+
+  const toggleLineItemCollapsed = useCallback((i: number) => {
+    setCollapsedLineItems((prev) => {
+      const next = new Set(prev)
+      if (next.has(i)) next.delete(i)
+      else next.add(i)
+      return next
+    })
+  }, [])
+
+  const collapseAllLineItems = useCallback(() => {
+    const items = form.getValues("lineItems") || []
+    setCollapsedLineItems(new Set(items.map((_, i) => i)))
+  }, [form])
+
+  const removeLineItem = useCallback(
+    (i: number) => {
+      setCollapsedLineItems((prev) => {
+        const next = new Set<number>()
+        prev.forEach((idx) => {
+          if (idx < i) next.add(idx)
+          else if (idx > i) next.add(idx - 1)
+        })
+        return next
+      })
+      removeLineItemBase(i)
+    },
+    [removeLineItemBase]
+  )
 
   useLayoutEffect(() => {
     searchStandardBaselineRef.current =
@@ -483,8 +510,9 @@ export default function SearchContainer({
 
   const confirmSearchExpertExitWithoutSaving = useCallback(() => {
     setSearchExpertExitConfirmOpen(false)
+    collapseAllLineItems()
     setSearchExpertModalOpen(false)
-  }, [])
+  }, [collapseAllLineItems])
 
   const handleSearchExpertModalOpenChange = useCallback(
     (open: boolean) => {
@@ -496,12 +524,13 @@ export default function SearchContainer({
         serializeSearchExpertRowsBaseline(expertSearchRows) !==
         searchExpertRowsBaselineRef.current
       if (!dirty) {
+        collapseAllLineItems()
         setSearchExpertModalOpen(false)
         return
       }
       setSearchExpertExitConfirmOpen(true)
     },
-    [expertSearchRows]
+    [collapseAllLineItems, expertSearchRows]
   )
 
   const handleSearchExpertApply = useCallback(() => {
@@ -527,10 +556,12 @@ export default function SearchContainer({
     searchStandardBaselineRef.current =
       serializeSearchStandardLineItemsBaseline(form.getValues("lineItems"))
     setSearchExpertExitConfirmOpen(false)
+    collapseAllLineItems()
     setSearchExpertModalOpen(false)
   }, [
     campaignStartDate,
     campaignEndDate,
+    collapseAllLineItems,
     expertSearchRows,
     feesearch,
     form,
@@ -1350,8 +1381,6 @@ useEffect(() => {
             <Form {...form}>
               <div className="space-y-6">
                 {lineItemFields.map((field, lineItemIndex) => {
-                  const sectionId = `search-line-item-${lineItemIndex}`;
-                  const lineItemDetailsExpanded = searchLineItemDetailsExpanded[field.id] !== false;
                   const getTotals = (lineItemIndex: number) => {
                     const lineItem = form.getValues(`lineItems.${lineItemIndex}`);
                     let totalMedia = 0;
@@ -1398,25 +1427,21 @@ useEffect(() => {
                               variant="ghost"
                               size="sm"
                               className="h-8 w-8 shrink-0 rounded-full p-0"
-                              aria-expanded={lineItemDetailsExpanded}
-                              aria-controls={sectionId}
+                              aria-expanded={!collapsedLineItems.has(lineItemIndex)}
                               aria-label={
-                                lineItemDetailsExpanded
-                                  ? `Collapse details for search line item ${lineItemIndex + 1}`
-                                  : `Expand details for search line item ${lineItemIndex + 1}`
+                                collapsedLineItems.has(lineItemIndex)
+                                  ? `Expand details for search line item ${lineItemIndex + 1}`
+                                  : `Collapse details for search line item ${lineItemIndex + 1}`
                               }
-                              onClick={() => {
-                                const element = document.getElementById(sectionId);
-                                if (element) {
-                                  element.classList.toggle('hidden');
-                                }
-                                setSearchLineItemDetailsExpanded((prev) => {
-                                  const wasExpanded = prev[field.id] !== false;
-                                  return { ...prev, [field.id]: !wasExpanded };
-                                });
-                              }}
+                              onClick={() => toggleLineItemCollapsed(lineItemIndex)}
                             >
-                              <ChevronDown className="h-4 w-4" aria-hidden />
+                              <ChevronDown
+                                className={cn(
+                                  "h-4 w-4 transition-transform",
+                                  collapsedLineItems.has(lineItemIndex) && "-rotate-90"
+                                )}
+                                aria-hidden
+                              />
                             </Button>
                           </div>
                         </div>
@@ -1440,8 +1465,9 @@ useEffect(() => {
                         </div>
                       </div>
                       
-                      {/* Detailed Content & Bursts - Collapsible */}
-                      <div id={sectionId} className="space-y-6 px-6 py-5">
+                      {!collapsedLineItems.has(lineItemIndex) && (
+                      <>
+                      <div className="px-6 py-5">
                           <CardContent className="space-y-5 p-0">
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4">
                               
@@ -1636,8 +1662,8 @@ useEffect(() => {
                             </div>
                           </div>
                         </CardContent>
+                      </div>
 
-                      {/* Bursts Section */}
                       <div className={MP_BURST_SECTION_OUTER}>
                         <div className={MP_BURST_HEADER_SHELL}>
                           <div className={MP_BURST_HEADER_INNER}>
@@ -1883,6 +1909,8 @@ useEffect(() => {
                           );
                         })}
                       </div>
+                      </>
+                      )}
 
                       <CardFooter className="flex items-center justify-between pt-4 pb-4 bg-muted/20 border-t border-border/40">
                           <Button
@@ -1939,7 +1967,6 @@ useEffect(() => {
                                                       )}
                           </div>
                         </CardFooter>
-                      </div>
                     </Card>
                   );
                 })}

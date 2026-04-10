@@ -298,12 +298,38 @@ export default function ProductionContainer({
   const {
     fields: lineItemFields,
     append: appendLineItem,
-    remove: removeLineItem,
+    remove: removeLineItemBase,
     insert: insertLineItem,
   } = useFieldArray({
     control: form.control,
     name: "lineItems",
   })
+
+  const [collapsedLineItems, setCollapsedLineItems] = useState<Set<number>>(new Set())
+
+  const toggleLineItemCollapsed = useCallback((i: number) => {
+    setCollapsedLineItems((prev) => {
+      const next = new Set(prev)
+      if (next.has(i)) next.delete(i)
+      else next.add(i)
+      return next
+    })
+  }, [])
+
+  const removeLineItem = useCallback(
+    (i: number) => {
+      setCollapsedLineItems((prev) => {
+        const next = new Set<number>()
+        prev.forEach((idx) => {
+          if (idx < i) next.add(idx)
+          else if (idx > i) next.add(idx - 1)
+        })
+        return next
+      })
+      removeLineItemBase(i)
+    },
+    [removeLineItemBase]
+  )
 
   const watchedLineItems = useWatch({
     control: form.control,
@@ -510,9 +536,6 @@ export default function ProductionContainer({
       <Form {...form}>
         <div className="space-y-6">
           {lineItemFields.map((field, lineItemIndex) => {
-            const sectionId = `production-line-item-${lineItemIndex}`
-            const burstsId = `${sectionId}-bursts`
-            const footerId = `${sectionId}-footer`
             const lineItemId =
               form.watch(`lineItems.${lineItemIndex}.lineItemId`) ||
               `${mbaNumber || "MBA"}PROD${lineItemIndex + 1}`
@@ -551,13 +574,21 @@ export default function ProductionContainer({
                         variant="ghost"
                         size="sm"
                         className="h-8 w-8 shrink-0 rounded-full p-0"
-                        onClick={() => {
-                          document.getElementById(sectionId)?.classList.toggle("hidden")
-                          document.getElementById(burstsId)?.classList.toggle("hidden")
-                          document.getElementById(footerId)?.classList.toggle("hidden")
-                        }}
+                        aria-expanded={!collapsedLineItems.has(lineItemIndex)}
+                        aria-label={
+                          collapsedLineItems.has(lineItemIndex)
+                            ? `Expand details for production line item ${lineItemIndex + 1}`
+                            : `Collapse details for production line item ${lineItemIndex + 1}`
+                        }
+                        onClick={() => toggleLineItemCollapsed(lineItemIndex)}
                       >
-                        <ChevronDown className="h-4 w-4" />
+                        <ChevronDown
+                          className={cn(
+                            "h-4 w-4 transition-transform",
+                            collapsedLineItems.has(lineItemIndex) && "-rotate-90"
+                          )}
+                          aria-hidden
+                        />
                       </Button>
                     </div>
                   </div>
@@ -583,7 +614,9 @@ export default function ProductionContainer({
                   </div>
                 </div>
 
-                <div id={sectionId} className="px-6 py-5">
+                {!collapsedLineItems.has(lineItemIndex) && (
+                <>
+                <div className="px-6 py-5">
                   <CardContent className="space-y-5 p-0">
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4">
                       <div className="space-y-4">
@@ -701,7 +734,7 @@ export default function ProductionContainer({
                   </CardContent>
                 </div>
 
-                <div id={burstsId} className={MP_BURST_SECTION_OUTER}>
+                <div className={MP_BURST_SECTION_OUTER}>
                   <div className={MP_BURST_HEADER_SHELL}>
                     <div className={MP_BURST_HEADER_INNER}>
                       <div className={MP_BURST_LABEL_COLUMN} aria-hidden />
@@ -878,8 +911,10 @@ export default function ProductionContainer({
                     )
                   })}
                 </div>
+                </>
+                )}
 
-                <CardFooter id={footerId} className="flex items-center justify-between pt-4 pb-4 bg-muted/20 border-t border-border/40">
+                <CardFooter className="flex items-center justify-between pt-4 pb-4 bg-muted/20 border-t border-border/40">
                   <Button
                     type="button"
                     variant="ghost"

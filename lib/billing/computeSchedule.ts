@@ -91,8 +91,7 @@ export function computeBillingAndDeliveryMonths(
     };
     billingMap[key] = { ...base, mediaCosts: { ...base.mediaCosts } };
     deliveryMap[key] = { ...base, mediaCosts: { ...base.mediaCosts } };
-    cur.setMonth(cur.getMonth() + 1);
-    cur.setDate(1);
+    cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
   }
 
   function distribute(burst: BillingBurst, mediaType: DistributeMediaType) {
@@ -100,38 +99,51 @@ export function computeBillingAndDeliveryMonths(
     const e = new Date(burst.endDate);
     if (isNaN(s.getTime()) || isNaN(e.getTime()) || s > e) return;
 
-    const daysTotal = Math.ceil((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    // Normalise burst endpoints to local midnight so day counts don't drift
+    // when bursts come from UTC ISO strings (e.g. "2026-05-30T14:00:00.000Z").
+    const sLocalMidnight = new Date(s.getFullYear(), s.getMonth(), s.getDate());
+    const eLocalMidnight = new Date(e.getFullYear(), e.getMonth(), e.getDate());
+
+    const daysTotal =
+      Math.round((eLocalMidnight.getTime() - sLocalMidnight.getTime()) / (1000 * 60 * 60 * 24)) + 1;
     if (daysTotal <= 0) return;
 
-    let d = new Date(s);
-    while (d <= e) {
+    // Walk months by constructing fresh first-of-month Dates instead of mutating
+    // with setMonth/setDate, which has a rollover bug: e.g. setting month=June on
+    // a Date whose day is 31 normalises to 1 July, silently skipping June.
+    let d = new Date(sLocalMidnight.getFullYear(), sLocalMidnight.getMonth(), 1);
+    const lastMonthCursor = new Date(eLocalMidnight.getFullYear(), eLocalMidnight.getMonth(), 1);
+
+    while (d <= lastMonthCursor) {
       const key = format(d, "MMMM yyyy");
       if (billingMap[key] && deliveryMap[key]) {
         const monthStart = new Date(d.getFullYear(), d.getMonth(), 1);
         const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-        const sliceStart = Math.max(s.getTime(), monthStart.getTime());
-        const sliceEnd = Math.min(e.getTime(), monthEnd.getTime());
-        const daysInMonth = Math.ceil((sliceEnd - sliceStart) / (1000 * 60 * 60 * 24)) + 1;
+        const sliceStartMs = Math.max(sLocalMidnight.getTime(), monthStart.getTime());
+        const sliceEndMs = Math.min(eLocalMidnight.getTime(), monthEnd.getTime());
+        const daysInMonth =
+          Math.round((sliceEndMs - sliceStartMs) / (1000 * 60 * 60 * 24)) + 1;
 
-        const ratio = daysInMonth / daysTotal;
-        const billingMediaShare = burst.mediaAmount * ratio;
-        const deliveryMediaShare = (burst.deliveryMediaAmount ?? burst.mediaAmount) * ratio;
-        const feeShare = burst.feeAmount * ratio;
+        if (daysInMonth > 0) {
+          const ratio = daysInMonth / daysTotal;
+          const billingMediaShare = burst.mediaAmount * ratio;
+          const deliveryMediaShare = (burst.deliveryMediaAmount ?? burst.mediaAmount) * ratio;
+          const feeShare = burst.feeAmount * ratio;
 
-        billingMap[key].mediaCosts[mediaType] += billingMediaShare;
-        deliveryMap[key].mediaCosts[mediaType] += deliveryMediaShare;
-        if (mediaType === "production") {
-          billingMap[key].productionTotal += billingMediaShare;
-          deliveryMap[key].productionTotal += deliveryMediaShare;
-        } else {
-          billingMap[key].totalMedia += billingMediaShare;
-          deliveryMap[key].totalMedia += deliveryMediaShare;
+          billingMap[key].mediaCosts[mediaType] += billingMediaShare;
+          deliveryMap[key].mediaCosts[mediaType] += deliveryMediaShare;
+          if (mediaType === "production") {
+            billingMap[key].productionTotal += billingMediaShare;
+            deliveryMap[key].productionTotal += deliveryMediaShare;
+          } else {
+            billingMap[key].totalMedia += billingMediaShare;
+            deliveryMap[key].totalMedia += deliveryMediaShare;
+          }
+          billingMap[key].totalFee += feeShare;
+          deliveryMap[key].totalFee += feeShare;
         }
-        billingMap[key].totalFee += feeShare;
-        deliveryMap[key].totalFee += feeShare;
       }
-      d.setMonth(d.getMonth() + 1);
-      d.setDate(1);
+      d = new Date(d.getFullYear(), d.getMonth() + 1, 1);
     }
   }
 
@@ -170,38 +182,48 @@ export function computeBillingAndDeliveryMonths(
     if (burst.noAdserving) return;
     if (isNaN(s.getTime()) || isNaN(e.getTime()) || s > e) return;
 
-    const daysTotal = Math.ceil((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-    let d = new Date(s);
+    const sLocalMidnight = new Date(s.getFullYear(), s.getMonth(), s.getDate());
+    const eLocalMidnight = new Date(e.getFullYear(), e.getMonth(), e.getDate());
 
-    while (d <= e) {
+    const daysTotal =
+      Math.round((eLocalMidnight.getTime() - sLocalMidnight.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    if (daysTotal <= 0) return;
+
+    let d = new Date(sLocalMidnight.getFullYear(), sLocalMidnight.getMonth(), 1);
+    const lastMonthCursor = new Date(eLocalMidnight.getFullYear(), eLocalMidnight.getMonth(), 1);
+
+    while (d <= lastMonthCursor) {
       const monthKey = format(d, "MMMM yyyy");
       if (billingMap[monthKey] && deliveryMap[monthKey]) {
         const monthStart = new Date(d.getFullYear(), d.getMonth(), 1);
         const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-        const sliceStart = Math.max(s.getTime(), monthStart.getTime());
-        const sliceEnd = Math.min(e.getTime(), monthEnd.getTime());
-        const daysInMonth = Math.ceil((sliceEnd - sliceStart) / (1000 * 60 * 60 * 24)) + 1;
-        const share = burst.deliverables * (daysInMonth / daysTotal);
+        const sliceStartMs = Math.max(sLocalMidnight.getTime(), monthStart.getTime());
+        const sliceEndMs = Math.min(eLocalMidnight.getTime(), monthEnd.getTime());
+        const daysInMonth =
+          Math.round((sliceEndMs - sliceStartMs) / (1000 * 60 * 60 * 24)) + 1;
 
-        const rate = getRateForMediaType(mediaType);
-        const buyType = burst.buyType?.toLowerCase?.() || "";
-        const isCpm = buyType === "cpm";
-        const isBonus = buyType === "bonus";
-        const isDigiAudio =
-          typeof mediaType === "string" && mediaType.toLowerCase().replace(/\s+/g, "") === "digiaudio";
-        const isCpmOrBonusForDigiAudio = isDigiAudio && (isCpm || isBonus);
-        const effectiveRate = isCpmOrBonusForDigiAudio ? adservaudio ?? rate : rate;
-        const cost = isCpmOrBonusForDigiAudio
-          ? (share / 1000) * effectiveRate
-          : isCpm
-            ? (share / 1000) * rate
-            : share * rate;
+        if (daysInMonth > 0) {
+          const share = burst.deliverables * (daysInMonth / daysTotal);
 
-        billingMap[monthKey].adServing += cost;
-        deliveryMap[monthKey].adServing += cost;
+          const rate = getRateForMediaType(mediaType);
+          const buyType = burst.buyType?.toLowerCase?.() || "";
+          const isCpm = buyType === "cpm";
+          const isBonus = buyType === "bonus";
+          const isDigiAudio =
+            typeof mediaType === "string" && mediaType.toLowerCase().replace(/\s+/g, "") === "digiaudio";
+          const isCpmOrBonusForDigiAudio = isDigiAudio && (isCpm || isBonus);
+          const effectiveRate = isCpmOrBonusForDigiAudio ? adservaudio ?? rate : rate;
+          const cost = isCpmOrBonusForDigiAudio
+            ? (share / 1000) * effectiveRate
+            : isCpm
+              ? (share / 1000) * rate
+              : share * rate;
+
+          billingMap[monthKey].adServing += cost;
+          deliveryMap[monthKey].adServing += cost;
+        }
       }
-      d.setMonth(d.getMonth() + 1);
-      d.setDate(1);
+      d = new Date(d.getFullYear(), d.getMonth() + 1, 1);
     }
   }
 

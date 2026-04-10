@@ -472,11 +472,39 @@ export default function CinemaContainer({
   const {
     fields: lineItemFields,
     append: appendLineItem,
-    remove: removeLineItem,
+    remove: removeLineItemBase,
   } = useFieldArray({
     control: form.control,
     name: "cinemalineItems",
   });
+
+  const [collapsedLineItems, setCollapsedLineItems] = useState<Set<number>>(
+    new Set()
+  );
+
+  const toggleLineItemCollapsed = useCallback((i: number) => {
+    setCollapsedLineItems((prev) => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i);
+      else next.add(i);
+      return next;
+    });
+  }, []);
+
+  const removeLineItem = useCallback(
+    (i: number) => {
+      setCollapsedLineItems((prev) => {
+        const next = new Set<number>();
+        prev.forEach((idx) => {
+          if (idx < i) next.add(idx);
+          else if (idx > i) next.add(idx - 1);
+        });
+        return next;
+      });
+      removeLineItemBase(i);
+    },
+    [removeLineItemBase]
+  );
 
   const handleDuplicateLineItem = useCallback((lineItemIndex: number) => {
     const items = form.getValues("cinemalineItems") || [];
@@ -1221,9 +1249,6 @@ useEffect(() => {
             <Form {...form}>
               <div className="space-y-6">
                 {lineItemFields.map((field, lineItemIndex) => {
-                  const sectionId = `cinema-line-item-${lineItemIndex}`;
-                  const burstsId = `${sectionId}-bursts`;
-                  const footerId = `${sectionId}-footer`;
                   const getTotals = (lineItemIndex: number) => {
                     const lineItem = form.getValues(`cinemalineItems.${lineItemIndex}`);
                     let totalMedia = 0;
@@ -1270,16 +1295,21 @@ useEffect(() => {
                               variant="ghost"
                               size="sm"
                               className="h-8 w-8 shrink-0 rounded-full p-0"
-                              onClick={() => {
-                                const element = document.getElementById(sectionId);
-                                const bursts = document.getElementById(burstsId);
-                                const footer = document.getElementById(footerId);
-                                element?.classList.toggle('hidden');
-                                bursts?.classList.toggle('hidden');
-                                footer?.classList.toggle('hidden');
-                              }}
+                              aria-expanded={!collapsedLineItems.has(lineItemIndex)}
+                              aria-label={
+                                collapsedLineItems.has(lineItemIndex)
+                                  ? `Expand details for cinema line item ${lineItemIndex + 1}`
+                                  : `Collapse details for cinema line item ${lineItemIndex + 1}`
+                              }
+                              onClick={() => toggleLineItemCollapsed(lineItemIndex)}
                             >
-                              <ChevronDown className="h-4 w-4" />
+                              <ChevronDown
+                                className={cn(
+                                  "h-4 w-4 transition-transform",
+                                  collapsedLineItems.has(lineItemIndex) && "-rotate-90"
+                                )}
+                                aria-hidden
+                              />
                             </Button>
                           </div>
                         </div>
@@ -1303,8 +1333,9 @@ useEffect(() => {
                         </div>
                       </div>
                       
-                      {/* Detailed Content - Collapsible */}
-                      <div id={sectionId} className="px-6 py-5">
+                      {!collapsedLineItems.has(lineItemIndex) && (
+                      <>
+                      <div className="px-6 py-5">
                         <CardContent className="space-y-5 p-0">
                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4">
                             
@@ -1538,8 +1569,7 @@ useEffect(() => {
                         </CardContent>
                       </div>
 
-                      {/* Bursts Section */}
-                      <div id={burstsId} className={MP_BURST_SECTION_OUTER}>
+                      <div className={MP_BURST_SECTION_OUTER}>
                         <div className={MP_BURST_HEADER_SHELL}>
                           <div className={MP_BURST_HEADER_INNER}>
                             <div className={MP_BURST_LABEL_COLUMN} aria-hidden />
@@ -1785,8 +1815,10 @@ useEffect(() => {
                           );
                         })}
                       </div>
+                      </>
+                      )}
 
-                      <CardFooter id={footerId} className="flex items-center justify-between pt-4 pb-4 bg-muted/20 border-t border-border/40">
+                      <CardFooter className="flex items-center justify-between pt-4 pb-4 bg-muted/20 border-t border-border/40">
                         <Button
                           type="button"
                           variant="ghost"

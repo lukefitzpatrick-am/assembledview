@@ -486,11 +486,42 @@ export default function DigiDisplayContainer({
   const {
     fields: lineItemFields,
     append: appendLineItem,
-    remove: removeLineItem,
+    remove: removeLineItemBase,
   } = useFieldArray({
     control: form.control,
     name: "digidisplaylineItems",
   });
+
+  const [collapsedLineItems, setCollapsedLineItems] = useState<Set<number>>(new Set())
+
+  const toggleLineItemCollapsed = useCallback((i: number) => {
+    setCollapsedLineItems((prev) => {
+      const next = new Set(prev)
+      if (next.has(i)) next.delete(i)
+      else next.add(i)
+      return next
+    })
+  }, [])
+
+  const collapseAllLineItems = useCallback(() => {
+    const items = form.getValues("digidisplaylineItems") || []
+    setCollapsedLineItems(new Set(items.map((_, i) => i)))
+  }, [form])
+
+  const removeLineItem = useCallback(
+    (i: number) => {
+      setCollapsedLineItems((prev) => {
+        const next = new Set<number>()
+        prev.forEach((idx) => {
+          if (idx < i) next.add(idx)
+          else if (idx > i) next.add(idx - 1)
+        })
+        return next
+      })
+      removeLineItemBase(i)
+    },
+    [removeLineItemBase]
+  )
 
   useLayoutEffect(() => {
     digiDisplayStandardBaselineRef.current =
@@ -545,8 +576,9 @@ export default function DigiDisplayContainer({
 
   const confirmDigiDisplayExpertExitWithoutSaving = useCallback(() => {
     setDigiDisplayExpertExitConfirmOpen(false)
+    collapseAllLineItems()
     setDigiDisplayExpertModalOpen(false)
-  }, [])
+  }, [collapseAllLineItems])
 
   const handleDigiDisplayExpertModalOpenChange = useCallback(
     (open: boolean) => {
@@ -558,12 +590,13 @@ export default function DigiDisplayContainer({
         serializeDigiDisplayExpertRowsBaseline(expertDigiDisplayRows) !==
         digiDisplayExpertRowsBaselineRef.current
       if (!dirty) {
+        collapseAllLineItems()
         setDigiDisplayExpertModalOpen(false)
         return
       }
       setDigiDisplayExpertExitConfirmOpen(true)
     },
-    [expertDigiDisplayRows]
+    [collapseAllLineItems, expertDigiDisplayRows]
   )
 
   const handleDigiDisplayExpertApply = useCallback(() => {
@@ -591,10 +624,12 @@ export default function DigiDisplayContainer({
         form.getValues("digidisplaylineItems")
       )
     setDigiDisplayExpertExitConfirmOpen(false)
+    collapseAllLineItems()
     setDigiDisplayExpertModalOpen(false)
   }, [
     campaignStartDate,
     campaignEndDate,
+    collapseAllLineItems,
     expertDigiDisplayRows,
     feedigidisplay,
     form,
@@ -1482,14 +1517,21 @@ useEffect(() => {
                               variant="ghost"
                               size="sm"
                               className="h-8 w-8 shrink-0 rounded-full p-0"
-                              onClick={() => {
-                                const element = document.getElementById(`line-item-${lineItemIndex}`);
-                                if (element) {
-                                  element.classList.toggle('hidden');
-                                }
-                              }}
+                              aria-expanded={!collapsedLineItems.has(lineItemIndex)}
+                              aria-label={
+                                collapsedLineItems.has(lineItemIndex)
+                                  ? `Expand details for digital display line item ${lineItemIndex + 1}`
+                                  : `Collapse details for digital display line item ${lineItemIndex + 1}`
+                              }
+                              onClick={() => toggleLineItemCollapsed(lineItemIndex)}
                             >
-                              <ChevronDown className="h-4 w-4" />
+                              <ChevronDown
+                                className={cn(
+                                  "h-4 w-4 transition-transform",
+                                  collapsedLineItems.has(lineItemIndex) && "-rotate-90"
+                                )}
+                                aria-hidden
+                              />
                             </Button>
                           </div>
                         </div>
@@ -1513,8 +1555,9 @@ useEffect(() => {
                         </div>
                       </div>
                       
-                      {/* Detailed Content & Bursts - Collapsible */}
-                      <div id={`line-item-${lineItemIndex}`} className="space-y-6 px-6 py-5">
+                      {!collapsedLineItems.has(lineItemIndex) && (
+                      <>
+                      <div className="px-6 py-5">
                           <CardContent className="space-y-5 p-0">
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4">
                               
@@ -1753,8 +1796,8 @@ useEffect(() => {
                             </div>
                           </div>
                         </CardContent>
+                      </div>
 
-                      {/* Bursts Section */}
                       <div className={MP_BURST_SECTION_OUTER}>
                         <div className={MP_BURST_HEADER_SHELL}>
                           <div className={MP_BURST_HEADER_INNER}>
@@ -1996,6 +2039,8 @@ useEffect(() => {
                           );
                         })}
                       </div>
+                      </>
+                      )}
 
                       <CardFooter className="flex items-center justify-between pt-4 pb-4 bg-muted/20 border-t border-border/40">
                           <Button
@@ -2050,7 +2095,6 @@ useEffect(() => {
                                                       )}
                           </div>
                         </CardFooter>
-                      </div>
                     </Card>
                   );
                 })}

@@ -63,7 +63,26 @@ function legalDetailRowsForCampaign(
   return []
 }
 
-const headerStyle = {
+/** Avoid Excel default / merged-cell behaviour that spaces out ALL-CAPS text (distributed / justify). */
+const TEXT_ALIGNMENT: Partial<ExcelJS.Alignment> = {
+  horizontal: "left",
+  vertical: "middle",
+  wrapText: true,
+}
+
+const AMOUNT_ALIGNMENT: Partial<ExcelJS.Alignment> = {
+  horizontal: "right",
+  vertical: "middle",
+  wrapText: true,
+}
+
+const AMOUNT_HEADER_ALIGNMENT: Partial<ExcelJS.Alignment> = {
+  horizontal: "center",
+  vertical: "middle",
+  wrapText: true,
+}
+
+const headerStyle: Partial<ExcelJS.Style> = {
   font: { bold: true, size: 12 },
   fill: {
     type: "pattern" as const,
@@ -76,6 +95,12 @@ const headerStyle = {
     left: { style: "thin" as const },
     right: { style: "thin" as const },
   },
+  alignment: TEXT_ALIGNMENT,
+}
+
+const amountColumnHeaderStyle: Partial<ExcelJS.Style> = {
+  ...headerStyle,
+  alignment: AMOUNT_HEADER_ALIGNMENT,
 }
 
 /**
@@ -108,6 +133,7 @@ export async function writeMediaFinanceWorksheet(
       pattern: "solid",
       fgColor: { argb: "FFD0D0D0" },
     }
+    headerCell.alignment = TEXT_ALIGNMENT
     rowIndex++
 
     const details: [string, string][] = [
@@ -121,47 +147,62 @@ export async function writeMediaFinanceWorksheet(
     ]
 
     details.forEach(([label, value]) => {
-      worksheet.getCell(rowIndex, 1).value = label
-      worksheet.getCell(rowIndex, 1).font = { bold: true }
-      worksheet.getCell(rowIndex, 2).value = value
+      const labelCell = worksheet.getCell(rowIndex, 1)
+      labelCell.value = label
+      labelCell.font = { bold: true }
+      labelCell.alignment = TEXT_ALIGNMENT
+      const valueCell = worksheet.getCell(rowIndex, 2)
+      valueCell.value = value
+      valueCell.alignment = TEXT_ALIGNMENT
       rowIndex++
     })
 
     rowIndex++
 
     worksheet.getCell(rowIndex, 1).value = "Item Code"
-    worksheet.getCell(rowIndex, 1).style = headerStyle
+    worksheet.getCell(rowIndex, 1).style = headerStyle as ExcelJS.Style
     worksheet.getCell(rowIndex, 2).value = "Media Type"
-    worksheet.getCell(rowIndex, 2).style = headerStyle
+    worksheet.getCell(rowIndex, 2).style = headerStyle as ExcelJS.Style
     worksheet.getCell(rowIndex, 3).value = "Description"
-    worksheet.getCell(rowIndex, 3).style = headerStyle
+    worksheet.getCell(rowIndex, 3).style = headerStyle as ExcelJS.Style
     worksheet.getCell(rowIndex, 4).value = "Amount"
-    worksheet.getCell(rowIndex, 4).style = headerStyle
+    worksheet.getCell(rowIndex, 4).style = amountColumnHeaderStyle as ExcelJS.Style
     rowIndex++
 
     campaign.lineItems.forEach((item) => {
       worksheet.getCell(rowIndex, 1).value = item.itemCode
+      worksheet.getCell(rowIndex, 1).alignment = TEXT_ALIGNMENT
       worksheet.getCell(rowIndex, 2).value = item.mediaType
+      worksheet.getCell(rowIndex, 2).alignment = TEXT_ALIGNMENT
       worksheet.getCell(rowIndex, 3).value = item.description
+      worksheet.getCell(rowIndex, 3).alignment = TEXT_ALIGNMENT
       worksheet.getCell(rowIndex, 4).value = item.amount
+      worksheet.getCell(rowIndex, 4).alignment = AMOUNT_ALIGNMENT
       worksheet.getCell(rowIndex, 4).numFmt = "$#,##0.00"
       rowIndex++
     })
 
     campaign.serviceRows.forEach((service) => {
       worksheet.getCell(rowIndex, 1).value = service.itemCode
+      worksheet.getCell(rowIndex, 1).alignment = TEXT_ALIGNMENT
       worksheet.getCell(rowIndex, 2).value = service.service
+      worksheet.getCell(rowIndex, 2).alignment = TEXT_ALIGNMENT
       worksheet.getCell(rowIndex, 4).value = service.amount
+      worksheet.getCell(rowIndex, 4).alignment = AMOUNT_ALIGNMENT
       worksheet.getCell(rowIndex, 4).numFmt = "$#,##0.00"
       rowIndex++
     })
 
     worksheet.mergeCells(rowIndex, 1, rowIndex, 3)
-    worksheet.getCell(rowIndex, 1).value = "Total"
-    worksheet.getCell(rowIndex, 1).font = { bold: true }
-    worksheet.getCell(rowIndex, 4).value = campaign.total
-    worksheet.getCell(rowIndex, 4).numFmt = "$#,##0.00"
-    worksheet.getCell(rowIndex, 4).font = { bold: true }
+    const totalLabelCell = worksheet.getCell(rowIndex, 1)
+    totalLabelCell.value = "Total"
+    totalLabelCell.font = { bold: true }
+    totalLabelCell.alignment = TEXT_ALIGNMENT
+    const totalAmountCell = worksheet.getCell(rowIndex, 4)
+    totalAmountCell.value = campaign.total
+    totalAmountCell.alignment = AMOUNT_ALIGNMENT
+    totalAmountCell.numFmt = "$#,##0.00"
+    totalAmountCell.font = { bold: true }
     rowIndex++
 
     rowIndex += 2
@@ -198,6 +239,7 @@ export async function writeSowFinanceWorksheet(
       pattern: "solid",
       fgColor: { argb: "FFD0D0D0" },
     }
+    headerCell.alignment = TEXT_ALIGNMENT
     rowIndex++
 
     const details: [string, string][] = [
@@ -210,47 +252,62 @@ export async function writeSowFinanceWorksheet(
     ]
 
     details.forEach(([label, value]) => {
-      worksheet.getCell(rowIndex, 1).value = label
-      worksheet.getCell(rowIndex, 1).font = { bold: true }
-      worksheet.getCell(rowIndex, 2).value = value
+      const labelCell = worksheet.getCell(rowIndex, 1)
+      labelCell.value = label
+      labelCell.font = { bold: true }
+      labelCell.alignment = TEXT_ALIGNMENT
+      const valueCell = worksheet.getCell(rowIndex, 2)
+      valueCell.value = value
+      valueCell.alignment = TEXT_ALIGNMENT
       rowIndex++
     })
 
     rowIndex++
 
     worksheet.getCell(rowIndex, 1).value = "Item Code"
-    worksheet.getCell(rowIndex, 1).style = headerStyle
+    worksheet.getCell(rowIndex, 1).style = headerStyle as ExcelJS.Style
     worksheet.getCell(rowIndex, 2).value = "Type"
-    worksheet.getCell(rowIndex, 2).style = headerStyle
+    worksheet.getCell(rowIndex, 2).style = headerStyle as ExcelJS.Style
     worksheet.getCell(rowIndex, 3).value = "Description"
-    worksheet.getCell(rowIndex, 3).style = headerStyle
+    worksheet.getCell(rowIndex, 3).style = headerStyle as ExcelJS.Style
     worksheet.getCell(rowIndex, 4).value = "Amount"
-    worksheet.getCell(rowIndex, 4).style = headerStyle
+    worksheet.getCell(rowIndex, 4).style = amountColumnHeaderStyle as ExcelJS.Style
     rowIndex++
 
     campaign.lineItems.forEach((item) => {
       worksheet.getCell(rowIndex, 1).value = item.itemCode
+      worksheet.getCell(rowIndex, 1).alignment = TEXT_ALIGNMENT
       worksheet.getCell(rowIndex, 2).value = item.mediaType
+      worksheet.getCell(rowIndex, 2).alignment = TEXT_ALIGNMENT
       worksheet.getCell(rowIndex, 3).value = item.description
+      worksheet.getCell(rowIndex, 3).alignment = TEXT_ALIGNMENT
       worksheet.getCell(rowIndex, 4).value = item.amount
+      worksheet.getCell(rowIndex, 4).alignment = AMOUNT_ALIGNMENT
       worksheet.getCell(rowIndex, 4).numFmt = "$#,##0.00"
       rowIndex++
     })
 
     campaign.serviceRows.forEach((service) => {
       worksheet.getCell(rowIndex, 1).value = service.itemCode
+      worksheet.getCell(rowIndex, 1).alignment = TEXT_ALIGNMENT
       worksheet.getCell(rowIndex, 2).value = service.service
+      worksheet.getCell(rowIndex, 2).alignment = TEXT_ALIGNMENT
       worksheet.getCell(rowIndex, 4).value = service.amount
+      worksheet.getCell(rowIndex, 4).alignment = AMOUNT_ALIGNMENT
       worksheet.getCell(rowIndex, 4).numFmt = "$#,##0.00"
       rowIndex++
     })
 
     worksheet.mergeCells(rowIndex, 1, rowIndex, 3)
-    worksheet.getCell(rowIndex, 1).value = "Total"
-    worksheet.getCell(rowIndex, 1).font = { bold: true }
-    worksheet.getCell(rowIndex, 4).value = campaign.total
-    worksheet.getCell(rowIndex, 4).numFmt = "$#,##0.00"
-    worksheet.getCell(rowIndex, 4).font = { bold: true }
+    const sowTotalLabel = worksheet.getCell(rowIndex, 1)
+    sowTotalLabel.value = "Total"
+    sowTotalLabel.font = { bold: true }
+    sowTotalLabel.alignment = TEXT_ALIGNMENT
+    const sowTotalAmount = worksheet.getCell(rowIndex, 4)
+    sowTotalAmount.value = campaign.total
+    sowTotalAmount.alignment = AMOUNT_ALIGNMENT
+    sowTotalAmount.numFmt = "$#,##0.00"
+    sowTotalAmount.font = { bold: true }
     rowIndex += 3
   })
 }
@@ -295,6 +352,7 @@ export async function writeRetainerFinanceWorksheet(
     pattern: "solid",
     fgColor: { argb: "FFD0D0D0" },
   }
+  headerCell.alignment = TEXT_ALIGNMENT
   rowIndex++
 
   const hasLegalMeta = input.legalBusinessName !== undefined || input.abn !== undefined
@@ -312,37 +370,49 @@ export async function writeRetainerFinanceWorksheet(
   ]
 
   details.forEach(([label, value]) => {
-    worksheet.getCell(rowIndex, 1).value = label
-    worksheet.getCell(rowIndex, 1).font = { bold: true }
-    worksheet.getCell(rowIndex, 2).value = value
+    const labelCell = worksheet.getCell(rowIndex, 1)
+    labelCell.value = label
+    labelCell.font = { bold: true }
+    labelCell.alignment = TEXT_ALIGNMENT
+    const valueCell = worksheet.getCell(rowIndex, 2)
+    valueCell.value = value
+    valueCell.alignment = TEXT_ALIGNMENT
     rowIndex++
   })
 
   rowIndex++
 
   worksheet.getCell(rowIndex, 1).value = "Item Code"
-  worksheet.getCell(rowIndex, 1).style = headerStyle
+  worksheet.getCell(rowIndex, 1).style = headerStyle as ExcelJS.Style
   worksheet.getCell(rowIndex, 2).value = "Media Type"
-  worksheet.getCell(rowIndex, 2).style = headerStyle
+  worksheet.getCell(rowIndex, 2).style = headerStyle as ExcelJS.Style
   worksheet.getCell(rowIndex, 3).value = "Description"
-  worksheet.getCell(rowIndex, 3).style = headerStyle
+  worksheet.getCell(rowIndex, 3).style = headerStyle as ExcelJS.Style
   worksheet.getCell(rowIndex, 4).value = "Amount"
-  worksheet.getCell(rowIndex, 4).style = headerStyle
+  worksheet.getCell(rowIndex, 4).style = amountColumnHeaderStyle as ExcelJS.Style
   rowIndex++
 
   worksheet.getCell(rowIndex, 1).value = "Retainer"
+  worksheet.getCell(rowIndex, 1).alignment = TEXT_ALIGNMENT
   worksheet.getCell(rowIndex, 2).value = "Retainer"
+  worksheet.getCell(rowIndex, 2).alignment = TEXT_ALIGNMENT
   worksheet.getCell(rowIndex, 3).value = "Monthly retainer"
+  worksheet.getCell(rowIndex, 3).alignment = TEXT_ALIGNMENT
   worksheet.getCell(rowIndex, 4).value = total
+  worksheet.getCell(rowIndex, 4).alignment = AMOUNT_ALIGNMENT
   worksheet.getCell(rowIndex, 4).numFmt = "$#,##0.00"
   rowIndex++
 
   worksheet.mergeCells(rowIndex, 1, rowIndex, 3)
-  worksheet.getCell(rowIndex, 1).value = "Total"
-  worksheet.getCell(rowIndex, 1).font = { bold: true }
-  worksheet.getCell(rowIndex, 4).value = total
-  worksheet.getCell(rowIndex, 4).numFmt = "$#,##0.00"
-  worksheet.getCell(rowIndex, 4).font = { bold: true }
+  const retainerTotalLabel = worksheet.getCell(rowIndex, 1)
+  retainerTotalLabel.value = "Total"
+  retainerTotalLabel.font = { bold: true }
+  retainerTotalLabel.alignment = TEXT_ALIGNMENT
+  const retainerTotalAmount = worksheet.getCell(rowIndex, 4)
+  retainerTotalAmount.value = total
+  retainerTotalAmount.alignment = AMOUNT_ALIGNMENT
+  retainerTotalAmount.numFmt = "$#,##0.00"
+  retainerTotalAmount.font = { bold: true }
 }
 
 export async function workbookToXlsxBuffer(workbook: ExcelJS.Workbook): Promise<ArrayBuffer> {

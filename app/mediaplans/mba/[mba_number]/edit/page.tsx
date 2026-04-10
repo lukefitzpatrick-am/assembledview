@@ -1412,6 +1412,53 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const [progAudioTotal, setProgAudioTotal] = useState(0)
   const [progOohTotal, setProgOohTotal] = useState(0)
   const [influencersTotal, setInfluencersTotal] = useState(0)
+
+  const grossMediaTotal = useMemo(
+    () =>
+      (searchTotal ?? 0) +
+      (socialmediaTotal ?? 0) +
+      (televisionTotal ?? 0) +
+      (radioTotal ?? 0) +
+      (newspaperTotal ?? 0) +
+      (magazinesTotal ?? 0) +
+      (oohTotal ?? 0) +
+      (cinemaTotal ?? 0) +
+      (digitalDisplayTotal ?? 0) +
+      (digitalAudioTotal ?? 0) +
+      (digitalVideoTotal ?? 0) +
+      (bvodTotal ?? 0) +
+      (integrationTotal ?? 0) +
+      (consultingTotal ?? 0) +
+      (progDisplayTotal ?? 0) +
+      (progVideoTotal ?? 0) +
+      (progBvodTotal ?? 0) +
+      (progAudioTotal ?? 0) +
+      (progOohTotal ?? 0) +
+      (influencersTotal ?? 0),
+    [
+      searchTotal,
+      socialmediaTotal,
+      televisionTotal,
+      radioTotal,
+      newspaperTotal,
+      magazinesTotal,
+      oohTotal,
+      cinemaTotal,
+      digitalDisplayTotal,
+      digitalAudioTotal,
+      digitalVideoTotal,
+      bvodTotal,
+      integrationTotal,
+      consultingTotal,
+      progDisplayTotal,
+      progVideoTotal,
+      progBvodTotal,
+      progAudioTotal,
+      progOohTotal,
+      influencersTotal,
+    ],
+  )
+
   /**
    * Billing preserved-state model:
    * - savedBillingMonths — last persisted baseline (media_plan_versions hydrate or last successful save).
@@ -1582,7 +1629,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const [progAudioFeeTotal, setProgAudioFeeTotal] = useState(0)
   const [progOohFeeTotal, setProgOohFeeTotal] = useState(0)
   const [influencersFeeTotal, setInfluencersFeeTotal] = useState(0)
-  const [grossMediaTotal, setGrossMediaTotal] = useState(0)
   const [totalInvestment, setTotalInvestment] = useState(0)
   const mbaCurrencyFormatter = useMemo(
     () =>
@@ -1988,8 +2034,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     const billingMap: Record<string, MonthEntry> = {};
     const deliveryMap: Record<string, MonthEntry> = {};
   
-    let cur = new Date(start);
-    while (cur <= end) {
+    let cur = new Date(start.getFullYear(), start.getMonth(), 1);
+    const monthInitEnd = new Date(end.getFullYear(), end.getMonth(), 1);
+    while (cur <= monthInitEnd) {
       const key = format(cur, "MMMM yyyy");
       const base: MonthEntry = {
         totalMedia: 0,
@@ -2000,8 +2047,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       };
       billingMap[key] = { ...base, mediaCosts: { ...base.mediaCosts } };
       deliveryMap[key] = { ...base, mediaCosts: { ...base.mediaCosts } };
-      cur.setMonth(cur.getMonth() + 1);
-      cur.setDate(1);
+      cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
     }
 
     // 2. Distribute a single burst and track its media type.
@@ -2009,39 +2055,52 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       const s = new Date(burst.startDate);
       const e = new Date(burst.endDate);
       if (isNaN(s.getTime()) || isNaN(e.getTime()) || s > e) return; // Guard against invalid dates
-      
-      const daysTotal = Math.ceil((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+      // Normalise burst endpoints to local midnight so day counts don't drift
+      // when bursts come from UTC ISO strings (e.g. "2026-05-30T14:00:00.000Z").
+      const sLocalMidnight = new Date(s.getFullYear(), s.getMonth(), s.getDate());
+      const eLocalMidnight = new Date(e.getFullYear(), e.getMonth(), e.getDate());
+
+      const daysTotal =
+        Math.round((eLocalMidnight.getTime() - sLocalMidnight.getTime()) / (1000 * 60 * 60 * 24)) + 1;
       if (daysTotal <= 0) return;
 
-      let d = new Date(s);
-      while (d <= e) {
+      // Walk months by constructing fresh first-of-month Dates instead of mutating
+      // with setMonth/setDate, which has a rollover bug: e.g. setting month=June on
+      // a Date whose day is 31 normalises to 1 July, silently skipping June.
+      let d = new Date(sLocalMidnight.getFullYear(), sLocalMidnight.getMonth(), 1);
+      const lastMonthCursor = new Date(eLocalMidnight.getFullYear(), eLocalMidnight.getMonth(), 1);
+
+      while (d <= lastMonthCursor) {
         const key = format(d, "MMMM yyyy");
         if (billingMap[key] && deliveryMap[key]) {
           const monthStart = new Date(d.getFullYear(), d.getMonth(), 1);
           const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-          const sliceStart = Math.max(s.getTime(), monthStart.getTime());
-          const sliceEnd = Math.min(e.getTime(), monthEnd.getTime());
-          const daysInMonth = Math.ceil((sliceEnd - sliceStart) / (1000 * 60 * 60 * 24)) + 1;
-          
-          const ratio = daysInMonth / daysTotal;
-          const billingMediaShare = burst.mediaAmount * ratio;
-          const deliveryMediaShare = (burst.deliveryMediaAmount ?? burst.mediaAmount) * ratio;
-          const feeShare = burst.feeAmount * ratio;
+          const sliceStartMs = Math.max(sLocalMidnight.getTime(), monthStart.getTime());
+          const sliceEndMs = Math.min(eLocalMidnight.getTime(), monthEnd.getTime());
+          const daysInMonth =
+            Math.round((sliceEndMs - sliceStartMs) / (1000 * 60 * 60 * 24)) + 1;
 
-          billingMap[key].mediaCosts[mediaType] += billingMediaShare;
-          deliveryMap[key].mediaCosts[mediaType] += deliveryMediaShare;
-          if (mediaType === 'production') {
-            billingMap[key].productionTotal += billingMediaShare;
-            deliveryMap[key].productionTotal += deliveryMediaShare;
-          } else {
-            billingMap[key].totalMedia += billingMediaShare;
-            deliveryMap[key].totalMedia += deliveryMediaShare;
+          if (daysInMonth > 0) {
+            const ratio = daysInMonth / daysTotal;
+            const billingMediaShare = burst.mediaAmount * ratio;
+            const deliveryMediaShare = (burst.deliveryMediaAmount ?? burst.mediaAmount) * ratio;
+            const feeShare = burst.feeAmount * ratio;
+
+            billingMap[key].mediaCosts[mediaType] += billingMediaShare;
+            deliveryMap[key].mediaCosts[mediaType] += deliveryMediaShare;
+            if (mediaType === 'production') {
+              billingMap[key].productionTotal += billingMediaShare;
+              deliveryMap[key].productionTotal += deliveryMediaShare;
+            } else {
+              billingMap[key].totalMedia += billingMediaShare;
+              deliveryMap[key].totalMedia += deliveryMediaShare;
+            }
+            billingMap[key].totalFee += feeShare;
+            deliveryMap[key].totalFee += feeShare;
           }
-          billingMap[key].totalFee += feeShare;
-          deliveryMap[key].totalFee += feeShare;
         }
-        d.setMonth(d.getMonth() + 1);
-        d.setDate(1);
+        d = new Date(d.getFullYear(), d.getMonth() + 1, 1);
       }
     }
 
@@ -2081,38 +2140,48 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       const e = new Date(burst.endDate)
       if (burst.noAdserving) return;
       if (isNaN(s.getTime()) || isNaN(e.getTime()) || s > e) return
-  
-      const daysTotal = Math.ceil((e.getTime() - s.getTime()) / (1000*60*60*24)) + 1
-      let d = new Date(s)
-  
-      while (d <= e) {
+
+      const sLocalMidnight = new Date(s.getFullYear(), s.getMonth(), s.getDate())
+      const eLocalMidnight = new Date(e.getFullYear(), e.getMonth(), e.getDate())
+
+      const daysTotal =
+        Math.round((eLocalMidnight.getTime() - sLocalMidnight.getTime()) / (1000 * 60 * 60 * 24)) + 1
+      if (daysTotal <= 0) return
+
+      let d = new Date(sLocalMidnight.getFullYear(), sLocalMidnight.getMonth(), 1)
+      const lastMonthCursor = new Date(eLocalMidnight.getFullYear(), eLocalMidnight.getMonth(), 1)
+
+      while (d <= lastMonthCursor) {
         const monthKey = format(d, "MMMM yyyy")
         if (billingMap[monthKey] && deliveryMap[monthKey]) {
           const monthStart = new Date(d.getFullYear(), d.getMonth(), 1)
-          const monthEnd = new Date(d.getFullYear(), d.getMonth()+1, 0)
-          const sliceStart = Math.max(s.getTime(), monthStart.getTime())
-          const sliceEnd = Math.min(e.getTime(), monthEnd.getTime())
-          const daysInMonth = Math.ceil((sliceEnd - sliceStart)/(1000*60*60*24)) + 1
-        const share = burst.deliverables * (daysInMonth/daysTotal)
+          const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0)
+          const sliceStartMs = Math.max(sLocalMidnight.getTime(), monthStart.getTime())
+          const sliceEndMs = Math.min(eLocalMidnight.getTime(), monthEnd.getTime())
+          const daysInMonth =
+            Math.round((sliceEndMs - sliceStartMs) / (1000 * 60 * 60 * 24)) + 1
 
-        const rate = getRateForMediaType(mediaType)
-        const buyType = burst.buyType?.toLowerCase?.() || ""
-        const isCpm = buyType === "cpm"
-        const isBonus = buyType === "bonus"
-        const isDigiAudio = typeof mediaType === "string" && mediaType.toLowerCase().replace(/\s+/g, "") === "digiaudio"
-        const isCpmOrBonusForDigiAudio = isDigiAudio && (isCpm || isBonus)
-        const effectiveRate = isCpmOrBonusForDigiAudio ? (adservaudio ?? rate) : rate
-        const cost = isCpmOrBonusForDigiAudio
-          ? (share /1000 ) * effectiveRate
-          : isCpm
-            ? (share /1000 ) * rate
-            : (share * rate)
-  
-          billingMap[monthKey].adServing += cost
-          deliveryMap[monthKey].adServing += cost
+          if (daysInMonth > 0) {
+            const share = burst.deliverables * (daysInMonth / daysTotal)
+
+            const rate = getRateForMediaType(mediaType)
+            const buyType = burst.buyType?.toLowerCase?.() || ""
+            const isCpm = buyType === "cpm"
+            const isBonus = buyType === "bonus"
+            const isDigiAudio = typeof mediaType === "string" && mediaType.toLowerCase().replace(/\s+/g, "") === "digiaudio"
+            const isCpmOrBonusForDigiAudio = isDigiAudio && (isCpm || isBonus)
+            const effectiveRate = isCpmOrBonusForDigiAudio ? (adservaudio ?? rate) : rate
+            const cost = isCpmOrBonusForDigiAudio
+              ? (share / 1000) * effectiveRate
+              : isCpm
+                ? (share / 1000) * rate
+                : (share * rate)
+
+            billingMap[monthKey].adServing += cost
+            deliveryMap[monthKey].adServing += cost
+          }
         }
-        d.setMonth(d.getMonth()+1)
-        d.setDate(1)
+        d = new Date(d.getFullYear(), d.getMonth() + 1, 1)
       }
     }
 
@@ -3138,11 +3207,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     // Billing rows are not regenerated from investment on the main page — use Edit Billing for any reset/rebuild.
   }, [markUnsavedChanges])
 
-  // Create stable callback functions to prevent infinite loops
-  const handleTotalMediaChange = useCallback((total) => {
-    setGrossMediaTotal(prev => prev + total);
-  }, []);
-
   const handleBurstsChange = useCallback(() => {
     // Add burst handling if needed
   }, []);
@@ -3722,23 +3786,36 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
           if (isNaN(startDate.getTime()) || isNaN(endDate.getTime()) || effectiveBudget === 0) return;
 
-          const daysTotal = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+          // Normalise burst endpoints to local midnight so day counts don't drift
+          // when bursts come from UTC ISO strings (e.g. "2026-05-30T14:00:00.000Z").
+          const sLocalMidnight = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+          const eLocalMidnight = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
+
+          const daysTotal =
+            Math.round((eLocalMidnight.getTime() - sLocalMidnight.getTime()) / (1000 * 60 * 60 * 24)) + 1;
           if (daysTotal <= 0) return;
 
-          let currentDate = new Date(startDate);
-          while (currentDate <= endDate) {
+          // Walk months by constructing fresh first-of-month Dates instead of mutating
+          // with setMonth/setDate, which has a rollover bug: e.g. setting month=June on
+          // a Date whose day is 31 normalises to 1 July, silently skipping June.
+          let currentDate = new Date(sLocalMidnight.getFullYear(), sLocalMidnight.getMonth(), 1);
+          const lastMonthCursor = new Date(eLocalMidnight.getFullYear(), eLocalMidnight.getMonth(), 1);
+
+          while (currentDate <= lastMonthCursor) {
             const monthKey = format(currentDate, "MMMM yyyy");
             if (monthlyAmounts.hasOwnProperty(monthKey)) {
               const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
               const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
-              const sliceStart = Math.max(startDate.getTime(), monthStart.getTime());
-              const sliceEnd = Math.min(endDate.getTime(), monthEnd.getTime());
-              const daysInMonth = Math.ceil((sliceEnd - sliceStart) / (1000 * 60 * 60 * 24)) + 1;
-              const share = effectiveBudget * (daysInMonth / daysTotal);
-              monthlyAmounts[monthKey] += share;
+              const sliceStartMs = Math.max(sLocalMidnight.getTime(), monthStart.getTime());
+              const sliceEndMs = Math.min(eLocalMidnight.getTime(), monthEnd.getTime());
+              const daysInMonth =
+                Math.round((sliceEndMs - sliceStartMs) / (1000 * 60 * 60 * 24)) + 1;
+              if (daysInMonth > 0) {
+                const share = effectiveBudget * (daysInMonth / daysTotal);
+                monthlyAmounts[monthKey] += share;
+              }
             }
-            currentDate.setMonth(currentDate.getMonth() + 1);
-            currentDate.setDate(1);
+            currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
           }
         });
 
@@ -3754,6 +3831,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         const startDate = new Date(burst.startDate)
         const endDate = new Date(burst.endDate)
         if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return
+
+        const sLocalMidnight = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate())
+        const eLocalMidnight = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate())
 
         const budget =
           parseFloat(burst.budget?.replace?.(/[^0-9.-]/g, "") || String(burst.budget || "0")) ||
@@ -3807,24 +3887,29 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           adServingForBurst = isCpm ? (deliverables / 1000) * rate : deliverables * rate
         }
 
-        const daysTotal = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1
+        const daysTotal =
+          Math.round((eLocalMidnight.getTime() - sLocalMidnight.getTime()) / (1000 * 60 * 60 * 24)) + 1
         if (daysTotal <= 0) return
 
-        let currentDate = new Date(startDate)
-        while (currentDate <= endDate) {
+        let currentDate = new Date(sLocalMidnight.getFullYear(), sLocalMidnight.getMonth(), 1)
+        const lastMonthCursor = new Date(eLocalMidnight.getFullYear(), eLocalMidnight.getMonth(), 1)
+
+        while (currentDate <= lastMonthCursor) {
           const monthKey = format(currentDate, "MMMM yyyy")
           if (feeMonthlyAmounts.hasOwnProperty(monthKey)) {
             const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
             const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0)
-            const sliceStart = Math.max(startDate.getTime(), monthStart.getTime())
-            const sliceEnd = Math.min(endDate.getTime(), monthEnd.getTime())
-            const daysInMonth = Math.ceil((sliceEnd - sliceStart) / (1000 * 60 * 60 * 24)) + 1
-            const ratio = daysInMonth / daysTotal
-            feeMonthlyAmounts[monthKey] += feeForBurst * ratio
-            adServingMonthlyAmounts[monthKey] += adServingForBurst * ratio
+            const sliceStartMs = Math.max(sLocalMidnight.getTime(), monthStart.getTime())
+            const sliceEndMs = Math.min(eLocalMidnight.getTime(), monthEnd.getTime())
+            const daysInMonth =
+              Math.round((sliceEndMs - sliceStartMs) / (1000 * 60 * 60 * 24)) + 1
+            if (daysInMonth > 0) {
+              const ratio = daysInMonth / daysTotal
+              feeMonthlyAmounts[monthKey] += feeForBurst * ratio
+              adServingMonthlyAmounts[monthKey] += adServingForBurst * ratio
+            }
           }
-          currentDate.setMonth(currentDate.getMonth() + 1)
-          currentDate.setDate(1)
+          currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1)
         }
       })
 
@@ -6140,58 +6225,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     setProgOohItems(items);
   }, [markUnsavedChanges]);
 
-  /** Sums **workingBillingMonths** when any rows exist so header totals match the billing table (including post-save). */
-  const calculateGrossMediaTotal = useCallback((): number => {
-    if (workingBillingMonths.length > 0) {
-      return workingBillingMonths.reduce((sum, month) => {
-        const monthMediaTotal = parseFloat(month.mediaTotal.replace(/[^0-9.-]/g, ""))
-        return sum + (monthMediaTotal || 0)
-      }, 0)
-    }
-    return (
-      (searchTotal ?? 0) +
-      (socialmediaTotal ?? 0) +
-      (progAudioTotal ?? 0) +
-      (cinemaTotal ?? 0) +
-      (digitalAudioTotal ?? 0) +
-      (digitalDisplayTotal ?? 0) +
-      (digitalVideoTotal ?? 0) +
-      (bvodTotal ?? 0) +
-      (integrationTotal ?? 0) +
-      (progDisplayTotal ?? 0) +
-      (progVideoTotal ?? 0) +
-      (progBvodTotal ?? 0) +
-      (progOohTotal ?? 0) +
-      (influencersTotal ?? 0) +
-      (televisionTotal ?? 0) +
-      (radioTotal ?? 0) +
-      (newspaperTotal ?? 0) +
-      (magazinesTotal ?? 0) +
-      (oohTotal ?? 0)
-    )
-  }, [
-    workingBillingMonths,
-    searchTotal,
-    socialmediaTotal,
-    progAudioTotal,
-    cinemaTotal,
-    digitalAudioTotal,
-    digitalDisplayTotal,
-    digitalVideoTotal,
-    bvodTotal,
-    integrationTotal,
-    progDisplayTotal,
-    progVideoTotal,
-    progBvodTotal,
-    progOohTotal,
-    influencersTotal,
-    televisionTotal,
-    radioTotal,
-    newspaperTotal,
-    magazinesTotal,
-    oohTotal,
-  ])
-
   const calculateAssembledFee = useCallback((): number => {
     if (workingBillingMonths.length > 0) {
       return workingBillingMonths.reduce((sum, month) => {
@@ -6450,7 +6483,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       })
       const fallback = {
         mediaTotals: currentMediaTotals,
-        grossMedia: calculateGrossMediaTotal(),
+        grossMedia: grossMediaTotal,
         assembledFee: calculateAssembledFee(),
         adServing: calculateAdServingFees(),
         production: calculateProductionCosts(),
@@ -6614,23 +6647,19 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     toast({ title: "Reset", description: "Values have been recalculated from delivery months." })
   }
 
-  // Recalculate grossMediaTotal and totalInvestment when media totals change (matching create page pattern)
   useEffect(() => {
-    const newGrossMediaTotal = calculateGrossMediaTotal();
-    setGrossMediaTotal(newGrossMediaTotal);
-
     const newTotalInvestment =
-      newGrossMediaTotal +
+      grossMediaTotal +
       calculateAssembledFee() +
       calculateAdServingFees() +
-      calculateProductionCosts();
-    setTotalInvestment(newTotalInvestment);
+      calculateProductionCosts()
+    setTotalInvestment(newTotalInvestment)
   }, [
-    calculateGrossMediaTotal,
+    grossMediaTotal,
     calculateAssembledFee,
     calculateAdServingFees,
     calculateProductionCosts,
-  ]);
+  ])
 
   /**
    * Main page: append-only billing — new campaign months, media keys, and line-item ids. Waits for
@@ -7137,6 +7166,23 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         </div>
       </div>
     )
+  }
+
+  if (mbaNumber?.toLowerCase() === "bowel001") {
+    const billingTotal = workingBillingMonths.reduce(
+      (sum, m) => sum + (parseFloat(String(m.totalAmount || "$0").replace(/[^0-9.-]/g, "")) || 0),
+      0
+    )
+    console.log("[bowel001 debug]", {
+      televisionTotal,
+      oohTotal,
+      digitalDisplayTotal,
+      progDisplayTotal,
+      progVideoTotal,
+      grossMediaTotal,
+      billingMonthsLength: workingBillingMonths.length,
+      billingTotal,
+    })
   }
 
   return (

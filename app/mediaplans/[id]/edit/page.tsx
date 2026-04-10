@@ -291,7 +291,40 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
   const [modalLoading, setModalLoading] = useState(false)
   const [searchFeeTotal, setSearchFeeTotal] = useState(0)
   const [socialMediaFeeTotal, setSocialMediaFeeTotal] = useState(0)
-  const [grossMediaTotal, setGrossMediaTotal] = useState(0)
+  const [televisionTotal, setTelevisionTotal] = useState(0)
+  const [televisionFeeTotal, setTelevisionFeeTotal] = useState(0)
+  const [radioTotal, setRadioTotal] = useState(0)
+  const [radioFeeTotal, setRadioFeeTotal] = useState(0)
+  const [newspaperTotal, setNewspaperTotal] = useState(0)
+  const [newspaperFeeTotal, setNewspaperFeeTotal] = useState(0)
+  const [magazinesTotal, setMagazinesTotal] = useState(0)
+  const [magazinesFeeTotal, setMagazinesFeeTotal] = useState(0)
+  const [oohTotal, setOohTotal] = useState(0)
+  const [oohFeeTotal, setOohFeeTotal] = useState(0)
+  const [cinemaTotal, setCinemaTotal] = useState(0)
+  const [cinemaFeeTotal, setCinemaFeeTotal] = useState(0)
+  const [digitalDisplayTotal, setDigitalDisplayTotal] = useState(0)
+  const [digitalDisplayFeeTotal, setDigitalDisplayFeeTotal] = useState(0)
+  const [digitalAudioTotal, setDigitalAudioTotal] = useState(0)
+  const [digitalAudioFeeTotal, setDigitalAudioFeeTotal] = useState(0)
+  const [digitalVideoTotal, setDigitalVideoTotal] = useState(0)
+  const [digitalVideoFeeTotal, setDigitalVideoFeeTotal] = useState(0)
+  const [bvodTotal, setBvodTotal] = useState(0)
+  const [bvodFeeTotal, setBvodFeeTotal] = useState(0)
+  const [integrationTotal, setIntegrationTotal] = useState(0)
+  const [integrationFeeTotal, setIntegrationFeeTotal] = useState(0)
+  const [progDisplayTotal, setProgDisplayTotal] = useState(0)
+  const [progDisplayFeeTotal, setProgDisplayFeeTotal] = useState(0)
+  const [progVideoTotal, setProgVideoTotal] = useState(0)
+  const [progVideoFeeTotal, setProgVideoFeeTotal] = useState(0)
+  const [progBvodTotal, setProgBvodTotal] = useState(0)
+  const [progBvodFeeTotal, setProgBvodFeeTotal] = useState(0)
+  const [progAudioTotal, setProgAudioTotal] = useState(0)
+  const [progAudioFeeTotal, setProgAudioFeeTotal] = useState(0)
+  const [progOohTotal, setProgOohTotal] = useState(0)
+  const [progOohFeeTotal, setProgOohFeeTotal] = useState(0)
+  const [influencersTotal, setInfluencersTotal] = useState(0)
+  const [influencersFeeTotal, setInfluencersFeeTotal] = useState(0)
   const [totalInvestment, setTotalInvestment] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [mediaPlan, setMediaPlan] = useState<any>(null)
@@ -364,6 +397,117 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
   const [partialMBALineItemsByMedia, setPartialMBALineItemsByMedia] = useState<Record<string, PartialApprovalLineItem[]>>({})
   const [partialMBASelectedLineItemIds, setPartialMBASelectedLineItemIds] = useState<Record<string, string[]>>({})
   const [partialApprovalMetadata, setPartialApprovalMetadata] = useState<PartialApprovalMetadata | null>(null)
+
+  const grossMediaTotal = useMemo(
+    () =>
+      (searchTotal ?? 0) +
+      (socialmediaTotal ?? 0) +
+      (televisionTotal ?? 0) +
+      (radioTotal ?? 0) +
+      (newspaperTotal ?? 0) +
+      (magazinesTotal ?? 0) +
+      (oohTotal ?? 0) +
+      (cinemaTotal ?? 0) +
+      (digitalDisplayTotal ?? 0) +
+      (digitalAudioTotal ?? 0) +
+      (digitalVideoTotal ?? 0) +
+      (bvodTotal ?? 0) +
+      (integrationTotal ?? 0) +
+      (progDisplayTotal ?? 0) +
+      (progVideoTotal ?? 0) +
+      (progBvodTotal ?? 0) +
+      (progAudioTotal ?? 0) +
+      (progOohTotal ?? 0) +
+      (influencersTotal ?? 0),
+    [
+      searchTotal,
+      socialmediaTotal,
+      televisionTotal,
+      radioTotal,
+      newspaperTotal,
+      magazinesTotal,
+      oohTotal,
+      cinemaTotal,
+      digitalDisplayTotal,
+      digitalAudioTotal,
+      digitalVideoTotal,
+      bvodTotal,
+      integrationTotal,
+      progDisplayTotal,
+      progVideoTotal,
+      progBvodTotal,
+      progAudioTotal,
+      progOohTotal,
+      influencersTotal,
+    ],
+  )
+
+  const calculateMediaTotal = useCallback((mediaName: string) => {
+    switch (mediaName) {
+      case "mp_search":
+        return searchTotal ?? 0
+      case "mp_cinema":
+        return cinemaTotal ?? 0
+      case "mp_digiaudio":
+        return digitalAudioTotal ?? 0
+      case "mp_digidisplay":
+        return digitalDisplayTotal ?? 0
+      case "mp_digivideo":
+        return digitalVideoTotal ?? 0
+      case "mp_socialmedia":
+        return socialmediaTotal ?? 0
+      case "mp_progaudio":
+        return progAudioTotal ?? 0
+      case "mp_progdisplay":
+        return progDisplayTotal ?? 0
+      case "mp_progvideo":
+        return progVideoTotal ?? 0
+      case "mp_progbvod":
+        return progBvodTotal ?? 0
+      case "mp_progooh":
+        return progOohTotal ?? 0
+      case "mp_production":
+        return 0
+      case "mp_influencers":
+        return influencersTotal ?? 0
+      case "mp_television":
+        return televisionTotal ?? 0
+      case "mp_radio":
+        return radioTotal ?? 0
+      case "mp_newspaper":
+        return newspaperTotal ?? 0
+      case "mp_magazines":
+        return magazinesTotal ?? 0
+      case "mp_ooh":
+        return oohTotal ?? 0
+      case "mp_integration":
+        return integrationTotal ?? 0
+      case "mp_bvod":
+        return bvodTotal ?? 0
+      default:
+        return 0
+    }
+  }, [
+    searchTotal,
+    cinemaTotal,
+    digitalAudioTotal,
+    digitalDisplayTotal,
+    digitalVideoTotal,
+    socialmediaTotal,
+    progAudioTotal,
+    progDisplayTotal,
+    progVideoTotal,
+    progBvodTotal,
+    progOohTotal,
+    influencersTotal,
+    televisionTotal,
+    radioTotal,
+    newspaperTotal,
+    magazinesTotal,
+    oohTotal,
+    integrationTotal,
+    bvodTotal,
+  ])
 
   const [kpiRows, setKpiRows] = useState<ResolvedKPIRow[]>([])
   const [publisherKPIs, setPublisherKPIs] = useState<PublisherKPI[]>([])
@@ -1010,10 +1154,100 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
     setManualBillingMonths(formattedBillingMonths);
   }, []);
 
-  // Create stable callback functions to prevent infinite loops
-  const handleTotalMediaChange = useCallback((total) => {
-    setGrossMediaTotal(prev => prev + total);
-  }, []);
+  const handleSearchTotalChange = useCallback((totalMedia: number, totalFee: number) => {
+    setSearchTotal(totalMedia)
+    setSearchFeeTotal(totalFee)
+  }, [])
+
+  const handleSocialMediaTotalChange = useCallback((totalMedia: number, totalFee: number) => {
+    setSocialMediaTotal(totalMedia)
+    setSocialMediaFeeTotal(totalFee)
+  }, [])
+
+  const handleDigiAudioTotalChange = useCallback((totalMedia: number, totalFee: number) => {
+    setDigitalAudioTotal(totalMedia)
+    setDigitalAudioFeeTotal(totalFee)
+  }, [])
+
+  const handleDigiDisplayTotalChange = useCallback((totalMedia: number, totalFee: number) => {
+    setDigitalDisplayTotal(totalMedia)
+    setDigitalDisplayFeeTotal(totalFee)
+  }, [])
+
+  const handleDigiVideoTotalChange = useCallback((totalMedia: number, totalFee: number) => {
+    setDigitalVideoTotal(totalMedia)
+    setDigitalVideoFeeTotal(totalFee)
+  }, [])
+
+  const handleBVODTotalChange = useCallback((totalMedia: number, totalFee: number) => {
+    setBvodTotal(totalMedia)
+    setBvodFeeTotal(totalFee)
+  }, [])
+
+  const handleIntegrationTotalChange = useCallback((totalMedia: number, totalFee: number) => {
+    setIntegrationTotal(totalMedia)
+    setIntegrationFeeTotal(totalFee)
+  }, [])
+
+  const handleProgDisplayTotalChange = useCallback((totalMedia: number, totalFee: number) => {
+    setProgDisplayTotal(totalMedia)
+    setProgDisplayFeeTotal(totalFee)
+  }, [])
+
+  const handleProgVideoTotalChange = useCallback((totalMedia: number, totalFee: number) => {
+    setProgVideoTotal(totalMedia)
+    setProgVideoFeeTotal(totalFee)
+  }, [])
+
+  const handleProgBvodTotalChange = useCallback((totalMedia: number, totalFee: number) => {
+    setProgBvodTotal(totalMedia)
+    setProgBvodFeeTotal(totalFee)
+  }, [])
+
+  const handleProgOohTotalChange = useCallback((totalMedia: number, totalFee: number) => {
+    setProgOohTotal(totalMedia)
+    setProgOohFeeTotal(totalFee)
+  }, [])
+
+  const handleProgAudioTotalChange = useCallback((totalMedia: number, totalFee: number) => {
+    setProgAudioTotal(totalMedia)
+    setProgAudioFeeTotal(totalFee)
+  }, [])
+
+  const handleCinemaTotalChange = useCallback((totalMedia: number, totalFee: number) => {
+    setCinemaTotal(totalMedia)
+    setCinemaFeeTotal(totalFee)
+  }, [])
+
+  const handleTelevisionTotalChange = useCallback((totalMedia: number, totalFee: number) => {
+    setTelevisionTotal(totalMedia)
+    setTelevisionFeeTotal(totalFee)
+  }, [])
+
+  const handleRadioTotalChange = useCallback((totalMedia: number, totalFee: number) => {
+    setRadioTotal(totalMedia)
+    setRadioFeeTotal(totalFee)
+  }, [])
+
+  const handleNewspaperTotalChange = useCallback((totalMedia: number, totalFee: number) => {
+    setNewspaperTotal(totalMedia)
+    setNewspaperFeeTotal(totalFee)
+  }, [])
+
+  const handleMagazinesTotalChange = useCallback((totalMedia: number, totalFee: number) => {
+    setMagazinesTotal(totalMedia)
+    setMagazinesFeeTotal(totalFee)
+  }, [])
+
+  const handleOohTotalChange = useCallback((totalMedia: number, totalFee: number) => {
+    setOohTotal(totalMedia)
+    setOohFeeTotal(totalFee)
+  }, [])
+
+  const handleInfluencersTotalChange = useCallback((totalMedia: number, totalFee: number) => {
+    setInfluencersTotal(totalMedia)
+    setInfluencersFeeTotal(totalFee)
+  }, [])
 
   const handleBurstsChange = useCallback(() => {
     // Add burst handling if needed
@@ -1073,28 +1307,47 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
   }
 
   const calculateAssembledFee = useCallback(() => {
-    let total = 0
-    if (feesearch) total += searchFeeTotal
-    if (feesocial) total += socialMediaFeeTotal
-    if (feeprogdisplay) total += (grossMediaTotal * feeprogdisplay) / 100
-    if (feeprogvideo) total += (grossMediaTotal * feeprogvideo) / 100
-    if (feeprogbvod) total += (grossMediaTotal * feeprogbvod) / 100
-    if (feeprogaudio) total += (grossMediaTotal * feeprogaudio) / 100
-    if (feeprogooh) total += (grossMediaTotal * feeprogooh) / 100
-    if (feecontentcreator) total += (grossMediaTotal * feecontentcreator) / 100
-    return total
+    return (
+      (searchFeeTotal ?? 0) +
+      (socialMediaFeeTotal ?? 0) +
+      (progAudioFeeTotal ?? 0) +
+      (cinemaFeeTotal ?? 0) +
+      (digitalAudioFeeTotal ?? 0) +
+      (digitalDisplayFeeTotal ?? 0) +
+      (digitalVideoFeeTotal ?? 0) +
+      (bvodFeeTotal ?? 0) +
+      (integrationFeeTotal ?? 0) +
+      (progDisplayFeeTotal ?? 0) +
+      (progVideoFeeTotal ?? 0) +
+      (progBvodFeeTotal ?? 0) +
+      (progOohFeeTotal ?? 0) +
+      (influencersFeeTotal ?? 0) +
+      (televisionFeeTotal ?? 0) +
+      (radioFeeTotal ?? 0) +
+      (newspaperFeeTotal ?? 0) +
+      (magazinesFeeTotal ?? 0) +
+      (oohFeeTotal ?? 0)
+    )
   }, [
-    feesearch,
-    feesocial,
-    feeprogdisplay,
-    feeprogvideo,
-    feeprogbvod,
-    feeprogaudio,
-    feeprogooh,
-    feecontentcreator,
     searchFeeTotal,
     socialMediaFeeTotal,
-    grossMediaTotal,
+    progAudioFeeTotal,
+    cinemaFeeTotal,
+    digitalAudioFeeTotal,
+    digitalDisplayFeeTotal,
+    digitalVideoFeeTotal,
+    bvodFeeTotal,
+    integrationFeeTotal,
+    progDisplayFeeTotal,
+    progVideoFeeTotal,
+    progBvodFeeTotal,
+    progOohFeeTotal,
+    influencersFeeTotal,
+    televisionFeeTotal,
+    radioFeeTotal,
+    newspaperFeeTotal,
+    magazinesFeeTotal,
+    oohFeeTotal,
   ])
 
   const calculateAdServingFees = useCallback(() => {
@@ -1264,36 +1517,58 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
 
       const billingItem = lineItemsMap.get(itemId)!;
       
-      // Process bursts to calculate monthly amounts
-      if (lineItem.bursts && Array.isArray(lineItem.bursts)) {
-        lineItem.bursts.forEach((burst: any) => {
-          if (burst.startDate && burst.endDate && burst.budget) {
-            const startDate = new Date(burst.startDate);
-            const endDate = new Date(burst.endDate);
-            const budget = parseFloat(burst.budget) || 0;
+      // Process bursts to calculate monthly amounts.
+      // Source of truth is bursts_json (emitted by every *Container.onMediaLineItemsChange).
+      // Falls back to lineItem.bursts for backward compatibility with older shapes
+      // and direct Xano hydration paths.
+      const rawBursts: any[] = (() => {
+        const fromJson = lineItem.bursts_json;
+        if (Array.isArray(fromJson)) return fromJson;
+        if (typeof fromJson === "string" && fromJson.trim() !== "") {
+          try {
+            const parsed = JSON.parse(fromJson);
+            return Array.isArray(parsed) ? parsed : [];
+          } catch {
+            return [];
+          }
+        }
+        if (Array.isArray(lineItem.bursts)) return lineItem.bursts;
+        return [];
+      })();
 
-            monthKeys.forEach(monthKey => {
-              const [monthName, year] = monthKey.split(' ');
-              const monthIndex = new Date(`${monthName} 1, ${year}`).getMonth();
-              const yearNum = parseInt(year);
+      rawBursts.forEach((burst: any) => {
+        if (!burst?.startDate || !burst?.endDate) return;
 
-              const monthStart = new Date(yearNum, monthIndex, 1);
-              const monthEnd = new Date(yearNum, monthIndex + 1, 0);
+        // Budget can be a number, a plain string ("1500"), or a currency string
+        // ("$25,000.00") depending on the source container. Normalise the same way
+        // OOHContainer.getOohBursts does.
+        const budget = parseFloat(String(burst?.budget ?? "0").replace(/[^0-9.-]/g, "")) || 0;
+        if (!budget) return;
 
-              if (startDate <= monthEnd && endDate >= monthStart) {
-                const overlapStart = new Date(Math.max(startDate.getTime(), monthStart.getTime()));
-                const overlapEnd = new Date(Math.min(endDate.getTime(), monthEnd.getTime()));
-                const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-                const overlapDays = Math.ceil((overlapEnd.getTime() - overlapStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-                const monthlyAmount = (budget / totalDays) * overlapDays;
+        const startDate = new Date(burst.startDate);
+        const endDate = new Date(burst.endDate);
+        if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return;
 
-                billingItem.monthlyAmounts[monthKey] = (billingItem.monthlyAmounts[monthKey] || 0) + monthlyAmount;
-                billingItem.totalAmount += monthlyAmount;
-              }
-            });
+        monthKeys.forEach(monthKey => {
+          const [monthName, year] = monthKey.split(' ');
+          const monthIndex = new Date(`${monthName} 1, ${year}`).getMonth();
+          const yearNum = parseInt(year);
+
+          const monthStart = new Date(yearNum, monthIndex, 1);
+          const monthEnd = new Date(yearNum, monthIndex + 1, 0);
+
+          if (startDate <= monthEnd && endDate >= monthStart) {
+            const overlapStart = new Date(Math.max(startDate.getTime(), monthStart.getTime()));
+            const overlapEnd = new Date(Math.min(endDate.getTime(), monthEnd.getTime()));
+            const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+            const overlapDays = Math.ceil((overlapEnd.getTime() - overlapStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+            const monthlyAmount = (budget / totalDays) * overlapDays;
+
+            billingItem.monthlyAmounts[monthKey] = (billingItem.monthlyAmounts[monthKey] || 0) + monthlyAmount;
+            billingItem.totalAmount += monthlyAmount;
           }
         });
-      }
+      });
     });
 
     return Array.from(lineItemsMap.values());
@@ -2330,16 +2605,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
     )
   }
 
-  const handleSearchTotalChange = useCallback((totalMedia: number, totalFee: number) => {
-    setSearchTotal(totalMedia)
-    setSearchFeeTotal(totalFee)
-  }, [])
-
-  const handleSocialMediaTotalChange = useCallback((totalMedia: number, totalFee: number) => {
-    setSocialMediaTotal(totalMedia)
-    setSocialMediaFeeTotal(totalFee)
-  }, [])
-
   // Callback handlers for media line items
   const handleTelevisionMediaLineItemsChange = useCallback((lineItems: any[]) => {
     setTelevisionMediaLineItems(lineItems);
@@ -2886,11 +3151,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                       if (!isEnabled) return null
                       const total = isPartialMBA
                         ? partialMBAValues.mediaTotals[medium.label] || 0
-                        : medium.name === "mp_search"
-                          ? searchTotal
-                          : medium.name === "mp_socialmedia"
-                            ? socialmediaTotal
-                            : 0
+                        : calculateMediaTotal(medium.name)
                       return (
                         <div key={medium.name} className="flex items-center justify-between py-1">
                           <span className="text-sm text-muted-foreground">{medium.label}</span>
@@ -3063,7 +3324,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                         <TelevisionContainer
                           clientId={selectedClientId}
                           feetelevision={selectedClient?.feesearch || 0}
-                          onTotalMediaChange={handleTotalMediaChange}
+                          onTotalMediaChange={handleTelevisionTotalChange}
                           onBurstsChange={handleBurstsChange}
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={() => {}}
@@ -3081,7 +3342,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                         <RadioContainer
                           clientId={selectedClientId}
                           feeradio={selectedClient?.feesearch || 0}
-                          onTotalMediaChange={handleTotalMediaChange}
+                          onTotalMediaChange={handleRadioTotalChange}
                           onBurstsChange={handleBurstsChange}
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={() => {}}
@@ -3098,7 +3359,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                         <NewspaperContainer
                           clientId={selectedClientId}
                           feenewspapers={selectedClient?.feesearch || 0}
-                          onTotalMediaChange={handleTotalMediaChange}
+                          onTotalMediaChange={handleNewspaperTotalChange}
                           onBurstsChange={handleBurstsChange}
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={() => {}}
@@ -3116,7 +3377,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                         <MagazinesContainer
                           clientId={selectedClientId}
                           feemagazines={selectedClient?.feesearch || 0}
-                          onTotalMediaChange={handleTotalMediaChange}
+                          onTotalMediaChange={handleMagazinesTotalChange}
                           onBurstsChange={handleBurstsChange}
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={() => {}}
@@ -3133,7 +3394,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                         <OOHContainer
                           clientId={selectedClientId}
                           feeooh={selectedClient?.feesearch || 0}
-                          onTotalMediaChange={handleTotalMediaChange}
+                          onTotalMediaChange={handleOohTotalChange}
                           onBurstsChange={handleBurstsChange}
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={() => {}}
@@ -3150,7 +3411,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                         <CinemaContainer
                           clientId={selectedClientId}
                           feecinema={selectedClient?.feesearch || 0}
-                          onTotalMediaChange={handleTotalMediaChange}
+                          onTotalMediaChange={handleCinemaTotalChange}
                           onBurstsChange={handleBurstsChange}
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={() => {}}
@@ -3167,7 +3428,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                         <DigitalDisplayContainer
                           clientId={selectedClientId}
                           feedigidisplay={selectedClient?.feedigidisplay ?? 0}
-                          onTotalMediaChange={handleTotalMediaChange}
+                          onTotalMediaChange={handleDigiDisplayTotalChange}
                           onBurstsChange={handleBurstsChange}
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={setDigitalDisplayItems}
@@ -3184,7 +3445,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                         <DigitalAudioContainer
                           clientId={selectedClientId}
                           feedigiaudio={selectedClient?.feesearch || 0}
-                          onTotalMediaChange={handleTotalMediaChange}
+                          onTotalMediaChange={handleDigiAudioTotalChange}
                           onBurstsChange={handleBurstsChange}
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={() => {}}
@@ -3201,7 +3462,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                         <DigitalVideoContainer
                           clientId={selectedClientId}
                           feedigivideo={selectedClient?.feesearch || 0}
-                          onTotalMediaChange={handleTotalMediaChange}
+                          onTotalMediaChange={handleDigiVideoTotalChange}
                           onBurstsChange={handleBurstsChange}
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={() => {}}
@@ -3218,7 +3479,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                         <BVODContainer
                           clientId={selectedClientId}
                           feebvod={selectedClient?.feesearch || 0}
-                          onTotalMediaChange={handleTotalMediaChange}
+                          onTotalMediaChange={handleBVODTotalChange}
                           onBurstsChange={handleBurstsChange}
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={() => {}}
@@ -3235,7 +3496,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                         <IntegrationContainer
                           clientId={selectedClientId}
                           feeintegration={selectedClient?.feesearch || 0}
-                          onTotalMediaChange={handleTotalMediaChange}
+                          onTotalMediaChange={handleIntegrationTotalChange}
                           onBurstsChange={handleBurstsChange}
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={() => {}}
@@ -3287,7 +3548,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                         <ProgDisplayContainer
                           clientId={selectedClientId}
                           feeprogdisplay={feeprogdisplay || 0}
-                          onTotalMediaChange={handleTotalMediaChange}
+                          onTotalMediaChange={handleProgDisplayTotalChange}
                           onBurstsChange={handleBurstsChange}
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={() => {}}
@@ -3304,7 +3565,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                         <ProgVideoContainer
                           clientId={selectedClientId}
                           feeprogvideo={feeprogvideo || 0}
-                          onTotalMediaChange={handleTotalMediaChange}
+                          onTotalMediaChange={handleProgVideoTotalChange}
                           onBurstsChange={handleBurstsChange}
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={() => {}}
@@ -3321,7 +3582,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                         <ProgBVODContainer
                           clientId={selectedClientId}
                           feeprogbvod={feeprogbvod || 0}
-                          onTotalMediaChange={handleTotalMediaChange}
+                          onTotalMediaChange={handleProgBvodTotalChange}
                           onBurstsChange={handleBurstsChange}
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={() => {}}
@@ -3338,7 +3599,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                         <ProgAudioContainer
                           clientId={selectedClientId}
                           feeprogaudio={feeprogaudio || 0}
-                          onTotalMediaChange={handleTotalMediaChange}
+                          onTotalMediaChange={handleProgAudioTotalChange}
                           onBurstsChange={handleBurstsChange}
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={() => {}}
@@ -3355,7 +3616,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                         <ProgOOHContainer
                           clientId={selectedClientId}
                           feeprogooh={feeprogooh || 0}
-                          onTotalMediaChange={handleTotalMediaChange}
+                          onTotalMediaChange={handleProgOohTotalChange}
                           onBurstsChange={handleBurstsChange}
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={() => {}}
@@ -3372,7 +3633,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                         <InfluencersContainer
                           clientId={selectedClientId}
                           feeinfluencers={feecontentcreator || 0}
-                          onTotalMediaChange={handleTotalMediaChange}
+                          onTotalMediaChange={handleInfluencersTotalChange}
                           onBurstsChange={handleBurstsChange}
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={() => {}}
