@@ -19,6 +19,17 @@ type ClientOption = { value: string; label: string }
 
 type PublisherOption = { value: string; label: string }
 
+export type FinanceFilterToolbarReceivablesProps = {
+  synced: boolean
+  loading: boolean
+  bump: () => void
+}
+
+type FinanceFilterToolbarProps = {
+  /** When set (e.g. finance hub Receivables tab), Load/Refresh receivables uses the same control row as filter apply. */
+  receivables?: FinanceFilterToolbarReceivablesProps | null
+}
+
 function monthOptions() {
   const current = startOfMonth(new Date())
   return Array.from({ length: 37 }, (_, i) => {
@@ -27,7 +38,7 @@ function monthOptions() {
   })
 }
 
-export function FinanceFilterToolbar() {
+export function FinanceFilterToolbar({ receivables }: FinanceFilterToolbarProps) {
   const storeFilters = useFinanceStore((s) => s.filters)
   const setFilters = useFinanceStore((s) => s.setFilters)
   const [draft, setDraft] = useState<FinanceFilters>(() => storeFilters)
@@ -106,6 +117,15 @@ export function FinanceFilterToolbar() {
     setFilters(draft)
   }, [draft, setFilters])
 
+  const applyDraftThenReceivables = useCallback(() => {
+    setFilters(draft)
+    if (receivables) {
+      window.setTimeout(() => {
+        receivables.bump()
+      }, 0)
+    }
+  }, [draft, receivables, setFilters])
+
   const publisherValues = useMemo(
     () => draft.selectedPublishers.map(String),
     [draft.selectedPublishers]
@@ -122,15 +142,40 @@ export function FinanceFilterToolbar() {
       >
         Reset
       </Button>
-      <Button
-        type="button"
-        size="sm"
-        disabled={!dirty}
-        onClick={applyDraft}
-        className={cn(dirty && "ring-2 ring-primary/30")}
-      >
-        {dirty ? "Load" : "Loaded"}
-      </Button>
+      {receivables ? (
+        receivables.loading ? (
+          <Button type="button" size="sm" disabled>
+            Loading…
+          </Button>
+        ) : dirty ? (
+          <Button
+            type="button"
+            size="sm"
+            onClick={applyDraftThenReceivables}
+            className="ring-2 ring-primary/30"
+          >
+            Load
+          </Button>
+        ) : !receivables.synced ? (
+          <Button type="button" size="sm" onClick={() => receivables.bump()}>
+            Load
+          </Button>
+        ) : (
+          <Button type="button" size="sm" variant="outline" onClick={() => receivables.bump()}>
+            Refresh
+          </Button>
+        )
+      ) : (
+        <Button
+          type="button"
+          size="sm"
+          disabled={!dirty}
+          onClick={applyDraft}
+          className={cn(dirty && "ring-2 ring-primary/30")}
+        >
+          {dirty ? "Load" : "Loaded"}
+        </Button>
+      )}
     </div>
   )
 

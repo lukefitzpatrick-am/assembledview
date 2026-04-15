@@ -3407,6 +3407,125 @@ export function InfluencersExpertGrid({
                             className={stickyTd(cStart)}
                             style={stickyStyleBody(cStart)}
                           >
+                            <Input
+                              id={expertGridCellId(
+                                domGridId,
+                                rowIndex,
+                                cStart
+                              )}
+                              readOnly
+                              tabIndex={-1}
+                              title={row.startDate}
+                              className="h-8 cursor-default border-0 bg-transparent px-0 text-[11px] tabular-nums text-muted-foreground shadow-none focus-visible:ring-0"
+                              value={formatYmdDisplay(row.startDate)}
+                            />
+                          </td>
+                          <td
+                            className={stickyTd(cEnd)}
+                            style={stickyStyleBody(cEnd)}
+                          >
+                            <Input
+                              id={expertGridCellId(domGridId, rowIndex, cEnd)}
+                              readOnly
+                              tabIndex={-1}
+                              title={row.endDate}
+                              className="h-8 cursor-default border-0 bg-transparent px-0 text-[11px] tabular-nums text-muted-foreground shadow-none focus-visible:ring-0"
+                              value={formatYmdDisplay(row.endDate)}
+                            />
+                          </td>
+                          <td
+                            className={stickyTd(cPlt)}
+                            style={stickyStyleBody(cPlt)}
+                          >
+                            <Combobox
+                              id={expertGridCellId(
+                                domGridId,
+                                rowIndex,
+                                cPlt
+                              )}
+                              options={platformComboboxOptions}
+                              value={row.platform}
+                              onValueChange={(v) =>
+                                updateRow(rowIndex, { platform: v })
+                              }
+                              placeholder="Select"
+                              searchPlaceholder="Search platforms…"
+                              emptyText={
+                                platformNames.length === 0
+                                  ? "No platforms."
+                                  : "No match."
+                              }
+                              buttonClassName="h-8 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-1"
+                              onTriggerFocus={() =>
+                                handleCellFocus(rowIndex, "platform")
+                              }
+                              onOpenChange={(open) => {
+                                if (open) {
+                                  handleCellFocus(rowIndex, "platform")
+                                } else {
+                                  tryFuzzyMatch(
+                                    rowIndex,
+                                    "platform",
+                                    row.platform
+                                  )
+                                }
+                              }}
+                            />
+                          </td>
+                          <td
+                            className={stickyTd(cObj)}
+                            style={stickyStyleBody(cObj)}
+                          >
+                            <Input
+                              id={expertGridCellId(
+                                domGridId,
+                                rowIndex,
+                                cObj
+                              )}
+                              className="h-8 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-1"
+                              value={row.objective}
+                              onFocus={() =>
+                                handleCellFocus(rowIndex, "objective")
+                              }
+                              onKeyDown={(e) =>
+                                handleGridInputKeyDown(rowIndex, cObj, e)
+                              }
+                              onChange={(e) =>
+                                updateRow(rowIndex, {
+                                  objective: e.target.value,
+                                })
+                              }
+                            />
+                          </td>
+                          <td
+                            className={stickyTd(cCamp)}
+                            style={stickyStyleBody(cCamp)}
+                          >
+                            <Input
+                              id={expertGridCellId(
+                                domGridId,
+                                rowIndex,
+                                cCamp
+                              )}
+                              className="h-8 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-1"
+                              value={row.campaign}
+                              onFocus={() =>
+                                handleCellFocus(rowIndex, "campaign")
+                              }
+                              onKeyDown={(e) =>
+                                handleGridInputKeyDown(rowIndex, cCamp, e)
+                              }
+                              onChange={(e) =>
+                                updateRow(rowIndex, {
+                                  campaign: e.target.value,
+                                })
+                              }
+                            />
+                          </td>
+                          <td
+                            className={stickyTd(cBid)}
+                            style={stickyStyleBody(cBid)}
+                          >
                             <Combobox
                               id={expertGridCellId(
                                 domGridId,

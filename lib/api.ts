@@ -44,11 +44,12 @@ async function parseJsonOrText<T = any>(response: Response): Promise<T> {
 
 export async function uploadMediaPlanVersionDocuments(
   versionId: number,
-  files: { mediaPlan?: File; mbaPdf?: File; mpClientName?: string }
+  files: { mediaPlan?: File; mbaPdf?: File; aaMediaPlan?: File; mpClientName?: string }
 ) {
   const formData = new FormData()
   if (files.mediaPlan) formData.append("media_plan", files.mediaPlan, files.mediaPlan.name)
   if (files.mbaPdf) formData.append("mba_pdf", files.mbaPdf, files.mbaPdf.name)
+  if (files.aaMediaPlan) formData.append("aa_media_plan", files.aaMediaPlan, files.aaMediaPlan.name)
   if (typeof files.mpClientName === "string" && files.mpClientName.trim()) {
     formData.append("mp_client_name", files.mpClientName.trim())
   }

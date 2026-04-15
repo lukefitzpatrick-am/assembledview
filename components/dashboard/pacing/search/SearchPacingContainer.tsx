@@ -25,10 +25,27 @@ import { useChartExport } from "@/hooks/useChartExport"
 import { useToast } from "@/components/ui/use-toast"
 import { Tooltip as UiTooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { getDeterministicColor, getMediaColor } from "@/lib/charts/registry"
+import {
+  PACING_CARTESIAN_GRID_PROPS,
+  PACING_TODAY_REFERENCE_LINE_PROPS,
+} from "@/lib/charts/pacingLineChartStyle"
 import { pacingDeviationBorderClass, pacingDeviationSparklineClass } from "@/lib/pacing/pacingDeviationStyle"
-import { Copy, Expand, FileSpreadsheet, ImageDown, RefreshCw, Triangle } from "lucide-react"
+import { PacingCard, PacingSubCard } from "@/components/dashboard/pacing/PacingCard"
+import {
+  Activity,
+  Copy,
+  FileSpreadsheet,
+  ImageDown,
+  LayoutDashboard,
+  LineChart as LineChartIcon,
+  RefreshCw,
+  Search,
+  Table,
+  Triangle,
+} from "lucide-react"
 import { Sparkline } from "@/components/charts/Sparkline"
 import { cn } from "@/lib/utils"
+import { getMelbourneTodayISO, getPacingWindow } from "@/lib/pacing/pacingWindow"
 
 const searchSeriesPalette = {
   cost: getMediaColor("search"),
@@ -42,9 +59,8 @@ type SearchPacingContainerProps = {
   mbaNumber: string
   lineItemIds: string[]
   searchLineItems?: any[]
-  campaignPlannedEndDate?: string
-  startDate: string
-  endDate: string
+  campaignStart: string
+  campaignEnd: string
   initialSearchData?: ApiResponse | null
   brandColour?: string
 }
@@ -420,12 +436,13 @@ function DeliveryTable({ rows }: { rows: DeliveryTableRow[] }) {
   }
 
   return (
-    <div className="rounded-xl border overflow-hidden">
-      <div className="flex items-center justify-end border-b bg-muted/20 px-3 py-2">
+    <div className="overflow-hidden">
+      <div className="flex items-center justify-end border-b border-border/60 px-3 py-2">
         <Button
           type="button"
-          variant="outline"
+          variant="ghost"
           size="sm"
+          className="rounded-full"
           onClick={() =>
             exportCsv(
               sortedRows,
@@ -452,7 +469,7 @@ function DeliveryTable({ rows }: { rows: DeliveryTableRow[] }) {
         </Button>
       </div>
       <div className="max-h-[520px] overflow-auto">
-        <div className="sticky top-0 z-10 bg-muted/70 backdrop-blur border-b px-3 py-2 text-xs font-semibold text-muted-foreground">
+        <div className="sticky top-0 z-10 border-b border-border/60 bg-background/95 px-3 py-2 text-xs font-semibold text-muted-foreground backdrop-blur">
           <div className="grid items-center gap-3" style={{ gridTemplateColumns: COLS }}>
             {(
               [
@@ -509,7 +526,7 @@ function DeliveryTable({ rows }: { rows: DeliveryTableRow[] }) {
           </div>
         ))}
 
-        <div className="sticky bottom-0 z-10 bg-background/95 backdrop-blur border-t px-3 py-2 text-sm font-semibold">
+        <div className="sticky bottom-0 z-10 border-t border-border/60 bg-background/95 px-3 py-2 text-sm font-semibold backdrop-blur">
           <div className="grid items-center gap-3" style={{ gridTemplateColumns: COLS }}>
             <div>Totals</div>
             <div className="text-right">{formatCurrency(totals.cost)}</div>
@@ -545,13 +562,16 @@ export default function SearchPacingContainer({
   mbaNumber,
   lineItemIds,
   searchLineItems,
-  campaignPlannedEndDate,
-  startDate,
-  endDate,
+  campaignStart,
+  campaignEnd,
   initialSearchData,
   brandColour,
 }: SearchPacingContainerProps): React.ReactElement | null {
   const searchCostAccent = brandColour ?? searchSeriesPalette.cost
+  const pacingWindow = useMemo(
+    () => getPacingWindow(campaignStart, campaignEnd),
+    [campaignStart, campaignEnd]
+  )
   const { user, isLoading: authLoading } = useUser()
   const { exportCsv, exportPng, isExporting } = useChartExport()
   const { toast } = useToast()
@@ -591,8 +611,9 @@ export default function SearchPacingContainer({
   }, [lineItemIds])
 
   const fetchKey = useMemo(
-    () => `${normalizedLineItemIds.join(",")}|${startDate}|${endDate}`,
-    [normalizedLineItemIds, startDate, endDate]
+    () =>
+      `${normalizedLineItemIds.join(",")}|${pacingWindow.campaignStartISO}|${pacingWindow.campaignEndISO}`,
+    [normalizedLineItemIds, pacingWindow.campaignStartISO, pacingWindow.campaignEndISO]
   )
 
   const userIdentityKey = user?.sub ?? user?.email ?? null
@@ -614,8 +635,8 @@ export default function SearchPacingContainer({
         retryAttempt,
         mbaNumber,
         lineItemIdsCount: normalizedLineItemIds.length,
-        startDate,
-        endDate,
+        startDate: campaignStart,
+        endDate: campaignEnd,
       })
     }
 
@@ -635,8 +656,8 @@ export default function SearchPacingContainer({
           lineItemIds: [],
           includeSearch: true,
           searchLineItemIds: normalizedLineItemIds,
-          searchStartDate: startDate,
-          searchEndDate: endDate,
+          searchStartDate: campaignStart,
+          searchEndDate: campaignEnd,
         }),
         signal: ac.signal,
       })
@@ -730,7 +751,7 @@ export default function SearchPacingContainer({
       }
       setIsLoading(false)
     }
-  }, [fetchKey, mbaNumber, normalizedLineItemIds, startDate, endDate])
+  }, [fetchKey, mbaNumber, normalizedLineItemIds, campaignStart, campaignEnd])
 
   useEffect(() => {
     // Mirror Social/Programmatic behavior: when initial data is provided by a shared bulk fetch,
@@ -750,7 +771,7 @@ export default function SearchPacingContainer({
     // Guard: wait for auth and user
     if (authLoading) return
     if (!user) return
-    if (!startDate || !endDate) return
+    if (!campaignStart || !campaignEnd) return
     if (normalizedLineItemIds.length === 0) return
 
     if (pendingFetchKeyRef.current === fetchKey) return
@@ -772,8 +793,8 @@ export default function SearchPacingContainer({
     fetchSearchPacing,
     initialSearchData,
     fetchKey,
-    startDate,
-    endDate,
+    campaignStart,
+    campaignEnd,
     normalizedLineItemIds.length,
   ])
 
@@ -790,8 +811,8 @@ export default function SearchPacingContainer({
     [data],
   )
 
-  const windowStartISO = parseISODateOnlyOrNull(startDate) ?? startDate
-  const windowEndISO = parseISODateOnlyOrNull(endDate) ?? endDate
+  const windowStartISO = parseISODateOnlyOrNull(campaignStart) ?? campaignStart
+  const windowEndISO = parseISODateOnlyOrNull(campaignEnd) ?? campaignEnd
 
   const rawDaily = useMemo(() => (Array.isArray(data?.daily) ? data!.daily : []), [data])
   const daily = useMemo(() => fillDailySeries(rawDaily, windowStartISO, windowEndISO), [rawDaily, windowStartISO, windowEndISO])
@@ -813,7 +834,7 @@ export default function SearchPacingContainer({
       }))
     : []
 
-  const asAtISO = parseISODateOnlyOrNull(endDate) ?? endDate
+  const asAtISO = pacingWindow.asAtISO
 
   const scheduleByLineItemId = useMemo(() => {
     const items = Array.isArray(searchLineItems) ? searchLineItems : []
@@ -974,14 +995,14 @@ export default function SearchPacingContainer({
     ),
   )
 
-  const todayIso = useMemo(() => new Date().toISOString().slice(0, 10), [])
+  const refLineISO = asAtISO || getMelbourneTodayISO()
   const showTodayOnClicksSpend = useMemo(
-    () => chartClicksSpend.some((d) => d.date === todayIso),
-    [chartClicksSpend, todayIso],
+    () => chartClicksSpend.some((d) => d.date === refLineISO),
+    [chartClicksSpend, refLineISO],
   )
   const showTodayOnConvRevenue = useMemo(
-    () => chartConvRevenue.some((d) => d.date === todayIso),
-    [chartConvRevenue, todayIso],
+    () => chartConvRevenue.some((d) => d.date === refLineISO),
+    [chartConvRevenue, refLineISO],
   )
   const syncTimestampLabel = lastSyncedAt
     ? new Intl.DateTimeFormat("en-AU", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(lastSyncedAt)
@@ -1088,36 +1109,74 @@ export default function SearchPacingContainer({
   const searchAvgCpm =
     totals.impressions > 0 ? (totals.cost / totals.impressions) * 1000 : null
 
+  const handleCopyClicksSpend = async () => {
+    await navigator.clipboard.writeText(JSON.stringify(chartClicksSpend))
+    toast({ title: "Copied", description: "Clicks + spend chart data copied to clipboard." })
+  }
+
+  const pacingCardActions = (
+    <>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="rounded-full"
+        onClick={handleSyncNow}
+        disabled={isLoading}
+        title="Sync now"
+      >
+        <RefreshCw className="h-4 w-4" />
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="rounded-full"
+        onClick={handleExportCsvs}
+        disabled={isExporting}
+        title="Export CSV"
+      >
+        <FileSpreadsheet className="h-4 w-4" />
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="rounded-full"
+        onClick={handleExportPngs}
+        disabled={isExporting}
+        title="Export PNG"
+      >
+        <ImageDown className="h-4 w-4" />
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="rounded-full"
+        onClick={handleCopyClicksSpend}
+        disabled={isExporting || !hasAnyData}
+        title="Copy chart data"
+      >
+        <Copy className="h-4 w-4" />
+      </Button>
+    </>
+  )
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-start lg:justify-between">
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-          <span className="text-base font-semibold text-foreground">Search performance</span>
+    <PacingCard
+      icon={Search}
+      title="Search Pacing"
+      subtitle={`${formatDateAU(campaignStart)} – ${formatDateAU(campaignEnd)}`}
+      actions={pacingCardActions}
+    >
+      <div className="space-y-6">
+        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <Badge variant="outline" className="rounded-full px-3 py-1 text-[11px]">
             {clientSlug} • {mbaNumber}
           </Badge>
+          <span>Last synced {syncTimestampLabel}</span>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="secondary" className="shrink-0 rounded-full px-3 py-1 text-[11px]">
-            {startDate} → {endDate}
-          </Badge>
-          <Badge variant="outline" className="shrink-0 rounded-full px-3 py-1 text-[11px]">
-            Last synced {syncTimestampLabel}
-          </Badge>
-          <Button variant="outline" size="sm" onClick={handleSyncNow} disabled={isLoading}>
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Sync now
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleExportCsvs} disabled={isExporting}>
-            <FileSpreadsheet className="mr-2 h-4 w-4" />
-            Export CSV
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleExportPngs} disabled={isExporting}>
-            <ImageDown className="mr-2 h-4 w-4" />
-            Export PNG
-          </Button>
-        </div>
-      </div>
         {error ? (
           <div className="rounded-2xl border border-destructive/30 bg-destructive/5 px-3 py-3 text-sm text-destructive">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1131,7 +1190,7 @@ export default function SearchPacingContainer({
 
         {isLoading ? (
           <>
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
               <div className="h-24 animate-pulse rounded-2xl bg-muted" />
               <div className="h-24 animate-pulse rounded-2xl bg-muted" />
               <div className="h-24 animate-pulse rounded-2xl bg-muted" />
@@ -1142,8 +1201,8 @@ export default function SearchPacingContainer({
             <div className="h-[420px] animate-pulse rounded-2xl bg-muted" />
           </>
         ) : !hasAnyData ? (
-          <div className="rounded-2xl border border-border/60 bg-muted/10 p-4 text-sm text-muted-foreground">
-            No Search pacing data is available for this date range yet.
+          <div className="flex min-h-[200px] items-center justify-center text-sm text-muted-foreground">
+            No Search pacing data available
           </div>
         ) : (
           <>
@@ -1168,9 +1227,9 @@ export default function SearchPacingContainer({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
               <SmallProgressCard
-                label="Budget pacing"
+                label="Spend pacing"
                 value={formatCurrency(totals.cost)}
                 helper={`Delivered ${formatCurrency(totals.cost)} • Planned ${formatCurrency(totalSchedule.budgetBooked)}`}
                 pacingPct={typeof totalDerived.budgetPacingPct === "number" ? totalDerived.budgetPacingPct : undefined}
@@ -1184,7 +1243,7 @@ export default function SearchPacingContainer({
                 embedded
               />
               <SmallProgressCard
-                label="Clicks pacing"
+                label="Deliverable pacing"
                 value={formatNumber(totals.clicks)}
                 helper={`Delivered ${formatNumber(totals.clicks)} • Planned ${formatNumber(totalSchedule.clicksBooked)}`}
                 pacingPct={typeof totalDerived.clicksPacingPct === "number" ? totalDerived.clicksPacingPct : undefined}
@@ -1199,32 +1258,19 @@ export default function SearchPacingContainer({
               />
             </div>
 
-            {totalSecondaryCards}
+            <PacingSubCard
+              icon={LayoutDashboard}
+              title="Efficiency metrics"
+              subtitle="CPC, conversions, impression share & volume"
+            >
+              {totalSecondaryCards}
+            </PacingSubCard>
 
-            <div className="space-y-4 rounded-2xl border border-border/60 bg-muted/10 p-4">
-              <div className="flex items-center justify-between gap-2">
-                <div className="text-sm font-semibold">Daily Clicks + Spend</div>
-                <div className="flex items-center gap-2">
-                  <div className="text-xs text-muted-foreground">{daily.length ? `${daily.length} days` : "—"}</div>
-                  <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => document.documentElement.requestFullscreen?.()}>
-                    <Expand className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => exportPng(clicksSpendChartRef, `search-${mbaNumber}-clicks-spend.png`)}>
-                    <ImageDown className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 px-2"
-                    onClick={async () => {
-                      await navigator.clipboard.writeText(JSON.stringify(chartClicksSpend))
-                      toast({ title: "Copied", description: "Chart data copied to clipboard." })
-                    }}
-                  >
-                    <Copy className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              </div>
+            <PacingSubCard
+              icon={LineChartIcon}
+              title="Daily Clicks + Spend"
+              subtitle={daily.length ? `${daily.length} days` : "—"}
+            >
               <div className="flex flex-wrap gap-2 text-xs">
                 <Button size="sm" variant={showClicksSpendSeries.cost ? "secondary" : "outline"} onClick={() => setShowClicksSpendSeries((s) => ({ ...s, cost: !s.cost }))}>
                   Cost
@@ -1252,7 +1298,7 @@ export default function SearchPacingContainer({
                       <stop offset="95%" stopColor={searchSeriesPalette.clicks} stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="4 4" strokeOpacity={0.08} stroke="hsl(var(--muted-foreground))" />
+                  <CartesianGrid {...PACING_CARTESIAN_GRID_PROPS} />
                   <XAxis
                     dataKey="date"
                     tickLine={false}
@@ -1305,32 +1351,19 @@ export default function SearchPacingContainer({
                     activeDot={{ r: 4, stroke: searchSeriesPalette.clicks, strokeWidth: 1.25, fill: "#fff", className: "transition-transform duration-150" }}
                   /> : null}
                   {showTodayOnClicksSpend ? (
-                    <ReferenceLine
-                      yAxisId="left"
-                      x={todayIso}
-                      stroke="hsl(var(--muted-foreground))"
-                      strokeDasharray="4 4"
-                    />
+                    <ReferenceLine yAxisId="left" x={refLineISO} {...PACING_TODAY_REFERENCE_LINE_PROPS} />
                   ) : null}
                   {chartClicksSpend.length > 30 ? <Brush dataKey="date" height={20} travellerWidth={8} /> : null}
                   <Tooltip content={renderClicksSpendTooltip} />
                 </LineChart>
               </ChartContainer>
-            </div>
+            </PacingSubCard>
 
-            <div className="space-y-4 rounded-2xl border border-muted/60 bg-muted/10 p-4">
-              <div className="flex items-center justify-between gap-2">
-                <div className="text-sm font-semibold">Daily Conversions + Revenue</div>
-                <div className="flex items-center gap-2">
-                  <div className="text-xs text-muted-foreground">{daily.length ? `${daily.length} days` : "—"}</div>
-                  <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => document.documentElement.requestFullscreen?.()}>
-                    <Expand className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => exportPng(convRevenueChartRef, `search-${mbaNumber}-conv-revenue.png`)}>
-                    <ImageDown className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              </div>
+            <PacingSubCard
+              icon={LineChartIcon}
+              title="Daily Conversions + Revenue"
+              subtitle={daily.length ? `${daily.length} days` : "—"}
+            >
               <div className="flex flex-wrap gap-2 text-xs">
                 <Button size="sm" variant={showConvRevenueSeries.revenue ? "secondary" : "outline"} onClick={() => setShowConvRevenueSeries((s) => ({ ...s, revenue: !s.revenue }))}>
                   Revenue
@@ -1358,7 +1391,7 @@ export default function SearchPacingContainer({
                       <stop offset="95%" stopColor={searchSeriesPalette.conversions} stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="4 4" strokeOpacity={0.08} stroke="hsl(var(--muted-foreground))" />
+                  <CartesianGrid {...PACING_CARTESIAN_GRID_PROPS} />
                   <XAxis
                     dataKey="date"
                     tickLine={false}
@@ -1411,35 +1444,27 @@ export default function SearchPacingContainer({
                     activeDot={{ r: 4, stroke: searchSeriesPalette.conversions, strokeWidth: 1.25, fill: "#fff", className: "transition-transform duration-150" }}
                   /> : null}
                   {showTodayOnConvRevenue ? (
-                    <ReferenceLine
-                      yAxisId="left"
-                      x={todayIso}
-                      stroke="hsl(var(--muted-foreground))"
-                      strokeDasharray="4 4"
-                    />
+                    <ReferenceLine yAxisId="left" x={refLineISO} {...PACING_TODAY_REFERENCE_LINE_PROPS} />
                   ) : null}
                   {chartConvRevenue.length > 30 ? <Brush dataKey="date" height={20} travellerWidth={8} /> : null}
                   <Tooltip content={renderConvRevenueTooltip} />
                 </LineChart>
               </ChartContainer>
-            </div>
+            </PacingSubCard>
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <div className="text-sm font-semibold">Daily Delivery</div>
-                <div className="text-xs text-muted-foreground">
-                  {dailyTableRows.length ? `${dailyTableRows.length} rows` : "—"}
-                </div>
-              </div>
-
+            <PacingSubCard
+              icon={Table}
+              title="Daily Delivery"
+              subtitle={dailyTableRows.length ? `${dailyTableRows.length} rows` : "—"}
+            >
               {dailyTableRows.length === 0 ? (
-                <div className="rounded-2xl border border-muted/60 bg-muted/10 p-4 text-sm text-muted-foreground">
-                  No daily delivery rows are available for this date range yet.
+                <div className="flex min-h-[200px] items-center justify-center text-sm text-muted-foreground">
+                  No daily delivery data available
                 </div>
               ) : (
                 <DeliveryTable rows={dailyTableRows} />
               )}
-            </div>
+            </PacingSubCard>
 
             {lineItemSeries.length ? (
               <Accordion type="multiple" defaultValue={[]}>
@@ -1495,12 +1520,15 @@ export default function SearchPacingContainer({
                       <AccordionItem
                         key={id}
                         value={id}
-                        className={cn(
-                          "campaign-section-enter mb-3 overflow-hidden rounded-xl border border-border bg-card transition-all duration-200 hover:bg-muted/20 data-[state=open]:shadow-sm",
-                          pacingTone
-                        )}
+                        className="campaign-section-enter mb-3 border-0 bg-transparent p-0 shadow-none transition-all duration-200 data-[state=open]:shadow-sm"
                         style={{ animationDelay: `${accIdx * 60}ms` }}
                       >
+                        <div
+                          className={cn(
+                            "overflow-hidden rounded-xl border border-border/60 bg-background/60 transition-colors hover:bg-muted/10 data-[state=open]:shadow-sm",
+                            pacingTone,
+                          )}
+                        >
                         <AccordionTrigger className="px-4 py-3 text-left text-sm font-semibold transition-all hover:no-underline">
                           <div className="grid w-full grid-cols-[1fr_auto] items-center gap-2">
                             <div className="flex min-w-0 items-center gap-3">
@@ -1526,10 +1554,10 @@ export default function SearchPacingContainer({
                             </div>
                           </div>
                         </AccordionTrigger>
-                        <AccordionContent className="space-y-3 border-t bg-muted/5 p-4 data-[state=open]:animate-in data-[state=open]:fade-in-0">
-                          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        <AccordionContent className="space-y-3 border-t border-border/60 px-4 pb-4 pt-3 data-[state=open]:animate-in data-[state=open]:fade-in-0">
+                          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                             <SmallProgressCard
-                              label="Budget pacing"
+                              label="Spend pacing"
                               value={formatCurrency(li.totals.cost)}
                               helper={`Delivered ${formatCurrency(li.totals.cost)} • Planned ${formatCurrency(spend.bookedTotal)}`}
                               pacingPct={typeof budgetPacingPct === "number" ? budgetPacingPct : undefined}
@@ -1538,7 +1566,7 @@ export default function SearchPacingContainer({
                               embedded
                             />
                             <SmallProgressCard
-                              label="Clicks pacing"
+                              label="Deliverable pacing"
                               value={formatNumber(li.totals.clicks)}
                               helper={`Delivered ${formatNumber(li.totals.clicks)} • Planned ${formatNumber(clicks.bookedTotal)}`}
                               pacingPct={typeof clicksPacingPct === "number" ? clicksPacingPct : undefined}
@@ -1548,8 +1576,12 @@ export default function SearchPacingContainer({
                             />
                           </div>
 
-                          <div className="space-y-4 rounded-2xl border border-muted/60 bg-muted/10 p-4">
-                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                          <PacingSubCard
+                            icon={Activity}
+                            title="Efficiency metrics"
+                            subtitle="CPC, conversions & benchmarks"
+                          >
+                            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                               <SmallProgressCard
                                 label="CPC"
                                 value={liActualCpc === null ? "—" : formatCurrency(liActualCpc)}
@@ -1571,7 +1603,7 @@ export default function SearchPacingContainer({
                                 embedded
                               />
                               <SmallProgressCard
-                                label="Top Impression share"
+                                label="Top impression share"
                                 value={formatPercentAuto(li.totals.topImpressionPct, 2)}
                                 helper="Target 50%"
                                 pacingPct={typeof liTopSharePacingPct === "number" ? liTopSharePacingPct : undefined}
@@ -1591,13 +1623,14 @@ export default function SearchPacingContainer({
                                 embedded
                               />
                             </div>
+                          </PacingSubCard>
 
                             <div className="space-y-4">
-                              <div className="space-y-4 rounded-2xl border border-border/60 bg-muted/10 p-4">
-                                <div className="flex items-center justify-between gap-2">
-                                  <div className="text-sm font-semibold">Daily Clicks + Spend</div>
-                                  <div className="text-xs text-muted-foreground">{li.daily.length ? `${li.daily.length} days` : "—"}</div>
-                                </div>
+                              <PacingSubCard
+                                icon={LineChartIcon}
+                                title="Daily Clicks + Spend"
+                                subtitle={li.daily.length ? `${li.daily.length} days` : "—"}
+                              >
                                 <ChartContainer
                                   config={{
                                     cost: { label: "Cost", color: costAccent },
@@ -1616,7 +1649,7 @@ export default function SearchPacingContainer({
                                         <stop offset="95%" stopColor={searchSeriesPalette.clicks} stopOpacity={0} />
                                       </linearGradient>
                                     </defs>
-                                    <CartesianGrid strokeDasharray="4 4" strokeOpacity={0.08} stroke="hsl(var(--muted-foreground))" />
+                                    <CartesianGrid {...PACING_CARTESIAN_GRID_PROPS} />
                                     <XAxis
                                       dataKey="date"
                                       tickLine={false}
@@ -1668,13 +1701,8 @@ export default function SearchPacingContainer({
                                       cursor="default"
                                       activeDot={{ r: 4, stroke: searchSeriesPalette.clicks, strokeWidth: 1.25, fill: "#fff" }}
                                     />
-                                    {li.daily.some((d) => d.date === todayIso) ? (
-                                      <ReferenceLine
-                                        yAxisId="left"
-                                        x={todayIso}
-                                        stroke="hsl(var(--muted-foreground))"
-                                        strokeDasharray="4 4"
-                                      />
+                                    {li.daily.some((d) => d.date === refLineISO) ? (
+                                      <ReferenceLine yAxisId="left" x={refLineISO} {...PACING_TODAY_REFERENCE_LINE_PROPS} />
                                     ) : null}
                                     {li.daily.length > 30 ? <Brush dataKey="date" height={20} travellerWidth={8} /> : null}
                                     <Tooltip
@@ -1705,13 +1733,13 @@ export default function SearchPacingContainer({
                                     />
                                   </LineChart>
                                 </ChartContainer>
-                              </div>
+                              </PacingSubCard>
 
-                              <div className="space-y-4 rounded-2xl border border-border/60 bg-muted/10 p-4">
-                                <div className="flex items-center justify-between gap-2">
-                                  <div className="text-sm font-semibold">Daily Conversions + Revenue</div>
-                                  <div className="text-xs text-muted-foreground">{li.daily.length ? `${li.daily.length} days` : "—"}</div>
-                                </div>
+                              <PacingSubCard
+                                icon={LineChartIcon}
+                                title="Daily Conversions + Revenue"
+                                subtitle={li.daily.length ? `${li.daily.length} days` : "—"}
+                              >
                                 <ChartContainer
                                   config={{
                                     revenue: { label: "Revenue", color: searchSeriesPalette.revenue },
@@ -1730,7 +1758,7 @@ export default function SearchPacingContainer({
                                         <stop offset="95%" stopColor={searchSeriesPalette.conversions} stopOpacity={0} />
                                       </linearGradient>
                                     </defs>
-                                    <CartesianGrid strokeDasharray="4 4" strokeOpacity={0.08} stroke="hsl(var(--muted-foreground))" />
+                                    <CartesianGrid {...PACING_CARTESIAN_GRID_PROPS} />
                                     <XAxis
                                       dataKey="date"
                                       tickLine={false}
@@ -1782,13 +1810,8 @@ export default function SearchPacingContainer({
                                       cursor="default"
                                       activeDot={{ r: 4, stroke: searchSeriesPalette.conversions, strokeWidth: 1.25, fill: "#fff" }}
                                     />
-                                    {li.daily.some((d) => d.date === todayIso) ? (
-                                      <ReferenceLine
-                                        yAxisId="left"
-                                        x={todayIso}
-                                        stroke="hsl(var(--muted-foreground))"
-                                        strokeDasharray="4 4"
-                                      />
+                                    {li.daily.some((d) => d.date === refLineISO) ? (
+                                      <ReferenceLine yAxisId="left" x={refLineISO} {...PACING_TODAY_REFERENCE_LINE_PROPS} />
                                     ) : null}
                                     {li.daily.length > 30 ? <Brush dataKey="date" height={20} travellerWidth={8} /> : null}
                                     <Tooltip
@@ -1819,24 +1842,24 @@ export default function SearchPacingContainer({
                                     />
                                   </LineChart>
                                 </ChartContainer>
-                              </div>
+                              </PacingSubCard>
                             </div>
-                          </div>
 
-                          <div className="space-y-2">
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="text-sm font-semibold">Daily Delivery</div>
-                              <div className="text-xs text-muted-foreground">{liTable.length ? `${liTable.length} rows` : "—"}</div>
-                            </div>
+                          <PacingSubCard
+                            icon={Table}
+                            title="Daily Delivery"
+                            subtitle={liTable.length ? `${liTable.length} rows` : "—"}
+                          >
                             {liTable.length === 0 ? (
-                              <div className="rounded-2xl border border-muted/60 bg-muted/10 p-4 text-sm text-muted-foreground">
-                                No daily delivery rows are available for this date range yet.
+                              <div className="flex min-h-[200px] items-center justify-center text-sm text-muted-foreground">
+                                No daily delivery data available
                               </div>
                             ) : (
                               <DeliveryTable rows={liTable} />
                             )}
-                          </div>
+                          </PacingSubCard>
                         </AccordionContent>
+                        </div>
                       </AccordionItem>
                     )
                   })}
@@ -1845,7 +1868,8 @@ export default function SearchPacingContainer({
 
           </>
         )}
-    </div>
+      </div>
+    </PacingCard>
   )
 }
 

@@ -4,7 +4,6 @@ import { getPrimaryRole, getUserClientIdentifier, getUserMbaNumbers, isAdminRole
 import { redirect, notFound } from "next/navigation"
 import { headers } from "next/headers"
 import { createPerfTimer, logPerf } from "@/lib/utils/perf"
-import { getMelbourneTodayISO, getMelbourneYesterdayISO } from "@/lib/dates/melbourne"
 import { normalizeDateToMelbourneISO } from "@/lib/dates/normalizeCampaignDateISO"
 import { resolveMonthlySpendForPlan } from "@/lib/spend/monthlyPlanCalendar"
 import {
@@ -727,70 +726,16 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
     })
   }
 
-  const searchStartISO = (() => {
-    if (!Array.isArray(deliverySchedule) || deliverySchedule.length === 0) return null
-
-    const getChannel = (entry: any) =>
-      String(
-        entry?.channel ??
-          entry?.media_channel ??
-          entry?.mediaType ??
-          entry?.media_type ??
-          entry?.publisher ??
-          entry?.placement ??
-          ""
-      )
-        .trim()
-        .toLowerCase()
-
-    const isSearchEntry = (entry: any) => getChannel(entry).includes("search")
-
-    const extractDateISO = (entry: any): string | null => {
-      const candidates = [
-        entry?.startDate,
-        entry?.start_date,
-        entry?.date,
-        entry?.DATE,
-        entry?.periodStart,
-        entry?.period_start,
-        entry?.month,
-        entry?.monthYear,
-      ]
-      for (const candidate of candidates) {
-        const iso = toISODateOnlySafe(candidate)
-        if (iso) return iso
-      }
-      return null
-    }
-
-    const dates = deliverySchedule
-      .filter(isSearchEntry)
-      .map(extractDateISO)
-      .filter((v): v is string => Boolean(v))
-      .sort()
-
-    return dates.length ? dates[0] : null
-  })()
-
-  const searchEndISO = (() => {
-    const melbourneTodayISO = getMelbourneTodayISO()
-    const melbourneYesterdayISO = getMelbourneYesterdayISO()
-
-    const status = String(campaign?.campaign_status ?? campaign?.campaignStatus ?? campaignVersion?.campaign_status ?? "")
-      .trim()
-      .toLowerCase()
-
-    const completed = status.includes("completed") || (campaignEndISO ? campaignEndISO < melbourneTodayISO : false)
-    return completed ? (campaignEndISO ?? melbourneYesterdayISO) : melbourneYesterdayISO
-  })()
-
-  const effectiveSearchStartISO = searchStartISO ?? effectiveStartISO ?? campaignStartISO ?? toISODateOnlySafe(startDate)
+  const pacingSectionStartISO =
+    effectiveStartISO ?? campaignStartISO ?? toISODateOnlySafe(startDate)
+  const pacingSectionEndISO = effectiveEndISO ?? campaignEndISO ?? toISODateOnlySafe(endDate)
+  const hasPacingCampaignDates = Boolean(pacingSectionStartISO && pacingSectionEndISO)
 
   const initialPacingRows: any[] = []
 
   const shouldUsePacingWrapper =
     pacingLineItemIds.length > 0 ||
-    (mpSearchEnabled && searchLineItemIds.length > 0 && Boolean(effectiveSearchStartISO) && Boolean(searchEndISO))
+    (mpSearchEnabled && searchLineItemIds.length > 0 && hasPacingCampaignDates)
 
   // Log total SSR time
   pageTimer.total({
@@ -830,7 +775,7 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
   const showPacingSection =
     shouldUsePacingWrapper ||
     socialItemsActive.length > 0 ||
-    (mpSearchEnabled && searchLineItemIds.length > 0 && Boolean(effectiveSearchStartISO) && Boolean(searchEndISO)) ||
+    (mpSearchEnabled && searchLineItemIds.length > 0 && hasPacingCampaignDates) ||
     progDisplayItemsActive.length > 0 ||
     progVideoItemsActive.length > 0
 
@@ -863,8 +808,6 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
       searchItemsActive={searchItemsActive}
       searchLineItemIds={searchLineItemIds}
       mpSearchEnabled={mpSearchEnabled}
-      effectiveSearchStartISO={effectiveSearchStartISO}
-      searchEndISO={searchEndISO}
       progDisplayItemsActive={progDisplayItemsActive}
       progVideoItemsActive={progVideoItemsActive}
       pacingLineItemIds={pacingLineItemIds}

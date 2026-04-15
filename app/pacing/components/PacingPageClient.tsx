@@ -445,9 +445,13 @@ export default function PacingPageClient({
       calculated_value_number: b.deliverableNumber ?? 0,
     }))
 
+    const win = portfolio?.window
+    const campaignStart = bounds.start ?? win?.startDate
+    const campaignEnd = bounds.end ?? win?.endDate
+
     return {
-      campaignStart: bounds.start,
-      campaignEnd: bounds.end,
+      campaignStart,
+      campaignEnd,
       socialLineItem: {
         line_item_id: selectedLineItem.lineItemId,
         line_item_name: selectedLineItem.platform || selectedLineItem.lineItemId,
@@ -467,7 +471,7 @@ export default function PacingPageClient({
         goal_deliverable_total: selectedLineItem.deliverableTotalNumber,
       },
     }
-  }, [selectedLineItem])
+  }, [selectedLineItem, portfolio])
 
   return (
     <div className="space-y-6">
@@ -949,35 +953,41 @@ export default function PacingPageClient({
                 </PanelContent>
               </Panel>
 
-              {selectedLineItem.channelGroup === "social" ? (
-                <SocialPacingContainer
-                  clientSlug={selectedLineItem.clientSlug}
-                  mbaNumber={selectedLineItem.mbaNumber}
-                  socialLineItems={[drawerLineItemProps.socialLineItem as any]}
-                  campaignStart={drawerLineItemProps.campaignStart}
-                  campaignEnd={drawerLineItemProps.campaignEnd}
-                  initialPacingRows={initialPacingRowsForDrawer}
-                  pacingLineItemIds={[selectedLineItem.lineItemId]}
-                />
+              {drawerLineItemProps.campaignStart && drawerLineItemProps.campaignEnd ? (
+                selectedLineItem.channelGroup === "social" ? (
+                  <SocialPacingContainer
+                    clientSlug={selectedLineItem.clientSlug}
+                    mbaNumber={selectedLineItem.mbaNumber}
+                    socialLineItems={[drawerLineItemProps.socialLineItem as any]}
+                    campaignStart={drawerLineItemProps.campaignStart}
+                    campaignEnd={drawerLineItemProps.campaignEnd}
+                    initialPacingRows={initialPacingRowsForDrawer}
+                    pacingLineItemIds={[selectedLineItem.lineItemId]}
+                  />
+                ) : (
+                  <ProgrammaticPacingContainer
+                    clientSlug={selectedLineItem.clientSlug}
+                    mbaNumber={selectedLineItem.mbaNumber}
+                    progDisplayLineItems={
+                      selectedLineItem.channelGroup === "prog_display"
+                        ? ([drawerLineItemProps.programmaticLineItem as any] as any)
+                        : []
+                    }
+                    progVideoLineItems={
+                      selectedLineItem.channelGroup === "prog_video"
+                        ? ([drawerLineItemProps.programmaticLineItem as any] as any)
+                        : []
+                    }
+                    campaignStart={drawerLineItemProps.campaignStart}
+                    campaignEnd={drawerLineItemProps.campaignEnd}
+                    initialPacingRows={initialPacingRowsForDrawer}
+                    pacingLineItemIds={[selectedLineItem.lineItemId]}
+                  />
+                )
               ) : (
-                <ProgrammaticPacingContainer
-                  clientSlug={selectedLineItem.clientSlug}
-                  mbaNumber={selectedLineItem.mbaNumber}
-                  progDisplayLineItems={
-                    selectedLineItem.channelGroup === "prog_display"
-                      ? ([drawerLineItemProps.programmaticLineItem as any] as any)
-                      : []
-                  }
-                  progVideoLineItems={
-                    selectedLineItem.channelGroup === "prog_video"
-                      ? ([drawerLineItemProps.programmaticLineItem as any] as any)
-                      : []
-                  }
-                  campaignStart={drawerLineItemProps.campaignStart}
-                  campaignEnd={drawerLineItemProps.campaignEnd}
-                  initialPacingRows={initialPacingRowsForDrawer}
-                  pacingLineItemIds={[selectedLineItem.lineItemId]}
-                />
+                <div className="text-sm text-muted-foreground">
+                  Campaign start and end dates are required to load pacing for this line item.
+                </div>
               )}
             </div>
           )}

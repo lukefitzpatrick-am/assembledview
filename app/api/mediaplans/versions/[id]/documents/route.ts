@@ -79,21 +79,24 @@ export async function POST(
     const incoming = await request.formData()
     const mediaPlan = incoming.get("media_plan")
     const mbaPdf = incoming.get("mba_pdf")
+    const aaMediaPlan = incoming.get("aa_media_plan")
     const mpClientName = incoming.get("mp_client_name")
 
     const wantsMediaPlan = isFileLike(mediaPlan)
     const wantsMbaPdf = isFileLike(mbaPdf)
+    const wantsAaMediaPlan = isFileLike(aaMediaPlan)
 
     // We include mp_client_name for potential future Xano logic, but it isn't required
     // for the upload/patch operations below.
     const hasAnyInput =
       wantsMediaPlan ||
       wantsMbaPdf ||
+      wantsAaMediaPlan ||
       (typeof mpClientName === "string" && mpClientName.trim().length > 0)
 
-    if (!hasAnyInput || (!wantsMediaPlan && !wantsMbaPdf)) {
+    if (!hasAnyInput || (!wantsMediaPlan && !wantsMbaPdf && !wantsAaMediaPlan)) {
       return NextResponse.json(
-        { error: "No files provided. Expected `media_plan` and/or `mba_pdf`." },
+        { error: "No files provided. Expected `media_plan`, `mba_pdf`, and/or `aa_media_plan`." },
         { status: 400 }
       )
     }
@@ -197,6 +200,9 @@ export async function POST(
     }
     if (wantsMbaPdf) {
       patch.mba_pdf = await uploadAttachment("upload_mba", mbaPdf, "mba.pdf")
+    }
+    if (wantsAaMediaPlan) {
+      patch.aa_media_plan = await uploadAttachment("upload_mediaplan", aaMediaPlan, "aa_media_plan.xlsx")
     }
 
     const patchRes = await fetch(`${baseUrl}/media_plan_versions/${encodeURIComponent(id)}`, {

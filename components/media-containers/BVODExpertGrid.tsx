@@ -3226,7 +3226,7 @@ export function BVODExpertGrid({
       "Platform",
       "Publisher",
       "Site",
-      "Targeting",
+      "Bid Strategy",
       "Buy Type",
       "Creative Targeting",
       "Creative",

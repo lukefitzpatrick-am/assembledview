@@ -4,6 +4,7 @@ import { ArrowDownRight, ArrowUpRight, Minus } from "lucide-react"
 import * as React from "react"
 
 import { formatCurrencyAUD, formatPercentage } from "@/lib/charts/format"
+import { PACING_TOOLTIP_SHELL_CLASS } from "@/lib/charts/pacingLineChartStyle"
 import { cn } from "@/lib/utils"
 
 export type UnifiedTooltipPayloadItem = {
@@ -108,7 +109,7 @@ export function UnifiedTooltip({
 
   return (
     <div className="animate-in fade-in-0 zoom-in-95 duration-150">
-      <div className="w-72 rounded-xl border border-border/70 bg-popover/80 p-3 text-popover-foreground shadow-lg backdrop-blur-md">
+      <div className={cn("w-72", PACING_TOOLTIP_SHELL_CLASS)}>
         <p className="mb-2 truncate text-sm font-semibold text-foreground">
           {displayLabel}
         </p>

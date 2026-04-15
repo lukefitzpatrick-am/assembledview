@@ -8,10 +8,6 @@ import { AnimatedDotField } from "@/components/ui/animated-dot-field"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { WaveRibbon } from "@/components/ui/wave-ribbon"
-import {
-  clampBudgetUtilizationPct,
-  getBudgetUtilizationKpiTone,
-} from "@/lib/dashboard/budgetUtilKpi"
 import { formatCurrencyAUD } from "@/lib/charts/format"
 import { cn, hexToRgba } from "@/lib/utils"
 
@@ -28,12 +24,8 @@ interface CampaignHeroBannerProps {
     planVersion?: string
     poNumber?: string
     clientContact?: string
-    /** Present when passed from `CampaignPageAssembly` hero payload */
-    actualSpend?: number
-    expectedSpend?: number
   }
   brandColour?: string
-  timeElapsedPct: number
   daysRemaining: number
   onOpenDetails: () => void
   onDownload: () => void
@@ -52,33 +44,6 @@ function formatHeroDateRange(startDate: string, endDate: string): string {
   const end = parseCampaignDate(endDate)
   if (!start || !end) return "Date range unavailable"
   return `${format(start, "dd MMM yyyy")} → ${format(end, "dd MMM yyyy")}`
-}
-
-function clampPct(value: number): number {
-  if (!Number.isFinite(value)) return 0
-  return Math.max(0, Math.min(100, value))
-}
-
-type PaceTone = "green" | "amber" | "red" | "muted"
-
-function pacingPctTone(pacingPct: number): PaceTone {
-  if (!Number.isFinite(pacingPct)) return "muted"
-  if (pacingPct < 95) return "green"
-  if (pacingPct <= 105) return "amber"
-  return "red"
-}
-
-function pillClassesForTone(tone: PaceTone): string {
-  switch (tone) {
-    case "green":
-      return "border-emerald-500/35 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200"
-    case "amber":
-      return "border-amber-500/35 bg-amber-500/10 text-amber-900 dark:text-amber-100"
-    case "red":
-      return "border-red-500/35 bg-red-500/10 text-red-800 dark:text-red-200"
-    default:
-      return "border-border/60 bg-muted/40 text-muted-foreground"
-  }
 }
 
 type StatusKind = "booked" | "completed" | "draft" | "default"
@@ -123,14 +88,9 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
-function formatPercent(value: number): string {
-  return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(value)}%`
-}
-
 export default function CampaignHeroBanner({
   campaign,
   brandColour = "#4f8fcb",
-  timeElapsedPct,
   daysRemaining,
   onOpenDetails,
   onDownload,
@@ -139,18 +99,7 @@ export default function CampaignHeroBanner({
     ? `${campaign.clientName} • ${campaign.brand}`
     : campaign.clientName
 
-  const actualSpend = Number(campaign.actualSpend ?? 0) || 0
-  const expectedSpend = Number(campaign.expectedSpend ?? 0) || 0
   const budget = Number(campaign.budget ?? 0) || 0
-
-  const budgetUtilPctRaw = budget > 0 ? (actualSpend / budget) * 100 : 0
-  const normalizedBudgetUtil = clampBudgetUtilizationPct(budgetUtilPctRaw, 0, 100)
-  const budgetKpiTone = getBudgetUtilizationKpiTone(normalizedBudgetUtil)
-  const pacingPct = expectedSpend > 0 ? (actualSpend / expectedSpend) * 100 : 0
-
-  const pacingPillTone = expectedSpend > 0 ? pacingPctTone(pacingPct) : ("muted" as PaceTone)
-
-  const elapsedDisplay = clampPct(timeElapsedPct)
 
   const washGradient = `linear-gradient(125deg, rgba(255,255,255,1) 0%, rgba(255,255,255,0.97) 35%, ${hexToRgba(brandColour, 0.1)} 55%, ${hexToRgba(brandColour, 0.2)} 100%)`
 
@@ -181,8 +130,7 @@ export default function CampaignHeroBanner({
       <AccentBar brandColour={brandColour} className="absolute bottom-0 left-0 right-0 z-[2]" />
 
       <div className="relative z-10 min-h-[160px] pb-5 pl-6 pr-28 pt-6 sm:pr-32 md:pl-10 md:pr-40 lg:pr-44">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:gap-10">
-          <div className="min-w-0 flex-1 space-y-2">
+        <div className="min-w-0 space-y-2">
             <h1 className="text-2xl font-extrabold tracking-[-0.03em] text-foreground">
               {campaign.campaignName}
             </h1>
@@ -210,38 +158,10 @@ export default function CampaignHeroBanner({
                 •
               </span>
               <span className="inline-flex items-center gap-1.5">
-                <span className={cn("h-2 w-2 shrink-0 rounded-full", budgetKpiTone.fill)} aria-hidden />
-                Spent: {formatCurrencyAUD(actualSpend)}
-              </span>
-              <span aria-hidden className="text-border">
-                •
-              </span>
-              <span className="inline-flex items-center gap-1.5">
                 <span className="h-2 w-2 shrink-0 rounded-full bg-muted-foreground/70" aria-hidden />
                 Days remaining: {Math.max(0, Math.round(daysRemaining))}
               </span>
             </div>
-          </div>
-
-          <div className="flex w-full shrink-0 flex-col gap-2 sm:max-w-[220px] lg:w-[220px]">
-            <div
-              className={cn(
-                "rounded-full border px-3 py-1.5 text-xs font-medium tabular-nums",
-                pillClassesForTone("muted"),
-              )}
-            >
-              Time elapsed: {elapsedDisplay.toFixed(1)}%
-            </div>
-            <div
-              className={cn(
-                "rounded-full border px-3 py-1.5 text-xs font-medium tabular-nums",
-                pillClassesForTone(pacingPillTone),
-              )}
-            >
-              Pacing:{" "}
-              {expectedSpend > 0 && Number.isFinite(pacingPct) ? `${pacingPct.toFixed(1)}%` : "—"}
-            </div>
-          </div>
         </div>
 
         <div className="absolute right-3 top-1/2 z-20 flex -translate-y-1/2 flex-col gap-2 sm:right-4 md:right-6">

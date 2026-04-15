@@ -5,19 +5,36 @@ import { useUser } from "@/components/AuthWrapper"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { CartesianGrid, Line, LineChart, Tooltip, XAxis, YAxis } from "recharts"
+import { CartesianGrid, Line, LineChart, ReferenceLine, Tooltip, XAxis, YAxis } from "recharts"
 import { ChartContainer, ChartLegend, ChartLegendContent } from "@/components/ui/chart"
 import { Sparkline } from "@/components/charts/Sparkline"
 import { SmallProgressCard } from "@/components/dashboard/pacing/SmallProgressCard"
+import { PacingCard, PacingSubCard } from "@/components/dashboard/pacing/PacingCard"
+import { useToast } from "@/components/ui/use-toast"
 import { downloadCSV } from "@/lib/utils/csv-export"
 import type { PacingRow as CombinedPacingRow } from "@/lib/snowflake/pacing-service"
 import type { Dv360DailyRow } from "@/lib/pacing/dv360/dv360Pacing"
 import { mapDeliverableMetric } from "@/lib/pacing/deliverables/mapDeliverableMetric"
 import { CHART_NEUTRAL } from "@/lib/charts/theme"
 import { assignEntityColors } from "@/lib/charts/registry"
-import { PACING_CHART_STROKE } from "@/lib/charts/dashboardTheme"
+import {
+  PACING_CARTESIAN_GRID_PROPS,
+  PACING_TODAY_REFERENCE_LINE_PROPS,
+  PACING_TOOLTIP_SHELL_CLASS,
+} from "@/lib/charts/pacingLineChartStyle"
 import { pacingDeviationBorderClass, pacingDeviationSparklineClass } from "@/lib/pacing/pacingDeviationStyle"
+import { getMelbourneTodayISO, getPacingWindow } from "@/lib/pacing/pacingWindow"
 import { cn } from "@/lib/utils"
+import {
+  Copy,
+  FileSpreadsheet,
+  ImageDown,
+  LayoutDashboard,
+  LineChart as LineChartIcon,
+  MonitorPlay,
+  RefreshCw,
+  Table,
+} from "lucide-react"
 
 type ProgrammaticLineItem = {
   line_item_id: string
@@ -38,8 +55,8 @@ type ProgrammaticPacingContainerProps = {
   mbaNumber: string
   progDisplayLineItems?: ProgrammaticLineItem[]
   progVideoLineItems?: ProgrammaticLineItem[]
-  campaignStart?: string
-  campaignEnd?: string
+  campaignStart: string
+  campaignEnd: string
   initialPacingRows?: CombinedPacingRow[]
   pacingLineItemIds?: string[]
   brandColour?: string
@@ -133,92 +150,6 @@ function toISO(date: Date) {
   return startOfDay(date).toISOString().slice(0, 10)
 }
 
-/**
- * Get today's date in Australia/Melbourne timezone as ISO string "YYYY-MM-DD"
- */
-function getMelbourneTodayISO(): string {
-  const now = new Date()
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Australia/Melbourne",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  })
-  const parts = formatter.formatToParts(now)
-  const year = parts.find((p) => p.type === "year")?.value ?? ""
-  const month = parts.find((p) => p.type === "month")?.value ?? ""
-  const day = parts.find((p) => p.type === "day")?.value ?? ""
-  return `${year}-${month}-${day}`
-}
-
-/**
- * Get yesterday's date in Australia/Melbourne timezone as ISO string "YYYY-MM-DD"
- */
-function getMelbourneYesterdayISO(): string {
-  const now = new Date()
-  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000)
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Australia/Melbourne",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  })
-  const parts = formatter.formatToParts(yesterday)
-  const year = parts.find((p) => p.type === "year")?.value ?? ""
-  const month = parts.find((p) => p.type === "month")?.value ?? ""
-  const day = parts.find((p) => p.type === "day")?.value ?? ""
-  return `${year}-${month}-${day}`
-}
-
-function computePacingRange(campaignStart?: string, campaignEnd?: string) {
-  const MAX_RANGE_DAYS = 180
-  const DEFAULT_RANGE_DAYS = 90
-  const msPerDay = 24 * 60 * 60 * 1000
-  
-  const melbourneTodayISO = getMelbourneTodayISO()
-  const melbourneYesterdayISO = getMelbourneYesterdayISO()
-  
-  // Parse campaign end date if provided
-  let campaignEndDateISO: string | null = null
-  if (campaignEnd) {
-    const parsed = parseDateSafe(campaignEnd)
-    if (parsed) {
-      campaignEndDateISO = toISO(parsed)
-    }
-  }
-  
-  // Determine end date: use campaign end if it's before today (completed), otherwise use yesterday
-  const endISO = campaignEndDateISO && campaignEndDateISO < melbourneTodayISO
-    ? campaignEndDateISO
-    : melbourneYesterdayISO
-  
-  // Parse start date
-  let startDate: Date | null = null
-  if (campaignStart) {
-    startDate = parseDateSafe(campaignStart)
-  }
-  
-  if (!startDate) {
-    // Default to DEFAULT_RANGE_DAYS before end date
-    const endDate = parseDateSafe(endISO)
-    if (endDate) {
-      startDate = new Date(endDate.getTime() - DEFAULT_RANGE_DAYS * msPerDay)
-    } else {
-      startDate = new Date(Date.now() - DEFAULT_RANGE_DAYS * msPerDay)
-    }
-  }
-  
-  const endDate = parseDateSafe(endISO) ?? new Date()
-  const rangeDays = Math.ceil((endDate.getTime() - startDate.getTime()) / msPerDay)
-  
-  // Clamp start to MAX_RANGE_DAYS before end
-  if (rangeDays > MAX_RANGE_DAYS) {
-    startDate = new Date(endDate.getTime() - MAX_RANGE_DAYS * msPerDay)
-  }
-
-  return { start: toISO(startDate), end: endISO }
-}
-
 function eachDay(start: Date, end: Date): string[] {
   const dates: string[] = []
   const cursor = startOfDay(start)
@@ -285,30 +216,6 @@ function normalizeBurst(raw: Record<string, any>) {
     budget_number: Number.isFinite(budgetNumber) ? budgetNumber : 0,
     calculated_value_number: Number.isFinite(calculatedValueNumber) ? calculatedValueNumber : 0,
   }
-}
-
-function resolveLineItemRange(item: ProgrammaticLineItem, fallbackStart?: string, fallbackEnd?: string) {
-  const bursts = item.bursts ?? parseBursts(item.bursts_json)
-  const dates: string[] = []
-  bursts.forEach((burst) => {
-    if (burst.start_date) dates.push(burst.start_date)
-    if (burst.end_date) dates.push(burst.end_date)
-  })
-
-  const start =
-    (dates.length ? dates.sort()[0] : null) ??
-    item.start_date ??
-    item.startDate ??
-    item.start ??
-    fallbackStart
-  const end =
-    (dates.length ? dates.sort().slice(-1)[0] : null) ??
-    item.end_date ??
-    item.endDate ??
-    item.end ??
-    fallbackEnd
-
-  return { start, end, bursts }
 }
 
 function getLineItemWindow(bursts: any[], fallbackStart?: string, fallbackEnd?: string) {
@@ -449,6 +356,13 @@ function formatDateAU(dateString: string | undefined) {
   }).format(d)
 }
 
+function formatChartDateLabel(iso: string | undefined) {
+  if (!iso) return "—"
+  const d = new Date(`${iso}T00:00:00`)
+  if (Number.isNaN(d.getTime())) return iso
+  return new Intl.DateTimeFormat("en-AU", { month: "short", day: "numeric" }).format(d)
+}
+
 function formatPercent(value: number) {
   const num = Number(value)
   if (Number.isNaN(num)) return "0.00%"
@@ -490,13 +404,11 @@ function deriveDeliverableKey(
 function buildProgrammaticLineItemMetrics(
   items: ProgrammaticLineItem[],
   apiRows: Dv360DailyRow[],
-  dateSeries: string[],
+  campaignDateRange: string[],
+  pacingAsAtISO: string,
   fallbackStart?: string,
   fallbackEnd?: string,
 ): LineItemMetrics[] {
-  const today = startOfDay(new Date())
-  const todayISO = toISO(today)
-
   return items.map((item) => {
     const bursts = item.bursts ?? parseBursts(item.bursts_json)
     const window = getLineItemWindow(bursts, fallbackStart, fallbackEnd)
@@ -508,10 +420,10 @@ function buildProgrammaticLineItemMetrics(
     })
 
     const dateRange =
-      window.startDate && window.endDate
-        ? eachDay(window.startDate, window.endDate)
-        : dateSeries.length
-          ? dateSeries
+      campaignDateRange.length > 0
+        ? campaignDateRange
+        : window.startDate && window.endDate
+          ? eachDay(window.startDate, window.endDate)
           : Array.from(new Set(matched.map((m) => m.date))).sort()
 
     const groupedByDate = new Map<
@@ -554,9 +466,7 @@ function buildProgrammaticLineItemMetrics(
       }
     })
 
-    const asAtDate = window.endDate
-      ? toISO(new Date(Math.min(today.getTime(), window.endDate.getTime())))
-      : todayISO
+    const asAtDate = pacingAsAtISO
 
     const deliveredTotals = actualsDaily.reduce(
       (acc, day) => {
@@ -646,11 +556,15 @@ function getDeliverableLabel(key: LineItemMetrics["deliverableKey"]) {
   }
 }
 
-function buildAggregatedMetrics(lineItemMetrics: LineItemMetrics[], asAtDate?: string): PacingResult {
-  const startDates = lineItemMetrics.map((m) => m.window.startDate).filter(Boolean) as Date[]
-  const endDates = lineItemMetrics.map((m) => m.window.endDate).filter(Boolean) as Date[]
-
-  if (!startDates.length || !endDates.length) {
+function buildAggregatedMetrics(
+  lineItemMetrics: LineItemMetrics[],
+  asAtDate: string | undefined,
+  campaignStartISO: string,
+  campaignEndISO: string
+): PacingResult {
+  const cs = parseDateSafe(campaignStartISO)
+  const ce = parseDateSafe(campaignEndISO)
+  if (!cs || !ce) {
     return {
       asAtDate: asAtDate ?? null,
       spend: { actualToDate: 0, expectedToDate: 0, delta: 0, pacingPct: 0, goalTotal: 0 },
@@ -659,9 +573,7 @@ function buildAggregatedMetrics(lineItemMetrics: LineItemMetrics[], asAtDate?: s
     }
   }
 
-  const startDate = new Date(Math.min(...startDates.map((d) => d.getTime())))
-  const endDate = new Date(Math.max(...endDates.map((d) => d.getTime())))
-  const dateRange = eachDay(startDate, endDate)
+  const dateRange = eachDay(cs, ce)
 
   const actualMap = new Map<
     string,
@@ -690,7 +602,7 @@ function buildAggregatedMetrics(lineItemMetrics: LineItemMetrics[], asAtDate?: s
     }
   })
 
-  const asAt = asAtDate ?? (dateRange.length ? dateRange[dateRange.length - 1] : null)
+  const asAt = asAtDate ?? null
   const deliveredTotals = aggregateActuals.reduce(
     (acc, day) => {
       if (asAt && day.date > asAt) return acc
@@ -711,10 +623,11 @@ function buildAggregatedMetrics(lineItemMetrics: LineItemMetrics[], asAtDate?: s
     ),
   }
 
+  const shouldAt = asAt ?? campaignEndISO
   const shouldSpend = Number(
     lineItemMetrics
       .reduce(
-        (sum, m) => sum + computeShouldToDateFromBursts(m.bursts, asAt ?? toISO(new Date()), "spend"),
+        (sum, m) => sum + computeShouldToDateFromBursts(m.bursts, shouldAt, "spend"),
         0
       )
       .toFixed(2)
@@ -723,7 +636,7 @@ function buildAggregatedMetrics(lineItemMetrics: LineItemMetrics[], asAtDate?: s
     lineItemMetrics
       .reduce(
         (sum, m) =>
-          sum + computeShouldToDateFromBursts(m.bursts, asAt ?? toISO(new Date()), "deliverables"),
+          sum + computeShouldToDateFromBursts(m.bursts, shouldAt, "deliverables"),
         0
       )
       .toFixed(2)
@@ -772,6 +685,11 @@ function ActualsDailyDeliveryChart({
     const m = assignEntityColors([spendName, delName], "generic")
     return { spendColor: brandColour ?? m.get(spendName)!, deliverableColor: m.get(delName)! }
   }, [delName, brandColour])
+  const refLineISO = asAtDate ?? getMelbourneTodayISO()
+  const showAsAtLine = React.useMemo(
+    () => Boolean(refLineISO && series.some((p) => p.date === refLineISO)),
+    [series, refLineISO]
+  )
 
   return (
     <div className="space-y-2">
@@ -784,11 +702,16 @@ function ActualsDailyDeliveryChart({
         ref={chartRef}
       >
         <LineChart data={series} height={320} margin={{ left: 12, right: 12, top: 4, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 4" strokeOpacity={0.12} stroke={PACING_CHART_STROKE.grid} />
+        <CartesianGrid {...PACING_CARTESIAN_GRID_PROPS} />
         <XAxis
           dataKey="date"
           tickLine={false}
           axisLine={false}
+          minTickGap={16}
+          angle={series.length > 10 ? -45 : 0}
+          textAnchor={series.length > 10 ? "end" : "middle"}
+          height={series.length > 10 ? 56 : 30}
+          tickFormatter={(v) => formatChartDateLabel(String(v))}
           tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
         />
         <YAxis
@@ -829,13 +752,16 @@ function ActualsDailyDeliveryChart({
           cursor="default"
           activeDot={{ r: 4, stroke: deliverableColor, strokeWidth: 1 }}
         />
+        {showAsAtLine ? (
+          <ReferenceLine yAxisId="left" x={refLineISO} {...PACING_TODAY_REFERENCE_LINE_PROPS} />
+        ) : null}
         <Tooltip
           content={({ active, payload }) => {
             if (!active || !payload?.length) return null
             const point = payload[0].payload as PacingSeriesPoint
             return (
               <div className="animate-in fade-in-0 zoom-in-95 duration-150">
-                <div className="w-72 rounded-xl border border-border/70 bg-popover/80 p-3 text-popover-foreground shadow-lg backdrop-blur-md">
+                <div className={cn("w-72", PACING_TOOLTIP_SHELL_CLASS)}>
                   <p className="mb-2 truncate text-sm font-semibold text-foreground">
                     {point.date ? formatDateAU(point.date) : "—"}
                   </p>
@@ -882,7 +808,11 @@ function DeliveryTable({
   showVideoViews?: boolean
 }) {
   if (!daily.length) {
-    return <div className="text-sm text-muted-foreground">No daily delivery data is available for this line item yet.</div>
+    return (
+      <div className="flex min-h-[200px] items-center justify-center text-sm text-muted-foreground">
+        No daily delivery data available
+      </div>
+    )
   }
 
   const COLS = showVideoViews
@@ -903,9 +833,8 @@ function DeliveryTable({
   )
 
   return (
-    <div className="rounded-xl border overflow-hidden">
-      <div className="max-h-[420px] overflow-auto">
-        <div className="sticky top-0 z-10 bg-muted/70 backdrop-blur border-b px-3 py-2 text-xs font-semibold text-muted-foreground">
+    <div className="max-h-[420px] overflow-auto">
+        <div className="sticky top-0 z-10 border-b border-border/60 bg-background/95 px-3 py-2 text-xs font-semibold text-muted-foreground backdrop-blur">
           <div className="grid items-center" style={{ gridTemplateColumns: COLS }}>
             <div>Date</div>
             <div className="text-right">Spend</div>
@@ -936,7 +865,7 @@ function DeliveryTable({
           </div>
         ))}
 
-        <div className="sticky bottom-0 z-10 bg-background/95 backdrop-blur border-t px-3 py-2 text-sm font-semibold">
+        <div className="sticky bottom-0 z-10 border-t border-border/60 bg-background/95 px-3 py-2 text-sm font-semibold backdrop-blur">
           <div className="grid items-center" style={{ gridTemplateColumns: COLS }}>
             <div>Totals</div>
             <div className="text-right">{formatCurrency(totals.spend)}</div>
@@ -947,7 +876,6 @@ function DeliveryTable({
             {showVideoViews ? <div className="text-right">{formatNumber(totals.videoViews)}</div> : null}
           </div>
         </div>
-      </div>
     </div>
   )
 }
@@ -1036,6 +964,7 @@ export default function ProgrammaticPacingContainer({
   pacingLineItemIds,
   brandColour,
 }: ProgrammaticPacingContainerProps): React.ReactElement | null {
+  const { toast } = useToast()
   const { user, isLoading: authLoading } = useUser()
   const [pacingRows, setPacingRows] = useState<CombinedPacingRow[]>(initialPacingRows ?? [])
   const [isLoading, setIsLoading] = useState(false)
@@ -1120,8 +1049,8 @@ export default function ProgrammaticPacingContainer({
   // Stable string key for dependency tracking
   const idsKey = useMemo(() => programmaticLineItemIds.join(","), [programmaticLineItemIds])
 
-  const pacingRange = useMemo(
-    () => computePacingRange(campaignStart, campaignEnd),
+  const pacingWindow = useMemo(
+    () => getPacingWindow(campaignStart, campaignEnd),
     [campaignStart, campaignEnd]
   )
 
@@ -1351,17 +1280,17 @@ export default function ProgrammaticPacingContainer({
     }
 
     // Guard: Ensure we have a valid date range
-    if (!pacingRange.start || !pacingRange.end) {
+    if (!pacingWindow.campaignStartISO || !pacingWindow.campaignEndISO) {
       if (IS_DEV || DEBUG_PACING) {
         console.log("[PACING UI] Skipping fetch - invalid date range", {
-          start: pacingRange.start,
-          end: pacingRange.end,
+          start: pacingWindow.campaignStartISO,
+          end: pacingWindow.campaignEndISO,
         })
       }
       return
     }
 
-    const fetchKey = `${mbaNumber}|${idsKey}|${pacingRange.start}|${pacingRange.end}`
+    const fetchKey = `${mbaNumber}|${idsKey}|${pacingWindow.campaignStartISO}|${pacingWindow.campaignEndISO}`
     
     // Skip if this key is already pending
     if (pendingFetchKeyRef.current === fetchKey) {
@@ -1385,7 +1314,10 @@ export default function ProgrammaticPacingContainer({
         idsKey,
         idsCount: programmaticLineItemIds.length,
         sampleIds: programmaticLineItemIds.slice(0, 10),
-        pacingRange: { start: pacingRange.start, end: pacingRange.end },
+        pacingRange: {
+          start: pacingWindow.campaignStartISO,
+          end: pacingWindow.campaignEndISO,
+        },
         fetchKey,
       })
     }
@@ -1394,7 +1326,12 @@ export default function ProgrammaticPacingContainer({
     pendingFetchKeyRef.current = fetchKey
     // Note: lastSuccessfulFetchKeyRef will be set inside fetchPacingData on success
 
-    fetchPacingData(mbaNumber, programmaticLineItemIds, pacingRange.start, pacingRange.end)
+    fetchPacingData(
+      mbaNumber,
+      programmaticLineItemIds,
+      pacingWindow.campaignStartISO,
+      pacingWindow.campaignEndISO
+    )
 
     return () => {
       cancelledRef.current = true
@@ -1404,109 +1341,79 @@ export default function ProgrammaticPacingContainer({
     user,
     clientSlug,
     mbaNumber,
-    pacingRange.end,
-    pacingRange.start,
+    pacingWindow.campaignEndISO,
+    pacingWindow.campaignStartISO,
     idsKey,
     programmaticLineItemIds,
     initialPacingRows,
     fetchPacingData,
   ])
 
-  // Compute date ranges for display line items
-  const displayRanges = useMemo(
-    () =>
-      normalizedDisplay.map((item) => ({
-        id: item.line_item_id,
-        ...resolveLineItemRange(item, resolvedCampaignStart, resolvedCampaignEnd),
-      })),
-    [normalizedDisplay, resolvedCampaignStart, resolvedCampaignEnd]
-  )
-
-  // Compute date ranges for video line items
-  const videoRanges = useMemo(
-    () =>
-      normalizedVideo.map((item) => ({
-        id: item.line_item_id,
-        ...resolveLineItemRange(item, resolvedCampaignStart, resolvedCampaignEnd),
-      })),
-    [normalizedVideo, resolvedCampaignStart, resolvedCampaignEnd]
-  )
-
-  // Compute query range for display items
-  const displayQueryRange = useMemo(() => {
-    const starts = displayRanges.map((r) => r.start).filter(Boolean) as string[]
-    const ends = displayRanges.map((r) => r.end).filter(Boolean) as string[]
-    const start = starts.length ? starts.sort()[0] : resolvedCampaignStart
-    const end = ends.length ? ends.sort().slice(-1)[0] : resolvedCampaignEnd
-    return { start, end }
-  }, [displayRanges, resolvedCampaignStart, resolvedCampaignEnd])
-
-  // Compute query range for video items
-  const videoQueryRange = useMemo(() => {
-    const starts = videoRanges.map((r) => r.start).filter(Boolean) as string[]
-    const ends = videoRanges.map((r) => r.end).filter(Boolean) as string[]
-    const start = starts.length ? starts.sort()[0] : resolvedCampaignStart
-    const end = ends.length ? ends.sort().slice(-1)[0] : resolvedCampaignEnd
-    return { start, end }
-  }, [videoRanges, resolvedCampaignStart, resolvedCampaignEnd])
-
-  // REFACTORED: Compute date series from query ranges using useMemo instead of useEffect
-  const displayDateSeries = useMemo(() => {
-    if (displayQueryRange.start && displayQueryRange.end) {
-      return eachDay(new Date(displayQueryRange.start), new Date(displayQueryRange.end))
-    }
-    return []
-  }, [displayQueryRange.start, displayQueryRange.end])
-
-  const videoDateSeries = useMemo(() => {
-    if (videoQueryRange.start && videoQueryRange.end) {
-      return eachDay(new Date(videoQueryRange.start), new Date(videoQueryRange.end))
-    }
-    return []
-  }, [videoQueryRange.start, videoQueryRange.end])
+  const campaignDateSeries = useMemo(() => {
+    const cs = parseDateSafe(resolvedCampaignStart)
+    const ce = parseDateSafe(resolvedCampaignEnd)
+    if (!cs || !ce) return []
+    return eachDay(cs, ce)
+  }, [resolvedCampaignStart, resolvedCampaignEnd])
 
   const displayMetrics = useMemo(
     () =>
       buildProgrammaticLineItemMetrics(
         normalizedDisplay,
         displayRows,
-        displayDateSeries,
-        displayQueryRange.start,
-        displayQueryRange.end,
+        campaignDateSeries,
+        pacingWindow.asAtISO,
+        resolvedCampaignStart,
+        resolvedCampaignEnd,
       ),
-    [normalizedDisplay, displayRows, displayDateSeries, displayQueryRange.start, displayQueryRange.end],
+    [
+      normalizedDisplay,
+      displayRows,
+      campaignDateSeries,
+      pacingWindow.asAtISO,
+      resolvedCampaignStart,
+      resolvedCampaignEnd,
+    ],
   )
   const videoMetrics = useMemo(
     () =>
       buildProgrammaticLineItemMetrics(
         normalizedVideo,
         videoRows,
-        videoDateSeries,
-        videoQueryRange.start,
-        videoQueryRange.end,
+        campaignDateSeries,
+        pacingWindow.asAtISO,
+        resolvedCampaignStart,
+        resolvedCampaignEnd,
       ),
-    [normalizedVideo, videoRows, videoDateSeries, videoQueryRange.start, videoQueryRange.end],
+    [
+      normalizedVideo,
+      videoRows,
+      campaignDateSeries,
+      pacingWindow.asAtISO,
+      resolvedCampaignStart,
+      resolvedCampaignEnd,
+    ],
   )
-
-  // Compute the "as at" date for aggregate metrics (clamped to today or campaign end)
-  const aggregateAsAtDate = useMemo(() => {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const endDate = campaignEnd ?? displayQueryRange.end ?? videoQueryRange.end
-    if (endDate) {
-      const clamped = new Date(Math.min(today.getTime(), new Date(endDate).getTime()))
-      return clamped.toISOString().slice(0, 10)
-    }
-    return today.toISOString().slice(0, 10)
-  }, [campaignEnd, displayQueryRange.end, videoQueryRange.end])
 
   const aggregateDisplay = useMemo(
-    () => buildAggregatedMetrics(displayMetrics, aggregateAsAtDate),
-    [displayMetrics, aggregateAsAtDate]
+    () =>
+      buildAggregatedMetrics(
+        displayMetrics,
+        pacingWindow.asAtISO,
+        campaignStart,
+        campaignEnd
+      ),
+    [displayMetrics, pacingWindow.asAtISO, campaignStart, campaignEnd]
   )
   const aggregateVideo = useMemo(
-    () => buildAggregatedMetrics(videoMetrics, aggregateAsAtDate),
-    [videoMetrics, aggregateAsAtDate]
+    () =>
+      buildAggregatedMetrics(
+        videoMetrics,
+        pacingWindow.asAtISO,
+        campaignStart,
+        campaignEnd
+      ),
+    [videoMetrics, pacingWindow.asAtISO, campaignStart, campaignEnd]
   )
 
   const displayBookedTotals = useMemo(
@@ -1525,7 +1432,8 @@ export default function ProgrammaticPacingContainer({
     [videoMetrics]
   )
 
-  const aggregateChartRef = useRef<HTMLDivElement | null>(null)
+  const aggregateDisplayChartRef = useRef<HTMLDivElement | null>(null)
+  const aggregateVideoChartRef = useRef<HTMLDivElement | null>(null)
   const lineChartRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
   const setLineChartRef = (id: string) => (node: HTMLDivElement | null) => {
@@ -1588,11 +1496,11 @@ export default function ProgrammaticPacingContainer({
   async function handleExportCharts(kind: PanelKind) {
     const isDisplay = kind === "display"
     const metrics = isDisplay ? displayMetrics : videoMetrics
-    const aggregate = isDisplay ? aggregateDisplay : aggregateVideo
+    const aggregateRef = isDisplay ? aggregateDisplayChartRef : aggregateVideoChartRef
 
     const base = `${kind === "display" ? "prog-display" : "prog-video"}-${sanitizeFilename(clientSlug)}-${sanitizeFilename(mbaNumber)}`
     const targets: Array<{ el: HTMLElement | null; name: string }> = [
-      { el: aggregateChartRef.current, name: `${base}-aggregate-chart` },
+      { el: aggregateRef.current, name: `${base}-aggregate-chart` },
       ...metrics.map((metric) => ({
         el: lineChartRefs.current[String(metric.lineItem.line_item_id)],
         name: `${base}-${sanitizeFilename(metric.lineItem.line_item_id ?? "line-item")}-chart`,
@@ -1607,7 +1515,93 @@ export default function ProgrammaticPacingContainer({
     }
   }
 
-  function renderKindSection(kind: PanelKind) {
+  const handleSyncNow = () => {
+    window.location.reload()
+  }
+
+  const hasAnyData = displayMetrics.length > 0 || videoMetrics.length > 0
+
+  const handleCopyAggregateSeries = async () => {
+    const payload: {
+      programmaticDisplay?: (typeof aggregateDisplay)["series"]
+      programmaticVideo?: (typeof aggregateVideo)["series"]
+    } = {}
+    if (displayMetrics.length) payload.programmaticDisplay = aggregateDisplay.series
+    if (videoMetrics.length) payload.programmaticVideo = aggregateVideo.series
+    await navigator.clipboard.writeText(JSON.stringify(payload))
+    toast({ title: "Copied", description: "Aggregate chart series copied." })
+  }
+
+  const handleExportAllCsv = async () => {
+    if (displayMetrics.length) {
+      await handleExportCSVs("display")
+    }
+    if (videoMetrics.length) {
+      await new Promise((res) => setTimeout(res, 400))
+      await handleExportCSVs("video")
+    }
+  }
+
+  const handleExportAllPng = async () => {
+    if (displayMetrics.length) {
+      await handleExportCharts("display")
+    }
+    if (videoMetrics.length) {
+      await new Promise((res) => setTimeout(res, 200))
+      await handleExportCharts("video")
+    }
+  }
+
+  const pacingCardActions = (
+    <>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="rounded-full"
+        onClick={handleSyncNow}
+        disabled={isLoading}
+        title="Sync now"
+      >
+        <RefreshCw className="h-4 w-4" />
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="rounded-full"
+        onClick={() => void handleExportAllCsv()}
+        disabled={isLoading || !hasAnyData}
+        title="Export CSV"
+      >
+        <FileSpreadsheet className="h-4 w-4" />
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="rounded-full"
+        onClick={() => void handleExportAllPng()}
+        disabled={isLoading || !hasAnyData}
+        title="Export PNG"
+      >
+        <ImageDown className="h-4 w-4" />
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="rounded-full"
+        onClick={() => void handleCopyAggregateSeries()}
+        disabled={isLoading || !hasAnyData}
+        title="Copy chart data"
+      >
+        <Copy className="h-4 w-4" />
+      </Button>
+    </>
+  )
+
+  function renderKindSection(kind: PanelKind, aggregateChartRef: React.RefObject<HTMLDivElement | null>) {
     const isDisplay = kind === "display"
     const metrics = isDisplay ? displayMetrics : videoMetrics
     const aggregate = isDisplay ? aggregateDisplay : aggregateVideo
@@ -1625,22 +1619,7 @@ export default function ProgrammaticPacingContainer({
 
     return (
       <div className="space-y-6">
-        <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-start lg:justify-between">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-base font-semibold text-foreground">{label} performance</span>
-            <Badge variant="outline" className="rounded-full px-3 py-1 text-[11px]">
-              {clientSlug} • {mbaNumber}
-            </Badge>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => handleExportCSVs(kind)}>
-              Export CSVs
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => handleExportCharts(kind)}>
-              Export charts (PNG)
-            </Button>
-          </div>
-        </div>
+        <h4 className="text-sm font-semibold text-foreground">{label}</h4>
 
         {!isLoading ? (
           <div className="flex flex-wrap gap-2">
@@ -1665,20 +1644,18 @@ export default function ProgrammaticPacingContainer({
           </div>
         ) : null}
 
-        {error ? (
-          <div className="rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
-        ) : null}
-
         {isLoading ? (
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <div className="h-32 animate-pulse rounded-2xl bg-muted" />
+            <div className="h-32 animate-pulse rounded-2xl bg-muted" />
             <div className="h-32 animate-pulse rounded-2xl bg-muted" />
             <div className="h-32 animate-pulse rounded-2xl bg-muted" />
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
               <SmallProgressCard
-                label="Budget pacing"
+                label="Spend pacing"
                 value={formatCurrency(aggregate.spend.actualToDate)}
                 helper={`Delivered ${formatCurrency(aggregate.spend.actualToDate)} • Planned ${formatCurrency(bookedTotals.spend)}`}
                 pacingPct={aggregate.spend.pacingPct}
@@ -1690,29 +1667,36 @@ export default function ProgrammaticPacingContainer({
                 accentColor={spendAccent}
                 embedded
               />
-                <SmallProgressCard
-                  label="Deliverable pacing"
-                  value={formatWholeNumber(aggregate.deliverable?.actualToDate)}
-                  helper={`Delivered ${formatWholeNumber(aggregate.deliverable?.actualToDate)} • Planned ${formatWholeNumber(bookedTotals.deliverables)}`}
-                  pacingPct={aggregate.deliverable?.pacingPct}
-                  progressRatio={
-                    bookedTotals.deliverables > 0
-                      ? Math.max(
-                          0,
-                          Math.min(
-                            1,
-                            (aggregate.deliverable?.actualToDate ?? 0) / bookedTotals.deliverables
-                          )
-                        )
-                      : 0
-                  }
-                  accentColor={progAggregateAccent.get("Deliverables actual")!}
-                  embedded
-                />
-              </div>
+              <SmallProgressCard
+                label="Deliverable pacing"
+                value={formatWholeNumber(aggregate.deliverable?.actualToDate)}
+                helper={`Delivered ${formatWholeNumber(aggregate.deliverable?.actualToDate)} • Planned ${formatWholeNumber(bookedTotals.deliverables)}`}
+                pacingPct={aggregate.deliverable?.pacingPct}
+                progressRatio={
+                  bookedTotals.deliverables > 0
+                    ? Math.max(
+                        0,
+                        Math.min(1, (aggregate.deliverable?.actualToDate ?? 0) / bookedTotals.deliverables)
+                      )
+                    : 0
+                }
+                accentColor={progAggregateAccent.get("Deliverables actual")!}
+                embedded
+              />
+            </div>
 
-            <div className="space-y-4">
+            <PacingSubCard
+              icon={LayoutDashboard}
+              title="Delivery KPIs"
+              subtitle="Impressions, clicks, conversions & views"
+            >
               <KpiCallouts totals={sectionActuals} />
+            </PacingSubCard>
+            <PacingSubCard
+              icon={LineChartIcon}
+              title="Aggregate delivery chart"
+              subtitle="Deliverable type: Deliverables"
+            >
               <ActualsDailyDeliveryChart
                 series={aggregate.series}
                 asAtDate={aggregate.asAtDate}
@@ -1720,103 +1704,121 @@ export default function ProgrammaticPacingContainer({
                 chartRef={aggregateChartRef}
                 brandColour={brandColour}
               />
-            </div>
+            </PacingSubCard>
 
             <Accordion type="multiple" defaultValue={[]}>
               {metrics.map((metric, accIdx) => {
                 const spendPacing = metric.pacing.spend.pacingPct ?? 0
                 const pacingTone = pacingDeviationBorderClass(spendPacing)
                 const sparklineTone = pacingDeviationSparklineClass(spendPacing)
+                const delLbl = getDeliverableLabel(metric.deliverableKey)
                 return (
                   <AccordionItem
                     key={metric.lineItem.line_item_id}
                     value={String(metric.lineItem.line_item_id)}
-                    className={cn(
-                      "campaign-section-enter mb-3 overflow-hidden rounded-xl border border-border bg-card transition-all duration-200 hover:bg-muted/20 data-[state=open]:shadow-sm",
-                      pacingTone
-                    )}
+                    className="campaign-section-enter mb-3 border-0 bg-transparent p-0 shadow-none transition-all duration-200 data-[state=open]:shadow-sm"
                     style={{ animationDelay: `${accIdx * 60}ms` }}
                   >
-                    <AccordionTrigger className="px-4 py-3 text-left text-sm font-semibold hover:no-underline">
-                      <div className="grid w-full grid-cols-[1fr_auto] items-center gap-2">
-                        <div className="flex min-w-0 items-center gap-3">
-                          <div className={cn("h-[28px] w-[80px]", sparklineTone)}>
-                            <Sparkline data={metric.pacing.series.map((p) => Number(p.actualSpend ?? 0))} height={28} />
+                    <div
+                      className={cn(
+                        "overflow-hidden rounded-xl border border-border/60 bg-background/60 transition-colors hover:bg-muted/10 data-[state=open]:shadow-sm",
+                        pacingTone,
+                      )}
+                    >
+                      <AccordionTrigger className="px-4 py-3 text-left text-sm font-semibold hover:no-underline">
+                        <div className="grid w-full grid-cols-[1fr_auto] items-center gap-2">
+                          <div className="flex min-w-0 items-center gap-3">
+                            <div className={cn("h-[28px] w-[80px]", sparklineTone)}>
+                              <Sparkline data={metric.pacing.series.map((p) => Number(p.actualSpend ?? 0))} height={28} />
+                            </div>
+                            <div className="flex flex-col text-left">
+                              <span className="truncate font-medium">
+                                {metric.lineItem.line_item_name || metric.lineItem.line_item_id || "Line item"}
+                              </span>
+                              <span className="text-xs font-normal text-muted-foreground">
+                                {metric.lineItem.buy_type || "—"}
+                              </span>
+                            </div>
                           </div>
-                          <div className="flex flex-col text-left">
-                          <span className="truncate font-medium">{metric.lineItem.line_item_name || metric.lineItem.line_item_id || "Line item"}</span>
-                          <span className="text-xs font-normal text-muted-foreground">
-                            {metric.lineItem.buy_type || "—"}
-                          </span>
+                          <Badge className="rounded-full bg-muted px-3 py-1 text-[11px] text-foreground">
+                            {formatCurrency(metric.lineItem.total_budget)}
+                          </Badge>
                         </div>
-                        </div>
-                        <Badge className="rounded-full bg-muted px-3 py-1 text-[11px] text-foreground">
-                          {formatCurrency(metric.lineItem.total_budget)}
-                        </Badge>
-                      </div>
-                    </AccordionTrigger>
-                    <AccordionContent className="space-y-3 border-t bg-muted/5 p-4 data-[state=open]:animate-in data-[state=open]:fade-in-0">
-                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                        {(() => {
-                          const delLbl = getDeliverableLabel(metric.deliverableKey)
-                          const delActualName = `${delLbl} actual`
-                          const liAccent = assignEntityColors(["Actual spend", delActualName], "generic")
-                          return (
-                            <>
-                              <SmallProgressCard
-                                label="Budget pacing"
-                                value={formatCurrency(metric.pacing.spend.actualToDate)}
-                                helper={`Delivered ${formatCurrency(metric.pacing.spend.actualToDate)} • Booked ${formatCurrency(metric.booked.spend)}`}
-                                pacingPct={metric.pacing.spend.pacingPct}
-                                progressRatio={
-                                  metric.booked.spend > 0
-                                    ? Math.max(0, Math.min(1, metric.pacing.spend.actualToDate / metric.booked.spend))
-                                    : 0
-                                }
-                                accentColor={brandColour ?? liAccent.get("Actual spend")!}
-                                embedded
-                              />
-                              <SmallProgressCard
-                                label={`${delLbl} pacing`}
-                                value={formatWholeNumber(metric.pacing.deliverable?.actualToDate)}
-                                helper={`Delivered ${formatWholeNumber(metric.pacing.deliverable?.actualToDate)} ${delLbl} • Booked ${formatWholeNumber(metric.booked.deliverables)} ${delLbl}`}
-                                pacingPct={metric.pacing.deliverable?.pacingPct}
-                                progressRatio={
-                                  metric.booked.deliverables > 0
-                                    ? Math.max(
-                                        0,
-                                        Math.min(
-                                          1,
-                                          (metric.pacing.deliverable?.actualToDate ?? 0) / metric.booked.deliverables
+                      </AccordionTrigger>
+                      <AccordionContent className="space-y-3 border-t border-border/60 px-4 pb-4 pt-3 data-[state=open]:animate-in data-[state=open]:fade-in-0">
+                        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                          {(() => {
+                            const delActualName = `${delLbl} actual`
+                            const liAccent = assignEntityColors(["Actual spend", delActualName], "generic")
+                            return (
+                              <>
+                                <SmallProgressCard
+                                  label="Spend pacing"
+                                  value={formatCurrency(metric.pacing.spend.actualToDate)}
+                                  helper={`Delivered ${formatCurrency(metric.pacing.spend.actualToDate)} • Booked ${formatCurrency(metric.booked.spend)}`}
+                                  pacingPct={metric.pacing.spend.pacingPct}
+                                  progressRatio={
+                                    metric.booked.spend > 0
+                                      ? Math.max(0, Math.min(1, metric.pacing.spend.actualToDate / metric.booked.spend))
+                                      : 0
+                                  }
+                                  accentColor={brandColour ?? liAccent.get("Actual spend")!}
+                                  embedded
+                                />
+                                <SmallProgressCard
+                                  label={`${delLbl} pacing`}
+                                  value={formatWholeNumber(metric.pacing.deliverable?.actualToDate)}
+                                  helper={`Delivered ${formatWholeNumber(metric.pacing.deliverable?.actualToDate)} ${delLbl} • Booked ${formatWholeNumber(metric.booked.deliverables)} ${delLbl}`}
+                                  pacingPct={metric.pacing.deliverable?.pacingPct}
+                                  progressRatio={
+                                    metric.booked.deliverables > 0
+                                      ? Math.max(
+                                          0,
+                                          Math.min(
+                                            1,
+                                            (metric.pacing.deliverable?.actualToDate ?? 0) / metric.booked.deliverables
+                                          )
                                         )
-                                      )
-                                    : 0
-                                }
-                                accentColor={liAccent.get(delActualName)!}
-                                embedded
-                              />
-                            </>
-                          )
-                        })()}
-                      </div>
-                      <div className="space-y-3">
-                        <KpiCallouts totals={summarizeActuals(metric.actualsDaily)} />
-                        <ActualsDailyDeliveryChart
-                          series={metric.pacing.series}
-                          asAtDate={metric.pacing.asAtDate}
-                          deliverableLabel={getDeliverableLabel(metric.deliverableKey)}
-                          chartRef={setLineChartRef(String(metric.lineItem.line_item_id))}
-                          brandColour={brandColour}
-                        />
-                      </div>
-                      <DeliveryTable daily={metric.actualsDaily} showVideoViews={kind === "video"} />
-                    </AccordionContent>
+                                      : 0
+                                  }
+                                  accentColor={liAccent.get(delActualName)!}
+                                  embedded
+                                />
+                              </>
+                            )
+                          })()}
+                        </div>
+                        <PacingSubCard
+                          icon={LayoutDashboard}
+                          title="Delivery KPIs"
+                          subtitle={`${delLbl} efficiency`}
+                        >
+                          <KpiCallouts totals={summarizeActuals(metric.actualsDaily)} />
+                        </PacingSubCard>
+                        <PacingSubCard
+                          icon={LineChartIcon}
+                          title={`Daily ${delLbl} + spend`}
+                          subtitle={metric.pacing.series.length ? `${metric.pacing.series.length} days` : "—"}
+                        >
+                          <ActualsDailyDeliveryChart
+                            series={metric.pacing.series}
+                            asAtDate={metric.pacing.asAtDate}
+                            deliverableLabel={delLbl}
+                            chartRef={setLineChartRef(String(metric.lineItem.line_item_id))}
+                            brandColour={brandColour}
+                          />
+                        </PacingSubCard>
+                        <PacingSubCard icon={Table} title="Daily delivery" subtitle="Spend and metrics by day">
+                          <DeliveryTable daily={metric.actualsDaily} showVideoViews={kind === "video"} />
+                        </PacingSubCard>
+                      </AccordionContent>
+                    </div>
                   </AccordionItem>
                 )
               })}
-              </Accordion>
-            </>
-          )}
+            </Accordion>
+          </>
+        )}
       </div>
     )
   }
@@ -1826,19 +1828,46 @@ export default function ProgrammaticPacingContainer({
   }
 
   return (
-    <div className="space-y-4">
-      {renderKindSection("display")}
-      {renderKindSection("video")}
-      {DEBUG_PACING ? (
-        <div className="rounded-2xl border border-dashed border-muted/70 bg-background/80 p-3 text-sm text-muted-foreground">
-          <div className="font-semibold text-foreground mb-1">Pacing debug</div>
-          <div>Display line items: {normalizedDisplay.length}</div>
-          <div>Video line items: {normalizedVideo.length}</div>
-          <div className="mt-1">
-            <span className="font-medium text-foreground">Rows</span>: display {displayRows.length} • video {videoRows.length}
-          </div>
+    <PacingCard
+      icon={MonitorPlay}
+      title="Programmatic Pacing"
+      subtitle={`${formatDateAU(campaignStart)} – ${formatDateAU(campaignEnd)}`}
+      actions={pacingCardActions}
+    >
+      <div className="space-y-6">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="outline" className="rounded-full px-3 py-1 text-[11px]">
+            {clientSlug} • {mbaNumber}
+          </Badge>
         </div>
-      ) : null}
-    </div>
+
+        {error ? (
+          <div className="rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            <div className="flex items-center justify-between gap-2">
+              <span>{error}</span>
+              <Button size="sm" variant="outline" onClick={handleSyncNow}>
+                Retry
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
+        {renderKindSection("display", aggregateDisplayChartRef)}
+        {renderKindSection("video", aggregateVideoChartRef)}
+
+        {DEBUG_PACING ? (
+          <PacingSubCard icon={LayoutDashboard} title="Pacing debug" subtitle="Development only">
+            <div className="text-sm text-muted-foreground">
+              <div>Display line items: {normalizedDisplay.length}</div>
+              <div>Video line items: {normalizedVideo.length}</div>
+              <div className="mt-1">
+                <span className="font-medium text-foreground">Rows</span>: display {displayRows.length} • video{" "}
+                {videoRows.length}
+              </div>
+            </div>
+          </PacingSubCard>
+        ) : null}
+      </div>
+    </PacingCard>
   )
 }

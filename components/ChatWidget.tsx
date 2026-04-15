@@ -10,6 +10,30 @@ import type { FormPatch, ModelChatReply, PageContext } from "@/lib/openai"
 import type { ChatMode } from "@/src/ava/modes"
 import { ChevronDown, ChevronUp } from "lucide-react"
 
+/**
+ * Part of the AVA Phase 1 Claude migration. Chooses the chat API by
+ * `NEXT_PUBLIC_AVA_ENGINE` or a per-tab override in `localStorage`.
+ *
+ * To try Claude in the browser console, run:
+ * `localStorage.setItem("ava:engine", "claude")`
+ * then refresh the page.
+ */
+function resolveAvaEngine(): "openai" | "claude" {
+  // Server-side rendering safety
+  if (typeof window === "undefined") return "openai"
+  // Per-session override via localStorage, useful for A/B testing on a single machine
+  try {
+    const override = window.localStorage.getItem("ava:engine")
+    if (override === "claude" || override === "openai") return override
+  } catch {
+    // ignore
+  }
+  // Env default
+  const envDefault = process.env.NEXT_PUBLIC_AVA_ENGINE
+  if (envDefault === "claude") return "claude"
+  return "openai"
+}
+
 type ChatWidgetProps = {
   getPageContext?: () => Promise<PageContext | undefined> | PageContext | undefined
   pageContext?: PageContext
@@ -37,6 +61,8 @@ export function ChatWidget({
   const [dragState, setDragState] = useState<{ offsetX: number; offsetY: number } | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const dragMovedRef = useRef(false)
+
+  const engine = resolveAvaEngine()
 
   const appendAssistantNote = useCallback(
     (content: string) => setMessages((prev) => [...prev, { role: "assistant", content }]),
@@ -107,7 +133,8 @@ export function ChatWidget({
         mode,
       }
 
-      const response = await fetch("/api/chat", {
+      const endpoint = engine === "claude" ? "/api/chat-v2" : "/api/chat"
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -186,7 +213,12 @@ export function ChatWidget({
               onMouseDown={startDrag}
             >
               <p className="text-sm font-semibold text-foreground">Ava</p>
-              <p className="text-xs text-muted-foreground">Ask about this page, Xano data, or delivery</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-xs text-muted-foreground">Ask about this page, Xano data, or delivery</p>
+                <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                  {engine === "claude" ? "Claude" : "GPT"}
+                </span>
+              </div>
             </div>
             <Button
               type="button"

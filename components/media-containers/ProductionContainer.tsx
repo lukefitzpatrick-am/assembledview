@@ -118,9 +118,7 @@ interface ProductionContainerProps {
 }
 
 const getPeriodEnd = (start: Date) => {
-  const end = new Date(start)
-  end.setMonth(end.getMonth() + 1)
-  end.setDate(0)
+  const end = new Date(start.getFullYear(), start.getMonth() + 1, 0)
   return toDateOnly(end) || end
 }
 
@@ -175,17 +173,14 @@ const buildInvestmentByMonth = (bursts: BillingBurst[]) => {
       const monthYear = `${cursor.toLocaleString("default", {
         month: "long",
       })} ${cursor.getFullYear()}`
-      const nextMonth = new Date(cursor)
-      nextMonth.setMonth(nextMonth.getMonth() + 1)
-      nextMonth.setDate(0)
+      const nextMonth = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0)
       const sliceEnd =
         nextMonth > end ? end : nextMonth
       const daysInThisMonth =
         Math.ceil((sliceEnd.getTime() - cursor.getTime()) / (1000 * 60 * 60 * 24)) + 1
       const share = (burst.mediaAmount || 0) * (daysInThisMonth / totalDays)
       monthly[monthYear] = (monthly[monthYear] || 0) + share
-      cursor.setMonth(cursor.getMonth() + 1)
-      cursor.setDate(1)
+      cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1)
     }
   })
   return Object.entries(monthly).map(([monthYear, amount]) => ({

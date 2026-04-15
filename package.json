@@ -17,6 +17,7 @@
     "pacing:backfill:search-mappings": "tsx scripts/pacing/backfill-search-mappings.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.89.0",
     "@auth0/nextjs-auth0": "^4.11.0",
     "@babel/runtime": "^7.27.0",
     "@hookform/resolvers": "latest",

@@ -8,6 +8,9 @@ import {
 } from "@/lib/generateMediaPlan"
 import { fetchPublishersFromXano } from "@/lib/api/publishers"
 import {
+  advertisingAssociatesFilteredPlanHasLineItems,
+  buildAdvertisingAssociatesMbaDataFromMediaItems,
+  filterMediaItemsForAdvertisingAssociates,
   planHasAdvertisingAssociatesLineItem,
   shouldIncludeMediaPlanLineItem,
 } from "@/lib/mediaplan/advertisingAssociatesExcel"
@@ -88,10 +91,14 @@ export async function POST(request: Request) {
 
     const mediaItems = mediaItemsFromBody(rest)
 
+    let mediaItemsForWorkbook: MediaItems = mediaItems
+    let mbaDataForWorkbook = mbaData as Parameters<typeof generateMediaPlan>[2]
+
     if (isAa) {
       const publishers = await fetchPublishersFromXano()
+      const eligibleItems = filteredForEligibility(mediaItems)
       const eligible = planHasAdvertisingAssociatesLineItem(
-        filteredForEligibility(mediaItems),
+        eligibleItems,
         publishers,
         () => true,
       )
@@ -101,6 +108,18 @@ export async function POST(request: Request) {
           { status: 400 },
         )
       }
+      const aaFiltered = filterMediaItemsForAdvertisingAssociates(eligibleItems, publishers)
+      if (!advertisingAssociatesFilteredPlanHasLineItems(aaFiltered)) {
+        return NextResponse.json(
+          {
+            error:
+              "No Advertising Associates–billed line items to include in this export after applying publisher filter",
+          },
+          { status: 400 },
+        )
+      }
+      mediaItemsForWorkbook = aaFiltered
+      mbaDataForWorkbook = buildAdvertisingAssociatesMbaDataFromMediaItems(aaFiltered)
     }
 
     const header: MediaPlanHeader = {
@@ -120,12 +139,9 @@ export async function POST(request: Request) {
       campaignEnd: String(rest.mp_campaigndates_end || ""),
     }
 
-    const workbook = await generateMediaPlan(
-      header,
-      mediaItems,
-      mbaData as Parameters<typeof generateMediaPlan>[2],
-      { mbaTotalsLayout: isAa ? "aa" : "standard" },
-    )
+    const workbook = await generateMediaPlan(header, mediaItemsForWorkbook, mbaDataForWorkbook, {
+      mbaTotalsLayout: isAa ? "aa" : "standard",
+    })
 
     if (!isAa && kpiRows.length > 0) {
       addKPISheet(workbook, kpiRows as Parameters<typeof addKPISheet>[1])

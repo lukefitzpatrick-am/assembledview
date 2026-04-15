@@ -19,6 +19,7 @@ import { Download, FileText, Loader2, MoreHorizontal, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { CampaignExportsSection } from "@/components/dashboard/CampaignExportsSection"
 import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
+import FloatingSectionNav from "@/components/mediaplans/FloatingSectionNav"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -112,6 +113,9 @@ import {
 import { generateMediaPlan, MediaPlanHeader, LineItem, MediaItems } from '@/lib/generateMediaPlan'
 import type { Publisher } from "@/lib/types/publisher"
 import {
+  advertisingAssociatesFilteredPlanHasLineItems,
+  buildAdvertisingAssociatesMbaDataFromMediaItems,
+  filterMediaItemsForAdvertisingAssociates,
   planHasAdvertisingAssociatesLineItem,
   shouldIncludeMediaPlanLineItem,
 } from "@/lib/mediaplan/advertisingAssociatesExcel"
@@ -632,6 +636,33 @@ function mergeAppendIntoExistingMonth(
         }
       }
     }
+  }
+
+  // Append-only fill for month-level cost buckets.
+  // Treat $0.00 as "nothing saved, fill from auto" — the historical bug
+  // silently zeroed adservingTechFees on save, so almost no $0 is intentional.
+  // Manual edits land non-zero, so they survive.
+  const isZeroOrEmpty = (s: unknown) => parseBucketMoney(s) === 0
+
+  if (isZeroOrEmpty(base.feeTotal) && !isZeroOrEmpty(templateRow.feeTotal)) {
+    const add = parseBucketMoney(templateRow.feeTotal)
+    base.feeTotal = templateRow.feeTotal
+    deltaAppliedToTotal += add
+  }
+
+  if (isZeroOrEmpty(base.adservingTechFees) && !isZeroOrEmpty(templateRow.adservingTechFees)) {
+    const add = parseBucketMoney(templateRow.adservingTechFees)
+    base.adservingTechFees = templateRow.adservingTechFees
+    deltaAppliedToTotal += add
+  }
+
+  if (isZeroOrEmpty(base.production) && !isZeroOrEmpty(templateRow.production)) {
+    const add = parseBucketMoney(templateRow.production)
+    base.production = templateRow.production
+    if (base.mediaCosts && templateRow.mediaCosts?.production !== undefined) {
+      base.mediaCosts.production = templateRow.mediaCosts.production
+    }
+    deltaAppliedToTotal += add
   }
 
   if (deltaNonProductionMedia !== 0 || deltaAppliedToTotal !== 0) {
@@ -1258,7 +1289,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const [isLoading, setIsLoading] = useState(true)
   const [isDownloading, setIsDownloading] = useState(false)
   const [isDownloadingAa, setIsDownloadingAa] = useState(false)
-  const [excelPublishers, setExcelPublishers] = useState<Publisher[]>([])
   const [selectedClientId, setSelectedClientId] = useState<string>("")
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
   const [clientAddress, setClientAddress] = useState("")
@@ -1756,67 +1786,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     influencersLineItems,
   ])
 
-  useEffect(() => {
-    let cancelled = false
-    fetch("/api/publishers")
-      .then((r) => (r.ok ? r.json() : []))
-      .then((d) => {
-        if (!cancelled) setExcelPublishers(Array.isArray(d) ? d : [])
-      })
-      .catch(() => {
-        if (!cancelled) setExcelPublishers([])
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  const showAaMediaPlanDownload = useMemo(() => {
-    const mediaItems: MediaItems = {
-      search: searchItems.filter(shouldIncludeMediaPlanLineItem),
-      socialMedia: socialMediaItems.filter(shouldIncludeMediaPlanLineItem),
-      digiAudio: digitalAudioItems.filter(shouldIncludeMediaPlanLineItem),
-      digiDisplay: digitalDisplayItems.filter(shouldIncludeMediaPlanLineItem),
-      digiVideo: digitalVideoItems.filter(shouldIncludeMediaPlanLineItem),
-      bvod: bvodItems.filter(shouldIncludeMediaPlanLineItem),
-      progDisplay: progDisplayItems.filter(shouldIncludeMediaPlanLineItem),
-      progVideo: progVideoItems.filter(shouldIncludeMediaPlanLineItem),
-      progBvod: progBvodItems.filter(shouldIncludeMediaPlanLineItem),
-      progOoh: progOohItems.filter(shouldIncludeMediaPlanLineItem),
-      progAudio: progAudioItems.filter(shouldIncludeMediaPlanLineItem),
-      newspaper: newspaperItems.filter(shouldIncludeMediaPlanLineItem),
-      magazines: magazinesItems.filter(shouldIncludeMediaPlanLineItem),
-      television: televisionItems.filter(shouldIncludeMediaPlanLineItem),
-      radio: radioItems.filter(shouldIncludeMediaPlanLineItem),
-      ooh: oohItems.filter(shouldIncludeMediaPlanLineItem),
-      cinema: cinemaItems.filter(shouldIncludeMediaPlanLineItem),
-      integration: integrationItems.filter(shouldIncludeMediaPlanLineItem),
-      production: consultingItems.filter(shouldIncludeMediaPlanLineItem),
-    }
-    return planHasAdvertisingAssociatesLineItem(mediaItems, excelPublishers, () => true)
-  }, [
-    searchItems,
-    socialMediaItems,
-    digitalAudioItems,
-    digitalDisplayItems,
-    digitalVideoItems,
-    bvodItems,
-    progDisplayItems,
-    progVideoItems,
-    progBvodItems,
-    progOohItems,
-    progAudioItems,
-    newspaperItems,
-    magazinesItems,
-    televisionItems,
-    radioItems,
-    oohItems,
-    cinemaItems,
-    integrationItems,
-    consultingItems,
-    excelPublishers,
-  ])
-
   const [isClientModalOpen, setIsClientModalOpen] = useState(false)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const navigationHydratedRef = useRef(false)
@@ -1945,6 +1914,58 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     mpBvod,
     mpIntegration,
     mpConsulting,
+    mpProgdisplay,
+    mpProgvideo,
+    mpProgbvod,
+    mpProgaudio,
+    mpProgooh,
+    mpInfluencers,
+  ])
+
+  const enabledSections = useMemo(() => {
+    const flagMap: Record<string, boolean> = {
+      mp_television: !!mpTelevision,
+      mp_radio: !!mpRadio,
+      mp_newspaper: !!mpNewspaper,
+      mp_magazines: !!mpMagazines,
+      mp_ooh: !!mpOoh,
+      mp_cinema: !!mpCinema,
+      mp_digidisplay: !!mpDigidisplay,
+      mp_digiaudio: !!mpDigiaudio,
+      mp_digivideo: !!mpDigivideo,
+      mp_bvod: !!mpBvod,
+      mp_integration: !!mpIntegration,
+      mp_production: !!mpConsulting,
+      mp_search: !!mpSearch,
+      mp_socialmedia: !!mpSocialMedia,
+      mp_progdisplay: !!mpProgdisplay,
+      mp_progvideo: !!mpProgvideo,
+      mp_progbvod: !!mpProgbvod,
+      mp_progaudio: !!mpProgaudio,
+      mp_progooh: !!mpProgooh,
+      mp_influencers: !!mpInfluencers,
+    }
+    return mediaTypes
+      .filter((medium) => flagMap[medium.name])
+      .map((medium) => ({
+        id: `media-section-${medium.name}`,
+        label: medium.label,
+      }))
+  }, [
+    mpTelevision,
+    mpRadio,
+    mpNewspaper,
+    mpMagazines,
+    mpOoh,
+    mpCinema,
+    mpDigidisplay,
+    mpDigiaudio,
+    mpDigivideo,
+    mpBvod,
+    mpIntegration,
+    mpConsulting,
+    mpSearch,
+    mpSocialMedia,
     mpProgdisplay,
     mpProgvideo,
     mpProgbvod,
@@ -4742,6 +4763,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       // 4a. Generate + upload documents to Xano (no downloads)
       updateSaveStatus("MBA PDF Upload", "pending")
       updateSaveStatus("Media Plan Upload", "pending")
+      updateSaveStatus("AA Media Plan Upload", "pending")
       const documentUploadPromise = (async () => {
         if (!versionId) {
           throw new Error("Missing media plan version ID for document upload")
@@ -4759,19 +4781,69 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         })
 
+        const mediaItemsForAaCheck: MediaItems = {
+          search: searchItems,
+          socialMedia: socialMediaItems,
+          digiAudio: digitalAudioItems,
+          digiDisplay: digitalDisplayItems,
+          digiVideo: digitalVideoItems,
+          bvod: bvodItems,
+          progDisplay: progDisplayItems,
+          progVideo: progVideoItems,
+          progBvod: progBvodItems,
+          progOoh: progOohItems,
+          progAudio: progAudioItems,
+          newspaper: newspaperItems,
+          magazines: magazinesItems,
+          television: televisionItems,
+          radio: radioItems,
+          ooh: oohItems,
+          cinema: cinemaItems,
+          integration: integrationItems,
+          production: consultingItems,
+        }
+
+        let aaMediaPlanFile: File | undefined
+        try {
+          const pubRes = await fetch("/api/publishers")
+          if (pubRes.ok) {
+            const publishersForAa = (await pubRes.json()) as Publisher[]
+            if (
+              planHasAdvertisingAssociatesLineItem(
+                mediaItemsForAaCheck,
+                publishersForAa,
+                shouldIncludeMediaPlanLineItem,
+              )
+            ) {
+              const { blob: aaBlob, fileName: aaFileName } = await generateMediaPlanXlsxBlob({
+                planVersion: planVersionForDocs,
+                variant: "aa",
+              })
+              aaMediaPlanFile = new File([aaBlob], aaFileName, {
+                type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+              })
+            }
+          }
+        } catch (aaErr) {
+          console.warn("AA media plan generation skipped or failed:", aaErr)
+        }
+
         await uploadMediaPlanVersionDocuments(versionId, {
           mbaPdf: mbaPdfFile,
           mediaPlan: mediaPlanFile,
+          aaMediaPlan: aaMediaPlanFile,
           mpClientName: formValues.mp_clientname || selectedClient?.clientname_input || "",
         })
 
         updateSaveStatus("MBA PDF Upload", "success")
         updateSaveStatus("Media Plan Upload", "success")
+        updateSaveStatus("AA Media Plan Upload", "success")
       })().catch((err: any) => {
         const message = err?.message || String(err)
         console.error("Document upload failed:", err)
         updateSaveStatus("MBA PDF Upload", "error", message)
         updateSaveStatus("Media Plan Upload", "error", message)
+        updateSaveStatus("AA Media Plan Upload", "error", message)
       })
       
       // Initialize save status for enabled media types
@@ -5472,6 +5544,16 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
     // Build media data from enabled media types
     let finalVisibleMedia: { media_type: string; gross_amount: number }[]
+    let totalExGst: number
+    let finalTotals: {
+      gross_media: number
+      service_fee: number
+      production: number
+      adserving: number
+      totals_ex_gst: number
+      total_inc_gst: number
+    }
+
     if (isPartialMBA) {
       finalVisibleMedia = Object.entries(partialMBAValues.mediaTotals)
         .map(([mediaKey, amount]) => {
@@ -5481,26 +5563,51 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             : null
         })
         .filter((item): item is { media_type: string; gross_amount: number } => item !== null)
+
+      totalExGst =
+        partialMBAValues.grossMedia +
+        partialMBAValues.assembledFee +
+        partialMBAValues.adServing +
+        partialMBAValues.production
+
+      finalTotals = {
+        gross_media: partialMBAValues.grossMedia,
+        service_fee: partialMBAValues.assembledFee,
+        production: partialMBAValues.production,
+        adserving: partialMBAValues.adServing,
+        totals_ex_gst: totalExGst,
+        total_inc_gst: totalExGst * 1.1,
+      }
     } else {
+      const deliveryTotals = getDeliveryMbaTotals()
+
       finalVisibleMedia = mediaTypes
+        .filter(medium => medium.name !== "mp_production")
         .filter(medium => form.watch(medium.name as keyof MediaPlanFormValues))
-        .map(medium => ({
-          media_type: medium.label,
-          gross_amount: calculateMediaTotal(medium.name),
-        }))
-    }
+        .map(medium => {
+          const billingKey = mediaKeyMap[medium.name]
+          const gross_amount =
+            billingKey !== undefined ? (deliveryTotals.mediaCostsByKey[billingKey] ?? 0) : 0
+          return {
+            media_type: medium.label,
+            gross_amount,
+          }
+        })
 
-    const totalExGst = isPartialMBA
-      ? partialMBAValues.grossMedia + partialMBAValues.assembledFee + partialMBAValues.adServing + partialMBAValues.production
-      : calculateTotalInvestment()
+      totalExGst =
+        deliveryTotals.grossMedia +
+        deliveryTotals.assembledFee +
+        deliveryTotals.adServing +
+        deliveryTotals.production
 
-    const finalTotals = {
-      gross_media: isPartialMBA ? partialMBAValues.grossMedia : grossMediaTotal,
-      service_fee: isPartialMBA ? partialMBAValues.assembledFee : calculateAssembledFee(),
-      production: isPartialMBA ? partialMBAValues.production : calculateProductionCosts(),
-      adserving: isPartialMBA ? partialMBAValues.adServing : calculateAdServingFees(),
-      totals_ex_gst: totalExGst,
-      total_inc_gst: totalExGst * 1.1,
+      finalTotals = {
+        gross_media: deliveryTotals.grossMedia,
+        service_fee: deliveryTotals.assembledFee,
+        production: deliveryTotals.production,
+        adserving: deliveryTotals.adServing,
+        totals_ex_gst: totalExGst,
+        total_inc_gst: totalExGst * 1.1,
+      }
     }
 
     const billingMonthsExGST = workingBillingMonths.map((month) => ({
@@ -5642,41 +5749,46 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
     const grossForTotals = isPartialMBA ? partialMBAValues.grossMedia : grossMediaTotal
     const productionForTotals = isPartialMBA ? partialMBAValues.production : calculateProductionCosts()
-    const totalExGstAa = grossForTotals + productionForTotals
 
-    const totalExGstForExcel =
-      variant === "aa"
-        ? totalExGstAa
-        : isPartialMBA
-          ? partialMBAValues.grossMedia +
-            partialMBAValues.assembledFee +
-            partialMBAValues.adServing +
-            partialMBAValues.production
-          : calculateTotalInvestment()
+    const totalExGstStandard = isPartialMBA
+      ? partialMBAValues.grossMedia +
+        partialMBAValues.assembledFee +
+        partialMBAValues.adServing +
+        partialMBAValues.production
+      : calculateTotalInvestment()
 
-    const mbaData = {
-      gross_media: mbaDataGrossMedia,
-      totals: {
-        gross_media: grossForTotals,
-        service_fee:
-          variant === "aa"
-            ? 0
-            : isPartialMBA
-              ? partialMBAValues.assembledFee
-              : calculateAssembledFee(),
-        production: productionForTotals,
-        adserving:
-          variant === "aa"
-            ? 0
-            : isPartialMBA
-              ? partialMBAValues.adServing
-              : calculateAdServingFees(),
-        totals_ex_gst: totalExGstForExcel,
-        total_inc_gst: totalExGstForExcel * 1.1,
-      },
+    let mediaItemsForWorkbook: MediaItems = mediaItems
+    let mbaData: Parameters<typeof generateMediaPlan>[2]
+
+    if (variant === "aa") {
+      const pubRes = await fetch("/api/publishers")
+      if (!pubRes.ok) {
+        throw new Error("Failed to load publishers for Advertising Associates export")
+      }
+      const publishersList = (await pubRes.json()) as Publisher[]
+      const aaFiltered = filterMediaItemsForAdvertisingAssociates(mediaItems, publishersList)
+      if (!advertisingAssociatesFilteredPlanHasLineItems(aaFiltered)) {
+        throw new Error(
+          "No Advertising Associates–billed line items to include in this export after applying publisher filter",
+        )
+      }
+      mediaItemsForWorkbook = aaFiltered
+      mbaData = buildAdvertisingAssociatesMbaDataFromMediaItems(aaFiltered)
+    } else {
+      mbaData = {
+        gross_media: mbaDataGrossMedia,
+        totals: {
+          gross_media: grossForTotals,
+          service_fee: isPartialMBA ? partialMBAValues.assembledFee : calculateAssembledFee(),
+          production: productionForTotals,
+          adserving: isPartialMBA ? partialMBAValues.adServing : calculateAdServingFees(),
+          totals_ex_gst: totalExGstStandard,
+          total_inc_gst: totalExGstStandard * 1.1,
+        },
+      }
     }
 
-    const workbook = await generateMediaPlan(header, mediaItems, mbaData, {
+    const workbook = await generateMediaPlan(header, mediaItemsForWorkbook, mbaData, {
       mbaTotalsLayout: variant === "aa" ? "aa" : "standard",
     })
     const arrayBuffer = (await workbook.xlsx.writeBuffer()) as ArrayBuffer
@@ -6334,6 +6446,38 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     }
     return 0
   }, [workingBillingMonths])
+
+  const getDeliveryMbaTotals = useCallback(() => {
+    const source =
+      deliveryScheduleSnapshotRef.current && deliveryScheduleSnapshotRef.current.length > 0
+        ? deliveryScheduleSnapshotRef.current
+        : autoDeliveryMonths
+
+    const parseMoney = (v: unknown) =>
+      parseFloat(String(v ?? "").replace(/[^0-9.-]/g, "")) || 0
+
+    const mediaCostsByKey: Record<string, number> = {}
+    let assembledFee = 0
+    let adServing = 0
+    let production = 0
+
+    for (const month of source) {
+      assembledFee += parseMoney(month.feeTotal)
+      adServing += parseMoney(month.adservingTechFees)
+      production += parseMoney(month.production)
+
+      if (month.mediaCosts) {
+        for (const [k, raw] of Object.entries(month.mediaCosts)) {
+          if (k === "production") continue
+          mediaCostsByKey[k] = (mediaCostsByKey[k] || 0) + parseMoney(raw)
+        }
+      }
+    }
+
+    const grossMedia = Object.values(mediaCostsByKey).reduce((s, v) => s + v, 0)
+
+    return { grossMedia, assembledFee, adServing, production, mediaCostsByKey }
+  }, [autoDeliveryMonths])
 
   const calculateTotalInvestment = () => {
     return grossMediaTotal + calculateAssembledFee() + calculateAdServingFees() + calculateProductionCosts()
@@ -7168,23 +7312,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     )
   }
 
-  if (mbaNumber?.toLowerCase() === "bowel001") {
-    const billingTotal = workingBillingMonths.reduce(
-      (sum, m) => sum + (parseFloat(String(m.totalAmount || "$0").replace(/[^0-9.-]/g, "")) || 0),
-      0
-    )
-    console.log("[bowel001 debug]", {
-      televisionTotal,
-      oohTotal,
-      digitalDisplayTotal,
-      progDisplayTotal,
-      progVideoTotal,
-      grossMediaTotal,
-      billingMonthsLength: workingBillingMonths.length,
-      billingTotal,
-    })
-  }
-
   return (
     <div
       className="w-full min-h-screen"
@@ -7555,69 +7682,89 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 </div>
               </div>
               <div className="space-y-3 px-6 py-4">
-                {mediaTypes
-                  .filter((medium) => medium.name !== "mp_production")
-                  .filter((medium) => form.watch(medium.name as FormFieldName))
-                  .map((medium) => {
-                    const mediaKey = mediaKeyMap[medium.name];
-                    const total = isPartialMBA
-                      ? partialMBAValues.mediaTotals[mediaKey] || 0
-                      : calculateMediaTotal(medium.name);
-                    return (
-                      <div key={medium.name} className="flex items-center justify-between py-1">
-                        <span className="text-sm text-muted-foreground">{medium.label}</span>
-                        <span className="text-sm font-medium tabular-nums">
-                          {mbaCurrencyFormatter.format(total)}
+                {(() => {
+                  const deliveryMbaTotals = getDeliveryMbaTotals();
+                  const deliveryInvestmentExGst =
+                    deliveryMbaTotals.grossMedia +
+                    deliveryMbaTotals.assembledFee +
+                    deliveryMbaTotals.adServing +
+                    deliveryMbaTotals.production;
+                  return (
+                    <>
+                      {mediaTypes
+                        .filter((medium) => medium.name !== "mp_production")
+                        .filter((medium) => form.watch(medium.name as FormFieldName))
+                        .map((medium) => {
+                          const mediaKey = mediaKeyMap[medium.name];
+                          const total = isPartialMBA
+                            ? partialMBAValues.mediaTotals[mediaKey] || 0
+                            : deliveryMbaTotals.mediaCostsByKey[mediaKey] ?? 0;
+                          return (
+                            <div key={medium.name} className="flex items-center justify-between py-1">
+                              <span className="text-sm text-muted-foreground">{medium.label}</span>
+                              <span className="text-sm font-medium tabular-nums">
+                                {mbaCurrencyFormatter.format(total)}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      <div className="border-t border-border/40" />
+                      <div className="flex items-center justify-between py-1">
+                        <span className="text-sm font-semibold">Gross Media</span>
+                        <span className="text-sm font-semibold tabular-nums">
+                          {mbaCurrencyFormatter.format(
+                            isPartialMBA ? partialMBAValues.grossMedia : deliveryMbaTotals.grossMedia
+                          )}
                         </span>
                       </div>
-                    );
-                  })}
-                <div className="border-t border-border/40" />
-                <div className="flex items-center justify-between py-1">
-                  <span className="text-sm font-semibold">Gross Media</span>
-                  <span className="text-sm font-semibold tabular-nums">
-                    {mbaCurrencyFormatter.format(isPartialMBA ? partialMBAValues.grossMedia : grossMediaTotal)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between py-1">
-                  <span className="text-sm font-semibold">Assembled Fee</span>
-                  <span className="text-sm font-semibold tabular-nums">
-                    {mbaCurrencyFormatter.format(isPartialMBA ? partialMBAValues.assembledFee : calculateAssembledFee())}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between py-1">
-                  <span className="text-sm font-semibold">Ad Serving & Tech</span>
-                  <span className="text-sm font-semibold tabular-nums">
-                    {mbaCurrencyFormatter.format(isPartialMBA ? partialMBAValues.adServing : calculateAdServingFees())}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between py-1">
-                  <span className="text-sm font-semibold">Production</span>
-                  <span className="text-sm font-semibold tabular-nums">
-                    {mbaCurrencyFormatter.format(isPartialMBA ? partialMBAValues.production : calculateProductionCosts())}
-                  </span>
-                </div>
-                <div className="border-t-2 border-primary/20 pt-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-bold">Total Investment (ex GST)</span>
-                    <span className="text-sm font-bold tabular-nums text-primary">
-                      {mbaCurrencyFormatter.format(
-                        isPartialMBA
-                          ? partialMBAValues.grossMedia +
-                              partialMBAValues.assembledFee +
-                              partialMBAValues.adServing +
-                              partialMBAValues.production
-                          : calculateTotalInvestment()
-                      )}
-                    </span>
-                  </div>
-                </div>
-                {isPartialMBA && partialApprovalMetadata?.note ? (
-                  <div className="mt-3 rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
-                    <div className="mb-1 font-semibold text-foreground">Partial approval changes</div>
-                    <div>{partialApprovalMetadata.note}</div>
-                  </div>
-                ) : null}
+                      <div className="flex items-center justify-between py-1">
+                        <span className="text-sm font-semibold">Assembled Fee</span>
+                        <span className="text-sm font-semibold tabular-nums">
+                          {mbaCurrencyFormatter.format(
+                            isPartialMBA ? partialMBAValues.assembledFee : deliveryMbaTotals.assembledFee
+                          )}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between py-1">
+                        <span className="text-sm font-semibold">Ad Serving & Tech</span>
+                        <span className="text-sm font-semibold tabular-nums">
+                          {mbaCurrencyFormatter.format(
+                            isPartialMBA ? partialMBAValues.adServing : deliveryMbaTotals.adServing
+                          )}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between py-1">
+                        <span className="text-sm font-semibold">Production</span>
+                        <span className="text-sm font-semibold tabular-nums">
+                          {mbaCurrencyFormatter.format(
+                            isPartialMBA ? partialMBAValues.production : deliveryMbaTotals.production
+                          )}
+                        </span>
+                      </div>
+                      <div className="border-t-2 border-primary/20 pt-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-bold">Total Investment (ex GST)</span>
+                          <span className="text-sm font-bold tabular-nums text-primary">
+                            {mbaCurrencyFormatter.format(
+                              isPartialMBA
+                                ? partialMBAValues.grossMedia +
+                                    partialMBAValues.assembledFee +
+                                    partialMBAValues.adServing +
+                                    partialMBAValues.production
+                                : deliveryInvestmentExGst
+                            )}
+                          </span>
+                        </div>
+                      </div>
+                      {isPartialMBA && partialApprovalMetadata?.note ? (
+                        <div className="mt-3 rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
+                          <div className="mb-1 font-semibold text-foreground">Partial approval changes</div>
+                          <div>{partialApprovalMetadata.note}</div>
+                        </div>
+                      ) : null}
+                    </>
+                  );
+                })()}
               </div>
             </div>
 
@@ -7712,7 +7859,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 if (!form.watch(medium.name as any)) return null;
                 
                 return (
-                  <div key={medium.name} className="mt-4">
+                  <div key={medium.name} id={`media-section-${medium.name}`} className="mt-4 scroll-mt-24">
                     <Suspense fallback={<MediaContainerSuspenseFallback label={medium.label} />}>
                       {medium.name === "mp_television" && (
                         <TelevisionContainer
@@ -8998,14 +9145,13 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                       >
                         Media Plan
                       </DropdownMenuItem>
-                      {showAaMediaPlanDownload ? (
-                        <DropdownMenuItem
-                          onClick={handleDownloadAdvertisingAssociatesMediaPlan}
-                          disabled={isDownloading || isDownloadingAa || isNamingDownloading || isLoading || isSaving}
-                        >
-                          Media Plan (AA)
-                        </DropdownMenuItem>
-                      ) : null}
+                      <DropdownMenuItem
+                        onClick={handleDownloadAdvertisingAssociatesMediaPlan}
+                        disabled={isDownloading || isDownloadingAa || isNamingDownloading || isLoading || isSaving}
+                        className="text-brand-dark focus:bg-highlight/25 focus:text-brand-dark"
+                      >
+                        Media Plan (AA)
+                      </DropdownMenuItem>
                       <DropdownMenuItem
                         onClick={handleDownloadNamingConventions}
                         disabled={isDownloading || isDownloadingAa || isNamingDownloading || isLoading || isSaving}
@@ -9034,23 +9180,21 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                   )}
                   <span className="ml-2">{isDownloading ? "Downloading..." : "Media Plan"}</span>
                 </Button>
-                {showAaMediaPlanDownload ? (
-                  <Button
-                    type="button"
-                    onClick={handleDownloadAdvertisingAssociatesMediaPlan}
-                    disabled={isDownloading || isDownloadingAa || isNamingDownloading || isLoading || isSaving}
-                    className="hidden h-9 rounded-full px-4 py-2 text-white md:inline-flex bg-lime/80 hover:bg-lime/70 focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    {isDownloadingAa ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Download className="h-4 w-4" />
-                    )}
-                    <span className="ml-2">
-                      {isDownloadingAa ? "Downloading..." : "Media Plan (AA)"}
-                    </span>
-                  </Button>
-                ) : null}
+                <Button
+                  type="button"
+                  onClick={handleDownloadAdvertisingAssociatesMediaPlan}
+                  disabled={isDownloading || isDownloadingAa || isNamingDownloading || isLoading || isSaving}
+                  className="hidden h-9 rounded-full px-4 py-2 md:inline-flex bg-highlight text-brand-dark hover:bg-highlight/85 focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {isDownloadingAa ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Download className="h-4 w-4" />
+                  )}
+                  <span className="ml-2">
+                    {isDownloadingAa ? "Creating AA Plan..." : "Media Plan (AA)"}
+                  </span>
+                </Button>
                 <Button
                   type="button"
                   onClick={handleDownloadNamingConventions}
@@ -9085,6 +9229,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         </div>
       </div>
       </div>
+
+      <FloatingSectionNav sections={enabledSections} storageKey="mediaplan-edit-section-nav-collapsed" />
     </div>
   )
 }

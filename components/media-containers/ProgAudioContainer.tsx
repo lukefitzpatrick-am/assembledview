@@ -257,9 +257,7 @@ export function calculateInvestmentPerMonth(form, feeprogaudio) {
         }
 
         // ✅ Count the number of days in the current month
-        const nextMonth = new Date(current);
-        nextMonth.setMonth(nextMonth.getMonth() + 1);
-        nextMonth.setDate(1);
+        const nextMonth = new Date(current.getFullYear(), current.getMonth() + 1, 1);
 
         const lastDayOfMonth = new Date(nextMonth.getTime() - 1);
         const daysInThisMonth = Math.min(lastDayOfMonth.getDate(), Math.ceil((endDate.getTime() - current.getTime()) / (1000 * 60 * 60 * 24)) + 1);
@@ -268,8 +266,7 @@ export function calculateInvestmentPerMonth(form, feeprogaudio) {
         monthlyInvestment[monthYear] += investmentForThisMonth;
 
         // Move to the next month
-        current.setMonth(current.getMonth() + 1);
-        current.setDate(1);
+        current = new Date(current.getFullYear(), current.getMonth() + 1, 1);
       }
     });
   });
@@ -300,9 +297,7 @@ export function calculateBurstInvestmentPerMonth(form, feeprogaudio) {
         const monthYear = `${current.toLocaleString("default", { month: "long" })} ${current.getFullYear()}`;
 
         // Find the number of days in this month that overlap with the burst
-        const nextMonth = new Date(current);
-        nextMonth.setMonth(nextMonth.getMonth() + 1);
-        nextMonth.setDate(1);
+        const nextMonth = new Date(current.getFullYear(), current.getMonth() + 1, 1);
         const lastDayOfMonth = new Date(nextMonth.getTime() - 1);
         const daysInThisMonth = Math.min(
           Math.ceil((lastDayOfMonth.getTime() - current.getTime()) / (1000 * 60 * 60 * 24)) + 1,
@@ -318,8 +313,7 @@ export function calculateBurstInvestmentPerMonth(form, feeprogaudio) {
         monthlyInvestment[monthYear] += monthlyBudget;
 
         // Move to the next month
-        current.setMonth(current.getMonth() + 1);
-        current.setDate(1);
+        current = new Date(current.getFullYear(), current.getMonth() + 1, 1);
       }
     });
   });
@@ -870,9 +864,7 @@ export default function ProgAudioContainer({
     }
     
     // Set end date to the last day of the month based on the start date
-    const endDate = new Date(startDate);
-    endDate.setMonth(endDate.getMonth() + 1); // Move to the first day of next month
-    endDate.setDate(0); // Set to the last day of the current month
+    const endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0);
     
     form.setValue(`lineItems.${lineItemIndex}.bursts`, [
       ...currentBursts,
@@ -918,9 +910,7 @@ export default function ProgAudioContainer({
       startDate.setDate(startDate.getDate() + 1);
     }
 
-    const endDate = new Date(startDate);
-    endDate.setMonth(endDate.getMonth() + 1);
-    endDate.setDate(0);
+    const endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0);
 
     const duplicatedBurst = {
       budget: lastBurst?.budget ?? "",

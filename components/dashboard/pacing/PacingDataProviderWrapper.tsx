@@ -58,9 +58,6 @@ type PacingDataProviderWrapperProps = {
   mpSearchEnabled?: boolean
   searchLineItemIds?: string[]
   searchItemsActive?: any[]
-  searchCampaignPlannedEndDate?: string
-  searchStartDate?: string | null
-  searchEndDate?: string | null
 }
 
 export default function PacingDataProviderWrapper({
@@ -77,9 +74,6 @@ export default function PacingDataProviderWrapper({
   mpSearchEnabled,
   searchLineItemIds,
   searchItemsActive,
-  searchCampaignPlannedEndDate,
-  searchStartDate,
-  searchEndDate,
 }: PacingDataProviderWrapperProps) {
   const pacingIdSet = useMemo(() => {
     const ids = (pacingLineItemIds ?? []).map((id) => cleanPacingLineItemId(id)).filter(Boolean) as string[]
@@ -129,7 +123,7 @@ export default function PacingDataProviderWrapper({
   const effectiveEnd = toDate ?? campaignEnd
 
   const includeSearch = Boolean(
-    mpSearchEnabled && (searchLineItemIds?.length ?? 0) > 0 && searchStartDate && searchEndDate
+    mpSearchEnabled && (searchLineItemIds?.length ?? 0) > 0 && effectiveStart && effectiveEnd
   )
 
   return (
@@ -145,8 +139,6 @@ export default function PacingDataProviderWrapper({
       toDate={effectiveEnd}
       searchEnabled={includeSearch}
       searchLineItemIds={searchLineItemIds ?? []}
-      searchStartDate={searchStartDate ?? undefined}
-      searchEndDate={searchEndDate ?? undefined}
     >
       {({
         rows,
@@ -170,7 +162,7 @@ export default function PacingDataProviderWrapper({
             <Skeleton className="h-[480px] w-full rounded-3xl" />
           ) : (
             <div className="space-y-4">
-              {socialItemsActive.length > 0 ? (
+              {socialItemsActive.length > 0 && effectiveStart && effectiveEnd ? (
                 <SocialPacingContainer
                   clientSlug={clientSlug}
                   mbaNumber={mbaNumber}
@@ -184,21 +176,22 @@ export default function PacingDataProviderWrapper({
 
               {mpSearchEnabled &&
               (searchLineItemIds?.length ?? 0) > 0 &&
-              searchStartDate &&
-              searchEndDate ? (
+              effectiveStart &&
+              effectiveEnd ? (
                 <SearchPacingContainer
                   clientSlug={clientSlug}
                   mbaNumber={mbaNumber}
                   lineItemIds={searchLineItemIds ?? []}
                   searchLineItems={searchItemsActive ?? []}
-                  campaignPlannedEndDate={searchCampaignPlannedEndDate}
-                  startDate={searchStartDate}
-                  endDate={searchEndDate}
+                  campaignStart={effectiveStart}
+                  campaignEnd={effectiveEnd}
                   initialSearchData={search}
                 />
               ) : null}
 
-              {(progDisplayItemsActive.length > 0 || progVideoItemsActive.length > 0) ? (
+              {(progDisplayItemsActive.length > 0 || progVideoItemsActive.length > 0) &&
+              effectiveStart &&
+              effectiveEnd ? (
                 <ProgrammaticPacingContainer
                   clientSlug={clientSlug}
                   mbaNumber={mbaNumber}

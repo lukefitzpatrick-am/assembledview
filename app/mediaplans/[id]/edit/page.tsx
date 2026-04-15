@@ -798,13 +798,14 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
 
     let billingMonthsMap: Record<string, number> = {};
 
-    // Initialize all months in the campaign period
-    let current = new Date(startDate);
-    while (current <= new Date(endDate)) {
+    // Initialize all months in the campaign period (first-of-month walk avoids setMonth rollover)
+    const campaignStartMidnight = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+    const campaignEndMidnight = new Date(endDate.getFullYear(), endDate.getMonth(), 1);
+    let current = new Date(campaignStartMidnight);
+    while (current <= campaignEndMidnight) {
       const monthYear = `${current.toLocaleString("default", { month: "long" })} ${current.getFullYear()}`;
       billingMonthsMap[monthYear] = 0;
-      current.setMonth(current.getMonth() + 1);
-      current.setDate(1);
+      current = new Date(current.getFullYear(), current.getMonth() + 1, 1);
     }
 
     // Process all bursts (search and social media)
@@ -821,8 +822,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
         // Calculate daily budget (media + fee)
         const dailyBudget = burst.budget / totalDays;
 
-        let current = new Date(burstStart);
-        while (current <= burstEnd) {
+        const burstStartMidnight = new Date(burstStart.getFullYear(), burstStart.getMonth(), 1);
+        const burstEndMidnight = new Date(burstEnd.getFullYear(), burstEnd.getMonth(), 1);
+        let current = new Date(burstStartMidnight);
+        while (current <= burstEndMidnight) {
           const monthYear = `${current.toLocaleString("default", { month: "long" })} ${current.getFullYear()}`;
 
           // Calculate the first and last day of the current month
@@ -841,8 +844,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
           billingMonthsMap[monthYear] = (billingMonthsMap[monthYear] || 0) + monthlyAllocation;
 
           // Move to the next month
-          current.setMonth(current.getMonth() + 1);
-          current.setDate(1);
+          current = new Date(current.getFullYear(), current.getMonth() + 1, 1);
         }
       });
     } else {
@@ -3865,6 +3867,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                     <DropdownMenuItem
                       onClick={handleDownloadAdvertisingAssociatesMediaPlan}
                       disabled={loading || modalLoading}
+                      className="text-brand-dark focus:bg-highlight/25 focus:text-brand-dark"
                     >
                       Media Plan (AA)
                     </DropdownMenuItem>
@@ -3902,7 +3905,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                 type="button"
                 onClick={handleDownloadAdvertisingAssociatesMediaPlan}
                 disabled={loading || modalLoading}
-                className="hidden h-9 rounded-full px-4 py-2 text-white md:inline-flex bg-lime/80 hover:bg-lime/70 focus-visible:ring-2 focus-visible:ring-ring"
+                className="hidden h-9 rounded-full px-4 py-2 md:inline-flex bg-highlight text-brand-dark hover:bg-highlight/85 focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {modalLoading && modalTitle === "Downloading AA Media Plan" ? (
                   <Loader2 className="h-4 w-4 animate-spin" />

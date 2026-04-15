@@ -17,51 +17,12 @@ type PacingDataProviderProps = {
   toDate?: string
   searchEnabled?: boolean
   searchLineItemIds?: string[]
-  searchStartDate?: string
-  searchEndDate?: string
   children: (props: {
     rows: CombinedPacingRow[]
     search: SearchPacingResponse | null
     loading: boolean
     error: string | null
   }) => ReactNode
-}
-
-/**
- * Get yesterday's date in Australia/Melbourne timezone as ISO string "YYYY-MM-DD"
- */
-function getMelbourneYesterdayISO(): string {
-  const now = new Date()
-  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000)
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Australia/Melbourne",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  })
-  const parts = formatter.formatToParts(yesterday)
-  const year = parts.find((p) => p.type === "year")?.value ?? ""
-  const month = parts.find((p) => p.type === "month")?.value ?? ""
-  const day = parts.find((p) => p.type === "day")?.value ?? ""
-  return `${year}-${month}-${day}`
-}
-
-/**
- * Get today's date in Australia/Melbourne timezone as ISO string "YYYY-MM-DD"
- */
-function getMelbourneTodayISO(): string {
-  const now = new Date()
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Australia/Melbourne",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  })
-  const parts = formatter.formatToParts(now)
-  const year = parts.find((p) => p.type === "year")?.value ?? ""
-  const month = parts.find((p) => p.type === "month")?.value ?? ""
-  const day = parts.find((p) => p.type === "day")?.value ?? ""
-  return `${year}-${month}-${day}`
 }
 
 function parseDateSafe(value?: string | null): Date | null {
@@ -128,8 +89,6 @@ export default function PacingDataProvider({
   toDate,
   searchEnabled,
   searchLineItemIds,
-  searchStartDate,
-  searchEndDate,
   children,
 }: PacingDataProviderProps) {
   const [rows, setRows] = useState<CombinedPacingRow[]>([])
@@ -170,14 +129,23 @@ export default function PacingDataProvider({
     return searchEnabled === true && normalizedSearchLineItemIds.length > 0
   }, [searchEnabled, normalizedSearchLineItemIds.length])
 
+  const normalizedBulkStart = useMemo(
+    () => normalizeISODateOnly(fromDate ?? campaignStart) ?? "",
+    [fromDate, campaignStart]
+  )
+  const normalizedBulkEnd = useMemo(
+    () => normalizeISODateOnly(toDate ?? campaignEnd) ?? "",
+    [toDate, campaignEnd]
+  )
+
   const searchKey = useMemo(() => {
     return [
       includeSearch ? "1" : "0",
       `ids:${normalizedSearchLineItemIds.join(",")}`,
-      `start:${searchStartDate ?? ""}`,
-      `end:${searchEndDate ?? ""}`,
+      `start:${normalizedBulkStart}`,
+      `end:${normalizedBulkEnd}`,
     ].join("|")
-  }, [includeSearch, normalizedSearchLineItemIds, searchStartDate, searchEndDate])
+  }, [includeSearch, normalizedSearchLineItemIds, normalizedBulkStart, normalizedBulkEnd])
 
   useEffect(() => {
     const anyBulkIds = allLineItemIds.length > 0
@@ -191,18 +159,8 @@ export default function PacingDataProvider({
       return
     }
 
-    // Compute date range once for all platform requests.
-    const melbourneTodayISO = getMelbourneTodayISO()
-    const melbourneYesterdayISO = getMelbourneYesterdayISO()
-
-    let campaignEndDateISO: string | null = null
-    const endCandidate = toDate ?? campaignEnd
-    campaignEndDateISO = normalizeISODateOnly(endCandidate)
-
-    const endDate =
-      campaignEndDateISO && campaignEndDateISO < melbourneTodayISO ? campaignEndDateISO : melbourneYesterdayISO
-
-    const startDate = normalizeISODateOnly(fromDate ?? campaignStart) || undefined
+    const startDate = normalizedBulkStart || undefined
+    const endDate = normalizedBulkEnd || undefined
 
     const fetchAll = async () => {
       setLoading(true)
@@ -223,8 +181,8 @@ export default function PacingDataProvider({
             endDate,
             includeSearch,
             searchLineItemIds: normalizedSearchLineItemIds,
-            searchStartDate,
-            searchEndDate,
+            searchStartDate: startDate,
+            searchEndDate: endDate,
           }
         )
 
@@ -259,8 +217,8 @@ export default function PacingDataProvider({
     allLineItemIds,
     includeSearch,
     normalizedSearchLineItemIds,
-    searchEndDate,
-    searchStartDate,
+    normalizedBulkStart,
+    normalizedBulkEnd,
   ])
 
   return <>{children({ rows, search, loading, error })}</>

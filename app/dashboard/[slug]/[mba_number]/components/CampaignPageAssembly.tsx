@@ -104,8 +104,6 @@ type CampaignPageAssemblyProps = {
   searchItemsActive: any[]
   searchLineItemIds: string[]
   mpSearchEnabled: boolean
-  effectiveSearchStartISO?: string | null
-  searchEndISO?: string | null
   progDisplayItemsActive: any[]
   progVideoItemsActive: any[]
   pacingLineItemIds: string[]
@@ -141,8 +139,6 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
     searchItemsActive,
     searchLineItemIds,
     mpSearchEnabled,
-    effectiveSearchStartISO,
-    searchEndISO,
     progDisplayItemsActive,
     progVideoItemsActive,
     pacingLineItemIds,
@@ -220,7 +216,6 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
             <CampaignHeroBanner
               campaign={heroCampaign}
               brandColour={brandColour}
-              timeElapsedPct={heroCampaign.timeElapsedPct}
               daysRemaining={heroCampaign.daysRemaining}
               onOpenDetails={() => setDetailsOpen(true)}
               onDownload={() => window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" })}
@@ -302,38 +297,39 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
                 platforms={["social", "search", "programmatic"]}
                 platformSlots={{
                   social:
-                    socialItemsActive.length > 0 ? (
+                    socialItemsActive.length > 0 && startDate && endDate ? (
                       <SocialPacingContainer
                         clientSlug={slug}
                         mbaNumber={mbaNumber}
                         socialLineItems={socialItemsActive}
-                        campaignStart={startDate ?? undefined}
-                        campaignEnd={endDate ?? undefined}
+                        campaignStart={startDate}
+                        campaignEnd={endDate}
                         initialPacingRows={undefined}
                         pacingLineItemIds={pacingLineItemIds}
                       />
                     ) : null,
                   search:
-                    mpSearchEnabled && searchLineItemIds.length > 0 && effectiveSearchStartISO && searchEndISO ? (
+                    mpSearchEnabled && searchLineItemIds.length > 0 && startDate && endDate ? (
                       <SearchPacingContainer
                         clientSlug={slug}
                         mbaNumber={mbaNumber}
                         lineItemIds={searchLineItemIds}
                         searchLineItems={searchItemsActive}
-                        campaignPlannedEndDate={endDate ?? undefined}
-                        startDate={effectiveSearchStartISO}
-                        endDate={searchEndISO}
+                        campaignStart={startDate}
+                        campaignEnd={endDate}
                       />
                     ) : null,
                   programmatic:
-                    progDisplayItemsActive.length > 0 || progVideoItemsActive.length > 0 ? (
+                    (progDisplayItemsActive.length > 0 || progVideoItemsActive.length > 0) &&
+                    startDate &&
+                    endDate ? (
                       <ProgrammaticPacingContainer
                         clientSlug={slug}
                         mbaNumber={mbaNumber}
                         progDisplayLineItems={progDisplayItemsActive}
                         progVideoLineItems={progVideoItemsActive}
-                        campaignStart={startDate ?? undefined}
-                        campaignEnd={endDate ?? undefined}
+                        campaignStart={startDate}
+                        campaignEnd={endDate}
                         initialPacingRows={undefined}
                         pacingLineItemIds={pacingLineItemIds}
                       />

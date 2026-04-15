@@ -129,6 +129,16 @@ export function AppSidebar() {
   const financeSectionActive = pathname.startsWith("/finance");
   const clientDashboardsSectionActive = /^\/client\/[^/]+/.test(pathname);
 
+  const clientsSortedForNav = useMemo(() => {
+    return [...clients]
+      .map((c) => ({ client: c, label: getClientDisplayName(c) }))
+      .filter(({ label }) => label !== "")
+      .sort((a, b) =>
+        a.label.localeCompare(b.label, undefined, { sensitivity: "base", numeric: true })
+      )
+      .map(({ client, label }) => ({ client, label }));
+  }, [clients]);
+
   if (isLoading) {
     return (
       <Sidebar className="w-56 h-screen overflow-hidden">
@@ -215,23 +225,18 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                   {isClientsExpanded && (
                     <SidebarMenuSub>
-                      {clients
-                        .filter((client) => getClientDisplayName(client) !== '')
-                        .map((client) => {
-                          const label = getClientDisplayName(client)
-                          const slug = client.slug || slugifyClientNameForUrl(label)
-                          const href = `/client/${slug}`
+                      {clientsSortedForNav.map(({ client, label }) => {
+                        const slug = client.slug || slugifyClientNameForUrl(label);
+                        const href = `/client/${slug}`;
 
-                          return (
-                            <SidebarMenuSubItem key={client.id}>
-                              <SidebarMenuSubButton asChild isActive={pathMatchesHref(pathname, href, true)}>
-                                <Link href={href}>
-                                  {label}
-                                </Link>
-                              </SidebarMenuSubButton>
-                            </SidebarMenuSubItem>
-                          )
-                        })}
+                        return (
+                          <SidebarMenuSubItem key={client.id}>
+                            <SidebarMenuSubButton asChild isActive={pathMatchesHref(pathname, href, true)}>
+                              <Link href={href}>{label}</Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        );
+                      })}
                     </SidebarMenuSub>
                   )}
                 </SidebarMenuItem>

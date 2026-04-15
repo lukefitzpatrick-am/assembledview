@@ -3183,7 +3183,7 @@ export function SearchExpertGrid({
       "Platform",
       "Bid Strategy",
       "Buy Type",
-      "Targeting",
+      "Creative Targeting",
       "Creative",
       "Buying Demo",
       "Market",

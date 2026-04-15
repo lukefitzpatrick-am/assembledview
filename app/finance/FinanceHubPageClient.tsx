@@ -44,6 +44,7 @@ import {
   exportReceivablesWorkbook,
 } from "@/lib/finance/exportFinanceHub"
 import {
+  buildFinanceFetchAllSignature,
   parseFinanceHubTabParam,
   scheduleFinanceFetchAll,
   useFinanceStore,
@@ -162,10 +163,24 @@ type MonthGroup = {
   total: number
 }
 
-function useFinanceHubReceivablesData(activeTab: FinanceHubTab): { loading: boolean; visibleMonthGroups: MonthGroup[] } {
+type HubReceivablesHubState = {
+  loading: boolean
+  visibleMonthGroups: MonthGroup[]
+  filterSig: string
+  loadedSignature: string | null
+  loadError: string | null
+  bumpReceivablesFetch: () => void
+}
+
+function useFinanceHubReceivablesData(activeTab: FinanceHubTab): HubReceivablesHubState {
   const filters = useFinanceStore((s) => s.filters)
   const [records, setRecords] = useState<BillingRecord[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [fetchKey, setFetchKey] = useState(0)
+  const [loadedSignature, setLoadedSignature] = useState<string | null>(null)
+
+  const filterSig = useMemo(() => buildFinanceFetchAllSignature(filters), [filters])
 
   const clientsKey = useMemo(() => filters.selectedClients.join(","), [filters.selectedClients])
   const publishersKey = useMemo(() => filters.selectedPublishers.join(","), [filters.selectedPublishers])
@@ -176,10 +191,23 @@ function useFinanceHubReceivablesData(activeTab: FinanceHubTab): { loading: bool
   const statusesKey = useMemo(() => [...filters.statuses].sort().join(","), [filters.statuses])
 
   useEffect(() => {
+    if (loadedSignature === null || filterSig === loadedSignature) return
+    setRecords([])
+    setLoadedSignature(null)
+    setFetchKey(0)
+    setLoadError(null)
+  }, [filterSig, loadedSignature])
+
+  const bumpReceivablesFetch = useCallback(() => {
+    setFetchKey((k) => k + 1)
+  }, [])
+
+  useEffect(() => {
     logFinanceHubEffectDepChanges(
       "receivables-billing-fetch",
       [
         "activeTab",
+        "fetchKey",
         "monthRange.from",
         "monthRange.to",
         "includeDrafts",
@@ -191,6 +219,7 @@ function useFinanceHubReceivablesData(activeTab: FinanceHubTab): { loading: bool
       ],
       [
         activeTab,
+        fetchKey,
         filters.monthRange.from,
         filters.monthRange.to,
         filters.includeDrafts,
@@ -203,13 +232,18 @@ function useFinanceHubReceivablesData(activeTab: FinanceHubTab): { loading: bool
     )
 
     if (activeTab !== "billing") {
-      setRecords((prev) => (prev.length === 0 ? prev : []))
+      setLoading(false)
+      return
+    }
+
+    if (fetchKey === 0) {
       setLoading(false)
       return
     }
 
     let cancelled = false
     setLoading(true)
+    setLoadError(null)
     const params: Omit<FinanceBillingQuery, "billing_month"> = {}
     if (!filters.includeDrafts) params.include_drafts = false
     if (filters.selectedClients.length) params.clients_id = filters.selectedClients.join(",")
@@ -227,8 +261,16 @@ function useFinanceHubReceivablesData(activeTab: FinanceHubTab): { loading: bool
       .then((rows) => {
         if (cancelled) return
         setRecords(rows.filter((r) => isReceivableRecord(r)))
+        setLoadedSignature(filterSig)
       })
-      .catch(() => {})
+      .catch((e) => {
+        if (!cancelled) {
+          setRecords([])
+          setLoadedSignature(null)
+          setFetchKey(0)
+          setLoadError(e instanceof Error ? e.message : "Failed to load receivables")
+        }
+      })
       .finally(() => {
         if (!cancelled) setLoading(false)
       })
@@ -237,6 +279,8 @@ function useFinanceHubReceivablesData(activeTab: FinanceHubTab): { loading: bool
     }
   }, [
     activeTab,
+    fetchKey,
+    filterSig,
     filters.monthRange.from,
     filters.monthRange.to,
     filters.includeDrafts,
@@ -304,20 +348,39 @@ function useFinanceHubReceivablesData(activeTab: FinanceHubTab): { loading: bool
     return monthGroups.filter((g) => allowed.has(g.monthIso))
   }, [monthGroups, filters.monthRange])
 
-  return { loading, visibleMonthGroups }
+  return {
+    loading,
+    visibleMonthGroups,
+    filterSig,
+    loadedSignature,
+    loadError,
+    bumpReceivablesFetch,
+  }
 }
 
 /** Receivables list: current + next month, grouped month → client → media plan (matches client hub billing card patterns). */
 function FinanceHubReceivablesSection({
   visibleMonthGroups,
   loading,
+  awaitingExplicitLoad,
+  loadError,
 }: {
   visibleMonthGroups: MonthGroup[]
   loading: boolean
+  awaitingExplicitLoad: boolean
+  loadError: string | null
 }) {
   const emptyCopy = (
     <p className="py-10 text-sm text-muted-foreground">
       No receivable billing rows for the current filters and billing months in view.
+    </p>
+  )
+
+  const idleCopy = (
+    <p className="py-10 text-sm text-muted-foreground">
+      Use <span className="font-medium text-foreground">Load</span> or{" "}
+      <span className="font-medium text-foreground">Refresh</span> in the filter bar above to fetch receivables for the
+      current filters.
     </p>
   )
 
@@ -334,6 +397,12 @@ function FinanceHubReceivablesSection({
           <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
           Loading receivables…
         </div>
+      ) : loadError && !loading ? (
+        <p className="py-6 text-sm text-destructive" role="alert">
+          {loadError}
+        </p>
+      ) : !loading && awaitingExplicitLoad ? (
+        idleCopy
       ) : !loading && visibleMonthGroups.length === 0 ? (
         emptyCopy
       ) : (
@@ -402,69 +471,109 @@ function FinanceHubReceivablesSection({
                           </CollapsibleTrigger>
                           <CollapsibleContent>
                             <div className="grid gap-3 p-4 lg:grid-cols-2">
-                              {client.mediaPlans.flatMap((mp, mpIdx) =>
-                                mp.records.map((rec, recIdx) => (
-                                  <article
-                                    key={`${mg.monthIso}-${client.clientsId}-${mp.mbaNumber}-${mpIdx}-${rec.billing_type}-${rec.id}-${recIdx}`}
-                                    className="overflow-hidden rounded-md border border-border/60"
-                                  >
-                                    <div className="flex items-start justify-between gap-3 bg-muted/40 px-3 py-2.5">
-                                      <div className="min-w-0">
-                                        <p className="truncate text-sm font-medium">{mp.campaignName}</p>
-                                        {mp.mbaNumber ? (
-                                          <p className="truncate text-[11px] tabular-nums text-muted-foreground">
-                                            {mp.mbaNumber}
-                                          </p>
-                                        ) : null}
-                                      </div>
-                                      <div className="flex shrink-0 flex-col items-end gap-1">
-                                        <Badge
-                                          variant="secondary"
-                                          className={cn(
-                                            "text-[10px] font-semibold uppercase",
-                                            billingTypeBadgeClass(rec.billing_type)
-                                          )}
-                                        >
-                                          {receivableRecordSectionLabel(rec.billing_type)}
-                                        </Badge>
-                                        <p className="text-sm font-semibold tabular-nums">
-                                          {formatMoney(rec.total)}
+                              {client.mediaPlans.map((mp, mpIdx) => (
+                                <div
+                                  key={`${mg.monthIso}-${client.clientsId}-mp-${mpIdx}-${mp.mbaNumber}`}
+                                  className="col-span-full space-y-3 lg:col-span-2"
+                                >
+                                  <div className="flex flex-wrap items-start justify-between gap-2 border-b border-border/50 pb-2">
+                                    <div className="min-w-0">
+                                      <p className="truncate text-sm font-medium">{mp.campaignName}</p>
+                                      {mp.mbaNumber ? (
+                                        <p className="truncate text-[11px] tabular-nums text-muted-foreground">
+                                          {mp.mbaNumber}
                                         </p>
-                                      </div>
+                                      ) : null}
                                     </div>
-                                    <div className="px-3 py-1">
-                                      {(rec.line_items ?? []).length === 0 ? (
-                                        <p className="py-2 text-xs text-muted-foreground">No line items</p>
-                                      ) : (
-                                        [...(rec.line_items ?? [])]
-                                          .sort((a, b) => a.sort_order - b.sort_order)
-                                          .map((li, liIdx) => {
-                                            const { primary, channelLabel } =
-                                              formatLineItemDescription(li)
-                                            return (
-                                              <div
-                                                key={`li-${liIdx}-${li.sort_order}-${li.item_code}-${li.line_type}`}
-                                                className="flex items-start justify-between gap-3 border-b border-border/40 py-2 last:border-0"
-                                              >
-                                                <div className="min-w-0">
-                                                  <p className="truncate text-xs text-foreground">
-                                                    {primary}
-                                                  </p>
-                                                  <p className="mt-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-                                                    {channelLabel}
-                                                  </p>
-                                                </div>
-                                                <p className="shrink-0 text-xs tabular-nums text-muted-foreground">
-                                                  {formatMoney(li.amount)}
-                                                </p>
-                                              </div>
-                                            )
-                                          })
-                                      )}
-                                    </div>
-                                  </article>
-                                ))
-                              )}
+                                    {mp.mbaNumber ? (
+                                      <Button variant="outline" size="sm" asChild className="shrink-0">
+                                        <a
+                                          href={`/mediaplans/mba/${encodeURIComponent(mp.mbaNumber)}/edit`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                        >
+                                          Edit
+                                        </a>
+                                      </Button>
+                                    ) : (
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="shrink-0"
+                                        disabled
+                                        title="No MBA number on billing rows for this group"
+                                      >
+                                        Edit
+                                      </Button>
+                                    )}
+                                  </div>
+                                  <div className="grid gap-3 lg:grid-cols-2">
+                                    {mp.records.map((rec, recIdx) => (
+                                      <article
+                                        key={`${mg.monthIso}-${client.clientsId}-${mp.mbaNumber}-${mpIdx}-${rec.billing_type}-${rec.id}-${recIdx}`}
+                                        className="overflow-hidden rounded-md border border-border/60"
+                                      >
+                                        <div className="flex items-start justify-between gap-3 bg-muted/40 px-3 py-2.5">
+                                          <div className="min-w-0">
+                                            <p className="truncate text-xs font-medium capitalize text-muted-foreground">
+                                              {rec.status}
+                                            </p>
+                                            {rec.invoice_date ? (
+                                              <p className="mt-0.5 truncate text-[11px] tabular-nums text-muted-foreground">
+                                                {rec.invoice_date}
+                                              </p>
+                                            ) : null}
+                                          </div>
+                                          <div className="flex shrink-0 flex-col items-end gap-1">
+                                            <Badge
+                                              variant="secondary"
+                                              className={cn(
+                                                "text-[10px] font-semibold uppercase",
+                                                billingTypeBadgeClass(rec.billing_type)
+                                              )}
+                                            >
+                                              {receivableRecordSectionLabel(rec.billing_type)}
+                                            </Badge>
+                                            <p className="text-sm font-semibold tabular-nums">
+                                              {formatMoney(rec.total)}
+                                            </p>
+                                          </div>
+                                        </div>
+                                        <div className="px-3 py-1">
+                                          {(rec.line_items ?? []).length === 0 ? (
+                                            <p className="py-2 text-xs text-muted-foreground">No line items</p>
+                                          ) : (
+                                            [...(rec.line_items ?? [])]
+                                              .sort((a, b) => a.sort_order - b.sort_order)
+                                              .map((li, liIdx) => {
+                                                const { primary, channelLabel } =
+                                                  formatLineItemDescription(li)
+                                                return (
+                                                  <div
+                                                    key={`li-${liIdx}-${li.sort_order}-${li.item_code}-${li.line_type}`}
+                                                    className="flex items-start justify-between gap-3 border-b border-border/40 py-2 last:border-0"
+                                                  >
+                                                    <div className="min-w-0">
+                                                      <p className="truncate text-xs text-foreground">
+                                                        {primary}
+                                                      </p>
+                                                      <p className="mt-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                                                        {channelLabel}
+                                                      </p>
+                                                    </div>
+                                                    <p className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                                                      {formatMoney(li.amount)}
+                                                    </p>
+                                                  </div>
+                                                )
+                                              })
+                                          )}
+                                        </div>
+                                      </article>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
                             </div>
                           </CollapsibleContent>
                         </div>
@@ -519,7 +628,15 @@ export default function FinanceHubPageClient() {
     [filters.billingTypes]
   )
   const hubFetchStatusesKey = useMemo(() => [...filters.statuses].sort().join(","), [filters.statuses])
-  const { loading: hubReceivablesLoading, visibleMonthGroups } = useFinanceHubReceivablesData(activeTab)
+  const {
+    loading: hubReceivablesLoading,
+    visibleMonthGroups,
+    loadedSignature: hubReceivablesLoadedSignature,
+    filterSig: hubReceivablesFilterSig,
+    loadError: hubReceivablesLoadError,
+    bumpReceivablesFetch,
+  } = useFinanceHubReceivablesData(activeTab)
+  const hubReceivablesSynced = hubReceivablesLoadedSignature === hubReceivablesFilterSig
   const [financeReportDownloading, setFinanceReportDownloading] = useState(false)
   const setFilters = useFinanceStore((s) => s.setFilters)
   const setActiveTab = useFinanceStore((s) => s.setActiveTab)
@@ -952,7 +1069,17 @@ export default function FinanceHubPageClient() {
           </div>
 
           <div className="mt-3 rounded-md border border-border/60 bg-card px-3 py-2">
-            <FinanceFilterToolbar />
+            <FinanceFilterToolbar
+              receivables={
+                activeTab === "billing"
+                  ? {
+                      synced: hubReceivablesSynced,
+                      loading: hubReceivablesLoading,
+                      bump: bumpReceivablesFetch,
+                    }
+                  : undefined
+              }
+            />
           </div>
 
           {billingLoading ? (
@@ -969,6 +1096,8 @@ export default function FinanceHubPageClient() {
               <FinanceHubReceivablesSection
                 loading={hubReceivablesLoading}
                 visibleMonthGroups={visibleMonthGroups}
+                awaitingExplicitLoad={!hubReceivablesSynced}
+                loadError={hubReceivablesLoadError}
               />
             </TabsContent>
             <TabsContent value="payables" className="mt-0">
