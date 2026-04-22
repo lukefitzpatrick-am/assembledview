@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import { buildWeeklyGanttColumnsFromCampaign } from "../../lib/utils/weeklyGanttColumns.js"
+import { roundDeliverables } from "../../lib/mediaplan/deliverableBudget.js"
 import {
   deriveOohExpertRowScheduleYmd,
   mapOohExpertRowsToStandardLineItems,
@@ -91,7 +92,10 @@ test("OOH CPM uses net budget for deliverables when budgetIncludesFees + feePctO
 
   const gross = 10
   const net = gross / 1.1
-  assert.equal(line.bursts[0]!.calculatedValue, (net / 10) * 1000)
+  assert.equal(
+    line.bursts[0]!.calculatedValue,
+    roundDeliverables("cpm", (net / 10) * 1000)
+  )
 })
 
 test("OOH merged week span maps to a single burst from first week through last week", () => {
@@ -138,7 +142,7 @@ test("OOH merged week span maps to a single burst from first week through last w
   assert.equal(line.bursts[0]!.calculatedValue, 5)
 })
 
-test("Standard OOH burst spanning two week columns becomes mergedWeekSpans", () => {
+test("Standard OOH burst spanning two week columns splits deliverables across week columns", () => {
   const campaignStart = new Date(2024, 9, 23)
   const campaignEnd = new Date(2024, 9, 29)
   const cols = buildWeeklyGanttColumnsFromCampaign(campaignStart, campaignEnd)
@@ -166,12 +170,9 @@ test("Standard OOH burst spanning two week columns becomes mergedWeekSpans", () 
     campaignEnd
   )
 
-  assert.ok(row.mergedWeekSpans && row.mergedWeekSpans.length === 1)
-  assert.equal(row.mergedWeekSpans![0]!.startWeekKey, w0)
-  assert.equal(row.mergedWeekSpans![0]!.endWeekKey, w1)
-  assert.equal(row.mergedWeekSpans![0]!.totalQty, 5)
-  assert.equal(row.weeklyValues[w0], "")
-  assert.equal(row.weeklyValues[w1], "")
+  assert.equal(row.mergedWeekSpans, undefined)
+  assert.equal(row.weeklyValues[w0], 2.5)
+  assert.equal(row.weeklyValues[w1], 2.5)
 })
 
 test("Radio spots round-trip preserves id and weekly cell qty", () => {

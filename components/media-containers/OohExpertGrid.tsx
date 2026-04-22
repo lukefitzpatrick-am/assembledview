@@ -20,6 +20,7 @@ import { Copy, GitMerge, Grid3x3, Plus, Trash2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/use-toast"
@@ -46,6 +47,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { ExpertGridBillingHeaderLabel } from "@/components/media-containers/ExpertGridBillingHeaderLabel"
 import type {
   ExpertWeeklyValues,
   OohExpertMergedWeekSpan,
@@ -69,8 +71,13 @@ import {
 } from "@/lib/mediaplan/expertGridKeyboardNav"
 import {
   deriveOohExpertRowScheduleYmdFromRow,
+  expertRowFeeSplit,
   weekKeysInSpanInclusive,
 } from "@/lib/mediaplan/expertOohRadioMappings"
+import {
+  type BuyType,
+  netMediaFromOohExpertQuantity,
+} from "@/lib/mediaplan/deliverableBudget"
 import {
   buildWeeklyGanttColumnsFromCampaign,
   type WeeklyGanttWeekColumn,
@@ -1441,11 +1448,34 @@ function normalizeOohNetworkPaste(raw: string, networkNames: string[]): string {
 
 function rowGrossCost(row: OohExpertScheduleRow, weekKeys: string[]): number {
   const rate = parseNum(row.unitRate)
-  return (
-    rate *
-    (sumWeeklyQuantities(row.weeklyValues, weekKeys) +
-      sumMergedQuantities(row))
+  const qty =
+    sumWeeklyQuantities(row.weeklyValues, weekKeys) + sumMergedQuantities(row)
+  return netMediaFromOohExpertQuantity(
+    String(row.buyType || "").toLowerCase() as BuyType,
+    qty,
+    rate
   )
+}
+
+function rowNetMedia(
+  row: OohExpertScheduleRow,
+  weekKeys: string[],
+  feePct: number
+): number {
+  const raw = rowGrossCost(row, weekKeys)
+  return expertRowFeeSplit(raw, !!row.budgetIncludesFees, feePct).net
+}
+
+function rowNetMediaTooltip(
+  row: OohExpertScheduleRow,
+  qtySum: number
+): string {
+  const bt = String(row.buyType || "").toLowerCase()
+  const rate = parseNum(row.unitRate)
+  if (bt === "bonus") return "Bonus: net media = 0"
+  if (bt === "cpm")
+    return `CPM: (Σ qty / 1000) × rate (${qtySum} / 1000 × ${rate})`
+  return `Σ qty × rate (${qtySum} × ${rate})`
 }
 
 export function createEmptyOohExpertRow(
@@ -1509,10 +1539,8 @@ const OOH_DESCRIPTOR_CORE: readonly (keyof OohExpertScheduleRow)[] = [
   "format",
   "buyType",
   "placement",
-  "buyingDemo",
   "type",
   "size",
-  "market",
 ]
 
 const OOH_BILLING_FLAG_KEYS: readonly (keyof OohExpertScheduleRow)[] = [
@@ -1521,7 +1549,11 @@ const OOH_BILLING_FLAG_KEYS: readonly (keyof OohExpertScheduleRow)[] = [
   "budgetIncludesFees",
 ]
 
-const OOH_DESCRIPTOR_TAIL: readonly (keyof OohExpertScheduleRow)[] = ["unitRate"]
+const OOH_DESCRIPTOR_TAIL: readonly (keyof OohExpertScheduleRow)[] = [
+  "market",
+  "buyingDemo",
+  "unitRate",
+]
 
 function cumulativeLeftOffsets(widths: readonly number[]): number[] {
   const out: number[] = []
@@ -1629,7 +1661,7 @@ export function OohExpertGrid({
   )
   const weekKeys = useMemo(() => weekColumns.map((c) => c.weekKey), [weekColumns])
 
-  const [showBillingCols, setShowBillingCols] = useState(true)
+  const [showBillingCols, setShowBillingCols] = useState(false)
   const [weekStripSelection, setWeekStripSelection] = useState<{
     rowIndex: number
   } | null>(null)
@@ -1717,18 +1749,18 @@ export function OohExpertGrid({
   const oohDescriptorKeys = useMemo(
     () =>
       [
-        ...OOH_DESCRIPTOR_CORE,
         ...(showBillingCols ? [...OOH_BILLING_FLAG_KEYS] : []),
+        ...OOH_DESCRIPTOR_CORE,
         ...OOH_DESCRIPTOR_TAIL,
       ] as (keyof OohExpertScheduleRow)[],
     [showBillingCols]
   )
 
   const descriptorColWidths = useMemo(() => {
-    const core = [48, 48, 130, 130, 110, 120, 120, 96, 96, 96]
-    const billing = [40, 40, 40]
-    const tail = [88, 100, 76, 68]
-    return showBillingCols ? [...core, ...billing, ...tail] : [...core, ...tail]
+    const core = [48, 48, 130, 130, 110, 120, 96, 96]
+    const billing = [56, 56, 56]
+    const tail = [96, 120, 88, 100, 76, 68]
+    return showBillingCols ? [...billing, ...core, ...tail] : [...core, ...tail]
   }, [showBillingCols])
 
   const leftOffsets = useMemo(
@@ -3162,13 +3194,21 @@ export function OohExpertGrid({
   )
 
   const containerTotals = useMemo(() => {
-    let sumGross = 0
+    let sumNet = 0
+    let sumFee = 0
     let sumQty = 0
     const perWeek: Record<string, number> = {}
     for (const k of weekKeys) perWeek[k] = 0
 
     for (const row of normalizedRows) {
-      sumGross += rowGrossCost(row, weekKeys)
+      const raw = rowGrossCost(row, weekKeys)
+      const split = expertRowFeeSplit(
+        raw,
+        !!row.budgetIncludesFees,
+        feeooh
+      )
+      sumNet += split.net
+      sumFee += split.fee
       for (const k of weekKeys) {
         const q = parseNum(row.weeklyValues[k])
         perWeek[k] += q
@@ -3184,11 +3224,9 @@ export function OohExpertGrid({
       }
     }
 
-    const fee =
-      feeooh > 0 && feeooh < 100 ? (sumGross * feeooh) / (100 - feeooh) : 0
-    const totalWithFee = sumGross + fee
+    const totalWithFee = sumNet + sumFee
 
-    return { sumGross, sumQty, perWeek, fee, totalWithFee }
+    return { sumNet, sumQty, perWeek, fee: sumFee, totalWithFee }
   }, [feeooh, normalizedRows, weekKeys])
 
   const descriptorHeadLabels = useMemo(() => {
@@ -3199,16 +3237,14 @@ export function OohExpertGrid({
       "Format",
       "Buy Type",
       "Placement",
-      "Buying Demo",
       "Type",
       "Size",
-      "Market",
     ]
     const billing = showBillingCols
       ? ["Fixed Cost Media", "Client Pays for Media", "Budget Includes Fees"]
       : []
-    const tail = ["Unit Rate", "Net Media", "", "Σ qty"]
-    return [...core, ...billing, ...tail]
+    const tail = ["Market", "Buying Demo", "Unit Rate", "Net Media", "", "Σ qty"]
+    return [...billing, ...core, ...tail]
   }, [showBillingCols])
 
   const colIndexOf = useCallback(
@@ -3342,7 +3378,7 @@ export function OohExpertGrid({
                               </TooltipContent>
                             </Tooltip>
                           ) : (
-                            label
+                            <ExpertGridBillingHeaderLabel label={label} />
                           )}
                         </th>
                       ))}
@@ -3377,10 +3413,11 @@ export function OohExpertGrid({
                   </thead>
                   <tbody>
                     {normalizedRows.map((row, rowIndex) => {
-                      const gross = rowGrossCost(row, weekKeys)
+                      const net = rowNetMedia(row, weekKeys, feeooh)
                       const qtySum =
                         sumWeeklyQuantities(row.weeklyValues, weekKeys) +
                         sumMergedQuantities(row)
+                      const netMediaTooltip = rowNetMediaTooltip(row, qtySum)
                       const stripe =
                         rowIndex % 2 === 1 ? "bg-muted/10" : ""
                       const stripeStyle =
@@ -3419,6 +3456,109 @@ export function OohExpertGrid({
                           )}
                           style={stripeStyle}
                         >
+                          {showBillingCols ? (
+                            <>
+                              <td
+                                className={stickyTd(cFixed)}
+                                style={stickyStyleBody(cFixed)}
+                              >
+                                <div className="flex min-h-10 items-center justify-center py-1.5">
+                                  <Checkbox
+                                    id={expertGridCellId(
+                                      domGridId,
+                                      rowIndex,
+                                      cFixed
+                                    )}
+                                    checked={row.fixedCostMedia}
+                                    onCheckedChange={(v) =>
+                                      updateRow(rowIndex, {
+                                        fixedCostMedia: v === true,
+                                      })
+                                    }
+                                    onFocus={() =>
+                                      handleCellFocus(
+                                        rowIndex,
+                                        "fixedCostMedia"
+                                      )
+                                    }
+                                    onKeyDown={(e) =>
+                                      handleGridInputKeyDown(
+                                        rowIndex,
+                                        cFixed,
+                                        e as KeyboardEvent<HTMLInputElement>
+                                      )
+                                    }
+                                  />
+                                </div>
+                              </td>
+                              <td
+                                className={stickyTd(cClient)}
+                                style={stickyStyleBody(cClient)}
+                              >
+                                <div className="flex min-h-10 items-center justify-center py-1.5">
+                                  <Checkbox
+                                    id={expertGridCellId(
+                                      domGridId,
+                                      rowIndex,
+                                      cClient
+                                    )}
+                                    checked={row.clientPaysForMedia}
+                                    onCheckedChange={(v) =>
+                                      updateRow(rowIndex, {
+                                        clientPaysForMedia: v === true,
+                                      })
+                                    }
+                                    onFocus={() =>
+                                      handleCellFocus(
+                                        rowIndex,
+                                        "clientPaysForMedia"
+                                      )
+                                    }
+                                    onKeyDown={(e) =>
+                                      handleGridInputKeyDown(
+                                        rowIndex,
+                                        cClient,
+                                        e as KeyboardEvent<HTMLInputElement>
+                                      )
+                                    }
+                                  />
+                                </div>
+                              </td>
+                              <td
+                                className={stickyTd(cBif)}
+                                style={stickyStyleBody(cBif)}
+                              >
+                                <div className="flex min-h-10 items-center justify-center py-1.5">
+                                  <Checkbox
+                                    id={expertGridCellId(
+                                      domGridId,
+                                      rowIndex,
+                                      cBif
+                                    )}
+                                    checked={row.budgetIncludesFees}
+                                    onCheckedChange={(v) =>
+                                      updateRow(rowIndex, {
+                                        budgetIncludesFees: v === true,
+                                      })
+                                    }
+                                    onFocus={() =>
+                                      handleCellFocus(
+                                        rowIndex,
+                                        "budgetIncludesFees"
+                                      )
+                                    }
+                                    onKeyDown={(e) =>
+                                      handleGridInputKeyDown(
+                                        rowIndex,
+                                        cBif,
+                                        e as KeyboardEvent<HTMLInputElement>
+                                      )
+                                    }
+                                  />
+                                </div>
+                              </td>
+                            </>
+                          ) : null}
                           <td
                             className={stickyTd(cStart)}
                             style={stickyStyleBody(cStart)}
@@ -3570,31 +3710,6 @@ export function OohExpertGrid({
                             />
                           </td>
                           <td
-                            className={stickyTd(cDemo)}
-                            style={stickyStyleBody(cDemo)}
-                          >
-                            <Input
-                              id={expertGridCellId(
-                                domGridId,
-                                rowIndex,
-                                cDemo
-                              )}
-                              className="h-8 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-1"
-                              value={row.buyingDemo}
-                              onFocus={() =>
-                                handleCellFocus(rowIndex, "buyingDemo")
-                              }
-                              onKeyDown={(e) =>
-                                handleGridInputKeyDown(rowIndex, cDemo, e)
-                              }
-                              onChange={(e) =>
-                                updateRow(rowIndex, {
-                                  buyingDemo: e.target.value,
-                                })
-                              }
-                            />
-                          </td>
-                          <td
                             className={stickyTd(cType)}
                             style={stickyStyleBody(cType)}
                           >
@@ -3661,115 +3776,31 @@ export function OohExpertGrid({
                               }
                             />
                           </td>
-                          {showBillingCols ? (
-                            <>
-                              <td
-                                className={stickyTd(cFixed)}
-                                style={stickyStyleBody(cFixed)}
-                              >
-                                <div className="flex h-8 items-center justify-center">
-                                  <input
-                                    type="checkbox"
-                                    id={expertGridCellId(
-                                      domGridId,
-                                      rowIndex,
-                                      cFixed
-                                    )}
-                                    className="h-4 w-4 rounded border"
-                                    checked={row.fixedCostMedia}
-                                    onChange={(e) =>
-                                      updateRow(rowIndex, {
-                                        fixedCostMedia: e.target.checked,
-                                      })
-                                    }
-                                    onFocus={() =>
-                                      handleCellFocus(
-                                        rowIndex,
-                                        "fixedCostMedia"
-                                      )
-                                    }
-                                    onKeyDown={(e) =>
-                                      handleGridInputKeyDown(
-                                        rowIndex,
-                                        cFixed,
-                                        e
-                                      )
-                                    }
-                                  />
-                                </div>
-                              </td>
-                              <td
-                                className={stickyTd(cClient)}
-                                style={stickyStyleBody(cClient)}
-                              >
-                                <div className="flex h-8 items-center justify-center">
-                                  <input
-                                    type="checkbox"
-                                    id={expertGridCellId(
-                                      domGridId,
-                                      rowIndex,
-                                      cClient
-                                    )}
-                                    className="h-4 w-4 rounded border"
-                                    checked={row.clientPaysForMedia}
-                                    onChange={(e) =>
-                                      updateRow(rowIndex, {
-                                        clientPaysForMedia: e.target.checked,
-                                      })
-                                    }
-                                    onFocus={() =>
-                                      handleCellFocus(
-                                        rowIndex,
-                                        "clientPaysForMedia"
-                                      )
-                                    }
-                                    onKeyDown={(e) =>
-                                      handleGridInputKeyDown(
-                                        rowIndex,
-                                        cClient,
-                                        e
-                                      )
-                                    }
-                                  />
-                                </div>
-                              </td>
-                              <td
-                                className={stickyTd(cBif)}
-                                style={stickyStyleBody(cBif)}
-                              >
-                                <div className="flex h-8 items-center justify-center">
-                                  <input
-                                    type="checkbox"
-                                    id={expertGridCellId(
-                                      domGridId,
-                                      rowIndex,
-                                      cBif
-                                    )}
-                                    className="h-4 w-4 rounded border"
-                                    checked={row.budgetIncludesFees}
-                                    onChange={(e) =>
-                                      updateRow(rowIndex, {
-                                        budgetIncludesFees: e.target.checked,
-                                      })
-                                    }
-                                    onFocus={() =>
-                                      handleCellFocus(
-                                        rowIndex,
-                                        "budgetIncludesFees"
-                                      )
-                                    }
-                                    onKeyDown={(e) =>
-                                      handleGridInputKeyDown(
-                                        rowIndex,
-                                        cBif,
-                                        e
-                                      )
-                                    }
-                                  />
-                                </div>
-                              </td>
-                            </>
-                          ) : null}
+                          <td
+                            className={stickyTd(cDemo)}
+                            style={stickyStyleBody(cDemo)}
+                          >
+                            <Input
+                              id={expertGridCellId(
+                                domGridId,
+                                rowIndex,
+                                cDemo
+                              )}
+                              className="h-8 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-1"
+                              value={row.buyingDemo}
+                              onFocus={() =>
+                                handleCellFocus(rowIndex, "buyingDemo")
+                              }
+                              onKeyDown={(e) =>
+                                handleGridInputKeyDown(rowIndex, cDemo, e)
+                              }
+                              onChange={(e) =>
+                                updateRow(rowIndex, {
+                                  buyingDemo: e.target.value,
+                                })
+                              }
+                            />
+                          </td>
                           <td
                             className={stickyTd(cRate)}
                             style={stickyStyleBody(cRate)}
@@ -3807,9 +3838,9 @@ export function OohExpertGrid({
                           >
                             <div
                               className="flex h-8 items-center px-1 text-xs tabular-nums"
-                              title={`Σ weekly qty × unit rate (${qtySum} × ${parseNum(row.unitRate)})`}
+                              title={netMediaTooltip}
                             >
-                              {formatMoney(gross, moneyOpts)}
+                              {formatMoney(net, moneyOpts)}
                             </div>
                           </td>
                           <td
@@ -4000,7 +4031,7 @@ export function OohExpertGrid({
                               const tdClassName = cn(
                                 "border-b border-r p-0 align-middle",
                                 // Base states (empty / populated non-merged / merged anchor via wrapper).
-                                isEmptyWeekCell && "bg-background",
+                                isEmptyWeekCell && "bg-inherit",
                                 isPopulatedNonMergedCell &&
                                   OOH_WEEK_CELL_VISUAL_CLASSES.populatedSingleTd,
                                 // Selection overlays remain readable above base fills.
@@ -4652,7 +4683,7 @@ export function OohExpertGrid({
                         }}
                       >
                         <div className="flex h-full items-center">
-                          {formatMoney(containerTotals.sumGross, moneyOpts)}
+                          {formatMoney(containerTotals.sumNet, moneyOpts)}
                         </div>
                       </td>
                       <td
@@ -4730,7 +4761,7 @@ export function OohExpertGrid({
               <span className="inline-flex items-baseline gap-2 rounded-full border border-border/70 bg-background/80 px-3 py-1 text-xs shadow-sm">
                 <span className="text-muted-foreground">Net media</span>
                 <span className="font-semibold tabular-nums text-foreground">
-                  {formatMoney(containerTotals.sumGross, moneyOpts)}
+                  {formatMoney(containerTotals.sumNet, moneyOpts)}
                 </span>
               </span>
               <span className="inline-flex items-baseline gap-2 rounded-full border border-border/70 bg-background/80 px-3 py-1 text-xs shadow-sm">

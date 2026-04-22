@@ -3,8 +3,10 @@ import {
   type BuyType,
   coerceBuyTypeWithDevWarn,
   distributeBurstDeliverablesToExpertWeeks,
+  deliverablesFromBudget,
   grossFromNet,
   netMediaFromDeliverables,
+  netMediaFromOohExpertQuantity,
   roundDeliverables,
 } from "./deliverableBudget"
 import {
@@ -730,13 +732,12 @@ export function mapOohExpertRowsToStandardLineItems(
       }
     }
 
-    for (const span of row.mergedWeekSpans ?? []) {
-      const qty = span.totalQty
-      if (!Number.isFinite(qty) || qty === 0) continue
-      const startCol = weekColumns.find((c) => c.weekKey === span.startWeekKey)
-      const endCol = weekColumns.find((c) => c.weekKey === span.endWeekKey)
-      if (!startCol || !endCol) continue
-
+    const appendOohBurstFromExpertQty = (
+      qty: number,
+      startCol: WeeklyGanttWeekColumn,
+      endCol: WeeklyGanttWeekColumn
+    ) => {
+      if (!Number.isFinite(qty) || qty === 0) return
       const { start } = burstWindowForWeekColumn(
         startCol,
         campaignStartDate,
@@ -747,33 +748,56 @@ export function mapOohExpertRowsToStandardLineItems(
         campaignStartDate,
         campaignEndDate
       )
+      const bt = coerceBuyTypeWithDevWarn(
+        buyType,
+        "mapOohExpertRowsToStandardLineItems.appendBurst"
+      )
       const grossBudget =
         String(buyType || "").toLowerCase() === "cpm"
           ? qty * unitRate
           : expertRowRawCost(buyType, unitRate, qty)
-      const rawBudget = grossBudget
-      const netForCalc = oohNetBudgetForDeliverables(rawBudget, budgetIncludesFees, feePct)
-      const buyAmountStr = formatBurstBudget(qty)
-      const panelsRateStr = formatBurstBudget(unitRate)
-      const bonusVal = buyType === "bonus" ? qty : undefined
-      const calculatedValue =
-        buyType === "panels"
-          ? oohCalculatedDeliverables(buyType, netForCalc, unitRate, bonusVal)
-          : oohCalculatedDeliverables(buyType, netForCalc, qty, bonusVal)
-
+      const netForCalc = oohNetBudgetForDeliverables(
+        grossBudget,
+        budgetIncludesFees,
+        feePct
+      )
+      const btLower = String(buyType || "").toLowerCase()
+      const buyAmountStr =
+        btLower === "bonus"
+          ? "0"
+          : btLower === "panels"
+            ? formatBurstBudget(unitRate)
+            : formatMoney(unitRate)
+      let calculatedValue: number
+      if (btLower === "bonus") {
+        calculatedValue = roundDeliverables(bt, qty)
+      } else if (btLower === "cpm") {
+        calculatedValue = roundDeliverables(
+          bt,
+          qty !== 0 ? (netForCalc / qty) * 1000 : 0
+        )
+      } else {
+        const raw = deliverablesFromBudget(bt, netForCalc, unitRate)
+        calculatedValue = Number.isNaN(raw)
+          ? 0
+          : roundDeliverables(bt, raw)
+      }
       bursts.push({
-        budget: formatBurstBudget(rawBudget),
-        buyAmount:
-          buyType === "bonus"
-            ? "0"
-            : buyType === "panels"
-              ? panelsRateStr
-              : buyAmountStr,
+        budget: formatBurstBudget(grossBudget),
+        buyAmount: buyAmountStr,
         startDate: start,
         endDate: end,
         calculatedValue,
         fee: 0,
       })
+    }
+
+    for (const span of row.mergedWeekSpans ?? []) {
+      const qty = span.totalQty
+      const startCol = weekColumns.find((c) => c.weekKey === span.startWeekKey)
+      const endCol = weekColumns.find((c) => c.weekKey === span.endWeekKey)
+      if (!startCol || !endCol) continue
+      appendOohBurstFromExpertQty(qty, startCol, endCol)
     }
 
     for (const col of weekColumns) {
@@ -784,34 +808,7 @@ export function mapOohExpertRowsToStandardLineItems(
       const qty = typeof cell === "number" ? cell : parseNum(cell)
       if (!Number.isFinite(qty)) continue
 
-      const grossBudget =
-        String(buyType || "").toLowerCase() === "cpm"
-          ? qty * unitRate
-          : expertRowRawCost(buyType, unitRate, qty)
-      const { start, end } = burstWindowForWeekColumn(col, campaignStartDate, campaignEndDate)
-      const rawBudget = grossBudget
-      const netForCalc = oohNetBudgetForDeliverables(rawBudget, budgetIncludesFees, feePct)
-      const buyAmountStr = formatBurstBudget(qty)
-      const panelsRateStr = formatBurstBudget(unitRate)
-      const bonusVal = buyType === "bonus" ? qty : undefined
-      const calculatedValue =
-        buyType === "panels"
-          ? oohCalculatedDeliverables(buyType, netForCalc, unitRate, bonusVal)
-          : oohCalculatedDeliverables(buyType, netForCalc, qty, bonusVal)
-
-      bursts.push({
-        budget: formatBurstBudget(rawBudget),
-        buyAmount:
-          buyType === "bonus"
-            ? "0"
-            : buyType === "panels"
-              ? panelsRateStr
-              : buyAmountStr,
-        startDate: start,
-        endDate: end,
-        calculatedValue,
-        fee: 0,
-      })
+      appendOohBurstFromExpertQty(qty, col, col)
     }
 
     if (bursts.length === 0) {
@@ -1082,6 +1079,14 @@ function sumGrossBursts(bursts: StandardMediaBurst[]): number {
   return bursts.reduce((s, b) => s + parseNum(b.budget), 0)
 }
 
+function deriveOohStandardUnitRateFromBursts(bursts: StandardMediaBurst[]): number {
+  for (const b of bursts) {
+    const r = parseNum(b.buyAmount)
+    if (r > 0) return r
+  }
+  return 0
+}
+
 /**
  * One standard OOH line item → one expert row. Weekly quantities come from burst `buyAmount`;
  * same week keys are summed if multiple bursts fall in one week.
@@ -1095,50 +1100,46 @@ export function mapStandardOohLineItemsToExpertRows(
   return lineItems.map((item, index) => {
     const bursts = normalizeOohBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
+    const bt = coerceBuyTypeWithDevWarn(
+      buyType,
+      "mapStandardOohLineItemsToExpertRows"
+    )
 
     const weeklyValues: Record<string, number | ""> = {}
     for (const col of weekColumns) {
       weeklyValues[col.weekKey] = ""
     }
 
-    const mergedWeekSpans: {
-      id: string
-      startWeekKey: string
-      endWeekKey: string
-      totalQty: number
-    }[] = []
-    let mergeIdx = 0
-
     for (const b of bursts) {
       const sd = b.startDate
       const ed = b.endDate ?? b.startDate
       if (!sd || Number.isNaN(sd.getTime())) continue
-      const startKey = weekKeyFromDate(sd)
-      const endKey = weekKeyFromDate(ed)
-      if (!(startKey in weeklyValues)) continue
 
-      const qtyRaw = parseNum(b.buyAmount)
-      let cellQty = qtyRaw
-      if (buyType === "bonus") {
-        cellQty = typeof b.calculatedValue === "number" ? b.calculatedValue : 0
-      } else if (buyType === "fixed_cost" || buyType === "package") {
-        cellQty = qtyRaw > 0 ? qtyRaw : 1
-      } else if (buyType === "panels") {
-        cellQty = panelsBurstQtyForExpert(b)
+      let totalDeliverables =
+        buyType.toLowerCase() === "panels"
+          ? panelsBurstQtyForExpert(b)
+          : typeof b.calculatedValue === "number" && Number.isFinite(b.calculatedValue)
+            ? b.calculatedValue
+            : parseNum(b.calculatedValue)
+      if (!Number.isFinite(totalDeliverables)) continue
+      if (buyType.toLowerCase() === "fixed_cost") {
+        totalDeliverables = 1
       }
+      if (totalDeliverables === 0 && buyType.toLowerCase() !== "bonus") continue
 
-      if (startKey === endKey) {
-        const prev = weeklyValues[startKey]
-        const prevNum = prev === "" ? 0 : typeof prev === "number" ? prev : parseNum(prev)
-        weeklyValues[startKey] = prevNum + cellQty
-      } else {
-        mergedWeekSpans.push({
-          id: `std-${index}-m${mergeIdx++}`,
-          startWeekKey: startKey,
-          endWeekKey: endKey,
-          totalQty: cellQty,
-        })
-      }
+      const overlapKeys = radioWeekKeysOverlappingBurstWindow(
+        weekColumns,
+        campaignStartDate,
+        campaignEndDate,
+        sd,
+        ed
+      )
+      distributeBurstDeliverablesToExpertWeeks(
+        bt,
+        totalDeliverables,
+        overlapKeys,
+        weeklyValues
+      )
     }
 
     const firstBurst = bursts.find((b) => b.startDate && !Number.isNaN(b.startDate.getTime()))
@@ -1162,11 +1163,10 @@ export function mapStandardOohLineItemsToExpertRows(
       fixedCostMedia: Boolean(item.fixed_cost_media ?? item.fixedCostMedia),
       clientPaysForMedia: Boolean(item.client_pays_for_media ?? item.clientPaysForMedia),
       budgetIncludesFees: Boolean(item.budget_includes_fees ?? item.budgetIncludesFees),
-      unitRate: deriveUnitRateFromBursts(bursts, buyType),
+      unitRate: deriveOohStandardUnitRateFromBursts(bursts),
       grossCost: sumGrossBursts(bursts),
       weeklyValues,
-      mergedWeekSpans:
-        mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
+      mergedWeekSpans: undefined,
     }
   })
 }

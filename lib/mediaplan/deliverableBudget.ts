@@ -170,6 +170,46 @@ export function netFromGross(
   return grossBudget * (1 - feePct / 100);
 }
 
+/** OOH fee-on-gross model: net = gross / (1 + fee%/100) when budget includes fees. */
+export function netFromGrossOoh(
+  grossBudget: number,
+  budgetIncludesFees: boolean,
+  feePct: number
+): number {
+  if (!budgetIncludesFees) {
+    return grossBudget;
+  }
+  return grossBudget / (1 + (feePct || 0) / 100);
+}
+
+export function grossFromNetOoh(
+  netMedia: number,
+  budgetIncludesFees: boolean,
+  feePct: number
+): number {
+  if (!budgetIncludesFees) {
+    return netMedia;
+  }
+  return netMedia * (1 + (feePct || 0) / 100);
+}
+
+/**
+ * Net media $ from an OOH expert row cell / merged span qty.
+ * OOH CPM weekly values are thousand-impression blocks → gross = qty × CPM; other buy types match {@link netMediaFromDeliverables}.
+ */
+export function netMediaFromOohExpertQuantity(
+  buyType: BuyType,
+  qty: number,
+  unitRate: number
+): number {
+  if (buyType === "cpm") {
+    const q = Number.isFinite(qty) ? qty : 0;
+    const r = Number.isFinite(unitRate) ? unitRate : 0;
+    return q * r;
+  }
+  return netMediaFromDeliverables(buyType, qty, unitRate);
+}
+
 export function roundDeliverables(buyType: BuyType, value: number): number {
   switch (buyType) {
     case "cpm":
