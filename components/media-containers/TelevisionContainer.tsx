@@ -36,7 +36,13 @@ import { cn } from "@/lib/utils"
 import { ChevronDown, Copy, Plus, Trash2 } from "lucide-react"
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
 import type { LineItem } from '@/lib/generateMediaPlan'
-import { formatMoney } from "@/lib/utils/money"
+import { formatMoney, parseMoneyInput } from "@/lib/utils/money"
+import {
+  coerceBuyTypeWithDevWarn,
+  deliverablesFromBudget,
+  netFromGross,
+  roundDeliverables,
+} from "@/lib/mediaplan/deliverableBudget"
 import MediaContainerTimelineCollapsible from "@/components/media-containers/MediaContainerTimelineCollapsible"
 import {
   getMediaTypeThemeHex,
@@ -149,21 +155,50 @@ type TelevisionTarpsRhfField = {
   ref: RefCallback<HTMLInputElement>
 }
 
+function computeTelevisionLoadedDeliverables(
+  buyType: string,
+  burst: any,
+  budgetIncludesFees: boolean,
+  feePct: number
+): number {
+  const bt = coerceBuyTypeWithDevWarn(buyType, "TelevisionContainer.computeTelevisionLoadedDeliverables")
+  if (String(buyType || "").toLowerCase() === "bonus") {
+    return parseFloat(String(burst?.tarps ?? "0").replace(/[^0-9.]/g, "")) || 0
+  }
+  const gross =
+    parseFloat(String(burst?.budget ?? "0").replace(/[^0-9.]/g, "")) || 0
+  const buyAmount =
+    parseFloat(String(burst?.buyAmount ?? "1").replace(/[^0-9.]/g, "")) || 0
+  const net = netFromGross(gross, budgetIncludesFees, feePct)
+  const raw = deliverablesFromBudget(bt, net, buyAmount)
+  if (Number.isNaN(raw)) {
+    const t = parseFloat(String(burst?.tarps ?? "0").replace(/[^0-9.]/g, "")) || 0
+    return roundDeliverables(bt, t)
+  }
+  return roundDeliverables(bt, raw)
+}
+
 /** FormField render callbacks are not components; hooks must live here. */
 function TelevisionTarpsBurstField({
   form,
   lineItemIndex,
   burstIndex,
   field,
+  feetelevision,
 }: {
   form: UseFormReturn<TelevisionFormValues>
   lineItemIndex: number
   burstIndex: number
   field: TelevisionTarpsRhfField
+  feetelevision: number
 }) {
   const buyTypeWatch = useWatch({
     control: form.control,
     name: `televisionlineItems.${lineItemIndex}.buyType`,
+  })
+  const budgetIncludesFeesWatch = useWatch({
+    control: form.control,
+    name: `televisionlineItems.${lineItemIndex}.budgetIncludesFees`,
   })
   const budgetValue = useWatch({
     control: form.control,
@@ -173,38 +208,71 @@ function TelevisionTarpsBurstField({
     control: form.control,
     name: `televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount`,
   })
+  const tarpsWatch = useWatch({
+    control: form.control,
+    name: `televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.tarps`,
+  })
 
   const calculatedValue = useMemo(() => {
-    const budget = parseFloat(String(budgetValue)?.replace(/[^0-9.]/g, "") || "0")
+    const gross = parseFloat(String(budgetValue)?.replace(/[^0-9.]/g, "") || "0")
     const buyAmount = parseFloat(String(buyAmountValue)?.replace(/[^0-9.]/g, "") || "1")
-
-    switch (buyTypeWatch) {
-      case "cpt":
-      case "spots":
-        return buyAmount !== 0 ? budget / buyAmount : "0"
-      case "cpm":
-        return buyAmount !== 0 ? (budget / buyAmount) * 1000 : "0"
-      case "fixed_cost":
-        return "1"
-      default:
-        return "0"
+    const bt = coerceBuyTypeWithDevWarn(
+      String(buyTypeWatch || ""),
+      "TelevisionTarpsBurstField.calculatedValue"
+    )
+    const net = netFromGross(gross, Boolean(budgetIncludesFeesWatch), feetelevision || 0)
+    const raw = deliverablesFromBudget(bt, net, buyAmount)
+    if (Number.isNaN(raw)) {
+      const t = parseFloat(String(tarpsWatch ?? "0").replace(/[^0-9.]/g, "")) || 0
+      return t
     }
-  }, [budgetValue, buyAmountValue, buyTypeWatch])
+    return roundDeliverables(bt, raw)
+  }, [
+    budgetValue,
+    buyAmountValue,
+    buyTypeWatch,
+    budgetIncludesFeesWatch,
+    feetelevision,
+    tarpsWatch,
+  ])
 
   useEffect(() => {
-    if (buyTypeWatch === "bonus") return
-    const currentValue = form.getValues(
+    if (buyTypeWatch === "bonus" || buyTypeWatch === "package_inclusions") return
+    const gross = parseFloat(String(budgetValue ?? "").replace(/[^0-9.]/g, "") || "0")
+    const buyAmount = parseFloat(String(buyAmountValue ?? "").replace(/[^0-9.]/g, "") || "1")
+    const bt = coerceBuyTypeWithDevWarn(
+      String(buyTypeWatch || ""),
+      "TelevisionTarpsBurstField.syncTarps"
+    )
+    const net = netFromGross(gross, Boolean(budgetIncludesFeesWatch), feetelevision || 0)
+    const raw = deliverablesFromBudget(bt, net, buyAmount)
+    if (Number.isNaN(raw)) return
+    const next = roundDeliverables(bt, raw)
+    const currentTarps = form.getValues(
       `televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.tarps`
     )
-    const newValue = String(calculatedValue)
-
-    if (currentValue !== newValue) {
-      form.setValue(
-        `televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.tarps`,
-        newValue
-      )
-    }
-  }, [calculatedValue, lineItemIndex, burstIndex, form, buyTypeWatch])
+    const cur =
+      parseFloat(String(currentTarps ?? "0").replace(/[^0-9.]/g, "")) || 0
+    if (Math.abs(cur - next) <= 1e-6) return
+    form.setValue(
+      `televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.tarps`,
+      String(next)
+    )
+    form.setValue(
+      `televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`,
+      next,
+      { shouldValidate: false, shouldDirty: false }
+    )
+  }, [
+    budgetValue,
+    buyAmountValue,
+    buyTypeWatch,
+    budgetIncludesFeesWatch,
+    feetelevision,
+    lineItemIndex,
+    burstIndex,
+    form,
+  ])
 
   if (buyTypeWatch === "bonus") {
     return (
@@ -859,6 +927,13 @@ export default function TelevisionContainer({
           endDate: burst.endDate ? new Date(burst.endDate) : (campaignEndDate || new Date()),
           size: burst.size || "",
           tarps: burst.tarps || "",
+          calculatedValue: computeTelevisionLoadedDeliverables(
+            item.buy_type || item.buyType,
+            burst,
+            Boolean(item.budget_includes_fees || item.budgetIncludesFees),
+            feetelevision ?? 0
+          ),
+          fee: burst.fee ?? 0,
         })) : [{
           budget: "",
           buyAmount: "",
@@ -866,6 +941,13 @@ export default function TelevisionContainer({
           endDate: campaignEndDate || new Date(),
           size: "30s",
           tarps: "",
+          calculatedValue: computeTelevisionLoadedDeliverables(
+            item.buy_type || item.buyType,
+            {},
+            Boolean(item.budget_includes_fees || item.budgetIncludesFees),
+            feetelevision ?? 0
+          ),
+          fee: 0,
         }];
 
         const lineItemId = item.line_item_id || item.lineItemId || createLineItemId();
@@ -902,7 +984,7 @@ export default function TelevisionContainer({
         overallDeliverables: 0,
       });
     }
-  }, [initialLineItems, form, campaignStartDate, campaignEndDate, createLineItemId])
+  }, [initialLineItems, form, campaignStartDate, campaignEndDate, createLineItemId, feetelevision])
 
   // Callback handlers
   const handleLineItemValueChange = useCallback((lineItemIndex: number) => {
@@ -1320,6 +1402,7 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
         buyType:      lineItem.buyType,
         deliverablesAmount: burst.budget,
         grossMedia: String(mediaAmount),
+        clientPaysForMedia: lineItem.clientPaysForMedia ?? false,
         line_item_id: lineItemId,
         lineItemId: lineItemId,
         line_item: lineNumber,
@@ -2012,7 +2095,7 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
                                               }}
                                               onBlur={(e) => {
                                                 const value = e.target.value;
-                                                const formattedValue = formatMoney(Number.parseFloat(value) || 0, {
+                                                const formattedValue = formatMoney(parseMoneyInput(value) ?? 0, {
                                                   locale: "en-US",
                                                   currency: "USD",
                                                 });
@@ -2046,7 +2129,7 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
                                               }}
                                               onBlur={(e) => {
                                                 const value = e.target.value;
-                                                const formattedValue = formatMoney(Number.parseFloat(value) || 0, {
+                                                const formattedValue = formatMoney(parseMoneyInput(value) ?? 0, {
                                                   locale: "en-US",
                                                   currency: "USD",
                                                 });
@@ -2147,6 +2230,7 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
                                           lineItemIndex={lineItemIndex}
                                           burstIndex={burstIndex}
                                           field={field as TelevisionTarpsRhfField}
+                                          feetelevision={feetelevision}
                                         />
                                       )}
                                     />

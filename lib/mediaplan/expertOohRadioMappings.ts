@@ -1,9 +1,18 @@
 import { format, startOfDay } from "date-fns"
 import {
+  type BuyType,
+  coerceBuyTypeWithDevWarn,
+  distributeBurstDeliverablesToExpertWeeks,
+  grossFromNet,
+  netMediaFromDeliverables,
+  roundDeliverables,
+} from "./deliverableBudget"
+import {
   clampDateToCampaignRange,
   getSundayOnOrBefore,
   type WeeklyGanttWeekColumn,
 } from "../utils/weeklyGanttColumns"
+import { formatMoney } from "../utils/money"
 import type {
   ExpertWeekColumnKey,
   ExpertWeeklyValues,
@@ -12,6 +21,7 @@ import type {
   DigitalDisplayExpertScheduleRow,
   DigitalAudioExpertScheduleRow,
   InfluencersExpertScheduleRow,
+  IntegrationExpertScheduleRow,
   SearchExpertScheduleRow,
   SocialMediaExpertScheduleRow,
   OohExpertScheduleRow,
@@ -124,6 +134,8 @@ export interface ExpertToStandardBurstOptions {
   feePctSearch?: number
   /** Influencers: fee %; used with budgetIncludesFees (see InfluencersContainer). */
   feePctInfluencers?: number
+  /** Integration: fee %; used with budgetIncludesFees (see IntegrationContainer). */
+  feePctIntegration?: number
   /** Newspaper: fee %; used with budgetIncludesFees (see NewspaperContainer). */
   feePctNewspaper?: number
   /** Magazines: fee %; used with budgetIncludesFees (see MagazinesContainer). */
@@ -152,6 +164,48 @@ function formatBurstBudget(n: number): string {
   if (!Number.isFinite(n)) return "0"
   const rounded = Math.round(n * 100) / 100
   return String(rounded)
+}
+
+/**
+ * Raw expert-row media cost. Delegates to {@link netMediaFromDeliverables} for buy types
+ * in that model; keeps legacy `cpm` = `(qty / 1000) × unitRate` for grids that store full
+ * impression counts (Radio/Digital/etc.). OOH expert CPM uses thousand-blocks in the grid;
+ * {@link mapOohExpertRowsToStandardLineItems} uses `qty × unitRate` for gross there only.
+ */
+export function expertRowRawCost(
+  buyType: string | undefined | null,
+  unitRate: number,
+  qty: number
+): number {
+  const bt = String(buyType || "").toLowerCase()
+  const r = Number.isFinite(unitRate) ? unitRate : 0
+  const q = Number.isFinite(qty) ? qty : 0
+  if (bt === "bonus") return 0
+  if (bt === "cpm") return (q / 1000) * r
+  return netMediaFromDeliverables(bt as BuyType, q, r)
+}
+
+/**
+ * Per-row gross/net fee split mirroring the standard container burst math
+ * (see e.g. `RadioContainer.overallTotals`). `budgetIncludesFees = true`
+ * treats the raw cost as gross and slices net + fee out of it; `false`
+ * treats raw as net and stacks fee on top.
+ */
+export function expertRowFeeSplit(
+  rawCost: number,
+  budgetIncludesFees: boolean,
+  feePct: number
+): { net: number; fee: number } {
+  const raw = Number.isFinite(rawCost) ? rawCost : 0
+  const f = Number.isFinite(feePct) ? feePct || 0 : 0
+  if (budgetIncludesFees) {
+    return {
+      net: (raw * (100 - f)) / 100,
+      fee: (raw * f) / 100,
+    }
+  }
+  const fee = f > 0 && f < 100 ? (raw * f) / (100 - f) : 0
+  return { net: raw, fee }
 }
 
 /** Mirrors OOHContainer `netMediaFeeMarkup` for deliverable calculations. */
@@ -190,28 +244,6 @@ function oohCalculatedDeliverables(
       return amt !== 0 ? (netBudget / amt) * 1000 : 0
     case "fixed_cost":
     case "package":
-      return 1
-    case "bonus":
-      return bonusDeliverables ?? 0
-    default:
-      return 0
-  }
-}
-
-function radioCalculatedDeliverables(
-  buyType: string,
-  netBudget: number,
-  buyAmount: number,
-  bonusDeliverables?: number
-): number {
-  const amt = buyAmount || 0
-  switch (buyType) {
-    case "package":
-    case "spots":
-      return amt !== 0 ? netBudget / amt : 0
-    case "cpm":
-      return amt !== 0 ? (netBudget / amt) * 1000 : 0
-    case "fixed_cost":
       return 1
     case "bonus":
       return bonusDeliverables ?? 0
@@ -715,7 +747,10 @@ export function mapOohExpertRowsToStandardLineItems(
         campaignStartDate,
         campaignEndDate
       )
-      const grossBudget = qty * unitRate
+      const grossBudget =
+        String(buyType || "").toLowerCase() === "cpm"
+          ? qty * unitRate
+          : expertRowRawCost(buyType, unitRate, qty)
       const rawBudget = grossBudget
       const netForCalc = oohNetBudgetForDeliverables(rawBudget, budgetIncludesFees, feePct)
       const buyAmountStr = formatBurstBudget(qty)
@@ -749,7 +784,10 @@ export function mapOohExpertRowsToStandardLineItems(
       const qty = typeof cell === "number" ? cell : parseNum(cell)
       if (!Number.isFinite(qty)) continue
 
-      const grossBudget = qty * unitRate
+      const grossBudget =
+        String(buyType || "").toLowerCase() === "cpm"
+          ? qty * unitRate
+          : expertRowRawCost(buyType, unitRate, qty)
       const { start, end } = burstWindowForWeekColumn(col, campaignStartDate, campaignEndDate)
       const rawBudget = grossBudget
       const netForCalc = oohNetBudgetForDeliverables(rawBudget, budgetIncludesFees, feePct)
@@ -836,6 +874,8 @@ export function mapRadioExpertRowsToStandardLineItems(
       }
     }
 
+    const bt = String(buyType || "").toLowerCase() as BuyType
+
     for (const span of row.mergedWeekSpans ?? []) {
       const qty = span.totalQty
       if (!Number.isFinite(qty) || qty === 0) continue
@@ -853,21 +893,15 @@ export function mapRadioExpertRowsToStandardLineItems(
         campaignStartDate,
         campaignEndDate
       )
-      const grossBudget = qty * unitRate
-      const rawBudget = grossBudget
-      const netForCalc = radioNetBudgetForDeliverables(rawBudget, budgetIncludesFees, feePct)
-      const buyAmountStr = formatBurstBudget(qty)
-      const bonusVal = buyType === "bonus" ? qty : undefined
-      const calculatedValue = radioCalculatedDeliverables(
-        buyType,
-        netForCalc,
-        qty,
-        bonusVal
-      )
+      const netMedia = netMediaFromDeliverables(bt, qty, unitRate)
+      const grossBudget = grossFromNet(netMedia, budgetIncludesFees, feePct)
+      const calculatedValue = roundDeliverables(bt, qty)
+      const buyAmountStr =
+        buyType === "bonus" ? "0" : formatMoney(unitRate)
 
       bursts.push({
-        budget: formatBurstBudget(rawBudget),
-        buyAmount: buyType === "bonus" ? "0" : buyAmountStr,
+        budget: formatBurstBudget(grossBudget),
+        buyAmount: buyAmountStr,
         startDate: start,
         endDate: end,
         calculatedValue,
@@ -883,22 +917,16 @@ export function mapRadioExpertRowsToStandardLineItems(
       const qty = typeof cell === "number" ? cell : parseNum(cell)
       if (!Number.isFinite(qty)) continue
 
-      const grossBudget = qty * unitRate
+      const netMedia = netMediaFromDeliverables(bt, qty, unitRate)
+      const grossBudget = grossFromNet(netMedia, budgetIncludesFees, feePct)
+      const calculatedValue = roundDeliverables(bt, qty)
+      const buyAmountStr =
+        buyType === "bonus" ? "0" : formatMoney(unitRate)
       const { start, end } = burstWindowForWeekColumn(col, campaignStartDate, campaignEndDate)
-      const rawBudget = grossBudget
-      const netForCalc = radioNetBudgetForDeliverables(rawBudget, budgetIncludesFees, feePct)
-      const buyAmountStr = formatBurstBudget(qty)
-      const bonusVal = buyType === "bonus" ? qty : undefined
-      const calculatedValue = radioCalculatedDeliverables(
-        buyType,
-        netForCalc,
-        qty,
-        bonusVal
-      )
 
       bursts.push({
-        budget: formatBurstBudget(rawBudget),
-        buyAmount: buyType === "bonus" ? "0" : buyAmountStr,
+        budget: formatBurstBudget(grossBudget),
+        buyAmount: buyAmountStr,
         startDate: start,
         endDate: end,
         calculatedValue,
@@ -960,6 +988,77 @@ function deriveUnitRateFromBursts(
     if (qty > 0 && gross > 0) return gross / qty
   }
   return 0
+}
+
+/** Radio standard bursts store unit rate in `buyAmount` (see {@link mapRadioExpertRowsToStandardLineItems}). */
+function deriveRadioStandardUnitRateFromBursts(bursts: StandardMediaBurst[]): number {
+  for (const b of bursts) {
+    const r = parseNum(b.buyAmount)
+    if (r > 0) return r
+  }
+  return 0
+}
+
+export function radioWeekKeysOverlappingBurstWindow(
+  weekColumns: WeeklyGanttWeekColumn[],
+  campaignStartDate: Date,
+  campaignEndDate: Date,
+  sd: Date,
+  ed: Date
+): string[] {
+  const b0 = startOfDay(sd)
+  const b1 = startOfDay(ed)
+  const keys: string[] = []
+  for (const col of weekColumns) {
+    const { start, end } = burstWindowForWeekColumn(
+      col,
+      campaignStartDate,
+      campaignEndDate
+    )
+    if (b0 <= end && b1 >= start) keys.push(col.weekKey)
+  }
+  return keys
+}
+
+function addRadioWeeklyDelta(
+  weeklyValues: Record<string, number | "">,
+  key: string,
+  add: number
+) {
+  const prev = weeklyValues[key]
+  const prevNum =
+    prev === "" ? 0 : typeof prev === "number" ? prev : parseNum(prev)
+  weeklyValues[key] = prevNum + add
+}
+
+/** Splits standard burst deliverables across Gantt weeks; last week absorbs rounding remainder. */
+function distributeRadioStandardDeliverablesToWeeks(
+  buyType: string,
+  total: number,
+  overlapKeys: string[],
+  weeklyValues: Record<string, number | "">
+): void {
+  const bt = String(buyType || "").toLowerCase() as BuyType
+  if (overlapKeys.length === 0 || !Number.isFinite(total)) return
+
+  if (bt === "fixed_cost") {
+    addRadioWeeklyDelta(weeklyValues, overlapKeys[0]!, 1)
+    return
+  }
+
+  const n = overlapKeys.length
+  const each = total / n
+  let allocated = 0
+  for (let i = 0; i < n - 1; i++) {
+    const v = roundDeliverables(bt, each)
+    addRadioWeeklyDelta(weeklyValues, overlapKeys[i]!, v)
+    allocated += v
+  }
+  addRadioWeeklyDelta(
+    weeklyValues,
+    overlapKeys[n - 1]!,
+    roundDeliverables(bt, total - allocated)
+  )
 }
 
 /** Panel count for expert grid from a standard burst (handles legacy buyAmount-as-qty rows). */
@@ -1090,44 +1189,36 @@ export function mapStandardRadioLineItemsToExpertRows(
       weeklyValues[col.weekKey] = ""
     }
 
-    const mergedWeekSpans: {
-      id: string
-      startWeekKey: string
-      endWeekKey: string
-      totalQty: number
-    }[] = []
-    let mergeIdx = 0
-
     for (const b of bursts) {
       const sd = b.startDate
       const ed = b.endDate ?? b.startDate
       if (!sd || Number.isNaN(sd.getTime())) continue
-      const startKey = weekKeyFromDate(sd)
-      const endKey = weekKeyFromDate(ed)
-      if (!(startKey in weeklyValues)) continue
 
-      const qtyRaw = parseNum(b.buyAmount)
-      let cellQty = qtyRaw
-      if (buyType === "bonus") {
-        cellQty =
-          typeof b.calculatedValue === "number" ? b.calculatedValue : 0
-      } else if (buyType === "fixed_cost" || buyType === "package") {
-        cellQty = qtyRaw > 0 ? qtyRaw : 1
+      const totalDeliverablesRaw = b.calculatedValue
+      let totalDeliverables =
+        typeof totalDeliverablesRaw === "number" &&
+        Number.isFinite(totalDeliverablesRaw)
+          ? totalDeliverablesRaw
+          : parseNum(totalDeliverablesRaw)
+      if (!Number.isFinite(totalDeliverables)) continue
+      if (buyType === "fixed_cost") {
+        totalDeliverables = 1
       }
+      if (totalDeliverables === 0 && buyType !== "bonus") continue
 
-      if (startKey === endKey) {
-        const prev = weeklyValues[startKey]
-        const prevNum =
-          prev === "" ? 0 : typeof prev === "number" ? prev : parseNum(prev)
-        weeklyValues[startKey] = prevNum + cellQty
-      } else {
-        mergedWeekSpans.push({
-          id: `std-${index}-m${mergeIdx++}`,
-          startWeekKey: startKey,
-          endWeekKey: endKey,
-          totalQty: cellQty,
-        })
-      }
+      const overlapKeys = radioWeekKeysOverlappingBurstWindow(
+        weekColumns,
+        campaignStartDate,
+        campaignEndDate,
+        sd,
+        ed
+      )
+      distributeRadioStandardDeliverablesToWeeks(
+        buyType,
+        totalDeliverables,
+        overlapKeys,
+        weeklyValues
+      )
     }
 
     const firstBurst = bursts.find(
@@ -1168,11 +1259,10 @@ export function mapStandardRadioLineItemsToExpertRows(
       budgetIncludesFees: Boolean(
         item.budget_includes_fees ?? item.budgetIncludesFees
       ),
-      unitRate: deriveUnitRateFromBursts(bursts),
+      // Standard `buyAmount` is unit rate (same value as expert `unitRate`).
+      unitRate: deriveRadioStandardUnitRateFromBursts(bursts),
       grossCost: sumGrossBursts(bursts),
       weeklyValues,
-      mergedWeekSpans:
-        mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
     }
   })
 }
@@ -1220,42 +1310,12 @@ function normalizeTelevisionBursts(item: StandardTelevisionLineItemInput): Stand
   return normalizeOohBursts(item) as StandardTelevisionBurst[]
 }
 
-function televisionCalculatedDeliverables(
-  buyType: string,
-  netBudget: number,
-  rateOrQty: number,
-  bonusDeliverables?: number
-): number {
-  const bt = buyType.toLowerCase()
-  const amt = rateOrQty || 0
-  switch (bt) {
-    case "cpt":
-    case "spots":
-    case "cpp":
-      return amt !== 0 ? netBudget / amt : 0
-    case "cpm":
-      return amt !== 0 ? (netBudget / amt) * 1000 : 0
-    case "fixed_cost":
-    case "package":
-      return 1
-    case "bonus":
-      return bonusDeliverables ?? 0
-    default:
-      return 0
+function deriveTvStandardUnitRateFromBursts(bursts: StandardTelevisionBurst[]): number {
+  for (const b of bursts) {
+    const r = parseNum(b.buyAmount)
+    if (r > 0) return r
   }
-}
-
-function tvBurstBuyAmountField(
-  buyType: string,
-  unitRate: number,
-  qty: number
-): string {
-  const bt = buyType.toLowerCase()
-  if (bt === "bonus") return "0"
-  if (bt === "spots" || bt === "cpt" || bt === "cpm" || bt === "cpp") {
-    return formatBurstBudget(unitRate)
-  }
-  return formatBurstBudget(qty)
+  return 0
 }
 
 /**
@@ -1408,35 +1468,26 @@ export function mapTvExpertRowsToStandardLineItems(
         campaignStartDate,
         campaignEndDate
       )
-      const grossBudget = qty * unitRate
-      const rawBudget = grossBudget
-      const netForCalc = radioNetBudgetForDeliverables(
-        rawBudget,
-        budgetIncludesFees,
-        feePct
-      )
-      const buyAmt = parseNum(tvBurstBuyAmountField(buyType, unitRate, qty))
-      const bonusVal =
-        buyType.toLowerCase() === "bonus" ? qty : undefined
-      const calculatedValue = televisionCalculatedDeliverables(
+      const bt = coerceBuyTypeWithDevWarn(
         buyType,
-        netForCalc,
-        buyAmt,
-        bonusVal
+        "mapTvExpertRowsToStandardLineItems.pushBurst"
       )
+      const netMedia = netMediaFromDeliverables(bt, qty, unitRate)
+      const grossBudget = grossFromNet(netMedia, budgetIncludesFees, feePct)
+      const calculatedValue = roundDeliverables(bt, qty)
+      const buyAmountStr =
+        String(buyType || "").toLowerCase() === "bonus"
+          ? "0"
+          : formatMoney(unitRate)
       bursts.push({
-        budget: formatBurstBudget(rawBudget),
-        buyAmount: tvBurstBuyAmountField(buyType, unitRate, qty),
+        budget: formatBurstBudget(grossBudget),
+        buyAmount: buyAmountStr,
         startDate: start,
         endDate: end,
         calculatedValue,
         fee: 0,
         size: lineSize,
-        tarps: String(
-          Number.isFinite(calculatedValue)
-            ? Math.round(calculatedValue)
-            : calculatedValue
-        ),
+        tarps: String(calculatedValue),
       })
     }
 
@@ -1500,53 +1551,48 @@ export function mapStandardTvLineItemsToExpertRows(
   return lineItems.map((item, index) => {
     const bursts = normalizeTelevisionBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
+    const bt = coerceBuyTypeWithDevWarn(
+      buyType,
+      "mapStandardTvLineItemsToExpertRows"
+    )
 
     const weeklyValues: Record<string, number | ""> = {}
     for (const col of weekColumns) {
       weeklyValues[col.weekKey] = ""
     }
 
-    const mergedWeekSpans: {
-      id: string
-      startWeekKey: string
-      endWeekKey: string
-      totalQty: number
-    }[] = []
-    let mergeIdx = 0
-
     for (const b of bursts) {
       const sd = b.startDate
       const ed = b.endDate ?? b.startDate
       if (!sd || Number.isNaN(sd.getTime())) continue
-      const startKey = weekKeyFromDate(sd)
-      const endKey = weekKeyFromDate(ed)
-      if (!(startKey in weeklyValues)) continue
 
-      const qtyRaw = parseNum(b.buyAmount)
-      let cellQty = qtyRaw
-      if (buyType.toLowerCase() === "bonus") {
-        cellQty =
-          typeof b.calculatedValue === "number" ? b.calculatedValue : 0
-      } else if (
-        buyType.toLowerCase() === "fixed_cost" ||
-        buyType.toLowerCase() === "package"
-      ) {
-        cellQty = qtyRaw > 0 ? qtyRaw : 1
+      let totalDeliverables = parseNum(b.tarps)
+      if (!Number.isFinite(totalDeliverables) || totalDeliverables === 0) {
+        const cv = b.calculatedValue
+        totalDeliverables =
+          typeof cv === "number" && Number.isFinite(cv) ? cv : parseNum(cv)
       }
+      if (!Number.isFinite(totalDeliverables)) continue
 
-      if (startKey === endKey) {
-        const prev = weeklyValues[startKey]
-        const prevNum =
-          prev === "" ? 0 : typeof prev === "number" ? prev : parseNum(prev)
-        weeklyValues[startKey] = prevNum + cellQty
-      } else {
-        mergedWeekSpans.push({
-          id: `std-${index}-m${mergeIdx++}`,
-          startWeekKey: startKey,
-          endWeekKey: endKey,
-          totalQty: cellQty,
-        })
+      const btLower = buyType.toLowerCase()
+      if (btLower === "fixed_cost") {
+        totalDeliverables = 1
       }
+      if (totalDeliverables === 0 && btLower !== "bonus") continue
+
+      const overlapKeys = radioWeekKeysOverlappingBurstWindow(
+        weekColumns,
+        campaignStartDate,
+        campaignEndDate,
+        sd,
+        ed
+      )
+      distributeBurstDeliverablesToExpertWeeks(
+        bt,
+        totalDeliverables,
+        overlapKeys,
+        weeklyValues
+      )
     }
 
     const firstBurst = bursts.find(
@@ -1567,8 +1613,8 @@ export function mapStandardTvLineItemsToExpertRows(
     const sizeFromBurst = firstBurst?.size
       ? String(firstBurst.size)
       : "30s"
-    const tarpsSum = bursts.reduce(
-      (s, b) => s + parseNum(b.tarps ?? b.calculatedValue),
+    const tarpsSum = weekColumns.reduce(
+      (s, col) => s + parseNum(weeklyValues[col.weekKey]),
       0
     )
 
@@ -1596,11 +1642,10 @@ export function mapStandardTvLineItemsToExpertRows(
       budgetIncludesFees: Boolean(
         item.budget_includes_fees ?? item.budgetIncludesFees
       ),
-      unitRate: deriveUnitRateFromBursts(bursts),
+      unitRate: deriveTvStandardUnitRateFromBursts(bursts),
       grossCost: sumGrossBursts(bursts),
       weeklyValues,
-      mergedWeekSpans:
-        mergedWeekSpans.length > 0 ? mergedWeekSpans : [],
+      mergedWeekSpans: [],
     }
   })
 }
@@ -1808,7 +1853,7 @@ export function mapBvodExpertRowsToStandardLineItems(
         campaignStartDate,
         campaignEndDate
       )
-      const grossBudget = qty * unitRate
+      const grossBudget = expertRowRawCost(buyType, unitRate, qty)
       const rawBudget = grossBudget
       const netForCalc = radioNetBudgetForDeliverables(
         rawBudget,
@@ -2185,7 +2230,7 @@ export function mapDigiVideoExpertRowsToStandardLineItems(
         campaignStartDate,
         campaignEndDate
       )
-      const grossBudget = qty * unitRate
+      const grossBudget = expertRowRawCost(buyType, unitRate, qty)
       const rawBudget = grossBudget
       const netForCalc = oohNetBudgetForDeliverables(
         rawBudget,
@@ -2565,7 +2610,7 @@ export function mapDigitalDisplayExpertRowsToStandardLineItems(
         campaignStartDate,
         campaignEndDate
       )
-      const grossBudget = qty * unitRate
+      const grossBudget = expertRowRawCost(buyType, unitRate, qty)
       const rawBudget = grossBudget
       const netForCalc = oohNetBudgetForDeliverables(
         rawBudget,
@@ -2939,7 +2984,7 @@ export function mapDigitalAudioExpertRowsToStandardLineItems(
         campaignStartDate,
         campaignEndDate
       )
-      const grossBudget = qty * unitRate
+      const grossBudget = expertRowRawCost(buyType, unitRate, qty)
       const rawBudget = grossBudget
       const netForCalc = oohNetBudgetForDeliverables(
         rawBudget,
@@ -3309,7 +3354,7 @@ export function mapSocialMediaExpertRowsToStandardLineItems(
         campaignStartDate,
         campaignEndDate
       )
-      const grossBudget = qty * unitRate
+      const grossBudget = expertRowRawCost(buyType, unitRate, qty)
       const rawBudget = grossBudget
       const netForCalc = radioNetBudgetForDeliverables(
         rawBudget,
@@ -3668,7 +3713,7 @@ export function mapSearchExpertRowsToStandardLineItems(
         campaignStartDate,
         campaignEndDate
       )
-      const grossBudget = qty * unitRate
+      const grossBudget = expertRowRawCost(buyType, unitRate, qty)
       const rawBudget = grossBudget
       const netForCalc = radioNetBudgetForDeliverables(
         rawBudget,
@@ -4032,7 +4077,7 @@ export function mapInfluencersExpertRowsToStandardLineItems(
         campaignStartDate,
         campaignEndDate
       )
-      const grossBudget = qty * unitRate
+      const grossBudget = expertRowRawCost(buyType, unitRate, qty)
       const rawBudget = grossBudget
       const netForCalc = radioNetBudgetForDeliverables(
         rawBudget,
@@ -4119,6 +4164,378 @@ export function mapStandardInfluencersLineItemsToExpertRows(
 ): InfluencersExpertScheduleRow[] {
   return lineItems.map((item, index) => {
     const bursts = normalizeInfluencersBursts(item)
+    const buyType = String(item.buyType ?? item.buy_type ?? "")
+
+    const weeklyValues: Record<string, number | ""> = {}
+    for (const col of weekColumns) {
+      weeklyValues[col.weekKey] = ""
+    }
+
+    const mergedWeekSpans: {
+      id: string
+      startWeekKey: string
+      endWeekKey: string
+      totalQty: number
+    }[] = []
+    let mergeIdx = 0
+
+    for (const b of bursts) {
+      const sd = b.startDate
+      const ed = b.endDate ?? b.startDate
+      if (!sd || Number.isNaN(sd.getTime())) continue
+      const startKey = weekKeyFromDate(sd)
+      const endKey = weekKeyFromDate(ed)
+      if (!(startKey in weeklyValues)) continue
+
+      const qtyRaw = parseNum(b.buyAmount)
+      const buyTypeLower = buyType.toLowerCase()
+      let cellQty = qtyRaw
+      if (buyTypeLower === "bonus") {
+        cellQty =
+          typeof b.calculatedValue === "number" ? b.calculatedValue : 0
+      } else if (
+        buyTypeLower === "fixed_cost" ||
+        buyTypeLower === "package_inclusions"
+      ) {
+        cellQty = qtyRaw > 0 ? qtyRaw : 1
+      }
+
+      if (startKey === endKey) {
+        const prev = weeklyValues[startKey]
+        const prevNum =
+          prev === "" ? 0 : typeof prev === "number" ? prev : parseNum(prev)
+        weeklyValues[startKey] = prevNum + cellQty
+      } else {
+        mergedWeekSpans.push({
+          id: `std-${index}-m${mergeIdx++}`,
+          startWeekKey: startKey,
+          endWeekKey: endKey,
+          totalQty: cellQty,
+        })
+      }
+    }
+
+    const firstBurst = bursts.find(
+      (b) => b.startDate && !Number.isNaN(b.startDate.getTime())
+    )
+    const lastBurst = [...bursts]
+      .reverse()
+      .find((b) => b.endDate && !Number.isNaN(b.endDate.getTime()))
+
+    const id = String(
+      item.line_item_id ??
+        item.lineItemId ??
+        item.line_item ??
+        item.lineItem ??
+        index + 1
+    )
+
+    return {
+      id,
+      startDate: firstBurst
+        ? formatYmd(firstBurst.startDate)
+        : formatYmd(campaignStartDate),
+      endDate: lastBurst
+        ? formatYmd(lastBurst.endDate)
+        : formatYmd(campaignEndDate),
+      platform: String(item.platform ?? ""),
+      objective: String(item.objective ?? ""),
+      campaign: String(item.campaign ?? ""),
+      bidStrategy: String(item.bidStrategy ?? ""),
+      buyType,
+      targetingAttribute: String(
+        item.targetingAttribute ?? item.targeting_attribute ?? ""
+      ),
+      creativeTargeting: String(
+        item.creativeTargeting ?? item.creative_targeting ?? ""
+      ),
+      creative: String(item.creative ?? ""),
+      buyingDemo: String(item.buyingDemo ?? item.buying_demo ?? ""),
+      market: String(item.market ?? ""),
+      fixedCostMedia: Boolean(item.fixed_cost_media ?? item.fixedCostMedia),
+      clientPaysForMedia: Boolean(
+        item.client_pays_for_media ?? item.clientPaysForMedia
+      ),
+      budgetIncludesFees: Boolean(
+        item.budget_includes_fees ?? item.budgetIncludesFees
+      ),
+      unitRate: deriveUnitRateFromBursts(bursts),
+      grossCost: sumGrossBursts(bursts),
+      weeklyValues,
+      mergedWeekSpans:
+        mergedWeekSpans.length > 0 ? mergedWeekSpans : [],
+    }
+  })
+}
+
+/** Integration `lineItems` entry shape used by {@link IntegrationContainer}. */
+export interface StandardIntegrationFormLineItem {
+  platform: string
+  objective: string
+  campaign: string
+  bidStrategy: string
+  buyType: string
+  targetingAttribute: string
+  creativeTargeting: string
+  creative: string
+  buyingDemo: string
+  market: string
+  fixedCostMedia: boolean
+  clientPaysForMedia: boolean
+  budgetIncludesFees: boolean
+  noAdserving: boolean
+  lineItemId?: string
+  line_item_id?: string
+  line_item?: number | string
+  lineItem?: number | string
+  bursts: StandardMediaBurst[]
+}
+
+export type StandardIntegrationLineItemInput = Partial<StandardIntegrationFormLineItem> & {
+  buy_type?: string
+  buying_demo?: string
+  creative_targeting?: string
+  targeting_attribute?: string
+  fixed_cost_media?: boolean
+  client_pays_for_media?: boolean
+  budget_includes_fees?: boolean
+  no_adserving?: boolean
+  bursts_json?: string | object
+}
+
+function normalizeIntegrationBursts(
+  item: StandardIntegrationLineItemInput
+): StandardMediaBurst[] {
+  return normalizeOohBursts(item)
+}
+
+export function deriveIntegrationExpertRowScheduleYmdFromRow(
+  row: IntegrationExpertScheduleRow,
+  weekColumns: WeeklyGanttWeekColumn[],
+  campaignStartDate: Date,
+  campaignEndDate: Date
+): { startDate: string; endDate: string } {
+  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
+  const weekKeyOrder = weekColumns.map((c) => c.weekKey)
+  let firstCol: WeeklyGanttWeekColumn | null = null
+  let lastCol: WeeklyGanttWeekColumn | null = null
+
+  const touch = (col: WeeklyGanttWeekColumn) => {
+    if (!firstCol) firstCol = col
+    lastCol = col
+  }
+
+  for (const col of weekColumns) {
+    const v = row.weeklyValues[col.weekKey]
+    if (weekCellIsActive(v)) touch(col)
+  }
+
+  for (const span of row.mergedWeekSpans ?? []) {
+    if (!Number.isFinite(span.totalQty) || span.totalQty === 0) continue
+    const keys = weekKeysInSpanInclusive(
+      weekKeyOrder,
+      span.startWeekKey,
+      span.endWeekKey
+    )
+    for (const k of keys) {
+      const col = weekColumns.find((c) => c.weekKey === k)
+      if (col) touch(col)
+    }
+  }
+
+  if (!firstCol || !lastCol) {
+    return {
+      startDate: ymd(campaignStartDate),
+      endDate: ymd(campaignEndDate),
+    }
+  }
+  const { start } = burstWindowForWeekColumn(
+    firstCol,
+    campaignStartDate,
+    campaignEndDate
+  )
+  const { end } = burstWindowForWeekColumn(
+    lastCol,
+    campaignStartDate,
+    campaignEndDate
+  )
+  return { startDate: ymd(start), endDate: ymd(end) }
+}
+
+function emptyIntegrationLineItem(
+  row: IntegrationExpertScheduleRow,
+  campaignStartDate: Date,
+  campaignEndDate: Date,
+  lineNo: number,
+  budgetIncludesFees: boolean
+): StandardIntegrationFormLineItem {
+  const id = row.id || String(lineNo)
+  return {
+    platform: row.platform,
+    objective: row.objective,
+    campaign: row.campaign,
+    bidStrategy: row.bidStrategy,
+    buyType: row.buyType,
+    targetingAttribute: row.targetingAttribute,
+    creativeTargeting: row.creativeTargeting,
+    creative: row.creative,
+    buyingDemo: row.buyingDemo,
+    market: row.market,
+    fixedCostMedia: Boolean(row.fixedCostMedia),
+    clientPaysForMedia: Boolean(row.clientPaysForMedia),
+    budgetIncludesFees: Boolean(row.budgetIncludesFees ?? budgetIncludesFees),
+    noAdserving: false,
+    lineItemId: id,
+    line_item_id: id,
+    line_item: lineNo,
+    lineItem: lineNo,
+    bursts: [
+      {
+        budget: "",
+        buyAmount: "",
+        startDate: startOfDay(
+          clampDateToCampaignRange(campaignStartDate, campaignStartDate, campaignEndDate)
+        ),
+        endDate: startOfDay(
+          clampDateToCampaignRange(campaignEndDate, campaignStartDate, campaignEndDate)
+        ),
+        calculatedValue: 0,
+        fee: 0,
+      },
+    ],
+  }
+}
+
+export function mapIntegrationExpertRowsToStandardLineItems(
+  rows: IntegrationExpertScheduleRow[],
+  weekColumns: WeeklyGanttWeekColumn[],
+  campaignStartDate: Date,
+  campaignEndDate: Date,
+  options?: ExpertToStandardBurstOptions
+): StandardIntegrationFormLineItem[] {
+  const feePct = options?.feePctIntegration ?? 0
+
+  return rows.map((row, idx) => {
+    const lineNo = idx + 1
+    const unitRate = parseNum(row.unitRate)
+    const buyType = row.buyType
+    const id = row.id || String(lineNo)
+    const budgetIncludesFees = Boolean(
+      row.budgetIncludesFees ?? options?.budgetIncludesFees ?? false
+    )
+
+    const bursts: StandardMediaBurst[] = []
+    const weekKeyOrder = weekColumns.map((c) => c.weekKey)
+    const coveredByMerged = new Set<string>()
+    for (const span of row.mergedWeekSpans ?? []) {
+      for (const k of weekKeysInSpanInclusive(
+        weekKeyOrder,
+        span.startWeekKey,
+        span.endWeekKey
+      )) {
+        coveredByMerged.add(k)
+      }
+    }
+
+    const pushBurst = (qty: number, startCol: WeeklyGanttWeekColumn, endCol: WeeklyGanttWeekColumn) => {
+      if (!Number.isFinite(qty) || qty === 0) return
+      const { start } = burstWindowForWeekColumn(
+        startCol,
+        campaignStartDate,
+        campaignEndDate
+      )
+      const { end } = burstWindowForWeekColumn(
+        endCol,
+        campaignStartDate,
+        campaignEndDate
+      )
+      const grossBudget = expertRowRawCost(buyType, unitRate, qty)
+      const rawBudget = grossBudget
+      const netForCalc = radioNetBudgetForDeliverables(
+        rawBudget,
+        budgetIncludesFees,
+        feePct
+      )
+      const buyAmountStr = formatBurstBudget(qty)
+      const bonusVal = buyType.toLowerCase() === "bonus" ? qty : undefined
+      const buyAmtNum = buyType.toLowerCase() === "bonus" ? 0 : qty
+      const calculatedValue = bvodCalculatedDeliverables(
+        buyType,
+        netForCalc,
+        buyAmtNum,
+        bonusVal
+      )
+
+      bursts.push({
+        budget: formatBurstBudget(rawBudget),
+        buyAmount: buyType.toLowerCase() === "bonus" ? "0" : buyAmountStr,
+        startDate: start,
+        endDate: end,
+        calculatedValue,
+        fee: 0,
+      })
+    }
+
+    for (const span of row.mergedWeekSpans ?? []) {
+      const startCol = weekColumns.find((c) => c.weekKey === span.startWeekKey)
+      const endCol = weekColumns.find((c) => c.weekKey === span.endWeekKey)
+      if (!startCol || !endCol) continue
+      pushBurst(span.totalQty, startCol, endCol)
+    }
+
+    for (const col of weekColumns) {
+      if (coveredByMerged.has(col.weekKey)) continue
+      const cell = row.weeklyValues[col.weekKey]
+      if (cell === "" || cell === undefined) continue
+
+      const qty = typeof cell === "number" ? cell : parseNum(cell)
+      if (!Number.isFinite(qty)) continue
+
+      pushBurst(qty, col, col)
+    }
+
+    if (bursts.length === 0) {
+      return emptyIntegrationLineItem(
+        row,
+        campaignStartDate,
+        campaignEndDate,
+        lineNo,
+        budgetIncludesFees
+      )
+    }
+
+    return {
+      platform: String(row.platform ?? "").trim(),
+      objective: row.objective,
+      campaign: row.campaign,
+      bidStrategy: row.bidStrategy,
+      buyType,
+      targetingAttribute: row.targetingAttribute,
+      creativeTargeting: row.creativeTargeting,
+      creative: row.creative,
+      buyingDemo: row.buyingDemo,
+      market: row.market,
+      fixedCostMedia: Boolean(row.fixedCostMedia),
+      clientPaysForMedia: Boolean(row.clientPaysForMedia),
+      budgetIncludesFees,
+      noAdserving: false,
+      lineItemId: id,
+      line_item_id: id,
+      line_item: lineNo,
+      lineItem: lineNo,
+      bursts,
+    }
+  })
+}
+
+export function mapStandardIntegrationLineItemsToExpertRows(
+  lineItems: StandardIntegrationLineItemInput[],
+  weekColumns: WeeklyGanttWeekColumn[],
+  campaignStartDate: Date,
+  campaignEndDate: Date
+): IntegrationExpertScheduleRow[] {
+  return lineItems.map((item, index) => {
+    const bursts = normalizeIntegrationBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
 
     const weeklyValues: Record<string, number | ""> = {}
@@ -4346,7 +4763,7 @@ export function mapNewspaperExpertRowsToStandardLineItems(
         campaignStartDate,
         campaignEndDate
       )
-      const grossBudget = qty * unitRate
+      const grossBudget = expertRowRawCost(buyType, unitRate, qty)
       const rawBudget = grossBudget
       const netForCalc = radioNetBudgetForDeliverables(
         rawBudget,
@@ -4668,7 +5085,7 @@ export function mapMagazineExpertRowsToStandardLineItems(
         campaignStartDate,
         campaignEndDate
       )
-      const grossBudget = qty * unitRate
+      const grossBudget = expertRowRawCost(buyType, unitRate, qty)
       const rawBudget = grossBudget
       const netForCalc = radioNetBudgetForDeliverables(
         rawBudget,
@@ -4957,7 +5374,7 @@ function buildBurstsFromProgExpertLikeRow(
       campaignStartDate,
       campaignEndDate
     )
-    const grossBudget = qty * unitRate
+    const grossBudget = expertRowRawCost(buyType, unitRate, qty)
     const rawBudget = grossBudget
     const netForCalc = oohNetBudgetForDeliverables(
       rawBudget,

@@ -4,6 +4,7 @@ import type {
   DigitalAudioExpertScheduleRow,
   DigitalDisplayExpertScheduleRow,
   InfluencersExpertScheduleRow,
+  IntegrationExpertScheduleRow,
   SearchExpertScheduleRow,
   SocialMediaExpertScheduleRow,
   OohExpertScheduleRow,
@@ -22,6 +23,7 @@ import type {
   StandardDigiAudioFormLineItem,
   StandardDigiDisplayFormLineItem,
   StandardInfluencersFormLineItem,
+  StandardIntegrationFormLineItem,
   StandardSearchFormLineItem,
   StandardSocialMediaFormLineItem,
   StandardDigiVideoFormLineItem,
@@ -107,7 +109,7 @@ export function mergeTelevisionStandardFromExpertWithPrevious(
       ...li,
       fixedCostMedia: prev.fixedCostMedia,
       clientPaysForMedia: prev.clientPaysForMedia,
-      budgetIncludesFees: prev.budgetIncludesFees,
+      // Keep expert-derived `budgetIncludesFees` on `li`.
       noadserving: prev.noadserving,
       bidStrategy: prev.bidStrategy ?? "",
       creativeTargeting: prev.creativeTargeting ?? "",
@@ -135,7 +137,7 @@ export function mergeRadioStandardFromExpertWithPrevious(
       ...li,
       fixedCostMedia: prev.fixedCostMedia,
       clientPaysForMedia: prev.clientPaysForMedia,
-      budgetIncludesFees: prev.budgetIncludesFees,
+      // Keep expert-derived `budgetIncludesFees` on `li` (do not restore from previous).
       noadserving: prev.noadserving,
       bidStrategy: prev.bidStrategy ?? "",
       platform: prev.platform ?? "",
@@ -349,6 +351,29 @@ export function mergeInfluencersStandardFromExpertWithPrevious(
     return {
       ...li,
       noadserving: prev.noadserving,
+      creative: prev.creative ?? li.creative,
+      line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
+      lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
+    }
+  })
+}
+
+export function mergeIntegrationStandardFromExpertWithPrevious(
+  generated: StandardIntegrationFormLineItem[],
+  previous: StandardIntegrationFormLineItem[]
+): StandardIntegrationFormLineItem[] {
+  const prevByKey = new Map<string, StandardIntegrationFormLineItem>()
+  for (let i = 0; i < previous.length; i++) {
+    const p = previous[i]!
+    prevByKey.set(stableStandardLineItemKey(p, i), p)
+  }
+  return generated.map((li, i) => {
+    const k = stableStandardLineItemKey(li, i)
+    const prev = prevByKey.get(k)
+    if (!prev) return li
+    return {
+      ...li,
+      noAdserving: prev.noAdserving,
       creative: prev.creative ?? li.creative,
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
@@ -959,6 +984,71 @@ export function serializeInfluencersStandardLineItemsBaseline(
 
 export function serializeInfluencersExpertRowsBaseline(
   rows: InfluencersExpertScheduleRow[]
+): string {
+  return JSON.stringify(
+    rows.map((r) => ({
+      id: r.id,
+      startDate: r.startDate,
+      endDate: r.endDate,
+      platform: r.platform,
+      objective: r.objective,
+      campaign: r.campaign,
+      bidStrategy: r.bidStrategy,
+      buyType: r.buyType,
+      targetingAttribute: r.targetingAttribute,
+      creativeTargeting: r.creativeTargeting,
+      creative: r.creative,
+      buyingDemo: r.buyingDemo,
+      market: r.market,
+      fixedCostMedia: r.fixedCostMedia,
+      clientPaysForMedia: r.clientPaysForMedia,
+      budgetIncludesFees: r.budgetIncludesFees,
+      unitRate: r.unitRate,
+      grossCost: r.grossCost,
+      weeklyValues: r.weeklyValues,
+      mergedWeekSpans: r.mergedWeekSpans,
+    }))
+  )
+}
+
+export function serializeIntegrationStandardLineItemsBaseline(
+  items: StandardIntegrationFormLineItem[] | undefined
+): string {
+  const list = items ?? []
+  return JSON.stringify(
+    list.map((li) => ({
+      platform: li.platform,
+      objective: li.objective,
+      campaign: li.campaign,
+      bidStrategy: li.bidStrategy,
+      buyType: li.buyType,
+      targetingAttribute: li.targetingAttribute,
+      creativeTargeting: li.creativeTargeting,
+      creative: li.creative,
+      buyingDemo: li.buyingDemo,
+      market: li.market,
+      fixedCostMedia: li.fixedCostMedia,
+      clientPaysForMedia: li.clientPaysForMedia,
+      budgetIncludesFees: li.budgetIncludesFees,
+      noAdserving: li.noAdserving,
+      lineItemId: li.lineItemId,
+      line_item_id: li.line_item_id,
+      line_item: li.line_item,
+      lineItem: li.lineItem,
+      bursts: (li.bursts ?? []).map((b) => ({
+        budget: b.budget,
+        buyAmount: b.buyAmount,
+        startDate: isoDate(b.startDate),
+        endDate: isoDate(b.endDate),
+        calculatedValue: b.calculatedValue,
+        fee: b.fee,
+      })),
+    }))
+  )
+}
+
+export function serializeIntegrationExpertRowsBaseline(
+  rows: IntegrationExpertScheduleRow[]
 ): string {
   return JSON.stringify(
     rows.map((r) => ({
