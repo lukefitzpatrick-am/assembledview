@@ -14,7 +14,7 @@ import {
   getSundayOnOrBefore,
   type WeeklyGanttWeekColumn,
 } from "../utils/weeklyGanttColumns"
-import { formatMoney } from "../utils/money"
+import { formatRate } from "@/lib/format/money"
 import type {
   ExpertWeekColumnKey,
   ExpertWeeklyValues,
@@ -767,7 +767,7 @@ export function mapOohExpertRowsToStandardLineItems(
           ? "0"
           : btLower === "panels"
             ? formatBurstBudget(unitRate)
-            : formatMoney(unitRate)
+            : formatRate(unitRate)
       let calculatedValue: number
       if (btLower === "bonus") {
         calculatedValue = roundDeliverables(bt, qty)
@@ -894,7 +894,7 @@ export function mapRadioExpertRowsToStandardLineItems(
       const grossBudget = grossFromNet(netMedia, budgetIncludesFees, feePct)
       const calculatedValue = roundDeliverables(bt, qty)
       const buyAmountStr =
-        buyType === "bonus" ? "0" : formatMoney(unitRate)
+        buyType === "bonus" ? "0" : formatRate(unitRate)
 
       bursts.push({
         budget: formatBurstBudget(grossBudget),
@@ -918,7 +918,7 @@ export function mapRadioExpertRowsToStandardLineItems(
       const grossBudget = grossFromNet(netMedia, budgetIncludesFees, feePct)
       const calculatedValue = roundDeliverables(bt, qty)
       const buyAmountStr =
-        buyType === "bonus" ? "0" : formatMoney(unitRate)
+        buyType === "bonus" ? "0" : formatRate(unitRate)
       const { start, end } = burstWindowForWeekColumn(col, campaignStartDate, campaignEndDate)
 
       bursts.push({
@@ -1478,7 +1478,7 @@ export function mapTvExpertRowsToStandardLineItems(
       const buyAmountStr =
         String(buyType || "").toLowerCase() === "bonus"
           ? "0"
-          : formatMoney(unitRate)
+          : formatRate(unitRate)
       bursts.push({
         budget: formatBurstBudget(grossBudget),
         buyAmount: buyAmountStr,
@@ -1864,7 +1864,7 @@ export function mapBvodExpertRowsToStandardLineItems(
       const buyAmountStr =
         String(buyType || "").toLowerCase() === "bonus"
           ? "0"
-          : formatMoney(unitRate)
+          : formatRate(unitRate)
 
       bursts.push({
         budget: formatBurstBudget(grossBudget),
@@ -2983,7 +2983,7 @@ export function mapDigitalAudioExpertRowsToStandardLineItems(
       const buyAmountStr =
         String(buyType || "").toLowerCase() === "bonus"
           ? "0"
-          : formatMoney(unitRate)
+          : formatRate(unitRate)
 
       bursts.push({
         budget: formatBurstBudget(grossBudget),

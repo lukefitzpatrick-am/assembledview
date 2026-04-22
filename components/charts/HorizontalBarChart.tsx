@@ -1,215 +1,136 @@
 "use client"
 
-import { useCallback, useMemo, useRef } from "react"
+import { useCallback, useMemo, useState } from "react"
 import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
-  LabelList,
+  Legend,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts"
 
-import { ChartShell } from "@/components/charts/ChartShell"
+import { useClientBrand } from "@/components/client-dashboard/ClientBrandProvider"
 import {
-  finalizeChartDatumClickPayload,
-  type ChartDatumClickCore,
-  type ChartDatumClickPayload,
-  type HorizontalBarDatum,
-} from "@/components/charts/chartDatumClick"
-import {
-  useUnifiedTooltip,
-  type UnifiedTooltipRechartsProps,
-} from "@/components/charts/UnifiedTooltip"
-import { useChartExport } from "@/hooks/useChartExport"
-import { useToast } from "@/components/ui/use-toast"
-import { formatCurrencyAUD } from "@/lib/charts/format"
-import { assignEntityColors } from "@/lib/charts/registry"
-import {
-  condenseSeriesData,
-  getXAxisConfig,
-  truncateLabel,
-  useResponsiveChartBox,
-} from "@/lib/charts/responsive"
-import { cn } from "@/lib/utils"
+  CHART_TOOLTIP_CONTENT,
+  CHART_TOOLTIP_ITEM_STYLE,
+  CHART_TOOLTIP_LABEL_STYLE,
+} from "@/components/charts/chartStyles"
+import { ToggleableLegend } from "@/components/charts/ToggleableLegend"
+import { getChartPalette } from "@/lib/client-dashboard/theme"
+
+export type HorizontalBarSeries = { key: string; label: string }
 
 export type HorizontalBarChartProps = {
-  title: string
-  description?: string
-  data: HorizontalBarDatum[]
-  maxBars?: number
-  formatValue?: (value: number) => string
-  onDatumClick?: (payload: ChartDatumClickPayload) => void
-  getDatumId?: (payload: ChartDatumClickCore) => string
-  className?: string
-  chartAreaClassName?: string
+  data: Array<Record<string, number | string>>
+  xKey: string
+  series: HorizontalBarSeries[]
+  /** Formats numeric tick values on the horizontal (value) axis. */
+  xAxisFormatter?: (value: number) => string
+  /** When `layout="vertical"`, reverses category order on the Y axis (e.g. largest bar at the top). */
+  yAxisReversed?: boolean
+  /** Pixel width of the category (Y) axis when `layout="vertical"`. */
+  yAxisWidth?: number
+  height?: number
 }
 
 export function HorizontalBarChart({
-  title,
-  description,
   data,
-  maxBars = 10,
-  formatValue = formatCurrencyAUD,
-  onDatumClick,
-  getDatumId,
-  className,
-  chartAreaClassName,
+  xKey,
+  series,
+  xAxisFormatter,
+  yAxisReversed = false,
+  yAxisWidth = 80,
+  height = 320,
 }: HorizontalBarChartProps) {
-  const chartAreaRef = useRef<HTMLDivElement | null>(null)
-  const { width: containerWidth, height: chartHeight } =
-    useResponsiveChartBox(chartAreaRef)
-  const { exportCsv } = useChartExport()
-  const { toast } = useToast()
+  const theme = useClientBrand()
+  const palette = useMemo(() => getChartPalette(theme), [theme])
+  const [hidden, setHidden] = useState<Set<string>>(() => new Set())
 
-  const chartRows = useMemo(() => {
-    const sorted = [...data].sort(
-      (a, b) => (Number(b.value) || 0) - (Number(a.value) || 0)
-    )
-    if (sorted.length <= maxBars) return sorted
-    const asRecords = sorted.map(
-      (r) => ({ name: r.name, value: r.value }) as Record<string, unknown>
-    )
-    const merged = condenseSeriesData(asRecords, "value", "name", maxBars)
-    return merged.map((r) => ({
-      name: String(r.name),
-      value: Number(r.value) || 0,
-    }))
-  }, [data, maxBars])
+  const toggleKey = useCallback((key: string) => {
+    setHidden((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }, [])
 
-  const total = useMemo(
-    () => chartRows.reduce((s, r) => s + (Number(r.value) || 0), 0),
-    [chartRows]
-  )
-
-  const colorMap = useMemo(
-    () => assignEntityColors(chartRows.map((r) => r.name), "media"),
-    [chartRows]
-  )
-
-  const yAxisConfig = useMemo(
+  const legendPayload = useMemo(
     () =>
-      getXAxisConfig(
-        chartRows.length,
-        containerWidth || chartAreaRef.current?.clientWidth || 0
-      ),
-    [chartRows.length, containerWidth]
+      series.map((s, i) => ({
+        value: s.label,
+        dataKey: s.key,
+        color: palette[i % palette.length],
+      })),
+    [palette, series],
   )
-
-  const renderTooltip = useUnifiedTooltip({
-    formatValue,
-    showPercentages: true,
-    maxItems: 16,
-    getSeriesTotal: () => total,
-  })
-
-  const handleExportCsv = useCallback(() => {
-    exportCsv(
-      chartRows,
-      [
-        { header: "Name", accessor: "name" as const },
-        { header: "Value", accessor: "value" as const },
-      ],
-      `${title.toLowerCase().replace(/\s+/g, "-")}.csv`
-    )
-    toast({ title: "CSV exported", description: `${title} data has been downloaded.` })
-  }, [chartRows, exportCsv, title, toast])
-
-  const handleBarClick = (row: HorizontalBarDatum, index: number) => {
-    if (!onDatumClick) return
-    onDatumClick(
-      finalizeChartDatumClickPayload(
-        {
-          chart: "horizontalBar",
-          source: "bar",
-          name: row.name,
-          value: Number(row.value) || 0,
-          index,
-          datum: row,
-        },
-        getDatumId
-      )
-    )
-  }
-
-  const ariaLabel = `${title}: horizontal bar chart, ${chartRows.length} items`
-
-  const bottomPad = 8 + (yAxisConfig.height ?? 30)
 
   return (
-    <ChartShell
-      title={title}
-      description={description}
-      className={className}
-      chartAreaRef={chartAreaRef}
-      chartAreaClassName={cn("min-h-0 w-full", chartAreaClassName)}
-      chartAreaStyle={{ height: chartHeight }}
-      onExportCsv={handleExportCsv}
-    >
-      <div
-        className="h-full w-full min-h-[200px]"
-        role="img"
-        aria-label={ariaLabel}
-      >
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart
-            layout="vertical"
-            data={chartRows}
-            margin={{ top: 8, right: 72, left: 8, bottom: bottomPad }}
-            barCategoryGap="12%"
-          >
-            <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-            <XAxis
-              type="number"
-              tickFormatter={(v) => formatValue(Number(v))}
-              tick={{ fontSize: 11 }}
-            />
-            <YAxis
-              type="category"
-              dataKey="name"
-              width={128}
-              reversed
-              interval={yAxisConfig.interval}
-              tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-              tickFormatter={(v) => truncateLabel(String(v), 22)}
-            />
-            <Tooltip
-              content={(props) =>
-                renderTooltip({
-                  active: props.active,
-                  label: props.label,
-                  payload: props.payload as UnifiedTooltipRechartsProps["payload"],
-                })
-              }
-            />
-            <Bar
-              dataKey="value"
-              radius={[0, 4, 4, 0]}
-              cursor={onDatumClick ? "pointer" : "default"}
-              onClick={(_data, index: number) => {
-                const row = chartRows[index]
-                if (row) handleBarClick(row, index)
-              }}
-            >
-              {chartRows.map((entry) => (
-                <Cell
-                  key={entry.name}
-                  fill={colorMap.get(entry.name) ?? "hsl(var(--primary))"}
-                />
-              ))}
-              <LabelList
-                dataKey="value"
-                position="right"
-                formatter={(v: number) => formatValue(Number(v) || 0)}
-                className="fill-foreground text-[11px]"
+    <div className="w-full" style={{ height }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart
+          layout="vertical"
+          data={data}
+          margin={{ top: 8, right: 16, left: 4, bottom: 8 }}
+          barCategoryGap="16%"
+        >
+          <CartesianGrid stroke="hsl(var(--border))" horizontal={false} />
+          <XAxis
+            type="number"
+            tickLine={false}
+            axisLine={{ stroke: "hsl(var(--border))" }}
+            tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+            tickFormatter={xAxisFormatter as ((v: number) => string) | undefined}
+          />
+          <YAxis
+            type="category"
+            dataKey={xKey}
+            width={yAxisWidth}
+            reversed={yAxisReversed}
+            tickLine={false}
+            axisLine={{ stroke: "hsl(var(--border))" }}
+            tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+          />
+          <Tooltip
+            contentStyle={CHART_TOOLTIP_CONTENT}
+            labelStyle={CHART_TOOLTIP_LABEL_STYLE}
+            itemStyle={CHART_TOOLTIP_ITEM_STYLE}
+            cursor={{ fill: "hsl(var(--muted) / 0.35)" }}
+            formatter={(value: number | string, name: string) => [value, name]}
+          />
+          <Legend
+            verticalAlign="top"
+            align="center"
+            content={() => <ToggleableLegend payload={legendPayload} hiddenKeys={hidden} onToggleKey={toggleKey} />}
+          />
+          {series.map((s, i) => {
+            const isEnd = i === series.length - 1
+            return (
+              <Bar
+                key={s.key}
+                dataKey={s.key}
+                name={s.label}
+                stackId="stack"
+                fill={palette[i % palette.length]}
+                hide={hidden.has(s.key)}
+                radius={isEnd ? ([0, 3, 3, 0] as [number, number, number, number]) : ([0, 0, 0, 0] as [number, number, number, number])}
               />
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-    </ChartShell>
+            )
+          })}
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
   )
 }
+
+/** @deprecated Use `HorizontalBarChart` — renamed in chart consolidation. */
+export const StackedBarChart = HorizontalBarChart
+
+/** @deprecated Use `HorizontalBarChartProps` */
+export type StackedBarChartProps = HorizontalBarChartProps
+
+/** @deprecated Use `HorizontalBarSeries` */
+export type StackedBarSeries = HorizontalBarSeries

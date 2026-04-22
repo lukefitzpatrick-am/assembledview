@@ -6,12 +6,13 @@ import { BrandAccentHeader } from "@/components/client-dashboard/BrandAccentHead
 import { ClientBrandProvider } from "@/components/client-dashboard/ClientBrandProvider"
 import { DashboardHeader } from "@/components/client-dashboard/DashboardHeader"
 import { MetricCard } from "@/components/client-dashboard/MetricCard"
-import { BoxPlotChart } from "@/components/client-dashboard/charts/BoxPlotChart"
-import { FunnelViz } from "@/components/client-dashboard/charts/FunnelViz"
-import { HeatmapTable } from "@/components/client-dashboard/charts/HeatmapTable"
-import { StackedColumnChart } from "@/components/client-dashboard/charts/StackedColumnChart"
-import { TimeHeatmap } from "@/components/client-dashboard/charts/TimeHeatmap"
-import { TreemapViz } from "@/components/client-dashboard/charts/TreemapViz"
+import BaseChartCard from "@/components/charts/BaseChartCard"
+import { BoxPlotChart } from "@/components/charts/BoxPlotChart"
+import { FunnelChart } from "@/components/charts/FunnelChart"
+import { HeatmapTable } from "@/components/charts/HeatmapTable"
+import { StackedColumnChart } from "@/components/charts/StackedColumnChart"
+import { TimeHeatmap } from "@/components/charts/TimeHeatmap"
+import { TreemapChart } from "@/components/charts/TreemapChart"
 import { Panel, PanelContent } from "@/components/layout/Panel"
 import {
   boxplot,
@@ -24,7 +25,7 @@ import {
   treemap,
 } from "@/lib/client-dashboard/mocks/molicare"
 import { buildClientTheme } from "@/lib/client-dashboard/theme"
-import { formatMoney } from "@/lib/utils/money"
+import { formatCurrencyFull } from "@/lib/format/currency"
 
 /**
  * Mock — replace with theme from Xano in production.
@@ -103,84 +104,77 @@ export function MolicareExample() {
           </PanelContent>
         </Panel>
 
-        <Panel>
-          <BrandAccentHeader title="Daily sessions by channel" description="Stacked volume by acquisition channel." />
-          <PanelContent standalone className="!px-3 !py-2">
-            <StackedColumnChart data={chartDaily} xKey="date" series={[...channelSeries]} height={260} />
-          </PanelContent>
-        </Panel>
+        <BaseChartCard
+          title="Daily sessions by channel"
+          description="Stacked volume by acquisition channel."
+          variant="accent"
+        >
+          <StackedColumnChart data={chartDaily} xKey="date" series={[...channelSeries]} height={260} />
+        </BaseChartCard>
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
-          <Panel className="lg:col-span-2">
-            <BrandAccentHeader title="Conversion funnel" />
-            <PanelContent standalone className="!px-3 !py-2">
-              <FunnelViz data={funnelData} height={320} />
-            </PanelContent>
-          </Panel>
-          <Panel className="lg:col-span-3">
-            <BrandAccentHeader title="CPA distribution by campaign" />
-            <PanelContent standalone className="!px-3 !py-2">
-              <BoxPlotChart
-                data={[...boxplot]}
-                height={300}
-                valueFormatter={(v) => formatMoney(v, { locale: "en-AU", currency: "AUD", maximumFractionDigits: 0 })}
-              />
-            </PanelContent>
-          </Panel>
+          <BaseChartCard title="Conversion funnel" variant="accent" className="lg:col-span-2">
+            <FunnelChart data={funnelData} height={320} />
+          </BaseChartCard>
+          <BaseChartCard title="CPA distribution by campaign" variant="accent" className="lg:col-span-3">
+            <BoxPlotChart
+              data={[...boxplot]}
+              height={300}
+              valueFormatter={(v) =>
+                formatCurrencyFull(v, {
+                  locale: "en-AU",
+                  currency: "AUD",
+                  maximumFractionDigits: 0,
+                  minimumFractionDigits: 0,
+                })}
+            />
+          </BaseChartCard>
         </div>
 
-        <Panel>
-          <BrandAccentHeader
-            title="Top pages by views"
-            description="Rectangle size = views, colour intensity = engagement rate."
+        <BaseChartCard
+          title="Top pages by views"
+          description="Rectangle size = views, colour intensity = engagement rate."
+          variant="accent"
+        >
+          <TreemapChart data={treemapData} height={260} />
+        </BaseChartCard>
+
+        <BaseChartCard title="Traffic by hour × day of week" variant="accent">
+          <TimeHeatmap data={heatmap.data} rowLabels={heatmap.rowLabels} colLabels={heatmap.colLabels} />
+        </BaseChartCard>
+
+        <BaseChartCard title="Source / medium performance" variant="accent">
+          <HeatmapTable
+            data={sourceRows}
+            columns={[
+              { key: "sourceMedium", label: "Source / medium" },
+              {
+                key: "sessions",
+                label: "Sessions",
+                align: "right",
+                mono: true,
+                heatmap: true,
+                format: (v) => (typeof v === "number" ? v.toLocaleString() : ""),
+              },
+              {
+                key: "conversions",
+                label: "Conversions",
+                align: "right",
+                mono: true,
+                heatmap: true,
+                format: (v) => (typeof v === "number" ? v.toLocaleString() : ""),
+              },
+              {
+                key: "conversionRatePct",
+                label: "Conv. rate",
+                align: "right",
+                mono: true,
+                heatmap: true,
+                format: (v) => (typeof v === "number" ? `${v.toFixed(1)}%` : ""),
+              },
+            ]}
           />
-          <PanelContent standalone className="!px-3 !py-2">
-            <TreemapViz data={treemapData} height={260} />
-          </PanelContent>
-        </Panel>
-
-        <Panel>
-          <BrandAccentHeader title="Traffic by hour × day of week" />
-          <PanelContent standalone className="!px-3 !py-2">
-            <TimeHeatmap data={heatmap.data} rowLabels={heatmap.rowLabels} colLabels={heatmap.colLabels} />
-          </PanelContent>
-        </Panel>
-
-        <Panel>
-          <BrandAccentHeader title="Source / medium performance" />
-          <PanelContent standalone className="!px-3 !py-2">
-            <HeatmapTable
-              data={sourceRows}
-              columns={[
-                { key: "sourceMedium", label: "Source / medium" },
-                {
-                  key: "sessions",
-                  label: "Sessions",
-                  align: "right",
-                  mono: true,
-                  heatmap: true,
-                  format: (v) => (typeof v === "number" ? v.toLocaleString() : ""),
-                },
-                {
-                  key: "conversions",
-                  label: "Conversions",
-                  align: "right",
-                  mono: true,
-                  heatmap: true,
-                  format: (v) => (typeof v === "number" ? v.toLocaleString() : ""),
-                },
-                {
-                  key: "conversionRatePct",
-                  label: "Conv. rate",
-                  align: "right",
-                  mono: true,
-                  heatmap: true,
-                  format: (v) => (typeof v === "number" ? `${v.toFixed(1)}%` : ""),
-                },
-              ]}
-            />
-          </PanelContent>
-        </Panel>
+        </BaseChartCard>
       </div>
     </ClientBrandProvider>
   )

@@ -20,12 +20,13 @@ import {
   dashboardCampaignGridClassName,
 } from "@/components/dashboard/DashboardEntityCards"
 import { format } from "date-fns"
-import { TreemapChart } from "@/components/charts/TreemapChart"
+import { TreemapShellChart } from "@/components/charts/TreemapShellChart"
+import BaseChartCard from "@/components/charts/BaseChartCard"
 import { StackedColumnChart } from "@/components/charts/StackedColumnChart"
 import type { ChartDatumClickPayload } from "@/components/charts/chartDatumClick"
 import { usePathname, useRouter } from "next/navigation"
 import { AuthPageLoading } from "@/components/AuthLoadingState"
-import { getMediaChannelBadgeStyle } from "@/lib/media/channelColors"
+import { getMediaBadgeStyle } from "@/lib/charts/registry"
 import { cn } from "@/lib/utils"
 import { compareValues, SortableTableHeader, SortDirection } from "@/components/ui/sortable-table-header"
 import { useAuthContext } from "@/contexts/AuthContext"
@@ -2209,6 +2210,60 @@ export default function DashboardOverview({
     return out
   }, [monthlyClientSpend, clientProfileColors])
 
+  const monthlyClientStackedRows = useMemo(
+    () =>
+      monthlyClientSpend.map((m) => ({
+        month: m.month,
+        ...m.data.reduce(
+          (acc, item) => {
+            acc[item.client] = Math.round(item.amount)
+            return acc
+          },
+          {} as Record<string, number>,
+        ),
+      })),
+    [monthlyClientSpend],
+  )
+
+  const monthlyClientStackedSeries = useMemo(() => {
+    const keys = new Set<string>()
+    for (const row of monthlyClientStackedRows) {
+      for (const k of Object.keys(row)) {
+        if (k !== "month") keys.add(k)
+      }
+    }
+    return Array.from(keys)
+      .sort()
+      .map((key) => ({ key, label: key }))
+  }, [monthlyClientStackedRows])
+
+  const monthlyPublisherStackedRows = useMemo(
+    () =>
+      monthlyPublisherSpend.map((m) => ({
+        month: m.month,
+        ...m.data.reduce(
+          (acc, item) => {
+            acc[item.publisher] = Math.round(item.amount)
+            return acc
+          },
+          {} as Record<string, number>,
+        ),
+      })),
+    [monthlyPublisherSpend],
+  )
+
+  const monthlyPublisherStackedSeries = useMemo(() => {
+    const keys = new Set<string>()
+    for (const row of monthlyPublisherStackedRows) {
+      for (const k of Object.keys(row)) {
+        if (k !== "month") keys.add(k)
+      }
+    }
+    return Array.from(keys)
+      .sort()
+      .map((key) => ({ key, label: key }))
+  }, [monthlyPublisherStackedRows])
+
   const clientSpendSparklineTable = useMemo(() => {
     const rows = clientSpendData.slice(0, DASHBOARD_CLIENT_SPARKLINE_TOP_N)
     if (!monthlyClientSpend.length || rows.length === 0) {
@@ -2344,7 +2399,7 @@ export default function DashboardOverview({
 
     return enabledTypes.map(({ key }) => {
       return (
-        <Badge key={key} className="mr-1 mb-1 border text-[10px] font-medium" style={getMediaChannelBadgeStyle(key)}>
+        <Badge key={key} className="mr-1 mb-1 border text-[10px] font-medium" style={getMediaBadgeStyle(key)}>
           {key}
         </Badge>
       )
@@ -3018,7 +3073,7 @@ export default function DashboardOverview({
           <PanelRowCell>
             <Panel className="overflow-hidden border-0 shadow-md">
               <PanelContent standalone className="p-0">
-                <TreemapChart
+                <TreemapShellChart
                   title="Spend via Publisher"
                   description="Media cost only - Current financial year"
                   data={publisherSpendData}
@@ -3031,7 +3086,7 @@ export default function DashboardOverview({
           <PanelRowCell>
             <Panel className="overflow-hidden border-0 shadow-md">
               <PanelContent standalone className="p-0">
-                <TreemapChart
+                <TreemapShellChart
                   title="Spend via Client"
                   description="Media cost only - Current financial year"
                   data={clientSpendData}
@@ -3056,38 +3111,42 @@ export default function DashboardOverview({
           <div className="flex flex-col gap-4">
             <Panel className="overflow-hidden border-0 shadow-md">
               <PanelContent standalone className="p-0">
-                <StackedColumnChart
+                <BaseChartCard
                   title="Monthly Spend by Client"
                   description="Media cost by client per month (current FY, billing schedule)"
-                  data={monthlyClientSpend.map((m) => ({
-                    month: m.month,
-                    ...m.data.reduce((acc, item) => {
-                      acc[item.client] = Math.round(item.amount)
-                      return acc
-                    }, {} as Record<string, number>),
-                  }))}
-                  seriesColorByName={dashboardMonthlyClientSeriesColors}
-                  onDatumClick={handleMonthlyClientChartClick}
-                  cardClassName={cn("rounded-lg", chartCardQuiet)}
-                />
+                  variant="icon"
+                  icon={BarChart3}
+                  className={cn("rounded-lg", chartCardQuiet)}
+                >
+                  <StackedColumnChart
+                    data={monthlyClientStackedRows}
+                    xKey="month"
+                    series={monthlyClientStackedSeries}
+                    seriesColorByKey={dashboardMonthlyClientSeriesColors}
+                    onDatumClick={handleMonthlyClientChartClick}
+                    filterViaLegend
+                  />
+                </BaseChartCard>
               </PanelContent>
             </Panel>
 
             <Panel className="overflow-hidden border-0 shadow-md">
               <PanelContent standalone className="p-0">
-                <StackedColumnChart
+                <BaseChartCard
                   title="Monthly Spend by Publisher"
                   description="Media cost by publisher per month (current FY, billing schedule)"
-                  data={monthlyPublisherSpend.map((m) => ({
-                    month: m.month,
-                    ...m.data.reduce((acc, item) => {
-                      acc[item.publisher] = Math.round(item.amount)
-                      return acc
-                    }, {} as Record<string, number>),
-                  }))}
-                  onDatumClick={handleMonthlyPublisherChartClick}
-                  cardClassName={cn("rounded-lg", chartCardQuiet)}
-                />
+                  variant="icon"
+                  icon={BarChart3}
+                  className={cn("rounded-lg", chartCardQuiet)}
+                >
+                  <StackedColumnChart
+                    data={monthlyPublisherStackedRows}
+                    xKey="month"
+                    series={monthlyPublisherStackedSeries}
+                    onDatumClick={handleMonthlyPublisherChartClick}
+                    filterViaLegend
+                  />
+                </BaseChartCard>
               </PanelContent>
             </Panel>
           </div>

@@ -1,9 +1,4 @@
-export const formatCurrencyAUD = (value: number) =>
-  new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    maximumFractionDigits: 0,
-  }).format(Number(value) || 0)
+import { formatCurrencyAUD } from "@/lib/format/currency"
 
 export const formatNumberAU = (value: number) =>
   new Intl.NumberFormat("en-AU").format(Number(value) || 0)
@@ -26,16 +21,10 @@ export const formatDateShortAU = (value: string) => {
   }).format(d)
 }
 
-/** Compact AUD — same rules as `@/lib/format/currency` for consistent SSR/hydration. */
-export { formatCurrencyCompact } from "@/lib/format/currency"
-
 export type FormatDeltaMode = "currency" | "number" | "percent"
 
 /** Signed delta: `+` / `-` prefix with currency, plain number, or percent formatting. */
-export function formatDelta(
-  value: number,
-  format: FormatDeltaMode = "currency"
-): string {
+export function formatDelta(value: number, format: FormatDeltaMode = "currency"): string {
   const n = Number(value) || 0
   if (n === 0) {
     if (format === "percent") return formatPercentage(0, 1)

@@ -2,10 +2,10 @@
 
 import { useCallback, useMemo, useState } from "react"
 import {
-  Bar,
-  BarChart,
   CartesianGrid,
   Legend,
+  Line,
+  LineChart as RechartsLineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -14,23 +14,37 @@ import {
 
 import { useClientBrand } from "@/components/client-dashboard/ClientBrandProvider"
 import {
-  CD_CHART_TOOLTIP_CONTENT,
-  CD_CHART_TOOLTIP_ITEM_STYLE,
-  CD_CHART_TOOLTIP_LABEL_STYLE,
-} from "@/components/client-dashboard/charts/chartStyles"
-import { ToggleableLegend } from "@/components/client-dashboard/charts/ToggleableLegend"
+  CHART_TOOLTIP_CONTENT,
+  CHART_TOOLTIP_ITEM_STYLE,
+  CHART_TOOLTIP_LABEL_STYLE,
+} from "@/components/charts/chartStyles"
+import { ToggleableLegend } from "@/components/charts/ToggleableLegend"
+import { formatCurrencyCompact } from "@/lib/format/currency"
 import { getChartPalette } from "@/lib/client-dashboard/theme"
 
-export type StackedColumnSeries = { key: string; label: string }
+export type LineChartSeries = { key: string; label: string }
 
-export type StackedColumnChartProps = {
-  data: Array<Record<string, number | string>>
+export type LineChartProps = {
+  data: Array<Record<string, string | number>>
   xKey: string
-  series: StackedColumnSeries[]
+  series: LineChartSeries[]
+  valueFormatter?: (value: number) => string
+  xTickFormatter?: (value: string) => string
   height?: number
+  smooth?: boolean
+  showDots?: boolean
 }
 
-export function StackedColumnChart({ data, xKey, series, height = 320 }: StackedColumnChartProps) {
+export function LineChart({
+  data,
+  xKey,
+  series,
+  valueFormatter = formatCurrencyCompact,
+  xTickFormatter,
+  height = 320,
+  smooth = false,
+  showDots = true,
+}: LineChartProps) {
   const theme = useClientBrand()
   const palette = useMemo(() => getChartPalette(theme), [theme])
   const [hidden, setHidden] = useState<Set<string>>(() => new Set())
@@ -59,10 +73,12 @@ export function StackedColumnChart({ data, xKey, series, height = 320 }: Stacked
     return Math.max(1, Math.ceil(data.length / 7) - 1)
   }, [data.length])
 
+  const lineType = smooth ? "monotone" : "linear"
+
   return (
     <div className="w-full" style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} margin={{ top: 8, right: 12, left: 4, bottom: 8 }} barCategoryGap="18%">
+        <RechartsLineChart data={data} margin={{ top: 8, right: 12, left: 4, bottom: 8 }}>
           <CartesianGrid stroke="hsl(var(--border))" vertical={false} />
           <XAxis
             dataKey={xKey}
@@ -74,18 +90,21 @@ export function StackedColumnChart({ data, xKey, series, height = 320 }: Stacked
             angle={data.length > 8 ? -25 : 0}
             textAnchor={data.length > 8 ? "end" : "middle"}
             height={data.length > 8 ? 52 : 28}
+            tickFormatter={xTickFormatter as ((v: string) => string) | undefined}
           />
           <YAxis
             tickLine={false}
             axisLine={{ stroke: "hsl(var(--border))" }}
             tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
-            width={40}
+            width={44}
+            tickFormatter={(v) => valueFormatter(Number(v))}
           />
           <Tooltip
-            contentStyle={CD_CHART_TOOLTIP_CONTENT}
-            labelStyle={CD_CHART_TOOLTIP_LABEL_STYLE}
-            itemStyle={CD_CHART_TOOLTIP_ITEM_STYLE}
-            cursor={{ fill: "hsl(var(--muted) / 0.35)" }}
+            contentStyle={CHART_TOOLTIP_CONTENT}
+            labelStyle={CHART_TOOLTIP_LABEL_STYLE}
+            itemStyle={CHART_TOOLTIP_ITEM_STYLE}
+            cursor={{ fill: "hsl(var(--muted) / 0.25)" }}
+            formatter={(value, name) => [valueFormatter(Number(value) || 0), String(name)]}
           />
           <Legend
             verticalAlign="top"
@@ -93,20 +112,22 @@ export function StackedColumnChart({ data, xKey, series, height = 320 }: Stacked
             content={() => <ToggleableLegend payload={legendPayload} hiddenKeys={hidden} onToggleKey={toggleKey} />}
           />
           {series.map((s, i) => {
-            const isTop = i === series.length - 1
+            const color = palette[i % palette.length]
             return (
-              <Bar
+              <Line
                 key={s.key}
+                type={lineType}
                 dataKey={s.key}
                 name={s.label}
-                stackId="stack"
-                fill={palette[i % palette.length]}
+                stroke={color}
+                strokeWidth={2}
+                dot={showDots ? { r: 2, fill: color } : false}
+                activeDot={showDots ? { r: 4 } : false}
                 hide={hidden.has(s.key)}
-                radius={isTop ? ([3, 3, 0, 0] as [number, number, number, number]) : ([0, 0, 0, 0] as [number, number, number, number])}
               />
             )
           })}
-        </BarChart>
+        </RechartsLineChart>
       </ResponsiveContainer>
     </div>
   )

@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo } from "react"
-import { formatCurrencyAUD } from "@/lib/charts/format"
+import { formatCurrencyAUD } from "@/lib/format/currency"
 import { getMediaColor } from "@/lib/charts/registry"
 import { CHART_NEUTRAL } from "@/lib/charts/theme"
 import { ChartContainer, ChartTooltip } from "@/components/ui/chart"

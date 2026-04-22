@@ -4,6 +4,16 @@ Web application for **media planning**, **client dashboards**, **campaign pacing
 
 ---
 
+## What's new
+
+### 2026-04-22
+
+- Added **finance receivables** API workflows to complement billing/payables support.
+- Expanded **client dashboard** foundations with preview routes, chart primitives, and theme helpers.
+- Updated media plan and expert-grid flows to support broader billing/export behaviors.
+
+---
+
 ## Tech stack
 
 - **Runtime**: Node.js (see `@types/node` in [package.json](package.json); use a current LTS such as **22.x**)
@@ -143,6 +153,7 @@ Representative pages under [app](app):
 |------|-------------------|
 | Mediaplans | `/mediaplans`, `/mediaplans/create`, `/mediaplans/[id]`, `/mediaplans/mba/[mba_number]/edit` |
 | Dashboards | `/dashboard`, `/dashboard/[slug]`, `/dashboard/[slug]/[mba_number]` |
+| Client dashboard previews | `/client-dashboard/_preview/primitives`, `/client-dashboard/_preview/charts`, `/client-dashboard/mock` |
 | Pacing | `/pacing`, portfolio, overview, mappings, settings under `app/pacing` |
 | Finance | `/finance`, forecast / variance under `app/finance` |
 | Scopes of work | `/scopes-of-work`, create, `[id]/edit` |
@@ -161,8 +172,9 @@ There are many handlers under [app/api](app/api) (on the order of **90+** `route
 
 - **Mediaplans & media line items** — CRUD, downloads, PDFs, MBA resolution, version documents
 - **Pacing & Snowflake** — line items, portfolio, delivery, mappings, alerts, saved views, bulk operations
-- **Finance** — billing, accrual, forecast snapshots, payables, edits, hub schedules
+- **Finance** — billing, accrual, forecast snapshots, payables, receivables, edits, hub schedules
 - **Dashboards & KPIs** — client/publisher/campaign KPIs, global spend aggregates
+- **Client dashboard rendering** — reusable visual primitives, chart examples, brand theme helpers
 - **Scopes of work** — list/detail, PDF generation, IDs
 - **Admin** — users, client hub, slug refresh
 - **Integrations** — chat/assistant routes, delivery/meta testing endpoints, etc.

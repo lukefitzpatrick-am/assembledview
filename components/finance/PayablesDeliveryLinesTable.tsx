@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/table"
 import { sumPayableLineItems } from "@/lib/finance/aggregatePayablesPublisherGroups"
 import type { BillingLineItem, BillingRecord } from "@/lib/types/financeBilling"
-import { formatMoney } from "@/lib/utils/money"
+import { formatMoney } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
 
 function lineIsClientPaid(li: BillingLineItem): boolean {

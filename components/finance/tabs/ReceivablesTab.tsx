@@ -46,7 +46,7 @@ import {
   writeSowFinanceWorksheet,
   workbookToXlsxBuffer,
 } from "@/lib/finance/excelFinanceExport"
-import { formatMoney } from "@/lib/utils/money"
+import { formatMoney } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
 import { useFinanceStore } from "@/lib/finance/useFinanceStore"
 import type { ComboboxOption } from "@/components/ui/combobox"

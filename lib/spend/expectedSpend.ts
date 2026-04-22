@@ -1,4 +1,4 @@
-import { roundMoney2 } from "@/lib/utils/money"
+import { roundMoney2 } from "@/lib/format/money"
 
 const MELBOURNE_TZ = "Australia/Melbourne"
 
@@ -38,14 +38,6 @@ type MonthParts = {
   year: number
   monthIndex: number
 }
-
-export const formatCurrencyAUD = (value: number) =>
-  new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value)
 
 export const calculateExpectedSpendToDateFromDeliverySchedule = (
   deliverySchedule: unknown,

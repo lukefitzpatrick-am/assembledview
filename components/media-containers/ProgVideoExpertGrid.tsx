@@ -73,7 +73,7 @@ import {
   buildWeeklyGanttColumnsFromCampaign,
   type WeeklyGanttWeekColumn,
 } from "@/lib/utils/weeklyGanttColumns"
-import { formatMoney } from "@/lib/utils/money"
+import { formatCurrencyFull } from "@/lib/format/currency"
 import { cn } from "@/lib/utils"
 import {
   getMediaTypeThemeHex,
@@ -3897,7 +3897,7 @@ export function ProgVideoExpertGrid({
                               className="flex h-8 items-center px-1 text-xs tabular-nums"
                               title={netMediaTooltip}
                             >
-                              {formatMoney(net, moneyOpts)}
+                              {formatCurrencyFull(net, moneyOpts)}
                             </div>
                           </td>
                           <td
@@ -4740,7 +4740,7 @@ export function ProgVideoExpertGrid({
                         }}
                       >
                         <div className="flex h-full items-center">
-                          {formatMoney(containerTotals.sumNet, moneyOpts)}
+                          {formatCurrencyFull(containerTotals.sumNet, moneyOpts)}
                         </div>
                       </td>
                       <td
@@ -4818,7 +4818,7 @@ export function ProgVideoExpertGrid({
               <span className="inline-flex items-baseline gap-2 rounded-full border border-border/70 bg-background/80 px-3 py-1 text-xs shadow-sm">
                 <span className="text-muted-foreground">Net media</span>
                 <span className="font-semibold tabular-nums text-foreground">
-                  {formatMoney(containerTotals.sumNet, moneyOpts)}
+                  {formatCurrencyFull(containerTotals.sumNet, moneyOpts)}
                 </span>
               </span>
               <span className="inline-flex items-baseline gap-2 rounded-full border border-border/70 bg-background/80 px-3 py-1 text-xs shadow-sm">
@@ -4826,7 +4826,7 @@ export function ProgVideoExpertGrid({
                   Fees ({feeprogvideo}% on net)
                 </span>
                 <span className="font-semibold tabular-nums text-foreground">
-                  {formatMoney(containerTotals.fee, moneyOpts)}
+                  {formatCurrencyFull(containerTotals.fee, moneyOpts)}
                 </span>
               </span>
               <span
@@ -4841,7 +4841,7 @@ export function ProgVideoExpertGrid({
                   className="font-semibold tabular-nums"
                   style={{ color: MEDIA_ACCENT_HEX }}
                 >
-                  {formatMoney(containerTotals.totalWithFee, moneyOpts)}
+                  {formatCurrencyFull(containerTotals.totalWithFee, moneyOpts)}
                 </span>
               </span>
             </div>

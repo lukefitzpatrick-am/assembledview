@@ -26,7 +26,7 @@ import {
 } from "@/lib/finance/computeAccrual"
 import { exportAccrualWorkbook } from "@/lib/finance/accrualExcel"
 import { fetchFinanceEditsList, postAccrualReconcileEdit } from "@/lib/finance/api"
-import { formatMoney } from "@/lib/utils/money"
+import { formatMoney } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
 import { useAccrualMonths, useFinanceStore } from "@/lib/finance/useFinanceStore"
 

@@ -8,9 +8,9 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/layout/Panel"
 import { normaliseLineItemsByType, type NormalisedLineItem } from "@/lib/mediaplan/normalizeLineItem"
-import { formatCurrencyCompact, formatCurrencyFull } from "@/lib/format/currency"
+import { formatCurrencyAUD, formatCurrencyCompact } from "@/lib/format/currency"
 import { cn } from "@/lib/utils"
-import { getMediaChannelColor } from "@/lib/media/channelColors"
+import { getMediaColor } from "@/lib/charts/registry"
 import MediaGanttChart from "@/app/dashboard/[slug]/[mba_number]/components/MediaGanttChart"
 import MediaTable from "@/app/dashboard/[slug]/[mba_number]/components/MediaTable"
 
@@ -326,7 +326,7 @@ export default function MediaPlanVizSection({
                     {row.lineItemCount} items
                   </Badge>
                 </div>
-                <p className="text-xl font-semibold text-foreground">{formatCurrencyFull(row.totalBudget)}</p>
+                <p className="text-xl font-semibold text-foreground">{formatCurrencyAUD(row.totalBudget)}</p>
                 <p className="text-xs text-muted-foreground">
                   {row.rangeStart || "—"} - {row.rangeEnd || "—"}
                 </p>
@@ -336,8 +336,8 @@ export default function MediaPlanVizSection({
                       <Area
                         type="monotone"
                         dataKey="value"
-                        stroke={getMediaChannelColor(row.mediaType)}
-                        fill={getMediaChannelColor(row.mediaType)}
+                        stroke={getMediaColor(row.mediaType)}
+                        fill={getMediaColor(row.mediaType)}
                         fillOpacity={0.22}
                       />
                     </AreaChart>

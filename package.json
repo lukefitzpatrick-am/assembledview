@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
+    "type-check": "tsc --noEmit",
     "test:client-dashboard": "tsx --test lib/client-dashboard/__tests__/theme.test.ts",
     "build:learning": "node --loader ts-node/esm scripts/build-learning-terms.ts",
     "test:solver": "node --loader ts-node/esm tests/learning/solver.test.ts",

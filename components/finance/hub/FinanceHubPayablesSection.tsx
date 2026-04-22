@@ -32,7 +32,7 @@ import { usePayablesHideClientPaid } from "@/components/finance/usePayablesHideC
 import { expandMonthRange } from "@/lib/finance/monthRange"
 import type { BillingLineItem, BillingRecord } from "@/lib/types/financeBilling"
 import type { Publisher } from "@/lib/types/publisher"
-import { formatMoney } from "@/lib/utils/money"
+import { formatMoney } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
 import { useFinanceStore } from "@/lib/finance/useFinanceStore"
 

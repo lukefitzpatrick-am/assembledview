@@ -2,17 +2,17 @@
 
 import type { ReactNode } from "react"
 
-import { ComboBarLineChart } from "@/components/client-dashboard/charts/ComboBarLineChart"
-import { BoxPlotChart } from "@/components/client-dashboard/charts/BoxPlotChart"
-import { FunnelViz } from "@/components/client-dashboard/charts/FunnelViz"
-import { HeatmapTable } from "@/components/client-dashboard/charts/HeatmapTable"
-import { NightingaleChart } from "@/components/client-dashboard/charts/NightingaleChart"
-import { StackedBarChart } from "@/components/client-dashboard/charts/StackedBarChart"
-import { StackedColumnChart } from "@/components/client-dashboard/charts/StackedColumnChart"
-import { TimeHeatmap } from "@/components/client-dashboard/charts/TimeHeatmap"
-import { TreemapViz } from "@/components/client-dashboard/charts/TreemapViz"
-import { WaffleChart } from "@/components/client-dashboard/charts/WaffleChart"
-import { WaterfallChart } from "@/components/client-dashboard/charts/WaterfallChart"
+import { BoxPlotChart } from "@/components/charts/BoxPlotChart"
+import { ComboChart } from "@/components/charts/ComboChart"
+import { FunnelChart } from "@/components/charts/FunnelChart"
+import { HeatmapTable } from "@/components/charts/HeatmapTable"
+import { HorizontalBarChart } from "@/components/charts/HorizontalBarChart"
+import { NightingaleChart } from "@/components/charts/NightingaleChart"
+import { StackedColumnChart } from "@/components/charts/StackedColumnChart"
+import { TimeHeatmap } from "@/components/charts/TimeHeatmap"
+import { TreemapChart } from "@/components/charts/TreemapChart"
+import { WaffleChart } from "@/components/charts/WaffleChart"
+import { WaterfallChart } from "@/components/charts/WaterfallChart"
 import { ClientBrandProvider } from "@/components/client-dashboard/ClientBrandProvider"
 import { buildClientTheme, type ClientBrandTheme } from "@/lib/client-dashboard/theme"
 
@@ -230,8 +230,8 @@ export default function ClientDashboardChartsPreviewPage() {
             />
           </Section>
 
-          <Section title="StackedBarChart — channels vs regions">
-            <StackedBarChart
+          <Section title="HorizontalBarChart — channels vs regions">
+            <HorizontalBarChart
               data={hBarChannels}
               xKey="channel"
               series={[
@@ -241,7 +241,7 @@ export default function ClientDashboardChartsPreviewPage() {
               xAxisFormatter={(v) => currencyAud(v)}
               height={260}
             />
-            <StackedBarChart
+            <HorizontalBarChart
               data={hBarRegions}
               xKey="region"
               series={[
@@ -253,15 +253,15 @@ export default function ClientDashboardChartsPreviewPage() {
             />
           </Section>
 
-          <Section title="ComboBarLineChart — traffic + conversions; revenue + transactions (dual axis)">
-            <ComboBarLineChart
+          <Section title="ComboChart — traffic + conversions; revenue + transactions (dual axis)">
+            <ComboChart
               data={comboTraffic}
               xKey="day"
               bars={[{ key: "sessions", label: "Sessions" }]}
               lines={[{ key: "conversions", label: "Conversions", yAxis: "right" }]}
               height={280}
             />
-            <ComboBarLineChart
+            <ComboChart
               data={comboRevenue}
               xKey="week"
               bars={[{ key: "revenue", label: "Revenue" }]}
@@ -270,14 +270,14 @@ export default function ClientDashboardChartsPreviewPage() {
             />
           </Section>
 
-          <Section title="FunnelViz — retail vs B2B">
-            <FunnelViz data={funnelRetail} height={380} />
-            <FunnelViz data={funnelB2b} height={360} />
+          <Section title="FunnelChart — retail vs B2B">
+            <FunnelChart data={funnelRetail} height={380} />
+            <FunnelChart data={funnelB2b} height={360} />
           </Section>
 
-          <Section title="TreemapViz — intensity vs palette cycle">
-            <TreemapViz data={treemapWithIntensity} height={280} />
-            <TreemapViz data={treemapPaletteOnly} height={260} />
+          <Section title="TreemapChart — intensity vs palette cycle">
+            <TreemapChart data={treemapWithIntensity} height={280} />
+            <TreemapChart data={treemapPaletteOnly} height={260} />
           </Section>
 
           <Section title="HeatmapTable — spend / CTR vs reach / GRP">

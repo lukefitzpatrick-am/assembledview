@@ -32,7 +32,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { buildMediaChannelColorMap } from "@/lib/media/channelColors"
+import { buildMediaChannelColorMap } from "@/lib/charts/registry"
 
 // Define types for the chart data
 type ChartDataPoint = {

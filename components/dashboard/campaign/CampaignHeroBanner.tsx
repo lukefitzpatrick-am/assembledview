@@ -8,7 +8,7 @@ import { AnimatedDotField } from "@/components/ui/animated-dot-field"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { WaveRibbon } from "@/components/ui/wave-ribbon"
-import { formatCurrencyAUD } from "@/lib/charts/format"
+import { formatCurrencyAUD } from "@/lib/format/currency"
 import { cn, hexToRgba } from "@/lib/utils"
 
 interface CampaignHeroBannerProps {

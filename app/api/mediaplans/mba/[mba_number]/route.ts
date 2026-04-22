@@ -4,7 +4,7 @@ import { parseDateOnlyString, toMelbourneDateString } from "@/lib/timezone"
 import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
 import { getXanoBaseUrl, parseXanoListPayload, xanoUrl } from "@/lib/api/xano"
 import { getXanoClientsCollectionUrl } from "@/lib/api/xanoClients"
-import { roundMoney4 } from "@/lib/utils/money"
+import { roundMoney4 } from "@/lib/format/money"
 import { extractBillingMonthStart } from "@/lib/spend/billingScheduleExpectedToDate"
 import { expectedSpendToDateFromDeliveryScheduleMonthly } from "@/lib/spend/monthlyPlanCalendar"
 

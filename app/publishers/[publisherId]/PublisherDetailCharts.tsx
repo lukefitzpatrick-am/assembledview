@@ -1,8 +1,11 @@
 "use client"
 
 import { useMemo } from "react"
-import { StackedColumnChart, type StackedColumnData } from "@/components/charts/StackedColumnChart"
-import { PieChart } from "@/components/charts/PieChart"
+import { BarChart3, PieChart as PieChartIcon } from "lucide-react"
+
+import BaseChartCard from "@/components/charts/BaseChartCard"
+import { DonutChart } from "@/components/charts/DonutChart"
+import { StackedColumnChart } from "@/components/charts/StackedColumnChart"
 import type { PublisherDashboardData } from "@/lib/types/publisher"
 import {
   Table,
@@ -15,10 +18,16 @@ import {
 import { Panel, PanelContent, PanelDescription, PanelHeader, PanelTitle } from "@/components/layout/Panel"
 import { PanelRow, PanelRowCell } from "@/components/layout/PanelRow"
 import { TableWithExport } from "@/components/ui/table-with-export"
-import { FALLBACK_PALETTE } from "@/lib/charts/registry"
+import {
+  FALLBACK_PALETTE,
+  getDeterministicColor,
+  getMediaColor,
+  getMediaLabel,
+} from "@/lib/charts/registry"
 import { normalizeCampaignMediaTypeKey } from "@/lib/publisher/mediaTypeBadges"
 import { MEDIA_TYPE_SLUG_TO_DASHBOARD_LABEL } from "@/lib/publisher/scheduleLabels"
 import { MediaChannelTag, mediaChannelTagRowClassName } from "@/components/dashboard/MediaChannelTag"
+import { formatCurrencyCompact } from "@/lib/format/currency"
 
 interface PublisherDetailChartsProps {
   analytics: PublisherDashboardData
@@ -47,15 +56,45 @@ export function PublisherDetailCharts({
 }: PublisherDetailChartsProps) {
   const accent = brandColour?.trim() ?? ""
   const hasBrandColour = Boolean(accent)
-  const chartColourOverride = hasBrandColour ? [accent, ...FALLBACK_PALETTE] : undefined
+  const chartColourOverride = useMemo(() => {
+    if (!accent) return undefined
+    return [accent, ...FALLBACK_PALETTE]
+  }, [accent])
 
-  const stackedData: StackedColumnData[] = analytics.monthlySpend.map((month) => {
-    const row: StackedColumnData = { month: month.month }
-    for (const { mediaType, amount } of month.data) {
-      row[mediaType] = amount
+  const stackedData = useMemo(
+    () =>
+      analytics.monthlySpend.map((month) => {
+        const row: Record<string, string | number> = { month: month.month }
+        for (const { mediaType, amount } of month.data) {
+          row[mediaType] = amount
+        }
+        return row
+      }),
+    [analytics.monthlySpend],
+  )
+
+  const series = useMemo(() => {
+    const keys = new Set<string>()
+    for (const row of stackedData) {
+      for (const k of Object.keys(row)) {
+        if (k !== "month") keys.add(k)
+      }
     }
-    return row
-  })
+    return Array.from(keys)
+      .sort()
+      .map((key) => ({ key, label: getMediaLabel(key) }))
+  }, [stackedData])
+
+  const totalPositiveStacked = useMemo(
+    () =>
+      stackedData.reduce(
+        (sum, row) =>
+          sum +
+          Object.entries(row).reduce((s, [k, v]) => (k === "month" ? s : s + Math.max(0, Number(v) || 0)), 0),
+        0,
+      ),
+    [stackedData],
+  )
 
   const totalsSpend = analytics.campaigns.reduce((s, c) => s + c.publisherSpendFy, 0)
 
@@ -64,6 +103,11 @@ export function PublisherDetailCharts({
     value: c.amount,
     percentage: c.percentage,
   }))
+
+  const clientDonutData = useMemo(
+    () => pieDataByClient.map((c) => ({ key: c.name, value: c.value })),
+    [pieDataByClient],
+  )
 
   const pieDataByMediaType = useMemo(() => {
     const byType: Record<string, number> = {}
@@ -83,7 +127,18 @@ export function PublisherDetailCharts({
       .sort((a, b) => b.value - a.value)
   }, [analytics.monthlySpend])
 
+  const mediaTypeDonutData = useMemo(
+    () => pieDataByMediaType.map((d) => ({ key: d.name, value: d.value })),
+    [pieDataByMediaType],
+  )
+
   const showMediaTypePie = pieDataByMediaType.length >= 2
+
+  const clientColourFn = useMemo(() => {
+    const palette = chartColourOverride
+    return (key: string, index: number) =>
+      palette?.length ? palette[index % palette.length]! : getDeterministicColor(key)
+  }, [chartColourOverride])
 
   const csvData: CampaignCsvRow[] = useMemo(() => {
     const rows: CampaignCsvRow[] = analytics.campaigns.map((row) => ({
@@ -216,15 +271,17 @@ export function PublisherDetailCharts({
         helperText="Monthly spend stacked by media type and FY distribution for this publisher."
       >
         <PanelRowCell span={showMediaTypePie ? "third" : "half"}>
-          <StackedColumnChart
+          <BaseChartCard
             title="Monthly spend by media type"
             description="Australian financial year, this publisher only"
-            data={stackedData}
-            colors={chartColourOverride}
-            cardClassName="h-full border-border/40 bg-card shadow-sm"
-            headerClassName="border-b border-border/40 bg-muted/10 px-6 py-4"
-            contentClassName="p-6"
-          />
+            variant="icon"
+            icon={BarChart3}
+            className="h-full border-border/40 bg-card shadow-sm"
+            isEmpty={stackedData.length === 0 || totalPositiveStacked <= 0}
+            emptyMessage="No monthly spend data for this period"
+          >
+            <StackedColumnChart data={stackedData} xKey="month" series={series} />
+          </BaseChartCard>
         </PanelRowCell>
         <PanelRowCell span={showMediaTypePie ? "third" : "half"}>
           {pieDataByClient.length === 0 ? (
@@ -235,28 +292,39 @@ export function PublisherDetailCharts({
               </PanelHeader>
             </Panel>
           ) : (
-            <PieChart
+            <BaseChartCard
               title="Spend by client"
               description={"Share of this publisher's FY spend by client"}
-              data={pieDataByClient}
-              colors={chartColourOverride}
-              cardClassName="h-full border-border/40 bg-card shadow-sm"
-              headerClassName="border-b border-border/40 bg-muted/10 px-6 py-4"
-              contentClassName="p-6"
-            />
+              variant="icon"
+              icon={PieChartIcon}
+              className="h-full border-border/40 bg-card shadow-sm"
+            >
+              <DonutChart
+                data={clientDonutData}
+                colourFn={clientColourFn}
+                valueFormatter={formatCurrencyCompact}
+                maxSlices={12}
+                topNBeforeOther={11}
+              />
+            </BaseChartCard>
           )}
         </PanelRowCell>
         {showMediaTypePie ? (
           <PanelRowCell span="third">
-            <PieChart
+            <BaseChartCard
               title="Spend by media type"
               description="FY totals split across media types with spend for this publisher"
-              data={pieDataByMediaType}
-              colors={chartColourOverride}
-              cardClassName="h-full border-border/40 bg-card shadow-sm"
-              headerClassName="border-b border-border/40 bg-muted/10 px-6 py-4"
-              contentClassName="p-6"
-            />
+              variant="icon"
+              icon={PieChartIcon}
+              className="h-full border-border/40 bg-card shadow-sm"
+            >
+              <DonutChart
+                data={mediaTypeDonutData}
+                colourFn={(key) => getMediaColor(key)}
+                labelFn={(key) => getMediaLabel(key)}
+                valueFormatter={formatCurrencyCompact}
+              />
+            </BaseChartCard>
           </PanelRowCell>
         ) : null}
       </PanelRow>
@@ -270,28 +338,29 @@ export function PublisherDetailCharts({
             const label = MEDIA_TYPE_SLUG_TO_DASHBOARD_LABEL[entry.mediaType] ?? entry.mediaType
             const span = analytics.shareByMediaType.length >= 3 ? "third" : "half"
             const marketSharePieColors = [brandColour ?? FALLBACK_PALETTE[0], "#e5e7eb"] as string[]
+            const shareDonutData = [
+              { key: publisherName, value: entry.thisPublisherSpend },
+              { key: "Other publishers", value: entry.totalMarketSpend - entry.thisPublisherSpend },
+            ]
+            const shareColourFn = (key: string) =>
+              key === publisherName ? marketSharePieColors[0]! : marketSharePieColors[1]!
             return (
               <PanelRowCell key={entry.mediaType} span={span}>
-                <PieChart
+                <BaseChartCard
                   title={label}
                   description={`Share of total ${label} spend this FY`}
-                  data={[
-                    {
-                      name: publisherName,
-                      value: entry.thisPublisherSpend,
-                      percentage: entry.sharePercent,
-                    },
-                    {
-                      name: "Other publishers",
-                      value: entry.totalMarketSpend - entry.thisPublisherSpend,
-                      percentage: 100 - entry.sharePercent,
-                    },
-                  ]}
-                  colors={marketSharePieColors}
-                  cardClassName="h-full border-border/40 bg-card shadow-sm"
-                  headerClassName="border-b border-border/40 bg-muted/10 px-6 py-4"
-                  contentClassName="p-6"
-                />
+                  variant="icon"
+                  icon={PieChartIcon}
+                  className="h-full border-border/40 bg-card shadow-sm"
+                >
+                  <DonutChart
+                    data={shareDonutData}
+                    colourFn={shareColourFn}
+                    valueFormatter={formatCurrencyCompact}
+                    maxSlices={4}
+                    topNBeforeOther={3}
+                  />
+                </BaseChartCard>
               </PanelRowCell>
             )
           })}

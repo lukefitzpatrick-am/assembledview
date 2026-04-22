@@ -1,250 +1,143 @@
 "use client"
 
-import { useCallback, useMemo, useRef } from "react"
+import { useMemo } from "react"
 import {
   Bar,
   BarChart,
   CartesianGrid,
   Cell,
+  LabelList,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts"
 
-import { ChartShell } from "@/components/charts/ChartShell"
+import { useClientBrand } from "@/components/client-dashboard/ClientBrandProvider"
 import {
-  finalizeChartDatumClickPayload,
-  type ChartDatumClickCore,
-  type ChartDatumClickPayload,
-  type WaterfallDatum,
-} from "@/components/charts/chartDatumClick"
-import { UnifiedTooltip } from "@/components/charts/UnifiedTooltip"
-import { useChartExport } from "@/hooks/useChartExport"
-import { useToast } from "@/components/ui/use-toast"
-import { formatCurrencyAUD } from "@/lib/charts/format"
-import { CHART_THRESHOLD } from "@/lib/charts/theme"
-import { getXAxisConfig, useResponsiveChartBox } from "@/lib/charts/responsive"
-import { cn } from "@/lib/utils"
+  CHART_TOOLTIP_CONTENT,
+  CHART_TOOLTIP_ITEM_STYLE,
+  CHART_TOOLTIP_LABEL_STYLE,
+} from "@/components/charts/chartStyles"
 
-type WaterfallRow = {
-  name: string
-  base: number
-  bar: number
-  fill: string
-  cumulative: number
-  delta: number
-  raw: WaterfallDatum
-  index: number
+const POSITIVE_STATUS = "#10B981"
+const NEGATIVE_STATUS = "#F43F5E"
+
+export type WaterfallDatum = {
+  label: string
+  value: number
+  type: "start" | "positive" | "negative" | "total"
 }
 
 export type WaterfallChartProps = {
-  title: string
-  description?: string
   data: WaterfallDatum[]
-  formatValue?: (value: number) => string
-  onDatumClick?: (payload: ChartDatumClickPayload) => void
-  getDatumId?: (payload: ChartDatumClickCore) => string
-  className?: string
-  chartAreaClassName?: string
+  height?: number
+  valueFormatter?: (value: number) => string
 }
 
-export function WaterfallChart({
-  title,
-  description,
-  data,
-  formatValue = formatCurrencyAUD,
-  onDatumClick,
-  getDatumId,
-  className,
-  chartAreaClassName,
-}: WaterfallChartProps) {
-  const chartAreaRef = useRef<HTMLDivElement | null>(null)
-  const { width: containerWidth, height: chartHeight } =
-    useResponsiveChartBox(chartAreaRef)
-  const { exportCsv } = useChartExport()
-  const { toast } = useToast()
+function compactSigned(value: number): string {
+  const abs = Math.abs(value)
+  const sign = value >= 0 ? "+" : "-"
+  if (abs >= 1000000) return `${sign}$${(abs / 1000000).toFixed(1)}m`
+  if (abs >= 1000) return `${sign}$${(abs / 1000).toFixed(1)}k`
+  return `${sign}$${abs.toFixed(abs % 1 === 0 ? 0 : 1)}`
+}
 
-  const { rows, maxX } = useMemo(() => {
+type ComputedWaterfallDatum = WaterfallDatum & {
+  base: number
+  bar: number
+  top: number
+  color: string
+}
+
+export function WaterfallChart({ data, height = 320, valueFormatter }: WaterfallChartProps) {
+  const theme = useClientBrand()
+
+  const chartData = useMemo<ComputedWaterfallDatum[]>(() => {
     let running = 0
-    let max = 0
-    const out: WaterfallRow[] = []
-    data.forEach((item, index) => {
-      if (item.type === "total") {
+    return data.map((item) => {
+      if (item.type === "start") {
         running = item.value
-        max = Math.max(max, running)
-        out.push({
-          name: item.name,
+        return {
+          ...item,
           base: 0,
           bar: item.value,
-          fill: CHART_THRESHOLD.info,
-          cumulative: running,
-          delta: item.value,
-          raw: item,
-          index,
-        })
-        return
+          top: item.value,
+          color: theme.primary,
+        }
       }
-      const prev = running
-      running += item.value
-      const lo = Math.min(prev, running)
-      const hi = Math.max(prev, running)
-      max = Math.max(max, hi)
-      const fill =
-        item.type === "increase"
-          ? CHART_THRESHOLD.positive
-          : CHART_THRESHOLD.critical
-      out.push({
-        name: item.name,
-        base: lo,
-        bar: hi - lo,
-        fill,
-        cumulative: running,
-        delta: item.value,
-        raw: item,
-        index,
-      })
+      if (item.type === "total") {
+        running = item.value
+        return {
+          ...item,
+          base: 0,
+          bar: item.value,
+          top: item.value,
+          color: theme.primary,
+        }
+      }
+      const next = running + item.value
+      const base = Math.min(running, next)
+      const bar = Math.abs(item.value)
+      const top = Math.max(running, next)
+      running = next
+      return {
+        ...item,
+        base,
+        bar,
+        top,
+        color: item.type === "positive" ? POSITIVE_STATUS : NEGATIVE_STATUS,
+      }
     })
-    return { rows: out, maxX: max * 1.05 || 1 }
-  }, [data])
+  }, [data, theme.primary])
 
-  const xAxisConfig = useMemo(
-    () =>
-      getXAxisConfig(
-        rows.length,
-        containerWidth || chartAreaRef.current?.clientWidth || 0
-      ),
-    [rows.length, containerWidth]
-  )
-
-  const handleExportCsv = useCallback(() => {
-    exportCsv(
-      data,
-      [
-        { header: "Name", accessor: "name" as const },
-        { header: "Value", accessor: "value" as const },
-        { header: "Type", accessor: "type" as const },
-      ],
-      `${title.toLowerCase().replace(/\s+/g, "-")}.csv`
-    )
-    toast({ title: "CSV exported", description: `${title} data has been downloaded.` })
-  }, [data, exportCsv, title, toast])
-
-  const handleBarClick = (row: WaterfallRow) => {
-    if (!onDatumClick) return
-    onDatumClick(
-      finalizeChartDatumClickPayload(
-        {
-          chart: "waterfall",
-          source: "segment",
-          name: row.name,
-          value: row.delta,
-          index: row.index,
-          datum: row.raw,
-        },
-        getDatumId
-      )
-    )
-  }
-
-  const ariaLabel = `${title}: waterfall chart, ${rows.length} steps`
+  const fmt = valueFormatter ?? compactSigned
 
   return (
-    <ChartShell
-      title={title}
-      description={description}
-      className={className}
-      chartAreaRef={chartAreaRef}
-      chartAreaClassName={cn("min-h-0 w-full", chartAreaClassName)}
-      chartAreaStyle={{ height: chartHeight }}
-      onExportCsv={handleExportCsv}
-    >
-      <div
-        className="h-full w-full min-h-[220px]"
-        role="img"
-        aria-label={ariaLabel}
-      >
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart
-            layout="vertical"
-            data={rows}
-            margin={{
-              top: 8,
-              right: 24,
-              left: 8,
-              bottom: 8 + (xAxisConfig.height ?? 30),
+    <div className="w-full" style={{ height }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={chartData} margin={{ top: 18, right: 12, left: 6, bottom: 8 }}>
+          <CartesianGrid stroke="hsl(var(--border))" vertical={false} />
+          <XAxis
+            dataKey="label"
+            tickLine={false}
+            axisLine={{ stroke: "hsl(var(--border))" }}
+            tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+          />
+          <YAxis
+            tickLine={false}
+            axisLine={{ stroke: "hsl(var(--border))" }}
+            tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+            width={44}
+          />
+          <Tooltip
+            contentStyle={CHART_TOOLTIP_CONTENT}
+            itemStyle={CHART_TOOLTIP_ITEM_STYLE}
+            labelStyle={CHART_TOOLTIP_LABEL_STYLE}
+            formatter={(value: number | string, _name, payload) => {
+              const raw = payload?.payload as ComputedWaterfallDatum | undefined
+              const valueOut = raw ? fmt(raw.value) : String(value)
+              return [valueOut, "Change"]
             }}
-            barCategoryGap="18%"
-          >
-            <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-            <XAxis
-              type="number"
-              domain={[0, maxX]}
-              tickFormatter={(v) => formatValue(Number(v))}
-              tick={{ fontSize: 11 }}
-            />
-            <YAxis
-              type="category"
-              dataKey="name"
-              width={100}
-              tick={{ fontSize: 11 }}
-            />
-            <Tooltip
-              content={(props: {
-                active?: boolean
-                label?: string
-                payload?: Array<{ payload?: WaterfallRow }>
-              }) => {
-                if (!props.active || !props.payload?.[0]) return null
-                const row = props.payload[0].payload
-                if (!row) return null
-                return (
-                  <UnifiedTooltip
-                    active
-                    label={row.name}
-                    payload={[
-                      {
-                        name: row.raw.type === "total" ? "Total" : "Change",
-                        value: row.delta,
-                        color: row.fill,
-                      },
-                      {
-                        name: "Running total",
-                        value: row.cumulative,
-                        color: CHART_THRESHOLD.info,
-                      },
-                    ]}
-                    formatValue={formatValue}
-                    showTotal={false}
-                    showPercentages={false}
-                    maxItems={8}
-                  />
-                )
+          />
+          <Bar dataKey="base" stackId="wf" fill="transparent" isAnimationActive={false} />
+          <Bar dataKey="bar" stackId="wf" isAnimationActive={false} radius={[3, 3, 0, 0]}>
+            {chartData.map((d) => (
+              <Cell key={d.label} fill={d.color} />
+            ))}
+            <LabelList
+              dataKey="top"
+              position="top"
+              formatter={(_top, _entry, index) => {
+                const datum = chartData[index]
+                return datum ? fmt(datum.value) : ""
               }}
+              fill="hsl(var(--foreground))"
+              fontSize={11}
             />
-            <Bar
-              stackId="wf"
-              dataKey="base"
-              fill="rgba(0,0,0,0)"
-              isAnimationActive={false}
-            />
-            <Bar
-              stackId="wf"
-              dataKey="bar"
-              radius={[0, 4, 4, 0]}
-              cursor={onDatumClick ? "pointer" : "default"}
-              onClick={(_state, index: number) => {
-                const row = rows[index]
-                if (row) handleBarClick(row)
-              }}
-            >
-              {rows.map((r) => (
-                <Cell key={`${r.name}-${r.index}`} fill={r.fill} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-    </ChartShell>
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
   )
 }

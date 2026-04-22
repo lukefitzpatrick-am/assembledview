@@ -1,6 +1,6 @@
 import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 import { toMelbourneDateString } from "@/lib/timezone"
-import { roundMoney2 } from "@/lib/utils/money"
+import { roundMoney2 } from "@/lib/format/money"
 
 function parseAmountSafe(value: unknown): number {
   if (typeof value === "number") return Number.isFinite(value) ? value : 0

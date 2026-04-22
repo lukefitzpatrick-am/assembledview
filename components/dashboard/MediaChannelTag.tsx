@@ -1,6 +1,6 @@
 "use client"
 
-import { getMediaChannelBadgeStyle } from "@/lib/media/channelColors"
+import { getMediaBadgeStyle } from "@/lib/charts/registry"
 import { cn } from "@/lib/utils"
 
 /** Pill shape aligned with admin `/dashboard` media badges (`Badge` → `rounded-full`). */
@@ -18,7 +18,7 @@ export function MediaChannelTag({
   className?: string
 }) {
   return (
-    <span className={cn(mediaChannelTagClassName, className)} style={getMediaChannelBadgeStyle(label)}>
+    <span className={cn(mediaChannelTagClassName, className)} style={getMediaBadgeStyle(label)}>
       {label}
     </span>
   )

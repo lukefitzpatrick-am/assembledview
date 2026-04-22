@@ -3,7 +3,11 @@
 import type { CSSProperties } from "react"
 import { createContext, useContext, type ReactNode } from "react"
 
-import type { ClientBrandTheme } from "@/lib/client-dashboard/theme"
+import {
+  buildAssembledMediaAppDefaultTheme,
+  buildClientBrandThemeFromDocumentCssVars,
+  type ClientBrandTheme,
+} from "@/lib/client-dashboard/theme"
 
 const ClientBrandContext = createContext<ClientBrandTheme | null>(null)
 
@@ -24,10 +28,15 @@ export function ClientBrandProvider({ theme, children }: ClientBrandProviderProp
 
 export function useClientBrand(): ClientBrandTheme {
   const ctx = useContext(ClientBrandContext)
-  if (ctx == null) {
-    throw new Error("useClientBrand must be used within a ClientBrandProvider")
-  }
-  return ctx
+  if (ctx != null) return ctx
+  const fromCss = buildClientBrandThemeFromDocumentCssVars()
+  if (fromCss != null) return fromCss
+  return buildAssembledMediaAppDefaultTheme()
+}
+
+/** Theme from `ClientBrandProvider`, or `null` when used outside the provider. */
+export function useClientBrandOptional(): ClientBrandTheme | null {
+  return useContext(ClientBrandContext)
 }
 
 export function brandStyleVars(theme: ClientBrandTheme): CSSProperties {

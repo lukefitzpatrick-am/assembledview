@@ -13,7 +13,8 @@ import { format } from "date-fns"
 import { AlertTriangle, ArrowRight, BarChart3, CalendarRange, DollarSign, Scale, Wallet } from "lucide-react"
 import { differenceInCalendarDays, parseISO } from "date-fns"
 import { PageHeroShell } from "@/components/dashboard/PageHeroShell"
-import { TreemapChart } from "@/components/charts/TreemapChart"
+import BaseChartCard from "@/components/charts/BaseChartCard"
+import { TreemapShellChart } from "@/components/charts/TreemapShellChart"
 import { StackedColumnChart } from "@/components/charts/StackedColumnChart"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
@@ -33,7 +34,7 @@ import {
   fetchFinanceEditsList,
   fetchFinancePayablesForMonths,
 } from "@/lib/finance/api"
-import { formatMoney } from "@/lib/utils/money"
+import { formatMoney } from "@/lib/format/money"
 import { cn, hexToRgba } from "@/lib/utils"
 import { useFinanceStore, type FinanceHubTab } from "@/lib/finance/useFinanceStore"
 import { billingMonthsInAustralianFinancialYear } from "@/lib/finance/months"
@@ -818,6 +819,60 @@ export function OverviewTab() {
     onAttentionClick,
   } = useFinanceOverview()
 
+  const monthlyClientStackedRows = useMemo(
+    () =>
+      monthlyClientSpend.map((m) => ({
+        month: m.month,
+        ...m.data.reduce(
+          (acc, item) => {
+            acc[item.client] = Math.round(item.amount)
+            return acc
+          },
+          {} as Record<string, number>,
+        ),
+      })),
+    [monthlyClientSpend],
+  )
+
+  const monthlyClientStackedSeries = useMemo(() => {
+    const keys = new Set<string>()
+    for (const row of monthlyClientStackedRows) {
+      for (const k of Object.keys(row)) {
+        if (k !== "month") keys.add(k)
+      }
+    }
+    return Array.from(keys)
+      .sort()
+      .map((key) => ({ key, label: key }))
+  }, [monthlyClientStackedRows])
+
+  const monthlyPublisherStackedRows = useMemo(
+    () =>
+      monthlyPublisherSpend.map((m) => ({
+        month: m.month,
+        ...m.data.reduce(
+          (acc, item) => {
+            acc[item.publisher] = Math.round(item.amount)
+            return acc
+          },
+          {} as Record<string, number>,
+        ),
+      })),
+    [monthlyPublisherSpend],
+  )
+
+  const monthlyPublisherStackedSeries = useMemo(() => {
+    const keys = new Set<string>()
+    for (const row of monthlyPublisherStackedRows) {
+      for (const k of Object.keys(row)) {
+        if (k !== "month") keys.add(k)
+      }
+    }
+    return Array.from(keys)
+      .sort()
+      .map((key) => ({ key, label: key }))
+  }, [monthlyPublisherStackedRows])
+
   return (
     <div className="space-y-10">
       <div className="space-y-3">
@@ -837,7 +892,7 @@ export function OverviewTab() {
           <div className="flex flex-col gap-4">
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-                <TreemapChart
+                <TreemapShellChart
                   title="Spend via Publisher"
                   description="Media cost only - Current financial year"
                   data={publisherSpendData}
@@ -845,7 +900,7 @@ export function OverviewTab() {
                 />
               </div>
               <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-                <TreemapChart
+                <TreemapShellChart
                   title="Spend via Client"
                   description="Media cost only - Current financial year"
                   data={clientSpendData}
@@ -854,41 +909,33 @@ export function OverviewTab() {
                 />
               </div>
             </div>
-            <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+            <BaseChartCard
+              title="Monthly Spend by Client"
+              description="Media cost by client per month (current FY, billing schedule)"
+              variant="icon"
+              icon={BarChart3}
+              className="overflow-hidden rounded-xl border border-border bg-card shadow-sm"
+            >
               <StackedColumnChart
-                title="Monthly Spend by Client"
-                description="Media cost by client per month (current FY, billing schedule)"
-                data={monthlyClientSpend.map((m) => ({
-                  month: m.month,
-                  ...m.data.reduce(
-                    (acc, item) => {
-                      acc[item.client] = Math.round(item.amount)
-                      return acc
-                    },
-                    {} as Record<string, number>
-                  ),
-                }))}
-                seriesColorByName={dashboardMonthlyClientSeriesColors}
-                cardClassName={cn("rounded-lg", chartCardQuiet)}
+                data={monthlyClientStackedRows}
+                xKey="month"
+                series={monthlyClientStackedSeries}
+                seriesColorByKey={dashboardMonthlyClientSeriesColors}
               />
-            </div>
-            <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+            </BaseChartCard>
+            <BaseChartCard
+              title="Monthly Spend by Publisher"
+              description="Media cost by publisher per month (current FY, billing schedule)"
+              variant="icon"
+              icon={BarChart3}
+              className="overflow-hidden rounded-xl border border-border bg-card shadow-sm"
+            >
               <StackedColumnChart
-                title="Monthly Spend by Publisher"
-                description="Media cost by publisher per month (current FY, billing schedule)"
-                data={monthlyPublisherSpend.map((m) => ({
-                  month: m.month,
-                  ...m.data.reduce(
-                    (acc, item) => {
-                      acc[item.publisher] = Math.round(item.amount)
-                      return acc
-                    },
-                    {} as Record<string, number>
-                  ),
-                }))}
-                cardClassName={cn("rounded-lg", chartCardQuiet)}
+                data={monthlyPublisherStackedRows}
+                xKey="month"
+                series={monthlyPublisherStackedSeries}
               />
-            </div>
+            </BaseChartCard>
           </div>
         )}
       </div>

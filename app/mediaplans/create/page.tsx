@@ -59,6 +59,8 @@ import {
 } from "@/lib/mediaplan/partialMba"
 import { generateBillingLineItems } from "@/lib/billing/generateBillingLineItems"
 import { getMediaTypeHeadersForSchedule } from "@/lib/billing/mediaTypeHeaders"
+import { syncLineItemMonthlyAmountAcrossAllMonthRows } from "@/lib/billing/syncLineItemAmountAcrossMonthRows"
+import { EditableLineItemMonthInput } from "@/components/billing/EditableLineItemMonthInput"
 import { prepareBillingMonthsForLineItemExport } from "@/lib/billing/prepareBillingMonthsForLineItemExport"
 import {
   buildBillingScheduleExcelBlob,
@@ -3316,24 +3318,30 @@ export default function CreateMediaPlan() {
     const formatter = mbaCurrencyFormatter;
     const formattedValue = formatter.format(numericValue);
 
-    // Handle line item changes
+    // Handle line item changes (grid reads line items from month[0]; per-month state may be cloned, so sync all rows)
     if (type === 'lineItem' && mediaKey && lineItemId && monthYear) {
-      const monthIndex = copy.findIndex(m => m.monthYear === monthYear);
-      if (monthIndex >= 0 && copy[monthIndex].lineItems) {
-        const lineItemsObj = copy[monthIndex].lineItems;
-        const lineItemsKey = mediaKey as keyof typeof lineItemsObj;
-        if (lineItemsObj[lineItemsKey]) {
-          const lineItems = lineItemsObj[lineItemsKey] as BillingLineItem[];
-          const lineItemIndex = lineItems.findIndex(li => li.id === lineItemId);
-          if (lineItemIndex >= 0) {
-            // Update the line item's monthly amount
-            lineItems[lineItemIndex].monthlyAmounts[monthYear] = numericValue;
-            // Recalculate line item total
-            lineItems[lineItemIndex].totalAmount = Object.values(lineItems[lineItemIndex].monthlyAmounts).reduce((sum, val) => sum + val, 0);
-            
-            // Recalculate media type total for this month from all line items
-            const mediaTypeTotal = lineItems.reduce((sum, li) => sum + (li.monthlyAmounts[monthYear] || 0), 0);
-            const mediaCosts = copy[monthIndex].mediaCosts;
+      const monthIndex = copy.findIndex((m) => m.monthYear === monthYear);
+      if (monthIndex >= 0) {
+        syncLineItemMonthlyAmountAcrossAllMonthRows(
+          copy,
+          mediaKey,
+          lineItemId,
+          monthYear,
+          numericValue
+        );
+        const liKey = mediaKey as keyof NonNullable<BillingMonth["lineItems"]>;
+        const lineItemsForTotals =
+          (copy[0]?.lineItems?.[liKey] as BillingLineItem[] | undefined) ??
+          copy
+            .map((m) => m.lineItems?.[liKey] as BillingLineItem[] | undefined)
+            .find((a) => a && a.length > 0);
+        if (lineItemsForTotals?.length) {
+          const mediaTypeTotal = lineItemsForTotals.reduce(
+            (sum, li) => sum + (li.monthlyAmounts[monthYear] || 0),
+            0
+          );
+          const mediaCosts = copy[monthIndex].mediaCosts;
+          if (mediaCosts) {
             (mediaCosts as any)[mediaKey] = formatter.format(mediaTypeTotal);
           }
         }
@@ -5739,40 +5747,32 @@ const handleSaveAll = async () => {
                                 const monthAmount = lineItem.monthlyAmounts?.[month.monthYear] || 0;
                                 return (
                                   <TableCell key={month.monthYear} align="right">
-                                    <Input
+                                    <EditableLineItemMonthInput
+                                      key={`${lineItem.id}__${month.monthYear}`}
                                       className="text-right w-28"
-                                      value={mbaCurrencyFormatter.format(monthAmount)}
-                                      onBlur={(e) =>
+                                      amount={monthAmount}
+                                      formatter={mbaCurrencyFormatter}
+                                      onAmountChange={(numericValue) => {
+                                        const tempCopy = [...manualBillingMonths];
+                                        syncLineItemMonthlyAmountAcrossAllMonthRows(
+                                          tempCopy,
+                                          mediaKey,
+                                          lineItem.id,
+                                          month.monthYear,
+                                          numericValue
+                                        );
+                                        setManualBillingMonths(tempCopy);
+                                      }}
+                                      onCommit={(raw) =>
                                         handleManualBillingChange(
                                           monthIndex,
                                           "lineItem",
-                                          e.target.value,
+                                          raw,
                                           mediaKey,
                                           lineItem.id,
                                           month.monthYear
                                         )
                                       }
-                                      onChange={(e) => {
-                                        const tempCopy = [...manualBillingMonths];
-                                        const foundMonthIndex = tempCopy.findIndex((m) => m.monthYear === month.monthYear);
-                                        if (foundMonthIndex >= 0 && tempCopy[foundMonthIndex].lineItems) {
-                                          const lineItemsObj = tempCopy[foundMonthIndex].lineItems!;
-                                          const lineItemsKey = mediaKey as keyof typeof lineItemsObj;
-                                          const lineItemsArray = lineItemsObj[lineItemsKey] as BillingLineItem[] | undefined;
-                                          if (lineItemsArray) {
-                                            const liIndex = lineItemsArray.findIndex((li) => li.id === lineItem.id);
-                                            if (liIndex >= 0) {
-                                              const numericValue = parseFloat(e.target.value.replace(/[^0-9.-]/g, "")) || 0;
-                                              lineItemsArray[liIndex].monthlyAmounts[month.monthYear] = numericValue;
-                                              lineItemsArray[liIndex].totalAmount = Object.values(lineItemsArray[liIndex].monthlyAmounts).reduce(
-                                                (sum, val) => sum + (val || 0),
-                                                0
-                                              );
-                                              setManualBillingMonths(tempCopy);
-                                            }
-                                          }
-                                        }
-                                      }}
                                     />
                                   </TableCell>
                                 );

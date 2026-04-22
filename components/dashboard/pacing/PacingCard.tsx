@@ -31,6 +31,7 @@
 import type { LucideIcon } from "lucide-react"
 import type { ReactNode } from "react"
 
+import BaseChartCard from "@/components/charts/BaseChartCard"
 import { cn } from "@/lib/utils"
 
 export type PacingCardProps = {
@@ -45,21 +46,16 @@ export type PacingCardProps = {
 
 export function PacingCard({ icon: Icon, title, subtitle, actions, children, className }: PacingCardProps) {
   return (
-    <div className={cn("rounded-2xl border border-border/60 bg-card p-5", className)}>
-      <div className="flex items-start gap-2.5">
-        <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted/50 text-muted-foreground">
-          <Icon className="h-4 w-4" aria-hidden />
-        </span>
-        <div className="flex min-w-0 flex-1 items-start gap-2.5">
-          <div className="min-w-0 flex-1 space-y-0.5">
-            <h3 className="text-sm font-semibold text-foreground">{title}</h3>
-            {subtitle ? <p className="text-xs text-muted-foreground">{subtitle}</p> : null}
-          </div>
-          {actions ? <div className="ml-auto flex shrink-0 items-center gap-2">{actions}</div> : null}
-        </div>
-      </div>
-      <div className="mt-4">{children}</div>
-    </div>
+    <BaseChartCard
+      title={title}
+      description={subtitle}
+      variant="icon"
+      icon={Icon}
+      toolbar={actions}
+      className={className}
+    >
+      {children}
+    </BaseChartCard>
   )
 }
 

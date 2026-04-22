@@ -6,12 +6,13 @@ import { BrandAccentHeader } from "@/components/client-dashboard/BrandAccentHead
 import { ClientBrandProvider } from "@/components/client-dashboard/ClientBrandProvider"
 import { DashboardHeader } from "@/components/client-dashboard/DashboardHeader"
 import { MetricCard } from "@/components/client-dashboard/MetricCard"
-import { ComboBarLineChart } from "@/components/client-dashboard/charts/ComboBarLineChart"
-import { FunnelViz } from "@/components/client-dashboard/charts/FunnelViz"
-import { NightingaleChart } from "@/components/client-dashboard/charts/NightingaleChart"
-import { StackedBarChart } from "@/components/client-dashboard/charts/StackedBarChart"
-import { WaffleChart } from "@/components/client-dashboard/charts/WaffleChart"
-import { WaterfallChart } from "@/components/client-dashboard/charts/WaterfallChart"
+import BaseChartCard from "@/components/charts/BaseChartCard"
+import { ComboChart } from "@/components/charts/ComboChart"
+import { FunnelChart } from "@/components/charts/FunnelChart"
+import { HorizontalBarChart } from "@/components/charts/HorizontalBarChart"
+import { NightingaleChart } from "@/components/charts/NightingaleChart"
+import { WaffleChart } from "@/components/charts/WaffleChart"
+import { WaterfallChart } from "@/components/charts/WaterfallChart"
 import { Panel, PanelContent } from "@/components/layout/Panel"
 import {
   budgetMix,
@@ -24,7 +25,7 @@ import {
   waterfall,
 } from "@/lib/client-dashboard/mocks/curatif"
 import { buildClientTheme } from "@/lib/client-dashboard/theme"
-import { formatMoney } from "@/lib/utils/money"
+import { formatCurrencyFull } from "@/lib/format/currency"
 
 /**
  * Mock — replace with theme from Xano in production.
@@ -40,7 +41,8 @@ const curTheme = buildClientTheme({
   brand_primary_dark_hex: MOCK_PRIMARY_DARK,
 })
 
-const currencyFmt = (v: number) => formatMoney(v, { locale: "en-AU", currency: "AUD", maximumFractionDigits: 0 })
+const currencyFmt = (v: number) =>
+  formatCurrencyFull(v, { locale: "en-AU", currency: "AUD", maximumFractionDigits: 0, minimumFractionDigits: 0 })
 
 export function CuratifExample() {
   const [rangeLabel, setRangeLabel] = useState("Last 28 days (mock)")
@@ -108,62 +110,48 @@ export function CuratifExample() {
           </PanelContent>
         </Panel>
 
-        <Panel>
-          <BrandAccentHeader title="Revenue & transactions" description="Daily revenue vs order volume." />
-          <PanelContent standalone className="!px-3 !py-2">
-            <ComboBarLineChart
-              data={comboData}
-              xKey="day"
-              bars={[{ key: "revenue", label: "Revenue" }]}
-              lines={[{ key: "transactions", label: "Transactions", yAxis: "right" }]}
-              height={260}
-            />
-          </PanelContent>
-        </Panel>
+        <BaseChartCard
+          title="Revenue & transactions"
+          description="Daily revenue vs order volume."
+          variant="accent"
+        >
+          <ComboChart
+            data={comboData}
+            xKey="day"
+            bars={[{ key: "revenue", label: "Revenue" }]}
+            lines={[{ key: "transactions", label: "Transactions", yAxis: "right" }]}
+            height={260}
+          />
+        </BaseChartCard>
 
-        <Panel>
-          <BrandAccentHeader title="Revenue bridge — prior vs current" />
-          <PanelContent standalone className="!px-3 !py-2">
-            <WaterfallChart data={waterfallData} height={280} valueFormatter={currencyFmt} />
-          </PanelContent>
-        </Panel>
+        <BaseChartCard title="Revenue bridge — prior vs current" variant="accent">
+          <WaterfallChart data={waterfallData} height={280} valueFormatter={currencyFmt} />
+        </BaseChartCard>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <Panel>
-            <BrandAccentHeader title="Purchase funnel" />
-            <PanelContent standalone className="!px-2 !py-2">
-              <FunnelViz data={funnelData} height={300} />
-            </PanelContent>
-          </Panel>
-          <Panel>
-            <BrandAccentHeader title="Channel revenue share" />
-            <PanelContent standalone className="!px-2 !py-2">
-              <NightingaleChart data={nightingaleData} size={260} />
-            </PanelContent>
-          </Panel>
-          <Panel>
-            <BrandAccentHeader title="Media budget mix" />
-            <PanelContent standalone className="!px-2 !py-2">
-              <WaffleChart data={waffleData} />
-            </PanelContent>
-          </Panel>
+          <BaseChartCard title="Purchase funnel" variant="accent">
+            <FunnelChart data={funnelData} height={300} />
+          </BaseChartCard>
+          <BaseChartCard title="Channel revenue share" variant="accent">
+            <NightingaleChart data={nightingaleData} size={260} />
+          </BaseChartCard>
+          <BaseChartCard title="Media budget mix" variant="accent">
+            <WaffleChart data={waffleData} />
+          </BaseChartCard>
         </div>
 
-        <Panel>
-          <BrandAccentHeader title="Channel revenue — new vs returning" />
-          <PanelContent standalone className="!px-3 !py-2">
-            <StackedBarChart
-              data={channelBarData}
-              xKey="channel"
-              series={[
-                { key: "newCust", label: "New customers" },
-                { key: "returning", label: "Returning customers" },
-              ]}
-              xAxisFormatter={currencyFmt}
-              height={260}
-            />
-          </PanelContent>
-        </Panel>
+        <BaseChartCard title="Channel revenue — new vs returning" variant="accent">
+          <HorizontalBarChart
+            data={channelBarData}
+            xKey="channel"
+            series={[
+              { key: "newCust", label: "New customers" },
+              { key: "returning", label: "Returning customers" },
+            ]}
+            xAxisFormatter={currencyFmt}
+            height={260}
+          />
+        </BaseChartCard>
       </div>
     </ClientBrandProvider>
   )

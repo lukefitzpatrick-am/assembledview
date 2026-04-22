@@ -24,7 +24,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Label } from "@/components/ui/label";
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
 import type { LineItem } from '@/lib/generateMediaPlan'
-import { formatMoney, parseMoneyInput } from "@/lib/utils/money"
+import { formatMoney, parseMoneyInput } from "@/lib/format/money"
 import {
   coerceBuyTypeWithDevWarn,
   deliverablesFromBudget,

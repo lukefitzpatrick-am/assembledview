@@ -1,19 +1,19 @@
 "use client"
 
 import { Fragment, useMemo } from "react"
-import { Cell, Funnel, FunnelChart, ResponsiveContainer, Tooltip } from "recharts"
+import { Cell, Funnel, FunnelChart as RechartsFunnelChart, ResponsiveContainer, Tooltip } from "recharts"
 
 import { useClientBrand } from "@/components/client-dashboard/ClientBrandProvider"
 import {
-  CD_CHART_TOOLTIP_CONTENT,
-  CD_CHART_TOOLTIP_ITEM_STYLE,
-  CD_CHART_TOOLTIP_LABEL_STYLE,
-} from "@/components/client-dashboard/charts/chartStyles"
+  CHART_TOOLTIP_CONTENT,
+  CHART_TOOLTIP_ITEM_STYLE,
+  CHART_TOOLTIP_LABEL_STYLE,
+} from "@/components/charts/chartStyles"
 import { getChartPalette } from "@/lib/client-dashboard/theme"
 
 export type FunnelDatum = { name: string; value: number }
 
-export type FunnelVizProps = {
+export type FunnelChartProps = {
   data: FunnelDatum[]
   height?: number
 }
@@ -23,7 +23,7 @@ function formatPct(n: number | null): string {
   return `${n.toFixed(1)}%`
 }
 
-export function FunnelViz({ data, height = 360 }: FunnelVizProps) {
+export function FunnelChart({ data, height = 360 }: FunnelChartProps) {
   const theme = useClientBrand()
   const palette = useMemo(() => getChartPalette(theme), [theme])
 
@@ -44,18 +44,18 @@ export function FunnelViz({ data, height = 360 }: FunnelVizProps) {
     <div className="w-full space-y-4" style={{ minHeight: height }}>
       <div className="w-full" style={{ height: chartHeight }}>
         <ResponsiveContainer width="100%" height="100%">
-          <FunnelChart margin={{ top: 8, right: 24, left: 24, bottom: 8 }}>
+          <RechartsFunnelChart margin={{ top: 8, right: 24, left: 24, bottom: 8 }}>
             <Tooltip
-              contentStyle={CD_CHART_TOOLTIP_CONTENT}
-              labelStyle={CD_CHART_TOOLTIP_LABEL_STYLE}
-              itemStyle={CD_CHART_TOOLTIP_ITEM_STYLE}
+              contentStyle={CHART_TOOLTIP_CONTENT}
+              labelStyle={CHART_TOOLTIP_LABEL_STYLE}
+              itemStyle={CHART_TOOLTIP_ITEM_STYLE}
             />
             <Funnel dataKey="value" nameKey="name" data={data} isAnimationActive={false}>
               {data.map((d, i) => (
                 <Cell key={d.name} fill={palette[i % palette.length]} />
               ))}
             </Funnel>
-          </FunnelChart>
+          </RechartsFunnelChart>
         </ResponsiveContainer>
       </div>
 
@@ -78,3 +78,9 @@ export function FunnelViz({ data, height = 360 }: FunnelVizProps) {
     </div>
   )
 }
+
+/** @deprecated Use `FunnelChart` — renamed in chart consolidation. */
+export const FunnelViz = FunnelChart
+
+/** @deprecated Use `FunnelChartProps` */
+export type FunnelVizProps = FunnelChartProps

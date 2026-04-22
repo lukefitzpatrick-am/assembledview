@@ -2,9 +2,9 @@
 
 import { useMemo, useState } from "react"
 
-import MonthlySpendChart from "@/app/dashboard/[slug]/components/MonthlySpendChart"
-import SpendByCampaignChart from "@/app/dashboard/[slug]/components/SpendByCampaignChart"
-import SpendByMediaTypeChart from "@/app/dashboard/[slug]/components/SpendByMediaTypeChart"
+import MonthlySpendChart from "@/components/charts/domain/MonthlySpendChart"
+import SpendByCampaignChart from "@/components/charts/domain/SpendByCampaignChart"
+import SpendByMediaTypeChart from "@/components/charts/domain/SpendByMediaTypeChart"
 import { cn } from "@/lib/utils"
 
 export type MonthlySpendData = {

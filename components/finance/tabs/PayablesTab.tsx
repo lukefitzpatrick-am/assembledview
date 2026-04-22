@@ -27,7 +27,7 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { PayablesAgencyOwedFooter, PayablesDeliveryLinesTable } from "@/components/finance/PayablesDeliveryLinesTable"
 import { usePayablesHideClientPaid } from "@/components/finance/usePayablesHideClientPaid"
-import { formatMoney } from "@/lib/utils/money"
+import { formatMoney } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
 import { useFinanceStore } from "@/lib/finance/useFinanceStore"
 

@@ -111,6 +111,68 @@ function derivePrimaryDark(primary: string): string {
   return mixHex(primary, BLACK, 0.45)
 }
 
+/**
+ * Default Assembled Media marketing accent: `tailwind.config.js` `brandPalette.lime`
+ * and `lib/utils` `colors.limeGreen` (production CTA / chart accent).
+ */
+export const ASSEMBLED_MEDIA_APP_BRAND_PRIMARY_HEX = "#b5d337"
+
+export function buildAssembledMediaAppDefaultTheme(): ClientBrandTheme {
+  return buildClientTheme({
+    name: "Assembled Media",
+    brand_primary_hex: ASSEMBLED_MEDIA_APP_BRAND_PRIMARY_HEX,
+  })
+}
+
+/**
+ * Parses shadcn-style HSL components from `:root` (no `hsl()` wrapper), e.g. `"210 57% 55%"`.
+ */
+export function hexFromCssHslTriplet(triplet: string): string | null {
+  const m = triplet.trim().match(/^([\d.]+)\s+([\d.]+)%\s+([\d.]+)%$/)
+  if (!m) return null
+  const h = (Number(m[1]) % 360) / 360
+  const s = Number(m[2]) / 100
+  const l = Number(m[3]) / 100
+  if (!Number.isFinite(h) || !Number.isFinite(s) || !Number.isFinite(l)) return null
+
+  const hue2rgb = (p: number, q: number, t: number) => {
+    let tt = t
+    if (tt < 0) tt += 1
+    if (tt > 1) tt -= 1
+    if (tt < 1 / 6) return p + (q - p) * 6 * tt
+    if (tt < 1 / 2) return q
+    if (tt < 2 / 3) return p + (q - p) * (2 / 3 - tt) * 6
+    return p
+  }
+
+  let r: number
+  let g: number
+  let b: number
+  if (s === 0) {
+    r = g = b = l
+  } else {
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s
+    const p = 2 * l - q
+    r = hue2rgb(p, q, h + 1 / 3)
+    g = hue2rgb(p, q, h)
+    b = hue2rgb(p, q, h - 1 / 3)
+  }
+
+  return toHex(r * 255, g * 255, b * 255)
+}
+
+/** Build app brand theme from `:root` `--primary` (browser only). */
+export function buildClientBrandThemeFromDocumentCssVars(): ClientBrandTheme | null {
+  if (typeof document === "undefined") return null
+  const raw = getComputedStyle(document.documentElement).getPropertyValue("--primary").trim()
+  const hex = hexFromCssHslTriplet(raw)
+  if (!hex) return null
+  return buildClientTheme({
+    name: "Assembled Media",
+    brand_primary_hex: hex,
+  })
+}
+
 export function buildClientTheme(client: ClientDashboardBrandInput | null | undefined): ClientBrandTheme {
   const primary = pickHex(client?.brand_primary_hex, DEFAULT_PRIMARY)
   const primaryDark = isValidHex(client?.brand_primary_dark_hex)

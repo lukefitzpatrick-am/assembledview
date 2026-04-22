@@ -1,485 +1,198 @@
-'use client'
+"use client"
 
-import {
-  forwardRef,
-  useCallback,
-  useMemo,
-  useRef,
-  useState,
-  type MouseEvent,
-} from 'react'
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  LabelList,
-  Line,
-} from 'recharts'
+import { useCallback, useMemo, useState } from "react"
 
-import { ChartShell } from '@/components/charts/ChartShell'
 import {
   finalizeChartDatumClickPayload,
   type ChartDatumClickCore,
   type ChartDatumClickPayload,
-} from '@/components/charts/chartDatumClick'
+  type ChartStackedColumnRow,
+} from "@/components/charts/chartDatumClick"
 import {
-  useUnifiedTooltip,
-  type UnifiedTooltipRechartsProps,
-} from '@/components/charts/UnifiedTooltip'
-import { useChartExport } from '@/hooks/useChartExport'
-import { useToast } from '@/components/ui/use-toast'
-import { formatCurrencyAUD } from '@/lib/charts/format'
-import { assignEntityColors } from '@/lib/charts/registry'
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Legend,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts"
+
+import { useClientBrand } from "@/components/client-dashboard/ClientBrandProvider"
 import {
-  condenseSeriesData,
-  getXAxisConfig,
-  useResponsiveChartBox,
-} from '@/lib/charts/responsive'
-import { cn } from '@/lib/utils'
+  CHART_TOOLTIP_CONTENT,
+  CHART_TOOLTIP_ITEM_STYLE,
+  CHART_TOOLTIP_LABEL_STYLE,
+} from "@/components/charts/chartStyles"
+import { ToggleableLegend } from "@/components/charts/ToggleableLegend"
+import { getChartPalette } from "@/lib/client-dashboard/theme"
 
-export interface StackedColumnData {
-  month: string
-  [key: string]: string | number
-}
+/** @deprecated Prefer `ChartStackedColumnRow` from `chartDatumClick` — legacy admin chart row shape (Phase 3). */
+export type StackedColumnData = ChartStackedColumnRow
 
-export interface StackedColumnComparisonDatum {
-  month: string
-  value: number
-}
+export type StackedColumnSeries = { key: string; label: string }
 
-/** Column totals on-chart: `sparse` shows one total above each stack; `none` hides them. */
-export type ChartLabelMode = 'sparse' | 'none'
-
-interface StackedColumnChartProps {
-  title: string
-  description: string
-  data: StackedColumnData[]
-  /** Optional positional override; otherwise colours from `assignEntityColors`. */
-  colors?: string[]
-  /** Per-series hex (or CSS) colours; merged on top of the default palette for matching keys. */
-  seriesColorByName?: Record<string, string>
-  comparisonData?: StackedColumnComparisonDatum[]
-  comparisonLabel?: string
-  /** Default: sparse (single total label per column). */
-  labelMode?: ChartLabelMode
-  onExport?: () => void
-  /** Fired when a stacked segment, or a legend item, is clicked. */
+export type StackedColumnChartProps = {
+  data: Array<Record<string, number | string>>
+  xKey: string
+  series: StackedColumnSeries[]
+  height?: number
+  /** Optional per-series fill overrides (e.g. client profile colours on the admin dashboard). */
+  seriesColorByKey?: Record<string, string>
   onDatumClick?: (payload: ChartDatumClickPayload) => void
-  /** Optional stable id for the datum; defaults are chart-specific (see `defaultChartDatumId` in chartDatumClick). */
-  getDatumId?: (payload: ChartDatumClickCore) => string
-  cardClassName?: string
-  headerClassName?: string
-  contentClassName?: string
-  /** Extra classes on the chart-area wrapper (height comes from ResizeObserver). */
-  chartAreaClassName?: string
+  getDatumId?: (core: ChartDatumClickCore) => string
+  /**
+   * When set with `onDatumClick`, legend clicks filter (admin dashboard) instead of toggling
+   * series visibility.
+   */
+  filterViaLegend?: boolean
 }
 
-const INTERACTIVE_HELPER_TEXT =
-  'Interactive chart: click a segment or legend item to filter.'
-const READONLY_HELPER_TEXT = 'Read-only chart: hover bars and legend for details.'
+type BarSegClick = { payload?: ChartStackedColumnRow; value?: number | [number, number] }
 
-const formatCurrencyNoDecimals = (value: number) => formatCurrencyAUD(value)
+export function StackedColumnChart({
+  data,
+  xKey,
+  series,
+  height = 320,
+  seriesColorByKey,
+  onDatumClick,
+  getDatumId,
+  filterViaLegend = false,
+}: StackedColumnChartProps) {
+  const theme = useClientBrand()
+  const palette = useMemo(() => getChartPalette(theme), [theme])
+  const [hidden, setHidden] = useState<Set<string>>(() => new Set())
 
-function rowStackTotal(row: StackedColumnData, keys: string[]) {
-  return keys.reduce((sum, key) => sum + (Number(row[key]) || 0), 0)
-}
-
-export const StackedColumnChart = forwardRef<HTMLDivElement, StackedColumnChartProps>(
-  function StackedColumnChart(
-    {
-      title,
-      description,
-      data,
-      colors: colorsOverride,
-      seriesColorByName,
-      comparisonData,
-      comparisonLabel = 'Budget',
-      labelMode = 'sparse',
-      onExport,
-      onDatumClick,
-      getDatumId,
-      cardClassName,
-      headerClassName: _headerClassName,
-      contentClassName,
-      chartAreaClassName,
-    },
-    ref,
-  ) {
-    const chartAreaRef = useRef<HTMLDivElement | null>(null)
-    const { width: containerWidth, height: chartHeight } =
-      useResponsiveChartBox(chartAreaRef)
-    const [hiddenSeries, setHiddenSeries] = useState<Set<string>>(() => new Set())
-    const [hoveredSeries, setHoveredSeries] = useState<string | null>(null)
-    const { exportCsv } = useChartExport()
-    const { toast } = useToast()
-
-    const rawMediaTypes = useMemo(
-      () =>
-        Array.from(
-          new Set(
-            data.flatMap((row) =>
-              Object.keys(row).filter((key) => key !== 'month'),
-            ),
-          ),
-        ),
-      [data],
-    )
-
-    const { condensedSeriesKeys, chartData } = useMemo(() => {
-      if (rawMediaTypes.length <= 12) {
-        return {
-          condensedSeriesKeys: rawMediaTypes,
-          chartData: data,
-        }
-      }
-
-      const seriesTotals = rawMediaTypes.map((name) => ({
-        name,
-        value: data.reduce((s, r) => s + (Number(r[name]) || 0), 0),
-      })) as Record<string, unknown>[]
-
-      const merged = condenseSeriesData(seriesTotals, 'value', 'name', 12)
-      const condensedNames = merged.map((r) => String(r.name))
-      const topIndividual = condensedNames.filter((n) => n !== 'Other')
-      const otherSourceKeys = rawMediaTypes.filter((m) => !topIndividual.includes(m))
-
-      const chartDataNext: StackedColumnData[] = data.map((row) => {
-        const out: StackedColumnData = { month: row.month }
-        for (const key of condensedNames) {
-          if (key === 'Other') {
-            out.Other = otherSourceKeys.reduce(
-              (s, k) => s + (Number(row[k]) || 0),
-              0,
-            )
-          } else {
-            out[key] = row[key] ?? 0
-          }
-        }
-        return out
-      })
-
-      return {
-        condensedSeriesKeys: condensedNames,
-        chartData: chartDataNext,
-      }
-    }, [data, rawMediaTypes])
-
-    const fillMap = useMemo(() => {
-      let base: Map<string, string>
-      if (colorsOverride?.length) {
-        base = new Map<string, string>()
-        condensedSeriesKeys.forEach((k, i) => {
-          base.set(k, colorsOverride[i % colorsOverride.length]!)
-        })
-      } else {
-        base = assignEntityColors(condensedSeriesKeys, 'media')
-      }
-      if (seriesColorByName) {
-        for (const k of condensedSeriesKeys) {
-          const c = seriesColorByName[k]
-          if (c) base.set(k, c)
-        }
-      }
-      return base
-    }, [colorsOverride, condensedSeriesKeys, seriesColorByName])
-
-    const visibleMediaTypes = useMemo(
-      () => condensedSeriesKeys.filter((s) => !hiddenSeries.has(s)),
-      [condensedSeriesKeys, hiddenSeries],
-    )
-
-    const comparisonMap = useMemo(
-      () =>
-        new Map(
-          (comparisonData ?? []).map((item) => [
-            String(item.month),
-            Number(item.value) || 0,
-          ]),
-        ),
-      [comparisonData],
-    )
-
-    const rowTotalByMonth = useMemo(() => {
-      const totals = new Map<string, number>()
-      chartData.forEach((row) => {
-        totals.set(
-          String(row.month),
-          rowStackTotal(row, visibleMediaTypes),
-        )
-      })
-      return totals
-    }, [chartData, visibleMediaTypes])
-
-    const xAxisConfig = useMemo(
-      () =>
-        getXAxisConfig(
-          chartData.length,
-          containerWidth || chartAreaRef.current?.clientWidth || 0,
-        ),
-      [chartData.length, containerWidth],
-    )
-
-    const chartBottomMargin = 16 + (xAxisConfig.height ?? 30)
-
-    const renderTooltip = useUnifiedTooltip({
-      formatValue: formatCurrencyNoDecimals,
-      showPercentages: true,
-      maxItems: 20,
-      getSeriesTotal: (month) => rowTotalByMonth.get(month),
-      getComparison: (month) => {
-        const v = comparisonMap.get(month)
-        if (v === undefined) return undefined
-        return { value: v, label: comparisonLabel }
-      },
+  const toggleKey = useCallback((key: string) => {
+    setHidden((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
     })
+  }, [])
 
-    const handleStackedBarClick =
-      (seriesKey: string) => (item: unknown, dataIndex: number, _e: MouseEvent) => {
-        if (!onDatumClick) return
-        const rect = item as { payload?: StackedColumnData }
-        const row = rect.payload ?? chartData[dataIndex]
-        if (!row) return
-        const value = Number(row[seriesKey]) || 0
-        const found = chartData.indexOf(row)
-        const index = found >= 0 ? found : dataIndex
+  const legendPayload = useMemo(
+    () =>
+      series.map((s, i) => ({
+        value: s.label,
+        dataKey: s.key,
+        color: seriesColorByKey?.[s.key] ?? palette[i % palette.length],
+      })),
+    [palette, series, seriesColorByKey],
+  )
+
+  const onLegendButton = useCallback(
+    (key: string) => {
+      if (filterViaLegend && onDatumClick) {
+        const sum = data.reduce((s, row) => s + Math.max(0, Number(row[key]) || 0), 0)
+        const idx = Math.max(0, series.findIndex((t) => t.key === key))
         onDatumClick(
           finalizeChartDatumClickPayload(
             {
-              chart: 'stackedColumn',
-              source: 'bar',
-              name: seriesKey,
-              value,
-              category: String(row.month),
-              index,
-              datum: row,
+              chart: "stackedColumn",
+              source: "legend",
+              name: key,
+              value: sum,
+              category: "",
+              index: idx,
+              datum: null,
             },
             getDatumId,
           ),
         )
-      }
-
-    const handleLegendToggle = useCallback(
-      (key: string) => {
-        if (!condensedSeriesKeys.includes(key)) return
-        setHiddenSeries((prev) => {
-          const next = new Set(prev)
-          if (next.has(key)) next.delete(key)
-          else next.add(key)
-          return next
-        })
-        if (onDatumClick) {
-          onDatumClick(
-            finalizeChartDatumClickPayload(
-              {
-                chart: 'stackedColumn',
-                source: 'legend',
-                name: key,
-                value: 0,
-                category: '',
-                index: -1,
-                datum: null,
-              },
-              getDatumId,
-            ),
-          )
-        }
-      },
-      [condensedSeriesKeys, getDatumId, onDatumClick],
-    )
-
-    const handleExportCsv = useCallback(() => {
-      if (onExport) {
-        onExport()
         return
       }
-      const columns: {
-        header: string
-        accessor: keyof StackedColumnData | ((row: StackedColumnData) => unknown)
-      }[] = [
-        { header: 'Month', accessor: 'month' },
-        ...condensedSeriesKeys.map((key) => ({
-          header: key,
-          accessor: (row: StackedColumnData) => row[key] ?? 0,
-        })),
-      ]
-      exportCsv(chartData, columns, `${title.toLowerCase().replace(/\s+/g, '-')}.csv`)
-      toast({
-        title: 'CSV exported',
-        description: `${title} data has been downloaded.`,
-      })
-    }, [
-      chartData,
-      condensedSeriesKeys,
-      exportCsv,
-      onExport,
-      title,
-      toast,
-    ])
+      toggleKey(key)
+    },
+    [filterViaLegend, onDatumClick, data, series, getDatumId, toggleKey],
+  )
 
-    const topMediaType =
-      visibleMediaTypes.length > 0
-        ? visibleMediaTypes[visibleMediaTypes.length - 1]
-        : undefined
+  const xTickInterval = useMemo(() => {
+    if (data.length <= 10) return 0
+    return Math.max(1, Math.ceil(data.length / 7) - 1)
+  }, [data.length])
 
-    const stackTotalLabelContent = (props: {
-      x?: number
-      y?: number
-      width?: number
-      index?: number
-    }) => {
-      const { x, y, width, index } = props
-      if (x == null || y == null || width == null || index == null) return null
-      const row = chartData[index]
-      if (!row) return null
-      const total = rowStackTotal(row, visibleMediaTypes)
-      if (total <= 0) return null
-      return (
-        <text
-          x={x + width / 2}
-          y={y}
-          dy={-6}
-          textAnchor="middle"
-          fill="hsl(var(--muted-foreground))"
-          className="text-[10px] font-medium"
-        >
-          {formatCurrencyNoDecimals(total)}
-        </text>
-      )
-    }
-
-    const legendItems = useMemo(
-      () =>
-        condensedSeriesKeys.map((name) => ({
-          key: name,
-          label: name,
-          color: fillMap.get(name) ?? '#999',
-        })),
-      [condensedSeriesKeys, fillMap],
-    )
-
-    const setOuterRef = useCallback(
-      (node: HTMLDivElement | null) => {
-        if (typeof ref === 'function') {
-          ref(node)
-        } else if (ref) {
-          ref.current = node
-        }
-      },
-      [ref],
-    )
-
-    return (
-      <div ref={setOuterRef}>
-        <ChartShell
-          title={title}
-          description={description}
-          className={cn(cardClassName)}
-          chartAreaRef={chartAreaRef}
-          chartAreaClassName={cn(
-            'flex min-h-0 w-full flex-col',
-            chartAreaClassName,
-            contentClassName,
-          )}
-          chartAreaStyle={{ height: chartHeight }}
-          onExportCsv={handleExportCsv}
-          helperText={
-            onDatumClick ? INTERACTIVE_HELPER_TEXT : READONLY_HELPER_TEXT
-          }
-        >
-          <div className="min-h-0 min-w-0 flex-1">
-            <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={chartData}
-              margin={{
-                top: 24,
-                right: 24,
-                left: 20,
-                bottom: chartBottomMargin,
-              }}
-              barGap={8}
-              barCategoryGap="22%"
-            >
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" {...xAxisConfig} />
-              <YAxis
-                tickFormatter={formatCurrencyNoDecimals}
-                tick={{ fontSize: 11 }}
-              />
-              <Tooltip
-                content={(props) => {
-                  const stackPayload = (props.payload ?? []).filter((item) => {
-                    if (item == null || typeof item !== 'object') return false
-                    const p = item as { dataKey?: unknown; name?: unknown }
-                    const key = String(p.dataKey ?? p.name ?? '')
-                    return visibleMediaTypes.includes(key)
-                  })
-                  return renderTooltip({
-                    ...props,
-                    payload:
-                      stackPayload as UnifiedTooltipRechartsProps['payload'],
-                  })
-                }}
-              />
-              {comparisonData && comparisonData.length > 0 ? (
-                <Line
-                  type="monotone"
-                  dataKey={(row: StackedColumnData) =>
-                    comparisonMap.get(String(row.month)) ?? null
-                  }
-                  name={comparisonLabel}
-                  stroke="hsl(var(--muted-foreground))"
-                  strokeDasharray="4 4"
-                  dot={{ r: 2.5 }}
-                  strokeWidth={2}
-                  isAnimationActive
-                />
-              ) : null}
-              {visibleMediaTypes.map((mediaType) => {
-                const isTopSegment = mediaType === topMediaType
-                return (
-                  <Bar
-                    key={mediaType}
-                    dataKey={mediaType}
-                    stackId="a"
-                    fill={fillMap.get(mediaType) ?? '#999'}
-                    name={mediaType}
-                    radius={isTopSegment ? [4, 4, 0, 0] : [0, 0, 0, 0]}
-                    isAnimationActive
-                    style={{
-                      filter:
-                        hoveredSeries === mediaType
-                          ? 'brightness(1.1)'
-                          : 'brightness(1)',
-                      transition: 'filter 150ms ease',
-                    }}
-                    cursor={onDatumClick ? undefined : 'default'}
-                    onMouseEnter={() => setHoveredSeries(mediaType)}
-                    onMouseLeave={() => setHoveredSeries(null)}
-                    {...(onDatumClick ? { onClick: handleStackedBarClick(mediaType) } : {})}
-                  >
-                    {labelMode === 'sparse' && isTopSegment ? (
-                      <LabelList dataKey={mediaType} content={stackTotalLabelContent} />
-                    ) : null}
-                  </Bar>
-                )
-              })}
-            </BarChart>
-            </ResponsiveContainer>
-          </div>
-          <ChartShell.Legend
-            items={legendItems}
-            hiddenKeys={hiddenSeries}
-            onToggle={handleLegendToggle}
-            className="mt-3"
+  return (
+    <div className="w-full" style={{ height }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} margin={{ top: 8, right: 12, left: 4, bottom: 8 }} barCategoryGap="18%">
+          <CartesianGrid stroke="hsl(var(--border))" vertical={false} />
+          <XAxis
+            dataKey={xKey}
+            tickLine={false}
+            axisLine={{ stroke: "hsl(var(--border))" }}
+            interval={xTickInterval}
+            tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+            tickMargin={8}
+            angle={data.length > 8 ? -25 : 0}
+            textAnchor={data.length > 8 ? "end" : "middle"}
+            height={data.length > 8 ? 52 : 28}
           />
-        </ChartShell>
-      </div>
-    )
-  },
-)
-
-StackedColumnChart.displayName = 'StackedColumnChart'
+          <YAxis
+            tickLine={false}
+            axisLine={{ stroke: "hsl(var(--border))" }}
+            tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+            width={40}
+          />
+          <Tooltip
+            contentStyle={CHART_TOOLTIP_CONTENT}
+            labelStyle={CHART_TOOLTIP_LABEL_STYLE}
+            itemStyle={CHART_TOOLTIP_ITEM_STYLE}
+            cursor={{ fill: "hsl(var(--muted) / 0.35)" }}
+          />
+          <Legend
+            verticalAlign="top"
+            align="center"
+            content={() => (
+              <ToggleableLegend payload={legendPayload} hiddenKeys={hidden} onToggleKey={onLegendButton} />
+            )}
+          />
+          {series.map((s, i) => {
+            const isTop = i === series.length - 1
+            const fill = seriesColorByKey?.[s.key] ?? palette[i % palette.length]
+            return (
+              <Bar
+                key={s.key}
+                dataKey={s.key}
+                name={s.label}
+                stackId="stack"
+                fill={fill}
+                hide={hidden.has(s.key)}
+                cursor={onDatumClick ? "pointer" : "default"}
+                radius={isTop ? ([3, 3, 0, 0] as [number, number, number, number]) : ([0, 0, 0, 0] as [number, number, number, number])}
+                onClick={
+                  onDatumClick
+                    ? (barProps: BarSegClick) => {
+                        const row = barProps.payload
+                        const catRaw = row?.[xKey]
+                        if (!row || typeof catRaw !== "string") return
+                        const rawVal = barProps.value
+                        const v = Array.isArray(rawVal) ? Number(rawVal[1]) || 0 : Number(rawVal) || 0
+                        onDatumClick(
+                          finalizeChartDatumClickPayload(
+                            {
+                              chart: "stackedColumn",
+                              source: "bar",
+                              name: s.key,
+                              value: v,
+                              category: catRaw,
+                              index: i,
+                              datum: row,
+                            },
+                            getDatumId,
+                          ),
+                        )
+                      }
+                    : undefined
+                }
+              />
+            )
+          })}
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  )
+}

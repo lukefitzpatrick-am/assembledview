@@ -3,11 +3,13 @@
 import { useMemo } from "react"
 import { ChartNoAxesColumnDecreasing, Layers } from "lucide-react"
 
-import MediaChannelPieChart from "@/app/dashboard/[slug]/[mba_number]/components/MediaChannelPieChart"
-import MonthlySpendStackedChart from "@/app/dashboard/[slug]/[mba_number]/components/MonthlySpendStackedChart"
-import SpendByPublisherChart from "@/app/dashboard/[slug]/[mba_number]/components/SpendByPublisherChart"
+import BaseChartCard from "@/components/charts/BaseChartCard"
+import MediaChannelPieChart from "@/components/charts/domain/MediaChannelPieChart"
+import SpendByPublisherChart from "@/components/charts/domain/SpendByPublisherChart"
+import { StackedColumnChart } from "@/components/charts/StackedColumnChart"
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/layout/Panel"
-import { formatCurrencyFull } from "@/lib/format/currency"
+import { getMediaLabel } from "@/lib/charts/registry"
+import { formatCurrencyAUD } from "@/lib/format/currency"
 
 type ChannelSpend = {
   mediaType: string
@@ -309,16 +311,16 @@ export default function SpendChartsRow({
     return top?.month ?? "—"
   }, [monthlyData])
 
-  const currency = (value: number) => formatCurrencyFull(value, "AUD")
+  const currency = (value: number) => formatCurrencyAUD(value)
 
-  const mediaChannelPieData = useMemo(() => {
-    const total = channelData.reduce((s, c) => s + (Number(c.spend) || 0), 0)
-    return channelData.map((c) => ({
-      mediaType: c.channel,
-      amount: Number(c.spend) || 0,
-      percentage: total > 0 ? ((Number(c.spend) || 0) / total) * 100 : 0,
-    }))
-  }, [channelData])
+  const mediaChannelPieData = useMemo(
+    () =>
+      channelData.map((c) => ({
+        mediaType: c.channel,
+        amount: Number(c.spend) || 0,
+      })),
+    [channelData],
+  )
 
   const monthlySpendStackedInput = useMemo(
     () =>
@@ -333,6 +335,32 @@ export default function SpendChartsRow({
       })),
     [monthlyData],
   )
+
+  const pivotedMonthly = useMemo(
+    () =>
+      monthlySpendStackedInput.map((m) => {
+        const row: Record<string, number | string> = { month: m.month }
+        for (const { mediaType, amount } of m.data) {
+          row[mediaType] = amount
+        }
+        return row
+      }),
+    [monthlySpendStackedInput],
+  )
+
+  const monthlySeries = useMemo(() => {
+    const orderedKeys: string[] = []
+    const seen = new Set<string>()
+    for (const m of monthlySpendStackedInput) {
+      for (const { mediaType } of m.data) {
+        if (!seen.has(mediaType)) {
+          seen.add(mediaType)
+          orderedKeys.push(mediaType)
+        }
+      }
+    }
+    return orderedKeys.map((key) => ({ key, label: getMediaLabel(key) }))
+  }, [monthlySpendStackedInput])
 
   if (!channelData.length && !monthlyData.length) {
     return (
@@ -391,25 +419,19 @@ export default function SpendChartsRow({
         <SpendByPublisherChart lineItems={lineItemsMap} chartHeight={CHART_PLOT_HEIGHT} />
       </div>
 
-      <div className="rounded-2xl border border-border/60 bg-card p-5">
-        <div className="mb-4 flex items-start gap-2.5">
-          <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted/50 text-muted-foreground">
-            <Layers className="h-4 w-4" aria-hidden />
-          </span>
-          <div className="min-w-0 space-y-0.5">
-            <h3 className="text-sm font-semibold text-foreground">Monthly spend by channel</h3>
-            <p className="text-xs text-muted-foreground">
-              Stacked gross media by month · As at {asAtDate}
-            </p>
-          </div>
-        </div>
-
-        <MonthlySpendStackedChart
-          data={monthlySpendStackedInput}
-          chartHeight={CHART_PLOT_HEIGHT}
-          hideFooterNote
+      <BaseChartCard
+        title="Monthly spend by channel"
+        description={`Stacked gross media by month · As at ${asAtDate}`}
+        variant="icon"
+        icon={Layers}
+      >
+        <StackedColumnChart
+          data={pivotedMonthly}
+          xKey="month"
+          series={monthlySeries}
+          height={CHART_PLOT_HEIGHT}
         />
-      </div>
+      </BaseChartCard>
     </section>
   )
 }

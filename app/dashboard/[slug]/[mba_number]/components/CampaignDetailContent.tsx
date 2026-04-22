@@ -7,8 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Download } from 'lucide-react'
 import { LoadingDots } from '@/components/ui/loading-dots'
 import CampaignSummaryRow from '@/components/dashboard/campaign/CampaignSummaryRow'
-import MediaChannelPieChart from './MediaChannelPieChart'
-import MonthlySpendStackedChart from './MonthlySpendStackedChart'
+import MediaChannelPieChart from "@/components/charts/domain/MediaChannelPieChart"
+import MonthlySpendChart from "@/components/charts/domain/MonthlySpendChart"
 import MediaTable from './MediaTable'
 import MediaGanttChart from './MediaGanttChart'
 import { format } from 'date-fns'
@@ -405,7 +405,7 @@ export default function CampaignDetailContent({ slug, mbaNumber }: CampaignDetai
       <MediaChannelPieChart data={spendByChannelData} />
 
       {/* Monthly Spend Stacked Chart */}
-      <MonthlySpendStackedChart data={monthlySpendData} />
+      <MonthlySpendChart data={monthlySpendData} />
 
       {/* Media Table */}
       <MediaTable lineItems={normalisedLineItemsByMediaType} />

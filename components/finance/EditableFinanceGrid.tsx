@@ -22,7 +22,7 @@ import {
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { format, parse, parseISO } from "date-fns"
 import { cn } from "@/lib/utils"
-import { formatMoney } from "@/lib/utils/money"
+import { formatMoney } from "@/lib/format/money"
 import { rgbaFromHex } from "@/lib/mediaplan/mediaTypeAccents"
 import type { BillingRecord, BillingStatus } from "@/lib/types/financeBilling"
 import { publisherLabelForFinanceGrouping } from "@/lib/finance/aggregatePayablesPublisherGroups"

@@ -1,8 +1,18 @@
 /**
  * Single source of truth for media-type chart colors and labels.
  * Colours mirror `mediaTypeTheme.colors` in `lib/utils`.
+ *
+ * Consolidation notes (registry wins; former `lib/media/channelColors.ts` removed):
+ * - Aliases `social` → social_media, `consulting` → production, and compact `programmatic*` tokens
+ *   (`programmaticdisplay`, etc.) → prog_* registry keys were added so labels/colours match dashboard
+ *   and API strings that previously only `channelColors` normalized.
+ * - Unknown / non-registry channel strings use `getDeterministicColor` (Tableau ramp + FNV), not the
+ *   old channel-only hash ramp — intentional single fallback story for charts and badges.
+ * - Empty or whitespace-only inputs for `getMediaBadgeStyle` use `CHART_CHANNEL_FALLBACK_FILL` as the
+ *   solid colour (same chart token as before) so chip/badge empty state stays aligned with chart defaults.
  */
 
+import { CHART_CHANNEL_FALLBACK_FILL } from "@/lib/charts/theme"
 import { mediaTypeTheme } from "@/lib/utils"
 
 const channelColors = mediaTypeTheme.colors
@@ -79,6 +89,15 @@ const REGISTRY_KEY_ALIASES: Record<string, MediaTypeRegistryKey> = {
   programmatic_bvod: "prog_bvod",
   programmatic_audio: "prog_audio",
   programmatic_ooh: "prog_ooh",
+  /** Former `channelColors` compact keys (no underscores) */
+  programmaticdisplay: "prog_display",
+  programmaticvideo: "prog_video",
+  programmaticbvod: "prog_bvod",
+  programmaticaudio: "prog_audio",
+  programmaticooh: "prog_ooh",
+  /** Shorthand labels */
+  social: "social_media",
+  consulting: "production",
   tv: "television",
 }
 
@@ -158,6 +177,50 @@ export function getMediaLabel(key: string): string {
   return humanizeSnake(n) || key.trim()
 }
 
+function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+  const normalized = hex.replace("#", "")
+  if (!/^[0-9a-fA-F]{6}$/.test(normalized)) return null
+  return {
+    r: parseInt(normalized.slice(0, 2), 16),
+    g: parseInt(normalized.slice(2, 4), 16),
+    b: parseInt(normalized.slice(4, 6), 16),
+  }
+}
+
+/**
+ * Badge / pill styles: translucent background and border from the media colour (`getMediaColor`),
+ * with the solid hex as the foreground text colour.
+ */
+export function getMediaBadgeStyle(key: string): {
+  backgroundColor: string
+  color: string
+  borderColor?: string
+} {
+  const trimmed = key.trim()
+  const color = trimmed ? getMediaColor(key) : CHART_CHANNEL_FALLBACK_FILL
+  const rgb = hexToRgb(color)
+  if (!rgb) {
+    return {
+      backgroundColor: "rgba(79, 70, 229, 0.14)",
+      color,
+      borderColor: "rgba(79, 70, 229, 0.3)",
+    }
+  }
+  return {
+    backgroundColor: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.14)`,
+    color,
+    borderColor: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.3)`,
+  }
+}
+
+export function buildMediaChannelColorMap(channels: Array<string | null | undefined>): Record<string, string> {
+  return channels.reduce<Record<string, string>>((acc, channel) => {
+    if (!channel) return acc
+    acc[channel] = getMediaColor(channel)
+    return acc
+  }, {})
+}
+
 /**
  * Maps series names to colours: registry colours for known media types; otherwise deterministic assignment.
  * - `media`: each unknown name gets `getDeterministicColor` (stable per normalized key via hash).
@@ -193,3 +256,9 @@ export function assignEntityColors(
 
   return map
 }
+
+/** @deprecated use getMediaColor */
+export const getMediaChannelColor = getMediaColor
+
+/** @deprecated use getMediaBadgeStyle */
+export const getMediaChannelBadgeStyle = getMediaBadgeStyle

@@ -15,17 +15,17 @@ import {
 
 import { useClientBrand } from "@/components/client-dashboard/ClientBrandProvider"
 import {
-  CD_CHART_TOOLTIP_CONTENT,
-  CD_CHART_TOOLTIP_ITEM_STYLE,
-  CD_CHART_TOOLTIP_LABEL_STYLE,
-} from "@/components/client-dashboard/charts/chartStyles"
-import { ToggleableLegend } from "@/components/client-dashboard/charts/ToggleableLegend"
+  CHART_TOOLTIP_CONTENT,
+  CHART_TOOLTIP_ITEM_STYLE,
+  CHART_TOOLTIP_LABEL_STYLE,
+} from "@/components/charts/chartStyles"
+import { ToggleableLegend } from "@/components/charts/ToggleableLegend"
 import { getChartPalette } from "@/lib/client-dashboard/theme"
 
 export type ComboBarSeries = { key: string; label: string }
 export type ComboLineSeries = { key: string; label: string; yAxis: "left" | "right" }
 
-export type ComboBarLineChartProps = {
+export type ComboChartProps = {
   data: Array<Record<string, number | string>>
   xKey: string
   bars: ComboBarSeries[]
@@ -33,7 +33,7 @@ export type ComboBarLineChartProps = {
   height?: number
 }
 
-export function ComboBarLineChart({ data, xKey, bars, lines, height = 320 }: ComboBarLineChartProps) {
+export function ComboChart({ data, xKey, bars, lines, height = 320 }: ComboChartProps) {
   const theme = useClientBrand()
   const palette = useMemo(() => getChartPalette(theme), [theme])
   const [hidden, setHidden] = useState<Set<string>>(() => new Set())
@@ -102,9 +102,9 @@ export function ComboBarLineChart({ data, xKey, bars, lines, height = 320 }: Com
             />
           ) : null}
           <Tooltip
-            contentStyle={CD_CHART_TOOLTIP_CONTENT}
-            labelStyle={CD_CHART_TOOLTIP_LABEL_STYLE}
-            itemStyle={CD_CHART_TOOLTIP_ITEM_STYLE}
+            contentStyle={CHART_TOOLTIP_CONTENT}
+            labelStyle={CHART_TOOLTIP_LABEL_STYLE}
+            itemStyle={CHART_TOOLTIP_ITEM_STYLE}
             cursor={{ fill: "hsl(var(--muted) / 0.25)" }}
           />
           <Legend
@@ -145,3 +145,9 @@ export function ComboBarLineChart({ data, xKey, bars, lines, height = 320 }: Com
     </div>
   )
 }
+
+/** @deprecated Use `ComboChart` — renamed in chart consolidation. */
+export const ComboBarLineChart = ComboChart
+
+/** @deprecated Use `ComboChartProps` */
+export type ComboBarLineChartProps = ComboChartProps

@@ -37,7 +37,7 @@ import { SmallProgressCard } from "@/components/dashboard/pacing/SmallProgressCa
 import { SpendChannelCharts, type ChannelSpend, type MonthlySpendByChannel } from "@/components/dashboard/pacing/SpendChannelCharts"
 import { MediaPlanViz } from "@/components/dashboard/pacing/MediaPlanViz"
 import { downloadCSV } from "@/lib/utils/csv-export"
-import { buildMediaChannelColorMap } from "@/lib/media/channelColors"
+import { buildMediaChannelColorMap } from "@/lib/charts/registry"
 import { calcExpectedFromBursts } from "@/lib/pacing/calcExpected"
 import {
   PacingResult,

@@ -1,7 +1,7 @@
 /** Plain SVG sparkline; fills container width, fixed visual height (default 44px). */
 "use client"
 
-import { formatNumberAU } from "@/lib/charts/format"
+import { formatNumberAU } from "@/lib/format/chartFormat"
 import { useCallback, useMemo, useRef, useState, type MouseEvent } from "react"
 
 const DEFAULT_HEIGHT = 44

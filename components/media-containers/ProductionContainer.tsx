@@ -13,7 +13,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/componen
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Check, ChevronDown, ChevronsUpDown, Copy, Plus, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { formatMoney } from "@/lib/utils/money"
+import { formatCurrencyFull } from "@/lib/format/currency"
+import { formatMoney } from "@/lib/format/money"
 import type { BillingBurst } from "@/lib/billing/types"
 import { formatBurstLabel } from "@/lib/bursts"
 import type { LineItem } from "@/lib/generateMediaPlan"
@@ -185,7 +186,7 @@ const buildInvestmentByMonth = (bursts: BillingBurst[]) => {
   })
   return Object.entries(monthly).map(([monthYear, amount]) => ({
     monthYear,
-    amount: formatMoney(amount, { locale: "en-US", currency: "USD" }),
+    amount: formatCurrencyFull(amount, { locale: "en-US", currency: "USD" }),
   }))
 }
 
@@ -512,7 +513,7 @@ export default function ProductionContainer({
                 className="text-sm font-semibold tabular-nums"
                 style={mediaTypeAccentTextStyle(MEDIA_ACCENT_HEX)}
               >
-                {formatMoney(totals.totalMedia, { locale: "en-US", currency: "USD" })}
+                {formatCurrencyFull(totals.totalMedia, { locale: "en-US", currency: "USD" })}
               </span>
             </div>
           </div>
@@ -561,7 +562,7 @@ export default function ProductionContainer({
                       <div className="text-right">
                         <span className="block text-[11px] text-muted-foreground">Total</span>
                         <span className="text-sm font-bold tabular-nums">
-                          {formatMoney(lineItemMediaTotal, { locale: "en-US", currency: "USD" })}
+                          {formatCurrencyFull(lineItemMediaTotal, { locale: "en-US", currency: "USD" })}
                         </span>
                       </div>
                       <Button

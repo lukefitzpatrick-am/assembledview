@@ -3,7 +3,8 @@
 import { ArrowDownRight, ArrowUpRight, Minus } from "lucide-react"
 import * as React from "react"
 
-import { formatCurrencyAUD, formatPercentage } from "@/lib/charts/format"
+import { formatCurrencyAUD } from "@/lib/format/currency"
+import { formatPercentage } from "@/lib/format/chartFormat"
 import { PACING_TOOLTIP_SHELL_CLASS } from "@/lib/charts/pacingLineChartStyle"
 import { cn } from "@/lib/utils"
 

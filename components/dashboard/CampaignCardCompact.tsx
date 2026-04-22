@@ -14,6 +14,7 @@ import {
 import { useToast } from "@/components/ui/use-toast"
 import { MediaChannelTag, mediaChannelTagRowClassName } from "@/components/dashboard/MediaChannelTag"
 import { cn } from "@/lib/utils"
+import { formatCurrencyCompact } from "@/lib/format/currency"
 
 export interface CampaignCardCompactProps {
   id: string
@@ -64,16 +65,6 @@ const statusMap: Record<CampaignCardCompactProps["status"], StatusTone> = {
     badge: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
     label: "Paused",
   },
-}
-
-function formatCurrencyCompact(value: number): string {
-  const abs = Math.abs(value)
-  const sign = value < 0 ? "-" : ""
-
-  if (abs >= 1_000_000_000) return `${sign}$${(abs / 1_000_000_000).toFixed(1).replace(/\.0$/, "")}B`
-  if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`
-  if (abs >= 1_000) return `${sign}$${(abs / 1_000).toFixed(1).replace(/\.0$/, "")}k`
-  return `${sign}$${abs.toLocaleString("en-US", { maximumFractionDigits: 0 })}`
 }
 
 function getProgressTone(percent: number): string {

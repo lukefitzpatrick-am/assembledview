@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Panel, PanelContent, PanelHeader, PanelTitle, PanelActions } from "@/components/layout/Panel"
 import { CHART_NEUTRAL } from "@/lib/charts/theme"
-import { getMediaChannelColor } from "@/lib/media/channelColors"
+import { getMediaColor } from "@/lib/charts/registry"
 import { downloadCSV } from "@/lib/utils/csv-export"
 
 export type MediaPlanVizBurst = {
@@ -353,7 +353,7 @@ export function MediaPlanViz({ groups, campaignStart, campaignEnd, clientSlug, m
                                       style={{
                                         left: `${startRatio}%`,
                                         width: `${width}%`,
-                                        background: getMediaChannelColor(group.channel),
+                                        background: getMediaColor(group.channel),
                                       }}
                                     >
                                       {primaryLabel ? (

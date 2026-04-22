@@ -18,7 +18,7 @@ import type {
   FinanceForecastVarianceMonthLineRow,
   FinanceForecastVarianceReport,
 } from "@/lib/types/financeForecastVariance"
-import { formatMoney } from "@/lib/utils/money"
+import { formatCurrencyFull } from "@/lib/format/currency"
 import { cn } from "@/lib/utils"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -45,7 +45,7 @@ import {
 const moneyFmt = (n: number | null) =>
   n === null || Number.isNaN(n)
     ? "—"
-    : formatMoney(n, {
+    : formatCurrencyFull(n, {
         locale: "en-AU",
         currency: "AUD",
         minimumFractionDigits: 2,

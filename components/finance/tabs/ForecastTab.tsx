@@ -25,7 +25,7 @@ import {
   type FinanceForecastExportFilterState,
 } from "@/lib/finance/forecast/exportFinanceForecast"
 import { workbookToXlsxBuffer } from "@/lib/finance/excelFinanceExport"
-import { formatMoney } from "@/lib/utils/money"
+import { formatCurrencyFull } from "@/lib/format/currency"
 import { cn } from "@/lib/utils"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -58,7 +58,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { LoadingDots } from "@/components/ui/loading-dots"
 
 const money = (n: number) =>
-  formatMoney(n, {
+  formatCurrencyFull(n, {
     locale: "en-AU",
     currency: "AUD",
     minimumFractionDigits: 2,
