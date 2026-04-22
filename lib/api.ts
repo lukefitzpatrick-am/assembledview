@@ -1281,22 +1281,76 @@ export async function createBVODSite(siteData: { platform: string; site: string 
   return response.json();
 }
 
+// Shared cache + in-flight dedupe for the publishers list. Many media
+// containers each call their own `getPublishersFor*` helper on mount; without
+// this, the create-mediaplan page would issue ~20 simultaneous requests to
+// `/api/publishers`, which fans out to Xano and reliably trips ECONNRESET.
+type PublisherRow = {
+  id: number;
+  publisher_name: string;
+  [key: string]: any;
+};
+
+const PUBLISHERS_CACHE_TTL_MS = 60_000;
+let publishersCache: { data: PublisherRow[]; expiresAt: number } | null = null;
+let publishersInflight: Promise<PublisherRow[]> | null = null;
+
+async function fetchAllPublishers(): Promise<PublisherRow[]> {
+  const now = Date.now();
+  if (publishersCache && publishersCache.expiresAt > now) {
+    return publishersCache.data;
+  }
+  if (publishersInflight) {
+    return publishersInflight;
+  }
+
+  publishersInflight = (async () => {
+    try {
+      const response = await fetch(publishersEndpoint);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch publishers (status ${response.status})`);
+      }
+      const data = await response.json();
+      const rows: PublisherRow[] = Array.isArray(data) ? data : [];
+      publishersCache = {
+        data: rows,
+        expiresAt: Date.now() + PUBLISHERS_CACHE_TTL_MS,
+      };
+      return rows;
+    } catch (error) {
+      // Drop the cache on failure so the next caller can retry instead of
+      // being served a stale empty result.
+      publishersCache = null;
+      throw error;
+    } finally {
+      publishersInflight = null;
+    }
+  })();
+
+  return publishersInflight;
+}
+
+function filterPublishersByFlag(
+  rows: PublisherRow[],
+  flag: string,
+): Publisher[] {
+  return rows
+    .filter((publisher) => Boolean(publisher?.[flag]))
+    .map((publisher) => ({
+      id: publisher.id,
+      publisher_name: publisher.publisher_name,
+    }));
+}
+
+export function clearPublishersCache(): void {
+  publishersCache = null;
+  publishersInflight = null;
+}
+
 export async function getPublishersForSearch(): Promise<Publisher[]> {
   try {
-    const response = await fetch(publishersEndpoint);
-    if (!response.ok) {
-      throw new Error("Failed to fetch publishers for search");
-    }
-    const data = await response.json();
-    
-    if (!Array.isArray(data)) return [];
-
-    return data
-      .filter((publisher: any) => Boolean(publisher.pub_search))
-      .map((publisher: any) => ({
-        id: publisher.id,
-        publisher_name: publisher.publisher_name,
-      }));
+    const rows = await fetchAllPublishers();
+    return filterPublishersByFlag(rows, "pub_search");
   } catch (error) {
     console.error("Error fetching publishers for search:", error);
     return [];
@@ -1333,397 +1387,180 @@ export async function getMediaPlans() {
   return response.json();
 }
 
-export async function getPublishersForSocialMedia() {
+export async function getPublishersForSocialMedia(): Promise<Publisher[]> {
   try {
-    const response = await fetch(publishersEndpoint);
-    if (!response.ok) {
-      throw new Error("Failed to fetch publishers for search");
-    }
-    const data = await response.json();
-    
-    // Ensure data is an array before filtering
-    if (!Array.isArray(data)) return [];
-
-    return data
-      .filter((publisher: any) => Boolean(publisher.pub_socialmedia)) // Works for both `true/false` and `1/0`
-      .map((publisher: any) => ({
-        id: publisher.id,
-        publisher_name: publisher.publisher_name,
-      }));
+    const rows = await fetchAllPublishers();
+    return filterPublishersByFlag(rows, "pub_socialmedia");
   } catch (error) {
     console.error("Error fetching publishers for social:", error);
-    return []; // Prevents app crash
+    return [];
   }
 }
 
-export async function getPublishersForTelevision() {
+export async function getPublishersForTelevision(): Promise<Publisher[]> {
   try {
-    const response = await fetch(publishersEndpoint);
-    if (!response.ok) {
-      throw new Error("Failed to fetch publishers for television");
-    }
-    const data = await response.json();
-    
-    if (!Array.isArray(data)) return [];
-
-    return data
-      .filter((publisher: any) => Boolean(publisher.pub_television))
-      .map((publisher: any) => ({
-        id: publisher.id,
-        publisher_name: publisher.publisher_name,
-      }));
+    const rows = await fetchAllPublishers();
+    return filterPublishersByFlag(rows, "pub_television");
   } catch (error) {
     console.error("Error fetching publishers for television:", error);
     return [];
   }
 }
 
-export async function getPublishersForRadio() {
+export async function getPublishersForRadio(): Promise<Publisher[]> {
   try {
-    const response = await fetch(publishersEndpoint);
-    if (!response.ok) {
-      throw new Error("Failed to fetch publishers for radio");
-    }
-    const data = await response.json();
-    
-    if (!Array.isArray(data)) return [];
-
-    return data
-      .filter((publisher: any) => Boolean(publisher.pub_radio))
-      .map((publisher: any) => ({
-        id: publisher.id,
-        publisher_name: publisher.publisher_name,
-      }));
+    const rows = await fetchAllPublishers();
+    return filterPublishersByFlag(rows, "pub_radio");
   } catch (error) {
     console.error("Error fetching publishers for radio:", error);
     return [];
   }
 }
 
-export async function getPublishersForNewspapers() {
+export async function getPublishersForNewspapers(): Promise<Publisher[]> {
   try {
-    const response = await fetch(publishersEndpoint);
-    if (!response.ok) {
-      throw new Error("Failed to fetch publishers for newspapers");
-    }
-    const data = await response.json();
-    
-    if (!Array.isArray(data)) return [];
-
-    return data
-      .filter((publisher: any) => Boolean(publisher.pub_newspaper))
-      .map((publisher: any) => ({
-        id: publisher.id,
-        publisher_name: publisher.publisher_name,
-      }));
+    const rows = await fetchAllPublishers();
+    return filterPublishersByFlag(rows, "pub_newspaper");
   } catch (error) {
     console.error("Error fetching publishers for newspapers:", error);
     return [];
   }
 }
 
-export async function getPublishersForMagazines() {
+export async function getPublishersForMagazines(): Promise<Publisher[]> {
   try {
-    const response = await fetch(publishersEndpoint);
-    if (!response.ok) {
-      throw new Error("Failed to fetch publishers for magazines");
-    }
-    const data = await response.json();
-    
-    if (!Array.isArray(data)) return [];
-
-    return data
-      .filter((publisher: any) => Boolean(publisher.pub_magazines))
-      .map((publisher: any) => ({
-        id: publisher.id,
-        publisher_name: publisher.publisher_name,
-      }));
+    const rows = await fetchAllPublishers();
+    return filterPublishersByFlag(rows, "pub_magazines");
   } catch (error) {
     console.error("Error fetching publishers for magazines:", error);
     return [];
   }
 }
 
-export async function getPublishersForOoh() {
+export async function getPublishersForOoh(): Promise<Publisher[]> {
   try {
-    const response = await fetch(publishersEndpoint);
-    if (!response.ok) {
-      throw new Error("Failed to fetch publishers for OOH");
-    }
-    const data = await response.json();
-    
-    if (!Array.isArray(data)) return [];
-
-    return data
-      .filter((publisher: any) => Boolean(publisher.pub_ooh))
-      .map((publisher: any) => ({
-        id: publisher.id,
-        publisher_name: publisher.publisher_name,
-      }));
+    const rows = await fetchAllPublishers();
+    return filterPublishersByFlag(rows, "pub_ooh");
   } catch (error) {
     console.error("Error fetching publishers for OOH:", error);
     return [];
   }
 }
 
-export async function getPublishersForCinema() {
+export async function getPublishersForCinema(): Promise<Publisher[]> {
   try {
-    const response = await fetch(publishersEndpoint);
-    if (!response.ok) {
-      throw new Error("Failed to fetch publishers for cinema");
-    }
-    const data = await response.json();
-    
-    if (!Array.isArray(data)) return [];
-
-    return data
-      .filter((publisher: any) => Boolean(publisher.pub_cinema))
-      .map((publisher: any) => ({
-        id: publisher.id,
-        publisher_name: publisher.publisher_name,
-      }));
+    const rows = await fetchAllPublishers();
+    return filterPublishersByFlag(rows, "pub_cinema");
   } catch (error) {
     console.error("Error fetching publishers for cinema:", error);
     return [];
   }
 }
 
-export async function getPublishersForDigiDisplay() {
+export async function getPublishersForDigiDisplay(): Promise<Publisher[]> {
   try {
-    const response = await fetch(publishersEndpoint);
-    if (!response.ok) {
-      throw new Error("Failed to fetch publishers for digital display");
-    }
-    const data = await response.json();
-    
-    if (!Array.isArray(data)) return [];
-
-    return data
-      .filter((publisher: any) => Boolean(publisher.pub_digidisplay))
-      .map((publisher: any) => ({
-        id: publisher.id,
-        publisher_name: publisher.publisher_name,
-      }));
+    const rows = await fetchAllPublishers();
+    return filterPublishersByFlag(rows, "pub_digidisplay");
   } catch (error) {
     console.error("Error fetching publishers for digital display:", error);
     return [];
   }
 }
 
-export async function getPublishersForDigiAudio() {
+export async function getPublishersForDigiAudio(): Promise<Publisher[]> {
   try {
-    const response = await fetch(publishersEndpoint);
-    if (!response.ok) {
-      throw new Error("Failed to fetch publishers for digital audio");
-    }
-    const data = await response.json();
-    
-    if (!Array.isArray(data)) return [];
-
-    return data
-      .filter((publisher: any) => Boolean(publisher.pub_digiaudio))
-      .map((publisher: any) => ({
-        id: publisher.id,
-        publisher_name: publisher.publisher_name,
-      }));
+    const rows = await fetchAllPublishers();
+    return filterPublishersByFlag(rows, "pub_digiaudio");
   } catch (error) {
     console.error("Error fetching publishers for digital audio:", error);
     return [];
   }
 }
 
-export async function getPublishersForDigiVideo() {
+export async function getPublishersForDigiVideo(): Promise<Publisher[]> {
   try {
-    const response = await fetch(publishersEndpoint);
-    if (!response.ok) {
-      throw new Error("Failed to fetch publishers for digital video");
-    }
-    const data = await response.json();
-    
-    if (!Array.isArray(data)) return [];
-
-    return data
-      .filter((publisher: any) => Boolean(publisher.pub_digivideo))
-      .map((publisher: any) => ({
-        id: publisher.id,
-        publisher_name: publisher.publisher_name,
-      }));
+    const rows = await fetchAllPublishers();
+    return filterPublishersByFlag(rows, "pub_digivideo");
   } catch (error) {
     console.error("Error fetching publishers for digital video:", error);
     return [];
   }
 }
 
-export async function getPublishersForBvod() {
+export async function getPublishersForBvod(): Promise<Publisher[]> {
   try {
-    const response = await fetch(publishersEndpoint);
-    if (!response.ok) {
-      throw new Error("Failed to fetch publishers for BVOD");
-    }
-    const data = await response.json();
-    
-    if (!Array.isArray(data)) return [];
-
-    return data
-      .filter((publisher: any) => Boolean(publisher.pub_bvod))
-      .map((publisher: any) => ({
-        id: publisher.id,
-        publisher_name: publisher.publisher_name,
-      }));
+    const rows = await fetchAllPublishers();
+    return filterPublishersByFlag(rows, "pub_bvod");
   } catch (error) {
     console.error("Error fetching publishers for BVOD:", error);
     return [];
   }
 }
 
-export async function getPublishersForIntegration() {
+export async function getPublishersForIntegration(): Promise<Publisher[]> {
   try {
-    const response = await fetch(publishersEndpoint);
-    if (!response.ok) {
-      throw new Error("Failed to fetch publishers for integration");
-    }
-    const data = await response.json();
-    
-    if (!Array.isArray(data)) return [];
-
-    return data
-      .filter((publisher: any) => Boolean(publisher.pub_integration))
-      .map((publisher: any) => ({
-        id: publisher.id,
-        publisher_name: publisher.publisher_name,
-      }));
+    const rows = await fetchAllPublishers();
+    return filterPublishersByFlag(rows, "pub_integration");
   } catch (error) {
     console.error("Error fetching publishers for integration:", error);
     return [];
   }
 }
 
-export async function getPublishersForProgDisplay() {
+export async function getPublishersForProgDisplay(): Promise<Publisher[]> {
   try {
-    const response = await fetch(publishersEndpoint);
-    if (!response.ok) {
-      throw new Error("Failed to fetch publishers for programmatic display");
-    }
-    const data = await response.json();
-    
-    if (!Array.isArray(data)) return [];
-
-    return data
-      .filter((publisher: any) => Boolean(publisher.pub_progdisplay))
-      .map((publisher: any) => ({
-        id: publisher.id,
-        publisher_name: publisher.publisher_name,
-      }));
+    const rows = await fetchAllPublishers();
+    return filterPublishersByFlag(rows, "pub_progdisplay");
   } catch (error) {
     console.error("Error fetching publishers for programmatic display:", error);
     return [];
   }
 }
 
-export async function getPublishersForProgVideo() {
+export async function getPublishersForProgVideo(): Promise<Publisher[]> {
   try {
-    const response = await fetch(publishersEndpoint);
-    if (!response.ok) {
-      throw new Error("Failed to fetch publishers for programmatic video");
-    }
-    const data = await response.json();
-    
-    if (!Array.isArray(data)) return [];
-
-    return data
-      .filter((publisher: any) => Boolean(publisher.pub_progvideo))
-      .map((publisher: any) => ({
-        id: publisher.id,
-        publisher_name: publisher.publisher_name,
-      }));
+    const rows = await fetchAllPublishers();
+    return filterPublishersByFlag(rows, "pub_progvideo");
   } catch (error) {
     console.error("Error fetching publishers for programmatic video:", error);
     return [];
   }
 }
 
-export async function getPublishersForProgBvod() {
+export async function getPublishersForProgBvod(): Promise<Publisher[]> {
   try {
-    const response = await fetch(publishersEndpoint);
-    if (!response.ok) {
-      throw new Error("Failed to fetch publishers for programmatic BVOD");
-    }
-    const data = await response.json();
-    
-    if (!Array.isArray(data)) return [];
-
-    return data
-      .filter((publisher: any) => Boolean(publisher.pub_progbvod))
-      .map((publisher: any) => ({
-        id: publisher.id,
-        publisher_name: publisher.publisher_name,
-      }));
+    const rows = await fetchAllPublishers();
+    return filterPublishersByFlag(rows, "pub_progbvod");
   } catch (error) {
     console.error("Error fetching publishers for programmatic BVOD:", error);
     return [];
   }
 }
 
-export async function getPublishersForProgAudio() {
+export async function getPublishersForProgAudio(): Promise<Publisher[]> {
   try {
-    const response = await fetch(publishersEndpoint);
-    if (!response.ok) {
-      throw new Error("Failed to fetch publishers for programmatic audio");
-    }
-    const data = await response.json();
-    
-    if (!Array.isArray(data)) return [];
-
-    return data
-      .filter((publisher: any) => Boolean(publisher.pub_progaudio))
-      .map((publisher: any) => ({
-        id: publisher.id,
-        publisher_name: publisher.publisher_name,
-      }));
+    const rows = await fetchAllPublishers();
+    return filterPublishersByFlag(rows, "pub_progaudio");
   } catch (error) {
     console.error("Error fetching publishers for programmatic audio:", error);
     return [];
   }
 }
 
-export async function getPublishersForProgOoh() {
+export async function getPublishersForProgOoh(): Promise<Publisher[]> {
   try {
-    const response = await fetch(publishersEndpoint);
-    if (!response.ok) {
-      throw new Error("Failed to fetch publishers for programmatic OOH");
-    }
-    const data = await response.json();
-    
-    if (!Array.isArray(data)) return [];
-
-    return data
-      .filter((publisher: any) => Boolean(publisher.pub_progooh))
-      .map((publisher: any) => ({
-        id: publisher.id,
-        publisher_name: publisher.publisher_name,
-      }));
+    const rows = await fetchAllPublishers();
+    return filterPublishersByFlag(rows, "pub_progooh");
   } catch (error) {
     console.error("Error fetching publishers for programmatic OOH:", error);
     return [];
   }
 }
 
-export async function getPublishersForInfluencers() {
+export async function getPublishersForInfluencers(): Promise<Publisher[]> {
   try {
-    const response = await fetch(publishersEndpoint);
-    if (!response.ok) {
-      throw new Error("Failed to fetch publishers for influencers");
-    }
-    const data = await response.json();
-    
-    if (!Array.isArray(data)) return [];
-
-    return data
-      .filter((publisher: any) => Boolean(publisher.pub_influencers))
-      .map((publisher: any) => ({
-        id: publisher.id,
-        publisher_name: publisher.publisher_name,
-      }));
+    const rows = await fetchAllPublishers();
+    return filterPublishersByFlag(rows, "pub_influencers");
   } catch (error) {
     console.error("Error fetching publishers for influencers:", error);
     return [];
@@ -3192,7 +3029,7 @@ export async function getIntegrationLineItemsByMBA(mbaNumber: string, mediaPlanV
     return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "integration")
   }
   try {
-    let url = `${MEDIA_PLANS_BASE_URL}/media_plan_integration?mba_number=${mbaNumber}`;
+    let url = `${MEDIA_PLANS_BASE_URL}/media_plan_integrations?mba_number=${mbaNumber}`;
     if (mediaPlanVersion !== undefined && mediaPlanVersion !== null) {
       url += `&version_number=${mediaPlanVersion}&mp_plannumber=${mediaPlanVersion}`;
       console.log(`[API] Fetching integration line items for MBA ${mbaNumber} with version ${mediaPlanVersion}`);
@@ -3712,7 +3549,12 @@ export async function saveIntegrationLineItems(mediaPlanVersionId: number, mbaNu
   try {
     const savePromises = integrationLineItems.map(async (lineItem, index) => {
       const formattedBursts = extractAndFormatBursts(lineItem);
-      const { line_item_id, line_item } = buildLineItemMeta(lineItem, mbaNumber, index, 'INT');
+      const { line_item_id, line_item } = buildLineItemIdentity(
+        lineItem,
+        mbaNumber,
+        MEDIA_TYPE_ID_CODES.integration,
+        index
+      );
 
       const integrationData = {
         media_plan_version: mediaPlanVersionId,
@@ -3733,7 +3575,11 @@ export async function saveIntegrationLineItems(mediaPlanVersionId: number, mbaNu
         line_item,
       };
 
-      const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_integration`, {
+      const endpoint = isBrowser
+        ? "/api/media_plans/integration"
+        : `${MEDIA_PLANS_BASE_URL}/media_plan_integrations`
+
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -3743,10 +3589,11 @@ export async function saveIntegrationLineItems(mediaPlanVersionId: number, mbaNu
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to save integration line item ${index + 1}: ${response.statusText}`);
+        const message = await extractResponseMessage(response)
+        throw new Error(`Failed to save integration line item ${index + 1}: ${message}`);
       }
 
-      return await response.json();
+      return await parseJsonOrText(response);
     });
 
     const results = await Promise.all(savePromises);
@@ -4119,7 +3966,12 @@ export async function saveInfluencersLineItems(mediaPlanVersionId: number, mbaNu
   try {
     const savePromises = influencersLineItems.map(async (lineItem, index) => {
       const formattedBursts = extractAndFormatBursts(lineItem);
-      const { line_item_id, line_item } = buildLineItemMeta(lineItem, mbaNumber, index, 'INF');
+      const { line_item_id, line_item } = buildLineItemIdentity(
+        lineItem,
+        mbaNumber,
+        MEDIA_TYPE_ID_CODES.influencers,
+        index
+      );
 
       const influencersData = {
         media_plan_version: mediaPlanVersionId,
@@ -4140,7 +3992,11 @@ export async function saveInfluencersLineItems(mediaPlanVersionId: number, mbaNu
         line_item,
       };
 
-      const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_influencers`, {
+      const endpoint = isBrowser
+        ? "/api/media_plans/influencers"
+        : `${MEDIA_PLANS_BASE_URL}/media_plan_influencers`
+
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -4150,10 +4006,11 @@ export async function saveInfluencersLineItems(mediaPlanVersionId: number, mbaNu
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to save influencers line item ${index + 1}: ${response.statusText}`);
+        const message = await extractResponseMessage(response)
+        throw new Error(`Failed to save influencers line item ${index + 1}: ${message}`);
       }
 
-      return await response.json();
+      return await parseJsonOrText(response);
     });
 
     const results = await Promise.all(savePromises);

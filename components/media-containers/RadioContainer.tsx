@@ -34,7 +34,7 @@ import { ChevronDown, Copy, Plus, Trash2 } from "lucide-react"
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
 import type { LineItem } from '@/lib/generateMediaPlan'
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
-import { formatMoney } from "@/lib/utils/money"
+import { formatMoney, parseMoneyInput } from "@/lib/utils/money"
 import {
   CpcFamilyBurstCalculatedField,
   getCpcFamilyBurstCalculatedColumnLabel,
@@ -71,6 +71,12 @@ import {
   serializeRadioExpertRowsBaseline,
   serializeRadioStandardLineItemsBaseline,
 } from "@/lib/mediaplan/expertModeSwitch"
+import {
+  type BuyType,
+  deliverablesFromBudget,
+  netFromGross,
+  roundDeliverables,
+} from "@/lib/mediaplan/deliverableBudget"
 import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
 import { SingleDatePicker } from "@/components/ui/single-date-picker"
 import { defaultMediaBurstStartDate, defaultMediaBurstEndDate } from "@/lib/date-picker-anchor"
@@ -327,24 +333,65 @@ export function calculateBurstInvestmentPerMonth(form, feeradio) {
   }));
 }
 
-const computeLoadedDeliverables = (buyType: string, burst: any) => {
-  const budget = parseFloat(String(burst?.budget ?? "0").replace(/[^0-9.]/g, "")) || 0;
-  const buyAmount = parseFloat(String(burst?.buyAmount ?? "1").replace(/[^0-9.]/g, "")) || 0;
+const LOAD_DELIVERABLES_EPS = 1e-5
 
-  switch (buyType) {
-    case "package":
-    case "spots":
-      return buyAmount !== 0 ? budget / buyAmount : 0;
-    case "cpm":
-      return buyAmount !== 0 ? (budget / buyAmount) * 1000 : 0;
-    case "fixed_cost":
-      return 1;
-    case "bonus":
-      return parseFloat(String(burst?.calculatedValue ?? 0).replace(/[^0-9.]/g, "")) || 0;
-    default:
-      return parseFloat(String(burst?.calculatedValue ?? 0).replace(/[^0-9.]/g, "")) || 0;
+function unitRateInferredFromNetAndDeliverables(
+  buyType: BuyType,
+  netBudget: number,
+  deliverables: number
+): number {
+  if (!Number.isFinite(netBudget) || !Number.isFinite(deliverables) || deliverables === 0) {
+    return 0
   }
-};
+  if (buyType === "cpm") return (netBudget * 1000) / deliverables
+  if (buyType === "fixed_cost") return netBudget
+  return netBudget / deliverables
+}
+
+/**
+ * Initial-load deliverables: net budget from gross burst budget, then shared
+ * `deliverablesFromBudget`. If stored `calculatedValue` disagrees with parsed
+ * `buyAmount` as unit rate (legacy rows used `buyAmount` as qty), infer rate
+ * from net ÷ deliverables and recompute.
+ */
+function computeLoadedDeliverables(
+  buyType: string,
+  burst: any,
+  budgetIncludesFees: boolean,
+  feePct: number
+): number {
+  const bt = String(buyType || "").toLowerCase() as BuyType
+  if (bt === "bonus") {
+    return (
+      parseFloat(String(burst?.calculatedValue ?? 0).replace(/[^0-9.]/g, "")) || 0
+    )
+  }
+  const gross =
+    parseFloat(String(burst?.budget ?? "0").replace(/[^0-9.]/g, "")) || 0
+  const storedCvRaw = burst?.calculatedValue
+  const storedCv =
+    typeof storedCvRaw === "number" && Number.isFinite(storedCvRaw)
+      ? storedCvRaw
+      : parseFloat(String(storedCvRaw ?? "0").replace(/[^0-9.]/g, "")) || 0
+  const buyAmount =
+    parseFloat(String(burst?.buyAmount ?? "1").replace(/[^0-9.]/g, "")) || 0
+  const net = netFromGross(gross, budgetIncludesFees, feePct)
+  const primary = deliverablesFromBudget(bt, net, buyAmount)
+  if (Number.isNaN(primary)) {
+    return roundDeliverables(bt, storedCv)
+  }
+  const rPrimary = roundDeliverables(bt, primary)
+  const rStored = roundDeliverables(bt, storedCv)
+  if (Math.abs(rPrimary - rStored) <= LOAD_DELIVERABLES_EPS) {
+    return rPrimary
+  }
+  const inferred = unitRateInferredFromNetAndDeliverables(bt, net, storedCv)
+  const fromInferred = deliverablesFromBudget(bt, net, inferred)
+  if (!Number.isNaN(fromInferred)) {
+    return roundDeliverables(bt, fromInferred)
+  }
+  return rStored
+}
 
 export default function RadioContainer({
   clientId,
@@ -819,14 +866,24 @@ export default function RadioContainer({
           buyAmount: burst.buyAmount || "",
           startDate: burst.startDate ? new Date(burst.startDate) : defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
           endDate: burst.endDate ? new Date(burst.endDate) : defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
-          calculatedValue: computeLoadedDeliverables(item.buy_type || item.buyType, burst),
+          calculatedValue: computeLoadedDeliverables(
+            item.buy_type || item.buyType,
+            burst,
+            Boolean(item.budget_includes_fees || item.budgetIncludesFees),
+            feeradio ?? 0
+          ),
           fee: burst.fee ?? 0,
         })) : [{
           budget: "",
           buyAmount: "",
           startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
           endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
-          calculatedValue: computeLoadedDeliverables(item.buy_type || item.buyType, {}),
+          calculatedValue: computeLoadedDeliverables(
+            item.buy_type || item.buyType,
+            {},
+            Boolean(item.budget_includes_fees || item.budgetIncludesFees),
+            feeradio ?? 0
+          ),
           fee: 0,
         }];
 
@@ -868,7 +925,7 @@ export default function RadioContainer({
     radioStandardBaselineRef.current = serializeRadioStandardLineItemsBaseline(
       form.getValues("radiolineItems")
     );
-  }, [initialLineItems, form, campaignStartDate, campaignEndDate, mbaNumber]);
+  }, [initialLineItems, form, campaignStartDate, campaignEndDate, mbaNumber, feeradio]);
 
   // Transform form data to API schema format
   useEffect(() => {
@@ -1050,41 +1107,40 @@ export default function RadioContainer({
     const lineItem = form.getValues(`radiolineItems.${lineItemIndex}`);
     const rawBudget = parseFloat(burst?.budget?.replace(/[^0-9.]/g, "") || "0");
     const budgetIncludesFees = budgetIncludesFeesOverride ?? Boolean(lineItem?.budgetIncludesFees);
-    const budget = netMediaPctOfGross(rawBudget, budgetIncludesFees, feeradio || 0);
+    // Standard burst `budget` is gross; deliverables math uses net media (`netFromGross`).
+    const netBudget = netFromGross(rawBudget, budgetIncludesFees, feeradio || 0);
     const buyAmount = parseFloat(burst?.buyAmount?.replace(/[^0-9.]/g, "") || "1");
-    const buyType = form.getValues(`radiolineItems.${lineItemIndex}.buyType`);
+    const buyTypeRaw = form.getValues(`radiolineItems.${lineItemIndex}.buyType`);
+    const buyType = String(buyTypeRaw || "").toLowerCase() as BuyType;
 
-    let calculatedValue = 0;
-    switch (buyType) {
-      case "package":
-      case "spots":
-        calculatedValue = buyAmount !== 0 ? budget / buyAmount : 0;
-        break;
-      case "cpm":
-        calculatedValue = buyAmount !== 0 ? (budget / buyAmount) * 1000 : 0;
-        break;
-      case "fixed_cost":
-        calculatedValue = 1;
-        break;
-      case "bonus":
-        calculatedValue = parseFloat(
-          (burst?.calculatedValue ?? "0").toString().replace(/[^0-9.]/g, "")
-        ) || 0;
-        break;
-      default:
-        calculatedValue = 0;
+    const rawDeliverables = deliverablesFromBudget(buyType, netBudget, buyAmount);
+    if (Number.isNaN(rawDeliverables)) {
+      // bonus / package_inclusions: keep user-entered `calculatedValue` (do not overwrite).
+      return;
     }
 
-    // Only update if the calculated value is actually different to prevent infinite loops
-    const currentValue = form.getValues(`radiolineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`);
-    if (currentValue !== calculatedValue && !isNaN(calculatedValue)) {
-      form.setValue(`radiolineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`, calculatedValue, {
-        shouldValidate: false, // Changed to false to prevent validation loops
-        shouldDirty: false,    // Changed to false to prevent dirty state loops
-      });
-
-      handleLineItemValueChange(lineItemIndex);
+    const nextCalculated = roundDeliverables(buyType, rawDeliverables);
+    const currentValue = form.getValues(
+      `radiolineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`
+    );
+    const cur =
+      typeof currentValue === "number" && Number.isFinite(currentValue)
+        ? currentValue
+        : parseFloat(String(currentValue ?? "0").replace(/[^0-9.]/g, "")) || 0;
+    if (Math.abs(cur - nextCalculated) <= 1e-6) {
+      return;
     }
+
+    form.setValue(
+      `radiolineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`,
+      nextCalculated,
+      {
+        shouldValidate: false,
+        shouldDirty: false,
+      }
+    );
+
+    handleLineItemValueChange(lineItemIndex);
   }, [feeradio, form, handleLineItemValueChange]);
 
   const handleAppendBurst = useCallback((lineItemIndex: number) => {
@@ -1337,6 +1393,7 @@ useEffect(() => {
         buyType:      lineItem.buyType,
         deliverablesAmount: burst.budget,
         grossMedia: String(mediaAmount),
+        clientPaysForMedia: lineItem.clientPaysForMedia ?? false,
         line_item_id: lineItemId,
         lineItemId: lineItemId,
         line_item: lineNumber,
@@ -1979,6 +2036,7 @@ useEffect(() => {
                                   </div>
                                   
                                   <div className={MP_BURST_GRID_7}>
+                                    {/* Burst `budget` = gross (fee-inclusive when the line-item flag is on). */}
                                     <FormField
                                       control={form.control}
                                       name={`radiolineItems.${lineItemIndex}.bursts.${burstIndex}.budget`}
@@ -1998,7 +2056,7 @@ useEffect(() => {
                                               }}
                                               onBlur={(e) => {
                                                 const value = e.target.value;
-                                                const formattedValue = formatMoney(Number.parseFloat(value) || 0, {
+                                                const formattedValue = formatMoney(parseMoneyInput(value) ?? 0, {
                                                   locale: "en-US",
                                                   currency: "USD",
                                                 });
@@ -2012,6 +2070,7 @@ useEffect(() => {
                                       )}
                                     />
 
+                                    {/* Burst `buyAmount` = unit rate (expert `unitRate`); deliverables live in `calculatedValue`. */}
                                     <FormField
                                       control={form.control}
                                       name={`radiolineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount`}
@@ -2031,7 +2090,7 @@ useEffect(() => {
                                               }}
                                               onBlur={(e) => {
                                                 const value = e.target.value;
-                                                const formattedValue = formatMoney(Number.parseFloat(value) || 0, {
+                                                const formattedValue = formatMoney(parseMoneyInput(value) ?? 0, {
                                                   locale: "en-US",
                                                   currency: "USD",
                                                 });

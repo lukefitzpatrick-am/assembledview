@@ -14,6 +14,7 @@ const MEDIA_ITEMS_EXCEL_LABELS: Record<keyof MediaItems, string> = {
   digiVideo: "Digital Video",
   bvod: "BVOD",
   integration: "Integration",
+  influencers: "Influencers",
   search: "Search",
   socialMedia: "Social Media",
   progDisplay: "Programmatic Display",
@@ -36,6 +37,7 @@ const MEDIA_ITEMS_ORDER: (keyof MediaItems)[] = [
   "digiVideo",
   "bvod",
   "integration",
+  "influencers",
   "search",
   "socialMedia",
   "progDisplay",
@@ -168,6 +170,7 @@ export function filterMediaItemsForAdvertisingAssociates(
     ooh: filterArr(mediaItems.ooh),
     cinema: filterArr(mediaItems.cinema),
     integration: filterArr(mediaItems.integration),
+    influencers: filterArr(mediaItems.influencers),
     production: filterArr(mediaItems.production),
   }
 }

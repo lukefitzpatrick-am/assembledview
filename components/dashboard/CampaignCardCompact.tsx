@@ -155,6 +155,20 @@ export function CampaignCardCompact({
         )}
       >
         <div className="pointer-events-auto absolute right-3 top-3 z-20 flex items-center gap-1">
+          <Link
+            href={viewHref}
+            aria-label={viewLinkAriaLabel ?? `${viewMenuLabel}: ${name}`}
+            title={viewMenuLabel}
+            onClick={(e) => e.stopPropagation()}
+            className={cn(
+              "flex h-8 shrink-0 items-center justify-center whitespace-nowrap rounded-md border border-border bg-background/90 px-2.5 text-xs font-medium text-foreground shadow-sm backdrop-blur-sm",
+              "transition-colors hover:bg-muted hover:text-foreground",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            )}
+          >
+            View
+          </Link>
+
           <span
             className={cn(
               "pointer-events-none inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
@@ -232,7 +246,7 @@ export function CampaignCardCompact({
           </DropdownMenu>
         </div>
 
-        <div className="pr-[7.5rem] sm:pr-[8.5rem]">
+        <div className="pr-[10.5rem] sm:pr-[13rem]">
           <p className="line-clamp-1 text-sm font-medium text-foreground">{name}</p>
           <p className="mt-1 text-xs text-muted-foreground">{mbaNumber}</p>
         </div>

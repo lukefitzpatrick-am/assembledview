@@ -7,6 +7,7 @@ import {
   type FinanceApiErrorBody,
 } from "@/lib/finance/billingApiParams"
 import { derivePlanReceivableBillingRecordsForMonth, receivableMergeKey } from "@/lib/finance/deriveReceivableRecords"
+import { deriveRetainerBillingRecordsForMonth } from "@/lib/finance/deriveRetainerReceivables"
 import { deriveSowBillingRecordsFromScopes, type ScopeOfWorkRow } from "@/lib/finance/deriveScopeSowReceivables"
 import { fetchRelevantPlanVersionsForFinanceMonth } from "@/lib/finance/relevantPlanVersions"
 import { getCachedClients, getCachedPublishers } from "@/lib/finance/xanoReferenceCache"
@@ -22,8 +23,9 @@ const XANO_BASE = process.env.XANO_CLIENTS_BASE_URL
 
 /**
  * Read-only receivables for finance billing: rows are derived live from
- * `media_plan_versions.billingSchedule` (media lines + SOW fee lines) and from `scope_of_work`
- * schedules. This route does not read or write Xano `finance_billing_records`; persisting edits
+ * `media_plan_versions.billingSchedule` (media lines + SOW fee lines), `scope_of_work`
+ * schedules, and client `monthlyretainer` (synthetic retainer rows). This route does not read or
+ * write Xano `finance_billing_records`; persisting edits
  * is intentionally out of scope for this rebuild.
  */
 
@@ -161,6 +163,7 @@ export async function GET(request: NextRequest) {
     const includeNonBooked = incoming.get("include_drafts") !== "0"
     const wantMedia = parsedTypes.types.length === 0 || parsedTypes.types.includes("media")
     const wantSow = parsedTypes.types.length === 0 || parsedTypes.types.includes("sow")
+    const wantRetainer = parsedTypes.types.length === 0 || parsedTypes.types.includes("retainer")
     const year = Number(monthStr.slice(0, 4))
     const month = Number(monthStr.slice(5, 7))
 
@@ -239,6 +242,12 @@ export async function GET(request: NextRequest) {
           message: e instanceof Error ? e.message : String(e),
         })
       }
+    }
+
+    if (wantRetainer) {
+      derived.push(
+        ...deriveRetainerBillingRecordsForMonth(clients as Record<string, unknown>[], year, month)
+      )
     }
 
     const byReceivableKey = new Map<string, BillingRecord>()

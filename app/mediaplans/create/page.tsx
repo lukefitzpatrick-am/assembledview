@@ -44,18 +44,26 @@ import { usePathname, useRouter } from "next/navigation"
 import { Table, TableBody, TableCell, TableHeader, TableRow, TableHead, TableFooter } from "@/components/ui/table"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { SavingModal, type SaveStatusItem } from "@/components/ui/saving-modal"
+import { OutcomeModal } from "@/components/outcome-modal"
 import type { BillingBurst, BillingMonth, BillingLineItem } from "@/lib/billing/types" // adjust path if needed
 import { buildBillingScheduleJSON } from "@/lib/billing/buildBillingSchedule"
 import { computeBillingAndDeliveryMonths } from "@/lib/billing/computeSchedule"
-import { getScheduleHeaders } from "@/lib/billing/scheduleHeaders"
 import {
   appendPartialApprovalToBillingSchedule,
+  billingMonthsHaveDetailedLineItems,
   computeLineItemTotalsFromDeliveryMonths,
   recomputePartialMbaFromSelections,
   type PartialApprovalLineItem,
   type PartialApprovalMetadata,
   type PartialMbaValues,
 } from "@/lib/mediaplan/partialMba"
+import { generateBillingLineItems } from "@/lib/billing/generateBillingLineItems"
+import { getMediaTypeHeadersForSchedule } from "@/lib/billing/mediaTypeHeaders"
+import { prepareBillingMonthsForLineItemExport } from "@/lib/billing/prepareBillingMonthsForLineItemExport"
+import {
+  buildBillingScheduleExcelBlob,
+  sanitizeFilenamePart,
+} from "@/lib/billing/exportBillingScheduleExcel"
 import { generateMediaPlan, MediaPlanHeader, LineItem, MediaItems } from '@/lib/generateMediaPlan'
 import { generateNamingWorkbook } from '@/lib/namingConventions'
 import { MBAData } from '@/lib/generateMBA'
@@ -368,6 +376,10 @@ export default function CreateMediaPlan() {
   const [clientPostcode, setClientPostcode] = useState("")
   const [saveStatus, setSaveStatus] = useState<SaveStatusItem[]>([]);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalTitle, setModalTitle] = useState("");
+  const [modalOutcome, setModalOutcome] = useState("");
+  const [modalLoading, setModalLoading] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const navigationHydratedRef = useRef(false);
   const markUnsavedChanges = useCallback(() => {
@@ -776,29 +788,31 @@ export default function CreateMediaPlan() {
     influencersMediaLineItems,
   ])
 
-  const showAaMediaPlanDownload = useMemo(() => {
+  /** True when any included line item maps to a publisher with billing agency Advertising Associates (same inputs as save-time AA upload check). */
+  const hasAdvertisingAssociatesBilling = useMemo(() => {
     const mediaItems: MediaItems = {
-      search: searchItems.filter(shouldIncludeMediaPlanLineItem),
-      socialMedia: socialMediaItems.filter(shouldIncludeMediaPlanLineItem),
-      digiAudio: digiAudioItems.filter(shouldIncludeMediaPlanLineItem),
-      digiDisplay: digiDisplayItems.filter(shouldIncludeMediaPlanLineItem),
-      digiVideo: digiVideoItems.filter(shouldIncludeMediaPlanLineItem),
-      bvod: bvodItems.filter(shouldIncludeMediaPlanLineItem),
-      progDisplay: progDisplayItems.filter(shouldIncludeMediaPlanLineItem),
-      progVideo: progVideoItems.filter(shouldIncludeMediaPlanLineItem),
-      progBvod: progBvodItems.filter(shouldIncludeMediaPlanLineItem),
-      progOoh: progOohItems.filter(shouldIncludeMediaPlanLineItem),
-      progAudio: progAudioItems.filter(shouldIncludeMediaPlanLineItem),
-      newspaper: newspaperItems.filter(shouldIncludeMediaPlanLineItem),
-      magazines: magazineItems.filter(shouldIncludeMediaPlanLineItem),
-      television: televisionItems.filter(shouldIncludeMediaPlanLineItem),
-      radio: radioItems.filter(shouldIncludeMediaPlanLineItem),
-      ooh: oohItems.filter(shouldIncludeMediaPlanLineItem),
-      cinema: cinemaItems.filter(shouldIncludeMediaPlanLineItem),
-      integration: integrationItems.filter(shouldIncludeMediaPlanLineItem),
-      production: consultingItems.filter(shouldIncludeMediaPlanLineItem),
+      search: searchItems,
+      socialMedia: socialMediaItems,
+      digiAudio: digiAudioItems,
+      digiDisplay: digiDisplayItems,
+      digiVideo: digiVideoItems,
+      bvod: bvodItems,
+      progDisplay: progDisplayItems,
+      progVideo: progVideoItems,
+      progBvod: progBvodItems,
+      progOoh: progOohItems,
+      progAudio: progAudioItems,
+      newspaper: newspaperItems,
+      magazines: magazineItems,
+      television: televisionItems,
+      radio: radioItems,
+      ooh: oohItems,
+      cinema: cinemaItems,
+      integration: integrationItems,
+      influencers: influencersItems,
+      production: consultingItems,
     }
-    return planHasAdvertisingAssociatesLineItem(mediaItems, kpiPublishers, () => true)
+    return planHasAdvertisingAssociatesLineItem(mediaItems, kpiPublishers, shouldIncludeMediaPlanLineItem)
   }, [
     searchItems,
     socialMediaItems,
@@ -819,6 +833,7 @@ export default function CreateMediaPlan() {
     cinemaItems,
     integrationItems,
     consultingItems,
+    influencersItems,
     kpiPublishers,
   ])
 
@@ -2299,6 +2314,7 @@ export default function CreateMediaPlan() {
     const validOohItems = oohItems.filter(shouldIncludeMediaPlanLineItem);
     const validCinemaItems = cinemaItems.filter(shouldIncludeMediaPlanLineItem);
     const validIntegrationItems = integrationItems.filter(shouldIncludeMediaPlanLineItem);
+    const validInfluencersItems = influencersItems.filter(shouldIncludeMediaPlanLineItem);
     const validConsultingItems = consultingItems.filter(shouldIncludeMediaPlanLineItem);
 
     const mediaItems: MediaItems = {
@@ -2320,6 +2336,7 @@ export default function CreateMediaPlan() {
       ooh:          assignLineItemIds(validOohItems,          "OOH"),
       cinema:       assignLineItemIds(validCinemaItems,       "CIN"),
       integration:  assignLineItemIds(validIntegrationItems,  "INT"),
+      influencers:  assignLineItemIds(validInfluencersItems,  "INF"),
       production:   assignLineItemIds(validConsultingItems,   "PROD"),
     };
 
@@ -3066,186 +3083,6 @@ export default function CreateMediaPlan() {
 
     return { ...month, lineItems: merged };
   }
-  // Helper function to get header labels for media types
-  function getMediaTypeHeaders(mediaKey: string): { header1: string; header2: string } {
-    switch (mediaKey) {
-      case 'television':
-      case 'radio':
-        return { header1: 'Network', header2: 'Station' };
-      case 'newspaper':
-      case 'magazines':
-        return { header1: 'Network', header2: 'Title' };
-      case 'digiDisplay':
-      case 'digiAudio':
-      case 'digiVideo':
-      case 'bvod':
-        return { header1: 'Publisher', header2: 'Site' };
-      case 'search':
-      case 'socialMedia':
-      case 'progDisplay':
-      case 'progVideo':
-      case 'progBvod':
-      case 'progAudio':
-      case 'progOoh':
-        return { header1: 'Platform', header2: 'Targeting' };
-      case 'ooh':
-      case 'cinema':
-        return { header1: 'Network', header2: 'Format' };
-      default:
-        return { header1: 'Item', header2: 'Details' };
-    }
-  }
-
-  // Helper function to generate billing line items from media line items
-  function generateBillingLineItems(
-    mediaLineItems: any[],
-    mediaType: string,
-    months: BillingMonth[],
-    mode: "billing" | "delivery" = "billing"
-  ): BillingLineItem[] {
-    if (!mediaLineItems || mediaLineItems.length === 0) return [];
-
-    const lineItemsMap = new Map<string, BillingLineItem>();
-    const monthKeys = months.map(m => m.monthYear);
-
-    mediaLineItems.forEach((lineItem, index) => {
-      const { header1, header2 } = getScheduleHeaders(mediaType, lineItem);
-      const itemId = `${mediaType}-${header1 || "Item"}-${header2 || "Details"}-${index}`;
-      const clientPaysForMedia = Boolean(
-        (lineItem as any)?.client_pays_for_media ?? (lineItem as any)?.clientPaysForMedia
-      );
-
-      // Initialize monthly amounts
-      const monthlyAmounts: Record<string, number> = {};
-      monthKeys.forEach(key => monthlyAmounts[key] = 0);
-
-      // Parse bursts and distribute across months
-      let bursts = [];
-      if (typeof lineItem.bursts_json === 'string') {
-        try {
-          bursts = JSON.parse(lineItem.bursts_json);
-        } catch (e) {
-          // Error parsing bursts_json - continue with empty bursts
-        }
-      } else if (Array.isArray(lineItem.bursts_json)) {
-        bursts = lineItem.bursts_json;
-      } else if (Array.isArray(lineItem.bursts)) {
-        bursts = lineItem.bursts;
-      }
-
-      const inferredLineItemFeePct = (() => {
-        // Some containers (e.g. Social Media) store `budget_includes_fees` on the LINE ITEM, not per-burst,
-        // and do not include fee % in `bursts_json`. In those cases we infer fee% from totalMedia vs raw budgets.
-        const budgetIncludesFees = Boolean(
-          (lineItem as any)?.budget_includes_fees ?? (lineItem as any)?.budgetIncludesFees
-        );
-        if (!budgetIncludesFees) return 0;
-
-        const parseMoney = (v: any) =>
-          parseFloat(String(v ?? "").replace(/[^0-9.-]/g, "")) || 0;
-
-        const sumRawBudgets = (bursts || []).reduce((sum: number, b: any) => {
-          const raw = parseMoney(b?.budget) || parseMoney(b?.buyAmount);
-          return sum + raw;
-        }, 0);
-
-        const totalMediaRaw =
-          (lineItem as any)?.totalMedia ?? (lineItem as any)?.total_media ?? 0;
-        const totalMedia = typeof totalMediaRaw === "number" ? totalMediaRaw : parseMoney(totalMediaRaw);
-
-        if (sumRawBudgets <= 0) return 0;
-        const pct = (1 - totalMedia / sumRawBudgets) * 100;
-        return Math.max(0, Math.min(100, pct));
-      })();
-
-      // Distribute each burst across months.
-      // IMPORTANT: line item amounts should reflect *media* only (net of fees when budget includes fees),
-      // and should be $0 in billing mode when the client pays for media.
-      bursts.forEach((burst: any) => {
-          const startDate = new Date(burst.startDate);
-          const endDate = new Date(burst.endDate);
-          const budget = parseFloat(burst.budget?.replace(/[^0-9.-]/g, '') || '0') ||
-                        parseFloat(burst.buyAmount?.replace(/[^0-9.-]/g, '') || '0') || 0;
-
-          const feePctRaw =
-            (burst.feePercentage ?? burst.fee_percentage ??
-              (lineItem as any)?.feePercentage ?? (lineItem as any)?.fee_percentage) as any;
-          const feePctCandidate = Number(feePctRaw);
-          const feePct = Number.isFinite(feePctCandidate)
-            ? Math.max(0, Math.min(100, feePctCandidate))
-            : inferredLineItemFeePct;
-
-          const budgetIncludesFees = Boolean(
-            burst.budgetIncludesFees ??
-              burst.budget_includes_fees ??
-              (lineItem as any)?.budgetIncludesFees ??
-              (lineItem as any)?.budget_includes_fees
-          );
-          const burstClientPaysForMedia = Boolean(
-            burst.clientPaysForMedia ??
-              burst.client_pays_for_media ??
-              (lineItem as any)?.clientPaysForMedia ??
-              (lineItem as any)?.client_pays_for_media ??
-              clientPaysForMedia
-          );
-
-          // Convert "budget" into the net media amount used for schedule line items
-          const netMedia = budgetIncludesFees ? (budget * (100 - feePct)) / 100 : budget;
-          const effectiveBudget =
-            mode === "billing"
-              ? (burstClientPaysForMedia ? 0 : netMedia)
-              : netMedia; // delivery schedule should always reflect delivered media
-
-          if (isNaN(startDate.getTime()) || isNaN(endDate.getTime()) || effectiveBudget === 0) return;
-
-          // Normalise burst endpoints to local midnight so day counts don't drift
-          // when bursts come from UTC ISO strings (e.g. "2026-05-30T14:00:00.000Z").
-          const sLocalMidnight = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
-          const eLocalMidnight = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
-
-          const daysTotal =
-            Math.round((eLocalMidnight.getTime() - sLocalMidnight.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-          if (daysTotal <= 0) return;
-
-          // Walk months by constructing fresh first-of-month Dates instead of mutating
-          // with setMonth/setDate, which has a rollover bug: e.g. setting month=June on
-          // a Date whose day is 31 normalises to 1 July, silently skipping June.
-          let currentDate = new Date(sLocalMidnight.getFullYear(), sLocalMidnight.getMonth(), 1);
-          const lastMonthCursor = new Date(eLocalMidnight.getFullYear(), eLocalMidnight.getMonth(), 1);
-
-          while (currentDate <= lastMonthCursor) {
-            const monthKey = format(currentDate, "MMMM yyyy");
-            if (monthlyAmounts.hasOwnProperty(monthKey)) {
-              const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-              const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
-              const sliceStartMs = Math.max(sLocalMidnight.getTime(), monthStart.getTime());
-              const sliceEndMs = Math.min(eLocalMidnight.getTime(), monthEnd.getTime());
-              const daysInMonth =
-                Math.round((sliceEndMs - sliceStartMs) / (1000 * 60 * 60 * 24)) + 1;
-              if (daysInMonth > 0) {
-                const share = effectiveBudget * (daysInMonth / daysTotal);
-                monthlyAmounts[monthKey] += share;
-              }
-            }
-            currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
-          }
-        });
-
-      // Create or update line item
-      const totalAmount = Object.values(monthlyAmounts).reduce((sum, val) => sum + val, 0);
-      lineItemsMap.set(itemId, {
-        id: itemId,
-        header1,
-        header2,
-        monthlyAmounts,
-        totalAmount,
-        ...(clientPaysForMedia ? { clientPaysForMedia: true } : {}),
-      });
-    });
-
-    return Array.from(lineItemsMap.values());
-  }
-
   /** Same line-item attachment as save payload — used so Partial MBA modal has real line items, not empty months. */
   function attachLineItemsToMonthsForPartial(
     months: BillingMonth[],
@@ -3792,6 +3629,70 @@ export default function CreateMediaPlan() {
     toast({ title: "Success", description: "Manual billing schedule has been saved." });
   }
 
+  async function handleDownloadBillingScheduleExcel() {
+    if (!billingMonths.length) {
+      toast({
+        title: "Nothing to export",
+        description: "Select campaign dates to generate a billing schedule.",
+        variant: "destructive",
+      })
+      return
+    }
+    try {
+      let monthsForExport = billingMonths
+      if (!billingMonthsHaveDetailedLineItems(billingMonths)) {
+        const fv = form.getValues()
+        const mediaTypeMap = {
+          mp_television: { lineItems: televisionMediaLineItems, key: "television" },
+          mp_radio: { lineItems: radioMediaLineItems, key: "radio" },
+          mp_newspaper: { lineItems: newspaperMediaLineItems, key: "newspaper" },
+          mp_magazines: { lineItems: magazineMediaLineItems, key: "magazines" },
+          mp_ooh: { lineItems: oohMediaLineItems, key: "ooh" },
+          mp_cinema: { lineItems: cinemaMediaLineItems, key: "cinema" },
+          mp_digidisplay: { lineItems: digiDisplayMediaLineItems, key: "digiDisplay" },
+          mp_digiaudio: { lineItems: digiAudioMediaLineItems, key: "digiAudio" },
+          mp_digivideo: { lineItems: digiVideoMediaLineItems, key: "digiVideo" },
+          mp_bvod: { lineItems: bvodMediaLineItems, key: "bvod" },
+          mp_search: { lineItems: searchMediaLineItems, key: "search" },
+          mp_socialmedia: { lineItems: socialMediaMediaLineItems, key: "socialMedia" },
+          mp_progdisplay: { lineItems: progDisplayMediaLineItems, key: "progDisplay" },
+          mp_progvideo: { lineItems: progVideoMediaLineItems, key: "progVideo" },
+          mp_progbvod: { lineItems: progBvodMediaLineItems, key: "progBvod" },
+          mp_progaudio: { lineItems: progAudioMediaLineItems, key: "progAudio" },
+          mp_progooh: { lineItems: progOohMediaLineItems, key: "progOoh" },
+          mp_influencers: { lineItems: influencersMediaLineItems, key: "influencers" },
+          mp_integration: { lineItems: integrationMediaLineItems, key: "integration" },
+        }
+        monthsForExport = prepareBillingMonthsForLineItemExport(
+          billingMonths,
+          mediaTypeMap,
+          (mpKey) => Boolean(fv[mpKey as keyof typeof fv])
+        )
+      }
+      const fv = form.getValues()
+      const start = fv.mp_campaigndates_start
+      const end = fv.mp_campaigndates_end
+      const blob = await buildBillingScheduleExcelBlob(monthsForExport, {
+        client: fv.mp_client_name || "",
+        brand: fv.mp_brand || "",
+        campaignName: fv.mp_campaignname || "",
+        mbaNumber: fv.mba_number || "",
+        planVersion: fv.mp_plannumber || "",
+        campaignStartLabel: start ? format(start, "dd/MM/yyyy") : "",
+        campaignEndLabel: end ? format(end, "dd/MM/yyyy") : "",
+      })
+      const stem = `BillingSchedule_${sanitizeFilenamePart(fv.mp_client_name)}_${sanitizeFilenamePart(fv.mba_number || "Draft")}_${format(new Date(), "yyyyMMdd")}`
+      saveAs(blob, `${stem}.xlsx`)
+      toast({ title: "Downloaded", description: "Billing schedule Excel export is ready." })
+    } catch (e: any) {
+      toast({
+        title: "Export failed",
+        description: e?.message || "Could not generate Excel file.",
+        variant: "destructive",
+      })
+    }
+  }
+
   const [mediaPlanId, setMediaPlanId] = useState<number | null>(null)
   /** Keeps latest master id for synchronous guards (double-submit) */
   const mediaPlanIdRef = useRef<number | null>(null)
@@ -4214,7 +4115,6 @@ export default function CreateMediaPlan() {
       // Do not block core save on upload failures: show in modal as partial success.
       updateSaveStatus("MBA PDF Upload", "pending")
       updateSaveStatus("Media Plan Upload", "pending")
-      updateSaveStatus("AA Media Plan Upload", "pending")
       const documentUploadPromise = (async () => {
         const planVersionForDocs = String(fv.mp_plannumber || "1")
 
@@ -4247,6 +4147,7 @@ export default function CreateMediaPlan() {
           ooh: oohItems,
           cinema: cinemaItems,
           integration: integrationItems,
+          influencers: influencersItems,
           production: consultingItems,
         }
 
@@ -4262,35 +4163,56 @@ export default function CreateMediaPlan() {
                 shouldIncludeMediaPlanLineItem,
               )
             ) {
-              const { blob: aaBlob, fileName: aaFileName } = await generateMediaPlanXlsxBlob({
-                planVersion: planVersionForDocs,
-                variant: "aa",
-              })
-              aaMediaPlanFile = new File([aaBlob], aaFileName, {
-                type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-              })
+              updateSaveStatus("AA Media Plan Upload", "pending")
+              try {
+                const { blob: aaBlob, fileName: aaFileName } = await generateMediaPlanXlsxBlob({
+                  planVersion: planVersionForDocs,
+                  variant: "aa",
+                })
+                aaMediaPlanFile = new File([aaBlob], aaFileName, {
+                  type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                })
+              } catch (genErr: any) {
+                console.warn("AA media plan generation failed:", genErr)
+                updateSaveStatus(
+                  "AA Media Plan Upload",
+                  "error",
+                  genErr?.message || "Failed to generate AA media plan",
+                )
+              }
             }
           }
         } catch (aaErr) {
           console.warn("AA media plan generation skipped or failed:", aaErr)
         }
 
-        await uploadMediaPlanVersionDocuments(version.id, {
-          mbaPdf: mbaPdfFile,
-          mediaPlan: mediaPlanFile,
-          aaMediaPlan: aaMediaPlanFile,
-          mpClientName: clientName,
-        })
+        try {
+          await uploadMediaPlanVersionDocuments(version.id, {
+            mbaPdf: mbaPdfFile,
+            mediaPlan: mediaPlanFile,
+            aaMediaPlan: aaMediaPlanFile,
+            mpClientName: clientName,
+          })
 
-        updateSaveStatus("MBA PDF Upload", "success")
-        updateSaveStatus("Media Plan Upload", "success")
-        updateSaveStatus("AA Media Plan Upload", "success")
+          updateSaveStatus("MBA PDF Upload", "success")
+          updateSaveStatus("Media Plan Upload", "success")
+          if (aaMediaPlanFile) {
+            updateSaveStatus("AA Media Plan Upload", "success")
+          }
+        } catch (err: any) {
+          const message = err?.message || String(err)
+          console.error("Document upload failed:", err)
+          updateSaveStatus("MBA PDF Upload", "error", message)
+          updateSaveStatus("Media Plan Upload", "error", message)
+          if (aaMediaPlanFile) {
+            updateSaveStatus("AA Media Plan Upload", "error", message)
+          }
+        }
       })().catch((err: any) => {
         const message = err?.message || String(err)
         console.error("Document upload failed:", err)
         updateSaveStatus("MBA PDF Upload", "error", message)
         updateSaveStatus("Media Plan Upload", "error", message)
-        updateSaveStatus("AA Media Plan Upload", "error", message)
       })
   
       // 4. Save all media line items for enabled media types
@@ -4862,30 +4784,33 @@ const handleSaveAll = async () => {
 
   // Handle Save and Download All - creates a ZIP then runs the normal save modal flow
   const handleSaveAndDownloadAll = async () => {
+    const fv = form.getValues();
+
+    if (!fv.mba_number) {
+      toast({
+        title: "Error",
+        description: "MBA number is required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!fv.mp_client_name) {
+      toast({
+        title: "Error",
+        description: "Client name is required",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsDownloading(true);
+    setModalOpen(true);
+    setModalLoading(true);
+    setModalTitle("Downloading Media Plan");
+    setModalOutcome("Preparing your media plan for download...");
+
     try {
-      const fv = form.getValues();
-      
-      // Validate required fields
-      if (!fv.mba_number) {
-        toast({
-          title: "Error",
-          description: "MBA number is required",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      if (!fv.mp_client_name) {
-        toast({
-          title: "Error",
-          description: "Client name is required",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // 1️⃣ Build all files and download as one ZIP
       const [{ blob: mbaBlob, fileName: mbaFileName }, { blob: mediaPlanBlob, fileName: mediaPlanFileName }, { blob: namingBlob, fileName: namingFileName }] = await Promise.all([
         generateMbaPdfBlob(),
         generateMediaPlanXlsxBlob(),
@@ -4906,13 +4831,18 @@ const handleSaveAll = async () => {
       const zipFileName = `${fv.mp_client_name || "client"}-${campaignNameSafe || "campaign"}-all-files.zip`;
       saveAs(zipBlob, zipFileName);
 
-      // 2️⃣ Run the same save modal/process as the normal Save action
-      await handleSaveAll();
+      setModalLoading(false);
+      setModalOpen(false);
 
+      await handleSaveAll();
     } catch (error: any) {
+      console.error("Save and download all:", error);
+      setModalLoading(false);
+      setModalTitle("Error");
+      setModalOutcome(error?.message || "Failed to complete save and download all");
       toast({
         title: "Error",
-        description: error.message || "Failed to complete save and download all",
+        description: error?.message || "Failed to complete save and download all",
         variant: "destructive",
       });
     } finally {
@@ -4938,7 +4868,7 @@ const handleSaveAll = async () => {
     }
   };
   
-  const handleGenerateMediaPlan = async () => {
+  const handleDownloadMediaPlan = async () => {
     setIsDownloading(true)
     try {
       const { blob, fileName } = await generateMediaPlanXlsxBlob()
@@ -4956,7 +4886,8 @@ const handleSaveAll = async () => {
     }
   }
 
-  const handleGenerateAdvertisingAssociatesMediaPlan = async () => {
+  const handleDownloadAdvertisingAssociatesMediaPlan = async () => {
+    if (!hasAdvertisingAssociatesBilling) return
     setIsDownloadingAa(true)
     try {
       const { blob, fileName } = await generateMediaPlanXlsxBlob({ variant: "aa" })
@@ -5631,9 +5562,21 @@ const handleSaveAll = async () => {
               <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm">
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
                   <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Billing Schedule</h3>
-                  <Button onClick={handleManualBillingOpen} type="button" className="shrink-0">
-                    Edit Billing
-                  </Button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="shrink-0"
+                      disabled={billingMonths.length === 0}
+                      onClick={handleDownloadBillingScheduleExcel}
+                    >
+                      <Download className="mr-2 h-4 w-4" />
+                      Download Excel
+                    </Button>
+                    <Button onClick={handleManualBillingOpen} type="button" className="shrink-0">
+                      Edit Billing
+                    </Button>
+                  </div>
                 </div>
                 <div className="min-w-0 flex-1 overflow-x-auto px-6 py-4">
                 <Table
@@ -5742,7 +5685,7 @@ const handleSaveAll = async () => {
             .filter((medium) => form.watch(medium.name as keyof MediaPlanFormValues) && medium.component)
             .map((medium) => {
               const mediaKey = mediaKeyMap[medium.name];
-              const headers = getMediaTypeHeaders(mediaKey);
+              const headers = getMediaTypeHeadersForSchedule(mediaKey);
               const firstMonth = manualBillingMonths[0];
               const lineItems = firstMonth?.lineItems?.[mediaKey as keyof typeof firstMonth.lineItems] as BillingLineItem[] | undefined;
 
@@ -6033,6 +5976,14 @@ const handleSaveAll = async () => {
   items={saveStatus}
   isSaving={isSavingInProgress}
   onClose={handleCloseSaveModal}
+/>
+
+<OutcomeModal
+  isOpen={modalOpen}
+  onClose={() => setModalOpen(false)}
+  title={modalTitle}
+  outcome={modalOutcome}
+  isLoading={modalLoading}
 />
 
 {/* === Partial MBA Modal === */}
@@ -6848,7 +6799,7 @@ const handleSaveAll = async () => {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem
-                        onClick={handleGenerateMediaPlan}
+                        onClick={handleDownloadMediaPlan}
                         disabled={
                           isDownloading ||
                           isDownloadingAa ||
@@ -6860,22 +6811,24 @@ const handleSaveAll = async () => {
                       >
                         Media Plan
                       </DropdownMenuItem>
-                      {showAaMediaPlanDownload ? (
-                        <DropdownMenuItem
-                          onClick={handleGenerateAdvertisingAssociatesMediaPlan}
-                          disabled={
-                            isDownloading ||
-                            isDownloadingAa ||
-                            isNamingDownloading ||
-                            isLoading ||
-                            isPlanSaving ||
-                            isVersionSaving
-                          }
-                          className="text-brand-dark focus:bg-highlight/25 focus:text-brand-dark"
-                        >
-                          Media Plan (AA)
-                        </DropdownMenuItem>
-                      ) : null}
+                      <DropdownMenuItem
+                        onClick={handleDownloadAdvertisingAssociatesMediaPlan}
+                        disabled={
+                          !hasAdvertisingAssociatesBilling ||
+                          isDownloading ||
+                          isDownloadingAa ||
+                          isNamingDownloading ||
+                          isLoading ||
+                          isPlanSaving ||
+                          isVersionSaving
+                        }
+                        className={cn(
+                          "text-brand-dark focus:bg-highlight/25 focus:text-brand-dark",
+                          !hasAdvertisingAssociatesBilling && "opacity-50",
+                        )}
+                      >
+                        Media Plan (AA)
+                      </DropdownMenuItem>
                       <DropdownMenuItem
                         onClick={handleDownloadNamingConventions}
                         disabled={
@@ -6906,7 +6859,7 @@ const handleSaveAll = async () => {
                 </div>
                 <Button
                   type="button"
-                  onClick={handleGenerateMediaPlan}
+                  onClick={handleDownloadMediaPlan}
                   disabled={
                     isDownloading ||
                     isDownloadingAa ||
@@ -6926,30 +6879,32 @@ const handleSaveAll = async () => {
                     {isDownloading ? "Creating Media Plan..." : "Media Plan"}
                   </span>
                 </Button>
-                {showAaMediaPlanDownload ? (
-                  <Button
-                    type="button"
-                    onClick={handleGenerateAdvertisingAssociatesMediaPlan}
-                    disabled={
-                      isDownloading ||
-                      isDownloadingAa ||
-                      isNamingDownloading ||
-                      isLoading ||
-                      isPlanSaving ||
-                      isVersionSaving
-                    }
-                    className="hidden h-9 rounded-full px-4 py-2 md:inline-flex bg-highlight text-brand-dark hover:bg-highlight/85 focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    {isDownloadingAa ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Download className="h-4 w-4" />
-                    )}
-                    <span className="ml-2">
-                      {isDownloadingAa ? "Creating AA Plan..." : "Media Plan (AA)"}
-                    </span>
-                  </Button>
-                ) : null}
+                <Button
+                  type="button"
+                  onClick={handleDownloadAdvertisingAssociatesMediaPlan}
+                  disabled={
+                    !hasAdvertisingAssociatesBilling ||
+                    isDownloading ||
+                    isDownloadingAa ||
+                    isNamingDownloading ||
+                    isLoading ||
+                    isPlanSaving ||
+                    isVersionSaving
+                  }
+                  className={cn(
+                    "hidden h-9 rounded-full px-4 py-2 md:inline-flex bg-highlight text-brand-dark hover:bg-highlight/85 focus-visible:ring-2 focus-visible:ring-ring",
+                    !hasAdvertisingAssociatesBilling && "opacity-50 grayscale",
+                  )}
+                >
+                  {isDownloadingAa ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Download className="h-4 w-4" />
+                  )}
+                  <span className="ml-2">
+                    {isDownloadingAa ? "Creating AA Plan..." : "Media Plan (AA)"}
+                  </span>
+                </Button>
                 <Button
                   type="button"
                   onClick={handleDownloadNamingConventions}

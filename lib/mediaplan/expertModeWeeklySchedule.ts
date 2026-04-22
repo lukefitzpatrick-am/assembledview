@@ -278,6 +278,34 @@ export interface InfluencersExpertScheduleRow {
   mergedWeekSpans?: InfluencersExpertMergedWeekSpan[]
 }
 
+/** Same shape as {@link OohExpertMergedWeekSpan}; used for Integration expert weekly merges. */
+export type IntegrationExpertMergedWeekSpan = OohExpertMergedWeekSpan
+
+export interface IntegrationExpertScheduleRow {
+  id: string
+  /** Line-level schedule bounds (ISO yyyy-MM-dd); derived from weekly Gantt + merges. */
+  startDate: string
+  endDate: string
+  platform: string
+  objective: string
+  campaign: string
+  bidStrategy: string
+  buyType: string
+  targetingAttribute: string
+  creativeTargeting: string
+  /** Standard form field; preserved on expert↔standard round-trip (not shown as a grid column). */
+  creative: string
+  buyingDemo: string
+  market: string
+  fixedCostMedia: boolean
+  clientPaysForMedia: boolean
+  budgetIncludesFees: boolean
+  unitRate: number | string
+  grossCost: number | string
+  weeklyValues: ExpertWeeklyValues
+  mergedWeekSpans?: IntegrationExpertMergedWeekSpan[]
+}
+
 /** Same shape as {@link OohExpertMergedWeekSpan}; used for Newspaper expert weekly merges. */
 export type NewspaperExpertMergedWeekSpan = OohExpertMergedWeekSpan
 

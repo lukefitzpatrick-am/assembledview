@@ -1,0 +1,201 @@
+
+> my-v0-project@0.1.0 lint
+> next lint
+
+`next lint` is deprecated and will be removed in Next.js 16.
+For new projects, use create-next-app to choose your preferred linter.
+For existing projects, migrate to the ESLint CLI:
+npx @next/codemod@canary next-lint-to-eslint-cli .
+
+
+./app/mediaplans/create/page.tsx
+1007:6  Warning: React Hook useEffect has a missing dependency: 'mediaTypes'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+1082:3  Warning: The 'calculateBillingSchedule' function makes the dependencies of useCallback Hook (at line 881) change on every render. To fix this, wrap the definition of 'calculateBillingSchedule' in its own useCallback() Hook.  react-hooks/exhaustive-deps
+1672:6  Warning: React Hook useEffect has missing dependencies: 'calculateAdServingFees', 'calculateAssembledFee', 'calculateGrossMediaTotal', and 'calculateProductionCosts'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+1762:6  Warning: React Hook useEffect has a missing dependency: 'calculateBillingSchedule'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+1768:4  Warning: React Hook useEffect has a missing dependency: 'calculateBillingSchedule'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+2329:8  Warning: React Hook useEffect has a missing dependency: 'form'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+2492:9  Warning: The 'mediaTypes' array makes the dependencies of useCallback Hook (at line 4684) change on every render. To fix this, wrap the initialization of 'mediaTypes' in its own useMemo() Hook.  react-hooks/exhaustive-deps
+4374:9  Warning: The 'clientNameToSlug' function makes the dependencies of useCallback Hook (at line 4684) change on every render. To fix this, wrap the definition of 'clientNameToSlug' in its own useCallback() Hook.  react-hooks/exhaustive-deps
+
+./app/mediaplans/mba/[mba_number]/edit/page.tsx
+852:9  Warning: The 'deepCloneBillingMonths' function makes the dependencies of useCallback Hook (at line 3200) change on every render. To fix this, wrap the definition of 'deepCloneBillingMonths' in its own useCallback() Hook.  react-hooks/exhaustive-deps
+1145:6  Warning: React Hook useCallback has missing dependencies: 'getRateForMediaType' and 'isManualBilling'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+1698:6  Warning: React Hook useEffect has missing dependencies: 'applyClientFees', 'form', and 'mediaPlan?.version_number'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+1791:6  Warning: React Hook useEffect has a missing dependency: 'applyClientFees'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+2192:6  Warning: React Hook useCallback has a missing dependency: 'markUnsavedChanges'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+2968:6  Warning: React Hook useCallback has a missing dependency: 'consultingMediaLineItems'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+5246:6  Warning: React Hook useEffect has missing dependencies: 'calculateAdServingFees', 'calculateAssembledFee', 'calculateGrossMediaTotal', and 'calculateProductionCosts'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+5664:6  Warning: React Hook useCallback has an unnecessary dependency: 'mediaTypes'. Either exclude it or remove the dependency array. Outer scope values like 'mediaTypes' aren't valid dependencies because mutating them doesn't re-render the component.  react-hooks/exhaustive-deps
+
+./app/mediaplans/[id]/edit/page.tsx
+547:6  Warning: React Hook useCallback has a missing dependency: 'form'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+664:6  Warning: React Hook useEffect has a missing dependency: 'form'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+710:6  Warning: React Hook useEffect has a missing dependency: 'form'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+767:6  Warning: React Hook useEffect has a missing dependency: 'mediaPlan'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+944:6  Warning: React Hook useCallback has missing dependencies: 'calculateAdServingFees', 'calculateAssembledFee', and 'calculateProductionCosts'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+
+./components/dashboard/pacing/programmatic/ProgrammaticPacingContainer.tsx
+1238:6  Warning: React Hook useEffect has a missing dependency: 'fetchPacingData'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+1448:5  Warning: React Hook useMemo has a missing dependency: 'buildLineItemMetrics'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+1452:5  Warning: React Hook useMemo has a missing dependency: 'buildLineItemMetrics'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./components/dashboard/pacing/search/SearchPacingContainer.tsx
+641:6  Warning: React Hook useEffect has missing dependencies: 'fetchSearchPacing' and 'user'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+644:5  Warning: React Hook useEffect has a complex expression in the dependency array. Extract it to a separate variable so it can be statically checked.  react-hooks/exhaustive-deps
+652:9  Warning: The 'totals' logical expression could make the dependencies of useMemo Hook (at line 777) change on every render. To fix this, wrap the initialization of 'totals' in its own useMemo() Hook.  react-hooks/exhaustive-deps
+664:9  Warning: The 'rawDaily' conditional could make the dependencies of useMemo Hook (at line 665) change on every render. To fix this, wrap the initialization of 'rawDaily' in its own useMemo() Hook.  react-hooks/exhaustive-deps
+
+./components/dashboard/pacing/social/SocialPacingContainer.tsx
+1379:6  Warning: React Hook useEffect has a missing dependency: 'fetchPacingData'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./components/media-containers/BVODContainer.tsx
+636:6  Warning: React Hook useEffect has a missing dependency: 'form'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+834:6  Warning: React Hook useCallback has a missing dependency: 'form'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+894:6  Warning: React Hook useCallback has a missing dependency: 'form'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+1010:4  Warning: React Hook useEffect has a missing dependency: 'onTotalMediaChange'. Either include it or remove the dependency array. If 'onTotalMediaChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+1049:4  Warning: React Hook useEffect has missing dependencies: 'form' and 'onLineItemsChange'. Either include them or remove the dependency array. If 'onLineItemsChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+1080:6  Warning: React Hook useEffect has missing dependencies: 'form', 'onBurstsChange', and 'onInvestmentChange'. Either include them or remove the dependency array. If 'onInvestmentChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+
+./components/media-containers/CinemaContainer.tsx
+514:6  Warning: React Hook useCallback has a missing dependency: 'createLineItemId'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+599:6  Warning: React Hook useEffect has a missing dependency: 'mbaNumber'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+655:6  Warning: React Hook useEffect has a missing dependency: 'form'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+1010:4  Warning: React Hook useEffect has a missing dependency: 'onTotalMediaChange'. Either include it or remove the dependency array. If 'onTotalMediaChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+1057:4  Warning: React Hook useEffect has missing dependencies: 'createLineItemId', 'form', and 'onLineItemsChange'. Either include them or remove the dependency array. If 'onLineItemsChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+1088:6  Warning: React Hook useEffect has missing dependencies: 'form', 'onBurstsChange', and 'onInvestmentChange'. Either include them or remove the dependency array. If 'onInvestmentChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+
+./components/media-containers/DigitalAudioContainer.tsx
+578:6  Warning: React Hook useEffect has a missing dependency: 'form'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+917:4  Warning: React Hook useEffect has a missing dependency: 'onTotalMediaChange'. Either include it or remove the dependency array. If 'onTotalMediaChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+956:4  Warning: React Hook useEffect has missing dependencies: 'form' and 'onLineItemsChange'. Either include them or remove the dependency array. If 'onLineItemsChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+987:6  Warning: React Hook useEffect has missing dependencies: 'form', 'onBurstsChange', and 'onInvestmentChange'. Either include them or remove the dependency array. If 'onInvestmentChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+
+./components/media-containers/DigitalDisplayContainer.tsx
+620:6  Warning: React Hook useEffect has a missing dependency: 'form'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+820:6  Warning: React Hook useCallback has a missing dependency: 'form'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+880:6  Warning: React Hook useCallback has a missing dependency: 'form'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+996:4  Warning: React Hook useEffect has a missing dependency: 'onTotalMediaChange'. Either include it or remove the dependency array. If 'onTotalMediaChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+1034:4  Warning: React Hook useEffect has missing dependencies: 'form' and 'onLineItemsChange'. Either include them or remove the dependency array. If 'onLineItemsChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+1065:6  Warning: React Hook useEffect has missing dependencies: 'form', 'onBurstsChange', and 'onInvestmentChange'. Either include them or remove the dependency array. If 'onInvestmentChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+
+./components/media-containers/DigitalVideoContainer.tsx
+583:6  Warning: React Hook useEffect has a missing dependency: 'form'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+957:4  Warning: React Hook useEffect has a missing dependency: 'onTotalMediaChange'. Either include it or remove the dependency array. If 'onTotalMediaChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+996:4  Warning: React Hook useEffect has missing dependencies: 'form' and 'onLineItemsChange'. Either include them or remove the dependency array. If 'onLineItemsChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+1027:6  Warning: React Hook useEffect has missing dependencies: 'form', 'onBurstsChange', and 'onInvestmentChange'. Either include them or remove the dependency array. If 'onInvestmentChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+
+./components/media-containers/InfluencersContainer.tsx
+659:6  Warning: React Hook useCallback has a missing dependency: 'form'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+690:6  Warning: React Hook useCallback has a missing dependency: 'form'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+778:4  Warning: React Hook useEffect has a missing dependency: 'onTotalMediaChange'. Either include it or remove the dependency array. If 'onTotalMediaChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+811:4  Warning: React Hook useEffect has missing dependencies: 'form' and 'onLineItemsChange'. Either include them or remove the dependency array. If 'onLineItemsChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+842:4  Warning: React Hook useEffect has missing dependencies: 'form', 'onBurstsChange', and 'onInvestmentChange'. Either include them or remove the dependency array. If 'onInvestmentChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+
+./components/media-containers/IntegrationContainer.tsx
+471:6  Warning: React Hook useEffect has a missing dependency: 'form'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+782:4  Warning: React Hook useEffect has a missing dependency: 'onTotalMediaChange'. Either include it or remove the dependency array. If 'onTotalMediaChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+820:4  Warning: React Hook useEffect has missing dependencies: 'form' and 'onLineItemsChange'. Either include them or remove the dependency array. If 'onLineItemsChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+851:6  Warning: React Hook useEffect has missing dependencies: 'form', 'onBurstsChange', and 'onInvestmentChange'. Either include them or remove the dependency array. If 'onInvestmentChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+
+./components/media-containers/MagazinesContainer.tsx
+585:6  Warning: React Hook useCallback has a missing dependency: 'createLineItemId'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+641:6  Warning: React Hook useEffect has a missing dependency: 'createLineItemId'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+696:6  Warning: React Hook useEffect has missing dependencies: 'createLineItemId', 'feemagazines', and 'form'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+1059:6  Warning: React Hook useEffect has a missing dependency: 'toast'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+1078:6  Warning: React Hook useEffect has a missing dependency: 'toast'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+1086:4  Warning: React Hook useEffect has a missing dependency: 'onTotalMediaChange'. Either include it or remove the dependency array. If 'onTotalMediaChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+1133:4  Warning: React Hook useEffect has missing dependencies: 'createLineItemId', 'form', and 'onLineItemsChange'. Either include them or remove the dependency array. If 'onLineItemsChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+1165:6  Warning: React Hook useEffect has missing dependencies: 'form', 'onBurstsChange', and 'onInvestmentChange'. Either include them or remove the dependency array. If 'onInvestmentChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+
+./components/media-containers/NewspaperContainer.tsx
+614:6  Warning: React Hook useEffect has a missing dependency: 'mbaNumber'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+669:6  Warning: React Hook useEffect has a missing dependency: 'feenewspapers'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+794:6  Warning: React Hook useCallback has a missing dependency: 'createLineItemId'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+1073:4  Warning: React Hook useEffect has missing dependencies: 'fetchAndUpdateNewspaperAdSizes' and 'fetchAndUpdateNewspapers'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+1128:4  Warning: React Hook useEffect has missing dependencies: 'createLineItemId' and 'form'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+1165:6  Warning: React Hook useEffect has a missing dependency: 'form'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./components/media-containers/OOHContainer.tsx
+568:6  Warning: React Hook useCallback has a missing dependency: 'createLineItemId'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+627:6  Warning: React Hook useEffect has a missing dependency: 'createLineItemId'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+682:6  Warning: React Hook useEffect has missing dependencies: 'createLineItemId' and 'form'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+1032:4  Warning: React Hook useEffect has a missing dependency: 'onTotalMediaChange'. Either include it or remove the dependency array. If 'onTotalMediaChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+1079:4  Warning: React Hook useEffect has missing dependencies: 'createLineItemId' and 'form'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+1111:6  Warning: React Hook useEffect has missing dependencies: 'form', 'onBurstsChange', and 'onInvestmentChange'. Either include them or remove the dependency array. If 'onInvestmentChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+
+./components/media-containers/ProductionContainer.tsx
+348:6  Warning: React Hook useEffect has a missing dependency: 'makeDefaultBurst'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./components/media-containers/ProgAudioContainer.tsx
+503:6  Warning: React Hook useEffect has a missing dependency: 'form'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+812:4  Warning: React Hook useEffect has a missing dependency: 'onTotalMediaChange'. Either include it or remove the dependency array. If 'onTotalMediaChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+850:4  Warning: React Hook useEffect has missing dependencies: 'form' and 'onLineItemsChange'. Either include them or remove the dependency array. If 'onLineItemsChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+882:6  Warning: React Hook useEffect has missing dependencies: 'form', 'onBurstsChange', and 'onInvestmentChange'. Either include them or remove the dependency array. If 'onInvestmentChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+
+./components/media-containers/ProgBVODContainer.tsx
+492:6  Warning: React Hook useEffect has a missing dependency: 'form'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+796:4  Warning: React Hook useEffect has a missing dependency: 'onTotalMediaChange'. Either include it or remove the dependency array. If 'onTotalMediaChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+834:4  Warning: React Hook useEffect has missing dependencies: 'form' and 'onLineItemsChange'. Either include them or remove the dependency array. If 'onLineItemsChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+865:6  Warning: React Hook useEffect has missing dependencies: 'form', 'onBurstsChange', and 'onInvestmentChange'. Either include them or remove the dependency array. If 'onInvestmentChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+
+./components/media-containers/ProgDisplayContainer.tsx
+514:6  Warning: React Hook useEffect has a missing dependency: 'form'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+818:4  Warning: React Hook useEffect has a missing dependency: 'onTotalMediaChange'. Either include it or remove the dependency array. If 'onTotalMediaChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+856:4  Warning: React Hook useEffect has missing dependencies: 'form' and 'onLineItemsChange'. Either include them or remove the dependency array. If 'onLineItemsChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+887:6  Warning: React Hook useEffect has missing dependencies: 'form', 'onBurstsChange', and 'onInvestmentChange'. Either include them or remove the dependency array. If 'onInvestmentChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+
+./components/media-containers/ProgOOHContainer.tsx
+513:6  Warning: React Hook useEffect has a missing dependency: 'form'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+817:4  Warning: React Hook useEffect has a missing dependency: 'onTotalMediaChange'. Either include it or remove the dependency array. If 'onTotalMediaChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+855:4  Warning: React Hook useEffect has missing dependencies: 'form' and 'onLineItemsChange'. Either include them or remove the dependency array. If 'onLineItemsChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+886:6  Warning: React Hook useEffect has missing dependencies: 'form', 'onBurstsChange', and 'onInvestmentChange'. Either include them or remove the dependency array. If 'onInvestmentChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+
+./components/media-containers/ProgVideoContainer.tsx
+546:6  Warning: React Hook useEffect has a missing dependency: 'form'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+855:4  Warning: React Hook useEffect has a missing dependency: 'onTotalMediaChange'. Either include it or remove the dependency array. If 'onTotalMediaChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+893:4  Warning: React Hook useEffect has missing dependencies: 'form' and 'onLineItemsChange'. Either include them or remove the dependency array. If 'onLineItemsChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+924:6  Warning: React Hook useEffect has missing dependencies: 'form', 'onBurstsChange', and 'onInvestmentChange'. Either include them or remove the dependency array. If 'onInvestmentChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+
+./components/media-containers/RadioContainer.tsx
+675:6  Warning: React Hook useCallback has a missing dependency: 'createLineItemId'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+921:4  Warning: React Hook useEffect has missing dependencies: 'form' and 'onMediaLineItemsChange'. Either include them or remove the dependency array. If 'onMediaLineItemsChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+1295:4  Warning: React Hook useEffect has a missing dependency: 'onTotalMediaChange'. Either include it or remove the dependency array. If 'onTotalMediaChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+1341:4  Warning: React Hook useEffect has missing dependencies: 'createLineItemId', 'form', and 'onLineItemsChange'. Either include them or remove the dependency array. If 'onLineItemsChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+1372:6  Warning: React Hook useEffect has missing dependencies: 'form', 'onBurstsChange', and 'onInvestmentChange'. Either include them or remove the dependency array. If 'onInvestmentChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+
+./components/media-containers/SearchContainer.tsx
+562:6  Warning: React Hook useEffect has a missing dependency: 'form'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+760:6  Warning: React Hook useCallback has a missing dependency: 'form'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+820:6  Warning: React Hook useCallback has a missing dependency: 'form'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+908:4  Warning: React Hook useEffect has a missing dependency: 'onTotalMediaChange'. Either include it or remove the dependency array. If 'onTotalMediaChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+950:4  Warning: React Hook useEffect has a missing dependency: 'form'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+981:6  Warning: React Hook useEffect has missing dependencies: 'form', 'onBurstsChange', and 'onInvestmentChange'. Either include them or remove the dependency array. If 'onInvestmentChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+
+./components/media-containers/SocialMediaContainer.tsx
+435:6  Warning: React Hook useCallback has missing dependencies: 'form' and 'onTotalMediaChange'. Either include them or remove the dependency array. If 'onTotalMediaChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+658:6  Warning: React Hook useEffect has a missing dependency: 'form'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+800:6  Warning: React Hook useCallback has a missing dependency: 'form'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+860:6  Warning: React Hook useCallback has a missing dependency: 'form'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+952:4  Warning: React Hook useEffect has a missing dependency: 'onTotalMediaChange'. Either include it or remove the dependency array. If 'onTotalMediaChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+990:4  Warning: React Hook useEffect has missing dependencies: 'form' and 'onLineItemsChange'. Either include them or remove the dependency array. If 'onLineItemsChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+996:4  Warning: React Hook useEffect has a missing dependency: 'form'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+1027:4  Warning: React Hook useEffect has missing dependencies: 'form', 'onBurstsChange', and 'onInvestmentChange'. Either include them or remove the dependency array. If 'onInvestmentChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+
+./components/media-containers/TelevisionContainer.tsx
+573:6  Warning: React Hook useEffect has a missing dependency: 'createLineItemId'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+620:6  Warning: React Hook useCallback has a missing dependency: 'form'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+655:6  Warning: React Hook useCallback has a missing dependency: 'createLineItemId'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+683:9  Warning: The 'watchedLineItems' logical expression could make the dependencies of useMemo Hook (at line 736) change on every render. To fix this, wrap the initialization of 'watchedLineItems' in its own useMemo() Hook.  react-hooks/exhaustive-deps
+788:6  Warning: React Hook useCallback has a missing dependency: 'form'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+850:6  Warning: React Hook useCallback has a missing dependency: 'form'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+972:4  Warning: React Hook useEffect has a missing dependency: 'onTotalMediaChange'. Either include it or remove the dependency array. If 'onTotalMediaChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+1019:4  Warning: React Hook useEffect has missing dependencies: 'createLineItemId', 'form', and 'onLineItemsChange'. Either include them or remove the dependency array. If 'onLineItemsChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+1025:4  Warning: React Hook useEffect has missing dependencies: 'form' and 'onTelevisionLineItemsChange'. Either include them or remove the dependency array. If 'onTelevisionLineItemsChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+1081:4  Warning: React Hook useEffect has missing dependencies: 'form' and 'onMediaLineItemsChange'. Either include them or remove the dependency array. If 'onMediaLineItemsChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+1112:6  Warning: React Hook useEffect has missing dependencies: 'form', 'onBurstsChange', and 'onInvestmentChange'. Either include them or remove the dependency array. If 'onInvestmentChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+
+./components/pacing/MetaPacingPanel.tsx
+128:9  Warning: The 'lineItems' logical expression could make the dependencies of useMemo Hook (at line 142) change on every render. To fix this, wrap the initialization of 'lineItems' in its own useMemo() Hook.  react-hooks/exhaustive-deps
+
+info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/app/api-reference/config/eslint#disabling-rules

@@ -33,7 +33,7 @@ import {
 import { CampaignExportsSection } from "@/components/dashboard/CampaignExportsSection"
 import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
 import { Download, FileText, Loader2, MoreHorizontal } from "lucide-react"
-import type { MediaItems } from "@/lib/generateMediaPlan"
+import type { MediaItems, LineItem } from "@/lib/generateMediaPlan"
 import {
   planHasAdvertisingAssociatesLineItem,
   shouldIncludeMediaPlanLineItem,
@@ -372,7 +372,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
   const [progAudioMediaLineItems, setProgAudioMediaLineItems] = useState<any[]>([])
   const [progOohMediaLineItems, setProgOohMediaLineItems] = useState<any[]>([])
   const [influencersMediaLineItems, setInfluencersMediaLineItems] = useState<any[]>([])
-  
+  const [integrationItems, setIntegrationItems] = useState<LineItem[]>([])
+  const [influencersItems, setInfluencersItems] = useState<LineItem[]>([])
+
   const [billingSchedule, setBillingSchedule] = useState<BillingScheduleType>([])
   const [billingScheduleData, setBillingScheduleData] = useState<BillingScheduleInterface>({
     months: [],
@@ -603,6 +605,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
       ooh: oohMediaLineItems.filter(shouldIncludeMediaPlanLineItem),
       cinema: cinemaMediaLineItems.filter(shouldIncludeMediaPlanLineItem),
       integration: integrationMediaLineItems.filter(shouldIncludeMediaPlanLineItem),
+      influencers: influencersMediaLineItems.filter(shouldIncludeMediaPlanLineItem),
       production: [],
     }
     return planHasAdvertisingAssociatesLineItem(mediaItems, kpiPublishers, () => true)
@@ -625,6 +628,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
     oohMediaLineItems,
     cinemaMediaLineItems,
     integrationMediaLineItems,
+    influencersMediaLineItems,
     kpiPublishers,
   ])
 
@@ -2652,6 +2656,14 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
     setIntegrationMediaLineItems(lineItems);
   }, []);
 
+  const handleIntegrationItemsChange = useCallback((items: LineItem[]) => {
+    setIntegrationItems(items);
+  }, []);
+
+  const handleInfluencersItemsChange = useCallback((items: LineItem[]) => {
+    setInfluencersItems(items);
+  }, []);
+
   const handleSearchMediaLineItemsChange = useCallback((lineItems: any[]) => {
     setSearchMediaLineItems(lineItems);
   }, []);
@@ -3501,7 +3513,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                           onTotalMediaChange={handleIntegrationTotalChange}
                           onBurstsChange={handleBurstsChange}
                           onInvestmentChange={handleInvestmentChange}
-                          onLineItemsChange={() => {}}
+                          onLineItemsChange={handleIntegrationItemsChange}
                           onMediaLineItemsChange={handleIntegrationMediaLineItemsChange}
                           campaignStartDate={form.watch("mp_campaigndates_start")}
                           campaignEndDate={form.watch("mp_campaigndates_end")}
@@ -3638,7 +3650,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                           onTotalMediaChange={handleInfluencersTotalChange}
                           onBurstsChange={handleBurstsChange}
                           onInvestmentChange={handleInvestmentChange}
-                          onLineItemsChange={() => {}}
+                          onLineItemsChange={handleInfluencersItemsChange}
                           onMediaLineItemsChange={handleInfluencersMediaLineItemsChange}
                           campaignStartDate={form.watch("mp_campaigndates_start")}
                           campaignEndDate={form.watch("mp_campaigndates_end")}

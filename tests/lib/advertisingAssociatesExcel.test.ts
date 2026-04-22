@@ -30,6 +30,7 @@ function emptyMediaItems(): MediaItems {
     ooh: [],
     cinema: [],
     integration: [],
+    influencers: [],
     production: [],
   }
 }

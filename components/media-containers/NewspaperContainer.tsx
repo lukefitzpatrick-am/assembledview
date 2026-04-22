@@ -26,7 +26,7 @@ import { cn } from "@/lib/utils"
 import { ChevronDown, Plus, Trash2, Copy } from "lucide-react"
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
 import type { LineItem } from '@/lib/generateMediaPlan'
-import { formatMoney } from "@/lib/utils/money"
+import { formatMoney, parseMoneyInput } from "@/lib/utils/money"
 import {
   CpcFamilyBurstCalculatedField,
   getCpcFamilyBurstCalculatedColumnLabel,
@@ -1983,7 +1983,7 @@ useEffect(() => {
                                               }}
                                               onBlur={(e) => {
                                                 const value = e.target.value;
-                                                const formattedValue = formatMoney(Number.parseFloat(value) || 0, {
+                                                const formattedValue = formatMoney(parseMoneyInput(value) ?? 0, {
                                                   locale: "en-US",
                                                   currency: "USD",
                                                 });
@@ -2016,7 +2016,7 @@ useEffect(() => {
                                               }}
                                               onBlur={(e) => {
                                                 const value = e.target.value;
-                                                const formattedValue = formatMoney(Number.parseFloat(value) || 0, {
+                                                const formattedValue = formatMoney(parseMoneyInput(value) ?? 0, {
                                                   locale: "en-US",
                                                   currency: "USD",
                                                 });

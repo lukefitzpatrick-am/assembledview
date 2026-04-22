@@ -430,7 +430,7 @@ function invoiceIsoForFinanceCampaign(r: BillingRecord): string {
 export function billingRecordsToFinanceCampaigns(
   records: BillingRecord[],
   clientMetaByClientId?: Map<number, FinanceExcelClientMeta>
-): { media: FinanceCampaignData[]; sow: FinanceCampaignData[] } {
+): { media: FinanceCampaignData[]; sow: FinanceCampaignData[]; retainers: BillingRecord[] } {
   const toCampaign = (r: BillingRecord): FinanceCampaignData => {
     const line_items = r.line_items ?? []
     const meta = clientMetaByClientId?.get(r.clients_id)
@@ -471,7 +471,8 @@ export function billingRecordsToFinanceCampaigns(
 
   const media = records.filter((r) => r.billing_type === "media").map(toCampaign)
   const sow = records.filter((r) => r.billing_type === "sow").map(toCampaign)
-  return { media, sow }
+  const retainers = records.filter((r) => r.billing_type === "retainer")
+  return { media, sow, retainers }
 }
 
 export type FinanceHubWorkbookMonthGroup = {
@@ -480,13 +481,29 @@ export type FinanceHubWorkbookMonthGroup = {
   records: BillingRecord[]
 }
 
+function sanitizeFinanceHubSheetName(name: string): string {
+  const t = name.replace(/[*?:/\\[\]]/g, " ").trim().slice(0, 31)
+  return t.length > 0 ? t : "Sheet"
+}
+
+function usedFinanceHubSheetNames() {
+  const used = new Map<string, number>()
+  return (base: string) => {
+    const s = sanitizeFinanceHubSheetName(base)
+    const n = (used.get(s) ?? 0) + 1
+    used.set(s, n)
+    return n === 1 ? s : sanitizeFinanceHubSheetName(`${s} (${n})`)
+  }
+}
+
 export async function buildFinanceHubWorkbook(
   monthGroups: FinanceHubWorkbookMonthGroup[]
 ): Promise<ArrayBuffer> {
   const clientMetaById = await fetchFinanceHubClientMetaByClientId()
   const workbook = new ExcelJS.Workbook()
+  const nextRetainerSheetName = usedFinanceHubSheetNames()
   for (const group of monthGroups) {
-    const { media, sow } = billingRecordsToFinanceCampaigns(group.records, clientMetaById)
+    const { media, sow, retainers } = billingRecordsToFinanceCampaigns(group.records, clientMetaById)
     const safeMonth = group.monthLabel.replace(/[\\/?*\[\]:]/g, "")
     if (media.length > 0) {
       await writeMediaFinanceWorksheet(workbook, `Media ${safeMonth}`.slice(0, 31), media, null)
@@ -494,9 +511,23 @@ export async function buildFinanceHubWorkbook(
     if (sow.length > 0) {
       await writeSowFinanceWorksheet(workbook, `SOW ${safeMonth}`.slice(0, 31), sow, null)
     }
+    for (const r of retainers) {
+      const clientName = (r.client_name || "Client").trim() || "Client"
+      const baseTitle = `Retainer ${clientName} ${group.monthLabel}`
+      const meta = clientMetaById.get(r.clients_id)
+      await writeRetainerFinanceWorksheet(workbook, nextRetainerSheetName(baseTitle), {
+        clientName: r.client_name,
+        mbaIdentifier: (r.mba_number && String(r.mba_number).trim()) || String(r.id),
+        paymentDays: r.payment_days,
+        paymentTerms: r.payment_terms,
+        invoiceDateIso: invoiceIsoForFinanceCampaign(r),
+        monthlyRetainer: r.total,
+        ...(meta ? { legalBusinessName: meta.legalBusinessName, abn: meta.abn } : {}),
+      })
+    }
   }
   if (workbook.worksheets.length === 0) {
-    throw new Error("No media or SOW billing rows to export for the selected months.")
+    throw new Error("No media, SOW, or retainer billing rows to export for the selected months.")
   }
   return workbookToXlsxBuffer(workbook)
 }

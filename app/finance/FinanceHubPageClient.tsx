@@ -153,6 +153,8 @@ type ClientGroup = {
   clientsId: number
   clientName: string
   mediaPlans: MediaPlanGroup[]
+  scopeOfWorks: MediaPlanGroup[]
+  retainers: BillingRecord[]
   total: number
 }
 
@@ -161,6 +163,55 @@ type MonthGroup = {
   monthLabel: string
   clients: ClientGroup[]
   total: number
+}
+
+function HubReceivableRecordArticle({ rec }: { rec: BillingRecord }) {
+  return (
+    <article className="overflow-hidden rounded-md border border-border/60">
+      <div className="flex items-start justify-between gap-3 bg-muted/40 px-3 py-2.5">
+        <div className="min-w-0">
+          <p className="truncate text-xs font-medium capitalize text-muted-foreground">{rec.status}</p>
+          {rec.invoice_date ? (
+            <p className="mt-0.5 truncate text-[11px] tabular-nums text-muted-foreground">{rec.invoice_date}</p>
+          ) : null}
+        </div>
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <Badge
+            variant="secondary"
+            className={cn("text-[10px] font-semibold uppercase", billingTypeBadgeClass(rec.billing_type))}
+          >
+            {receivableRecordSectionLabel(rec.billing_type)}
+          </Badge>
+          <p className="text-sm font-semibold tabular-nums">{formatMoney(rec.total)}</p>
+        </div>
+      </div>
+      <div className="px-3 py-1">
+        {(rec.line_items ?? []).length === 0 ? (
+          <p className="py-2 text-xs text-muted-foreground">No line items</p>
+        ) : (
+          [...(rec.line_items ?? [])]
+            .sort((a, b) => a.sort_order - b.sort_order)
+            .map((li, liIdx) => {
+              const { primary, channelLabel } = formatLineItemDescription(li)
+              return (
+                <div
+                  key={`li-${liIdx}-${li.sort_order}-${li.item_code}-${li.line_type}`}
+                  className="flex items-start justify-between gap-3 border-b border-border/40 py-2 last:border-0"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-xs text-foreground">{primary}</p>
+                    <p className="mt-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                      {channelLabel}
+                    </p>
+                  </div>
+                  <p className="shrink-0 text-xs tabular-nums text-muted-foreground">{formatMoney(li.amount)}</p>
+                </div>
+              )
+            })
+        )}
+      </div>
+    </article>
+  )
 }
 
 type HubReceivablesHubState = {
@@ -301,12 +352,20 @@ function useFinanceHubReceivablesData(activeTab: FinanceHubTab): HubReceivablesH
           clientsId: r.clients_id,
           clientName: r.client_name || "Unknown",
           mediaPlans: [],
+          scopeOfWorks: [],
+          retainers: [],
           total: 0,
         })
       }
       const cg = clientsMap.get(r.clients_id)!
+      if (r.billing_type === "retainer") {
+        cg.retainers.push(r)
+        cg.total += r.total
+        continue
+      }
+      const bucket = r.billing_type === "sow" ? cg.scopeOfWorks : cg.mediaPlans
       const mbaKey = r.mba_number ?? ""
-      let mp = cg.mediaPlans.find((m) => m.mbaNumber === mbaKey)
+      let mp = bucket.find((m) => m.mbaNumber === mbaKey)
       if (!mp) {
         mp = {
           mbaNumber: mbaKey,
@@ -314,7 +373,7 @@ function useFinanceHubReceivablesData(activeTab: FinanceHubTab): HubReceivablesH
           records: [],
           total: 0,
         }
-        cg.mediaPlans.push(mp)
+        bucket.push(mp)
       }
       mp.records.push(r)
       mp.total += r.total
@@ -327,8 +386,15 @@ function useFinanceHubReceivablesData(activeTab: FinanceHubTab): HubReceivablesH
         a.clientName.localeCompare(b.clientName, undefined, { sensitivity: "base" })
       )
       for (const c of clients) {
-        c.mediaPlans.sort((a, b) =>
-          (a.campaignName || "").localeCompare(b.campaignName || "", undefined, { sensitivity: "base" })
+        const sortMbaGroups = (arr: MediaPlanGroup[]) =>
+          arr.sort((a, b) =>
+            (a.campaignName || "").localeCompare(b.campaignName || "", undefined, { sensitivity: "base" })
+          )
+        sortMbaGroups(c.mediaPlans)
+        sortMbaGroups(c.scopeOfWorks)
+        c.retainers.sort(
+          (a, b) =>
+            (a.invoice_date || "").localeCompare(b.invoice_date || "") || (a.id ?? 0) - (b.id ?? 0)
         )
       }
       const monthDate = new Date(`${monthIso}-01T00:00:00`)
@@ -358,7 +424,7 @@ function useFinanceHubReceivablesData(activeTab: FinanceHubTab): HubReceivablesH
   }
 }
 
-/** Receivables list: current + next month, grouped month → client → media plan (matches client hub billing card patterns). */
+/** Receivables list: months → client → media plans / scopes / retainers (matches hub billing card patterns). */
 function FinanceHubReceivablesSection({
   visibleMonthGroups,
   loading,
@@ -370,6 +436,56 @@ function FinanceHubReceivablesSection({
   awaitingExplicitLoad: boolean
   loadError: string | null
 }) {
+  const [aaDownloadKey, setAaDownloadKey] = useState<string | null>(null)
+
+  const downloadAaMediaPlan = useCallback(async (billingMonth: string, mbaNumber: string) => {
+    const key = `${billingMonth}|${mbaNumber}`
+    setAaDownloadKey(key)
+    const fallbackName = `AA-${mbaNumber}-${billingMonth}.xlsx`
+    try {
+      const url = `/api/finance/receivables/aa-media-plan?mba_number=${encodeURIComponent(
+        mbaNumber
+      )}&billing_month=${encodeURIComponent(billingMonth)}`
+      const res = await fetch(url)
+      if (!res.ok) {
+        let message = `Download failed (${res.status})`
+        try {
+          const body = (await res.json()) as { error?: string }
+          if (body?.error) message = String(body.error)
+        } catch {
+          // ignore
+        }
+        toast({ variant: "destructive", title: "AA media plan", description: message })
+        return
+      }
+      const blob = await res.blob()
+      const cd = res.headers.get("Content-Disposition")
+      let filename = fallbackName
+      if (cd) {
+        const star = /filename\*=UTF-8''([^;\s]+)/i.exec(cd)
+        if (star?.[1]) {
+          try {
+            filename = decodeURIComponent(star[1].trim())
+          } catch {
+            // keep fallback
+          }
+        } else {
+          const quoted = /filename="([^"]+)"/i.exec(cd)
+          if (quoted?.[1]) filename = quoted[1]
+        }
+      }
+      saveAs(blob, filename)
+    } catch (e) {
+      toast({
+        variant: "destructive",
+        title: "AA media plan",
+        description: e instanceof Error ? e.message : "Download failed",
+      })
+    } finally {
+      setAaDownloadKey(null)
+    }
+  }, [])
+
   const emptyCopy = (
     <p className="py-10 text-sm text-muted-foreground">
       No receivable billing rows for the current filters and billing months in view.
@@ -408,11 +524,11 @@ function FinanceHubReceivablesSection({
       ) : (
         <div className="space-y-8 pt-1">
           {visibleMonthGroups.map((mg) => {
-            const invoiceCount = mg.clients.reduce(
-              (n, c) =>
-                n + c.mediaPlans.reduce((m, mp) => m + mp.records.length, 0),
-              0
-            )
+            const invoiceCount = mg.clients.reduce((n, c) => {
+              const mediaN = c.mediaPlans.reduce((m, mp) => m + mp.records.length, 0)
+              const sowN = c.scopeOfWorks.reduce((m, mp) => m + mp.records.length, 0)
+              return n + mediaN + sowN + c.retainers.length
+            }, 0)
             const clientNoun = mg.clients.length === 1 ? "client" : "clients"
             const invoiceNoun = invoiceCount === 1 ? "invoice" : "invoices"
 
@@ -432,12 +548,15 @@ function FinanceHubReceivablesSection({
 
                 <div className="space-y-4">
                   {mg.clients.map((client) => {
-                    const invCount = client.mediaPlans.reduce((n, mp) => n + mp.records.length, 0)
+                    const invCount =
+                      client.mediaPlans.reduce((n, mp) => n + mp.records.length, 0) +
+                      client.scopeOfWorks.reduce((n, mp) => n + mp.records.length, 0) +
+                      client.retainers.length
                     const invNoun = invCount === 1 ? "invoice" : "invoices"
                     const accent = clientAccentColour(client.clientsId)
 
                     return (
-                      <Collapsible key={`${mg.monthIso}-${client.clientsId}`} defaultOpen className="group">
+                      <Collapsible key={`${mg.monthIso}-${client.clientsId}`} defaultOpen className="group/client">
                         <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-sm">
                           <CollapsibleTrigger asChild>
                             <header className="flex w-full cursor-pointer items-center gap-3 border-b border-border/60 bg-muted/40 px-4 py-3 text-left transition-colors hover:bg-muted/55">
@@ -464,116 +583,181 @@ function FinanceHubReceivablesSection({
                                 </p>
                               </div>
                               <ChevronDown
-                                className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=closed]:-rotate-90"
+                                className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=closed]/client:-rotate-90"
                                 aria-hidden
                               />
                             </header>
                           </CollapsibleTrigger>
                           <CollapsibleContent>
-                            <div className="grid gap-3 p-4 lg:grid-cols-2">
-                              {client.mediaPlans.map((mp, mpIdx) => (
-                                <div
-                                  key={`${mg.monthIso}-${client.clientsId}-mp-${mpIdx}-${mp.mbaNumber}`}
-                                  className="col-span-full space-y-3 lg:col-span-2"
-                                >
-                                  <div className="flex flex-wrap items-start justify-between gap-2 border-b border-border/50 pb-2">
-                                    <div className="min-w-0">
-                                      <p className="truncate text-sm font-medium">{mp.campaignName}</p>
-                                      {mp.mbaNumber ? (
-                                        <p className="truncate text-[11px] tabular-nums text-muted-foreground">
-                                          {mp.mbaNumber}
-                                        </p>
-                                      ) : null}
-                                    </div>
-                                    {mp.mbaNumber ? (
-                                      <Button variant="outline" size="sm" asChild className="shrink-0">
-                                        <a
-                                          href={`/mediaplans/mba/${encodeURIComponent(mp.mbaNumber)}/edit`}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
+                            <div className="space-y-4 p-4">
+                              {client.mediaPlans.length > 0 ? (
+                                <Collapsible defaultOpen className="group/mpsec">
+                                  <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-md px-0 py-1 text-left hover:bg-muted/40">
+                                    <ChevronDown
+                                      className="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=closed]/mpsec:-rotate-90"
+                                      aria-hidden
+                                    />
+                                    <span className="text-xs font-medium text-muted-foreground">Media plans</span>
+                                  </CollapsibleTrigger>
+                                  <CollapsibleContent className="mt-3 space-y-3">
+                                    <div className="grid gap-3 lg:grid-cols-2">
+                                      {client.mediaPlans.map((mp, mpIdx) => (
+                                        <div
+                                          key={`${mg.monthIso}-${client.clientsId}-mp-${mpIdx}-${mp.mbaNumber}`}
+                                          className="col-span-full space-y-3 lg:col-span-2"
                                         >
-                                          Edit
-                                        </a>
-                                      </Button>
-                                    ) : (
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="shrink-0"
-                                        disabled
-                                        title="No MBA number on billing rows for this group"
-                                      >
-                                        Edit
-                                      </Button>
-                                    )}
-                                  </div>
-                                  <div className="grid gap-3 lg:grid-cols-2">
-                                    {mp.records.map((rec, recIdx) => (
-                                      <article
-                                        key={`${mg.monthIso}-${client.clientsId}-${mp.mbaNumber}-${mpIdx}-${rec.billing_type}-${rec.id}-${recIdx}`}
-                                        className="overflow-hidden rounded-md border border-border/60"
-                                      >
-                                        <div className="flex items-start justify-between gap-3 bg-muted/40 px-3 py-2.5">
-                                          <div className="min-w-0">
-                                            <p className="truncate text-xs font-medium capitalize text-muted-foreground">
-                                              {rec.status}
-                                            </p>
-                                            {rec.invoice_date ? (
-                                              <p className="mt-0.5 truncate text-[11px] tabular-nums text-muted-foreground">
-                                                {rec.invoice_date}
-                                              </p>
-                                            ) : null}
-                                          </div>
-                                          <div className="flex shrink-0 flex-col items-end gap-1">
-                                            <Badge
-                                              variant="secondary"
-                                              className={cn(
-                                                "text-[10px] font-semibold uppercase",
-                                                billingTypeBadgeClass(rec.billing_type)
-                                              )}
-                                            >
-                                              {receivableRecordSectionLabel(rec.billing_type)}
-                                            </Badge>
-                                            <p className="text-sm font-semibold tabular-nums">
-                                              {formatMoney(rec.total)}
-                                            </p>
-                                          </div>
-                                        </div>
-                                        <div className="px-3 py-1">
-                                          {(rec.line_items ?? []).length === 0 ? (
-                                            <p className="py-2 text-xs text-muted-foreground">No line items</p>
-                                          ) : (
-                                            [...(rec.line_items ?? [])]
-                                              .sort((a, b) => a.sort_order - b.sort_order)
-                                              .map((li, liIdx) => {
-                                                const { primary, channelLabel } =
-                                                  formatLineItemDescription(li)
-                                                return (
-                                                  <div
-                                                    key={`li-${liIdx}-${li.sort_order}-${li.item_code}-${li.line_type}`}
-                                                    className="flex items-start justify-between gap-3 border-b border-border/40 py-2 last:border-0"
+                                          <div className="flex flex-wrap items-start justify-between gap-2 border-b border-border/50 pb-2">
+                                            <div className="min-w-0">
+                                              <p className="truncate text-sm font-medium">{mp.campaignName}</p>
+                                              {mp.mbaNumber ? (
+                                                <p className="truncate text-[11px] tabular-nums text-muted-foreground">
+                                                  {mp.mbaNumber}
+                                                </p>
+                                              ) : null}
+                                            </div>
+                                            {mp.mbaNumber ? (
+                                              <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                                                <Button variant="outline" size="sm" asChild className="shrink-0">
+                                                  <a
+                                                    href={`/mediaplans/mba/${encodeURIComponent(mp.mbaNumber)}/edit`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
                                                   >
-                                                    <div className="min-w-0">
-                                                      <p className="truncate text-xs text-foreground">
-                                                        {primary}
-                                                      </p>
-                                                      <p className="mt-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-                                                        {channelLabel}
-                                                      </p>
-                                                    </div>
-                                                    <p className="shrink-0 text-xs tabular-nums text-muted-foreground">
-                                                      {formatMoney(li.amount)}
-                                                    </p>
-                                                  </div>
-                                                )
-                                              })
-                                          )}
+                                                    Edit
+                                                  </a>
+                                                </Button>
+                                                <Button
+                                                  type="button"
+                                                  variant="outline"
+                                                  size="sm"
+                                                  className="shrink-0"
+                                                  disabled={aaDownloadKey === `${mg.monthIso}|${mp.mbaNumber}`}
+                                                  onClick={() => void downloadAaMediaPlan(mg.monthIso, mp.mbaNumber)}
+                                                >
+                                                  {aaDownloadKey === `${mg.monthIso}|${mp.mbaNumber}` ? (
+                                                    <>
+                                                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden />
+                                                      AA…
+                                                    </>
+                                                  ) : (
+                                                    <>
+                                                      <Download className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                                                      AA plan
+                                                    </>
+                                                  )}
+                                                </Button>
+                                              </div>
+                                            ) : (
+                                              <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="shrink-0"
+                                                disabled
+                                                title="No MBA number on billing rows for this group"
+                                              >
+                                                Edit
+                                              </Button>
+                                            )}
+                                          </div>
+                                          <div className="grid gap-3 lg:grid-cols-2">
+                                            {mp.records.map((rec, recIdx) => (
+                                              <HubReceivableRecordArticle
+                                                key={`${mg.monthIso}-${client.clientsId}-${mp.mbaNumber}-${mpIdx}-${rec.billing_type}-${rec.id}-${recIdx}`}
+                                                rec={rec}
+                                              />
+                                            ))}
+                                          </div>
                                         </div>
-                                      </article>
-                                    ))}
-                                  </div>
-                                </div>
-                              ))}
+                                      ))}
+                                    </div>
+                                  </CollapsibleContent>
+                                </Collapsible>
+                              ) : null}
+
+                              {client.scopeOfWorks.length > 0 ? (
+                                <Collapsible defaultOpen className="group/sowsec">
+                                  <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-md px-0 py-1 text-left hover:bg-muted/40">
+                                    <ChevronDown
+                                      className="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=closed]/sowsec:-rotate-90"
+                                      aria-hidden
+                                    />
+                                    <span className="text-xs font-medium text-muted-foreground">Scopes of work</span>
+                                  </CollapsibleTrigger>
+                                  <CollapsibleContent className="mt-3 space-y-3">
+                                    <div className="grid gap-3 lg:grid-cols-2">
+                                      {client.scopeOfWorks.map((mp, mpIdx) => {
+                                        const first = mp.records[0]
+                                        const scopeEditId =
+                                          first?.id != null && first.id > 0
+                                            ? String(first.id)
+                                            : (mp.mbaNumber || "").trim()
+                                        return (
+                                          <div
+                                            key={`${mg.monthIso}-${client.clientsId}-sow-${mpIdx}-${mp.mbaNumber}`}
+                                            className="col-span-full space-y-3 lg:col-span-2"
+                                          >
+                                            <div className="flex flex-wrap items-start justify-between gap-2 border-b border-border/50 pb-2">
+                                              <div className="min-w-0">
+                                                <p className="truncate text-sm font-medium">{mp.campaignName}</p>
+                                                {mp.mbaNumber ? (
+                                                  <p className="truncate text-[11px] tabular-nums text-muted-foreground">
+                                                    {mp.mbaNumber}
+                                                  </p>
+                                                ) : null}
+                                              </div>
+                                              {scopeEditId ? (
+                                                <Button variant="outline" size="sm" asChild className="shrink-0">
+                                                  <a
+                                                    href={`/scopes-of-work/${encodeURIComponent(scopeEditId)}/edit`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                  >
+                                                    Edit
+                                                  </a>
+                                                </Button>
+                                              ) : (
+                                                <Button variant="outline" size="sm" className="shrink-0" disabled>
+                                                  Edit
+                                                </Button>
+                                              )}
+                                            </div>
+                                            <div className="grid gap-3 lg:grid-cols-2">
+                                              {mp.records.map((rec, recIdx) => (
+                                                <HubReceivableRecordArticle
+                                                  key={`${mg.monthIso}-${client.clientsId}-sow-${mp.mbaNumber}-${mpIdx}-${rec.billing_type}-${rec.id}-${recIdx}`}
+                                                  rec={rec}
+                                                />
+                                              ))}
+                                            </div>
+                                          </div>
+                                        )
+                                      })}
+                                    </div>
+                                  </CollapsibleContent>
+                                </Collapsible>
+                              ) : null}
+
+                              {client.retainers.length > 0 ? (
+                                <Collapsible defaultOpen className="group/retsec">
+                                  <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-md px-0 py-1 text-left hover:bg-muted/40">
+                                    <ChevronDown
+                                      className="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=closed]/retsec:-rotate-90"
+                                      aria-hidden
+                                    />
+                                    <span className="text-xs font-medium text-muted-foreground">Retainers</span>
+                                  </CollapsibleTrigger>
+                                  <CollapsibleContent className="mt-3">
+                                    <div className="grid gap-3 lg:grid-cols-2">
+                                      {client.retainers.map((rec, recIdx) => (
+                                        <HubReceivableRecordArticle
+                                          key={`${mg.monthIso}-${client.clientsId}-ret-${rec.billing_type}-${rec.id}-${recIdx}`}
+                                          rec={rec}
+                                        />
+                                      ))}
+                                    </div>
+                                  </CollapsibleContent>
+                                </Collapsible>
+                              ) : null}
                             </div>
                           </CollapsibleContent>
                         </div>
@@ -945,7 +1129,11 @@ export default function FinanceHubPageClient() {
       const flattened = visibleMonthGroups.map((mg) => ({
         monthIso: mg.monthIso,
         monthLabel: mg.monthLabel,
-        records: mg.clients.flatMap((c) => c.mediaPlans.flatMap((mp) => mp.records)),
+        records: mg.clients.flatMap((c) => [
+          ...c.mediaPlans.flatMap((mp) => mp.records),
+          ...c.scopeOfWorks.flatMap((mp) => mp.records),
+          ...c.retainers,
+        ]),
       }))
       const buffer = await buildFinanceHubWorkbook(flattened)
       const blob = new Blob([buffer], {
@@ -1000,13 +1188,13 @@ export default function FinanceHubPageClient() {
                 value="billing"
                 className="rounded-none border-b-2 border-transparent data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none"
               >
-                Receivables
+                Client Billing
               </TabsTrigger>
               <TabsTrigger
                 value="payables"
                 className="rounded-none border-b-2 border-transparent data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none"
               >
-                Payables
+                Publisher Invoices
               </TabsTrigger>
               <TabsTrigger
                 value="accrual"

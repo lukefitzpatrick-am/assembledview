@@ -31,7 +31,7 @@ import { cn } from "@/lib/utils"
 import { ChevronDown, Copy, Plus, Trash2 } from "lucide-react"
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
 import type { LineItem } from '@/lib/generateMediaPlan'
-import { formatMoney } from "@/lib/utils/money"
+import { formatMoney, parseMoneyInput } from "@/lib/utils/money"
 import {
   getMediaTypeThemeHex,
   mediaTypeAccentTextStyle,
@@ -654,7 +654,7 @@ export default function InfluencersContainer({
     });
 
     onMediaLineItemsChange(transformedLineItems);
-  }, [form, onMediaLineItemsChange, mbaNumber, feeinfluencers]);
+  }, [watchedLineItems, mbaNumber, feeinfluencers, form, onMediaLineItemsChange]);
 
   // Memoized calculations
   // Note: For display purposes, always show media amounts regardless of clientPaysForMedia
@@ -988,6 +988,7 @@ useEffect(() => {
           buyType:      lineItem.buyType,
           deliverablesAmount: burst.budget,
           grossMedia: String(mediaAmount),
+          clientPaysForMedia: lineItem.clientPaysForMedia ?? false,
         };
       })
     );
@@ -1346,7 +1347,7 @@ const getBursts = () => {
                                     <FormControl>
                                       <Combobox
                                         value={field.value}
-                                        onValueChange={(value) => handleBuyTypeChange(lineItemIndex, value)}
+                                        onValueChange={field.onChange}
                                         placeholder="Select"
                                         searchPlaceholder="Search platforms..."
                                         emptyText={publishers.length === 0 ? "No platforms available." : "No platforms found."}
@@ -1605,7 +1606,7 @@ const getBursts = () => {
                                               }}
                                               onBlur={(e) => {
                                                 const value = e.target.value;
-                                                const formattedValue = formatMoney(Number.parseFloat(value) || 0, {
+                                                const formattedValue = formatMoney(parseMoneyInput(value) ?? 0, {
                                                   locale: "en-US",
                                                   currency: "USD",
                                                 });
@@ -1636,7 +1637,7 @@ const getBursts = () => {
                                               }}
                                               onBlur={(e) => {
                                                 const value = e.target.value;
-                                                const formattedValue = formatMoney(Number.parseFloat(value) || 0, {
+                                                const formattedValue = formatMoney(parseMoneyInput(value) ?? 0, {
                                                   locale: "en-US",
                                                   currency: "USD",
                                                 });

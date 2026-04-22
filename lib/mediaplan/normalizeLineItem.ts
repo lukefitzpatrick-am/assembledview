@@ -18,10 +18,33 @@ export type NormalisedLineItem = {
   title?: string
   targeting?: string
   creative?: string
+  /** Search / social / programmatic bid strategy when present */
+  bidStrategy?: string
   buyType?: string
   buyingDemo?: string
   totalMedia?: number
   bursts: NormalisedBurst[]
+}
+
+/** Gantt sideline: publisher (left) • bid strategy or placement fields (right). */
+export function buildGanttSidelineLabel(item: NormalisedLineItem): string {
+  const publisher = item.publisher || item.platform || item.network || item.site || item.station
+  const labelLeft = (publisher ?? "—").trim()
+  const bid = cleanLabel(firstNonEmpty(item.bidStrategy))
+  if (bid) {
+    return `${labelLeft} • ${bid}`
+  }
+  const placementParts = [
+    cleanLabel(item.network),
+    cleanLabel(item.site),
+    cleanLabel(item.station),
+    cleanLabel(item.platform),
+  ].filter(Boolean) as string[]
+  const leftLower = labelLeft.toLowerCase()
+  const deduped = placementParts.filter((p, i) => placementParts.indexOf(p) === i && p.toLowerCase() !== leftLower)
+  const labelRight =
+    deduped.length > 0 ? deduped.join(" · ") : `Line item ${item.lineItemId || "—"}`
+  return `${labelLeft} • ${labelRight}`
 }
 
 const DEBUG_NORMALISER = process.env.NEXT_PUBLIC_DEBUG_NORMALISER === 'true'
@@ -298,6 +321,7 @@ export function normaliseLineItemsByType(lineItemsByMediaType: Record<string, an
       const daypart = cleanLabel(item?.daypart)
       const buyType = coerceString(firstNonEmpty(item?.buyType, item?.buy_type))
       const buyingDemo = coerceString(firstNonEmpty(item?.buyingDemo, item?.buying_demo))
+      const bidStrategy = cleanLabel(firstNonEmpty(item?.bidStrategy, item?.bid_strategy))
       const titleCandidates = [
         cleanLabel(item?.title),
         placement,
@@ -388,6 +412,7 @@ export function normaliseLineItemsByType(lineItemsByMediaType: Record<string, an
         title: coerceString(title),
         targeting: targeting || undefined,
         creative: creative || coerceString(item?.creative),
+        bidStrategy: bidStrategy || undefined,
         buyType,
         buyingDemo,
         totalMedia: totalMedia ?? undefined,
@@ -451,6 +476,8 @@ export function groupByLineItemId(items: any[], mediaType: string): NormalisedLi
       return
     }
 
+    const mergedBid = firstNonEmpty(existing.base.bidStrategy, normalised.bidStrategy)
+    existing.base.bidStrategy = mergedBid ? String(mergedBid) : undefined
     existing.bursts.push(...normalised.bursts)
   })
 

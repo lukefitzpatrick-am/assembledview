@@ -43,6 +43,7 @@ export async function POST(request: Request) {
       ooh: data.ooh || [],
       cinema: data.cinema || [],
       integration: data.integration || [],
+      influencers: data.influencers || [],
       production: data.production || [],
     }
 

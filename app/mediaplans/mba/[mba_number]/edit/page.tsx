@@ -103,6 +103,11 @@ import {
 } from "@/lib/api"
 import type { BillingMonth, BillingLineItem as BillingLineItemType, BillingBurst } from "@/lib/billing/types"
 import { buildBillingScheduleJSON } from "@/lib/billing/buildBillingSchedule"
+import { prepareBillingMonthsForLineItemExport } from "@/lib/billing/prepareBillingMonthsForLineItemExport"
+import {
+  buildBillingScheduleExcelBlob,
+  sanitizeFilenamePart,
+} from "@/lib/billing/exportBillingScheduleExcel"
 import { getScheduleHeaders } from "@/lib/billing/scheduleHeaders"
 import {
   applyCostBucketFromAutoReferenceAggregates,
@@ -1711,6 +1716,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const [digitalVideoItems, setDigitalVideoItems] = useState<LineItem[]>([])
   const [bvodItems, setBvodItems] = useState<LineItem[]>([])
   const [integrationItems, setIntegrationItems] = useState<LineItem[]>([])
+  const [influencersItems, setInfluencersItems] = useState<LineItem[]>([])
   const [consultingItems, setConsultingItems] = useState<LineItem[]>([])
   const [progDisplayItems, setProgDisplayItems] = useState<LineItem[]>([])
   const [progVideoItems, setProgVideoItems] = useState<LineItem[]>([])
@@ -1784,6 +1790,75 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     progAudioLineItems,
     progOohLineItems,
     influencersLineItems,
+  ])
+
+  const [billingPublishers, setBillingPublishers] = useState<Publisher[]>([])
+  useEffect(() => {
+    let cancelled = false
+    fetch("/api/publishers")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((d) => {
+        if (!cancelled) setBillingPublishers(Array.isArray(d) ? d : [])
+      })
+      .catch(() => {
+        if (!cancelled) setBillingPublishers([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  /** True when any included line item maps to a publisher billing via Advertising Associates (same inputs as save-time AA upload check). */
+  const hasAdvertisingAssociatesBilling = useMemo(() => {
+    const mediaItems: MediaItems = {
+      search: searchItems,
+      socialMedia: socialMediaItems,
+      digiAudio: digitalAudioItems,
+      digiDisplay: digitalDisplayItems,
+      digiVideo: digitalVideoItems,
+      bvod: bvodItems,
+      progDisplay: progDisplayItems,
+      progVideo: progVideoItems,
+      progBvod: progBvodItems,
+      progOoh: progOohItems,
+      progAudio: progAudioItems,
+      newspaper: newspaperItems,
+      magazines: magazinesItems,
+      television: televisionItems,
+      radio: radioItems,
+      ooh: oohItems,
+      cinema: cinemaItems,
+      integration: integrationItems,
+      influencers: influencersItems,
+      production: consultingItems,
+    }
+    return planHasAdvertisingAssociatesLineItem(
+      mediaItems,
+      billingPublishers,
+      shouldIncludeMediaPlanLineItem,
+    )
+  }, [
+    searchItems,
+    socialMediaItems,
+    digitalAudioItems,
+    digitalDisplayItems,
+    digitalVideoItems,
+    bvodItems,
+    progDisplayItems,
+    progVideoItems,
+    progBvodItems,
+    progOohItems,
+    progAudioItems,
+    newspaperItems,
+    magazinesItems,
+    televisionItems,
+    radioItems,
+    oohItems,
+    cinemaItems,
+    integrationItems,
+    influencersItems,
+    consultingItems,
+    billingPublishers,
   ])
 
   const [isClientModalOpen, setIsClientModalOpen] = useState(false)
@@ -3393,6 +3468,71 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     setIsManualBillingModalOpen(true)
   }
 
+  async function handleDownloadBillingScheduleExcel() {
+    if (!workingBillingMonths.length) {
+      toast({
+        title: "Nothing to export",
+        description: "No billing schedule available. Select campaign dates to generate.",
+        variant: "destructive",
+      })
+      return
+    }
+    try {
+      let monthsForExport = workingBillingMonths
+      if (!billingMonthsHaveDetailedLineItems(workingBillingMonths)) {
+        const fv = form.getValues()
+        const mediaTypeMap = {
+          mp_television: { lineItems: televisionMediaLineItems, key: "television" },
+          mp_radio: { lineItems: radioMediaLineItems, key: "radio" },
+          mp_newspaper: { lineItems: newspaperMediaLineItems, key: "newspaper" },
+          mp_magazines: { lineItems: magazinesMediaLineItems, key: "magazines" },
+          mp_ooh: { lineItems: oohMediaLineItems, key: "ooh" },
+          mp_cinema: { lineItems: cinemaMediaLineItems, key: "cinema" },
+          mp_digidisplay: { lineItems: digitalDisplayMediaLineItems, key: "digiDisplay" },
+          mp_digiaudio: { lineItems: digitalAudioMediaLineItems, key: "digiAudio" },
+          mp_digivideo: { lineItems: digitalVideoMediaLineItems, key: "digiVideo" },
+          mp_bvod: { lineItems: bvodMediaLineItems, key: "bvod" },
+          mp_search: { lineItems: searchMediaLineItems, key: "search" },
+          mp_socialmedia: { lineItems: socialMediaMediaLineItems, key: "socialMedia" },
+          mp_progdisplay: { lineItems: progDisplayMediaLineItems, key: "progDisplay" },
+          mp_progvideo: { lineItems: progVideoMediaLineItems, key: "progVideo" },
+          mp_progbvod: { lineItems: progBvodMediaLineItems, key: "progBvod" },
+          mp_progaudio: { lineItems: progAudioMediaLineItems, key: "progAudio" },
+          mp_progooh: { lineItems: progOohMediaLineItems, key: "progOoh" },
+          mp_influencers: { lineItems: influencersMediaLineItems, key: "influencers" },
+          mp_integration: { lineItems: integrationMediaLineItems, key: "integration" },
+          mp_production: { lineItems: consultingMediaLineItems, key: "production" },
+        }
+        monthsForExport = prepareBillingMonthsForLineItemExport(
+          workingBillingMonths,
+          mediaTypeMap,
+          (mpKey) => Boolean(fv[mpKey as keyof typeof fv])
+        )
+      }
+      const fv = form.getValues()
+      const start = fv.mp_campaigndates_start
+      const end = fv.mp_campaigndates_end
+      const blob = await buildBillingScheduleExcelBlob(monthsForExport, {
+        client: fv.mp_clientname || "",
+        brand: fv.mp_brand || "",
+        campaignName: fv.mp_campaignname || "",
+        mbaNumber: fv.mbanumber || mbaNumber || "",
+        planVersion: fv.mp_plannumber || "",
+        campaignStartLabel: start ? format(start, "dd/MM/yyyy") : "",
+        campaignEndLabel: end ? format(end, "dd/MM/yyyy") : "",
+      })
+      const stem = `BillingSchedule_${sanitizeFilenamePart(fv.mp_clientname)}_${sanitizeFilenamePart(fv.mbanumber || mbaNumber)}_${format(new Date(), "yyyyMMdd")}`
+      saveAs(blob, `${stem}.xlsx`)
+      toast({ title: "Downloaded", description: "Billing schedule Excel export is ready." })
+    } catch (e: any) {
+      toast({
+        title: "Export failed",
+        description: e?.message || "Could not generate Excel file.",
+        variant: "destructive",
+      })
+    }
+  }
+
   function handleManualBillingChange(
     index: number,
     type: 'media' | 'fee' | 'adServing' | 'production' | 'lineItem',
@@ -4763,7 +4903,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       // 4a. Generate + upload documents to Xano (no downloads)
       updateSaveStatus("MBA PDF Upload", "pending")
       updateSaveStatus("Media Plan Upload", "pending")
-      updateSaveStatus("AA Media Plan Upload", "pending")
       const documentUploadPromise = (async () => {
         if (!versionId) {
           throw new Error("Missing media plan version ID for document upload")
@@ -4800,6 +4939,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           ooh: oohItems,
           cinema: cinemaItems,
           integration: integrationItems,
+          influencers: influencersItems,
           production: consultingItems,
         }
 
@@ -4815,35 +4955,56 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 shouldIncludeMediaPlanLineItem,
               )
             ) {
-              const { blob: aaBlob, fileName: aaFileName } = await generateMediaPlanXlsxBlob({
-                planVersion: planVersionForDocs,
-                variant: "aa",
-              })
-              aaMediaPlanFile = new File([aaBlob], aaFileName, {
-                type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-              })
+              updateSaveStatus("AA Media Plan Upload", "pending")
+              try {
+                const { blob: aaBlob, fileName: aaFileName } = await generateMediaPlanXlsxBlob({
+                  planVersion: planVersionForDocs,
+                  variant: "aa",
+                })
+                aaMediaPlanFile = new File([aaBlob], aaFileName, {
+                  type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                })
+              } catch (genErr: any) {
+                console.warn("AA media plan generation failed:", genErr)
+                updateSaveStatus(
+                  "AA Media Plan Upload",
+                  "error",
+                  genErr?.message || "Failed to generate AA media plan",
+                )
+              }
             }
           }
         } catch (aaErr) {
           console.warn("AA media plan generation skipped or failed:", aaErr)
         }
 
-        await uploadMediaPlanVersionDocuments(versionId, {
-          mbaPdf: mbaPdfFile,
-          mediaPlan: mediaPlanFile,
-          aaMediaPlan: aaMediaPlanFile,
-          mpClientName: formValues.mp_clientname || selectedClient?.clientname_input || "",
-        })
+        try {
+          await uploadMediaPlanVersionDocuments(versionId, {
+            mbaPdf: mbaPdfFile,
+            mediaPlan: mediaPlanFile,
+            aaMediaPlan: aaMediaPlanFile,
+            mpClientName: formValues.mp_clientname || selectedClient?.clientname_input || "",
+          })
 
-        updateSaveStatus("MBA PDF Upload", "success")
-        updateSaveStatus("Media Plan Upload", "success")
-        updateSaveStatus("AA Media Plan Upload", "success")
+          updateSaveStatus("MBA PDF Upload", "success")
+          updateSaveStatus("Media Plan Upload", "success")
+          if (aaMediaPlanFile) {
+            updateSaveStatus("AA Media Plan Upload", "success")
+          }
+        } catch (err: any) {
+          const message = err?.message || String(err)
+          console.error("Document upload failed:", err)
+          updateSaveStatus("MBA PDF Upload", "error", message)
+          updateSaveStatus("Media Plan Upload", "error", message)
+          if (aaMediaPlanFile) {
+            updateSaveStatus("AA Media Plan Upload", "error", message)
+          }
+        }
       })().catch((err: any) => {
         const message = err?.message || String(err)
         console.error("Document upload failed:", err)
         updateSaveStatus("MBA PDF Upload", "error", message)
         updateSaveStatus("Media Plan Upload", "error", message)
-        updateSaveStatus("AA Media Plan Upload", "error", message)
       })
       
       // Initialize save status for enabled media types
@@ -5729,6 +5890,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       ooh: oohItems.filter(shouldIncludeMediaPlanLineItem),
       cinema: cinemaItems.filter(shouldIncludeMediaPlanLineItem),
       integration: integrationItems.filter(shouldIncludeMediaPlanLineItem),
+      influencers: influencersItems.filter(shouldIncludeMediaPlanLineItem),
       production: consultingItems.filter(shouldIncludeMediaPlanLineItem),
     }
 
@@ -5860,6 +6022,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   }
 
   const handleDownloadAdvertisingAssociatesMediaPlan = async () => {
+    if (!hasAdvertisingAssociatesBilling) return
     setIsDownloadingAa(true)
     try {
       const { blob, fileName } = await generateMediaPlanXlsxBlob({ variant: "aa" })
@@ -5948,9 +6111,15 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   };
 
   const handleSaveAndDownloadAll = async () => {
+    const fv = form.getValues();
+
     setIsDownloading(true);
+    setModalOpen(true);
+    setModalLoading(true);
+    setModalTitle("Downloading Media Plan");
+    setModalOutcome("Preparing your media plan for download...");
+
     try {
-      const fv = form.getValues();
       const [{ blob: mbaBlob, fileName: mbaFileName }, { blob: mediaPlanBlob, fileName: mediaPlanFileName }, { blob: namingBlob, fileName: namingFileName }] = await Promise.all([
         generateMbaPdfBlob(),
         generateMediaPlanXlsxBlob(),
@@ -5971,9 +6140,15 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       const zipFileName = `${fv.mp_clientname || "client"}-${campaignNameSafe || "campaign"}-all-files.zip`;
       saveAs(zipBlob, zipFileName);
 
+      setModalLoading(false);
+      setModalOpen(false);
+
       await handleSaveAll();
     } catch (error: any) {
       console.error("Error in save and download all:", error);
+      setModalLoading(false);
+      setModalTitle("Error");
+      setModalOutcome(error?.message || "Failed to save and download all files");
       toast({
         title: "Error",
         description: error?.message || "Failed to save and download all files",
@@ -6305,6 +6480,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const handleIntegrationItemsChange = useCallback((items: LineItem[]) => {
     markUnsavedChanges();
     setIntegrationItems(items);
+  }, [markUnsavedChanges]);
+
+  const handleInfluencersItemsChange = useCallback((items: LineItem[]) => {
+    markUnsavedChanges();
+    setInfluencersItems(items);
   }, [markUnsavedChanges]);
 
   const handleConsultingItemsChange = useCallback((items: LineItem[]) => {
@@ -7773,6 +7953,16 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
                 <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Billing Schedule</h3>
                 <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="shrink-0"
+                    disabled={workingBillingMonths.length === 0}
+                    onClick={handleDownloadBillingScheduleExcel}
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    Download Excel
+                  </Button>
                   <Button onClick={handleManualBillingOpen} type="button" className="shrink-0">
                     Edit Billing
                   </Button>
@@ -8199,7 +8389,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                           onTotalMediaChange={handleInfluencersTotalChange}
                           onBurstsChange={handleInfluencersBurstsChange}
                           onInvestmentChange={handleInvestmentChange}
-                          onLineItemsChange={() => {}}
+                          onLineItemsChange={handleInfluencersItemsChange}
                           onMediaLineItemsChange={handleInfluencersMediaLineItemsChange}
                           campaignStartDate={form.watch("mp_campaigndates_start")}
                           campaignEndDate={form.watch("mp_campaigndates_end")}
@@ -9147,8 +9337,18 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         onClick={handleDownloadAdvertisingAssociatesMediaPlan}
-                        disabled={isDownloading || isDownloadingAa || isNamingDownloading || isLoading || isSaving}
-                        className="text-brand-dark focus:bg-highlight/25 focus:text-brand-dark"
+                        disabled={
+                          !hasAdvertisingAssociatesBilling ||
+                          isDownloading ||
+                          isDownloadingAa ||
+                          isNamingDownloading ||
+                          isLoading ||
+                          isSaving
+                        }
+                        className={cn(
+                          "text-brand-dark focus:bg-highlight/25 focus:text-brand-dark",
+                          !hasAdvertisingAssociatesBilling && "opacity-50",
+                        )}
                       >
                         Media Plan (AA)
                       </DropdownMenuItem>
@@ -9183,8 +9383,18 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 <Button
                   type="button"
                   onClick={handleDownloadAdvertisingAssociatesMediaPlan}
-                  disabled={isDownloading || isDownloadingAa || isNamingDownloading || isLoading || isSaving}
-                  className="hidden h-9 rounded-full px-4 py-2 md:inline-flex bg-highlight text-brand-dark hover:bg-highlight/85 focus-visible:ring-2 focus-visible:ring-ring"
+                  disabled={
+                    !hasAdvertisingAssociatesBilling ||
+                    isDownloading ||
+                    isDownloadingAa ||
+                    isNamingDownloading ||
+                    isLoading ||
+                    isSaving
+                  }
+                  className={cn(
+                    "hidden h-9 rounded-full px-4 py-2 md:inline-flex bg-highlight text-brand-dark hover:bg-highlight/85 focus-visible:ring-2 focus-visible:ring-ring",
+                    !hasAdvertisingAssociatesBilling && "opacity-50 grayscale",
+                  )}
                 >
                   {isDownloadingAa ? (
                     <Loader2 className="h-4 w-4 animate-spin" />

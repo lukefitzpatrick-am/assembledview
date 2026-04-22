@@ -1,25 +1,47 @@
 "use client"
 
-import { useMemo } from "react"
-import { format, eachDayOfInterval, startOfDay, endOfDay, differenceInCalendarDays, parseISO } from "date-fns"
-import { NormalisedLineItem, groupByLineItemId } from "@/lib/mediaplan/normalizeLineItem"
+import { forwardRef, useMemo } from "react"
+import {
+  format,
+  eachDayOfInterval,
+  eachMonthOfInterval,
+  startOfDay,
+  endOfDay,
+  startOfMonth,
+  endOfMonth,
+  differenceInCalendarDays,
+  parseISO,
+} from "date-fns"
+import {
+  groupByLineItemId,
+  buildGanttSidelineLabel,
+  type NormalisedLineItem,
+} from "@/lib/mediaplan/normalizeLineItem"
 import { getMediaColor } from "@/lib/charts/registry"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 
-interface MediaGanttChartProps {
+export interface MediaGanttChartProps {
   lineItems: Record<string, NormalisedLineItem[]>
   startDate: string
   endDate: string
+  granularity?: "weekly" | "monthly"
 }
 
 /** Pixel width per week column (no per-day columns). */
 const WEEK_WIDTH = 80
 const LABEL_WIDTH = 224
 const MIN_BAR_PX = 6
+/** Minimum bar width as % of timeline (monthly fluid) so thin bursts stay visible. */
+const MIN_BAR_PCT = 0.22
 
 function safeNumber(value: number | undefined) {
   return typeof value === "number" && Number.isFinite(value) ? value : 0
+}
+
+/** Whole-number deliverables for bar labels and tooltips (no decimals). */
+function formatDeliverablesDisplay(value: number): string {
+  return Math.round(value).toLocaleString("en-AU", { maximumFractionDigits: 0 })
 }
 
 function safeParseDate(value?: string) {
@@ -32,7 +54,7 @@ function safeParseDate(value?: string) {
   }
 }
 
-/** Group consecutive calendar days into Sun-start weeks (same boundary rules as before). */
+/** Group consecutive calendar days into Sun-start weeks. */
 function chunkDaysIntoWeeks(days: Date[]): Date[][] {
   const weeks: Date[][] = []
   let currentWeek: Date[] = []
@@ -50,7 +72,10 @@ function chunkDaysIntoWeeks(days: Date[]): Date[][] {
   return weeks
 }
 
-export default function MediaGanttChart({ lineItems, startDate, endDate }: MediaGanttChartProps) {
+const MediaGanttChart = forwardRef<HTMLDivElement, MediaGanttChartProps>(function MediaGanttChart(
+  { lineItems, startDate, endDate, granularity = "weekly" },
+  ref
+) {
   const ganttData = useMemo(() => {
     const safeStart = safeParseDate(startDate)
     const safeEnd = safeParseDate(endDate)
@@ -82,11 +107,7 @@ export default function MediaGanttChart({ lineItems, startDate, endDate }: Media
       const groupedItems = groupByLineItemId(items, mediaType)
 
       groupedItems.forEach((item) => {
-        const publisher = item.publisher || item.platform || item.network || item.site || item.station
-        const safeTitle = item.title && !/auto\s*allocation/i.test(item.title) ? item.title : undefined
-        const labelLeft = publisher ?? "—"
-        const labelRight = safeTitle ?? `Line item ${item.lineItemId || "—"}`
-        const label = `${labelLeft} • ${labelRight}`
+        const label = buildGanttSidelineLabel(item)
 
         const bars = item.bursts
           .map((burst) => {
@@ -124,7 +145,7 @@ export default function MediaGanttChart({ lineItems, startDate, endDate }: Media
           rows.push({
             label,
             mediaType,
-            publisher,
+            publisher: item.publisher || item.platform || item.network || item.site || item.station,
             targeting: item.targeting,
             bars,
           })
@@ -137,39 +158,165 @@ export default function MediaGanttChart({ lineItems, startDate, endDate }: Media
       today >= start && today <= end ? differenceInCalendarDays(today, start) : null
 
     const weeks = chunkDaysIntoWeeks(allDays)
-    const totalWidth = weeks.length * WEEK_WIDTH
+    const months = eachMonthOfInterval({ start: startOfMonth(start), end: endOfMonth(end) })
+    const totalWidthPx = weeks.length * WEEK_WIDTH
 
-    return { rows, weeks, totalDays, totalWidth, todayOffset }
-  }, [lineItems, startDate, endDate])
+    return {
+      rows,
+      weeks,
+      months,
+      totalDays,
+      totalWidthPx,
+      todayOffset,
+      granularity,
+    }
+  }, [lineItems, startDate, endDate, granularity])
 
   if (!ganttData || ganttData.rows.length === 0) {
     return (
-      <div className="flex h-64 items-center justify-center text-muted-foreground">
+      <div ref={ref} className="flex h-48 items-center justify-center text-muted-foreground">
         No timeline data available
       </div>
     )
   }
 
-  const { rows, weeks, totalDays, totalWidth, todayOffset } = ganttData
-  const headerWidth = totalWidth + LABEL_WIDTH
+  const { rows, weeks, months, totalDays, totalWidthPx, todayOffset, granularity: gran } = ganttData
+  const isMonthly = gran === "monthly"
+  const headerWidthPx = totalWidthPx + LABEL_WIDTH
+  const ariaGranularity = isMonthly ? "month view" : "week view"
 
-  const dayToX = (dayOffset: number) => (dayOffset / totalDays) * totalWidth
-  const spanToW = (spanDays: number) => Math.max(MIN_BAR_PX, (spanDays / totalDays) * totalWidth)
+  const dayToXPx = (dayOffset: number) => (dayOffset / totalDays) * totalWidthPx
+  const spanToWPx = (spanDays: number) => Math.max(MIN_BAR_PX, (spanDays / totalDays) * totalWidthPx)
 
+  const dayToXPct = (dayOffset: number) => (dayOffset / totalDays) * 100
+  const spanToWPct = (spanDays: number) =>
+    Math.max(MIN_BAR_PCT, (spanDays / totalDays) * 100)
+
+  const labelColClass = "flex w-56 shrink-0 items-center gap-2 border-r border-border/50 p-2 text-sm font-medium"
+
+  if (isMonthly) {
+    return (
+      <TooltipProvider delayDuration={120}>
+        <div
+          ref={ref}
+          data-export="media-plan-gantt-root"
+          className="w-full overflow-hidden rounded-xl border border-border/60 bg-background/60"
+          role="region"
+          aria-label={`Campaign media timeline, ${rows.length} rows, ${ariaGranularity}`}
+        >
+          <div className="w-full min-w-0">
+            <div className="sticky top-0 z-20 flex w-full min-w-0 border-b border-border/70 bg-background/95 backdrop-blur">
+              <div className="w-56 shrink-0 border-r border-border/70 bg-background/95" aria-hidden />
+              <div className="flex min-w-0 flex-1">
+                {months.map((monthStart, monthIndex) => (
+                  <div
+                    key={monthIndex}
+                    className="flex min-w-0 flex-1 items-center justify-center border-r border-border/40 px-1 py-2 text-center text-xs font-semibold text-foreground last:border-r-0"
+                  >
+                    <span className="line-clamp-2 leading-tight">{format(monthStart, "MMM yyyy")}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="relative w-full">
+              {todayOffset !== null ? (
+                <div
+                  className="pointer-events-none absolute bottom-0 top-0 z-10 border-l-2 border-dashed border-sky-500/70"
+                  style={{
+                    left: `calc(${LABEL_WIDTH}px + (100% - ${LABEL_WIDTH}px) * ${todayOffset / totalDays})`,
+                  }}
+                >
+                  <span className="absolute -top-2 -translate-x-1/2 rounded-full bg-sky-500 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                    Today
+                  </span>
+                </div>
+              ) : null}
+              {rows.map((row, rowIndex) => (
+                <div
+                  key={rowIndex}
+                  className={cn(
+                    "relative flex w-full min-w-0 items-center border-b border-border/40",
+                    rowIndex % 2 === 1 && "bg-muted/[0.05]"
+                  )}
+                >
+                  <div className={labelColClass}>
+                    <span
+                      className="h-6 w-1.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: getMediaColor(row.mediaType) }}
+                    />
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="min-w-0 flex-1 cursor-default truncate">{row.label}</div>
+                      </TooltipTrigger>
+                      <TooltipContent>{row.label}</TooltipContent>
+                    </Tooltip>
+                  </div>
+                  <div className="relative min-h-[48px] min-w-0 flex-1">
+                    {row.bars.map((bar, barIndex) => {
+                      const leftPct = dayToXPct(bar.startOffset)
+                      const widthPct = spanToWPct(bar.width)
+                      const barColor = getMediaColor(row.mediaType)
+                      return (
+                        <Tooltip key={barIndex}>
+                          <TooltipTrigger asChild>
+                            <div
+                              className="absolute top-1/2 flex h-6 max-w-full -translate-y-1/2 cursor-default items-center justify-center rounded-md border border-black/10 text-xs font-medium text-white shadow-sm transition-transform duration-150 hover:scale-[1.01]"
+                              style={{
+                                left: `${leftPct}%`,
+                                width: `${widthPct}%`,
+                                backgroundColor: barColor,
+                                minWidth: `${MIN_BAR_PX}px`,
+                              }}
+                            >
+                              {widthPct >= 3 ? (
+                                <span className="truncate px-1">
+                                  {bar.deliverables > 0
+                                    ? formatDeliverablesDisplay(bar.deliverables)
+                                    : `${format(bar.start, "d/M")}–${format(bar.end, "d/M")}`}
+                                </span>
+                              ) : null}
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <div className="space-y-0.5 text-xs">
+                              <p className="font-medium">{row.label}</p>
+                              <p>
+                                {format(bar.start, "dd MMM yyyy")} - {format(bar.end, "dd MMM yyyy")}
+                              </p>
+                              <p>Deliverables: {formatDeliverablesDisplay(bar.deliverables)}</p>
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </TooltipProvider>
+    )
+  }
+
+  /* Weekly: fixed column widths + horizontal scroll */
   return (
     <TooltipProvider delayDuration={120}>
       <div
+        ref={ref}
+        data-export="media-plan-gantt-root"
         className="overflow-x-auto rounded-xl border border-border/60 bg-background/60"
         role="region"
-        aria-label={`Campaign media timeline, ${rows.length} rows, week view`}
+        aria-label={`Campaign media timeline, ${rows.length} rows, ${ariaGranularity}`}
       >
         <div className="min-w-full">
           <div
             className="sticky top-0 z-20 flex border-b border-border/70 bg-background/95 backdrop-blur"
-            style={{ width: headerWidth }}
+            style={{ width: headerWidthPx }}
           >
             <div className="shrink-0 border-r border-border/70 bg-background/95" style={{ width: LABEL_WIDTH }} />
-            <div className="flex" style={{ width: totalWidth }}>
+            <div className="flex" style={{ width: totalWidthPx }}>
               {weeks.map((week, weekIndex) => (
                 <div
                   key={weekIndex}
@@ -184,11 +331,11 @@ export default function MediaGanttChart({ lineItems, startDate, endDate }: Media
             </div>
           </div>
 
-          <div className="relative">
+          <div className="relative" style={{ width: headerWidthPx }}>
             {todayOffset !== null ? (
               <div
                 className="pointer-events-none absolute bottom-0 top-0 z-10 border-l-2 border-dashed border-sky-500/70"
-                style={{ left: `${LABEL_WIDTH + dayToX(todayOffset)}px` }}
+                style={{ left: `${LABEL_WIDTH + dayToXPx(todayOffset)}px` }}
               >
                 <span className="absolute -top-2 -translate-x-1/2 rounded-full bg-sky-500 px-1.5 py-0.5 text-[10px] font-medium text-white">
                   Today
@@ -199,14 +346,11 @@ export default function MediaGanttChart({ lineItems, startDate, endDate }: Media
               <div
                 key={rowIndex}
                 className={cn(
-                  "relative flex min-h-[56px] items-center border-b border-border/40",
+                  "relative flex min-h-[48px] items-center border-b border-border/40",
                   rowIndex % 2 === 1 && "bg-muted/[0.05]"
                 )}
               >
-                <div
-                  className="flex shrink-0 items-center gap-2 border-r border-border/50 p-2 text-sm font-medium"
-                  style={{ width: LABEL_WIDTH }}
-                >
+                <div className={labelColClass} style={{ width: LABEL_WIDTH }}>
                   <span
                     className="h-6 w-1.5 rounded-full"
                     style={{ backgroundColor: getMediaColor(row.mediaType) }}
@@ -218,10 +362,10 @@ export default function MediaGanttChart({ lineItems, startDate, endDate }: Media
                     <TooltipContent>{row.label}</TooltipContent>
                   </Tooltip>
                 </div>
-                <div className="relative h-full flex-none" style={{ width: totalWidth }}>
+                <div className="relative h-full flex-none" style={{ width: totalWidthPx }}>
                   {row.bars.map((bar, barIndex) => {
-                    const left = dayToX(bar.startOffset)
-                    const width = spanToW(bar.width)
+                    const left = dayToXPx(bar.startOffset)
+                    const width = spanToWPx(bar.width)
                     const barColor = getMediaColor(row.mediaType)
 
                     return (
@@ -239,7 +383,7 @@ export default function MediaGanttChart({ lineItems, startDate, endDate }: Media
                             {width > 52 && (
                               <span className="truncate px-1">
                                 {bar.deliverables > 0
-                                  ? bar.deliverables.toLocaleString()
+                                  ? formatDeliverablesDisplay(bar.deliverables)
                                   : `${format(bar.start, "d/M")}–${format(bar.end, "d/M")}`}
                               </span>
                             )}
@@ -251,7 +395,7 @@ export default function MediaGanttChart({ lineItems, startDate, endDate }: Media
                             <p>
                               {format(bar.start, "dd MMM yyyy")} - {format(bar.end, "dd MMM yyyy")}
                             </p>
-                            <p>Deliverables: {bar.deliverables.toLocaleString()}</p>
+                            <p>Deliverables: {formatDeliverablesDisplay(bar.deliverables)}</p>
                           </div>
                         </TooltipContent>
                       </Tooltip>
@@ -265,4 +409,6 @@ export default function MediaGanttChart({ lineItems, startDate, endDate }: Media
       </div>
     </TooltipProvider>
   )
-}
+})
+
+export default MediaGanttChart

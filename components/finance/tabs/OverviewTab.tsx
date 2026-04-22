@@ -675,7 +675,7 @@ export function FinanceOverviewHero() {
                 >
                   <span className="flex items-center justify-between gap-2">
                     <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Receivables (this month)
+                      Client Billing (this month)
                     </span>
                     <Wallet className="h-4 w-4 shrink-0 text-muted-foreground opacity-70 group-hover:opacity-100" />
                   </span>
@@ -701,7 +701,7 @@ export function FinanceOverviewHero() {
                 >
                   <span className="flex items-center justify-between gap-2">
                     <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Receivables (FY to date)
+                      Client Billing (FY to date)
                     </span>
                     <CalendarRange className="h-4 w-4 shrink-0 text-muted-foreground opacity-70 group-hover:opacity-100" />
                   </span>
@@ -727,7 +727,7 @@ export function FinanceOverviewHero() {
                 >
                   <span className="flex items-center justify-between gap-2">
                     <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Payables (this month)
+                      Publisher Invoices (this month)
                     </span>
                     <BarChart3 className="h-4 w-4 shrink-0 text-muted-foreground opacity-70 group-hover:opacity-100" />
                   </span>
@@ -753,7 +753,7 @@ export function FinanceOverviewHero() {
                 >
                   <span className="flex items-center justify-between gap-2">
                     <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Payables (FY to date)
+                      Publisher Invoices (FY to date)
                     </span>
                     <CalendarRange className="h-4 w-4 shrink-0 text-muted-foreground opacity-70 group-hover:opacity-100" />
                   </span>

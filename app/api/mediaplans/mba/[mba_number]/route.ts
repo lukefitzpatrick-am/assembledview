@@ -68,7 +68,7 @@ const MEDIA_TYPE_ENDPOINTS: Record<keyof MediaLineItems, string> = {
   digitalAudio: "media_plan_digi_audio",
   digitalVideo: "media_plan_digi_video",
   bvod: "media_plan_digi_bvod",
-  integration: "media_plan_integration",
+  integration: "media_plan_integrations",
   search: "media_plan_search",
   socialMedia: "media_plan_social",
   progDisplay: "media_plan_prog_display",

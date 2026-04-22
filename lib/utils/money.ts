@@ -1,4 +1,4 @@
-type MoneyInput = number | string | null | undefined
+export type MoneyInput = number | string | null | undefined
 
 export type MoneyFormatOptions = {
   locale?: string
@@ -21,12 +21,45 @@ const RATE_MAX_FRACTION = 4
 
 const formatterCache = new Map<string, Intl.NumberFormat>()
 
+const MIN_FRACTION_DIGITS = 0
+const MAX_FRACTION_DIGITS = 20
+
+function toSafeFractionDigits(value: number, fallback: number): number {
+  if (!Number.isFinite(value)) return fallback
+  const rounded = Math.trunc(value)
+  return Math.min(MAX_FRACTION_DIGITS, Math.max(MIN_FRACTION_DIGITS, rounded))
+}
+
+function normalizeFractionDigits({
+  minimumFractionDigits = DEFAULT_MIN_FRACTION,
+  maximumFractionDigits = DEFAULT_MAX_FRACTION,
+}: Pick<MoneyFormatOptions, "minimumFractionDigits" | "maximumFractionDigits">): {
+  minimumFractionDigits: number
+  maximumFractionDigits: number
+} {
+  let min = toSafeFractionDigits(minimumFractionDigits, DEFAULT_MIN_FRACTION)
+  let max = toSafeFractionDigits(maximumFractionDigits, DEFAULT_MAX_FRACTION)
+
+  if (max < min) {
+    min = Math.min(min, max)
+  }
+
+  return {
+    minimumFractionDigits: min,
+    maximumFractionDigits: max,
+  }
+}
+
 function getNumberFormat({
   locale = "en-US",
   currency = "USD",
-  minimumFractionDigits = DEFAULT_MIN_FRACTION,
-  maximumFractionDigits = DEFAULT_MAX_FRACTION,
+  minimumFractionDigits,
+  maximumFractionDigits,
 }: MoneyFormatOptions): Intl.NumberFormat {
+  const normalizedFractions = normalizeFractionDigits({
+    minimumFractionDigits,
+    maximumFractionDigits,
+  })
   const key = `${locale}|${currency}|${minimumFractionDigits}|${maximumFractionDigits}`
   const existing = formatterCache.get(key)
   if (existing) return existing
@@ -34,14 +67,15 @@ function getNumberFormat({
   const nf = new Intl.NumberFormat(locale, {
     style: "currency",
     currency,
-    minimumFractionDigits,
-    maximumFractionDigits,
+    minimumFractionDigits: normalizedFractions.minimumFractionDigits,
+    maximumFractionDigits: normalizedFractions.maximumFractionDigits,
   })
   formatterCache.set(key, nf)
   return nf
 }
 
-function parseMoneyInput(value: MoneyInput): number | null {
+/** Parses user-entered or formatted currency strings (same rules as {@link formatMoney}). */
+export function parseMoneyInput(value: MoneyInput): number | null {
   if (value === null || value === undefined) return null
   if (typeof value === "number") return Number.isFinite(value) ? value : null
   if (typeof value !== "string") return null

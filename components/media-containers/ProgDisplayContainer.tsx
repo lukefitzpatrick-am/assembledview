@@ -32,7 +32,7 @@ import { cn } from "@/lib/utils"
 import { ChevronDown, Copy, Plus, Trash2 } from "lucide-react"
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
 import type { LineItem } from '@/lib/generateMediaPlan'
-import { formatMoney } from "@/lib/utils/money"
+import { formatMoney, parseMoneyInput } from "@/lib/utils/money"
 import {
   CpcFamilyBurstCalculatedField,
   getCpcFamilyBurstCalculatedColumnLabel,
@@ -1023,6 +1023,7 @@ useEffect(() => {
         buyType:      lineItem.buyType,
         deliverablesAmount: burst.budget,
         grossMedia: String(mediaAmount),  // uses calculated media amount
+        clientPaysForMedia: lineItem.clientPaysForMedia ?? false,
         line_item_id: lineItemId,
         lineItemId,
         line_item: lineItemIndex + 1,
@@ -1634,7 +1635,7 @@ useEffect(() => {
                                                 }}
                                                 onBlur={(e) => {
                                                   const value = e.target.value;
-                                                  const formattedValue = formatMoney(Number.parseFloat(value) || 0, {
+                                                  const formattedValue = formatMoney(parseMoneyInput(value) ?? 0, {
                                                     locale: "en-US",
                                                     currency: "USD",
                                                   });
@@ -1670,7 +1671,7 @@ useEffect(() => {
                                                 }}
                                                 onBlur={(e) => {
                                                   const value = e.target.value;
-                                                  const formattedValue = formatMoney(Number.parseFloat(value) || 0, {
+                                                  const formattedValue = formatMoney(parseMoneyInput(value) ?? 0, {
                                                     locale: "en-US",
                                                     currency: "USD",
                                                   });

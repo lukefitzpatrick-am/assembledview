@@ -215,7 +215,10 @@ export default function MediaTable({ lineItems }: MediaTableProps) {
               </Badge>
             </button>
             {isTypeExpanded ? (
-            <div className="max-h-[520px] overflow-auto rounded-b-xl">
+            <div
+              data-export="media-plan-table-scroll"
+              className="max-h-[520px] overflow-auto rounded-b-xl"
+            >
               <Table>
                 <TableHeader className="sticky top-0 z-20 bg-background">
                   <TableRow>

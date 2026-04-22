@@ -87,6 +87,8 @@ export interface LineItem {
   network?: string;       // For TV, Radio, OOH, Cinema, Print, Digital (Publisher)
   station?: string;       // For TV, Radio
   bidStrategy?: string;
+  objective?: string;     // Influencers, Integration
+  campaign?: string;      // Influencers, Integration
   targeting?: string;     // Digital, Search, Social, Programmatic
   creative?: string;      // General creative name/ID
   startDate: string;       // Burst start date: YYYY-MM-DD
@@ -117,6 +119,12 @@ export interface LineItem {
   noAdserving?: boolean;
   fixedCostMedia?: boolean;
   creativeTargeting?: string; // often synonymous with 'targeting'
+}
+
+/** Payloads may use camelCase (UI) or snake_case (API). */
+function lineItemIsClientPaysForMedia(item: LineItem): boolean {
+  const o = item as LineItem & { client_pays_for_media?: boolean }
+  return o.clientPaysForMedia === true || o.client_pays_for_media === true
 }
 
 // Enhanced GroupedItem
@@ -178,6 +186,7 @@ export interface MediaItems {
   ooh:            LineItem[];
   cinema:         LineItem[];
   integration:    LineItem[];
+  influencers:    LineItem[];
   production:     LineItem[];
 }
 
@@ -277,7 +286,9 @@ const SECTION_TO_MEDIA_KEY: Record<string, string> = {
   'OOH': 'ooh', 'Cinema': 'cinema', 'Digital Display': 'digiDisplay', 'Digital Audio': 'digiAudio',
   'Digital Video': 'digiVideo', 'BVOD': 'bvod', 'Search': 'search', 'Social Media': 'socialMedia',
   'Programmatic Display': 'progDisplay', 'Programmatic Video': 'progVideo', 'Programmatic BVOD': 'progBvod',
-  'Programmatic Audio': 'progAudio', 'Programmatic OOH': 'progOoh', 'Production': 'production',
+  'Programmatic Audio': 'progAudio', 'Programmatic OOH': 'progOoh',
+  'Integration': 'integration', 'Influencers': 'influencers',
+  'Production': 'production',
 };
 
 export type GenerateMediaPlanOptions = {
@@ -336,6 +347,8 @@ export async function generateMediaPlan(
     "Digital Display": ['market', 'platform', 'site', 'targeting', 'creative', 'buyingDemo', 'buyType'],
     "Digital Audio": ['market', 'platform', 'site', 'bidStrategy', 'targeting', 'creative', 'buyingDemo', 'buyType'],
     "Digital Video": ['market', 'platform', 'site', 'bidStrategy', 'targeting', 'creative', 'buyingDemo', 'buyType'],
+    "Integration": ['platform', 'objective', 'campaign', 'targeting', 'buyType', 'line_item_id', 'lineItemId'],
+    "Influencers": ['platform', 'objective', 'campaign', 'targeting', 'buyType', 'line_item_id', 'lineItemId'],
     "Production": ['market', 'platform', 'network', 'creative', 'buyType'],
     // ... (other configs)
   };
@@ -368,7 +381,12 @@ export async function generateMediaPlan(
       const itemStartDate = item.startDate; // YYYY-MM-DD
       const itemEndDate = item.endDate;   // YYYY-MM-DD
       const deliverablesAmtNum = parseFloat(String(item.deliverablesAmount).replace(/[^0-9.-]+/g,"")) || 0;
-      const grossMediaNum = parseFloat(String(item.grossMedia).replace(/[^0-9.-]+/g,"")) || 0;
+      let grossMediaNum = parseFloat(String(item.grossMedia).replace(/[^0-9.-]+/g,"")) || 0;
+      // For clientPaysForMedia items, grossMedia is set to 0 by containers.
+      // The Excel media plan should always show the full media value, so fall back to deliverablesAmount.
+      if (grossMediaNum === 0 && lineItemIsClientPaysForMedia(item)) {
+        grossMediaNum = parseFloat(String(item.deliverablesAmount).replace(/[^0-9.-]+/g,"")) || 0;
+      }
       const calculatedDeliverablesNum = parseFloat(String(item.deliverables).replace(/[^0-9.-]+/g,"")) || 0;
 
       if (!group) {
@@ -609,7 +627,7 @@ export async function generateMediaPlan(
   }
 
   // Calculate monthly media by channel from line items (same logic as billing/delivery schedule)
-  type MediaKey = 'search' | 'socialMedia' | 'television' | 'radio' | 'newspaper' | 'magazines' | 'ooh' | 'cinema' | 'digiDisplay' | 'digiAudio' | 'digiVideo' | 'bvod' | 'integration' | 'progDisplay' | 'progVideo' | 'progBvod' | 'progAudio' | 'progOoh' | 'production';
+  type MediaKey = 'search' | 'socialMedia' | 'television' | 'radio' | 'newspaper' | 'magazines' | 'ooh' | 'cinema' | 'digiDisplay' | 'digiAudio' | 'digiVideo' | 'bvod' | 'integration' | 'influencers' | 'progDisplay' | 'progVideo' | 'progBvod' | 'progAudio' | 'progOoh' | 'production';
   const MEDIA_ITEMS_KEYS: { key: keyof MediaItems; mediaKey: MediaKey }[] = [
     { key: 'television', mediaKey: 'television' }, { key: 'radio', mediaKey: 'radio' },
     { key: 'newspaper', mediaKey: 'newspaper' }, { key: 'magazines', mediaKey: 'magazines' },
@@ -620,6 +638,7 @@ export async function generateMediaPlan(
     { key: 'progDisplay', mediaKey: 'progDisplay' }, { key: 'progVideo', mediaKey: 'progVideo' },
     { key: 'progBvod', mediaKey: 'progBvod' }, { key: 'progAudio', mediaKey: 'progAudio' },
     { key: 'progOoh', mediaKey: 'progOoh' }, { key: 'integration', mediaKey: 'integration' },
+    { key: 'influencers', mediaKey: 'influencers' },
     { key: 'production', mediaKey: 'production' },
   ];
 
@@ -658,7 +677,11 @@ export async function generateMediaPlan(
   for (const { key, mediaKey } of MEDIA_ITEMS_KEYS) {
     const items = mediaItems[key] || [];
     for (const item of items) {
-      const amt = parseFloat(String(item.grossMedia ?? item.deliverablesAmount).replace(/[^0-9.-]+/g, '')) || 0;
+      let amt = parseFloat(String(item.grossMedia).replace(/[^0-9.-]+/g, '')) || 0;
+      // For clientPaysForMedia items, grossMedia is 0 but deliverablesAmount has the real budget
+      if (amt === 0 && lineItemIsClientPaysForMedia(item)) {
+        amt = parseFloat(String(item.deliverablesAmount).replace(/[^0-9.-]+/g, '')) || 0;
+      }
       if (amt > 0 && item.startDate && item.endDate) {
         distributeBurstToMonths(item.startDate, item.endDate, amt, mediaKey);
       }
@@ -1660,6 +1683,70 @@ export async function generateMediaPlan(
       currentRow += (groupedProgOoh.length + 5);
   }
 
+  // --- Integration ---
+  const groupedIntegrationRaw = mediaItems.integration || [];
+  const groupedIntegration: GroupedItem[] = groupLineItems(groupedIntegrationRaw, "Integration");
+
+  if (groupedIntegration.length > 0) {
+      const integrationDataStartActualRow = drawSection('Integration', groupedIntegration, currentRow, 'Biddable');
+
+      const firstSundayUTC = new Date(Date.UTC(firstSunday.getFullYear(), firstSunday.getMonth(), firstSunday.getDate()));
+
+      groupedIntegration.forEach((it, idx) => {
+        const itemRow = integrationDataStartActualRow + idx;
+        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime());
+
+        sortedBursts.forEach(b => {
+          const burstStart = parseDateStringYYYYMMDD(b.startDate);
+          const burstEnd = parseDateStringYYYYMMDD(b.endDate);
+
+          const startOffset = Math.round((burstStart.getTime() - firstSundayUTC.getTime()) / msPerDay);
+          const endOffset = Math.round((burstEnd.getTime() - firstSundayUTC.getTime()) / msPerDay);
+
+          const ganttStart = firstDateCol + startOffset;
+          const ganttEnd = firstDateCol + endOffset;
+
+          if (ganttStart <= ganttEnd && ganttStart >= firstDateCol && ganttEnd <= lastDateCol) {
+            mergeBurstCells(itemRow, ganttStart, ganttEnd, b.deliverables, 'integration');
+          }
+        });
+      });
+
+      currentRow += (groupedIntegration.length + 5);
+  }
+
+  // --- Influencers ---
+  const groupedInfluencersRaw = mediaItems.influencers || [];
+  const groupedInfluencers: GroupedItem[] = groupLineItems(groupedInfluencersRaw, "Influencers");
+
+  if (groupedInfluencers.length > 0) {
+      const influencersDataStartActualRow = drawSection('Influencers', groupedInfluencers, currentRow, 'Biddable');
+
+      const firstSundayUTC = new Date(Date.UTC(firstSunday.getFullYear(), firstSunday.getMonth(), firstSunday.getDate()));
+
+      groupedInfluencers.forEach((it, idx) => {
+        const itemRow = influencersDataStartActualRow + idx;
+        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime());
+
+        sortedBursts.forEach(b => {
+          const burstStart = parseDateStringYYYYMMDD(b.startDate);
+          const burstEnd = parseDateStringYYYYMMDD(b.endDate);
+
+          const startOffset = Math.round((burstStart.getTime() - firstSundayUTC.getTime()) / msPerDay);
+          const endOffset = Math.round((burstEnd.getTime() - firstSundayUTC.getTime()) / msPerDay);
+
+          const ganttStart = firstDateCol + startOffset;
+          const ganttEnd = firstDateCol + endOffset;
+
+          if (ganttStart <= ganttEnd && ganttStart >= firstDateCol && ganttEnd <= lastDateCol) {
+            mergeBurstCells(itemRow, ganttStart, ganttEnd, b.deliverables, 'influencers');
+          }
+        });
+      });
+
+      currentRow += (groupedInfluencers.length + 5);
+  }
+
   // --- Production ---
   const groupedProductionRaw = mediaItems.production || [];
   const groupedProduction: GroupedItem[] = groupLineItems(groupedProductionRaw, "Production");
@@ -1695,7 +1782,125 @@ export async function generateMediaPlan(
   // --- Grand Total Row by Month (before MBA table) ---
   if (monthRanges.length > 0 && Object.keys(monthlyByChannel).length > 0) {
     const headerLastColNum = Math.max(14, lastDateCol);
+
+    const monthlyGrandTotals: Record<string, number> = {};
+    for (const { monthYear } of monthRanges) {
+      monthlyGrandTotals[monthYear] = Object.keys(monthlyByChannel).reduce((sum, key) => {
+        return sum + (monthlyByChannel[key]?.[monthYear] ?? 0);
+      }, 0);
+    }
+    const totalGrossMediaFromMonths = Object.values(monthlyGrandTotals).reduce((s, v) => s + v, 0);
+
+    const serviceFeeTotal = mbaData?.totals?.service_fee ?? 0;
+    const adServingTotal = mbaData?.totals?.adserving ?? 0;
+
+    const monthlyServiceFee: Record<string, number> = {};
+    const monthlyAdServing: Record<string, number> = {};
+    for (const { monthYear } of monthRanges) {
+      const ratio = totalGrossMediaFromMonths > 0
+        ? (monthlyGrandTotals[monthYear] ?? 0) / totalGrossMediaFromMonths
+        : 0;
+      monthlyServiceFee[monthYear] = serviceFeeTotal * ratio;
+      monthlyAdServing[monthYear] = adServingTotal * ratio;
+    }
+
+    const summaryRowFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F2F2' } };
+
+    if (mbaTotalsLayout === 'standard' && serviceFeeTotal > 0) {
+      for (let colNum = 2; colNum <= headerLastColNum; colNum++) {
+        style(sheet.getCell(currentRow, colNum), { fill: summaryRowFill });
+      }
+      sheet.mergeCells(currentRow, 2, currentRow, 12);
+      style(sheet.getCell(currentRow, 2), {
+        value: 'Service Fee',
+        bold: true,
+        align: 'right',
+        fill: summaryRowFill,
+        fontColor: 'FF000000'
+      });
+      style(sheet.getCell(currentRow, 14), {
+        value: serviceFeeTotal,
+        bold: true,
+        align: 'right',
+        numFmt: '$#,##0.00',
+        fill: summaryRowFill,
+        fontColor: 'FF000000'
+      });
+      for (const { monthYear, startCol, endCol } of monthRanges) {
+        const amount = monthlyServiceFee[monthYear] ?? 0;
+        if (startCol < endCol) {
+          try {
+            sheet.mergeCells(currentRow, startCol, currentRow, endCol);
+          } catch {
+            // Cell may already be part of a merge
+          }
+        }
+        const cell = sheet.getCell(currentRow, startCol);
+        style(cell, {
+          value: amount,
+          fontSize: 14,
+          bold: true,
+          align: 'center',
+          verticalAlign: 'middle',
+          fill: summaryRowFill,
+          fontColor: 'FF000000',
+          numFmt: '$#,##0.00'
+        });
+        cell.border = lightDashedBorder;
+      }
+      currentRow++;
+    }
+
+    if (mbaTotalsLayout === 'standard' && adServingTotal > 0) {
+      for (let colNum = 2; colNum <= headerLastColNum; colNum++) {
+        style(sheet.getCell(currentRow, colNum), { fill: summaryRowFill });
+      }
+      sheet.mergeCells(currentRow, 2, currentRow, 12);
+      style(sheet.getCell(currentRow, 2), {
+        value: 'Ad Serving & Tech',
+        bold: true,
+        align: 'right',
+        fill: summaryRowFill,
+        fontColor: 'FF000000'
+      });
+      style(sheet.getCell(currentRow, 14), {
+        value: adServingTotal,
+        bold: true,
+        align: 'right',
+        numFmt: '$#,##0.00',
+        fill: summaryRowFill,
+        fontColor: 'FF000000'
+      });
+      for (const { monthYear, startCol, endCol } of monthRanges) {
+        const amount = monthlyAdServing[monthYear] ?? 0;
+        if (startCol < endCol) {
+          try {
+            sheet.mergeCells(currentRow, startCol, currentRow, endCol);
+          } catch {
+            // Cell may already be part of a merge
+          }
+        }
+        const cell = sheet.getCell(currentRow, startCol);
+        style(cell, {
+          value: amount,
+          fontSize: 14,
+          bold: true,
+          align: 'center',
+          verticalAlign: 'middle',
+          fill: summaryRowFill,
+          fontColor: 'FF000000',
+          numFmt: '$#,##0.00'
+        });
+        cell.border = lightDashedBorder;
+      }
+      currentRow++;
+    }
+
     const totalFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFBDDC52' } };
+    const grossMediaMbaTotal = mbaData?.totals?.gross_media ?? 0;
+    const grandTotalColN = mbaTotalsLayout === 'standard'
+      ? grossMediaMbaTotal + serviceFeeTotal + adServingTotal
+      : grossMediaMbaTotal;
 
     for (let colNum = 2; colNum <= headerLastColNum; colNum++) {
       style(sheet.getCell(currentRow, colNum), { fill: totalFill });
@@ -1710,7 +1915,7 @@ export async function generateMediaPlan(
     });
 
     style(sheet.getCell(currentRow, 14), {
-      value: mbaData?.totals?.gross_media ?? 0,
+      value: grandTotalColN,
       bold: true,
       align: 'right',
       numFmt: '$#,##0.00',
@@ -1719,9 +1924,10 @@ export async function generateMediaPlan(
     });
 
     for (const { monthYear, startCol, endCol } of monthRanges) {
-      const totalForMonth = Object.keys(monthlyByChannel).reduce((sum, key) => {
-        return sum + (monthlyByChannel[key]?.[monthYear] ?? 0);
-      }, 0);
+      const grossForMonth = monthlyGrandTotals[monthYear] ?? 0;
+      const totalForMonth = mbaTotalsLayout === 'standard'
+        ? grossForMonth + (monthlyServiceFee[monthYear] ?? 0) + (monthlyAdServing[monthYear] ?? 0)
+        : grossForMonth;
       if (startCol < endCol) {
         try {
           sheet.mergeCells(currentRow, startCol, currentRow, endCol);

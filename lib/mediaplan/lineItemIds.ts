@@ -22,6 +22,7 @@ export const MEDIA_TYPE_ID_CODES = {
   progAudio: "ML",
   progOOH: "ML",
   ooh: "ML",
+  influencers: "IN",
 } as const;
 
 type MediaTypeKey = keyof typeof MEDIA_TYPE_ID_CODES;

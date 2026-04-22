@@ -44,6 +44,7 @@ function mediaItemsFromBody(rest: Record<string, unknown>): MediaItems {
     ooh: list("ooh"),
     cinema: list("cinema"),
     integration: list("integration"),
+    influencers: list("influencers"),
     production: list("production"),
   }
 }
@@ -68,6 +69,7 @@ function filteredForEligibility(items: MediaItems): MediaItems {
     ooh: items.ooh.filter(shouldIncludeMediaPlanLineItem),
     cinema: items.cinema.filter(shouldIncludeMediaPlanLineItem),
     integration: items.integration.filter(shouldIncludeMediaPlanLineItem),
+    influencers: items.influencers.filter(shouldIncludeMediaPlanLineItem),
     production: items.production.filter(shouldIncludeMediaPlanLineItem),
   }
 }
