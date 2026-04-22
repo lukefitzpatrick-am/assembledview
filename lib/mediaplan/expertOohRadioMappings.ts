@@ -1809,6 +1809,7 @@ function emptyBvodLineItem(
 
 /**
  * One expert row → one standard BVOD line item.
+ * Same burst financial contract as television / digital audio expert rows.
  */
 export function mapBvodExpertRowsToStandardLineItems(
   rows: BvodExpertScheduleRow[],
@@ -1853,26 +1854,21 @@ export function mapBvodExpertRowsToStandardLineItems(
         campaignStartDate,
         campaignEndDate
       )
-      const grossBudget = expertRowRawCost(buyType, unitRate, qty)
-      const rawBudget = grossBudget
-      const netForCalc = radioNetBudgetForDeliverables(
-        rawBudget,
-        budgetIncludesFees,
-        feePct
-      )
-      const buyAmountStr = formatBurstBudget(qty)
-      const bonusVal = buyType.toLowerCase() === "bonus" ? qty : undefined
-      const buyAmtNum = buyType.toLowerCase() === "bonus" ? 0 : qty
-      const calculatedValue = bvodCalculatedDeliverables(
+      const bt = coerceBuyTypeWithDevWarn(
         buyType,
-        netForCalc,
-        buyAmtNum,
-        bonusVal
+        "mapBvodExpertRowsToStandardLineItems.pushBurst"
       )
+      const netMedia = netMediaFromDeliverables(bt, qty, unitRate)
+      const grossBudget = grossFromNet(netMedia, budgetIncludesFees, feePct)
+      const calculatedValue = roundDeliverables(bt, qty)
+      const buyAmountStr =
+        String(buyType || "").toLowerCase() === "bonus"
+          ? "0"
+          : formatMoney(unitRate)
 
       bursts.push({
-        budget: formatBurstBudget(rawBudget),
-        buyAmount: buyType.toLowerCase() === "bonus" ? "0" : buyAmountStr,
+        budget: formatBurstBudget(grossBudget),
+        buyAmount: buyAmountStr,
         startDate: start,
         endDate: end,
         calculatedValue,
@@ -1940,54 +1936,48 @@ export function mapStandardBvodLineItemsToExpertRows(
   return lineItems.map((item, index) => {
     const bursts = normalizeBvodBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
+    const bt = coerceBuyTypeWithDevWarn(
+      buyType,
+      "mapStandardBvodLineItemsToExpertRows"
+    )
 
     const weeklyValues: Record<string, number | ""> = {}
     for (const col of weekColumns) {
       weeklyValues[col.weekKey] = ""
     }
 
-    const mergedWeekSpans: {
-      id: string
-      startWeekKey: string
-      endWeekKey: string
-      totalQty: number
-    }[] = []
-    let mergeIdx = 0
-
     for (const b of bursts) {
       const sd = b.startDate
       const ed = b.endDate ?? b.startDate
       if (!sd || Number.isNaN(sd.getTime())) continue
-      const startKey = weekKeyFromDate(sd)
-      const endKey = weekKeyFromDate(ed)
-      if (!(startKey in weeklyValues)) continue
 
-      const qtyRaw = parseNum(b.buyAmount)
+      let totalDeliverables =
+        typeof b.calculatedValue === "number" && Number.isFinite(b.calculatedValue)
+          ? b.calculatedValue
+          : parseNum(b.calculatedValue)
+      if (!Number.isFinite(totalDeliverables) || totalDeliverables === 0) {
+        continue
+      }
+
       const buyTypeLower = buyType.toLowerCase()
-      let cellQty = qtyRaw
-      if (buyTypeLower === "bonus") {
-        cellQty =
-          typeof b.calculatedValue === "number" ? b.calculatedValue : 0
-      } else if (
-        buyTypeLower === "fixed_cost" ||
-        buyTypeLower === "package_inclusions"
-      ) {
-        cellQty = qtyRaw > 0 ? qtyRaw : 1
+      if (buyTypeLower === "fixed_cost") {
+        totalDeliverables = 1
       }
+      if (totalDeliverables === 0 && buyTypeLower !== "bonus") continue
 
-      if (startKey === endKey) {
-        const prev = weeklyValues[startKey]
-        const prevNum =
-          prev === "" ? 0 : typeof prev === "number" ? prev : parseNum(prev)
-        weeklyValues[startKey] = prevNum + cellQty
-      } else {
-        mergedWeekSpans.push({
-          id: `std-${index}-m${mergeIdx++}`,
-          startWeekKey: startKey,
-          endWeekKey: endKey,
-          totalQty: cellQty,
-        })
-      }
+      const overlapKeys = radioWeekKeysOverlappingBurstWindow(
+        weekColumns,
+        campaignStartDate,
+        campaignEndDate,
+        sd,
+        ed
+      )
+      distributeBurstDeliverablesToExpertWeeks(
+        bt,
+        totalDeliverables,
+        overlapKeys,
+        weeklyValues
+      )
     }
 
     const firstBurst = bursts.find(
@@ -2031,11 +2021,10 @@ export function mapStandardBvodLineItemsToExpertRows(
       budgetIncludesFees: Boolean(
         item.budget_includes_fees ?? item.budgetIncludesFees
       ),
-      unitRate: deriveUnitRateFromBursts(bursts),
+      unitRate: deriveRadioStandardUnitRateFromBursts(bursts),
       grossCost: sumGrossBursts(bursts),
       weeklyValues,
-      mergedWeekSpans:
-        mergedWeekSpans.length > 0 ? mergedWeekSpans : [],
+      mergedWeekSpans: [],
     }
   })
 }

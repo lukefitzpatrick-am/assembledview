@@ -27,7 +27,13 @@ import { cn } from "@/lib/utils"
 import { ChevronDown, Copy, Plus, Trash2 } from "lucide-react"
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
 import type { LineItem } from '@/lib/generateMediaPlan'
-import { formatMoney } from "@/lib/utils/money"
+import { formatMoney, parseMoneyInput } from "@/lib/utils/money"
+import {
+  coerceBuyTypeWithDevWarn,
+  deliverablesFromBudget,
+  netFromGross,
+  roundDeliverables,
+} from "@/lib/mediaplan/deliverableBudget"
 import {
   CpcFamilyBurstCalculatedField,
   getCpcFamilyBurstCalculatedColumnLabel,
@@ -82,10 +88,35 @@ const formatDateString = (d?: Date | string): string => {
   return `${year}-${month}-${day}`;
 };
 
-/** Net media for deliverable math when budget is gross; fee as % of gross. Matches overallTotals. */
-function netMediaPctOfGross(rawBudget: number, budgetIncludesFees: boolean, feePct: number): number {
-  if (!budgetIncludesFees) return rawBudget;
-  return (rawBudget * (100 - (feePct || 0))) / 100;
+function computeBvodLoadedDeliverables(
+  burst: { budget?: string; buyAmount?: string; calculatedValue?: number | string },
+  buyType: string,
+  budgetIncludesFees: boolean,
+  feePct: number
+): number {
+  const bt = coerceBuyTypeWithDevWarn(
+    buyType,
+    "BVODContainer.computeBvodLoadedDeliverables"
+  )
+  const rawBudget =
+    parseFloat(String(burst?.budget ?? "").replace(/[^0-9.]/g, "")) || 0
+  const net = netFromGross(rawBudget, budgetIncludesFees, feePct)
+  const buyAmount =
+    parseFloat(String(burst?.buyAmount ?? "").replace(/[^0-9.]/g, "")) || 0
+  if (bt === "bonus" || bt === "package_inclusions") {
+    return (
+      parseFloat(String(burst?.calculatedValue ?? "0").replace(/[^0-9.]/g, "")) ||
+      0
+    )
+  }
+  const raw = deliverablesFromBudget(bt, net, buyAmount)
+  if (Number.isNaN(raw)) {
+    return (
+      parseFloat(String(burst?.calculatedValue ?? "0").replace(/[^0-9.]/g, "")) ||
+      0
+    )
+  }
+  return roundDeliverables(bt, raw)
 }
 
 // Exported utility function to get bursts
@@ -708,7 +739,12 @@ export default function BVODContainer({
             : burst.end_date
               ? new Date(burst.end_date)
               : defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
-          calculatedValue: burst.calculatedValue ?? burst.deliverables ?? 0,
+          calculatedValue: computeBvodLoadedDeliverables(
+            burst,
+            item.buy_type || item.buyType || "",
+            !!item.budget_includes_fees,
+            feebvod || 0
+          ),
           fee: burst.fee ?? 0,
         })) : [{
           budget: "",
@@ -750,7 +786,7 @@ export default function BVODContainer({
         overallDeliverables: 0,
       });
     }
-  }, [initialLineItems, form, campaignStartDate, campaignEndDate]);
+  }, [initialLineItems, form, campaignStartDate, campaignEndDate, feebvod]);
 
   // Transform form data to API schema format
   useEffect(() => {
@@ -922,36 +958,18 @@ export default function BVODContainer({
   const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number, budgetIncludesFeesOverride?: boolean) => {
     const burst = form.getValues(`bvodlineItems.${lineItemIndex}.bursts.${burstIndex}`);
     const lineItem = form.getValues(`bvodlineItems.${lineItemIndex}`);
-    const rawBudget = parseFloat(burst?.budget?.replace(/[^0-9.]/g, "") || "0");
     const budgetIncludesFees = budgetIncludesFeesOverride ?? Boolean(lineItem?.budgetIncludesFees);
-    const budget = netMediaPctOfGross(rawBudget, budgetIncludesFees, feebvod || 0);
-    const buyAmount = parseFloat(burst?.buyAmount?.replace(/[^0-9.]/g, "") || "1");
     const buyType = form.getValues(`bvodlineItems.${lineItemIndex}.buyType`);
+    const calculatedValue = computeBvodLoadedDeliverables(
+      burst,
+      buyType,
+      budgetIncludesFees,
+      feebvod || 0
+    );
 
-    let calculatedValue = 0;
-    switch (buyType) {
-      case "cpc":
-      case "cpv":
-        calculatedValue = buyAmount !== 0 ? budget / buyAmount : 0;
-        break;
-      case "cpm":
-        calculatedValue = buyAmount !== 0 ? (budget / buyAmount) * 1000 : 0;
-        break;
-      case "fixed_cost":
-        calculatedValue = 1;
-        break;
-      case "bonus":
-        calculatedValue = parseFloat(
-          (burst?.calculatedValue ?? "0").toString().replace(/[^0-9.]/g, "")
-        ) || 0;
-        break;
-      default:
-        calculatedValue = 0;
-    }
-
-    // Only update if the calculated value is actually different to prevent infinite loops
-    const currentValue = form.getValues(`bvodlineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`);
-    if (currentValue !== calculatedValue && !isNaN(calculatedValue)) {
+    const currentValue =
+      Number(form.getValues(`bvodlineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`)) || 0;
+    if (Math.abs(currentValue - calculatedValue) > 1e-6) {
       form.setValue(`bvodlineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`, calculatedValue, {
         shouldValidate: false, // Changed to false to prevent validation loops
         shouldDirty: false,    // Changed to false to prevent dirty state loops
@@ -1204,6 +1222,7 @@ useEffect(() => {
         buyType:      lineItem.buyType,
         deliverablesAmount: burst.budget,
         grossMedia:   String(mediaAmount),
+        clientPaysForMedia: lineItem.clientPaysForMedia ?? false,
         line_item_id: lineItemId,
         lineItemId,
         line_item: lineItemIndex + 1,
@@ -1857,7 +1876,7 @@ useEffect(() => {
                                                 }}
                                                 onBlur={(e) => {
                                                   const value = e.target.value;
-                                                  const formattedValue = formatMoney(Number.parseFloat(value) || 0, {
+                                                  const formattedValue = formatMoney(parseMoneyInput(value) ?? 0, {
                                                     locale: "en-US",
                                                     currency: "USD",
                                                   });
@@ -1894,7 +1913,7 @@ useEffect(() => {
                                                 }}
                                                 onBlur={(e) => {
                                                   const value = e.target.value;
-                                                  const formattedValue = formatMoney(Number.parseFloat(value) || 0, {
+                                                  const formattedValue = formatMoney(parseMoneyInput(value) ?? 0, {
                                                     locale: "en-US",
                                                     currency: "USD",
                                                   });
@@ -1974,7 +1993,7 @@ useEffect(() => {
                                           burstIndex={burstIndex}
                                           field={field}
                                           feePct={feebvod || 0}
-                                          netMedia={netMediaPctOfGross}
+                                          netMedia={netFromGross}
                                           variant="cpcCpvCpm"
                                         />
                                       )}
