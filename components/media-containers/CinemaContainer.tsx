@@ -24,7 +24,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Label } from "@/components/ui/label";
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
 import type { LineItem } from '@/lib/generateMediaPlan'
-import { formatMoney } from "@/lib/utils/money"
+import { formatMoney, parseMoneyInput } from "@/lib/utils/money"
+import {
+  coerceBuyTypeWithDevWarn,
+  deliverablesFromBudget,
+  netFromGross,
+  roundDeliverables,
+} from "@/lib/mediaplan/deliverableBudget"
 import {
   CpcFamilyBurstCalculatedField,
   getCpcFamilyBurstCalculatedColumnLabel,
@@ -545,33 +551,34 @@ export default function CinemaContainer({
     defaultValue: form.getValues("cinemalineItems")
   });
 
-  const computeDeliverables = useCallback((burst: any, buyType: string, budgetIncludesFees: boolean) => {
-    const rawBudget = parseFloat(burst?.budget?.replace(/[^0-9.]/g, "") || "0");
-    const budget = budgetIncludesFees
-      ? (rawBudget * (100 - (feecinema || 0))) / 100
-      : rawBudget;
-    const buyAmount = parseFloat(burst?.buyAmount?.replace(/[^0-9.]/g, "") || "1");
+  /** Display + initial load: net fee model matches {@link netFromGross} + {@link deliverablesFromBudget}. */
+  const cinemaBurstDeliverables = useCallback(
+    (burst: any, buyType: string, budgetIncludesFees: boolean) => {
+      const bt = coerceBuyTypeWithDevWarn(buyType, "cinemaBurstDeliverables")
+      const rawBudget =
+        parseFloat(String(burst?.budget ?? "").replace(/[^0-9.]/g, "")) || 0
+      const netBudget = netFromGross(rawBudget, budgetIncludesFees, feecinema || 0)
+      const buyAmount =
+        parseFloat(String(burst?.buyAmount ?? "").replace(/[^0-9.]/g, "")) || 0
 
-    switch (buyType) {
-      case "cpc":
-      case "cpv":
-      case "screens":
-        return buyAmount !== 0 ? budget / buyAmount : 0;
-      case "cpm":
-        return buyAmount !== 0 ? (budget / buyAmount) * 1000 : 0;
-      case "fixed_cost":
-      case "package":
-        return 1;
-      case "bonus":
+      if (bt === "bonus" || bt === "package_inclusions") {
         return (
-          parseFloat(
-            (burst?.calculatedValue ?? "0").toString().replace(/[^0-9.]/g, "")
-          ) || 0
-        );
-      default:
-        return burst?.calculatedValue ?? 0;
-    }
-  }, [feecinema]);
+          parseFloat(String(burst?.calculatedValue ?? "0").replace(/[^0-9.]/g, "")) ||
+          0
+        )
+      }
+
+      const raw = deliverablesFromBudget(bt, netBudget, buyAmount)
+      if (Number.isNaN(raw)) {
+        return (
+          parseFloat(String(burst?.calculatedValue ?? "0").replace(/[^0-9.]/g, "")) ||
+          0
+        )
+      }
+      return roundDeliverables(bt, raw)
+    },
+    [feecinema]
+  )
 
   // Data loading for edit mode
   useEffect(() => {
@@ -603,14 +610,14 @@ export default function CinemaContainer({
             buyAmount: burst.buyAmount || "",
             startDate: burst.startDate ? new Date(burst.startDate) : new Date(),
             endDate: burst.endDate ? new Date(burst.endDate) : new Date(),
-            calculatedValue: computeDeliverables(burst, buyType, item.budget_includes_fees || false),
+            calculatedValue: cinemaBurstDeliverables(burst, buyType, item.budget_includes_fees || false),
             fee: burst.fee ?? 0,
           })) : [{
             budget: "",
             buyAmount: "",
             startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
             endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
-            calculatedValue: computeDeliverables({}, buyType, false),
+            calculatedValue: cinemaBurstDeliverables({}, buyType, false),
             fee: 0,
           }],
         };
@@ -621,7 +628,7 @@ export default function CinemaContainer({
         overallDeliverables: 0,
       });
     }
-  }, [initialLineItems, form, campaignStartDate, campaignEndDate, computeDeliverables, mbaNumber]);
+  }, [initialLineItems, form, campaignStartDate, campaignEndDate, cinemaBurstDeliverables, mbaNumber]);
 
   // Transform form data to API schema format
   useEffect(() => {
@@ -706,7 +713,7 @@ export default function CinemaContainer({
           const fee = feecinema ? (budget / (100 - feecinema)) * feecinema : 0;
           lineFee += fee;
         }
-        lineDeliverables += computeDeliverables(burst, lineItem.buyType, lineItem.budgetIncludesFees);
+        lineDeliverables += cinemaBurstDeliverables(burst, lineItem.buyType, lineItem.budgetIncludesFees);
       });
     
       lineCost = lineMedia + lineFee;
@@ -725,7 +732,7 @@ export default function CinemaContainer({
     });
     
     return { lineItemTotals, overallMedia, overallFee, overallCost };
-  }, [watchedLineItems, feecinema, computeDeliverables]);
+  }, [watchedLineItems, feecinema, cinemaBurstDeliverables]);
   
   // Callback handlers
   const handleLineItemValueChange = useCallback((lineItemIndex: number) => {
@@ -751,7 +758,7 @@ export default function CinemaContainer({
           const fee = feecinema ? (budget / (100 - feecinema)) * feecinema : 0;
           lineFee += fee;
         }
-        lineDeliverables += computeDeliverables(burst, lineItem.buyType, lineItem.budgetIncludesFees);
+        lineDeliverables += cinemaBurstDeliverables(burst, lineItem.buyType, lineItem.budgetIncludesFees);
       });
 
       overallMedia += lineMedia;
@@ -762,7 +769,7 @@ export default function CinemaContainer({
 
     setOverallDeliverables(overallDeliverableCount);
     onTotalMediaChange(overallMedia, overallFee);
-  }, [form, feecinema, onTotalMediaChange, computeDeliverables]);
+  }, [form, feecinema, onTotalMediaChange, cinemaBurstDeliverables]);
 
   const handleBuyTypeChange = useCallback(
     (lineItemIndex: number, value: string) => {
@@ -797,11 +804,11 @@ export default function CinemaContainer({
       budgetIncludesFeesOverride ??
       Boolean(form.getValues(`cinemalineItems.${lineItemIndex}.budgetIncludesFees`));
 
-    const calculatedValue = computeDeliverables(burst, buyType, budgetIncludesFees);
+    const calculatedValue = cinemaBurstDeliverables(burst, buyType, budgetIncludesFees);
 
-    // Only update if the calculated value is actually different to prevent infinite loops
-    const currentValue = form.getValues(`cinemalineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`);
-    if (currentValue !== calculatedValue && !isNaN(calculatedValue)) {
+    const currentValue =
+      Number(form.getValues(`cinemalineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`)) || 0;
+    if (Math.abs(currentValue - calculatedValue) > 1e-6) {
       form.setValue(`cinemalineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`, calculatedValue, {
         shouldValidate: false, // Changed to false to prevent validation loops
         shouldDirty: false,    // Changed to false to prevent dirty state loops
@@ -809,7 +816,7 @@ export default function CinemaContainer({
 
       handleLineItemValueChange(lineItemIndex);
     }
-  }, [form, handleLineItemValueChange, computeDeliverables]);
+  }, [form, handleLineItemValueChange, cinemaBurstDeliverables]);
 
   const handleAppendBurst = useCallback((lineItemIndex: number) => {
     const currentBursts = form.getValues(`cinemalineItems.${lineItemIndex}.bursts`) || [];
@@ -1063,6 +1070,7 @@ useEffect(() => {
         buyType:      lineItem.buyType,
         deliverablesAmount: burst.budget,
         grossMedia: String(mediaAmount),
+        clientPaysForMedia: lineItem.clientPaysForMedia ?? false,
         line_item_id: lineItemId,
         lineItemId: lineItemId,
         line_item: lineNumber,
@@ -1625,7 +1633,7 @@ useEffect(() => {
                                                 }}
                                                 onBlur={(e) => {
                                                   const value = e.target.value;
-                                                  const formattedValue = formatMoney(Number.parseFloat(value) || 0, {
+                                                  const formattedValue = formatMoney(parseMoneyInput(value) ?? 0, {
                                                     locale: "en-US",
                                                     currency: "USD",
                                                   });
@@ -1661,7 +1669,7 @@ useEffect(() => {
                                                 }}
                                                 onBlur={(e) => {
                                                   const value = e.target.value;
-                                                  const formattedValue = formatMoney(Number.parseFloat(value) || 0, {
+                                                  const formattedValue = formatMoney(parseMoneyInput(value) ?? 0, {
                                                     locale: "en-US",
                                                     currency: "USD",
                                                   });
