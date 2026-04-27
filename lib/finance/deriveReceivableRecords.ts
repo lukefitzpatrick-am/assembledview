@@ -120,34 +120,9 @@ export function derivePlanReceivableBillingRecordsForMonth(
       : status === "booked" ? "booked"
       : "draft"
 
-    if (financeMediaLines.length > 0) {
-      const line_items = financeMediaLines.map((li, i) => financeMediaLineToBillingLine(li, i, planLookup))
-      const mediaTotal = Math.round(line_items.reduce((s, li) => s + li.amount, 0) * 100) / 100
-      out.push({
-        id: syntheticId++,
-        billing_type: "media",
-        clients_id,
-        client_name,
-        mba_number: mba || null,
-        campaign_name: campaign,
-        po_number: version.po_number != null ? String(version.po_number) : null,
-        billing_month: billingMonth,
-        invoice_date: invoiceDate,
-        payment_days: paymentDays,
-        payment_terms: paymentTerms,
-        status: recordStatus,
-        line_items,
-        total: mediaTotal,
-        has_pending_edits: false,
-        source_billing_schedule_id: null,
-      })
-    }
-
-    const hasAA = financeMediaLines.some((li) => li.itemCode.startsWith("G."))
-    const hasAM = financeMediaLines.some((li) => li.itemCode.startsWith("D."))
-
+    const mediaLines = financeMediaLines.map((li, i) => financeMediaLineToBillingLine(li, i, planLookup))
     const feeLines: BillingLineItem[] = []
-    let order = 0
+    let order = mediaLines.length
     const pushFee = (item_code: string, description: string, amount: number) => {
       if (amount <= 0) return
       feeLines.push({
@@ -165,15 +140,21 @@ export function derivePlanReceivableBillingRecordsForMonth(
     }
 
     pushFee("T.Adserving", "Adserving and Tech Fees", serviceAmounts.adservingTechFees)
-    if (hasAA) pushFee("G.Production", "Production", serviceAmounts.production)
-    if (hasAM) pushFee("D.Production", "Production", serviceAmounts.production)
+    pushFee("Production", "Production", serviceAmounts.production)
     pushFee("Service", "Assembled Fee", serviceAmounts.assembledFee)
 
-    if (feeLines.length > 0) {
-      const feesTotal = Math.round(feeLines.reduce((s, li) => s + li.amount, 0) * 100) / 100
+    const line_items = [...mediaLines, ...feeLines]
+    if (line_items.length > 0) {
+      const mediaTotal = line_items
+        .filter((li) => li.line_type === "media" && li.client_pays_media !== true)
+        .reduce((s, li) => s + li.amount, 0)
+      const serviceTotal = line_items
+        .filter((li) => li.line_type === "service")
+        .reduce((s, li) => s + li.amount, 0)
+      const total = Math.round((mediaTotal + serviceTotal) * 100) / 100
       out.push({
         id: syntheticId++,
-        billing_type: "sow",
+        billing_type: "media",
         clients_id,
         client_name,
         mba_number: mba || null,
@@ -184,8 +165,8 @@ export function derivePlanReceivableBillingRecordsForMonth(
         payment_days: paymentDays,
         payment_terms: paymentTerms,
         status: recordStatus,
-        line_items: feeLines,
-        total: feesTotal,
+        line_items,
+        total,
         has_pending_edits: false,
         source_billing_schedule_id: null,
       })
