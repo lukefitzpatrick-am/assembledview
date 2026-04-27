@@ -27,7 +27,7 @@ export interface ClientHubSummary {
   brandColour?: string
 }
 
-/** Matches `FinanceModal` `finance` prop when the dashboard supplies a pre-built summary. */
+/** Matches `ClientFinanceSlideOver` `finance` prop when the dashboard supplies a pre-built summary. */
 export type ClientDashboardFinancePayload = {
   totalBudget: number
   ytdSpend: number

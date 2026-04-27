@@ -119,6 +119,12 @@ import {
 } from "@/lib/billing/resetFromAutoReference"
 import { generateMediaPlan, MediaPlanHeader, LineItem, MediaItems } from '@/lib/generateMediaPlan'
 import type { Publisher } from "@/lib/types/publisher"
+// --- KPI domain (Stage 2) ---
+import { KPISection } from "@/components/kpis/KPISection"
+import { resolveAllKPIs } from "@/lib/kpi/resolve"
+import { mergeManualKpiOverrides } from "@/lib/kpi/recalc"
+import { getCampaignKPIs, getClientKPIs, getPublisherKPIs, saveCampaignKPIs } from "@/lib/api/kpi"
+import type { CampaignKPI, ClientKPI, PublisherKPI, ResolvedKPIRow } from "@/lib/kpi/types"
 import {
   advertisingAssociatesFilteredPlanHasLineItems,
   buildAdvertisingAssociatesMbaDataFromMediaItems,
@@ -1725,7 +1731,17 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const [progBvodItems, setProgBvodItems] = useState<LineItem[]>([])
   const [progAudioItems, setProgAudioItems] = useState<LineItem[]>([])
   const [progOohItems, setProgOohItems] = useState<LineItem[]>([])
-  
+
+  // --- KPI state (Stage 2) ---
+  const [kpiRows, setKpiRows] = useState<ResolvedKPIRow[]>([])
+  const [publisherKPIs, setPublisherKPIs] = useState<PublisherKPI[]>([])
+  const [clientKPIs, setClientKPIs] = useState<ClientKPI[]>([])
+  const [savedCampaignKPIs, setSavedCampaignKPIs] = useState<CampaignKPI[]>([])
+  const [isKPILoading, setIsKPILoading] = useState(false)
+  const [kpiTrigger, setKpiTrigger] = useState(0)
+  const kpiRebuildTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const kpiRowsRef = useRef<ResolvedKPIRow[]>([])
+
   // State for transformed line items (for onMediaLineItemsChange callbacks)
   const [televisionMediaLineItems, setTelevisionMediaLineItems] = useState<any[]>([])
   const [radioMediaLineItems, setRadioMediaLineItems] = useState<any[]>([])
@@ -1808,6 +1824,18 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     return () => {
       cancelled = true
     }
+  }, [])
+
+  // --- KPI: load publisher KPIs on mount (Stage 2) ---
+  useEffect(() => {
+    getPublisherKPIs()
+      .then((data) => {
+        setPublisherKPIs(data)
+        setKpiTrigger((t) => t + 1)
+      })
+      .catch((err) => {
+        console.error("[KPI] failed to load publisher KPIs:", err)
+      })
   }, [])
 
   /** True when any included line item maps to a publisher billing via Advertising Associates (same inputs as save-time AA upload check). */
@@ -1918,6 +1946,129 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     })
     return () => subscription.unsubscribe()
   }, [form, markUnsavedChanges])
+
+  // --- KPI: watch form client name, load client KPIs when it changes (Stage 2) ---
+  const kpiClientNameWatch = useWatch({ control: form.control, name: "mp_clientname" })
+  useEffect(() => {
+    if (!kpiClientNameWatch) return
+    getClientKPIs(kpiClientNameWatch)
+      .then((data) => {
+        setClientKPIs(data)
+        setKpiTrigger((t) => t + 1)
+      })
+      .catch((err) => {
+        console.error("[KPI] failed to load client KPIs:", err)
+      })
+  }, [kpiClientNameWatch])
+
+  // --- KPI: load saved campaign KPIs when MBA + version known (Stage 2, edit-specific) ---
+  useEffect(() => {
+    if (!mbaNumber || mbaNumber.trim() === "") return
+    const version = selectedVersionNumber
+    if (version === null || version === undefined) return
+    setIsKPILoading(true)
+    getCampaignKPIs(mbaNumber, version)
+      .then((data) => {
+        setSavedCampaignKPIs(data)
+        setKpiTrigger((t) => t + 1)
+      })
+      .catch((err) => {
+        console.error("[KPI] failed to load saved campaign KPIs:", err)
+        setSavedCampaignKPIs([])
+      })
+      .finally(() => setIsKPILoading(false))
+  }, [mbaNumber, selectedVersionNumber])
+
+  // --- KPI: sync ref with latest rows so merge can read it inside debounced rebuild (Stage 2) ---
+  useEffect(() => {
+    kpiRowsRef.current = kpiRows
+  }, [kpiRows])
+
+  // --- KPI: debounced rebuild effect (Stage 2) ---
+  useEffect(() => {
+    if (kpiRebuildTimerRef.current) clearTimeout(kpiRebuildTimerRef.current)
+    kpiRebuildTimerRef.current = setTimeout(() => {
+      const fv = form.getValues()
+      if (!fv.mp_clientname) return
+
+      if (
+        searchItems.length === 0 &&
+        socialMediaItems.length === 0 &&
+        televisionItems.length === 0 &&
+        progDisplayItems.length === 0
+      ) {
+        // No line items yet — clear KPI rows
+        setKpiRows([])
+        return
+      }
+
+      const resolved = resolveAllKPIs({
+        mediaItemsByType: {
+          search: searchItems,
+          socialMedia: socialMediaItems,
+          progDisplay: progDisplayItems,
+          progVideo: progVideoItems,
+          progBvod: progBvodItems,
+          progAudio: progAudioItems,
+          progOoh: progOohItems,
+          digiDisplay: digitalDisplayItems,
+          digiAudio: digitalAudioItems,
+          digiVideo: digitalVideoItems,
+          bvod: bvodItems,
+          integration: integrationItems,
+          television: televisionItems,
+          radio: radioItems,
+          newspaper: newspaperItems,
+          magazines: magazinesItems,
+          ooh: oohItems,
+          cinema: cinemaItems,
+          influencers: influencersItems,
+          production: consultingItems,
+        },
+        clientName: fv.mp_clientname,
+        mbaNumber: fv.mbanumber ?? mbaNumber ?? "",
+        versionNumber:
+          selectedVersionNumber ?? parseInt(String(fv.mp_plannumber ?? "1"), 10),
+        campaignName: fv.mp_campaignname ?? "",
+        publisherKPIs,
+        clientKPIs,
+        savedCampaignKPIs,
+        publishers: billingPublishers,
+      })
+      setKpiRows(mergeManualKpiOverrides(resolved, kpiRowsRef.current))
+    }, 600)
+    return () => {
+      if (kpiRebuildTimerRef.current) clearTimeout(kpiRebuildTimerRef.current)
+    }
+  }, [
+    searchItems,
+    socialMediaItems,
+    progDisplayItems,
+    progVideoItems,
+    progBvodItems,
+    progAudioItems,
+    progOohItems,
+    digitalDisplayItems,
+    digitalAudioItems,
+    digitalVideoItems,
+    bvodItems,
+    integrationItems,
+    televisionItems,
+    radioItems,
+    newspaperItems,
+    magazinesItems,
+    oohItems,
+    cinemaItems,
+    influencersItems,
+    consultingItems,
+    publisherKPIs,
+    clientKPIs,
+    savedCampaignKPIs,
+    billingPublishers,
+    kpiTrigger,
+    mbaNumber,
+    selectedVersionNumber,
+  ])
 
   useEffect(() => {
     if (!navigationHydratedRef.current) {
@@ -2503,6 +2654,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       setPartialMBALineItemsByMedia({})
       setPartialMBASelectedLineItemIds({})
       setPartialMBAMediaEnabled({})
+
+      // KPI resets (Stage 2)
+      setKpiRows([])
+      setClientKPIs([])
+      setSavedCampaignKPIs([])
+      kpiRowsRef.current = []
 
       // Allow line-item fetch to run again for this MBA/version + enabled-media set
       lastLineItemsLoadKeyRef.current = ""
@@ -4705,6 +4862,13 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     })
   }
 
+  // --- KPI: reset user-saved overrides, fall back to waterfall from publisher + client layers (Stage 2) ---
+  const handleKPIReset = useCallback(() => {
+    setSavedCampaignKPIs([])
+    // clearing savedCampaignKPIs triggers the rebuild effect which re-resolves
+    // from publisher/client tables only
+  }, [])
+
   const handleSaveAll = async () => {
     setIsSaveModalOpen(true)
     setIsSaving(true)
@@ -4891,6 +5055,29 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       setNextSaveVersionNumber(updatedLatest + 1)
       setSelectedVersionNumber(typeof savedVersionNumber === 'string' ? parseInt(savedVersionNumber, 10) : savedVersionNumber)
       const numericSavedVersion = typeof savedVersionNumber === 'string' ? parseInt(savedVersionNumber, 10) : savedVersionNumber
+
+      // --- KPI: save campaign KPIs against the new version (non-blocking) (Stage 2) ---
+      if (kpiRows.length > 0 && typeof numericSavedVersion === "number" && Number.isFinite(numericSavedVersion)) {
+        updateSaveStatus("Campaign KPIs", "pending")
+        const kpiPayload: CampaignKPI[] = kpiRows.map((row) => ({
+          mp_client_name: formValues.mp_clientname,
+          mba_number: mbaNumber,
+          version_number: numericSavedVersion,
+          campaign_name: formValues.mp_campaignname,
+          media_type: row.media_type,
+          publisher: row.publisher,
+          bid_strategy: row.bid_strategy,
+          ctr: row.ctr,
+          cpv: row.cpv,
+          conversion_rate: row.conversion_rate,
+          vtr: row.vtr,
+          frequency: row.frequency,
+        }))
+        saveCampaignKPIs(kpiPayload)
+          .then(() => updateSaveStatus("Campaign KPIs", "success"))
+          .catch((err) => updateSaveStatus("Campaign KPIs", "error", err?.message))
+      }
+
       setAvailableVersions(prev => {
         const existing = prev.some(v => v.version_number === numericSavedVersion)
         const newEntry = {
@@ -5964,6 +6151,31 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     const workbook = await generateMediaPlan(header, mediaItemsForWorkbook, mbaData, {
       mbaTotalsLayout: variant === "aa" ? "aa" : "standard",
     })
+
+    // --- KPI: append KPI sheet to standard variant (Stage 2) ---
+    if (variant === "standard" && kpiRows.length > 0) {
+      const { addKPISheet } = await import("@/lib/generateMediaPlan")
+      addKPISheet(
+        workbook,
+        kpiRows.map((r) => ({
+          mediaType: r.media_type,
+          publisher: r.publisher,
+          label: r.lineItemLabel,
+          buyType: r.buyType,
+          spend: r.spend,
+          deliverables: r.deliverables,
+          ctr: r.ctr,
+          vtr: r.vtr,
+          cpv: r.cpv,
+          conversion_rate: r.conversion_rate,
+          frequency: r.frequency,
+          calculatedClicks: r.calculatedClicks,
+          calculatedViews: r.calculatedViews,
+          calculatedReach: r.calculatedReach,
+        })),
+      )
+    }
+
     const arrayBuffer = (await workbook.xlsx.writeBuffer()) as ArrayBuffer
     const blob = new Blob([arrayBuffer], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -8041,8 +8253,14 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 <div className="border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
                   <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">KPIs</h3>
                 </div>
-                <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-4">
-                  <p className="text-center text-sm text-muted-foreground">Coming soon</p>
+                <div className="px-4 py-3 overflow-x-auto">
+                  <KPISection
+                    kpiRows={kpiRows}
+                    isLoading={isKPILoading}
+                    onKPIChange={setKpiRows}
+                    onSave={setKpiRows}
+                    onReset={handleKPIReset}
+                  />
                 </div>
               </div>
             </div>

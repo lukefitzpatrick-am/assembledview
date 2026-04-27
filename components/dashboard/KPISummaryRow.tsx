@@ -1,4 +1,4 @@
-import { SmallProgressCard } from "@/components/dashboard/pacing/SmallProgressCard"
+import { SmallProgressCard } from "@/components/dashboard/delivery/SmallProgressCard"
 import { cn } from "@/lib/utils"
 
 type MetricFormat = "currency" | "number" | "percent"

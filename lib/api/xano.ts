@@ -53,3 +53,18 @@ export function parseXanoListPayload(payload: unknown): any[] {
   }
   return []
 }
+
+export function xanoAuthHeaders(): HeadersInit {
+  return {
+    Accept: "application/json",
+    ...(process.env.XANO_API_KEY ? { Authorization: `Bearer ${process.env.XANO_API_KEY}` } : {}),
+  }
+}
+
+export function xanoPostHeaders(): HeadersInit {
+  return {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+    ...(process.env.XANO_API_KEY ? { Authorization: `Bearer ${process.env.XANO_API_KEY}` } : {}),
+  }
+}

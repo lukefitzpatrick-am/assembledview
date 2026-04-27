@@ -1,18 +1,21 @@
 "use client"
 
-import { Component, type ErrorInfo, type ReactNode, Suspense, useMemo, useState } from "react"
+import { Component, type ErrorInfo, type ReactNode, Suspense, useEffect, useMemo, useState } from "react"
+import type { CampaignKPI } from "@/lib/kpi/types"
+import { getCampaignKPIs } from "@/lib/api/kpi"
+import { buildKPITargetsMap, type KPITargetsMap } from "@/lib/kpi/deliveryTargets"
 
 import CampaignHeroBanner from "@/components/dashboard/campaign/CampaignHeroBanner"
 import CampaignSummaryRow from "@/components/dashboard/campaign/CampaignSummaryRow"
 import SpendChartsRow from "@/components/dashboard/campaign/SpendChartsRow"
 import MediaPlanVizSection from "@/components/dashboard/campaign/MediaPlanVizSection"
 import CampaignDetailsModal from "@/components/dashboard/campaign/CampaignDetailsModal"
-import PacingSection from "@/components/dashboard/pacing/PacingSection"
+import DeliverySection from "@/components/dashboard/delivery/DeliverySection"
 import AdminDateRangeSelector from "./AdminDateRangeSelector"
 import CampaignActions from "./CampaignActions"
-import SocialPacingContainer from "@/components/dashboard/pacing/social/SocialPacingContainer"
-import SearchPacingContainer from "@/components/dashboard/pacing/search/SearchPacingContainer"
-import ProgrammaticPacingContainer from "@/components/dashboard/pacing/programmatic/ProgrammaticPacingContainer"
+import SocialDeliveryContainer from "@/components/dashboard/delivery/social/SocialDeliveryContainer"
+import SearchDeliveryContainer from "@/components/dashboard/delivery/search/SearchDeliveryContainer"
+import ProgrammaticDeliveryContainer from "@/components/dashboard/delivery/programmatic/ProgrammaticDeliveryContainer"
 
 type SectionBoundaryProps = {
   title: string
@@ -72,7 +75,7 @@ function MediaPlanVizSectionSkeleton() {
   return <div className="h-[520px] w-full rounded-2xl skeleton-shimmer" />
 }
 
-function PacingSectionSkeleton() {
+function DeliverySectionSkeleton() {
   return <div className="h-[520px] w-full rounded-2xl skeleton-shimmer" />
 }
 
@@ -99,14 +102,14 @@ type CampaignPageAssemblyProps = {
   xanoFileOrigin: string
   mediaPlanFileMeta: any
   mbaPdfFileMeta: any
-  showPacingSection: boolean
+  showDeliverySection: boolean
   socialItemsActive: any[]
   searchItemsActive: any[]
   searchLineItemIds: string[]
   mpSearchEnabled: boolean
   progDisplayItemsActive: any[]
   progVideoItemsActive: any[]
-  pacingLineItemIds: string[]
+  deliveryLineItemIds: string[]
 }
 
 export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
@@ -134,15 +137,46 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
     xanoFileOrigin,
     mediaPlanFileMeta,
     mbaPdfFileMeta,
-    showPacingSection,
+    showDeliverySection,
     socialItemsActive,
     searchItemsActive,
     searchLineItemIds,
     mpSearchEnabled,
     progDisplayItemsActive,
     progVideoItemsActive,
-    pacingLineItemIds,
+    deliveryLineItemIds,
   } = props
+
+  // --- KPI targets for delivery containers (Stage 3b) ---
+  const [savedCampaignKPIs, setSavedCampaignKPIs] = useState<CampaignKPI[]>([])
+  const kpiVersionNumber: number = (() => {
+    const raw =
+      (campaign?.version_number as number | string | undefined) ??
+      (campaign?.mp_plannumber as number | string | undefined) ??
+      (campaign?.versionNumber as number | string | undefined)
+    const n = typeof raw === "number" ? raw : Number(raw)
+    return Number.isFinite(n) && n > 0 ? n : 1
+  })()
+
+  useEffect(() => {
+    let cancelled = false
+    if (!mbaNumber) return
+    getCampaignKPIs(mbaNumber, kpiVersionNumber)
+      .then((data) => {
+        if (!cancelled) setSavedCampaignKPIs(data)
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          console.error("[Delivery KPIs] failed to load saved campaign KPIs:", err)
+          setSavedCampaignKPIs([])
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [mbaNumber, kpiVersionNumber])
+
+  const kpiTargets: KPITargetsMap = buildKPITargetsMap(savedCampaignKPIs)
 
   const summaryMetrics = useMemo(() => {
     const deliverablesTotal = Number(metrics?.totalDeliverables ?? metrics?.deliverablesToDate ?? 0)
@@ -284,12 +318,12 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
         </SectionBoundary>
       </section>
 
-      {showPacingSection ? (
+      {showDeliverySection ? (
         <section className="mt-8">
-          <SectionBoundary title="Live pacing">
-            <Suspense fallback={<PacingSectionSkeleton />}>
+          <SectionBoundary title="Delivery">
+            <Suspense fallback={<DeliverySectionSkeleton />}>
               <div className="campaign-section-enter" style={{ animationDelay: "400ms" }}>
-              <PacingSection
+              <DeliverySection
                 summary={summaryMetrics}
                 lastUpdated={new Date()}
                 onRefresh={() => window.location.reload()}
@@ -298,32 +332,34 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
                 platformSlots={{
                   social:
                     socialItemsActive.length > 0 && startDate && endDate ? (
-                      <SocialPacingContainer
+                      <SocialDeliveryContainer
                         clientSlug={slug}
                         mbaNumber={mbaNumber}
                         socialLineItems={socialItemsActive}
                         campaignStart={startDate}
                         campaignEnd={endDate}
                         initialPacingRows={undefined}
-                        pacingLineItemIds={pacingLineItemIds}
+                        deliveryLineItemIds={deliveryLineItemIds}
+                        kpiTargets={kpiTargets}
                       />
                     ) : null,
                   search:
                     mpSearchEnabled && searchLineItemIds.length > 0 && startDate && endDate ? (
-                      <SearchPacingContainer
+                      <SearchDeliveryContainer
                         clientSlug={slug}
                         mbaNumber={mbaNumber}
                         lineItemIds={searchLineItemIds}
                         searchLineItems={searchItemsActive}
                         campaignStart={startDate}
                         campaignEnd={endDate}
+                        kpiTargets={kpiTargets}
                       />
                     ) : null,
                   programmatic:
                     (progDisplayItemsActive.length > 0 || progVideoItemsActive.length > 0) &&
                     startDate &&
                     endDate ? (
-                      <ProgrammaticPacingContainer
+                      <ProgrammaticDeliveryContainer
                         clientSlug={slug}
                         mbaNumber={mbaNumber}
                         progDisplayLineItems={progDisplayItemsActive}
@@ -331,7 +367,8 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
                         campaignStart={startDate}
                         campaignEnd={endDate}
                         initialPacingRows={undefined}
-                        pacingLineItemIds={pacingLineItemIds}
+                        deliveryLineItemIds={deliveryLineItemIds}
+                        kpiTargets={kpiTargets}
                       />
                     ) : null,
                 }}

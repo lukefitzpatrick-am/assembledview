@@ -1,5 +1,6 @@
 /**
- * AVA Phase 1: Claude-powered chat route. Runs in parallel with /api/chat. Gated by AVA_ENGINE env var and admin role. Do not delete /api/chat until Phase 1 validation is complete.
+ * Canonical AVA chat API: OpenAI (GPT) when `engine: "openai"`, else Claude (when enabled).
+ * Former `/api/chat` OpenAI logic lives in `@/lib/ava/openAvaGptHandler`.
  */
 
 import { NextRequest, NextResponse } from "next/server"
@@ -14,6 +15,11 @@ import {
   type PageContext,
 } from "@/lib/openai"
 import { runAvaAgent } from "@/lib/ava/agentLoop"
+import {
+  avaGptErrorResponse,
+  handleOpenAvaGptChat,
+  isAvaGptValidationError,
+} from "@/lib/ava/openAvaGptHandler"
 import type { AvaToolContext } from "@/lib/ava/tools/types"
 
 export const runtime = "nodejs"
@@ -26,6 +32,8 @@ type ChatRequestBody = {
   messages?: ChatCompletionMessageParam[]
   pageContext?: PageContext
   mode?: ChatMode
+  /** `openai` = legacy GPT path; `claude` = Anthropic (default for backwards compat) */
+  engine?: "openai" | "claude"
 }
 
 export async function POST(req: NextRequest) {
@@ -44,6 +52,29 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "AVA is available to Admin users only." }, { status: 403 })
     }
 
+    const body = ((await req.json()) ?? {}) as ChatRequestBody
+    const engine = body.engine === "openai" ? "openai" : "claude"
+
+    if (engine === "openai") {
+      if (!Array.isArray(body.messages)) {
+        return NextResponse.json({ error: "'messages' must be an array" }, { status: 400 })
+      }
+      try {
+        return await handleOpenAvaGptChat(roles, {
+          messages: body.messages,
+          pageContext: body.pageContext,
+          mode: body.mode,
+        })
+      } catch (error) {
+        console.error("[AVA openai]", error)
+        if (isAvaGptValidationError(error)) {
+          return avaGptErrorResponse(error)
+        }
+        const message = error instanceof Error ? error.message : "Unknown error"
+        return NextResponse.json({ error: message }, { status: 500 })
+      }
+    }
+
     if (process.env.AVA_ENGINE !== "claude") {
       return NextResponse.json(
         { error: "AVA Claude engine is not enabled on this deployment." },
@@ -51,7 +82,6 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const body = ((await req.json()) ?? {}) as ChatRequestBody
     if (!Array.isArray(body.messages)) {
       throw new ValidationError("'messages' must be an array")
     }

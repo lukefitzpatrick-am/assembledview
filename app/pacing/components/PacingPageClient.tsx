@@ -25,8 +25,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { createSavedPacingViewAction, deleteSavedPacingViewAction, updateSavedPacingViewAction } from "@/app/pacing/actions"
 import type { SavedPacingView } from "@/lib/xano/savedViews"
 import type { PacingRow as CombinedPacingRow } from "@/lib/snowflake/pacing-service"
-import SocialPacingContainer from "@/components/dashboard/pacing/social/SocialPacingContainer"
-import ProgrammaticPacingContainer from "@/components/dashboard/pacing/programmatic/ProgrammaticPacingContainer"
+import SocialDeliveryContainer from "@/components/dashboard/delivery/social/SocialDeliveryContainer"
+import ProgrammaticDeliveryContainer from "@/components/dashboard/delivery/programmatic/ProgrammaticDeliveryContainer"
 import { FolderOpen, ListFilter, RefreshCw, Save, Trash2, TrendingUp } from "lucide-react"
 
 type DateWindowKey = "LAST_30" | "LAST_60" | "LAST_90" | "CAMPAIGN_DATES"
@@ -955,17 +955,18 @@ export default function PacingPageClient({
 
               {drawerLineItemProps.campaignStart && drawerLineItemProps.campaignEnd ? (
                 selectedLineItem.channelGroup === "social" ? (
-                  <SocialPacingContainer
+                  <SocialDeliveryContainer
                     clientSlug={selectedLineItem.clientSlug}
                     mbaNumber={selectedLineItem.mbaNumber}
                     socialLineItems={[drawerLineItemProps.socialLineItem as any]}
                     campaignStart={drawerLineItemProps.campaignStart}
                     campaignEnd={drawerLineItemProps.campaignEnd}
                     initialPacingRows={initialPacingRowsForDrawer}
-                    pacingLineItemIds={[selectedLineItem.lineItemId]}
+                    deliveryLineItemIds={[selectedLineItem.lineItemId]}
+                    clientFacingLabels={false}
                   />
                 ) : (
-                  <ProgrammaticPacingContainer
+                  <ProgrammaticDeliveryContainer
                     clientSlug={selectedLineItem.clientSlug}
                     mbaNumber={selectedLineItem.mbaNumber}
                     progDisplayLineItems={
@@ -981,7 +982,8 @@ export default function PacingPageClient({
                     campaignStart={drawerLineItemProps.campaignStart}
                     campaignEnd={drawerLineItemProps.campaignEnd}
                     initialPacingRows={initialPacingRowsForDrawer}
-                    pacingLineItemIds={[selectedLineItem.lineItemId]}
+                    deliveryLineItemIds={[selectedLineItem.lineItemId]}
+                    clientFacingLabels={false}
                   />
                 )
               ) : (

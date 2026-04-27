@@ -1,4 +1,4 @@
-import { MEDIA_TYPE_OPTIONS as ALL_MEDIA_TYPE_OPTIONS } from "@/lib/types/clientKpi"
+import { MEDIA_TYPE_OPTIONS as ALL_MEDIA_TYPE_OPTIONS } from "@/lib/kpi/types"
 import type { Publisher } from "@/lib/types/publisher"
 
 /** Maps `MEDIA_TYPE_OPTIONS[].value` to the publisher `pub_*` flag that must be true. */

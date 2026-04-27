@@ -1,4 +1,4 @@
-import type { CampaignKPI, ClientKPI, PublisherKPI } from "@/types/kpi"
+import type { CampaignKPI, ClientKPI, PublisherKPI } from "@/lib/kpi/types"
 
 async function jsonOrThrow<T>(response: Response): Promise<T> {
   if (!response.ok) {
@@ -18,7 +18,7 @@ export async function getPublisherKPIs(): Promise<PublisherKPI[]> {
 
 export async function getClientKPIs(clientName: string): Promise<ClientKPI[]> {
   const params = new URLSearchParams()
-  params.set("clientName", clientName)
+  params.set("mp_client_name", clientName)
   const response = await fetch(`/api/kpis/client?${params.toString()}`, {
     headers: { Accept: "application/json" },
   })
