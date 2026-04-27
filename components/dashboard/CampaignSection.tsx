@@ -17,7 +17,7 @@ export interface Campaign {
   mbaNumber: string
   status: "live" | "planned" | "completed" | "paused" | "booked" | "approved" | string
   mediaTypes: string[]
-  spentAmount: number
+  spentAmount: number | null
   totalBudget: number
   /** Optional override for campaign dashboard URL; defaults to `/dashboard/{slug}/{mbaNumber}`. */
   href?: string

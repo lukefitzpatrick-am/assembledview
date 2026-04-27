@@ -31,7 +31,7 @@ type DashboardCampaign = {
   mbaNumber: string
   status: CampaignStatus | "paused"
   mediaTypes: string[]
-  spentAmount: number
+  spentAmount: number | null
   totalBudget: number
   launchDate?: string
   href: string
@@ -62,7 +62,7 @@ function toDashboardCampaign(slug: string, mode: CampaignLinkMode, campaign: Leg
       ? campaign.expectedSpendToDate
       : normalizeCampaignStatus(campaign.status) === "completed"
         ? campaign.budget
-        : campaign.budget * 0.72
+        : null
   const canEdit = mode === "admin" || mode === "adminHub"
   return {
     id: `${campaign.mbaNumber}-${campaign.version_number}`,
@@ -130,7 +130,10 @@ export function ClientDashboardPageContent({
   )
 
   const totalBudget = useMemo(() => allCampaigns.reduce((sum, campaign) => sum + campaign.totalBudget, 0), [allCampaigns])
-  const totalSpent = useMemo(() => allCampaigns.reduce((sum, campaign) => sum + campaign.spentAmount, 0), [allCampaigns])
+  const totalSpent = useMemo(
+    () => allCampaigns.reduce((sum, campaign) => sum + (campaign.spentAmount ?? 0), 0),
+    [allCampaigns]
+  )
 
   const isClientHub = campaignLinkMode === "adminHub"
   const { campaignsYtdCount, campaignsYtdCaption } = useMemo(() => {
@@ -155,38 +158,18 @@ export function ClientDashboardPageContent({
     }
   }, [allCampaigns, isClientHub])
 
+  /** Fallback when API omits `finance` (`getClientDashboardData` does not populate it yet). No fabricated quarters/transactions. */
   const financeData = {
     totalBudget,
     ytdSpend: totalSpent,
-    currency: "USD",
-    budgetByQuarter: [
-      { quarter: "Q1 2026", budget: totalBudget * 0.25, spent: totalSpent * 0.3, status: "complete" as const },
-      { quarter: "Q2 2026", budget: totalBudget * 0.25, spent: totalSpent * 0.28, status: "in-progress" as const },
-      { quarter: "Q3 2026", budget: totalBudget * 0.25, spent: totalSpent * 0.2, status: "planned" as const },
-      { quarter: "Q4 2026", budget: totalBudget * 0.25, spent: totalSpent * 0.1, status: "planned" as const },
-    ],
+    currency: "AUD",
+    budgetByQuarter: [],
     spendByMediaType: clientData.spendByMediaType.map((m) => ({
       mediaType: m.mediaType,
       amount: m.amount,
       percentage: m.percentage,
     })),
-    recentTransactions: allCampaigns.slice(0, 8).map((campaign, idx) => ({
-      id: `${campaign.id}-txn`,
-      description: `${campaign.name} media placement`,
-      date: campaign.launchDate || new Date().toISOString(),
-      amount: idx % 5 === 0 ? campaign.spentAmount * 0.04 : -campaign.spentAmount * 0.07,
-      type: idx % 5 === 0 ? ("credit" as const) : ("expense" as const),
-    })),
-  }
-
-  const kpiData = {
-    overallPerformance: 12.4,
-    metrics: {
-      roas: { value: 3.2, trend: 8.2, benchmark: 2.9 },
-      cpm: { value: 21.4, trend: -4.1, benchmark: 23.0 },
-      ctr: { value: 1.9, trend: 3.4, benchmark: 1.7 },
-      cpa: { value: 44.3, trend: -2.8, benchmark: 47.8 },
-    },
+    recentTransactions: [],
   }
 
   const loadingFallback = <ChartSkeleton />
@@ -221,14 +204,13 @@ export function ClientDashboardPageContent({
         className="mx-auto w-full max-w-[1800px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8 xl:px-12 2xl:px-16"
       >
         <motion.section variants={sectionVariants} className="w-full">
+          {/* HeroBanner: averageRoas / performanceVsBenchmark omitted (fabricated); restore with real KPI aggregation (Domain 10). */}
           <HeroBanner
             clientName={headerDescription ? `${clientData.clientName}` : clientData.clientName}
             clientLogo={clientData.clientLogo ?? undefined}
             brandColour={clientData.brandColour}
             totalSpend={clientData.totalSpend}
             activeCampaigns={statusCounts.live}
-            averageRoas={kpiData.metrics.roas.value}
-            performanceVsBenchmark={kpiData.overallPerformance}
             onOpenDetails={() => setDetailsModalOpen(true)}
             onOpenFinance={() => setFinanceModalOpen(true)}
             onOpenKPIs={() => setKpisModalOpen(true)}
@@ -238,13 +220,12 @@ export function ClientDashboardPageContent({
         </motion.section>
 
         <motion.section variants={sectionVariants} className="mt-6 w-full lg:mt-8">
+          {/* HeroKPIBar: averageRoas / roasTrend omitted (fabricated); restore with real KPI aggregation (Domain 10). */}
           <HeroKPIBar
             totalSpend={clientData.totalSpend}
             totalBudget={totalBudget}
             liveCampaigns={statusCounts.live}
             plannedCampaigns={statusCounts.planned}
-            averageRoas={kpiData.metrics.roas.value}
-            roasTrend={kpiData.metrics.roas.trend}
             budgetUtilized={totalBudget > 0 ? (totalSpent / totalBudget) * 100 : 0}
             campaignsYtd={isClientHub ? campaignsYtdCount : undefined}
             campaignsYtdCaption={isClientHub ? campaignsYtdCaption : undefined}

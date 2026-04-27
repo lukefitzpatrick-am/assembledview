@@ -3,6 +3,8 @@
 import Link from "next/link"
 import { CalendarDays, Clock3 } from "lucide-react"
 
+import { formatCurrencyCompact } from "@/lib/format/currency"
+
 export interface UpcomingCampaignItem {
   id: string
   name: string
@@ -22,15 +24,6 @@ function formatLaunchDate(value?: string): string {
   const parsed = new Date(value)
   if (Number.isNaN(parsed.getTime())) return value
   return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(parsed)
-}
-
-function compactCurrency(value: number): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(value)
 }
 
 export function UpcomingCampaignsSection({
@@ -69,7 +62,7 @@ export function UpcomingCampaignsSection({
                   <Clock3 className="h-3.5 w-3.5" />
                   {formatLaunchDate(campaign.launchDate)}
                 </p>
-                <p className="mt-1 text-xs text-muted-foreground">Budget {compactCurrency(campaign.totalBudget)}</p>
+                <p className="mt-1 text-xs text-muted-foreground">Budget {formatCurrencyCompact(campaign.totalBudget)}</p>
               </div>
             </Link>
           ))}

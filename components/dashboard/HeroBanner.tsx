@@ -5,6 +5,7 @@ import { BarChart3, DollarSign, FileText } from "lucide-react"
 
 import { PageHeroShell } from "@/components/dashboard/PageHeroShell"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { formatCurrencyCompact } from "@/lib/format/currency"
 import { cn, hexToRgba } from "@/lib/utils"
 
 export interface HeroBannerProps {
@@ -13,8 +14,8 @@ export interface HeroBannerProps {
   brandColour?: string
   totalSpend: number
   activeCampaigns: number
-  averageRoas: number
-  performanceVsBenchmark: number
+  averageRoas?: number
+  performanceVsBenchmark?: number
   onOpenDetails: () => void
   onOpenFinance: () => void
   onOpenKPIs: () => void
@@ -28,15 +29,6 @@ function getClientInitials(clientName: string): string {
   if (!parts.length) return "?"
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
   return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
-}
-
-function formatCompactCurrency(value: number): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(value)
 }
 
 function formatRoas(value: number): string {
@@ -119,7 +111,7 @@ export function HeroBanner({
               <h1 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl xl:text-4xl">
                 Welcome back, {clientName}
               </h1>
-              {showBenchmarkLine ? (
+              {showBenchmarkLine && typeof performanceVsBenchmark === "number" ? (
                 <p
                   className={cn(
                     "text-sm font-medium md:text-base",
@@ -133,13 +125,13 @@ export function HeroBanner({
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
                 <span className="inline-flex items-center gap-1.5">
                   <span className="h-2 w-2 rounded-full" style={{ backgroundColor: brandColour }} aria-hidden />
-                  Total spend: {formatCompactCurrency(totalSpend)}
+                  Total spend: {formatCurrencyCompact(totalSpend)}
                 </span>
                 <span aria-hidden className="text-border">
                   •
                 </span>
                 <span>{activeCampaigns} active campaigns</span>
-                {showBenchmarkLine ? (
+                {showBenchmarkLine && typeof averageRoas === "number" ? (
                   <>
                     <span aria-hidden className="text-border">
                       •

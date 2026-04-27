@@ -67,8 +67,12 @@ function SectionHeader({ title }: { title: string }) {
   return <h3 className="mb-3 text-sm font-medium uppercase tracking-wide text-muted-foreground">{title}</h3>
 }
 
+function formatLocaleForCurrency(currency: string): string {
+  return currency === "AUD" ? "en-AU" : "en-US"
+}
+
 function compactCurrency(value: number, currency: string): string {
-  return new Intl.NumberFormat("en-US", {
+  return new Intl.NumberFormat(formatLocaleForCurrency(currency), {
     style: "currency",
     currency,
     notation: "compact",
@@ -77,7 +81,7 @@ function compactCurrency(value: number, currency: string): string {
 }
 
 function fullCurrency(value: number, currency: string): string {
-  return new Intl.NumberFormat("en-US", {
+  return new Intl.NumberFormat(formatLocaleForCurrency(currency), {
     style: "currency",
     currency,
     maximumFractionDigits: 0,
@@ -166,34 +170,40 @@ export function FinanceModal({
 
             <section>
               <SectionHeader title="Budget Allocation" />
-              <div className="space-y-3">
-                {finance.budgetByQuarter.map((quarter) => {
-                  const pct = quarter.budget > 0 ? Math.min(100, Math.max(0, (quarter.spent / quarter.budget) * 100)) : 0
-                  const isOverBudget = quarter.spent > quarter.budget && quarter.status !== "planned"
+              {finance.budgetByQuarter.length === 0 ? (
+                <p className="rounded-lg border border-dashed border-border/70 bg-muted/20 px-4 py-6 text-sm text-muted-foreground">
+                  Quarterly breakdown coming soon
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {finance.budgetByQuarter.map((quarter) => {
+                    const pct = quarter.budget > 0 ? Math.min(100, Math.max(0, (quarter.spent / quarter.budget) * 100)) : 0
+                    const isOverBudget = quarter.spent > quarter.budget && quarter.status !== "planned"
 
-                  return (
-                    <article key={quarter.quarter} className="rounded-lg bg-muted/50 p-4">
-                      <div className="mb-2 flex items-center justify-between gap-3">
-                        <p className="text-sm font-medium text-foreground">{quarter.quarter}</p>
-                        <p className="text-sm text-muted-foreground">{compactCurrency(quarter.budget, finance.currency)}</p>
-                      </div>
-                      <div className="h-2 overflow-hidden rounded-full bg-muted">
-                        <div
-                          className={cn("h-full rounded-full transition-all duration-500", quarterProgressClass(quarter.status, isOverBudget))}
-                          style={{ width: `${pct}%` }}
-                          aria-hidden
-                        />
-                      </div>
-                      <div className="mt-2 flex items-center justify-between">
-                        <p className={cn("text-xs", isOverBudget ? "text-rose-600" : "text-muted-foreground")}>
-                          {quarterStatusText(quarter.status, quarter.spent, quarter.budget, finance.currency, isOverBudget)}
-                        </p>
-                        {isOverBudget ? <AlertTriangle className="h-4 w-4 text-rose-600" aria-hidden /> : null}
-                      </div>
-                    </article>
-                  )
-                })}
-              </div>
+                    return (
+                      <article key={quarter.quarter} className="rounded-lg bg-muted/50 p-4">
+                        <div className="mb-2 flex items-center justify-between gap-3">
+                          <p className="text-sm font-medium text-foreground">{quarter.quarter}</p>
+                          <p className="text-sm text-muted-foreground">{compactCurrency(quarter.budget, finance.currency)}</p>
+                        </div>
+                        <div className="h-2 overflow-hidden rounded-full bg-muted">
+                          <div
+                            className={cn("h-full rounded-full transition-all duration-500", quarterProgressClass(quarter.status, isOverBudget))}
+                            style={{ width: `${pct}%` }}
+                            aria-hidden
+                          />
+                        </div>
+                        <div className="mt-2 flex items-center justify-between">
+                          <p className={cn("text-xs", isOverBudget ? "text-rose-600" : "text-muted-foreground")}>
+                            {quarterStatusText(quarter.status, quarter.spent, quarter.budget, finance.currency, isOverBudget)}
+                          </p>
+                          {isOverBudget ? <AlertTriangle className="h-4 w-4 text-rose-600" aria-hidden /> : null}
+                        </div>
+                      </article>
+                    )
+                  })}
+                </div>
+              )}
             </section>
 
             <Separator />
@@ -270,7 +280,9 @@ export function FinanceModal({
                         })}
                       </div>
                     ) : (
-                      <div className="px-4 py-6 text-sm text-muted-foreground">No recent transactions available.</div>
+                      <div className="px-4 py-6 text-sm text-muted-foreground">
+                        Recent transactions will appear once billing data is connected.
+                      </div>
                     )}
                   </div>
                   <button

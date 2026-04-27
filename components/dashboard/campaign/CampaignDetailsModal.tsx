@@ -43,8 +43,8 @@ export interface CampaignDetailsModalProps {
   lineItemCounts?: Record<string, number>
 }
 
-function formatCurrency(value: number | undefined, currency = "USD"): string {
-  return new Intl.NumberFormat("en-US", {
+function formatCurrency(value: number | undefined, currency = "AUD"): string {
+  return new Intl.NumberFormat("en-AU", {
     style: "currency",
     currency,
     maximumFractionDigits: 0,

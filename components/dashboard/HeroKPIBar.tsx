@@ -8,6 +8,7 @@ import {
   clampBudgetUtilizationPct,
   getBudgetUtilizationKpiTone,
 } from "@/lib/dashboard/budgetUtilKpi"
+import { formatCurrencyCompact } from "@/lib/format/currency"
 import { cn } from "@/lib/utils"
 
 export interface HeroKPIBarProps {
@@ -15,22 +16,13 @@ export interface HeroKPIBarProps {
   totalBudget: number
   liveCampaigns: number
   plannedCampaigns: number
-  averageRoas: number
+  averageRoas?: number
   roasTrend?: number
   budgetUtilized: number
   /** When set, replaces the Avg. ROAS card (client hub). */
   campaignsYtd?: number
   /** Subtitle under the YTD campaigns count. */
   campaignsYtdCaption?: string
-}
-
-function formatCompactCurrency(value: number): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(value)
 }
 
 function formatNumber(value: number): string {
@@ -87,7 +79,8 @@ export function HeroKPIBar({
   const budgetTone = getBudgetUtilizationKpiTone(normalizedBudgetUtilized)
   const animatedSpend = useCountUp(totalSpend, 1000)
   const animatedLive = useCountUp(liveCampaigns, 1000)
-  const animatedRoas = useCountUp(averageRoas, 1000)
+  const roasTarget = typeof averageRoas === "number" ? averageRoas : 0
+  const animatedRoas = useCountUp(roasTarget, 1000)
   const ytdTarget = typeof campaignsYtd === "number" ? campaignsYtd : 0
   const animatedCampaignsYtd = useCountUp(ytdTarget, 1000)
   const animatedBudgetPct = useCountUp(normalizedBudgetUtilized, 1000)
@@ -102,8 +95,8 @@ export function HeroKPIBar({
     <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
       <article className="rounded-xl border border-border/60 bg-card p-4">
         <p className="text-xs uppercase tracking-wide text-muted-foreground">Total Spend</p>
-        <p className="mt-2 text-2xl font-semibold text-foreground">{formatCompactCurrency(animatedSpend)}</p>
-        <p className="mt-1 text-xs text-muted-foreground">of {formatCompactCurrency(totalBudget)} budget</p>
+        <p className="mt-2 text-2xl font-semibold text-foreground">{formatCurrencyCompact(animatedSpend)}</p>
+        <p className="mt-1 text-xs text-muted-foreground">of {formatCurrencyCompact(totalBudget)} budget</p>
       </article>
 
       <article className="rounded-xl border border-border/60 bg-card p-4">
@@ -123,7 +116,7 @@ export function HeroKPIBar({
               <p className="mt-1 text-xs text-muted-foreground">{campaignsYtdCaption}</p>
             ) : null}
           </>
-        ) : (
+        ) : typeof averageRoas === "number" ? (
           <>
             <p className="text-xs uppercase tracking-wide text-muted-foreground">Avg. ROAS</p>
             <div className="mt-2 flex items-center gap-2">
@@ -140,6 +133,12 @@ export function HeroKPIBar({
                 </div>
               ) : null}
             </div>
+          </>
+        ) : (
+          <>
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Avg. ROAS</p>
+            <p className="mt-2 text-2xl font-semibold text-muted-foreground">—</p>
+            <p className="mt-1 text-xs text-muted-foreground">Pending KPI data</p>
           </>
         )}
       </article>

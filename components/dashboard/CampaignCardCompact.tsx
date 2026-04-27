@@ -22,7 +22,7 @@ export interface CampaignCardCompactProps {
   mbaNumber: string
   status: "live" | "planned" | "completed" | "paused"
   mediaTypes: string[]
-  spentAmount: number
+  spentAmount: number | null
   totalBudget: number
   /** Campaign dashboard (read) URL, e.g. `/dashboard/{slug}/{mbaNumber}` */
   href: string
@@ -99,7 +99,8 @@ export function CampaignCardCompact({
 }: CampaignCardCompactProps) {
   const shouldReduceMotion = useReducedMotion()
   const { toast } = useToast()
-  const progressPct = totalBudget > 0 ? clamp((spentAmount / totalBudget) * 100, 0, 100) : 0
+  const progressPct =
+    spentAmount !== null && totalBudget > 0 ? clamp((spentAmount / totalBudget) * 100, 0, 100) : 0
   const statusTone = statusMap[status]
   const visibleTags = mediaTypes.slice(0, 3)
   const hiddenTagCount = Math.max(0, mediaTypes.length - visibleTags.length)
@@ -264,7 +265,17 @@ export function CampaignCardCompact({
 
         <div className="mt-2 flex items-center justify-between">
           <p className="text-xs text-muted-foreground">
-            {formatCurrencyCompact(spentAmount)} / {formatCurrencyCompact(totalBudget)}
+            {spentAmount === null ? (
+              <>
+                <span className="text-muted-foreground">Spend pending</span>
+                {" / "}
+                {formatCurrencyCompact(totalBudget)}
+              </>
+            ) : (
+              <>
+                {formatCurrencyCompact(spentAmount)} / {formatCurrencyCompact(totalBudget)}
+              </>
+            )}
           </p>
           <p className="text-xs font-medium text-foreground">{Math.round(progressPct).toLocaleString("en-US")}%</p>
         </div>
