@@ -201,7 +201,7 @@ export async function GET(request: NextRequest) {
 
     const derived: BillingRecord[] = []
 
-    if (wantMedia || wantSow) {
+    if (wantMedia) {
       const fromPlans = derivePlanReceivableBillingRecordsForMonth(
         relevantVersions,
         year,
@@ -210,11 +210,7 @@ export async function GET(request: NextRequest) {
         clientMap,
         { includeNonBookedCampaigns: includeNonBooked }
       )
-      for (const rec of fromPlans) {
-        if (rec.billing_type === "media" && !wantMedia) continue
-        if (rec.billing_type === "sow" && !wantSow) continue
-        derived.push(rec)
-      }
+      derived.push(...fromPlans)
     }
 
     if (wantSow) {
