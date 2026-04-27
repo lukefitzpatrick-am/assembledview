@@ -5,14 +5,21 @@ import { AlertCircle, BarChart3, Target } from "lucide-react"
 import { ClientKpiSection } from "@/components/dashboard/ClientKpiSection"
 import { SlideOver } from "@/components/ui/SlideOver"
 
-export interface KPIsModalProps {
+export interface ClientKpiSlideOverProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   urlSlug: string
   clientName: string
+  brandColour?: string
 }
 
-export function KPIsModal({ open, onOpenChange, urlSlug, clientName }: KPIsModalProps) {
+export function ClientKpiSlideOver({
+  open,
+  onOpenChange,
+  urlSlug,
+  clientName,
+  brandColour,
+}: ClientKpiSlideOverProps) {
   const hasSlug = Boolean(urlSlug?.trim())
   const hasClientName = Boolean(clientName?.trim())
 
@@ -25,7 +32,17 @@ export function KPIsModal({ open, onOpenChange, urlSlug, clientName }: KPIsModal
       contentClassName="sm:max-w-[63rem]"
     >
       <div className="flex min-h-0 flex-1 flex-col">
-        <div className="h-1 w-full bg-gradient-to-r from-emerald-500/60 via-emerald-500 to-emerald-500/60" />
+        <div
+          className="h-1 w-full"
+          style={{
+            background: brandColour
+              ? `linear-gradient(to right, ${brandColour}99, ${brandColour}, ${brandColour}99)`
+              : undefined,
+          }}
+        />
+        {!brandColour && (
+          <div className="h-1 w-full bg-gradient-to-r from-primary/60 via-primary to-primary/60" />
+        )}
 
         <div className="min-h-0 flex-1 overflow-y-auto">
           {hasSlug && hasClientName ? (

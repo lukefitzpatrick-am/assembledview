@@ -21,7 +21,7 @@ export interface Campaign {
   totalBudget: number
   /** Optional override for campaign dashboard URL; defaults to `/dashboard/{slug}/{mbaNumber}`. */
   href?: string
-  /** Plan version for mediaplans editor link when `campaignLinkMode` is `admin`. */
+  /** Plan version for mediaplans editor link when `campaignLinkMode` is `adminHub`. */
   version_number?: number
 }
 
@@ -31,7 +31,7 @@ export interface CampaignSectionProps {
   /** @deprecated Prefer `allCampaigns`. */
   campaigns?: Campaign[]
   slug: string
-  campaignLinkMode: "tenant" | "admin"
+  campaignLinkMode: "tenant" | "adminHub"
   /** Section heading; defaults to a label derived from the active status filter. */
   title?: string
   brandColour?: string
@@ -90,7 +90,7 @@ function isValidStatus(value: string | null): value is CampaignStatus {
   return value === "live" || value === "planned" || value === "completed"
 }
 
-function buildDefaultViewAllHref(slug: string, campaignLinkMode: "tenant" | "admin"): string {
+function buildDefaultViewAllHref(slug: string, campaignLinkMode: "tenant" | "adminHub"): string {
   if (campaignLinkMode === "tenant") {
     return `/dashboard/${encodeURIComponent(slug)}`
   }
@@ -177,12 +177,12 @@ export function CampaignSection({
     campaign.href ?? `/dashboard/${encodeURIComponent(slug)}/${encodeURIComponent(campaign.mbaNumber)}`
 
   const campaignEditHref = (campaign: Campaign) => {
-    if (campaignLinkMode !== "admin") return undefined
+    if (campaignLinkMode !== "adminHub") return undefined
     if (campaign.version_number == null || Number.isNaN(campaign.version_number)) return undefined
     return `/mediaplans/mba/${encodeURIComponent(campaign.mbaNumber)}/edit?version=${campaign.version_number}`
   }
 
-  const canEditCampaigns = campaignLinkMode === "admin"
+  const canEditCampaigns = campaignLinkMode === "adminHub"
 
   const viewAllLinkClass =
     "shrink-0 text-sm font-medium text-primary transition-colors hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"

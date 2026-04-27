@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils"
 type QuarterStatus = "complete" | "in-progress" | "planned"
 type TransactionType = "expense" | "credit" | "adjustment"
 
-export interface FinanceModalProps {
+export interface ClientFinanceSlideOverProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   finance: {
@@ -61,6 +61,7 @@ export interface FinanceModalProps {
   variant?: "default" | "clientHub"
   clientName?: string
   clientRecord?: Record<string, unknown> | null
+  brandColour?: string
 }
 
 function SectionHeader({ title }: { title: string }) {
@@ -116,7 +117,7 @@ function quarterStatusText(
   return `${compactCurrency(spent, currency)} spent (${pct}%)`
 }
 
-export function FinanceModal({
+export function ClientFinanceSlideOver({
   open,
   onOpenChange,
   finance,
@@ -127,7 +128,8 @@ export function FinanceModal({
   variant = "default",
   clientName = "",
   clientRecord = null,
-}: FinanceModalProps) {
+  brandColour,
+}: ClientFinanceSlideOverProps) {
   const [excelDialogOpen, setExcelDialogOpen] = useState(false)
   const isClientHub = variant === "clientHub"
   const ytdPct = finance.totalBudget > 0 ? Math.round((finance.ytdSpend / finance.totalBudget) * 100) : 0
@@ -139,6 +141,17 @@ export function FinanceModal({
     <>
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full p-0 sm:max-w-2xl">
+        <div
+          className="h-1 w-full shrink-0"
+          style={{
+            background: brandColour
+              ? `linear-gradient(to right, ${brandColour}99, ${brandColour}, ${brandColour}99)`
+              : undefined,
+          }}
+        />
+        {!brandColour && (
+          <div className="h-1 w-full shrink-0 bg-gradient-to-r from-primary/60 via-primary to-primary/60" />
+        )}
         <SheetHeader className="border-b border-border/70 px-6 py-5 text-left">
           <SheetTitle>Finance</SheetTitle>
           <SheetDescription>

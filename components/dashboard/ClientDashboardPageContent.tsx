@@ -10,13 +10,13 @@ import { HeroBanner } from "@/components/dashboard/HeroBanner"
 import { HeroKPIBar } from "@/components/dashboard/HeroKPIBar"
 import { SpendingInsightsSection } from "@/components/dashboard/SpendingInsightsSection"
 import { UpcomingCampaignsSection } from "@/components/dashboard/UpcomingCampaignsSection"
-import { ClientDetailsModal } from "@/components/dashboard/modals/ClientDetailsModal"
-import { FinanceModal } from "@/components/dashboard/modals/FinanceModal"
-import { KPIsModal } from "@/components/dashboard/modals/KPIsModal"
+import { ClientDetailsSlideOver } from "@/components/dashboard/modals/ClientDetailsSlideOver"
+import { ClientFinanceSlideOver } from "@/components/dashboard/modals/ClientFinanceSlideOver"
+import { ClientKpiSlideOver } from "@/components/dashboard/modals/ClientKpiSlideOver"
 import { CampaignCardSkeleton, ChartSkeleton } from "@/components/dashboard/skeletons"
 import type { Campaign as LegacyCampaign, ClientDashboardData as LegacyClientDashboardData } from "@/lib/types/dashboard"
 
-export type CampaignLinkMode = "tenant" | "admin" | "adminHub"
+export type CampaignLinkMode = "tenant" | "adminHub"
 
 export interface ClientDashboardPageContentProps {
   slug: string
@@ -63,7 +63,7 @@ function toDashboardCampaign(slug: string, mode: CampaignLinkMode, campaign: Leg
       : normalizeCampaignStatus(campaign.status) === "completed"
         ? campaign.budget
         : null
-  const canEdit = mode === "admin" || mode === "adminHub"
+  const canEdit = mode === "adminHub"
   return {
     id: `${campaign.mbaNumber}-${campaign.version_number}`,
     name: campaign.campaignName,
@@ -85,7 +85,7 @@ export function ClientDashboardPageContent({
   campaignLinkMode = "tenant",
   headerDescription,
 }: ClientDashboardPageContentProps) {
-  const isAdmin = campaignLinkMode === "admin" || campaignLinkMode === "adminHub"
+  const isAdmin = campaignLinkMode === "adminHub"
   const shouldReduceMotion = useReducedMotion()
   const [activeStatus, setActiveStatus] = useState<CampaignStatus>("live")
   const [detailsModalOpen, setDetailsModalOpen] = useState(false)
@@ -324,18 +324,20 @@ export function ClientDashboardPageContent({
 
       {isAdmin && (
         <>
-          <ClientDetailsModal
+          <ClientDetailsSlideOver
             open={detailsModalOpen}
             onOpenChange={setDetailsModalOpen}
             clientRecord={clientData.clientRecord ?? null}
+            brandColour={clientData.brandColour}
           />
 
-          <FinanceModal
+          <ClientFinanceSlideOver
             open={financeModalOpen}
             onOpenChange={setFinanceModalOpen}
             finance={clientData.finance ?? financeData}
             onDownloadReport={() => window.print()}
             variant={campaignLinkMode === "adminHub" ? "clientHub" : "default"}
+            brandColour={clientData.brandColour}
             {...(campaignLinkMode === "adminHub"
               ? {
                   clientName: clientData.clientName,
@@ -344,7 +346,7 @@ export function ClientDashboardPageContent({
               : {})}
           />
 
-          <KPIsModal
+          <ClientKpiSlideOver
             open={kpisModalOpen}
             onOpenChange={setKpisModalOpen}
             urlSlug={slug}
@@ -354,6 +356,7 @@ export function ClientDashboardPageContent({
                 ? clientData.clientRecord.mp_client_name.trim()
                 : slug
             }
+            brandColour={clientData.brandColour}
           />
         </>
       )}

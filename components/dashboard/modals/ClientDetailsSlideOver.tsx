@@ -6,17 +6,19 @@ import { AlertCircle, Building2, Save } from "lucide-react"
 import { EditClientForm } from "@/components/EditClientForm"
 import { SlideOver } from "@/components/ui/SlideOver"
 
-export interface ClientDetailsModalProps {
+export interface ClientDetailsSlideOverProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   clientRecord: Record<string, unknown> | null
+  brandColour?: string
 }
 
-export function ClientDetailsModal({
+export function ClientDetailsSlideOver({
   open,
   onOpenChange,
   clientRecord,
-}: ClientDetailsModalProps) {
+  brandColour,
+}: ClientDetailsSlideOverProps) {
   const [refresh, setRefresh] = useState(0)
 
   const idRaw = clientRecord?.id
@@ -46,7 +48,17 @@ export function ClientDetailsModal({
       description={`View and manage ${clientName} information`}
     >
       <div className="flex min-h-0 flex-1 flex-col">
-        <div className="h-1 w-full bg-gradient-to-r from-primary/60 via-primary to-primary/60" />
+        <div
+          className="h-1 w-full"
+          style={{
+            background: brandColour
+              ? `linear-gradient(to right, ${brandColour}99, ${brandColour}, ${brandColour}99)`
+              : undefined,
+          }}
+        />
+        {!brandColour && (
+          <div className="h-1 w-full bg-gradient-to-r from-primary/60 via-primary to-primary/60" />
+        )}
 
         <div className="min-h-0 flex-1 overflow-y-auto">
           {formClient ? (
