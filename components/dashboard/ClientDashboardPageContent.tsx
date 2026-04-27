@@ -187,23 +187,6 @@ export function ClientDashboardPageContent({
       ctr: { value: 1.9, trend: 3.4, benchmark: 1.7 },
       cpa: { value: 44.3, trend: -2.8, benchmark: 47.8 },
     },
-    byChannel: clientData.spendByMediaType.slice(0, 6).map((item, index) => ({
-      channel: item.mediaType,
-      spend: item.amount,
-      roas: Math.max(1, 2.2 + index * 0.2),
-      performance: index % 3 === 0 ? ("below" as const) : index % 2 === 0 ? ("at" as const) : ("above" as const),
-    })),
-    byCampaign: allCampaigns.slice(0, 8).map((campaign, index) => ({
-      id: campaign.id,
-      name: campaign.name,
-      roas: 2.1 + (index % 5) * 0.35,
-      spend: campaign.spentAmount,
-      performance: index % 3 === 0 ? ("below" as const) : index % 2 === 0 ? ("at" as const) : ("above" as const),
-    })),
-    monthlyTrend: clientData.monthlySpend.slice(-6).map((month, index) => ({
-      month: month.month,
-      roas: 2.2 + index * 0.12,
-    })),
   }
 
   const loadingFallback = <ChartSkeleton />

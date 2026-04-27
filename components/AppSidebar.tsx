@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { FileText, Users, Building2, LayoutDashboard, PlusCircle, ChevronDown, ChevronRight, UserCircle, DollarSign, BarChart3, ClipboardList, BookOpen, TrendingUp, FlaskConical } from "lucide-react";
+import { FileText, Users, Building2, LayoutDashboard, PlusCircle, ChevronDown, ChevronRight, UserCircle, DollarSign, BarChart3, ClipboardList, BookOpen, TrendingUp } from "lucide-react";
 import { UserMenu } from "@/components/UserMenu";
 import {
   Sidebar,
@@ -260,23 +260,6 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="overflow-hidden p-4">
-        {isAdmin ? (
-          <div className="mb-3 border-b border-sidebar-border pb-3">
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  asChild
-                  isActive={pathMatchesHref(pathname, "/client-dashboard/mock", true)}
-                >
-                  <Link href="/client-dashboard/mock" className="flex items-center">
-                    <FlaskConical className="mr-2 h-4 w-4 shrink-0" aria-hidden />
-                    <span>Client dashboard (mock)</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </div>
-        ) : null}
         <div className="w-full max-w-full">
           <UserMenu />
         </div>

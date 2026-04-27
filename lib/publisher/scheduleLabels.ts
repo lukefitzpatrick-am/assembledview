@@ -33,32 +33,3 @@ export function buildAllowedScheduleLabels(publisher: Record<string, unknown>): 
   }
   return s
 }
-
-/** KPI family key -> pub_* flag on publisher record */
-export const KPI_FAMILY_PUB_FLAG: Record<string, string> = {
-  digitaldisplay: "pub_digidisplay",
-  digitalvideo: "pub_digivideo",
-  digitalaudio: "pub_digiaudio",
-  bvod: "pub_bvod",
-  search: "pub_search",
-  socialmedia: "pub_socialmedia",
-  progdisplay: "pub_progdisplay",
-  progvideo: "pub_progvideo",
-  progbvod: "pub_progbvod",
-  progaudio: "pub_progaudio",
-}
-
-export const KPI_FAMILY_LABELS: Record<string, string> = {
-  digitaldisplay: "Digital Display",
-  digitalvideo: "Digital Video",
-  digitalaudio: "Digital Audio",
-  bvod: "BVOD",
-  search: "Search",
-  socialmedia: "Social Media",
-  progdisplay: "Programmatic Display",
-  progvideo: "Programmatic Video",
-  progbvod: "Programmatic BVOD",
-  progaudio: "Programmatic Audio",
-}
-
-export const KPI_METRIC_KEYS = ["cpm", "cpc", "cpv", "ctr", "vtr", "frequency"] as const
