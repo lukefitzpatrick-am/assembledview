@@ -4,11 +4,6 @@ import {
   Client,
   ClientHubSummary,
 } from '@/lib/types/dashboard'
-import { 
-  aggregateMonthlySpendByMediaType, 
-  getSpendByMediaTypeFromLineItems, 
-  getSpendByCampaignFromLineItems 
-} from '../media-containers'
 import { parseXanoListPayload } from '@/lib/api/xano'
 import { getXanoClientsCollectionUrl, xanoMediaPlansUrl } from '@/lib/api/xanoClients'
 import { getClientDisplayName, slugifyClientNameForUrl } from '@/lib/clients/slug'

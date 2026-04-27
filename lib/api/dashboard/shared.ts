@@ -29,12 +29,6 @@ export function normalizeClientName(name: string): string {
     .trim()
 }
 
-// Helper function to check if two client names match
-export function clientNamesMatch(name1: string, name2: string): boolean {
-  if (!name1 || !name2) return false
-  return normalizeClientName(name1) === normalizeClientName(name2)
-}
-
 export function normalizeStatus(status: any): string {
   if (status === null || status === undefined) return ''
   return String(status).trim().toLowerCase()
