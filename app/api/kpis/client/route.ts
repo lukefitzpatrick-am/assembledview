@@ -1,45 +1,96 @@
 import { NextRequest, NextResponse } from "next/server"
-import { parseXanoListPayload, xanoUrl } from "@/lib/api/xano"
+import {
+  createClientKpi,
+  deleteClientKpi,
+  fetchClientKpis,
+  updateClientKpi,
+} from "@/lib/kpi/clientKpi"
+import { clientKpiCreateBodySchema, clientKpiPatchBodySchema } from "@/lib/kpi/types"
+import type { ClientKpiInput } from "@/lib/kpi/types"
 
 export const runtime = "nodejs"
 
-function xanoAuthHeaders(): HeadersInit {
-  return {
-    Accept: "application/json",
-    ...(process.env.XANO_API_KEY ? { Authorization: `Bearer ${process.env.XANO_API_KEY}` } : {}),
+export async function GET(request: NextRequest) {
+  try {
+    const mpClientName = request.nextUrl.searchParams.get("mp_client_name")
+    if (!mpClientName?.trim()) {
+      return NextResponse.json(
+        { error: "mp_client_name is required" },
+        { status: 400 },
+      )
+    }
+    const data = await fetchClientKpis(mpClientName)
+    return NextResponse.json(data)
+  } catch (error) {
+    console.error("GET /api/kpis/client:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
 
-export async function GET(request: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    const clientNameRaw = request.nextUrl.searchParams.get("clientName")
-    const clientName = clientNameRaw?.trim() ?? ""
-    if (!clientName) {
-      return NextResponse.json({ error: "clientName is required" }, { status: 400 })
+    const body = await request.json()
+    const parsed = clientKpiCreateBodySchema.safeParse(body)
+    if (!parsed.success) {
+      const msg =
+        parsed.error.issues.map((i) => i.message).join("; ") || "Validation failed"
+      return NextResponse.json({ error: msg }, { status: 400 })
     }
-
-    const base = xanoUrl("client_kpi", "XANO_CLIENTS_BASE_URL")
-    const url = new URL(base)
-    url.searchParams.set("mp_client_name", clientName)
-
-    const upstream = await fetch(url.toString(), { headers: xanoAuthHeaders(), cache: "no-store" })
-    if (!upstream.ok) {
-      const text = await upstream.text()
-      console.error("GET client_kpi upstream:", upstream.status, text)
+    const input: ClientKpiInput = { ...parsed.data } as ClientKpiInput
+    const result = await createClientKpi(input)
+    if (result === null) {
       return NextResponse.json(
-        { error: text || "Failed to fetch client KPIs" },
-        { status: upstream.status >= 400 ? upstream.status : 502 },
+        { error: "Failed to create client KPI" },
+        { status: 500 },
       )
     }
-
-    const payload = await upstream.json()
-    const list = parseXanoListPayload(payload)
-    const filtered = list.filter(
-      (row: { mp_client_name?: string }) => String(row?.mp_client_name ?? "").trim() === clientName,
-    )
-    return NextResponse.json(filtered)
+    return NextResponse.json(result, { status: 201 })
   } catch (error) {
-    console.error("GET /api/kpis/client:", error)
+    console.error("POST /api/kpis/client:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const body = await request.json()
+    const parsed = clientKpiPatchBodySchema.safeParse(body)
+    if (!parsed.success) {
+      const msg =
+        parsed.error.issues.map((i) => i.message).join("; ") || "Validation failed"
+      return NextResponse.json({ error: msg }, { status: 400 })
+    }
+    const { id, ...rest } = parsed.data
+    const result = await updateClientKpi(id, rest as Partial<ClientKpiInput>)
+    if (result === null) {
+      return NextResponse.json(
+        { error: "Failed to update client KPI" },
+        { status: 500 },
+      )
+    }
+    return NextResponse.json(result)
+  } catch (error) {
+    console.error("PATCH /api/kpis/client:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const id = request.nextUrl.searchParams.get("id")
+    if (id === null || id.trim() === "") {
+      return NextResponse.json({ error: "id is required" }, { status: 400 })
+    }
+    const ok = await deleteClientKpi(Number(id))
+    if (!ok) {
+      return NextResponse.json(
+        { error: "Failed to delete client KPI" },
+        { status: 500 },
+      )
+    }
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error("DELETE /api/kpis/client:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

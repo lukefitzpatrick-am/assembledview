@@ -131,10 +131,10 @@ export function ChatWidget({
         messages: updatedMessages,
         pageContext: resolvedPageContext,
         mode,
+        engine,
       }
 
-      const endpoint = engine === "claude" ? "/api/chat-v2" : "/api/chat"
-      const response = await fetch(endpoint, {
+      const response = await fetch("/api/chat-v2", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

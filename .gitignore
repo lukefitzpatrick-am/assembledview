@@ -32,3 +32,8 @@ next-env.d.ts
 /.vscode/
 /secrets/
 snowflake.log
+
+# Transient tooling output (audit cleanup)
+filetree.txt
+lint-full.txt
+*.log

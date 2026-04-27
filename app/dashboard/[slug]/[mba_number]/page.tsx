@@ -599,7 +599,7 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
   const progDisplayItemsActive = progDisplayItems
   const progVideoItemsActive = progVideoItems
   
-  // Build pacingLineItemIds from active arrays (not running-only arrays)
+  // Build deliveryLineItemIds from active arrays (not running-only arrays)
   // Accept multiple id field variations
   const extractLineItemId = (item: any): string | null => {
     if (!item || typeof item !== "object") return null
@@ -615,7 +615,7 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
     )
   )
 
-  const pacingLineItemIds = Array.from(
+  const deliveryLineItemIds = Array.from(
     new Set(
       [...socialItemsActive, ...progDisplayItemsActive, ...progVideoItemsActive]
         .map(extractLineItemId)
@@ -625,7 +625,7 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
   
   // DEBUG logging
   if (DEBUG_PACING) {
-    const sampleIds = pacingLineItemIds.slice(0, 5)
+    const sampleIds = deliveryLineItemIds.slice(0, 5)
     console.log("[PACING DEBUG] Media types and line items", {
       keysUsed: {
         social: socialKeyUsed,
@@ -644,7 +644,7 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
         progDisplay: { total: progDisplayItems.length, running: progDisplayItemsRunning.length, active: progDisplayItemsActive.length },
         progVideo: { total: progVideoItems.length, running: progVideoItemsRunning.length, active: progVideoItemsActive.length },
       },
-      pacingLineItemIdsCount: pacingLineItemIds.length,
+      deliveryLineItemIdsCount: deliveryLineItemIds.length,
       sampleLineItemIds: sampleIds,
       searchLineItemIdsCount: searchLineItemIds.length,
     })
@@ -733,8 +733,8 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
 
   const initialPacingRows: any[] = []
 
-  const shouldUsePacingWrapper =
-    pacingLineItemIds.length > 0 ||
+  const shouldUseDeliveryWrapper =
+    deliveryLineItemIds.length > 0 ||
     (mpSearchEnabled && searchLineItemIds.length > 0 && hasPacingCampaignDates)
 
   // Log total SSR time
@@ -772,8 +772,8 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
     })
   }
 
-  const showPacingSection =
-    shouldUsePacingWrapper ||
+  const showDeliverySection =
+    shouldUseDeliveryWrapper ||
     socialItemsActive.length > 0 ||
     (mpSearchEnabled && searchLineItemIds.length > 0 && hasPacingCampaignDates) ||
     progDisplayItemsActive.length > 0 ||
@@ -803,14 +803,14 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
       xanoFileOrigin={xanoFileOrigin}
       mediaPlanFileMeta={mediaPlanFileMeta}
       mbaPdfFileMeta={mbaPdfFileMeta}
-      showPacingSection={showPacingSection}
+      showDeliverySection={showDeliverySection}
       socialItemsActive={socialItemsActive}
       searchItemsActive={searchItemsActive}
       searchLineItemIds={searchLineItemIds}
       mpSearchEnabled={mpSearchEnabled}
       progDisplayItemsActive={progDisplayItemsActive}
       progVideoItemsActive={progVideoItemsActive}
-      pacingLineItemIds={pacingLineItemIds}
+      deliveryLineItemIds={deliveryLineItemIds}
     />
   )
 }

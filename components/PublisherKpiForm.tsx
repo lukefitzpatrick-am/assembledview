@@ -10,13 +10,13 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/components/ui/use-toast"
 import { mediaTypeComboboxOptionsForPublisher } from "@/lib/publisher/publisherKpiMediaOptions"
 import type { Publisher } from "@/lib/types/publisher"
-import type { PublisherKpi, PublisherKpiInput } from "@/lib/types/publisherKpi"
+import type { PublisherKpi, PublisherKpiInput } from "@/lib/kpi/types"
 import {
   CLIENT_KPI_METRIC_FIELDS,
   CLIENT_KPI_METRIC_LABELS,
   getBidStrategiesForMediaType,
-} from "@/lib/types/clientKpi"
-import { formatPercentForInput, parsePercentHeuristic } from "@/lib/kpi/percentMetrics"
+} from "@/lib/kpi/types"
+import { formatPercentForInput, parsePercentHeuristic } from "@/lib/kpi/metrics"
 
 const PERCENT_KPI_FIELDS = new Set<string>(["ctr", "vtr", "conversion_rate"])
 
@@ -79,7 +79,7 @@ function inputFromPending(row: PendingRow): PublisherKpiInput {
 
 async function persistCreate(body: PublisherKpiInput): Promise<PersistResult> {
   try {
-    const res = await fetch("/api/publisher-kpis", {
+    const res = await fetch("/api/kpis/publisher", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -103,7 +103,7 @@ async function persistCreate(body: PublisherKpiInput): Promise<PersistResult> {
 
 async function persistUpdate(row: PublisherKpi): Promise<PersistResult> {
   try {
-    const res = await fetch("/api/publisher-kpis", {
+    const res = await fetch("/api/kpis/publisher", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -211,7 +211,7 @@ export function PublisherKpiForm({ publisher, onSuccess }: PublisherKpiFormProps
       setLoading(true)
       try {
         const res = await fetch(
-          `/api/publisher-kpis?publisher=${encodeURIComponent(publisherKey)}`,
+          `/api/kpis/publisher?publisher=${encodeURIComponent(publisherKey)}`,
         )
         if (cancelled) return
         if (res.ok) {
@@ -433,7 +433,7 @@ export function PublisherKpiForm({ publisher, onSuccess }: PublisherKpiFormProps
   async function removeSaved(row: PublisherKpi) {
     setSavingKey(`del:${row.id}`)
     try {
-      const res = await fetch(`/api/publisher-kpis?id=${encodeURIComponent(String(row.id))}`, {
+      const res = await fetch(`/api/kpis/publisher?id=${encodeURIComponent(String(row.id))}`, {
         method: "DELETE",
       })
       if (!res.ok) {

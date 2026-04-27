@@ -15,13 +15,13 @@ import {
   CLIENT_KPI_METRIC_LABELS,
   getBidStrategiesForMediaType,
   MEDIA_TYPE_OPTIONS,
-} from "@/lib/types/clientKpi"
+} from "@/lib/kpi/types"
 import type { Publisher } from "@/lib/types/publisher"
 import {
   filterPublishersWithMediaTypeSlug,
   mediaTypeComboboxOptionsForPublisher,
 } from "@/lib/publisher/publisherKpiMediaOptions"
-import { formatPercentForInput, parsePercentHeuristic } from "@/lib/kpi/percentMetrics"
+import { formatPercentForInput, parsePercentHeuristic } from "@/lib/kpi/metrics"
 
 const PERCENT_KPI_FIELDS = new Set<string>(["ctr", "vtr", "conversion_rate"])
 
@@ -94,7 +94,7 @@ function inputFromPending(row: PendingRow): ClientKpiInput {
 
 async function persistCreate(body: ClientKpiInput): Promise<PersistResult> {
   try {
-    const res = await fetch("/api/client-kpis", {
+    const res = await fetch("/api/kpis/client", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -118,7 +118,7 @@ async function persistCreate(body: ClientKpiInput): Promise<PersistResult> {
 
 async function persistUpdate(row: ClientKpi): Promise<PersistResult> {
   try {
-    const res = await fetch("/api/client-kpis", {
+    const res = await fetch("/api/kpis/client", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -276,7 +276,7 @@ export function ClientKpiSection({ clientName, urlSlug }: ClientKpiSectionProps)
       try {
         const pubPromise = fetch("/api/publishers")
         const kpisPromise = clientKey
-          ? fetch(`/api/client-kpis?mp_client_name=${encodeURIComponent(clientKey)}`)
+          ? fetch(`/api/kpis/client?mp_client_name=${encodeURIComponent(clientKey)}`)
           : null
 
         const pubRes = await pubPromise
@@ -629,7 +629,7 @@ export function ClientKpiSection({ clientName, urlSlug }: ClientKpiSectionProps)
   async function removeSaved(row: ClientKpi) {
     setSavingKey(`del:${row.id}`)
     try {
-      const res = await fetch(`/api/client-kpis?id=${encodeURIComponent(String(row.id))}`, {
+      const res = await fetch(`/api/kpis/client?id=${encodeURIComponent(String(row.id))}`, {
         method: "DELETE",
       })
       if (!res.ok) {

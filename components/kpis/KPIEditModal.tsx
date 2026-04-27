@@ -1,10 +1,10 @@
 "use client"
 
 import * as React from "react"
-import type { ResolvedKPIRow } from "@/types/kpi"
-import { MEDIA_TYPE_LABELS } from "@/components/kpis/KPISection"
-import { recalcRow } from "@/lib/kpi/recalcRow"
-import { formatPercentForInput, parsePercentHeuristic } from "@/lib/kpi/percentMetrics"
+import type { ResolvedKPIRow } from "@/lib/kpi/types"
+import { MEDIA_TYPE_LABELS } from "@/lib/media/mediaTypes"
+import { recalcRow } from "@/lib/kpi/recalc"
+import { formatPercentForInput, parsePercentHeuristic } from "@/lib/kpi/metrics"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {

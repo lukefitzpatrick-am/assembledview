@@ -101,10 +101,10 @@ import { checkMediaDatesOutsideCampaign } from "@/lib/utils/mediaPlanValidation"
 import { toDateOnlyString } from "@/lib/timezone"
 import { setAssistantContext } from "@/lib/assistantBridge"
 import { KPISection } from "@/components/kpis/KPISection"
-import { resolveAllKPIs } from "@/lib/kpi/resolveKPIs"
-import { mergeManualKpiOverrides } from "@/lib/kpi/mergeManualKpiOverrides"
+import { resolveAllKPIs } from "@/lib/kpi/resolve"
+import { mergeManualKpiOverrides } from "@/lib/kpi/recalc"
 import { getPublisherKPIs, getClientKPIs, saveCampaignKPIs } from "@/lib/api/kpi"
-import type { PublisherKPI, ClientKPI, ResolvedKPIRow, CampaignKPI } from "@/types/kpi"
+import type { PublisherKPI, ClientKPI, ResolvedKPIRow, CampaignKPI } from "@/lib/kpi/types"
 import type { Publisher } from "@/lib/types/publisher"
 import {
   advertisingAssociatesFilteredPlanHasLineItems,
@@ -5666,6 +5666,7 @@ const handleSaveAll = async () => {
                     kpiRows={kpiRows}
                     isLoading={isKPILoading}
                     onKPIChange={setKpiRows}
+                    onSave={setKpiRows}
                     onReset={handleKPIReset}
                   />
                 </div>

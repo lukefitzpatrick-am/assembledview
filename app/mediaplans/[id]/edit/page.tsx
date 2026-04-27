@@ -88,10 +88,10 @@ import { getScheduleHeaders } from "@/lib/billing/scheduleHeaders"
 import type { BillingMonth, BillingLineItem } from "@/lib/billing/types"
 import { checkMediaDatesOutsideCampaign } from "@/lib/utils/mediaPlanValidation"
 import { KPISection } from "@/components/kpis/KPISection"
-import { resolveAllKPIs } from "@/lib/kpi/resolveKPIs"
-import { mergeManualKpiOverrides } from "@/lib/kpi/mergeManualKpiOverrides"
+import { resolveAllKPIs } from "@/lib/kpi/resolve"
+import { mergeManualKpiOverrides } from "@/lib/kpi/recalc"
 import { getPublisherKPIs, getClientKPIs, getCampaignKPIs, saveCampaignKPIs } from "@/lib/api/kpi"
-import type { PublisherKPI, ClientKPI, ResolvedKPIRow, CampaignKPI } from "@/types/kpi"
+import type { PublisherKPI, ClientKPI, ResolvedKPIRow, CampaignKPI } from "@/lib/kpi/types"
 import type { Publisher } from "@/lib/types/publisher"
 
 // Define media type keys as a const array
@@ -3314,6 +3314,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                       kpiRows={kpiRows}
                       isLoading={isKPILoading}
                       onKPIChange={setKpiRows}
+                      onSave={setKpiRows}
                       onReset={handleKPIReset}
                     />
                   </div>
