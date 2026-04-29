@@ -1581,7 +1581,7 @@ export interface RadioExpertGridProps {
   radioStations?: { station?: string | null; id?: number | string | null }[]
 }
 
-const moneyOpts = { locale: "en-US" as const, currency: "USD" as const }
+const moneyOpts = { locale: "en-AU" as const, currency: "AUD" as const }
 
 type RadioExpertFocusedCell = { rowIndex: number; columnKey: string }
 type WeekDragSource =

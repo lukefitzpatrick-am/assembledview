@@ -1585,7 +1585,7 @@ export interface InfluencersExpertGridProps {
   publishers?: { publisher_name: string }[]
 }
 
-const moneyOpts = { locale: "en-US" as const, currency: "USD" as const }
+const moneyOpts = { locale: "en-AU" as const, currency: "AUD" as const }
 
 type InfluencersExpertFocusedCell = { rowIndex: number; columnKey: string }
 type WeekDragSource =

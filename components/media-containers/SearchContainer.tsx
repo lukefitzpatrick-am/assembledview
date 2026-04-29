@@ -283,7 +283,7 @@ export function calculateInvestmentPerMonth(form, feesearch) {
 
   return Object.entries(monthlyInvestment).map(([monthYear, amount]) => ({
     monthYear,
-    amount: formatMoney(amount, { locale: "en-US", currency: "USD" }),
+    amount: formatMoney(amount, { locale: "en-AU", currency: "AUD" }),
   }));
 }
 
@@ -1316,15 +1316,15 @@ useEffect(() => {
                   </div>
                   <div className="text-right">
                     <span className="text-[11px] text-muted-foreground block">Media</span>
-                    <span>{formatMoney(item.media, { locale: "en-US", currency: "USD" })}</span>
+                    <span>{formatMoney(item.media, { locale: "en-AU", currency: "AUD" })}</span>
                   </div>
                   <div className="text-right">
                     <span className="text-[11px] text-muted-foreground block">Fee</span>
-                    <span>{formatMoney(item.fee, { locale: "en-US", currency: "USD" })}</span>
+                    <span>{formatMoney(item.fee, { locale: "en-AU", currency: "AUD" })}</span>
                   </div>
                   <div className="text-right">
                     <span className="text-[11px] text-muted-foreground block">Total</span>
-                    <span className="font-semibold">{formatMoney(item.totalCost, { locale: "en-US", currency: "USD" })}</span>
+                    <span className="font-semibold">{formatMoney(item.totalCost, { locale: "en-AU", currency: "AUD" })}</span>
                   </div>
                 </div>
               </div>
@@ -1335,15 +1335,15 @@ useEffect(() => {
               <div className="flex items-center gap-6 text-sm font-semibold tabular-nums">
                 <div className="text-right">
                   <span className="text-[11px] text-muted-foreground font-normal block">Media</span>
-                  <span>{formatMoney(overallTotals.overallMedia, { locale: "en-US", currency: "USD" })}</span>
+                  <span>{formatMoney(overallTotals.overallMedia, { locale: "en-AU", currency: "AUD" })}</span>
                 </div>
                 <div className="text-right">
                   <span className="text-[11px] text-muted-foreground font-normal block">Fee ({feesearch}%)</span>
-                  <span>{formatMoney(overallTotals.overallFee, { locale: "en-US", currency: "USD" })}</span>
+                  <span>{formatMoney(overallTotals.overallFee, { locale: "en-AU", currency: "AUD" })}</span>
                 </div>
                 <div className="text-right">
                   <span className="text-[11px] text-muted-foreground font-normal block">Total</span>
-                  <span className="text-primary">{formatMoney(overallTotals.overallCost, { locale: "en-US", currency: "USD" })}</span>
+                  <span className="text-primary">{formatMoney(overallTotals.overallCost, { locale: "en-AU", currency: "AUD" })}</span>
                 </div>
               </div>
             </div>
@@ -1409,7 +1409,7 @@ useEffect(() => {
                                   form.getValues(`lineItems.${lineItemIndex}.budgetIncludesFees`)
                                     ? totalMedia
                                     : totalMedia + (totalMedia / (100 - (feesearch || 0))) * (feesearch || 0),
-                                  { locale: "en-US", currency: "USD" }
+                                  { locale: "en-AU", currency: "AUD" }
                                 )}
                               </span>
                             </div>
@@ -1722,8 +1722,8 @@ useEffect(() => {
                                                 onBlur={(e) => {
                                                   const value = e.target.value;
                                                   const formattedValue = formatMoney(parseMoneyInput(value) ?? 0, {
-                                                    locale: "en-US",
-                                                    currency: "USD",
+                                                    locale: "en-AU",
+                                                    currency: "AUD",
                                                   });
                                                   field.onChange(formattedValue);
                                                   handleValueChange(lineItemIndex, burstIndex);
@@ -1758,8 +1758,8 @@ useEffect(() => {
                                                 onBlur={(e) => {
                                                   const value = e.target.value;
                                                   const formattedValue = formatMoney(parseMoneyInput(value) ?? 0, {
-                                                    locale: "en-US",
-                                                    currency: "USD",
+                                                    locale: "en-AU",
+                                                    currency: "AUD",
                                                   });
                                                   field.onChange(formattedValue);
                                                   handleValueChange(lineItemIndex, burstIndex);
@@ -1847,7 +1847,7 @@ useEffect(() => {
                                         form.getValues(`lineItems.${lineItemIndex}.budgetIncludesFees`)
                                           ? (parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (100 - (feesearch || 0))
                                           : parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0")
-                                      , { locale: "en-US", currency: "USD" })}
+                                      , { locale: "en-AU", currency: "AUD" })}
                                       readOnly
                                     />
                                     <Input
@@ -1857,7 +1857,7 @@ useEffect(() => {
                                         form.getValues(`lineItems.${lineItemIndex}.budgetIncludesFees`)
                                           ? (parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (feesearch || 0)
                                           : (parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / (100 - (feesearch || 0))) * (feesearch || 0)
-                                      , { locale: "en-US", currency: "USD" })}
+                                      , { locale: "en-AU", currency: "AUD" })}
                                       readOnly
                                     />
                                   </div>

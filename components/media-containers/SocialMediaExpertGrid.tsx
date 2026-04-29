@@ -337,7 +337,7 @@ export interface SocialMediaExpertGridProps {
   publishers?: { publisher_name: string }[]
 }
 
-const moneyOpts = { locale: "en-US" as const, currency: "USD" as const }
+const moneyOpts = { locale: "en-AU" as const, currency: "AUD" as const }
 
 type SocialMediaExpertFocusedCell = { rowIndex: number; columnKey: string }
 type WeekDragSource =

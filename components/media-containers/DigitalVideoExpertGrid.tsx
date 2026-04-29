@@ -1586,7 +1586,7 @@ export interface DigitalVideoExpertGridProps {
   }[]
 }
 
-const moneyOpts = { locale: "en-US" as const, currency: "USD" as const }
+const moneyOpts = { locale: "en-AU" as const, currency: "AUD" as const }
 
 type DigiVideoExpertFocusedCell = { rowIndex: number; columnKey: string }
 type WeekDragSource =

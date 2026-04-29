@@ -186,7 +186,7 @@ const buildInvestmentByMonth = (bursts: BillingBurst[]) => {
   })
   return Object.entries(monthly).map(([monthYear, amount]) => ({
     monthYear,
-    amount: formatCurrencyFull(amount, { locale: "en-US", currency: "USD" }),
+    amount: formatCurrencyFull(amount, { locale: "en-AU", currency: "AUD" }),
   }))
 }
 
@@ -513,7 +513,7 @@ export default function ProductionContainer({
                 className="text-sm font-semibold tabular-nums"
                 style={mediaTypeAccentTextStyle(MEDIA_ACCENT_HEX)}
               >
-                {formatCurrencyFull(totals.totalMedia, { locale: "en-US", currency: "USD" })}
+                {formatCurrencyFull(totals.totalMedia, { locale: "en-AU", currency: "AUD" })}
               </span>
             </div>
           </div>
@@ -562,7 +562,7 @@ export default function ProductionContainer({
                       <div className="text-right">
                         <span className="block text-[11px] text-muted-foreground">Total</span>
                         <span className="text-sm font-bold tabular-nums">
-                          {formatCurrencyFull(lineItemMediaTotal, { locale: "en-US", currency: "USD" })}
+                          {formatCurrencyFull(lineItemMediaTotal, { locale: "en-AU", currency: "AUD" })}
                         </span>
                       </div>
                       <Button
@@ -865,7 +865,7 @@ export default function ProductionContainer({
                                 className="h-10 w-full min-w-0 text-sm tabular-nums bg-muted/30 border-border/40 text-muted-foreground"
                                 readOnly
                                 title="Production total (cost × quantity)"
-                                value={formatMoney(mediaValue, { locale: "en-US", currency: "USD" })}
+                                value={formatMoney(mediaValue, { locale: "en-AU", currency: "AUD" })}
                               />
                             </div>
 
