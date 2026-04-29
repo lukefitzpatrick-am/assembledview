@@ -7,6 +7,8 @@ import * as z from "zod"
 import { format } from "date-fns"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { MoneyInput } from "@/components/ui/MoneyInput"
+import { NumericInput } from "@/components/ui/NumericInput"
 import { Textarea } from "@/components/ui/textarea"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
@@ -778,12 +780,13 @@ export default function ProductionContainer({
                                 render={({ field }) => (
                                   <FormItem>
                                     <FormControl>
-                                      <Input
-                                        type="number"
-                                        step="0.01"
+                                      <MoneyInput
+                                        ref={field.ref}
+                                        name={field.name}
+                                        onBlur={field.onBlur}
                                         className="h-10 w-full min-w-0 text-sm"
-                                        value={field.value ?? 0}
-                                        onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                                        value={field.value}
+                                        onChange={(v) => field.onChange(v ?? 0)}
                                       />
                                     </FormControl>
                                     <FormMessage />
@@ -797,12 +800,14 @@ export default function ProductionContainer({
                                 render={({ field }) => (
                                   <FormItem>
                                     <FormControl>
-                                      <Input
-                                        type="number"
-                                        step="1"
+                                      <NumericInput
+                                        ref={field.ref}
+                                        name={field.name}
+                                        onBlur={field.onBlur}
+                                        decimals={0}
                                         className="h-10 w-full min-w-0 text-sm"
-                                        value={field.value ?? 0}
-                                        onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                                        value={field.value}
+                                        onChange={(v) => field.onChange(v ?? 0)}
                                       />
                                     </FormControl>
                                     <FormMessage />
