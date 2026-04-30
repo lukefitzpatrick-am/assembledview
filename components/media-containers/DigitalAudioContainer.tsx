@@ -4,7 +4,10 @@ import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } fr
 import { useForm, useFieldArray, UseFormReturn } from "react-hook-form"
 import { useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import * as z from "zod"
+import {
+  digiAudioFormSchema,
+  type DigiAudioFormValues,
+} from "@/lib/mediaplan/schemas"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -133,42 +136,6 @@ export function getAllBursts(form) {
   );
 }
 
-const digiaudioburstSchema = z.object({
-  budget: z.string().min(1, "Budget is required"),
-  buyAmount: z.string().min(1, "Buy Amount is required"),
-  startDate: z.date(),
-  endDate: z.date(),
-  calculatedValue: z.number().optional(),
-  fee: z.number().optional(),
-})
-
-const digiaudiolineItemSchema = z.object({
-  platform: z.string().min(1, "Platform is required"),
-  site: z.string().min(1, "Site is required"),
-  bidStrategy: z.string().min(1, "Bid Strategy is required"),
-  buyType: z.string().min(1, "Buy Type is required"),
-  publisher: z.string().min(1, "Publisher is required"),
-  targetingAttribute: z.string(),
-  creativeTargeting: z.string().min(1, "Creative Targeting is required"),
-  creative: z.string().min(1, "Creative is required"),
-  buyingDemo: z.string().min(1, "Buying Demo is required"),
-  market: z.string().min(1, "Market is required"),
-  fixedCostMedia: z.boolean(),
-  clientPaysForMedia: z.boolean(),
-  budgetIncludesFees: z.boolean(),
-  noadserving: z.boolean(),
-  bursts: z.array(digiaudioburstSchema).min(1, "At least one burst is required"),
-  totalMedia: z.number().optional(),
-  totalDeliverables: z.number().optional(),
-  totalFee: z.number().optional(),
-})
-
-const digiAudioFormSchema = z.object({
-  digiaudiolineItems: z.array(digiaudiolineItemSchema),
-  overallDeliverables: z.number().optional(),
-})
-
-type DigiAudioFormValues = z.infer<typeof digiAudioFormSchema>
 
 // Type definition for form values
 

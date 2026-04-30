@@ -4,7 +4,10 @@ import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } fr
 import { useForm, useFieldArray, UseFormReturn } from "react-hook-form"
 import { useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import * as z from "zod"
+import {
+  searchFormSchema,
+  type SearchFormValues,
+} from "@/lib/mediaplan/schemas"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -135,39 +138,6 @@ export function getAllBursts(form) {
   );
 }
 
-const burstSchema = z.object({
-  budget: z.string().min(1, "Budget is required"),
-  buyAmount: z.string().min(1, "Buy Amount is required"),
-  startDate: z.date(),
-  endDate: z.date(),
-  calculatedValue: z.number().optional(),
-  fee: z.number().optional(),
-})
-
-const lineItemSchema = z.object({
-  platform: z.string().min(1, "Platform is required"),
-  bidStrategy: z.string().min(1, "Bid strategy is required"),
-  buyType: z.string().min(1, "Buy Type is required"),
-  creativeTargeting: z.string().optional().default(""),
-  creative: z.string().optional().default(""),
-  buyingDemo: z.string().optional().default(""),
-  market: z.string().optional().default(""),
-  fixedCostMedia: z.boolean().default(false),
-  clientPaysForMedia: z.boolean().default(false),
-  budgetIncludesFees: z.boolean().default(false),
-  noadserving: z.boolean().default(false),
-  bursts: z.array(burstSchema).min(1, "At least one burst is required"),
-  totalMedia: z.number().optional(),
-  totalDeliverables: z.number().optional(),
-  totalFee: z.number().optional(),
-})
-
-const searchFormSchema = z.object({
-  lineItems: z.array(lineItemSchema),
-  overallDeliverables: z.number().optional(),
-})
-
-type SearchFormValues = z.infer<typeof searchFormSchema>
 
 interface Publisher {
   id: number;

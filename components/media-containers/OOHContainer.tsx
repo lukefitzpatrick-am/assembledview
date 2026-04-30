@@ -4,7 +4,10 @@ import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } fr
 import { useForm, useFieldArray, UseFormReturn } from "react-hook-form"
 import { useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import * as z from "zod"
+import {
+  oohFormSchema,
+  type OohFormValues,
+} from "@/lib/mediaplan/schemas"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -132,44 +135,6 @@ export function getAllBursts(form) {
   );
 }
 
-const oohburstSchema = z.object({
-  budget: z.string().min(1, "Budget is required"),
-  buyAmount: z.string().min(1, "Buy Amount is required"),
-  startDate: z.date(),
-  endDate: z.date(),
-  calculatedValue: z.number().optional(),
-  fee: z.number().optional(),
-})
-
-const oohlineItemSchema = z.object({
-  network: z.string().min(1, "Network is required"),
-  format: z.string().min(1, "Format is required"),
-  buyType: z.string().min(1, "Buy Type is required"),
-  type: z.string().min(1, "Type is required"),
-  placement: z.string().default(""),
-  size: z.string().default(""),
-  buyingDemo: z.string().default(""),
-  market: z.string().default(""),
-  fixedCostMedia: z.boolean().default(false),
-  clientPaysForMedia: z.boolean().default(false),
-  budgetIncludesFees: z.boolean().default(false),
-  lineItemId: z.string().optional(),
-  line_item_id: z.string().optional(),
-  line_item: z.union([z.string(), z.number()]).optional(),
-  lineItem: z.union([z.string(), z.number()]).optional(),
-  bursts: z.array(oohburstSchema).min(1, "At least one burst is required"),
-  totalMedia: z.number().optional(),
-  noAdserving: z.boolean().default(false),
-  totalDeliverables: z.number().optional(),
-  totalFee: z.number().optional(),
-})
-
-const oohFormSchema = z.object({
-  lineItems: z.array(oohlineItemSchema),
-  overallDeliverables: z.number().optional(),
-})
-
-type OohFormValues = z.infer<typeof oohFormSchema>
 
 interface Publisher {
   id: number;

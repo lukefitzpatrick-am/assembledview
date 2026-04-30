@@ -4,7 +4,10 @@ import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } fr
 import { useForm, useFieldArray, UseFormReturn } from "react-hook-form"
 import { useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import * as z from "zod"
+import {
+  influencersFormSchema,
+  type InfluencersFormValues,
+} from "@/lib/mediaplan/schemas"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -128,42 +131,6 @@ export function getAllBursts(form) {
   );
 }
 
-const burstSchema = z.object({
-  budget: z.string().min(1, "Budget is required"),
-  buyAmount: z.string().min(1, "Buy Amount is required"),
-  startDate: z.date(),
-  endDate: z.date(),
-  calculatedValue: z.number().optional(),
-  fee: z.number().optional(),
-})
-
-const lineItemSchema = z.object({
-  platform: z.string().min(1, "Platform is required"),
-  objective: z.string(),
-  campaign: z.string(),
-  bidStrategy: z.string().min(1, "Bid Strategy is required"),
-  buyType: z.string().min(1, "Buy Type is required"),
-  targetingAttribute: z.string(),
-  creativeTargeting: z.string(),
-  creative: z.string(),
-  buyingDemo: z.string(), 
-  market: z.string(),
-  fixedCostMedia: z.boolean(),
-  clientPaysForMedia: z.boolean(),
-  budgetIncludesFees: z.boolean(),
-  noadserving: z.boolean(),
-  bursts: z.array(burstSchema).min(1, "At least one burst is required"),
-  totalMedia: z.number().optional(),
-  totalDeliverables: z.number().optional(),
-  totalFee: z.number().optional(),
-})
-
-const influencersFormSchema = z.object({
-  lineItems: z.array(lineItemSchema),   
-  overallDeliverables: z.number().optional(),
-})
-
-type InfluencersFormValues = z.infer<typeof influencersFormSchema>
 
 interface Publisher {
   id: number

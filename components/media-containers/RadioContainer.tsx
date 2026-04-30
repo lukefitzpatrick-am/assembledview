@@ -4,7 +4,10 @@ import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } fr
 import { useForm, useFieldArray, UseFormReturn } from "react-hook-form"
 import { useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import * as z from "zod"
+import {
+  radioFormSchema,
+  type RadioFormValues,
+} from "@/lib/mediaplan/schemas"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -119,48 +122,6 @@ export function getAllBursts(form) {
   );
 }
 
-const radioBurstSchema = z.object({
-  budget: z.string().min(1, "Budget is required"),
-  buyAmount: z.string().min(1, "Buy Amount is required"),
-  startDate: z.date(),
-  endDate: z.date(),
-  calculatedValue: z.number().optional(),
-  fee: z.number().optional(),
-})
-
-const radioLineItemSchema = z.object({
-  network: z.string().min(1, "Network is required"),
-  station: z.string().min(1, "Station is required"),
-  buyType: z.string().min(1, "Buy Type is required"),
-  bidStrategy: z.string().default("").optional(), // e.g., "Reach", "Frequency" or N/A for some TV buys
-  placement: z.string().default(""),
-  format: z.string().default(""),
-  duration: z.string().default(""),
-  buyingDemo: z.string().default(""),
-  market: z.string().default(""),
-  platform: z.string().default(""),
-  creativeTargeting: z.string().default(""),
-  creative: z.string().default(""),
-  fixedCostMedia: z.boolean().default(false),
-  clientPaysForMedia: z.boolean().default(false),
-  budgetIncludesFees: z.boolean().default(false),
-  noadserving: z.boolean().default(false),
-  lineItemId: z.string().optional(),
-  line_item_id: z.string().optional(),
-  line_item: z.union([z.string(), z.number()]).optional(),
-  lineItem: z.union([z.string(), z.number()]).optional(),
-  bursts: z.array(radioBurstSchema).min(1, "At least one burst is required"),
-  totalMedia: z.number().optional(),
-  totalDeliverables: z.number().optional(),
-  totalFee: z.number().optional(),
-})
-
-const radioFormSchema = z.object({
-  radiolineItems: z.array(radioLineItemSchema),
-  overallDeliverables: z.number().optional(),
-})
-
-type RadioFormValues = z.infer<typeof radioFormSchema>
 
 interface Publisher {
   id: number;

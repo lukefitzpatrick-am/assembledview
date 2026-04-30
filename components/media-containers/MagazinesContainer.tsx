@@ -4,7 +4,10 @@ import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } fr
 import { useForm, useFieldArray, UseFormReturn, type Resolver } from "react-hook-form"
 import { useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import * as z from "zod"
+import {
+  magazinesFormSchema,
+  type MagazinesFormValues,
+} from "@/lib/mediaplan/schemas"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -123,44 +126,6 @@ export function getAllBursts(form) {
   );
 }
 
-const magazinesburstSchema = z.object({
-  budget: z.string().min(1, "Budget is required"),
-  buyAmount: z.string().min(1, "Buy Amount is required"),
-  startDate: z.date(),
-  endDate: z.date(),
-  calculatedValue: z.number().optional(),
-  fee: z.number().optional(),
-})
-
-const magazineslineItemSchema = z.object({
-  network: z.string().min(1, "Network is required"),
-  title: z.string().min(1, "Title is required"),
-  buyType: z.string().min(1, "Buy Type is required"),
-  size: z.string().min(1, "Size is required"),
-  publisher: z.string(),
-  placement: z.string(),
-  buyingDemo: z.string(),
-  market: z.string(),
-  fixedCostMedia: z.boolean(),
-  clientPaysForMedia: z.boolean(),
-  budgetIncludesFees: z.boolean(),
-  noadserving: z.boolean(),
-  lineItemId: z.string().optional(),
-  line_item_id: z.string().optional(),
-  line_item: z.union([z.string(), z.number()]).optional(),
-  lineItem: z.union([z.string(), z.number()]).optional(),
-  bursts: z.array(magazinesburstSchema).min(1, "At least one burst is required"),
-  totalMedia: z.number().optional(),
-  totalDeliverables: z.number().optional(),
-  totalFee: z.number().optional(),
-})
-
-const magazinesFormSchema = z.object({
-  magazineslineItems: z.array(magazineslineItemSchema),
-  overallDeliverables: z.number().optional(),
-})
-
-type MagazinesFormValues = z.infer<typeof magazinesFormSchema>
 
 interface Publisher {
   id: number;

@@ -4,7 +4,10 @@ import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } fr
 import { useForm, useFieldArray, UseFormReturn } from "react-hook-form"
 import { useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import * as z from "zod"
+import {
+  digidisplayFormSchema,
+  type DigiDisplayFormValues,
+} from "@/lib/mediaplan/schemas"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -113,41 +116,6 @@ export function getAllBursts(form) {
     }))
   );
 }
-
-const digidisplayburstSchema = z.object({
-  budget: z.string().min(1, "Budget is required"),
-  buyAmount: z.string().min(1, "Buy Amount is required"),
-  startDate: z.date(),
-  endDate: z.date(),
-  calculatedValue: z.number().optional(),
-  fee: z.number().optional(),
-})
-
-const digidisplaylineItemSchema = z.object({
-  platform: z.string().min(1, "Platform is required"),
-  site: z.string().min(1, "Site is required"),
-  buyType: z.string().min(1, "Buy Type is required"),
-  publisher: z.string().min(1, "Publisher is required"),
-  creativeTargeting: z.string().min(1, "Creative Targeting is required"),
-  creative: z.string().min(1, "Creative is required"),
-  buyingDemo: z.string().min(1, "Buying Demo is required"),
-  market: z.string().min(1, "Market is required"),
-  fixedCostMedia: z.boolean(),
-  clientPaysForMedia: z.boolean(),
-  budgetIncludesFees: z.boolean(),
-  noadserving: z.boolean(),
-  bursts: z.array(digidisplayburstSchema).min(1, "At least one burst is required"),
-  totalMedia: z.number().optional(),
-  totalDeliverables: z.number().optional(),
-  totalFee: z.number().optional(),
-})
-
-const digidisplayFormSchema = z.object({
-  digidisplaylineItems: z.array(digidisplaylineItemSchema),
-  overallDeliverables: z.number().optional(),
-})
-
-type DigiDisplayFormValues = z.infer<typeof digidisplayFormSchema>
 
 // Type definition for form values
 
