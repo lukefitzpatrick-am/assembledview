@@ -19,6 +19,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { Label } from "@/components/ui/label";
 import { getPublishersForBvod, getClientInfo, getBVODSites, createBVODSite } from "@/lib/api"
 import { formatBurstLabel } from "@/lib/bursts"
+import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
@@ -215,27 +216,13 @@ export function getBVODBursts(
       const rawBudget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0
 
       const pct = feebvod || 0
-      let feeAmount = 0
-      let deliveryMediaAmount = rawBudget
-      let mediaAmount = rawBudget
 
-      // Delivery schedule should always include media delivery, even if billing media is $0.
-      if (li.budgetIncludesFees) {
-        feeAmount = rawBudget * (pct / 100)
-        const netMedia = rawBudget * ((100 - pct) / 100)
-        deliveryMediaAmount = netMedia
-        mediaAmount = li.clientPaysForMedia ? 0 : netMedia
-      } else if (li.clientPaysForMedia) {
-        // Budget is net media, only fee is billed
-        feeAmount = (rawBudget / (100 - pct)) * pct
-        deliveryMediaAmount = rawBudget
-        mediaAmount = 0
-      } else {
-        // Budget is net media, fee billed on top
-        feeAmount = (rawBudget * pct) / (100 - pct)
-        deliveryMediaAmount = rawBudget
-        mediaAmount = rawBudget
-      }
+      const { mediaAmount, deliveryMediaAmount, feeAmount } = computeBurstAmounts({
+        rawBudget,
+        budgetIncludesFees: !!li.budgetIncludesFees,
+        clientPaysForMedia: !!li.clientPaysForMedia,
+        feePct: pct,
+      })
 
       return {
         startDate: burst.startDate,

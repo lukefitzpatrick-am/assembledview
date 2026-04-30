@@ -1478,7 +1478,12 @@ function rowNetMedia(
   feePct: number
 ): number {
   const raw = rowGrossCost(row, weekKeys)
-  return expertRowFeeSplit(raw, !!row.budgetIncludesFees, feePct).net
+  return expertRowFeeSplit(
+    raw,
+    !!row.budgetIncludesFees,
+    feePct,
+    !!row.clientPaysForMedia
+  ).net
 }
 
 function rowNetMediaTooltip(
@@ -3183,7 +3188,8 @@ export function ProgDisplayExpertGrid({
       const split = expertRowFeeSplit(
         raw,
         !!row.budgetIncludesFees,
-        feeprogdisplay
+        feeprogdisplay,
+        !!row.clientPaysForMedia
       )
       sumNet += split.net
       sumFee += split.fee

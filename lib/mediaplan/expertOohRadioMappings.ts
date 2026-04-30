@@ -15,6 +15,7 @@ import {
   type WeeklyGanttWeekColumn,
 } from "../utils/weeklyGanttColumns"
 import { formatRate } from "@/lib/format/money"
+import { computeBurstAmounts } from "./burstAmounts"
 import type {
   ExpertWeekColumnKey,
   ExpertWeeklyValues,
@@ -189,25 +190,32 @@ export function expertRowRawCost(
 
 /**
  * Per-row gross/net fee split mirroring the standard container burst math
- * (see e.g. `RadioContainer.overallTotals`). `budgetIncludesFees = true`
- * treats the raw cost as gross and slices net + fee out of it; `false`
- * treats raw as net and stacks fee on top.
+ * (see e.g. `RadioContainer.overallTotals`). Delegates to
+ * {@link computeBurstAmounts} so Expert and Container paths share a single
+ * 3-branch implementation:
+ *
+ *   1. `budgetIncludesFees` — treats rawCost as gross; slices net + fee out.
+ *   2. `clientPaysForMedia` — publisher invoices direct; net is reported as 0
+ *      and fee is grossed-up against the entered rawCost.
+ *   3. Standard — treats rawCost as net and stacks fee on top.
+ *
+ * `clientPaysForMedia` defaults to `false` to preserve backward compatibility
+ * with the original 2-branch signature; existing callers that supply the flag
+ * pick up the (previously missing) publisher-direct behaviour automatically.
  */
 export function expertRowFeeSplit(
   rawCost: number,
   budgetIncludesFees: boolean,
-  feePct: number
+  feePct: number,
+  clientPaysForMedia: boolean = false
 ): { net: number; fee: number } {
-  const raw = Number.isFinite(rawCost) ? rawCost : 0
-  const f = Number.isFinite(feePct) ? feePct || 0 : 0
-  if (budgetIncludesFees) {
-    return {
-      net: (raw * (100 - f)) / 100,
-      fee: (raw * f) / 100,
-    }
-  }
-  const fee = f > 0 && f < 100 ? (raw * f) / (100 - f) : 0
-  return { net: raw, fee }
+  const { mediaAmount, feeAmount } = computeBurstAmounts({
+    rawBudget: rawCost,
+    budgetIncludesFees,
+    clientPaysForMedia,
+    feePct,
+  })
+  return { net: mediaAmount, fee: feeAmount }
 }
 
 /** Mirrors OOHContainer `netMediaFeeMarkup` for deliverable calculations. */
