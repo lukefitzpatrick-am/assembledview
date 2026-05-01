@@ -1558,6 +1558,8 @@ export interface MagazinesExpertGridProps {
   onRowsChange: (rows: MagazinesExpertScheduleRow[]) => void
   /** Network names (magazine publishers API) for network combobox + fuzzy matching */
   publishers?: { publisher_name: string }[]
+  /** Magazine titles for Title combobox; filtered per row by `row.network` */
+  magazines?: { id: string | number; title: string; network: string }[]
 }
 
 const moneyOpts = { locale: "en-AU" as const, currency: "AUD" as const }
@@ -1613,6 +1615,7 @@ export function MagazinesExpertGrid({
   rows,
   onRowsChange,
   publishers = [],
+  magazines = [],
 }: MagazinesExpertGridProps) {
   const { toast } = useToast()
   const domGridId = useId().replace(/:/g, "")
@@ -3638,23 +3641,41 @@ export function MagazinesExpertGrid({
                             className={stickyTd(cTitle)}
                             style={stickyStyleBody(cTitle)}
                           >
-                            <Input
+                            <Combobox
                               id={expertGridCellId(
                                 domGridId,
                                 rowIndex,
                                 cTitle
                               )}
-                              className="h-8 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-1"
                               value={row.title}
-                              onFocus={() =>
+                              onValueChange={(v) =>
+                                updateRow(rowIndex, { title: v })
+                              }
+                              disabled={!row.network}
+                              placeholder={
+                                row.network ? "Select Title" : "Select Network first"
+                              }
+                              searchPlaceholder="Search titles…"
+                              emptyText={
+                                row.network
+                                  ? `No titles found for "${row.network}".`
+                                  : "Select Network first"
+                              }
+                              buttonClassName="h-8 w-full border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-1"
+                              options={magazines
+                                .filter((m) => m.network === row.network)
+                                .map((m) => ({
+                                  value: m.title || `title-${m.id}`,
+                                  label: m.title || "(Untitled)",
+                                }))}
+                              onTriggerFocus={() =>
                                 handleCellFocus(rowIndex, "title")
                               }
-                              onKeyDown={(e) =>
-                                handleGridInputKeyDown(rowIndex, cTitle, e)
-                              }
-                              onChange={(e) =>
-                                updateRow(rowIndex, { title: e.target.value })
-                              }
+                              onOpenChange={(open) => {
+                                if (open) {
+                                  handleCellFocus(rowIndex, "title")
+                                }
+                              }}
                             />
                           </td>
                           <td

@@ -1420,15 +1420,6 @@ const NEWSPAPER_BUY_TYPE_OPTIONS: ComboboxOption[] = [
   { value: "package", label: "Package" },
 ]
 
-const NEWSPAPER_FORMAT_OPTIONS: ComboboxOption[] = [
-  { value: "ROP", label: "ROP" },
-  { value: "Display", label: "Display" },
-  { value: "Classified", label: "Classified" },
-  { value: "Insert", label: "Insert" },
-  { value: "Digital", label: "Digital" },
-  { value: "Run of paper", label: "Run of paper" },
-]
-
 function normalizeNewspaperBuyTypePaste(raw: string): string {
   const v = raw.trim()
   if (!v) return ""
@@ -1437,20 +1428,6 @@ function normalizeNewspaperBuyTypePaste(raw: string): string {
   )
   if (byValue) return byValue.value
   const byLabel = NEWSPAPER_BUY_TYPE_OPTIONS.find(
-    (o) => o.label.toLowerCase() === v.toLowerCase()
-  )
-  if (byLabel) return byLabel.value
-  return v
-}
-
-function normalizeNewspaperFormatPaste(raw: string): string {
-  const v = raw.trim()
-  if (!v) return ""
-  const byValue = NEWSPAPER_FORMAT_OPTIONS.find(
-    (o) => o.value.toLowerCase() === v.toLowerCase()
-  )
-  if (byValue) return byValue.value
-  const byLabel = NEWSPAPER_FORMAT_OPTIONS.find(
     (o) => o.label.toLowerCase() === v.toLowerCase()
   )
   if (byLabel) return byLabel.value
@@ -1537,7 +1514,6 @@ const NEWSPAPER_DESCRIPTOR_CORE: readonly (keyof NewspaperExpertScheduleRow)[] =
   "startDate",
   "endDate",
   "network",
-  "format",
   "buyType",
   "placement",
   "publisher",
@@ -1583,6 +1559,8 @@ export interface NewspaperExpertGridProps {
   onRowsChange: (rows: NewspaperExpertScheduleRow[]) => void
   /** Network names (newspaper publishers API) for network combobox + fuzzy matching */
   publishers?: { publisher_name: string }[]
+  /** Newspaper titles for Title combobox; filtered per row by `row.network` */
+  newspapers?: { id: string | number; title: string; network: string }[]
 }
 
 const moneyOpts = { locale: "en-AU" as const, currency: "AUD" as const }
@@ -1638,6 +1616,7 @@ export function NewspaperExpertGrid({
   rows,
   onRowsChange,
   publishers = [],
+  newspapers = [],
 }: NewspaperExpertGridProps) {
   const { toast } = useToast()
   const domGridId = useId().replace(/:/g, "")
@@ -1760,7 +1739,7 @@ export function NewspaperExpertGrid({
 
   const descriptorColWidths = useMemo(() => {
     const billing = [56, 56, 56]
-    const core = [48, 48, 120, 96, 96, 110, 120, 120, 80]
+    const core = [48, 48, 120, 96, 110, 120, 120, 80]
     const tail = [96, 110, 88]
     return [...(showBillingCols ? billing : []), ...core, ...tail]
   }, [showBillingCols])
@@ -2869,12 +2848,6 @@ export function NewspaperExpertGrid({
               buyType: normalizeNewspaperBuyTypePaste(raw),
             }
             applied += 1
-          } else if (field === "format") {
-            nextRows[targetRow] = {
-              ...cur,
-              format: normalizeNewspaperFormatPaste(raw),
-            }
-            applied += 1
           } else if (field === "network") {
             nextRows[targetRow] = {
               ...cur,
@@ -3219,7 +3192,6 @@ export function NewspaperExpertGrid({
       "Start Date",
       "End Date",
       "Network",
-      "Format",
       "Buy Type",
       "Placement",
       "Publisher",
@@ -3424,7 +3396,6 @@ export function NewspaperExpertGrid({
                       const cTitle = colIndexOf("title")
                       const cBuy = colIndexOf("buyType")
                       const cSize = colIndexOf("size")
-                      const cFmt = colIndexOf("format")
                       const cPlc = colIndexOf("placement")
                       const cDemo = colIndexOf("buyingDemo")
                       const cMkt = colIndexOf("market")
@@ -3615,35 +3586,6 @@ export function NewspaperExpertGrid({
                             />
                           </td>
                           <td
-                            className={stickyTd(cFmt)}
-                            style={stickyStyleBody(cFmt)}
-                          >
-                            <Combobox
-                              id={expertGridCellId(
-                                domGridId,
-                                rowIndex,
-                                cFmt
-                              )}
-                              options={NEWSPAPER_FORMAT_OPTIONS}
-                              value={row.format}
-                              onValueChange={(v) =>
-                                updateRow(rowIndex, { format: v })
-                              }
-                              placeholder="Select"
-                              searchPlaceholder="Search formats…"
-                              emptyText="No match."
-                              buttonClassName="h-8 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-1"
-                              onTriggerFocus={() =>
-                                handleCellFocus(rowIndex, "format")
-                              }
-                              onOpenChange={(open) => {
-                                if (open) {
-                                  handleCellFocus(rowIndex, "format")
-                                }
-                              }}
-                            />
-                          </td>
-                          <td
                             className={stickyTd(cBuy)}
                             style={stickyStyleBody(cBuy)}
                           >
@@ -3725,23 +3667,41 @@ export function NewspaperExpertGrid({
                             className={stickyTd(cTitle)}
                             style={stickyStyleBody(cTitle)}
                           >
-                            <Input
+                            <Combobox
                               id={expertGridCellId(
                                 domGridId,
                                 rowIndex,
                                 cTitle
                               )}
-                              className="h-8 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-1"
                               value={row.title}
-                              onFocus={() =>
+                              onValueChange={(v) =>
+                                updateRow(rowIndex, { title: v })
+                              }
+                              disabled={!row.network}
+                              placeholder={
+                                row.network ? "Select Title" : "Select Network first"
+                              }
+                              searchPlaceholder="Search titles…"
+                              emptyText={
+                                row.network
+                                  ? `No titles found for "${row.network}".`
+                                  : "Select Network first"
+                              }
+                              buttonClassName="h-8 w-full border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-1"
+                              options={newspapers
+                                .filter((n) => n.network === row.network)
+                                .map((n) => ({
+                                  value: n.title || `title-${n.id}`,
+                                  label: n.title || "(Untitled)",
+                                }))}
+                              onTriggerFocus={() =>
                                 handleCellFocus(rowIndex, "title")
                               }
-                              onKeyDown={(e) =>
-                                handleGridInputKeyDown(rowIndex, cTitle, e)
-                              }
-                              onChange={(e) =>
-                                updateRow(rowIndex, { title: e.target.value })
-                              }
+                              onOpenChange={(open) => {
+                                if (open) {
+                                  handleCellFocus(rowIndex, "title")
+                                }
+                              }}
                             />
                           </td>
                           <td

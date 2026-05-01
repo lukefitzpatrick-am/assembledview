@@ -296,7 +296,6 @@ export function createEmptyDigitalDisplayExpertRow(
 const DIGITALDISPLAY_DESCRIPTOR_CORE: readonly (keyof DigitalDisplayExpertScheduleRow)[] = [
   "startDate",
   "endDate",
-  "platform",
   "publisher",
   "site",
   "buyType",
@@ -560,7 +559,7 @@ export function DigitalDisplayExpertGrid({
 
   const descriptorColWidths = useMemo(() => {
     const billing = [56, 56, 56]
-    const core = [48, 48, 120, 120, 120, 96, 120, 110]
+    const core = [48, 48, 120, 120, 96, 120, 110]
     const tail = [96, 110, 88]
     return showBillingCols ? [...billing, ...core, ...tail] : [...core, ...tail]
   }, [showBillingCols])
@@ -2024,7 +2023,6 @@ export function DigitalDisplayExpertGrid({
     const core = [
       "Start Date",
       "End Date",
-      "Platform",
       "Publisher",
       "Site",
       "Buy Type",
@@ -2225,7 +2223,6 @@ export function DigitalDisplayExpertGrid({
                       const sigmaCol = digitalDisplayDescriptorKeys.length + 2
                       const cStart = colIndexOf("startDate")
                       const cEnd = colIndexOf("endDate")
-                      const cPlt = colIndexOf("platform")
                       const cPub = colIndexOf("publisher")
                       const cSite = colIndexOf("site")
                       const cBuy = colIndexOf("buyType")
@@ -2378,31 +2375,6 @@ export function DigitalDisplayExpertGrid({
                               title={row.endDate}
                               className="h-8 cursor-default border-0 bg-transparent px-0 text-[11px] tabular-nums text-muted-foreground shadow-none focus-visible:ring-0"
                               value={formatYmdDisplay(row.endDate)}
-                            />
-                          </td>
-                          <td
-                            className={stickyTd(cPlt)}
-                            style={stickyStyleBody(cPlt)}
-                          >
-                            <Input
-                              id={expertGridCellId(
-                                domGridId,
-                                rowIndex,
-                                cPlt
-                              )}
-                              className="h-8 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-1"
-                              value={row.platform}
-                              onFocus={() =>
-                                handleCellFocus(rowIndex, "platform")
-                              }
-                              onKeyDown={(e) =>
-                                handleGridInputKeyDown(rowIndex, cPlt, e)
-                              }
-                              onChange={(e) =>
-                                updateRow(rowIndex, {
-                                  platform: e.target.value,
-                                })
-                              }
                             />
                           </td>
                           <td

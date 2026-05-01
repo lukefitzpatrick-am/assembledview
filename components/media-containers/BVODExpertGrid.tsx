@@ -1539,10 +1539,8 @@ export function createEmptyBvodExpertRow(
 const BVOD_DESCRIPTOR_CORE: readonly (keyof BvodExpertScheduleRow)[] = [
   "startDate",
   "endDate",
-  "platform",
   "publisher",
   "site",
-  "bidStrategy",
   "buyType",
   "creativeTargeting",
   "creative",
@@ -1804,7 +1802,7 @@ export function BVODExpertGrid({
 
   const descriptorColWidths = useMemo(() => {
     const billing = [56, 56, 56]
-    const core = [48, 48, 120, 120, 120, 110, 96, 120, 110]
+    const core = [48, 48, 120, 120, 96, 120, 110]
     const tail = [96, 110, 88]
     return showBillingCols ? [...billing, ...core, ...tail] : [...core, ...tail]
   }, [showBillingCols])
@@ -3268,10 +3266,8 @@ export function BVODExpertGrid({
     const core = [
       "Start Date",
       "End Date",
-      "Platform",
       "Publisher",
       "Site",
-      "Bid Strategy",
       "Buy Type",
       "Creative Targeting",
       "Creative",
@@ -3470,10 +3466,8 @@ export function BVODExpertGrid({
                       const sigmaCol = bvodDescriptorKeys.length + 2
                       const cStart = colIndexOf("startDate")
                       const cEnd = colIndexOf("endDate")
-                      const cPlt = colIndexOf("platform")
                       const cPub = colIndexOf("publisher")
                       const cSite = colIndexOf("site")
-                      const cBid = colIndexOf("bidStrategy")
                       const cBuy = colIndexOf("buyType")
                       const cTgt = colIndexOf("creativeTargeting")
                       const cCre = colIndexOf("creative")
@@ -3627,31 +3621,6 @@ export function BVODExpertGrid({
                             />
                           </td>
                           <td
-                            className={stickyTd(cPlt)}
-                            style={stickyStyleBody(cPlt)}
-                          >
-                            <Input
-                              id={expertGridCellId(
-                                domGridId,
-                                rowIndex,
-                                cPlt
-                              )}
-                              className="h-8 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-1"
-                              value={row.platform}
-                              onFocus={() =>
-                                handleCellFocus(rowIndex, "platform")
-                              }
-                              onKeyDown={(e) =>
-                                handleGridInputKeyDown(rowIndex, cPlt, e)
-                              }
-                              onChange={(e) =>
-                                updateRow(rowIndex, {
-                                  platform: e.target.value,
-                                })
-                              }
-                            />
-                          </td>
-                          <td
                             className={stickyTd(cPub)}
                             style={stickyStyleBody(cPub)}
                           >
@@ -3737,31 +3706,6 @@ export function BVODExpertGrid({
                                   )
                                 }
                               }}
-                            />
-                          </td>
-                          <td
-                            className={stickyTd(cBid)}
-                            style={stickyStyleBody(cBid)}
-                          >
-                            <Input
-                              id={expertGridCellId(
-                                domGridId,
-                                rowIndex,
-                                cBid
-                              )}
-                              className="h-8 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-1"
-                              value={row.bidStrategy}
-                              onFocus={() =>
-                                handleCellFocus(rowIndex, "bidStrategy")
-                              }
-                              onKeyDown={(e) =>
-                                handleGridInputKeyDown(rowIndex, cBid, e)
-                              }
-                              onChange={(e) =>
-                                updateRow(rowIndex, {
-                                  bidStrategy: e.target.value,
-                                })
-                              }
                             />
                           </td>
                           <td

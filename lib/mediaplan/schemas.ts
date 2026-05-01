@@ -230,10 +230,10 @@ export const televisionlineItemSchema = z.object({
 export const newspaperlineItemSchema = z.object({
   network: z.string().min(1, "Network is required"),
   publisher: z.string().optional().default(""),
-  title: z.string().min(1, "Bid Strategy is required"),
+  title: z.string().min(1, "Title is required"),
   buyType: z.string().min(1, "Buy Type is required"),
   size: z.string().min(1, "Size is required"),
-  format: z.string().min(1, "Format is required"),
+  format: z.string().optional().default(""),
   placement: z.string().min(1, "Placement is required"),
   buyingDemo: z.string().min(1, "Buying Demo is required"),
   market: z.string().min(1, "Market is required"),

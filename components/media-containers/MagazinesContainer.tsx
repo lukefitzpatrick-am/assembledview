@@ -2220,6 +2220,7 @@ useEffect(() => {
               rows={expertMagazinesRows}
               onRowsChange={handleExpertMagazinesRowsChange}
               publishers={publishers}
+              magazines={magazines}
             />
           </div>
           <DialogFooter className="flex-shrink-0 border-t pt-3 mt-2">
