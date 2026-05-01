@@ -192,6 +192,18 @@ const buildInvestmentByMonth = (bursts: BillingBurst[]) => {
   }))
 }
 
+/**
+ * Maps production line items into the shared LineItem[] export shape.
+ *
+ * IMPORTANT: platform is hardcoded to "production" for all production rows.
+ * Production is treated as a single media type for export purposes; the
+ * dropdown subcategory ("Print", "Audio", etc.) is internal organisation
+ * only and is preserved in `apiLineItems.media_type` for dropdown
+ * re-hydration but does NOT appear in exports.
+ *
+ * Matches buildBillingBursts which also forces mediaType: "production"
+ * for billing math.
+ */
 const mapLineItemsForExport = (
   lineItems: ProductionFormValues["lineItems"],
   mbaNumber: string
@@ -204,7 +216,7 @@ const mapLineItemsForExport = (
       burstIndex += 1
       return {
         market: lineItem.market || "",
-        platform: lineItem.mediaType || "",
+        platform: "production",
         network: lineItem.publisher || "",
         creative: lineItem.description || "",
         startDate: formatDateString(burst.startDate),
