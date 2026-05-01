@@ -65,7 +65,7 @@ import {
   mapTvExpertRowsToStandardLineItems,
   mapStandardTvLineItemsToExpertRows,
   type StandardTelevisionFormLineItem,
-} from "@/lib/mediaplan/expertOohRadioMappings"
+} from "@/lib/mediaplan/expertChannelMappings"
 import {
   mergeTelevisionStandardFromExpertWithPrevious,
   serializeTelevisionExpertRowsBaseline,

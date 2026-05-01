@@ -69,7 +69,7 @@ import type { RadioExpertScheduleRow } from "@/lib/mediaplan/expertModeWeeklySch
 import {
   mapRadioExpertRowsToStandardLineItems,
   mapStandardRadioLineItemsToExpertRows,
-} from "@/lib/mediaplan/expertOohRadioMappings"
+} from "@/lib/mediaplan/expertChannelMappings"
 import {
   mergeRadioStandardFromExpertWithPrevious,
   serializeRadioExpertRowsBaseline,

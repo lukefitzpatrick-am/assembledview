@@ -12,7 +12,7 @@
     "build:learning": "node --loader ts-node/esm scripts/build-learning-terms.ts",
     "test:solver": "node --loader ts-node/esm tests/learning/solver.test.ts",
     "test:weekly-gantt": "node --loader ts-node/esm tests/lib/weeklyGanttColumns.test.ts",
-    "test:expert-mappings": "node --loader ts-node/esm tests/lib/expertOohRadioMappings.test.ts",
+    "test:expert-mappings": "tsx --test tests/lib/expertChannelMappings.test.ts",
     "test:expert-paste": "node --loader ts-node/esm tests/lib/expertGridPaste.test.ts",
     "test:finance-forecast": "tsx --test tests/finance/buildFinanceForecastDataset.test.ts tests/finance/varianceEngine.test.ts",
     "snowflake:migrate:pacing": "tsx scripts/snowflake/run-pacing-migrations.ts",

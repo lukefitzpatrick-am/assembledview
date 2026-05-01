@@ -67,7 +67,7 @@ import {
   mapSearchExpertRowsToStandardLineItems,
   mapStandardSearchLineItemsToExpertRows,
   type StandardSearchFormLineItem,
-} from "@/lib/mediaplan/expertOohRadioMappings"
+} from "@/lib/mediaplan/expertChannelMappings"
 import {
   mergeSearchStandardFromExpertWithPrevious,
   serializeSearchExpertRowsBaseline,

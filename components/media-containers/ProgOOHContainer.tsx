@@ -66,7 +66,7 @@ import {
   mapProgOohExpertRowsToStandardLineItems,
   mapStandardProgOohLineItemsToExpertRows,
   type StandardProgOohFormLineItem,
-} from "@/lib/mediaplan/expertOohRadioMappings"
+} from "@/lib/mediaplan/expertChannelMappings"
 import {
   mergeProgOohStandardFromExpertWithPrevious,
   serializeProgOohExpertRowsBaseline,

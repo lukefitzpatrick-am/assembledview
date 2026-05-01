@@ -66,7 +66,7 @@ import {
   mapProgDisplayExpertRowsToStandardLineItems,
   mapStandardProgDisplayLineItemsToExpertRows,
   type StandardProgDisplayFormLineItem,
-} from "@/lib/mediaplan/expertOohRadioMappings"
+} from "@/lib/mediaplan/expertChannelMappings"
 import {
   mergeProgDisplayStandardFromExpertWithPrevious,
   serializeProgDisplayExpertRowsBaseline,

@@ -7,7 +7,7 @@
  *     (DigitalDisplay, Television, Newspaper, Cinema verified byte-identical
  *     in Stage 0d; remaining 15 follow the same pattern.)
  *   - `expertRowFeeSplit(rawCost, budgetIncludesFees, feePct)` in
- *     `lib/mediaplan/expertOohRadioMappings.ts`, which previously implemented
+ *     `lib/mediaplan/expertChannelMappings.ts`, which previously implemented
  *     only 2 of the 3 effective branches.
  *
  * The `clientPaysForMedia` branch was missing from `expertRowFeeSplit`,

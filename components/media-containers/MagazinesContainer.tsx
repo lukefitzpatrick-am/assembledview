@@ -61,7 +61,7 @@ import {
   mapMagazineExpertRowsToStandardLineItems,
   mapStandardMagazineLineItemsToExpertRows,
   type StandardMagazineFormLineItem,
-} from "@/lib/mediaplan/expertOohRadioMappings"
+} from "@/lib/mediaplan/expertChannelMappings"
 import {
   mergeMagazineStandardFromExpertWithPrevious,
   serializeMagazinesExpertRowsBaseline,

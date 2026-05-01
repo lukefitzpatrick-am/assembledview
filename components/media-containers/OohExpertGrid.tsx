@@ -71,9 +71,7 @@ import {
 } from "@/lib/mediaplan/expertGridKeyboardNav"
 import {
   deriveOohExpertRowScheduleYmdFromRow,
-  expertRowFeeSplit,
-  weekKeysInSpanInclusive,
-} from "@/lib/mediaplan/expertOohRadioMappings"
+} from "@/lib/mediaplan/expertChannelMappings"
 import {
   type BuyType,
   netMediaFromOohExpertQuantity,
@@ -98,6 +96,8 @@ import {
   WEEK_SCROLLER_EDGE as OOH_EXPERT_WEEK_SCROLLER_EDGE,
   WEEK_CELL_VISUAL_CLASSES as OOH_WEEK_CELL_VISUAL_CLASSES,
   expertGridParseNum as parseNum,
+  expertRowFeeSplit,
+  weekKeysInSpanInclusive,
   findMergedSpanForWeek,
   weekCellIsPopulated,
   normalizeWeekValueForExpertGridBoundary,

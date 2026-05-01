@@ -53,7 +53,7 @@ import {
   mapIntegrationExpertRowsToStandardLineItems,
   mapStandardIntegrationLineItemsToExpertRows,
   type StandardIntegrationFormLineItem,
-} from "@/lib/mediaplan/expertOohRadioMappings"
+} from "@/lib/mediaplan/expertChannelMappings"
 import {
   mergeIntegrationStandardFromExpertWithPrevious,
   serializeIntegrationExpertRowsBaseline,

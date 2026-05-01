@@ -68,7 +68,7 @@ import {
   mapBvodExpertRowsToStandardLineItems,
   mapStandardBvodLineItemsToExpertRows,
   type StandardBvodFormLineItem,
-} from "@/lib/mediaplan/expertOohRadioMappings"
+} from "@/lib/mediaplan/expertChannelMappings"
 import {
   mergeBvodStandardFromExpertWithPrevious,
   serializeBvodExpertRowsBaseline,

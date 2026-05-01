@@ -63,7 +63,7 @@ import {
   mapOohExpertRowsToStandardLineItems,
   mapStandardOohLineItemsToExpertRows,
   type StandardOohFormLineItem,
-} from "@/lib/mediaplan/expertOohRadioMappings"
+} from "@/lib/mediaplan/expertChannelMappings"
 import {
   mergeOohStandardFromExpertWithPrevious,
   serializeOohExpertRowsBaseline,

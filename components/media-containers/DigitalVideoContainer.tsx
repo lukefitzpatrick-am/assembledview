@@ -62,7 +62,7 @@ import {
   mapDigiVideoExpertRowsToStandardLineItems,
   mapStandardDigiVideoLineItemsToExpertRows,
   type StandardDigiVideoFormLineItem,
-} from "@/lib/mediaplan/expertOohRadioMappings"
+} from "@/lib/mediaplan/expertChannelMappings"
 import {
   mergeDigiVideoStandardFromExpertWithPrevious,
   serializeDigiVideoExpertRowsBaseline,

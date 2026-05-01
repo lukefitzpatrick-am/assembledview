@@ -68,10 +68,8 @@ import {
 } from "@/lib/mediaplan/expertGridKeyboardNav"
 import {
   deriveDigitalDisplayExpertRowScheduleYmdFromRow,
-  expertRowFeeSplit,
   expertRowRawCost,
-  weekKeysInSpanInclusive,
-} from "@/lib/mediaplan/expertOohRadioMappings"
+} from "@/lib/mediaplan/expertChannelMappings"
 import {
   buildWeeklyGanttColumnsFromCampaign,
   type WeeklyGanttWeekColumn,
@@ -90,6 +88,8 @@ import {
   WEEK_SCROLLER_EDGE as DIGITALDISPLAY_EXPERT_WEEK_SCROLLER_EDGE,
   WEEK_CELL_VISUAL_CLASSES as DIGITALDISPLAY_WEEK_CELL_VISUAL_CLASSES,
   expertGridParseNum as parseNum,
+  expertRowFeeSplit,
+  weekKeysInSpanInclusive,
   findMergedSpanForWeek,
   weekCellIsPopulated,
   normalizeWeekValueForExpertGridBoundary,

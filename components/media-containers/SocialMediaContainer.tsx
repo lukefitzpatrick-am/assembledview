@@ -70,7 +70,7 @@ import {
   mapSocialMediaExpertRowsToStandardLineItems,
   mapStandardSocialMediaLineItemsToExpertRows,
   type StandardSocialMediaFormLineItem,
-} from "@/lib/mediaplan/expertOohRadioMappings"
+} from "@/lib/mediaplan/expertChannelMappings"
 import {
   mergeSocialMediaStandardFromExpertWithPrevious,
   serializeSocialMediaExpertRowsBaseline,

@@ -68,9 +68,7 @@ import {
 } from "@/lib/mediaplan/expertGridKeyboardNav"
 import {
   deriveBvodExpertRowScheduleYmdFromRow,
-  expertRowFeeSplit,
-  weekKeysInSpanInclusive,
-} from "@/lib/mediaplan/expertOohRadioMappings"
+} from "@/lib/mediaplan/expertChannelMappings"
 import {
   netMediaFromDeliverables,
   type BuyType,
@@ -93,6 +91,8 @@ import {
   WEEK_SCROLLER_EDGE as BVOD_EXPERT_WEEK_SCROLLER_EDGE,
   WEEK_CELL_VISUAL_CLASSES as BVOD_WEEK_CELL_VISUAL_CLASSES,
   expertGridParseNum as parseNum,
+  expertRowFeeSplit,
+  weekKeysInSpanInclusive,
   findMergedSpanForWeek,
   weekCellIsPopulated,
   normalizeWeekValueForExpertGridBoundary,

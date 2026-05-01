@@ -53,7 +53,7 @@ import {
   mapInfluencersExpertRowsToStandardLineItems,
   mapStandardInfluencersLineItemsToExpertRows,
   type StandardInfluencersFormLineItem,
-} from "@/lib/mediaplan/expertOohRadioMappings"
+} from "@/lib/mediaplan/expertChannelMappings"
 import {
   mergeInfluencersStandardFromExpertWithPrevious,
   serializeInfluencersExpertRowsBaseline,

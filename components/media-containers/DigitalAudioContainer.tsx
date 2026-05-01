@@ -68,7 +68,7 @@ import {
   mapDigitalAudioExpertRowsToStandardLineItems,
   mapStandardDigiAudioLineItemsToExpertRows,
   type StandardDigiAudioFormLineItem,
-} from "@/lib/mediaplan/expertOohRadioMappings"
+} from "@/lib/mediaplan/expertChannelMappings"
 import {
   mergeDigiAudioStandardFromExpertWithPrevious,
   serializeDigiAudioExpertRowsBaseline,
