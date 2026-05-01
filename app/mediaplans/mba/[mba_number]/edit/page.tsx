@@ -102,6 +102,7 @@ import {
   uploadMediaPlanVersionDocuments
 } from "@/lib/api"
 import type { BillingMonth, BillingLineItem as BillingLineItemType, BillingBurst } from "@/lib/billing/types"
+import { computeBillingAndDeliveryMonths } from "@/lib/billing/computeSchedule"
 import { buildBillingScheduleJSON } from "@/lib/billing/buildBillingSchedule"
 import { prepareBillingMonthsForLineItemExport } from "@/lib/billing/prepareBillingMonthsForLineItemExport"
 import { syncLineItemMonthlyAmountAcrossAllMonthRows } from "@/lib/billing/syncLineItemAmountAcrossMonthRows"
@@ -2275,249 +2276,36 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     const end = new Date(endRaw as any);
     if (isNaN(start.getTime()) || isNaN(end.getTime())) return;
 
-    type MonthEntry = {
-      totalMedia: number;
-      totalFee: number;
-      adServing: number;
-      productionTotal: number;
-      mediaCosts: Record<string, number>;
-    };
-
-    // 1. Build month maps for billing and delivery schedules.
-    // - billing: media is billable (can be $0 when clientPaysForMedia)
-    // - delivery: media is delivered (should remain even when clientPaysForMedia)
-    const billingMap: Record<string, MonthEntry> = {};
-    const deliveryMap: Record<string, MonthEntry> = {};
-  
-    let cur = new Date(start.getFullYear(), start.getMonth(), 1);
-    const monthInitEnd = new Date(end.getFullYear(), end.getMonth(), 1);
-    while (cur <= monthInitEnd) {
-      const key = format(cur, "MMMM yyyy");
-      const base: MonthEntry = {
-        totalMedia: 0,
-        totalFee: 0,
-        adServing: 0,
-        productionTotal: 0,
-        mediaCosts: { search: 0, socialMedia: 0, progAudio: 0, cinema: 0, digiAudio: 0, digiDisplay: 0, digiVideo: 0, progDisplay: 0, progVideo: 0, progBvod: 0, progOoh: 0, television: 0, radio: 0, newspaper: 0, magazines: 0, ooh: 0, bvod: 0, integration: 0, influencers: 0, production: 0 }
-      };
-      billingMap[key] = { ...base, mediaCosts: { ...base.mediaCosts } };
-      deliveryMap[key] = { ...base, mediaCosts: { ...base.mediaCosts } };
-      cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
-    }
-
-    // 2. Distribute a single burst and track its media type.
-    function distribute(burst: BillingBurst, mediaType: 'search' | 'socialMedia' | 'progAudio' | 'cinema' | 'digiAudio' | 'digiDisplay' | 'digiVideo' | 'progDisplay' | 'progVideo' | 'progBvod' | 'progOoh' | 'television' | 'radio' | 'newspaper' | 'magazines' | 'ooh' | 'bvod' | 'integration' | 'influencers' | 'production') {
-      const s = new Date(burst.startDate);
-      const e = new Date(burst.endDate);
-      if (isNaN(s.getTime()) || isNaN(e.getTime()) || s > e) return; // Guard against invalid dates
-
-      // Normalise burst endpoints to local midnight so day counts don't drift
-      // when bursts come from UTC ISO strings (e.g. "2026-05-30T14:00:00.000Z").
-      const sLocalMidnight = new Date(s.getFullYear(), s.getMonth(), s.getDate());
-      const eLocalMidnight = new Date(e.getFullYear(), e.getMonth(), e.getDate());
-
-      const daysTotal =
-        Math.round((eLocalMidnight.getTime() - sLocalMidnight.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-      if (daysTotal <= 0) return;
-
-      // Walk months by constructing fresh first-of-month Dates instead of mutating
-      // with setMonth/setDate, which has a rollover bug: e.g. setting month=June on
-      // a Date whose day is 31 normalises to 1 July, silently skipping June.
-      let d = new Date(sLocalMidnight.getFullYear(), sLocalMidnight.getMonth(), 1);
-      const lastMonthCursor = new Date(eLocalMidnight.getFullYear(), eLocalMidnight.getMonth(), 1);
-
-      while (d <= lastMonthCursor) {
-        const key = format(d, "MMMM yyyy");
-        if (billingMap[key] && deliveryMap[key]) {
-          const monthStart = new Date(d.getFullYear(), d.getMonth(), 1);
-          const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-          const sliceStartMs = Math.max(sLocalMidnight.getTime(), monthStart.getTime());
-          const sliceEndMs = Math.min(eLocalMidnight.getTime(), monthEnd.getTime());
-          const daysInMonth =
-            Math.round((sliceEndMs - sliceStartMs) / (1000 * 60 * 60 * 24)) + 1;
-
-          if (daysInMonth > 0) {
-            const ratio = daysInMonth / daysTotal;
-            const billingMediaShare = burst.mediaAmount * ratio;
-            const deliveryMediaShare = (burst.deliveryMediaAmount ?? burst.mediaAmount) * ratio;
-            const feeShare = burst.feeAmount * ratio;
-
-            billingMap[key].mediaCosts[mediaType] += billingMediaShare;
-            deliveryMap[key].mediaCosts[mediaType] += deliveryMediaShare;
-            if (mediaType === 'production') {
-              billingMap[key].productionTotal += billingMediaShare;
-              deliveryMap[key].productionTotal += deliveryMediaShare;
-            } else {
-              billingMap[key].totalMedia += billingMediaShare;
-              deliveryMap[key].totalMedia += deliveryMediaShare;
-            }
-            billingMap[key].totalFee += feeShare;
-            deliveryMap[key].totalFee += feeShare;
-          }
-        }
-        d = new Date(d.getFullYear(), d.getMonth() + 1, 1);
-      }
-    }
-
-    // 3. Distribute all bursts, passing their type.
-    searchBursts.forEach(b => distribute(b, 'search'));
-    socialMediaBursts.forEach(b => distribute(b, 'socialMedia'));
-    progAudioBursts.forEach(b => distribute(b, 'progAudio'));
-    cinemaBursts.forEach(b => distribute(b, 'cinema'));
-    digitalAudioBursts.forEach(b => distribute(b, 'digiAudio'));
-    digitalDisplayBursts.forEach(b => distribute(b, 'digiDisplay'));
-    digitalVideoBursts.forEach(b => distribute(b, 'digiVideo'));
-    progDisplayBursts.forEach(b => distribute(b, 'progDisplay'));
-    progVideoBursts.forEach(b => distribute(b, 'progVideo'));
-    progBvodBursts.forEach(b => distribute(b, 'progBvod'));
-    progOohBursts.forEach(b => distribute(b, 'progOoh'));
-    televisionBursts.forEach(b => distribute(b, 'television'));
-    radioBursts.forEach(b => distribute(b, 'radio'));
-    newspaperBursts.forEach(b => distribute(b, 'newspaper'));
-    magazinesBursts.forEach(b => distribute(b, 'magazines'));
-    oohBursts.forEach(b => distribute(b, 'ooh'));
-    bvodBursts.forEach(b => distribute(b, 'bvod'));
-    integrationBursts.forEach(b => distribute(b, 'integration'));
-    productionBursts.forEach(b => distribute(b, 'production'));
-    influencersBursts.forEach(b => distribute(b, 'influencers'));
-
-    // 4. Format into BillingMonth[]
-    const formatter = new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
-
-    // Distribute ad serving fees
-    function distributeAdServing(burst: BillingBurst, mediaType: string) {
-      const s = new Date(burst.startDate)
-      const e = new Date(burst.endDate)
-      if (burst.noAdserving) return;
-      if (isNaN(s.getTime()) || isNaN(e.getTime()) || s > e) return
-
-      const sLocalMidnight = new Date(s.getFullYear(), s.getMonth(), s.getDate())
-      const eLocalMidnight = new Date(e.getFullYear(), e.getMonth(), e.getDate())
-
-      const daysTotal =
-        Math.round((eLocalMidnight.getTime() - sLocalMidnight.getTime()) / (1000 * 60 * 60 * 24)) + 1
-      if (daysTotal <= 0) return
-
-      let d = new Date(sLocalMidnight.getFullYear(), sLocalMidnight.getMonth(), 1)
-      const lastMonthCursor = new Date(eLocalMidnight.getFullYear(), eLocalMidnight.getMonth(), 1)
-
-      while (d <= lastMonthCursor) {
-        const monthKey = format(d, "MMMM yyyy")
-        if (billingMap[monthKey] && deliveryMap[monthKey]) {
-          const monthStart = new Date(d.getFullYear(), d.getMonth(), 1)
-          const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0)
-          const sliceStartMs = Math.max(sLocalMidnight.getTime(), monthStart.getTime())
-          const sliceEndMs = Math.min(eLocalMidnight.getTime(), monthEnd.getTime())
-          const daysInMonth =
-            Math.round((sliceEndMs - sliceStartMs) / (1000 * 60 * 60 * 24)) + 1
-
-          if (daysInMonth > 0) {
-            const share = burst.deliverables * (daysInMonth / daysTotal)
-
-            const rate = getRateForMediaType(mediaType)
-            const buyType = burst.buyType?.toLowerCase?.() || ""
-            const isCpm = buyType === "cpm"
-            const isBonus = buyType === "bonus"
-            const isDigiAudio = typeof mediaType === "string" && mediaType.toLowerCase().replace(/\s+/g, "") === "digiaudio"
-            const isCpmOrBonusForDigiAudio = isDigiAudio && (isCpm || isBonus)
-            const effectiveRate = isCpmOrBonusForDigiAudio ? (adservaudio ?? rate) : rate
-            const cost = isCpmOrBonusForDigiAudio
-              ? (share / 1000) * effectiveRate
-              : isCpm
-                ? (share / 1000) * rate
-                : (share * rate)
-
-            billingMap[monthKey].adServing += cost
-            deliveryMap[monthKey].adServing += cost
-          }
-        }
-        d = new Date(d.getFullYear(), d.getMonth() + 1, 1)
-      }
-    }
-
-    // 5. Distribute ad serving fees
-    digitalAudioBursts.forEach(b => distributeAdServing(b, 'digiAudio'))
-    digitalDisplayBursts.forEach(b => distributeAdServing(b, 'digiDisplay'))
-    digitalVideoBursts.forEach(b => distributeAdServing(b, 'digiVideo'))
-    bvodBursts.forEach(b => distributeAdServing(b, 'bvod'))
-    progAudioBursts.forEach(b => distributeAdServing(b, 'progAudio'))
-    progVideoBursts.forEach(b => distributeAdServing(b, 'progVideo'))
-    progBvodBursts.forEach(b => distributeAdServing(b, 'progBvod'))
-    progOohBursts.forEach(b => distributeAdServing(b, 'progOoh'))
-    progDisplayBursts.forEach(b => distributeAdServing(b, 'progDisplay'))
-
-    const billingMonthsCalculated: BillingMonth[] = Object.entries(billingMap).map(([monthYear, entry]) => {
-      const productionTotal = entry.productionTotal || 0;
-      return {
-        monthYear,
-        mediaTotal: formatter.format(entry.totalMedia),
-        feeTotal: formatter.format(entry.totalFee),
-        totalAmount: formatter.format(entry.totalMedia + entry.totalFee + entry.adServing + productionTotal),
-        adservingTechFees: formatter.format(entry.adServing),
-        production: formatter.format(productionTotal),
-        mediaCosts: {
-          search: formatter.format(entry.mediaCosts.search || 0),
-          socialMedia: formatter.format(entry.mediaCosts.socialMedia || 0),
-          digiAudio: formatter.format(entry.mediaCosts.digiAudio || 0),
-          digiDisplay: formatter.format(entry.mediaCosts.digiDisplay || 0),
-          digiVideo: formatter.format(entry.mediaCosts.digiVideo || 0),
-          progAudio: formatter.format(entry.mediaCosts.progAudio || 0),
-          cinema: formatter.format(entry.mediaCosts.cinema || 0),
-          progDisplay: formatter.format(entry.mediaCosts.progDisplay || 0),
-          progVideo: formatter.format(entry.mediaCosts.progVideo || 0),
-          progBvod: formatter.format(entry.mediaCosts.progBvod || 0),
-          progOoh: formatter.format(entry.mediaCosts.progOoh || 0),
-          bvod: formatter.format(entry.mediaCosts.bvod || 0),
-          television: formatter.format(entry.mediaCosts.television || 0),
-          radio: formatter.format(entry.mediaCosts.radio || 0),
-          newspaper: formatter.format(entry.mediaCosts.newspaper || 0),
-          magazines: formatter.format(entry.mediaCosts.magazines || 0),
-          ooh: formatter.format(entry.mediaCosts.ooh || 0),
-          integration: formatter.format(entry.mediaCosts.integration || 0),
-          influencers: formatter.format(entry.mediaCosts.influencers || 0),
-          production: formatter.format(entry.mediaCosts.production || 0),
-        }
-      };
-    });
-
-    const deliveryMonthsCalculated: BillingMonth[] = Object.entries(deliveryMap).map(([monthYear, entry]) => {
-      const productionTotal = entry.productionTotal || 0;
-      return {
-        monthYear,
-        mediaTotal: formatter.format(entry.totalMedia),
-        feeTotal: formatter.format(entry.totalFee),
-        totalAmount: formatter.format(entry.totalMedia + entry.totalFee + entry.adServing + productionTotal),
-        adservingTechFees: formatter.format(entry.adServing),
-        production: formatter.format(productionTotal),
-        mediaCosts: {
-          search: formatter.format(entry.mediaCosts.search || 0),
-          socialMedia: formatter.format(entry.mediaCosts.socialMedia || 0),
-          digiAudio: formatter.format(entry.mediaCosts.digiAudio || 0),
-          digiDisplay: formatter.format(entry.mediaCosts.digiDisplay || 0),
-          digiVideo: formatter.format(entry.mediaCosts.digiVideo || 0),
-          progAudio: formatter.format(entry.mediaCosts.progAudio || 0),
-          cinema: formatter.format(entry.mediaCosts.cinema || 0),
-          progDisplay: formatter.format(entry.mediaCosts.progDisplay || 0),
-          progVideo: formatter.format(entry.mediaCosts.progVideo || 0),
-          progBvod: formatter.format(entry.mediaCosts.progBvod || 0),
-          progOoh: formatter.format(entry.mediaCosts.progOoh || 0),
-          bvod: formatter.format(entry.mediaCosts.bvod || 0),
-          television: formatter.format(entry.mediaCosts.television || 0),
-          radio: formatter.format(entry.mediaCosts.radio || 0),
-          newspaper: formatter.format(entry.mediaCosts.newspaper || 0),
-          magazines: formatter.format(entry.mediaCosts.magazines || 0),
-          ooh: formatter.format(entry.mediaCosts.ooh || 0),
-          integration: formatter.format(entry.mediaCosts.integration || 0),
-          influencers: formatter.format(entry.mediaCosts.influencers || 0),
-          production: formatter.format(entry.mediaCosts.production || 0),
-        }
-      };
-    });
+    const { billingMonths: billingMonthsCalculated, deliveryMonths: deliveryMonthsCalculated } =
+      computeBillingAndDeliveryMonths({
+        campaignStart: start,
+        campaignEnd: end,
+        burstsByMediaType: {
+          search: searchBursts,
+          socialMedia: socialMediaBursts,
+          progAudio: progAudioBursts,
+          cinema: cinemaBursts,
+          digiAudio: digitalAudioBursts,
+          digiDisplay: digitalDisplayBursts,
+          digiVideo: digitalVideoBursts,
+          progDisplay: progDisplayBursts,
+          progVideo: progVideoBursts,
+          progBvod: progBvodBursts,
+          progOoh: progOohBursts,
+          television: televisionBursts,
+          radio: radioBursts,
+          newspaper: newspaperBursts,
+          magazines: magazinesBursts,
+          ooh: oohBursts,
+          bvod: bvodBursts,
+          integration: integrationBursts,
+          influencers: influencersBursts,
+          production: productionBursts,
+        },
+        getRateForMediaType,
+        adservaudio: adservaudio ?? 0,
+        isManualBilling,
+      })
 
     // Keep delivery snapshot in sync with latest auto-calculation (e.g. after fee % loads)
     if (deliveryMonthsCalculated.length > 0) {
@@ -2574,6 +2362,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     getRateForMediaType,
     deepCloneBillingMonths,
     form,
+    isManualBilling,
   ]);
 
   // Fetch the media plan data
