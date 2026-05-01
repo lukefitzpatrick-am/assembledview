@@ -25,7 +25,16 @@ type MoneyInputProps = Omit<InputHTMLAttributes<HTMLInputElement>, "value" | "on
  * - On blur: parses raw string, calls onChange with number or null, returns to formatted display
  */
 export const MoneyInput = forwardRef<HTMLInputElement, MoneyInputProps>(function MoneyInput(
-  { value, onChange, locale = "en-AU", currency = "AUD", className, ...rest },
+  {
+    value,
+    onChange,
+    locale = "en-AU",
+    currency = "AUD",
+    className,
+    onBlur: externalOnBlur,
+    onFocus: externalOnFocus,
+    ...rest
+  },
   ref,
 ) {
   const [isFocused, setIsFocused] = useState(false)
@@ -37,6 +46,7 @@ export const MoneyInput = forwardRef<HTMLInputElement, MoneyInputProps>(function
 
   return (
     <input
+      {...rest}
       ref={ref}
       type="text"
       inputMode="decimal"
@@ -44,21 +54,18 @@ export const MoneyInput = forwardRef<HTMLInputElement, MoneyInputProps>(function
       onFocus={(e) => {
         setIsFocused(true)
         setRawValue(value != null ? String(value) : "")
-        rest.onFocus?.(e)
+        externalOnFocus?.(e)
       }}
       onBlur={(e) => {
         setIsFocused(false)
         const parsed = parseMoneyInput(rawValue)
         onChange(parsed ?? null)
-        rest.onBlur?.(e)
+        externalOnBlur?.(e)
       }}
       onChange={(e) => {
         setRawValue(e.target.value)
-        // Don't call onChange while focused — defer to blur so partial edits
-        // don't trigger downstream re-renders or save logic.
       }}
       className={cn("w-full", className)}
-      {...rest}
     />
   )
 })

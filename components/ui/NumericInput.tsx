@@ -38,7 +38,15 @@ function parseNumericInput(raw: string): number | null {
  * Default decimal places is 4 (matches BUY AMOUNT specification). Override via `decimals` prop.
  */
 export const NumericInput = forwardRef<HTMLInputElement, NumericInputProps>(function NumericInput(
-  { value, onChange, decimals = 4, className, ...rest },
+  {
+    value,
+    onChange,
+    decimals = 4,
+    className,
+    onBlur: externalOnBlur,
+    onFocus: externalOnFocus,
+    ...rest
+  },
   ref,
 ) {
   const [isFocused, setIsFocused] = useState(false)
@@ -50,6 +58,7 @@ export const NumericInput = forwardRef<HTMLInputElement, NumericInputProps>(func
 
   return (
     <input
+      {...rest}
       ref={ref}
       type="text"
       inputMode="decimal"
@@ -57,19 +66,18 @@ export const NumericInput = forwardRef<HTMLInputElement, NumericInputProps>(func
       onFocus={(e) => {
         setIsFocused(true)
         setRawValue(value != null ? String(value) : "")
-        rest.onFocus?.(e)
+        externalOnFocus?.(e)
       }}
       onBlur={(e) => {
         setIsFocused(false)
         const parsed = parseNumericInput(rawValue)
         onChange(parsed ?? null)
-        rest.onBlur?.(e)
+        externalOnBlur?.(e)
       }}
       onChange={(e) => {
         setRawValue(e.target.value)
       }}
       className={cn("w-full", className)}
-      {...rest}
     />
   )
 })
