@@ -37,7 +37,7 @@ import type {
   StandardProgDisplayFormLineItem,
   StandardProgVideoFormLineItem,
   StandardProgOohFormLineItem,
-} from "./expertOohRadioMappings.js"
+} from "./expertChannelMappings.js"
 
 function isoDate(d: Date | string | undefined): string {
   if (d === undefined) return ""

@@ -59,10 +59,8 @@ import {
 } from "@/lib/mediaplan/expertGridKeyboardNav"
 import {
   deriveSocialMediaExpertRowScheduleYmdFromRow,
-  expertRowFeeSplit,
   expertRowRawCost,
-  weekKeysInSpanInclusive,
-} from "@/lib/mediaplan/expertOohRadioMappings"
+} from "@/lib/mediaplan/expertChannelMappings"
 import {
   buildWeeklyGanttColumnsFromCampaign,
   type WeeklyGanttWeekColumn,
@@ -81,6 +79,8 @@ import {
   WEEK_SCROLLER_EDGE as SOCIALMEDIA_EXPERT_WEEK_SCROLLER_EDGE,
   WEEK_CELL_VISUAL_CLASSES as SOCIALMEDIA_WEEK_CELL_VISUAL_CLASSES,
   expertGridParseNum as parseNum,
+  expertRowFeeSplit,
+  weekKeysInSpanInclusive,
   findMergedSpanForWeek,
   weekCellIsPopulated,
   normalizeWeekValueForExpertGridBoundary,
@@ -240,7 +240,12 @@ function rowNetMedia(
   feePct: number
 ): number {
   const raw = rowGrossCost(row, weekKeys)
-  return expertRowFeeSplit(raw, !!row.budgetIncludesFees, feePct).net
+  return expertRowFeeSplit(
+    raw,
+    !!row.budgetIncludesFees,
+    feePct,
+    !!row.clientPaysForMedia
+  ).net
 }
 
 function rowNetMediaTooltip(
@@ -1942,7 +1947,8 @@ export function SocialMediaExpertGrid({
       const split = expertRowFeeSplit(
         raw,
         !!row.budgetIncludesFees,
-        feesocial
+        feesocial,
+        !!row.clientPaysForMedia
       )
       sumNet += split.net
       sumFee += split.fee

@@ -4,7 +4,10 @@ import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } fr
 import { useForm, useFieldArray, UseFormReturn, type Resolver } from "react-hook-form"
 import { useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import * as z from "zod"
+import {
+  newspapersFormSchema,
+  type NewspapersFormValues,
+} from "@/lib/mediaplan/schemas"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -19,6 +22,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { Label } from "@/components/ui/label"
 import { getPublishersForNewspapers, getClientInfo, getNewspapers, createNewspaper, getNewspapersAdSizes, createNewspaperAdSize } from "@/lib/api"
 import { formatBurstLabel } from "@/lib/bursts"
+import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -64,7 +68,7 @@ import {
   mapNewspaperExpertRowsToStandardLineItems,
   mapStandardNewspaperLineItemsToExpertRows,
   type StandardNewspaperFormLineItem,
-} from "@/lib/mediaplan/expertOohRadioMappings"
+} from "@/lib/mediaplan/expertChannelMappings"
 import {
   mergeNewspaperStandardFromExpertWithPrevious,
   serializeNewspaperExpertRowsBaseline,
@@ -122,45 +126,6 @@ export function getAllBursts(form) {
   );
 }
 
-const newspaperburstSchema = z.object({
-  budget: z.string().min(1, "Budget is required"),
-  buyAmount: z.string().min(1, "Buy Amount is required"),
-  startDate: z.date(),
-  endDate: z.date(),
-  calculatedValue: z.number().optional(),
-  fee: z.number().optional(),
-})
-
-const newspaperlineItemSchema = z.object({
-  network: z.string().min(1, "Network is required"),
-  publisher: z.string().optional().default(""),
-  title: z.string().min(1, "Bid Strategy is required"),
-  buyType: z.string().min(1, "Buy Type is required"),
-  size: z.string().min(1, "Size is required"),
-  format: z.string().min(1, "Format is required"),
-  placement: z.string().min(1, "Placement is required"),
-  buyingDemo: z.string().min(1, "Buying Demo is required"),
-  market: z.string().min(1, "Market is required"),
-  fixedCostMedia: z.boolean(),
-  clientPaysForMedia: z.boolean(),
-  budgetIncludesFees: z.boolean(),
-  noadserving: z.boolean(),
-  lineItemId: z.string().optional(),
-  line_item_id: z.string().optional(),
-  line_item: z.union([z.string(), z.number()]).optional(),
-  lineItem: z.union([z.string(), z.number()]).optional(),
-  bursts: z.array(newspaperburstSchema).min(1, "At least one burst is required"),
-  totalMedia: z.number().optional(),
-  totalDeliverables: z.number().optional(),
-  totalFee: z.number().optional(),
-})
-
-const newspapersFormSchema = z.object({
-  newspaperlineItems: z.array(newspaperlineItemSchema),
-  overallDeliverables: z.number().optional(),
-})
-
-type NewspapersFormValues = z.infer<typeof newspapersFormSchema>
 
 // Type definition for form values
 interface Publisher {
@@ -207,27 +172,13 @@ export function getNewspapersBursts(
       const rawBudget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0
 
       const pct = feenewspapers || 0
-      let feeAmount = 0
-      let deliveryMediaAmount = rawBudget
-      let mediaAmount = rawBudget
 
-      // Delivery schedule should always include media delivery, even if billing media is $0.
-      if (li.budgetIncludesFees) {
-        feeAmount = rawBudget * (pct / 100)
-        const netMedia = rawBudget * ((100 - pct) / 100)
-        deliveryMediaAmount = netMedia
-        mediaAmount = li.clientPaysForMedia ? 0 : netMedia
-      } else if (li.clientPaysForMedia) {
-        // Budget is net media, only fee is billed
-        feeAmount = (rawBudget / (100 - pct)) * pct
-        deliveryMediaAmount = rawBudget
-        mediaAmount = 0
-      } else {
-        // Budget is net media, fee billed on top
-        feeAmount = (rawBudget * pct) / (100 - pct)
-        deliveryMediaAmount = rawBudget
-        mediaAmount = rawBudget
-      }
+      const { mediaAmount, deliveryMediaAmount, feeAmount } = computeBurstAmounts({
+        rawBudget,
+        budgetIncludesFees: !!li.budgetIncludesFees,
+        clientPaysForMedia: !!li.clientPaysForMedia,
+        feePct: pct,
+      })
 
       return {
         startDate: burst.startDate,
@@ -2243,6 +2194,7 @@ useEffect(() => {
               rows={expertNewspaperRows}
               onRowsChange={handleExpertNewspaperRowsChange}
               publishers={publishers}
+              newspapers={newspapers}
             />
           </div>
           <DialogFooter className="flex-shrink-0 border-t pt-3 mt-2">

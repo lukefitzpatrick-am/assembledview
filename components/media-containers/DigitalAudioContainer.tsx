@@ -4,7 +4,10 @@ import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } fr
 import { useForm, useFieldArray, UseFormReturn } from "react-hook-form"
 import { useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import * as z from "zod"
+import {
+  digiAudioFormSchema,
+  type DigiAudioFormValues,
+} from "@/lib/mediaplan/schemas"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -19,6 +22,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { Label } from "@/components/ui/label";
 import { getPublishersForDigiAudio, getClientInfo, getAudioSites, createAudioSite } from "@/lib/api"
 import { formatBurstLabel } from "@/lib/bursts"
+import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
@@ -64,7 +68,7 @@ import {
   mapDigitalAudioExpertRowsToStandardLineItems,
   mapStandardDigiAudioLineItemsToExpertRows,
   type StandardDigiAudioFormLineItem,
-} from "@/lib/mediaplan/expertOohRadioMappings"
+} from "@/lib/mediaplan/expertChannelMappings"
 import {
   mergeDigiAudioStandardFromExpertWithPrevious,
   serializeDigiAudioExpertRowsBaseline,
@@ -132,42 +136,6 @@ export function getAllBursts(form) {
   );
 }
 
-const digiaudioburstSchema = z.object({
-  budget: z.string().min(1, "Budget is required"),
-  buyAmount: z.string().min(1, "Buy Amount is required"),
-  startDate: z.date(),
-  endDate: z.date(),
-  calculatedValue: z.number().optional(),
-  fee: z.number().optional(),
-})
-
-const digiaudiolineItemSchema = z.object({
-  platform: z.string().min(1, "Platform is required"),
-  site: z.string().min(1, "Site is required"),
-  bidStrategy: z.string().min(1, "Bid Strategy is required"),
-  buyType: z.string().min(1, "Buy Type is required"),
-  publisher: z.string().min(1, "Publisher is required"),
-  targetingAttribute: z.string(),
-  creativeTargeting: z.string().min(1, "Creative Targeting is required"),
-  creative: z.string().min(1, "Creative is required"),
-  buyingDemo: z.string().min(1, "Buying Demo is required"),
-  market: z.string().min(1, "Market is required"),
-  fixedCostMedia: z.boolean(),
-  clientPaysForMedia: z.boolean(),
-  budgetIncludesFees: z.boolean(),
-  noadserving: z.boolean(),
-  bursts: z.array(digiaudioburstSchema).min(1, "At least one burst is required"),
-  totalMedia: z.number().optional(),
-  totalDeliverables: z.number().optional(),
-  totalFee: z.number().optional(),
-})
-
-const digiAudioFormSchema = z.object({
-  digiaudiolineItems: z.array(digiaudiolineItemSchema),
-  overallDeliverables: z.number().optional(),
-})
-
-type DigiAudioFormValues = z.infer<typeof digiAudioFormSchema>
 
 // Type definition for form values
 
@@ -211,27 +179,13 @@ export function getDigiAudioBursts(
       const rawBudget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0
 
       const pct = feedigiaudio || 0
-      let feeAmount = 0
-      let deliveryMediaAmount = rawBudget
-      let mediaAmount = rawBudget
 
-      // Delivery schedule should always include media delivery, even if billing media is $0.
-      if (li.budgetIncludesFees) {
-        feeAmount = rawBudget * (pct / 100)
-        const netMedia = rawBudget * ((100 - pct) / 100)
-        deliveryMediaAmount = netMedia
-        mediaAmount = li.clientPaysForMedia ? 0 : netMedia
-      } else if (li.clientPaysForMedia) {
-        // Budget is net media, only fee is billed
-        feeAmount = (rawBudget / (100 - pct)) * pct
-        deliveryMediaAmount = rawBudget
-        mediaAmount = 0
-      } else {
-        // Budget is net media, fee billed on top
-        feeAmount = (rawBudget * pct) / (100 - pct)
-        deliveryMediaAmount = rawBudget
-        mediaAmount = rawBudget
-      }
+      const { mediaAmount, deliveryMediaAmount, feeAmount } = computeBurstAmounts({
+        rawBudget,
+        budgetIncludesFees: !!li.budgetIncludesFees,
+        clientPaysForMedia: !!li.clientPaysForMedia,
+        feePct: pct,
+      })
 
       return {
         startDate: burst.startDate,

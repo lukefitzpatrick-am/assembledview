@@ -4,7 +4,10 @@ import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } fr
 import { useForm, useFieldArray, UseFormReturn } from "react-hook-form"
 import { useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import * as z from "zod"
+import {
+  influencersFormSchema,
+  type InfluencersFormValues,
+} from "@/lib/mediaplan/schemas"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -23,6 +26,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { useToast } from "@/components/ui/use-toast"
 import { formatBurstLabel } from "@/lib/bursts"
+import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { getPublishersForInfluencers, getClientInfo } from "@/lib/api"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
@@ -49,7 +53,7 @@ import {
   mapInfluencersExpertRowsToStandardLineItems,
   mapStandardInfluencersLineItemsToExpertRows,
   type StandardInfluencersFormLineItem,
-} from "@/lib/mediaplan/expertOohRadioMappings"
+} from "@/lib/mediaplan/expertChannelMappings"
 import {
   mergeInfluencersStandardFromExpertWithPrevious,
   serializeInfluencersExpertRowsBaseline,
@@ -127,42 +131,6 @@ export function getAllBursts(form) {
   );
 }
 
-const burstSchema = z.object({
-  budget: z.string().min(1, "Budget is required"),
-  buyAmount: z.string().min(1, "Buy Amount is required"),
-  startDate: z.date(),
-  endDate: z.date(),
-  calculatedValue: z.number().optional(),
-  fee: z.number().optional(),
-})
-
-const lineItemSchema = z.object({
-  platform: z.string().min(1, "Platform is required"),
-  objective: z.string(),
-  campaign: z.string(),
-  bidStrategy: z.string().min(1, "Bid Strategy is required"),
-  buyType: z.string().min(1, "Buy Type is required"),
-  targetingAttribute: z.string(),
-  creativeTargeting: z.string(),
-  creative: z.string(),
-  buyingDemo: z.string(), 
-  market: z.string(),
-  fixedCostMedia: z.boolean(),
-  clientPaysForMedia: z.boolean(),
-  budgetIncludesFees: z.boolean(),
-  noadserving: z.boolean(),
-  bursts: z.array(burstSchema).min(1, "At least one burst is required"),
-  totalMedia: z.number().optional(),
-  totalDeliverables: z.number().optional(),
-  totalFee: z.number().optional(),
-})
-
-const influencersFormSchema = z.object({
-  lineItems: z.array(lineItemSchema),   
-  overallDeliverables: z.number().optional(),
-})
-
-type InfluencersFormValues = z.infer<typeof influencersFormSchema>
 
 interface Publisher {
   id: number
@@ -196,28 +164,13 @@ export function getInfluencersBursts(
       const rawBudget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0
 
       const pct = feeinfluencers || 0
-      let feeAmount = 0
 
-      let deliveryMediaAmount = rawBudget
-      let mediaAmount = rawBudget
-
-      // Delivery schedule should always include media delivery, even if billing media is $0.
-      if (li.budgetIncludesFees) {
-        feeAmount = rawBudget * (pct / 100)
-        const netMedia = rawBudget * ((100 - pct) / 100)
-        deliveryMediaAmount = netMedia
-        mediaAmount = li.clientPaysForMedia ? 0 : netMedia
-      } else if (li.clientPaysForMedia) {
-        // Budget is net media, only fee is billed
-        feeAmount = (rawBudget / (100 - pct)) * pct
-        deliveryMediaAmount = rawBudget
-        mediaAmount = 0
-      } else {
-        // Budget is net media, fee billed on top
-        feeAmount = (rawBudget * pct) / (100 - pct)
-        deliveryMediaAmount = rawBudget
-        mediaAmount = rawBudget
-      }
+      const { mediaAmount, deliveryMediaAmount, feeAmount } = computeBurstAmounts({
+        rawBudget,
+        budgetIncludesFees: !!li.budgetIncludesFees,
+        clientPaysForMedia: !!li.clientPaysForMedia,
+        feePct: pct,
+      })
       
       return {
         startDate: burst.startDate,

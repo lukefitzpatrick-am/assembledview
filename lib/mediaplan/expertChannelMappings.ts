@@ -15,6 +15,8 @@ import {
   type WeeklyGanttWeekColumn,
 } from "../utils/weeklyGanttColumns"
 import { formatRate } from "@/lib/format/money"
+import { computeBurstAmounts } from "./burstAmounts"
+import { weekKeysInSpanInclusive } from "./expertGridShared"
 import type {
   ExpertWeekColumnKey,
   ExpertWeeklyValues,
@@ -187,29 +189,6 @@ export function expertRowRawCost(
   return netMediaFromDeliverables(bt as BuyType, q, r)
 }
 
-/**
- * Per-row gross/net fee split mirroring the standard container burst math
- * (see e.g. `RadioContainer.overallTotals`). `budgetIncludesFees = true`
- * treats the raw cost as gross and slices net + fee out of it; `false`
- * treats raw as net and stacks fee on top.
- */
-export function expertRowFeeSplit(
-  rawCost: number,
-  budgetIncludesFees: boolean,
-  feePct: number
-): { net: number; fee: number } {
-  const raw = Number.isFinite(rawCost) ? rawCost : 0
-  const f = Number.isFinite(feePct) ? feePct || 0 : 0
-  if (budgetIncludesFees) {
-    return {
-      net: (raw * (100 - f)) / 100,
-      fee: (raw * f) / 100,
-    }
-  }
-  const fee = f > 0 && f < 100 ? (raw * f) / (100 - f) : 0
-  return { net: raw, fee }
-}
-
 /** Mirrors OOHContainer `netMediaFeeMarkup` for deliverable calculations. */
 function oohNetBudgetForDeliverables(
   rawBudget: number,
@@ -337,19 +316,6 @@ export function deriveOohExpertRowScheduleYmd(
     campaignEndDate
   )
   return { startDate: ymd(start), endDate: ymd(end) }
-}
-
-export function weekKeysInSpanInclusive(
-  weekKeysOrdered: readonly string[],
-  startKey: string,
-  endKey: string
-): string[] {
-  const i0 = weekKeysOrdered.indexOf(startKey)
-  const i1 = weekKeysOrdered.indexOf(endKey)
-  if (i0 < 0 || i1 < 0) return []
-  const lo = Math.min(i0, i1)
-  const hi = Math.max(i0, i1)
-  return weekKeysOrdered.slice(lo, hi + 1)
 }
 
 /**
@@ -996,7 +962,7 @@ function deriveRadioStandardUnitRateFromBursts(bursts: StandardMediaBurst[]): nu
   return 0
 }
 
-export function radioWeekKeysOverlappingBurstWindow(
+function radioWeekKeysOverlappingBurstWindow(
   weekColumns: WeeklyGanttWeekColumn[],
   campaignStartDate: Date,
   campaignEndDate: Date,

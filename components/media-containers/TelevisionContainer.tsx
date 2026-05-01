@@ -12,7 +12,10 @@ import {
 import { useForm, useFieldArray, UseFormReturn } from "react-hook-form"
 import { useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import * as z from "zod"
+import {
+  televisionFormSchema,
+  type TelevisionFormValues,
+} from "@/lib/mediaplan/schemas"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -27,6 +30,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { Label } from "@/components/ui/label";
 import { getPublishersForTelevision, getClientInfo, getTVStations, createTVStation} from "@/lib/api"
 import { formatBurstLabel } from "@/lib/bursts"
+import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { Calendar } from "@/components/ui/calendar"
@@ -61,7 +65,7 @@ import {
   mapTvExpertRowsToStandardLineItems,
   mapStandardTvLineItemsToExpertRows,
   type StandardTelevisionFormLineItem,
-} from "@/lib/mediaplan/expertOohRadioMappings"
+} from "@/lib/mediaplan/expertChannelMappings"
 import {
   mergeTelevisionStandardFromExpertWithPrevious,
   serializeTelevisionExpertRowsBaseline,
@@ -99,51 +103,6 @@ export function getAllBursts(form) {
     }))
   );
 }
-
-const televisionBurstSchema = z.object({
-  budget: z.string().min(1, "Budget for this burst is required"),
-  buyAmount: z.string().min(1, "Buy Amount for this burst is required"), // e.g., CPP, Cost per Spot, Fixed Price for this burst
-  startDate: z.date({ message: "Start date for this burst is required." }),
-  endDate: z.date({ message: "End date for this burst is required." }),
-  size: z.string().min(1, "Ad Size/Length for this burst is required"), // e.g., "30s", "15s"
-  tarps: z.string().min(1, "TARPs for this burst are required").regex(/^\d+(\.\d+)?$/, "TARPs must be a number"), // TARPs for this specific burst
-  calculatedValue: z.number().optional(),
-  fee: z.number().optional(),
-}).refine(data => data.endDate >= data.startDate, {
-  message: "End date cannot be earlier than start date",
-  path: ["endDate"],
-})
-
-const televisionlineItemSchema = z.object({
-  market: z.string().min(1, "Market is required"),
-  network: z.string().min(1, "Network is required"), // This can replace/be used instead of a generic 'platform'
-  station: z.string().min(1, "Station is required"),
-  daypart: z.string().min(1, "Daypart is required"),
-  placement: z.string().min(1, "Placement is required"),
-  bidStrategy: z.string().default("").optional(), // e.g., "Reach", "Frequency" or N/A for some TV buys
-  buyType: z.string().min(1, "Buy Type is required"), // e.g., CPP, Fixed Spot Rate, Sponsorship
-  creativeTargeting: z.string().default("").optional(), // May be less relevant or could describe specific program targeting
-  creative: z.string().default("").optional(), // Could be "Ad Copy Name" or general creative theme
-  buyingDemo: z.string().default(""), // e.g., "Adults 25-54"
-  fixedCostMedia: z.boolean().default(false),
-  clientPaysForMedia: z.boolean().default(false),
-  budgetIncludesFees: z.boolean().default(false),
-  noadserving: z.boolean().default(false), // Typically for digital, but kept for consistency
-  lineItemId: z.string().optional(),
-  line_item_id: z.string().optional(),
-  line_item: z.union([z.string(), z.number()]).optional(),
-  lineItem: z.union([z.string(), z.number()]).optional(),
-  bursts: z.array(televisionBurstSchema).min(1, "At least one burst is required"),
-  totalMedia: z.number().optional(),
-  totalDeliverables: z.number().optional(),
-})
-
-const televisionFormSchema = z.object({
-  televisionlineItems: z.array(televisionlineItemSchema),
-  overallDeliverables: z.number().optional(),
-})
-
-type TelevisionFormValues = z.infer<typeof televisionFormSchema>
 
 const EMPTY_TELEVISION_LINE_ITEMS: TelevisionFormValues["televisionlineItems"] = []
 
@@ -377,27 +336,13 @@ export function getTelevisionBursts(
       const rawBudget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0
 
       const pct = feetelevision || 0
-      let feeAmount = 0
-      let deliveryMediaAmount = rawBudget
-      let mediaAmount = rawBudget
 
-      // Delivery schedule should always include media delivery, even if billing media is $0.
-      if (li.budgetIncludesFees) {
-        feeAmount = rawBudget * (pct / 100)
-        const netMedia = rawBudget * ((100 - pct) / 100)
-        deliveryMediaAmount = netMedia
-        mediaAmount = li.clientPaysForMedia ? 0 : netMedia
-      } else if (li.clientPaysForMedia) {
-        // Budget is net media, only fee is billed
-        feeAmount = (rawBudget / (100 - pct)) * pct
-        deliveryMediaAmount = rawBudget
-        mediaAmount = 0
-      } else {
-        // Budget is net media, fee billed on top
-        feeAmount = (rawBudget * pct) / (100 - pct)
-        deliveryMediaAmount = rawBudget
-        mediaAmount = rawBudget
-      }
+      const { mediaAmount, deliveryMediaAmount, feeAmount } = computeBurstAmounts({
+        rawBudget,
+        budgetIncludesFees: !!li.budgetIncludesFees,
+        clientPaysForMedia: !!li.clientPaysForMedia,
+        feePct: pct,
+      })
 
       return {
         startDate: burst.startDate,

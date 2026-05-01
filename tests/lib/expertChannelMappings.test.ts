@@ -8,7 +8,7 @@ import {
   mapRadioExpertRowsToStandardLineItems,
   mapStandardOohLineItemsToExpertRows,
   mapStandardRadioLineItemsToExpertRows,
-} from "../../lib/mediaplan/expertOohRadioMappings.js"
+} from "../../lib/mediaplan/expertChannelMappings.js"
 
 test("OOH expert row produces one line item and one burst per filled week; budget = qty * unitRate", () => {
   const campaignStart = new Date(2024, 9, 23)

@@ -4,7 +4,7 @@ import {
   mergeOohStandardFromExpertWithPrevious,
   mergeRadioStandardFromExpertWithPrevious,
 } from "../../lib/mediaplan/expertModeSwitch.js"
-import type { StandardOohFormLineItem, StandardRadioFormLineItem } from "../../lib/mediaplan/expertOohRadioMappings.js"
+import type { StandardOohFormLineItem, StandardRadioFormLineItem } from "../../lib/mediaplan/expertChannelMappings.js"
 
 test("mergeOohStandardFromExpertWithPrevious matches by line_item_id, not row order", () => {
   const generated: StandardOohFormLineItem[] = [
