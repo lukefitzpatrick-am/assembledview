@@ -448,7 +448,7 @@ function recomputeFullMonthFromLineItems(row: BillingMonth, formatter: Intl.Numb
   const feeTotal = parseFloat(String(row.feeTotal || "$0").replace(/[^0-9.-]/g, "")) || 0
   const adServingTotal = parseFloat(String(row.adservingTechFees || "$0").replace(/[^0-9.-]/g, "")) || 0
   const productionTotal =
-    parseFloat(String(row.production || row.mediaCosts?.production || "$0").replace(/[^0-9.-]/g, "")) || 0
+    parseFloat(String(row.production ?? "$0").replace(/[^0-9.-]/g, "")) || 0
   row.mediaTotal = formatter.format(mediaSumExcludingProduction)
   row.totalAmount = formatter.format(mediaSumExcludingProduction + feeTotal + adServingTotal + productionTotal)
 }
@@ -3824,7 +3824,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     
     const feeTotal = parseFloat(copy[index].feeTotal.replace(/[^0-9.-]/g, '')) || 0;
     const adServingTotal = parseFloat(copy[index].adservingTechFees.replace(/[^0-9.-]/g, '')) || 0;
-    const productionTotal = parseFloat((copy[index].production || copy[index].mediaCosts.production || '0').replace(/[^0-9.-]/g, '')) || 0;
+    const productionTotal =
+      parseFloat(String(copy[index].production ?? "$0").replace(/[^0-9.-]/g, "")) || 0
 
     copy[index].mediaTotal = formatter.format(mediaTotal);
     copy[index].totalAmount = formatter.format(mediaTotal + feeTotal + adServingTotal + productionTotal);

@@ -47,6 +47,15 @@ export type BillingLineItem = {
   legacySaved?: boolean;
 };
 
+/**
+ * Monthly billing row for display and MBA payloads (`billing_schedule`).
+ *
+ * Production amount semantics:
+ * - **`production`** is authoritative — it mirrors `productionTotal` in schedule generators (allocated from production bursts).
+ * - **`mediaCosts.production`** duplicates that same allocated amount for the per-media-type breakdown grid (same numeric intent as top-level `production`).
+ *
+ * Consumers must **not** sum `production` plus `mediaCosts.production` as if they were separate charges, or sum `mediaCosts` including `production` and also add top-level `production` in grand totals.
+ */
 export type BillingMonth = {
   monthYear: string; // e.g. 'January 2025'
   mediaTotal: string;
@@ -74,6 +83,9 @@ export type BillingMonth = {
     progAudio: string;
     progOoh: string;
     influencers: string;
+    /**
+     * @deprecated For production **amount** on this month, use top-level `production`. This field exists for the cost-grid breakdown and is written to the same value as `production` by the schedule generator; do not add both into a single total.
+     */
     production: string;
   };
   // Optional line item breakdowns for each media type

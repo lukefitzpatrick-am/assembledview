@@ -49,6 +49,14 @@ export function parseCurrency(value: string | number | undefined | null): number
   return Number.isFinite(numeric) ? numeric : 0
 }
 
+/** Gross media only; excludes `production` — production is tracked separately on each month and in totals. */
+function sumMediaTotalsExcludingProduction(mediaTotals: Record<string, number>): number {
+  return Object.entries(mediaTotals).reduce(
+    (acc, [k, v]) => (k === "production" ? acc : acc + v),
+    0,
+  )
+}
+
 /** True when at least one month has non-empty line item arrays (real breakdown, not empty object). */
 export function billingMonthsHaveDetailedLineItems(months: BillingMonth[] | undefined): boolean {
   if (!months?.length) return false
@@ -88,7 +96,7 @@ export function computePartialMbaOverridesFromDeliveryMonths(params: {
     mediaTotals[key] = sum
   }
 
-  const grossMedia = Object.values(mediaTotals).reduce((acc, v) => acc + v, 0)
+  const grossMedia = sumMediaTotalsExcludingProduction(mediaTotals)
   const assembledFee = selected.reduce((acc, m) => acc + parseCurrency(m.feeTotal), 0)
   const adServing = selected.reduce((acc, m) => acc + parseCurrency(m.adservingTechFees), 0)
   const production = selected.reduce((acc, m) => acc + parseCurrency(m.production), 0)
@@ -185,7 +193,7 @@ export function recomputePartialMbaFromSelections(params: {
     mediaTotals[channel.mediaKey] = parseCurrency(channel.selectedTotal)
   })
 
-  const grossSelected = Object.values(mediaTotals).reduce((sum, v) => sum + v, 0)
+  const grossSelected = sumMediaTotalsExcludingProduction(mediaTotals)
 
   const baselineEnabled: Record<string, boolean> = {}
   for (const k of mediaKeys) {
@@ -201,6 +209,7 @@ export function recomputePartialMbaFromSelections(params: {
 
   let grossFullLineItems = 0
   for (const k of mediaKeys) {
+    if (k === "production") continue
     if (baselineEnabled[k] === false) continue
     const byId = lineItemsMap[k]
     if (!byId) continue

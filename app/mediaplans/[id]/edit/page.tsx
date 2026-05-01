@@ -1417,7 +1417,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
     const mediaTotals = Object.fromEntries(
       channels.map((c) => [c.mediaKey, parseMoney(c.selectedTotal)])
     )
-    const grossMedia = Object.values(mediaTotals).reduce((sum, val) => sum + val, 0)
+    const grossMedia = Object.entries(mediaTotals).reduce(
+      (sum, [key, val]) => (key === "production" ? sum : sum + val),
+      0,
+    )
     setPartialMBAValues((prev) => ({ ...prev, mediaTotals, grossMedia }))
     setPartialMBALineItemsByMedia(Object.fromEntries(Object.entries(byMedia).map(([k, v]) => [k, Object.values(v)])))
     setPartialApprovalMetadata({
