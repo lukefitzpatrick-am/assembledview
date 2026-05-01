@@ -23,6 +23,9 @@ interface MediaPlan {
   mp_campaignbudget: number
   mbaidentifier: string
   mbanumber: string
+  /**
+   * mp_fixedfee — Client billed on fixed-fee structure. Independent of production line items.
+   */
   mp_fixedfee: boolean
   mp_television: boolean
   mp_radio: boolean

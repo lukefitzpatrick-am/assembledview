@@ -129,6 +129,11 @@ const mediaPlanSchema = z.object({
   mp_plannumber: z.string(),
   mp_television: z.boolean(),
   mp_radio: z.boolean(),
+  /**
+   * mp_production — MBA contains production line item(s).
+   * Controls production section visibility and presence-dependent calculations.
+   * Independent of mp_fixedfee.
+   */
   mp_production: z.boolean(),
   mp_newspaper: z.boolean(),
   mp_magazines: z.boolean(),
@@ -147,6 +152,10 @@ const mediaPlanSchema = z.object({
   mp_progaudio: z.boolean(),
   mp_progooh: z.boolean(),
   mp_influencers: z.boolean(),
+  /**
+   * mp_fixedfee — Client billed on fixed-fee structure (maps to `fixed_fee` on save).
+   * Independent of mp_production.
+   */
   mp_fixedfee: z.boolean(),
   billingSchedule: z.array(z.record(z.string(), z.string())).optional(),
   lineItems: z.array(

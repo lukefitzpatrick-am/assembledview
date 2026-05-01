@@ -1306,7 +1306,7 @@ export async function PUT(
     const normalizedCampaignEndDate = campaignEndDate ? toMelbourneDateString(campaignEndDate) : campaignEndDate
 
     // Format the data to match the media_plan_versions schema
-    const mpProductionFlag = isTruthyFlag(data.mp_production) || isTruthyFlag(data.mp_fixedfee)
+    const mpProductionFlag = isTruthyFlag(data.mp_production)
     const resolvedClientName =
       data.mp_client_name || data.mp_clientname || data.client_name || masterData.mp_client_name
     const newVersionData = {

@@ -1113,6 +1113,13 @@ const mediaPlanSchema = z.object({
   ...Object.fromEntries(
     MEDIA_TYPE_KEYS.map(key => [key, z.boolean()])
   ) as { [K in MediaTypeKey]: z.ZodBoolean },
+  /**
+   * mp_fixedfee — Client billed on fixed-fee structure (server field `fixed_fee`).
+   * The client pays a fixed amount regardless of actual media costs.
+   * Affects pacing display rules in delivery/cost reporting.
+   * Independent of mp_production.
+   */
+  mp_fixedfee: z.boolean(),
   lineItems: z.array(
     z.object({
       bursts: z.array(
@@ -1911,6 +1918,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       ...Object.fromEntries(
         MEDIA_TYPE_KEYS.map(key => [key, false])
       ) as MediaFields,
+      mp_fixedfee: false,
       lineItems: [],
     },
   })
@@ -2980,7 +2988,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           mp_digivideo: Boolean(data.mp_digivideo),
           mp_bvod: Boolean(data.mp_bvod),
           mp_integration: Boolean(data.mp_integration),
-          mp_production: Boolean(data.mp_production || data.mp_fixedfee),
+          mp_production: Boolean(data.mp_production),
+          mp_fixedfee: Boolean(
+            (data as { mp_fixedfee?: unknown }).mp_fixedfee ??
+              (data as { fixed_fee?: unknown }).fixed_fee
+          ),
           mp_search: Boolean(data.mp_search),
           mp_socialmedia: Boolean(data.mp_socialmedia),
           mp_progdisplay: Boolean(data.mp_progdisplay),

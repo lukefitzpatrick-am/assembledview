@@ -556,7 +556,20 @@ interface MediaPlanVersion {
   client_contact: string;
   po_number: string;
   mp_campaignbudget: number;
+  /**
+   * fixed_fee — Client billed on fixed-fee structure (Xano `media_plan_versions.fixed_fee`).
+   * The client pays a fixed amount regardless of actual media costs.
+   * Affects pacing display rules in delivery/cost reporting.
+   * Independent of mp_production. Client payloads often use `mp_fixedfee` alias.
+   */
   fixed_fee: boolean;
+  /**
+   * mp_production — MBA contains production line item(s).
+   * Controls production section visibility and presence-dependent calculations.
+   * Independent of fixed_fee / mp_fixedfee (an MBA can have production without fixed-fee
+   * billing, and vice versa).
+   */
+  mp_production?: boolean;
   mp_television: boolean;
   mp_radio: boolean;
   mp_newspaper: boolean;
