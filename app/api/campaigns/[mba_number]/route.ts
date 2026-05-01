@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic"
 
 const isDev = process.env.NODE_ENV !== "production"
 
-const CANONICAL_MEDIA_KEYS: Array<keyof typeof MEDIA_CONTAINER_ENDPOINTS | "consulting"> = [
+const CANONICAL_MEDIA_KEYS: Array<keyof typeof MEDIA_CONTAINER_ENDPOINTS> = [
   "search",
   "socialMedia",
   "progDisplay",
@@ -30,7 +30,6 @@ const CANONICAL_MEDIA_KEYS: Array<keyof typeof MEDIA_CONTAINER_ENDPOINTS | "cons
   "integration",
   "influencers",
   "production",
-  "consulting",
 ]
 
 const CANONICAL_TO_FETCH_MAP: Record<typeof CANONICAL_MEDIA_KEYS[number], keyof typeof MEDIA_CONTAINER_ENDPOINTS> = {
@@ -54,7 +53,6 @@ const CANONICAL_TO_FETCH_MAP: Record<typeof CANONICAL_MEDIA_KEYS[number], keyof 
   integration: "integration",
   influencers: "influencers",
   production: "production",
-  consulting: "production",
 }
 
 /**
@@ -665,13 +663,8 @@ export async function GET(
       .filter(([flag]) => isTruthyFlag((versionData as any)?.[flag]))
       .map(([, value]) => value)
 
-    // mp_production also gates consulting (shares production container)
-    const enabledEntriesWithConsulting = isTruthyFlag((versionData as any)?.mp_production)
-      ? [...enabledEntries, { canonicalKey: "consulting" as const, fetchKey: "production" as const }]
-      : enabledEntries
-
-    const enabledMediaTypes = Array.from(new Set(enabledEntriesWithConsulting.map((entry) => entry.canonicalKey)))
-    const mediaTypesToFetch = Array.from(new Set(enabledEntriesWithConsulting.map((entry) => entry.fetchKey)))
+    const enabledMediaTypes = Array.from(new Set(enabledEntries.map((entry) => entry.canonicalKey)))
+    const mediaTypesToFetch = Array.from(new Set(enabledEntries.map((entry) => entry.fetchKey)))
 
     if (isDev) {
       console.info("[campaigns] enabled media types", { mba_number, versionNumber, enabledMediaTypes })
@@ -748,11 +741,11 @@ export async function GET(
     const normalisedContainers = normalizeCampaignLineItems(lineItems, startDate, endDate)
 
     const lineItemsWithDefaults: Record<string, any[]> = {}
-    const consultingEnabled = enabledMediaTypes.includes("consulting")
+    const productionEnabled = enabledMediaTypes.includes("production")
     CANONICAL_MEDIA_KEYS.forEach((canonicalKey) => {
       const sourceKey = CANONICAL_TO_FETCH_MAP[canonicalKey]
       const items = normalisedContainers[sourceKey] || []
-      const scopedItems = canonicalKey === "consulting" && !consultingEnabled ? [] : items
+      const scopedItems = canonicalKey === "production" && !productionEnabled ? [] : items
       lineItemsWithDefaults[canonicalKey] = canonicalKey === "socialMedia" ? normalizeSocialLineItems(scopedItems) : scopedItems
     })
 

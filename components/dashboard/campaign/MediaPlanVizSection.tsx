@@ -45,7 +45,6 @@ const MEDIA_ORDER = [
   "integration",
   "influencers",
   "production",
-  "consulting",
 ]
 
 function formatMediaTypeLabel(key: string) {

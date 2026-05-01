@@ -69,7 +69,7 @@ export const mediaTypeTheme = {
     progaudio: "#BE185D",
     progooh: "#b5d337",
     influencers: "#15c7c9",
-    /** Consulting / production line items (aligned with dashboard greys) */
+    /** Production line items (aligned with dashboard greys) */
     production: "#64748B",
   },
 }

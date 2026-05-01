@@ -185,7 +185,7 @@ interface DigitalVideoLineItem {
   line_item: number;
 }
 
-// Production / Consulting
+// Production line items (Xano: media_plan_production)
 export interface ProductionLineItem {
   id: number;
   created_at: number;

@@ -600,13 +600,12 @@ export default function CreateMediaPlan() {
   const [oohFeeTotal, setOohFeeTotal] = useState(0)
   const [oohMediaLineItems, setOohMediaLineItems] = useState<any[]>([])
 
-  //Consulting/Production
-  const [feeconsulting, setFeeConsulting] = useState<number | null>(null)
-  const [consultingTotal, setConsultingTotal] = useState(0)
-  const [consultingBursts, setConsultingBursts] = useState<BillingBurst[]>([])
-  const [consultingItems, setConsultingItems] = useState<LineItem[]>([])
-  const [consultingFeeTotal, setConsultingFeeTotal] = useState(0)
-  const [consultingMediaLineItems, setConsultingMediaLineItems] = useState<any[]>([])
+  // Production (single line-items state — seed + container updates share `productionLineItems`)
+  const [feeProduction, setFeeProduction] = useState<number | null>(null)
+  const [productionTotal, setProductionTotal] = useState(0)
+  const [productionBursts, setProductionBursts] = useState<BillingBurst[]>([])
+  const [productionFeeTotal, setProductionFeeTotal] = useState(0)
+  const [productionLineItems, setProductionLineItems] = useState<any[]>([])
 
   //Ad Serving
   const [adservvideo, setAdServVideo] = useState<number | null>(null)
@@ -752,7 +751,7 @@ export default function CreateMediaPlan() {
       magazineMediaLineItems.length +
       oohMediaLineItems.length +
       cinemaMediaLineItems.length +
-      consultingMediaLineItems.length +
+      productionLineItems.length +
       digiAudioMediaLineItems.length +
       digiDisplayMediaLineItems.length +
       digiVideoMediaLineItems.length +
@@ -774,7 +773,7 @@ export default function CreateMediaPlan() {
     magazineMediaLineItems,
     oohMediaLineItems,
     cinemaMediaLineItems,
-    consultingMediaLineItems,
+    productionLineItems,
     digiAudioMediaLineItems,
     digiDisplayMediaLineItems,
     digiVideoMediaLineItems,
@@ -812,7 +811,7 @@ export default function CreateMediaPlan() {
       cinema: cinemaItems,
       integration: integrationItems,
       influencers: influencersItems,
-      production: consultingItems,
+      production: productionLineItems,
     }
     return planHasAdvertisingAssociatesLineItem(mediaItems, kpiPublishers, shouldIncludeMediaPlanLineItem)
   }, [
@@ -834,7 +833,7 @@ export default function CreateMediaPlan() {
     oohItems,
     cinemaItems,
     integrationItems,
-    consultingItems,
+    productionLineItems,
     influencersItems,
     kpiPublishers,
   ])
@@ -887,7 +886,7 @@ export default function CreateMediaPlan() {
           ooh: oohItems,
           cinema: cinemaItems,
           influencers: influencersItems,
-          production: consultingItems,
+          production: productionLineItems,
         },
         clientName: fv.mp_client_name,
         mbaNumber: fv.mba_number ?? "",
@@ -927,7 +926,7 @@ export default function CreateMediaPlan() {
     oohItems,
     cinemaItems,
     influencersItems,
-    consultingItems,
+    productionLineItems,
     publisherKPIs,
     clientKPIs,
     savedCampaignKPIs,
@@ -1129,7 +1128,7 @@ export default function CreateMediaPlan() {
           bvod: bvodBursts,
           integration: integrationBursts,
           influencers: influencersBursts,
-          production: consultingBursts,
+          production: productionBursts,
         },
         getRateForMediaType,
         adservaudio: adservaudio ?? 0,
@@ -1178,7 +1177,7 @@ export default function CreateMediaPlan() {
     bvodBursts,
     integrationBursts,
     influencersBursts,
-    consultingBursts,
+    productionBursts,
     getRateForMediaType,
     adservaudio,
     isManualBilling,
@@ -1192,8 +1191,8 @@ export default function CreateMediaPlan() {
         return sum + (monthProductionTotal || 0)
       }, 0)
     }
-    return consultingTotal ?? 0
-  }, [isManualBilling, billingMonths, consultingTotal])
+    return productionTotal ?? 0
+  }, [isManualBilling, billingMonths, productionTotal])
 
   const calculateAdServingFees = useCallback(() => {
     if (isManualBilling) {
@@ -1475,7 +1474,7 @@ export default function CreateMediaPlan() {
         bvod: { bursts: bvodBursts, setter: setBvodBursts },
         integration: { bursts: integrationBursts, setter: setIntegrationBursts },
         influencers: { bursts: influencersBursts, setter: setInfluencersBursts },
-        consulting: { bursts: consultingBursts, setter: setConsultingBursts },
+        production: { bursts: productionBursts, setter: setProductionBursts },
       }
 
       const target = targetMap[mediaType]
@@ -1505,7 +1504,7 @@ export default function CreateMediaPlan() {
     [
       bvodBursts,
       cinemaBursts,
-      consultingBursts,
+      productionBursts,
       digiAudioBursts,
       digiDisplayBursts,
       digiVideoBursts,
@@ -1614,7 +1613,7 @@ export default function CreateMediaPlan() {
         bvod: summarizeBurstsForAssistant(bvodBursts),
         integration: summarizeBurstsForAssistant(integrationBursts),
         influencers: summarizeBurstsForAssistant(influencersBursts),
-        consulting: summarizeBurstsForAssistant(consultingBursts),
+        production: summarizeBurstsForAssistant(productionBursts),
       },
     }
 
@@ -1633,7 +1632,7 @@ export default function CreateMediaPlan() {
     campaignEnd,
     campaignStart,
     cinemaBursts,
-    consultingBursts,
+    productionBursts,
     digiAudioBursts,
     digiDisplayBursts,
     digiVideoBursts,
@@ -1807,10 +1806,10 @@ export default function CreateMediaPlan() {
     setOohFeeTotal(totalFee);
   };
 
-  const handleConsultingTotalChange = (totalMedia: number, totalFee: number) => {
+  const handleProductionTotalChange = (totalMedia: number, totalFee: number) => {
     markUnsavedChanges();
-    setConsultingTotal(totalMedia);
-    setConsultingFeeTotal(totalFee);
+    setProductionTotal(totalMedia);
+    setProductionFeeTotal(totalFee);
   };
 
   const handleInfluencersTotalChange = (totalMedia: number, totalFee: number) => {
@@ -1850,9 +1849,9 @@ export default function CreateMediaPlan() {
     setOohMediaLineItems(lineItems);
   }, [markUnsavedChanges]);
 
-  const handleConsultingMediaLineItemsChange = useCallback((lineItems: any[]) => {
+  const handleProductionLineItemsChange = useCallback((lineItems: LineItem[] | any[]) => {
     markUnsavedChanges();
-    setConsultingMediaLineItems(lineItems);
+    setProductionLineItems(lineItems);
   }, [markUnsavedChanges]);
 
   const handleCinemaMediaLineItemsChange = useCallback((lineItems: any[]) => {
@@ -2020,12 +2019,6 @@ export default function CreateMediaPlan() {
     setOohItems(items);
   }, [markUnsavedChanges]);
 
-  const handleConsultingItemsChange = useCallback((items: LineItem[]) => {
-    markUnsavedChanges();
-    setConsultingItems(items);
-    setConsultingMediaLineItems(items);
-  }, [markUnsavedChanges]);
-
   const handleInfluencersItemsChange = useCallback((items: LineItem[]) => {
     markUnsavedChanges();
     setInfluencersItems(items);
@@ -2131,7 +2124,7 @@ export default function CreateMediaPlan() {
   adservdisplay,
   adservvideo,
   // Production
-  consultingBursts,
+  productionBursts,
 ]);
 
   // in page.tsx
@@ -2317,7 +2310,7 @@ export default function CreateMediaPlan() {
     const validCinemaItems = cinemaItems.filter(shouldIncludeMediaPlanLineItem);
     const validIntegrationItems = integrationItems.filter(shouldIncludeMediaPlanLineItem);
     const validInfluencersItems = influencersItems.filter(shouldIncludeMediaPlanLineItem);
-    const validConsultingItems = consultingItems.filter(shouldIncludeMediaPlanLineItem);
+    const validProductionLineItems = productionLineItems.filter(shouldIncludeMediaPlanLineItem);
 
     const mediaItems: MediaItems = {
       search:       assignLineItemIds(validSearchItems,       "SRC"),
@@ -2339,7 +2332,7 @@ export default function CreateMediaPlan() {
       cinema:       assignLineItemIds(validCinemaItems,       "CIN"),
       integration:  assignLineItemIds(validIntegrationItems,  "INT"),
       influencers:  assignLineItemIds(validInfluencersItems,  "INF"),
-      production:   assignLineItemIds(validConsultingItems,   "PROD"),
+      production:   assignLineItemIds(validProductionLineItems,   "PROD"),
     };
 
     const productionTotal = calculateProductionCosts()
@@ -2478,7 +2471,7 @@ export default function CreateMediaPlan() {
       case "mp_progooh":
         return progOohTotal ?? 0;
     case "mp_production":
-      return consultingTotal ?? 0;
+      return productionTotal ?? 0;
       case "mp_influencers":
         return influencersTotal ?? 0;
       case "mp_television":
@@ -2764,8 +2757,8 @@ export default function CreateMediaPlan() {
   const handleOohBurstsChange = (bursts: BillingBurst[]) =>
     setOohBursts(normalizeBursts(bursts));
 
-  const handleConsultingBurstsChange = (bursts: BillingBurst[]) =>
-    setConsultingBursts(normalizeBursts(bursts));
+  const handleProductionBurstsChange = (bursts: BillingBurst[]) =>
+    setProductionBursts(normalizeBursts(bursts));
 
   const handleInfluencersBurstsChange = (bursts: BillingBurst[]) =>
     setInfluencersBursts(normalizeBursts(bursts));
@@ -3132,7 +3125,7 @@ export default function CreateMediaPlan() {
       mp_progaudio: { lineItems: progAudioMediaLineItems, key: "progAudio" },
       mp_progooh: { lineItems: progOohMediaLineItems, key: "progOoh" },
       mp_influencers: { lineItems: influencersMediaLineItems, key: "influencers" },
-      mp_production: { lineItems: consultingMediaLineItems, key: "production" },
+      mp_production: { lineItems: productionLineItems, key: "production" },
     }
 
     const allLineItems: Record<string, BillingLineItem[]> = {}
@@ -3884,7 +3877,7 @@ export default function CreateMediaPlan() {
           'mp_progaudio': { lineItems: progAudioMediaLineItems, key: 'progAudio' },
           'mp_progooh': { lineItems: progOohMediaLineItems, key: 'progOoh' },
           'mp_influencers': { lineItems: influencersMediaLineItems, key: 'influencers' },
-          'mp_production': { lineItems: consultingMediaLineItems, key: 'production' },
+          'mp_production': { lineItems: productionLineItems, key: 'production' },
         };
 
         const allLineItems: Record<string, BillingLineItem[]> = {};
@@ -3944,7 +3937,7 @@ export default function CreateMediaPlan() {
             bvod: bvodBursts,
             integration: integrationBursts,
             influencers: influencersBursts,
-            production: consultingBursts,
+            production: productionBursts,
           },
           getRateForMediaType,
           adservaudio: adservaudio ?? 0,
@@ -4045,7 +4038,7 @@ export default function CreateMediaPlan() {
       });
       
       const shouldEnableProduction = Boolean(
-        fv.mp_production || (consultingMediaLineItems?.length ?? 0) > 0
+        fv.mp_production || (productionLineItems?.length ?? 0) > 0
       )
 
       // Build payload matching Xano's media_plan_versions endpoint expectations
@@ -4156,7 +4149,7 @@ export default function CreateMediaPlan() {
           cinema: cinemaItems,
           integration: integrationItems,
           influencers: influencersItems,
-          production: consultingItems,
+          production: productionLineItems,
         }
 
         let aaMediaPlanFile: File | undefined
@@ -4481,7 +4474,7 @@ export default function CreateMediaPlan() {
       }
 
       // Production / Consulting
-      if (shouldEnableProduction && consultingMediaLineItems && consultingMediaLineItems.length > 0) {
+      if (shouldEnableProduction && productionLineItems && productionLineItems.length > 0) {
         const displayName = mediaTypeDisplayNames.mp_production;
         updateSaveStatus(displayName, 'pending');
         mediaTypeSavePromises.push(
@@ -4490,7 +4483,7 @@ export default function CreateMediaPlan() {
             fv.mba_number,
             fv.mp_client_name,
             fv.mp_plannumber,
-            consultingMediaLineItems
+            productionLineItems
           ).then(result => {
             updateSaveStatus(displayName, 'success');
             return result;
@@ -6282,9 +6275,9 @@ const handleSaveAll = async () => {
                   onInvestmentChange: handleInvestmentChange,
                   }),
                   ...(medium.name === "mp_production" && {
-                  feesearch: feeconsulting,
-                  onTotalMediaChange: handleConsultingTotalChange,
-                  onBurstsChange: handleConsultingBurstsChange,
+                  feesearch: feeProduction,
+                  onTotalMediaChange: handleProductionTotalChange,
+                  onBurstsChange: handleProductionBurstsChange,
                   onInvestmentChange: handleInvestmentChange,
                   }),
                   ...(medium.name === "mp_influencers" && {
@@ -6320,12 +6313,12 @@ const handleSaveAll = async () => {
                         <Suspense fallback={<MediaContainerSuspenseFallback label="Production" />}>
                           <ProductionContainer
                             clientId={selectedClientId}
-                            feesearch={feeconsulting || 0}
-                            onTotalMediaChange={handleConsultingTotalChange}
-                            onBurstsChange={handleConsultingBurstsChange}
+                            feesearch={feeProduction || 0}
+                            onTotalMediaChange={handleProductionTotalChange}
+                            onBurstsChange={handleProductionBurstsChange}
                             onInvestmentChange={handleInvestmentChange}
-                            onLineItemsChange={handleConsultingItemsChange}
-                            onMediaLineItemsChange={handleConsultingMediaLineItemsChange}
+                            onLineItemsChange={handleProductionLineItemsChange}
+                            onMediaLineItemsChange={handleProductionLineItemsChange}
                             campaignStartDate={form.watch("mp_campaigndates_start")}
                             campaignEndDate={form.watch("mp_campaigndates_end")}
                             campaignBudget={form.watch("mp_campaignbudget")}
