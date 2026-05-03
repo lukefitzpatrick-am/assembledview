@@ -16,7 +16,7 @@ import {
   type UnifiedTooltipRechartsProps,
 } from "@/components/charts/UnifiedTooltip"
 import { useClientBrand } from "@/components/client-dashboard/ClientBrandProvider"
-import { formatCurrencyCompact } from "@/lib/format/currency"
+import { formatCurrencyAUD } from "@/lib/format/currency"
 import { getChartPalette } from "@/lib/client-dashboard/theme"
 
 const DEFAULT_OTHER_KEY = "other"
@@ -130,7 +130,7 @@ export function DonutChart({
   data,
   colourFn: colourFnProp,
   labelFn: labelFnProp,
-  valueFormatter = formatCurrencyCompact,
+  valueFormatter = formatCurrencyAUD,
   maxSlices = 8,
   topNBeforeOther = 7,
   showCenterTotal = true,

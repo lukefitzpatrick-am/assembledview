@@ -15,7 +15,7 @@ import {
 import { useClientBrand } from "@/components/client-dashboard/ClientBrandProvider"
 import { useUnifiedTooltip } from "@/components/charts/UnifiedTooltip"
 import { ToggleableLegend } from "@/components/charts/ToggleableLegend"
-import { formatCurrencyCompact } from "@/lib/format/currency"
+import { formatCurrencyAUD } from "@/lib/format/currency"
 import { getChartPalette } from "@/lib/client-dashboard/theme"
 
 export type AreaChartSeries = { key: string; label: string }
@@ -41,7 +41,7 @@ export function AreaChart({
   data,
   xKey,
   series,
-  valueFormatter = formatCurrencyCompact,
+  valueFormatter = formatCurrencyAUD,
   xTickFormatter,
   height = 320,
   smooth = false,

@@ -37,7 +37,8 @@ export function FunnelChart({ data, height = 360 }: FunnelChartProps) {
   const chartHeight = Math.max(180, Math.round(height * 0.58))
 
   const renderTooltip = useUnifiedTooltip({
-    formatValue: (v) => v.toLocaleString(undefined, { maximumFractionDigits: 0 }),
+    // Funnel stages are counts (sessions, checkouts, etc.); not currency.
+    formatValue: (v) => v.toLocaleString("en-AU", { maximumFractionDigits: 0 }),
     showTotal: false,
   })
 
@@ -66,7 +67,9 @@ export function FunnelChart({ data, height = 360 }: FunnelChartProps) {
           <Fragment key={r.name}>
             <div className="tabular-nums text-muted-foreground">{r.index}</div>
             <div className="min-w-0 truncate font-medium">{r.name}</div>
-            <div className="text-right tabular-nums">{r.value.toLocaleString()}</div>
+            <div className="text-right tabular-nums">
+              {r.value.toLocaleString("en-AU", { maximumFractionDigits: 0 })}
+            </div>
             <div className="text-right tabular-nums text-muted-foreground">{formatPct(r.vsPrev)}</div>
             <div className="text-right tabular-nums text-muted-foreground">{formatPct(r.vsFirst)}</div>
           </Fragment>

@@ -15,6 +15,7 @@ import {
 import { useClientBrand } from "@/components/client-dashboard/ClientBrandProvider"
 import { useUnifiedTooltip } from "@/components/charts/UnifiedTooltip"
 import { ToggleableLegend } from "@/components/charts/ToggleableLegend"
+import { formatCurrencyAUD } from "@/lib/format/currency"
 import { getChartPalette } from "@/lib/client-dashboard/theme"
 
 export type HorizontalBarSeries = { key: string; label: string }
@@ -23,6 +24,8 @@ export type HorizontalBarChartProps = {
   data: Array<Record<string, number | string>>
   xKey: string
   series: HorizontalBarSeries[]
+  /** Tooltip value format; defaults to AUD (horizontal spend bars). */
+  valueFormatter?: (value: number) => string
   /** Formats numeric tick values on the horizontal (value) axis. */
   xAxisFormatter?: (value: number) => string
   /** When `layout="vertical"`, reverses category order on the Y axis (e.g. largest bar at the top). */
@@ -36,6 +39,7 @@ export function HorizontalBarChart({
   data,
   xKey,
   series,
+  valueFormatter = formatCurrencyAUD,
   xAxisFormatter,
   yAxisReversed = false,
   yAxisWidth = 80,
@@ -65,8 +69,7 @@ export function HorizontalBarChart({
   )
 
   const renderTooltip = useUnifiedTooltip({
-    formatValue: (v) =>
-      v.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 }),
+    formatValue: valueFormatter,
   })
 
   return (

@@ -22,6 +22,7 @@ import {
 import { useClientBrand } from "@/components/client-dashboard/ClientBrandProvider"
 import { useUnifiedTooltip } from "@/components/charts/UnifiedTooltip"
 import { ToggleableLegend } from "@/components/charts/ToggleableLegend"
+import { formatCurrencyAUD } from "@/lib/format/currency"
 import { getChartPalette } from "@/lib/client-dashboard/theme"
 
 /** @deprecated Prefer `ChartStackedColumnRow` from `chartDatumClick` — legacy admin chart row shape (Phase 3). */
@@ -33,6 +34,8 @@ export type StackedColumnChartProps = {
   data: Array<Record<string, number | string>>
   xKey: string
   series: StackedColumnSeries[]
+  /** Tooltip and Y-axis number format; defaults to AUD (stacked spend). */
+  valueFormatter?: (value: number) => string
   height?: number
   /** Optional per-series fill overrides (e.g. client profile colours on the admin dashboard). */
   seriesColorByKey?: Record<string, string>
@@ -51,6 +54,7 @@ export function StackedColumnChart({
   data,
   xKey,
   series,
+  valueFormatter = formatCurrencyAUD,
   height = 320,
   seriesColorByKey,
   onDatumClick,
@@ -112,8 +116,7 @@ export function StackedColumnChart({
   }, [data.length])
 
   const renderTooltip = useUnifiedTooltip({
-    formatValue: (v) =>
-      v.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 }),
+    formatValue: valueFormatter,
   })
 
   return (
@@ -137,6 +140,7 @@ export function StackedColumnChart({
             axisLine={{ stroke: "hsl(var(--border))" }}
             tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
             width={40}
+            tickFormatter={(v) => valueFormatter(Number(v))}
           />
           <Tooltip content={renderTooltip} cursor={{ fill: "hsl(var(--muted) / 0.35)" }} />
           <Legend

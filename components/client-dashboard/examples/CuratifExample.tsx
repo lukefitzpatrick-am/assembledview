@@ -120,6 +120,7 @@ export function CuratifExample() {
             xKey="day"
             bars={[{ key: "revenue", label: "Revenue" }]}
             lines={[{ key: "transactions", label: "Transactions", yAxis: "right" }]}
+            countDataKeys={["transactions"]}
             height={260}
           />
         </BaseChartCard>

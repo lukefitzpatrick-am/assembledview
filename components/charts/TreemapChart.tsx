@@ -26,6 +26,7 @@ type TreemapLeafProps = {
   size?: number
   primary: string
   palette: string[]
+  formatSize: (value: number) => string
 }
 
 function TreemapLeaf({
@@ -41,6 +42,7 @@ function TreemapLeaf({
   size: sizeProp,
   primary,
   palette,
+  formatSize,
 }: TreemapLeafProps) {
   const ix = typeof index === "number" && !Number.isNaN(index) ? index : 0
   const intensity = intensityProp ?? payload?.intensity
@@ -79,9 +81,9 @@ function TreemapLeaf({
             <span className="block max-w-full truncate">{label}</span>
             <span className="block max-w-full truncate tabular-nums text-muted-foreground">
               {typeof value === "number"
-                ? value.toLocaleString()
+                ? formatSize(value)
                 : typeof sizeProp === "number"
-                  ? sizeProp.toLocaleString()
+                  ? formatSize(sizeProp)
                   : ""}
             </span>
           </div>
@@ -93,16 +95,24 @@ function TreemapLeaf({
 
 export type TreemapChartProps = {
   data: TreemapDatum[]
+  /** Tooltip and in-tile size label; default is integer (e.g. page views). */
+  sizeFormatter?: (value: number) => string
   height?: number
 }
 
-export function TreemapChart({ data, height = 320 }: TreemapChartProps) {
+function defaultTreemapSizeFormat(value: number): string {
+  return value.toLocaleString("en-AU", { maximumFractionDigits: 0 })
+}
+
+export function TreemapChart({ data, sizeFormatter = defaultTreemapSizeFormat, height = 320 }: TreemapChartProps) {
   const theme = useClientBrand()
   const palette = useMemo(() => getChartPalette(theme), [theme])
 
   const content = useMemo(
-    () => <TreemapLeaf primary={theme.primary} palette={palette} />,
-    [palette, theme.primary],
+    () => (
+      <TreemapLeaf primary={theme.primary} palette={palette} formatSize={sizeFormatter} />
+    ),
+    [palette, theme.primary, sizeFormatter],
   )
 
   const totalSize = useMemo(
@@ -111,7 +121,7 @@ export function TreemapChart({ data, height = 320 }: TreemapChartProps) {
   )
 
   const renderTooltip = useUnifiedTooltip({
-    formatValue: (v) => v.toLocaleString(undefined, { maximumFractionDigits: 0 }),
+    formatValue: sizeFormatter,
     showPercentages: true,
     getSeriesTotal: () => totalSize,
   })

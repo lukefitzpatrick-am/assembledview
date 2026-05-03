@@ -109,7 +109,13 @@ export function MolicareExample() {
           description="Stacked volume by acquisition channel."
           variant="accent"
         >
-          <StackedColumnChart data={chartDaily} xKey="date" series={[...channelSeries]} height={260} />
+          <StackedColumnChart
+            data={chartDaily}
+            xKey="date"
+            series={[...channelSeries]}
+            height={260}
+            valueFormatter={(v) => Math.round(v).toLocaleString("en-AU", { maximumFractionDigits: 0 })}
+          />
         </BaseChartCard>
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
