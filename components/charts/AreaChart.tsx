@@ -72,11 +72,6 @@ export function AreaChart({
     [palette, series],
   )
 
-  const xTickInterval = useMemo(() => {
-    if (data.length <= 10) return 0
-    return Math.max(1, Math.ceil(data.length / 7) - 1)
-  }, [data.length])
-
   const curveType = smooth ? "monotone" : "linear"
 
   const renderTooltip = useUnifiedTooltip({
@@ -104,7 +99,7 @@ export function AreaChart({
             dataKey={xKey}
             tickLine={false}
             axisLine={{ stroke: "hsl(var(--border))" }}
-            interval={xTickInterval}
+            interval={0}
             tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
             tickMargin={8}
             angle={data.length > 8 ? -25 : 0}

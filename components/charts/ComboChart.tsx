@@ -72,11 +72,6 @@ export function ComboChart({ data, xKey, bars, lines, countDataKeys, height = 32
     return items
   }, [bars, lines, palette])
 
-  const xTickInterval = useMemo(() => {
-    if (data.length <= 10) return 0
-    return Math.max(1, Math.ceil(data.length / 7) - 1)
-  }, [data.length])
-
   const countKeySet = useMemo(() => new Set(countDataKeys ?? []), [countDataKeys])
 
   const formatEntryValue = useMemo(() => {
@@ -102,7 +97,7 @@ export function ComboChart({ data, xKey, bars, lines, countDataKeys, height = 32
             dataKey={xKey}
             tickLine={false}
             axisLine={{ stroke: "hsl(var(--border))" }}
-            interval={xTickInterval}
+            interval={0}
             tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
             tickMargin={8}
             angle={data.length > 8 ? -25 : 0}
