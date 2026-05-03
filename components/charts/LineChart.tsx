@@ -13,11 +13,7 @@ import {
 } from "recharts"
 
 import { useClientBrand } from "@/components/client-dashboard/ClientBrandProvider"
-import {
-  CHART_TOOLTIP_CONTENT,
-  CHART_TOOLTIP_ITEM_STYLE,
-  CHART_TOOLTIP_LABEL_STYLE,
-} from "@/components/charts/chartStyles"
+import { useUnifiedTooltip } from "@/components/charts/UnifiedTooltip"
 import { ToggleableLegend } from "@/components/charts/ToggleableLegend"
 import { formatCurrencyCompact } from "@/lib/format/currency"
 import { getChartPalette } from "@/lib/client-dashboard/theme"
@@ -75,6 +71,10 @@ export function LineChart({
 
   const lineType = smooth ? "monotone" : "linear"
 
+  const renderTooltip = useUnifiedTooltip({
+    formatValue: valueFormatter,
+  })
+
   return (
     <div className="w-full" style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
@@ -99,13 +99,7 @@ export function LineChart({
             width={44}
             tickFormatter={(v) => valueFormatter(Number(v))}
           />
-          <Tooltip
-            contentStyle={CHART_TOOLTIP_CONTENT}
-            labelStyle={CHART_TOOLTIP_LABEL_STYLE}
-            itemStyle={CHART_TOOLTIP_ITEM_STYLE}
-            cursor={{ fill: "hsl(var(--muted) / 0.25)" }}
-            formatter={(value, name) => [valueFormatter(Number(value) || 0), String(name)]}
-          />
+          <Tooltip content={renderTooltip} cursor={{ fill: "hsl(var(--muted) / 0.25)" }} />
           <Legend
             verticalAlign="top"
             align="center"

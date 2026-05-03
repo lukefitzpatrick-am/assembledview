@@ -4,11 +4,7 @@ import { useMemo } from "react"
 import { ResponsiveContainer, Tooltip, Treemap } from "recharts"
 
 import { useClientBrand } from "@/components/client-dashboard/ClientBrandProvider"
-import {
-  CHART_TOOLTIP_CONTENT,
-  CHART_TOOLTIP_ITEM_STYLE,
-  CHART_TOOLTIP_LABEL_STYLE,
-} from "@/components/charts/chartStyles"
+import { useUnifiedTooltip } from "@/components/charts/UnifiedTooltip"
 import { treemapFillFromIntensity } from "@/lib/client-dashboard/chartColorFormat"
 import { getChartPalette } from "@/lib/client-dashboard/theme"
 import { cn } from "@/lib/utils"
@@ -109,6 +105,17 @@ export function TreemapChart({ data, height = 320 }: TreemapChartProps) {
     [palette, theme.primary],
   )
 
+  const totalSize = useMemo(
+    () => data.reduce((s, d) => s + (Number(d.size) || 0), 0),
+    [data],
+  )
+
+  const renderTooltip = useUnifiedTooltip({
+    formatValue: (v) => v.toLocaleString(undefined, { maximumFractionDigits: 0 }),
+    showPercentages: true,
+    getSeriesTotal: () => totalSize,
+  })
+
   return (
     <div className="w-full" style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
@@ -121,11 +128,7 @@ export function TreemapChart({ data, height = 320 }: TreemapChartProps) {
           isAnimationActive={false}
           content={content}
         >
-          <Tooltip
-            contentStyle={CHART_TOOLTIP_CONTENT}
-            labelStyle={CHART_TOOLTIP_LABEL_STYLE}
-            itemStyle={CHART_TOOLTIP_ITEM_STYLE}
-          />
+          <Tooltip content={renderTooltip} />
         </Treemap>
       </ResponsiveContainer>
     </div>

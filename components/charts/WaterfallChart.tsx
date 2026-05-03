@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo } from "react"
+import { useCallback, useMemo } from "react"
 import {
   Bar,
   BarChart,
@@ -15,10 +15,10 @@ import {
 
 import { useClientBrand } from "@/components/client-dashboard/ClientBrandProvider"
 import {
-  CHART_TOOLTIP_CONTENT,
-  CHART_TOOLTIP_ITEM_STYLE,
-  CHART_TOOLTIP_LABEL_STYLE,
-} from "@/components/charts/chartStyles"
+  UnifiedTooltip,
+  type UnifiedTooltipRechartsPayloadEntry,
+  type UnifiedTooltipRechartsProps,
+} from "@/components/charts/UnifiedTooltip"
 
 const POSITIVE_STATUS = "#10B981"
 const NEGATIVE_STATUS = "#F43F5E"
@@ -93,6 +93,30 @@ export function WaterfallChart({ data, height = 320, valueFormatter }: Waterfall
 
   const fmt = valueFormatter ?? compactSigned
 
+  const renderTooltip = useCallback(
+    (props: UnifiedTooltipRechartsProps) => {
+      type BarPayloadEntry = UnifiedTooltipRechartsPayloadEntry & {
+        payload?: ComputedWaterfallDatum
+      }
+      const barEntry = props.payload?.find(
+        (p: BarPayloadEntry) => String(p.dataKey) === "bar",
+      ) as BarPayloadEntry | undefined
+      if (!props.active || !barEntry) return null
+      const raw = barEntry.payload
+      if (!raw) return null
+      return (
+        <UnifiedTooltip
+          active
+          label={raw.label}
+          payload={[{ name: "Change", value: raw.value, color: raw.color }]}
+          formatValue={fmt}
+          showTotal={false}
+        />
+      )
+    },
+    [fmt],
+  )
+
   return (
     <div className="w-full" style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
@@ -110,16 +134,7 @@ export function WaterfallChart({ data, height = 320, valueFormatter }: Waterfall
             tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
             width={44}
           />
-          <Tooltip
-            contentStyle={CHART_TOOLTIP_CONTENT}
-            itemStyle={CHART_TOOLTIP_ITEM_STYLE}
-            labelStyle={CHART_TOOLTIP_LABEL_STYLE}
-            formatter={(value: number | string, _name, payload) => {
-              const raw = payload?.payload as ComputedWaterfallDatum | undefined
-              const valueOut = raw ? fmt(raw.value) : String(value)
-              return [valueOut, "Change"]
-            }}
-          />
+          <Tooltip content={renderTooltip} />
           <Bar dataKey="base" stackId="wf" fill="transparent" isAnimationActive={false} />
           <Bar dataKey="bar" stackId="wf" isAnimationActive={false} radius={[3, 3, 0, 0]}>
             {chartData.map((d) => (

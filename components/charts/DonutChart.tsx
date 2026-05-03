@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 import {
   PieChart as RechartsPieChart,
   Pie,
@@ -11,10 +11,10 @@ import {
 } from "recharts"
 
 import {
-  CHART_TOOLTIP_CONTENT,
-  CHART_TOOLTIP_ITEM_STYLE,
-  CHART_TOOLTIP_LABEL_STYLE,
-} from "@/components/charts/chartStyles"
+  normalizeRechartsTooltipPayload,
+  UnifiedTooltip,
+  type UnifiedTooltipRechartsProps,
+} from "@/components/charts/UnifiedTooltip"
 import { useClientBrand } from "@/components/client-dashboard/ClientBrandProvider"
 import { formatCurrencyCompact } from "@/lib/format/currency"
 import { getChartPalette } from "@/lib/client-dashboard/theme"
@@ -141,7 +141,10 @@ export function DonutChart({
   const theme = useClientBrand()
   const palette = useMemo(() => getChartPalette(theme), [theme])
 
-  const labelFn = labelFnProp ?? ((k: string) => k)
+  const labelFn = useMemo(
+    () => labelFnProp ?? ((k: string) => k),
+    [labelFnProp],
+  )
 
   const colourFn =
     colourFnProp ??
@@ -153,6 +156,26 @@ export function DonutChart({
   )
 
   const [activeIndex, setActiveIndex] = useState<number | null>(null)
+
+  const renderTooltip = useCallback(
+    (props: UnifiedTooltipRechartsProps) => {
+      const normalized = normalizeRechartsTooltipPayload(props.payload)
+      if (!props.active || normalized.length === 0) return null
+      const row = normalized[0]!
+      const sliceKey = row.name
+      const label = displayLabel(sliceKey, labelsByKey, labelFn)
+      return (
+        <UnifiedTooltip
+          active
+          label=""
+          payload={[{ name: label, value: row.value, color: row.color }]}
+          formatValue={valueFormatter}
+          showTotal={false}
+        />
+      )
+    },
+    [labelFn, labelsByKey, valueFormatter],
+  )
 
   const isEmpty = slices.length === 0
 
@@ -197,17 +220,7 @@ export function DonutChart({
                 <Cell key={`${entry.key}-${index}`} fill={colourFn(entry.key, index)} />
               ))}
             </Pie>
-            <Tooltip
-              contentStyle={CHART_TOOLTIP_CONTENT}
-              labelStyle={CHART_TOOLTIP_LABEL_STYLE}
-              itemStyle={CHART_TOOLTIP_ITEM_STYLE}
-              formatter={(value, name, item) => {
-                const row = (item as { payload?: DonutSlice } | undefined)?.payload
-                const sliceKey = row?.key ?? String(name ?? "")
-                return [valueFormatter(Number(value) || 0), labelFn(sliceKey)]
-              }}
-              wrapperStyle={{ cursor: "default", outline: "none" }}
-            />
+            <Tooltip content={renderTooltip} wrapperStyle={{ cursor: "default", outline: "none" }} />
           </RechartsPieChart>
         </ResponsiveContainer>
 

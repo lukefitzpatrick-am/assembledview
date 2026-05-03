@@ -13,11 +13,7 @@ import {
 } from "recharts"
 
 import { useClientBrand } from "@/components/client-dashboard/ClientBrandProvider"
-import {
-  CHART_TOOLTIP_CONTENT,
-  CHART_TOOLTIP_ITEM_STYLE,
-  CHART_TOOLTIP_LABEL_STYLE,
-} from "@/components/charts/chartStyles"
+import { useUnifiedTooltip } from "@/components/charts/UnifiedTooltip"
 import { ToggleableLegend } from "@/components/charts/ToggleableLegend"
 import { getChartPalette } from "@/lib/client-dashboard/theme"
 
@@ -68,6 +64,11 @@ export function HorizontalBarChart({
     [palette, series],
   )
 
+  const renderTooltip = useUnifiedTooltip({
+    formatValue: (v) =>
+      v.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 }),
+  })
+
   return (
     <div className="w-full" style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
@@ -94,13 +95,7 @@ export function HorizontalBarChart({
             axisLine={{ stroke: "hsl(var(--border))" }}
             tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
           />
-          <Tooltip
-            contentStyle={CHART_TOOLTIP_CONTENT}
-            labelStyle={CHART_TOOLTIP_LABEL_STYLE}
-            itemStyle={CHART_TOOLTIP_ITEM_STYLE}
-            cursor={{ fill: "hsl(var(--muted) / 0.35)" }}
-            formatter={(value: number | string, name: string) => [value, name]}
-          />
+          <Tooltip content={renderTooltip} cursor={{ fill: "hsl(var(--muted) / 0.35)" }} />
           <Legend
             verticalAlign="top"
             align="center"

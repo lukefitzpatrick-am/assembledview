@@ -14,11 +14,7 @@ import {
 } from "recharts"
 
 import { useClientBrand } from "@/components/client-dashboard/ClientBrandProvider"
-import {
-  CHART_TOOLTIP_CONTENT,
-  CHART_TOOLTIP_ITEM_STYLE,
-  CHART_TOOLTIP_LABEL_STYLE,
-} from "@/components/charts/chartStyles"
+import { useUnifiedTooltip } from "@/components/charts/UnifiedTooltip"
 import { ToggleableLegend } from "@/components/charts/ToggleableLegend"
 import { getChartPalette } from "@/lib/client-dashboard/theme"
 
@@ -68,6 +64,11 @@ export function ComboChart({ data, xKey, bars, lines, height = 320 }: ComboChart
     return Math.max(1, Math.ceil(data.length / 7) - 1)
   }, [data.length])
 
+  const renderTooltip = useUnifiedTooltip({
+    formatValue: (v) =>
+      v.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 }),
+  })
+
   return (
     <div className="w-full" style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
@@ -101,12 +102,7 @@ export function ComboChart({ data, xKey, bars, lines, height = 320 }: ComboChart
               width={44}
             />
           ) : null}
-          <Tooltip
-            contentStyle={CHART_TOOLTIP_CONTENT}
-            labelStyle={CHART_TOOLTIP_LABEL_STYLE}
-            itemStyle={CHART_TOOLTIP_ITEM_STYLE}
-            cursor={{ fill: "hsl(var(--muted) / 0.25)" }}
-          />
+          <Tooltip content={renderTooltip} cursor={{ fill: "hsl(var(--muted) / 0.25)" }} />
           <Legend
             verticalAlign="top"
             align="center"
