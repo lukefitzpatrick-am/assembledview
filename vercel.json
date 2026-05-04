@@ -3,6 +3,10 @@
     {
       "path": "/api/pacing/send-daily-summary",
       "schedule": "30 20 * * *"
+    },
+    {
+      "path": "/api/cron/xano-line-item-sync",
+      "schedule": "0 19 * * *"
     }
   ]
 }

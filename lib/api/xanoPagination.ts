@@ -13,9 +13,12 @@ export async function fetchAllXanoPages(
 ): Promise<any[]> {
   const results: any[] = []
   const seenKeys = new Set<string>()
-  const headers = {
+  const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Accept: "application/json",
+    ...(process.env.XANO_API_KEY
+      ? { Authorization: `Bearer ${process.env.XANO_API_KEY}` }
+      : {}),
   }
 
   const buildKey = (item: any): string => {

@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server"
 import axios from "axios"
+import { assertCronSecret } from "@/lib/auth/assertCronSecret"
 import { parseXanoListPayload, xanoUrl } from "@/lib/api/xano"
 import { buildPacingSummaryPayload } from "@/lib/email/pacing-summary-payload"
 import { sendPacingSummaryEmail } from "@/lib/email/sendPacingSummaryEmail"
@@ -44,15 +45,6 @@ function pacingPublicBaseUrl(): string {
     process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
     "https://assembledview.com.au"
   return raw.replace(/\/$/, "")
-}
-
-function assertCronSecret(request: NextRequest): boolean {
-  const secret = process.env.CRON_SECRET?.trim()
-  if (!secret) return false
-  const h = request.headers.get("x-cron-secret")?.trim()
-  if (h === secret) return true
-  const auth = request.headers.get("authorization")?.trim()
-  return auth === `Bearer ${secret}`
 }
 
 async function loadClientNameById(): Promise<Map<number, string>> {
