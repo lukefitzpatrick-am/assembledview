@@ -72,6 +72,7 @@ import {
   serializeTelevisionStandardLineItemsBaseline,
 } from "@/lib/mediaplan/expertModeSwitch"
 import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
+import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
 
 const MEDIA_ACCENT_HEX = getMediaTypeThemeHex("television")
 
@@ -525,15 +526,11 @@ export default function TelevisionContainer({
     [campaignStartDate, campaignEndDate]
   )
 
-  // Stable ID generator for line items to keep duplicates distinct in exports
-  const createLineItemId = useCallback(() => {
-    const base = mbaNumber || "TV"
-    const rand =
-      typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? crypto.randomUUID()
-        : `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`
-    return `${base}-${rand}`
-  }, [mbaNumber])
+  const createLineItemId = useCallback(
+    (lineNumber: number) =>
+      buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.television, lineNumber),
+    [mbaNumber]
+  )
 
   const [isAddStationDialogOpen, setIsAddStationDialogOpen] = useState(false);
   const [newStationName, setNewStationName] = useState("");
@@ -628,7 +625,7 @@ export default function TelevisionContainer({
           budgetIncludesFees: false,
           noadserving: false,
           ...(() => {
-            const id = createLineItemId();
+            const id = createLineItemId(1);
             return { lineItemId: id, line_item_id: id };
           })(),
           line_item: 1,
@@ -895,7 +892,10 @@ export default function TelevisionContainer({
           fee: 0,
         }];
 
-        const lineItemId = item.line_item_id || item.lineItemId || createLineItemId();
+        const lineNum =
+          Number(item.line_item ?? item.lineItem ?? index + 1) || index + 1;
+        const lineItemId =
+          item.line_item_id || item.lineItemId || createLineItemId(lineNum);
         const normalizedNetwork = item.network || item.platform || item.publisher || "";
         const normalizedStation = item.station || item.site || item.publisher || "";
 
@@ -982,14 +982,16 @@ export default function TelevisionContainer({
       return;
     }
 
-    const newId = createLineItemId();
+    const nextLineNumber =
+      (source.line_item ?? source.lineItem ?? lineItemIndex + 1) + 1;
+    const newId = createLineItemId(nextLineNumber);
 
     const clone = {
       ...source,
       lineItemId: newId,
       line_item_id: newId,
-      line_item: (source.line_item ?? source.lineItem ?? lineItemIndex + 1) + 1,
-      lineItem: (source.lineItem ?? source.line_item ?? lineItemIndex + 1) + 1,
+      line_item: nextLineNumber,
+      lineItem: nextLineNumber,
       bursts: (source.bursts || []).map((burst: any) => ({
         ...burst,
         startDate: burst?.startDate ? new Date(burst.startDate) : new Date(),
@@ -1325,7 +1327,7 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
         : parseFloat(String(burst.budget).replace(/[^0-9.-]+/g, "")) || 0;
       let lineItemId = lineItem.lineItemId || lineItem.line_item_id;
       if (!lineItemId) {
-        lineItemId = createLineItemId();
+        lineItemId = createLineItemId(lineItemIndex + 1);
         form.setValue(`televisionlineItems.${lineItemIndex}.lineItemId`, lineItemId);
         form.setValue(`televisionlineItems.${lineItemIndex}.line_item_id`, lineItemId);
       }
@@ -1383,7 +1385,10 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
         totalMedia += budget;
       }
     });
-    const lineItemId = lineItem.lineItemId || lineItem.line_item_id || `${mbaNumber || "TV"}-${index + 1}`;
+    const lineItemId =
+      lineItem.lineItemId ||
+      lineItem.line_item_id ||
+      buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.television, index + 1);
     const lineNumber = lineItem.line_item ?? lineItem.lineItem ?? index + 1;
 
     return {
@@ -1670,6 +1675,11 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
             <Form {...form}>
               <div className="space-y-6">
                 {lineItemFields.map((field, lineItemIndex) => {
+                  const lineItemId = buildLineItemId(
+                    mbaNumber,
+                    MEDIA_TYPE_ID_CODES.television,
+                    lineItemIndex + 1
+                  );
                   const getTotals = (lineItemIndex: number) => {
                     const lineItem = form.getValues(`televisionlineItems.${lineItemIndex}`);
                     let totalMedia = 0;
@@ -1710,7 +1720,7 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
                             </div>
                             <div>
                               <CardTitle className="text-sm font-semibold tracking-tight">Television Line Item</CardTitle>
-                              <span className="font-mono text-[11px] text-muted-foreground">{`${mbaNumber}TV${lineItemIndex + 1}`}</span>
+                              <span className="font-mono text-[11px] text-muted-foreground">{lineItemId}</span>
                             </div>
                           </div>
                           <div className="flex items-center gap-3">
@@ -2285,7 +2295,8 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
                                                           budgetIncludesFees: false,
                                                           noadserving: false,
                                                         ...(() => {
-                                                          const id = createLineItemId();
+                                                          const nextNum = lineItemFields.length + 1;
+                                                          const id = createLineItemId(nextNum);
                                                           return { lineItemId: id, line_item_id: id };
                                                         })(),
                                                         line_item: lineItemFields.length + 1,

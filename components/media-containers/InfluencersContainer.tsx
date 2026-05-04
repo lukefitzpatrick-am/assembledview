@@ -36,6 +36,7 @@ import { ChevronDown, Copy, Plus, Trash2 } from "lucide-react"
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
 import type { LineItem } from '@/lib/generateMediaPlan'
 import { formatMoney, parseMoneyInput } from "@/lib/format/money"
+import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
 import {
   getMediaTypeThemeHex,
   mediaTypeAccentTextStyle,
@@ -527,7 +528,7 @@ export default function InfluencersContainer({
   useEffect(() => {
     if (influencersExpertModalOpenRef.current) return
     if (initialLineItems && initialLineItems.length > 0) {
-      const transformedLineItems = initialLineItems.map((item: any) => ({
+      const transformedLineItems = initialLineItems.map((item: any, idx: number) => ({
         platform: item.platform || "",
         objective: item.objective || "",
         campaign: item.campaign || "",
@@ -542,6 +543,16 @@ export default function InfluencersContainer({
         clientPaysForMedia: item.client_pays_for_media || false,
         budgetIncludesFees: item.budget_includes_fees || false,
         noadserving: item.no_adserving || false,
+        lineItemId:
+          item.line_item_id ||
+          item.lineItemId ||
+          buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.influencers, idx + 1),
+        line_item_id:
+          item.line_item_id ||
+          item.lineItemId ||
+          buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.influencers, idx + 1),
+        line_item: item.line_item ?? item.lineItem ?? idx + 1,
+        lineItem: item.lineItem ?? item.line_item ?? idx + 1,
         bursts: item.bursts_json ? (typeof item.bursts_json === 'string' ? JSON.parse(item.bursts_json) : item.bursts_json).map((burst: any) => ({
           budget: burst.budget || "",
           buyAmount: burst.buyAmount || "",
@@ -560,13 +571,18 @@ export default function InfluencersContainer({
         overallDeliverables: 0,
       });
     }
-  }, [initialLineItems, form, campaignStartDate, campaignEndDate]);
+  }, [initialLineItems, form, campaignStartDate, campaignEndDate, mbaNumber]);
 
   // Transform form data to API schema format
   useEffect(() => {
     const formLineItems = form.getValues('lineItems') || [];
     
     const transformedLineItems = formLineItems.map((lineItem, index) => {
+      const li = lineItem as { lineItemId?: string; line_item_id?: string }
+      const lineItemId =
+        li.lineItemId ||
+        li.line_item_id ||
+        buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.influencers, index + 1);
       // Calculate totalMedia from raw budget amounts (for display in MBA section)
       let totalMedia = 0;
       lineItem.bursts?.forEach((burst: any) => {
@@ -594,6 +610,8 @@ export default function InfluencersContainer({
         client_pays_for_media: lineItem.clientPaysForMedia || false,
         budget_includes_fees: lineItem.budgetIncludesFees || false,
         no_adserving: lineItem.noadserving || false,
+        line_item_id: lineItemId,
+        line_item: index + 1,
         bursts_json: JSON.stringify(lineItem.bursts?.map((burst: any) => ({
           budget: burst.budget || "",
           buyAmount: burst.buyAmount || "",
@@ -1196,6 +1214,11 @@ const getBursts = () => {
           <Form {...form}>
             <div className="space-y-6">
                 {lineItemFields.map((field, lineItemIndex) => {
+                  const lineItemId = buildLineItemId(
+                    mbaNumber,
+                    MEDIA_TYPE_ID_CODES.influencers,
+                    lineItemIndex + 1
+                  );
                   const getTotals = (lineItemIndex: number) => {
                   const lineItem = form.getValues(`lineItems.${lineItemIndex}`);
                   let totalMedia = 0;
@@ -1225,7 +1248,7 @@ const getBursts = () => {
                             </div>
                             <div>
                               <CardTitle className="text-sm font-semibold tracking-tight">Influencers Line Item</CardTitle>
-                              <span className="font-mono text-[11px] text-muted-foreground">{`${mbaNumber}IN${lineItemIndex + 1}`}</span>
+                              <span className="font-mono text-[11px] text-muted-foreground">{lineItemId}</span>
                             </div>
                           </div>
                           <div className="flex items-center gap-3">

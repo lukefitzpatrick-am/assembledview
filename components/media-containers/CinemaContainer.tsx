@@ -55,6 +55,7 @@ import {
 import { SingleDatePicker } from "@/components/ui/single-date-picker"
 import { defaultMediaBurstStartDate, defaultMediaBurstEndDate } from "@/lib/date-picker-anchor"
 import MediaContainerTimelineCollapsible from "@/components/media-containers/MediaContainerTimelineCollapsible"
+import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
 
 // Format Dates
 const formatDateString = (d?: Date | string): string => {
@@ -294,15 +295,11 @@ export default function CinemaContainer({
   const { mbaNumber } = useMediaPlanContext()
   const [overallDeliverables, setOverallDeliverables] = useState(0);
 
-  // Stable ID generator for line items to keep duplicates distinct in exports
-  const createLineItemId = useCallback(() => {
-    const base = mbaNumber || "CIN";
-    const rand =
-      typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? (crypto as any).randomUUID()
-        : `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
-    return `${base}-${rand}`;
-  }, [mbaNumber]);
+  const createLineItemId = useCallback(
+    (lineNumber: number) =>
+      buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.cinema, lineNumber),
+    [mbaNumber]
+  );
 
   const [isAddStationDialogOpen, setIsAddStationDialogOpen] = useState(false);
   const [newStationName, setNewStationName] = useState("");
@@ -400,7 +397,7 @@ export default function CinemaContainer({
           clientPaysForMedia: false,
           budgetIncludesFees: false,
           noadserving: false,
-          ...(() => { const id = createLineItemId(); return { lineItemId: id, line_item_id: id, line_item: 1, lineItem: 1 }; })(),
+          ...(() => { const id = createLineItemId(1); return { lineItemId: id, line_item_id: id, line_item: 1, lineItem: 1 }; })(),
           bursts: [
             {
               budget: "",
@@ -470,12 +467,12 @@ export default function CinemaContainer({
       return;
     }
 
-    const newId = createLineItemId();
     const baseLineNumber = Number(
       source.line_item ?? source.lineItem ?? lineItemIndex + 1
     );
     const lineNumber =
       (Number.isFinite(baseLineNumber) ? baseLineNumber : lineItemIndex + 1) + 1;
+    const newId = createLineItemId(lineNumber);
 
     const clone = {
       ...source,
@@ -535,7 +532,10 @@ export default function CinemaContainer({
   useEffect(() => {
     if (initialLineItems && initialLineItems.length > 0) {
       const transformedLineItems = initialLineItems.map((item: any, index: number) => {
-        const lineItemId = item.line_item_id || item.lineItemId || `${mbaNumber || "CIN"}-${index + 1}`;
+        const lineNum =
+          Number(item.line_item ?? item.lineItem ?? index + 1) || index + 1;
+        const lineItemId =
+          item.line_item_id || item.lineItemId || createLineItemId(lineNum);
         const buyType = item.buy_type || item.buyType || "";
 
         return {
@@ -579,7 +579,7 @@ export default function CinemaContainer({
         overallDeliverables: 0,
       });
     }
-  }, [initialLineItems, form, campaignStartDate, campaignEndDate, cinemaBurstDeliverables, mbaNumber]);
+  }, [initialLineItems, form, campaignStartDate, campaignEndDate, cinemaBurstDeliverables, mbaNumber, createLineItemId]);
 
   // Transform form data to API schema format
   useEffect(() => {
@@ -598,7 +598,10 @@ export default function CinemaContainer({
           totalMedia += budget;
         }
       });
-      const lineItemId = lineItem.lineItemId || lineItem.line_item_id || `${mbaNumber || "CIN"}-${index + 1}`;
+      const lineItemId =
+        lineItem.lineItemId ||
+        lineItem.line_item_id ||
+        buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.cinema, index + 1);
       const lineNumber = lineItem.line_item ?? lineItem.lineItem ?? index + 1;
 
       return {
@@ -999,7 +1002,7 @@ useEffect(() => {
         : parseFloat(String(burst.budget).replace(/[^0-9.-]+/g, "")) || 0;
       let lineItemId = lineItem.lineItemId || lineItem.line_item_id;
       if (!lineItemId) {
-        lineItemId = createLineItemId();
+        lineItemId = createLineItemId(lineItemIndex + 1);
         form.setValue(`cinemalineItems.${lineItemIndex}.lineItemId`, lineItemId);
         form.setValue(`cinemalineItems.${lineItemIndex}.line_item_id`, lineItemId);
       }
@@ -1198,6 +1201,11 @@ useEffect(() => {
             <Form {...form}>
               <div className="space-y-6">
                 {lineItemFields.map((field, lineItemIndex) => {
+                  const lineItemId = buildLineItemId(
+                    mbaNumber,
+                    MEDIA_TYPE_ID_CODES.cinema,
+                    lineItemIndex + 1
+                  );
                   const getTotals = (lineItemIndex: number) => {
                     const lineItem = form.getValues(`cinemalineItems.${lineItemIndex}`);
                     let totalMedia = 0;
@@ -1224,7 +1232,7 @@ useEffect(() => {
                             </div>
                             <div>
                               <CardTitle className="text-sm font-semibold tracking-tight">Cinema Line Item</CardTitle>
-                              <span className="font-mono text-[11px] text-muted-foreground">{`${mbaNumber}CN${lineItemIndex + 1}`}</span>
+                              <span className="font-mono text-[11px] text-muted-foreground">{lineItemId}</span>
                             </div>
                           </div>
                           <div className="flex items-center gap-3">
@@ -1802,7 +1810,11 @@ useEffect(() => {
                                                           clientPaysForMedia: false,
                                                           budgetIncludesFees: false,
                                                           noadserving: false,
-                                                          ...(() => { const id = createLineItemId(); return { lineItemId: id, line_item_id: id, line_item: lineItemFields.length + 1, lineItem: lineItemFields.length + 1 }; })(),
+                                                          ...(() => {
+                                                            const nextNum = lineItemFields.length + 1;
+                                                            const id = createLineItemId(nextNum);
+                                                            return { lineItemId: id, line_item_id: id, line_item: nextNum, lineItem: nextNum };
+                                                          })(),
                                                           bursts: [
                                                             {
                                                               budget: "",

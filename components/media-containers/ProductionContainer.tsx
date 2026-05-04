@@ -48,6 +48,7 @@ import {
   mediaTypeLineItemBadgeStyle,
   mediaTypeSummaryStripeStyle,
 } from "@/lib/mediaplan/mediaTypeAccents"
+import { buildLineItemId } from "@/lib/mediaplan/lineItemIds"
 
 const MEDIA_ACCENT_HEX = getMediaTypeThemeHex("production")
 
@@ -206,13 +207,15 @@ const buildInvestmentByMonth = (bursts: BillingBurst[]) => {
  */
 const mapLineItemsForExport = (
   lineItems: ProductionFormValues["lineItems"],
-  mbaNumber: string
+  mbaNumber: string | undefined
 ): LineItem[] => {
   let burstIndex = 0
   return lineItems.flatMap((lineItem, lineIndex) =>
     lineItem.bursts.map((burst) => {
       const mediaAmount = (burst.cost || 0) * (burst.amount || 0)
-      const lineId = lineItem.lineItemId || `${mbaNumber}PROD${lineIndex + 1}`
+      const lineId =
+        lineItem.lineItemId ||
+        buildLineItemId(mbaNumber, "PROD", lineIndex + 1)
       burstIndex += 1
       return {
         market: lineItem.market || "",
@@ -389,7 +392,10 @@ export default function ProductionContainer({
           publisher: item.publisher || item.network || "",
           description: item.description || item.creative || "",
           market: item.market || "",
-          lineItemId: item.line_item_id || item.lineItemId || `${campaignId || "MBA"}PROD${idx + 1}`,
+          lineItemId:
+            item.line_item_id ||
+            item.lineItemId ||
+            buildLineItemId(mbaNumber, "PROD", idx + 1),
           bursts: bursts.length > 0 ? bursts : [makeDefaultBurst()],
         }
       })
@@ -397,7 +403,7 @@ export default function ProductionContainer({
     } catch (err) {
       console.warn("[ProductionContainer] Failed to hydrate initial line items", err)
     }
-  }, [initialLineItems, form, campaignId, campaignStartDate, campaignEndDate, makeDefaultBurst])
+  }, [initialLineItems, form, mbaNumber, campaignStartDate, campaignEndDate, makeDefaultBurst])
 
   const totals = useMemo(() => {
     const totalMedia = watchedLineItems?.reduce((sum, li) => {
@@ -420,7 +426,9 @@ export default function ProductionContainer({
       publisher: lineItem.publisher || "",
       market: lineItem.market || "",
       description: lineItem.description || "",
-      line_item_id: lineItem.lineItemId || `${mbaNumber || "MBA"}PROD${index + 1}`,
+      line_item_id:
+        lineItem.lineItemId ||
+        buildLineItemId(mbaNumber, "PROD", index + 1),
       bursts: (lineItem.bursts || []).map((burst) => ({
         cost: Number(burst.cost) || 0,
         amount: Number(burst.amount) || 0,
@@ -436,7 +444,7 @@ export default function ProductionContainer({
     totalMediaChangeRef.current?.(totals.totalMedia, 0)
     burstsChangeRef.current?.(bursts)
     investmentChangeRef.current?.(buildInvestmentByMonth(bursts))
-    const mappedLineItems = mapLineItemsForExport(watchedLineItems || [], mbaNumber || "MBA")
+    const mappedLineItems = mapLineItemsForExport(watchedLineItems || [], mbaNumber)
     lineItemsChangeRef.current?.(mappedLineItems)
     mediaLineItemsChangeRef.current?.(apiLineItems)
   }, [watchedLineItems, totals.totalMedia, mbaNumber, apiLineItems])
@@ -548,7 +556,7 @@ export default function ProductionContainer({
           {lineItemFields.map((field, lineItemIndex) => {
             const lineItemId =
               form.watch(`lineItems.${lineItemIndex}.lineItemId`) ||
-              `${mbaNumber || "MBA"}PROD${lineItemIndex + 1}`
+              buildLineItemId(mbaNumber, "PROD", lineItemIndex + 1)
             const lineItemBursts = form.watch(`lineItems.${lineItemIndex}.bursts`) || []
             const lineItemMediaTotal =
               lineItemBursts.reduce(

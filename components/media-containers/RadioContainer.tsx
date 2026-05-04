@@ -835,7 +835,10 @@ export default function RadioContainer({
           fee: 0,
         }];
 
-        const lineItemId = item.line_item_id || item.lineItemId || `${mbaNumber || "RAD"}-${index + 1}`;
+        const lineNumber =
+          Number(item.line_item ?? item.lineItem ?? index + 1) || index + 1;
+        const lineItemId =
+          item.line_item_id || item.lineItemId || createLineItemId(lineNumber);
         const normalizedNetwork = item.network || item.platform || item.publisher || "";
         const normalizedStation = item.station || item.site || "";
 
@@ -873,7 +876,7 @@ export default function RadioContainer({
     radioStandardBaselineRef.current = serializeRadioStandardLineItemsBaseline(
       form.getValues("radiolineItems")
     );
-  }, [initialLineItems, form, campaignStartDate, campaignEndDate, mbaNumber, feeradio]);
+  }, [initialLineItems, form, campaignStartDate, campaignEndDate, mbaNumber, feeradio, createLineItemId]);
 
   // Transform form data to API schema format
   useEffect(() => {
@@ -893,8 +896,12 @@ export default function RadioContainer({
           totalMedia += budget;
         }
       });
-      const lineItemId = lineItem.lineItemId || lineItem.line_item_id || `${mbaNumber || "RAD"}-${index + 1}`;
-      const lineNumber = lineItem.line_item ?? lineItem.lineItem ?? index + 1;
+      const lineNumber =
+        Number(lineItem.line_item ?? lineItem.lineItem ?? index + 1) || index + 1;
+      const lineItemId =
+        lineItem.lineItemId ||
+        lineItem.line_item_id ||
+        createLineItemId(lineNumber);
 
       // Format bursts for API
       const formattedBursts = lineItem.bursts.map(burst => ({
@@ -936,7 +943,7 @@ export default function RadioContainer({
     });
 
   onMediaLineItemsChange(transformedLineItems);
-}, [watchedLineItems, mbaNumber, feeradio, form, onMediaLineItemsChange]);
+}, [watchedLineItems, mbaNumber, feeradio, form, onMediaLineItemsChange, createLineItemId]);
   
   // Memoized calculations
   // Note: For display purposes, always show media amounts regardless of clientPaysForMedia
@@ -1600,6 +1607,11 @@ useEffect(() => {
             <Form {...form}>
               <div className="space-y-6">
                 {lineItemFields.map((field, lineItemIndex) => {
+                  const lineItemId = buildLineItemId(
+                    mbaNumber,
+                    MEDIA_TYPE_ID_CODES.radio,
+                    lineItemIndex + 1
+                  );
                   const getTotals = (lineItemIndex: number) => {
                     const lineItem = form.getValues(`radiolineItems.${lineItemIndex}`);
                     let totalMedia = 0;
@@ -1637,7 +1649,7 @@ useEffect(() => {
                             </div>
                             <div>
                               <CardTitle className="text-sm font-semibold tracking-tight">Radio Line Item</CardTitle>
-                              <span className="font-mono text-[11px] text-muted-foreground">{`${mbaNumber}RA${lineItemIndex + 1}`}</span>
+                              <span className="font-mono text-[11px] text-muted-foreground">{lineItemId}</span>
                             </div>
                           </div>
                           <div className="flex items-center gap-3">

@@ -75,6 +75,7 @@ import {
   serializeNewspaperStandardLineItemsBaseline,
 } from "@/lib/mediaplan/expertModeSwitch"
 import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
+import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
 
 const MEDIA_ACCENT_HEX = getMediaTypeThemeHex("newspaper")
 
@@ -343,15 +344,11 @@ export default function NewspapersContainer({
   const { mbaNumber } = useMediaPlanContext()
   const [overallDeliverables, setOverallDeliverables] = useState(0);
   
-  // Stable ID generator for line items to keep duplicates distinct in exports
-  const createLineItemId = useCallback(() => {
-    const base = mbaNumber || "NEWS";
-    const rand =
-      typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? (crypto as any).randomUUID()
-        : `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
-    return `${base}-${rand}`;
-  }, [mbaNumber]);
+  const createLineItemId = useCallback(
+    (lineNumber: number) =>
+      buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.newspaper, lineNumber),
+    [mbaNumber]
+  );
 
   const [isAddNewspaperAdSizeDialogOpen, setIsAddNewspaperAdSizeDialogOpen] = useState(false);
   const [newTitleName, setNewTitleName] = useState("");
@@ -501,7 +498,7 @@ const handleAddNewNewspaperAdSize = async () => {
           clientPaysForMedia: false,
           budgetIncludesFees: false,
           noadserving: false,
-          ...(() => { const id = createLineItemId(); return { lineItemId: id, line_item_id: id, line_item: 1, lineItem: 1 }; })(),
+          ...(() => { const id = createLineItemId(1); return { lineItemId: id, line_item_id: id, line_item: 1, lineItem: 1 }; })(),
           bursts: [
             {
               budget: "",
@@ -706,7 +703,10 @@ const handleAddNewNewspaperAdSize = async () => {
     if (newspaperExpertModalOpenRef.current) return
     if (initialLineItems && initialLineItems.length > 0) {
       const transformedLineItems = initialLineItems.map((item: any, index: number) => {
-        const lineItemId = item.line_item_id || item.lineItemId || `${mbaNumber || "NEWS"}-${index + 1}`;
+        const lineNum =
+          Number(item.line_item ?? item.lineItem ?? index + 1) || index + 1;
+        const lineItemId =
+          item.line_item_id || item.lineItemId || createLineItemId(lineNum);
 
         return {
           network: item.network || item.publisher || "",
@@ -749,7 +749,7 @@ const handleAddNewNewspaperAdSize = async () => {
         overallDeliverables: 0,
       });
     }
-  }, [initialLineItems, form, campaignStartDate, campaignEndDate, mbaNumber]);
+  }, [initialLineItems, form, campaignStartDate, campaignEndDate, mbaNumber, createLineItemId]);
 
   // Transform form data to API schema format
   useEffect(() => {
@@ -768,7 +768,10 @@ const handleAddNewNewspaperAdSize = async () => {
           totalMedia += budget;
         }
       });
-      const lineItemId = lineItem.lineItemId || lineItem.line_item_id || `${mbaNumber || "NEWS"}-${index + 1}`;
+      const lineItemId =
+        lineItem.lineItemId ||
+        lineItem.line_item_id ||
+        buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.newspaper, index + 1);
       const lineNumber = lineItem.line_item ?? lineItem.lineItem ?? index + 1;
 
       return {
@@ -903,13 +906,13 @@ const handleAddNewNewspaperAdSize = async () => {
       return;
     }
 
-    const newId = createLineItemId();
     const baseLineItem = source.line_item ?? source.lineItem;
     const normalizedLineItemNumber: number =
       typeof baseLineItem === "string"
         ? Number.parseFloat(baseLineItem) || 0
         : baseLineItem ?? lineItemIndex + 1;
     const nextLineItemNumber = normalizedLineItemNumber + 1;
+    const newId = createLineItemId(nextLineItemNumber);
 
     const clone = {
       ...source,
@@ -1225,7 +1228,7 @@ useEffect(() => {
         : parseFloat(String(burst.budget).replace(/[^0-9.-]+/g, "")) || 0;
       let lineItemId = lineItem.lineItemId || lineItem.line_item_id;
       if (!lineItemId) {
-        lineItemId = createLineItemId();
+        lineItemId = createLineItemId(lineItemIndex + 1);
         form.setValue(`newspaperlineItems.${lineItemIndex}.lineItemId`, lineItemId);
         form.setValue(`newspaperlineItems.${lineItemIndex}.line_item_id`, lineItemId);
       }
@@ -1515,6 +1518,11 @@ useEffect(() => {
             <Form {...form}>
               <div className="space-y-6">
                 {lineItemFields.map((field, lineItemIndex) => {
+                  const lineItemId = buildLineItemId(
+                    mbaNumber,
+                    MEDIA_TYPE_ID_CODES.newspaper,
+                    lineItemIndex + 1
+                  );
                   const getTotals = (lineItemIndex: number) => {
                     const lineItem = form.watch(`newspaperlineItems.${lineItemIndex}`);
                     let totalMedia = 0;
@@ -1555,7 +1563,7 @@ useEffect(() => {
                             </div>
                             <div>
                               <CardTitle className="text-sm font-semibold tracking-tight">Newspapers Line Item</CardTitle>
-                              <span className="font-mono text-[11px] text-muted-foreground">{`${mbaNumber}NP${lineItemIndex + 1}`}</span>
+                              <span className="font-mono text-[11px] text-muted-foreground">{lineItemId}</span>
                             </div>
                           </div>
                           <div className="flex items-center gap-3">
@@ -2148,7 +2156,11 @@ useEffect(() => {
                                                           clientPaysForMedia: false,
                                                           budgetIncludesFees: false,
                                                           noadserving: false,
-                                                          ...(() => { const id = createLineItemId(); return { lineItemId: id, line_item_id: id, line_item: lineItemFields.length + 1, lineItem: lineItemFields.length + 1 }; })(),
+                                                          ...(() => {
+                                                            const nextNum = lineItemFields.length + 1;
+                                                            const id = createLineItemId(nextNum);
+                                                            return { lineItemId: id, line_item_id: id, line_item: nextNum, lineItem: nextNum };
+                                                          })(),
                                                           bursts: [
                                                             {
                                                               budget: "",

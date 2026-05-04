@@ -1346,6 +1346,11 @@ useEffect(() => {
             <Form {...form}>
               <div className="space-y-6">
                 {lineItemFields.map((field, lineItemIndex) => {
+                  const lineItemId = buildLineItemId(
+                    mbaNumber,
+                    MEDIA_TYPE_ID_CODES.digitalAudio,
+                    lineItemIndex + 1
+                  );
                   const getTotals = (lineItemIndex: number) => {
                     const lineItem = form.getValues(`digiaudiolineItems.${lineItemIndex}`);
                     let totalMedia = 0;
@@ -1381,7 +1386,7 @@ useEffect(() => {
                             </div>
                             <div>
                               <CardTitle className="text-sm font-semibold tracking-tight">Digital Audio Line Item</CardTitle>
-                              <span className="font-mono text-[11px] text-muted-foreground">{`${mbaNumber}DA${lineItemIndex + 1}`}</span>
+                              <span className="font-mono text-[11px] text-muted-foreground">{lineItemId}</span>
                             </div>
                           </div>
                           <div className="flex items-center gap-3">
