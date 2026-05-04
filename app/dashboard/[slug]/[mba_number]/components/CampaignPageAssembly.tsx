@@ -1,6 +1,8 @@
 "use client"
 
 import { Component, type ErrorInfo, type ReactNode, Suspense, useEffect, useMemo, useState } from "react"
+import { useSearchParams } from "next/navigation"
+import { format } from "date-fns"
 import type { CampaignKPI } from "@/lib/kpi/types"
 import { getCampaignKPIs } from "@/lib/api/kpi"
 import { buildKPITargetsMap, type KPITargetsMap } from "@/lib/kpi/deliveryTargets"
@@ -14,6 +16,17 @@ import DeliverySection from "@/components/dashboard/delivery/DeliverySection"
 import AdminDateRangeSelector from "./AdminDateRangeSelector"
 import CampaignActions from "./CampaignActions"
 import type { MediaPlanVersionListEntry } from "@/lib/api/dashboard"
+import {
+  aggregateSpendByChannelFromMonthly,
+  burstOverlapsRange,
+  filterDeliverySchedule,
+  filterLineItemsByBursts,
+  filterMonthlySpendByRange,
+  isFullCampaign,
+  parseDateOnly,
+  recomputeTimeMetrics,
+  type DateRange,
+} from "@/lib/dashboard/dateFilter"
 import SocialDeliveryContainer from "@/components/dashboard/delivery/social/SocialDeliveryContainer"
 import SearchDeliveryContainer from "@/components/dashboard/delivery/search/SearchDeliveryContainer"
 import ProgrammaticDeliveryContainer from "@/components/dashboard/delivery/programmatic/ProgrammaticDeliveryContainer"
@@ -81,7 +94,6 @@ function DeliverySectionSkeleton() {
 }
 
 type CampaignPageAssemblyProps = {
-  isAdmin: boolean
   slug: string
   mbaNumber: string
   campaign: any
@@ -115,10 +127,14 @@ type CampaignPageAssemblyProps = {
   currentVersion: number
 }
 
+function formatLocalYmd(d: Date): string {
+  return format(d, "yyyy-MM-dd")
+}
+
 export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
   const [detailsOpen, setDetailsOpen] = useState(false)
+  const searchParams = useSearchParams()
   const {
-    isAdmin,
     slug,
     mbaNumber,
     campaign,
@@ -151,6 +167,101 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
     availableVersions,
     currentVersion,
   } = props
+
+  const filterRange: DateRange = useMemo(
+    () => ({
+      start: parseDateOnly(searchParams?.get("startDate")),
+      end: parseDateOnly(searchParams?.get("endDate")),
+    }),
+    [searchParams],
+  )
+
+  const campaignBounds = useMemo(
+    () => ({
+      start: parseDateOnly(campaignStartISO ?? startDate ?? null),
+      end: parseDateOnly(campaignEndISO ?? endDate ?? null),
+    }),
+    [campaignStartISO, campaignEndISO, startDate, endDate],
+  )
+
+  const isUnfiltered = isFullCampaign(filterRange, campaignBounds)
+
+  const filteredMonthlySpend = useMemo(() => {
+    if (isUnfiltered) return monthlySpend
+    return filterMonthlySpendByRange(monthlySpend, filterRange)
+  }, [filterRange, isUnfiltered, monthlySpend])
+
+  const filteredSpendByChannel = useMemo(() => {
+    if (isUnfiltered) return spendByChannel
+    const totals = aggregateSpendByChannelFromMonthly(filteredMonthlySpend)
+    if (Array.isArray(spendByChannel)) {
+      return Object.entries(totals).map(([mediaType, amount]) => ({ mediaType, amount }))
+    }
+    return totals
+  }, [filteredMonthlySpend, isUnfiltered, spendByChannel])
+
+  const filteredDeliverySchedule = useMemo((): any[] => {
+    if (isUnfiltered) return deliverySchedule
+    return filterDeliverySchedule(deliverySchedule, filterRange) as any[]
+  }, [deliverySchedule, filterRange, isUnfiltered])
+
+  const filteredLineItemsMap = useMemo(() => {
+    if (isUnfiltered) return lineItemsMap
+    return filterLineItemsByBursts(lineItemsMap, filterRange) as Record<string, any[]>
+  }, [filterRange, isUnfiltered, lineItemsMap])
+
+  const filteredTimeMetrics = useMemo(() => {
+    if (isUnfiltered) {
+      return {
+        timeElapsedPct: Number(metrics?.timeElapsed ?? 0),
+        daysInCampaign: Number(metrics?.daysInCampaign ?? 0),
+        daysElapsed: Number(metrics?.daysElapsed ?? 0),
+        daysRemaining: Number(metrics?.daysRemaining ?? 0),
+      }
+    }
+    return recomputeTimeMetrics(filterRange, campaignBounds)
+  }, [campaignBounds, filterRange, isUnfiltered, metrics])
+
+  const displayWindowStart = filterRange.start ?? campaignBounds.start
+  const displayWindowEnd = filterRange.end ?? campaignBounds.end
+  const progressStartYmd = displayWindowStart ? formatLocalYmd(displayWindowStart) : (startDate ?? "")
+  const progressEndYmd = displayWindowEnd ? formatLocalYmd(displayWindowEnd) : (endDate ?? "")
+
+  const filteredSocialItems = useMemo(() => {
+    if (isUnfiltered) return socialItemsActive
+    return socialItemsActive.filter((item) => {
+      const bursts = Array.isArray(item?.bursts) ? item.bursts : []
+      if (bursts.length === 0) return true
+      return bursts.some((b: unknown) => burstOverlapsRange(b, filterRange))
+    })
+  }, [filterRange, isUnfiltered, socialItemsActive])
+
+  const filteredSearchItems = useMemo(() => {
+    if (isUnfiltered) return searchItemsActive
+    return searchItemsActive.filter((item) => {
+      const bursts = Array.isArray(item?.bursts) ? item.bursts : []
+      if (bursts.length === 0) return true
+      return bursts.some((b: unknown) => burstOverlapsRange(b, filterRange))
+    })
+  }, [filterRange, isUnfiltered, searchItemsActive])
+
+  const filteredProgDisplay = useMemo(() => {
+    if (isUnfiltered) return progDisplayItemsActive
+    return progDisplayItemsActive.filter((item) => {
+      const bursts = Array.isArray(item?.bursts) ? item.bursts : []
+      if (bursts.length === 0) return true
+      return bursts.some((b: unknown) => burstOverlapsRange(b, filterRange))
+    })
+  }, [filterRange, isUnfiltered, progDisplayItemsActive])
+
+  const filteredProgVideo = useMemo(() => {
+    if (isUnfiltered) return progVideoItemsActive
+    return progVideoItemsActive.filter((item) => {
+      const bursts = Array.isArray(item?.bursts) ? item.bursts : []
+      if (bursts.length === 0) return true
+      return bursts.some((b: unknown) => burstOverlapsRange(b, filterRange))
+    })
+  }, [filterRange, isUnfiltered, progVideoItemsActive])
 
   // --- KPI targets for delivery containers (Stage 3b) ---
   const [savedCampaignKPIs, setSavedCampaignKPIs] = useState<CampaignKPI[]>([])
@@ -211,8 +322,8 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
       brand: campaign?.campaign_brand || campaign?.brand || campaign?.mp_brand || undefined,
       mbaNumber: campaign?.mba_number || campaign?.mp_mba_number || mbaNumber,
       status: campaign?.campaign_status || campaign?.status || "Draft",
-      startDate: startDate || "",
-      endDate: endDate || "",
+      startDate: isUnfiltered ? startDate || "" : progressStartYmd,
+      endDate: isUnfiltered ? endDate || "" : progressEndYmd,
       budget,
       planVersion:
         campaign?.versionNumber ||
@@ -224,12 +335,24 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
       clientContact: campaign?.client_contact || campaign?.contact_name || campaign?.contactName,
       expectedSpend,
       actualSpend,
-      timeElapsedPct: Number(metrics?.timeElapsed ?? 0),
-      daysInCampaign: Number(metrics?.daysInCampaign ?? 0),
-      daysElapsed: Number(metrics?.daysElapsed ?? 0),
-      daysRemaining: Number(metrics?.daysRemaining ?? 0),
+      timeElapsedPct: filteredTimeMetrics.timeElapsedPct,
+      daysInCampaign: filteredTimeMetrics.daysInCampaign,
+      daysElapsed: filteredTimeMetrics.daysElapsed,
+      daysRemaining: filteredTimeMetrics.daysRemaining,
     }),
-    [actualSpend, budget, campaign, endDate, expectedSpend, mbaNumber, metrics, startDate]
+    [
+      actualSpend,
+      budget,
+      campaign,
+      endDate,
+      expectedSpend,
+      filteredTimeMetrics,
+      isUnfiltered,
+      mbaNumber,
+      progressEndYmd,
+      progressStartYmd,
+      startDate,
+    ],
   )
 
   return (
@@ -244,20 +367,18 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
       <SectionBoundary title="Campaign hero">
         <Suspense fallback={<CampaignHeroBannerSkeleton />}>
           <div className="campaign-section-enter space-y-3" style={{ animationDelay: "0ms" }}>
-            {isAdmin ? (
-              <AdminDateRangeSelector
-                campaignStart={campaignStartISO ?? startDate ?? undefined}
-                campaignEnd={campaignEndISO ?? endDate ?? undefined}
-                variant="inline"
-                showPresets
-              />
-            ) : null}
             <CampaignHeroBanner
               campaign={heroCampaign}
               brandColour={brandColour}
               daysRemaining={heroCampaign.daysRemaining}
               onOpenDetails={() => setDetailsOpen(true)}
               onDownload={() => window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" })}
+            />
+            <AdminDateRangeSelector
+              campaignStart={campaignStartISO ?? startDate ?? undefined}
+              campaignEnd={campaignEndISO ?? endDate ?? undefined}
+              variant="inline"
+              showPresets
             />
           </div>
         </Suspense>
@@ -269,12 +390,12 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
             <div className="campaign-section-enter" style={{ animationDelay: "100ms" }}>
             <CampaignSummaryRow
               time={{
-                timeElapsedPct: Number(metrics?.timeElapsed ?? 0),
-                daysInCampaign: Number(metrics?.daysInCampaign ?? 0),
-                daysElapsed: Number(metrics?.daysElapsed ?? 0),
-                daysRemaining: Number(metrics?.daysRemaining ?? 0),
-                startDate: startDate || "",
-                endDate: endDate || "",
+                timeElapsedPct: filteredTimeMetrics.timeElapsedPct,
+                daysInCampaign: filteredTimeMetrics.daysInCampaign,
+                daysElapsed: filteredTimeMetrics.daysElapsed,
+                daysRemaining: filteredTimeMetrics.daysRemaining,
+                startDate: progressStartYmd,
+                endDate: progressEndYmd,
               }}
               spend={{
                 budget,
@@ -294,11 +415,11 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
           <Suspense fallback={<SpendChartsRowSkeleton />}>
             <div className="campaign-section-enter" style={{ animationDelay: "200ms" }}>
             <SpendChartsRow
-              spendByChannel={spendByChannel}
-              monthlySpendByChannel={monthlySpend}
-              deliverySchedule={deliverySchedule}
+              spendByChannel={filteredSpendByChannel}
+              monthlySpendByChannel={filteredMonthlySpend}
+              deliverySchedule={filteredDeliverySchedule}
               brandColour={brandColour}
-              lineItemsMap={lineItemsMap}
+              lineItemsMap={filteredLineItemsMap}
               campaignSpendToDate={expectedSpend}
             />
             </div>
@@ -311,7 +432,7 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
           <Suspense fallback={<MediaPlanVizSectionSkeleton />}>
             <div className="campaign-section-enter" style={{ animationDelay: "300ms" }}>
             <MediaPlanVizSection
-              lineItems={lineItemsMap}
+              lineItems={filteredLineItemsMap}
               campaignStart={startDate ?? undefined}
               campaignEnd={endDate ?? undefined}
               clientSlug={slug}
@@ -336,11 +457,11 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
                 platforms={["social", "search", "programmatic"]}
                 platformSlots={{
                   social:
-                    socialItemsActive.length > 0 && startDate && endDate ? (
+                    filteredSocialItems.length > 0 && startDate && endDate ? (
                       <SocialDeliveryContainer
                         clientSlug={slug}
                         mbaNumber={mbaNumber}
-                        socialLineItems={socialItemsActive}
+                        socialLineItems={filteredSocialItems}
                         campaignStart={startDate}
                         campaignEnd={endDate}
                         initialPacingRows={undefined}
@@ -354,21 +475,21 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
                         clientSlug={slug}
                         mbaNumber={mbaNumber}
                         lineItemIds={searchLineItemIds}
-                        searchLineItems={searchItemsActive}
+                        searchLineItems={filteredSearchItems}
                         campaignStart={startDate}
                         campaignEnd={endDate}
                         kpiTargets={kpiTargets}
                       />
                     ) : null,
                   programmatic:
-                    (progDisplayItemsActive.length > 0 || progVideoItemsActive.length > 0) &&
+                    (filteredProgDisplay.length > 0 || filteredProgVideo.length > 0) &&
                     startDate &&
                     endDate ? (
                       <ProgrammaticDeliveryContainer
                         clientSlug={slug}
                         mbaNumber={mbaNumber}
-                        progDisplayLineItems={progDisplayItemsActive}
-                        progVideoLineItems={progVideoItemsActive}
+                        progDisplayLineItems={filteredProgDisplay}
+                        progVideoLineItems={filteredProgVideo}
                         campaignStart={startDate}
                         campaignEnd={endDate}
                         initialPacingRows={undefined}
@@ -388,8 +509,16 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
         open={detailsOpen}
         onOpenChange={setDetailsOpen}
         campaign={heroCampaign}
-        spendByChannel={Array.isArray(spendByChannel) ? Object.fromEntries(spendByChannel.map((d: any) => [d.mediaType ?? d.channel, Number(d.amount ?? d.spend ?? 0)])) : spendByChannel}
-        lineItemCounts={Object.fromEntries(Object.entries(lineItemsMap).map(([k, v]) => [k, Array.isArray(v) ? v.length : 0]))}
+        spendByChannel={
+          Array.isArray(filteredSpendByChannel)
+            ? Object.fromEntries(
+                filteredSpendByChannel.map((d: any) => [d.mediaType ?? d.channel, Number(d.amount ?? d.spend ?? 0)]),
+              )
+            : filteredSpendByChannel
+        }
+        lineItemCounts={Object.fromEntries(
+          Object.entries(filteredLineItemsMap).map(([k, v]) => [k, Array.isArray(v) ? v.length : 0]),
+        )}
       />
 
       <Suspense fallback={null}>

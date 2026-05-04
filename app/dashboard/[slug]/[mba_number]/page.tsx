@@ -1,7 +1,7 @@
 import CampaignPageAssembly from "./components/CampaignPageAssembly"
 import { fetchVersionsForMba } from "@/lib/api/dashboard"
 import { auth0 } from "@/lib/auth0"
-import { getPrimaryRole, getUserClientIdentifier, getUserMbaNumbers, isAdminRole } from "@/lib/rbac"
+import { getPrimaryRole, getUserClientIdentifier, getUserMbaNumbers } from "@/lib/rbac"
 import { redirect, notFound } from "next/navigation"
 import { headers } from "next/headers"
 import { createPerfTimer, logPerf } from "@/lib/utils/perf"
@@ -354,9 +354,7 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
   const pageTimer = createPerfTimer(`CampaignPage[${(await params).mba_number}]`)
 
   const { slug, mba_number } = await params
-  const { version, startDate: requestedStartDateParam, endDate: requestedEndDateParam } = searchParams
-    ? await searchParams
-    : {}
+  const { version } = searchParams ? await searchParams : {}
   const parsedVersion = version ? Number(version) : undefined
   const versionNumberFromQuery = Number.isFinite(parsedVersion) ? parsedVersion : undefined
 
@@ -365,7 +363,6 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
   const session = await auth0.getSession()
   const user = session?.user
   const role = getPrimaryRole(user)
-  const isAdmin = isAdminRole(role)
   const userClientSlug = getUserClientIdentifier(user)
   logPerf("Auth check", authStart, { hasUser: !!user, role })
 
@@ -436,8 +433,6 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
   try {
     campaignData = await fetchCampaignData(mba_number, {
       version,
-      startDate: isAdmin ? requestedStartDateParam : undefined,
-      endDate: isAdmin ? requestedEndDateParam : undefined,
     })
     campaign = campaignData?.campaign ?? campaignData
     campaignVersion = campaignData?.versionData ?? campaignData?.mediaPlanVersion ?? campaignData?.campaign ?? campaignData ?? {}
@@ -677,8 +672,9 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
 
   const campaignStartISO = toISODateOnlySafe(startDate)
   const campaignEndISO = toISODateOnlySafe(endDate)
-  const requestedStartISO = isAdmin ? toISODateOnlySafe(requestedStartDateParam) : null
-  const requestedEndISO = isAdmin ? toISODateOnlySafe(requestedEndDateParam) : null
+  // Date range in URL is client-only (charts / timeline); full campaign used for fetch and spend resolution.
+  const requestedStartISO: string | null = null
+  const requestedEndISO: string | null = null
   const { startISO: effectiveStartISO, endISO: effectiveEndISO } = computeEffectiveDateRange({
     campaignStartISO,
     campaignEndISO,
@@ -786,7 +782,6 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
 
   return (
     <CampaignPageAssembly
-      isAdmin={isAdmin}
       slug={slug}
       mbaNumber={mba_number}
       campaign={campaign}
