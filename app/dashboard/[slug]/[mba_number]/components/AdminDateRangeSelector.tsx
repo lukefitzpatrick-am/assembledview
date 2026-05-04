@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Badge } from "@/components/ui/badge"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 
 function parseDateOnlySafe(value?: string | null): Date | null {
@@ -181,8 +180,13 @@ export default function AdminDateRangeSelector({
   )
 
   const triggerMinimal = (
-    <Button variant="ghost" size="sm" className="h-8 rounded-full px-3 text-primary">
-      <CalendarDays className="mr-1.5 h-4 w-4" />
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      className="h-9 min-w-[7.5rem] justify-center gap-2 rounded-full border-border/60 bg-background/90 text-xs font-medium shadow-sm backdrop-blur-sm transition-all hover:scale-[1.02] hover:bg-muted"
+    >
+      <CalendarDays className="h-3.5 w-3.5" aria-hidden />
       Change range
     </Button>
   )
@@ -273,14 +277,7 @@ export default function AdminDateRangeSelector({
         }}
       >
         <PopoverTrigger asChild>
-          {variant === "inline" ? triggerInline : (
-            <TooltipProvider delayDuration={150}>
-              <Tooltip>
-                <TooltipTrigger asChild>{triggerMinimal}</TooltipTrigger>
-                <TooltipContent>Change date range</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
+          {variant === "inline" ? triggerInline : triggerMinimal}
         </PopoverTrigger>
         <PopoverContent align="end" className="w-auto p-0">
           <div className="space-y-3 p-3">
