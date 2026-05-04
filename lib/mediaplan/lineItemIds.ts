@@ -2,6 +2,16 @@
  * Helpers for deterministic media plan line item identifiers.
  * IDs follow: <MBA_NUMBER><MEDIA_TYPE_CODE><LINE_ITEM_NUMBER>
  * Media type codes come from the UI labels shown beside each media container line item.
+ *
+ * MIGRATION NOTE (May 2026): Previously seven containers shared the catch-all
+ * "ML" code (digitalDisplay, integration, progVideo, progBVOD, progAudio,
+ * progOOH, ooh). This caused ID collisions when plans had multiple ML
+ * containers. They now have distinct codes (DD, IT, PV, PB, PA, PO, OH).
+ *
+ * Historic line item IDs in Xano with ML codes remain valid — this change
+ * affects new line items only. Pacing pipelines that match on extracted
+ * suffixes will need to handle both ML (legacy) and the new specific codes
+ * for any line items created before this change.
  */
 export const MEDIA_TYPE_ID_CODES = {
   television: "TV",
@@ -10,18 +20,18 @@ export const MEDIA_TYPE_ID_CODES = {
   radio: "RA",
   magazines: "MG",
   cinema: "CN",
-  digitalDisplay: "ML",
+  digitalDisplay: "DD",
   digitalAudio: "DA",
   digitalVideo: "DV",
   bvod: "BV",
-  integration: "ML",
+  integration: "IT",
   search: "SE",
   progDisplay: "PD",
-  progVideo: "ML",
-  progBVOD: "ML",
-  progAudio: "ML",
-  progOOH: "ML",
-  ooh: "ML",
+  progVideo: "PV",
+  progBVOD: "PB",
+  progAudio: "PA",
+  progOOH: "PO",
+  ooh: "OH",
   influencers: "IN",
 } as const;
 
