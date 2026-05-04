@@ -137,6 +137,7 @@ import { generateNamingWorkbook } from '@/lib/namingConventions'
 import { saveAs } from 'file-saver'
 import { filterLineItemsByPlanNumber } from '@/lib/api/mediaPlanVersionHelper'
 import { toDateOnlyString, parseDateOnlyString } from "@/lib/timezone"
+import { hasPersistableSchedulePayload } from "@/lib/mediaplan/schedulePayload"
 
 /** Stable id for billing rows so merge/save validation align with persisted `lineItemId` / `line_item_id`. */
 function billingStableLineItemId(mediaType: string, lineItem: any, index: number): string {
@@ -4387,29 +4388,33 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     workingBillingMonthsRef.current = workingBillingMonths
   }, [workingBillingMonths])
 
-  /** Version PUT: serialize **workingBillingMonths** (attach line items to a clone only when months lack detail). */
-  const buildBillingScheduleForSave = useCallback((): Record<string, any> => {
-    const months = workingBillingMonths
-    if (!months?.length) {
-      return {}
+  /**
+   * Version PUT: serialize **workingBillingMonths** (attach line items to a clone only when months lack detail).
+   * If working rows are temporarily empty, preserve the loaded saved baseline so a save cannot wipe stored billing.
+   */
+  const buildBillingScheduleForSave = useCallback((): any => {
+    const serializeMonths = (months: BillingMonth[]): any | null => {
+      if (!months?.length) return null
+
+      const typedMonths = months as unknown as import("@/lib/billing/types").BillingMonth[]
+      const monthsForJson: import("@/lib/billing/types").BillingMonth[] = billingMonthsHaveDetailedLineItems(months)
+        ? typedMonths
+        : attachLineItemsToMonths(deepCloneBillingMonths(months), "billing")
+      const payload = appendPartialApprovalToBillingSchedule({
+        billingSchedule: buildBillingScheduleJSON(monthsForJson),
+        metadata: isPartialMBA ? partialApprovalMetadata : null,
+      })
+
+      return hasPersistableSchedulePayload(payload) ? payload : null
     }
 
-    const typedMonths = months as unknown as import("@/lib/billing/types").BillingMonth[]
-
-    const monthsForJson: import("@/lib/billing/types").BillingMonth[] = billingMonthsHaveDetailedLineItems(months)
-      ? typedMonths
-      : attachLineItemsToMonths(deepCloneBillingMonths(months), "billing")
-
-    return appendPartialApprovalToBillingSchedule({
-      billingSchedule: buildBillingScheduleJSON(monthsForJson),
-      metadata: isPartialMBA ? partialApprovalMetadata : null,
-    })
+    return serializeMonths(workingBillingMonths) ?? serializeMonths(savedBillingMonthsRef.current) ?? {}
   }, [
-    workingBillingMonths,
     attachLineItemsToMonths,
     deepCloneBillingMonths,
     isPartialMBA,
     partialApprovalMetadata,
+    workingBillingMonths,
   ])
 
   const buildDeliveryScheduleForSave = useCallback((): Record<string, any> => {

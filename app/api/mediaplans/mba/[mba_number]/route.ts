@@ -5,6 +5,7 @@ import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
 import { getXanoBaseUrl, parseXanoListPayload, xanoUrl } from "@/lib/api/xano"
 import { getXanoClientsCollectionUrl } from "@/lib/api/xanoClients"
 import { roundMoney4 } from "@/lib/format/money"
+import { resolveSchedulePayloadForVersionSave } from "@/lib/mediaplan/schedulePayload"
 import { extractBillingMonthStart } from "@/lib/spend/billingScheduleExpectedToDate"
 import { expectedSpendToDateFromDeliveryScheduleMonthly } from "@/lib/spend/monthlyPlanCalendar"
 
@@ -1309,6 +1310,25 @@ export async function PUT(
     const mpProductionFlag = isTruthyFlag(data.mp_production)
     const resolvedClientName =
       data.mp_client_name || data.mp_clientname || data.client_name || masterData.mp_client_name
+    const latestPersistedVersion = allVersionsForMBA.find(
+      (version: any) => parseVersion(version.version_number) === latestVersionNumber
+    )
+    const billingScheduleForVersion = resolveSchedulePayloadForVersionSave(
+      data.billingSchedule,
+      latestPersistedVersion?.billingSchedule ??
+        latestPersistedVersion?.billing_schedule ??
+        masterData.billingSchedule ??
+        masterData.billing_schedule
+    )
+    const incomingDeliverySchedule = data.deliverySchedule ?? data.delivery_schedule
+    const deliveryScheduleForVersion = resolveSchedulePayloadForVersionSave(
+      incomingDeliverySchedule,
+      latestPersistedVersion?.deliverySchedule ??
+        latestPersistedVersion?.delivery_schedule ??
+        masterData.deliverySchedule ??
+        masterData.delivery_schedule
+    )
+
     const newVersionData = {
       media_plan_master_id: masterData.id,
       version_number: nextVersionNumber,
@@ -1343,10 +1363,10 @@ export async function PUT(
       mp_progaudio: isTruthyFlag(data.mp_progaudio),
       mp_progooh: isTruthyFlag(data.mp_progooh),
       mp_influencers: isTruthyFlag(data.mp_influencers),
-      billingSchedule: data.billingSchedule || null,
+      billingSchedule: billingScheduleForVersion,
       // Accept either casing from client; persist both keys to tolerate Xano schema/input naming.
-      deliverySchedule: data.deliverySchedule ?? data.delivery_schedule ?? null,
-      delivery_schedule: data.deliverySchedule ?? data.delivery_schedule ?? null,
+      deliverySchedule: deliveryScheduleForVersion,
+      delivery_schedule: deliveryScheduleForVersion,
     }
     
     // Create new version in media_plan_versions table
