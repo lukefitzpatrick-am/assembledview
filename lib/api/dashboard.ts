@@ -10,6 +10,8 @@ export {
   getSpendByMediaTypeData,
   getSpendByCampaignData,
   getMonthlySpendData,
+  fetchVersionsForMba,
+  type MediaPlanVersionListEntry,
 } from "./dashboard/client"
 
 export { getPublisherDashboardData } from "./dashboard/publisher"

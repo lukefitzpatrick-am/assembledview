@@ -13,6 +13,7 @@ import CampaignDetailsModal from "@/components/dashboard/campaign/CampaignDetail
 import DeliverySection from "@/components/dashboard/delivery/DeliverySection"
 import AdminDateRangeSelector from "./AdminDateRangeSelector"
 import CampaignActions from "./CampaignActions"
+import type { MediaPlanVersionListEntry } from "@/lib/api/dashboard"
 import SocialDeliveryContainer from "@/components/dashboard/delivery/social/SocialDeliveryContainer"
 import SearchDeliveryContainer from "@/components/dashboard/delivery/search/SearchDeliveryContainer"
 import ProgrammaticDeliveryContainer from "@/components/dashboard/delivery/programmatic/ProgrammaticDeliveryContainer"
@@ -110,6 +111,8 @@ type CampaignPageAssemblyProps = {
   progDisplayItemsActive: any[]
   progVideoItemsActive: any[]
   deliveryLineItemIds: string[]
+  availableVersions: MediaPlanVersionListEntry[]
+  currentVersion: number
 }
 
 export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
@@ -145,6 +148,8 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
     progDisplayItemsActive,
     progVideoItemsActive,
     deliveryLineItemIds,
+    availableVersions,
+    currentVersion,
   } = props
 
   // --- KPI targets for delivery containers (Stage 3b) ---
@@ -387,16 +392,20 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
         lineItemCounts={Object.fromEntries(Object.entries(lineItemsMap).map(([k, v]) => [k, Array.isArray(v) ? v.length : 0]))}
       />
 
-      <CampaignActions
-        variant="floating"
-        mbaNumber={mbaNumber}
-        campaign={campaign}
-        lineItems={lineItemsMap}
-        billingSchedule={billingSchedule}
-        xanoFileOrigin={xanoFileOrigin}
-        mediaPlanFileMeta={mediaPlanFileMeta}
-        mbaPdfFileMeta={mbaPdfFileMeta}
-      />
+      <Suspense fallback={null}>
+        <CampaignActions
+          variant="floating"
+          mbaNumber={mbaNumber}
+          campaign={campaign}
+          lineItems={lineItemsMap}
+          billingSchedule={billingSchedule}
+          xanoFileOrigin={xanoFileOrigin}
+          mediaPlanFileMeta={mediaPlanFileMeta}
+          mbaPdfFileMeta={mbaPdfFileMeta}
+          availableVersions={availableVersions}
+          currentVersion={currentVersion}
+        />
+      </Suspense>
       </div>
     </div>
   )

@@ -1,4 +1,5 @@
 import CampaignPageAssembly from "./components/CampaignPageAssembly"
+import { fetchVersionsForMba } from "@/lib/api/dashboard"
 import { auth0 } from "@/lib/auth0"
 import { getPrimaryRole, getUserClientIdentifier, getUserMbaNumbers, isAdminRole } from "@/lib/rbac"
 import { redirect, notFound } from "next/navigation"
@@ -482,6 +483,10 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
   }
 
   const versionNumber = resolvedVersionNumber ?? versionNumberFromQuery
+  const availableVersions = await fetchVersionsForMba(mba_number).catch((err) => {
+    console.warn("[dashboard] failed to load version list:", err)
+    return []
+  })
   const lineItemsMap = (campaignData?.lineItems ?? {}) as Record<string, any[]>
   if (DEBUG_LINE_ITEMS) {
     console.log("[DATA LOAD] campaign data version info", {
@@ -811,6 +816,8 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
       progDisplayItemsActive={progDisplayItemsActive}
       progVideoItemsActive={progVideoItemsActive}
       deliveryLineItemIds={deliveryLineItemIds}
+      availableVersions={availableVersions}
+      currentVersion={resolvedVersionNumber ?? versionNumberFromQuery ?? 1}
     />
   )
 }

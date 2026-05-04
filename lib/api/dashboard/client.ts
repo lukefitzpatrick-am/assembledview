@@ -159,6 +159,38 @@ async function fetchMediaPlanVersionsArray(): Promise<any[]> {
   }
 }
 
+export type MediaPlanVersionListEntry = {
+  versionNumber: number
+  planDate?: string
+  id?: number
+}
+
+/** All workspace versions from Xano, filtered to one MBA (newest first). */
+export async function fetchVersionsForMba(mbaNumber: string): Promise<MediaPlanVersionListEntry[]> {
+  const all = await fetchMediaPlanVersionsArray()
+  const normalisedMba = String(mbaNumber).trim()
+  const out: MediaPlanVersionListEntry[] = []
+  for (const raw of all) {
+    const v = raw as Record<string, unknown>
+    const candidate = String(v.mba_number ?? "").trim()
+    if (candidate !== normalisedMba) continue
+    const versionNumber = Number(v.version_number ?? v.versionNumber)
+    if (!Number.isFinite(versionNumber) || versionNumber <= 0) continue
+    const planDate =
+      typeof v.plan_date === "string" && v.plan_date.trim()
+        ? v.plan_date.trim()
+        : typeof v.created_at === "string" && v.created_at.trim()
+          ? v.created_at.trim()
+          : typeof v.updated_at === "string" && v.updated_at.trim()
+            ? v.updated_at.trim()
+            : undefined
+    const idRaw = v.id
+    const id = typeof idRaw === "number" ? idRaw : undefined
+    out.push({ versionNumber, planDate, id })
+  }
+  return out.sort((a, b) => b.versionNumber - a.versionNumber)
+}
+
 function buildYtdCountBySlugFromMaster(
   masterPlans: any[],
   fyWindow: ReturnType<typeof getAustralianFinancialYearWindow>
