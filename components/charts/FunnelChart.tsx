@@ -4,11 +4,7 @@ import { Fragment, useMemo } from "react"
 import { Cell, Funnel, FunnelChart as RechartsFunnelChart, ResponsiveContainer, Tooltip } from "recharts"
 
 import { useClientBrand } from "@/components/client-dashboard/ClientBrandProvider"
-import {
-  CHART_TOOLTIP_CONTENT,
-  CHART_TOOLTIP_ITEM_STYLE,
-  CHART_TOOLTIP_LABEL_STYLE,
-} from "@/components/charts/chartStyles"
+import { useUnifiedTooltip } from "@/components/charts/UnifiedTooltip"
 import { getChartPalette } from "@/lib/client-dashboard/theme"
 
 export type FunnelDatum = { name: string; value: number }
@@ -40,16 +36,18 @@ export function FunnelChart({ data, height = 360 }: FunnelChartProps) {
 
   const chartHeight = Math.max(180, Math.round(height * 0.58))
 
+  const renderTooltip = useUnifiedTooltip({
+    // Funnel stages are counts (sessions, checkouts, etc.); not currency.
+    formatValue: (v) => v.toLocaleString("en-AU", { maximumFractionDigits: 0 }),
+    showTotal: false,
+  })
+
   return (
     <div className="w-full space-y-4" style={{ minHeight: height }}>
       <div className="w-full" style={{ height: chartHeight }}>
         <ResponsiveContainer width="100%" height="100%">
           <RechartsFunnelChart margin={{ top: 8, right: 24, left: 24, bottom: 8 }}>
-            <Tooltip
-              contentStyle={CHART_TOOLTIP_CONTENT}
-              labelStyle={CHART_TOOLTIP_LABEL_STYLE}
-              itemStyle={CHART_TOOLTIP_ITEM_STYLE}
-            />
+            <Tooltip content={renderTooltip} />
             <Funnel dataKey="value" nameKey="name" data={data} isAnimationActive={false}>
               {data.map((d, i) => (
                 <Cell key={d.name} fill={palette[i % palette.length]} />
@@ -69,7 +67,9 @@ export function FunnelChart({ data, height = 360 }: FunnelChartProps) {
           <Fragment key={r.name}>
             <div className="tabular-nums text-muted-foreground">{r.index}</div>
             <div className="min-w-0 truncate font-medium">{r.name}</div>
-            <div className="text-right tabular-nums">{r.value.toLocaleString()}</div>
+            <div className="text-right tabular-nums">
+              {r.value.toLocaleString("en-AU", { maximumFractionDigits: 0 })}
+            </div>
             <div className="text-right tabular-nums text-muted-foreground">{formatPct(r.vsPrev)}</div>
             <div className="text-right tabular-nums text-muted-foreground">{formatPct(r.vsFirst)}</div>
           </Fragment>

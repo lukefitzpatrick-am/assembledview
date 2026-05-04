@@ -20,6 +20,8 @@ export type UnifiedTooltipProps = {
   payload: UnifiedTooltipPayloadItem[]
   label: string
   formatValue?: (value: number) => string
+  /** When set, formats each series row (e.g. mixed currency + counts on composed charts). */
+  formatEntryValue?: (entry: UnifiedTooltipPayloadItem) => string
   formatLabel?: (label: string) => string
   showTotal?: boolean
   showPercentages?: boolean
@@ -34,6 +36,7 @@ export type UnifiedTooltipConfig = Omit<
   "active" | "payload" | "label"
 > & {
   formatValue?: (value: number) => string
+  formatEntryValue?: (entry: UnifiedTooltipPayloadItem) => string
   formatLabel?: (label: string) => string
   showTotal?: boolean
   showPercentages?: boolean
@@ -79,6 +82,7 @@ export function UnifiedTooltip({
   payload,
   label,
   formatValue = defaultFormatValue,
+  formatEntryValue,
   formatLabel,
   showTotal = true,
   showPercentages = false,
@@ -125,6 +129,7 @@ export function UnifiedTooltip({
             const value = Number(entry.value) || 0
             const pct = effectiveTotal > 0 ? (value / effectiveTotal) * 100 : 0
             const key = `${entry.dataKey ?? entry.name}-${index}`
+            const displayValue = formatEntryValue ? formatEntryValue(entry) : formatValue(value)
             return (
               <div
                 key={key}
@@ -142,7 +147,7 @@ export function UnifiedTooltip({
                 </div>
                 <div className="flex flex-none items-center gap-2">
                   <span className="font-mono text-sm font-medium tabular-nums text-foreground">
-                    {formatValue(value)}
+                    {displayValue}
                   </span>
                   {showPercentages && effectiveTotal > 0 ? (
                     <span className="rounded-md bg-muted/80 px-1.5 py-0.5 font-mono text-xs tabular-nums text-muted-foreground">
@@ -257,6 +262,7 @@ export function useUnifiedTooltip(
 ): (props: UnifiedTooltipRechartsProps) => React.ReactNode {
   const {
     formatValue,
+    formatEntryValue,
     formatLabel,
     showTotal,
     showPercentages,
@@ -283,6 +289,7 @@ export function useUnifiedTooltip(
           payload={normalized}
           label={labelStr}
           formatValue={formatValue}
+          formatEntryValue={formatEntryValue}
           formatLabel={formatLabel}
           showTotal={showTotal}
           showPercentages={showPercentages}
@@ -294,6 +301,7 @@ export function useUnifiedTooltip(
     },
     [
       formatValue,
+      formatEntryValue,
       formatLabel,
       showTotal,
       showPercentages,

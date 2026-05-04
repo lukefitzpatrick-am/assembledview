@@ -20,12 +20,9 @@ import {
 } from "recharts"
 
 import { useClientBrand } from "@/components/client-dashboard/ClientBrandProvider"
-import {
-  CHART_TOOLTIP_CONTENT,
-  CHART_TOOLTIP_ITEM_STYLE,
-  CHART_TOOLTIP_LABEL_STYLE,
-} from "@/components/charts/chartStyles"
+import { useUnifiedTooltip } from "@/components/charts/UnifiedTooltip"
 import { ToggleableLegend } from "@/components/charts/ToggleableLegend"
+import { formatCurrencyAUD } from "@/lib/format/currency"
 import { getChartPalette } from "@/lib/client-dashboard/theme"
 
 /** @deprecated Prefer `ChartStackedColumnRow` from `chartDatumClick` — legacy admin chart row shape (Phase 3). */
@@ -37,6 +34,8 @@ export type StackedColumnChartProps = {
   data: Array<Record<string, number | string>>
   xKey: string
   series: StackedColumnSeries[]
+  /** Tooltip and Y-axis number format; defaults to AUD (stacked spend). */
+  valueFormatter?: (value: number) => string
   height?: number
   /** Optional per-series fill overrides (e.g. client profile colours on the admin dashboard). */
   seriesColorByKey?: Record<string, string>
@@ -55,6 +54,7 @@ export function StackedColumnChart({
   data,
   xKey,
   series,
+  valueFormatter = formatCurrencyAUD,
   height = 320,
   seriesColorByKey,
   onDatumClick,
@@ -110,10 +110,9 @@ export function StackedColumnChart({
     [filterViaLegend, onDatumClick, data, series, getDatumId, toggleKey],
   )
 
-  const xTickInterval = useMemo(() => {
-    if (data.length <= 10) return 0
-    return Math.max(1, Math.ceil(data.length / 7) - 1)
-  }, [data.length])
+  const renderTooltip = useUnifiedTooltip({
+    formatValue: valueFormatter,
+  })
 
   return (
     <div className="w-full" style={{ height }}>
@@ -124,7 +123,7 @@ export function StackedColumnChart({
             dataKey={xKey}
             tickLine={false}
             axisLine={{ stroke: "hsl(var(--border))" }}
-            interval={xTickInterval}
+            interval={0}
             tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
             tickMargin={8}
             angle={data.length > 8 ? -25 : 0}
@@ -136,13 +135,9 @@ export function StackedColumnChart({
             axisLine={{ stroke: "hsl(var(--border))" }}
             tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
             width={40}
+            tickFormatter={(v) => valueFormatter(Number(v))}
           />
-          <Tooltip
-            contentStyle={CHART_TOOLTIP_CONTENT}
-            labelStyle={CHART_TOOLTIP_LABEL_STYLE}
-            itemStyle={CHART_TOOLTIP_ITEM_STYLE}
-            cursor={{ fill: "hsl(var(--muted) / 0.35)" }}
-          />
+          <Tooltip content={renderTooltip} cursor={{ fill: "hsl(var(--muted) / 0.35)" }} />
           <Legend
             verticalAlign="top"
             align="center"

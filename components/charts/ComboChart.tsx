@@ -15,11 +15,11 @@ import {
 
 import { useClientBrand } from "@/components/client-dashboard/ClientBrandProvider"
 import {
-  CHART_TOOLTIP_CONTENT,
-  CHART_TOOLTIP_ITEM_STYLE,
-  CHART_TOOLTIP_LABEL_STYLE,
-} from "@/components/charts/chartStyles"
+  useUnifiedTooltip,
+  type UnifiedTooltipPayloadItem,
+} from "@/components/charts/UnifiedTooltip"
 import { ToggleableLegend } from "@/components/charts/ToggleableLegend"
+import { formatCurrencyAUD } from "@/lib/format/currency"
 import { getChartPalette } from "@/lib/client-dashboard/theme"
 
 export type ComboBarSeries = { key: string; label: string }
@@ -30,10 +30,19 @@ export type ComboChartProps = {
   xKey: string
   bars: ComboBarSeries[]
   lines: ComboLineSeries[]
+  /**
+   * Series `dataKey`s that represent counts (not currency), e.g. orders on a
+   * right axis while bars are revenue. Other keys use `formatCurrencyAUD`.
+   */
+  countDataKeys?: string[]
   height?: number
 }
 
-export function ComboChart({ data, xKey, bars, lines, height = 320 }: ComboChartProps) {
+function formatCountTooltipValue(v: number): string {
+  return Math.round(v).toLocaleString("en-AU", { maximumFractionDigits: 0 })
+}
+
+export function ComboChart({ data, xKey, bars, lines, countDataKeys, height = 320 }: ComboChartProps) {
   const theme = useClientBrand()
   const palette = useMemo(() => getChartPalette(theme), [theme])
   const [hidden, setHidden] = useState<Set<string>>(() => new Set())
@@ -63,10 +72,21 @@ export function ComboChart({ data, xKey, bars, lines, height = 320 }: ComboChart
     return items
   }, [bars, lines, palette])
 
-  const xTickInterval = useMemo(() => {
-    if (data.length <= 10) return 0
-    return Math.max(1, Math.ceil(data.length / 7) - 1)
-  }, [data.length])
+  const countKeySet = useMemo(() => new Set(countDataKeys ?? []), [countDataKeys])
+
+  const formatEntryValue = useMemo(() => {
+    if (countKeySet.size === 0) return undefined
+    return (entry: UnifiedTooltipPayloadItem) => {
+      const dk = entry.dataKey ?? ""
+      return countKeySet.has(dk) ? formatCountTooltipValue(entry.value) : formatCurrencyAUD(entry.value)
+    }
+  }, [countKeySet])
+
+  const renderTooltip = useUnifiedTooltip({
+    formatValue: formatCurrencyAUD,
+    formatEntryValue,
+    showTotal: false,
+  })
 
   return (
     <div className="w-full" style={{ height }}>
@@ -77,7 +97,7 @@ export function ComboChart({ data, xKey, bars, lines, height = 320 }: ComboChart
             dataKey={xKey}
             tickLine={false}
             axisLine={{ stroke: "hsl(var(--border))" }}
-            interval={xTickInterval}
+            interval={0}
             tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
             tickMargin={8}
             angle={data.length > 8 ? -25 : 0}
@@ -101,12 +121,7 @@ export function ComboChart({ data, xKey, bars, lines, height = 320 }: ComboChart
               width={44}
             />
           ) : null}
-          <Tooltip
-            contentStyle={CHART_TOOLTIP_CONTENT}
-            labelStyle={CHART_TOOLTIP_LABEL_STYLE}
-            itemStyle={CHART_TOOLTIP_ITEM_STYLE}
-            cursor={{ fill: "hsl(var(--muted) / 0.25)" }}
-          />
+          <Tooltip content={renderTooltip} cursor={{ fill: "hsl(var(--muted) / 0.25)" }} />
           <Legend
             verticalAlign="top"
             align="center"

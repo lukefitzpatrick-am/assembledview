@@ -4,11 +4,7 @@ import { useMemo } from "react"
 import { ResponsiveContainer, Tooltip, Treemap } from "recharts"
 
 import { useClientBrand } from "@/components/client-dashboard/ClientBrandProvider"
-import {
-  CHART_TOOLTIP_CONTENT,
-  CHART_TOOLTIP_ITEM_STYLE,
-  CHART_TOOLTIP_LABEL_STYLE,
-} from "@/components/charts/chartStyles"
+import { useUnifiedTooltip } from "@/components/charts/UnifiedTooltip"
 import { treemapFillFromIntensity } from "@/lib/client-dashboard/chartColorFormat"
 import { getChartPalette } from "@/lib/client-dashboard/theme"
 import { cn } from "@/lib/utils"
@@ -30,6 +26,7 @@ type TreemapLeafProps = {
   size?: number
   primary: string
   palette: string[]
+  formatSize: (value: number) => string
 }
 
 function TreemapLeaf({
@@ -45,6 +42,7 @@ function TreemapLeaf({
   size: sizeProp,
   primary,
   palette,
+  formatSize,
 }: TreemapLeafProps) {
   const ix = typeof index === "number" && !Number.isNaN(index) ? index : 0
   const intensity = intensityProp ?? payload?.intensity
@@ -83,9 +81,9 @@ function TreemapLeaf({
             <span className="block max-w-full truncate">{label}</span>
             <span className="block max-w-full truncate tabular-nums text-muted-foreground">
               {typeof value === "number"
-                ? value.toLocaleString()
+                ? formatSize(value)
                 : typeof sizeProp === "number"
-                  ? sizeProp.toLocaleString()
+                  ? formatSize(sizeProp)
                   : ""}
             </span>
           </div>
@@ -97,17 +95,36 @@ function TreemapLeaf({
 
 export type TreemapChartProps = {
   data: TreemapDatum[]
+  /** Tooltip and in-tile size label; default is integer (e.g. page views). */
+  sizeFormatter?: (value: number) => string
   height?: number
 }
 
-export function TreemapChart({ data, height = 320 }: TreemapChartProps) {
+function defaultTreemapSizeFormat(value: number): string {
+  return value.toLocaleString("en-AU", { maximumFractionDigits: 0 })
+}
+
+export function TreemapChart({ data, sizeFormatter = defaultTreemapSizeFormat, height = 320 }: TreemapChartProps) {
   const theme = useClientBrand()
   const palette = useMemo(() => getChartPalette(theme), [theme])
 
   const content = useMemo(
-    () => <TreemapLeaf primary={theme.primary} palette={palette} />,
-    [palette, theme.primary],
+    () => (
+      <TreemapLeaf primary={theme.primary} palette={palette} formatSize={sizeFormatter} />
+    ),
+    [palette, theme.primary, sizeFormatter],
   )
+
+  const totalSize = useMemo(
+    () => data.reduce((s, d) => s + (Number(d.size) || 0), 0),
+    [data],
+  )
+
+  const renderTooltip = useUnifiedTooltip({
+    formatValue: sizeFormatter,
+    showPercentages: true,
+    getSeriesTotal: () => totalSize,
+  })
 
   return (
     <div className="w-full" style={{ height }}>
@@ -121,11 +138,7 @@ export function TreemapChart({ data, height = 320 }: TreemapChartProps) {
           isAnimationActive={false}
           content={content}
         >
-          <Tooltip
-            contentStyle={CHART_TOOLTIP_CONTENT}
-            labelStyle={CHART_TOOLTIP_LABEL_STYLE}
-            itemStyle={CHART_TOOLTIP_ITEM_STYLE}
-          />
+          <Tooltip content={renderTooltip} />
         </Treemap>
       </ResponsiveContainer>
     </div>

@@ -1,17 +1,29 @@
 "use client"
 
-import { useState } from 'react'
-import { Button } from '@/components/ui/button'
-import { Check, Download, FileText, Loader2, MoreHorizontal } from 'lucide-react'
-import { toast } from '@/components/ui/use-toast'
-import { cn } from '@/lib/utils'
+import { useState } from "react"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { Button } from "@/components/ui/button"
+import { Check, Download, FileText, Loader2, MoreHorizontal } from "lucide-react"
+import { toast } from "@/components/ui/use-toast"
+import { cn } from "@/lib/utils"
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { CampaignExportsSection } from '@/components/dashboard/CampaignExportsSection'
+} from "@/components/ui/dropdown-menu"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { CampaignExportsSection } from "@/components/dashboard/CampaignExportsSection"
+import type { MediaPlanVersionListEntry } from "@/lib/api/dashboard"
 
 type XanoPublicFile = {
   access?: string
@@ -32,7 +44,19 @@ interface CampaignActionsProps {
   xanoFileOrigin: string
   mediaPlanFileMeta: XanoPublicFile | null
   mbaPdfFileMeta: XanoPublicFile | null
-  variant?: 'floating' | 'inline' | 'minimal'
+  variant?: "floating" | "inline" | "minimal"
+  availableVersions: MediaPlanVersionListEntry[]
+  currentVersion: number
+}
+
+function formatVersionDate(value: string): string {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleDateString("en-AU", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  })
 }
 
 function bufferToBase64(buffer: ArrayBuffer): string {
@@ -50,8 +74,13 @@ export default function CampaignActions({
   xanoFileOrigin,
   mediaPlanFileMeta,
   mbaPdfFileMeta,
-  variant = 'floating',
+  variant = "floating",
+  availableVersions,
+  currentVersion,
 }: CampaignActionsProps) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [isDownloadingMediaPlan, setIsDownloadingMediaPlan] = useState(false)
   const [isDownloadingMba, setIsDownloadingMba] = useState(false)
   const [isDownloadingBilling, setIsDownloadingBilling] = useState(false)
@@ -62,6 +91,14 @@ export default function CampaignActions({
     0
   )
   const isBusy = isDownloadingMediaPlan || isDownloadingMba || isDownloadingBilling
+
+  const handleVersionChange = (versionNumber: number) => {
+    const params = new URLSearchParams(searchParams?.toString() ?? "")
+    params.set("version", String(versionNumber))
+    const qs = params.toString()
+    const base = pathname ?? "/"
+    router.push(qs ? `${base}?${qs}` : base, { scroll: false })
+  }
 
   const markSuccess = (action: "mediaPlan" | "mba" | "billing") => {
     setCompletedAction(action)
@@ -249,6 +286,29 @@ export default function CampaignActions({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              {availableVersions.length > 1 ? (
+                <>
+                  <DropdownMenuLabel>Version: v{currentVersion}</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {availableVersions.map((v) => (
+                    <DropdownMenuCheckboxItem
+                      key={v.versionNumber}
+                      checked={v.versionNumber === currentVersion}
+                      onCheckedChange={(checked) => {
+                        if (checked) handleVersionChange(v.versionNumber)
+                      }}
+                    >
+                      <span className="flex flex-wrap items-baseline gap-x-2">
+                        <span>v{v.versionNumber}</span>
+                        {v.planDate ? (
+                          <span className="text-xs text-muted-foreground">{formatVersionDate(v.planDate)}</span>
+                        ) : null}
+                      </span>
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                  <DropdownMenuSeparator />
+                </>
+              ) : null}
               <DropdownMenuItem onClick={handleDownloadMediaPlan} disabled={isBusy}>
                 Download Media Plan
               </DropdownMenuItem>
@@ -261,6 +321,35 @@ export default function CampaignActions({
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
+      ) : null}
+
+      {availableVersions.length > 1 ? (
+        <Select
+          value={String(currentVersion)}
+          onValueChange={(value) => handleVersionChange(Number(value))}
+          disabled={isBusy}
+        >
+          <SelectTrigger
+            className={cn(
+              "h-9 w-auto min-w-[80px] rounded-full border-border/60 bg-background/90 text-xs font-medium shadow-sm",
+              showFloating ? "hidden md:inline-flex" : "inline-flex",
+            )}
+          >
+            <SelectValue placeholder={`v${currentVersion}`} />
+          </SelectTrigger>
+          <SelectContent>
+            {availableVersions.map((v) => (
+              <SelectItem key={v.versionNumber} value={String(v.versionNumber)}>
+                <div className="flex flex-col items-start text-left">
+                  <span>v{v.versionNumber}</span>
+                  {v.planDate ? (
+                    <span className="text-xs text-muted-foreground">{formatVersionDate(v.planDate)}</span>
+                  ) : null}
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       ) : null}
 
       <Button
