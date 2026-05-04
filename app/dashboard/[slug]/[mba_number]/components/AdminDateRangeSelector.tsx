@@ -197,7 +197,15 @@ export default function AdminDateRangeSelector({
           <CalendarDays className="h-3.5 w-3.5" />
           Date window
         </div>
-        <Popover open={open} onOpenChange={setOpen}>
+        <Popover
+          open={open}
+          onOpenChange={(next) => {
+            if (next) {
+              setDraft(undefined)
+            }
+            setOpen(next)
+          }}
+        >
           <PopoverTrigger asChild>
             <Button variant="ghost" size="sm" className="h-8 rounded-full px-3">
               <span className={cn("font-medium", isCustom && "text-primary")}>{rangeLabel}</span>
@@ -227,6 +235,7 @@ export default function AdminDateRangeSelector({
               <Calendar
                 mode="range"
                 numberOfMonths={2}
+                defaultMonth={selected?.from ?? campaignFrom ?? undefined}
                 selected={draft}
                 onSelect={(next) => {
                   setDraft(next)
@@ -254,7 +263,15 @@ export default function AdminDateRangeSelector({
 
   return (
     <div className="inline-flex items-center gap-2">
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover
+        open={open}
+        onOpenChange={(next) => {
+          if (next) {
+            setDraft(undefined)
+          }
+          setOpen(next)
+        }}
+      >
         <PopoverTrigger asChild>
           {variant === "inline" ? triggerInline : (
             <TooltipProvider delayDuration={150}>
@@ -289,6 +306,7 @@ export default function AdminDateRangeSelector({
             <Calendar
               mode="range"
               numberOfMonths={2}
+              defaultMonth={selected?.from ?? campaignFrom ?? undefined}
               selected={draft}
               onSelect={(next) => {
                 setDraft(next)

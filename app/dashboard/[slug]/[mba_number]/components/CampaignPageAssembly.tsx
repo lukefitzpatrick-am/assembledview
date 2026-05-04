@@ -13,7 +13,6 @@ import SpendChartsRow from "@/components/dashboard/campaign/SpendChartsRow"
 import MediaPlanVizSection from "@/components/dashboard/campaign/MediaPlanVizSection"
 import CampaignDetailsModal from "@/components/dashboard/campaign/CampaignDetailsModal"
 import DeliverySection from "@/components/dashboard/delivery/DeliverySection"
-import AdminDateRangeSelector from "./AdminDateRangeSelector"
 import CampaignActions from "./CampaignActions"
 import type { MediaPlanVersionListEntry } from "@/lib/api/dashboard"
 import {
@@ -373,12 +372,8 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
               daysRemaining={heroCampaign.daysRemaining}
               onOpenDetails={() => setDetailsOpen(true)}
               onDownload={() => window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" })}
-            />
-            <AdminDateRangeSelector
               campaignStart={campaignStartISO ?? startDate ?? undefined}
               campaignEnd={campaignEndISO ?? endDate ?? undefined}
-              variant="inline"
-              showPresets
             />
           </div>
         </Suspense>

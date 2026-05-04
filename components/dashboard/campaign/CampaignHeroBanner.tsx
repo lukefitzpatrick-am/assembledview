@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { WaveRibbon } from "@/components/ui/wave-ribbon"
 import { formatCurrencyAUD } from "@/lib/format/currency"
 import { cn, hexToRgba } from "@/lib/utils"
+import AdminDateRangeSelector from "@/app/dashboard/[slug]/[mba_number]/components/AdminDateRangeSelector"
 
 interface CampaignHeroBannerProps {
   campaign: {
@@ -29,6 +30,8 @@ interface CampaignHeroBannerProps {
   daysRemaining: number
   onOpenDetails: () => void
   onDownload: () => void
+  campaignStart?: string
+  campaignEnd?: string
 }
 
 function parseCampaignDate(value: string): Date | null {
@@ -94,6 +97,8 @@ export default function CampaignHeroBanner({
   daysRemaining,
   onOpenDetails,
   onDownload,
+  campaignStart,
+  campaignEnd,
 }: CampaignHeroBannerProps) {
   const subtitle = campaign.brand
     ? `${campaign.clientName} • ${campaign.brand}`
@@ -165,6 +170,12 @@ export default function CampaignHeroBanner({
         </div>
 
         <div className="absolute right-3 top-1/2 z-20 flex -translate-y-1/2 flex-col gap-2 sm:right-4 md:right-6">
+          <AdminDateRangeSelector
+            campaignStart={campaignStart}
+            campaignEnd={campaignEnd}
+            variant="minimal"
+            showPresets
+          />
           <Button
             type="button"
             variant="outline"
