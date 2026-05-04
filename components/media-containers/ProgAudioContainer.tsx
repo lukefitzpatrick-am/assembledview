@@ -625,7 +625,7 @@ export default function ProgAudioContainer({
         client_pays_for_media: lineItem.clientPaysForMedia || false,
         budget_includes_fees: lineItem.budgetIncludesFees || false,
         no_adserving: lineItem.noadserving || false,
-        line_item_id: `${mbaNumber || 'PA'}${index + 1}`,
+        line_item_id: buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.progAudio, index + 1),
         bursts_json: JSON.stringify(lineItem.bursts.map(burst => ({
           budget: burst.budget || "",
           buyAmount: burst.buyAmount || "",
@@ -1256,7 +1256,7 @@ useEffect(() => {
                             </div>
                             <div>
                               <CardTitle className="text-sm font-semibold tracking-tight">Prog Audio Line Item</CardTitle>
-                              <span className="font-mono text-[11px] text-muted-foreground">{`${mbaNumber}ML${lineItemIndex + 1}`}</span>
+                              <span className="font-mono text-[11px] text-muted-foreground">{`${mbaNumber}${MEDIA_TYPE_ID_CODES.progAudio}${lineItemIndex + 1}`}</span>
                             </div>
                           </div>
                           <div className="flex items-center gap-3">

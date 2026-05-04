@@ -1443,7 +1443,7 @@ useEffect(() => {
                             </div>
                             <div>
                               <CardTitle className="text-sm font-semibold tracking-tight">Digital Display Line Item</CardTitle>
-                              <span className="font-mono text-[11px] text-muted-foreground">{`${mbaNumber}ML${lineItemIndex + 1}`}</span>
+                              <span className="font-mono text-[11px] text-muted-foreground">{`${mbaNumber}${MEDIA_TYPE_ID_CODES.digitalDisplay}${lineItemIndex + 1}`}</span>
                             </div>
                           </div>
                           <div className="flex items-center gap-3">

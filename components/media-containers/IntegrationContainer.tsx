@@ -36,6 +36,7 @@ import { ChevronDown, Plus, Trash2, Copy } from "lucide-react"
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
 import type { LineItem } from '@/lib/generateMediaPlan'
 import { formatMoney, parseMoneyInput } from "@/lib/format/money"
+import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
 import {
   getMediaTypeThemeHex,
   mediaTypeAccentTextStyle,
@@ -599,7 +600,7 @@ export default function IntegrationContainer({
         client_pays_for_media: lineItem.clientPaysForMedia || false,
         budget_includes_fees: lineItem.budgetIncludesFees || false,
         no_adserving: lineItem.noAdserving || false,
-        line_item_id: `${mbaNumber || 'INT'}${index + 1}`,
+        line_item_id: buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.integration, index + 1),
         bursts_json: JSON.stringify(lineItem.bursts.map(burst => ({
           budget: burst.budget || "",
           buyAmount: burst.buyAmount || "",
@@ -963,7 +964,7 @@ useEffect(() => {
       const mediaAmount = computedBurst
         ? computedBurst.mediaAmount
         : parseFloat(String(burst.budget).replace(/[^0-9.-]+/g, "")) || 0;
-      const lineItemId = `${mbaNumber || 'INT'}${lineItemIndex + 1}`;
+      const lineItemId = buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.integration, lineItemIndex + 1);
 
       return {
         market: lineItem.market,                                // or fixed value
@@ -1271,7 +1272,7 @@ useEffect(() => {
                             </div>
                             <div>
                               <CardTitle className="text-sm font-semibold tracking-tight">Integration Line Item</CardTitle>
-                              <span className="font-mono text-[11px] text-muted-foreground">{`${mbaNumber}ML${lineItemIndex + 1}`}</span>
+                              <span className="font-mono text-[11px] text-muted-foreground">{`${mbaNumber}${MEDIA_TYPE_ID_CODES.integration}${lineItemIndex + 1}`}</span>
                             </div>
                           </div>
                           <div className="flex items-center gap-3">
