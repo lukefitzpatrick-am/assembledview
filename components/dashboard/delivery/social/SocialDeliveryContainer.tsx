@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { useUser } from "@/components/AuthWrapper"
 import {
   Accordion,
@@ -67,6 +68,12 @@ import {
   type TargetCurvePoint,
   type OnTrackStatus,
 } from "@/lib/kpi/deliveryTargetCurve"
+import {
+  clipDateRangeToCampaign,
+  filterDailySeriesByRange,
+  parseDateOnly,
+  type DateRange,
+} from "@/lib/dashboard/dateFilter"
 
 type SocialLineItem = {
   line_item_id: string
@@ -279,6 +286,49 @@ function sumDeliveredUpToDate(
       }
     },
     { spend: 0, deliverables: 0 }
+  )
+}
+
+function previousCalendarDayISO(iso: string): string {
+  const d = parseDateSafe(iso)
+  if (!d) return iso
+  const prev = startOfDay(d)
+  prev.setDate(prev.getDate() - 1)
+  return toISO(prev)
+}
+
+/** Burst-expected spend or deliverables allocated to [range.start, range.end] (inclusive). */
+function expectedInWindowFromBursts(
+  bursts: Burst[],
+  range: DateRange,
+  kind: "spend" | "deliverables",
+): number {
+  if (!range.start || !range.end) return 0
+  const startISO = toISO(startOfDay(range.start))
+  const endISO = toISO(startOfDay(range.end))
+  const beforeISO = previousCalendarDayISO(startISO)
+  const cumEnd = computeShouldToDateFromBursts(bursts, endISO, kind)
+  const cumBefore = computeShouldToDateFromBursts(bursts, beforeISO, kind)
+  return Math.max(0, cumEnd - cumBefore)
+}
+
+function sumDeliveredFiltered(
+  actualsDaily: (ActualsDaily & { deliverable_value?: number })[],
+  deliverableKey: ReturnType<typeof getDeliverableKey> | "deliverable_value" | null,
+) {
+  return actualsDaily.reduce(
+    (acc, day) => {
+      const deliverableValue =
+        deliverableKey && deliverableKey !== "deliverable_value"
+          ? (day as any)[deliverableKey] ?? 0
+          : (day as any).deliverable_value ?? (day as any).results ?? 0
+
+      return {
+        spend: acc.spend + (day.spend ?? 0),
+        deliverables: acc.deliverables + (deliverableValue ?? 0),
+      }
+    },
+    { spend: 0, deliverables: 0 },
   )
 }
 
@@ -655,7 +705,8 @@ function buildAggregatedMetrics(
   lineItemMetrics: LineItemMetrics[],
   asAtDate: string | undefined,
   campaignStartISO: string,
-  campaignEndISO: string
+  campaignEndISO: string,
+  filterRange?: DateRange,
 ): LineItemMetrics["pacing"] {
   const cs = parseDateSafe(campaignStartISO)
   const ce = parseDateSafe(campaignEndISO)
@@ -668,7 +719,24 @@ function buildAggregatedMetrics(
     }
   }
 
-  const dateRange = eachDay(cs, ce)
+  let rangeStart = cs
+  let rangeEnd = ce
+  if (filterRange?.start && filterRange?.end) {
+    const fs = startOfDay(filterRange.start)
+    const fe = startOfDay(filterRange.end)
+    rangeStart = new Date(Math.max(cs.getTime(), fs.getTime()))
+    rangeEnd = new Date(Math.min(ce.getTime(), fe.getTime()))
+  }
+  if (rangeEnd < rangeStart) {
+    return {
+      asAtDate: asAtDate ?? null,
+      spend: { actualToDate: 0, expectedToDate: 0, delta: 0, pacingPct: 0, goalTotal: 0 },
+      deliverable: { actualToDate: 0, expectedToDate: 0, delta: 0, pacingPct: 0, goalTotal: 0 },
+      series: [],
+    }
+  }
+
+  const dateRange = eachDay(rangeStart, rangeEnd)
 
   const actualMap = new Map<string, { spend: number; deliverable: number }>()
   lineItemMetrics.forEach((metric) => {
@@ -706,18 +774,31 @@ function buildAggregatedMetrics(
   }
 
   const shouldAt = asAt ?? campaignEndISO
+  const windowRange: DateRange =
+    filterRange?.start && filterRange?.end ? { start: rangeStart, end: rangeEnd } : { start: null, end: null }
+
   const shouldSpend = round2(
-    lineItemMetrics.reduce(
-      (sum, m) => sum + computeShouldToDateFromBursts(m.bursts, shouldAt, "spend"),
-      0
-    )
+    windowRange.start && windowRange.end
+      ? lineItemMetrics.reduce(
+          (sum, m) => sum + expectedInWindowFromBursts(m.bursts, windowRange, "spend"),
+          0,
+        )
+      : lineItemMetrics.reduce(
+          (sum, m) => sum + computeShouldToDateFromBursts(m.bursts, shouldAt, "spend"),
+          0,
+        ),
   )
   const shouldDeliverables = round2(
-    lineItemMetrics.reduce(
-      (sum, m) =>
-        sum + computeShouldToDateFromBursts(m.bursts, shouldAt, "deliverables"),
-      0
-    )
+    windowRange.start && windowRange.end
+      ? lineItemMetrics.reduce(
+          (sum, m) => sum + expectedInWindowFromBursts(m.bursts, windowRange, "deliverables"),
+          0,
+        )
+      : lineItemMetrics.reduce(
+          (sum, m) =>
+            sum + computeShouldToDateFromBursts(m.bursts, shouldAt, "deliverables"),
+          0,
+        ),
   )
 
   const spendPacing = shouldSpend > 0 ? (delivered.spend / shouldSpend) * 100 : 0
@@ -1271,6 +1352,15 @@ export default function SocialDeliveryContainer({
     [campaignStart, campaignEnd]
   )
 
+  const searchParams = useSearchParams()
+  const filterRange: DateRange = useMemo(
+    () => ({
+      start: parseDateOnly(searchParams?.get("startDate")),
+      end: parseDateOnly(searchParams?.get("endDate")),
+    }),
+    [searchParams],
+  )
+
   useEffect(() => {
     if (initialPacingRows?.length) {
       setPacingRows(initialPacingRows)
@@ -1708,19 +1798,42 @@ export default function SocialDeliveryContainer({
 
       const asAtDate = pacingWindow.asAtISO
 
-      const deliveredTotals = sumDeliveredUpToDate(
-        actualsDaily,
-        deliverableKey ?? "deliverable_value",
-        asAtDate
-      )
+      const clippedFilter = clipDateRangeToCampaign(filterRange, campaignStart, campaignEnd)
+      const urlWindowActive = Boolean(filterRange.start && filterRange.end)
+      const filteredActualsDaily = urlWindowActive
+        ? clippedFilter
+          ? filterDailySeriesByRange(actualsDaily, clippedFilter)
+          : []
+        : actualsDaily
+
+      const seriesDates =
+        filteredActualsDaily.length > 0
+          ? [...new Set(filteredActualsDaily.map((d) => d.date))].sort()
+          : urlWindowActive
+            ? []
+            : dateRange
+
+      const deliveredTotals = urlWindowActive
+        ? sumDeliveredFiltered(filteredActualsDaily, deliverableKey ?? "deliverable_value")
+        : sumDeliveredUpToDate(
+            actualsDaily,
+            deliverableKey ?? "deliverable_value",
+            asAtDate,
+          )
       const booked = sumBookedFromBursts(burstsToUse ?? [])
 
-      const shouldSpend = computeShouldToDateFromBursts(burstsToUse ?? [], asAtDate, "spend")
-      const shouldDeliverables = computeShouldToDateFromBursts(
-        burstsToUse ?? [],
-        asAtDate,
-        "deliverables"
-      )
+      const shouldSpend =
+        urlWindowActive && clippedFilter
+          ? expectedInWindowFromBursts(burstsToUse ?? [], clippedFilter, "spend")
+          : urlWindowActive && !clippedFilter
+            ? 0
+            : computeShouldToDateFromBursts(burstsToUse ?? [], asAtDate, "spend")
+      const shouldDeliverables =
+        urlWindowActive && clippedFilter
+          ? expectedInWindowFromBursts(burstsToUse ?? [], clippedFilter, "deliverables")
+          : urlWindowActive && !clippedFilter
+            ? 0
+            : computeShouldToDateFromBursts(burstsToUse ?? [], asAtDate, "deliverables")
 
       const pacing: PacingResult = {
         asAtDate,
@@ -1732,9 +1845,9 @@ export default function SocialDeliveryContainer({
           goalTotal: round2(booked.spend),
         },
         series: buildCumulativeSeries(
-          dateRange,
-          actualsDaily,
-          deliverableKey ?? "deliverable_value"
+          urlWindowActive ? seriesDates : dateRange,
+          urlWindowActive ? filteredActualsDaily : actualsDaily,
+          deliverableKey ?? "deliverable_value",
         ),
       }
 
@@ -1773,6 +1886,16 @@ export default function SocialDeliveryContainer({
             tolerance: 0.15,
           })
 
+          if (clippedFilter?.start && clippedFilter?.end && targetCurve.length) {
+            const rs = clippedFilter.start
+            const re = clippedFilter.end
+            targetCurve = targetCurve.filter((p) => {
+              const d = parseDateOnly(p.date)
+              if (!d) return true
+              return d >= rs && d <= re
+            })
+          }
+
           if (targetCurve.length) {
             const dailyActualsByDate = new Map<string, number>()
             for (const row of pacing.series) {
@@ -1797,7 +1920,7 @@ export default function SocialDeliveryContainer({
         pacing,
         bursts: burstsToUse ?? [],
         window,
-        actualsDaily,
+        actualsDaily: urlWindowActive ? filteredActualsDaily : actualsDaily,
         matchedRows,
         matchBreakdown: {
           targetId,
@@ -1835,6 +1958,7 @@ export default function SocialDeliveryContainer({
     pacingWindow.campaignStartISO,
     pacingWindow.campaignEndISO,
     kpiTargets,
+    filterRange,
   ])
 
   const aggregatePacing = useMemo(
@@ -1843,9 +1967,10 @@ export default function SocialDeliveryContainer({
         lineItemMetrics,
         pacingWindow.asAtISO,
         campaignStart,
-        campaignEnd
+        campaignEnd,
+        filterRange,
       ),
-    [lineItemMetrics, pacingWindow.asAtISO, campaignStart, campaignEnd]
+    [lineItemMetrics, pacingWindow.asAtISO, campaignStart, campaignEnd, filterRange],
   )
 
   const aggregateTargetCurve: TargetCurvePoint[] = useMemo(() => {
@@ -1865,7 +1990,7 @@ export default function SocialDeliveryContainer({
     if (metrics.size !== 1) return []
     const sharedMetric = Array.from(metrics)[0] as "clicks" | "views"
 
-    return buildCumulativeTargetCurve({
+    let curve = buildCumulativeTargetCurve({
       campaignStartISO: pacingWindow.campaignStartISO,
       campaignEndISO: pacingWindow.campaignEndISO,
       lineItems: tclis,
@@ -1873,7 +1998,26 @@ export default function SocialDeliveryContainer({
       metric: sharedMetric,
       tolerance: 0.15,
     })
-  }, [kpiTargets, lineItemMetrics, pacingWindow.campaignStartISO, pacingWindow.campaignEndISO])
+    const clipped = clipDateRangeToCampaign(filterRange, campaignStart, campaignEnd)
+    if (clipped?.start && clipped?.end && curve.length) {
+      const rs = clipped.start
+      const re = clipped.end
+      curve = curve.filter((p) => {
+        const d = parseDateOnly(p.date)
+        if (!d) return true
+        return d >= rs && d <= re
+      })
+    }
+    return curve
+  }, [
+    kpiTargets,
+    lineItemMetrics,
+    pacingWindow.campaignStartISO,
+    pacingWindow.campaignEndISO,
+    filterRange,
+    campaignStart,
+    campaignEnd,
+  ])
 
   const aggregateCumulativeActual = useMemo(() => {
     if (!aggregateTargetCurve.length) return []

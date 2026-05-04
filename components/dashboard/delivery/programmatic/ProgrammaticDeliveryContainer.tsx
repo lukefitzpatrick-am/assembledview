@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { useUser } from "@/components/AuthWrapper"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Badge } from "@/components/ui/badge"
@@ -37,6 +38,12 @@ import {
 import { DeliveryStatusBadge } from "@/components/dashboard/delivery/DeliveryStatusBadge"
 import { PacingStatusBadge } from "@/components/dashboard/PacingStatusBadge"
 import { cn } from "@/lib/utils"
+import {
+  clipDateRangeToCampaign,
+  filterDailySeriesByRange,
+  parseDateOnly,
+  type DateRange,
+} from "@/lib/dashboard/dateFilter"
 import {
   Copy,
   FileSpreadsheet,
@@ -287,6 +294,28 @@ function computeShouldToDateFromBursts(bursts: any[], asAtISO: string, kind: "sp
   }, 0)
 }
 
+function previousCalendarDayISOProg(iso: string): string {
+  const d = parseDateSafe(iso)
+  if (!d) return iso
+  const prev = startOfDay(d)
+  prev.setDate(prev.getDate() - 1)
+  return toISO(prev)
+}
+
+function expectedInWindowFromBurstsProg(
+  bursts: any[],
+  range: DateRange,
+  kind: "spend" | "deliverables",
+): number {
+  if (!range.start || !range.end) return 0
+  const startISO = toISO(startOfDay(range.start))
+  const endISO = toISO(startOfDay(range.end))
+  const beforeISO = previousCalendarDayISOProg(startISO)
+  const cumEnd = computeShouldToDateFromBursts(bursts, endISO, kind)
+  const cumBefore = computeShouldToDateFromBursts(bursts, beforeISO, kind)
+  return Math.max(0, cumEnd - cumBefore)
+}
+
 function mapCombinedRowToDv360(row: CombinedPacingRow): Dv360DailyRow {
   const channel = String(row.channel ?? "")
   if (channel !== "programmatic-display" && channel !== "programmatic-video") {
@@ -504,6 +533,7 @@ function buildProgrammaticLineItemMetrics(
   campaignWindow: { startISO: string; endISO: string },
   fallbackStart?: string,
   fallbackEnd?: string,
+  urlFilter?: DateRange,
 ): LineItemMetrics[] {
   return items.map((item) => {
     const bursts = item.bursts ?? parseBursts(item.bursts_json)
@@ -564,16 +594,46 @@ function buildProgrammaticLineItemMetrics(
 
     const asAtDate = pacingAsAtISO
 
-    const deliveredTotals = actualsDaily.reduce(
-      (acc, day) => {
-        if (asAtDate && day.date > asAtDate) return acc
-        return {
-          spend: acc.spend + day.spend,
-          deliverables: acc.deliverables + day.deliverable_value,
-        }
-      },
-      { spend: 0, deliverables: 0 },
+    const clipCampaignStart = fallbackStart ?? campaignWindow.startISO
+    const clipCampaignEnd = fallbackEnd ?? campaignWindow.endISO
+    const clippedFilter = clipDateRangeToCampaign(
+      urlFilter ?? { start: null, end: null },
+      clipCampaignStart,
+      clipCampaignEnd,
     )
+    const urlWindowActive = Boolean(urlFilter?.start && urlFilter?.end)
+
+    const filteredActualsDaily = urlWindowActive
+      ? clippedFilter
+        ? filterDailySeriesByRange(actualsDaily, clippedFilter)
+        : []
+      : actualsDaily
+
+    const seriesDates =
+      filteredActualsDaily.length > 0
+        ? [...new Set(filteredActualsDaily.map((d) => d.date))].sort()
+        : urlWindowActive
+          ? []
+          : dateRange
+
+    const deliveredTotals = urlWindowActive
+      ? filteredActualsDaily.reduce(
+          (acc, day) => ({
+            spend: acc.spend + day.spend,
+            deliverables: acc.deliverables + day.deliverable_value,
+          }),
+          { spend: 0, deliverables: 0 },
+        )
+      : actualsDaily.reduce(
+          (acc, day) => {
+            if (asAtDate && day.date > asAtDate) return acc
+            return {
+              spend: acc.spend + day.spend,
+              deliverables: acc.deliverables + day.deliverable_value,
+            }
+          },
+          { spend: 0, deliverables: 0 },
+        )
 
     const hasSchedule = (bursts ?? []).length > 0
     const fallbackBurst: any[] =
@@ -592,8 +652,18 @@ function buildProgrammaticLineItemMetrics(
     const burstsToUse = hasSchedule ? bursts : fallbackBurst
 
     const booked = sumBookedFromBursts(burstsToUse ?? [])
-    const shouldSpend = computeShouldToDateFromBursts(burstsToUse ?? [], asAtDate, "spend")
-    const shouldDeliverables = computeShouldToDateFromBursts(burstsToUse ?? [], asAtDate, "deliverables")
+    const shouldSpend =
+      urlWindowActive && clippedFilter
+        ? expectedInWindowFromBurstsProg(burstsToUse ?? [], clippedFilter, "spend")
+        : urlWindowActive && !clippedFilter
+          ? 0
+          : computeShouldToDateFromBursts(burstsToUse ?? [], asAtDate, "spend")
+    const shouldDeliverables =
+      urlWindowActive && clippedFilter
+        ? expectedInWindowFromBurstsProg(burstsToUse ?? [], clippedFilter, "deliverables")
+        : urlWindowActive && !clippedFilter
+          ? 0
+          : computeShouldToDateFromBursts(burstsToUse ?? [], asAtDate, "deliverables")
 
     const pacing: PacingResult = {
       asAtDate,
@@ -604,7 +674,10 @@ function buildProgrammaticLineItemMetrics(
         pacingPct: Number((shouldSpend > 0 ? (deliveredTotals.spend / shouldSpend) * 100 : 0).toFixed(2)),
         goalTotal: Number(booked.spend.toFixed(2)),
       },
-      series: buildCumulativeSeries(dateRange, actualsDaily),
+      series: buildCumulativeSeries(
+        urlWindowActive ? seriesDates : dateRange,
+        urlWindowActive ? filteredActualsDaily : actualsDaily,
+      ),
     }
 
     pacing.deliverable = {
@@ -639,9 +712,19 @@ function buildProgrammaticLineItemMetrics(
           metric: targetMetric,
           tolerance: 0.15,
         })
+        if (clippedFilter?.start && clippedFilter?.end && targetCurve.length) {
+          const rs = clippedFilter.start
+          const re = clippedFilter.end
+          targetCurve = targetCurve.filter((p) => {
+            const d = parseDateOnly(p.date)
+            if (!d) return true
+            return d >= rs && d <= re
+          })
+        }
         if (targetCurve.length) {
           const dailyByDate = new Map<string, number>()
-          for (const row of actualsDaily) {
+          const rowsForCumulative = urlWindowActive ? filteredActualsDaily : actualsDaily
+          for (const row of rowsForCumulative) {
             const dateKey = String((row as any).date ?? (row as any).day ?? "")
             if (!dateKey) continue
             const value =
@@ -671,7 +754,7 @@ function buildProgrammaticLineItemMetrics(
       pacing,
       bursts: burstsToUse ?? [],
       window,
-      actualsDaily,
+      actualsDaily: urlWindowActive ? filteredActualsDaily : actualsDaily,
       matchedRows: matched,
       booked,
       delivered: {
@@ -709,7 +792,8 @@ function buildAggregatedMetrics(
   lineItemMetrics: LineItemMetrics[],
   asAtDate: string | undefined,
   campaignStartISO: string,
-  campaignEndISO: string
+  campaignEndISO: string,
+  filterRange?: DateRange,
 ): PacingResult {
   const cs = parseDateSafe(campaignStartISO)
   const ce = parseDateSafe(campaignEndISO)
@@ -722,7 +806,24 @@ function buildAggregatedMetrics(
     }
   }
 
-  const dateRange = eachDay(cs, ce)
+  let rangeStart = cs
+  let rangeEnd = ce
+  if (filterRange?.start && filterRange?.end) {
+    const fs = startOfDay(filterRange.start)
+    const fe = startOfDay(filterRange.end)
+    rangeStart = new Date(Math.max(cs.getTime(), fs.getTime()))
+    rangeEnd = new Date(Math.min(ce.getTime(), fe.getTime()))
+  }
+  if (rangeEnd < rangeStart) {
+    return {
+      asAtDate: asAtDate ?? null,
+      spend: { actualToDate: 0, expectedToDate: 0, delta: 0, pacingPct: 0, goalTotal: 0 },
+      deliverable: { actualToDate: 0, expectedToDate: 0, delta: 0, pacingPct: 0, goalTotal: 0 },
+      series: [],
+    }
+  }
+
+  const dateRange = eachDay(rangeStart, rangeEnd)
 
   const actualMap = new Map<
     string,
@@ -760,7 +861,7 @@ function buildAggregatedMetrics(
         deliverables: acc.deliverables + (day.deliverable_value ?? 0),
       }
     },
-    { spend: 0, deliverables: 0 }
+    { spend: 0, deliverables: 0 },
   )
 
   const bookedTotals = {
@@ -773,22 +874,33 @@ function buildAggregatedMetrics(
   }
 
   const shouldAt = asAt ?? campaignEndISO
+  const windowRange: DateRange =
+    filterRange?.start && filterRange?.end ? { start: rangeStart, end: rangeEnd } : { start: null, end: null }
+
   const shouldSpend = Number(
-    lineItemMetrics
-      .reduce(
-        (sum, m) => sum + computeShouldToDateFromBursts(m.bursts, shouldAt, "spend"),
-        0
-      )
-      .toFixed(2)
+    (windowRange.start && windowRange.end
+      ? lineItemMetrics.reduce(
+          (sum, m) => sum + expectedInWindowFromBurstsProg(m.bursts, windowRange, "spend"),
+          0,
+        )
+      : lineItemMetrics.reduce(
+          (sum, m) => sum + computeShouldToDateFromBursts(m.bursts, shouldAt, "spend"),
+          0,
+        )
+    ).toFixed(2),
   )
   const shouldDeliverables = Number(
-    lineItemMetrics
-      .reduce(
-        (sum, m) =>
-          sum + computeShouldToDateFromBursts(m.bursts, shouldAt, "deliverables"),
-        0
-      )
-      .toFixed(2)
+    (windowRange.start && windowRange.end
+      ? lineItemMetrics.reduce(
+          (sum, m) => sum + expectedInWindowFromBurstsProg(m.bursts, windowRange, "deliverables"),
+          0,
+        )
+      : lineItemMetrics.reduce(
+          (sum, m) =>
+            sum + computeShouldToDateFromBursts(m.bursts, shouldAt, "deliverables"),
+          0,
+        )
+    ).toFixed(2),
   )
 
   const spendPacing = shouldSpend > 0 ? (deliveredTotals.spend / shouldSpend) * 100 : 0
@@ -1207,6 +1319,15 @@ export default function ProgrammaticDeliveryContainer({
     [campaignStart, campaignEnd]
   )
 
+  const searchParams = useSearchParams()
+  const filterRange: DateRange = useMemo(
+    () => ({
+      start: parseDateOnly(searchParams?.get("startDate")),
+      end: parseDateOnly(searchParams?.get("endDate")),
+    }),
+    [searchParams],
+  )
+
   useEffect(() => {
     if (initialPacingRows?.length) {
       setPacingRows(initialPacingRows)
@@ -1524,6 +1645,7 @@ export default function ProgrammaticDeliveryContainer({
         },
         resolvedCampaignStart,
         resolvedCampaignEnd,
+        filterRange,
       ),
     [
       normalizedDisplay,
@@ -1535,6 +1657,7 @@ export default function ProgrammaticDeliveryContainer({
       pacingWindow.campaignEndISO,
       resolvedCampaignStart,
       resolvedCampaignEnd,
+      filterRange,
     ],
   )
   const videoMetrics = useMemo(
@@ -1552,6 +1675,7 @@ export default function ProgrammaticDeliveryContainer({
         },
         resolvedCampaignStart,
         resolvedCampaignEnd,
+        filterRange,
       ),
     [
       normalizedVideo,
@@ -1563,6 +1687,7 @@ export default function ProgrammaticDeliveryContainer({
       pacingWindow.campaignEndISO,
       resolvedCampaignStart,
       resolvedCampaignEnd,
+      filterRange,
     ],
   )
 
@@ -1572,9 +1697,10 @@ export default function ProgrammaticDeliveryContainer({
         displayMetrics,
         pacingWindow.asAtISO,
         campaignStart,
-        campaignEnd
+        campaignEnd,
+        filterRange,
       ),
-    [displayMetrics, pacingWindow.asAtISO, campaignStart, campaignEnd]
+    [displayMetrics, pacingWindow.asAtISO, campaignStart, campaignEnd, filterRange],
   )
   const aggregateVideo = useMemo(
     () =>
@@ -1582,9 +1708,10 @@ export default function ProgrammaticDeliveryContainer({
         videoMetrics,
         pacingWindow.asAtISO,
         campaignStart,
-        campaignEnd
+        campaignEnd,
+        filterRange,
       ),
-    [videoMetrics, pacingWindow.asAtISO, campaignStart, campaignEnd]
+    [videoMetrics, pacingWindow.asAtISO, campaignStart, campaignEnd, filterRange],
   )
 
   const aggregateDisplayTargetCurve: TargetCurvePoint[] = useMemo(() => {
@@ -1604,7 +1731,7 @@ export default function ProgrammaticDeliveryContainer({
     }
     if (!tclis.length) return []
 
-    return buildCumulativeTargetCurve({
+    let curve = buildCumulativeTargetCurve({
       campaignStartISO: pacingWindow.campaignStartISO,
       campaignEndISO: pacingWindow.campaignEndISO,
       lineItems: tclis,
@@ -1612,7 +1739,26 @@ export default function ProgrammaticDeliveryContainer({
       metric: "clicks",
       tolerance: 0.15,
     })
-  }, [kpiTargets, displayMetrics, pacingWindow.campaignStartISO, pacingWindow.campaignEndISO])
+    const clipped = clipDateRangeToCampaign(filterRange, campaignStart, campaignEnd)
+    if (clipped?.start && clipped?.end && curve.length) {
+      const rs = clipped.start
+      const re = clipped.end
+      curve = curve.filter((p) => {
+        const d = parseDateOnly(p.date)
+        if (!d) return true
+        return d >= rs && d <= re
+      })
+    }
+    return curve
+  }, [
+    kpiTargets,
+    displayMetrics,
+    pacingWindow.campaignStartISO,
+    pacingWindow.campaignEndISO,
+    filterRange,
+    campaignStart,
+    campaignEnd,
+  ])
 
   const aggregateDisplayCumulativeActual = useMemo(() => {
     if (!aggregateDisplayTargetCurve.length) return []
@@ -1659,7 +1805,7 @@ export default function ProgrammaticDeliveryContainer({
     }
     if (!tclis.length) return []
 
-    return buildCumulativeTargetCurve({
+    let curve = buildCumulativeTargetCurve({
       campaignStartISO: pacingWindow.campaignStartISO,
       campaignEndISO: pacingWindow.campaignEndISO,
       lineItems: tclis,
@@ -1667,7 +1813,26 @@ export default function ProgrammaticDeliveryContainer({
       metric: "views",
       tolerance: 0.15,
     })
-  }, [kpiTargets, videoMetrics, pacingWindow.campaignStartISO, pacingWindow.campaignEndISO])
+    const clipped = clipDateRangeToCampaign(filterRange, campaignStart, campaignEnd)
+    if (clipped?.start && clipped?.end && curve.length) {
+      const rs = clipped.start
+      const re = clipped.end
+      curve = curve.filter((p) => {
+        const d = parseDateOnly(p.date)
+        if (!d) return true
+        return d >= rs && d <= re
+      })
+    }
+    return curve
+  }, [
+    kpiTargets,
+    videoMetrics,
+    pacingWindow.campaignStartISO,
+    pacingWindow.campaignEndISO,
+    filterRange,
+    campaignStart,
+    campaignEnd,
+  ])
 
   const aggregateVideoCumulativeActual = useMemo(() => {
     if (!aggregateVideoTargetCurve.length) return []

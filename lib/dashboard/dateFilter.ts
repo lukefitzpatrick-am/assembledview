@@ -40,6 +40,41 @@ function sameDate(a: Date, b: Date): boolean {
   )
 }
 
+/**
+ * Filter an array of daily delivery entries to those within the date range.
+ * Permissive: entries whose date doesn't parse are kept (don't drop unknown).
+ *
+ * @param entries  Array of daily entries with a `date` field (string, expected YYYY-MM-DD)
+ * @param range    The date filter range; null start/end means no filter
+ */
+export function filterDailySeriesByRange<T extends { date: string }>(
+  entries: T[],
+  range: DateRange,
+): T[] {
+  if (!range.start || !range.end) return entries
+  return entries.filter((entry) => {
+    const entryDate = parseDateOnly(entry.date)
+    if (!entryDate) return true
+    return entryDate >= range.start! && entryDate <= range.end!
+  })
+}
+
+/** Intersect URL filter range with campaign bounds; null if empty or invalid. */
+export function clipDateRangeToCampaign(
+  range: DateRange,
+  campaignStartStr: string,
+  campaignEndStr: string,
+): DateRange | null {
+  if (!range.start || !range.end) return null
+  const cs = parseDateOnly(campaignStartStr)
+  const ce = parseDateOnly(campaignEndStr)
+  if (!cs || !ce) return null
+  const start = new Date(Math.max(cs.getTime(), range.start.getTime()))
+  const end = new Date(Math.min(ce.getTime(), range.end.getTime()))
+  if (end < start) return null
+  return { start, end }
+}
+
 /** Detect whether the URL filter range matches the campaign's full duration. */
 export function isFullCampaign(filter: DateRange, campaign: CampaignDateBounds): boolean {
   if (!filter.start || !filter.end) return true

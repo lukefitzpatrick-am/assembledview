@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { useUser } from "@/components/AuthWrapper"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -55,6 +56,7 @@ import {
 import { Sparkline } from "@/components/charts/Sparkline"
 import { cn } from "@/lib/utils"
 import { getMelbourneTodayISO, getPacingWindow } from "@/lib/pacing/pacingWindow"
+import { clipDateRangeToCampaign, parseDateOnly, type DateRange } from "@/lib/dashboard/dateFilter"
 
 const searchSeriesPalette = {
   cost: getMediaColor("search"),
@@ -134,6 +136,48 @@ function parseISODateOnlyOrNull(value: any): string | null {
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s
   const d = new Date(s)
   return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10)
+}
+
+function dateToYMDLocal(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, "0")
+  const day = String(d.getDate()).padStart(2, "0")
+  return `${y}-${m}-${day}`
+}
+
+function aggregateDailyTotals(rows: ApiDailyRow[]): ApiTotals {
+  const acc = rows.reduce(
+    (a, row) => {
+      const imp = Number(row.impressions ?? 0)
+      const top = row.topImpressionPct
+      return {
+        cost: a.cost + Number(row.cost ?? 0),
+        clicks: a.clicks + Number(row.clicks ?? 0),
+        conversions: a.conversions + Number(row.conversions ?? 0),
+        revenue: a.revenue + Number(row.revenue ?? 0),
+        impressions: a.impressions + imp,
+        _topWeighted: a._topWeighted + (top !== null && top !== undefined ? top * imp : 0),
+        _topWeight: a._topWeight + (top !== null && top !== undefined ? imp : 0),
+      }
+    },
+    {
+      cost: 0,
+      clicks: 0,
+      conversions: 0,
+      revenue: 0,
+      impressions: 0,
+      _topWeighted: 0,
+      _topWeight: 0,
+    },
+  )
+  return {
+    cost: acc.cost,
+    clicks: acc.clicks,
+    conversions: acc.conversions,
+    revenue: acc.revenue,
+    impressions: acc.impressions,
+    topImpressionPct: acc._topWeight > 0 ? acc._topWeighted / acc._topWeight : null,
+  }
 }
 
 function daysInclusive(startISO: string, endISO: string): number {
@@ -294,6 +338,20 @@ function computeToDateFromBursts(
   }
 
   return { bookedTotal, expectedToDate }
+}
+
+function searchExpectedInWindow(
+  bursts: NormalizedBurst[],
+  range: DateRange,
+  field: "budget" | "clicksGoal",
+): number {
+  if (!range.start || !range.end) return 0
+  const startISO = dateToYMDLocal(range.start)
+  const endISO = dateToYMDLocal(range.end)
+  const beforeISO = addDaysISO(startISO, -1)
+  const ce = computeToDateFromBursts(bursts, endISO, field).expectedToDate
+  const cb = computeToDateFromBursts(bursts, beforeISO, field).expectedToDate
+  return Math.max(0, ce - cb)
 }
 
 function formatCurrency(value: number | null | undefined) {
@@ -591,6 +649,14 @@ export default function SearchDeliveryContainer({
     () => getPacingWindow(campaignStart, campaignEnd),
     [campaignStart, campaignEnd]
   )
+  const searchParams = useSearchParams()
+  const filterRange: DateRange = useMemo(
+    () => ({
+      start: parseDateOnly(searchParams?.get("startDate")),
+      end: parseDateOnly(searchParams?.get("endDate")),
+    }),
+    [searchParams],
+  )
   const { user, isLoading: authLoading } = useUser()
   const { exportCsv, exportPng, isExporting } = useChartExport()
   const { toast } = useToast()
@@ -820,7 +886,7 @@ export default function SearchDeliveryContainer({
     normalizedLineItemIds.length,
   ])
 
-  const totals = useMemo(
+  const apiTotals = useMemo(
     () =>
       data?.totals ?? {
         cost: 0,
@@ -833,11 +899,32 @@ export default function SearchDeliveryContainer({
     [data],
   )
 
-  const windowStartISO = parseISODateOnlyOrNull(campaignStart) ?? campaignStart
-  const windowEndISO = parseISODateOnlyOrNull(campaignEnd) ?? campaignEnd
+  const { fillStartISO, fillEndISO } = useMemo(() => {
+    const ws = parseISODateOnlyOrNull(campaignStart) ?? campaignStart
+    const we = parseISODateOnlyOrNull(campaignEnd) ?? campaignEnd
+    if (!filterRange.start || !filterRange.end) {
+      return { fillStartISO: ws, fillEndISO: we }
+    }
+    const clipped = clipDateRangeToCampaign(filterRange, campaignStart, campaignEnd)
+    if (!clipped?.start || !clipped?.end) {
+      return { fillStartISO: we, fillEndISO: ws }
+    }
+    return {
+      fillStartISO: dateToYMDLocal(clipped.start),
+      fillEndISO: dateToYMDLocal(clipped.end),
+    }
+  }, [filterRange, campaignStart, campaignEnd])
 
   const rawDaily = useMemo(() => (Array.isArray(data?.daily) ? data!.daily : []), [data])
-  const daily = useMemo(() => fillDailySeries(rawDaily, windowStartISO, windowEndISO), [rawDaily, windowStartISO, windowEndISO])
+  const daily = useMemo(
+    () => fillDailySeries(rawDaily, fillStartISO, fillEndISO),
+    [rawDaily, fillStartISO, fillEndISO],
+  )
+
+  const totals = useMemo(() => {
+    if (!filterRange.start || !filterRange.end) return apiTotals
+    return aggregateDailyTotals(daily)
+  }, [filterRange, daily, apiTotals])
 
   const hasAnyData =
     rawDaily.length > 0 ||
@@ -849,12 +936,17 @@ export default function SearchDeliveryContainer({
         (data?.totals?.revenue ?? 0)
     )
 
-  const lineItemSeries = Array.isArray(data?.lineItems)
-    ? data!.lineItems!.map((li) => ({
+  const lineItemSeries = useMemo(() => {
+    if (!Array.isArray(data?.lineItems)) return []
+    return data!.lineItems!.map((li) => {
+      const filled = fillDailySeries(Array.isArray(li?.daily) ? li.daily : [], fillStartISO, fillEndISO)
+      return {
         ...li,
-        daily: fillDailySeries(Array.isArray(li?.daily) ? li.daily : [], windowStartISO, windowEndISO),
-      }))
-    : []
+        daily: filled,
+        totals: filterRange.start && filterRange.end ? aggregateDailyTotals(filled) : li.totals,
+      }
+    })
+  }, [data, fillStartISO, fillEndISO, filterRange])
 
   const asAtISO = pacingWindow.asAtISO
 
@@ -889,18 +981,25 @@ export default function SearchDeliveryContainer({
     let clicksBooked = 0
     let clicksExpected = 0
 
+    const clipped = clipDateRangeToCampaign(filterRange, campaignStart, campaignEnd)
+
     ids.forEach((id) => {
       const bursts = scheduleByLineItemId.get(id)?.bursts ?? []
       const spend = computeToDateFromBursts(bursts, asAtISO, "budget")
       const clicks = computeToDateFromBursts(bursts, asAtISO, "clicksGoal")
       budgetBooked += spend.bookedTotal
-      budgetExpected += spend.expectedToDate
       clicksBooked += clicks.bookedTotal
-      clicksExpected += clicks.expectedToDate
+      if (filterRange.start && filterRange.end && clipped) {
+        budgetExpected += searchExpectedInWindow(bursts, clipped, "budget")
+        clicksExpected += searchExpectedInWindow(bursts, clipped, "clicksGoal")
+      } else {
+        budgetExpected += spend.expectedToDate
+        clicksExpected += clicks.expectedToDate
+      }
     })
 
     return { budgetBooked, budgetExpected, clicksBooked, clicksExpected }
-  }, [scheduleByLineItemId, asAtISO])
+  }, [scheduleByLineItemId, asAtISO, filterRange, campaignStart, campaignEnd])
 
   const totalsKpis = useMemo(() => {
     const ctr = safeDiv(totals.clicks, totals.impressions) // fraction
@@ -1080,7 +1179,7 @@ export default function SearchDeliveryContainer({
   const targetCurve = useMemo(() => {
     if (!kpiTargets || kpiTargets.size === 0) return []
     if (!targetCurveLineItems.length) return []
-    return buildCumulativeTargetCurve({
+    let curve = buildCumulativeTargetCurve({
       campaignStartISO: pacingWindow.campaignStartISO,
       campaignEndISO: pacingWindow.campaignEndISO,
       lineItems: targetCurveLineItems,
@@ -1088,11 +1187,25 @@ export default function SearchDeliveryContainer({
       metric: "clicks",
       tolerance: 0.15,
     })
+    const clipped = clipDateRangeToCampaign(filterRange, campaignStart, campaignEnd)
+    if (clipped?.start && clipped?.end && curve.length) {
+      const rs = clipped.start
+      const re = clipped.end
+      curve = curve.filter((p) => {
+        const d = parseDateOnly(p.date)
+        if (!d) return true
+        return d >= rs && d <= re
+      })
+    }
+    return curve
   }, [
     kpiTargets,
     targetCurveLineItems,
     pacingWindow.campaignStartISO,
     pacingWindow.campaignEndISO,
+    filterRange,
+    campaignStart,
+    campaignEnd,
   ])
 
   /** Daily clicks actuals keyed by date, for cumulative derivation + on-track. */
@@ -1770,11 +1883,20 @@ export default function SearchDeliveryContainer({
                     const id = String(li.lineItemId ?? "").trim().toLowerCase()
                     const schedule = scheduleByLineItemId.get(id)
                     const bursts = schedule?.bursts ?? []
-                    const spend = computeToDateFromBursts(bursts, asAtISO, "budget")
-                    const clicks = computeToDateFromBursts(bursts, asAtISO, "clicksGoal")
+                    const spendFull = computeToDateFromBursts(bursts, asAtISO, "budget")
+                    const clicksFull = computeToDateFromBursts(bursts, asAtISO, "clicksGoal")
+                    const clippedLi = clipDateRangeToCampaign(filterRange, campaignStart, campaignEnd)
+                    const spendExpected =
+                      filterRange.start && filterRange.end && clippedLi
+                        ? searchExpectedInWindow(bursts, clippedLi, "budget")
+                        : spendFull.expectedToDate
+                    const clicksExpected =
+                      filterRange.start && filterRange.end && clippedLi
+                        ? searchExpectedInWindow(bursts, clippedLi, "clicksGoal")
+                        : clicksFull.expectedToDate
 
-                    const budgetPacingPct = spend.expectedToDate > 0 ? (li.totals.cost / spend.expectedToDate) * 100 : undefined
-                    const clicksPacingPct = clicks.expectedToDate > 0 ? (li.totals.clicks / clicks.expectedToDate) * 100 : undefined
+                    const budgetPacingPct = spendExpected > 0 ? (li.totals.cost / spendExpected) * 100 : undefined
+                    const clicksPacingPct = clicksExpected > 0 ? (li.totals.clicks / clicksExpected) * 100 : undefined
                     const headerPacingPct = typeof budgetPacingPct === "number" ? budgetPacingPct : 0
                     const pacingTone = pacingDeviationBorderClass(headerPacingPct)
                     const sparklineTone = pacingDeviationSparklineClass(headerPacingPct)
@@ -1782,19 +1904,19 @@ export default function SearchDeliveryContainer({
                     const liCtr = safeDiv(li.totals.clicks, li.totals.impressions)
                     const liCvr = safeDiv(li.totals.conversions, li.totals.clicks)
                     const liActualCpc = safeDiv(li.totals.cost, li.totals.clicks)
-                    const liExpectedCpc = safeDiv(spend.expectedToDate, clicks.expectedToDate)
+                    const liBurstCpc = safeDiv(spendExpected, clicksExpected)
                     const liCpcPacingPct =
-                      liExpectedCpc !== null && liActualCpc !== null && liActualCpc > 0 ? (liExpectedCpc / liActualCpc) * 100 : undefined
+                      liBurstCpc !== null && liActualCpc !== null && liActualCpc > 0 ? (liBurstCpc / liActualCpc) * 100 : undefined
 
                     const liExpectedConversions =
-                      clicks.expectedToDate > 0 && liCvr !== null ? clicks.expectedToDate * liCvr : null
+                      clicksExpected > 0 && liCvr !== null ? clicksExpected * liCvr : null
                     const liConversionsPacingPct =
                       liExpectedConversions !== null && liExpectedConversions > 0
                         ? (li.totals.conversions / liExpectedConversions) * 100
                         : undefined
 
                     const liExpectedImpressions =
-                      clicks.expectedToDate > 0 && liCtr !== null && liCtr > 0 ? clicks.expectedToDate / liCtr : null
+                      clicksExpected > 0 && liCtr !== null && liCtr > 0 ? clicksExpected / liCtr : null
                     const liImpressionsPacingPct =
                       liExpectedImpressions !== null && liExpectedImpressions > 0
                         ? (li.totals.impressions / liExpectedImpressions) * 100
@@ -1836,7 +1958,7 @@ export default function SearchDeliveryContainer({
                             </div>
                             <div className="flex items-center gap-2">
                               <Badge className="rounded-full bg-muted px-3 py-1 text-[11px] text-foreground">
-                                {formatCurrency(spend.bookedTotal)}
+                                {formatCurrency(spendFull.bookedTotal)}
                               </Badge>
                               <Badge className="rounded-full bg-muted px-3 py-1 text-[11px] text-foreground">
                                 {formatNumber(li.totals.clicks)} clicks
@@ -1850,9 +1972,9 @@ export default function SearchDeliveryContainer({
                             <SmallProgressCard
                               label={c("Spend delivery", "Spend pacing")}
                               value={formatCurrency(li.totals.cost)}
-                              helper={`Delivered ${formatCurrency(li.totals.cost)} • Planned ${formatCurrency(spend.bookedTotal)}`}
+                              helper={`Delivered ${formatCurrency(li.totals.cost)} • Planned ${formatCurrency(spendFull.bookedTotal)}`}
                               pacingPct={typeof budgetPacingPct === "number" ? budgetPacingPct : undefined}
-                              progressRatio={spend.bookedTotal > 0 ? clampProgress(li.totals.cost / spend.bookedTotal) : 0}
+                              progressRatio={spendFull.bookedTotal > 0 ? clampProgress(li.totals.cost / spendFull.bookedTotal) : 0}
                               accentColor={searchCostAccent}
                               clientFacingLabels={clientFacingLabels}
                               embedded
@@ -1860,9 +1982,9 @@ export default function SearchDeliveryContainer({
                             <SmallProgressCard
                               label={c("Deliverable delivery", "Deliverable pacing")}
                               value={formatNumber(li.totals.clicks)}
-                              helper={`Delivered ${formatNumber(li.totals.clicks)} • Planned ${formatNumber(clicks.bookedTotal)}`}
+                              helper={`Delivered ${formatNumber(li.totals.clicks)} • Planned ${formatNumber(clicksFull.bookedTotal)}`}
                               pacingPct={typeof clicksPacingPct === "number" ? clicksPacingPct : undefined}
-                              progressRatio={clicks.bookedTotal > 0 ? clampProgress(li.totals.clicks / clicks.bookedTotal) : 0}
+                              progressRatio={clicksFull.bookedTotal > 0 ? clampProgress(li.totals.clicks / clicksFull.bookedTotal) : 0}
                               accentColor={searchSeriesPalette.clicks}
                               clientFacingLabels={clientFacingLabels}
                               embedded
@@ -1878,7 +2000,7 @@ export default function SearchDeliveryContainer({
                               <SmallProgressCard
                                 label="CPC"
                                 value={liActualCpc === null ? "—" : formatCurrency(liActualCpc)}
-                                helper={liExpectedCpc === null ? undefined : `Expected ${formatCurrency(liExpectedCpc)}`}
+                                helper={liBurstCpc === null ? undefined : `Expected ${formatCurrency(liBurstCpc)}`}
                                 pacingPct={typeof liCpcPacingPct === "number" ? liCpcPacingPct : undefined}
                                 progressRatio={clampProgress((liCpcPacingPct ?? 0) / 100)}
                                 accentColor={searchSeriesPalette.clicks}
