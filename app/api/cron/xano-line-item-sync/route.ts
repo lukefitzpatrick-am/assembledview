@@ -27,7 +27,7 @@ export async function GET(request: Request) {
     const completedAt = new Date()
     const durationMs = completedAt.getTime() - startedAt.getTime()
     console.log(
-      `[xano-sync] Completed in ${durationMs}ms: ${result.succeeded} succeeded, ${result.failed} failed, ${result.batches} batches`
+      `[xano-sync] Completed in ${durationMs}ms: ${result.succeeded} succeeded, ${result.failed} failed, ${result.batches} batches, ${result.duplicates_collapsed} duplicates_collapsed`
     )
 
     if (result.failed > 0) {
@@ -43,6 +43,7 @@ export async function GET(request: Request) {
       succeeded: result.succeeded,
       failed: result.failed,
       batches: result.batches,
+      duplicates_collapsed: result.duplicates_collapsed,
       sample_errors: result.errors.slice(0, 5),
     })
   } catch (err) {
