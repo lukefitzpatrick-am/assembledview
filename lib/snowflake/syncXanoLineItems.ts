@@ -7,6 +7,31 @@ const SNAPSHOT = "ASSEMBLEDVIEW.MART.XANO_LINE_ITEMS_SNAPSHOT"
 
 const BATCH_SIZE = 500
 
+function dedupeByLineItemId(items: XanoLineItem[]): {
+  deduped: XanoLineItem[]
+  duplicateCount: number
+} {
+  const byId = new Map<string, XanoLineItem>()
+
+  for (const item of items) {
+    const existing = byId.get(item.line_item_id)
+    if (!existing) {
+      byId.set(item.line_item_id, item)
+    } else {
+      const existingTime = existing.xano_created_at || 0
+      const itemTime = item.xano_created_at || 0
+      if (itemTime > existingTime || (itemTime === existingTime && item.xano_row_id > existing.xano_row_id)) {
+        byId.set(item.line_item_id, item)
+      }
+    }
+  }
+
+  return {
+    deduped: Array.from(byId.values()),
+    duplicateCount: items.length - byId.size,
+  }
+}
+
 function buildBatchMergeSql(rowCount: number): string {
   const valuesPlaceholders = Array(rowCount)
     .fill("(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
@@ -57,13 +82,29 @@ export async function syncLineItemsToSnowflake(items: XanoLineItem[]): Promise<{
   failed: number
   errors: string[]
   batches: number
+  duplicates_collapsed: number
 }> {
-  const result = { total: items.length, succeeded: 0, failed: 0, errors: [] as string[], batches: 0 }
+  const { deduped, duplicateCount } = dedupeByLineItemId(items)
 
-  if (items.length === 0) return result
+  const result = {
+    total: items.length,
+    succeeded: 0,
+    failed: 0,
+    errors: [] as string[],
+    batches: 0,
+    duplicates_collapsed: duplicateCount,
+  }
 
-  for (let i = 0; i < items.length; i += BATCH_SIZE) {
-    const batch = items.slice(i, i + BATCH_SIZE)
+  if (duplicateCount > 0) {
+    console.warn(
+      `[xano-sync] Collapsed ${duplicateCount} duplicate line_item_ids from input (${items.length} → ${deduped.length})`
+    )
+  }
+
+  if (deduped.length === 0) return result
+
+  for (let i = 0; i < deduped.length; i += BATCH_SIZE) {
+    const batch = deduped.slice(i, i + BATCH_SIZE)
     const sql = buildBatchMergeSql(batch.length)
 
     const binds: unknown[] = []
@@ -95,8 +136,9 @@ export async function syncLineItemsToSnowflake(items: XanoLineItem[]): Promise<{
       result.batches += 1
     } catch (err) {
       result.failed += batch.length
+      const batchOrdinal = Math.floor(i / BATCH_SIZE) + 1
       result.errors.push(
-        `Batch ${result.batches + 1} (${batch.length} rows starting at index ${i}): ${
+        `Batch ${batchOrdinal} (${batch.length} rows starting at index ${i}): ${
           err instanceof Error ? err.message : String(err)
         }`
       )
