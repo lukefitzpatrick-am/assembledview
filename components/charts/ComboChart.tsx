@@ -124,7 +124,7 @@ export function ComboChart({ data, xKey, bars, lines, countDataKeys, height = 32
           ) : null}
           <Tooltip content={renderTooltip} cursor={{ fill: "hsl(var(--muted) / 0.25)" }} />
           <Legend
-            verticalAlign="top"
+            verticalAlign="bottom"
             align="center"
             content={() => <ToggleableLegend payload={legendPayload} hiddenKeys={hidden} onToggleKey={toggleKey} />}
           />

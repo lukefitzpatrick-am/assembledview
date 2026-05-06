@@ -124,6 +124,8 @@ export function ChannelSection({ data, defaultOpen = false, onRefresh }: Channel
             series={data.aggregate.chart.series}
             asAtDate={data.aggregate.chart.asAtDate}
             brandColour={data.aggregate.chart.brandColour}
+            title="Daily delivery"
+            subtitle={data.aggregate.chart.series.map((s) => s.label).join(" + ")}
           />
 
           {data.lineItems.length > 0 ? (

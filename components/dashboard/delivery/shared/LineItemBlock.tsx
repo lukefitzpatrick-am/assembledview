@@ -72,6 +72,8 @@ export function LineItemBlock({
           series={chart.series}
           asAtDate={chart.asAtDate}
           brandColour={chart.brandColour}
+          title="Daily delivery"
+          subtitle={chart.series.map((s) => s.label).join(" + ")}
         />
       )}
     </div>

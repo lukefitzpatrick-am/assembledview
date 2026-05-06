@@ -128,7 +128,7 @@ export function LineChart({
           ) : null}
           <Tooltip content={renderTooltip} cursor={{ fill: "hsl(var(--muted) / 0.25)" }} />
           <Legend
-            verticalAlign="top"
+            verticalAlign="bottom"
             align="center"
             content={() => <ToggleableLegend payload={legendPayload} hiddenKeys={hidden} onToggleKey={toggleKey} />}
           />

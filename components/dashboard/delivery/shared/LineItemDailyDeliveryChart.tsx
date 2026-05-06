@@ -10,6 +10,10 @@ export interface LineItemDailyDeliveryChartProps {
   asAtDate: string | null
   brandColour?: string
   height?: number
+  /** Chart title displayed at the top of the chart card. */
+  title?: string
+  /** Optional subtitle displayed below the title. */
+  subtitle?: string
 }
 
 function formatChartDateLabel(iso: string): string {
@@ -25,28 +29,46 @@ export function LineItemDailyDeliveryChart({
   asAtDate: _asAtDate,
   brandColour: _brandColour,
   height = 280,
+  title,
+  subtitle,
 }: LineItemDailyDeliveryChartProps) {
   // Note: today reference line and brand colour are not yet plumbed
   // through LineChart. Leaving the props in place for future extension.
   const data = useMemo(() => daily, [daily])
   if (data.length === 0 || series.length === 0) {
     return (
-      <div className="flex h-[200px] items-center justify-center rounded-lg border border-dashed border-border/50 text-xs text-muted-foreground">
-        No daily delivery data available
+      <div className="rounded-xl border border-border/60 bg-card p-4">
+        {title || subtitle ? (
+          <div className="mb-3">
+            {title ? <p className="text-sm font-medium">{title}</p> : null}
+            {subtitle ? <p className="text-xs text-muted-foreground">{subtitle}</p> : null}
+          </div>
+        ) : null}
+        <div className="flex h-[200px] items-center justify-center rounded-lg border border-dashed border-border/50 text-xs text-muted-foreground">
+          No daily delivery data available
+        </div>
       </div>
     )
   }
 
   return (
-    <LineChart
-      data={data}
-      xKey="date"
-      series={series}
-      height={height}
-      smooth={false}
-      showDots={false}
-      xTickFormatter={formatChartDateLabel}
-      valueFormatter={formatCurrencyAUD}
-    />
+    <div className="rounded-xl border border-border/60 bg-card p-4">
+      {title || subtitle ? (
+        <div className="mb-3">
+          {title ? <p className="text-sm font-medium">{title}</p> : null}
+          {subtitle ? <p className="text-xs text-muted-foreground">{subtitle}</p> : null}
+        </div>
+      ) : null}
+      <LineChart
+        data={data}
+        xKey="date"
+        series={series}
+        height={height}
+        smooth={false}
+        showDots={false}
+        xTickFormatter={formatChartDateLabel}
+        valueFormatter={formatCurrencyAUD}
+      />
+    </div>
   )
 }
