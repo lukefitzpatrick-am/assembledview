@@ -1,0 +1,780 @@
+const DEBUG_PACING = process.env.NEXT_PUBLIC_DEBUG_PACING === "true"
+const IS_DEV = process.env.NODE_ENV !== "production"
+
+function cleanId(v: any) {
+  const s = String(v ?? "").trim()
+  if (!s) return null
+  const lower = s.toLowerCase()
+  if (lower === "undefined" || lower === "null") return null
+  return lower
+}
+
+function extractProgrammaticLineItemId(item: ProgrammaticLineItem): string | null {
+  const id = item.line_item_id ?? item.lineItemId ?? item.LINE_ITEM_ID
+  return cleanId(id)
+}
+
+async function parseResponseJsonSafely(response: Response): Promise<any> {
+  const contentType = response.headers.get("content-type") || ""
+  if (!contentType.includes("application/json")) {
+    const text = await response.text()
+    throw new Error(`Expected JSON but got ${contentType}. Response: ${text.slice(0, 200)}`)
+  }
+  return response.json()
+}
+
+function parseDateSafe(value?: string | null): Date | null {
+  if (!value) return null
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return null
+  return d
+}
+
+function startOfDay(date: Date) {
+  const d = new Date(date)
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+function toISO(date: Date) {
+  return startOfDay(date).toISOString().slice(0, 10)
+}
+
+function eachDay(start: Date, end: Date): string[] {
+  const dates: string[] = []
+  const cursor = startOfDay(start)
+  const endDate = startOfDay(end)
+  while (cursor <= endDate) {
+    dates.push(toISO(cursor))
+    cursor.setDate(cursor.getDate() + 1)
+  }
+  return dates
+}
+
+function inclusiveDays(start: Date, end: Date): number {
+  const msPerDay = 1000 * 60 * 60 * 24
+  const diff = end.getTime() - start.getTime()
+  if (diff < 0) return 0
+  return Math.floor(diff / msPerDay) + 1
+}
+
+function parseCurrency(value: unknown): number {
+  if (value === null || value === undefined) return 0
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0
+  if (typeof value === "string") {
+    const cleaned = value.replace(/[^0-9.-]/g, "")
+    const parsed = Number.parseFloat(cleaned)
+    return Number.isFinite(parsed) ? parsed : 0
+  }
+  return 0
+}
+
+function parseBursts(raw: ProgrammaticLineItem["bursts"] | ProgrammaticLineItem["bursts_json"]): any[] {
+  if (!raw) return []
+  if (Array.isArray(raw)) return raw.map((b) => normalizeBurst(b as Record<string, any>))
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw)
+      return Array.isArray(parsed)
+        ? parsed.map((b) => normalizeBurst(b as Record<string, any>))
+        : []
+    } catch {
+      return []
+    }
+  }
+  return []
+}
+
+function normalizeBurst(raw: Record<string, any>) {
+  const startDate = raw.start_date || raw.startDate || raw.start || raw.beginDate || raw.begin_date || ""
+  const endDate = raw.end_date || raw.endDate || raw.end || raw.stopDate || raw.stop_date || ""
+
+  const budgetNumber = parseCurrency(
+    raw.budget_number ?? raw.budget ?? raw.media_investment ?? raw.mediaInvestment ?? raw.buy_amount_number ?? raw.buyAmount
+  )
+  const calculatedValueNumber = parseCurrency(
+    raw.calculated_value_number ?? raw.calculatedValue ?? raw.deliverables ?? raw.deliverable ?? raw.conversions
+  )
+
+  return {
+    start_date: startDate,
+    end_date: endDate,
+    startDate,
+    endDate,
+    media_investment: Number.isFinite(budgetNumber) ? budgetNumber : 0,
+    deliverables: Number.isFinite(calculatedValueNumber) ? calculatedValueNumber : 0,
+    budget_number: Number.isFinite(budgetNumber) ? budgetNumber : 0,
+    calculated_value_number: Number.isFinite(calculatedValueNumber) ? calculatedValueNumber : 0,
+  }
+}
+
+function getLineItemWindow(bursts: any[], fallbackStart?: string, fallbackEnd?: string) {
+  const starts: Date[] = []
+  const ends: Date[] = []
+
+  bursts.forEach((burst) => {
+    const s = parseDateSafe(burst.start_date)
+    const e = parseDateSafe(burst.end_date)
+    if (s) starts.push(s)
+    if (e) ends.push(e)
+  })
+
+  const fallbackStartDate = parseDateSafe(fallbackStart ?? undefined)
+  const fallbackEndDate = parseDateSafe(fallbackEnd ?? undefined)
+
+  const startDate = starts.length ? new Date(Math.min(...starts.map((d) => d.getTime()))) : fallbackStartDate
+  const endDate = ends.length ? new Date(Math.max(...ends.map((d) => d.getTime()))) : fallbackEndDate
+
+  return {
+    startDate: startDate ?? null,
+    endDate: endDate ?? null,
+    startISO: startDate ? toISO(startDate) : undefined,
+    endISO: endDate ? toISO(endDate) : undefined,
+  }
+}
+
+function computeShouldToDateFromBursts(bursts: any[], asAtISO: string, kind: "spend" | "deliverables") {
+  const asAtDate = parseDateSafe(asAtISO)
+  if (!asAtDate) return 0
+
+  return bursts.reduce((sum, burst) => {
+    const burstStart = parseDateSafe(burst.start_date)
+    const burstEnd = parseDateSafe(burst.end_date)
+    if (!burstStart || !burstEnd) return sum
+
+    const total = kind === "spend" ? burst.budget_number ?? burst.media_investment ?? 0 : burst.calculated_value_number ?? burst.deliverables ?? 0
+
+    const duration = inclusiveDays(burstStart, burstEnd)
+    if (duration <= 0) return sum
+
+    if (asAtDate < burstStart) return sum
+    const elapsedEnd = asAtDate > burstEnd ? burstEnd : asAtDate
+    const elapsed = inclusiveDays(burstStart, elapsedEnd)
+    const should = (total / duration) * elapsed
+    return sum + should
+  }, 0)
+}
+
+function previousCalendarDayISOProg(iso: string): string {
+  const d = parseDateSafe(iso)
+  if (!d) return iso
+  const prev = startOfDay(d)
+  prev.setDate(prev.getDate() - 1)
+  return toISO(prev)
+}
+
+function expectedInWindowFromBurstsProg(
+  bursts: any[],
+  range: DateRange,
+  kind: "spend" | "deliverables",
+): number {
+  if (!range.start || !range.end) return 0
+  const startISO = toISO(startOfDay(range.start))
+  const endISO = toISO(startOfDay(range.end))
+  const beforeISO = previousCalendarDayISOProg(startISO)
+  const cumEnd = computeShouldToDateFromBursts(bursts, endISO, kind)
+  const cumBefore = computeShouldToDateFromBursts(bursts, beforeISO, kind)
+  return Math.max(0, cumEnd - cumBefore)
+}
+
+function mapCombinedRowToDv360(row: CombinedPacingRow): Dv360DailyRow {
+  const channel = String(row.channel ?? "")
+  if (channel !== "programmatic-display" && channel !== "programmatic-video") {
+    throw new Error(`Unexpected channel for programmatic pacing: ${channel}`)
+  }
+
+  return {
+    date: row.dateDay,
+    lineItem: row.adsetName ?? null,
+    insertionOrder: row.campaignName ?? null,
+    spend: row.amountSpent ?? 0,
+    impressions: row.impressions ?? 0,
+    clicks: row.clicks ?? 0,
+    conversions: row.results ?? 0,
+    videoViews: row.video3sViews ?? 0,
+    matchedPostfix: row.lineItemId ? String(row.lineItemId).toLowerCase() : null,
+  }
+}
+
+function sumBookedFromBursts(bursts: any[]) {
+  return bursts.reduce(
+    (acc, burst) => ({
+      spend: acc.spend + parseCurrency(burst.budget_number ?? burst.media_investment ?? burst.buy_amount_number ?? burst.buyAmount),
+      deliverables: acc.deliverables + parseCurrency(burst.calculated_value_number ?? burst.deliverables ?? burst.conversions),
+    }),
+    { spend: 0, deliverables: 0 }
+  )
+}
+
+function summarizeActuals(
+  rows: Array<{ spend: number; impressions: number; clicks: number; conversions: number; videoViews: number }>
+) {
+  const totals = rows.reduce(
+    (acc, row) => ({
+      spend: acc.spend + (row.spend ?? 0),
+      impressions: acc.impressions + (row.impressions ?? 0),
+      clicks: acc.clicks + (row.clicks ?? 0),
+      conversions: acc.conversions + (row.conversions ?? 0),
+      videoViews: acc.videoViews + (row.videoViews ?? 0),
+    }),
+    { spend: 0, impressions: 0, clicks: 0, conversions: 0, videoViews: 0 }
+  )
+
+  const cpm = totals.impressions ? (totals.spend / totals.impressions) * 1000 : 0
+  const ctr = totals.impressions ? (totals.clicks / totals.impressions) * 100 : 0
+  const cvr = totals.impressions ? (totals.conversions / totals.impressions) * 100 : 0
+  const cpc = totals.clicks ? totals.spend / totals.clicks : 0
+  const cpa = totals.conversions ? totals.spend / totals.conversions : 0
+  const cpv = totals.videoViews ? totals.spend / totals.videoViews : 0
+  const viewRate = totals.impressions ? (totals.videoViews / totals.impressions) * 100 : 0
+
+  return { ...totals, cpm, ctr, cvr, cpc, cpa, cpv, viewRate }
+}
+
+function formatCurrency(value: number | undefined) {
+  return new Intl.NumberFormat("en-AU", {
+    style: "currency",
+    currency: "AUD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value ?? 0)
+}
+
+function formatCurrency2dp(value: number | undefined) {
+  return new Intl.NumberFormat("en-AU", {
+    style: "currency",
+    currency: "AUD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value ?? 0)
+}
+
+function formatNumber(value: number | undefined) {
+  return (value ?? 0).toLocaleString("en-AU")
+}
+
+function formatWholeNumber(value: number | undefined) {
+  return Math.round(value ?? 0).toLocaleString("en-AU")
+}
+
+function formatDateAU(dateString: string | undefined) {
+  if (!dateString) return "—"
+  const d = new Date(dateString)
+  if (Number.isNaN(d.getTime())) return dateString
+  return new Intl.DateTimeFormat("en-AU", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(d)
+}
+
+function formatChartDateLabel(iso: string | undefined) {
+  if (!iso) return "—"
+  const d = new Date(`${iso}T00:00:00`)
+  if (Number.isNaN(d.getTime())) return iso
+  return new Intl.DateTimeFormat("en-AU", { month: "short", day: "numeric" }).format(d)
+}
+
+function formatPercent(value: number) {
+  const num = Number(value)
+  if (Number.isNaN(num)) return "0.00%"
+  return `${num.toFixed(2)}%`
+}
+
+function buildCumulativeSeries(dates: string[], actualsDaily: LineItemMetrics["actualsDaily"]) {
+  const map = new Map<string, (typeof actualsDaily)[number]>()
+  actualsDaily.forEach((day) => map.set(day.date, day))
+
+  return dates.map((date) => {
+    const day = map.get(date)
+    return {
+      date,
+      actualSpend: Number((day?.spend ?? 0).toFixed(2)),
+      actualDeliverable: Number((day?.deliverable_value ?? 0).toFixed(2)),
+    }
+  })
+}
+
+function deriveDeliverableKey(
+  buyType?: string | null,
+  platform?: string | null
+): LineItemMetrics["deliverableKey"] {
+  const metric = mapDeliverableMetric({ channel: "programmatic", buyType, platform })
+  switch (metric) {
+    case "VIDEO_3S_VIEWS":
+      return "videoViews"
+    case "RESULTS":
+      return "conversions"
+    case "CLICKS":
+      return "clicks"
+    case "IMPRESSIONS":
+    default:
+      return "impressions"
+  }
+}
+
+function targetMetricForProgrammaticDeliverable(
+  deliverableKey: LineItemMetrics["deliverableKey"] | "deliverable_value" | null,
+): "clicks" | "views" | null {
+  switch (deliverableKey) {
+    case "clicks":
+      return "clicks"
+    case "videoViews":
+      return "views"
+    default:
+      return null
+  }
+}
+
+function buildProgrammaticTargetCurveLineItem(
+  item: ProgrammaticLineItem,
+  bursts: any[],
+  mediaType: "progdisplay" | "progvideo",
+): TargetCurveLineItem | null {
+  const publisher = String(
+    (item as any)?.platform ??
+      (item as any)?.site ??
+      (item as any)?.publisher ??
+      "",
+  )
+    .trim()
+    .toLowerCase()
+  const bidStrategy = String(
+    (item as any)?.bid_strategy ??
+      (item as any)?.bidStrategy ??
+      (item as any)?.buy_type ??
+      "",
+  )
+    .trim()
+    .toLowerCase()
+  const buyType = String((item as any)?.buy_type ?? "").trim().toLowerCase()
+
+  const explicitDeliverables =
+    Number(
+      (item as any)?.goal_deliverable_total ??
+        (item as any)?.deliverables_total ??
+        0,
+    ) || 0
+  const burstDeliverables = bursts.reduce(
+    (sum: number, b: any) =>
+      sum +
+      (Number(b?.deliverables ?? b?.deliverablesAmount ?? 0) || 0),
+    0,
+  )
+  const deliverables = explicitDeliverables > 0 ? explicitDeliverables : burstDeliverables
+  if (deliverables <= 0) return null
+
+  let earliestStartISO: string | null = null
+  let latestEndISO: string | null = null
+  for (const b of bursts) {
+    const start = b?.startISO ?? b?.start ?? b?.startDate ?? b?.start_date ?? null
+    const end = b?.endISO ?? b?.end ?? b?.endDate ?? b?.end_date ?? null
+    if (start && (!earliestStartISO || start < earliestStartISO)) earliestStartISO = start
+    if (end && (!latestEndISO || end > latestEndISO)) latestEndISO = end
+  }
+
+  return {
+    mediaType,
+    publisher,
+    bidStrategy,
+    buyType,
+    deliverables,
+    earliestStartISO,
+    latestEndISO,
+  }
+}
+
+function buildProgrammaticLineItemMetrics(
+  items: ProgrammaticLineItem[],
+  apiRows: Dv360DailyRow[],
+  campaignDateRange: string[],
+  pacingAsAtISO: string,
+  mediaType: "progdisplay" | "progvideo",
+  kpiTargets: KPITargetsMap | undefined,
+  campaignWindow: { startISO: string; endISO: string },
+  fallbackStart?: string,
+  fallbackEnd?: string,
+  urlFilter?: DateRange,
+): LineItemMetrics[] {
+  return items.map((item) => {
+    const bursts = item.bursts ?? parseBursts(item.bursts_json)
+    const window = getLineItemWindow(bursts, fallbackStart, fallbackEnd)
+    const targetId = extractProgrammaticLineItemId(item)
+
+    const matched = apiRows.filter((row) => {
+      if (!targetId) return false
+      return row.matchedPostfix === targetId
+    })
+
+    const dateRange =
+      campaignDateRange.length > 0
+        ? campaignDateRange
+        : window.startDate && window.endDate
+          ? eachDay(window.startDate, window.endDate)
+          : Array.from(new Set(matched.map((m) => m.date))).sort()
+
+    const groupedByDate = new Map<
+      string,
+      { spend: number; impressions: number; clicks: number; conversions: number; videoViews: number }
+    >()
+    matched.forEach((row) => {
+      const existing =
+        groupedByDate.get(row.date) ?? { spend: 0, impressions: 0, clicks: 0, conversions: 0, videoViews: 0 }
+      groupedByDate.set(row.date, {
+        spend: existing.spend + (row.spend ?? 0),
+        impressions: existing.impressions + (row.impressions ?? 0),
+        clicks: existing.clicks + (row.clicks ?? 0),
+        conversions: existing.conversions + (row.conversions ?? 0),
+        videoViews: existing.videoViews + (row.videoViews ?? 0),
+      })
+    })
+
+    const deliverableKey = deriveDeliverableKey(item.buy_type, item.platform)
+
+    const actualsDaily = dateRange.map((date) => {
+      const day =
+        groupedByDate.get(date) ?? { spend: 0, impressions: 0, clicks: 0, conversions: 0, videoViews: 0 }
+      const deliverable_value =
+        deliverableKey === "impressions"
+          ? day.impressions
+          : deliverableKey === "clicks"
+            ? day.clicks
+            : deliverableKey === "videoViews"
+              ? day.videoViews
+              : day.conversions
+      return {
+        date,
+        spend: day.spend,
+        impressions: day.impressions,
+        clicks: day.clicks,
+        conversions: day.conversions,
+        videoViews: day.videoViews,
+        deliverable_value,
+      }
+    })
+
+    const asAtDate = pacingAsAtISO
+
+    const clipCampaignStart = fallbackStart ?? campaignWindow.startISO
+    const clipCampaignEnd = fallbackEnd ?? campaignWindow.endISO
+    const clippedFilter = clipDateRangeToCampaign(
+      urlFilter ?? { start: null, end: null },
+      clipCampaignStart,
+      clipCampaignEnd,
+    )
+    const urlWindowActive = Boolean(urlFilter?.start && urlFilter?.end)
+
+    const filteredActualsDaily = urlWindowActive
+      ? clippedFilter
+        ? filterDailySeriesByRange(actualsDaily, clippedFilter)
+        : []
+      : actualsDaily
+
+    const seriesDates =
+      filteredActualsDaily.length > 0
+        ? [...new Set(filteredActualsDaily.map((d) => d.date))].sort()
+        : urlWindowActive
+          ? []
+          : dateRange
+
+    const deliveredTotals = urlWindowActive
+      ? filteredActualsDaily.reduce(
+          (acc, day) => ({
+            spend: acc.spend + day.spend,
+            deliverables: acc.deliverables + day.deliverable_value,
+          }),
+          { spend: 0, deliverables: 0 },
+        )
+      : actualsDaily.reduce(
+          (acc, day) => {
+            if (asAtDate && day.date > asAtDate) return acc
+            return {
+              spend: acc.spend + day.spend,
+              deliverables: acc.deliverables + day.deliverable_value,
+            }
+          },
+          { spend: 0, deliverables: 0 },
+        )
+
+    const hasSchedule = (bursts ?? []).length > 0
+    const fallbackBurst: any[] =
+      !hasSchedule && window.startISO && window.endISO
+        ? [
+            {
+              start_date: window.startISO,
+              end_date: window.endISO,
+              media_investment: item.total_budget ?? 0,
+              deliverables: item.goal_deliverable_total ?? 0,
+              budget_number: item.total_budget ?? 0,
+              calculated_value_number: item.goal_deliverable_total ?? 0,
+            },
+          ]
+        : []
+    const burstsToUse = hasSchedule ? bursts : fallbackBurst
+
+    const booked = sumBookedFromBursts(burstsToUse ?? [])
+    const shouldSpend =
+      urlWindowActive && clippedFilter
+        ? expectedInWindowFromBurstsProg(burstsToUse ?? [], clippedFilter, "spend")
+        : urlWindowActive && !clippedFilter
+          ? 0
+          : computeShouldToDateFromBursts(burstsToUse ?? [], asAtDate, "spend")
+    const shouldDeliverables =
+      urlWindowActive && clippedFilter
+        ? expectedInWindowFromBurstsProg(burstsToUse ?? [], clippedFilter, "deliverables")
+        : urlWindowActive && !clippedFilter
+          ? 0
+          : computeShouldToDateFromBursts(burstsToUse ?? [], asAtDate, "deliverables")
+
+    const pacing: PacingResult = {
+      asAtDate,
+      spend: {
+        actualToDate: Number(deliveredTotals.spend.toFixed(2)),
+        expectedToDate: Number(shouldSpend.toFixed(2)),
+        delta: Number((deliveredTotals.spend - shouldSpend).toFixed(2)),
+        pacingPct: Number((shouldSpend > 0 ? (deliveredTotals.spend / shouldSpend) * 100 : 0).toFixed(2)),
+        goalTotal: Number(booked.spend.toFixed(2)),
+      },
+      series: buildCumulativeSeries(
+        urlWindowActive ? seriesDates : dateRange,
+        urlWindowActive ? filteredActualsDaily : actualsDaily,
+      ),
+    }
+
+    pacing.deliverable = {
+      actualToDate: Number(deliveredTotals.deliverables.toFixed(2)),
+      expectedToDate: Number(shouldDeliverables.toFixed(2)),
+      delta: Number((deliveredTotals.deliverables - shouldDeliverables).toFixed(2)),
+      pacingPct: Number(
+        (shouldDeliverables > 0 ? (deliveredTotals.deliverables / shouldDeliverables) * 100 : 0).toFixed(2),
+      ),
+      goalTotal: Number(booked.deliverables.toFixed(2)),
+    }
+
+    const targetMetric = targetMetricForProgrammaticDeliverable(deliverableKey)
+    let targetCurve: TargetCurvePoint[] = []
+    let cumulativeActual: Array<{ date: string; actual: number }> = []
+    let onTrackStatus: OnTrackStatus = "no-data"
+
+    if (
+      targetMetric &&
+      kpiTargets &&
+      kpiTargets.size > 0 &&
+      campaignWindow.startISO &&
+      campaignWindow.endISO
+    ) {
+      const tcli = buildProgrammaticTargetCurveLineItem(item, burstsToUse ?? [], mediaType)
+      if (tcli) {
+        targetCurve = buildCumulativeTargetCurve({
+          campaignStartISO: campaignWindow.startISO,
+          campaignEndISO: campaignWindow.endISO,
+          lineItems: [tcli],
+          kpiTargets,
+          metric: targetMetric,
+          tolerance: 0.15,
+        })
+        if (clippedFilter?.start && clippedFilter?.end && targetCurve.length) {
+          const rs = clippedFilter.start
+          const re = clippedFilter.end
+          targetCurve = targetCurve.filter((p) => {
+            const d = parseDateOnly(p.date)
+            if (!d) return true
+            return d >= rs && d <= re
+          })
+        }
+        if (targetCurve.length) {
+          const dailyByDate = new Map<string, number>()
+          const rowsForCumulative = urlWindowActive ? filteredActualsDaily : actualsDaily
+          for (const row of rowsForCumulative) {
+            const dateKey = String((row as any).date ?? (row as any).day ?? "")
+            if (!dateKey) continue
+            const value =
+              deliverableKey === "clicks"
+                ? (row as any).clicks ?? 0
+                : deliverableKey === "videoViews"
+                  ? (row as any).videoViews ?? 0
+                  : (row as any).deliverable_value ?? 0
+            const prev = dailyByDate.get(dateKey) ?? 0
+            dailyByDate.set(dateKey, prev + (Number(value) || 0))
+          }
+          cumulativeActual = buildCumulativeActualSeries(
+            targetCurve.map((p) => p.date),
+            dailyByDate,
+          )
+          const cumActualByDate = new Map(
+            cumulativeActual.map((r) => [r.date, r.actual]),
+          )
+          const asAt = pacing.asAtDate ?? getMelbourneTodayISO()
+          onTrackStatus = evaluateOnTrack(targetCurve, cumActualByDate, asAt)
+        }
+      }
+    }
+
+    return {
+      lineItem: item,
+      pacing,
+      bursts: burstsToUse ?? [],
+      window,
+      actualsDaily: urlWindowActive ? filteredActualsDaily : actualsDaily,
+      matchedRows: matched,
+      booked,
+      delivered: {
+        spend: Number(deliveredTotals.spend.toFixed(2)),
+        deliverables: Number(deliveredTotals.deliverables.toFixed(2)),
+      },
+      shouldToDate: {
+        spend: Number(shouldSpend.toFixed(2)),
+        deliverables: Number(shouldDeliverables.toFixed(2)),
+      },
+      deliverableKey,
+      targetMetric,
+      targetCurve,
+      cumulativeActual,
+      onTrackStatus,
+    }
+  })
+}
+
+function getDeliverableLabel(key: LineItemMetrics["deliverableKey"]) {
+  switch (key) {
+    case "clicks":
+      return "Clicks"
+    case "conversions":
+      return "Conversions"
+    case "videoViews":
+      return "Video Views"
+    case "impressions":
+    default:
+      return "Impressions"
+  }
+}
+
+function buildAggregatedMetrics(
+  lineItemMetrics: LineItemMetrics[],
+  asAtDate: string | undefined,
+  campaignStartISO: string,
+  campaignEndISO: string,
+  filterRange?: DateRange,
+): PacingResult {
+  const cs = parseDateSafe(campaignStartISO)
+  const ce = parseDateSafe(campaignEndISO)
+  if (!cs || !ce) {
+    return {
+      asAtDate: asAtDate ?? null,
+      spend: { actualToDate: 0, expectedToDate: 0, delta: 0, pacingPct: 0, goalTotal: 0 },
+      deliverable: { actualToDate: 0, expectedToDate: 0, delta: 0, pacingPct: 0, goalTotal: 0 },
+      series: [],
+    }
+  }
+
+  let rangeStart = cs
+  let rangeEnd = ce
+  if (filterRange?.start && filterRange?.end) {
+    const fs = startOfDay(filterRange.start)
+    const fe = startOfDay(filterRange.end)
+    rangeStart = new Date(Math.max(cs.getTime(), fs.getTime()))
+    rangeEnd = new Date(Math.min(ce.getTime(), fe.getTime()))
+  }
+  if (rangeEnd < rangeStart) {
+    return {
+      asAtDate: asAtDate ?? null,
+      spend: { actualToDate: 0, expectedToDate: 0, delta: 0, pacingPct: 0, goalTotal: 0 },
+      deliverable: { actualToDate: 0, expectedToDate: 0, delta: 0, pacingPct: 0, goalTotal: 0 },
+      series: [],
+    }
+  }
+
+  const dateRange = eachDay(rangeStart, rangeEnd)
+
+  const actualMap = new Map<
+    string,
+    { spend: number; deliverable: number }
+  >()
+  lineItemMetrics.forEach((metric) => {
+    metric.actualsDaily.forEach((day) => {
+      const existing = actualMap.get(day.date) ?? { spend: 0, deliverable: 0 }
+      actualMap.set(day.date, {
+        spend: existing.spend + (day.spend ?? 0),
+        deliverable: existing.deliverable + (day.deliverable_value ?? 0),
+      })
+    })
+  })
+
+  const aggregateActuals = dateRange.map((date) => {
+    const values = actualMap.get(date) ?? { spend: 0, deliverable: 0 }
+    return {
+      date,
+      spend: Number(values.spend.toFixed(2)),
+      impressions: 0,
+      clicks: 0,
+      conversions: Number(values.deliverable.toFixed(2)),
+      videoViews: 0,
+      deliverable_value: Number(values.deliverable.toFixed(2)),
+    }
+  })
+
+  const asAt = asAtDate ?? null
+  const deliveredTotals = aggregateActuals.reduce(
+    (acc, day) => {
+      if (asAt && day.date > asAt) return acc
+      return {
+        spend: acc.spend + (day.spend ?? 0),
+        deliverables: acc.deliverables + (day.deliverable_value ?? 0),
+      }
+    },
+    { spend: 0, deliverables: 0 },
+  )
+
+  const bookedTotals = {
+    spend: Number(
+      lineItemMetrics.reduce((s, m) => s + (m.booked?.spend ?? 0), 0).toFixed(2)
+    ),
+    deliverables: Number(
+      lineItemMetrics.reduce((s, m) => s + (m.booked?.deliverables ?? 0), 0).toFixed(2)
+    ),
+  }
+
+  const shouldAt = asAt ?? campaignEndISO
+  const windowRange: DateRange =
+    filterRange?.start && filterRange?.end ? { start: rangeStart, end: rangeEnd } : { start: null, end: null }
+
+  const shouldSpend = Number(
+    (windowRange.start && windowRange.end
+      ? lineItemMetrics.reduce(
+          (sum, m) => sum + expectedInWindowFromBurstsProg(m.bursts, windowRange, "spend"),
+          0,
+        )
+      : lineItemMetrics.reduce(
+          (sum, m) => sum + computeShouldToDateFromBursts(m.bursts, shouldAt, "spend"),
+          0,
+        )
+    ).toFixed(2),
+  )
+  const shouldDeliverables = Number(
+    (windowRange.start && windowRange.end
+      ? lineItemMetrics.reduce(
+          (sum, m) => sum + expectedInWindowFromBurstsProg(m.bursts, windowRange, "deliverables"),
+          0,
+        )
+      : lineItemMetrics.reduce(
+          (sum, m) =>
+            sum + computeShouldToDateFromBursts(m.bursts, shouldAt, "deliverables"),
+          0,
+        )
+    ).toFixed(2),
+  )
+
+  const spendPacing = shouldSpend > 0 ? (deliveredTotals.spend / shouldSpend) * 100 : 0
+  const deliverablePacing =
+    shouldDeliverables > 0 ? (deliveredTotals.deliverables / shouldDeliverables) * 100 : 0
+
+  return {
+    asAtDate: asAt ?? null,
+    spend: {
+      actualToDate: Number(deliveredTotals.spend.toFixed(2)),
+      expectedToDate: shouldSpend,
+      delta: Number((deliveredTotals.spend - shouldSpend).toFixed(2)),
+      pacingPct: Number(spendPacing.toFixed(2)),
+      goalTotal: bookedTotals.spend,
+    },
+    deliverable: {

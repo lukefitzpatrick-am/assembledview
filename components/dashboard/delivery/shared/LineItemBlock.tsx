@@ -2,6 +2,28 @@ import { ActualsCumulativeVsTargetChart } from "@/components/dashboard/delivery/
 import type { TargetCurvePoint } from "@/lib/kpi/deliveryTargetCurve"
 import { ProgressCard, type ProgressCardProps } from "./ProgressCard"
 import { KpiBand, type KpiBandProps } from "./KpiBand"
+import { LineItemDailyDeliveryChart } from "./LineItemDailyDeliveryChart"
+
+type CumulativeChart = {
+  kind: "cumulative-vs-target"
+  targetCurve: TargetCurvePoint[]
+  cumulativeActual: Array<{ date: string; actual: number }>
+  asAtDate: string | null
+  deliverableLabel: string
+  brandColour?: string
+}
+
+type DailyChart = {
+  kind: "daily-delivery"
+  /** Daily rows. Each row has `date` plus one numeric field per series key. */
+  daily: Array<Record<string, string | number>>
+  /** Series to plot, in legend order. */
+  series: Array<{ key: string; label: string }>
+  asAtDate: string | null
+  brandColour?: string
+}
+
+export type LineItemChart = CumulativeChart | DailyChart
 
 export interface LineItemBlockProps {
   /** Line item display name. */
@@ -11,14 +33,7 @@ export interface LineItemBlockProps {
   /** Two ProgressCards (spend, deliverable) for this line item. */
   progressCards: [ProgressCardProps, ProgressCardProps]
   kpiBand: KpiBandProps
-  /** Cumulative-vs-target chart inputs, line-item-scoped. */
-  chart: {
-    targetCurve: TargetCurvePoint[]
-    cumulativeActual: Array<{ date: string; actual: number }>
-    asAtDate: string | null
-    deliverableLabel: string
-    brandColour?: string
-  }
+  chart: LineItemChart
 }
 
 export function LineItemBlock({
@@ -43,13 +58,22 @@ export function LineItemBlock({
         <ProgressCard {...progressCards[1]} dense />
       </div>
       <KpiBand {...kpiBand} />
-      <ActualsCumulativeVsTargetChart
-        targetCurve={chart.targetCurve}
-        cumulativeActual={chart.cumulativeActual}
-        asAtDate={chart.asAtDate}
-        deliverableLabel={chart.deliverableLabel}
-        brandColour={chart.brandColour}
-      />
+      {chart.kind === "cumulative-vs-target" ? (
+        <ActualsCumulativeVsTargetChart
+          targetCurve={chart.targetCurve}
+          cumulativeActual={chart.cumulativeActual}
+          asAtDate={chart.asAtDate}
+          deliverableLabel={chart.deliverableLabel}
+          brandColour={chart.brandColour}
+        />
+      ) : (
+        <LineItemDailyDeliveryChart
+          daily={chart.daily}
+          series={chart.series}
+          asAtDate={chart.asAtDate}
+          brandColour={chart.brandColour}
+        />
+      )}
     </div>
   )
 }

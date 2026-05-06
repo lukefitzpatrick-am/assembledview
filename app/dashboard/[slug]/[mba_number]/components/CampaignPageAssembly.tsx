@@ -12,7 +12,7 @@ import CampaignSummaryRow from "@/components/dashboard/campaign/CampaignSummaryR
 import SpendChartsRow from "@/components/dashboard/campaign/SpendChartsRow"
 import MediaPlanVizSection from "@/components/dashboard/campaign/MediaPlanVizSection"
 import CampaignDetailsModal from "@/components/dashboard/campaign/CampaignDetailsModal"
-import DeliverySection from "@/components/dashboard/delivery/DeliverySection"
+import { CampaignDeliverySection } from "@/components/dashboard/delivery/CampaignDeliverySection"
 import CampaignActions from "./CampaignActions"
 import type { MediaPlanVersionListEntry } from "@/lib/api/dashboard"
 import {
@@ -26,10 +26,6 @@ import {
   recomputeTimeMetrics,
   type DateRange,
 } from "@/lib/dashboard/dateFilter"
-import SocialDeliveryContainer from "@/components/dashboard/delivery/social/SocialDeliveryContainer"
-import SearchDeliveryContainer from "@/components/dashboard/delivery/search/SearchDeliveryContainer"
-import ProgrammaticDeliveryContainer from "@/components/dashboard/delivery/programmatic/ProgrammaticDeliveryContainer"
-
 type SectionBoundaryProps = {
   title: string
   children: ReactNode
@@ -293,17 +289,6 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
 
   const kpiTargets: KPITargetsMap = buildKPITargetsMap(savedCampaignKPIs)
 
-  const summaryMetrics = useMemo(() => {
-    const deliverablesTotal = Number(metrics?.totalDeliverables ?? metrics?.deliverablesToDate ?? 0)
-    const avgPacingPct = expectedSpend > 0 ? (actualSpend / expectedSpend) * 100 : 0
-    return {
-      totalSpend: actualSpend,
-      totalDeliverables: deliverablesTotal,
-      avgPacingPct: Number.isFinite(avgPacingPct) ? avgPacingPct : 0,
-      lineItemCount: Object.values(lineItemsMap).reduce((sum, items) => sum + (Array.isArray(items) ? items.length : 0), 0),
-    }
-  }, [actualSpend, expectedSpend, lineItemsMap, metrics])
-
   const heroCampaign = useMemo(
     () => ({
       campaignName:
@@ -444,55 +429,20 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
           <SectionBoundary title="Delivery">
             <Suspense fallback={<DeliverySectionSkeleton />}>
               <div className="campaign-section-enter" style={{ animationDelay: "400ms" }}>
-              <DeliverySection
-                summary={summaryMetrics}
-                lastUpdated={new Date()}
-                onRefresh={() => window.location.reload()}
+              <CampaignDeliverySection
+                mbaNumber={mbaNumber}
+                deliveryLineItemIds={deliveryLineItemIds}
+                filterRange={filterRange}
                 brandColour={brandColour}
-                platforms={["social", "search", "programmatic"]}
-                platformSlots={{
-                  social:
-                    filteredSocialItems.length > 0 && startDate && endDate ? (
-                      <SocialDeliveryContainer
-                        clientSlug={slug}
-                        mbaNumber={mbaNumber}
-                        socialLineItems={filteredSocialItems}
-                        campaignStart={startDate}
-                        campaignEnd={endDate}
-                        initialPacingRows={undefined}
-                        deliveryLineItemIds={deliveryLineItemIds}
-                        kpiTargets={kpiTargets}
-                      />
-                    ) : null,
-                  search:
-                    mpSearchEnabled && searchLineItemIds.length > 0 && startDate && endDate ? (
-                      <SearchDeliveryContainer
-                        clientSlug={slug}
-                        mbaNumber={mbaNumber}
-                        lineItemIds={searchLineItemIds}
-                        searchLineItems={filteredSearchItems}
-                        campaignStart={startDate}
-                        campaignEnd={endDate}
-                        kpiTargets={kpiTargets}
-                      />
-                    ) : null,
-                  programmatic:
-                    (filteredProgDisplay.length > 0 || filteredProgVideo.length > 0) &&
-                    startDate &&
-                    endDate ? (
-                      <ProgrammaticDeliveryContainer
-                        clientSlug={slug}
-                        mbaNumber={mbaNumber}
-                        progDisplayLineItems={filteredProgDisplay}
-                        progVideoLineItems={filteredProgVideo}
-                        campaignStart={startDate}
-                        campaignEnd={endDate}
-                        initialPacingRows={undefined}
-                        deliveryLineItemIds={deliveryLineItemIds}
-                        kpiTargets={kpiTargets}
-                      />
-                    ) : null,
-                }}
+                kpiTargets={kpiTargets}
+                campaignStart={startDate ?? ""}
+                campaignEnd={endDate ?? ""}
+                socialLineItems={filteredSocialItems}
+                searchLineItemIds={searchLineItemIds}
+                searchLineItems={filteredSearchItems}
+                mpSearchEnabled={mpSearchEnabled}
+                progDisplayLineItems={filteredProgDisplay}
+                progVideoLineItems={filteredProgVideo}
               />
               </div>
             </Suspense>

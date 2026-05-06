@@ -1,6 +1,7 @@
 import type { ProgressCardProps } from "../shared/ProgressCard"
 import type { KpiBandProps } from "../shared/KpiBand"
 import type { LineItemBlockProps } from "../shared/LineItemBlock"
+import type { TargetCurvePoint } from "@/lib/kpi/deliveryTargetCurve"
 
 /**
  * Identity for a channel section. The icon is rendered by ChannelSection.
@@ -33,7 +34,14 @@ export interface ChannelAggregate {
   /** Unified KPI band rolled up across all line items in this channel. */
   kpiBand: KpiBandProps
   /** Aggregate cumulative-vs-target chart inputs. */
-  chart: LineItemBlockProps["chart"]
+  chart: {
+    kind: "cumulative-vs-target"
+    targetCurve: TargetCurvePoint[]
+    cumulativeActual: Array<{ date: string; actual: number }>
+    asAtDate: string | null
+    deliverableLabel: string
+    brandColour?: string
+  }
 }
 
 /**
