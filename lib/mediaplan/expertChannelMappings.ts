@@ -728,14 +728,18 @@ export function mapOohExpertRowsToStandardLineItems(
         feePct
       )
       const btLower = String(buyType || "").toLowerCase()
+      const isManualQtyBuyType =
+        btLower === "bonus" ||
+        btLower === "package_inclusions" ||
+        btLower === "package"
       const buyAmountStr =
-        btLower === "bonus"
+        isManualQtyBuyType
           ? "0"
           : btLower === "panels"
             ? formatBurstBudget(unitRate)
             : formatRate(unitRate)
       let calculatedValue: number
-      if (btLower === "bonus") {
+      if (isManualQtyBuyType) {
         calculatedValue = roundDeliverables(bt, qty)
       } else if (btLower === "cpm") {
         calculatedValue = roundDeliverables(
