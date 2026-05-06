@@ -832,6 +832,14 @@ export default function DigiVideoContainer({
     const budget = netMediaFeeMarkup(rawBudget, budgetIncludesFees, feedigivideo || 0);
     const buyAmount = parseFloat(burst?.buyAmount?.replace(/[^0-9.]/g, "") || "1");
     const buyType = form.getValues(`digivideolineItems.${lineItemIndex}.buyType`);
+    const buyTypeLower = String(buyType || "").toLowerCase();
+    if (
+      buyTypeLower === "bonus" ||
+      buyTypeLower === "package_inclusions" ||
+      buyTypeLower === "package"
+    ) {
+      return;
+    }
 
     let calculatedValue = 0;
     switch (buyType) {

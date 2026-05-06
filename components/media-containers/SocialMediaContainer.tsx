@@ -859,6 +859,14 @@ export default function SocialMediaContainer({
     const budget = netMediaPctOfGross(rawBudget, budgetIncludesFees, feesocial || 0);
     const buyAmount = parseFloat(burst?.buyAmount?.replace(/[^0-9.]/g, "") || "1");
     const buyType = form.getValues(`lineItems.${lineItemIndex}.buyType`);
+    const buyTypeLower = String(buyType || "").toLowerCase();
+    if (
+      buyTypeLower === "bonus" ||
+      buyTypeLower === "package_inclusions" ||
+      buyTypeLower === "package"
+    ) {
+      return;
+    }
 
     let calculatedValue = 0;
     switch (buyType) {
