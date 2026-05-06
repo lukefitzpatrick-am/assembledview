@@ -11,12 +11,13 @@ import {
   type ComponentType,
   type LazyExoticComponent,
 } from "react"
-import { useForm, useWatch } from "react-hook-form"
+import { Controller, useForm, useWatch, type Control } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import { format } from "date-fns"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
@@ -350,11 +351,6 @@ type BillingMonths = {
     influencers: string;
     production: string;
   };
-};
-
-type FormProps = {
-  watch: (field: string) => any;
-  getValues: () => MediaPlanFormValues;
 };
 
 type Burst = {
@@ -752,6 +748,27 @@ export default function CreateMediaPlan() {
   const mbaNumber = useWatch({ control: form.control, name: "mba_number" })
   const planNumber = useWatch({ control: form.control, name: "mp_plannumber" })
 
+  const mpTelevision = useWatch({ control: form.control, name: "mp_television" })
+  const mpRadio = useWatch({ control: form.control, name: "mp_radio" })
+  const mpProduction = useWatch({ control: form.control, name: "mp_production" })
+  const mpNewspaper = useWatch({ control: form.control, name: "mp_newspaper" })
+  const mpMagazines = useWatch({ control: form.control, name: "mp_magazines" })
+  const mpOoh = useWatch({ control: form.control, name: "mp_ooh" })
+  const mpCinema = useWatch({ control: form.control, name: "mp_cinema" })
+  const mpDigidisplay = useWatch({ control: form.control, name: "mp_digidisplay" })
+  const mpDigiaudio = useWatch({ control: form.control, name: "mp_digiaudio" })
+  const mpDigivideo = useWatch({ control: form.control, name: "mp_digivideo" })
+  const mpBvod = useWatch({ control: form.control, name: "mp_bvod" })
+  const mpIntegration = useWatch({ control: form.control, name: "mp_integration" })
+  const mpSearch = useWatch({ control: form.control, name: "mp_search" })
+  const mpSocialmedia = useWatch({ control: form.control, name: "mp_socialmedia" })
+  const mpProgdisplay = useWatch({ control: form.control, name: "mp_progdisplay" })
+  const mpProgvideo = useWatch({ control: form.control, name: "mp_progvideo" })
+  const mpProgbvod = useWatch({ control: form.control, name: "mp_progbvod" })
+  const mpProgaudio = useWatch({ control: form.control, name: "mp_progaudio" })
+  const mpProgooh = useWatch({ control: form.control, name: "mp_progooh" })
+  const mpInfluencers = useWatch({ control: form.control, name: "mp_influencers" })
+
   const builderLineItemCount = useMemo(() => {
     return (
       televisionLineItems.length +
@@ -988,28 +1005,52 @@ export default function CreateMediaPlan() {
     deliverySnapshotKeyRef.current = key
   }, [campaignStart, campaignEnd, mbaNumber, planNumber])
   
-  // Watch all media type boolean fields to prevent infinite loops
-  const watchedMediaTypes = useWatch({
-    control: form.control,
-    name: [
-      "mp_television", "mp_radio", "mp_production", "mp_newspaper", "mp_magazines", "mp_ooh", 
-      "mp_cinema", "mp_digidisplay", "mp_digiaudio", "mp_digivideo", "mp_bvod", 
-      "mp_integration", "mp_search", "mp_socialmedia", "mp_progdisplay", 
-      "mp_progvideo", "mp_progbvod", "mp_progaudio", "mp_progooh", "mp_influencers"
+  const watchedMediaTypesMap = useMemo(
+    (): Record<string, boolean> => ({
+      mp_television: !!mpTelevision,
+      mp_radio: !!mpRadio,
+      mp_production: !!mpProduction,
+      mp_newspaper: !!mpNewspaper,
+      mp_magazines: !!mpMagazines,
+      mp_ooh: !!mpOoh,
+      mp_cinema: !!mpCinema,
+      mp_digidisplay: !!mpDigidisplay,
+      mp_digiaudio: !!mpDigiaudio,
+      mp_digivideo: !!mpDigivideo,
+      mp_bvod: !!mpBvod,
+      mp_integration: !!mpIntegration,
+      mp_search: !!mpSearch,
+      mp_socialmedia: !!mpSocialmedia,
+      mp_progdisplay: !!mpProgdisplay,
+      mp_progvideo: !!mpProgvideo,
+      mp_progbvod: !!mpProgbvod,
+      mp_progaudio: !!mpProgaudio,
+      mp_progooh: !!mpProgooh,
+      mp_influencers: !!mpInfluencers,
+    }),
+    [
+      mpTelevision,
+      mpRadio,
+      mpProduction,
+      mpNewspaper,
+      mpMagazines,
+      mpOoh,
+      mpCinema,
+      mpDigidisplay,
+      mpDigiaudio,
+      mpDigivideo,
+      mpBvod,
+      mpIntegration,
+      mpSearch,
+      mpSocialmedia,
+      mpProgdisplay,
+      mpProgvideo,
+      mpProgbvod,
+      mpProgaudio,
+      mpProgooh,
+      mpInfluencers,
     ]
-  })
-  
-  // Create a mapping object for easier access
-  const mediaTypeNames = [
-    "mp_television", "mp_radio", "mp_production", "mp_newspaper", "mp_magazines", "mp_ooh", 
-    "mp_cinema", "mp_digidisplay", "mp_digiaudio", "mp_digivideo", "mp_bvod", 
-    "mp_integration", "mp_search", "mp_socialmedia", "mp_progdisplay", 
-    "mp_progvideo", "mp_progbvod", "mp_progaudio", "mp_progooh", "mp_influencers"
-  ]
-  const watchedMediaTypesMap = mediaTypeNames.reduce((acc, name, index) => {
-    acc[name] = watchedMediaTypes[index]
-    return acc
-  }, {} as Record<string, boolean>)
+  )
 
   const mediaTypes = useMemo(
     () => [
@@ -1047,16 +1088,6 @@ export default function CreateMediaPlan() {
         label: medium.label,
       }))
   }, [mediaTypes, watchedMediaTypesMap])
-
-  // Keep mp_production aligned with the Production toggle to persist the flag for saves
-  const productionToggle = useWatch({ control: form.control, name: "mp_production" })
-  useEffect(() => {
-    const next = Boolean(productionToggle)
-    const current = form.getValues("mp_production")
-    if (current !== next) {
-      form.setValue("mp_production", next, { shouldDirty: true })
-    }
-  }, [form, productionToggle])
 
   // Fields to expose to the assistant
   const watchedClientName = useWatch({ control: form.control, name: "mp_client_name" })
@@ -1109,8 +1140,8 @@ export default function CreateMediaPlan() {
   )
 
   const calculateBillingSchedule = useCallback(() => {
-    const start = form.watch("mp_campaigndates_start");
-    const end   = form.watch("mp_campaigndates_end");
+    const start = form.getValues("mp_campaigndates_start");
+    const end   = form.getValues("mp_campaigndates_end");
     if (!start || !end) return;
 
     const { billingMonths: billingMonthsCalculated, deliveryMonths: deliveryMonthsCalculated } =
@@ -1166,7 +1197,6 @@ export default function CreateMediaPlan() {
     setBillingTotal(formatter.format(grandTotal));
   }
 }, [
-    form,
     searchBursts,
     socialMediaBursts,
     progAudioBursts,
@@ -1716,115 +1746,295 @@ export default function CreateMediaPlan() {
 
   // Digital Media
   const handleSearchTotalChange = (totalMedia: number, totalFee: number) => {
-    setSearchTotal(totalMedia);
-    setSearchFeeTotal(totalFee); // ✅ Store the actual calculated fee
+    let changed = false
+    setSearchTotal((prev) => {
+      if (prev === totalMedia) return prev
+      changed = true
+      return totalMedia
+    })
+    setSearchFeeTotal((prev) => {
+      if (prev === totalFee) return prev
+      changed = true
+      return totalFee
+    })
   };
 
   const handleSocialMediaTotalChange = (totalMedia: number, totalFee: number) => {
-    setSocialMediaTotal(totalMedia);
-    setSocialMediaFeeTotal(totalFee); // ✅ Store the actual calculated fee
+    let changed = false
+    setSocialMediaTotal((prev) => {
+      if (prev === totalMedia) return prev
+      changed = true
+      return totalMedia
+    })
+    setSocialMediaFeeTotal((prev) => {
+      if (prev === totalFee) return prev
+      changed = true
+      return totalFee
+    })
   };
   
   const handleDigiAudioTotalChange = (totalMedia: number, totalFee: number) => {
-    setDigiAudioTotal(totalMedia);
-    setDigiAudioFeeTotal(totalFee);
+    let changed = false
+    setDigiAudioTotal((prev) => {
+      if (prev === totalMedia) return prev
+      changed = true
+      return totalMedia
+    })
+    setDigiAudioFeeTotal((prev) => {
+      if (prev === totalFee) return prev
+      changed = true
+      return totalFee
+    })
   };
 
   const handleDigiDisplayTotalChange = (totalMedia: number, totalFee: number) => {
-    setDigiDisplayTotal(totalMedia);
-    setDigiDisplayFeeTotal(totalFee);
+    let changed = false
+    setDigiDisplayTotal((prev) => {
+      if (prev === totalMedia) return prev
+      changed = true
+      return totalMedia
+    })
+    setDigiDisplayFeeTotal((prev) => {
+      if (prev === totalFee) return prev
+      changed = true
+      return totalFee
+    })
   };
 
   const handleDigiVideoTotalChange = (totalMedia: number, totalFee: number) => {
-    setDigiVideoTotal(totalMedia);
-    setDigiVideoFeeTotal(totalFee);
+    let changed = false
+    setDigiVideoTotal((prev) => {
+      if (prev === totalMedia) return prev
+      changed = true
+      return totalMedia
+    })
+    setDigiVideoFeeTotal((prev) => {
+      if (prev === totalFee) return prev
+      changed = true
+      return totalFee
+    })
   };
 
   const handleBVODTotalChange = (totalMedia: number, totalFee: number) => {
-    setBvodTotal(totalMedia);
-    setBvodFeeTotal(totalFee);
+    let changed = false
+    setBvodTotal((prev) => {
+      if (prev === totalMedia) return prev
+      changed = true
+      return totalMedia
+    })
+    setBvodFeeTotal((prev) => {
+      if (prev === totalFee) return prev
+      changed = true
+      return totalFee
+    })
   };
 
   const handleIntegrationTotalChange = (totalMedia: number, totalFee: number) => {
-    setIntegrationTotal(totalMedia);
-    setIntegrationFeeTotal(totalFee);
+    let changed = false
+    setIntegrationTotal((prev) => {
+      if (prev === totalMedia) return prev
+      changed = true
+      return totalMedia
+    })
+    setIntegrationFeeTotal((prev) => {
+      if (prev === totalFee) return prev
+      changed = true
+      return totalFee
+    })
   };
 
   const handleProgDisplayTotalChange = (totalMedia: number, totalFee: number) => {
-    setProgDisplayTotal(totalMedia);
-    setProgDisplayFeeTotal(totalFee);
+    let changed = false
+    setProgDisplayTotal((prev) => {
+      if (prev === totalMedia) return prev
+      changed = true
+      return totalMedia
+    })
+    setProgDisplayFeeTotal((prev) => {
+      if (prev === totalFee) return prev
+      changed = true
+      return totalFee
+    })
   };
 
   const handleProgVideoTotalChange = (totalMedia: number, totalFee: number) => {
-    setProgVideoTotal(totalMedia);
-    setProgVideoFeeTotal(totalFee);
+    let changed = false
+    setProgVideoTotal((prev) => {
+      if (prev === totalMedia) return prev
+      changed = true
+      return totalMedia
+    })
+    setProgVideoFeeTotal((prev) => {
+      if (prev === totalFee) return prev
+      changed = true
+      return totalFee
+    })
   };
 
   const handleProgBvodTotalChange = (totalMedia: number, totalFee: number) => {
-    setProgBvodTotal(totalMedia);
-    setProgBvodFeeTotal(totalFee);
+    let changed = false
+    setProgBvodTotal((prev) => {
+      if (prev === totalMedia) return prev
+      changed = true
+      return totalMedia
+    })
+    setProgBvodFeeTotal((prev) => {
+      if (prev === totalFee) return prev
+      changed = true
+      return totalFee
+    })
   };
 
   const handleProgOohTotalChange = (totalMedia: number, totalFee: number) => {
-    markUnsavedChanges();
-    setProgOohTotal(totalMedia);
-    setProgOohFeeTotal(totalFee);
+    let changed = false
+    setProgOohTotal((prev) => {
+      if (prev === totalMedia) return prev
+      changed = true
+      return totalMedia
+    })
+    setProgOohFeeTotal((prev) => {
+      if (prev === totalFee) return prev
+      changed = true
+      return totalFee
+    })
+    if (changed) markUnsavedChanges()
   };
 
   const handleProgAudioTotalChange = (totalMedia: number, totalFee: number) => {
-    markUnsavedChanges();
-    setProgAudioTotal(totalMedia);
-    setProgAudioFeeTotal(totalFee);
+    let changed = false
+    setProgAudioTotal((prev) => {
+      if (prev === totalMedia) return prev
+      changed = true
+      return totalMedia
+    })
+    setProgAudioFeeTotal((prev) => {
+      if (prev === totalFee) return prev
+      changed = true
+      return totalFee
+    })
+    if (changed) markUnsavedChanges()
   };
 
   // Offline Media
   
   const handleCinemaTotalChange = (totalMedia: number, totalFee: number) => {
-    markUnsavedChanges();
-    setCinemaTotal(totalMedia);
-    setCinemaFeeTotal(totalFee);
+    let changed = false
+    setCinemaTotal((prev) => {
+      if (prev === totalMedia) return prev
+      changed = true
+      return totalMedia
+    })
+    setCinemaFeeTotal((prev) => {
+      if (prev === totalFee) return prev
+      changed = true
+      return totalFee
+    })
+    if (changed) markUnsavedChanges()
   };
 
   const handleTelevisionTotalChange = (totalMedia: number, totalFee: number) => {
-    markUnsavedChanges();
-    setTelevisionTotal(totalMedia);
-    setTelevisionFeeTotal(totalFee);
+    let changed = false
+    setTelevisionTotal((prev) => {
+      if (prev === totalMedia) return prev
+      changed = true
+      return totalMedia
+    })
+    setTelevisionFeeTotal((prev) => {
+      if (prev === totalFee) return prev
+      changed = true
+      return totalFee
+    })
+    if (changed) markUnsavedChanges()
   };
 
   const handleRadioTotalChange = (totalMedia: number, totalFee: number) => {
-    markUnsavedChanges();
-    setRadioTotal(totalMedia);
-    setRadioFeeTotal(totalFee);
+    let changed = false
+    setRadioTotal((prev) => {
+      if (prev === totalMedia) return prev
+      changed = true
+      return totalMedia
+    })
+    setRadioFeeTotal((prev) => {
+      if (prev === totalFee) return prev
+      changed = true
+      return totalFee
+    })
+    if (changed) markUnsavedChanges()
   };
 
   const handleNewspaperTotalChange = (totalMedia: number, totalFee: number) => {
-    markUnsavedChanges();
-    setNewspaperTotal(totalMedia);
-    setNewspaperFeeTotal(totalFee);
+    let changed = false
+    setNewspaperTotal((prev) => {
+      if (prev === totalMedia) return prev
+      changed = true
+      return totalMedia
+    })
+    setNewspaperFeeTotal((prev) => {
+      if (prev === totalFee) return prev
+      changed = true
+      return totalFee
+    })
+    if (changed) markUnsavedChanges()
   };
 
   const handleMagazinesTotalChange = (totalMedia: number, totalFee: number) => {
-    markUnsavedChanges();
-    setMagazineTotal(totalMedia);
-    setMagazineFeeTotal(totalFee);
+    let changed = false
+    setMagazineTotal((prev) => {
+      if (prev === totalMedia) return prev
+      changed = true
+      return totalMedia
+    })
+    setMagazineFeeTotal((prev) => {
+      if (prev === totalFee) return prev
+      changed = true
+      return totalFee
+    })
+    if (changed) markUnsavedChanges()
   };
 
   const handleOohTotalChange = (totalMedia: number, totalFee: number) => {
-    markUnsavedChanges();
-    setOohTotal(totalMedia);
-    setOohFeeTotal(totalFee);
+    let changed = false
+    setOohTotal((prev) => {
+      if (prev === totalMedia) return prev
+      changed = true
+      return totalMedia
+    })
+    setOohFeeTotal((prev) => {
+      if (prev === totalFee) return prev
+      changed = true
+      return totalFee
+    })
+    if (changed) markUnsavedChanges()
   };
 
   const handleProductionTotalChange = (totalMedia: number, totalFee: number) => {
-    markUnsavedChanges();
-    setProductionTotal(totalMedia);
-    setProductionFeeTotal(totalFee);
+    let changed = false
+    setProductionTotal((prev) => {
+      if (prev === totalMedia) return prev
+      changed = true
+      return totalMedia
+    })
+    setProductionFeeTotal((prev) => {
+      if (prev === totalFee) return prev
+      changed = true
+      return totalFee
+    })
+    if (changed) markUnsavedChanges()
   };
 
   const handleInfluencersTotalChange = (totalMedia: number, totalFee: number) => {
-    markUnsavedChanges();
-    setInfluencersTotal(totalMedia);
-    setInfluencersFeeTotal(totalFee);
+    let changed = false
+    setInfluencersTotal((prev) => {
+      if (prev === totalMedia) return prev
+      changed = true
+      return totalMedia
+    })
+    setInfluencersFeeTotal((prev) => {
+      if (prev === totalFee) return prev
+      changed = true
+      return totalFee
+    })
+    if (changed) markUnsavedChanges()
   };
 
   const handleInvestmentChange = (investmentByMonth) => {
@@ -2179,7 +2389,7 @@ export default function CreateMediaPlan() {
 
       finalVisibleMedia = mediaTypes
         .filter(medium => medium.name !== "mp_production")
-        .filter(medium => form.watch(medium.name as keyof MediaPlanFormValues))
+        .filter(medium => Boolean(fv[medium.name as keyof MediaPlanFormValues]))
         .map(medium => {
           const billingKey = mediaKeyMap[medium.name]
           const gross_amount =
@@ -2364,9 +2574,10 @@ export default function CreateMediaPlan() {
       mediaItemsForWorkbook = aaFiltered
       mbaData = buildAdvertisingAssociatesMbaDataFromMediaItems(aaFiltered)
     } else {
+      const fvExport = form.getValues()
       mbaData = {
         gross_media: mediaTypes
-          .filter((medium) => form.watch(medium.name as keyof MediaPlanFormValues))
+          .filter((medium) => Boolean(fvExport[medium.name as keyof MediaPlanFormValues]))
           .map((medium) => ({
             media_type: medium.label,
             gross_amount: calculateMediaTotal(medium.name),
@@ -2502,33 +2713,29 @@ export default function CreateMediaPlan() {
     }
   };
 
-  function BillingAndMBASections({ form }: { form: FormProps }) {
+  function BillingAndMBASections({ control }: { control: Control<MediaPlanFormValues> }) {
     type BillingMonth = {
       monthYear: string;
       amount: string;
     };
     
     const [billingMonths, setBillingMonths] = useState<BillingMonth[]>([]);
+    const startDate = useWatch({ control, name: "mp_campaigndates_start" })
+    const endDate = useWatch({ control, name: "mp_campaigndates_end" })
 
     useEffect(() => {
-      const startDate = form.watch('mp_campaigndates_start');
-      const endDate = form.watch('mp_campaigndates_end');
-      if (startDate && endDate) {
-        const months: BillingMonth[] = [];
-        let current = new Date(startDate);
-        const end = new Date(endDate);
-        // Generate all months, including partial ones
-        while (current <= end) {
-          const monthYear = format(current, 'MMMM yyyy');
-          months.push({ monthYear, amount: '' });
-
-          // Move to the next month
-          current.setMonth(current.getMonth() + 1);
-          current.setDate(1); // Ensure we start at the beginning of the month
-        }
-        setBillingMonths(months);
+      if (!startDate || !endDate) return
+      const months: BillingMonth[] = [];
+      let current = new Date(startDate);
+      const end = new Date(endDate);
+      while (current <= end) {
+        const monthYear = format(current, 'MMMM yyyy');
+        months.push({ monthYear, amount: '' });
+        current.setMonth(current.getMonth() + 1);
+        current.setDate(1);
       }
-    }, [form]);
+      setBillingMonths(months);
+    }, [startDate, endDate]);
   
     const handleAmountChange = (index: number, value: string) => {
       const updatedMonths = [...billingMonths];
@@ -2622,7 +2829,9 @@ export default function CreateMediaPlan() {
       
       const data = await response.json()
       if (data.mba_number) {
-        form.setValue("mba_number", data.mba_number)
+        if (form.getValues("mba_number") !== data.mba_number) {
+          form.setValue("mba_number", data.mba_number)
+        }
         setMbaNumber(data.mba_number)
       } else {
         console.error("MBA number not found in response:", data)
@@ -2631,7 +2840,9 @@ export default function CreateMediaPlan() {
     } catch (error) {
       console.error("Error generating MBA number:", error)
       const errorMessage = error instanceof Error ? error.message : "Error generating MBA number"
-      form.setValue("mba_number", "")
+      if (form.getValues("mba_number") !== "") {
+        form.setValue("mba_number", "")
+      }
       setMbaNumber("")
       // Optionally show a toast notification here if you have toast available
     }
@@ -2640,14 +2851,22 @@ export default function CreateMediaPlan() {
   const handleClientChange = (clientId: string) => {
     const selectedClient = clients.find((client) => client.id.toString() === clientId)
     if (selectedClient) {
-      form.setValue("mp_client_name", selectedClient.mp_client_name)
-      form.setValue("mbaidentifier", selectedClient.mbaidentifier)
+      const nextClientName = selectedClient.mp_client_name
+      if (form.getValues("mp_client_name") !== nextClientName) {
+        form.setValue("mp_client_name", nextClientName)
+      }
+      const nextMbaId = selectedClient.mbaidentifier || ""
+      if (form.getValues("mbaidentifier") !== nextMbaId) {
+        form.setValue("mbaidentifier", nextMbaId)
+      }
       // Only generate MBA number if mbaidentifier exists
       if (selectedClient.mbaidentifier) {
         generateMBANumber(selectedClient.mbaidentifier)
       } else {
         console.warn("Selected client does not have an MBA identifier")
-        form.setValue("mba_number", "")
+        if (form.getValues("mba_number") !== "") {
+          form.setValue("mba_number", "")
+        }
         setMbaNumber("")
       }
       setSelectedClientId(clientId)
@@ -2682,9 +2901,15 @@ export default function CreateMediaPlan() {
       setClientState(selectedClient.state_dropdown);
       setClientPostcode(selectedClient.postcode);
     } else {
-      form.setValue("mp_client_name", "")
-      form.setValue("mbaidentifier", "")
-      form.setValue("mba_number", "")
+      if (form.getValues("mp_client_name") !== "") {
+        form.setValue("mp_client_name", "")
+      }
+      if (form.getValues("mbaidentifier") !== "") {
+        form.setValue("mbaidentifier", "")
+      }
+      if (form.getValues("mba_number") !== "") {
+        form.setValue("mba_number", "")
+      }
       setSelectedClientId("")
       setFeeSearch(null);
       setFeeSocial(null);
@@ -2736,62 +2961,214 @@ export default function CreateMediaPlan() {
       };
     });
 
-  const handleSearchBurstsChange = (bursts: BillingBurst[]) =>
-    setSearchBursts(normalizeBursts(bursts));
+  const handleSearchBurstsChange = (bursts: BillingBurst[]) => {
+    setSearchBursts((prev) => {
+      const next = normalizeBursts(bursts)
+      if (prev === next) return prev
+      if (prev.length === next.length && JSON.stringify(prev) === JSON.stringify(next)) {
+        return prev
+      }
+      return next
+    })
+  }
 
-  const handleProgAudioBurstsChange = (bursts: BillingBurst[]) =>
-    setProgAudioBursts(normalizeBursts(bursts));
+  const handleProgAudioBurstsChange = (bursts: BillingBurst[]) => {
+    setProgAudioBursts((prev) => {
+      const next = normalizeBursts(bursts)
+      if (prev === next) return prev
+      if (prev.length === next.length && JSON.stringify(prev) === JSON.stringify(next)) {
+        return prev
+      }
+      return next
+    })
+  }
 
-  const handleSocialMediaBurstsChange = (bursts: BillingBurst[]) =>
-    setSocialMediaBursts(normalizeBursts(bursts));
+  const handleSocialMediaBurstsChange = (bursts: BillingBurst[]) => {
+    setSocialMediaBursts((prev) => {
+      const next = normalizeBursts(bursts)
+      if (prev === next) return prev
+      if (prev.length === next.length && JSON.stringify(prev) === JSON.stringify(next)) {
+        return prev
+      }
+      return next
+    })
+  }
 
-  const handleCinemaBurstsChange = (bursts: BillingBurst[]) =>
-    setCinemaBursts(normalizeBursts(bursts));
+  const handleCinemaBurstsChange = (bursts: BillingBurst[]) => {
+    setCinemaBursts((prev) => {
+      const next = normalizeBursts(bursts)
+      if (prev === next) return prev
+      if (prev.length === next.length && JSON.stringify(prev) === JSON.stringify(next)) {
+        return prev
+      }
+      return next
+    })
+  }
 
-  const handleTelevisionBurstsChange = (bursts: BillingBurst[]) =>
-    setTelevisionBursts(normalizeBursts(bursts));
+  const handleTelevisionBurstsChange = (bursts: BillingBurst[]) => {
+    setTelevisionBursts((prev) => {
+      const next = normalizeBursts(bursts)
+      if (prev === next) return prev
+      if (prev.length === next.length && JSON.stringify(prev) === JSON.stringify(next)) {
+        return prev
+      }
+      return next
+    })
+  }
 
-  const handleRadioBurstsChange = (bursts: BillingBurst[]) =>
-    setRadioBursts(normalizeBursts(bursts));
+  const handleRadioBurstsChange = (bursts: BillingBurst[]) => {
+    setRadioBursts((prev) => {
+      const next = normalizeBursts(bursts)
+      if (prev === next) return prev
+      if (prev.length === next.length && JSON.stringify(prev) === JSON.stringify(next)) {
+        return prev
+      }
+      return next
+    })
+  }
 
-  const handleIntegrationBurstsChange = (bursts: BillingBurst[]) =>
-    setIntegrationBursts(normalizeBursts(bursts));
+  const handleIntegrationBurstsChange = (bursts: BillingBurst[]) => {
+    setIntegrationBursts((prev) => {
+      const next = normalizeBursts(bursts)
+      if (prev === next) return prev
+      if (prev.length === next.length && JSON.stringify(prev) === JSON.stringify(next)) {
+        return prev
+      }
+      return next
+    })
+  }
 
-  const handleNewspaperBurstsChange = (bursts: BillingBurst[]) =>
-    setNewspaperBursts(normalizeBursts(bursts));
+  const handleNewspaperBurstsChange = (bursts: BillingBurst[]) => {
+    setNewspaperBursts((prev) => {
+      const next = normalizeBursts(bursts)
+      if (prev === next) return prev
+      if (prev.length === next.length && JSON.stringify(prev) === JSON.stringify(next)) {
+        return prev
+      }
+      return next
+    })
+  }
 
-  const handleMagazineBurstsChange = (bursts: BillingBurst[]) =>
-    setMagazineBursts(normalizeBursts(bursts));
+  const handleMagazineBurstsChange = (bursts: BillingBurst[]) => {
+    setMagazineBursts((prev) => {
+      const next = normalizeBursts(bursts)
+      if (prev === next) return prev
+      if (prev.length === next.length && JSON.stringify(prev) === JSON.stringify(next)) {
+        return prev
+      }
+      return next
+    })
+  }
 
-  const handleOohBurstsChange = (bursts: BillingBurst[]) =>
-    setOohBursts(normalizeBursts(bursts));
+  const handleOohBurstsChange = (bursts: BillingBurst[]) => {
+    setOohBursts((prev) => {
+      const next = normalizeBursts(bursts)
+      if (prev === next) return prev
+      if (prev.length === next.length && JSON.stringify(prev) === JSON.stringify(next)) {
+        return prev
+      }
+      return next
+    })
+  }
 
-  const handleProductionBurstsChange = (bursts: BillingBurst[]) =>
-    setProductionBursts(normalizeBursts(bursts));
+  const handleProductionBurstsChange = (bursts: BillingBurst[]) => {
+    setProductionBursts((prev) => {
+      const next = normalizeBursts(bursts)
+      if (prev === next) return prev
+      if (prev.length === next.length && JSON.stringify(prev) === JSON.stringify(next)) {
+        return prev
+      }
+      return next
+    })
+  }
 
-  const handleInfluencersBurstsChange = (bursts: BillingBurst[]) =>
-    setInfluencersBursts(normalizeBursts(bursts));
+  const handleInfluencersBurstsChange = (bursts: BillingBurst[]) => {
+    setInfluencersBursts((prev) => {
+      const next = normalizeBursts(bursts)
+      if (prev === next) return prev
+      if (prev.length === next.length && JSON.stringify(prev) === JSON.stringify(next)) {
+        return prev
+      }
+      return next
+    })
+  }
 
-  const handleDigiAudioBurstsChange = (bursts: BillingBurst[]) =>
-    setDigiAudioBursts(normalizeBursts(bursts));
+  const handleDigiAudioBurstsChange = (bursts: BillingBurst[]) => {
+    setDigiAudioBursts((prev) => {
+      const next = normalizeBursts(bursts)
+      if (prev === next) return prev
+      if (prev.length === next.length && JSON.stringify(prev) === JSON.stringify(next)) {
+        return prev
+      }
+      return next
+    })
+  }
 
-  const handleDigiDisplayBurstsChange = (bursts: BillingBurst[]) =>
-    setDigiDisplayBursts(normalizeBursts(bursts));
+  const handleDigiDisplayBurstsChange = (bursts: BillingBurst[]) => {
+    setDigiDisplayBursts((prev) => {
+      const next = normalizeBursts(bursts)
+      if (prev === next) return prev
+      if (prev.length === next.length && JSON.stringify(prev) === JSON.stringify(next)) {
+        return prev
+      }
+      return next
+    })
+  }
 
-  const handleDigiVideoBurstsChange = (bursts: BillingBurst[]) =>
-    setDigiVideoBursts(normalizeBursts(bursts));
+  const handleDigiVideoBurstsChange = (bursts: BillingBurst[]) => {
+    setDigiVideoBursts((prev) => {
+      const next = normalizeBursts(bursts)
+      if (prev === next) return prev
+      if (prev.length === next.length && JSON.stringify(prev) === JSON.stringify(next)) {
+        return prev
+      }
+      return next
+    })
+  }
 
-  const handleProgDisplayBurstsChange = (bursts: BillingBurst[]) =>
-    setProgDisplayBursts(normalizeBursts(bursts));
+  const handleProgDisplayBurstsChange = (bursts: BillingBurst[]) => {
+    setProgDisplayBursts((prev) => {
+      const next = normalizeBursts(bursts)
+      if (prev === next) return prev
+      if (prev.length === next.length && JSON.stringify(prev) === JSON.stringify(next)) {
+        return prev
+      }
+      return next
+    })
+  }
 
-  const handleProgVideoBurstsChange = (bursts: BillingBurst[]) =>
-    setProgVideoBursts(normalizeBursts(bursts));
+  const handleProgVideoBurstsChange = (bursts: BillingBurst[]) => {
+    setProgVideoBursts((prev) => {
+      const next = normalizeBursts(bursts)
+      if (prev === next) return prev
+      if (prev.length === next.length && JSON.stringify(prev) === JSON.stringify(next)) {
+        return prev
+      }
+      return next
+    })
+  }
 
-  const handleProgBvodBurstsChange = (bursts: BillingBurst[]) =>
-    setProgBvodBursts(normalizeBursts(bursts));
+  const handleProgBvodBurstsChange = (bursts: BillingBurst[]) => {
+    setProgBvodBursts((prev) => {
+      const next = normalizeBursts(bursts)
+      if (prev === next) return prev
+      if (prev.length === next.length && JSON.stringify(prev) === JSON.stringify(next)) {
+        return prev
+      }
+      return next
+    })
+  }
 
-  const handleProgOohBurstsChange = (bursts: BillingBurst[]) =>
-    setProgOohBursts(normalizeBursts(bursts));
+  const handleProgOohBurstsChange = (bursts: BillingBurst[]) => {
+    setProgOohBursts((prev) => {
+      const next = normalizeBursts(bursts)
+      if (prev === next) return prev
+      if (prev.length === next.length && JSON.stringify(prev) === JSON.stringify(next)) {
+        return prev
+      }
+      return next
+    })
+  }
 
   // --- Partial MBA Handlers ---
 
@@ -2810,7 +3187,7 @@ export default function CreateMediaPlan() {
 
     const enabledMediaRows = mediaTypes
       .filter((m) => m.name !== "mp_production")
-      .filter((m) => form.watch(m.name as keyof MediaPlanFormValues) && m.component)
+      .filter((m) => watchedMediaTypesMap[m.name] && m.component)
       .map((m) => ({ ...m, mediaKey: mediaKeyMap[m.name] }))
       .filter((m) => Boolean((m as any).mediaKey))
 
@@ -2851,7 +3228,7 @@ export default function CreateMediaPlan() {
 
     const enabledMediaRows = mediaTypes
       .filter((m) => m.name !== "mp_production")
-      .filter((m) => form.watch(m.name as keyof MediaPlanFormValues) && m.component)
+      .filter((m) => watchedMediaTypesMap[m.name] && m.component)
       .map((m) => ({ ...m, mediaKey: mediaKeyMap[m.name] }))
       .filter((m) => Boolean((m as any).mediaKey))
 
@@ -2996,7 +3373,7 @@ export default function CreateMediaPlan() {
 
     const enabledMediaRows = mediaTypes
       .filter((m) => m.name !== "mp_production")
-      .filter((m) => form.watch(m.name as keyof MediaPlanFormValues) && m.component)
+      .filter((m) => watchedMediaTypesMap[m.name] && m.component)
       .map((m) => ({ ...m, mediaKey: mediaKeyMap[m.name] }))
       .filter((m) => Boolean((m as any).mediaKey))
 
@@ -3241,7 +3618,7 @@ export default function CreateMediaPlan() {
 
     manualBillingAutoLineItemSnapshotRef.current = {};
     Object.entries(mediaTypeMap).forEach(([mediaTypeKey, { lineItems, key }]) => {
-      if (form.watch(mediaTypeKey as keyof MediaPlanFormValues) && lineItems) {
+      if (watchedMediaTypesMap[mediaTypeKey] && lineItems) {
         const billingLineItems = generateBillingLineItems(lineItems, key, deepCopiedMonths, "billing");
         if (billingLineItems.length > 0) {
           allLineItems[key] = billingLineItems;
@@ -4924,8 +5301,16 @@ const handleSaveAll = async () => {
     lineItems: []
   }));
 
-  const handleBVODBurstsChange = (bursts: BillingBurst[]) =>
-    setBvodBursts(normalizeBursts(bursts));
+  const handleBVODBurstsChange = (bursts: BillingBurst[]) => {
+    setBvodBursts((prev) => {
+      const next = normalizeBursts(bursts)
+      if (prev === next) return prev
+      if (prev.length === next.length && JSON.stringify(prev) === JSON.stringify(next)) {
+        return prev
+      }
+      return next
+    })
+  }
 
   const getPageContext = useCallback((): PageContext => {
     const values = form.getValues();
@@ -5432,31 +5817,38 @@ const handleSaveAll = async () => {
                 <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Media Types</h3>
               </div>
               <div className="grid min-h-0 w-full flex-1 grid-cols-1 content-start gap-x-3 gap-y-1.5 px-6 py-4 md:grid-cols-2">
-                {mediaTypes.filter(medium => medium.name !== "mp_fixedfee").map((medium) => (
-                  <FormField
-                    key={medium.name}
-                    control={form.control}
-                    name={medium.name as keyof MediaPlanFormValues}
-                    render={({ field }) => (
-                      <FormItem className="flex items-center gap-3 space-y-0 py-0.5">
-                        <FormControl className="shrink-0">
+                {mediaTypes.filter(medium => medium.name !== "mp_fixedfee").map((medium) => {
+                  const switchId = `media-type-${medium.name}`
+                  return (
+                    <div key={medium.name} className="flex items-center gap-3 py-0.5">
+                      <Controller
+                        control={form.control}
+                        name={medium.name as keyof MediaPlanFormValues}
+                        render={({ field }) => (
                           <Switch
+                            id={switchId}
+                            className="shrink-0"
                             checked={!!field.value}
                             onCheckedChange={(checked) => {
-                              field.onChange(checked)
-                              if (medium.name === "mp_production") {
-                                form.setValue("mp_production", checked, { shouldDirty: true })
-                              }
+                              const next = Boolean(checked)
+                              if (next === Boolean(field.value)) return
+                              field.onChange(next)
                             }}
+                            onBlur={field.onBlur}
+                            disabled={field.disabled}
+                            ref={field.ref}
                           />
-                        </FormControl>
-                        <FormLabel className="font-normal leading-snug min-w-0 flex-1 cursor-pointer">
-                          {medium.label}
-                        </FormLabel>
-                      </FormItem>
-                    )}
-                  />
-                ))}
+                        )}
+                      />
+                      <Label
+                        htmlFor={switchId}
+                        className="font-normal leading-snug min-w-0 flex-1 cursor-pointer"
+                      >
+                        {medium.label}
+                      </Label>
+                    </div>
+                  )
+                })}
               </div>
             </div>
             </div>
@@ -5693,7 +6085,7 @@ const handleSaveAll = async () => {
         <Accordion type="multiple" className="w-full">
           {mediaTypes
             .filter((medium) => medium.name !== "mp_production")
-            .filter((medium) => form.watch(medium.name as keyof MediaPlanFormValues) && medium.component)
+            .filter((medium) => watchedMediaTypesMap[medium.name] && medium.component)
             .map((medium) => {
               const mediaKey = mediaKeyMap[medium.name];
               const headers = getMediaTypeHeadersForSchedule(mediaKey);
@@ -6005,20 +6397,20 @@ const handleSaveAll = async () => {
     <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
     <div className="space-y-4">
       {(() => {
-        const campaignBudget = form.watch("mp_campaignbudget") || 0
+        const budgetForWarn = Number(watchedCampaignBudget) || 0
         const totalInvestment =
           partialMBAValues.grossMedia +
           partialMBAValues.assembledFee +
           partialMBAValues.adServing +
           partialMBAValues.production
-        const diff = totalInvestment - campaignBudget
-        if (!campaignBudget || Math.abs(diff) <= 2) return null
+        const diff = totalInvestment - budgetForWarn
+        if (!budgetForWarn || Math.abs(diff) <= 2) return null
 
         return (
           <div className="bg-yellow-50 border-l-4 border-yellow-500 text-yellow-800 p-4 rounded-md" role="alert">
             <p className="font-bold">Budget mismatch (warning)</p>
             <p className="text-sm">
-              Campaign Budget: {mbaCurrencyFormatter.format(campaignBudget)}. Total Investment:{" "}
+              Campaign Budget: {mbaCurrencyFormatter.format(budgetForWarn)}. Total Investment:{" "}
               {mbaCurrencyFormatter.format(totalInvestment)}. Difference: {mbaCurrencyFormatter.format(Math.abs(diff))}{" "}
               {diff > 0 ? "over" : "under"}.
             </p>
@@ -6045,7 +6437,7 @@ const handleSaveAll = async () => {
       <Accordion type="multiple" className="w-full">
         {mediaTypes
           .filter((medium) => medium.name !== "mp_production")
-          .filter((medium) => form.watch(medium.name as keyof MediaPlanFormValues) && medium.component)
+          .filter((medium) => watchedMediaTypesMap[medium.name] && medium.component)
           .map((medium) => {
             const mediaKey = mediaKeyMap[medium.name]
             const checked = partialMBAMediaEnabled[mediaKey] ?? true
@@ -6310,9 +6702,9 @@ const handleSaveAll = async () => {
                             onInvestmentChange={handleInvestmentChange}
                             onLineItemsChange={handleSearchItemsChange}
                             onMediaLineItemsChange={handleSearchMediaLineItemsChange}
-                            campaignStartDate={form.watch("mp_campaigndates_start")}
-                            campaignEndDate={form.watch("mp_campaigndates_end")}
-                            campaignBudget={form.watch("mp_campaignbudget")}
+                            campaignStartDate={campaignStart}
+                            campaignEndDate={campaignEnd}
+                            campaignBudget={watchedCampaignBudget}
                             campaignId={""}
                             mediaTypes={["search"]}
                           />
@@ -6328,9 +6720,9 @@ const handleSaveAll = async () => {
                             onInvestmentChange={handleInvestmentChange}
                             onLineItemsChange={handleProductionLineItemsChange}
                             onMediaLineItemsChange={handleProductionLineItemsChange}
-                            campaignStartDate={form.watch("mp_campaigndates_start")}
-                            campaignEndDate={form.watch("mp_campaigndates_end")}
-                            campaignBudget={form.watch("mp_campaignbudget")}
+                            campaignStartDate={campaignStart}
+                            campaignEndDate={campaignEnd}
+                            campaignBudget={watchedCampaignBudget}
                             campaignId={""}
                             mediaTypes={mediaTypes.map((m) => ({ value: m.label, label: m.label }))}
                           />
@@ -6347,9 +6739,9 @@ const handleSaveAll = async () => {
                             onLineItemsChange={handleSocialMediaItemsChange}
                             onSocialMediaLineItemsChange={handleSocialMediaLineItemsStateChange}
                             onMediaLineItemsChange={handleSocialMediaMediaLineItemsChange}
-                            campaignStartDate={form.watch("mp_campaigndates_start")}
-                            campaignEndDate={form.watch("mp_campaigndates_end")}
-                            campaignBudget={form.watch("mp_campaignbudget")}
+                            campaignStartDate={campaignStart}
+                            campaignEndDate={campaignEnd}
+                            campaignBudget={watchedCampaignBudget}
                             campaignId={""}
                             mediaTypes={["social"]}
                           />
@@ -6365,9 +6757,9 @@ const handleSaveAll = async () => {
                             onInvestmentChange={handleInvestmentChange}
                             onLineItemsChange={handleBVODItemsChange}
                             onMediaLineItemsChange={handleBvodMediaLineItemsChange}
-                            campaignStartDate={form.watch("mp_campaigndates_start")}
-                            campaignEndDate={form.watch("mp_campaigndates_end")}
-                            campaignBudget={form.watch("mp_campaignbudget")}
+                            campaignStartDate={campaignStart}
+                            campaignEndDate={campaignEnd}
+                            campaignBudget={watchedCampaignBudget}
                             campaignId={""}
                             mediaTypes={["bvod"]}
                           />
@@ -6383,9 +6775,9 @@ const handleSaveAll = async () => {
                             onInvestmentChange={handleInvestmentChange}
                             onLineItemsChange={handleIntegrationItemsChange}
                             onMediaLineItemsChange={handleIntegrationMediaLineItemsChange}
-                            campaignStartDate={form.watch("mp_campaigndates_start")}
-                            campaignEndDate={form.watch("mp_campaigndates_end")}
-                            campaignBudget={form.watch("mp_campaignbudget")}
+                            campaignStartDate={campaignStart}
+                            campaignEndDate={campaignEnd}
+                            campaignBudget={watchedCampaignBudget}
                             campaignId={""}
                             mediaTypes={["integration"]}
                           />
@@ -6401,9 +6793,9 @@ const handleSaveAll = async () => {
                             onInvestmentChange={handleInvestmentChange}
                             onLineItemsChange={handleCinemaItemsChange}
                             onMediaLineItemsChange={handleCinemaMediaLineItemsChange}
-                            campaignStartDate={form.watch("mp_campaigndates_start")}
-                            campaignEndDate={form.watch("mp_campaigndates_end")}
-                            campaignBudget={form.watch("mp_campaignbudget")}
+                            campaignStartDate={campaignStart}
+                            campaignEndDate={campaignEnd}
+                            campaignBudget={watchedCampaignBudget}
                             campaignId={""}
                             mediaTypes={["cinema"]}
                           />
@@ -6419,9 +6811,9 @@ const handleSaveAll = async () => {
                             onInvestmentChange={handleInvestmentChange}
                             onLineItemsChange={handleProgAudioItemsChange}
                             onMediaLineItemsChange={handleProgAudioMediaLineItemsChange}
-                            campaignStartDate={form.watch("mp_campaigndates_start")}
-                            campaignEndDate={form.watch("mp_campaigndates_end")}
-                            campaignBudget={form.watch("mp_campaignbudget")}
+                            campaignStartDate={campaignStart}
+                            campaignEndDate={campaignEnd}
+                            campaignBudget={watchedCampaignBudget}
                             campaignId={""}
                             mediaTypes={["progaudio"]}
                           />
@@ -6437,9 +6829,9 @@ const handleSaveAll = async () => {
                             onInvestmentChange={handleInvestmentChange}
                             onLineItemsChange={handleProgBvodItemsChange}
                             onMediaLineItemsChange={handleProgBvodMediaLineItemsChange}
-                            campaignStartDate={form.watch("mp_campaigndates_start")}
-                            campaignEndDate={form.watch("mp_campaigndates_end")}
-                            campaignBudget={form.watch("mp_campaignbudget")}
+                            campaignStartDate={campaignStart}
+                            campaignEndDate={campaignEnd}
+                            campaignBudget={watchedCampaignBudget}
                             campaignId={""}
                             mediaTypes={["progbvod"]}
                           />
@@ -6455,9 +6847,9 @@ const handleSaveAll = async () => {
                             onInvestmentChange={handleInvestmentChange}
                             onLineItemsChange={setProgOohItems}
                             onMediaLineItemsChange={handleProgOohMediaLineItemsChange}
-                            campaignStartDate={form.watch("mp_campaigndates_start")}
-                            campaignEndDate={form.watch("mp_campaigndates_end")}
-                            campaignBudget={form.watch("mp_campaignbudget")}
+                            campaignStartDate={campaignStart}
+                            campaignEndDate={campaignEnd}
+                            campaignBudget={watchedCampaignBudget}
                             campaignId={""}
                             mediaTypes={["progooh"]}
                           />
@@ -6474,9 +6866,9 @@ const handleSaveAll = async () => {
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={setDigiAudioItems}
                           onMediaLineItemsChange={handleDigiAudioMediaLineItemsChange}
-                          campaignStartDate={form.watch("mp_campaigndates_start")}
-                          campaignEndDate={form.watch("mp_campaigndates_end")}
-                          campaignBudget={form.watch("mp_campaignbudget")}
+                          campaignStartDate={campaignStart}
+                          campaignEndDate={campaignEnd}
+                          campaignBudget={watchedCampaignBudget}
                           campaignId={""}
                           mediaTypes={["digiaudio"]}
                         />
@@ -6492,9 +6884,9 @@ const handleSaveAll = async () => {
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={setDigiDisplayItems}
                           onMediaLineItemsChange={handleDigiDisplayMediaLineItemsChange}
-                          campaignStartDate={form.watch("mp_campaigndates_start")}
-                          campaignEndDate={form.watch("mp_campaigndates_end")}
-                          campaignBudget={form.watch("mp_campaignbudget")}
+                          campaignStartDate={campaignStart}
+                          campaignEndDate={campaignEnd}
+                          campaignBudget={watchedCampaignBudget}
                           campaignId={""}
                           mediaTypes={["digidisplay"]}
                         />
@@ -6510,9 +6902,9 @@ const handleSaveAll = async () => {
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={setDigiVideoItems}
                           onMediaLineItemsChange={handleDigiVideoMediaLineItemsChange}
-                          campaignStartDate={form.watch("mp_campaigndates_start")}
-                          campaignEndDate={form.watch("mp_campaigndates_end")}
-                          campaignBudget={form.watch("mp_campaignbudget")}
+                          campaignStartDate={campaignStart}
+                          campaignEndDate={campaignEnd}
+                          campaignBudget={watchedCampaignBudget}
                           campaignId={""}
                           mediaTypes={["digivideo"]}
                         />
@@ -6528,9 +6920,9 @@ const handleSaveAll = async () => {
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={setProgDisplayItems}
                           onMediaLineItemsChange={handleProgDisplayMediaLineItemsChange}
-                          campaignStartDate={form.watch("mp_campaigndates_start")}
-                          campaignEndDate={form.watch("mp_campaigndates_end")}
-                          campaignBudget={form.watch("mp_campaignbudget")}
+                          campaignStartDate={campaignStart}
+                          campaignEndDate={campaignEnd}
+                          campaignBudget={watchedCampaignBudget}
                           campaignId={""}
                           mediaTypes={["progdisplay"]}
                         />
@@ -6546,9 +6938,9 @@ const handleSaveAll = async () => {
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={setProgVideoItems}
                           onMediaLineItemsChange={handleProgVideoMediaLineItemsChange}
-                          campaignStartDate={form.watch("mp_campaigndates_start")}
-                          campaignEndDate={form.watch("mp_campaigndates_end")}
-                          campaignBudget={form.watch("mp_campaignbudget")}
+                          campaignStartDate={campaignStart}
+                          campaignEndDate={campaignEnd}
+                          campaignBudget={watchedCampaignBudget}
                           campaignId={""}
                           mediaTypes={["progvideo"]}
                         />
@@ -6565,9 +6957,9 @@ const handleSaveAll = async () => {
                           onLineItemsChange={setTelevisionItems}
                           onTelevisionLineItemsChange={setTelevisionLineItems}
                           onMediaLineItemsChange={handleTelevisionMediaLineItemsChange}
-                          campaignStartDate={form.watch("mp_campaigndates_start")}
-                          campaignEndDate={form.watch("mp_campaigndates_end")}
-                          campaignBudget={form.watch("mp_campaignbudget")}
+                          campaignStartDate={campaignStart}
+                          campaignEndDate={campaignEnd}
+                          campaignBudget={watchedCampaignBudget}
                           campaignId={""}
                           mediaTypes={["television"]}
                         />
@@ -6583,9 +6975,9 @@ const handleSaveAll = async () => {
                          onInvestmentChange={handleInvestmentChange}
                          onLineItemsChange={setRadioItems}
                          onMediaLineItemsChange={handleRadioMediaLineItemsChange}
-                         campaignStartDate={form.watch("mp_campaigndates_start")}
-                         campaignEndDate={form.watch("mp_campaigndates_end")}
-                         campaignBudget={form.watch("mp_campaignbudget")}
+                         campaignStartDate={campaignStart}
+                         campaignEndDate={campaignEnd}
+                         campaignBudget={watchedCampaignBudget}
                          campaignId={""}
                          mediaTypes={["radio"]}
                        />
@@ -6602,9 +6994,9 @@ const handleSaveAll = async () => {
                             onLineItemsChange={setNewspaperItems}
                             onNewspaperLineItemsChange={setNewspaperLineItems}
                             onMediaLineItemsChange={handleNewspaperMediaLineItemsChange}
-                            campaignStartDate={form.watch("mp_campaigndates_start")}
-                            campaignEndDate={form.watch("mp_campaigndates_end")}
-                            campaignBudget={form.watch("mp_campaignbudget")}
+                            campaignStartDate={campaignStart}
+                            campaignEndDate={campaignEnd}
+                            campaignBudget={watchedCampaignBudget}
                             campaignId={""}
                             mediaTypes={["newspapers"]}
                           />
@@ -6620,9 +7012,9 @@ const handleSaveAll = async () => {
                             onInvestmentChange={handleInvestmentChange}
                             onLineItemsChange={setMagazineItems}
                             onMediaLineItemsChange={handleMagazineMediaLineItemsChange}
-                            campaignStartDate={form.watch("mp_campaigndates_start")}
-                            campaignEndDate={form.watch("mp_campaigndates_end")}
-                            campaignBudget={form.watch("mp_campaignbudget")}
+                            campaignStartDate={campaignStart}
+                            campaignEndDate={campaignEnd}
+                            campaignBudget={watchedCampaignBudget}
                             campaignId={""}
                             mediaTypes={["magazines"]}
                           />
@@ -6638,9 +7030,9 @@ const handleSaveAll = async () => {
                             onInvestmentChange={handleInvestmentChange}
                             onLineItemsChange={setOohItems}
                             onMediaLineItemsChange={handleOohMediaLineItemsChange}
-                            campaignStartDate={form.watch("mp_campaigndates_start")}
-                            campaignEndDate={form.watch("mp_campaigndates_end")}
-                            campaignBudget={form.watch("mp_campaignbudget")}
+                            campaignStartDate={campaignStart}
+                            campaignEndDate={campaignEnd}
+                            campaignBudget={watchedCampaignBudget}
                             campaignId={""}
                             mediaTypes={["ooh"]}
                           />
@@ -6656,9 +7048,9 @@ const handleSaveAll = async () => {
                             onInvestmentChange={handleInvestmentChange}
                             onLineItemsChange={setInfluencersItems}
                             onMediaLineItemsChange={handleInfluencersMediaLineItemsChange}
-                            campaignStartDate={form.watch("mp_campaigndates_start")}
-                            campaignEndDate={form.watch("mp_campaigndates_end")}
-                            campaignBudget={form.watch("mp_campaignbudget")}
+                            campaignStartDate={campaignStart}
+                            campaignEndDate={campaignEnd}
+                            campaignBudget={watchedCampaignBudget}
                             campaignId={""}
                             mediaTypes={["influencers"]}
                           />

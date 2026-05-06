@@ -349,9 +349,13 @@ export default function ProductionContainer({
     name: "lineItems",
   })
 
+  const hasHydratedRef = useRef(false)
+
   // Hydrate form when initialLineItems are provided (edit flow)
   useEffect(() => {
     if (!initialLineItems || initialLineItems.length === 0) return
+    if (hasHydratedRef.current) return
+    hasHydratedRef.current = true
     try {
       const normalized = initialLineItems.map((item: any, idx: number) => {
         const rawBursts =
@@ -399,7 +403,9 @@ export default function ProductionContainer({
           bursts: bursts.length > 0 ? bursts : [makeDefaultBurst()],
         }
       })
-      form.setValue("lineItems", normalized, { shouldDirty: false })
+      form.reset({
+        lineItems: normalized,
+      })
     } catch (err) {
       console.warn("[ProductionContainer] Failed to hydrate initial line items", err)
     }

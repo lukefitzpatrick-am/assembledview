@@ -1,14 +1,25 @@
 "use client"
 
-import { useState, useEffect, lazy, Suspense, useCallback, useMemo, use, useRef } from "react"
-import { useWatch } from "react-hook-form"
+import {
+  useState,
+  useEffect,
+  lazy,
+  Suspense,
+  useCallback,
+  useMemo,
+  use,
+  useRef,
+  type Dispatch,
+  type SetStateAction,
+} from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { useForm } from "react-hook-form"
+import { Controller, useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import { format } from "date-fns"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
@@ -1257,6 +1268,16 @@ const mediaKeyMap: { [key: string]: string } = {
   mp_production: 'production',
 };
 
+function setIfChanged<T>(setter: Dispatch<SetStateAction<T>>, next: T): boolean {
+  let didChange = false
+  setter((prev) => {
+    if (JSON.stringify(prev) === JSON.stringify(next)) return prev
+    didChange = true
+    return next
+  })
+  return didChange
+}
+
 export default function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) {
   // Use React's use() hook to unwrap the params Promise
   // This ensures we get the latest value on every render/navigation
@@ -1272,6 +1293,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   console.log("Version number from query params:", versionNumber)
 
   const { setMbaNumber: setContextMbaNumber } = useMediaPlanContext()
+
 
   // Sticky banner sizing (ensure scroll space is 2x banner height)
   const stickyBarRef = useRef<HTMLDivElement | null>(null)
@@ -2108,57 +2130,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const campaignEndDate = useWatch({ control: form.control, name: 'mp_campaigndates_end' })
   const campaignBudget = useWatch({ control: form.control, name: 'mp_campaignbudget' })
 
-  /** When any media on/off toggles, line-item API load re-runs so newly enabled types are not stuck with []. */
-  const enabledMediaFlagsFingerprint = useMemo(() => {
-    return [
-      mpSearch,
-      mpSocialMedia,
-      mpTelevision,
-      mpRadio,
-      mpNewspaper,
-      mpMagazines,
-      mpOoh,
-      mpCinema,
-      mpDigidisplay,
-      mpDigiaudio,
-      mpDigivideo,
-      mpBvod,
-      mpIntegration,
-      mpProduction,
-      mpProgdisplay,
-      mpProgvideo,
-      mpProgbvod,
-      mpProgaudio,
-      mpProgooh,
-      mpInfluencers,
-    ]
-      .map((on) => (on ? "1" : "0"))
-      .join("")
-  }, [
-    mpSearch,
-    mpSocialMedia,
-    mpTelevision,
-    mpRadio,
-    mpNewspaper,
-    mpMagazines,
-    mpOoh,
-    mpCinema,
-    mpDigidisplay,
-    mpDigiaudio,
-    mpDigivideo,
-    mpBvod,
-    mpIntegration,
-    mpProduction,
-    mpProgdisplay,
-    mpProgvideo,
-    mpProgbvod,
-    mpProgaudio,
-    mpProgooh,
-    mpInfluencers,
-  ])
-
-  const enabledSections = useMemo(() => {
-    const flagMap: Record<string, boolean> = {
+  /** Single source of truth for media toggles — avoids batch useWatch + render-time form.watch feedback loops. */
+  const mediaFlagMap = useMemo(
+    (): Record<MediaTypeKey, boolean> => ({
+      mp_production: !!mpProduction,
       mp_television: !!mpTelevision,
       mp_radio: !!mpRadio,
       mp_newspaper: !!mpNewspaper,
@@ -2170,7 +2145,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       mp_digivideo: !!mpDigivideo,
       mp_bvod: !!mpBvod,
       mp_integration: !!mpIntegration,
-      mp_production: !!mpProduction,
       mp_search: !!mpSearch,
       mp_socialmedia: !!mpSocialMedia,
       mp_progdisplay: !!mpProgdisplay,
@@ -2179,35 +2153,45 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       mp_progaudio: !!mpProgaudio,
       mp_progooh: !!mpProgooh,
       mp_influencers: !!mpInfluencers,
-    }
+    }),
+    [
+      mpProduction,
+      mpTelevision,
+      mpRadio,
+      mpNewspaper,
+      mpMagazines,
+      mpOoh,
+      mpCinema,
+      mpDigidisplay,
+      mpDigiaudio,
+      mpDigivideo,
+      mpBvod,
+      mpIntegration,
+      mpSearch,
+      mpSocialMedia,
+      mpProgdisplay,
+      mpProgvideo,
+      mpProgbvod,
+      mpProgaudio,
+      mpProgooh,
+      mpInfluencers,
+    ]
+  )
+
+  /** When any media on/off toggles, line-item API load re-runs so newly enabled types are not stuck with []. */
+  const enabledMediaFlagsFingerprint = useMemo(
+    () => MEDIA_TYPE_KEYS.map((k) => (mediaFlagMap[k] ? "1" : "0")).join(""),
+    [mediaFlagMap]
+  )
+
+  const enabledSections = useMemo(() => {
     return mediaTypes
-      .filter((medium) => flagMap[medium.name])
+      .filter((medium) => mediaFlagMap[medium.name])
       .map((medium) => ({
         id: `media-section-${medium.name}`,
         label: medium.label,
       }))
-  }, [
-    mpTelevision,
-    mpRadio,
-    mpNewspaper,
-    mpMagazines,
-    mpOoh,
-    mpCinema,
-    mpDigidisplay,
-    mpDigiaudio,
-    mpDigivideo,
-    mpBvod,
-    mpIntegration,
-    mpProduction,
-    mpSearch,
-    mpSocialMedia,
-    mpProgdisplay,
-    mpProgvideo,
-    mpProgbvod,
-    mpProgaudio,
-    mpProgooh,
-    mpInfluencers,
-  ])
+  }, [mediaFlagMap])
 
   const deepCloneBillingMonths = useCallback((months: BillingMonth[]): BillingMonth[] => {
     if (typeof globalThis.structuredClone === "function") {
@@ -2231,9 +2215,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   useEffect(() => {
     const v = selectedVersionNumber ?? mediaPlan?.version_number
     if (v != null && v !== undefined) {
-      form.setValue("mp_plannumber", String(v), { shouldDirty: false })
+      const next = String(v)
+      if (form.getValues("mp_plannumber") !== next) {
+        form.setValue("mp_plannumber", next, { shouldDirty: false })
+      }
     }
-  }, [selectedVersionNumber, mediaPlan?.version_number, form])
+  }, [selectedVersionNumber, mediaPlan?.version_number])
   
   const getRateForMediaType = useCallback((mediaType: string): number => {
     switch (mediaType) {
@@ -2268,8 +2255,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     startOverride?: Date | string | null,
     endOverride?: Date | string | null
   ) => {
-    const startRaw = startOverride ?? form.watch("mp_campaigndates_start");
-    const endRaw = endOverride ?? form.watch("mp_campaigndates_end");
+    const startRaw =
+      startOverride ?? form.getValues("mp_campaigndates_start");
+    const endRaw = endOverride ?? form.getValues("mp_campaigndates_end");
     if (!startRaw || !endRaw) return;
 
     const start = new Date(startRaw as any);
@@ -2306,6 +2294,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         adservaudio: adservaudio ?? 0,
         isManualBilling,
       })
+
+    const newFingerprint = JSON.stringify(billingMonthsCalculated)
+    const oldFingerprint = JSON.stringify(autoReferenceBillingMonthsRef.current)
+    if (newFingerprint === oldFingerprint) {
+      return
+    }
 
     // Keep delivery snapshot in sync with latest auto-calculation (e.g. after fee % loads)
     if (deliveryMonthsCalculated.length > 0) {
@@ -2361,7 +2355,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     adservaudio,
     getRateForMediaType,
     deepCloneBillingMonths,
-    form,
     isManualBilling,
   ]);
 
@@ -3025,7 +3018,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           
           // Update the MBA identifier in the form
           console.log("[CLIENT LOOKUP] Setting mbaidentifier:", client.mbaidentifier)
-          form.setValue("mbaidentifier", client.mbaidentifier || "")
+          const nextMbaId = client.mbaidentifier || ""
+          if (form.getValues("mbaidentifier") !== nextMbaId) {
+            form.setValue("mbaidentifier", nextMbaId)
+          }
           
           console.log("[CLIENT LOOKUP] Client fees loaded:", {
             feesearch: client.feesearch,
@@ -3164,7 +3160,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     }
 
     loadAllLineItems()
-  }, [mbaNumber, mediaPlan?.version_number, versionNumber, form, enabledMediaFlagsFingerprint])
+  }, [mbaNumber, mediaPlan?.version_number, versionNumber, enabledMediaFlagsFingerprint])
 
   const handleClientSelect = (client: Client | null) => {
     if (client) {
@@ -3174,90 +3170,91 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     }
   };
 
-  const handleSearchBurstsChange = useCallback((bursts) => {
-    setSearchBursts(bursts)
+  const handleSearchBurstsChange = useCallback((bursts: any[]) => {
+    setIfChanged(setSearchBursts, bursts)
   }, [])
 
-  const handleSocialMediaBurstsChange = useCallback((bursts) => {
-    setSocialMediaBursts(bursts)
+  const handleSocialMediaBurstsChange = useCallback((bursts: any[]) => {
+    setIfChanged(setSocialMediaBursts, bursts)
   }, [])
 
   // Burst change handlers for all media types (matching create page pattern)
   const handleTelevisionBurstsChange = useCallback((bursts: any[]) => {
-    setTelevisionBursts(bursts)
+    setIfChanged(setTelevisionBursts, bursts)
   }, [])
 
   const handleRadioBurstsChange = useCallback((bursts: any[]) => {
-    setRadioBursts(bursts)
+    setIfChanged(setRadioBursts, bursts)
   }, [])
 
   const handleNewspaperBurstsChange = useCallback((bursts: any[]) => {
-    setNewspaperBursts(bursts)
+    setIfChanged(setNewspaperBursts, bursts)
   }, [])
 
   const handleMagazinesBurstsChange = useCallback((bursts: any[]) => {
-    setMagazinesBursts(bursts)
+    setIfChanged(setMagazinesBursts, bursts)
   }, [])
 
   const handleOohBurstsChange = useCallback((bursts: any[]) => {
-    setOohBursts(bursts)
+    setIfChanged(setOohBursts, bursts)
   }, [])
 
   const handleCinemaBurstsChange = useCallback((bursts: any[]) => {
-    setCinemaBursts(bursts)
+    setIfChanged(setCinemaBursts, bursts)
   }, [])
 
   const handleDigitalDisplayBurstsChange = useCallback((bursts: any[]) => {
-    setDigitalDisplayBursts(bursts)
+    setIfChanged(setDigitalDisplayBursts, bursts)
   }, [])
 
   const handleDigitalAudioBurstsChange = useCallback((bursts: any[]) => {
-    setDigitalAudioBursts(bursts)
+    setIfChanged(setDigitalAudioBursts, bursts)
   }, [])
 
   const handleDigitalVideoBurstsChange = useCallback((bursts: any[]) => {
-    setDigitalVideoBursts(bursts)
+    setIfChanged(setDigitalVideoBursts, bursts)
   }, [])
 
   const handleBvodBurstsChange = useCallback((bursts: any[]) => {
-    setBvodBursts(bursts)
+    setIfChanged(setBvodBursts, bursts)
   }, [])
 
   const handleIntegrationBurstsChange = useCallback((bursts: any[]) => {
-    setIntegrationBursts(bursts)
+    setIfChanged(setIntegrationBursts, bursts)
   }, [])
 
   const handleProductionBurstsChange = useCallback((bursts: any[]) => {
-    setProductionBursts(bursts)
+    setIfChanged(setProductionBursts, bursts)
   }, [])
 
   const handleProgDisplayBurstsChange = useCallback((bursts: any[]) => {
-    setProgDisplayBursts(bursts)
+    setIfChanged(setProgDisplayBursts, bursts)
   }, [])
 
   const handleProgVideoBurstsChange = useCallback((bursts: any[]) => {
-    setProgVideoBursts(bursts)
+    setIfChanged(setProgVideoBursts, bursts)
   }, [])
 
   const handleProgBvodBurstsChange = useCallback((bursts: any[]) => {
-    setProgBvodBursts(bursts)
+    setIfChanged(setProgBvodBursts, bursts)
   }, [])
 
   const handleProgAudioBurstsChange = useCallback((bursts: any[]) => {
-    setProgAudioBursts(bursts)
+    setIfChanged(setProgAudioBursts, bursts)
   }, [])
 
   const handleProgOohBurstsChange = useCallback((bursts: any[]) => {
-    setProgOohBursts(bursts)
+    setIfChanged(setProgOohBursts, bursts)
   }, [])
 
   const handleInfluencersBurstsChange = useCallback((bursts: any[]) => {
-    setInfluencersBursts(bursts)
+    setIfChanged(setInfluencersBursts, bursts)
   }, [])
 
   const handleInvestmentChange = useCallback((investmentByMonth) => {
-    markUnsavedChanges()
-    setInvestmentPerMonth(investmentByMonth)
+    if (setIfChanged(setInvestmentPerMonth, investmentByMonth)) {
+      markUnsavedChanges()
+    }
     // Billing rows are not regenerated from investment on the main page — use Edit Billing for any reset/rebuild.
   }, [markUnsavedChanges])
 
@@ -4185,7 +4182,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
     return monthsWithLineItems
   }, [
-    form,
+    form.control,
     televisionMediaLineItems,
     radioMediaLineItems,
     newspaperMediaLineItems,
@@ -4255,20 +4252,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     })
   }, [handleResetBillingScheduleToAuto])
 
-  const mediaFlagsForBillingStructure = useWatch({
-    control: form.control,
-    name: [...MEDIA_TYPE_KEYS],
-  })
-
   const billingPlanStructureKey = useMemo(() => {
-    const watched = mediaFlagsForBillingStructure
-    const flagValues = MEDIA_TYPE_KEYS.reduce<Partial<Record<MediaTypeKey, boolean>>>(
-      (acc, key, i) => {
-        acc[key] = Array.isArray(watched) ? watched[i] : undefined
-        return acc
-      },
-      {}
-    )
+    const flagValues = mediaFlagMap
     const parts: string[] = []
     const seg = (flag: MediaTypeKey, key: string, items: any[]) => {
       if (!flagValues[flag]) return
@@ -4312,7 +4297,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     seg("mp_influencers", "influencers", influencersMediaLineItems)
     return parts.join("|")
   }, [
-    mediaFlagsForBillingStructure,
+    mediaFlagMap,
     televisionMediaLineItems,
     radioMediaLineItems,
     newspaperMediaLineItems,
@@ -5742,7 +5727,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
       finalVisibleMedia = mediaTypes
         .filter(medium => medium.name !== "mp_production")
-        .filter(medium => form.watch(medium.name as keyof MediaPlanFormValues))
+        .filter(medium => Boolean(fv[medium.name as keyof MediaPlanFormValues]))
         .map(medium => {
           const billingKey = mediaKeyMap[medium.name]
           const gross_amount =
@@ -5901,7 +5886,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           })
           .filter((item): item is { media_type: string; gross_amount: number } => item !== null)
       : mediaTypes
-          .filter(medium => form.watch(medium.name as keyof MediaPlanFormValues))
+          .filter(medium => Boolean(fv[medium.name as keyof MediaPlanFormValues]))
           .map(medium => ({
             media_type: medium.label,
             gross_amount: calculateMediaTotal(medium.name),
@@ -6183,201 +6168,216 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   }
 
   const handleSearchTotalChange = useCallback((totalMedia: number, totalFee: number) => {
-    markUnsavedChanges();
-    setSearchTotal(totalMedia)
-    setSearchFeeTotal(totalFee)
+    const c1 = setIfChanged(setSearchTotal, totalMedia)
+    const c2 = setIfChanged(setSearchFeeTotal, totalFee)
+    if (c1 || c2) markUnsavedChanges()
   }, [markUnsavedChanges])
 
   const handleSocialMediaTotalChange = useCallback((totalMedia: number, totalFee: number) => {
-    markUnsavedChanges();
-    setSocialMediaTotal(totalMedia)
-    setSocialMediaFeeTotal(totalFee)
+    const c1 = setIfChanged(setSocialMediaTotal, totalMedia)
+    const c2 = setIfChanged(setSocialMediaFeeTotal, totalFee)
+    if (c1 || c2) markUnsavedChanges()
   }, [markUnsavedChanges])
 
   // Callback handlers for all media type totals (matching create page pattern)
   const handleTelevisionTotalChange = useCallback((totalMedia: number, totalFee: number) => {
-    markUnsavedChanges();
-    setTelevisionTotal(totalMedia)
-    setTelevisionFeeTotal(totalFee)
+    const c1 = setIfChanged(setTelevisionTotal, totalMedia)
+    const c2 = setIfChanged(setTelevisionFeeTotal, totalFee)
+    if (c1 || c2) markUnsavedChanges()
   }, [markUnsavedChanges])
 
   const handleRadioTotalChange = useCallback((totalMedia: number, totalFee: number) => {
-    markUnsavedChanges();
-    setRadioTotal(totalMedia)
-    setRadioFeeTotal(totalFee)
+    const c1 = setIfChanged(setRadioTotal, totalMedia)
+    const c2 = setIfChanged(setRadioFeeTotal, totalFee)
+    if (c1 || c2) markUnsavedChanges()
   }, [markUnsavedChanges])
 
   const handleNewspaperTotalChange = useCallback((totalMedia: number, totalFee: number) => {
-    markUnsavedChanges();
-    setNewspaperTotal(totalMedia)
-    setNewspaperFeeTotal(totalFee)
+    const c1 = setIfChanged(setNewspaperTotal, totalMedia)
+    const c2 = setIfChanged(setNewspaperFeeTotal, totalFee)
+    if (c1 || c2) markUnsavedChanges()
   }, [markUnsavedChanges])
 
   const handleMagazinesTotalChange = useCallback((totalMedia: number, totalFee: number) => {
-    markUnsavedChanges();
-    setMagazinesTotal(totalMedia)
-    setMagazinesFeeTotal(totalFee)
+    const c1 = setIfChanged(setMagazinesTotal, totalMedia)
+    const c2 = setIfChanged(setMagazinesFeeTotal, totalFee)
+    if (c1 || c2) markUnsavedChanges()
   }, [markUnsavedChanges])
 
   const handleOohTotalChange = useCallback((totalMedia: number, totalFee: number) => {
-    markUnsavedChanges();
-    setOohTotal(totalMedia)
-    setOohFeeTotal(totalFee)
+    const c1 = setIfChanged(setOohTotal, totalMedia)
+    const c2 = setIfChanged(setOohFeeTotal, totalFee)
+    if (c1 || c2) markUnsavedChanges()
   }, [markUnsavedChanges])
 
   const handleCinemaTotalChange = useCallback((totalMedia: number, totalFee: number) => {
-    markUnsavedChanges();
-    setCinemaTotal(totalMedia)
-    setCinemaFeeTotal(totalFee)
+    const c1 = setIfChanged(setCinemaTotal, totalMedia)
+    const c2 = setIfChanged(setCinemaFeeTotal, totalFee)
+    if (c1 || c2) markUnsavedChanges()
   }, [markUnsavedChanges])
 
   const handleDigitalDisplayTotalChange = useCallback((totalMedia: number, totalFee: number) => {
-    markUnsavedChanges();
-    setDigitalDisplayTotal(totalMedia)
-    setDigitalDisplayFeeTotal(totalFee)
+    const c1 = setIfChanged(setDigitalDisplayTotal, totalMedia)
+    const c2 = setIfChanged(setDigitalDisplayFeeTotal, totalFee)
+    if (c1 || c2) markUnsavedChanges()
   }, [markUnsavedChanges])
 
   const handleDigitalAudioTotalChange = useCallback((totalMedia: number, totalFee: number) => {
-    markUnsavedChanges();
-    setDigitalAudioTotal(totalMedia)
-    setDigitalAudioFeeTotal(totalFee)
+    const c1 = setIfChanged(setDigitalAudioTotal, totalMedia)
+    const c2 = setIfChanged(setDigitalAudioFeeTotal, totalFee)
+    if (c1 || c2) markUnsavedChanges()
   }, [markUnsavedChanges])
 
   const handleDigitalVideoTotalChange = useCallback((totalMedia: number, totalFee: number) => {
-    markUnsavedChanges();
-    setDigitalVideoTotal(totalMedia)
-    setDigitalVideoFeeTotal(totalFee)
+    const c1 = setIfChanged(setDigitalVideoTotal, totalMedia)
+    const c2 = setIfChanged(setDigitalVideoFeeTotal, totalFee)
+    if (c1 || c2) markUnsavedChanges()
   }, [markUnsavedChanges])
 
   const handleBvodTotalChange = useCallback((totalMedia: number, totalFee: number) => {
-    markUnsavedChanges();
-    setBvodTotal(totalMedia)
-    setBvodFeeTotal(totalFee)
+    const c1 = setIfChanged(setBvodTotal, totalMedia)
+    const c2 = setIfChanged(setBvodFeeTotal, totalFee)
+    if (c1 || c2) markUnsavedChanges()
   }, [markUnsavedChanges])
 
   const handleIntegrationTotalChange = useCallback((totalMedia: number, totalFee: number) => {
-    markUnsavedChanges();
-    setIntegrationTotal(totalMedia)
-    setIntegrationFeeTotal(totalFee)
+    const c1 = setIfChanged(setIntegrationTotal, totalMedia)
+    const c2 = setIfChanged(setIntegrationFeeTotal, totalFee)
+    if (c1 || c2) markUnsavedChanges()
   }, [markUnsavedChanges])
 
   const handleProductionTotalChange = useCallback((totalMedia: number, totalFee: number) => {
-    markUnsavedChanges();
-    setProductionTotal(totalMedia)
-    setProductionFeeTotal(totalFee)
+    const c1 = setIfChanged(setProductionTotal, totalMedia)
+    const c2 = setIfChanged(setProductionFeeTotal, totalFee)
+    if (c1 || c2) markUnsavedChanges()
   }, [markUnsavedChanges])
 
   const handleProgDisplayTotalChange = useCallback((totalMedia: number, totalFee: number) => {
-    markUnsavedChanges();
-    setProgDisplayTotal(totalMedia)
-    setProgDisplayFeeTotal(totalFee)
+    const c1 = setIfChanged(setProgDisplayTotal, totalMedia)
+    const c2 = setIfChanged(setProgDisplayFeeTotal, totalFee)
+    if (c1 || c2) markUnsavedChanges()
   }, [markUnsavedChanges])
 
   const handleProgVideoTotalChange = useCallback((totalMedia: number, totalFee: number) => {
-    markUnsavedChanges();
-    setProgVideoTotal(totalMedia)
-    setProgVideoFeeTotal(totalFee)
+    const c1 = setIfChanged(setProgVideoTotal, totalMedia)
+    const c2 = setIfChanged(setProgVideoFeeTotal, totalFee)
+    if (c1 || c2) markUnsavedChanges()
   }, [markUnsavedChanges])
 
   const handleProgBvodTotalChange = useCallback((totalMedia: number, totalFee: number) => {
-    markUnsavedChanges();
-    setProgBvodTotal(totalMedia)
-    setProgBvodFeeTotal(totalFee)
+    const c1 = setIfChanged(setProgBvodTotal, totalMedia)
+    const c2 = setIfChanged(setProgBvodFeeTotal, totalFee)
+    if (c1 || c2) markUnsavedChanges()
   }, [markUnsavedChanges])
 
   const handleProgAudioTotalChange = useCallback((totalMedia: number, totalFee: number) => {
-    markUnsavedChanges();
-    setProgAudioTotal(totalMedia)
-    setProgAudioFeeTotal(totalFee)
+    const c1 = setIfChanged(setProgAudioTotal, totalMedia)
+    const c2 = setIfChanged(setProgAudioFeeTotal, totalFee)
+    if (c1 || c2) markUnsavedChanges()
   }, [markUnsavedChanges])
 
   const handleProgOohTotalChange = useCallback((totalMedia: number, totalFee: number) => {
-    markUnsavedChanges();
-    setProgOohTotal(totalMedia)
-    setProgOohFeeTotal(totalFee)
+    const c1 = setIfChanged(setProgOohTotal, totalMedia)
+    const c2 = setIfChanged(setProgOohFeeTotal, totalFee)
+    if (c1 || c2) markUnsavedChanges()
   }, [markUnsavedChanges])
 
   const handleInfluencersTotalChange = useCallback((totalMedia: number, totalFee: number) => {
-    markUnsavedChanges();
-    setInfluencersTotal(totalMedia)
-    setInfluencersFeeTotal(totalFee)
+    const c1 = setIfChanged(setInfluencersTotal, totalMedia)
+    const c2 = setIfChanged(setInfluencersFeeTotal, totalFee)
+    if (c1 || c2) markUnsavedChanges()
   }, [markUnsavedChanges])
 
   // Callback handlers for media line items
   const handleTelevisionMediaLineItemsChange = useCallback((lineItems: any[]) => {
-    markUnsavedChanges();
-    setTelevisionMediaLineItems(lineItems);
-  }, [markUnsavedChanges]);
+    if (setIfChanged(setTelevisionMediaLineItems, lineItems)) {
+      markUnsavedChanges()
+    }
+  }, [markUnsavedChanges])
 
   const handleRadioMediaLineItemsChange = useCallback((lineItems: any[]) => {
-    markUnsavedChanges();
-    setRadioMediaLineItems(lineItems);
-  }, [markUnsavedChanges]);
+    if (setIfChanged(setRadioMediaLineItems, lineItems)) {
+      markUnsavedChanges()
+    }
+  }, [markUnsavedChanges])
 
   const handleNewspaperMediaLineItemsChange = useCallback((lineItems: any[]) => {
-    markUnsavedChanges();
-    setNewspaperMediaLineItems(lineItems);
-  }, [markUnsavedChanges]);
+    if (setIfChanged(setNewspaperMediaLineItems, lineItems)) {
+      markUnsavedChanges()
+    }
+  }, [markUnsavedChanges])
 
   const handleMagazinesMediaLineItemsChange = useCallback((lineItems: any[]) => {
-    markUnsavedChanges();
-    setMagazinesMediaLineItems(lineItems);
-  }, [markUnsavedChanges]);
+    if (setIfChanged(setMagazinesMediaLineItems, lineItems)) {
+      markUnsavedChanges()
+    }
+  }, [markUnsavedChanges])
 
   const handleOohMediaLineItemsChange = useCallback((lineItems: any[]) => {
-    markUnsavedChanges();
-    setOohMediaLineItems(lineItems);
-  }, [markUnsavedChanges]);
+    if (setIfChanged(setOohMediaLineItems, lineItems)) {
+      markUnsavedChanges()
+    }
+  }, [markUnsavedChanges])
 
   const handleCinemaMediaLineItemsChange = useCallback((lineItems: any[]) => {
-    markUnsavedChanges();
-    setCinemaMediaLineItems(lineItems);
-  }, [markUnsavedChanges]);
+    if (setIfChanged(setCinemaMediaLineItems, lineItems)) {
+      markUnsavedChanges()
+    }
+  }, [markUnsavedChanges])
 
   const handleDigitalDisplayMediaLineItemsChange = useCallback((lineItems: any[]) => {
-    markUnsavedChanges();
-    setDigitalDisplayMediaLineItems(lineItems);
-  }, [markUnsavedChanges]);
+    if (setIfChanged(setDigitalDisplayMediaLineItems, lineItems)) {
+      markUnsavedChanges()
+    }
+  }, [markUnsavedChanges])
 
   const handleDigitalAudioMediaLineItemsChange = useCallback((lineItems: any[]) => {
-    markUnsavedChanges();
-    setDigitalAudioMediaLineItems(lineItems);
-  }, [markUnsavedChanges]);
+    if (setIfChanged(setDigitalAudioMediaLineItems, lineItems)) {
+      markUnsavedChanges()
+    }
+  }, [markUnsavedChanges])
 
   const handleDigitalVideoMediaLineItemsChange = useCallback((lineItems: any[]) => {
-    markUnsavedChanges();
-    setDigitalVideoMediaLineItems(lineItems);
-  }, [markUnsavedChanges]);
+    if (setIfChanged(setDigitalVideoMediaLineItems, lineItems)) {
+      markUnsavedChanges()
+    }
+  }, [markUnsavedChanges])
 
   const handleBvodMediaLineItemsChange = useCallback((lineItems: any[]) => {
-    markUnsavedChanges();
-    setBvodMediaLineItems(lineItems);
-  }, [markUnsavedChanges]);
+    if (setIfChanged(setBvodMediaLineItems, lineItems)) {
+      markUnsavedChanges()
+    }
+  }, [markUnsavedChanges])
 
   const handleIntegrationMediaLineItemsChange = useCallback((lineItems: any[]) => {
-    markUnsavedChanges();
-    setIntegrationMediaLineItems(lineItems);
-  }, [markUnsavedChanges]);
+    if (setIfChanged(setIntegrationMediaLineItems, lineItems)) {
+      markUnsavedChanges()
+    }
+  }, [markUnsavedChanges])
 
   const handleProductionLineItemsChange = useCallback((lineItems: LineItem[] | any[]) => {
-    markUnsavedChanges();
-    setProductionLineItems(lineItems);
-  }, [markUnsavedChanges]);
+    if (setIfChanged(setProductionLineItems, lineItems)) {
+      markUnsavedChanges()
+    }
+  }, [markUnsavedChanges])
 
   const handleSearchMediaLineItemsChange = useCallback((lineItems: any[]) => {
-    markUnsavedChanges();
-    setSearchMediaLineItems(lineItems);
-  }, [markUnsavedChanges]);
+    if (setIfChanged(setSearchMediaLineItems, lineItems)) {
+      markUnsavedChanges()
+    }
+  }, [markUnsavedChanges])
 
   const handleSocialMediaMediaLineItemsChange = useCallback((lineItems: any[]) => {
-    markUnsavedChanges();
-    setSocialMediaMediaLineItems(lineItems);
-  }, [markUnsavedChanges]);
+    if (setIfChanged(setSocialMediaMediaLineItems, lineItems)) {
+      markUnsavedChanges()
+    }
+  }, [markUnsavedChanges])
 
   const handleProgDisplayMediaLineItemsChange = useCallback((lineItems: any[]) => {
-    markUnsavedChanges();
-    setProgDisplayMediaLineItems(lineItems);
-  }, [markUnsavedChanges]);
+    if (setIfChanged(setProgDisplayMediaLineItems, lineItems)) {
+      markUnsavedChanges()
+    }
+  }, [markUnsavedChanges])
 
   // Ensure Programmatic Display payload always contains the full set of fields
   const buildProgDisplayPayload = useCallback(
@@ -6415,125 +6415,149 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   );
 
   const handleProgVideoMediaLineItemsChange = useCallback((lineItems: any[]) => {
-    markUnsavedChanges();
-    setProgVideoMediaLineItems(lineItems);
-  }, [markUnsavedChanges]);
+    if (setIfChanged(setProgVideoMediaLineItems, lineItems)) {
+      markUnsavedChanges()
+    }
+  }, [markUnsavedChanges])
 
   const handleProgBvodMediaLineItemsChange = useCallback((lineItems: any[]) => {
-    markUnsavedChanges();
-    setProgBvodMediaLineItems(lineItems);
-  }, [markUnsavedChanges]);
+    if (setIfChanged(setProgBvodMediaLineItems, lineItems)) {
+      markUnsavedChanges()
+    }
+  }, [markUnsavedChanges])
 
   const handleProgAudioMediaLineItemsChange = useCallback((lineItems: any[]) => {
-    markUnsavedChanges();
-    setProgAudioMediaLineItems(lineItems);
-  }, [markUnsavedChanges]);
+    if (setIfChanged(setProgAudioMediaLineItems, lineItems)) {
+      markUnsavedChanges()
+    }
+  }, [markUnsavedChanges])
 
   const handleProgOohMediaLineItemsChange = useCallback((lineItems: any[]) => {
-    markUnsavedChanges();
-    setProgOohMediaLineItems(lineItems);
-  }, [markUnsavedChanges]);
+    if (setIfChanged(setProgOohMediaLineItems, lineItems)) {
+      markUnsavedChanges()
+    }
+  }, [markUnsavedChanges])
 
   const handleInfluencersMediaLineItemsChange = useCallback((lineItems: any[]) => {
-    markUnsavedChanges();
-    setInfluencersMediaLineItems(lineItems);
-  }, [markUnsavedChanges]);
+    if (setIfChanged(setInfluencersMediaLineItems, lineItems)) {
+      markUnsavedChanges()
+    }
+  }, [markUnsavedChanges])
 
   // Callback handlers for LineItem[] arrays (for Excel generation)
   const handleSearchItemsChange = useCallback((items: LineItem[]) => {
-    markUnsavedChanges();
-    setSearchItems(items);
-  }, [markUnsavedChanges]);
+    if (setIfChanged(setSearchItems, items)) {
+      markUnsavedChanges()
+    }
+  }, [markUnsavedChanges])
 
   const handleSocialMediaItemsChange = useCallback((items: LineItem[]) => {
-    markUnsavedChanges();
-    setSocialMediaItems(items);
-  }, [markUnsavedChanges]);
+    if (setIfChanged(setSocialMediaItems, items)) {
+      markUnsavedChanges()
+    }
+  }, [markUnsavedChanges])
 
   const handleTelevisionItemsChange = useCallback((items: LineItem[]) => {
-    markUnsavedChanges();
-    setTelevisionItems(items);
-  }, [markUnsavedChanges]);
+    if (setIfChanged(setTelevisionItems, items)) {
+      markUnsavedChanges()
+    }
+  }, [markUnsavedChanges])
 
   const handleRadioItemsChange = useCallback((items: LineItem[]) => {
-    markUnsavedChanges();
-    setRadioItems(items);
-  }, [markUnsavedChanges]);
+    if (setIfChanged(setRadioItems, items)) {
+      markUnsavedChanges()
+    }
+  }, [markUnsavedChanges])
 
   const handleNewspaperItemsChange = useCallback((items: LineItem[]) => {
-    markUnsavedChanges();
-    setNewspaperItems(items);
-  }, [markUnsavedChanges]);
+    if (setIfChanged(setNewspaperItems, items)) {
+      markUnsavedChanges()
+    }
+  }, [markUnsavedChanges])
 
   const handleMagazinesItemsChange = useCallback((items: LineItem[]) => {
-    markUnsavedChanges();
-    setMagazinesItems(items);
-  }, [markUnsavedChanges]);
+    if (setIfChanged(setMagazinesItems, items)) {
+      markUnsavedChanges()
+    }
+  }, [markUnsavedChanges])
 
   const handleOohItemsChange = useCallback((items: LineItem[]) => {
-    markUnsavedChanges();
-    setOohItems(items);
-  }, [markUnsavedChanges]);
+    if (setIfChanged(setOohItems, items)) {
+      markUnsavedChanges()
+    }
+  }, [markUnsavedChanges])
 
   const handleCinemaItemsChange = useCallback((items: LineItem[]) => {
-    markUnsavedChanges();
-    setCinemaItems(items);
-  }, [markUnsavedChanges]);
+    if (setIfChanged(setCinemaItems, items)) {
+      markUnsavedChanges()
+    }
+  }, [markUnsavedChanges])
 
   const handleDigitalDisplayItemsChange = useCallback((items: LineItem[]) => {
-    markUnsavedChanges();
-    setDigitalDisplayItems(items);
-  }, [markUnsavedChanges]);
+    if (setIfChanged(setDigitalDisplayItems, items)) {
+      markUnsavedChanges()
+    }
+  }, [markUnsavedChanges])
 
   const handleDigitalAudioItemsChange = useCallback((items: LineItem[]) => {
-    markUnsavedChanges();
-    setDigitalAudioItems(items);
-  }, [markUnsavedChanges]);
+    if (setIfChanged(setDigitalAudioItems, items)) {
+      markUnsavedChanges()
+    }
+  }, [markUnsavedChanges])
 
   const handleDigitalVideoItemsChange = useCallback((items: LineItem[]) => {
-    markUnsavedChanges();
-    setDigitalVideoItems(items);
-  }, [markUnsavedChanges]);
+    if (setIfChanged(setDigitalVideoItems, items)) {
+      markUnsavedChanges()
+    }
+  }, [markUnsavedChanges])
 
   const handleBvodItemsChange = useCallback((items: LineItem[]) => {
-    markUnsavedChanges();
-    setBvodItems(items);
-  }, [markUnsavedChanges]);
+    if (setIfChanged(setBvodItems, items)) {
+      markUnsavedChanges()
+    }
+  }, [markUnsavedChanges])
 
   const handleIntegrationItemsChange = useCallback((items: LineItem[]) => {
-    markUnsavedChanges();
-    setIntegrationItems(items);
-  }, [markUnsavedChanges]);
+    if (setIfChanged(setIntegrationItems, items)) {
+      markUnsavedChanges()
+    }
+  }, [markUnsavedChanges])
 
   const handleInfluencersItemsChange = useCallback((items: LineItem[]) => {
-    markUnsavedChanges();
-    setInfluencersItems(items);
-  }, [markUnsavedChanges]);
+    if (setIfChanged(setInfluencersItems, items)) {
+      markUnsavedChanges()
+    }
+  }, [markUnsavedChanges])
 
   const handleProgDisplayItemsChange = useCallback((items: LineItem[]) => {
-    markUnsavedChanges();
-    setProgDisplayItems(items);
-  }, [markUnsavedChanges]);
+    if (setIfChanged(setProgDisplayItems, items)) {
+      markUnsavedChanges()
+    }
+  }, [markUnsavedChanges])
 
   const handleProgVideoItemsChange = useCallback((items: LineItem[]) => {
-    markUnsavedChanges();
-    setProgVideoItems(items);
-  }, [markUnsavedChanges]);
+    if (setIfChanged(setProgVideoItems, items)) {
+      markUnsavedChanges()
+    }
+  }, [markUnsavedChanges])
 
   const handleProgBvodItemsChange = useCallback((items: LineItem[]) => {
-    markUnsavedChanges();
-    setProgBvodItems(items);
-  }, [markUnsavedChanges]);
+    if (setIfChanged(setProgBvodItems, items)) {
+      markUnsavedChanges()
+    }
+  }, [markUnsavedChanges])
 
   const handleProgAudioItemsChange = useCallback((items: LineItem[]) => {
-    markUnsavedChanges();
-    setProgAudioItems(items);
-  }, [markUnsavedChanges]);
+    if (setIfChanged(setProgAudioItems, items)) {
+      markUnsavedChanges()
+    }
+  }, [markUnsavedChanges])
 
   const handleProgOohItemsChange = useCallback((items: LineItem[]) => {
-    markUnsavedChanges();
-    setProgOohItems(items);
-  }, [markUnsavedChanges]);
+    if (setIfChanged(setProgOohItems, items)) {
+      markUnsavedChanges()
+    }
+  }, [markUnsavedChanges])
 
   const calculateAssembledFee = useCallback((): number => {
     if (workingBillingMonths.length > 0) {
@@ -6762,7 +6786,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
     const enabledMediaRows = mediaTypes
       .filter((m) => m.name !== "mp_production")
-      .filter((m) => form.watch(m.name as keyof MediaPlanFormValues) && m.component)
+      .filter((m) => mediaFlagMap[m.name as MediaTypeKey] && m.component)
       .map((m) => ({ ...m, mediaKey: mediaKeyMap[m.name] }))
       .filter((m) => Boolean((m as any).mediaKey))
 
@@ -6806,7 +6830,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
     const enabledMediaRows = mediaTypes
       .filter((m) => m.name !== "mp_production")
-      .filter((m) => form.watch(m.name as keyof MediaPlanFormValues) && m.component)
+      .filter((m) => mediaFlagMap[m.name as MediaTypeKey] && m.component)
       .map((m) => ({ ...m, mediaKey: mediaKeyMap[m.name] }))
       .filter((m) => Boolean((m as any).mediaKey))
 
@@ -6954,7 +6978,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
     const enabledMediaRows = mediaTypes
       .filter((m) => m.name !== "mp_production")
-      .filter((m) => form.watch(m.name as keyof MediaPlanFormValues) && m.component)
+      .filter((m) => mediaFlagMap[m.name as MediaTypeKey] && m.component)
       .map((m) => ({ ...m, mediaKey: mediaKeyMap[m.name] }))
       .filter((m) => Boolean((m as any).mediaKey))
 
@@ -7097,6 +7121,13 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         attachLineItemsToMonths,
         followAuto ? { resyncExistingFromTemplate: true } : undefined
       )
+      if (JSON.stringify(merged) === JSON.stringify(source)) {
+        billingAppendDebug("append skipped: merged deep-equals working snapshot", {
+          billingPlanStructureKey,
+          workingMonths: source.length,
+        })
+        return
+      }
       setWorkingBillingMonths(merged)
       workingBillingMonthsRef.current = merged
 
@@ -7117,7 +7148,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     attachLineItemsToMonths,
     calculateBillingSchedule,
     isManualBilling,
-    form,
     televisionMediaLineItems,
     radioMediaLineItems,
     newspaperMediaLineItems,
@@ -7830,29 +7860,38 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Media Types</h3>
             </div>
             <div className="grid min-h-0 w-full flex-1 grid-cols-1 content-start gap-x-3 gap-y-1.5 px-6 py-4 md:grid-cols-2">
-              {mediaTypes.map(({ name, label }) => (
-                <FormField
-                  key={name}
-                  control={form.control}
-                  name={name as FormFieldName}
-                  render={({ field }) => (
-                    <FormItem className="flex items-center gap-3 space-y-0 py-0.5">
-                      <FormControl className="shrink-0">
+              {mediaTypes.map(({ name, label }) => {
+                const switchId = `media-type-${name}`
+                return (
+                  <div key={name} className="flex items-center gap-3 py-0.5">
+                    <Controller
+                      control={form.control}
+                      name={name as FormFieldName}
+                      render={({ field }) => (
                         <Switch
-                          checked={field.value as boolean}
+                          id={switchId}
+                          className="shrink-0"
+                          checked={!!field.value}
                           onCheckedChange={(checked) => {
-                            field.onChange(checked)
-                            if (name === "mp_production") {
-                              form.setValue("mp_production", checked, { shouldDirty: true })
-                            }
+                            const next = Boolean(checked)
+                            if (next === Boolean(field.value)) return
+                            field.onChange(next)
                           }}
+                          onBlur={field.onBlur}
+                          disabled={field.disabled}
+                          ref={field.ref}
                         />
-                      </FormControl>
-                      <FormLabel className="font-normal leading-snug min-w-0 flex-1 cursor-pointer">{label}</FormLabel>
-                    </FormItem>
-                  )}
-                />
-              ))}
+                      )}
+                    />
+                    <Label
+                      htmlFor={switchId}
+                      className="font-normal leading-snug min-w-0 flex-1 cursor-pointer"
+                    >
+                      {label}
+                    </Label>
+                  </div>
+                )
+              })}
             </div>
           </div>
           </div>
@@ -7891,7 +7930,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                     <>
                       {mediaTypes
                         .filter((medium) => medium.name !== "mp_production")
-                        .filter((medium) => form.watch(medium.name as FormFieldName))
+                        .filter((medium) => mediaFlagMap[medium.name as MediaTypeKey])
                         .map((medium) => {
                           const mediaKey = mediaKeyMap[medium.name];
                           const total = isPartialMBA
@@ -8070,7 +8109,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             <div className="space-y-4">
               {/* Media Containers */}
               {mediaTypes.map((medium) => {
-                if (!form.watch(medium.name as any)) return null;
+                if (!mediaFlagMap[medium.name as MediaTypeKey]) return null;
                 
                 return (
                   <div key={medium.name} id={`media-section-${medium.name}`} className="mt-4 scroll-mt-24">
@@ -8085,9 +8124,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                           onLineItemsChange={handleTelevisionItemsChange}
                           onTelevisionLineItemsChange={handleTelevisionMediaLineItemsChange}
                           onMediaLineItemsChange={handleTelevisionMediaLineItemsChange}
-                          campaignStartDate={form.watch("mp_campaigndates_start")}
-                          campaignEndDate={form.watch("mp_campaigndates_end")}
-                          campaignBudget={form.watch("mp_campaignbudget")}
+                          campaignStartDate={campaignStartDate}
+                          campaignEndDate={campaignEndDate}
+                          campaignBudget={campaignBudget}
                           campaignId={mbaNumber}
                           mediaTypes={["television"]}
                           initialLineItems={televisionLineItems}
@@ -8102,9 +8141,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={handleRadioItemsChange}
                           onMediaLineItemsChange={handleRadioMediaLineItemsChange}
-                          campaignStartDate={form.watch("mp_campaigndates_start")}
-                          campaignEndDate={form.watch("mp_campaigndates_end")}
-                          campaignBudget={form.watch("mp_campaignbudget")}
+                          campaignStartDate={campaignStartDate}
+                          campaignEndDate={campaignEndDate}
+                          campaignBudget={campaignBudget}
                           campaignId={mbaNumber}
                           mediaTypes={["radio"]}
                           initialLineItems={radioLineItems}
@@ -8120,9 +8159,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                           onLineItemsChange={handleNewspaperItemsChange}
                           onNewspaperLineItemsChange={() => {}}
                           onMediaLineItemsChange={handleNewspaperMediaLineItemsChange}
-                          campaignStartDate={form.watch("mp_campaigndates_start")}
-                          campaignEndDate={form.watch("mp_campaigndates_end")}
-                          campaignBudget={form.watch("mp_campaignbudget")}
+                          campaignStartDate={campaignStartDate}
+                          campaignEndDate={campaignEndDate}
+                          campaignBudget={campaignBudget}
                           campaignId={mbaNumber}
                           mediaTypes={["newspaper"]}
                           initialLineItems={newspaperLineItems}
@@ -8137,9 +8176,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={handleMagazinesItemsChange}
                           onMediaLineItemsChange={handleMagazinesMediaLineItemsChange}
-                          campaignStartDate={form.watch("mp_campaigndates_start")}
-                          campaignEndDate={form.watch("mp_campaigndates_end")}
-                          campaignBudget={form.watch("mp_campaignbudget")}
+                          campaignStartDate={campaignStartDate}
+                          campaignEndDate={campaignEndDate}
+                          campaignBudget={campaignBudget}
                           campaignId={mbaNumber}
                           mediaTypes={["magazines"]}
                           initialLineItems={magazinesLineItems}
@@ -8154,9 +8193,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={handleOohItemsChange}
                           onMediaLineItemsChange={handleOohMediaLineItemsChange}
-                          campaignStartDate={form.watch("mp_campaigndates_start")}
-                          campaignEndDate={form.watch("mp_campaigndates_end")}
-                          campaignBudget={form.watch("mp_campaignbudget")}
+                          campaignStartDate={campaignStartDate}
+                          campaignEndDate={campaignEndDate}
+                          campaignBudget={campaignBudget}
                           campaignId={mbaNumber}
                           mediaTypes={["ooh"]}
                           initialLineItems={oohLineItems}
@@ -8171,9 +8210,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={handleCinemaItemsChange}
                           onMediaLineItemsChange={handleCinemaMediaLineItemsChange}
-                          campaignStartDate={form.watch("mp_campaigndates_start")}
-                          campaignEndDate={form.watch("mp_campaigndates_end")}
-                          campaignBudget={form.watch("mp_campaignbudget")}
+                          campaignStartDate={campaignStartDate}
+                          campaignEndDate={campaignEndDate}
+                          campaignBudget={campaignBudget}
                           campaignId={mbaNumber}
                           mediaTypes={["cinema"]}
                           initialLineItems={cinemaLineItems}
@@ -8188,9 +8227,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={handleDigitalDisplayItemsChange}
                           onMediaLineItemsChange={handleDigitalDisplayMediaLineItemsChange}
-                          campaignStartDate={form.watch("mp_campaigndates_start")}
-                          campaignEndDate={form.watch("mp_campaigndates_end")}
-                          campaignBudget={form.watch("mp_campaignbudget")}
+                          campaignStartDate={campaignStartDate}
+                          campaignEndDate={campaignEndDate}
+                          campaignBudget={campaignBudget}
                           campaignId={mbaNumber}
                           mediaTypes={["digidisplay"]}
                           initialLineItems={digitalDisplayLineItems}
@@ -8205,9 +8244,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={handleDigitalAudioItemsChange}
                           onMediaLineItemsChange={handleDigitalAudioMediaLineItemsChange}
-                          campaignStartDate={form.watch("mp_campaigndates_start")}
-                          campaignEndDate={form.watch("mp_campaigndates_end")}
-                          campaignBudget={form.watch("mp_campaignbudget")}
+                          campaignStartDate={campaignStartDate}
+                          campaignEndDate={campaignEndDate}
+                          campaignBudget={campaignBudget}
                           campaignId={mbaNumber}
                           mediaTypes={["digiaudio"]}
                           initialLineItems={digitalAudioLineItems}
@@ -8222,9 +8261,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={handleDigitalVideoItemsChange}
                           onMediaLineItemsChange={handleDigitalVideoMediaLineItemsChange}
-                          campaignStartDate={form.watch("mp_campaigndates_start")}
-                          campaignEndDate={form.watch("mp_campaigndates_end")}
-                          campaignBudget={form.watch("mp_campaignbudget")}
+                          campaignStartDate={campaignStartDate}
+                          campaignEndDate={campaignEndDate}
+                          campaignBudget={campaignBudget}
                           campaignId={mbaNumber}
                           mediaTypes={["digivideo"]}
                           initialLineItems={digitalVideoLineItems}
@@ -8239,9 +8278,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={handleBvodItemsChange}
                           onMediaLineItemsChange={handleBvodMediaLineItemsChange}
-                          campaignStartDate={form.watch("mp_campaigndates_start")}
-                          campaignEndDate={form.watch("mp_campaigndates_end")}
-                          campaignBudget={form.watch("mp_campaignbudget")}
+                          campaignStartDate={campaignStartDate}
+                          campaignEndDate={campaignEndDate}
+                          campaignBudget={campaignBudget}
                           campaignId={mbaNumber}
                           mediaTypes={["bvod"]}
                           initialLineItems={bvodLineItems}
@@ -8256,9 +8295,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={handleIntegrationItemsChange}
                           onMediaLineItemsChange={handleIntegrationMediaLineItemsChange}
-                          campaignStartDate={form.watch("mp_campaigndates_start")}
-                          campaignEndDate={form.watch("mp_campaigndates_end")}
-                          campaignBudget={form.watch("mp_campaignbudget")}
+                          campaignStartDate={campaignStartDate}
+                          campaignEndDate={campaignEndDate}
+                          campaignBudget={campaignBudget}
                           campaignId={mbaNumber}
                           mediaTypes={["integration"]}
                           initialLineItems={integrationLineItems}
@@ -8273,10 +8312,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                             onBurstsChange={handleProductionBurstsChange}
                             onInvestmentChange={handleInvestmentChange}
                             onLineItemsChange={handleProductionLineItemsChange}
-                            onMediaLineItemsChange={handleProductionLineItemsChange}
-                            campaignStartDate={form.watch("mp_campaigndates_start")}
-                            campaignEndDate={form.watch("mp_campaigndates_end")}
-                            campaignBudget={form.watch("mp_campaignbudget")}
+                            onMediaLineItemsChange={() => {}}
+                            campaignStartDate={campaignStartDate}
+                            campaignEndDate={campaignEndDate}
+                            campaignBudget={campaignBudget}
                             campaignId={mbaNumber}
                             mediaTypes={mediaTypes.map((m) => ({ value: m.label, label: m.label }))}
                             initialLineItems={productionLineItems}
@@ -8292,9 +8331,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={handleSearchItemsChange}
                           onMediaLineItemsChange={handleSearchMediaLineItemsChange}
-                          campaignStartDate={form.watch("mp_campaigndates_start")}
-                          campaignEndDate={form.watch("mp_campaigndates_end")}
-                          campaignBudget={form.watch("mp_campaignbudget")}
+                          campaignStartDate={campaignStartDate}
+                          campaignEndDate={campaignEndDate}
+                          campaignBudget={campaignBudget}
                           campaignId={mbaNumber}
                           mediaTypes={["search"]}
                           initialLineItems={searchLineItems}
@@ -8310,9 +8349,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                           onLineItemsChange={handleSocialMediaItemsChange}
                           onSocialMediaLineItemsChange={() => {}}
                           onMediaLineItemsChange={handleSocialMediaMediaLineItemsChange}
-                          campaignStartDate={form.watch("mp_campaigndates_start")}
-                          campaignEndDate={form.watch("mp_campaigndates_end")}
-                          campaignBudget={form.watch("mp_campaignbudget")}
+                          campaignStartDate={campaignStartDate}
+                          campaignEndDate={campaignEndDate}
+                          campaignBudget={campaignBudget}
                           campaignId={mbaNumber}
                           mediaTypes={["socialmedia"]}
                           initialLineItems={socialMediaLineItems}
@@ -8327,9 +8366,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={handleProgDisplayItemsChange}
                           onMediaLineItemsChange={handleProgDisplayMediaLineItemsChange}
-                          campaignStartDate={form.watch("mp_campaigndates_start")}
-                          campaignEndDate={form.watch("mp_campaigndates_end")}
-                          campaignBudget={form.watch("mp_campaignbudget")}
+                          campaignStartDate={campaignStartDate}
+                          campaignEndDate={campaignEndDate}
+                          campaignBudget={campaignBudget}
                           campaignId={mbaNumber}
                           mediaTypes={["progdisplay"]}
                           initialLineItems={progDisplayLineItems}
@@ -8344,9 +8383,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={handleProgVideoItemsChange}
                           onMediaLineItemsChange={handleProgVideoMediaLineItemsChange}
-                          campaignStartDate={form.watch("mp_campaigndates_start")}
-                          campaignEndDate={form.watch("mp_campaigndates_end")}
-                          campaignBudget={form.watch("mp_campaignbudget")}
+                          campaignStartDate={campaignStartDate}
+                          campaignEndDate={campaignEndDate}
+                          campaignBudget={campaignBudget}
                           campaignId={mbaNumber}
                           mediaTypes={["progvideo"]}
                           initialLineItems={progVideoLineItems}
@@ -8361,9 +8400,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={handleProgBvodItemsChange}
                           onMediaLineItemsChange={handleProgBvodMediaLineItemsChange}
-                          campaignStartDate={form.watch("mp_campaigndates_start")}
-                          campaignEndDate={form.watch("mp_campaigndates_end")}
-                          campaignBudget={form.watch("mp_campaignbudget")}
+                          campaignStartDate={campaignStartDate}
+                          campaignEndDate={campaignEndDate}
+                          campaignBudget={campaignBudget}
                           campaignId={mbaNumber}
                           mediaTypes={["progbvod"]}
                           initialLineItems={progBvodLineItems}
@@ -8378,9 +8417,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={handleProgAudioItemsChange}
                           onMediaLineItemsChange={handleProgAudioMediaLineItemsChange}
-                          campaignStartDate={form.watch("mp_campaigndates_start")}
-                          campaignEndDate={form.watch("mp_campaigndates_end")}
-                          campaignBudget={form.watch("mp_campaignbudget")}
+                          campaignStartDate={campaignStartDate}
+                          campaignEndDate={campaignEndDate}
+                          campaignBudget={campaignBudget}
                           campaignId={mbaNumber}
                           mediaTypes={["progaudio"]}
                           initialLineItems={progAudioLineItems}
@@ -8395,9 +8434,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={handleProgOohItemsChange}
                           onMediaLineItemsChange={handleProgOohMediaLineItemsChange}
-                          campaignStartDate={form.watch("mp_campaigndates_start")}
-                          campaignEndDate={form.watch("mp_campaigndates_end")}
-                          campaignBudget={form.watch("mp_campaignbudget")}
+                          campaignStartDate={campaignStartDate}
+                          campaignEndDate={campaignEndDate}
+                          campaignBudget={campaignBudget}
                           campaignId={mbaNumber}
                           mediaTypes={["progooh"]}
                           initialLineItems={progOohLineItems}
@@ -8412,9 +8451,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={handleInfluencersItemsChange}
                           onMediaLineItemsChange={handleInfluencersMediaLineItemsChange}
-                          campaignStartDate={form.watch("mp_campaigndates_start")}
-                          campaignEndDate={form.watch("mp_campaigndates_end")}
-                          campaignBudget={form.watch("mp_campaignbudget")}
+                          campaignStartDate={campaignStartDate}
+                          campaignEndDate={campaignEndDate}
+                          campaignBudget={campaignBudget}
                           campaignId={mbaNumber}
                           mediaTypes={["influencers"]}
                           initialLineItems={influencersLineItems}
@@ -8567,7 +8606,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               <Accordion type="multiple" className="w-full">
                 {mediaTypes
                   .filter((medium) => medium.name !== "mp_production")
-                  .filter((medium) => form.watch(medium.name as any) && medium.component)
+                  .filter((medium) => mediaFlagMap[medium.name as MediaTypeKey] && medium.component)
                   .map((medium) => {
                     const mediaKey = mediaKeyMap[medium.name]
                     const headers = getMediaTypeHeaders(mediaKey)
@@ -9043,21 +9082,21 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
           <div className="space-y-4">
             {(() => {
-              const campaignBudget = form.watch("mp_campaignbudget") || 0
+              const budgetForWarn = Number(campaignBudget) || 0
               const totalInvestment =
                 partialMBAValues.grossMedia +
                 partialMBAValues.assembledFee +
                 partialMBAValues.adServing +
                 partialMBAValues.production
-              const diff = totalInvestment - campaignBudget
-              if (!campaignBudget || Math.abs(diff) <= 2) return null
+              const diff = totalInvestment - budgetForWarn
+              if (!budgetForWarn || Math.abs(diff) <= 2) return null
 
               return (
                 <div className="bg-yellow-50 border-l-4 border-yellow-500 text-yellow-800 p-4 rounded-md" role="alert">
                   <p className="font-bold">Budget mismatch (warning)</p>
                   <p className="text-sm">
                     Campaign Budget:{" "}
-                    {formatMoney(campaignBudget, {
+                    {formatMoney(budgetForWarn, {
                       locale: "en-US",
                       currency: "USD",
                       minimumFractionDigits: 2,
@@ -9108,7 +9147,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             <Accordion type="multiple" className="w-full">
               {mediaTypes
                 .filter((medium) => medium.name !== "mp_production")
-                .filter((medium) => form.watch(medium.name as keyof MediaPlanFormValues) && medium.component)
+                .filter((medium) => mediaFlagMap[medium.name as MediaTypeKey] && medium.component)
                 .map((medium) => {
                   const mediaKey = mediaKeyMap[medium.name]
                   const checked = partialMBAMediaEnabled[mediaKey] ?? true

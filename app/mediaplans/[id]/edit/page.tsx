@@ -566,6 +566,51 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
   const campaignBudget = useWatch({ control: form.control, name: 'mp_campaignbudget' })
   const mbanumberWatched = useWatch({ control: form.control, name: "mbanumber" })
 
+  const mediaFlagMap = useMemo(
+    (): Record<MediaTypeKey, boolean> => ({
+      mp_television: !!mpTelevision,
+      mp_radio: !!mpRadio,
+      mp_newspaper: !!mpNewspaper,
+      mp_magazines: !!mpMagazines,
+      mp_ooh: !!mpOoh,
+      mp_cinema: !!mpCinema,
+      mp_digidisplay: !!mpDigidisplay,
+      mp_digiaudio: !!mpDigiaudio,
+      mp_digivideo: !!mpDigivideo,
+      mp_bvod: !!mpBvod,
+      mp_integration: !!mpIntegration,
+      mp_search: !!mpSearch,
+      mp_socialmedia: !!mpSocialMedia,
+      mp_progdisplay: !!mpProgdisplay,
+      mp_progvideo: !!mpProgvideo,
+      mp_progbvod: !!mpProgbvod,
+      mp_progaudio: !!mpProgaudio,
+      mp_progooh: !!mpProgooh,
+      mp_influencers: !!mpInfluencers,
+    }),
+    [
+      mpTelevision,
+      mpRadio,
+      mpNewspaper,
+      mpMagazines,
+      mpOoh,
+      mpCinema,
+      mpDigidisplay,
+      mpDigiaudio,
+      mpDigivideo,
+      mpBvod,
+      mpIntegration,
+      mpSearch,
+      mpSocialMedia,
+      mpProgdisplay,
+      mpProgvideo,
+      mpProgbvod,
+      mpProgaudio,
+      mpProgooh,
+      mpInfluencers,
+    ]
+  )
+
   useEffect(() => {
     kpiRowsRef.current = kpiRows
   }, [kpiRows])
@@ -736,9 +781,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
     }
     deliverySnapshotKeyRef.current = key
   }, [campaignStartDate, campaignEndDate, id])
-  
-  // Watch individual media types to prevent infinite re-renders
-  // const watchedMediaTypes = useWatch({ control: form.control, name: MEDIA_TYPE_KEYS })
 
   // Check if any media placement dates are outside campaign dates
   useEffect(() => {
@@ -3128,7 +3170,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                       <FormControl className="shrink-0">
                         <Switch
                           checked={field.value as boolean}
-                          onCheckedChange={field.onChange}
+                          onCheckedChange={(checked) => {
+                            const next = Boolean(checked)
+                            if (next === Boolean(field.value)) return
+                            field.onChange(next)
+                          }}
                         />
                       </FormControl>
                       <FormLabel className="font-normal leading-snug min-w-0 flex-1 cursor-pointer">{label}</FormLabel>
@@ -3164,7 +3210,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                   </div>
                   <div className="space-y-3 px-6 py-4">
                     {mediaTypes.map((medium) => {
-                      const isEnabled = form.watch(medium.name as FormFieldName)
+                      const isEnabled = mediaFlagMap[medium.name]
                       if (!isEnabled) return null
                       const total = isPartialMBA
                         ? partialMBAValues.mediaTotals[medium.label] || 0
@@ -3333,7 +3379,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                 </div>
                 <div className="space-y-6">
               {mediaTypes.map((medium) => {
-                if (!form.watch(medium.name as any)) return null;
+                if (!mediaFlagMap[medium.name]) return null
                 
                 return (
                   <div key={medium.name} className="mt-4">
@@ -3348,9 +3394,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                           onLineItemsChange={() => {}}
                           onTelevisionLineItemsChange={handleTelevisionMediaLineItemsChange}
                           onMediaLineItemsChange={handleTelevisionMediaLineItemsChange}
-                          campaignStartDate={form.watch("mp_campaigndates_start")}
-                          campaignEndDate={form.watch("mp_campaigndates_end")}
-                          campaignBudget={form.watch("mp_campaignbudget")}
+                          campaignStartDate={campaignStartDate}
+                          campaignEndDate={campaignEndDate}
+                          campaignBudget={campaignBudget}
                           campaignId={id}
                           mediaTypes={["television"]}
                           initialLineItems={televisionLineItems}
@@ -3365,9 +3411,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={() => {}}
                           onMediaLineItemsChange={handleRadioMediaLineItemsChange}
-                          campaignStartDate={form.watch("mp_campaigndates_start")}
-                          campaignEndDate={form.watch("mp_campaigndates_end")}
-                          campaignBudget={form.watch("mp_campaignbudget")}
+                          campaignStartDate={campaignStartDate}
+                          campaignEndDate={campaignEndDate}
+                          campaignBudget={campaignBudget}
                           campaignId={id}
                           mediaTypes={["radio"]}
                           initialLineItems={radioLineItems}
@@ -3383,9 +3429,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                           onLineItemsChange={() => {}}
                           onNewspaperLineItemsChange={() => {}}
                           onMediaLineItemsChange={handleNewspaperMediaLineItemsChange}
-                          campaignStartDate={form.watch("mp_campaigndates_start")}
-                          campaignEndDate={form.watch("mp_campaigndates_end")}
-                          campaignBudget={form.watch("mp_campaignbudget")}
+                          campaignStartDate={campaignStartDate}
+                          campaignEndDate={campaignEndDate}
+                          campaignBudget={campaignBudget}
                           campaignId={id}
                           mediaTypes={["newspaper"]}
                           initialLineItems={newspaperLineItems}
@@ -3400,9 +3446,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={() => {}}
                           onMediaLineItemsChange={handleMagazinesMediaLineItemsChange}
-                          campaignStartDate={form.watch("mp_campaigndates_start")}
-                          campaignEndDate={form.watch("mp_campaigndates_end")}
-                          campaignBudget={form.watch("mp_campaignbudget")}
+                          campaignStartDate={campaignStartDate}
+                          campaignEndDate={campaignEndDate}
+                          campaignBudget={campaignBudget}
                           campaignId={id}
                           mediaTypes={["magazines"]}
                           initialLineItems={magazinesLineItems}
@@ -3417,9 +3463,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={() => {}}
                           onMediaLineItemsChange={handleOohMediaLineItemsChange}
-                          campaignStartDate={form.watch("mp_campaigndates_start")}
-                          campaignEndDate={form.watch("mp_campaigndates_end")}
-                          campaignBudget={form.watch("mp_campaignbudget")}
+                          campaignStartDate={campaignStartDate}
+                          campaignEndDate={campaignEndDate}
+                          campaignBudget={campaignBudget}
                           campaignId={id}
                           mediaTypes={["ooh"]}
                           initialLineItems={oohLineItems}
@@ -3434,9 +3480,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={() => {}}
                           onMediaLineItemsChange={handleCinemaMediaLineItemsChange}
-                          campaignStartDate={form.watch("mp_campaigndates_start")}
-                          campaignEndDate={form.watch("mp_campaigndates_end")}
-                          campaignBudget={form.watch("mp_campaignbudget")}
+                          campaignStartDate={campaignStartDate}
+                          campaignEndDate={campaignEndDate}
+                          campaignBudget={campaignBudget}
                           campaignId={id}
                           mediaTypes={["cinema"]}
                           initialLineItems={cinemaLineItems}
@@ -3451,9 +3497,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={setDigitalDisplayItems}
                           onMediaLineItemsChange={handleDigitalDisplayMediaLineItemsChange}
-                          campaignStartDate={form.watch("mp_campaigndates_start")}
-                          campaignEndDate={form.watch("mp_campaigndates_end")}
-                          campaignBudget={form.watch("mp_campaignbudget")}
+                          campaignStartDate={campaignStartDate}
+                          campaignEndDate={campaignEndDate}
+                          campaignBudget={campaignBudget}
                           campaignId={id}
                           mediaTypes={["digidisplay"]}
                           initialLineItems={digitalDisplayLineItems}
@@ -3468,9 +3514,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={() => {}}
                           onMediaLineItemsChange={handleDigitalAudioMediaLineItemsChange}
-                          campaignStartDate={form.watch("mp_campaigndates_start")}
-                          campaignEndDate={form.watch("mp_campaigndates_end")}
-                          campaignBudget={form.watch("mp_campaignbudget")}
+                          campaignStartDate={campaignStartDate}
+                          campaignEndDate={campaignEndDate}
+                          campaignBudget={campaignBudget}
                           campaignId={id}
                           mediaTypes={["digiaudio"]}
                           initialLineItems={digitalAudioLineItems}
@@ -3485,9 +3531,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={() => {}}
                           onMediaLineItemsChange={handleDigitalVideoMediaLineItemsChange}
-                          campaignStartDate={form.watch("mp_campaigndates_start")}
-                          campaignEndDate={form.watch("mp_campaigndates_end")}
-                          campaignBudget={form.watch("mp_campaignbudget")}
+                          campaignStartDate={campaignStartDate}
+                          campaignEndDate={campaignEndDate}
+                          campaignBudget={campaignBudget}
                           campaignId={id}
                           mediaTypes={["digivideo"]}
                           initialLineItems={digitalVideoLineItems}
@@ -3502,9 +3548,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={() => {}}
                           onMediaLineItemsChange={handleBvodMediaLineItemsChange}
-                          campaignStartDate={form.watch("mp_campaigndates_start")}
-                          campaignEndDate={form.watch("mp_campaigndates_end")}
-                          campaignBudget={form.watch("mp_campaignbudget")}
+                          campaignStartDate={campaignStartDate}
+                          campaignEndDate={campaignEndDate}
+                          campaignBudget={campaignBudget}
                           campaignId={id}
                           mediaTypes={["bvod"]}
                           initialLineItems={bvodLineItems}
@@ -3519,9 +3565,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={handleIntegrationItemsChange}
                           onMediaLineItemsChange={handleIntegrationMediaLineItemsChange}
-                          campaignStartDate={form.watch("mp_campaigndates_start")}
-                          campaignEndDate={form.watch("mp_campaigndates_end")}
-                          campaignBudget={form.watch("mp_campaignbudget")}
+                          campaignStartDate={campaignStartDate}
+                          campaignEndDate={campaignEndDate}
+                          campaignBudget={campaignBudget}
                           campaignId={id}
                           mediaTypes={["integration"]}
                           initialLineItems={integrationLineItems}
@@ -3536,9 +3582,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={() => {}}
                           onMediaLineItemsChange={handleSearchMediaLineItemsChange}
-                          campaignStartDate={form.watch("mp_campaigndates_start")}
-                          campaignEndDate={form.watch("mp_campaigndates_end")}
-                          campaignBudget={form.watch("mp_campaignbudget")}
+                          campaignStartDate={campaignStartDate}
+                          campaignEndDate={campaignEndDate}
+                          campaignBudget={campaignBudget}
                           campaignId={id}
                           mediaTypes={["search"]}
                           initialLineItems={searchLineItems}
@@ -3554,9 +3600,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                           onLineItemsChange={() => {}}
                           onSocialMediaLineItemsChange={() => {}}
                           onMediaLineItemsChange={handleSocialMediaMediaLineItemsChange}
-                          campaignStartDate={form.watch("mp_campaigndates_start")}
-                          campaignEndDate={form.watch("mp_campaigndates_end")}
-                          campaignBudget={form.watch("mp_campaignbudget")}
+                          campaignStartDate={campaignStartDate}
+                          campaignEndDate={campaignEndDate}
+                          campaignBudget={campaignBudget}
                           campaignId={id}
                           mediaTypes={["socialmedia"]}
                           initialLineItems={socialMediaLineItems}
@@ -3571,9 +3617,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={() => {}}
                           onMediaLineItemsChange={handleProgDisplayMediaLineItemsChange}
-                          campaignStartDate={form.watch("mp_campaigndates_start")}
-                          campaignEndDate={form.watch("mp_campaigndates_end")}
-                          campaignBudget={form.watch("mp_campaignbudget")}
+                          campaignStartDate={campaignStartDate}
+                          campaignEndDate={campaignEndDate}
+                          campaignBudget={campaignBudget}
                           campaignId={id}
                           mediaTypes={["progdisplay"]}
                           initialLineItems={progDisplayLineItems}
@@ -3588,9 +3634,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={() => {}}
                           onMediaLineItemsChange={handleProgVideoMediaLineItemsChange}
-                          campaignStartDate={form.watch("mp_campaigndates_start")}
-                          campaignEndDate={form.watch("mp_campaigndates_end")}
-                          campaignBudget={form.watch("mp_campaignbudget")}
+                          campaignStartDate={campaignStartDate}
+                          campaignEndDate={campaignEndDate}
+                          campaignBudget={campaignBudget}
                           campaignId={id}
                           mediaTypes={["progvideo"]}
                           initialLineItems={progVideoLineItems}
@@ -3605,9 +3651,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={() => {}}
                           onMediaLineItemsChange={handleProgBvodMediaLineItemsChange}
-                          campaignStartDate={form.watch("mp_campaigndates_start")}
-                          campaignEndDate={form.watch("mp_campaigndates_end")}
-                          campaignBudget={form.watch("mp_campaignbudget")}
+                          campaignStartDate={campaignStartDate}
+                          campaignEndDate={campaignEndDate}
+                          campaignBudget={campaignBudget}
                           campaignId={id}
                           mediaTypes={["progbvod"]}
                           initialLineItems={progBvodLineItems}
@@ -3622,9 +3668,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={() => {}}
                           onMediaLineItemsChange={handleProgAudioMediaLineItemsChange}
-                          campaignStartDate={form.watch("mp_campaigndates_start")}
-                          campaignEndDate={form.watch("mp_campaigndates_end")}
-                          campaignBudget={form.watch("mp_campaignbudget")}
+                          campaignStartDate={campaignStartDate}
+                          campaignEndDate={campaignEndDate}
+                          campaignBudget={campaignBudget}
                           campaignId={id}
                           mediaTypes={["progaudio"]}
                           initialLineItems={progAudioLineItems}
@@ -3639,9 +3685,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={() => {}}
                           onMediaLineItemsChange={handleProgOohMediaLineItemsChange}
-                          campaignStartDate={form.watch("mp_campaigndates_start")}
-                          campaignEndDate={form.watch("mp_campaigndates_end")}
-                          campaignBudget={form.watch("mp_campaignbudget")}
+                          campaignStartDate={campaignStartDate}
+                          campaignEndDate={campaignEndDate}
+                          campaignBudget={campaignBudget}
                           campaignId={id}
                           mediaTypes={["progooh"]}
                           initialLineItems={progOohLineItems}
@@ -3656,9 +3702,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                           onInvestmentChange={handleInvestmentChange}
                           onLineItemsChange={handleInfluencersItemsChange}
                           onMediaLineItemsChange={handleInfluencersMediaLineItemsChange}
-                          campaignStartDate={form.watch("mp_campaigndates_start")}
-                          campaignEndDate={form.watch("mp_campaigndates_end")}
-                          campaignBudget={form.watch("mp_campaignbudget")}
+                          campaignStartDate={campaignStartDate}
+                          campaignEndDate={campaignEndDate}
+                          campaignBudget={campaignBudget}
                           campaignId={id}
                           mediaTypes={["influencers"]}
                           initialLineItems={influencersLineItems}
