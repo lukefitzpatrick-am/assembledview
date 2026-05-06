@@ -13,10 +13,13 @@ import {
 } from "recharts"
 
 import { useClientBrand } from "@/components/client-dashboard/ClientBrandProvider"
-import { useUnifiedTooltip } from "@/components/charts/UnifiedTooltip"
+import { UnifiedTooltipPayloadItem, useUnifiedTooltip } from "@/components/charts/UnifiedTooltip"
 import { ToggleableLegend } from "@/components/charts/ToggleableLegend"
 import { formatCurrencyAUD } from "@/lib/format/currency"
 import { getChartPalette } from "@/lib/client-dashboard/theme"
+
+const defaultCountFormatter = (n: number): string =>
+  Math.round(n).toLocaleString("en-AU", { maximumFractionDigits: 0 })
 
 export type LineChartSeries = { key: string; label: string; yAxis?: "left" | "right" }
 
@@ -24,7 +27,10 @@ export type LineChartProps = {
   data: Array<Record<string, string | number>>
   xKey: string
   series: LineChartSeries[]
+  /** Formatter for left-axis ticks and currency series tooltips. */
   valueFormatter?: (value: number) => string
+  /** Formatter for right-axis ticks and count series tooltips. Defaults to en-AU integer with thousand separators. */
+  countFormatter?: (value: number) => string
   xTickFormatter?: (value: string) => string
   height?: number
   smooth?: boolean
@@ -36,6 +42,7 @@ export function LineChart({
   xKey,
   series,
   valueFormatter = formatCurrencyAUD,
+  countFormatter = defaultCountFormatter,
   xTickFormatter,
   height = 320,
   smooth = false,
@@ -66,10 +73,20 @@ export function LineChart({
 
   const lineType = smooth ? "monotone" : "linear"
   const hasRightAxis = useMemo(() => series.some((s) => s.yAxis === "right"), [series])
-  const formatCountValue = useCallback((n: number) => Math.round(n).toLocaleString("en-AU"), [])
+  const rightAxisKeys = useMemo(
+    () => new Set(series.filter((s) => s.yAxis === "right").map((s) => s.key)),
+    [series],
+  )
+  const formatEntryValue = useMemo(() => {
+    return (entry: UnifiedTooltipPayloadItem) => {
+      const isCount = rightAxisKeys.has(entry.dataKey ?? "")
+      return isCount ? countFormatter(entry.value) : valueFormatter(entry.value)
+    }
+  }, [rightAxisKeys, countFormatter, valueFormatter])
 
   const renderTooltip = useUnifiedTooltip({
     formatValue: valueFormatter,
+    formatEntryValue,
   })
 
   return (
@@ -106,7 +123,7 @@ export function LineChart({
               axisLine={{ stroke: "hsl(var(--border))" }}
               tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
               width={44}
-              tickFormatter={(v) => formatCountValue(Number(v))}
+              tickFormatter={(v) => countFormatter(Number(v))}
             />
           ) : null}
           <Tooltip content={renderTooltip} cursor={{ fill: "hsl(var(--muted) / 0.25)" }} />
