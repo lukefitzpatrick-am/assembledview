@@ -18,7 +18,7 @@ import { ToggleableLegend } from "@/components/charts/ToggleableLegend"
 import { formatCurrencyAUD } from "@/lib/format/currency"
 import { getChartPalette } from "@/lib/client-dashboard/theme"
 
-export type LineChartSeries = { key: string; label: string }
+export type LineChartSeries = { key: string; label: string; yAxis?: "left" | "right" }
 
 export type LineChartProps = {
   data: Array<Record<string, string | number>>
@@ -65,6 +65,8 @@ export function LineChart({
   )
 
   const lineType = smooth ? "monotone" : "linear"
+  const hasRightAxis = useMemo(() => series.some((s) => s.yAxis === "right"), [series])
+  const formatCountValue = useCallback((n: number) => Math.round(n).toLocaleString("en-AU"), [])
 
   const renderTooltip = useUnifiedTooltip({
     formatValue: valueFormatter,
@@ -73,27 +75,40 @@ export function LineChart({
   return (
     <div className="w-full" style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
-        <RechartsLineChart data={data} margin={{ top: 8, right: 12, left: 4, bottom: 8 }}>
+        <RechartsLineChart data={data} margin={{ top: 8, right: hasRightAxis ? 28 : 12, left: 4, bottom: 8 }}>
           <CartesianGrid stroke="hsl(var(--border))" vertical={false} />
           <XAxis
             dataKey={xKey}
             tickLine={false}
             axisLine={{ stroke: "hsl(var(--border))" }}
-            interval={0}
+            interval="preserveStartEnd"
+            minTickGap={48}
             tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
             tickMargin={8}
-            angle={data.length > 8 ? -25 : 0}
-            textAnchor={data.length > 8 ? "end" : "middle"}
-            height={data.length > 8 ? 52 : 28}
+            angle={data.length > 30 ? -25 : 0}
+            textAnchor={data.length > 30 ? "end" : "middle"}
+            height={data.length > 30 ? 52 : 28}
             tickFormatter={xTickFormatter as ((v: string) => string) | undefined}
           />
           <YAxis
+            yAxisId="left"
             tickLine={false}
             axisLine={{ stroke: "hsl(var(--border))" }}
             tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
             width={44}
             tickFormatter={(v) => valueFormatter(Number(v))}
           />
+          {hasRightAxis ? (
+            <YAxis
+              yAxisId="right"
+              orientation="right"
+              tickLine={false}
+              axisLine={{ stroke: "hsl(var(--border))" }}
+              tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+              width={44}
+              tickFormatter={(v) => formatCountValue(Number(v))}
+            />
+          ) : null}
           <Tooltip content={renderTooltip} cursor={{ fill: "hsl(var(--muted) / 0.25)" }} />
           <Legend
             verticalAlign="top"
@@ -105,6 +120,7 @@ export function LineChart({
             return (
               <Line
                 key={s.key}
+                yAxisId={s.yAxis === "right" ? "right" : "left"}
                 type={lineType}
                 dataKey={s.key}
                 name={s.label}

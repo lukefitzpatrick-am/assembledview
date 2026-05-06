@@ -97,12 +97,13 @@ export function ComboChart({ data, xKey, bars, lines, countDataKeys, height = 32
             dataKey={xKey}
             tickLine={false}
             axisLine={{ stroke: "hsl(var(--border))" }}
-            interval={0}
+            interval="preserveStartEnd"
+            minTickGap={48}
             tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
             tickMargin={8}
-            angle={data.length > 8 ? -25 : 0}
-            textAnchor={data.length > 8 ? "end" : "middle"}
-            height={data.length > 8 ? 52 : 28}
+            angle={data.length > 30 ? -25 : 0}
+            textAnchor={data.length > 30 ? "end" : "middle"}
+            height={data.length > 30 ? 52 : 28}
           />
           <YAxis
             yAxisId="left"

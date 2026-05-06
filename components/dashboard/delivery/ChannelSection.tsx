@@ -9,10 +9,10 @@ import {
 } from "@/components/ui/accordion"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { ActualsCumulativeVsTargetChart } from "@/components/dashboard/delivery/common/ActualsCumulativeVsTargetChart"
 import { ProgressCard } from "./shared/ProgressCard"
 import { KpiBand } from "./shared/KpiBand"
 import { LineItemBlock } from "./shared/LineItemBlock"
+import { LineItemDailyDeliveryChart } from "./shared/LineItemDailyDeliveryChart"
 import { getChannelIcon } from "./channels/getChannelIcon"
 import type { ChannelSectionData } from "./channels/types"
 
@@ -119,11 +119,10 @@ export function ChannelSection({ data, defaultOpen = false, onRefresh }: Channel
 
           <KpiBand {...data.aggregate.kpiBand} />
 
-          <ActualsCumulativeVsTargetChart
-            targetCurve={data.aggregate.chart.targetCurve}
-            cumulativeActual={data.aggregate.chart.cumulativeActual}
+          <LineItemDailyDeliveryChart
+            daily={data.aggregate.chart.daily}
+            series={data.aggregate.chart.series}
             asAtDate={data.aggregate.chart.asAtDate}
-            deliverableLabel={data.aggregate.chart.deliverableLabel}
             brandColour={data.aggregate.chart.brandColour}
           />
 

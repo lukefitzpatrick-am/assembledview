@@ -25,6 +25,7 @@ import type { KpiTileProps } from "../shared/KpiTile"
 import type { LineItemBlockProps } from "../shared/LineItemBlock"
 import type { ChannelSectionData } from "./types"
 import type { DeliveryStatus } from "../shared/statusColours"
+import { aggregateDailyRows } from "./aggregateDaily"
 
 const searchSeriesPalette = {
   cost: getMediaColor("search"),
@@ -157,22 +158,7 @@ export function buildSearchSection(input: {
     cost: Number(d.cost ?? 0),
   }))
 
-  const refLineISO = defaultRefLineISO(pacingWindow.asAtISO)
-
-  const targetCurveLineItems = buildSearchTargetCurveLineItems(searchLineItems, scheduleByLineItemId)
-  const targetCurve = buildSearchAggregateTargetCurve({
-    kpiTargets,
-    campaignStartISO: pacingWindow.campaignStartISO,
-    campaignEndISO: pacingWindow.campaignEndISO,
-    lineItems: targetCurveLineItems,
-    filterRange,
-    campaignStart,
-    campaignEnd,
-  })
-
-  const dailyClicksByDate = buildDailyClicksMapFromSpendSeries(chartClicksSpend)
-  const cumulativeActual = buildSearchCumulativeActualForCurve(targetCurve, dailyClicksByDate)
-  const aggregateTrack = searchOnTrackStatus(targetCurve, cumulativeActual, refLineISO)
+  const aggregateTrack = pacingPctToStatus(totalDerived.clicksPacingPct)
 
   const accentColour = brandColour ?? searchSeriesPalette.cost
 
@@ -298,11 +284,15 @@ export function buildSearchSection(input: {
         tiles: kpiTiles,
       },
       chart: {
-        kind: "cumulative-vs-target",
-        targetCurve,
-        cumulativeActual,
+        daily: aggregateDailyRows(
+          accordionItems.flatMap((item) => (item.block.chart.kind === "daily-delivery" ? item.block.chart.daily : [])),
+          ["cost", "clicks"],
+        ),
+        series: [
+          { key: "cost", label: "Cost", yAxis: "left" },
+          { key: "clicks", label: "Clicks", yAxis: "right" },
+        ],
         asAtDate: pacingWindow.asAtISO ?? null,
-        deliverableLabel: "Clicks",
         brandColour,
       },
     },
@@ -494,8 +484,8 @@ function buildSearchLineItemBlocks(input: {
           kind: "daily-delivery",
           daily: dailyRows,
           series: [
-            { key: "cost", label: "Cost" },
-            { key: "clicks", label: "Clicks" },
+            { key: "cost", label: "Cost", yAxis: "left" },
+            { key: "clicks", label: "Clicks", yAxis: "right" },
           ],
           asAtDate: pacingWindow.asAtISO ?? null,
           brandColour,

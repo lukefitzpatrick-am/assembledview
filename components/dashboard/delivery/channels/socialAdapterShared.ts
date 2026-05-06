@@ -10,9 +10,6 @@ import {
   getLineItemNameCandidate,
   computeSocialLineMetricsForPlatform,
   buildSocialAggregatePacing,
-  buildSocialAggregateTargetCurve,
-  buildSocialAggregateCumulativeActual,
-  socialAggregateOnTrackStatus,
   summarizeActuals,
   formatCurrency,
   formatCurrency2dp,
@@ -29,6 +26,7 @@ import type { KpiTileProps } from "../shared/KpiTile"
 import type { LineItemBlockProps } from "../shared/LineItemBlock"
 import type { ChannelKey, ChannelSectionData } from "./types"
 import type { DeliveryStatus } from "../shared/statusColours"
+import { aggregateDailyRows } from "./aggregateDaily"
 
 function pctVarianceFromPacingPct(pct: number | undefined): number {
   if (pct === undefined || Number.isNaN(pct)) return 0
@@ -209,16 +207,7 @@ export function buildSocialChannelSectionForPlatform(input: {
     deliverables: metrics.reduce((s, m) => s + (m.booked?.deliverables ?? 0), 0),
   }
 
-  const aggregateCurve = buildSocialAggregateTargetCurve(
-    metrics,
-    kpiTargets,
-    pacingWindow,
-    filterRange,
-    campaignStart,
-    campaignEnd,
-  )
-  const aggregateCumulativeActual = buildSocialAggregateCumulativeActual(aggregateCurve, aggregatePacing)
-  const aggregateTrack = socialAggregateOnTrackStatus(aggregateCurve, aggregateCumulativeActual, aggregatePacing)
+  const aggregateTrack = pacingPctToStatus(aggregatePacing.deliverable?.pacingPct)
 
   const kpisRaw = summarizeActuals(metrics.flatMap((m) => m.actualsDaily))
   const pub = String(activeItems[0]?.platform ?? "meta")
@@ -262,7 +251,7 @@ export function buildSocialChannelSectionForPlatform(input: {
     detail: `Delivered ${formatWholeNumber(aggregatePacing.deliverable?.actualToDate ?? 0)} · Planned ${formatWholeNumber(bookedTotals.deliverables)}`,
     progress: delRatio,
     variance: pctVarianceFromPacingPct(aggregatePacing.deliverable?.pacingPct),
-    status: onTrackToDelivery(aggregateTrack),
+    status: aggregateTrack,
     sparkline: aggregatePacing.series.map((p) => Number(p.actualDeliverable ?? 0)),
   }
 
@@ -316,14 +305,14 @@ export function buildSocialChannelSectionForPlatform(input: {
       },
       chart: {
         kind: "daily-delivery",
-        daily: m.pacing.series.map((p) => ({
-          date: p.date,
-          amount_spent: Number(p.actualSpend ?? 0),
-          results: Number(p.actualDeliverable ?? 0),
+        daily: m.actualsDaily.map((d) => ({
+          date: d.date,
+          amount_spent: Number(d.spend ?? 0),
+          impressions: Number(d.impressions ?? 0),
         })),
         series: [
-          { key: "amount_spent", label: "Spend" },
-          { key: "results", label: "Results" },
+          { key: "amount_spent", label: "Spend", yAxis: "left" },
+          { key: "impressions", label: "Impressions", yAxis: "right" },
         ],
         asAtDate: m.pacing.asAtDate,
         brandColour,
@@ -355,11 +344,15 @@ export function buildSocialChannelSectionForPlatform(input: {
         tiles: kpiTiles,
       },
       chart: {
-        kind: "cumulative-vs-target",
-        targetCurve: aggregateCurve,
-        cumulativeActual: aggregateCumulativeActual,
+        daily: aggregateDailyRows(
+          accordionItems.flatMap((item) => (item.block.chart.kind === "daily-delivery" ? item.block.chart.daily : [])),
+          ["amount_spent", "impressions"],
+        ),
+        series: [
+          { key: "amount_spent", label: "Spend", yAxis: "left" },
+          { key: "impressions", label: "Impressions", yAxis: "right" },
+        ],
         asAtDate: aggregatePacing.asAtDate,
-        deliverableLabel: "Deliverables",
         brandColour,
       },
     },

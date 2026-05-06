@@ -6,7 +6,7 @@ import { formatCurrencyAUD } from "@/lib/format/currency"
 
 export interface LineItemDailyDeliveryChartProps {
   daily: Array<Record<string, string | number>>
-  series: Array<{ key: string; label: string }>
+  series: Array<{ key: string; label: string; yAxis?: "left" | "right" }>
   asAtDate: string | null
   brandColour?: string
   height?: number

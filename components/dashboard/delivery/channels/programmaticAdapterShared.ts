@@ -15,12 +15,7 @@ import {
   type ProgrammaticLineItemMetrics,
 } from "@/lib/delivery/programmatic/programmaticCompute"
 import {
-  buildCumulativeActualSeries,
-  buildCumulativeTargetCurve,
-  evaluateOnTrack,
   type OnTrackStatus,
-  type TargetCurveLineItem,
-  type TargetCurvePoint,
 } from "@/lib/kpi/deliveryTargetCurve"
 import { getMelbourneTodayISO } from "@/lib/pacing/pacingWindow"
 import type { PacingRow as CombinedPacingRow } from "@/lib/snowflake/pacing-service"
@@ -29,6 +24,7 @@ import type { KpiTileProps } from "../shared/KpiTile"
 import type { LineItemBlockProps } from "../shared/LineItemBlock"
 import type { ChannelKey, ChannelSectionData } from "./types"
 import type { DeliveryStatus } from "../shared/statusColours"
+import { aggregateDailyRows } from "./aggregateDaily"
 
 function pctVarianceFromPacingPct(pct: number | undefined): number {
   if (pct === undefined || Number.isNaN(pct)) return 0
@@ -80,77 +76,6 @@ function resolveKpiTarget(
 ) {
   if (!kpiTargets?.size) return undefined
   return kpiTargets.get(kpiTargetKey(mediaKey, publisher.toLowerCase().trim(), bidStrategy.toLowerCase().trim()))
-}
-
-function buildAggregateTargetCurve(
-  metrics: ProgrammaticLineItemMetrics[],
-  kpiTargets: KPITargetsMap | undefined,
-  pacingWindow: { campaignStartISO: string; campaignEndISO: string },
-  filterRange: DateRange,
-  campaignStart: string,
-  campaignEnd: string,
-  mediaCurveKey: "progdisplay" | "progvideo",
-  curveMetric: "clicks" | "views",
-): TargetCurvePoint[] {
-  if (!kpiTargets || kpiTargets.size === 0) return []
-  if (!metrics.length) return []
-  if (!pacingWindow.campaignStartISO || !pacingWindow.campaignEndISO) return []
-
-  const tclis: TargetCurveLineItem[] = []
-  for (const metric of metrics) {
-    if (curveMetric === "clicks" && metric.targetMetric !== "clicks") continue
-    if (curveMetric === "views" && metric.targetMetric !== "views") continue
-    const tcli = buildProgrammaticTargetCurveLineItem(metric.lineItem, metric.bursts, mediaCurveKey)
-    if (tcli) tclis.push(tcli)
-  }
-  if (!tclis.length) return []
-
-  let curve = buildCumulativeTargetCurve({
-    campaignStartISO: pacingWindow.campaignStartISO,
-    campaignEndISO: pacingWindow.campaignEndISO,
-    lineItems: tclis,
-    kpiTargets,
-    metric: curveMetric,
-    tolerance: 0.15,
-  })
-  const clipped = clipDateRangeToCampaign(filterRange, campaignStart, campaignEnd)
-  if (clipped?.start && clipped?.end && curve.length) {
-    const rs = clipped.start
-    const re = clipped.end
-    curve = curve.filter((p) => {
-      const d = parseDateOnly(p.date)
-      if (!d) return true
-      return d >= rs && d <= re
-    })
-  }
-  return curve
-}
-
-function buildAggregateCumulativeActual(
-  aggregateCurve: TargetCurvePoint[],
-  metrics: ProgrammaticLineItemMetrics[],
-  curveMetric: "clicks" | "views",
-): Array<{ date: string; actual: number }> {
-  if (!aggregateCurve.length) return []
-  const dailyByDate = new Map<string, number>()
-  for (const metric of metrics) {
-    if (curveMetric === "clicks" && metric.targetMetric !== "clicks") continue
-    if (curveMetric === "views" && metric.targetMetric !== "views") continue
-    for (const row of metric.actualsDaily) {
-      const dateKey = String((row as { date?: string; day?: string }).date ?? (row as { day?: string }).day ?? "")
-      if (!dateKey) continue
-      const value =
-        curveMetric === "clicks"
-          ? Number((row as { clicks?: number }).clicks ?? 0)
-          : Number((row as { videoViews?: number }).videoViews ?? 0)
-      const prev = dailyByDate.get(dateKey) ?? 0
-      dailyByDate.set(dateKey, prev + (Number(value) || 0))
-    }
-  }
-  return buildCumulativeActualSeries(
-    aggregateCurve.map((p) => p.date),
-    dailyByDate,
-  )
 }
 
 export function buildProgrammaticChannelSection(input: {
@@ -244,20 +169,7 @@ export function buildProgrammaticChannelSection(input: {
 
   const accentColour = brandColour ?? getMediaColor("programmatic")
 
-  const aggregateCurve = buildAggregateTargetCurve(
-    metrics,
-    kpiTargets,
-    pacingWindow,
-    filterRange,
-    campaignStart,
-    campaignEnd,
-    mediaCurveKey,
-    curveMetric,
-  )
-  const aggregateCumulativeActual = buildAggregateCumulativeActual(aggregateCurve, metrics, curveMetric)
-  const cumActualByDate = new Map(aggregateCumulativeActual.map((r) => [r.date, r.actual]))
-  const asAt = aggregatePacing.asAtDate ?? getMelbourneTodayISO()
-  const aggregateTrack = aggregateCurve.length ? evaluateOnTrack(aggregateCurve, cumActualByDate, asAt) : "no-data"
+  const aggregateTrack = pacingPctToStatus(aggregatePacing.deliverable?.pacingPct)
 
   const summaryChips = [
     { label: "Total spend", value: formatCurrency2dp(kpisRollup.spend) },
@@ -352,9 +264,6 @@ export function buildProgrammaticChannelSection(input: {
       accentColour,
     },
   ]
-
-  const deliverableLabelAggregate =
-    curveMetric === "views" ? "Video views" : curveMetric === "clicks" ? "Clicks" : "Deliverables"
 
   const accordionItems = metrics.map((m) => {
     const liKpis = summarizeDv360Actuals(
@@ -479,12 +388,12 @@ export function buildProgrammaticChannelSection(input: {
         daily: dailyRows,
         series: isVideoLine
           ? [
-              { key: "amount_spent", label: "Spend" },
-              { key: "video_3s_views", label: "Views" },
+              { key: "amount_spent", label: "Spend", yAxis: "left" },
+              { key: "video_3s_views", label: "Views", yAxis: "right" },
             ]
           : [
-              { key: "amount_spent", label: "Spend" },
-              { key: "impressions", label: "Impressions" },
+              { key: "amount_spent", label: "Spend", yAxis: "left" },
+              { key: "impressions", label: "Impressions", yAxis: "right" },
             ],
         asAtDate: m.pacing.asAtDate,
         brandColour,
@@ -513,11 +422,21 @@ export function buildProgrammaticChannelSection(input: {
         tiles: snowflakeChannel === "programmatic-video" ? kpiTilesVideo : kpiTilesDisplay,
       },
       chart: {
-        kind: "cumulative-vs-target",
-        targetCurve: aggregateCurve,
-        cumulativeActual: aggregateCumulativeActual,
+        daily: aggregateDailyRows(
+          accordionItems.flatMap((item) => (item.block.chart.kind === "daily-delivery" ? item.block.chart.daily : [])),
+          snowflakeChannel === "programmatic-video" ? ["amount_spent", "video_3s_views"] : ["amount_spent", "impressions"],
+        ),
+        series:
+          snowflakeChannel === "programmatic-video"
+            ? [
+                { key: "amount_spent", label: "Spend", yAxis: "left" },
+                { key: "video_3s_views", label: "Views", yAxis: "right" },
+              ]
+            : [
+                { key: "amount_spent", label: "Spend", yAxis: "left" },
+                { key: "impressions", label: "Impressions", yAxis: "right" },
+              ],
         asAtDate: aggregatePacing.asAtDate,
-        deliverableLabel: deliverableLabelAggregate,
         brandColour,
       },
     },
