@@ -1558,14 +1558,18 @@ useEffect(() => {
                                     <FormField
                                       control={form.control}
                                       name={`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`}
-                                      render={({ field }) => (
+                                      render={({ field }) => {
+                                        const buyType = form.watch(`lineItems.${lineItemIndex}.buyType`);
+                                        return (
                                         <FormItem>
                                           <FormLabel className="text-xs">Budget</FormLabel>
                                           <FormControl>
                                             <Input
                                               {...field}
                                               type="text"
-                                                className="w-full min-w-[9rem] h-10 text-sm"
+                                              className="w-full min-w-[9rem] h-10 text-sm"
+                                              value={buyType === "bonus" || buyType === "package_inclusions" ? "0" : field.value}
+                                              disabled={buyType === "bonus" || buyType === "package_inclusions"}
                                               onChange={(e) => {
                                                 const value = e.target.value.replace(/[^0-9.]/g, "");
                                                 field.onChange(value);
@@ -1584,20 +1588,25 @@ useEffect(() => {
                                           </FormControl>
                                           <FormMessage />
                                         </FormItem>
-                                      )}
+                                        );
+                                      }}
                                     />
 
                                     <FormField
                                       control={form.control}
                                       name={`lineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount`}
-                                      render={({ field }) => (
+                                      render={({ field }) => {
+                                        const buyType = form.watch(`lineItems.${lineItemIndex}.buyType`);
+                                        return (
                                         <FormItem>
                                           <FormLabel className="text-xs">Buy Amount</FormLabel>
                                           <FormControl>
                                             <Input
                                               {...field}
                                               type="text"
-                                                className="w-full min-w-[9rem] h-10 text-sm"
+                                              className="w-full min-w-[9rem] h-10 text-sm"
+                                              value={buyType === "bonus" || buyType === "package_inclusions" ? "0" : field.value}
+                                              disabled={buyType === "bonus" || buyType === "package_inclusions"}
                                               onChange={(e) => {
                                                 const value = e.target.value.replace(/[^0-9.]/g, "");
                                                 field.onChange(value);
@@ -1616,7 +1625,8 @@ useEffect(() => {
                                           </FormControl>
                                           <FormMessage />
                                         </FormItem>
-                                      )}
+                                        );
+                                      }}
                                     />
 
                                     <div className="grid grid-cols-2 gap-2 col-span-2">
