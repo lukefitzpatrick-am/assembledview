@@ -31,7 +31,6 @@ import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemId
 import { formatMoney, parseMoneyInput } from "@/lib/format/money"
 import {
   CpcFamilyBurstCalculatedField,
-  getCpcFamilyBurstCalculatedColumnLabel,
 } from "@/components/media-containers/burst-calculated-fields"
 import {
   MP_BURST_ACTION_COLUMN,
@@ -295,7 +294,8 @@ function computeLoadedDeliverables(
   feePct: number
 ): number {
   const bt = coerceBuyTypeWithDevWarn(buyType, "OOHContainer.computeLoadedDeliverables")
-  if (String(buyType || "").toLowerCase() === "bonus") {
+  const buyTypeLower = String(buyType || "").toLowerCase()
+  if (buyTypeLower === "bonus" || buyTypeLower === "package_inclusions") {
     return (
       parseFloat(String(burst?.calculatedValue ?? 0).replace(/[^0-9.]/g, "")) || 0
     )
@@ -823,6 +823,13 @@ export default function OohContainer({
       "OOHContainer.handleValueChange"
     );
 
+    // HOTFIX: Bonus and package_inclusions deliverables are entered manually
+    // (via the expert grid). Do not recompute and overwrite them.
+    const buyTypeLower = String(buyTypeRaw || "").toLowerCase();
+    if (buyTypeLower === "bonus" || buyTypeLower === "package_inclusions") {
+      return;
+    }
+
     const rawDeliverables = deliverablesFromBudget(bt, netBudget, buyAmount);
     if (Number.isNaN(rawDeliverables)) {
       return;
@@ -956,6 +963,10 @@ export default function OohContainer({
     if (!buyType) return "Deliverables";
     
     switch (buyType.toLowerCase()) {
+      case "bonus":
+        return "Bonus Deliverables";
+      case "package_inclusions":
+        return "Package Inclusions";
       case "cpc":
         return "Clicks";
       case "cpv":
@@ -1662,8 +1673,7 @@ useEffect(() => {
                                   <span>End Date</span>
                                 </div>
                                 <span>
-                                  {getCpcFamilyBurstCalculatedColumnLabel(
-                                    "ooh",
+                                  {getDeliverablesLabel(
                                     form.watch(`lineItems.${lineItemIndex}.buyType`) || ""
                                   )}
                                 </span>
