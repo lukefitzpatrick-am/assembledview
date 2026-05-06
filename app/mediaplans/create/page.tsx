@@ -3185,6 +3185,7 @@ export default function CreateMediaPlan() {
       mp_progooh: { lineItems: progOohMediaLineItems, key: "progOoh" },
       mp_influencers: { lineItems: influencersMediaLineItems, key: "influencers" },
       mp_integration: { lineItems: integrationMediaLineItems, key: "integration" },
+      mp_production: { lineItems: productionLineItems, key: "production" },
     };
 
     const allLineItems: Record<string, BillingLineItem[]> = {};
@@ -3672,6 +3673,7 @@ export default function CreateMediaPlan() {
           mp_progooh: { lineItems: progOohMediaLineItems, key: "progOoh" },
           mp_influencers: { lineItems: influencersMediaLineItems, key: "influencers" },
           mp_integration: { lineItems: integrationMediaLineItems, key: "integration" },
+          mp_production: { lineItems: productionLineItems, key: "production" },
         }
         monthsForExport = prepareBillingMonthsForLineItemExport(
           billingMonths,
