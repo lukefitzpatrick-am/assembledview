@@ -842,6 +842,8 @@ export function mapRadioExpertRowsToStandardLineItems(
     }
 
     const bt = String(buyType || "").toLowerCase() as BuyType
+    const isManualQtyBuyType =
+      bt === "bonus" || bt === "package_inclusions" || bt === "package"
 
     for (const span of row.mergedWeekSpans ?? []) {
       const qty = span.totalQty
@@ -863,8 +865,7 @@ export function mapRadioExpertRowsToStandardLineItems(
       const netMedia = netMediaFromDeliverables(bt, qty, unitRate)
       const grossBudget = grossFromNet(netMedia, budgetIncludesFees, feePct)
       const calculatedValue = roundDeliverables(bt, qty)
-      const buyAmountStr =
-        buyType === "bonus" ? "0" : formatRate(unitRate)
+      const buyAmountStr = isManualQtyBuyType ? "0" : formatRate(unitRate)
 
       bursts.push({
         budget: formatBurstBudget(grossBudget),
@@ -887,8 +888,7 @@ export function mapRadioExpertRowsToStandardLineItems(
       const netMedia = netMediaFromDeliverables(bt, qty, unitRate)
       const grossBudget = grossFromNet(netMedia, budgetIncludesFees, feePct)
       const calculatedValue = roundDeliverables(bt, qty)
-      const buyAmountStr =
-        buyType === "bonus" ? "0" : formatRate(unitRate)
+      const buyAmountStr = isManualQtyBuyType ? "0" : formatRate(unitRate)
       const { start, end } = burstWindowForWeekColumn(col, campaignStartDate, campaignEndDate)
 
       bursts.push({
@@ -1442,13 +1442,15 @@ export function mapTvExpertRowsToStandardLineItems(
         buyType,
         "mapTvExpertRowsToStandardLineItems.pushBurst"
       )
+      const btLower = String(bt || "").toLowerCase()
+      const isManualQtyBuyType =
+        btLower === "bonus" ||
+        btLower === "package_inclusions" ||
+        btLower === "package"
       const netMedia = netMediaFromDeliverables(bt, qty, unitRate)
       const grossBudget = grossFromNet(netMedia, budgetIncludesFees, feePct)
       const calculatedValue = roundDeliverables(bt, qty)
-      const buyAmountStr =
-        String(buyType || "").toLowerCase() === "bonus"
-          ? "0"
-          : formatRate(unitRate)
+      const buyAmountStr = isManualQtyBuyType ? "0" : formatRate(unitRate)
       bursts.push({
         budget: formatBurstBudget(grossBudget),
         buyAmount: buyAmountStr,
@@ -1828,13 +1830,15 @@ export function mapBvodExpertRowsToStandardLineItems(
         buyType,
         "mapBvodExpertRowsToStandardLineItems.pushBurst"
       )
+      const btLower = String(bt || "").toLowerCase()
+      const isManualQtyBuyType =
+        btLower === "bonus" ||
+        btLower === "package_inclusions" ||
+        btLower === "package"
       const netMedia = netMediaFromDeliverables(bt, qty, unitRate)
       const grossBudget = grossFromNet(netMedia, budgetIncludesFees, feePct)
       const calculatedValue = roundDeliverables(bt, qty)
-      const buyAmountStr =
-        String(buyType || "").toLowerCase() === "bonus"
-          ? "0"
-          : formatRate(unitRate)
+      const buyAmountStr = isManualQtyBuyType ? "0" : formatRate(unitRate)
 
       bursts.push({
         budget: formatBurstBudget(grossBudget),
@@ -2196,9 +2200,14 @@ export function mapDigiVideoExpertRowsToStandardLineItems(
         budgetIncludesFees,
         feePct
       )
+      const buyTypeLower = buyType.toLowerCase()
+      const isManualQtyBuyType =
+        buyTypeLower === "bonus" ||
+        buyTypeLower === "package_inclusions" ||
+        buyTypeLower === "package"
       const buyAmountStr = formatBurstBudget(qty)
-      const bonusVal = buyType.toLowerCase() === "bonus" ? qty : undefined
-      const buyAmtNum = buyType.toLowerCase() === "bonus" ? 0 : qty
+      const bonusVal = isManualQtyBuyType ? qty : undefined
+      const buyAmtNum = isManualQtyBuyType ? 0 : qty
       const calculatedValue = bvodCalculatedDeliverables(
         buyType,
         netForCalc,
@@ -2208,7 +2217,7 @@ export function mapDigiVideoExpertRowsToStandardLineItems(
 
       bursts.push({
         budget: formatBurstBudget(rawBudget),
-        buyAmount: buyType.toLowerCase() === "bonus" ? "0" : buyAmountStr,
+        buyAmount: isManualQtyBuyType ? "0" : buyAmountStr,
         startDate: start,
         endDate: end,
         calculatedValue,
@@ -2576,9 +2585,14 @@ export function mapDigitalDisplayExpertRowsToStandardLineItems(
         budgetIncludesFees,
         feePct
       )
+      const buyTypeLower = buyType.toLowerCase()
+      const isManualQtyBuyType =
+        buyTypeLower === "bonus" ||
+        buyTypeLower === "package_inclusions" ||
+        buyTypeLower === "package"
       const buyAmountStr = formatBurstBudget(qty)
-      const bonusVal = buyType.toLowerCase() === "bonus" ? qty : undefined
-      const buyAmtNum = buyType.toLowerCase() === "bonus" ? 0 : qty
+      const bonusVal = isManualQtyBuyType ? qty : undefined
+      const buyAmtNum = isManualQtyBuyType ? 0 : qty
       const calculatedValue = bvodCalculatedDeliverables(
         buyType,
         netForCalc,
@@ -2588,7 +2602,7 @@ export function mapDigitalDisplayExpertRowsToStandardLineItems(
 
       bursts.push({
         budget: formatBurstBudget(rawBudget),
-        buyAmount: buyType.toLowerCase() === "bonus" ? "0" : buyAmountStr,
+        buyAmount: isManualQtyBuyType ? "0" : buyAmountStr,
         startDate: start,
         endDate: end,
         calculatedValue,
@@ -2947,13 +2961,15 @@ export function mapDigitalAudioExpertRowsToStandardLineItems(
         buyType,
         "mapDigitalAudioExpertRowsToStandardLineItems.pushBurst"
       )
+      const btLower = String(bt || "").toLowerCase()
+      const isManualQtyBuyType =
+        btLower === "bonus" ||
+        btLower === "package_inclusions" ||
+        btLower === "package"
       const netMedia = netMediaFromDeliverables(bt, qty, unitRate)
       const grossBudget = grossFromNet(netMedia, budgetIncludesFees, feePct)
       const calculatedValue = roundDeliverables(bt, qty)
-      const buyAmountStr =
-        String(buyType || "").toLowerCase() === "bonus"
-          ? "0"
-          : formatRate(unitRate)
+      const buyAmountStr = isManualQtyBuyType ? "0" : formatRate(unitRate)
 
       bursts.push({
         budget: formatBurstBudget(grossBudget),
@@ -3308,9 +3324,14 @@ export function mapSocialMediaExpertRowsToStandardLineItems(
         budgetIncludesFees,
         feePct
       )
+      const buyTypeLower = buyType.toLowerCase()
+      const isManualQtyBuyType =
+        buyTypeLower === "bonus" ||
+        buyTypeLower === "package_inclusions" ||
+        buyTypeLower === "package"
       const buyAmountStr = formatBurstBudget(qty)
-      const bonusVal = buyType.toLowerCase() === "bonus" ? qty : undefined
-      const buyAmtNum = buyType.toLowerCase() === "bonus" ? 0 : qty
+      const bonusVal = isManualQtyBuyType ? qty : undefined
+      const buyAmtNum = isManualQtyBuyType ? 0 : qty
       const calculatedValue = bvodCalculatedDeliverables(
         buyType,
         netForCalc,
@@ -3320,7 +3341,7 @@ export function mapSocialMediaExpertRowsToStandardLineItems(
 
       bursts.push({
         budget: formatBurstBudget(rawBudget),
-        buyAmount: buyType.toLowerCase() === "bonus" ? "0" : buyAmountStr,
+        buyAmount: isManualQtyBuyType ? "0" : buyAmountStr,
         startDate: start,
         endDate: end,
         calculatedValue,
@@ -3667,9 +3688,14 @@ export function mapSearchExpertRowsToStandardLineItems(
         budgetIncludesFees,
         feePct
       )
+      const buyTypeLower = buyType.toLowerCase()
+      const isManualQtyBuyType =
+        buyTypeLower === "bonus" ||
+        buyTypeLower === "package_inclusions" ||
+        buyTypeLower === "package"
       const buyAmountStr = formatBurstBudget(qty)
-      const bonusVal = buyType.toLowerCase() === "bonus" ? qty : undefined
-      const buyAmtNum = buyType.toLowerCase() === "bonus" ? 0 : qty
+      const bonusVal = isManualQtyBuyType ? qty : undefined
+      const buyAmtNum = isManualQtyBuyType ? 0 : qty
       const calculatedValue = bvodCalculatedDeliverables(
         buyType,
         netForCalc,
@@ -3679,7 +3705,7 @@ export function mapSearchExpertRowsToStandardLineItems(
 
       bursts.push({
         budget: formatBurstBudget(rawBudget),
-        buyAmount: buyType.toLowerCase() === "bonus" ? "0" : buyAmountStr,
+        buyAmount: isManualQtyBuyType ? "0" : buyAmountStr,
         startDate: start,
         endDate: end,
         calculatedValue,
@@ -4031,9 +4057,14 @@ export function mapInfluencersExpertRowsToStandardLineItems(
         budgetIncludesFees,
         feePct
       )
+      const buyTypeLower = buyType.toLowerCase()
+      const isManualQtyBuyType =
+        buyTypeLower === "bonus" ||
+        buyTypeLower === "package_inclusions" ||
+        buyTypeLower === "package"
       const buyAmountStr = formatBurstBudget(qty)
-      const bonusVal = buyType.toLowerCase() === "bonus" ? qty : undefined
-      const buyAmtNum = buyType.toLowerCase() === "bonus" ? 0 : qty
+      const bonusVal = isManualQtyBuyType ? qty : undefined
+      const buyAmtNum = isManualQtyBuyType ? 0 : qty
       const calculatedValue = bvodCalculatedDeliverables(
         buyType,
         netForCalc,
@@ -4043,7 +4074,7 @@ export function mapInfluencersExpertRowsToStandardLineItems(
 
       bursts.push({
         budget: formatBurstBudget(rawBudget),
-        buyAmount: buyType.toLowerCase() === "bonus" ? "0" : buyAmountStr,
+        buyAmount: isManualQtyBuyType ? "0" : buyAmountStr,
         startDate: start,
         endDate: end,
         calculatedValue,
@@ -4403,9 +4434,14 @@ export function mapIntegrationExpertRowsToStandardLineItems(
         budgetIncludesFees,
         feePct
       )
+      const buyTypeLower = buyType.toLowerCase()
+      const isManualQtyBuyType =
+        buyTypeLower === "bonus" ||
+        buyTypeLower === "package_inclusions" ||
+        buyTypeLower === "package"
       const buyAmountStr = formatBurstBudget(qty)
-      const bonusVal = buyType.toLowerCase() === "bonus" ? qty : undefined
-      const buyAmtNum = buyType.toLowerCase() === "bonus" ? 0 : qty
+      const bonusVal = isManualQtyBuyType ? qty : undefined
+      const buyAmtNum = isManualQtyBuyType ? 0 : qty
       const calculatedValue = bvodCalculatedDeliverables(
         buyType,
         netForCalc,
@@ -4415,7 +4451,7 @@ export function mapIntegrationExpertRowsToStandardLineItems(
 
       bursts.push({
         budget: formatBurstBudget(rawBudget),
-        buyAmount: buyType.toLowerCase() === "bonus" ? "0" : buyAmountStr,
+        buyAmount: isManualQtyBuyType ? "0" : buyAmountStr,
         startDate: start,
         endDate: end,
         calculatedValue,
@@ -4719,8 +4755,12 @@ export function mapNewspaperExpertRowsToStandardLineItems(
       )
       const buyAmountStr = formatBurstBudget(qty)
       const buyTypeLower = buyType.toLowerCase()
-      const bonusVal = buyTypeLower === "bonus" ? qty : undefined
-      const buyAmtNum = buyTypeLower === "bonus" ? 0 : qty
+      const isManualQtyBuyType =
+        buyTypeLower === "bonus" ||
+        buyTypeLower === "package_inclusions" ||
+        buyTypeLower === "package"
+      const bonusVal = isManualQtyBuyType ? qty : undefined
+      const buyAmtNum = isManualQtyBuyType ? 0 : qty
       const calculatedValue = newspaperCalculatedDeliverables(
         buyType,
         netForCalc,
@@ -4730,7 +4770,7 @@ export function mapNewspaperExpertRowsToStandardLineItems(
 
       bursts.push({
         budget: formatBurstBudget(rawBudget),
-        buyAmount: buyTypeLower === "bonus" ? "0" : buyAmountStr,
+        buyAmount: isManualQtyBuyType ? "0" : buyAmountStr,
         startDate: start,
         endDate: end,
         calculatedValue,
@@ -5041,8 +5081,12 @@ export function mapMagazineExpertRowsToStandardLineItems(
       )
       const buyAmountStr = formatBurstBudget(qty)
       const buyTypeLower = buyType.toLowerCase()
-      const bonusVal = buyTypeLower === "bonus" ? qty : undefined
-      const buyAmtNum = buyTypeLower === "bonus" ? 0 : qty
+      const isManualQtyBuyType =
+        buyTypeLower === "bonus" ||
+        buyTypeLower === "package_inclusions" ||
+        buyTypeLower === "package"
+      const bonusVal = isManualQtyBuyType ? qty : undefined
+      const buyAmtNum = isManualQtyBuyType ? 0 : qty
       const calculatedValue = magazineCalculatedDeliverables(
         buyType,
         netForCalc,
@@ -5052,7 +5096,7 @@ export function mapMagazineExpertRowsToStandardLineItems(
 
       bursts.push({
         budget: formatBurstBudget(rawBudget),
-        buyAmount: buyTypeLower === "bonus" ? "0" : buyAmountStr,
+        buyAmount: isManualQtyBuyType ? "0" : buyAmountStr,
         startDate: start,
         endDate: end,
         calculatedValue,
@@ -5330,8 +5374,12 @@ function buildBurstsFromProgExpertLikeRow(
     )
     const buyAmountStr = formatBurstBudget(qty)
     const buyTypeLower = buyType.toLowerCase()
-    const bonusVal = buyTypeLower === "bonus" ? qty : undefined
-    const buyAmtNum = buyTypeLower === "bonus" ? 0 : qty
+    const isManualQtyBuyType =
+      buyTypeLower === "bonus" ||
+      buyTypeLower === "package_inclusions" ||
+      buyTypeLower === "package"
+    const bonusVal = isManualQtyBuyType ? qty : undefined
+    const buyAmtNum = isManualQtyBuyType ? 0 : qty
     const calculatedValue = bvodCalculatedDeliverables(
       buyType,
       netForCalc,
@@ -5341,7 +5389,7 @@ function buildBurstsFromProgExpertLikeRow(
 
     bursts.push({
       budget: formatBurstBudget(rawBudget),
-      buyAmount: buyTypeLower === "bonus" ? "0" : buyAmountStr,
+      buyAmount: isManualQtyBuyType ? "0" : buyAmountStr,
       startDate: start,
       endDate: end,
       calculatedValue,
