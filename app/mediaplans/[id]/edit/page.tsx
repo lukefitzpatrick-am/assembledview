@@ -83,7 +83,13 @@ import {
 import { BillingSchedule, type BillingScheduleType } from "@/components/billing/BillingSchedule"
 import type { BillingSchedule as BillingScheduleInterface } from "@/types/billing"
 import { buildBillingScheduleJSON } from "@/lib/billing/buildBillingSchedule"
-import { appendPartialApprovalToBillingSchedule, buildPartialApprovalNote, type PartialApprovalLineItem, type PartialApprovalMetadata } from "@/lib/mediaplan/partialMba"
+import {
+  appendPartialApprovalToBillingSchedule,
+  buildPartialApprovalNote,
+  sumMediaTotalsExcludingProduction,
+  type PartialApprovalLineItem,
+  type PartialApprovalMetadata,
+} from "@/lib/mediaplan/partialMba"
 import { getScheduleHeaders } from "@/lib/billing/scheduleHeaders"
 import type { BillingMonth, BillingLineItem } from "@/lib/billing/types"
 import { checkMediaDatesOutsideCampaign } from "@/lib/utils/mediaPlanValidation"
@@ -1366,7 +1372,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
   }, [adservvideo, adservimp, adservdisplay, adservaudio, grossMediaTotal])
 
   const calculateProductionCosts = useCallback(() => {
-    return billingSchedule.reduce((sum, month) => sum + (month.productionAmount || 0), 0)
+    return billingSchedule.reduce((sum, month: any) => {
+      const productionValue = month.productionAmount ?? month.production
+      return sum + parseMoney(productionValue)
+    }, 0)
   }, [billingSchedule])
 
   const buildPartialLineItems = useCallback((selectedMonths: string[]) => {
@@ -1417,10 +1426,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
     const mediaTotals = Object.fromEntries(
       channels.map((c) => [c.mediaKey, parseMoney(c.selectedTotal)])
     )
-    const grossMedia = Object.entries(mediaTotals).reduce(
-      (sum, [key, val]) => (key === "production" ? sum : sum + val),
-      0,
-    )
+    const grossMedia = sumMediaTotalsExcludingProduction(mediaTotals)
     setPartialMBAValues((prev) => ({ ...prev, mediaTotals, grossMedia }))
     setPartialMBALineItemsByMedia(Object.fromEntries(Object.entries(byMedia).map(([k, v]) => [k, Object.values(v)])))
     setPartialApprovalMetadata({

@@ -49,10 +49,18 @@ export function parseCurrency(value: string | number | undefined | null): number
   return Number.isFinite(numeric) ? numeric : 0
 }
 
-/** Gross media only; excludes `production` — production is tracked separately on each month and in totals. */
-function sumMediaTotalsExcludingProduction(mediaTotals: Record<string, number>): number {
+export function isProductionMediaKey(key: unknown): boolean {
+  const normalized = String(key ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]+/g, "")
+  return normalized === "production" || normalized === "mpproduction"
+}
+
+/** Gross media only; excludes production — production is tracked separately on each month and in totals. */
+export function sumMediaTotalsExcludingProduction(mediaTotals: Record<string, number>): number {
   return Object.entries(mediaTotals).reduce(
-    (acc, [k, v]) => (k === "production" ? acc : acc + v),
+    (acc, [k, v]) => (isProductionMediaKey(k) ? acc : acc + v),
     0,
   )
 }
@@ -209,7 +217,7 @@ export function recomputePartialMbaFromSelections(params: {
 
   let grossFullLineItems = 0
   for (const k of mediaKeys) {
-    if (k === "production") continue
+    if (isProductionMediaKey(k)) continue
     if (baselineEnabled[k] === false) continue
     const byId = lineItemsMap[k]
     if (!byId) continue
