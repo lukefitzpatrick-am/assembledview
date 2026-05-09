@@ -48,6 +48,7 @@ import {
   mediaTypeLineItemBadgeStyle,
   mediaTypeSummaryStripeStyle,
 } from "@/lib/mediaplan/mediaTypeAccents"
+import { mapProductionLineItemsForExport } from "@/lib/mediaplan/productionLineItems"
 
 const MEDIA_ACCENT_HEX = getMediaTypeThemeHex("production")
 
@@ -190,46 +191,6 @@ const buildInvestmentByMonth = (bursts: BillingBurst[]) => {
     monthYear,
     amount: formatCurrencyFull(amount, { locale: "en-AU", currency: "AUD" }),
   }))
-}
-
-/**
- * Maps production line items into the shared LineItem[] export shape.
- *
- * IMPORTANT: platform is hardcoded to "production" for all production rows.
- * Production is treated as a single media type for export purposes; the
- * dropdown subcategory ("Print", "Audio", etc.) is internal organisation
- * only and is preserved in `apiLineItems.media_type` for dropdown
- * re-hydration but does NOT appear in exports.
- *
- * Matches buildBillingBursts which also forces mediaType: "production"
- * for billing math.
- */
-const mapLineItemsForExport = (
-  lineItems: ProductionFormValues["lineItems"],
-  mbaNumber: string
-): LineItem[] => {
-  let burstIndex = 0
-  return lineItems.flatMap((lineItem, lineIndex) =>
-    lineItem.bursts.map((burst) => {
-      const mediaAmount = (burst.cost || 0) * (burst.amount || 0)
-      const lineId = lineItem.lineItemId || `${mbaNumber}PROD${lineIndex + 1}`
-      burstIndex += 1
-      return {
-        market: lineItem.market || "",
-        platform: "production",
-        network: lineItem.publisher || "",
-        creative: lineItem.description || "",
-        startDate: formatDateString(burst.startDate),
-        endDate: formatDateString(burst.endDate),
-        deliverables: burst.amount || 0,
-        buyType: "production",
-        deliverablesAmount: (burst.cost || 0).toString(),
-        grossMedia: String(mediaAmount),
-        line_item_id: lineId,
-        line_item: lineIndex + 1,
-      }
-    })
-  )
 }
 
 export default function ProductionContainer({
@@ -436,7 +397,7 @@ export default function ProductionContainer({
     totalMediaChangeRef.current?.(totals.totalMedia, 0)
     burstsChangeRef.current?.(bursts)
     investmentChangeRef.current?.(buildInvestmentByMonth(bursts))
-    const mappedLineItems = mapLineItemsForExport(watchedLineItems || [], mbaNumber || "MBA")
+    const mappedLineItems = mapProductionLineItemsForExport(watchedLineItems || [], mbaNumber || "MBA")
     lineItemsChangeRef.current?.(mappedLineItems)
     mediaLineItemsChangeRef.current?.(apiLineItems)
   }, [watchedLineItems, totals.totalMedia, mbaNumber, apiLineItems])

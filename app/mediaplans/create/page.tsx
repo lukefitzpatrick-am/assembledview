@@ -609,12 +609,13 @@ export default function CreateMediaPlan() {
   const [oohFeeTotal, setOohFeeTotal] = useState(0)
   const [oohMediaLineItems, setOohMediaLineItems] = useState<any[]>([])
 
-  // Production (single line-items state — seed + container updates share `productionLineItems`)
+  // Production keeps export-shaped rows separate from API/save rows.
   const [feeProduction, setFeeProduction] = useState<number | null>(null)
   const [productionTotal, setProductionTotal] = useState(0)
   const [productionBursts, setProductionBursts] = useState<BillingBurst[]>([])
   const [productionFeeTotal, setProductionFeeTotal] = useState(0)
-  const [productionLineItems, setProductionLineItems] = useState<any[]>([])
+  const [productionItems, setProductionItems] = useState<LineItem[]>([])
+  const [productionMediaLineItems, setProductionMediaLineItems] = useState<any[]>([])
 
   //Ad Serving
   const [adservvideo, setAdServVideo] = useState<number | null>(null)
@@ -760,7 +761,7 @@ export default function CreateMediaPlan() {
       magazineMediaLineItems.length +
       oohMediaLineItems.length +
       cinemaMediaLineItems.length +
-      productionLineItems.length +
+      productionMediaLineItems.length +
       digiAudioMediaLineItems.length +
       digiDisplayMediaLineItems.length +
       digiVideoMediaLineItems.length +
@@ -782,7 +783,7 @@ export default function CreateMediaPlan() {
     magazineMediaLineItems,
     oohMediaLineItems,
     cinemaMediaLineItems,
-    productionLineItems,
+    productionMediaLineItems,
     digiAudioMediaLineItems,
     digiDisplayMediaLineItems,
     digiVideoMediaLineItems,
@@ -820,7 +821,7 @@ export default function CreateMediaPlan() {
       cinema: cinemaItems,
       integration: integrationItems,
       influencers: influencersItems,
-      production: productionLineItems,
+      production: productionItems,
     }
     return planHasAdvertisingAssociatesLineItem(mediaItems, kpiPublishers, shouldIncludeMediaPlanLineItem)
   }, [
@@ -842,7 +843,7 @@ export default function CreateMediaPlan() {
     oohItems,
     cinemaItems,
     integrationItems,
-    productionLineItems,
+    productionItems,
     influencersItems,
     kpiPublishers,
   ])
@@ -895,7 +896,7 @@ export default function CreateMediaPlan() {
           ooh: oohItems,
           cinema: cinemaItems,
           influencers: influencersItems,
-          production: productionLineItems,
+          production: productionItems,
         },
         clientName: fv.mp_client_name,
         mbaNumber: fv.mba_number ?? "",
@@ -935,7 +936,7 @@ export default function CreateMediaPlan() {
     oohItems,
     cinemaItems,
     influencersItems,
-    productionLineItems,
+    productionItems,
     publisherKPIs,
     clientKPIs,
     savedCampaignKPIs,
@@ -1858,9 +1859,14 @@ export default function CreateMediaPlan() {
     setOohMediaLineItems(lineItems);
   }, [markUnsavedChanges]);
 
-  const handleProductionLineItemsChange = useCallback((lineItems: LineItem[] | any[]) => {
+  const handleProductionLineItemsChange = useCallback((lineItems: LineItem[]) => {
     markUnsavedChanges();
-    setProductionLineItems(lineItems);
+    setProductionItems(lineItems);
+  }, [markUnsavedChanges]);
+
+  const handleProductionMediaLineItemsChange = useCallback((lineItems: any[]) => {
+    markUnsavedChanges();
+    setProductionMediaLineItems(lineItems);
   }, [markUnsavedChanges]);
 
   const handleCinemaMediaLineItemsChange = useCallback((lineItems: any[]) => {
@@ -2319,7 +2325,7 @@ export default function CreateMediaPlan() {
     const validCinemaItems = cinemaItems.filter(shouldIncludeMediaPlanLineItem);
     const validIntegrationItems = integrationItems.filter(shouldIncludeMediaPlanLineItem);
     const validInfluencersItems = influencersItems.filter(shouldIncludeMediaPlanLineItem);
-    const validProductionLineItems = productionLineItems.filter(shouldIncludeMediaPlanLineItem);
+    const validProductionLineItems = productionItems.filter(shouldIncludeMediaPlanLineItem);
 
     const mediaItems: MediaItems = {
       search:       assignLineItemIds(validSearchItems,       "SRC"),
@@ -3134,7 +3140,7 @@ export default function CreateMediaPlan() {
       mp_progaudio: { lineItems: progAudioMediaLineItems, key: "progAudio" },
       mp_progooh: { lineItems: progOohMediaLineItems, key: "progOoh" },
       mp_influencers: { lineItems: influencersMediaLineItems, key: "influencers" },
-      mp_production: { lineItems: productionLineItems, key: "production" },
+      mp_production: { lineItems: productionMediaLineItems, key: "production" },
     }
 
     const allLineItems: Record<string, BillingLineItem[]> = {}
@@ -3886,7 +3892,7 @@ export default function CreateMediaPlan() {
           'mp_progaudio': { lineItems: progAudioMediaLineItems, key: 'progAudio' },
           'mp_progooh': { lineItems: progOohMediaLineItems, key: 'progOoh' },
           'mp_influencers': { lineItems: influencersMediaLineItems, key: 'influencers' },
-          'mp_production': { lineItems: productionLineItems, key: 'production' },
+          'mp_production': { lineItems: productionMediaLineItems, key: 'production' },
         };
 
         const allLineItems: Record<string, BillingLineItem[]> = {};
@@ -4047,7 +4053,7 @@ export default function CreateMediaPlan() {
       });
       
       const shouldEnableProduction = Boolean(
-        fv.mp_production || (productionLineItems?.length ?? 0) > 0
+        fv.mp_production || (productionMediaLineItems?.length ?? 0) > 0
       )
 
       // Build payload matching Xano's media_plan_versions endpoint expectations
@@ -4158,7 +4164,7 @@ export default function CreateMediaPlan() {
           cinema: cinemaItems,
           integration: integrationItems,
           influencers: influencersItems,
-          production: productionLineItems,
+          production: productionItems,
         }
 
         let aaMediaPlanFile: File | undefined
@@ -4483,7 +4489,7 @@ export default function CreateMediaPlan() {
       }
 
       // Production / Consulting
-      if (shouldEnableProduction && productionLineItems && productionLineItems.length > 0) {
+      if (shouldEnableProduction && productionMediaLineItems && productionMediaLineItems.length > 0) {
         const displayName = mediaTypeDisplayNames.mp_production;
         updateSaveStatus(displayName, 'pending');
         mediaTypeSavePromises.push(
@@ -4492,7 +4498,7 @@ export default function CreateMediaPlan() {
             fv.mba_number,
             fv.mp_client_name,
             fv.mp_plannumber,
-            productionLineItems
+            productionMediaLineItems
           ).then(result => {
             updateSaveStatus(displayName, 'success');
             return result;
@@ -6327,7 +6333,7 @@ const handleSaveAll = async () => {
                             onBurstsChange={handleProductionBurstsChange}
                             onInvestmentChange={handleInvestmentChange}
                             onLineItemsChange={handleProductionLineItemsChange}
-                            onMediaLineItemsChange={handleProductionLineItemsChange}
+                            onMediaLineItemsChange={handleProductionMediaLineItemsChange}
                             campaignStartDate={form.watch("mp_campaigndates_start")}
                             campaignEndDate={form.watch("mp_campaigndates_end")}
                             campaignBudget={form.watch("mp_campaignbudget")}
