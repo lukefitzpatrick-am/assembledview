@@ -1,7 +1,7 @@
 "use server"
 
 import { auth0 } from "@/lib/auth0"
-import { getUserRoles } from "@/lib/rbac"
+import { requireAdminUser } from "@/lib/requireRole"
 import {
   createSavedPacingView,
   deleteSavedPacingView,
@@ -10,19 +10,12 @@ import {
   updateSavedPacingView,
 } from "@/lib/xano/savedViews"
 
-function requireAdmin(user: any) {
-  const roles = getUserRoles(user)
-  if (!roles.includes("admin")) {
-    throw new Error("Unauthorized")
-  }
-}
-
 export async function listSavedPacingViewsAction(): Promise<{ ok: true; views: SavedPacingView[] } | { ok: false; error: string }> {
   try {
     const session = await auth0.getSession()
     const user = session?.user
     if (!user) return { ok: false, error: "Unauthorized" }
-    requireAdmin(user)
+    requireAdminUser(user)
     const userId = String((user as any)?.sub ?? "")
     const views = await listSavedPacingViews(userId)
     return { ok: true, views }
@@ -40,7 +33,7 @@ export async function createSavedPacingViewAction(input: {
     const session = await auth0.getSession()
     const user = session?.user
     if (!user) return { ok: false, error: "Unauthorized" }
-    requireAdmin(user)
+    requireAdminUser(user)
     const userId = String((user as any)?.sub ?? "")
 
     const payload: Omit<SavedPacingView, "id"> = {
@@ -65,7 +58,7 @@ export async function updateSavedPacingViewAction(
     const session = await auth0.getSession()
     const user = session?.user
     if (!user) return { ok: false, error: "Unauthorized" }
-    requireAdmin(user)
+    requireAdminUser(user)
     const view = await updateSavedPacingView(id, patch)
     return { ok: true, view }
   } catch (err) {
@@ -80,7 +73,7 @@ export async function deleteSavedPacingViewAction(
     const session = await auth0.getSession()
     const user = session?.user
     if (!user) return { ok: false, error: "Unauthorized" }
-    requireAdmin(user)
+    requireAdminUser(user)
     await deleteSavedPacingView(id)
     return { ok: true }
   } catch (err) {

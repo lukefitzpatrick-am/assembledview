@@ -23,6 +23,17 @@ export default async function PacingSettingsPage() {
           <Link href="/pacing/overview">Back to overview</Link>
         </Button>
       </div>
+
+      <section className="rounded-xl border border-border/60 bg-card p-4">
+        <h3 className="text-sm font-semibold">Pacing mappings</h3>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Manage how platform line items map to media plan line items. Used by all pacing computations.
+        </p>
+        <Button asChild className="mt-3" variant="outline" size="sm">
+          <Link href="/pacing/mappings">Open mappings</Link>
+        </Button>
+      </section>
+
       <PacingSettingsClient />
     </div>
   )

@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getUserClientIdentifier, getUserRoles, UserRole } from './rbac';
-import { auth0 } from './auth0';
+import type { User } from "@auth0/nextjs-auth0/types"
+import { NextRequest, NextResponse } from "next/server"
+import { getUserClientIdentifier, getUserRoles, UserRole } from "./rbac"
+import { auth0 } from "./auth0"
 
 type RequireRoleOptions = {
   allowEmails?: string[];
@@ -68,7 +69,18 @@ export async function requireAdmin(
   req: NextRequest,
   options: RequireRoleOptions = {}
 ): Promise<RequireRoleSuccess | RequireRoleFailure> {
-  return requireRole(req, 'admin', options);
+  return requireRole(req, 'admin', options)
+}
+
+/** For server actions / non-route code: assert Auth0 session user is admin. */
+export function requireAdminUser(user: User | null | undefined): void {
+  if (!user) {
+    throw new Error("Unauthorized")
+  }
+  const roles = getUserRoles(user)
+  if (!roles.includes("admin")) {
+    throw new Error("Unauthorized")
+  }
 }
 
 

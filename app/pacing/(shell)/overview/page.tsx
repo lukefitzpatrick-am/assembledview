@@ -1,17 +1,18 @@
 "use client"
 
-import { PacingSummaryCards } from "@/components/pacing/PacingSummaryCards"
-import { PacingAlertsPanel } from "@/components/pacing/PacingAlertsPanel"
-import { LineItemPacingTable } from "@/components/pacing/LineItemPacingTable"
+import { useMemo } from "react"
+import { PacingSummaryRow } from "@/components/pacing/PacingSummaryRow"
+import { PacingAlertsAside } from "@/components/pacing/PacingAlertsAside"
+import { PacingLineItemTable } from "@/components/pacing/PacingLineItemTable"
+import { PacingLineItemDrawer } from "@/components/pacing/PacingLineItemDrawer"
 import {
   PacingOverviewDataProvider,
   usePacingOverviewData,
 } from "@/components/pacing/PacingOverviewDataContext"
-import { DeliveryPacingDrawer } from "@/components/pacing/DeliveryPacingDrawer"
 import { usePacingFilterStore } from "@/lib/pacing/usePacingFilterStore"
 
 function PacingOverviewBody() {
-  const { drawerLineItem, closeDrawer, clientNameById } = usePacingOverviewData()
+  const { drawerLineItem, closeDrawer, clientNameById, historyById } = usePacingOverviewData()
   const filterDateTo = usePacingFilterStore((s) => s.filters.date_to)
 
   const clientLabel =
@@ -19,24 +20,25 @@ function PacingOverviewBody() {
       ? clientNameById.get(drawerLineItem.clients_id) ?? `Client ${drawerLineItem.clients_id}`
       : ""
 
+  const drawerPacingHistory = useMemo(() => {
+    if (!drawerLineItem) return undefined
+    return historyById.get(drawerLineItem.av_line_item_id) ?? []
+  }, [drawerLineItem, historyById])
+
   return (
     <>
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
-        <p className="text-sm text-muted-foreground">
-          Line-item pacing from Snowflake, scoped to your filters.
-        </p>
-      </header>
-      <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_min(340px,100%)] lg:items-start">
-        <div className="min-w-0 space-y-8">
-          <PacingSummaryCards />
-          <LineItemPacingTable />
+      <PacingSummaryRow />
+
+      <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_min(340px,100%)] lg:items-start">
+        <div className="min-w-0">
+          <PacingLineItemTable />
         </div>
-        <aside className="lg:sticky lg:top-24 lg:self-start">
-          <PacingAlertsPanel />
-        </aside>
+        <div className="lg:sticky lg:top-32 lg:self-start">
+          <PacingAlertsAside />
+        </div>
       </div>
-      <DeliveryPacingDrawer
+
+      <PacingLineItemDrawer
         row={drawerLineItem}
         open={drawerLineItem != null}
         onOpenChange={(o) => {
@@ -44,6 +46,7 @@ function PacingOverviewBody() {
         }}
         filterDateTo={filterDateTo}
         clientLabel={clientLabel}
+        pacingHistory={drawerPacingHistory}
       />
     </>
   )
@@ -51,10 +54,8 @@ function PacingOverviewBody() {
 
 export default function PacingOverviewPage() {
   return (
-    <div className="space-y-6">
-      <PacingOverviewDataProvider>
-        <PacingOverviewBody />
-      </PacingOverviewDataProvider>
-    </div>
+    <PacingOverviewDataProvider>
+      <PacingOverviewBody />
+    </PacingOverviewDataProvider>
   )
 }
