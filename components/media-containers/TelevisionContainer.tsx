@@ -7,7 +7,6 @@ import {
   useRef,
   useMemo,
   useCallback,
-  type RefCallback,
 } from "react"
 import { useForm, useFieldArray, UseFormReturn } from "react-hook-form"
 import { useWatch } from "react-hook-form"
@@ -44,11 +43,10 @@ import { formatMoney, parseMoneyInput } from "@/lib/format/money"
 import {
   coerceBuyTypeWithDevWarn,
   computeDeliverableFromMedia,
-  deliverablesFromBudget,
-  netFromGross,
   roundDeliverables,
 } from "@/lib/mediaplan/deliverableBudget"
 import MediaContainerTimelineCollapsible from "@/components/media-containers/MediaContainerTimelineCollapsible"
+import { TelevisionBurstTarpsField } from "@/components/media-containers/burst-calculated-fields"
 import {
   getMediaTypeThemeHex,
   mediaTypeAccentTextStyle,
@@ -108,14 +106,6 @@ export function getAllBursts(form) {
 
 const EMPTY_TELEVISION_LINE_ITEMS: TelevisionFormValues["televisionlineItems"] = []
 
-type TelevisionTarpsRhfField = {
-  name: string
-  value: string | undefined
-  onChange: (value: string) => void
-  onBlur: () => void
-  ref: RefCallback<HTMLInputElement>
-}
-
 function computeTelevisionLoadedDeliverables(
   buyType: string,
   burst: any,
@@ -165,166 +155,6 @@ function computeTelevisionLoadedDeliverables(
   }
 
   return roundDeliverables(bt, value)
-}
-
-/** FormField render callbacks are not components; hooks must live here. */
-function TelevisionTarpsBurstField({
-  form,
-  lineItemIndex,
-  burstIndex,
-  field,
-  feetelevision,
-}: {
-  form: UseFormReturn<TelevisionFormValues>
-  lineItemIndex: number
-  burstIndex: number
-  field: TelevisionTarpsRhfField
-  feetelevision: number
-}) {
-  const buyTypeWatch = useWatch({
-    control: form.control,
-    name: `televisionlineItems.${lineItemIndex}.buyType`,
-  })
-  const budgetIncludesFeesWatch = useWatch({
-    control: form.control,
-    name: `televisionlineItems.${lineItemIndex}.budgetIncludesFees`,
-  })
-  const budgetValue = useWatch({
-    control: form.control,
-    name: `televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.budget`,
-  })
-  const buyAmountValue = useWatch({
-    control: form.control,
-    name: `televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount`,
-  })
-  const tarpsWatch = useWatch({
-    control: form.control,
-    name: `televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.tarps`,
-  })
-
-  const calculatedValue = useMemo(() => {
-    const gross = parseFloat(String(budgetValue)?.replace(/[^0-9.]/g, "") || "0")
-    const buyAmount = parseFloat(String(buyAmountValue)?.replace(/[^0-9.]/g, "") || "1")
-    const bt = coerceBuyTypeWithDevWarn(
-      String(buyTypeWatch || ""),
-      "TelevisionTarpsBurstField.calculatedValue"
-    )
-    const net = netFromGross(gross, Boolean(budgetIncludesFeesWatch), feetelevision || 0)
-    const raw = deliverablesFromBudget(bt, net, buyAmount)
-    if (Number.isNaN(raw)) {
-      const t = parseFloat(String(tarpsWatch ?? "0").replace(/[^0-9.]/g, "")) || 0
-      return t
-    }
-    return roundDeliverables(bt, raw)
-  }, [
-    budgetValue,
-    buyAmountValue,
-    buyTypeWatch,
-    budgetIncludesFeesWatch,
-    feetelevision,
-    tarpsWatch,
-  ])
-
-  useEffect(() => {
-    if (buyTypeWatch === "bonus" || buyTypeWatch === "package_inclusions") return
-    const gross = parseFloat(String(budgetValue ?? "").replace(/[^0-9.]/g, "") || "0")
-    const buyAmount = parseFloat(String(buyAmountValue ?? "").replace(/[^0-9.]/g, "") || "1")
-    const bt = coerceBuyTypeWithDevWarn(
-      String(buyTypeWatch || ""),
-      "TelevisionTarpsBurstField.syncTarps"
-    )
-    const net = netFromGross(gross, Boolean(budgetIncludesFeesWatch), feetelevision || 0)
-    const raw = deliverablesFromBudget(bt, net, buyAmount)
-    if (Number.isNaN(raw)) return
-    const next = roundDeliverables(bt, raw)
-    const currentTarps = form.getValues(
-      `televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.tarps`
-    )
-    const cur =
-      parseFloat(String(currentTarps ?? "0").replace(/[^0-9.]/g, "")) || 0
-    if (Math.abs(cur - next) <= 1e-6) return
-    form.setValue(
-      `televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.tarps`,
-      String(next)
-    )
-    form.setValue(
-      `televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`,
-      next,
-      { shouldValidate: false, shouldDirty: false }
-    )
-  }, [
-    budgetValue,
-    buyAmountValue,
-    buyTypeWatch,
-    budgetIncludesFeesWatch,
-    feetelevision,
-    lineItemIndex,
-    burstIndex,
-    form,
-  ])
-
-  if (buyTypeWatch === "bonus") {
-    return (
-      <FormItem>
-        <FormLabel className="text-xs">Bonus Deliverables</FormLabel>
-        <FormControl>
-          <Input
-            type="number"
-            min={0}
-            step={1}
-            className="w-full"
-            value={field.value ?? ""}
-            onChange={(e) => {
-              const value = e.target.value.replace(/[^0-9]/g, "")
-              field.onChange(value)
-            }}
-          />
-        </FormControl>
-        <FormMessage />
-      </FormItem>
-    )
-  }
-
-  let title = "Calculated Value"
-  switch (buyTypeWatch) {
-    case "cpt":
-      title = "TARPs"
-      break
-    case "spots":
-      title = "Spots"
-      break
-    case "package":
-      title = "Package"
-      break
-    case "bonus":
-      title = "Bonus"
-      break
-    case "cpm":
-      title = "Impressions"
-      break
-    case "fixed_cost":
-      title = "Fixed Cost"
-      break
-  }
-
-  const displayNumeric =
-    typeof calculatedValue === "number"
-      ? calculatedValue
-      : parseFloat(String(calculatedValue)) || 0
-
-  return (
-    <FormItem>
-      <FormLabel className="text-xs">{title}</FormLabel>
-      <FormControl>
-        <Input
-          type="text"
-          className="w-full min-w-[8rem] h-10 text-sm"
-          value={displayNumeric.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-          readOnly
-        />
-      </FormControl>
-    </FormItem>
-  )
 }
 
 interface Publisher {
@@ -2209,12 +2039,12 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
                                       control={form.control}
                                       name={`televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.tarps`}
                                       render={({ field }) => (
-                                        <TelevisionTarpsBurstField
+                                        <TelevisionBurstTarpsField
                                           form={form}
                                           lineItemIndex={lineItemIndex}
                                           burstIndex={burstIndex}
-                                          field={field as TelevisionTarpsRhfField}
-                                          feetelevision={feetelevision}
+                                          field={field}
+                                          feePct={feetelevision || 0}
                                         />
                                       )}
                                     />

@@ -7,8 +7,13 @@ import type {
   UseFormReturn,
 } from "react-hook-form"
 import { useWatch } from "react-hook-form"
-import { FormControl, FormItem, FormMessage } from "@/components/ui/form"
+import { FormControl, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
+import {
+  coerceBuyTypeWithDevWarn,
+  computeDeliverableFromMedia,
+  roundDeliverables,
+} from "@/lib/mediaplan/deliverableBudget"
 
 export type NetMediaForBurstFn = (
   rawBudget: number,
@@ -25,7 +30,12 @@ type CpcFamilyProps<T extends FieldValues> = {
   burstIndex: number
   field: ControllerRenderProps<T>
   feePct: number
-  netMedia: NetMediaForBurstFn
+  /**
+   * @deprecated The component now uses computeDeliverableFromMedia
+   * internally and does not call this prop. Kept for backward
+   * compatibility with existing callsites - safe to omit in new code.
+   */
+  netMedia?: NetMediaForBurstFn
   variant?: CpcFamilyVariant
   inputClassName?: string
   bonusInputClassName?: string
@@ -33,86 +43,6 @@ type CpcFamilyProps<T extends FieldValues> = {
 
 function displayCalculated(calculatedValue: string | number): string {
   return Number(calculatedValue).toLocaleString(undefined, { maximumFractionDigits: 0 })
-}
-
-function calcForVariant(
-  variant: CpcFamilyVariant,
-  buyType: string,
-  budget: number,
-  buyAmount: number
-): string {
-  switch (variant) {
-    case "cpcCpvCpm":
-      switch (buyType) {
-        case "cpc":
-        case "cpv":
-          return buyAmount !== 0 ? String(budget / buyAmount) : "0"
-        case "cpm":
-          return buyAmount !== 0 ? String((budget / buyAmount) * 1000) : "0"
-        case "fixed_cost":
-          return "1"
-        default:
-          return "0"
-      }
-    case "newspaper":
-    case "magazine":
-      switch (buyType) {
-        case "cpc":
-        case "insertions":
-        case "cpv":
-          return buyAmount !== 0 ? String(budget / buyAmount) : "0"
-        case "cpm":
-          return buyAmount !== 0 ? String((budget / buyAmount) * 1000) : "0"
-        case "fixed_cost":
-        case "package":
-          return "1"
-        default:
-          return "0"
-      }
-    case "radio":
-      switch (buyType) {
-        case "spots":
-        case "package":
-          return buyAmount !== 0 ? String(budget / buyAmount) : "0"
-        case "cpm":
-          return buyAmount !== 0 ? String((budget / buyAmount) * 1000) : "0"
-        case "fixed_cost":
-          return "1"
-        default:
-          return "0"
-      }
-    case "cinema":
-      switch (buyType) {
-        case "spots":
-        case "screens":
-        case "cpc":
-        case "cpv":
-          return buyAmount !== 0 ? String(budget / buyAmount) : "0"
-        case "cpm":
-          return buyAmount !== 0 ? String((budget / buyAmount) * 1000) : "0"
-        case "fixed_cost":
-        case "package":
-          return "1"
-        default:
-          return "0"
-      }
-    case "ooh":
-      switch (buyType) {
-        case "cpc":
-        case "cpv":
-        case "panels":
-          return buyAmount !== 0 ? String(budget / buyAmount) : "0"
-        case "cpm":
-          return buyAmount !== 0 ? String((budget / buyAmount) * 1000) : "0"
-        case "fixed_cost":
-        case "package":
-          return "1"
-        default:
-          return "0"
-      }
-    default:
-      return "0"
-  }
 }
 
 function titleForVariant(variant: CpcFamilyVariant, buyType: string): string {
@@ -262,7 +192,7 @@ export function CpcFamilyBurstCalculatedField<T extends FieldValues>({
   burstIndex,
   field,
   feePct,
-  netMedia,
+  netMedia: _deprecatedNetMedia,
   variant = "cpcCpvCpm",
   inputClassName = "w-full min-w-[8rem] h-10 text-sm bg-muted/30 border-border/40 text-muted-foreground",
   bonusInputClassName,
@@ -285,11 +215,27 @@ export function CpcFamilyBurstCalculatedField<T extends FieldValues>({
   })
 
   const calculatedValue = useMemo(() => {
+    if (buyType === "bonus" || buyType === "package_inclusions") {
+      return "0"
+    }
+    if (buyType === "package") {
+      return String(field.value ?? "0")
+    }
     const rawBudget = parseFloat(String(budgetValue)?.replace(/[^0-9.]/g, "") || "0")
-    const budget = netMedia(rawBudget, !!budgetIncludesFees, feePct)
     const buyAmount = parseFloat(String(buyAmountValue)?.replace(/[^0-9.]/g, "") || "1")
-    return calcForVariant(variant, buyType, budget, buyAmount)
-  }, [budgetValue, buyAmountValue, buyType, budgetIncludesFees, feePct, netMedia, variant])
+    const bt = coerceBuyTypeWithDevWarn(buyType, "CpcFamilyBurstCalculatedField")
+
+    const value = computeDeliverableFromMedia({
+      buyType: bt,
+      rawBudget,
+      buyAmount,
+      budgetIncludesFees: !!budgetIncludesFees,
+      feePct,
+    })
+
+    if (Number.isNaN(value)) return "0"
+    return String(value)
+  }, [budgetValue, buyAmountValue, buyType, budgetIncludesFees, feePct, field.value])
 
   const bonusClass =
     bonusInputClassName ?? (variant === "cpcCpvCpm" ? "w-full" : "w-full h-10 text-sm")
@@ -329,11 +275,14 @@ export function CpcFamilyBurstCalculatedField<T extends FieldValues>({
   )
 }
 
+const TELEVISION_ITEMS_KEY = "televisionlineItems"
+
 type TelevisionTarpsProps<T extends FieldValues> = {
   form: UseFormReturn<T>
   lineItemIndex: number
   burstIndex: number
   field: ControllerRenderProps<T>
+  feePct: number
 }
 
 export function TelevisionBurstTarpsField<T extends FieldValues>({
@@ -341,53 +290,89 @@ export function TelevisionBurstTarpsField<T extends FieldValues>({
   lineItemIndex,
   burstIndex,
   field,
+  feePct,
 }: TelevisionTarpsProps<T>) {
-  const itemsKey = "televisionlineItems"
   const buyTypeWatch = useWatch({
     control: form.control,
-    name: `${itemsKey}.${lineItemIndex}.buyType` as never,
+    name: `${TELEVISION_ITEMS_KEY}.${lineItemIndex}.buyType` as never,
   }) as unknown as string
+  const budgetIncludesFees = useWatch({
+    control: form.control,
+    name: `${TELEVISION_ITEMS_KEY}.${lineItemIndex}.budgetIncludesFees` as never,
+  })
   const budgetValue = useWatch({
     control: form.control,
-    name: `${itemsKey}.${lineItemIndex}.bursts.${burstIndex}.budget` as never,
+    name: `${TELEVISION_ITEMS_KEY}.${lineItemIndex}.bursts.${burstIndex}.budget` as never,
   })
   const buyAmountValue = useWatch({
     control: form.control,
-    name: `${itemsKey}.${lineItemIndex}.bursts.${burstIndex}.buyAmount` as never,
+    name: `${TELEVISION_ITEMS_KEY}.${lineItemIndex}.bursts.${burstIndex}.buyAmount` as never,
   })
 
   const calculatedValue = useMemo(() => {
-    const budget = parseFloat(String(budgetValue)?.replace(/[^0-9.]/g, "") || "0")
-    const buyAmount = parseFloat(String(buyAmountValue)?.replace(/[^0-9.]/g, "") || "1")
-
-    switch (buyTypeWatch) {
-      case "cpt":
-      case "spots":
-        return buyAmount !== 0 ? String(budget / buyAmount) : "0"
-      case "cpm":
-        return buyAmount !== 0 ? String((budget / buyAmount) * 1000) : "0"
-      case "fixed_cost":
-        return "1"
-      default:
-        return "0"
+    if (buyTypeWatch === "bonus" || buyTypeWatch === "package_inclusions") {
+      return "0"
     }
-  }, [budgetValue, buyAmountValue, buyTypeWatch])
+    if (buyTypeWatch === "package") {
+      return String(field.value ?? "0")
+    }
+    const rawBudget = parseFloat(String(budgetValue)?.replace(/[^0-9.]/g, "") || "0")
+    const buyAmount = parseFloat(String(buyAmountValue)?.replace(/[^0-9.]/g, "") || "1")
+    const bt = coerceBuyTypeWithDevWarn(String(buyTypeWatch || ""), "TelevisionBurstTarpsField")
+
+    const value = computeDeliverableFromMedia({
+      buyType: bt,
+      rawBudget,
+      buyAmount,
+      budgetIncludesFees: !!budgetIncludesFees,
+      feePct,
+    })
+
+    if (Number.isNaN(value)) return String(field.value ?? "0")
+    return String(roundDeliverables(bt, value))
+  }, [budgetValue, buyAmountValue, buyTypeWatch, budgetIncludesFees, feePct, field.value])
 
   useEffect(() => {
-    if (buyTypeWatch === "bonus" || buyTypeWatch === "package_inclusions") return
+    if (
+      buyTypeWatch === "bonus" ||
+      buyTypeWatch === "package_inclusions" ||
+      buyTypeWatch === "package"
+    ) {
+      return
+    }
     const tarpsPath =
-      `televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.tarps`
-    const currentValue = form.getValues(tarpsPath as never)
-    const newValue = String(calculatedValue)
-
-    if (String(currentValue ?? "") !== newValue) {
+      `${TELEVISION_ITEMS_KEY}.${lineItemIndex}.bursts.${burstIndex}.tarps` as const
+    const calcPath =
+      `${TELEVISION_ITEMS_KEY}.${lineItemIndex}.bursts.${burstIndex}.calculatedValue` as const
+    const newValue = calculatedValue
+    const currentTarps = form.getValues(tarpsPath as never)
+    if (String(currentTarps ?? "") !== newValue) {
       form.setValue(tarpsPath as never, newValue as never)
     }
-  }, [calculatedValue, lineItemIndex, burstIndex, form, buyTypeWatch])
+    const nextNum = parseFloat(String(newValue).replace(/[^0-9.]/g, "")) || 0
+    const curCalc = form.getValues(calcPath as never)
+    const curNum =
+      typeof curCalc === "number" && Number.isFinite(curCalc)
+        ? curCalc
+        : parseFloat(String(curCalc ?? "0").replace(/[^0-9.]/g, "")) || 0
+    if (Math.abs(curNum - nextNum) > 1e-6) {
+      form.setValue(calcPath as never, nextNum as never, {
+        shouldValidate: false,
+        shouldDirty: false,
+      })
+    }
+  }, [
+    calculatedValue,
+    lineItemIndex,
+    burstIndex,
+    form,
+    buyTypeWatch,
+  ])
 
   if (buyTypeWatch === "bonus" || buyTypeWatch === "package_inclusions") {
     return (
       <FormItem>
+        <FormLabel className="text-xs">Bonus Deliverables</FormLabel>
         <FormControl>
           <Input
             type="number"
@@ -406,13 +391,20 @@ export function TelevisionBurstTarpsField<T extends FieldValues>({
     )
   }
 
+  const title = getTelevisionBurstCalculatedColumnLabel(String(buyTypeWatch || ""))
+  const displayNumeric =
+    typeof calculatedValue === "number"
+      ? calculatedValue
+      : parseFloat(String(calculatedValue)) || 0
+
   return (
     <FormItem>
+      <FormLabel className="text-xs">{title}</FormLabel>
       <FormControl>
         <Input
           type="text"
-          className="w-full min-w-[8rem] h-10 text-sm bg-muted/30 border-border/40 text-muted-foreground"
-          value={displayCalculated(calculatedValue)}
+          className="w-full min-w-[8rem] h-10 text-sm"
+          value={displayNumeric.toLocaleString(undefined, { maximumFractionDigits: 0 })}
           readOnly
         />
       </FormControl>
@@ -427,7 +419,12 @@ type SocialBurstProps<T extends FieldValues> = {
   field: ControllerRenderProps<T>
   buyType: string
   feePct: number
-  netMedia: NetMediaForBurstFn
+  /**
+   * @deprecated The component now uses computeDeliverableFromMedia
+   * internally and does not call this prop. Kept for backward
+   * compatibility with existing callsites - safe to omit in new code.
+   */
+  netMedia?: NetMediaForBurstFn
 }
 
 export function SocialLineBurstCalculatedField<T extends FieldValues>({
@@ -437,7 +434,6 @@ export function SocialLineBurstCalculatedField<T extends FieldValues>({
   field,
   buyType,
   feePct,
-  netMedia,
 }: SocialBurstProps<T>) {
   const itemsKey = "lineItems"
   const budgetIncludesFees = useWatch({
@@ -454,22 +450,28 @@ export function SocialLineBurstCalculatedField<T extends FieldValues>({
   })
 
   const calculatedValue = useMemo(() => {
-    const rawBudget = parseFloat(String(budgetRaw)?.replace(/[^0-9.]/g, "") || "0")
-    const budget = netMedia(rawBudget, !!budgetIncludesFees, feePct)
-    const buyAmount = parseFloat(String(buyAmountRaw)?.replace(/[^0-9.]/g, "") || "1")
-
-    switch (buyType) {
-      case "cpc":
-      case "cpv":
-        return buyAmount !== 0 ? (budget / buyAmount).toString() : "0"
-      case "cpm":
-        return buyAmount !== 0 ? ((budget / buyAmount) * 1000).toString() : "0"
-      case "fixed_cost":
-        return "1"
-      default:
-        return "0"
+    const btLower = String(buyType || "").toLowerCase()
+    if (btLower === "bonus" || btLower === "package_inclusions") {
+      return "0"
     }
-  }, [budgetRaw, buyAmountRaw, buyType, budgetIncludesFees, feePct, netMedia])
+    if (btLower === "package") {
+      return String(field.value ?? "0")
+    }
+    const rawBudget = parseFloat(String(budgetRaw)?.replace(/[^0-9.]/g, "") || "0")
+    const buyAmount = parseFloat(String(buyAmountRaw)?.replace(/[^0-9.]/g, "") || "1")
+    const bt = coerceBuyTypeWithDevWarn(buyType, "SocialLineBurstCalculatedField")
+
+    const value = computeDeliverableFromMedia({
+      buyType: bt,
+      rawBudget,
+      buyAmount,
+      budgetIncludesFees: !!budgetIncludesFees,
+      feePct,
+    })
+
+    if (Number.isNaN(value)) return "0"
+    return String(value)
+  }, [budgetRaw, buyAmountRaw, buyType, budgetIncludesFees, feePct, field.value])
 
   if (buyType === "bonus" || buyType === "package_inclusions") {
     return (

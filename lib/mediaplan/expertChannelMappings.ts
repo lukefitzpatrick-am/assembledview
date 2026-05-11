@@ -5,8 +5,8 @@ import {
   distributeBurstDeliverablesToExpertWeeks,
   deliverablesFromBudget,
   grossFromNet,
+  netFromGross,
   netMediaFromDeliverables,
-  netMediaFromOohExpertQuantity,
   roundDeliverables,
 } from "./deliverableBudget"
 import {
@@ -189,14 +189,13 @@ export function expertRowRawCost(
   return netMediaFromDeliverables(bt as BuyType, q, r)
 }
 
-/** Mirrors OOHContainer `netMediaFeeMarkup` for deliverable calculations. */
+/** Net media for deliverable math; uses linear {@link netFromGross} when budget includes fees (same as OOHContainer). */
 function oohNetBudgetForDeliverables(
   rawBudget: number,
   budgetIncludesFees: boolean,
   feePct: number
 ): number {
-  if (!budgetIncludesFees) return rawBudget
-  return rawBudget / (1 + (feePct || 0) / 100)
+  return netFromGross(rawBudget, budgetIncludesFees, feePct)
 }
 
 /** Mirrors RadioContainer `netMediaPctOfGross` for deliverable calculations. */
@@ -2171,8 +2170,8 @@ function emptyDigiVideoLineItem(
 
 /**
  * One expert row → one standard Digi Video line item.
- * Net media for deliverables uses OOH-style gross→net when budget includes fees
- * (`raw / (1 + fee/100)`), matching {@link DigitalVideoContainer}.
+ * Net media for deliverables uses linear {@link netFromGross} when budget includes fees,
+ * matching {@link DigitalVideoContainer}.
  */
 export function mapDigiVideoExpertRowsToStandardLineItems(
   rows: DigiVideoExpertScheduleRow[],
@@ -2561,7 +2560,7 @@ function emptyDigiDisplayLineItem(
 
 /**
  * One expert row → one standard Digital Display line item.
- * Net media for deliverables uses OOH-style gross→net when budget includes fees.
+ * Net media for deliverables uses linear {@link netFromGross} when budget includes fees.
  */
 export function mapDigitalDisplayExpertRowsToStandardLineItems(
   rows: DigitalDisplayExpertScheduleRow[],

@@ -283,12 +283,6 @@ export function calculateBurstInvestmentPerMonth(form, feesocial) {
   }));
 }
 
-/** Display-only: net media when budget is gross incl. fee (read-only Media/Fee columns). Burst deliverables use {@link computeDeliverableFromMedia}. */
-function netMediaPctOfGross(rawBudget: number, budgetIncludesFees: boolean, feePct: number): number {
-  if (!budgetIncludesFees) return rawBudget;
-  return (rawBudget * (100 - (feePct || 0))) / 100;
-}
-
 export default function SocialMediaContainer({
   clientId,
   feesocial,
@@ -1851,7 +1845,6 @@ const getBursts = () => {
                                           field={field}
                                           buyType={buyType}
                                           feePct={feesocial || 0}
-                                          netMedia={netMediaPctOfGross}
                                         />
                                       )}
                                     />

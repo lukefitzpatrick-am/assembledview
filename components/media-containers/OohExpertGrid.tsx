@@ -74,7 +74,7 @@ import {
 } from "@/lib/mediaplan/expertChannelMappings"
 import {
   type BuyType,
-  netMediaFromOohExpertQuantity,
+  netMediaFromDeliverables,
 } from "@/lib/mediaplan/deliverableBudget"
 import {
   buildWeeklyGanttColumnsFromCampaign,
@@ -212,11 +212,30 @@ function normalizeOohNetworkPaste(raw: string, networkNames: string[]): string {
   return fz?.matched ?? v
 }
 
+/**
+ * Gross media $ for an OOH expert row from summed qty × rate.
+ * CPM weekly cells are thousand-impression blocks; gross is qty × CPM rate
+ * (not the standard CPM net formula deliverables/1000 × rate).
+ * Other buy types use {@link netMediaFromDeliverables}.
+ */
+function oohExpertRowGrossMedia(
+  buyType: BuyType,
+  qty: number,
+  unitRate: number
+): number {
+  if (buyType === "cpm") {
+    const q = Number.isFinite(qty) ? qty : 0
+    const r = Number.isFinite(unitRate) ? unitRate : 0
+    return q * r
+  }
+  return netMediaFromDeliverables(buyType, qty, unitRate)
+}
+
 function rowGrossCost(row: OohExpertScheduleRow, weekKeys: string[]): number {
   const rate = parseNum(row.unitRate)
   const qty =
     sumWeeklyQuantities(row.weeklyValues, weekKeys) + sumMergedQuantities(row)
-  return netMediaFromOohExpertQuantity(
+  return oohExpertRowGrossMedia(
     String(row.buyType || "").toLowerCase() as BuyType,
     qty,
     rate

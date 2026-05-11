@@ -91,10 +91,12 @@ test("OOH CPM uses net budget for deliverables when budgetIncludesFees + feePctO
   )
 
   const gross = 10
-  const net = gross / 1.1
+  const qty = 10
+  // Linear fee-on-gross (same as netFromGross / OOHContainer); not gross/(1+fee/100).
+  const net = gross * (1 - 10 / 100)
   assert.equal(
     line.bursts[0]!.calculatedValue,
-    roundDeliverables("cpm", (net / 10) * 1000)
+    roundDeliverables("cpm", (net / qty) * 1000)
   )
 })
 
