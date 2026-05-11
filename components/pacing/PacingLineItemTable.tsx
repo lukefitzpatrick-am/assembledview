@@ -275,11 +275,7 @@ export function PacingLineItemTable() {
   }
 
   if (data.length === 0) {
-    return (
-      <div className="rounded-xl border border-dashed border-border/60 bg-muted/10 p-10 text-center text-sm text-muted-foreground">
-        No line items match your filters. Try widening the date range or check your mappings.
-      </div>
-    )
+    return null
   }
 
   const headerGroup = table.getHeaderGroups()[0]

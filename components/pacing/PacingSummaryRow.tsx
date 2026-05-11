@@ -19,12 +19,19 @@ export function PacingSummaryRow() {
     let sumSpend = 0
     let sumProjected = 0
     let atRisk = 0
+    let onTrack = 0
+    let behind = 0
+    let ahead = 0
     for (const row of lineItems) {
       const d = computeLineItemPacingDerived(row, filterDateTo)
       sumBudget += d.budget
       sumSpend += d.spend
       sumProjected += d.projectedTotal
       if (isAtRiskStatus(row.pacing_status)) atRisk += 1
+      const k = String(row.pacing_status ?? "").toLowerCase().replace(/ /g, "_")
+      if (k === "on_track" || k === "completed") onTrack += 1
+      else if (k === "slightly_under" || k === "under_pacing" || k === "no_delivery") behind += 1
+      else if (k === "slightly_over" || k === "over_pacing") ahead += 1
     }
     const pctBud = sumBudget > 0 ? sumSpend / sumBudget : null
     const varVsBud = sumBudget > 0 ? (sumProjected - sumBudget) / sumBudget : null
@@ -34,6 +41,9 @@ export function PacingSummaryRow() {
       sumSpend,
       sumProjected,
       atRisk,
+      onTrack,
+      behind,
+      ahead,
       pctBud,
       varVsBud,
     }
@@ -45,47 +55,72 @@ export function PacingSummaryRow() {
       {
         label: "Active line items",
         value: String(agg.count),
-        expected: formatPacingAud(agg.sumBudget) + " total budget",
-        status: agg.atRisk > 0 ? "behind" : "on-track",
+        expected:
+          agg.count === 0
+            ? "—"
+            : `${agg.onTrack} on track · ${agg.behind} behind · ${agg.ahead} ahead`,
+        status:
+          agg.count === 0
+            ? "no-data"
+            : agg.behind > 0
+              ? "behind"
+              : "on-track",
       },
       {
         label: "Spend to date",
         value: formatPacingAud(agg.sumSpend),
         expected:
-          agg.pctBud != null
-            ? `${formatPacingPct1(agg.pctBud * 100)} of budget`
+          agg.sumBudget > 0
+            ? `${formatPacingAud(agg.sumBudget)} budget`
             : "—",
-        progress: agg.pctBud ?? undefined,
+        progress:
+          agg.pctBud != null ? Math.min(agg.pctBud, 1.25) : undefined,
         status:
-          agg.pctBud == null
+          agg.count === 0
             ? "no-data"
-            : agg.pctBud < 0.9
-              ? "behind"
-              : agg.pctBud > 1.1
-                ? "ahead"
-                : "on-track",
+            : agg.pctBud == null
+              ? "no-data"
+              : agg.pctBud < 0.9
+                ? "behind"
+                : agg.pctBud > 1.1
+                  ? "ahead"
+                  : "on-track",
       },
       {
         label: "Projected delivery",
         value: formatPacingAud(agg.sumProjected),
         expected:
           agg.varVsBud != null
-            ? `${formatPacingPct1(agg.varVsBud * 100)} vs budget`
+            ? `${agg.varVsBud >= 0 ? "+" : ""}${formatPacingPct1(agg.varVsBud * 100)} vs budget`
             : "—",
         status:
-          agg.varVsBud == null
+          agg.count === 0
             ? "no-data"
-            : Math.abs(agg.varVsBud) < 0.05
-              ? "on-track"
-              : agg.varVsBud < 0
-                ? "behind"
-                : "ahead",
+            : agg.varVsBud == null
+              ? "no-data"
+              : Math.abs(agg.varVsBud) < 0.05
+                ? "on-track"
+                : agg.varVsBud < 0
+                  ? "behind"
+                  : "ahead",
       },
       {
         label: "At risk",
         value: String(agg.atRisk),
-        expected: agg.atRisk === 1 ? "line item flagged" : "line items flagged",
-        status: agg.atRisk === 0 ? "on-track" : "behind",
+        expected:
+          agg.count === 0
+            ? "—"
+            : agg.atRisk === 0
+              ? "All on pace"
+              : agg.atRisk === 1
+                ? "1 line item flagged"
+                : `${agg.atRisk} line items flagged`,
+        status:
+          agg.count === 0
+            ? "no-data"
+            : agg.atRisk === 0
+              ? "on-track"
+              : "behind",
       },
     ]
   }, [loading, agg])
@@ -99,6 +134,20 @@ export function PacingSummaryRow() {
             className="h-24 rounded-xl border border-border/60 bg-card animate-pulse"
           />
         ))}
+      </div>
+    )
+  }
+
+  if (agg.count === 0) {
+    return (
+      <div className="rounded-xl border border-dashed border-border/50 bg-muted/10 px-6 py-8 text-center">
+        <p className="text-sm font-medium text-foreground">
+          No line items in scope for the current filters
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Try widening the date range, clearing filters, or checking your
+          mappings.
+        </p>
       </div>
     )
   }

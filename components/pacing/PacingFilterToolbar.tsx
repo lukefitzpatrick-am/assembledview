@@ -151,17 +151,9 @@ export function PacingFilterToolbar() {
     router.replace(pathname, { scroll: false })
   }, [pathname, resetToDefaults, router])
 
-  const actionsRow = (
-    <div className="flex flex-wrap items-center gap-2 lg:col-span-12">
-      <Button type="button" variant="link" className="h-auto px-2 text-muted-foreground" onClick={onReset}>
-        Reset
-      </Button>
-    </div>
-  )
-
-  const controls = (
+  const sheetControls = (
     <>
-      <div className="lg:col-span-3">
+      <div>
         <MultiSelectCombobox
           options={clientOptions}
           values={filters.client_ids}
@@ -173,7 +165,7 @@ export function PacingFilterToolbar() {
           emptyMeansAll
         />
       </div>
-      <div className="lg:col-span-2">
+      <div>
         <MultiSelectCombobox
           options={mediaOptions}
           values={filters.media_types}
@@ -185,7 +177,7 @@ export function PacingFilterToolbar() {
           emptyMeansAll
         />
       </div>
-      <div className="lg:col-span-2">
+      <div>
         <MultiSelectCombobox
           options={statusOptions}
           values={filters.statuses}
@@ -197,7 +189,7 @@ export function PacingFilterToolbar() {
           emptyMeansAll
         />
       </div>
-      <div className="flex flex-col gap-1.5 lg:col-span-3">
+      <div className="flex flex-col gap-1.5">
         <Label className="text-xs font-medium text-muted-foreground">Date range</Label>
         <DateRangePicker
           value={rangeValue}
@@ -206,25 +198,29 @@ export function PacingFilterToolbar() {
           className="max-w-full"
         />
       </div>
-      <div className="flex flex-col gap-1.5 lg:col-span-2">
-        <Label htmlFor="pacing-toolbar-search" className="text-xs font-medium text-muted-foreground">
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="pacing-toolbar-search-mobile" className="text-xs font-medium text-muted-foreground">
           Search
         </Label>
         <Input
-          id="pacing-toolbar-search"
+          id="pacing-toolbar-search-mobile"
           value={filters.search}
           onChange={(e) => setFilters({ search: e.target.value })}
           placeholder="Line items, campaigns…"
           className="focus-visible:ring-2 focus-visible:ring-ring"
         />
       </div>
-      {actionsRow}
+      <div className="flex flex-wrap items-center gap-2">
+        <Button type="button" variant="link" className="h-auto px-2 text-muted-foreground" onClick={onReset}>
+          Reset
+        </Button>
+      </div>
     </>
   )
 
   return (
-    <div className="px-4 py-3 md:px-6">
-      <div className="mb-3 flex justify-end lg:hidden">
+    <div className="px-4 py-2 md:px-6">
+      <div className="mb-2 flex justify-end lg:hidden">
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
           <SheetTrigger asChild>
             <Button variant="outline" size="sm">
@@ -235,11 +231,75 @@ export function PacingFilterToolbar() {
             <SheetHeader>
               <SheetTitle>Filters</SheetTitle>
             </SheetHeader>
-            <div className="mt-4 grid grid-cols-1 gap-4">{controls}</div>
+            <div className="mt-4 grid grid-cols-1 gap-4">{sheetControls}</div>
           </SheetContent>
         </Sheet>
       </div>
-      <div className="hidden grid-cols-1 gap-3 lg:grid lg:grid-cols-12">{controls}</div>
+      <div className="hidden items-end gap-2 lg:flex">
+        <div className="min-w-[180px] max-w-[260px] flex-1">
+          <MultiSelectCombobox
+            options={clientOptions}
+            values={filters.client_ids}
+            onValuesChange={(values) => setFilters({ client_ids: values })}
+            placeholder="Clients"
+            allSelectedText={isScopedTenant ? "All my clients" : "All clients"}
+            searchPlaceholder="Search clients…"
+            buttonClassName="w-full"
+            emptyMeansAll
+          />
+        </div>
+        <div className="min-w-[140px] max-w-[200px] flex-1">
+          <MultiSelectCombobox
+            options={mediaOptions}
+            values={filters.media_types}
+            onValuesChange={(values) => setFilters({ media_types: values })}
+            placeholder="Media"
+            allSelectedText="All media"
+            searchPlaceholder="Search…"
+            buttonClassName="w-full"
+            emptyMeansAll
+          />
+        </div>
+        <div className="min-w-[140px] max-w-[200px] flex-1">
+          <MultiSelectCombobox
+            options={statusOptions}
+            values={filters.statuses}
+            onValuesChange={(values) => setFilters({ statuses: values })}
+            placeholder="Status"
+            allSelectedText="All statuses"
+            searchPlaceholder="Search…"
+            buttonClassName="w-full"
+            emptyMeansAll
+          />
+        </div>
+        <div className="min-w-[200px] max-w-[280px] flex-1">
+          <DateRangePicker
+            value={rangeValue}
+            onChange={onRangeChange}
+            displayFormat="dd MMM yyyy"
+            className="w-full"
+          />
+        </div>
+        <div className="min-w-[180px] max-w-[240px] flex-1">
+          <Input
+            id="pacing-toolbar-search"
+            value={filters.search}
+            onChange={(e) => setFilters({ search: e.target.value })}
+            placeholder="Search line items…"
+            className="h-9 focus-visible:ring-2 focus-visible:ring-ring"
+          />
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="ml-auto shrink-0 text-muted-foreground"
+          onClick={onReset}
+          title="Reset filters"
+        >
+          Reset
+        </Button>
+      </div>
     </div>
   )
 }

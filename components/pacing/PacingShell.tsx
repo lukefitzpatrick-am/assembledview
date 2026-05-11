@@ -19,14 +19,14 @@ export function PacingShell({ children }: PacingShellProps) {
   const pathname = usePathname() ?? ""
 
   return (
-    <div className="mx-auto w-full max-w-[1600px] space-y-6 px-4 pb-12 pt-6 md:px-6">
+    <div className="mx-auto w-full max-w-[1600px] space-y-4 px-4 pb-12 pt-4 md:px-6">
       {/* Sticky filter toolbar */}
-      <div className="sticky top-0 z-20 -mx-4 border-b border-border/50 bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:-mx-6 md:px-6">
+      <div className="sticky top-0 z-20 -mx-4 border-b border-border/50 bg-background/95 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:-mx-6 md:px-6">
         <PacingFilterToolbar />
       </div>
 
       {/* Page hero */}
-      <header className="space-y-1">
+      <header className="space-y-0.5">
         <h1 className="text-2xl font-semibold tracking-tight">Pacing</h1>
         <p className="text-sm text-muted-foreground">
           Portfolio pacing across all clients in your scope.
@@ -37,7 +37,7 @@ export function PacingShell({ children }: PacingShellProps) {
       <nav
         role="tablist"
         aria-label="Pacing sections"
-        className="flex border-b border-border/60"
+        className="-mt-1 flex border-b border-border/60"
       >
         {tabs.map(({ href, label }) => {
           const active =
@@ -62,7 +62,7 @@ export function PacingShell({ children }: PacingShellProps) {
       </nav>
 
       {/* Tab content */}
-      <div>{children}</div>
+      <div className="mt-4">{children}</div>
     </div>
   )
 }
