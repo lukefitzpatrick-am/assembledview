@@ -74,6 +74,10 @@ import {
 } from "@/lib/mediaplan/expertModeSwitch"
 import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
 import { getMediaTypeThemeHex, rgbaFromHex } from "@/lib/mediaplan/mediaTypeAccents"
+import {
+  coerceBuyTypeWithDevWarn,
+  computeDeliverableFromMedia,
+} from "@/lib/mediaplan/deliverableBudget"
 
 const PROG_AUDIO_MEDIA_HEX = getMediaTypeThemeHex("progaudio")
 
@@ -105,7 +109,7 @@ const formatDateString = (d?: Date | string): string => {
   return `${year}-${month}-${day}`;
 };
 
-/** Net media when budget is gross incl. fee — must match `getProgAudioBursts` / burst row readouts (linear split). */
+/** Display-only: net media when budget is gross incl. fee (read-only Media/Fee columns). Burst deliverables use {@link computeDeliverableFromMedia}. */
 function netMediaFeeMarkup(rawBudget: number, budgetIncludesFees: boolean, feePct: number): number {
   if (!budgetIncludesFees) return rawBudget;
   const pct = feePct || 0;
@@ -756,10 +760,10 @@ export default function ProgAudioContainer({
     const lineItem = form.getValues(`lineItems.${lineItemIndex}`);
     const rawBudget = parseFloat(burst?.budget?.replace(/[^0-9.]/g, "") || "0");
     const budgetIncludesFees = budgetIncludesFeesOverride ?? Boolean(lineItem?.budgetIncludesFees);
-    const budget = netMediaFeeMarkup(rawBudget, budgetIncludesFees, feeprogaudio || 0);
     const buyAmount = parseFloat(burst?.buyAmount?.replace(/[^0-9.]/g, "") || "1");
-    const buyType = form.getValues(`lineItems.${lineItemIndex}.buyType`);
-    const buyTypeLower = String(buyType || "").toLowerCase();
+    const buyTypeRaw = form.getValues(`lineItems.${lineItemIndex}.buyType`);
+
+    const buyTypeLower = String(buyTypeRaw || "").toLowerCase();
     if (
       buyTypeLower === "bonus" ||
       buyTypeLower === "package_inclusions" ||
@@ -768,28 +772,15 @@ export default function ProgAudioContainer({
       return;
     }
 
-    let calculatedValue = 0;
-    switch (buyType) {
-      case "cpc":
-      case "cpv":
-        calculatedValue = buyAmount !== 0 ? budget / buyAmount : 0;
-        break;
-      case "cpm":
-        calculatedValue = buyAmount !== 0 ? (budget / buyAmount) * 1000 : 0;
-        break;
-      case "fixed_cost":
-        calculatedValue = 1;
-        break;
-      case "bonus":
-        calculatedValue = parseFloat(
-          (burst?.calculatedValue ?? "0").toString().replace(/[^0-9.]/g, "")
-        ) || 0;
-        break;
-      default:
-        calculatedValue = 0;
-    }
+    const bt = coerceBuyTypeWithDevWarn(String(buyTypeRaw || ""), "ProgAudioContainer.handleValueChange");
+    const calculatedValue = computeDeliverableFromMedia({
+      buyType: bt,
+      rawBudget,
+      buyAmount,
+      budgetIncludesFees,
+      feePct: feeprogaudio || 0,
+    });
 
-    // Only update if the calculated value is actually different to prevent infinite loops
     const currentValue = form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`);
     if (currentValue !== calculatedValue && !isNaN(calculatedValue)) {
       form.setValue(`lineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`, calculatedValue, {

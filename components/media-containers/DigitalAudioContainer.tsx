@@ -34,7 +34,7 @@ import type { LineItem } from '@/lib/generateMediaPlan'
 import { formatMoney, parseMoneyInput } from "@/lib/format/money"
 import {
   coerceBuyTypeWithDevWarn,
-  deliverablesFromBudget,
+  computeDeliverableFromMedia,
   netFromGross,
   roundDeliverables,
 } from "@/lib/mediaplan/deliverableBudget"
@@ -92,35 +92,45 @@ const formatDateString = (d?: Date | string): string => {
   return `${year}-${month}-${day}`;
 };
 
-function computeDigiAudioLoadedDeliverables(
-  burst: { budget?: string; buyAmount?: string; calculatedValue?: number | string },
+function computeLoadedDeliverables(
   buyType: string,
+  burst: any,
   budgetIncludesFees: boolean,
-  feePct: number
+  feePct: number,
 ): number {
-  const bt = coerceBuyTypeWithDevWarn(
-    buyType,
-    "DigitalAudioContainer.computeDigiAudioLoadedDeliverables"
-  )
-  const rawBudget =
-    parseFloat(String(burst?.budget ?? "").replace(/[^0-9.]/g, "")) || 0
-  const net = netFromGross(rawBudget, budgetIncludesFees, feePct)
-  const buyAmount =
-    parseFloat(String(burst?.buyAmount ?? "").replace(/[^0-9.]/g, "")) || 0
-  if (bt === "bonus" || bt === "package_inclusions") {
-    return (
-      parseFloat(String(burst?.calculatedValue ?? "0").replace(/[^0-9.]/g, "")) ||
-      0
-    )
+  const buyTypeLower = (buyType || "").toLowerCase()
+
+  if (
+    buyTypeLower === "bonus" ||
+    buyTypeLower === "package_inclusions" ||
+    buyTypeLower === "package"
+  ) {
+    return parseFloat(
+      String(burst?.calculatedValue ?? burst?.deliverables ?? 0)
+        .replace(/[^0-9.]/g, "")
+    ) || 0
   }
-  const raw = deliverablesFromBudget(bt, net, buyAmount)
-  if (Number.isNaN(raw)) {
-    return (
-      parseFloat(String(burst?.calculatedValue ?? "0").replace(/[^0-9.]/g, "")) ||
-      0
-    )
+
+  const rawBudget = parseFloat(String(burst?.budget ?? "0").replace(/[^0-9.]/g, "")) || 0
+  const buyAmount = parseFloat(String(burst?.buyAmount ?? "1").replace(/[^0-9.]/g, "")) || 0
+  const bt = coerceBuyTypeWithDevWarn(buyType, "DigitalAudioContainer.computeLoadedDeliverables")
+
+  const value = computeDeliverableFromMedia({
+    buyType: bt,
+    rawBudget,
+    buyAmount,
+    budgetIncludesFees,
+    feePct,
+  })
+
+  if (Number.isNaN(value)) {
+    return parseFloat(
+      String(burst?.calculatedValue ?? burst?.deliverables ?? 0)
+        .replace(/[^0-9.]/g, "")
+    ) || 0
   }
-  return roundDeliverables(bt, raw)
+
+  return roundDeliverables(bt, value)
 }
 
 // Exported utility function to get bursts
@@ -667,9 +677,9 @@ export default function DigiAudioContainer({
           buyAmount: burst.buyAmount || "",
           startDate: burst.startDate ? new Date(burst.startDate) : new Date(),
           endDate: burst.endDate ? new Date(burst.endDate) : new Date(),
-          calculatedValue: computeDigiAudioLoadedDeliverables(
-            burst,
+          calculatedValue: computeLoadedDeliverables(
             item.buy_type || item.buyType || "",
+            burst,
             !!item.budget_includes_fees,
             feedigiaudio || 0
           ),
@@ -859,14 +869,32 @@ export default function DigiAudioContainer({
   const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number, budgetIncludesFeesOverride?: boolean) => {
     const burst = form.getValues(`digiaudiolineItems.${lineItemIndex}.bursts.${burstIndex}`);
     const lineItem = form.getValues(`digiaudiolineItems.${lineItemIndex}`);
+    const rawBudget = parseFloat(burst?.budget?.replace(/[^0-9.]/g, "") || "0");
     const budgetIncludesFees = budgetIncludesFeesOverride ?? Boolean(lineItem?.budgetIncludesFees);
-    const buyType = form.getValues(`digiaudiolineItems.${lineItemIndex}.buyType`);
-    const calculatedValue = computeDigiAudioLoadedDeliverables(
-      burst,
-      buyType,
+    const buyAmount = parseFloat(burst?.buyAmount?.replace(/[^0-9.]/g, "") || "1");
+    const buyTypeRaw = form.getValues(`digiaudiolineItems.${lineItemIndex}.buyType`);
+
+    const buyTypeLower = String(buyTypeRaw || "").toLowerCase();
+    if (
+      buyTypeLower === "bonus" ||
+      buyTypeLower === "package_inclusions" ||
+      buyTypeLower === "package"
+    ) {
+      return;
+    }
+
+    const bt = coerceBuyTypeWithDevWarn(String(buyTypeRaw || ""), "DigitalAudioContainer.handleValueChange");
+    const rawCalculated = computeDeliverableFromMedia({
+      buyType: bt,
+      rawBudget,
+      buyAmount,
       budgetIncludesFees,
-      feedigiaudio || 0
-    );
+      feePct: feedigiaudio || 0,
+    });
+    if (Number.isNaN(rawCalculated)) {
+      return;
+    }
+    const calculatedValue = roundDeliverables(bt, rawCalculated);
 
     const currentValue =
       Number(form.getValues(`digiaudiolineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`)) || 0;

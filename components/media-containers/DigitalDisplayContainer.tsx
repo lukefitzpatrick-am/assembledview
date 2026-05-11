@@ -69,6 +69,10 @@ import {
   serializeDigiDisplayStandardLineItemsBaseline,
 } from "@/lib/mediaplan/expertModeSwitch"
 import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
+import {
+  coerceBuyTypeWithDevWarn,
+  computeDeliverableFromMedia,
+} from "@/lib/mediaplan/deliverableBudget"
 
 // Safely parse budget/deliverable values (handles number or string from API)
 function parseBudgetSafe(val: unknown): number {
@@ -77,7 +81,7 @@ function parseBudgetSafe(val: unknown): number {
   return parseFloat(String(val).replace(/[^0-9.-]+/g, "")) || 0;
 }
 
-/** Net media when budget is gross incl. fee — must match `getDigiDisplayBursts` / burst row readouts (linear split). */
+/** Display-only: net media when budget is gross incl. fee (read-only Media/Fee columns). Burst deliverables use {@link computeDeliverableFromMedia}. */
 function netMediaForDeliverablesDigiDisplay(
   rawBudget: number,
   budgetIncludesFees: boolean,
@@ -872,31 +876,27 @@ export default function DigiDisplayContainer({
     const lineItem = form.getValues(`digidisplaylineItems.${lineItemIndex}`);
     const rawBudget = parseFloat(burst?.budget?.replace(/[^0-9.]/g, "") || "0");
     const budgetIncludesFees = budgetIncludesFeesOverride ?? Boolean(lineItem?.budgetIncludesFees);
-    const budget = netMediaForDeliverablesDigiDisplay(
-      rawBudget,
-      budgetIncludesFees,
-      feedigidisplay || 0
-    );
     const buyAmount = parseFloat(burst?.buyAmount?.replace(/[^0-9.]/g, "") || "1");
-    const buyType = form.getValues(`digidisplaylineItems.${lineItemIndex}.buyType`);
+    const buyTypeRaw = form.getValues(`digidisplaylineItems.${lineItemIndex}.buyType`);
 
-    let calculatedValue = 0;
-    switch (buyType) {
-      case "cpc":
-      case "cpv":
-        calculatedValue = buyAmount !== 0 ? budget / buyAmount : 0;
-        break;
-      case "cpm":
-        calculatedValue = buyAmount !== 0 ? (budget / buyAmount) * 1000 : 0;
-        break;
-      case "fixed_cost":
-        calculatedValue = 1;
-        break;
-      default:
-        calculatedValue = 0;
+    const buyTypeLower = String(buyTypeRaw || "").toLowerCase();
+    if (
+      buyTypeLower === "bonus" ||
+      buyTypeLower === "package_inclusions" ||
+      buyTypeLower === "package"
+    ) {
+      return;
     }
 
-    // Only update if the calculated value is actually different to prevent infinite loops
+    const bt = coerceBuyTypeWithDevWarn(String(buyTypeRaw || ""), "DigiDisplayContainer.handleValueChange");
+    const calculatedValue = computeDeliverableFromMedia({
+      buyType: bt,
+      rawBudget,
+      buyAmount,
+      budgetIncludesFees,
+      feePct: feedigidisplay || 0,
+    });
+
     const currentValue = form.getValues(`digidisplaylineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`);
     if (currentValue !== calculatedValue && !isNaN(calculatedValue)) {
       form.setValue(`digidisplaylineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`, calculatedValue, {

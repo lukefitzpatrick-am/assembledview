@@ -34,7 +34,7 @@ import type { LineItem } from '@/lib/generateMediaPlan'
 import { formatMoney, parseMoneyInput } from "@/lib/format/money"
 import {
   coerceBuyTypeWithDevWarn,
-  deliverablesFromBudget,
+  computeDeliverableFromMedia,
   netFromGross,
   roundDeliverables,
 } from "@/lib/mediaplan/deliverableBudget"
@@ -92,35 +92,45 @@ const formatDateString = (d?: Date | string): string => {
   return `${year}-${month}-${day}`;
 };
 
-function computeBvodLoadedDeliverables(
-  burst: { budget?: string; buyAmount?: string; calculatedValue?: number | string },
+function computeLoadedDeliverables(
   buyType: string,
+  burst: any,
   budgetIncludesFees: boolean,
-  feePct: number
+  feePct: number,
 ): number {
-  const bt = coerceBuyTypeWithDevWarn(
-    buyType,
-    "BVODContainer.computeBvodLoadedDeliverables"
-  )
-  const rawBudget =
-    parseFloat(String(burst?.budget ?? "").replace(/[^0-9.]/g, "")) || 0
-  const net = netFromGross(rawBudget, budgetIncludesFees, feePct)
-  const buyAmount =
-    parseFloat(String(burst?.buyAmount ?? "").replace(/[^0-9.]/g, "")) || 0
-  if (bt === "bonus" || bt === "package_inclusions") {
-    return (
-      parseFloat(String(burst?.calculatedValue ?? "0").replace(/[^0-9.]/g, "")) ||
-      0
-    )
+  const buyTypeLower = (buyType || "").toLowerCase()
+
+  if (
+    buyTypeLower === "bonus" ||
+    buyTypeLower === "package_inclusions" ||
+    buyTypeLower === "package"
+  ) {
+    return parseFloat(
+      String(burst?.calculatedValue ?? burst?.deliverables ?? 0)
+        .replace(/[^0-9.]/g, "")
+    ) || 0
   }
-  const raw = deliverablesFromBudget(bt, net, buyAmount)
-  if (Number.isNaN(raw)) {
-    return (
-      parseFloat(String(burst?.calculatedValue ?? "0").replace(/[^0-9.]/g, "")) ||
-      0
-    )
+
+  const rawBudget = parseFloat(String(burst?.budget ?? "0").replace(/[^0-9.]/g, "")) || 0
+  const buyAmount = parseFloat(String(burst?.buyAmount ?? "1").replace(/[^0-9.]/g, "")) || 0
+  const bt = coerceBuyTypeWithDevWarn(buyType, "BVODContainer.computeLoadedDeliverables")
+
+  const value = computeDeliverableFromMedia({
+    buyType: bt,
+    rawBudget,
+    buyAmount,
+    budgetIncludesFees,
+    feePct,
+  })
+
+  if (Number.isNaN(value)) {
+    return parseFloat(
+      String(burst?.calculatedValue ?? burst?.deliverables ?? 0)
+        .replace(/[^0-9.]/g, "")
+    ) || 0
   }
-  return roundDeliverables(bt, raw)
+
+  return roundDeliverables(bt, value)
 }
 
 // Exported utility function to get bursts
@@ -694,9 +704,9 @@ export default function BVODContainer({
             : burst.end_date
               ? new Date(burst.end_date)
               : defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
-          calculatedValue: computeBvodLoadedDeliverables(
-            burst,
+          calculatedValue: computeLoadedDeliverables(
             item.buy_type || item.buyType || "",
+            burst,
             !!item.budget_includes_fees,
             feebvod || 0
           ),
@@ -913,14 +923,32 @@ export default function BVODContainer({
   const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number, budgetIncludesFeesOverride?: boolean) => {
     const burst = form.getValues(`bvodlineItems.${lineItemIndex}.bursts.${burstIndex}`);
     const lineItem = form.getValues(`bvodlineItems.${lineItemIndex}`);
+    const rawBudget = parseFloat(burst?.budget?.replace(/[^0-9.]/g, "") || "0");
     const budgetIncludesFees = budgetIncludesFeesOverride ?? Boolean(lineItem?.budgetIncludesFees);
-    const buyType = form.getValues(`bvodlineItems.${lineItemIndex}.buyType`);
-    const calculatedValue = computeBvodLoadedDeliverables(
-      burst,
-      buyType,
+    const buyAmount = parseFloat(burst?.buyAmount?.replace(/[^0-9.]/g, "") || "1");
+    const buyTypeRaw = form.getValues(`bvodlineItems.${lineItemIndex}.buyType`);
+
+    const buyTypeLower = String(buyTypeRaw || "").toLowerCase();
+    if (
+      buyTypeLower === "bonus" ||
+      buyTypeLower === "package_inclusions" ||
+      buyTypeLower === "package"
+    ) {
+      return;
+    }
+
+    const bt = coerceBuyTypeWithDevWarn(String(buyTypeRaw || ""), "BVODContainer.handleValueChange");
+    const rawCalculated = computeDeliverableFromMedia({
+      buyType: bt,
+      rawBudget,
+      buyAmount,
       budgetIncludesFees,
-      feebvod || 0
-    );
+      feePct: feebvod || 0,
+    });
+    if (Number.isNaN(rawCalculated)) {
+      return;
+    }
+    const calculatedValue = roundDeliverables(bt, rawCalculated);
 
     const currentValue =
       Number(form.getValues(`bvodlineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`)) || 0;

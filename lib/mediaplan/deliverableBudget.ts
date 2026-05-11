@@ -4,6 +4,7 @@ export type BuyType =
   | "cpt"
   | "cpp"
   | "panels"
+  | "insertions"
   | "cpm"
   | "cpc"
   | "screens"
@@ -23,6 +24,7 @@ const BUY_TYPE_RUNTIME_SET = new Set<string>([
   "cpt",
   "cpp",
   "panels",
+  "insertions",
   "cpm",
   "cpc",
   "screens",
@@ -57,6 +59,8 @@ export const BUY_TYPES_WITH_DERIVED_DELIVERABLES: readonly BuyType[] = [
   "spots",
   "cpt",
   "cpp",
+  "panels",
+  "insertions",
   "cpm",
   "cpc",
   "screens",
@@ -101,6 +105,7 @@ export function deliverablesFromBudget(
     case "cpm":
       return (netBudget / unitRate) * 1000;
     case "cpc":
+    case "insertions":
     case "screens":
     case "cpv":
     case "cpcv":
@@ -185,6 +190,7 @@ export function netMediaFromDeliverables(
     case "weekly_rate":
     case "monthly_rate":
     case "cpc":
+    case "insertions":
     case "screens":
     case "cpv":
     case "cpcv":
@@ -269,6 +275,7 @@ export function roundDeliverables(buyType: BuyType, value: number): number {
   switch (buyType) {
     case "cpm":
     case "cpc":
+    case "insertions":
     case "screens":
     case "cpv":
     case "cpcv":

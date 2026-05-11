@@ -74,6 +74,10 @@ import {
   serializeSearchStandardLineItemsBaseline,
 } from "@/lib/mediaplan/expertModeSwitch"
 import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
+import {
+  coerceBuyTypeWithDevWarn,
+  computeDeliverableFromMedia,
+} from "@/lib/mediaplan/deliverableBudget"
 
 const MEDIA_ACCENT_HEX_SEARCH = getMediaTypeThemeHex("search")
 
@@ -105,6 +109,7 @@ const formatDateString = (d?: Date | string): string => {
   return `${year}-${month}-${day}`;
 };
 
+/** Display-only: net media when budget is gross incl. fee (read-only Media/Fee columns). Burst deliverables use {@link computeDeliverableFromMedia}. */
 function netMediaPctOfGross(rawBudget: number, budgetIncludesFees: boolean, feePct: number): number {
   if (!budgetIncludesFees) return rawBudget;
   return (rawBudget * (100 - (feePct || 0))) / 100;
@@ -812,10 +817,10 @@ export default function SearchContainer({
     const lineItem = form.getValues(`lineItems.${lineItemIndex}`);
     const rawBudget = parseFloat(burst?.budget?.replace(/[^0-9.]/g, "") || "0");
     const budgetIncludesFees = budgetIncludesFeesOverride ?? Boolean(lineItem?.budgetIncludesFees);
-    const budget = netMediaPctOfGross(rawBudget, budgetIncludesFees, feesearch || 0);
     const buyAmount = parseFloat(burst?.buyAmount?.replace(/[^0-9.]/g, "") || "1");
-    const buyType = form.getValues(`lineItems.${lineItemIndex}.buyType`);
-    const buyTypeLower = String(buyType || "").toLowerCase();
+    const buyTypeRaw = form.getValues(`lineItems.${lineItemIndex}.buyType`);
+
+    const buyTypeLower = String(buyTypeRaw || "").toLowerCase();
     if (
       buyTypeLower === "bonus" ||
       buyTypeLower === "package_inclusions" ||
@@ -824,28 +829,15 @@ export default function SearchContainer({
       return;
     }
 
-    let calculatedValue = 0;
-    switch (buyType) {
-      case "cpc":
-      case "cpv":
-        calculatedValue = buyAmount !== 0 ? budget / buyAmount : 0;
-        break;
-      case "cpm":
-        calculatedValue = buyAmount !== 0 ? (budget / buyAmount) * 1000 : 0;
-        break;
-      case "fixed_cost":
-        calculatedValue = 1;
-        break;
-      case "bonus":
-        calculatedValue = parseFloat(
-          (burst?.calculatedValue ?? "0").toString().replace(/[^0-9.]/g, "")
-        ) || 0;
-        break;
-      default:
-        calculatedValue = 0;
-    }
+    const bt = coerceBuyTypeWithDevWarn(String(buyTypeRaw || ""), "SearchContainer.handleValueChange");
+    const calculatedValue = computeDeliverableFromMedia({
+      buyType: bt,
+      rawBudget,
+      buyAmount,
+      budgetIncludesFees,
+      feePct: feesearch || 0,
+    });
 
-    // Only update if the calculated value is actually different to prevent infinite loops
     const currentValue = form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`);
     if (currentValue !== calculatedValue && !isNaN(calculatedValue)) {
       form.setValue(`lineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`, calculatedValue, {

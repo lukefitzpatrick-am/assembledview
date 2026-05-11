@@ -31,8 +31,7 @@ import type { LineItem } from '@/lib/generateMediaPlan'
 import { formatMoney, parseMoneyInput } from "@/lib/format/money"
 import {
   coerceBuyTypeWithDevWarn,
-  deliverablesFromBudget,
-  netFromGross,
+  computeDeliverableFromMedia,
   roundDeliverables,
 } from "@/lib/mediaplan/deliverableBudget"
 import {
@@ -499,31 +498,43 @@ export default function CinemaContainer({
     defaultValue: form.getValues("cinemalineItems")
   });
 
-  /** Display + initial load: net fee model matches {@link netFromGross} + {@link deliverablesFromBudget}. */
+  /** Burst deliverables on load and when budget fields change; uses {@link computeDeliverableFromMedia}. */
   const cinemaBurstDeliverables = useCallback(
     (burst: any, buyType: string, budgetIncludesFees: boolean) => {
-      const bt = coerceBuyTypeWithDevWarn(buyType, "cinemaBurstDeliverables")
+      const buyTypeLower = (buyType || "").toLowerCase()
+
+      if (
+        buyTypeLower === "bonus" ||
+        buyTypeLower === "package_inclusions" ||
+        buyTypeLower === "package"
+      ) {
+        return parseFloat(
+          String(burst?.calculatedValue ?? burst?.deliverables ?? 0)
+            .replace(/[^0-9.]/g, "")
+        ) || 0
+      }
+
       const rawBudget =
         parseFloat(String(burst?.budget ?? "").replace(/[^0-9.]/g, "")) || 0
-      const netBudget = netFromGross(rawBudget, budgetIncludesFees, feecinema || 0)
       const buyAmount =
         parseFloat(String(burst?.buyAmount ?? "").replace(/[^0-9.]/g, "")) || 0
+      const bt = coerceBuyTypeWithDevWarn(buyType, "CinemaContainer.cinemaBurstDeliverables")
 
-      if (bt === "bonus" || bt === "package_inclusions") {
-        return (
-          parseFloat(String(burst?.calculatedValue ?? "0").replace(/[^0-9.]/g, "")) ||
-          0
-        )
+      const value = computeDeliverableFromMedia({
+        buyType: bt,
+        rawBudget,
+        buyAmount,
+        budgetIncludesFees,
+        feePct: feecinema || 0,
+      })
+
+      if (Number.isNaN(value)) {
+        return parseFloat(
+          String(burst?.calculatedValue ?? "0").replace(/[^0-9.]/g, "")
+        ) || 0
       }
 
-      const raw = deliverablesFromBudget(bt, netBudget, buyAmount)
-      if (Number.isNaN(raw)) {
-        return (
-          parseFloat(String(burst?.calculatedValue ?? "0").replace(/[^0-9.]/g, "")) ||
-          0
-        )
-      }
-      return roundDeliverables(bt, raw)
+      return roundDeliverables(bt, value)
     },
     [feecinema]
   )

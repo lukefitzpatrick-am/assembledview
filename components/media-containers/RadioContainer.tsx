@@ -76,10 +76,8 @@ import {
   serializeRadioStandardLineItemsBaseline,
 } from "@/lib/mediaplan/expertModeSwitch"
 import {
-  type BuyType,
-  deliverablesFromBudget,
-  netFromGross,
-  roundDeliverables,
+  coerceBuyTypeWithDevWarn,
+  computeDeliverableFromMedia,
 } from "@/lib/mediaplan/deliverableBudget"
 import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
 import { SingleDatePicker } from "@/components/ui/single-date-picker"
@@ -281,64 +279,46 @@ export function calculateBurstInvestmentPerMonth(form, feeradio) {
   }));
 }
 
-const LOAD_DELIVERABLES_EPS = 1e-5
-
-function unitRateInferredFromNetAndDeliverables(
-  buyType: BuyType,
-  netBudget: number,
-  deliverables: number
-): number {
-  if (!Number.isFinite(netBudget) || !Number.isFinite(deliverables) || deliverables === 0) {
-    return 0
-  }
-  if (buyType === "cpm") return (netBudget * 1000) / deliverables
-  if (buyType === "fixed_cost") return netBudget
-  return netBudget / deliverables
-}
-
-/**
- * Initial-load deliverables: net budget from gross burst budget, then shared
- * `deliverablesFromBudget`. If stored `calculatedValue` disagrees with parsed
- * `buyAmount` as unit rate (legacy rows used `buyAmount` as qty), infer rate
- * from net ÷ deliverables and recompute.
- */
 function computeLoadedDeliverables(
   buyType: string,
   burst: any,
   budgetIncludesFees: boolean,
-  feePct: number
-): number {
-  const bt = String(buyType || "").toLowerCase() as BuyType
-  if (bt === "bonus") {
-    return (
-      parseFloat(String(burst?.calculatedValue ?? 0).replace(/[^0-9.]/g, "")) || 0
-    )
+  feePct: number,
+) {
+  const buyTypeLower = (buyType || "").toLowerCase()
+
+  // bonus / package_inclusions / package: preserve manually-entered value
+  if (
+    buyTypeLower === "bonus" ||
+    buyTypeLower === "package_inclusions" ||
+    buyTypeLower === "package"
+  ) {
+    return parseFloat(
+      String(burst?.calculatedValue ?? burst?.deliverables ?? 0)
+        .replace(/[^0-9.]/g, "")
+    ) || 0
   }
-  const gross =
-    parseFloat(String(burst?.budget ?? "0").replace(/[^0-9.]/g, "")) || 0
-  const storedCvRaw = burst?.calculatedValue
-  const storedCv =
-    typeof storedCvRaw === "number" && Number.isFinite(storedCvRaw)
-      ? storedCvRaw
-      : parseFloat(String(storedCvRaw ?? "0").replace(/[^0-9.]/g, "")) || 0
-  const buyAmount =
-    parseFloat(String(burst?.buyAmount ?? "1").replace(/[^0-9.]/g, "")) || 0
-  const net = netFromGross(gross, budgetIncludesFees, feePct)
-  const primary = deliverablesFromBudget(bt, net, buyAmount)
-  if (Number.isNaN(primary)) {
-    return roundDeliverables(bt, storedCv)
+
+  const rawBudget = parseFloat(String(burst?.budget ?? "0").replace(/[^0-9.]/g, "")) || 0
+  const buyAmount = parseFloat(String(burst?.buyAmount ?? "1").replace(/[^0-9.]/g, "")) || 0
+  const bt = coerceBuyTypeWithDevWarn(buyType, "RadioContainer.computeLoadedDeliverables")
+
+  const value = computeDeliverableFromMedia({
+    buyType: bt,
+    rawBudget,
+    buyAmount,
+    budgetIncludesFees,
+    feePct,
+  })
+
+  if (Number.isNaN(value)) {
+    return parseFloat(
+      String(burst?.calculatedValue ?? burst?.deliverables ?? 0)
+        .replace(/[^0-9.]/g, "")
+    ) || 0
   }
-  const rPrimary = roundDeliverables(bt, primary)
-  const rStored = roundDeliverables(bt, storedCv)
-  if (Math.abs(rPrimary - rStored) <= LOAD_DELIVERABLES_EPS) {
-    return rPrimary
-  }
-  const inferred = unitRateInferredFromNetAndDeliverables(bt, net, storedCv)
-  const fromInferred = deliverablesFromBudget(bt, net, inferred)
-  if (!Number.isNaN(fromInferred)) {
-    return roundDeliverables(bt, fromInferred)
-  }
-  return rStored
+
+  return value
 }
 
 export default function RadioContainer({
@@ -1062,40 +1042,35 @@ export default function RadioContainer({
     const lineItem = form.getValues(`radiolineItems.${lineItemIndex}`);
     const rawBudget = parseFloat(burst?.budget?.replace(/[^0-9.]/g, "") || "0");
     const budgetIncludesFees = budgetIncludesFeesOverride ?? Boolean(lineItem?.budgetIncludesFees);
-    // Standard burst `budget` is gross; deliverables math uses net media (`netFromGross`).
-    const netBudget = netFromGross(rawBudget, budgetIncludesFees, feeradio || 0);
     const buyAmount = parseFloat(burst?.buyAmount?.replace(/[^0-9.]/g, "") || "1");
     const buyTypeRaw = form.getValues(`radiolineItems.${lineItemIndex}.buyType`);
-    const buyType = String(buyTypeRaw || "").toLowerCase() as BuyType;
 
-    const rawDeliverables = deliverablesFromBudget(buyType, netBudget, buyAmount);
-    if (Number.isNaN(rawDeliverables)) {
-      // bonus / package_inclusions: keep user-entered `calculatedValue` (do not overwrite).
+    const buyTypeLower = String(buyTypeRaw || "").toLowerCase();
+    if (
+      buyTypeLower === "bonus" ||
+      buyTypeLower === "package_inclusions" ||
+      buyTypeLower === "package"
+    ) {
       return;
     }
 
-    const nextCalculated = roundDeliverables(buyType, rawDeliverables);
-    const currentValue = form.getValues(
-      `radiolineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`
-    );
-    const cur =
-      typeof currentValue === "number" && Number.isFinite(currentValue)
-        ? currentValue
-        : parseFloat(String(currentValue ?? "0").replace(/[^0-9.]/g, "")) || 0;
-    if (Math.abs(cur - nextCalculated) <= 1e-6) {
-      return;
-    }
+    const bt = coerceBuyTypeWithDevWarn(String(buyTypeRaw || ""), "RadioContainer.handleValueChange");
+    const calculatedValue = computeDeliverableFromMedia({
+      buyType: bt,
+      rawBudget,
+      buyAmount,
+      budgetIncludesFees,
+      feePct: feeradio || 0,
+    });
 
-    form.setValue(
-      `radiolineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`,
-      nextCalculated,
-      {
+    const currentValue = form.getValues(`radiolineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`);
+    if (currentValue !== calculatedValue && !isNaN(calculatedValue)) {
+      form.setValue(`radiolineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`, calculatedValue, {
         shouldValidate: false,
         shouldDirty: false,
-      }
-    );
-
-    handleLineItemValueChange(lineItemIndex);
+      });
+      handleLineItemValueChange(lineItemIndex);
+    }
   }, [feeradio, form, handleLineItemValueChange]);
 
   const handleAppendBurst = useCallback((lineItemIndex: number) => {

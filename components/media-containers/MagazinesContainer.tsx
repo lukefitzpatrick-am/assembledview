@@ -24,6 +24,10 @@ import { getPublishersForMagazines, getClientInfo, getMagazinesAdSizes, createMa
 import { formatBurstLabel } from "@/lib/bursts"
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
+import {
+  coerceBuyTypeWithDevWarn,
+  computeDeliverableFromMedia,
+} from "@/lib/mediaplan/deliverableBudget"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -106,7 +110,7 @@ const formatDateString = (d?: Date | string): string => {
   return `${year}-${month}-${day}`;
 };
 
-/** Net media when budget is gross incl. fee — must match `getMagazinesBursts` / burst row readouts (linear split). */
+/** Display-only: net media when budget is gross incl. fee (read-only Media/Fee columns). Burst deliverables use {@link computeDeliverableFromMedia}. */
 function netMediaFeeMarkup(rawBudget: number, budgetIncludesFees: boolean, feePct: number): number {
   if (!budgetIncludesFees) return rawBudget;
   const pct = feePct || 0;
@@ -291,25 +295,45 @@ export function calculateBurstInvestmentPerMonth(form, feemagazines) {
   }));
 }
 
-const computeLoadedDeliverables = (buyType: string, burst: any) => {
-  const budget = parseFloat(String(burst?.budget ?? "0").replace(/[^0-9.]/g, "")) || 0;
-  const buyAmount = parseFloat(String(burst?.buyAmount ?? "1").replace(/[^0-9.]/g, "")) || 0;
+const computeLoadedDeliverables = (
+  buyType: string,
+  burst: any,
+  budgetIncludesFees: boolean,
+  feePct: number,
+) => {
+  const buyTypeLower = (buyType || "").toLowerCase()
 
-  switch (buyType) {
-    case "cpc":
-    case "cpv":
-    case "insertions":
-      return buyAmount !== 0 ? budget / buyAmount : 0;
-    case "cpm":
-      return buyAmount !== 0 ? (budget / buyAmount) * 1000 : 0;
-    case "fixed_cost":
-    case "package":
-      return 1;
-    case "bonus":
-      return parseFloat(String(burst?.calculatedValue ?? 0).replace(/[^0-9.]/g, "")) || 0;
-    default:
-      return parseFloat(String(burst?.calculatedValue ?? 0).replace(/[^0-9.]/g, "")) || 0;
+  if (
+    buyTypeLower === "bonus" ||
+    buyTypeLower === "package_inclusions" ||
+    buyTypeLower === "package"
+  ) {
+    return parseFloat(
+      String(burst?.calculatedValue ?? burst?.deliverables ?? 0)
+        .replace(/[^0-9.]/g, "")
+    ) || 0
   }
+
+  const rawBudget = parseFloat(String(burst?.budget ?? "0").replace(/[^0-9.]/g, "")) || 0
+  const buyAmount = parseFloat(String(burst?.buyAmount ?? "1").replace(/[^0-9.]/g, "")) || 0
+  const bt = coerceBuyTypeWithDevWarn(buyType, "MagazinesContainer.computeLoadedDeliverables")
+
+  const value = computeDeliverableFromMedia({
+    buyType: bt,
+    rawBudget,
+    buyAmount,
+    budgetIncludesFees,
+    feePct,
+  })
+
+  if (Number.isNaN(value)) {
+    return parseFloat(
+      String(burst?.calculatedValue ?? burst?.deliverables ?? 0)
+        .replace(/[^0-9.]/g, "")
+    ) || 0
+  }
+
+  return value
 };
 
 export default function MagazinesContainer({
@@ -761,14 +785,24 @@ const form = useForm<MagazinesFormValues>({
             buyAmount: burst.buyAmount || "",
             startDate: burst.startDate ? new Date(burst.startDate) : new Date(),
             endDate: burst.endDate ? new Date(burst.endDate) : new Date(),
-            calculatedValue: computeLoadedDeliverables(item.buy_type || item.buyType, burst),
+            calculatedValue: computeLoadedDeliverables(
+              item.buy_type || item.buyType,
+              burst,
+              Boolean(item.budget_includes_fees || item.budgetIncludesFees),
+              feemagazines ?? 0,
+            ),
             fee: burst.fee ?? 0,
           })) : [{
             budget: "",
             buyAmount: "",
             startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
             endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
-            calculatedValue: computeLoadedDeliverables(item.buy_type || item.buyType, {}),
+            calculatedValue: computeLoadedDeliverables(
+              item.buy_type || item.buyType,
+              {},
+              Boolean(item.budget_includes_fees || item.budgetIncludesFees),
+              feemagazines ?? 0,
+            ),
             fee: 0,
           }],
         };
@@ -779,7 +813,7 @@ const form = useForm<MagazinesFormValues>({
         overallDeliverables: 0,
       });
     }
-  }, [initialLineItems, form, campaignStartDate, campaignEndDate, createLineItemId]);
+  }, [initialLineItems, form, campaignStartDate, campaignEndDate, createLineItemId, feemagazines]);
 
   // Transform form data to API schema format
   useEffect(() => {
@@ -951,34 +985,27 @@ const form = useForm<MagazinesFormValues>({
     const lineItem = form.getValues(`magazineslineItems.${lineItemIndex}`);
     const rawBudget = parseFloat(burst?.budget?.replace(/[^0-9.]/g, "") || "0");
     const budgetIncludesFees = budgetIncludesFeesOverride ?? Boolean(lineItem?.budgetIncludesFees);
-    const budget = netMediaFeeMarkup(rawBudget, budgetIncludesFees, feemagazines || 0);
     const buyAmount = parseFloat(burst?.buyAmount?.replace(/[^0-9.]/g, "") || "1");
-    const buyType = form.getValues(`magazineslineItems.${lineItemIndex}.buyType`);
+    const buyTypeRaw = form.getValues(`magazineslineItems.${lineItemIndex}.buyType`);
 
-    let calculatedValue = 0;
-    switch (buyType) {
-      case "cpc":
-      case "cpv":
-      case "insertions":
-        calculatedValue = buyAmount !== 0 ? budget / buyAmount : 0;
-        break;
-      case "cpm":
-        calculatedValue = buyAmount !== 0 ? (budget / buyAmount) * 1000 : 0;
-        break;
-      case "fixed_cost":
-      case "package":
-        calculatedValue = 1;
-        break;
-      case "bonus":
-        calculatedValue = parseFloat(
-          (burst?.calculatedValue ?? "0").toString().replace(/[^0-9.]/g, "")
-        ) || 0;
-        break;
-      default:
-        calculatedValue = 0;
+    const buyTypeLower = String(buyTypeRaw || "").toLowerCase();
+    if (
+      buyTypeLower === "bonus" ||
+      buyTypeLower === "package_inclusions" ||
+      buyTypeLower === "package"
+    ) {
+      return;
     }
 
-    // Only update if the calculated value is actually different to prevent infinite loops
+    const bt = coerceBuyTypeWithDevWarn(String(buyTypeRaw || ""), "MagazinesContainer.handleValueChange");
+    const calculatedValue = computeDeliverableFromMedia({
+      buyType: bt,
+      rawBudget,
+      buyAmount,
+      budgetIncludesFees,
+      feePct: feemagazines || 0,
+    });
+
     const currentValue = form.getValues(`magazineslineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`);
     if (currentValue !== calculatedValue && !isNaN(calculatedValue)) {
       form.setValue(`magazineslineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`, calculatedValue, {

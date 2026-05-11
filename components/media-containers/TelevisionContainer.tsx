@@ -43,6 +43,7 @@ import type { LineItem } from '@/lib/generateMediaPlan'
 import { formatMoney, parseMoneyInput } from "@/lib/format/money"
 import {
   coerceBuyTypeWithDevWarn,
+  computeDeliverableFromMedia,
   deliverablesFromBudget,
   netFromGross,
   roundDeliverables,
@@ -121,21 +122,49 @@ function computeTelevisionLoadedDeliverables(
   budgetIncludesFees: boolean,
   feePct: number
 ): number {
+  const buyTypeLower = (buyType || "").toLowerCase()
+
+  if (
+    buyTypeLower === "bonus" ||
+    buyTypeLower === "package_inclusions" ||
+    buyTypeLower === "package"
+  ) {
+    return parseFloat(
+      String(
+        burst?.calculatedValue ??
+          burst?.deliverables ??
+          burst?.tarps ??
+          burst?.spots ??
+          0
+      ).replace(/[^0-9.]/g, "")
+    ) || 0
+  }
+
+  const rawBudget = parseFloat(String(burst?.budget ?? "0").replace(/[^0-9.]/g, "")) || 0
+  const buyAmount = parseFloat(String(burst?.buyAmount ?? "1").replace(/[^0-9.]/g, "")) || 0
   const bt = coerceBuyTypeWithDevWarn(buyType, "TelevisionContainer.computeTelevisionLoadedDeliverables")
-  if (String(buyType || "").toLowerCase() === "bonus") {
-    return parseFloat(String(burst?.tarps ?? "0").replace(/[^0-9.]/g, "")) || 0
+
+  const value = computeDeliverableFromMedia({
+    buyType: bt,
+    rawBudget,
+    buyAmount,
+    budgetIncludesFees,
+    feePct,
+  })
+
+  if (Number.isNaN(value)) {
+    return parseFloat(
+      String(
+        burst?.calculatedValue ??
+          burst?.deliverables ??
+          burst?.tarps ??
+          burst?.spots ??
+          0
+      ).replace(/[^0-9.]/g, "")
+    ) || 0
   }
-  const gross =
-    parseFloat(String(burst?.budget ?? "0").replace(/[^0-9.]/g, "")) || 0
-  const buyAmount =
-    parseFloat(String(burst?.buyAmount ?? "1").replace(/[^0-9.]/g, "")) || 0
-  const net = netFromGross(gross, budgetIncludesFees, feePct)
-  const raw = deliverablesFromBudget(bt, net, buyAmount)
-  if (Number.isNaN(raw)) {
-    const t = parseFloat(String(burst?.tarps ?? "0").replace(/[^0-9.]/g, "")) || 0
-    return roundDeliverables(bt, t)
-  }
-  return roundDeliverables(bt, raw)
+
+  return roundDeliverables(bt, value)
 }
 
 /** FormField render callbacks are not components; hooks must live here. */
