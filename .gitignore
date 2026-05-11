@@ -38,3 +38,5 @@ snowflake.log
 filetree.txt
 lint-full.txt
 *.log
+
+.cursor/
