@@ -114,6 +114,56 @@ export function deliverablesFromBudget(
   }
 }
 
+export interface ComputeDeliverableInput {
+  buyType: BuyType
+  /** Raw budget value as entered by the user, before fee adjustments. */
+  rawBudget: number
+  /** Unit rate for the buy type (e.g. CPM rate, CPC rate, spot rate, panel rate). */
+  buyAmount: number
+  /** When true, rawBudget includes fees and is split to derive net media. */
+  budgetIncludesFees: boolean
+  /**
+   * Fee percentage for this client/channel (e.g. 12 for 12%). Pass 0 for
+   * fee-free channels or fee-free clients. Caller is responsible for
+   * sourcing this from the client/channel-specific fee config.
+   */
+  feePct: number
+}
+
+/**
+ * Single source of truth for deliverable computation from a burst-level
+ * budget. Strips fees from the raw budget first using netFromGross (linear
+ * fee-as-percent-of-gross model), then applies the per-buy-type formula.
+ * Always computes deliverable from MEDIA cost, never raw budget.
+ *
+ * Used by:
+ *   - computeLoadedDeliverables (data load) in every Container
+ *   - handleValueChange (form interaction) in every Container
+ *   - CpcFamilyBurstCalculatedField / SocialLineBurstCalculatedField /
+ *     TelevisionBurstTarpsField (live display) in burst-calculated-fields.tsx
+ *
+ * Replaces inline switch statements duplicated across 19+ container files.
+ *
+ * Fee model: net = gross × (1 - feePct/100). Same linear split as
+ * netFromGross. Replaces OOH's previous divide-based netFromGrossOoh model
+ * once stage 3 migration completes.
+ */
+export function computeDeliverableFromMedia({
+  buyType,
+  rawBudget,
+  buyAmount,
+  budgetIncludesFees,
+  feePct,
+}: ComputeDeliverableInput): number {
+  if (buyType === "bonus" || buyType === "package_inclusions") {
+    // Manual qty - caller preserves existing calculatedValue. Return NaN to
+    // signal "no recompute".
+    return NaN;
+  }
+  const netMedia = netFromGross(rawBudget, budgetIncludesFees, feePct);
+  return deliverablesFromBudget(buyType, netMedia, buyAmount);
+}
+
 export function netMediaFromDeliverables(
   buyType: BuyType,
   deliverables: number,
