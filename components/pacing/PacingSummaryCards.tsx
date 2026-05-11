@@ -7,8 +7,7 @@ import {
   computeLineItemPacingDerived,
   isAtRiskStatus,
 } from "@/components/pacing/pacingMetrics"
-import { PacingStatusStrip } from "@/components/pacing/PacingStatusStrip"
-import { VarianceBar } from "@/components/pacing/VarianceBar"
+import { VarianceRibbon } from "@/components/dashboard/delivery/shared/VarianceRibbon"
 import { usePacingOverviewData } from "@/components/pacing/PacingOverviewDataContext"
 import { usePacingFilterStore } from "@/lib/pacing/usePacingFilterStore"
 
@@ -70,7 +69,6 @@ export function PacingSummaryCards() {
             Total budget{" "}
             <span className="font-medium text-foreground tabular-nums">{formatPacingAud(agg.sumB)}</span>
           </p>
-          <PacingStatusStrip rows={lineItems} />
         </CardContent>
       </Card>
 
@@ -92,7 +90,6 @@ export function PacingSummaryCards() {
               "—"
             )}
           </p>
-          <PacingStatusStrip rows={lineItems} />
         </CardContent>
       </Card>
 
@@ -104,9 +101,12 @@ export function PacingSummaryCards() {
           <p className="text-2xl font-semibold tabular-nums">{formatPacingAud(agg.sumP)}</p>
           <div className="space-y-1">
             <p className="text-xs text-muted-foreground">Variance vs budget</p>
-            <VarianceBar value={agg.varVsBud} className="max-w-full" />
+            {agg.varVsBud != null && Number.isFinite(agg.varVsBud) ? (
+              <VarianceRibbon variance={agg.varVsBud / 100} className="max-w-full" />
+            ) : (
+              <span className="text-xs text-muted-foreground">—</span>
+            )}
           </div>
-          <PacingStatusStrip rows={lineItems} />
         </CardContent>
       </Card>
 
@@ -119,7 +119,6 @@ export function PacingSummaryCards() {
             {agg.atRisk}
           </p>
           <p className="text-xs text-muted-foreground">Under / over pacing / no delivery</p>
-          <PacingStatusStrip rows={lineItems} />
         </CardContent>
       </Card>
     </div>

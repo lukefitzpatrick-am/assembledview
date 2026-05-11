@@ -17,10 +17,11 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils"
 import { formatPacingAud, formatPacingPct1 } from "@/components/pacing/formatters"
+import { VarianceRibbon } from "@/components/dashboard/delivery/shared/VarianceRibbon"
+import { StatusPill } from "@/components/dashboard/delivery/shared/StatusPill"
 import { computeLineItemPacingDerived } from "@/components/pacing/pacingMetrics"
-import { PacingStatusPill } from "@/components/pacing/PacingStatusPill"
+import { pacingStatusForStatusPill } from "@/components/pacing/pacingStatusForStatusPill"
 import { PacingSparkline } from "@/components/pacing/PacingSparkline"
-import { VarianceBar } from "@/components/pacing/VarianceBar"
 import { usePacingOverviewData } from "@/components/pacing/PacingOverviewDataContext"
 import { usePacingFilterStore } from "@/lib/pacing/usePacingFilterStore"
 import type { LineItemPacingRow } from "@/lib/xano/pacing-types"
@@ -138,7 +139,10 @@ export function LineItemPacingTable() {
         cell: ({ row }) => {
           if (row.getIsGrouped()) return null
           const d = computeLineItemPacingDerived(row.original, filterDateTo)
-          return <VarianceBar value={d.variancePct} className="max-w-[140px]" />
+          if (d.variancePct == null || !Number.isFinite(d.variancePct)) {
+            return <span className="text-xs text-muted-foreground">—</span>
+          }
+          return <VarianceRibbon variance={d.variancePct / 100} className="max-w-[140px]" />
         },
       }),
       columnHelper.display({
@@ -178,7 +182,7 @@ export function LineItemPacingTable() {
         header: "Status",
         cell: ({ row }) => {
           if (row.getIsGrouped()) return null
-          return <PacingStatusPill status={row.original.pacing_status} />
+          return <StatusPill {...pacingStatusForStatusPill(row.original.pacing_status)} />
         },
       }),
       columnHelper.display({

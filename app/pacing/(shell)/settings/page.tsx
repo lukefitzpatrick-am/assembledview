@@ -3,7 +3,7 @@ import Link from "next/link"
 import { auth0 } from "@/lib/auth0"
 import { getUserRoles } from "@/lib/rbac"
 import { Button } from "@/components/ui/button"
-import PacingSettingsClient from "@/app/pacing/settings/PacingSettingsClient"
+import PacingSettingsClient from "./PacingSettingsClient"
 
 export default async function PacingSettingsPage() {
   const session = await auth0.getSession()

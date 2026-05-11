@@ -9,8 +9,9 @@ import { alertsApiParamsFromSnapshot } from "@/lib/pacing/pacingFilters"
 import { usePacingFilterStore } from "@/lib/pacing/usePacingFilterStore"
 import { usePacingOverviewData } from "@/components/pacing/PacingOverviewDataContext"
 import { formatPacingPct1 } from "@/components/pacing/formatters"
+import { StatusPill } from "@/components/dashboard/delivery/shared/StatusPill"
 import { computeLineItemPacingDerived } from "@/components/pacing/pacingMetrics"
-import { PacingStatusPill } from "@/components/pacing/PacingStatusPill"
+import { pacingStatusForStatusPill } from "@/components/pacing/pacingStatusForStatusPill"
 import type { LineItemPacingRow, PacingAlert } from "@/lib/xano/pacing-types"
 
 export function PacingAlertsPanel() {
@@ -92,9 +93,9 @@ export function PacingAlertsPanel() {
                       <p className="truncate text-xs text-muted-foreground">{client}</p>
                       <p className="font-mono text-xs text-foreground">{id || "—"}</p>
                       {row ? (
-                        <PacingStatusPill status={row.pacing_status} />
+                        <StatusPill {...pacingStatusForStatusPill(row.pacing_status)} />
                       ) : a.pacing_status ? (
-                        <PacingStatusPill status={a.pacing_status} />
+                        <StatusPill {...pacingStatusForStatusPill(a.pacing_status)} />
                       ) : null}
                       <p className="text-xs text-muted-foreground line-clamp-2">{a.alert_message}</p>
                       {variance != null ? (

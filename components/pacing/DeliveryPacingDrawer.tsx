@@ -26,8 +26,9 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { formatPacingAud, formatPacingDate, formatPacingPct1 } from "@/components/pacing/formatters"
+import { StatusPill } from "@/components/dashboard/delivery/shared/StatusPill"
 import { computeLineItemPacingDerived } from "@/components/pacing/pacingMetrics"
-import { PacingStatusPill } from "@/components/pacing/PacingStatusPill"
+import { pacingStatusForStatusPill } from "@/components/pacing/pacingStatusForStatusPill"
 import { DeliveryHealthBadge } from "@/components/pacing/DeliveryHealthBadge"
 import { fetchPacingDelivery, fetchPacingLineItemHistory } from "@/lib/xano/pacing-client"
 import type { DeliveryPacingRow, LineItemPacingDailyPoint, LineItemPacingRow } from "@/lib/xano/pacing-types"
@@ -359,7 +360,7 @@ export function DeliveryPacingDrawer({
                 {[clientLabel, row.media_type].filter(Boolean).join(" · ")}
               </p>
             </div>
-            <PacingStatusPill status={row.pacing_status} />
+            <StatusPill {...pacingStatusForStatusPill(row.pacing_status)} />
           </div>
           <div className="grid gap-2 text-sm sm:grid-cols-2">
             <div>

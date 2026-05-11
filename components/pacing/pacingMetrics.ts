@@ -96,12 +96,3 @@ const AT_RISK = new Set(["under_pacing", "over_pacing", "no_delivery"])
 export function isAtRiskStatus(status: string | null | undefined): boolean {
   return AT_RISK.has(normalizePacingStatusKey(status))
 }
-
-export function aggregateStatusCounts(rows: LineItemPacingRow[]): Map<string, number> {
-  const m = new Map<string, number>()
-  for (const row of rows) {
-    const k = normalizePacingStatusKey(row.pacing_status as string)
-    m.set(k, (m.get(k) ?? 0) + 1)
-  }
-  return m
-}
