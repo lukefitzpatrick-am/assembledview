@@ -79,8 +79,7 @@ import {
 } from "@/lib/mediaplan/mediaTypeAccents"
 import {
   coerceBuyTypeWithDevWarn,
-  deliverablesFromBudget,
-  netFromGrossOoh,
+  computeDeliverableFromMedia,
   roundDeliverables,
 } from "@/lib/mediaplan/deliverableBudget"
 
@@ -114,7 +113,11 @@ const formatDateString = (d?: Date | string): string => {
 
 const MEDIA_ACCENT_HEX = getMediaTypeThemeHex("ooh")
 
-/** Net media when budget is gross incl. fee — must match `getOohBursts` / burst row readouts (linear split). */
+/**
+ * Net media when budget is gross incl. fee. Used by the read-only Media
+ * and Fee dollar display inputs on the burst row. Deliverable
+ * computation goes through computeDeliverableFromMedia instead.
+ */
 function netMediaFeeMarkup(rawBudget: number, budgetIncludesFees: boolean, feePct: number): number {
   if (!budgetIncludesFees) return rawBudget;
   const pct = feePct || 0;
@@ -293,25 +296,31 @@ function computeLoadedDeliverables(
   budgetIncludesFees: boolean,
   feePct: number
 ): number {
-  const bt = coerceBuyTypeWithDevWarn(buyType, "OOHContainer.computeLoadedDeliverables")
   const buyTypeLower = String(buyType || "").toLowerCase()
-  if (buyTypeLower === "bonus" || buyTypeLower === "package_inclusions") {
-    return (
-      parseFloat(String(burst?.calculatedValue ?? 0).replace(/[^0-9.]/g, "")) || 0
-    )
+  if (
+    buyTypeLower === "bonus" ||
+    buyTypeLower === "package_inclusions" ||
+    buyTypeLower === "package"
+  ) {
+    return parseFloat(String(burst?.calculatedValue ?? 0).replace(/[^0-9.]/g, "")) || 0
   }
-  const gross =
-    parseFloat(String(burst?.budget ?? "0").replace(/[^0-9.]/g, "")) || 0
-  const buyAmount =
-    parseFloat(String(burst?.buyAmount ?? "1").replace(/[^0-9.]/g, "")) || 0
-  const net = netFromGrossOoh(gross, budgetIncludesFees, feePct)
-  const raw = deliverablesFromBudget(bt, net, buyAmount)
-  if (Number.isNaN(raw)) {
-    return (
-      parseFloat(String(burst?.calculatedValue ?? 0).replace(/[^0-9.]/g, "")) || 0
-    )
+  const rawBudget = parseFloat(String(burst?.budget ?? "0").replace(/[^0-9.]/g, "")) || 0
+  const buyAmount = parseFloat(String(burst?.buyAmount ?? "1").replace(/[^0-9.]/g, "")) || 0
+  const bt = coerceBuyTypeWithDevWarn(buyType, "OOHContainer.computeLoadedDeliverables")
+
+  const value = computeDeliverableFromMedia({
+    buyType: bt,
+    rawBudget,
+    buyAmount,
+    budgetIncludesFees,
+    feePct,
+  })
+
+  if (Number.isNaN(value)) {
+    return parseFloat(String(burst?.calculatedValue ?? 0).replace(/[^0-9.]/g, "")) || 0
   }
-  return roundDeliverables(bt, raw)
+
+  return roundDeliverables(bt, value)
 }
 
 export default function OohContainer({
@@ -815,22 +824,32 @@ export default function OohContainer({
     const lineItem = form.getValues(`lineItems.${lineItemIndex}`);
     const rawBudget = parseFloat(burst?.budget?.replace(/[^0-9.]/g, "") || "0");
     const budgetIncludesFees = budgetIncludesFeesOverride ?? Boolean(lineItem?.budgetIncludesFees);
-    const netBudget = netFromGrossOoh(rawBudget, budgetIncludesFees, feeooh || 0);
     const buyAmount = parseFloat(burst?.buyAmount?.replace(/[^0-9.]/g, "") || "1");
     const buyTypeRaw = form.getValues(`lineItems.${lineItemIndex}.buyType`);
+
+    // HOTFIX: Bonus, package_inclusions, and package deliverables are entered manually
+    // (via the expert grid). Do not recompute and overwrite them.
+    const buyTypeLower = String(buyTypeRaw || "").toLowerCase();
+    if (
+      buyTypeLower === "bonus" ||
+      buyTypeLower === "package_inclusions" ||
+      buyTypeLower === "package"
+    ) {
+      return;
+    }
+
     const bt = coerceBuyTypeWithDevWarn(
       String(buyTypeRaw || ""),
       "OOHContainer.handleValueChange"
     );
 
-    // HOTFIX: Bonus and package_inclusions deliverables are entered manually
-    // (via the expert grid). Do not recompute and overwrite them.
-    const buyTypeLower = String(buyTypeRaw || "").toLowerCase();
-    if (buyTypeLower === "bonus" || buyTypeLower === "package_inclusions") {
-      return;
-    }
-
-    const rawDeliverables = deliverablesFromBudget(bt, netBudget, buyAmount);
+    const rawDeliverables = computeDeliverableFromMedia({
+      buyType: bt,
+      rawBudget,
+      buyAmount,
+      budgetIncludesFees,
+      feePct: feeooh || 0,
+    });
     if (Number.isNaN(rawDeliverables)) {
       return;
     }

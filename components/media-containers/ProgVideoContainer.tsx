@@ -74,28 +74,53 @@ import {
 } from "@/lib/mediaplan/expertModeSwitch"
 import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
 import { getMediaTypeThemeHex, rgbaFromHex } from "@/lib/mediaplan/mediaTypeAccents"
+import {
+  computeDeliverableFromMedia,
+  coerceBuyTypeWithDevWarn,
+} from "@/lib/mediaplan/deliverableBudget"
 
 const PROG_VIDEO_MEDIA_HEX = getMediaTypeThemeHex("progvideo")
 
-const computeLoadedDeliverables = (buyType: string, burst: any) => {
-  const budget = parseFloat(String(burst?.budget ?? "0").replace(/[^0-9.]/g, "")) || 0
-  const buyAmount = parseFloat(String(burst?.buyAmount ?? "1").replace(/[^0-9.]/g, "")) || 0
-  const type = (buyType || "").toLowerCase()
+const computeLoadedDeliverables = (
+  buyType: string,
+  burst: any,
+  budgetIncludesFees: boolean,
+  feePct: number,
+) => {
+  const buyTypeLower = (buyType || "").toLowerCase()
 
-  switch (type) {
-    case "cpc":
-    case "cpv":
-      return buyAmount !== 0 ? budget / buyAmount : 0
-    case "cpm":
-      return buyAmount !== 0 ? (budget / buyAmount) * 1000 : 0
-    case "fixed_cost":
-    case "package":
-      return 1
-    case "bonus":
-      return parseFloat(String(burst?.calculatedValue ?? burst?.deliverables ?? 0).replace(/[^0-9.]/g, "")) || 0
-    default:
-      return parseFloat(String(burst?.calculatedValue ?? burst?.deliverables ?? burst?.impressions ?? 0).replace(/[^0-9.]/g, "")) || 0
+  // bonus / package_inclusions / package: preserve manually-entered value
+  if (
+    buyTypeLower === "bonus" ||
+    buyTypeLower === "package_inclusions" ||
+    buyTypeLower === "package"
+  ) {
+    return parseFloat(
+      String(burst?.calculatedValue ?? burst?.deliverables ?? 0)
+        .replace(/[^0-9.]/g, "")
+    ) || 0
   }
+
+  const rawBudget = parseFloat(String(burst?.budget ?? "0").replace(/[^0-9.]/g, "")) || 0
+  const buyAmount = parseFloat(String(burst?.buyAmount ?? "1").replace(/[^0-9.]/g, "")) || 0
+  const bt = coerceBuyTypeWithDevWarn(buyType, "ProgVideoContainer.computeLoadedDeliverables")
+
+  const value = computeDeliverableFromMedia({
+    buyType: bt,
+    rawBudget,
+    buyAmount,
+    budgetIncludesFees,
+    feePct,
+  })
+
+  if (Number.isNaN(value)) {
+    return parseFloat(
+      String(burst?.calculatedValue ?? burst?.deliverables ?? 0)
+        .replace(/[^0-9.]/g, "")
+    ) || 0
+  }
+
+  return value
 }
 
 // Format Dates
@@ -126,7 +151,11 @@ const formatDateString = (d?: Date | string): string => {
   return `${year}-${month}-${day}`;
 };
 
-/** Net media when budget is gross incl. fee — must match `getProgVideoBursts` / burst row readouts (linear split). */
+/**
+ * Net media when budget is gross incl. fee. Used by the read-only Media
+ * and Fee dollar display inputs on the burst row. Deliverable
+ * computation goes through computeDeliverableFromMedia instead.
+ */
 function netMediaFeeMarkup(rawBudget: number, budgetIncludesFees: boolean, feePct: number): number {
   if (!budgetIncludesFees) return rawBudget;
   const pct = feePct || 0;
@@ -603,7 +632,12 @@ export default function ProgVideoContainer({
                 buyAmount: burst.buyAmount || "",
                 startDate: burst.startDate ? new Date(burst.startDate) : new Date(),
                 endDate: burst.endDate ? new Date(burst.endDate) : new Date(),
-                calculatedValue: computeLoadedDeliverables(item.buy_type || item.buyType, burst),
+                calculatedValue: computeLoadedDeliverables(
+                  item.buy_type || item.buyType,
+                  burst,
+                  Boolean(item.budget_includes_fees || item.budgetIncludesFees),
+                  feeprogvideo ?? 0,
+                ),
                 fee: burst.fee || 0,
               }))
             : [
@@ -612,7 +646,12 @@ export default function ProgVideoContainer({
                   buyAmount: "",
                   startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
                   endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
-                  calculatedValue: computeLoadedDeliverables(item.buy_type || item.buyType, {}),
+                  calculatedValue: computeLoadedDeliverables(
+                    item.buy_type || item.buyType,
+                    {},
+                    Boolean(item.budget_includes_fees || item.budgetIncludesFees),
+                    feeprogvideo ?? 0,
+                  ),
                   fee: 0,
                 },
               ],
@@ -627,7 +666,7 @@ export default function ProgVideoContainer({
         overallDeliverables: 0,
       });
     }
-  }, [initialLineItems, form, campaignStartDate, campaignEndDate]);
+  }, [initialLineItems, form, campaignStartDate, campaignEndDate, feeprogvideo]);
 
   // Transform form data to API schema format
   useEffect(() => {
@@ -798,7 +837,6 @@ export default function ProgVideoContainer({
     const lineItem = form.getValues(`lineItems.${lineItemIndex}`);
     const rawBudget = parseFloat(burst?.budget?.replace(/[^0-9.]/g, "") || "0");
     const budgetIncludesFees = budgetIncludesFeesOverride ?? Boolean(lineItem?.budgetIncludesFees);
-    const budget = netMediaFeeMarkup(rawBudget, budgetIncludesFees, feeprogvideo || 0);
     const buyAmount = parseFloat(burst?.buyAmount?.replace(/[^0-9.]/g, "") || "1");
     const buyType = form.getValues(`lineItems.${lineItemIndex}.buyType`);
     const buyTypeLower = String(buyType || "").toLowerCase();
@@ -810,26 +848,14 @@ export default function ProgVideoContainer({
       return;
     }
 
-    let calculatedValue = 0;
-    switch (buyType) {
-      case "cpc":
-      case "cpv":
-        calculatedValue = buyAmount !== 0 ? budget / buyAmount : 0;
-        break;
-      case "cpm":
-        calculatedValue = buyAmount !== 0 ? (budget / buyAmount) * 1000 : 0;
-        break;
-      case "fixed_cost":
-        calculatedValue = 1;
-        break;
-      case "bonus":
-        calculatedValue = parseFloat(
-          (burst?.calculatedValue ?? "0").toString().replace(/[^0-9.]/g, "")
-        ) || 0;
-        break;
-      default:
-        calculatedValue = 0;
-    }
+    const bt = coerceBuyTypeWithDevWarn(buyType, "ProgVideoContainer.handleValueChange");
+    const calculatedValue = computeDeliverableFromMedia({
+      buyType: bt,
+      rawBudget,
+      buyAmount,
+      budgetIncludesFees,
+      feePct: feeprogvideo || 0,
+    });
 
     // Only update if the calculated value is actually different to prevent infinite loops
     const currentValue = form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`);
