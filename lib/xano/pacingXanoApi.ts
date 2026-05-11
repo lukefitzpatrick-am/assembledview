@@ -3,7 +3,6 @@ import { parseXanoListPayload, xanoUrl } from "@/lib/api/xano"
 
 export const PACING_MAPPINGS_PATH = "pacing_mappings"
 export const PACING_THRESHOLDS_PATH = "pacing_thresholds"
-export const PACING_SAVED_VIEWS_PATH = "pacing_saved_views"
 export const PACING_ALERT_SUBS_PATH = "pacing_alert_subscriptions"
 export const PACING_ALERT_LOG_PATH = "pacing_alert_log"
 

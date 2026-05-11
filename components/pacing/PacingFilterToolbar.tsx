@@ -8,39 +8,19 @@ import { MultiSelectCombobox } from "@/components/ui/multi-select-combobox"
 import { DateRangePicker } from "@/components/ui/date-range-picker"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
-import { useToast } from "@/components/ui/use-toast"
 import { usePacingFilterStore, usePacingFilterStoreApi } from "@/lib/pacing/usePacingFilterStore"
 import {
   PACING_MEDIA_TYPE_OPTIONS,
   PACING_STATUS_OPTIONS,
-  cloneFiltersSnapshot,
-  parseFiltersSnapshot,
-  snapshotFromFilters,
 } from "@/lib/pacing/pacingFilters"
 import { createDefaultPacingFilters, type PacingFilterState } from "@/lib/pacing/usePacingFilterStore"
-import {
-  createPacingSavedView,
-  fetchPacingSavedViews,
-  setDefaultPacingSavedView,
-} from "@/lib/xano/pacing-client"
-import { SavedViewsDropdown } from "@/components/pacing/SavedViewsDropdown"
 
 type ClientOption = { value: string; label: string }
 
 function pacingFilterStateEqual(a: PacingFilterState, b: PacingFilterState): boolean {
   return (
-    (a.savedViewId ?? null) === (b.savedViewId ?? null) &&
     a.date_from === b.date_from &&
     a.date_to === b.date_to &&
     a.search === b.search &&
@@ -58,7 +38,6 @@ function buildPacingSearchParams(f: PacingFilterState): URLSearchParams {
   p.set("from", f.date_from)
   p.set("to", f.date_to)
   if (f.search.trim()) p.set("q", f.search.trim())
-  if (f.savedViewId) p.set("view", f.savedViewId)
   return p
 }
 
@@ -75,24 +54,10 @@ function stateFromSearchParams(sp: URLSearchParams): PacingFilterState {
     date_from: from && /^\d{4}-\d{2}-\d{2}$/.test(from) ? from : base.date_from,
     date_to: to && /^\d{4}-\d{2}-\d{2}$/.test(to) ? to : base.date_to,
     search: sp.get("q")?.trim() ?? "",
-    savedViewId: null,
   }
-}
-
-function extractCreatedId(body: unknown): number | null {
-  if (!body || typeof body !== "object") return null
-  const o = body as Record<string, unknown>
-  if (typeof o.id === "number" && Number.isFinite(o.id)) return o.id
-  const inner = o.data
-  if (inner && typeof inner === "object") {
-    const id = (inner as Record<string, unknown>).id
-    if (typeof id === "number" && Number.isFinite(id)) return id
-  }
-  return null
 }
 
 export function PacingFilterToolbar() {
-  const { toast } = useToast()
   const router = useRouter()
   const pathname = usePathname() ?? ""
   const searchParams = useSearchParams() ?? new URLSearchParams()
@@ -105,10 +70,6 @@ export function PacingFilterToolbar() {
   const assignedClientIds = usePacingFilterStore((s) => s.assignedClientIds)
 
   const [clientOptions, setClientOptions] = useState<ClientOption[]>([])
-  const [saveOpen, setSaveOpen] = useState(false)
-  const [saveName, setSaveName] = useState("")
-  const [saveDefault, setSaveDefault] = useState(false)
-  const [saveBusy, setSaveBusy] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
 
   const isScopedTenant = assignedClientIds.length > 0
@@ -148,53 +109,14 @@ export function PacingFilterToolbar() {
     }
   }, [filters.date_from, filters.date_to])
 
-  const viewIdParam = searchParams.get("view") ?? ""
-
   useEffect(() => {
-    if (!viewIdParam) return
-    let cancelled = false
-    void (async () => {
-      try {
-        const res = await fetchPacingSavedViews()
-        if (cancelled) return
-        const row = res.data.find((v) => String(v.id) === viewIdParam)
-        if (row) {
-          const snap = parseFiltersSnapshot(row.filters_json)
-          if (snap) {
-            const next: PacingFilterState = { ...snap, savedViewId: viewIdParam }
-            const cur = store.getState().filters
-            if (pacingFilterStateEqual(cur, next)) return
-            store.getState().setFiltersState(next)
-            return
-          }
-        }
-        toast({
-          variant: "destructive",
-          title: "Saved view not found",
-          description: "The link may be outdated.",
-        })
-        router.replace(pathname)
-      } catch {
-        if (!cancelled) router.replace(pathname)
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [viewIdParam, pathname, router, store, toast])
-
-  useEffect(() => {
-    if (viewIdParam) return
     const next = stateFromSearchParams(new URLSearchParams(searchParams.toString()))
     const cur = store.getState().filters
     if (pacingFilterStateEqual(cur, next)) return
     setFiltersState(next)
-  }, [viewIdParam, searchParams, setFiltersState, store])
+  }, [searchParams, setFiltersState, store])
 
   useEffect(() => {
-    const viewInUrl = searchParams.get("view")
-    if (viewInUrl && filters.savedViewId !== viewInUrl) return
-
     const params = buildPacingSearchParams(filters)
     const qs = params.toString()
     const current = searchParams.toString()
@@ -209,7 +131,6 @@ export function PacingFilterToolbar() {
       setFilters({
         date_from: format(next.from, "yyyy-MM-dd"),
         date_to: format(to, "yyyy-MM-dd"),
-        savedViewId: null,
       })
     },
     [setFilters]
@@ -225,36 +146,6 @@ export function PacingFilterToolbar() {
     []
   )
 
-  const onSaveView = useCallback(async () => {
-    const name = saveName.trim()
-    if (!name) return
-    setSaveBusy(true)
-    try {
-      const snap = cloneFiltersSnapshot(filters)
-      const body = snapshotFromFilters(snap)
-      const raw = await createPacingSavedView({ name, filters_json: body, is_default: saveDefault })
-      const id = extractCreatedId(raw)
-      if (saveDefault && id !== null) {
-        await setDefaultPacingSavedView(id)
-      }
-      toast({ title: "View saved", description: name })
-      setSaveOpen(false)
-      setSaveName("")
-      setSaveDefault(false)
-      if (id !== null) {
-        setFilters({ savedViewId: String(id) })
-      }
-    } catch (e) {
-      toast({
-        variant: "destructive",
-        title: "Could not save view",
-        description: e instanceof Error ? e.message : "Unknown error",
-      })
-    } finally {
-      setSaveBusy(false)
-    }
-  }, [filters, saveDefault, saveName, setFilters, toast])
-
   const onReset = useCallback(() => {
     resetToDefaults()
     router.replace(pathname, { scroll: false })
@@ -262,42 +153,6 @@ export function PacingFilterToolbar() {
 
   const actionsRow = (
     <div className="flex flex-wrap items-center gap-2 lg:col-span-12">
-      <SavedViewsDropdown />
-      <Dialog open={saveOpen} onOpenChange={setSaveOpen}>
-        <DialogTrigger asChild>
-          <Button type="button" variant="secondary" size="sm">
-            Save current view
-          </Button>
-        </DialogTrigger>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Save pacing view</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label htmlFor="pacing-save-name">Name</Label>
-              <Input
-                id="pacing-save-name"
-                value={saveName}
-                onChange={(e) => setSaveName(e.target.value)}
-                placeholder="e.g. Q1 search clients"
-              />
-            </div>
-            <label className="flex cursor-pointer items-center gap-2 text-sm">
-              <Checkbox checked={saveDefault} onCheckedChange={(v) => setSaveDefault(Boolean(v))} />
-              Set as my default view
-            </label>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setSaveOpen(false)}>
-              Cancel
-            </Button>
-            <Button type="button" disabled={saveBusy || !saveName.trim()} onClick={() => void onSaveView()}>
-              Save
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
       <Button type="button" variant="link" className="h-auto px-2 text-muted-foreground" onClick={onReset}>
         Reset
       </Button>
@@ -310,7 +165,7 @@ export function PacingFilterToolbar() {
         <MultiSelectCombobox
           options={clientOptions}
           values={filters.client_ids}
-          onValuesChange={(values) => setFilters({ client_ids: values, savedViewId: null })}
+          onValuesChange={(values) => setFilters({ client_ids: values })}
           placeholder="Clients"
           allSelectedText={isScopedTenant ? "All my clients" : "All clients"}
           searchPlaceholder="Search clients…"
@@ -322,7 +177,7 @@ export function PacingFilterToolbar() {
         <MultiSelectCombobox
           options={mediaOptions}
           values={filters.media_types}
-          onValuesChange={(values) => setFilters({ media_types: values, savedViewId: null })}
+          onValuesChange={(values) => setFilters({ media_types: values })}
           placeholder="Media type"
           allSelectedText="All media types"
           searchPlaceholder="Search…"
@@ -334,7 +189,7 @@ export function PacingFilterToolbar() {
         <MultiSelectCombobox
           options={statusOptions}
           values={filters.statuses}
-          onValuesChange={(values) => setFilters({ statuses: values, savedViewId: null })}
+          onValuesChange={(values) => setFilters({ statuses: values })}
           placeholder="Status"
           allSelectedText="All statuses"
           searchPlaceholder="Search…"
@@ -358,7 +213,7 @@ export function PacingFilterToolbar() {
         <Input
           id="pacing-toolbar-search"
           value={filters.search}
-          onChange={(e) => setFilters({ search: e.target.value, savedViewId: null })}
+          onChange={(e) => setFilters({ search: e.target.value })}
           placeholder="Line items, campaigns…"
           className="focus-visible:ring-2 focus-visible:ring-ring"
         />

@@ -10,8 +10,6 @@ import type {
   PacingListResponse,
   PacingMapping,
   PacingMappingInput,
-  PacingSavedView,
-  PacingSavedViewInput,
   PacingTestMatchRequest,
   PacingTestMatchResponse,
   PacingTestMatchRow,
@@ -218,49 +216,6 @@ export async function upsertPacingThresholds(body: PacingThresholdUpsertInput): 
     body: JSON.stringify(body),
     cache: "no-store",
   })
-  return jsonOrThrow(res, path)
-}
-
-export async function fetchPacingSavedViews(): Promise<PacingListResponse<PacingSavedView>> {
-  const path = "/api/pacing/saved-views"
-  const res = await fetch(path, { cache: "no-store" })
-  return jsonOrThrow(res, path)
-}
-
-export async function createPacingSavedView(body: PacingSavedViewInput): Promise<unknown> {
-  const path = "/api/pacing/saved-views"
-  const res = await fetch(path, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    cache: "no-store",
-  })
-  return jsonOrThrow(res, path)
-}
-
-export async function updatePacingSavedView(
-  id: number,
-  body: Partial<PacingSavedViewInput>
-): Promise<unknown> {
-  const path = `/api/pacing/saved-views/${id}`
-  const res = await fetch(path, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    cache: "no-store",
-  })
-  return jsonOrThrow(res, path)
-}
-
-export async function deletePacingSavedView(id: number): Promise<{ ok: boolean }> {
-  const path = `/api/pacing/saved-views/${id}`
-  const res = await fetch(path, { method: "DELETE", cache: "no-store" })
-  return jsonOrThrow(res, path)
-}
-
-export async function setDefaultPacingSavedView(id: number): Promise<unknown> {
-  const path = `/api/pacing/saved-views/${id}/set-default`
-  const res = await fetch(path, { method: "POST", cache: "no-store" })
   return jsonOrThrow(res, path)
 }
 

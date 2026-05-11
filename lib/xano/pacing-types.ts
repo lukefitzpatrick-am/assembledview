@@ -74,23 +74,6 @@ export type PacingThresholdUpsertInput = {
   no_delivery_days?: number
 }
 
-/** Xano table `pacing_saved_views` */
-export type PacingSavedView = {
-  id: number
-  users_id: number
-  name: string
-  filters_json: unknown
-  is_default: boolean
-  created_at: number | string | null
-  updated_at: number | string | null
-}
-
-export type PacingSavedViewInput = {
-  name: string
-  filters_json: unknown
-  is_default?: boolean
-}
-
 export type PacingAlertSubscription = {
   id: number
   users_id: number

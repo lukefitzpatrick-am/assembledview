@@ -5,9 +5,7 @@ import { endOfMonth, format, startOfMonth } from "date-fns"
 import { createStore, useStore } from "zustand"
 import type { PacingFiltersSnapshot } from "@/lib/pacing/pacingFilters"
 
-export type PacingFilterState = PacingFiltersSnapshot & {
-  savedViewId: string | null
-}
+export type PacingFilterState = PacingFiltersSnapshot
 
 function defaultMonthRange(): Pick<PacingFilterState, "date_from" | "date_to"> {
   const now = new Date()
@@ -18,7 +16,7 @@ function defaultMonthRange(): Pick<PacingFilterState, "date_from" | "date_to"> {
 }
 
 /** Empty `client_ids` means “all clients in scope” (omit `clients_id` on API; tenant → assigned set). */
-export function createDefaultPacingFilters(): Omit<PacingFilterState, "savedViewId"> {
+export function createDefaultPacingFilters(): PacingFilterState {
   const month = defaultMonthRange()
   return {
     client_ids: [],
@@ -35,7 +33,6 @@ export interface PacingFilterStoreState {
   assignedClientIds: string[]
   setFilters: (partial: Partial<PacingFilterState>) => void
   replaceFilters: (next: Partial<PacingFilterState>) => void
-  applySnapshot: (snap: PacingFiltersSnapshot, savedViewId: string | null) => void
   resetToDefaults: () => void
   setAssignedClientIds: (ids: string[]) => void
   hydrateFromUrl: (partial: Partial<PacingFilterState>) => void
@@ -46,12 +43,9 @@ export interface PacingFilterStoreState {
 export type PacingFilterStore = ReturnType<typeof createPacingFilterStoreInstance>
 
 export function createPacingFilterStoreInstance(initialAssignedClientIds: string[]) {
-  const defaults: PacingFilterState = {
-    ...createDefaultPacingFilters(),
-    savedViewId: null,
-  }
+  const defaults: PacingFilterState = createDefaultPacingFilters()
 
-  return createStore<PacingFilterStoreState>((set, get) => ({
+  return createStore<PacingFilterStoreState>((set) => ({
     filters: defaults,
     assignedClientIds: initialAssignedClientIds,
 
@@ -67,25 +61,9 @@ export function createPacingFilterStoreInstance(initialAssignedClientIds: string
         filters: { ...s.filters, ...next },
       })),
 
-    applySnapshot: (snap, savedViewId) =>
-      set(() => ({
-        filters: {
-          client_ids: [...snap.client_ids],
-          media_types: [...snap.media_types],
-          statuses: [...snap.statuses],
-          date_from: snap.date_from,
-          date_to: snap.date_to,
-          search: snap.search,
-          savedViewId,
-        },
-      })),
-
     resetToDefaults: () => {
       set({
-        filters: {
-          ...createDefaultPacingFilters(),
-          savedViewId: null,
-        },
+        filters: createDefaultPacingFilters(),
       })
     },
 
