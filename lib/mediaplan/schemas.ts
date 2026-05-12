@@ -38,6 +38,8 @@ const baseBurstShape = {
   startDate: z.date(),
   endDate: z.date(),
   calculatedValue: z.number().optional(),
+  mediaAmount: z.union([z.string(), z.number()]).optional(),
+  feeAmount: z.union([z.string(), z.number()]).optional(),
   fee: z.number().optional(),
 } as const
 

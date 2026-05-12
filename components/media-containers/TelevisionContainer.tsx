@@ -30,6 +30,7 @@ import { Label } from "@/components/ui/label";
 import { getPublishersForTelevision, getClientInfo, getTVStations, createTVStation} from "@/lib/api"
 import { formatBurstLabel } from "@/lib/bursts"
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
+import { serializeBurstsJson } from "@/lib/mediaplan/serializeBurstsJson"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { Calendar } from "@/components/ui/calendar"
@@ -1267,15 +1268,15 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
       budget_includes_fees: lineItem.budgetIncludesFees || false,
       line_item_id: lineItemId,
       creative: lineItem.creative || "",
-      bursts_json: JSON.stringify(lineItem.bursts.map(burst => ({
-        budget: burst.budget || "",
-        buyAmount: burst.buyAmount || "",
-        startDate: burst.startDate ? (burst.startDate instanceof Date ? burst.startDate.toISOString() : burst.startDate) : "",
-        endDate: burst.endDate ? (burst.endDate instanceof Date ? burst.endDate.toISOString() : burst.endDate) : "",
-        size: burst.size || "",
-        tarps: burst.tarps || "",
-        calculatedValue: burst.calculatedValue || 0,
-        fee: burst.fee || 0,
+      bursts_json: JSON.stringify(serializeBurstsJson({
+        bursts: lineItem.bursts,
+        feePct: feetelevision || 0,
+        budgetIncludesFees: lineItem.budgetIncludesFees || false,
+        clientPaysForMedia: lineItem.clientPaysForMedia || false,
+      }).map((serializedBurst, burstIndex) => ({
+        ...serializedBurst,
+        size: lineItem.bursts[burstIndex]?.size || "",
+        tarps: lineItem.bursts[burstIndex]?.tarps || "",
       }))),
       line_item: lineNumber,
       totalMedia: totalMedia,

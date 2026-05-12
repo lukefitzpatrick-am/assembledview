@@ -28,6 +28,7 @@ import {
 import { getPublishersForProgBvod, getClientInfo } from "@/lib/api"
 import { formatBurstLabel } from "@/lib/bursts"
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
+import { serializeBurstsJson } from "@/lib/mediaplan/serializeBurstsJson"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -622,14 +623,12 @@ export default function ProgBVODContainer({
         budget_includes_fees: lineItem.budgetIncludesFees || false,
         no_adserving: lineItem.noadserving || false,
         line_item_id: buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.progBVOD, index + 1),
-        bursts_json: JSON.stringify(lineItem.bursts.map(burst => ({
-          budget: burst.budget || "",
-          buyAmount: burst.buyAmount || "",
-          startDate: burst.startDate ? (burst.startDate instanceof Date ? burst.startDate.toISOString() : burst.startDate) : "",
-          endDate: burst.endDate ? (burst.endDate instanceof Date ? burst.endDate.toISOString() : burst.endDate) : "",
-          calculatedValue: burst.calculatedValue || 0,
-          fee: burst.fee || 0,
-        }))),
+        bursts_json: JSON.stringify(serializeBurstsJson({
+          bursts: lineItem.bursts,
+          feePct: feeprogbvod || 0,
+          budgetIncludesFees: lineItem.budgetIncludesFees || false,
+          clientPaysForMedia: lineItem.clientPaysForMedia || false,
+        })),
         line_item: index + 1,
         totalMedia: totalMedia,
       };
