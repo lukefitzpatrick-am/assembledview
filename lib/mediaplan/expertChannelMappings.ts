@@ -14,8 +14,12 @@ import {
   getSundayOnOrBefore,
   type WeeklyGanttWeekColumn,
 } from "../utils/weeklyGanttColumns"
-import { formatRate } from "@/lib/format/money"
-import { computeBurstAmounts } from "./burstAmounts"
+import {
+  formatMoney,
+  formatRate,
+  parseMoneyInput,
+  type MoneyFormatOptions,
+} from "@/lib/format/money"
 import { weekKeysInSpanInclusive } from "./expertGridShared"
 import type {
   ExpertWeekColumnKey,
@@ -40,6 +44,12 @@ import type {
   ProgOohExpertScheduleRow,
   ProgExpertMergedWeekSpan,
 } from "./expertModeWeeklySchedule.js"
+
+/** Aligned with {@link serializeBurstsJson} for parsing bursts_json Stage 1 contract fields. */
+const BURST_JSON_MONEY_FORMAT: MoneyFormatOptions = {
+  locale: "en-AU",
+  currency: "AUD",
+}
 
 /** OOH/Radio form burst shape (matches container schemas). */
 export interface StandardMediaBurst {
@@ -547,6 +557,13 @@ function parseBurstDate(v: Date | string | undefined): Date | null {
   return Number.isNaN(d.getTime()) ? null : d
 }
 
+/**
+ * Parses `bursts_json` into {@link StandardMediaBurst} for expert → standard line items.
+ * Stage 1 contract (serializeBurstsJson): `feeAmount` and `mediaAmount` are formatted currency
+ * strings; legacy numeric `fee` is no longer written. Precedence: parsed `feeAmount` over legacy
+ * `fee`; when `mediaAmount` is present and parses, it becomes `budget` (formatted), else `budget`
+ * falls back to the raw `budget` field.
+ */
 function normalizeOohBursts(item: StandardOohLineItemInput): StandardMediaBurst[] {
   const raw =
     item.bursts ??
@@ -559,21 +576,53 @@ function normalizeOohBursts(item: StandardOohLineItemInput): StandardMediaBurst[
   if (!Array.isArray(raw)) return []
   const out: StandardMediaBurst[] = []
   for (const b of raw) {
-    const sd = parseBurstDate(b.startDate ?? b.start_date)
-    const ed = parseBurstDate(b.endDate ?? b.end_date)
+    const rec = b as Record<string, unknown>
+    const sd = parseBurstDate(
+      (rec.startDate ?? rec.start_date) as Date | string | undefined
+    )
+    const ed = parseBurstDate(
+      (rec.endDate ?? rec.end_date) as Date | string | undefined
+    )
     if (!sd || !ed) continue
+
+    const feeAmountRaw = rec.feeAmount
+    const hasFeeAmount =
+      feeAmountRaw != null && String(feeAmountRaw).trim() !== ""
+    let fee: number | undefined
+    if (hasFeeAmount) {
+      const parsedFee = parseMoneyInput(
+        feeAmountRaw as Parameters<typeof parseMoneyInput>[0]
+      )
+      if (parsedFee !== null) fee = parsedFee
+    } else if (typeof rec.fee === "number") {
+      fee = rec.fee
+    }
+
+    const mediaAmountRaw = rec.mediaAmount
+    const hasMediaAmount =
+      mediaAmountRaw != null && String(mediaAmountRaw).trim() !== ""
+    let budgetStr = String(rec.budget ?? "")
+    if (hasMediaAmount) {
+      const parsedMedia = parseMoneyInput(
+        mediaAmountRaw as Parameters<typeof parseMoneyInput>[0]
+      )
+      if (parsedMedia !== null) {
+        budgetStr = formatMoney(parsedMedia, BURST_JSON_MONEY_FORMAT)
+      }
+    }
+
     out.push({
-      budget: String(b.budget ?? ""),
-      buyAmount: String(b.buyAmount ?? b.buy_amount ?? ""),
+      budget: budgetStr,
+      buyAmount: String(rec.buyAmount ?? rec.buy_amount ?? ""),
       startDate: sd,
       endDate: ed,
       calculatedValue:
-        typeof b.calculatedValue === "number"
-          ? b.calculatedValue
-          : typeof b.calculated_value === "number"
-            ? b.calculated_value
+        typeof rec.calculatedValue === "number"
+          ? rec.calculatedValue
+          : typeof rec.calculated_value === "number"
+            ? rec.calculated_value
             : undefined,
-      fee: typeof b.fee === "number" ? b.fee : undefined,
+      ...(fee !== undefined ? { fee } : {}),
     })
   }
   return out
@@ -614,7 +663,6 @@ function emptyOohLineItem(
         startDate: startOfDay(clampDateToCampaignRange(campaignStartDate, campaignStartDate, campaignEndDate)),
         endDate: startOfDay(clampDateToCampaignRange(campaignEndDate, campaignStartDate, campaignEndDate)),
         calculatedValue: 0,
-        fee: 0,
       },
     ],
   }
@@ -656,7 +704,6 @@ function emptyRadioLineItem(
         startDate: startOfDay(clampDateToCampaignRange(campaignStartDate, campaignStartDate, campaignEndDate)),
         endDate: startOfDay(clampDateToCampaignRange(campaignEndDate, campaignStartDate, campaignEndDate)),
         calculatedValue: 0,
-        fee: 0,
       },
     ],
   }
@@ -761,7 +808,6 @@ export function mapOohExpertRowsToStandardLineItems(
         startDate: start,
         endDate: end,
         calculatedValue,
-        fee: 0,
       })
     }
 
@@ -882,7 +928,6 @@ export function mapRadioExpertRowsToStandardLineItems(
         startDate: start,
         endDate: end,
         calculatedValue,
-        fee: 0,
       })
     }
 
@@ -908,7 +953,6 @@ export function mapRadioExpertRowsToStandardLineItems(
         startDate: start,
         endDate: end,
         calculatedValue,
-        fee: 0,
       })
     }
 
@@ -1393,7 +1437,6 @@ function emptyTelevisionLineItem(
           clampDateToCampaignRange(campaignEndDate, campaignStartDate, campaignEndDate)
         ),
         calculatedValue: 0,
-        fee: 0,
         size: String(row.size || "30s"),
         tarps: "",
       },
@@ -1474,7 +1517,6 @@ export function mapTvExpertRowsToStandardLineItems(
         startDate: start,
         endDate: end,
         calculatedValue,
-        fee: 0,
         size: lineSize,
         tarps: String(calculatedValue),
       })
@@ -1790,7 +1832,6 @@ function emptyBvodLineItem(
           clampDateToCampaignRange(campaignEndDate, campaignStartDate, campaignEndDate)
         ),
         calculatedValue: 0,
-        fee: 0,
       },
     ],
   }
@@ -1869,7 +1910,6 @@ export function mapBvodExpertRowsToStandardLineItems(
         startDate: start,
         endDate: end,
         calculatedValue,
-        fee: 0,
       })
     }
 
@@ -2162,7 +2202,6 @@ function emptyDigiVideoLineItem(
           clampDateToCampaignRange(campaignEndDate, campaignStartDate, campaignEndDate)
         ),
         calculatedValue: 0,
-        fee: 0,
       },
     ],
   }
@@ -2248,7 +2287,6 @@ export function mapDigiVideoExpertRowsToStandardLineItems(
         startDate: start,
         endDate: end,
         calculatedValue,
-        fee: 0,
       })
     }
 
@@ -2552,7 +2590,6 @@ function emptyDigiDisplayLineItem(
           clampDateToCampaignRange(campaignEndDate, campaignStartDate, campaignEndDate)
         ),
         calculatedValue: 0,
-        fee: 0,
       },
     ],
   }
@@ -2637,7 +2674,6 @@ export function mapDigitalDisplayExpertRowsToStandardLineItems(
         startDate: start,
         endDate: end,
         calculatedValue,
-        fee: 0,
       })
     }
 
@@ -2934,7 +2970,6 @@ function emptyDigiAudioLineItem(
           clampDateToCampaignRange(campaignEndDate, campaignStartDate, campaignEndDate)
         ),
         calculatedValue: 0,
-        fee: 0,
       },
     ],
   }
@@ -3014,7 +3049,6 @@ export function mapDigitalAudioExpertRowsToStandardLineItems(
         startDate: start,
         endDate: end,
         calculatedValue,
-        fee: 0,
       })
     }
 
@@ -3300,7 +3334,6 @@ function emptySocialMediaLineItem(
           clampDateToCampaignRange(campaignEndDate, campaignStartDate, campaignEndDate)
         ),
         calculatedValue: 0,
-        fee: 0,
       },
     ],
   }
@@ -3386,7 +3419,6 @@ export function mapSocialMediaExpertRowsToStandardLineItems(
         startDate: start,
         endDate: end,
         calculatedValue,
-        fee: 0,
       })
     }
 
@@ -3669,7 +3701,6 @@ function emptySearchLineItem(
           clampDateToCampaignRange(campaignEndDate, campaignStartDate, campaignEndDate)
         ),
         calculatedValue: 0,
-        fee: 0,
       },
     ],
   }
@@ -3754,7 +3785,6 @@ export function mapSearchExpertRowsToStandardLineItems(
         startDate: start,
         endDate: end,
         calculatedValue,
-        fee: 0,
       })
     }
 
@@ -4046,7 +4076,6 @@ function emptyInfluencersLineItem(
           clampDateToCampaignRange(campaignEndDate, campaignStartDate, campaignEndDate)
         ),
         calculatedValue: 0,
-        fee: 0,
       },
     ],
   }
@@ -4127,7 +4156,6 @@ export function mapInfluencersExpertRowsToStandardLineItems(
         startDate: start,
         endDate: end,
         calculatedValue,
-        fee: 0,
       })
     }
 
@@ -4427,7 +4455,6 @@ function emptyIntegrationLineItem(
           clampDateToCampaignRange(campaignEndDate, campaignStartDate, campaignEndDate)
         ),
         calculatedValue: 0,
-        fee: 0,
       },
     ],
   }
@@ -4508,7 +4535,6 @@ export function mapIntegrationExpertRowsToStandardLineItems(
         startDate: start,
         endDate: end,
         calculatedValue,
-        fee: 0,
       })
     }
 
@@ -4750,7 +4776,6 @@ function emptyNewspaperLineItem(
           clampDateToCampaignRange(campaignEndDate, campaignStartDate, campaignEndDate)
         ),
         calculatedValue: 0,
-        fee: 0,
       },
     ],
   }
@@ -4831,7 +4856,6 @@ export function mapNewspaperExpertRowsToStandardLineItems(
         startDate: start,
         endDate: end,
         calculatedValue,
-        fee: 0,
       })
     }
 
@@ -5080,7 +5104,6 @@ function emptyMagazineLineItem(
           clampDateToCampaignRange(campaignEndDate, campaignStartDate, campaignEndDate)
         ),
         calculatedValue: 0,
-        fee: 0,
       },
     ],
   }
@@ -5161,7 +5184,6 @@ export function mapMagazineExpertRowsToStandardLineItems(
         startDate: start,
         endDate: end,
         calculatedValue,
-        fee: 0,
       })
     }
 
@@ -5458,7 +5480,6 @@ function buildBurstsFromProgExpertLikeRow(
       startDate: start,
       endDate: end,
       calculatedValue,
-      fee: 0,
     })
   }
 
@@ -5622,7 +5643,6 @@ function emptyProgAudioLineItem(
           clampDateToCampaignRange(campaignEndDate, campaignStartDate, campaignEndDate)
         ),
         calculatedValue: 0,
-        fee: 0,
       },
     ],
   }
@@ -5810,7 +5830,6 @@ function emptyProgBvodLineItem(
           clampDateToCampaignRange(campaignEndDate, campaignStartDate, campaignEndDate)
         ),
         calculatedValue: 0,
-        fee: 0,
       },
     ],
   }
@@ -5997,7 +6016,6 @@ function emptyProgDisplayLineItem(
           clampDateToCampaignRange(campaignEndDate, campaignStartDate, campaignEndDate)
         ),
         calculatedValue: 0,
-        fee: 0,
       },
     ],
   }
@@ -6188,7 +6206,6 @@ function emptyProgVideoLineItem(
           clampDateToCampaignRange(campaignEndDate, campaignStartDate, campaignEndDate)
         ),
         calculatedValue: 0,
-        fee: 0,
       },
     ],
   }
@@ -6385,7 +6402,6 @@ function emptyProgOohLineItem(
           clampDateToCampaignRange(campaignEndDate, campaignStartDate, campaignEndDate)
         ),
         calculatedValue: 0,
-        fee: 0,
       },
     ],
   }
