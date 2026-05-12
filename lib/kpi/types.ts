@@ -39,6 +39,8 @@ export interface CampaignKPI {
   media_type: string
   publisher: string
   bid_strategy: string
+  /** Xano `campaign_kpi.line_item_id` — required on new rows (fan-out from line items). */
+  line_item_id?: string
   ctr: number
   cpv: number
   conversion_rate: number
@@ -345,6 +347,7 @@ const campaignKpiItemSchema = z.object({
   media_type: nonEmptyStr,
   publisher: nonEmptyStr,
   bid_strategy: nonEmptyStr,
+  line_item_id: z.string().trim().min(1, "line_item_id is required"),
   ctr: kpiMetric.optional().default(0),
   cpv: kpiMetric.optional().default(0),
   conversion_rate: kpiMetric.optional().default(0),

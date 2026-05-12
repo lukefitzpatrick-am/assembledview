@@ -136,6 +136,7 @@ import { KPISection } from "@/components/kpis/KPISection"
 import { resolveAllKPIs } from "@/lib/kpi/resolve"
 import { mergeManualKpiOverrides } from "@/lib/kpi/recalc"
 import { getCampaignKPIs, getClientKPIs, getPublisherKPIs, saveCampaignKPIs } from "@/lib/api/kpi"
+import { fanOutKpiPayload } from "@/lib/kpi/fanOut"
 import type { CampaignKPI, ClientKPI, PublisherKPI, ResolvedKPIRow } from "@/lib/kpi/types"
 import {
   advertisingAssociatesFilteredPlanHasLineItems,
@@ -4844,23 +4845,45 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       // --- KPI: save campaign KPIs against the new version (non-blocking) (Stage 2) ---
       if (kpiRows.length > 0 && typeof numericSavedVersion === "number" && Number.isFinite(numericSavedVersion)) {
         updateSaveStatus("Campaign KPIs", "pending")
-        const kpiPayload: CampaignKPI[] = kpiRows.map((row) => ({
-          mp_client_name: formValues.mp_clientname,
-          mba_number: mbaNumber,
-          version_number: numericSavedVersion,
-          campaign_name: formValues.mp_campaignname,
-          media_type: row.media_type,
-          publisher: row.publisher,
-          bid_strategy: row.bid_strategy,
-          ctr: row.ctr,
-          cpv: row.cpv,
-          conversion_rate: row.conversion_rate,
-          vtr: row.vtr,
-          frequency: row.frequency,
-        }))
-        saveCampaignKPIs(kpiPayload)
-          .then(() => updateSaveStatus("Campaign KPIs", "success"))
-          .catch((err) => updateSaveStatus("Campaign KPIs", "error", err?.message))
+        const lineItemsByMediaType: Record<string, any[]> = {
+          search: searchItems ?? [],
+          socialMedia: socialMediaItems ?? [],
+          progDisplay: progDisplayItems ?? [],
+          progVideo: progVideoItems ?? [],
+          progBvod: progBvodItems ?? [],
+          progAudio: progAudioItems ?? [],
+          progOoh: progOohItems ?? [],
+          digiDisplay: digitalDisplayItems ?? [],
+          digiAudio: digitalAudioItems ?? [],
+          digiVideo: digitalVideoItems ?? [],
+          bvod: bvodItems ?? [],
+          integration: integrationItems ?? [],
+          television: televisionItems ?? [],
+          radio: radioItems ?? [],
+          newspaper: newspaperItems ?? [],
+          magazines: magazinesItems ?? [],
+          ooh: oohItems ?? [],
+          cinema: cinemaItems ?? [],
+          influencers: influencersItems ?? [],
+          production: productionLineItems ?? [],
+        }
+        const kpiPayload: CampaignKPI[] = fanOutKpiPayload(
+          kpiRows,
+          {
+            mp_client_name: formValues.mp_clientname,
+            mba_number: mbaNumber,
+            version_number: numericSavedVersion,
+            campaign_name: formValues.mp_campaignname,
+          },
+          lineItemsByMediaType,
+        )
+        if (kpiPayload.length === 0) {
+          updateSaveStatus("Campaign KPIs", "success")
+        } else {
+          saveCampaignKPIs(kpiPayload)
+            .then(() => updateSaveStatus("Campaign KPIs", "success"))
+            .catch((err) => updateSaveStatus("Campaign KPIs", "error", err?.message))
+        }
       }
 
       setAvailableVersions(prev => {

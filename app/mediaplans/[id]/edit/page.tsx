@@ -91,6 +91,7 @@ import { KPISection } from "@/components/kpis/KPISection"
 import { resolveAllKPIs } from "@/lib/kpi/resolve"
 import { mergeManualKpiOverrides } from "@/lib/kpi/recalc"
 import { getPublisherKPIs, getClientKPIs, getCampaignKPIs, saveCampaignKPIs } from "@/lib/api/kpi"
+import { fanOutKpiPayload } from "@/lib/kpi/fanOut"
 import type { PublisherKPI, ClientKPI, ResolvedKPIRow, CampaignKPI } from "@/lib/kpi/types"
 import type { Publisher } from "@/lib/types/publisher"
 
@@ -1996,21 +1997,40 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
       // Save KPIs (non-blocking)
       if (kpiRows.length > 0) {
         const fv = form.getValues()
-        const kpiPayload: CampaignKPI[] = kpiRows.map((row) => ({
-          mp_client_name: fv.mp_clientname,
-          mba_number: fv.mbanumber,
-          version_number: mediaPlan?.version_number ?? 1,
-          campaign_name: fv.mp_campaignname,
-          media_type: row.media_type,
-          publisher: row.publisher,
-          bid_strategy: row.bid_strategy,
-          ctr: row.ctr,
-          cpv: row.cpv,
-          conversion_rate: row.conversion_rate,
-          vtr: row.vtr,
-          frequency: row.frequency,
-        }))
-        saveCampaignKPIs(kpiPayload).catch((err) => console.warn("KPI save failed:", err))
+        const lineItemsByMediaType: Record<string, any[]> = {
+          search: searchMediaLineItems ?? [],
+          socialMedia: socialMediaMediaLineItems ?? [],
+          progDisplay: progDisplayMediaLineItems ?? [],
+          progVideo: progVideoMediaLineItems ?? [],
+          progBvod: progBvodMediaLineItems ?? [],
+          progAudio: progAudioMediaLineItems ?? [],
+          progOoh: progOohMediaLineItems ?? [],
+          digiDisplay: digitalDisplayMediaLineItems ?? [],
+          digiAudio: digitalAudioMediaLineItems ?? [],
+          digiVideo: digitalVideoMediaLineItems ?? [],
+          bvod: bvodMediaLineItems ?? [],
+          integration: integrationMediaLineItems ?? [],
+          television: televisionMediaLineItems ?? [],
+          radio: radioMediaLineItems ?? [],
+          newspaper: newspaperMediaLineItems ?? [],
+          magazines: magazinesMediaLineItems ?? [],
+          ooh: oohMediaLineItems ?? [],
+          cinema: cinemaMediaLineItems ?? [],
+          influencers: influencersMediaLineItems ?? [],
+        }
+        const kpiPayload: CampaignKPI[] = fanOutKpiPayload(
+          kpiRows,
+          {
+            mp_client_name: fv.mp_clientname,
+            mba_number: fv.mbanumber,
+            version_number: mediaPlan?.version_number ?? 1,
+            campaign_name: fv.mp_campaignname,
+          },
+          lineItemsByMediaType,
+        )
+        if (kpiPayload.length > 0) {
+          saveCampaignKPIs(kpiPayload).catch((err) => console.warn("KPI save failed:", err))
+        }
       }
 
       // Then, save search data if search is enabled
