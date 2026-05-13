@@ -3716,24 +3716,6 @@ export async function saveSearchLineItems(mediaPlanVersionId: number, mbaNumber:
 
     const results = await Promise.all(savePromises);
     console.log('Search line items saved successfully:', results);
-    if (isBrowser) {
-      try {
-        const syncRes = await fetch("/api/pacing/mappings/sync-from-search-containers", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "same-origin",
-          body: JSON.stringify({ media_plan_version_id: mediaPlanVersionId }),
-        })
-        if (!syncRes.ok) {
-          console.warn(
-            "[saveSearchLineItems] pacing sync-from-search-containers failed",
-            await syncRes.text()
-          )
-        }
-      } catch (e) {
-        console.warn("[saveSearchLineItems] pacing sync error", e)
-      }
-    }
     return results;
   } catch (error) {
     console.error('Error saving search line items:', error);
