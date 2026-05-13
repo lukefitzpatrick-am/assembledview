@@ -1,8 +1,9 @@
 import crypto from "node:crypto"
 import { NextRequest, NextResponse } from "next/server"
-import { querySnowflake } from "@/lib/snowflake/query"
-import { get as cacheGet, set as cacheSet } from "@/lib/cache/ttlCache"
-import { SOCIAL_PACING_TABLE } from "@/lib/pacing/social-channels"
+import {
+  getPortfolioPacingData,
+  type PortfolioPacingInput,
+} from "@/lib/snowflake/portfolio-pacing-service"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -14,16 +15,6 @@ type RequestBody = {
   lineItemIds?: string[]
   startDate?: string
   endDate?: string
-}
-
-type DailyRow = {
-  lineItemId: string
-  date: string
-  amountSpent: number
-  impressions: number
-  clicks: number
-  results: number
-  video3sViews: number
 }
 
 function isISODate(value: unknown): value is string {
@@ -38,17 +29,6 @@ function normalizeLineItemIds(ids?: string[]): string[] {
     if (normalized) set.add(normalized)
   })
   return Array.from(set).sort()
-}
-
-function chunk<T>(arr: T[], size: number): T[][] {
-  const out: T[][] = []
-  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size))
-  return out
-}
-
-function toNumber(value: any): number {
-  const n = typeof value === "number" ? value : Number(value ?? 0)
-  return Number.isFinite(n) ? n : 0
 }
 
 export async function POST(request: NextRequest) {
@@ -85,153 +65,25 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "endDate must be >= startDate" }, { status: 400 })
   }
 
-  const TTL_SECONDS = 14_400
-  const cacheKey = (() => {
-    const input = { lineItemIds: ids, startDate: start, endDate: end }
-    const hash = crypto.createHash("sha256").update(JSON.stringify(input)).digest("hex")
-    return `pacing:portfolio:${hash}`
-  })()
-
-  const cached = cacheGet<{ dataAsAt: string; daily: DailyRow[]; totals: Array<Omit<DailyRow, "date">> }>(
-    cacheKey
-  )
-  if (cached) {
-    if (process.env.NODE_ENV !== "production") {
-      console.info("[api/pacing/portfolio] cache hit", {
-        requestId,
-        key: cacheKey,
-        ids: ids.length,
-        dailyRows: cached.daily.length,
-      })
-    }
-    return NextResponse.json(cached)
+  const input: PortfolioPacingInput = {
+    lineItemIds: ids,
+    startDate: start,
+    endDate: end,
   }
 
-  if (process.env.NODE_ENV !== "production") {
-    console.info("[api/pacing/portfolio] cache miss", {
-      requestId,
-      key: cacheKey,
-      ids: ids.length,
-    })
-  }
-
-  const MAX_IDS_PER_CHUNK = 500
-  const chunks = chunk(ids, MAX_IDS_PER_CHUNK)
-
-  type SnowflakeRow = {
-    LINE_ITEM_ID: string | null
-    DATE_DAY: string
-    AMOUNT_SPENT: number | null
-    IMPRESSIONS: number | null
-    CLICKS: number | null
-    RESULTS: number | null
-    VIDEO_3S_VIEWS: number | null
-  }
-
-  const dailyAgg: DailyRow[] = []
-
-  for (let i = 0; i < chunks.length; i++) {
-    const idChunk = chunks[i]
-    const placeholders = idChunk.map(() => "?").join(", ")
-
-    // Union SOCIAL_PACING_FACT (social channels) + PACING_FACT (programmatic) for portfolio totals
-    const sql = `
-      SELECT
-        LOWER(LINE_ITEM_ID) AS LINE_ITEM_ID,
-        CAST(DATE_DAY AS DATE) AS DATE_DAY,
-        SUM(AMOUNT_SPENT) AS AMOUNT_SPENT,
-        SUM(IMPRESSIONS) AS IMPRESSIONS,
-        SUM(CLICKS) AS CLICKS,
-        SUM(RESULTS) AS RESULTS,
-        SUM(VIDEO_3S_VIEWS) AS VIDEO_3S_VIEWS
-      FROM (
-        SELECT LINE_ITEM_ID, DATE_DAY, AMOUNT_SPENT, IMPRESSIONS, CLICKS, RESULTS, VIDEO_3S_VIEWS
-        FROM ${SOCIAL_PACING_TABLE}
-        WHERE LOWER(LINE_ITEM_ID) IN (${placeholders})
-          AND CAST(DATE_DAY AS DATE) BETWEEN TO_DATE(?) AND TO_DATE(?)
-        UNION ALL
-        SELECT LINE_ITEM_ID, DATE_DAY, AMOUNT_SPENT, IMPRESSIONS, CLICKS, RESULTS, VIDEO_3S_VIEWS
-        FROM ASSEMBLEDVIEW.MART.PACING_FACT
-        WHERE LOWER(LINE_ITEM_ID) IN (${placeholders})
-          AND CAST(DATE_DAY AS DATE) BETWEEN TO_DATE(?) AND TO_DATE(?)
-      ) combined
-      GROUP BY LOWER(LINE_ITEM_ID), CAST(DATE_DAY AS DATE)
-      ORDER BY CAST(DATE_DAY AS DATE) ASC
-    `
-
-    const binds = [...idChunk, start, end, ...idChunk, start, end]
-    const rows = await querySnowflake<SnowflakeRow>(sql, binds, {
-      requestId,
-      label: "pacing_portfolio",
-    })
-
-    rows.forEach((r) => {
-      const lineItemId = String(r.LINE_ITEM_ID ?? "").trim().toLowerCase()
-      const date = String(r.DATE_DAY ?? "").slice(0, 10)
-      if (!lineItemId || !date) return
-      dailyAgg.push({
-        lineItemId,
-        date,
-        amountSpent: toNumber(r.AMOUNT_SPENT),
-        impressions: toNumber(r.IMPRESSIONS),
-        clicks: toNumber(r.CLICKS),
-        results: toNumber(r.RESULTS),
-        video3sViews: toNumber(r.VIDEO_3S_VIEWS),
-      })
-    })
-  }
-
-  // Totals by lineItemId
-  const totalsMap = new Map<string, Omit<DailyRow, "date">>()
-  dailyAgg.forEach((row) => {
-    const existing =
-      totalsMap.get(row.lineItemId) ??
-      ({
-        lineItemId: row.lineItemId,
-        amountSpent: 0,
-        impressions: 0,
-        clicks: 0,
-        results: 0,
-        video3sViews: 0,
-      } satisfies Omit<DailyRow, "date">)
-
-    existing.amountSpent += row.amountSpent
-    existing.impressions += row.impressions
-    existing.clicks += row.clicks
-    existing.results += row.results
-    existing.video3sViews += row.video3sViews
-
-    totalsMap.set(row.lineItemId, existing)
+  let cacheHit = false
+  const payload = await getPortfolioPacingData(input, {
+    requestId,
+    startedAtMs: t0,
+    onCacheHit: () => {
+      cacheHit = true
+    },
   })
 
-  const totals = Array.from(totalsMap.values()).sort((a, b) =>
-    a.lineItemId.localeCompare(b.lineItemId)
-  )
-
-  const maxDate = dailyAgg.length ? dailyAgg.map((r) => r.date).sort().slice(-1)[0] : null
-  const dataAsAt = maxDate ?? end
-
-  const payload = {
-    dataAsAt,
-    daily: dailyAgg,
-    totals,
-  }
-
-  cacheSet(cacheKey, payload, TTL_SECONDS)
   const response = NextResponse.json(payload)
-  response.headers.set("Cache-Control", "no-store, max-age=0")
-
-  if (process.env.NODE_ENV !== "production") {
-    console.info("[api/pacing/portfolio] done", {
-      requestId,
-      ids: ids.length,
-      chunks: chunks.length,
-      dailyRows: dailyAgg.length,
-      totals: totals.length,
-      ms: Date.now() - t0,
-    })
+  if (!cacheHit) {
+    response.headers.set("Cache-Control", "no-store, max-age=0")
   }
 
   return response
 }
-
