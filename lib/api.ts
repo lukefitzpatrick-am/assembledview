@@ -2,6 +2,7 @@ import { toMelbourneDateString } from "@/lib/timezone"
 import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
 import { getXanoBaseUrl } from "@/lib/api/xano"
 import { MEDIA_TYPE_ID_CODES, buildLineItemIdentity, buildLineItemId, pickLineItemNumber } from "@/lib/mediaplan/lineItemIds"
+import { serializeBurstsJson } from "@/lib/mediaplan/serializeBurstsJson"
 
 const isBrowser = typeof window !== "undefined"
 const PUBLISHERS_BASE_URL = getXanoBaseUrl("XANO_PUBLISHERS_BASE_URL")
@@ -1609,7 +1610,7 @@ export async function saveTelevisionLineItems(mediaPlanVersionId: number, mbaNum
     const savePromises = televisionLineItems.map(async (lineItem, index) => {
       // Format bursts data to ensure dates are properly serialized
       // Television has special fields (size, tarps) which will be preserved by extractAndFormatBursts
-      const formattedBursts = extractAndFormatBursts(lineItem);
+      const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
 
       const televisionData = {
         media_plan_version: mediaPlanVersionId,
@@ -1671,7 +1672,7 @@ export async function saveNewspaperLineItems(mediaPlanVersionId: number, mbaNumb
   try {
     const savePromises = newspaperLineItems.map(async (lineItem, index) => {
       // Format bursts data to ensure dates are properly serialized
-      const formattedBursts = extractAndFormatBursts(lineItem);
+      const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
 
       const newspaperData = {
         media_plan_version: mediaPlanVersionId,
@@ -1779,7 +1780,41 @@ function applyDeterministicIdForUpdate<T extends { mba_number?: string }>(
  * Handles both lineItem.bursts (array) and lineItem.bursts_json (string) cases.
  * Formats all burst fields with proper names and handles date serialization.
  */
-function extractAndFormatBursts(lineItem: any): any[] {
+function parseBurstMoney(value: any): number {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  if (typeof value !== "string") return 0;
+  const parsed = Number.parseFloat(value.replace(/[^0-9.-]+/g, ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function deriveFeePctFromSerializedBursts(
+  bursts: any[],
+  budgetIncludesFees: boolean
+): number {
+  const burst = bursts.find((candidate) => candidate?.feeAmount !== undefined);
+  if (!burst) return 0;
+
+  const rawBudget = parseBurstMoney(burst.budget);
+  const feeAmount = parseBurstMoney(burst.feeAmount);
+  if (rawBudget <= 0 || feeAmount <= 0) return 0;
+
+  if (budgetIncludesFees) {
+    return (feeAmount * 100) / rawBudget;
+  }
+
+  return (feeAmount * 100) / (rawBudget + feeAmount);
+}
+
+function normalizeFeePct(value: any): number | undefined {
+  if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+}
+
+function extractAndFormatBursts(lineItem: any, feePct?: number): any[] {
   let bursts: any[] = [];
 
   // First, try to get bursts from lineItem.bursts (array) - matches radio schema
@@ -1814,32 +1849,47 @@ function extractAndFormatBursts(lineItem: any): any[] {
     bursts = [];
   }
 
-  // Format all burst fields with proper names and handle date serialization
-  // Preserve all original fields while ensuring standard fields are properly formatted
+  const budgetIncludesFees = getBooleanField(lineItem, 'budget_includes_fees', 'budgetIncludesFees', false);
+  const clientPaysForMedia = getBooleanField(lineItem, 'client_pays_for_media', 'clientPaysForMedia', false);
+
+  const normalizedFeePct = normalizeFeePct(feePct);
+  const effectiveFeePct = normalizedFeePct !== undefined
+    ? normalizedFeePct
+    : deriveFeePctFromSerializedBursts(bursts, budgetIncludesFees);
+
+  // Preserve existing date formatting for API writes before handing off to the shared serializer.
   const formatBurstDate = (value: any) => {
     if (!value) return "";
     if (value instanceof Date) return toMelbourneDateString(value);
     return value;
   };
 
-  return bursts.map((burst: any) => {
-    const formattedBurst: any = {
-      budget: burst.budget || "",
-      buyAmount: burst.buyAmount || "",
+  const serializedBursts = serializeBurstsJson({
+    bursts: bursts.map((burst: any) => ({
+      budget: burst.budget,
+      buyAmount: burst.buyAmount,
       startDate: formatBurstDate(burst.startDate),
       endDate: formatBurstDate(burst.endDate),
-      calculatedValue: burst.calculatedValue || 0,
-      fee: burst.fee || 0,
-    };
-    
-    // Preserve any additional fields from the original burst (e.g., size, tarps for television)
-    Object.keys(burst).forEach(key => {
-      if (!['budget', 'buyAmount', 'startDate', 'endDate', 'calculatedValue', 'fee'].includes(key)) {
-        formattedBurst[key] = burst[key];
+      calculatedValue: burst.calculatedValue,
+    })),
+    feePct: effectiveFeePct,
+    budgetIncludesFees,
+    clientPaysForMedia,
+  });
+
+  return serializedBursts.map((serializedBurst, index) => {
+    const burst = bursts[index] || {};
+    const extraFields = Object.keys(burst).reduce((fields: Record<string, any>, key) => {
+      if (!['budget', 'buyAmount', 'startDate', 'endDate', 'calculatedValue', 'fee', 'mediaAmount', 'feeAmount'].includes(key)) {
+        fields[key] = burst[key];
       }
-    });
-    
-    return formattedBurst;
+      return fields;
+    }, {});
+
+    return {
+      ...serializedBurst,
+      ...extraFields,
+    };
   });
 }
 
@@ -1847,7 +1897,7 @@ export async function saveSocialMediaLineItems(mediaPlanVersionId: number, mbaNu
   try {
     const savePromises = socialMediaLineItems.map(async (lineItem, index) => {
       // Format bursts data to ensure dates are properly serialized
-      const formattedBursts = extractAndFormatBursts(lineItem);
+      const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
 
       const socialMediaData = {
         media_plan_version: mediaPlanVersionId,
@@ -3100,7 +3150,7 @@ export async function saveRadioLineItems(mediaPlanVersionId: number, mbaNumber: 
   try {
     const savePromises = radioLineItems.map(async (lineItem, index) => {
       // Format bursts data to ensure dates are properly serialized
-      const formattedBursts = extractAndFormatBursts(lineItem);
+      const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
       const idMeta = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.radio, index);
       
       // Log for debugging
@@ -3166,7 +3216,7 @@ export async function saveRadioLineItems(mediaPlanVersionId: number, mbaNumber: 
 export async function saveMagazinesLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, magazinesLineItems: any[]) {
   try {
     const savePromises = magazinesLineItems.map(async (lineItem, index) => {
-      const formattedBursts = extractAndFormatBursts(lineItem);
+      const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
       const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.magazines, index);
 
       const magazinesData = {
@@ -3221,7 +3271,7 @@ export async function saveMagazinesLineItems(mediaPlanVersionId: number, mbaNumb
 export async function saveOOHLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, oohLineItems: any[]) {
   try {
     const savePromises = oohLineItems.map(async (lineItem, index) => {
-      const formattedBursts = extractAndFormatBursts(lineItem);
+      const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
       const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.ooh, index);
 
       const oohData = {
@@ -3277,7 +3327,7 @@ export async function saveOOHLineItems(mediaPlanVersionId: number, mbaNumber: st
 export async function saveCinemaLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, cinemaLineItems: any[], versionNumber?: number) {
   try {
     const savePromises = cinemaLineItems.map(async (lineItem, index) => {
-      const formattedBursts = extractAndFormatBursts(lineItem);
+      const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
       const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.cinema, index);
 
       const cinemaData = {
@@ -3332,7 +3382,7 @@ export async function saveCinemaLineItems(mediaPlanVersionId: number, mbaNumber:
 export async function saveDigitalDisplayLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, digitalDisplayLineItems: any[]) {
   try {
     const savePromises = digitalDisplayLineItems.map(async (lineItem, index) => {
-      const formattedBursts = extractAndFormatBursts(lineItem);
+      const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
       const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.digitalDisplay, index);
 
       const digitalDisplayData = {
@@ -3387,7 +3437,7 @@ export async function saveDigitalDisplayLineItems(mediaPlanVersionId: number, mb
 export async function saveDigitalAudioLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, digitalAudioLineItems: any[]) {
   try {
     const savePromises = digitalAudioLineItems.map(async (lineItem, index) => {
-      const formattedBursts = extractAndFormatBursts(lineItem);
+      const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
       const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.digitalAudio, index);
 
       const digitalAudioData = {
@@ -3442,7 +3492,7 @@ export async function saveDigitalAudioLineItems(mediaPlanVersionId: number, mbaN
 export async function saveDigitalVideoLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, digitalVideoLineItems: any[]) {
   try {
     const savePromises = digitalVideoLineItems.map(async (lineItem, index) => {
-      const formattedBursts = extractAndFormatBursts(lineItem);
+      const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
       const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.digitalVideo, index);
 
       const digitalVideoData = {
@@ -3499,7 +3549,7 @@ export async function saveDigitalVideoLineItems(mediaPlanVersionId: number, mbaN
 export async function saveBVODLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, bvodLineItems: any[]) {
   try {
     const savePromises = bvodLineItems.map(async (lineItem, index) => {
-      const formattedBursts = extractAndFormatBursts(lineItem);
+      const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
       const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.bvod, index);
 
       const bvodData = {
@@ -3561,7 +3611,7 @@ export async function saveBVODLineItems(mediaPlanVersionId: number, mbaNumber: s
 export async function saveIntegrationLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, integrationLineItems: any[]) {
   try {
     const savePromises = integrationLineItems.map(async (lineItem, index) => {
-      const formattedBursts = extractAndFormatBursts(lineItem);
+      const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
       const { line_item_id, line_item } = buildLineItemIdentity(
         lineItem,
         mbaNumber,
@@ -3621,7 +3671,7 @@ export async function saveIntegrationLineItems(mediaPlanVersionId: number, mbaNu
 export async function saveSearchLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, searchLineItems: any[]) {
   try {
     const savePromises = searchLineItems.map(async (lineItem, index) => {
-      const formattedBursts = extractAndFormatBursts(lineItem);
+      const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
       const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.search, index);
 
       const searchData = {
@@ -3694,7 +3744,7 @@ export async function saveSearchLineItems(mediaPlanVersionId: number, mbaNumber:
 export async function saveProgDisplayLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, progDisplayLineItems: any[]) {
   try {
     const savePromises = progDisplayLineItems.map(async (lineItem, index) => {
-      const formattedBursts = extractAndFormatBursts(lineItem);
+      const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
       const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.progDisplay, index);
 
       const progDisplayData = {
@@ -3750,7 +3800,7 @@ export async function saveProgDisplayLineItems(mediaPlanVersionId: number, mbaNu
 export async function saveProgVideoLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, progVideoLineItems: any[]) {
   try {
     const savePromises = progVideoLineItems.map(async (lineItem, index) => {
-      const formattedBursts = extractAndFormatBursts(lineItem);
+      const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
       const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.progVideo, index);
 
       const progVideoData = {
@@ -3811,7 +3861,7 @@ export async function saveProgVideoLineItems(mediaPlanVersionId: number, mbaNumb
 export async function saveProgBVODLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, progBVODLineItems: any[]) {
   try {
     const savePromises = progBVODLineItems.map(async (lineItem, index) => {
-      const formattedBursts = extractAndFormatBursts(lineItem);
+      const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
       const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.progBVOD, index);
 
       const progBVODData = {
@@ -3867,7 +3917,7 @@ export async function saveProgBVODLineItems(mediaPlanVersionId: number, mbaNumbe
 export async function saveProgAudioLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, progAudioLineItems: any[]) {
   try {
     const savePromises = progAudioLineItems.map(async (lineItem, index) => {
-      const formattedBursts = extractAndFormatBursts(lineItem);
+      const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
       const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.progAudio, index);
 
       const progAudioData = {
@@ -3922,7 +3972,7 @@ export async function saveProgAudioLineItems(mediaPlanVersionId: number, mbaNumb
 export async function saveProgOOHLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, progOOHLineItems: any[]) {
   try {
     const savePromises = progOOHLineItems.map(async (lineItem, index) => {
-      const formattedBursts = extractAndFormatBursts(lineItem);
+      const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
       const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.progOOH, index);
 
       const progOOHData = {
@@ -3978,7 +4028,7 @@ export async function saveProgOOHLineItems(mediaPlanVersionId: number, mbaNumber
 export async function saveInfluencersLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, influencersLineItems: any[]) {
   try {
     const savePromises = influencersLineItems.map(async (lineItem, index) => {
-      const formattedBursts = extractAndFormatBursts(lineItem);
+      const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
       const { line_item_id, line_item } = buildLineItemIdentity(
         lineItem,
         mbaNumber,
