@@ -76,48 +76,88 @@ export function fanOutKpiPayload(
   lineItemsByMediaType: Record<string, LineItemForKpiFanout[]>,
 ): CampaignKPI[] {
   return kpiRows.flatMap((row) => {
-    const items =
-      lineItemsByMediaType[row.media_type] ??
-      lineItemsByMediaType[row.media_type.toLowerCase()] ??
-      []
-    const matches = items
-      .map((li, indexInFullArray) => ({ li, indexInFullArray }))
-      .filter(
-        ({ li }) =>
-          norm(li.platform) === norm(row.publisher) &&
-          norm(li.bid_strategy ?? li.bidStrategy) === norm(row.bid_strategy),
-      )
-    if (matches.length === 0) {
-      console.warn("[campaign_kpi] No line items matched KPI row", {
+    const targetId = String(row.lineItemId ?? "").trim()
+    if (!targetId) {
+      console.warn("[campaign_kpi] Skipping KPI row: missing lineItemId", {
         media_type: row.media_type,
         publisher: row.publisher,
         bid_strategy: row.bid_strategy,
       })
+      return []
     }
-    return matches.flatMap(({ li, indexInFullArray }) => {
-      const line_item_id = lineItemIdForPayload(li, base.mba_number, row.media_type, indexInFullArray)
-      if (!line_item_id) {
-        console.warn("[campaign_kpi] Skipping matched line item: empty line_item_id", {
+
+    const items =
+      lineItemsByMediaType[row.media_type] ??
+      lineItemsByMediaType[row.media_type.toLowerCase()] ??
+      []
+
+    const primaryMatches: Array<{ li: LineItemForKpiFanout; indexInFullArray: number }> = []
+    for (let indexInFullArray = 0; indexInFullArray < items.length; indexInFullArray++) {
+      const li = items[indexInFullArray]
+      const id = String(li.line_item_id ?? li.lineItemId ?? "").trim()
+      if (id === targetId) {
+        primaryMatches.push({ li, indexInFullArray })
+      }
+    }
+
+    let match: { li: LineItemForKpiFanout; indexInFullArray: number } | null = null
+
+    if (primaryMatches.length > 0) {
+      if (primaryMatches.length > 1) {
+        console.warn("[campaign_kpi] Multiple line items matched single lineItemId; using first", {
           media_type: row.media_type,
-          publisher: row.publisher,
-          bid_strategy: row.bid_strategy,
+          lineItemId: targetId,
+        })
+      }
+      match = primaryMatches[0]
+    } else {
+      const legacyMatches: Array<{ li: LineItemForKpiFanout; indexInFullArray: number }> = []
+      for (let indexInFullArray = 0; indexInFullArray < items.length; indexInFullArray++) {
+        const li = items[indexInFullArray]
+        const recomputed = lineItemIdForPayload(li, base.mba_number, row.media_type, indexInFullArray)
+        if (recomputed === targetId) {
+          legacyMatches.push({ li, indexInFullArray })
+        }
+      }
+      if (legacyMatches.length === 0) {
+        console.warn("[campaign_kpi] No line item matched KPI row lineItemId", {
+          media_type: row.media_type,
+          lineItemId: targetId,
         })
         return []
       }
-      return [
-        {
-          ...base,
+      if (legacyMatches.length > 1) {
+        console.warn("[campaign_kpi] Multiple line items matched single lineItemId; using first", {
           media_type: row.media_type,
-          publisher: row.publisher,
-          bid_strategy: row.bid_strategy,
-          line_item_id,
-          ctr: row.ctr,
-          cpv: row.cpv,
-          conversion_rate: row.conversion_rate,
-          vtr: row.vtr,
-          frequency: row.frequency,
-        },
-      ]
-    })
+          lineItemId: targetId,
+        })
+      }
+      match = legacyMatches[0]
+    }
+
+    const { li, indexInFullArray } = match
+    const line_item_id = lineItemIdForPayload(li, base.mba_number, row.media_type, indexInFullArray)
+    if (!line_item_id) {
+      console.warn("[campaign_kpi] Skipping matched line item: empty line_item_id", {
+        media_type: row.media_type,
+        publisher: row.publisher,
+        bid_strategy: row.bid_strategy,
+      })
+      return []
+    }
+    return [
+      {
+        ...base,
+        media_type: row.media_type,
+        publisher: row.publisher,
+        bid_strategy: row.bid_strategy,
+        line_item_id,
+        ctr: row.ctr,
+        cpv: row.cpv,
+        conversion_rate: row.conversion_rate,
+        vtr: row.vtr,
+        frequency: row.frequency,
+      },
+    ]
   })
 }
