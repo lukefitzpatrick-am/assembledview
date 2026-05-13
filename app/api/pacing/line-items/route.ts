@@ -7,6 +7,7 @@ import {
 } from "@/lib/pacing/pacingAuth"
 import { pacingJsonError, pacingJsonOk } from "@/lib/pacing/pacingHttp"
 import { fetchLineItemPacingRows } from "@/lib/pacing/pacingMart"
+import { getUserClientSlugs, getUserRoles } from "@/lib/rbac"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -24,6 +25,26 @@ export async function GET(request: NextRequest) {
   }
 
   const clientFilter = mergeClientsFilterForIdList(clientIdsList, gate.allowedClientIds)
+
+  // TEMP DIAGNOSTIC — remove with fix commit
+  const slugClaims = getUserClientSlugs(gate.session.user)
+  const roles = getUserRoles(gate.session.user)
+  console.log("[pacing-diag] line-items request", {
+    auth: {
+      isAdmin: roles.includes("admin"),
+      hasSlugClaims: Array.isArray(slugClaims) ? slugClaims.length : null,
+      allowedClientIds: gate.allowedClientIds,
+    },
+    params: {
+      date_from: sp.get("date_from"),
+      date_to: sp.get("date_to"),
+      clients_id: sp.get("clients_id"),
+      media_type: sp.get("media_type"),
+      status: sp.get("status"),
+      search: sp.get("search"),
+    },
+    clientFilter,
+  })
 
   const mediaMulti = sp.get("media_type")?.split(",").map((s) => s.trim()).filter(Boolean) ?? []
   const statusMulti = sp.get("status")?.split(",").map((s) => s.trim()).filter(Boolean) ?? []

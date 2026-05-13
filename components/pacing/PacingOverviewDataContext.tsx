@@ -105,7 +105,9 @@ export function PacingOverviewDataProvider({ children }: { children: ReactNode }
           keyed.set(id, byNorm.get(id.trim().toLowerCase()) ?? [])
         }
         setHistoryById(keyed)
-      } catch {
+      } catch (error) {
+        // TEMP DIAGNOSTIC — remove with fix commit
+        console.error("[pacing-diag] line-items fetch threw", error)
         if (!cancelled) {
           setLineItems([])
           setHistoryById(new Map())

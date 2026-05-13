@@ -135,7 +135,13 @@ export async function fetchLineItemPacingRows(opts: {
   /** When set, restricts rows to this media plan version id (Xano / dim). */
   mediaPlanId?: number | null
 }): Promise<LineItemPacingRow[]> {
-  if (opts.clientFilter.mode === "none") return []
+  if (opts.clientFilter.mode === "none") {
+    // TEMP DIAGNOSTIC — remove with fix commit
+    console.log(
+      "[pacing-diag] line-items SHORT CIRCUIT — clientFilter.mode === none, returning []"
+    )
+    return []
+  }
   const { sql: csql, binds: cbinds } = clientPredicate(opts.clientFilter)
   const binds: (string | number)[] = [...cbinds]
   const parts: string[] = [`SELECT * FROM ${VW_LINE} WHERE (${csql})`]
@@ -198,6 +204,12 @@ export async function fetchLineItemPacingRows(opts: {
   parts.push(` LIMIT ${limit}`)
 
   const sql = parts.join("")
+  // TEMP DIAGNOSTIC — remove with fix commit
+  console.log("[pacing-diag] line-items SQL", {
+    sql,
+    binds,
+    predicateMode: opts.clientFilter.mode,
+  })
   const raw = (await querySnowflake<Record<string, unknown>>(sql, binds, {
     label: "pacing_v_line_item",
   })) ?? []
