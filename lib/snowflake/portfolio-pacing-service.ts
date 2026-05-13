@@ -8,6 +8,9 @@ import { querySnowflake } from "@/lib/snowflake/query"
 const MAX_IDS_PER_CHUNK = 500
 const CACHE_TTL_SECONDS = 14_400
 const PROG_TABLE = "ASSEMBLEDVIEW.MART.PACING_FACT"
+const SEARCH_TABLE = "ASSEMBLEDVIEW.MART.SEARCH_PACING_FACT"
+/** Bumps TTL cache when portfolio row shape / SQL changes (e.g. search union, new columns). */
+const PORTFOLIO_CACHE_SCHEMA_VERSION = "v2"
 
 export type DailyRow = {
   lineItemId: string
@@ -17,6 +20,8 @@ export type DailyRow = {
   clicks: number
   results: number
   video3sViews: number
+  conversions: number
+  revenue: number
 }
 
 /** Normalized input from the route after validation. */
@@ -45,6 +50,7 @@ function toNumber(value: any): number {
 
 function portfolioCacheKey(input: PortfolioPacingInput): string {
   const keyPayload = {
+    schema: PORTFOLIO_CACHE_SCHEMA_VERSION,
     lineItemIds: input.lineItemIds,
     startDate: input.startDate,
     endDate: input.endDate,
@@ -61,6 +67,8 @@ type SnowflakeRow = {
   CLICKS: number | null
   RESULTS: number | null
   VIDEO_3S_VIEWS: number | null
+  CONVERSIONS: number | null
+  REVENUE: number | null
 }
 
 export async function getPortfolioPacingData(
@@ -115,23 +123,71 @@ export async function getPortfolioPacingData(
         SUM(IMPRESSIONS) AS IMPRESSIONS,
         SUM(CLICKS) AS CLICKS,
         SUM(RESULTS) AS RESULTS,
-        SUM(VIDEO_3S_VIEWS) AS VIDEO_3S_VIEWS
+        SUM(VIDEO_3S_VIEWS) AS VIDEO_3S_VIEWS,
+        SUM(CONVERSIONS) AS CONVERSIONS,
+        SUM(REVENUE) AS REVENUE
       FROM (
-        SELECT LINE_ITEM_ID, DATE_DAY, AMOUNT_SPENT, IMPRESSIONS, CLICKS, RESULTS, VIDEO_3S_VIEWS
+        SELECT
+          LINE_ITEM_ID,
+          DATE_DAY,
+          AMOUNT_SPENT,
+          IMPRESSIONS,
+          CLICKS,
+          RESULTS,
+          VIDEO_3S_VIEWS,
+          0 AS CONVERSIONS,
+          0 AS REVENUE
         FROM ${SOCIAL_PACING_TABLE}
         WHERE LOWER(LINE_ITEM_ID) IN (${placeholders})
           AND CAST(DATE_DAY AS DATE) BETWEEN TO_DATE(?) AND TO_DATE(?)
         UNION ALL
-        SELECT LINE_ITEM_ID, DATE_DAY, AMOUNT_SPENT, IMPRESSIONS, CLICKS, RESULTS, VIDEO_3S_VIEWS
+        SELECT
+          LINE_ITEM_ID,
+          DATE_DAY,
+          AMOUNT_SPENT,
+          IMPRESSIONS,
+          CLICKS,
+          RESULTS,
+          VIDEO_3S_VIEWS,
+          0 AS CONVERSIONS,
+          0 AS REVENUE
         FROM ${PROG_TABLE}
         WHERE LOWER(LINE_ITEM_ID) IN (${placeholders})
+          AND CAST(DATE_DAY AS DATE) BETWEEN TO_DATE(?) AND TO_DATE(?)
+        UNION ALL
+        SELECT
+          LOWER(TRIM(COALESCE(CAST(LINE_ITEM_ID AS VARCHAR), ''))) AS LINE_ITEM_ID,
+          DATE_DAY,
+          AMOUNT_SPENT,
+          IMPRESSIONS,
+          CLICKS,
+          0 AS RESULTS,
+          0 AS VIDEO_3S_VIEWS,
+          CONVERSIONS,
+          REVENUE
+        FROM ${SEARCH_TABLE}
+        WHERE (
+          LOWER(TRIM(COALESCE(CAST(LINE_ITEM_ID AS VARCHAR), ''))) IN (${placeholders})
+          OR LOWER(TRIM(COALESCE(LINE_ITEM_NAME, ''))) IN (${placeholders})
+        )
           AND CAST(DATE_DAY AS DATE) BETWEEN TO_DATE(?) AND TO_DATE(?)
       ) combined
       GROUP BY LOWER(LINE_ITEM_ID), CAST(DATE_DAY AS DATE)
       ORDER BY CAST(DATE_DAY AS DATE) ASC
     `
 
-    const binds = [...idChunk, input.startDate, input.endDate, ...idChunk, input.startDate, input.endDate]
+    const binds = [
+      ...idChunk,
+      input.startDate,
+      input.endDate,
+      ...idChunk,
+      input.startDate,
+      input.endDate,
+      ...idChunk,
+      ...idChunk,
+      input.startDate,
+      input.endDate,
+    ]
     const rows = await querySnowflake<SnowflakeRow>(sql, binds, {
       requestId,
       label: "pacing_portfolio",
@@ -150,6 +206,8 @@ export async function getPortfolioPacingData(
         clicks: toNumber(r.CLICKS),
         results: toNumber(r.RESULTS),
         video3sViews: toNumber(r.VIDEO_3S_VIEWS),
+        conversions: toNumber(r.CONVERSIONS),
+        revenue: toNumber(r.REVENUE),
       })
     })
   }
@@ -165,6 +223,8 @@ export async function getPortfolioPacingData(
         clicks: 0,
         results: 0,
         video3sViews: 0,
+        conversions: 0,
+        revenue: 0,
       } satisfies Omit<DailyRow, "date">)
 
     existing.amountSpent += row.amountSpent
@@ -172,6 +232,8 @@ export async function getPortfolioPacingData(
     existing.clicks += row.clicks
     existing.results += row.results
     existing.video3sViews += row.video3sViews
+    existing.conversions += row.conversions
+    existing.revenue += row.revenue
 
     totalsMap.set(row.lineItemId, existing)
   })

@@ -73,6 +73,8 @@ export default async function PacingPage({
     clicks: number
     results: number
     video3sViews: number
+    conversions: number
+    revenue: number
   }
 
   type PortfolioLineItem = PlannedLineItem & {

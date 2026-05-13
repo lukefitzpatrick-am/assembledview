@@ -11,6 +11,8 @@ export const runtime = "nodejs"
 export const preferredRegion = ["syd1"]
 export const maxDuration = 60
 
+/** JSON body and response mirror {@link getPortfolioPacingData} (daily + totals include conversions and revenue). */
+
 type RequestBody = {
   lineItemIds?: string[]
   startDate?: string
