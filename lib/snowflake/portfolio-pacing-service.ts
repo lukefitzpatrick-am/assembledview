@@ -10,7 +10,7 @@ const CACHE_TTL_SECONDS = 14_400
 const PROG_TABLE = "ASSEMBLEDVIEW.MART.PACING_FACT"
 const SEARCH_TABLE = "ASSEMBLEDVIEW.MART.SEARCH_PACING_FACT"
 /** Bumps TTL cache when portfolio row shape / SQL changes (e.g. search union, new columns). */
-const PORTFOLIO_CACHE_SCHEMA_VERSION = "v2"
+const PORTFOLIO_CACHE_SCHEMA_VERSION = "v3"
 
 export type DailyRow = {
   lineItemId: string
@@ -118,7 +118,7 @@ export async function getPortfolioPacingData(
     const sql = `
       SELECT
         LOWER(LINE_ITEM_ID) AS LINE_ITEM_ID,
-        CAST(DATE_DAY AS DATE) AS DATE_DAY,
+        TO_VARCHAR(CAST(DATE_DAY AS DATE), 'YYYY-MM-DD') AS DATE_DAY,
         SUM(AMOUNT_SPENT) AS AMOUNT_SPENT,
         SUM(IMPRESSIONS) AS IMPRESSIONS,
         SUM(CLICKS) AS CLICKS,
