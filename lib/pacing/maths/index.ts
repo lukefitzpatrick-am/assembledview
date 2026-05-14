@@ -1,4 +1,4 @@
-import { div0 } from "./div0.js"
+import { div0 } from "./div0"
 
 // Status strings from V_LINE_ITEM_PACING; order in computeStatus matches SQL CASE order.
 export type PacingStatus =

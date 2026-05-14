@@ -26,7 +26,21 @@ function clientNameFromGetClientsRow(raw: Record<string, unknown>): string {
   ).trim()
 }
 
-async function fetchGetClientsRows(): Promise<Record<string, unknown>[]> {
+/** One Xano id per plan slug (first wins if duplicates). */
+export function buildPlanSlugToClientIdMap(rows: Record<string, unknown>[]): Map<string, number> {
+  const m = new Map<string, number>()
+  for (const raw of rows) {
+    const id = Number(raw.id)
+    if (!Number.isFinite(id)) continue
+    const slug = slugifyPlanClientName(clientNameFromGetClientsRow(raw))
+    if (!slug) continue
+    if (!m.has(slug)) m.set(slug, id)
+  }
+  return m
+}
+
+/** Xano `get_clients` rows (uses clients cache when warm). */
+export async function fetchPacingClientCatalogRows(): Promise<Record<string, unknown>[]> {
   const cached = getCachedClients()
   if (cached?.length) return cached as Record<string, unknown>[]
   try {
@@ -62,7 +76,7 @@ export async function resolveClientSlugs(
     return []
   }
 
-  const fetchRows = deps?.fetchRows ?? fetchGetClientsRows
+  const fetchRows = deps?.fetchRows ?? fetchPacingClientCatalogRows
   const rows = await fetchRows()
   const want = allowedClientIds === null ? null : new Set(allowedClientIds)
 
