@@ -4,10 +4,9 @@ import { auth0 } from "@/lib/auth0"
 import { getUserRoles } from "@/lib/rbac"
 import PacingPageClient from "@/app/pacing/components/PacingPageClient"
 import { listSavedPacingViewsAction } from "@/app/pacing/actions"
-import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
-import { xanoUrl } from "@/lib/api/xano"
 import { getMelbourneYesterdayISO } from "@/lib/dates/melbourne"
-import { normalisePlan, type PlannedLineItem } from "@/lib/pacing/plan/normalisePlan"
+import { fetchPortfolioPlan } from "@/lib/pacing/plan/fetchPortfolioPlan"
+import type { PlannedLineItem } from "@/lib/pacing/plan/normalisePlan"
 import { computePlannedDeliverableToDate, computePlannedSpendToDate, getBurstBounds } from "@/lib/pacing/plan/normalisePlan"
 import { mapDeliverableMetric } from "@/lib/pacing/deliverables/mapDeliverableMetric"
 
@@ -122,153 +121,8 @@ export default async function PacingPage({
     try {
       const clientSlugSet = new Set(selectedView.client_slugs.map((s) => String(s).trim()).filter(Boolean))
 
-      // 1) Fetch media_plan_versions and filter to selected clients, keeping latest per mba_number
-      const versionsUrl = xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
-      const allVersions = await fetchAllXanoPages(versionsUrl, {}, "PACING_VERSIONS", 200, 50)
-
-      const parseVersion = (value: any): number => {
-        const n = typeof value === "string" ? parseInt(value, 10) : Number(value)
-        return Number.isFinite(n) ? n : 0
-      }
-      const norm = (v: any) => String(v ?? "").trim().toLowerCase()
-      const slugify = (value: any): string => {
-        const s = String(value ?? "").trim().toLowerCase()
-        if (!s) return ""
-        return s
-          .replace(/[^a-z0-9\s-]/g, "")
-          .replace(/\s+/g, "-")
-          .replace(/-+/g, "-")
-          .replace(/(^-|-$)+/g, "")
-      }
-
-      const latestByMba = new Map<string, any>()
-      ;(allVersions ?? []).forEach((v: any) => {
-        const mba = String(v?.mba_number ?? "").trim()
-        if (!mba) return
-        const clientName = v?.client_name ?? v?.mp_client_name ?? v?.mp_clientname
-        const clientSlug = slugify(clientName)
-        if (!clientSlug || !clientSlugSet.has(clientSlug)) return
-
-        const current = latestByMba.get(mba)
-        const nextVer = parseVersion(v?.version_number)
-        const curVer = parseVersion(current?.version_number)
-        if (!current || nextVer > curVer) {
-          latestByMba.set(mba, v)
-        }
-      })
-
-      const latestVersions = Array.from(latestByMba.values())
-
-      // 2) Fetch line items for the selected campaigns (social + prog display + prog video)
-      const filterByMbaAndVersion = (items: any[], mbaNumber: string, versionNumber: number, mediaPlanVersionId?: number | null) => {
-        if (!Array.isArray(items)) return []
-        const normalizedMba = norm(mbaNumber)
-        const versionStr = String(versionNumber)
-        const versionIdStr =
-          mediaPlanVersionId !== null && mediaPlanVersionId !== undefined ? String(mediaPlanVersionId) : null
-
-        return items.filter((item) => {
-          if (norm(item?.mba_number) !== normalizedMba) return false
-
-          const mpPlanNumber = item?.mp_plannumber ?? item?.mp_plan_number ?? item?.mpPlanNumber
-          const mediaPlanVersion = item?.media_plan_version
-          const mediaPlanVersionIdField = item?.media_plan_version_id ?? item?.media_plan_versionID
-          const versionNumberField = item?.version_number
-
-          const hasVersionIdCandidate =
-            (mediaPlanVersion !== null && mediaPlanVersion !== undefined && String(mediaPlanVersion).trim() !== "") ||
-            (mediaPlanVersionIdField !== null && mediaPlanVersionIdField !== undefined && String(mediaPlanVersionIdField).trim() !== "")
-
-          if (versionIdStr && hasVersionIdCandidate) {
-            const candidates = [mediaPlanVersion, mediaPlanVersionIdField]
-            return candidates.some((value) => String(value ?? "").trim() === versionIdStr)
-          }
-
-          const versionCandidates = [mpPlanNumber, versionNumberField]
-          return versionCandidates.some((value) => String(value ?? "").trim() === versionStr)
-        })
-      }
-
-      async function fetchLineItemsForCampaign(endpoint: string, mbaNumber: string, versionNumber: number, versionId?: number | null) {
-        const url = xanoUrl(endpoint, ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
-        const attempts: Array<Record<string, string | number | boolean | null | undefined>> = [
-          ...(versionId !== null && versionId !== undefined
-            ? [{ mba_number: mbaNumber, media_plan_version: versionId }, { mba_number: mbaNumber, media_plan_version_id: versionId }]
-            : []),
-          { mba_number: mbaNumber, mp_plannumber: versionNumber },
-          { mba_number: mbaNumber, version_number: versionNumber },
-          { mba_number: mbaNumber, media_plan_version: versionNumber },
-        ]
-
-        let best: any[] = []
-        let bestRawCount = Number.POSITIVE_INFINITY
-
-        for (const params of attempts) {
-          const raw = await fetchAllXanoPages(url, params, `PACING_${endpoint}`, 200, 20)
-          const filtered = filterByMbaAndVersion(raw, mbaNumber, versionNumber, versionId)
-          if (
-            filtered.length > best.length ||
-            (filtered.length === best.length && raw.length < bestRawCount)
-          ) {
-            best = filtered
-            bestRawCount = raw.length
-          }
-          if (raw.length > 0 && raw.length === filtered.length) {
-            break
-          }
-        }
-
-        return best
-      }
-
-      const socialRows: any[] = []
-      const progDisplayRows: any[] = []
-      const progVideoRows: any[] = []
-
-      const perCampaign = await Promise.all(
-        latestVersions.map(async (v) => {
-          const mbaNumber = String(v?.mba_number ?? "").trim()
-          const versionNumber = parseVersion(v?.version_number)
-          const versionId = v?.id !== undefined && v?.id !== null ? Number(v.id) : null
-          if (!mbaNumber) return { s: [], pd: [], pv: [] }
-
-          const [s, pd, pv] = await Promise.all([
-            fetchLineItemsForCampaign(
-              "media_plan_social",
-              mbaNumber,
-              versionNumber,
-              Number.isFinite(versionId as any) ? versionId : null
-            ),
-            fetchLineItemsForCampaign(
-              "media_plan_prog_display",
-              mbaNumber,
-              versionNumber,
-              Number.isFinite(versionId as any) ? versionId : null
-            ),
-            fetchLineItemsForCampaign(
-              "media_plan_prog_video",
-              mbaNumber,
-              versionNumber,
-              Number.isFinite(versionId as any) ? versionId : null
-            ),
-          ])
-
-          return { s, pd, pv }
-        })
-      )
-
-      perCampaign.forEach(({ s, pd, pv }) => {
-        socialRows.push(...(Array.isArray(s) ? s : []))
-        progDisplayRows.push(...(Array.isArray(pd) ? pd : []))
-        progVideoRows.push(...(Array.isArray(pv) ? pv : []))
-      })
-
-      // 3) Normalize planned line items
-      const plannedLineItems = normalisePlan({
-        mediaPlanVersions: latestVersions,
-        mediaPlanSocial: socialRows,
-        mediaPlanProgrammaticDisplay: progDisplayRows,
-        mediaPlanProgrammaticVideo: progVideoRows,
+      const { plannedLineItems } = await fetchPortfolioPlan({
+        clientSlugs: Array.from(clientSlugSet),
       })
 
       const yesterdayISO = getMelbourneYesterdayISO()
