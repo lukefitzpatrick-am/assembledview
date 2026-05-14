@@ -7,7 +7,7 @@ import {
   SOCIAL_PACING_TABLE,
 } from "@/lib/pacing/social-channels"
 
-type Channel = "meta" | "tiktok" | "programmatic-display" | "programmatic-video"
+type Channel = "meta" | "tiktok" | "programmatic-display" | "programmatic-video" | "search"
 
 export type PacingRow = {
   channel: Channel
@@ -49,7 +49,7 @@ const MAX_RANGE_DAYS = 180
 const MAX_IDS = 500
 const QUERY_ROW_LIMIT = 50000
 const DEBUG_PACING = process.env.NEXT_PUBLIC_DEBUG_PACING === "true"
-const ALLOWED_CHANNELS: Channel[] = ["meta", "tiktok", "programmatic-display", "programmatic-video"]
+const ALLOWED_CHANNELS: Channel[] = ["meta", "tiktok", "programmatic-display", "programmatic-video", "search"]
 
 type GetCampaignPacingDataOptions = {
   requestId?: string

@@ -101,7 +101,7 @@ type PortfolioData = {
         mbaNumber: string
         clientSlug: string
         campaignName: string
-        channelGroup: "social" | "prog_display" | "prog_video"
+        channelGroup: "social" | "prog_display" | "prog_video" | "search"
         lineItemId: string
         platform: string
         buyType: string
@@ -398,6 +398,7 @@ export default function PacingPageClient({
     const channel = (() => {
       if (selectedLineItem.channelGroup === "prog_display") return "programmatic-display"
       if (selectedLineItem.channelGroup === "prog_video") return "programmatic-video"
+      if (selectedLineItem.channelGroup === "search") return "search"
       // social
       if (platform.includes("tiktok")) return "tiktok"
       return "meta"
@@ -965,6 +966,11 @@ export default function PacingPageClient({
                     deliveryLineItemIds={[selectedLineItem.lineItemId]}
                     clientFacingLabels={false}
                   />
+                ) : selectedLineItem.channelGroup === "search" ? (
+                  <PanelContent standalone className="p-3 text-sm text-muted-foreground">
+                    Search line items use portfolio totals above. Dedicated search pacing charts will ship with the
+                    overview consolidation (Stage 3).
+                  </PanelContent>
                 ) : (
                   <ProgrammaticDeliveryContainer
                     clientSlug={selectedLineItem.clientSlug}

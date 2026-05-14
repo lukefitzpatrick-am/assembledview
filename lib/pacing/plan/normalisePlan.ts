@@ -1,4 +1,4 @@
-export type ChannelGroup = "social" | "prog_display" | "prog_video"
+export type ChannelGroup = "social" | "prog_display" | "prog_video" | "search"
 
 export type PlannedBurst = {
   startDate: string // YYYY-MM-DD
@@ -33,6 +33,7 @@ export type NormalisePlanInputs = {
   mediaPlanSocial: any[]
   mediaPlanProgrammaticDisplay: any[]
   mediaPlanProgrammaticVideo: any[]
+  mediaPlanSearch: any[]
 }
 
 function normalizeISODate(value: unknown): string | null {
@@ -193,6 +194,7 @@ export function normalisePlan(inputs: NormalisePlanInputs): PlannedLineItem[] {
     ...mapRows(inputs.mediaPlanSocial ?? [], "social"),
     ...mapRows(inputs.mediaPlanProgrammaticDisplay ?? [], "prog_display"),
     ...mapRows(inputs.mediaPlanProgrammaticVideo ?? [], "prog_video"),
+    ...mapRows(inputs.mediaPlanSearch ?? [], "search"),
   ]
 
   // Deduplicate by lineItemId (last one wins), but keep stable ordering by mba + lineItemId.

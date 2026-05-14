@@ -10,6 +10,7 @@ export const PORTFOLIO_PLAN_LINE_ITEM_FETCH_SPECS = [
   { endpoint: "media_plan_social", normaliseKey: "mediaPlanSocial" },
   { endpoint: "media_plan_prog_display", normaliseKey: "mediaPlanProgrammaticDisplay" },
   { endpoint: "media_plan_prog_video", normaliseKey: "mediaPlanProgrammaticVideo" },
+  { endpoint: "media_plan_search", normaliseKey: "mediaPlanSearch" },
 ] as const satisfies ReadonlyArray<{
   endpoint: string
   normaliseKey: keyof Omit<NormalisePlanInputs, "mediaPlanVersions">
