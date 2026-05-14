@@ -141,6 +141,69 @@ export function computeStatus(input: {
   return "unknown"
 }
 
-export function computePacing(_input: PacingMathsInput): PacingMathsOutput {
-  throw new Error("not implemented")
+function computeKpis(input: {
+  spendToDate: number
+  impressionsToDate: number
+  clicksToDate: number
+  conversionsToDate: number
+  revenueToDate: number
+}): { ctr: number; cpc: number; cpa: number; cr: number; roas: number } {
+  return {
+    ctr: div0(input.clicksToDate, input.impressionsToDate),
+    cpc: div0(input.spendToDate, input.clicksToDate),
+    cpa: div0(input.spendToDate, input.conversionsToDate),
+    cr: div0(input.conversionsToDate, input.clicksToDate),
+    roas: div0(input.revenueToDate, input.spendToDate),
+  }
+}
+
+export function computePacing(input: PacingMathsInput): PacingMathsOutput {
+  const asOfDate = input.asOfDate ?? getAsOfDate()
+
+  const campaignDays = computeCampaignDays(input.startDate, input.endDate)
+  const daysPassed = computeDaysPassed(input.startDate, input.endDate, asOfDate)
+  const daysRemaining = computeDaysRemaining(input.startDate, input.endDate, asOfDate)
+
+  const expectedPct = computeExpectedPct(daysPassed, campaignDays)
+  const expectedSpend = computeExpectedSpend(input.lineItemBudget, expectedPct)
+  const spendVariance = computeSpendVariance(input.spendToDate, expectedSpend)
+  const spendVariancePct = computeSpendVariancePct(spendVariance, expectedSpend)
+  const dailyPace = computeDailyPace(input.spendToDate, daysPassed)
+  const requiredDaily = computeRequiredDaily(input.lineItemBudget, input.spendToDate, daysRemaining)
+  const projectedTotal = computeProjectedTotal(dailyPace, campaignDays)
+  const projectionVariancePct = computeProjectionVariancePct(projectedTotal, input.lineItemBudget)
+
+  const kpis = computeKpis({
+    spendToDate: input.spendToDate,
+    impressionsToDate: input.impressionsToDate,
+    clicksToDate: input.clicksToDate,
+    conversionsToDate: input.conversionsToDate,
+    revenueToDate: input.revenueToDate,
+  })
+
+  const status = computeStatus({
+    asOfDate,
+    startDate: input.startDate,
+    endDate: input.endDate,
+    spendToDate: input.spendToDate,
+    daysPassed,
+    projectionVariancePct,
+  })
+
+  return {
+    asOfDate,
+    campaignDays,
+    daysPassed,
+    daysRemaining,
+    expectedPct,
+    expectedSpend,
+    spendVariance,
+    spendVariancePct,
+    dailyPace,
+    requiredDaily,
+    projectedTotal,
+    projectionVariancePct,
+    ...kpis,
+    status,
+  }
 }
