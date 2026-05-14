@@ -10,10 +10,7 @@ interface ObjectiveCardProps {
 export function ObjectiveCard({ objective, onChange }: ObjectiveCardProps) {
   return (
     <div className="mb-3 rounded-lg border bg-card p-5">
-      <h3 className="mb-3 flex items-center gap-2 text-sm font-medium">
-        Objective
-        <span className="ml-auto text-[11px] font-normal text-muted-foreground">step 2 of 4</span>
-      </h3>
+      <h3 className="mb-3 text-sm font-medium">Objective</h3>
 
       <label className="mb-2 block text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
         Brand shift ←→ direct action

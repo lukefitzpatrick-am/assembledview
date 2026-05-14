@@ -64,7 +64,7 @@ export function ResultsPanel({ state }: ResultsPanelProps) {
   // wire up to real handlers (Claude API, planner export, etc.) in a later
   // phase. No alert(); console is sufficient for mock review.
   const handleStressTest = () => {
-    console.log("[BCP Stage 3 action] stress_test", {
+    console.log("[BCP mock action] stress_test", {
       currentBudget: state.budget,
       proposedBudget: Math.round(state.budget * 0.7),
       currentMix: computation.allocated.map((a) => ({
@@ -77,7 +77,7 @@ export function ResultsPanel({ state }: ResultsPanelProps) {
   const handleExplainTop = () => {
     const top = computation.allocated[0];
     if (!top) return;
-    console.log("[BCP Stage 3 action] explain_top_channel", {
+    console.log("[BCP mock action] explain_top_channel", {
       channel: top.ch.name,
       bcs: Math.round(top.bcs),
       components: {
@@ -92,7 +92,7 @@ export function ResultsPanel({ state }: ResultsPanelProps) {
   };
 
   const handleHandoff = () => {
-    console.log("[BCP Stage 3 action] handoff_payload", {
+    console.log("[BCP mock action] handoff_payload", {
       campaignName: state.campaignName,
       flight: state.flight,
       successMetric: state.successMetric,
@@ -134,15 +134,15 @@ export function ResultsPanel({ state }: ResultsPanelProps) {
             <TabsTrigger value="ava">AVA narration</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="mix" className="mt-3">
+          <TabsContent value="mix" className="mt-3 min-h-[320px]">
             <ChannelMixTable allocated={computation.allocated} />
           </TabsContent>
 
-          <TabsContent value="moments" className="mt-3">
+          <TabsContent value="moments" className="mt-3 min-h-[320px]">
             <CulturalMomentsList flight={state.flight} geos={state.geos} />
           </TabsContent>
 
-          <TabsContent value="ava" className="mt-3">
+          <TabsContent value="ava" className="mt-3 min-h-[320px]">
             <AvaNarration inputs={computation.inputs} allocated={computation.allocated} />
           </TabsContent>
         </Tabs>

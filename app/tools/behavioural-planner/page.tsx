@@ -23,7 +23,7 @@ export default function BehaviouralPlannerPage() {
   const [state, setState] = useState<FormState>(initialState);
 
   useEffect(() => {
-    console.log("[BCP Stage 3] Form state:", state);
+    console.log("[BCP mock] Form state:", state);
   }, [state]);
 
   return (
@@ -37,9 +37,16 @@ export default function BehaviouralPlannerPage() {
             </span>
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Stage 3 of 4: inputs and results wired. Polish coming in Stage 4.
+            Topline channel mix planner with proprietary BCS scoring. Mock data only — no Xano wiring yet.
           </p>
         </div>
+        <button
+          type="button"
+          onClick={() => setState(initialState)}
+          className="text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+        >
+          Reset to defaults
+        </button>
       </div>
 
       <PlannerForm state={state} onChange={setState} />

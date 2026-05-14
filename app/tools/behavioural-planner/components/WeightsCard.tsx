@@ -42,7 +42,7 @@ export function WeightsCard({ weights, onChange }: WeightsCardProps) {
     <div className="mb-3 rounded-lg border bg-card p-5">
       <h3 className="mb-3 flex items-center gap-2 text-sm font-medium">
         BCS weights
-        <span className="ml-auto text-[11px] font-normal text-muted-foreground">step 4 of 4 · optional</span>
+        <span className="ml-auto text-[11px] font-normal text-muted-foreground">Optional</span>
       </h3>
 
       <div className="grid grid-cols-1 gap-x-6 gap-y-3 md:grid-cols-2">

@@ -28,12 +28,12 @@ export function CulturalMomentsList({ flight, geos }: CulturalMomentsListProps) 
       {filtered.map((m, i) => (
         <div
           key={`${m.flight}-${i}`}
-          className="grid grid-cols-[70px_1fr_auto] items-center gap-3 border-b py-2.5 last:border-b-0"
+          className="flex flex-wrap gap-x-3 gap-y-1 border-b py-2.5 last:border-b-0 md:grid md:grid-cols-[70px_1fr_auto] md:items-center"
         >
           <span className="text-[11px] font-medium text-muted-foreground">{m.date}</span>
           <div className="min-w-0">
             <div className="text-sm font-medium">{m.title}</div>
-            <div className="mt-0.5 text-[11px] text-muted-foreground">{m.desc}</div>
+            <div className="mt-0.5 line-clamp-2 text-[11px] text-muted-foreground">{m.desc}</div>
           </div>
           <div className="flex flex-wrap justify-end gap-1">
             {m.chans.map((c) => (

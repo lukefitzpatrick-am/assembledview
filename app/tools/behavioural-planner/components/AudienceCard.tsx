@@ -95,10 +95,7 @@ export function AudienceCard({
 
   return (
     <div className="mb-3 rounded-lg border bg-card p-5">
-      <h3 className="mb-3 flex items-center gap-2 text-sm font-medium">
-        Audience
-        <span className="ml-auto text-[11px] font-normal text-muted-foreground">step 3 of 4</span>
-      </h3>
+      <h3 className="mb-3 text-sm font-medium">Audience</h3>
 
       <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">
         <div>

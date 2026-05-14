@@ -10,17 +10,17 @@ interface AvaNarrationProps {
 // In the production version this is where Claude API calls plug in for
 // richer language. For now the narration is mechanical-but-honest.
 export function AvaNarration({ inputs, allocated }: AvaNarrationProps) {
-  if (allocated.length === 0) {
+  const topCh = allocated[0];
+  const second = allocated.length >= 2 ? allocated[1] : null;
+  const lowCh = allocated.length >= 2 ? allocated[allocated.length - 1] : null;
+
+  if (!topCh) {
     return (
       <div className="px-2 py-4 text-xs text-muted-foreground">
         Select at least one segment to generate narration.
       </div>
     );
   }
-
-  const topCh = allocated[0];
-  const second = allocated[1];
-  const lowCh = allocated[allocated.length - 1];
 
   const objText =
     inputs.objective < 40
@@ -38,7 +38,13 @@ export function AvaNarration({ inputs, allocated }: AvaNarrationProps) {
       : inputs.geos.map((g) => g.toUpperCase()).join("/");
 
   const lowReason =
-    lowCh.ageMod < 0.9 ? "age mismatch" : lowCh.ch.attn < 8 ? "low attention quality" : "weaker fit";
+    !lowCh
+      ? ""
+      : lowCh.ageMod < 0.9
+        ? "age mismatch"
+        : lowCh.ch.attn < 8
+          ? "low attention quality"
+          : "weaker fit";
 
   return (
     <div className="py-1 text-sm leading-relaxed">
@@ -55,11 +61,13 @@ export function AvaNarration({ inputs, allocated }: AvaNarrationProps) {
         {topCh.ch.attn}s of active attention per exposure. Effect score {Math.round(topCh.E)}/100
         against the objective slider.
       </p>
-      <p className="mb-2">
-        <strong className="font-medium">{second.ch.name}</strong> at {Math.round(second.pct)}% provides
-        complementary reach. <strong className="font-medium">{lowCh.ch.name}</strong> is deliberately
-        light at {Math.round(lowCh.pct)}% — {lowReason} for this combination.
-      </p>
+      {second && lowCh ? (
+        <p className="mb-2">
+          <strong className="font-medium">{second.ch.name}</strong> at {Math.round(second.pct)}% provides
+          complementary reach. <strong className="font-medium">{lowCh.ch.name}</strong> is deliberately
+          light at {Math.round(lowCh.pct)}% — {lowReason} for this combination.
+        </p>
+      ) : null}
       <p className="mt-3 border-t pt-2 text-xs text-muted-foreground">
         Generated from the deterministic BCS engine — no invented metrics. In production, AVA
         cross-references cultural moments to suggest weekly weighting.
