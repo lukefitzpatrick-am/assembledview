@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { DEFAULT_INPUTS } from "./lib/data";
 import { PlannerForm, type FormState } from "./components/PlannerForm";
+import { ResultsPanel } from "./components/ResultsPanel";
 
 const initialState: FormState = {
   objective: DEFAULT_INPUTS.objective,
@@ -22,7 +23,7 @@ export default function BehaviouralPlannerPage() {
   const [state, setState] = useState<FormState>(initialState);
 
   useEffect(() => {
-    console.log("[BCP Stage 2] Form state:", state);
+    console.log("[BCP Stage 3] Form state:", state);
   }, [state]);
 
   return (
@@ -35,19 +36,14 @@ export default function BehaviouralPlannerPage() {
               working title · v0.2 mock
             </span>
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">Stage 2 of 4: inputs only. Results panel comes in Stage 3.</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Stage 3 of 4: inputs and results wired. Polish coming in Stage 4.
+          </p>
         </div>
       </div>
 
       <PlannerForm state={state} onChange={setState} />
-
-      <div className="mt-6 rounded-lg border bg-muted/30 p-4 text-sm">
-        <p className="mb-1 font-medium">Verification</p>
-        <p className="text-muted-foreground">
-          Every change to any input above should log a fresh{" "}
-          <code className="text-xs">[BCP Stage 2]</code> entry to the browser console with the full form state.
-        </p>
-      </div>
+      <ResultsPanel state={state} />
     </div>
   );
 }

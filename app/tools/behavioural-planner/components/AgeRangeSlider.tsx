@@ -88,11 +88,9 @@ export function AgeRangeSlider({ min, max, value, step = 2, onChange }: AgeRange
           aria-label="Maximum age"
         />
       </div>
-      <div className="mt-1 flex justify-between text-xs">
+      <div className="flex justify-between text-xs mt-1">
         <span className="font-medium">{lo}</span>
-        <span className="font-medium">
-          {hi >= max ? `${max - (max % 5 === 0 ? 1 : 0)}+` : hi}
-        </span>
+        <span className="font-medium">{hi >= max ? "65+" : hi}</span>
       </div>
     </div>
   );
