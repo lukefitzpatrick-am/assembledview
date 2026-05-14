@@ -1,3 +1,5 @@
+import { div0 } from "./div0.js"
+
 // Status strings from V_LINE_ITEM_PACING; order in computeStatus matches SQL CASE order.
 export type PacingStatus =
   | "not_started"
@@ -78,6 +80,42 @@ export function getAsOfDate(now: Date = new Date()): string {
     month: "2-digit",
     day: "2-digit",
   }).format(now)
+}
+
+export function computeExpectedPct(daysPassed: number, campaignDays: number): number {
+  return div0(daysPassed, campaignDays)
+}
+
+export function computeExpectedSpend(budget: number, expectedPct: number): number {
+  return budget * expectedPct
+}
+
+export function computeSpendVariance(spendToDate: number, expectedSpend: number): number {
+  return spendToDate - expectedSpend
+}
+
+export function computeSpendVariancePct(variance: number, expectedSpend: number): number {
+  return div0(variance, expectedSpend)
+}
+
+export function computeDailyPace(spendToDate: number, daysPassed: number): number {
+  return div0(spendToDate, daysPassed)
+}
+
+export function computeRequiredDaily(
+  budget: number,
+  spendToDate: number,
+  daysRemaining: number,
+): number {
+  return div0(budget - spendToDate, daysRemaining)
+}
+
+export function computeProjectedTotal(dailyPace: number, campaignDays: number): number {
+  return dailyPace * campaignDays
+}
+
+export function computeProjectionVariancePct(projectedTotal: number, budget: number): number {
+  return div0(projectedTotal - budget, budget)
 }
 
 export function computePacing(_input: PacingMathsInput): PacingMathsOutput {
