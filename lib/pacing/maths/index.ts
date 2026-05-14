@@ -118,6 +118,29 @@ export function computeProjectionVariancePct(projectedTotal: number, budget: num
   return div0(projectedTotal - budget, budget)
 }
 
+export function computeStatus(input: {
+  asOfDate: string
+  startDate: string
+  endDate: string
+  spendToDate: number
+  daysPassed: number
+  projectionVariancePct: number
+}): PacingStatus {
+  const { asOfDate, startDate, endDate, spendToDate, daysPassed, projectionVariancePct } = input
+
+  // Order from V_LINE_ITEM_PACING — DO NOT REORDER
+  if (asOfDate < startDate) return "not_started"
+  if (asOfDate > endDate) return "completed"
+  if (spendToDate === 0 && daysPassed >= 2) return "no_delivery"
+  if (Math.abs(projectionVariancePct) <= 0.05) return "on_track"
+  if (projectionVariancePct > -0.15 && projectionVariancePct < -0.05) return "slightly_under"
+  if (projectionVariancePct <= -0.15) return "under_pacing"
+  if (projectionVariancePct > 0.05 && projectionVariancePct < 0.15) return "slightly_over"
+  if (projectionVariancePct >= 0.15) return "over_pacing"
+
+  return "unknown"
+}
+
 export function computePacing(_input: PacingMathsInput): PacingMathsOutput {
   throw new Error("not implemented")
 }
