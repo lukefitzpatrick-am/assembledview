@@ -1,73 +1,105 @@
-# Domain 4 — Stage 1a manual smoke checklist
+# Stage 1a Smoke Test
 
-Run on branch `domain-4-finance-hub` with dev server (`npm run dev`). Set `NEXT_PUBLIC_FINANCE_DEBUG=1` in `.env.local` for hub console logs.
+Branch: `domain-4-finance-hub`
+Commits under test:
+- `b7b6cb8` refactor(domain-4): extract shared finance list filter helpers
+- `81e10c5` fix(domain-4): apply publishers_id, billing_type, include_drafts on payables route
+- `d3689ff` fix(domain-4): bump receivables on billing tab when Enter pressed in search
 
-## Prerequisites
+Stage 0 discovery: `c8848d2` docs(domain-4): stage 0 discovery — finance hub audit map
 
-- [ ] Branch is `domain-4-finance-hub`
-- [ ] `npm run test:finance-filters` passes
-- [ ] Logged into finance hub (`/finance`)
+## Automated checks (Cursor)
 
-## Billing tab — filter → API
+- [x] `npx tsc --noEmit` — no errors in Stage 1a paths (`lib/finance/filterBillingRecords.ts`, `lib/finance/__tests__/filterBillingRecords.test.ts`, `app/api/finance/billing/route.ts`, `app/api/finance/payables/route.ts`, `components/finance/FinanceFilterToolbar.tsx`). Full-repo `tsc` still fails on pre-existing `components/media-containers/DigitalDisplayContainer.tsx` (unrelated).
+- [x] `npm run test:finance-filters` — 13/13 pass (project has no top-level `npm test` script).
+- [x] Stage 1a scoped diff vs `main` — only Stage 1a files (see `git diff main --stat` for the six paths below). Note: comparing the whole branch to `main` may list other in-flight work on this branch; review the scoped stat before merge.
 
-1. Open **Billing** tab.
-2. Set **Clients** to one client, **Publishers** to one publisher, turn off **Include drafts**, add a **Search** term.
-3. Click **Load** (or **Refresh** if already loaded).
-4. In DevTools **Network**, open `GET /api/finance/billing?...` for the active month.
+```
+ STAGE-1A-SMOKE.md                                  |  73 +++++++++++
+ app/api/finance/billing/route.ts                   |  76 ++---------
+ app/api/finance/payables/route.ts                  |  72 +++++-----
+ components/finance/FinanceFilterToolbar.tsx        |   5 +
+ lib/finance/__tests__/filterBillingRecords.test.ts | 146 +++++++++++++++++++++
+ lib/finance/filterBillingRecords.ts                | 116 ++++++++++++++++
+```
 
-Verify query string includes:
+**Luke:** Start the dev server (`npm run dev`) before manual checks below.
 
-- [ ] `clients_id` (comma-separated ids)
-- [ ] `publishers_id` (comma-separated ids)
-- [ ] `include_drafts=0` when drafts switch is off
-- [ ] `search` when search box non-empty
-- [ ] `billing_type` when billing-type filters apply (receivable types only)
+## Manual checks (Luke, dev server running)
 
-Verify UI rows match filters (client name, publisher on line items, search substring).
+For each check, open browser DevTools Network tab before clicking.
 
-## Billing tab — Search Enter
+### Payables tab — publisher filter
 
-1. Change **Search** text without clicking Load.
-2. Press **Enter**.
+1. Navigate to Finance Hub → Payables tab
+2. Open filter bar, select a single publisher, click **Load**
+3. Verify in Network tab:
+   - Request to `/api/finance/payables?...` includes `publishers_id=<id>` in the query string
+   - Response only contains records where the selected publisher appears in line items
+4. Visual check: only that publisher's invoice cards appear
 
-Verify:
+Result: ☐ pass  ☐ fail  Notes:
 
-- [ ] Network shows new billing request(s) (receivables hook bumped)
-- [ ] Table updates to match search (not stale pre-Enter data)
+### Payables tab — include drafts toggle
 
-## Payables tab — filter → API
+1. On Payables tab, toggle "Include drafts" off, click **Load**
+2. Verify Network: request includes `include_drafts=0`
+3. Toggle on, click **Load**
+4. Verify Network: request does NOT include `include_drafts` param (or it's truthy)
 
-1. Open **Payables** tab.
-2. Apply same style filters: client, publisher, drafts off, search; click **Load** on toolbar if dirty.
-3. Inspect `GET /api/finance/payables?...` per month in range.
+Result: ☐ pass  ☐ fail  Notes:
 
-Verify query string includes:
+### Payables tab — billing type
 
-- [ ] `clients_id`
-- [ ] `publishers_id`
-- [ ] `include_drafts=0` when drafts off
-- [ ] `search` when set
-- [ ] `billing_type=payable` when payable type is in the billing-type filter intersection
+(Stage 1a only added the `billing_type` param plumbing — payables only emit `"payable"` rows, so this is a passthrough check.)
 
-Verify payables list shrinks when publisher filter applied (server-side, not only client memo).
+1. Verify Network: request includes `billing_type=payable` (the client filters down to allowed payable types)
+2. Verify the response is non-empty when there are payables for the month
 
-## Payables tab — drafts
+Result: ☐ pass  ☐ fail  Notes:
 
-1. Note payables count with **Include drafts** off.
-2. Turn **Include drafts** on, **Load**.
+### Payables tab — status (Stage 1b territory)
 
-Verify:
+(Negative check — `status` filter must NOT be applied on payables until Stage 1b.)
 
-- [ ] More rows (or same) when draft campaigns exist in month
-- [ ] `include_drafts` omitted or not `0` on payables requests
+1. With "Booked" deselected in the status filter, click **Load**
+2. Confirm payable rows still appear (because derived payables are `status: "expected"`)
+3. This is intentional Stage 1a behaviour — Stage 1b will fix the status filter on payables
 
-## Regression — billing route behaviour
+Result: ☐ pass (rows visible)  ☐ fail (rows hidden — regression)  Notes:
 
-1. Billing tab, all filters cleared, **Include drafts** on, single month.
-2. Confirm media + SOW + retainer sections still render as before Stage 1a.
+### Billing tab — Search Enter bump
 
-## Out of scope (Stage 1b+)
+1. Navigate to Finance Hub → Billing tab
+2. Click **Load** to get baseline data
+3. In the Search box, type a client name or campaign substring
+4. Press **Enter** (don't click Load)
+5. Verify Network: a new request to `/api/finance/billing?...` fires immediately after Enter
+6. Verify the visible results update to match the search
 
-- Payables **status** filter (still not applied on route)
-- Month lock / Auth0 / retainer publisher-hide
-- Overview / Forecast filter wiring
+Result: ☐ pass  ☐ fail  Notes:
+
+### Billing tab — Search Enter on non-billing tab does NOT bump
+
+1. Navigate to Payables tab
+2. Type in Search, press Enter
+3. Verify: no extra request fires beyond the normal Payables refetch (which is auto on filter change)
+4. This confirms the bump is scoped to the billing tab only
+
+Result: ☐ pass  ☐ fail  Notes:
+
+### Existing behaviour — no regression on billing tab
+
+1. Navigate to Billing tab
+2. Change a filter (e.g. select a client), click **Load**
+3. Verify it still works as before
+
+Result: ☐ pass  ☐ fail  Notes:
+
+## Sign-off
+
+- [ ] All manual checks pass
+- [ ] No regressions found
+- [ ] Ready to merge `domain-4-finance-hub` → `main` for Stage 1a
+
+If any check fails, document the failure and stop. Do not merge.
