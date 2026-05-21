@@ -12,6 +12,10 @@ import { deriveSowBillingRecordsFromScopes, type ScopeOfWorkRow } from "@/lib/fi
 import { fetchRelevantPlanVersionsForFinanceMonth } from "@/lib/finance/relevantPlanVersions"
 import { getCachedClients, getCachedPublishers } from "@/lib/finance/xanoReferenceCache"
 import type { BillingRecord } from "@/lib/types/financeBilling"
+import {
+  applyHubBillingRecordFilters,
+  filterPlanVersionsByIncludeDrafts,
+} from "@/lib/finance/filterBillingRecords"
 import { financeClientNamesMatch } from "@/lib/finance/utils"
 
 export const maxDuration = 60
@@ -53,69 +57,6 @@ function clientErrorFromUpstreamBody(data: unknown, upstreamStatus: number): Fin
     }
   }
   return { error: `Upstream request failed (${upstreamStatus})` }
-}
-
-function filterByClients(rows: BillingRecord[], clientsIdCsv: string | null): BillingRecord[] {
-  const ids = (clientsIdCsv || "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean)
-  if (ids.length === 0) return rows
-  const want = new Set(ids.map((s) => String(s)))
-  return rows.filter((r) => want.has(String(r.clients_id)))
-}
-
-function filterBySearch(rows: BillingRecord[], search: string | null): BillingRecord[] {
-  const q = (search || "").trim().toLowerCase()
-  if (!q) return rows
-  return rows.filter((r) => {
-    const hay = [
-      r.client_name,
-      r.mba_number,
-      r.campaign_name,
-      r.billing_month,
-      r.status,
-      ...r.line_items.map((li) => [li.publisher_name, li.media_type, li.description].join(" ")),
-    ]
-      .join(" ")
-      .toLowerCase()
-    return hay.includes(q)
-  })
-}
-
-function filterByStatuses(rows: BillingRecord[], statusCsv: string | null): BillingRecord[] {
-  const parts = (statusCsv || "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean)
-  if (parts.length === 0) return rows
-  const want = new Set(parts)
-  return rows.filter((r) => want.has(r.status))
-}
-
-function filterByPublisherIds(
-  rows: BillingRecord[],
-  publisherIdsCsv: string | null,
-  publisherIdMap: Map<number, string>
-): BillingRecord[] {
-  const rawIds = (publisherIdsCsv || "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .map(Number)
-    .filter((n) => Number.isFinite(n))
-  if (rawIds.length === 0) return rows
-  const want = new Set(
-    rawIds.map((id) => (publisherIdMap.get(id) || "").trim()).filter(Boolean)
-  )
-  if (want.size === 0) return rows
-  return rows.filter((r) => {
-    if (r.billing_type === "retainer" || r.billing_type === "sow") return true
-    return r.line_items.some((li) => {
-      const n = (li.publisher_name || "").trim()
-      return n && want.has(n)
-    })
-  })
 }
 
 function buildClientNameMap(clients: Record<string, unknown>[]): Map<string, Record<string, unknown>> {
@@ -177,7 +118,10 @@ export async function GET(request: NextRequest) {
         )
       }
       // Hydration removed because it caused Vercel FUNCTION_INVOCATION_TIMEOUT by fanning out across 19 Xano line-item endpoints per version.
-      relevantVersions = versionsResult.relevantVersions as Record<string, unknown>[]
+      relevantVersions = filterPlanVersionsByIncludeDrafts(
+        versionsResult.relevantVersions as Record<string, unknown>[],
+        includeNonBooked
+      )
     } catch (e: unknown) {
       const ax = axios.isAxiosError(e)
       const status =
@@ -253,20 +197,17 @@ export async function GET(request: NextRequest) {
     }
     let merged = [...byReceivableKey.values()].filter((r) => r.billing_month === monthStr)
 
-    const clientsIdParam = incoming.get("clients_id")
-    const searchParam = incoming.get("search")
-    const statusParam = incoming.get("status")
-    const publishersIdParam = incoming.get("publishers_id")
-
-    merged = filterByClients(merged, clientsIdParam)
-    merged = filterBySearch(merged, searchParam)
-    merged = filterByStatuses(merged, statusParam)
-    merged = filterByPublisherIds(merged, publishersIdParam, publisherIdMap)
-
-    if (parsedTypes.types.length > 0) {
-      const want = new Set(parsedTypes.types)
-      merged = merged.filter((r) => want.has(r.billing_type))
-    }
+    merged = applyHubBillingRecordFilters(
+      merged,
+      {
+        clientsIdCsv: incoming.get("clients_id"),
+        search: incoming.get("search"),
+        statusCsv: incoming.get("status"),
+        publishersIdCsv: incoming.get("publishers_id"),
+        billingTypes: parsedTypes.types,
+      },
+      publisherIdMap
+    )
 
     return NextResponse.json({ records: merged })
   } catch (error: unknown) {
