@@ -7,7 +7,10 @@ import {
 } from "@/lib/finance/billingApiParams"
 import { derivePayableRecordsForMonth } from "@/lib/finance/derivePayableRecords"
 import {
-  applyHubBillingRecordFilters,
+  filterByBillingTypes,
+  filterByClients,
+  filterByPublisherIds,
+  filterBySearch,
   filterPlanVersionsByIncludeDrafts,
 } from "@/lib/finance/filterBillingRecords"
 import { fetchRelevantPlanVersionsForFinanceMonth } from "@/lib/finance/relevantPlanVersions"
@@ -125,17 +128,15 @@ export async function GET(request: NextRequest) {
     const publisherIdMap = buildPublisherIdMap(publishers)
 
     let derived = derivePayableRecordsForMonth(relevantVersions, year, month)
-    derived = applyHubBillingRecordFilters(
-      derived,
-      {
-        clientsIdCsv: searchParams.get("clients_id"),
-        search: searchParams.get("search"),
-        statusCsv: null,
-        publishersIdCsv: searchParams.get("publishers_id"),
-        billingTypes: parsedTypes.types,
-      },
-      publisherIdMap
-    )
+
+    const clientsIdParam = searchParams.get("clients_id")
+    const searchParam = searchParams.get("search")
+    const publishersIdParam = searchParams.get("publishers_id")
+
+    derived = filterByClients(derived, clientsIdParam)
+    derived = filterBySearch(derived, searchParam)
+    derived = filterByPublisherIds(derived, publishersIdParam, publisherIdMap)
+    derived = filterByBillingTypes(derived, parsedTypes.types)
 
     return NextResponse.json({ records: derived })
   } catch (error: unknown) {
