@@ -238,10 +238,11 @@ export function FinanceFilterToolbar({ receivables }: FinanceFilterToolbarProps)
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault()
+              setFilters(draft)
               if (receivables) {
-                applyDraftThenReceivables()
-              } else {
-                setFilters(draft)
+                window.setTimeout(() => {
+                  receivables.bump()
+                }, 0)
               }
             }
           }}
