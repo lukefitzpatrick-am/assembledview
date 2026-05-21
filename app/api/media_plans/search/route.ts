@@ -3,6 +3,10 @@ import axios from "axios";
 import { getVersionNumberForMBA, filterLineItemsByPlanNumber } from '@/lib/api/mediaPlanVersionHelper';
 import { xanoUrl } from "@/lib/api/xano";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const maxDuration = 60;
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -38,15 +42,16 @@ export async function GET(request: Request) {
       );
     }
     
-    // Query ONLY by mba_number to scan entire database
-    // Then filter by mp_plannumber in JavaScript to ensure we get all matching records
     const params = new URLSearchParams();
     params.append('mba_number', mbaNumber);
-    
+    if (versionNumber !== undefined && versionNumber !== null && String(versionNumber).trim() !== '') {
+      params.append('version_number', String(versionNumber));
+    }
+
     const url = `${xanoUrl("media_plan_search", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?${params.toString()}`;
-    
+
     console.log(`[SEARCH] Fetching from media_plan_search table`);
-    console.log(`[SEARCH] Strategy: Query all records matching mba_number, then filter by mp_plannumber=${versionNumber} in JavaScript`);
+    console.log(`[SEARCH] Strategy: Filtered at Xano via mba_number + version_number (with JS safety filter for legacy data)`);
     console.log(`[SEARCH] API URL: ${url}`);
     
     const headers = {
