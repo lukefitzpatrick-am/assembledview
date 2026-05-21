@@ -88,7 +88,7 @@ export function MultiSelectCombobox({
   const toggle = React.useCallback(
     (value: string) => {
       if (implicitAll) {
-        onValuesChange(allSelectableValues.filter((v) => v !== value))
+        onValuesChange([value])
         return
       }
       if (valuesSet.has(value)) {
@@ -97,7 +97,7 @@ export function MultiSelectCombobox({
         onValuesChange([...values, value])
       }
     },
-    [allSelectableValues, implicitAll, onValuesChange, values, valuesSet]
+    [implicitAll, onValuesChange, values, valuesSet]
   )
 
   const selectAll = React.useCallback(() => {
@@ -140,7 +140,7 @@ export function MultiSelectCombobox({
               type="button"
               variant="ghost"
               size="sm"
-              disabled={disabled || selectableOptions.length === 0 || isAllSelected}
+              disabled={disabled || selectableOptions.length === 0 || (!implicitAll && isAllSelected)}
               onClick={selectAll}
             >
               {selectAllText}
