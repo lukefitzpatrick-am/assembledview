@@ -1933,34 +1933,81 @@ export async function saveSocialMediaLineItems(mediaPlanVersionId: number, mbaNu
 
 
 
+/** Maps lineItems object keys to Next.js /api/media_plans path segments (or Xano table names for catch-all). */
+const LINE_ITEM_BROWSER_API_PATH: Record<string, string> = {
+  television: "television",
+  radio: "media_plan_radio",
+  newspaper: "newspaper",
+  magazines: "media_plan_magazines",
+  ooh: "media_plan_ooh",
+  cinema: "cinema",
+  digitalDisplay: "media_plan_digi_display",
+  digitalAudio: "digital_audio_line_items",
+  digitalVideo: "digital_video_line_items",
+  bvod: "digi-bvod",
+  integration: "integration",
+  search: "search",
+  socialMedia: "social",
+  progDisplay: "prog-display",
+  progVideo: "prog-video",
+  progBvod: "prog_bvod_line_items",
+  progAudio: "prog_audio_line_items",
+  progOoh: "prog_ooh_line_items",
+  influencers: "influencers",
+  production: "production",
+}
+
 async function fetchLineItemsFromApi(
   mbaNumber: string,
   mediaPlanVersion: number | undefined,
-  key: string
+  key: string,
+  timeoutMs: number = 30000
 ): Promise<any[]> {
-  const params = new URLSearchParams()
+  timeoutMs = timeoutMs ?? 30000
+  const pathSegment = LINE_ITEM_BROWSER_API_PATH[key]
+  if (!pathSegment) {
+    console.warn(`[fetchLineItemsFromApi] Unknown line item key: ${key}`)
+    return []
+  }
+
+  const params = new URLSearchParams({ mba_number: mbaNumber })
   if (mediaPlanVersion !== undefined && mediaPlanVersion !== null) {
-    params.set("version", String(mediaPlanVersion))
+    params.set("media_plan_version", String(mediaPlanVersion))
+    params.set("mp_plannumber", String(mediaPlanVersion))
+    params.set("version_number", String(mediaPlanVersion))
   }
-  const query = params.toString()
-  const url = query
-    ? `/api/mediaplans/mba/${encodeURIComponent(mbaNumber)}?${query}`
-    : `/api/mediaplans/mba/${encodeURIComponent(mbaNumber)}`
-  const response = await fetch(url)
-  if (!response.ok) {
-    throw new Error("Failed to fetch media plan line items")
+
+  const url = `/api/media_plans/${pathSegment}?${params.toString()}`
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const response = await fetch(url, { signal: controller.signal })
+    if (!response.ok) {
+      if (response.status === 404) {
+        return []
+      }
+      throw new Error(`Failed to fetch ${key} line items (${response.status})`)
+    }
+    const data = await response.json()
+    return Array.isArray(data) ? data : []
+  } catch (err: unknown) {
+    if (err instanceof Error && err.name === "AbortError") {
+      const timeoutError = new Error(`Line item fetch timed out after ${timeoutMs}ms for ${key}`)
+      timeoutError.name = "LineItemFetchTimeout"
+      throw timeoutError
+    }
+    throw err
+  } finally {
+    clearTimeout(timeoutId)
   }
-  const data = await response.json()
-  const items = data?.lineItems?.[key]
-  return Array.isArray(items) ? items : []
 }
 
 // ===== COMPREHENSIVE CRUD FUNCTIONS FOR ALL 18 MEDIA TYPES =====
 
 // Cinema CRUD Functions
-export async function getCinemaLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number): Promise<CinemaLineItem[]> {
+export async function getCinemaLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number, timeoutMs?: number): Promise<CinemaLineItem[]> {
   if (isBrowser) {
-    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "cinema")
+    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "cinema", timeoutMs)
   }
   try {
     let url = `${MEDIA_PLANS_BASE_URL}/media_plan_cinema?mba_number=${mbaNumber}`;
@@ -2029,9 +2076,9 @@ export async function deleteCinemaLineItem(id: number): Promise<void> {
 }
 
 // Digital Audio CRUD Functions
-export async function getDigitalAudioLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number): Promise<DigitalAudioLineItem[]> {
+export async function getDigitalAudioLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number, timeoutMs?: number): Promise<DigitalAudioLineItem[]> {
   if (isBrowser) {
-    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "digitalAudio")
+    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "digitalAudio", timeoutMs)
   }
   try {
     let url = `${MEDIA_PLANS_BASE_URL}/media_plan_digi_audio?mba_number=${mbaNumber}`;
@@ -2087,9 +2134,9 @@ export async function deleteDigitalAudioLineItem(id: number): Promise<void> {
 }
 
 // BVOD CRUD Functions
-export async function getBVODLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number): Promise<BVODLineItem[]> {
+export async function getBVODLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number, timeoutMs?: number): Promise<BVODLineItem[]> {
   if (isBrowser) {
-    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "bvod")
+    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "bvod", timeoutMs)
   }
   try {
     let url = `${MEDIA_PLANS_BASE_URL}/media_plan_digi_bvod?mba_number=${mbaNumber}`;
@@ -2140,9 +2187,9 @@ export async function deleteBVODLineItem(id: number): Promise<void> {
 }
 
 // Digital Display CRUD Functions
-export async function getDigitalDisplayLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number): Promise<DigitalDisplayLineItem[]> {
+export async function getDigitalDisplayLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number, timeoutMs?: number): Promise<DigitalDisplayLineItem[]> {
   if (isBrowser) {
-    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "digitalDisplay")
+    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "digitalDisplay", timeoutMs)
   }
   try {
     let url = `${MEDIA_PLANS_BASE_URL}/media_plan_digi_display?mba_number=${mbaNumber}`;
@@ -2193,9 +2240,9 @@ export async function deleteDigitalDisplayLineItem(id: number): Promise<void> {
 }
 
 // Digital Video CRUD Functions
-export async function getDigitalVideoLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number): Promise<DigitalVideoLineItem[]> {
+export async function getDigitalVideoLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number, timeoutMs?: number): Promise<DigitalVideoLineItem[]> {
   if (isBrowser) {
-    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "digitalVideo")
+    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "digitalVideo", timeoutMs)
   }
   try {
     let url = `${MEDIA_PLANS_BASE_URL}/media_plan_digi_video?mba_number=${mbaNumber}`;
@@ -2246,9 +2293,9 @@ export async function deleteDigitalVideoLineItem(id: number): Promise<void> {
 }
 
 // Magazines CRUD Functions
-export async function getMagazinesLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number): Promise<MagazinesLineItem[]> {
+export async function getMagazinesLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number, timeoutMs?: number): Promise<MagazinesLineItem[]> {
   if (isBrowser) {
-    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "magazines")
+    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "magazines", timeoutMs)
   }
   try {
     let url = `${MEDIA_PLANS_BASE_URL}/media_plan_magazines?mba_number=${mbaNumber}`;
@@ -2299,9 +2346,9 @@ export async function deleteMagazinesLineItem(id: number): Promise<void> {
 }
 
 // Newspaper CRUD Functions
-export async function getNewspaperLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number): Promise<NewspaperLineItem[]> {
+export async function getNewspaperLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number, timeoutMs?: number): Promise<NewspaperLineItem[]> {
   if (isBrowser) {
-    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "newspaper")
+    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "newspaper", timeoutMs)
   }
   try {
     let url = `${MEDIA_PLANS_BASE_URL}/media_plan_newspaper?mba_number=${mbaNumber}`;
@@ -2350,9 +2397,9 @@ export async function deleteNewspaperLineItem(id: number): Promise<void> {
 }
 
 // OOH CRUD Functions
-export async function getOOHLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number): Promise<OOHLineItem[]> {
+export async function getOOHLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number, timeoutMs?: number): Promise<OOHLineItem[]> {
   if (isBrowser) {
-    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "ooh")
+    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "ooh", timeoutMs)
   }
   try {
     let url = `${MEDIA_PLANS_BASE_URL}/media_plan_ooh?mba_number=${mbaNumber}`;
@@ -2403,9 +2450,9 @@ export async function deleteOOHLineItem(id: number): Promise<void> {
 }
 
 // Programmatic Audio CRUD Functions
-export async function getProgAudioLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number): Promise<ProgAudioLineItem[]> {
+export async function getProgAudioLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number, timeoutMs?: number): Promise<ProgAudioLineItem[]> {
   if (isBrowser) {
-    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "progAudio")
+    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "progAudio", timeoutMs)
   }
   try {
     let url = `${MEDIA_PLANS_BASE_URL}/media_plan_prog_audio?mba_number=${mbaNumber}`;
@@ -2456,9 +2503,9 @@ export async function deleteProgAudioLineItem(id: number): Promise<void> {
 }
 
 // Programmatic BVOD CRUD Functions
-export async function getProgBVODLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number): Promise<ProgBVODLineItem[]> {
+export async function getProgBVODLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number, timeoutMs?: number): Promise<ProgBVODLineItem[]> {
   if (isBrowser) {
-    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "progBvod")
+    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "progBvod", timeoutMs)
   }
   try {
     let url = `${MEDIA_PLANS_BASE_URL}/media_plan_prog_bvod?mba_number=${mbaNumber}`;
@@ -2509,9 +2556,9 @@ export async function deleteProgBVODLineItem(id: number): Promise<void> {
 }
 
 // Programmatic Display CRUD Functions
-export async function getProgDisplayLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number): Promise<ProgDisplayLineItem[]> {
+export async function getProgDisplayLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number, timeoutMs?: number): Promise<ProgDisplayLineItem[]> {
   if (isBrowser) {
-    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "progDisplay")
+    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "progDisplay", timeoutMs)
   }
   try {
     let url = `${MEDIA_PLANS_BASE_URL}/media_plan_prog_display?mba_number=${mbaNumber}`;
@@ -2562,9 +2609,9 @@ export async function deleteProgDisplayLineItem(id: number): Promise<void> {
 }
 
 // Programmatic OOH CRUD Functions
-export async function getProgOOHLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number): Promise<ProgOOHLineItem[]> {
+export async function getProgOOHLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number, timeoutMs?: number): Promise<ProgOOHLineItem[]> {
   if (isBrowser) {
-    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "progOoh")
+    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "progOoh", timeoutMs)
   }
   try {
     let url = `${MEDIA_PLANS_BASE_URL}/media_plan_prog_ooh?mba_number=${mbaNumber}`;
@@ -2615,9 +2662,9 @@ export async function deleteProgOOHLineItem(id: number): Promise<void> {
 }
 
 // Programmatic Video CRUD Functions
-export async function getProgVideoLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number): Promise<ProgVideoLineItem[]> {
+export async function getProgVideoLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number, timeoutMs?: number): Promise<ProgVideoLineItem[]> {
   if (isBrowser) {
-    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "progVideo")
+    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "progVideo", timeoutMs)
   }
   try {
     const data = await fetchAllXanoPages(
@@ -2673,9 +2720,9 @@ export async function deleteProgVideoLineItem(id: number): Promise<void> {
 }
 
 // Radio CRUD Functions
-export async function getRadioLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number): Promise<RadioLineItem[]> {
+export async function getRadioLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number, timeoutMs?: number): Promise<RadioLineItem[]> {
   if (isBrowser) {
-    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "radio")
+    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "radio", timeoutMs)
   }
   try {
     let url = `${MEDIA_PLANS_BASE_URL}/media_plan_radio?mba_number=${mbaNumber}`;
@@ -2732,9 +2779,9 @@ export async function deleteRadioLineItem(id: number): Promise<void> {
 }
 
 // Search CRUD Functions
-export async function getSearchLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number): Promise<SearchLineItem[]> {
+export async function getSearchLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number, timeoutMs?: number): Promise<SearchLineItem[]> {
   if (isBrowser) {
-    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "search")
+    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "search", timeoutMs)
   }
   try {
     let url = `/api/media_plans/search?mba_number=${mbaNumber}`;
@@ -2804,9 +2851,9 @@ export async function deleteSearchLineItem(id: number): Promise<void> {
 }
 
 // Production CRUD Functions
-export async function getProductionLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number): Promise<ProductionLineItem[]> {
+export async function getProductionLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number, timeoutMs?: number): Promise<ProductionLineItem[]> {
   if (isBrowser) {
-    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "production")
+    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "production", timeoutMs)
   }
   try {
     let url = `/api/media_plans/production?mba_number=${mbaNumber}`;
@@ -2953,9 +3000,9 @@ export async function saveProductionLineItems(
 }
 
 // Social Media CRUD Functions
-export async function getSocialMediaLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number): Promise<SocialMediaLineItem[]> {
+export async function getSocialMediaLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number, timeoutMs?: number): Promise<SocialMediaLineItem[]> {
   if (isBrowser) {
-    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "socialMedia")
+    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "socialMedia", timeoutMs)
   }
   try {
     let url = `/api/media_plans/social?mba_number=${mbaNumber}`;
@@ -3021,9 +3068,9 @@ export async function deleteSocialMediaLineItem(id: number): Promise<void> {
 }
 
 // Television CRUD Functions
-export async function getTelevisionLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number): Promise<TelevisionLineItem[]> {
+export async function getTelevisionLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number, timeoutMs?: number): Promise<TelevisionLineItem[]> {
   if (isBrowser) {
-    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "television")
+    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "television", timeoutMs)
   }
   try {
     let url = `/api/media_plans/television?mba_number=${mbaNumber}`;
@@ -3087,9 +3134,9 @@ export async function deleteTelevisionLineItem(id: number): Promise<void> {
 }
 
 // Missing GET Functions
-export async function getIntegrationLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number): Promise<IntegrationLineItem[]> {
+export async function getIntegrationLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number, timeoutMs?: number): Promise<IntegrationLineItem[]> {
   if (isBrowser) {
-    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "integration")
+    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "integration", timeoutMs)
   }
   try {
     let url = `${MEDIA_PLANS_BASE_URL}/media_plan_integrations?mba_number=${mbaNumber}`;
@@ -3116,9 +3163,9 @@ export async function getIntegrationLineItemsByMBA(mbaNumber: string, mediaPlanV
   }
 }
 
-export async function getInfluencersLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number): Promise<InfluencersLineItem[]> {
+export async function getInfluencersLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number, timeoutMs?: number): Promise<InfluencersLineItem[]> {
   if (isBrowser) {
-    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "influencers")
+    return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "influencers", timeoutMs)
   }
   try {
     let url = `${MEDIA_PLANS_BASE_URL}/media_plan_influencers?mba_number=${mbaNumber}`;
