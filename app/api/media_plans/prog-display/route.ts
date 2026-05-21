@@ -39,66 +39,41 @@ export async function GET(request: Request) {
       )
     }
 
-    console.log(`[PROG_VIDEO] Fetching from media_plan_prog_video table with pagination`)
-    console.log(`[PROG_VIDEO] Strategy: Filtered at Xano via mba_number + version_number (with JS safety filter for legacy data)`)
+    console.log(`[PROG_DISPLAY] Fetching from media_plan_prog_display table with pagination`)
+    console.log(`[PROG_DISPLAY] Strategy: Filtered at Xano via mba_number + version_number (with JS safety filter for legacy data)`)
 
     const data = await fetchAllXanoPages(
-      xanoUrl("media_plan_prog_video", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]),
+      xanoUrl("media_plan_prog_display", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]),
       lineItemPaginationParams(mbaNumber, versionNumber),
-      "PROG_VIDEO"
+      "PROG_DISPLAY"
     )
 
-    console.log(`[PROG_VIDEO] Raw response data count:`, data.length)
+    console.log(`[PROG_DISPLAY] Raw response data count:`, data.length)
 
-    const filteredData = filterLineItemsByPlanNumber(data, mbaNumber, versionNumber, "PROG_VIDEO")
+    const filteredData = filterLineItemsByPlanNumber(data, mbaNumber, versionNumber, "PROG_DISPLAY")
 
-    console.log(`[PROG_VIDEO] Final filtered data count: ${filteredData.length} (from ${data.length} total items)`)
+    console.log(
+      `[PROG_DISPLAY] Final filtered data count: ${filteredData.length} (from ${data.length} total items)`
+    )
 
     return NextResponse.json(filteredData)
   } catch (error) {
-    console.error("Error fetching programmatic video data:", error)
+    console.error("Error fetching programmatic display data:", error)
 
     if (axios.isAxiosError(error)) {
       if (error.response?.status === 404) {
-        console.log("Programmatic video line items not found (404), returning empty array")
+        console.log("Programmatic display line items not found (404), returning empty array")
         return NextResponse.json([])
       }
 
       return NextResponse.json(
         {
-          error: `Failed to fetch programmatic video data: ${error.response?.data?.message || error.message}`,
+          error: `Failed to fetch programmatic display data: ${error.response?.data?.message || error.message}`,
         },
         { status: error.response?.status || 500 }
       )
     }
 
-    return NextResponse.json({ error: "Failed to fetch programmatic video data" }, { status: 500 })
-  }
-}
-
-export async function POST(request: Request) {
-  try {
-    const data = await request.json()
-
-    const response = await axios.post(
-      xanoUrl("media_plan_prog_video", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]),
-      data,
-      {
-        headers: {
-          "Content-Type": "application/json",
-        },
-      }
-    )
-
-    return NextResponse.json(response.data)
-  } catch (error: any) {
-    const status = error?.response?.status || 500
-    const message =
-      error?.response?.data?.message ||
-      error?.response?.data?.error ||
-      error?.message ||
-      "Failed to save programmatic video line item"
-
-    return NextResponse.json({ error: message }, { status })
+    return NextResponse.json({ error: "Failed to fetch programmatic display data" }, { status: 500 })
   }
 }
