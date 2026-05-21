@@ -3,6 +3,10 @@ import axios from "axios";
 import { getVersionNumberForMBA, filterLineItemsByPlanNumber } from '@/lib/api/mediaPlanVersionHelper';
 import { xanoUrl } from "@/lib/api/xano";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const maxDuration = 60;
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -42,11 +46,14 @@ export async function GET(request: Request) {
     // Then filter by mp_plannumber in JavaScript to ensure we get all matching records
     const params = new URLSearchParams();
     params.append('mba_number', mbaNumber);
-    
+    if (versionNumber !== undefined && versionNumber !== null && String(versionNumber).trim() !== '') {
+      params.append('version_number', String(versionNumber));
+    }
+
     const url = `${xanoUrl("media_plan_cinema", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?${params.toString()}`;
     
     console.log(`[CINEMA] Fetching from media_plan_cinema table`);
-    console.log(`[CINEMA] Strategy: Query all records matching mba_number, then filter by mp_plannumber=${versionNumber} in JavaScript`);
+    console.log(`[CINEMA] Strategy: Filtered at Xano via mba_number + version_number (with JS safety filter for legacy data)`);
     console.log(`[CINEMA] API URL: ${url}`);
     
     const headers = {

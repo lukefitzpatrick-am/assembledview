@@ -2,7 +2,12 @@ import { NextResponse } from 'next/server';
 import axios from 'axios';
 import { getVersionNumberForMBA, filterLineItemsByPlanNumber } from '@/lib/api/mediaPlanVersionHelper';
 import { fetchAllXanoPages } from '@/lib/api/xanoPagination';
+import { lineItemPaginationParams } from '@/lib/api/mediaPlanLineItemQuery';
 import { xanoUrl } from '@/lib/api/xano';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const maxDuration = 60;
 
 // Interface matching the Xano database schema
 interface TelevisionData {
@@ -134,11 +139,11 @@ export async function GET(request: Request) {
     }
     
     console.log(`[TELEVISION] Fetching from media_plan_television table with pagination`);
-    console.log(`[TELEVISION] Strategy: Query all records matching mba_number, then filter by version in JavaScript`);
+    console.log(`[TELEVISION] Strategy: Filtered at Xano via mba_number + version_number (with JS safety filter for legacy data)`);
 
     const data = await fetchAllXanoPages(
       xanoUrl("media_plan_television", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]),
-      { mba_number: mbaNumber },
+      lineItemPaginationParams(mbaNumber, versionNumber),
       "TELEVISION"
     );
 
