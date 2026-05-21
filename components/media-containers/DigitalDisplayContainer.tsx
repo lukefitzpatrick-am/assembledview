@@ -82,6 +82,40 @@ function parseBudgetSafe(val: unknown): number {
   return parseFloat(String(val).replace(/[^0-9.-]+/g, "")) || 0;
 }
 
+function asStandardDigiDisplayItems(
+  items: ReadonlyArray<{
+    platform: string
+    site: string
+    buyType: string
+    publisher: string
+    bursts: StandardDigiDisplayFormLineItem["bursts"]
+    creativeTargeting?: string
+    creative?: string
+    buyingDemo?: string
+    market?: string
+    fixedCostMedia?: boolean
+    clientPaysForMedia?: boolean
+    budgetIncludesFees?: boolean
+    noadserving?: boolean
+  }> | null | undefined
+): StandardDigiDisplayFormLineItem[] {
+  return (items ?? []).map((li) => ({
+    platform: li.platform,
+    site: li.site,
+    buyType: li.buyType,
+    publisher: li.publisher,
+    creativeTargeting: li.creativeTargeting ?? "",
+    creative: li.creative ?? "",
+    buyingDemo: li.buyingDemo ?? "",
+    market: li.market ?? "",
+    fixedCostMedia: li.fixedCostMedia ?? false,
+    clientPaysForMedia: li.clientPaysForMedia ?? false,
+    budgetIncludesFees: li.budgetIncludesFees ?? false,
+    noadserving: li.noadserving ?? false,
+    bursts: li.bursts,
+  }))
+}
+
 /** Display-only: net media when budget is gross incl. fee (read-only Media/Fee columns). Burst deliverables use {@link computeDeliverableFromMedia}. */
 function netMediaForDeliverablesDigiDisplay(
   rawBudget: number,
@@ -153,11 +187,17 @@ interface DigiDisplayContainerProps {
   initialLineItems?: any[];
 }
 
+type DigiDisplayFormGetValues = {
+  getValues: (name: "digidisplaylineItems") => unknown
+}
+
 export function getDigiDisplayBursts(
-  form: UseFormReturn<DigiDisplayFormValues>,
+  form: DigiDisplayFormGetValues,
   feedigidisplay: number
 ): BillingBurst[] {
-  const digidisplaylineItems = form.getValues("digidisplaylineItems") || []
+  const digidisplaylineItems = asStandardDigiDisplayItems(
+    form.getValues("digidisplaylineItems") as Parameters<typeof asStandardDigiDisplayItems>[0]
+  )
 
   return digidisplaylineItems.flatMap(li =>
     (li.bursts || []).map(burst => {
@@ -484,7 +524,7 @@ export default function DigiDisplayContainer({
   useLayoutEffect(() => {
     digiDisplayStandardBaselineRef.current =
       serializeDigiDisplayStandardLineItemsBaseline(
-        form.getValues("digidisplaylineItems")
+        asStandardDigiDisplayItems(form.getValues("digidisplaylineItems"))
       )
   }, [form])
 
@@ -502,7 +542,7 @@ export default function DigiDisplayContainer({
 
   const openDigiDisplayExpertModal = useCallback(() => {
     const mapped = mapStandardDigiDisplayLineItemsToExpertRows(
-      (form.getValues("digidisplaylineItems") || []) as StandardDigiDisplayFormLineItem[],
+      asStandardDigiDisplayItems(form.getValues("digidisplaylineItems")),
       digiDisplayExpertWeekColumns,
       campaignStartDate,
       campaignEndDate
@@ -571,7 +611,7 @@ export default function DigiDisplayContainer({
     )
     const merged = mergeDigiDisplayStandardFromExpertWithPrevious(
       standard,
-      prevLineItems as StandardDigiDisplayFormLineItem[]
+      asStandardDigiDisplayItems(prevLineItems)
     )
     form.setValue("digidisplaylineItems", merged as any, {
       shouldDirty: true,
@@ -579,7 +619,7 @@ export default function DigiDisplayContainer({
     })
     digiDisplayStandardBaselineRef.current =
       serializeDigiDisplayStandardLineItemsBaseline(
-        form.getValues("digidisplaylineItems")
+        asStandardDigiDisplayItems(form.getValues("digidisplaylineItems"))
       )
     setDigiDisplayExpertExitConfirmOpen(false)
     collapseAllLineItems()
@@ -1148,15 +1188,15 @@ useEffect(() => {
       const lineItemId = buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.digitalDisplay, lineItemIndex + 1);
 
       return {
-        market: lineItem.market,
+        market: lineItem.market ?? "",
         site: lineItem.site,
         platform: lineItem.platform,
-        targeting: lineItem.creativeTargeting,
-        creative:   lineItem.creative,
+        targeting: lineItem.creativeTargeting ?? "",
+        creative: lineItem.creative ?? "",
         startDate: formatDateString(burst.startDate),
         endDate:   formatDateString(burst.endDate),
         deliverables: burst.calculatedValue ?? 0,
-        buyingDemo:   lineItem.buyingDemo,
+        buyingDemo: lineItem.buyingDemo ?? "",
         buyType:      lineItem.buyType,
         deliverablesAmount: burst.budget,
         grossMedia: String(mediaAmount),
@@ -1240,9 +1280,9 @@ useEffect(() => {
           totalAmount: mediaAmount + feeAmount,
           mediaType: 'digi display',
           feePercentage: feedigidisplay,
-          clientPaysForMedia: item.clientPaysForMedia,
-          budgetIncludesFees: item.budgetIncludesFees,
-          noAdserving: item.noadserving,
+          clientPaysForMedia: item.clientPaysForMedia ?? false,
+          budgetIncludesFees: item.budgetIncludesFees ?? false,
+          noAdserving: item.noadserving ?? false,
           deliverables: burst.calculatedValue ?? 0,
           buyType: item.buyType
         };

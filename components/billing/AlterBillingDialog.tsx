@@ -203,7 +203,7 @@ export function AlterBillingDialog({
             <p className="mt-1 text-sm text-muted-foreground">
               Shift amounts between months and line items. The grand total must remain the same as the
               original (±{currencyFormatter.format(GRAND_TOTAL_TOLERANCE)}). Saving will patch this
-              version's billing schedule in place — no new version will be created.
+              version&apos;s billing schedule in place — no new version will be created.
             </p>
           </div>
           <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-4">
