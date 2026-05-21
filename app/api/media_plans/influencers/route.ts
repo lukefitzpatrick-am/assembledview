@@ -1,8 +1,13 @@
 import { NextResponse } from 'next/server';
 import axios from "axios";
 import { fetchAllXanoPages } from '@/lib/api/xanoPagination';
+import { lineItemPaginationParams } from '@/lib/api/mediaPlanLineItemQuery';
 import { filterLineItemsByPlanNumber } from '@/lib/api/mediaPlanVersionHelper';
 import { xanoUrl } from '@/lib/api/xano';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const maxDuration = 60;
 
 // Interface matching the Xano database schema for media_plan_influencers
 interface InfluencersData {
@@ -172,10 +177,11 @@ export async function GET(request: Request) {
     const baseUrl = xanoUrl("media_plan_influencers", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]);
 
     console.log(`[INFLUENCERS] Fetching from media_plan_influencers table with pagination`);
+    console.log(`[INFLUENCERS] Strategy: Filtered at Xano via mba_number + version_number (with JS safety filter for legacy data)`);
 
     const data = await fetchAllXanoPages(
       baseUrl,
-      { mba_number: mbaNumber },
+      lineItemPaginationParams(mbaNumber, versionNumber),
       "INFLUENCERS"
     );
 

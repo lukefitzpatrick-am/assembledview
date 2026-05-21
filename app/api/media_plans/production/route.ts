@@ -1,9 +1,11 @@
-"use server"
-
 import { NextResponse } from "next/server";
 import axios from "axios";
 import { getVersionNumberForMBA, filterLineItemsByPlanNumber } from "@/lib/api/mediaPlanVersionHelper";
 import { xanoUrl } from "@/lib/api/xano";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const maxDuration = 60;
 
 export async function GET(request: Request) {
   try {
@@ -35,12 +37,17 @@ export async function GET(request: Request) {
       );
     }
 
+    // NOTE: production's Xano endpoint filters by mba_number only — version_number
+    // is sent here for forward-compatibility but Xano ignores it. Production line
+    // items render across all versions of a campaign until the schema gains an
+    // mp_plannumber column (tracked as Domain 4 deferred work). See
+    // AUDIT_DOMAIN_4_KNOWN_ISSUES.md.
     const params = new URLSearchParams();
     params.append("mba_number", mbaNumber);
-    if (versionNumber) {
-      params.append("mp_plannumber", versionNumber);
-      params.append("version_number", versionNumber);
-      params.append("media_plan_version", versionNumber);
+    if (versionNumber !== undefined && versionNumber !== null && String(versionNumber).trim() !== '') {
+      params.append("version_number", String(versionNumber));
+      params.append("mp_plannumber", String(versionNumber));
+      params.append("media_plan_version", String(versionNumber));
     }
 
     const url = `${xanoUrl("media_plan_production", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?${params.toString()}`;
@@ -49,10 +56,18 @@ export async function GET(request: Request) {
       Accept: "application/json",
     };
 
+    console.log(`[PRODUCTION] Fetching from media_plan_production table`);
+    console.log(`[PRODUCTION] Strategy: MBA-wide at Xano (version_number sent for forward-compat; JS filter + MBA fallback)`);
+    console.log(`[PRODUCTION] API URL: ${url}`);
+
     const response = await axios.get(url, { headers, timeout: 10000 });
     const data = Array.isArray(response.data) ? response.data : [];
 
+    console.log(`[PRODUCTION] Raw response data count:`, data.length);
+
     const filteredData = filterLineItemsByPlanNumber(data, mbaNumber, versionNumber, "PRODUCTION");
+
+    console.log(`[PRODUCTION] Final filtered data count: ${filteredData.length} (from ${data.length} total items)`);
 
     // If version metadata is missing in Xano, fall back to returning all rows for the MBA
     if (filteredData.length === 0) {
