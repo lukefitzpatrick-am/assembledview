@@ -13,8 +13,11 @@ import { fetchRelevantPlanVersionsForFinanceMonth } from "@/lib/finance/relevant
 import { getCachedClients, getCachedPublishers } from "@/lib/finance/xanoReferenceCache"
 import type { BillingRecord } from "@/lib/types/financeBilling"
 import {
-  applyHubBillingRecordFilters,
-  filterPlanVersionsByIncludeDrafts,
+  filterByBillingTypes,
+  filterByClients,
+  filterByPublisherIds,
+  filterBySearch,
+  filterByStatuses,
 } from "@/lib/finance/filterBillingRecords"
 import { financeClientNamesMatch } from "@/lib/finance/utils"
 
@@ -118,10 +121,7 @@ export async function GET(request: NextRequest) {
         )
       }
       // Hydration removed because it caused Vercel FUNCTION_INVOCATION_TIMEOUT by fanning out across 19 Xano line-item endpoints per version.
-      relevantVersions = filterPlanVersionsByIncludeDrafts(
-        versionsResult.relevantVersions as Record<string, unknown>[],
-        includeNonBooked
-      )
+      relevantVersions = versionsResult.relevantVersions as Record<string, unknown>[]
     } catch (e: unknown) {
       const ax = axios.isAxiosError(e)
       const status =
@@ -197,17 +197,16 @@ export async function GET(request: NextRequest) {
     }
     let merged = [...byReceivableKey.values()].filter((r) => r.billing_month === monthStr)
 
-    merged = applyHubBillingRecordFilters(
-      merged,
-      {
-        clientsIdCsv: incoming.get("clients_id"),
-        search: incoming.get("search"),
-        statusCsv: incoming.get("status"),
-        publishersIdCsv: incoming.get("publishers_id"),
-        billingTypes: parsedTypes.types,
-      },
-      publisherIdMap
-    )
+    const clientsIdParam = incoming.get("clients_id")
+    const searchParam = incoming.get("search")
+    const statusParam = incoming.get("status")
+    const publishersIdParam = incoming.get("publishers_id")
+
+    merged = filterByClients(merged, clientsIdParam)
+    merged = filterBySearch(merged, searchParam)
+    merged = filterByStatuses(merged, statusParam)
+    merged = filterByPublisherIds(merged, publishersIdParam, publisherIdMap)
+    merged = filterByBillingTypes(merged, parsedTypes.types)
 
     return NextResponse.json({ records: merged })
   } catch (error: unknown) {

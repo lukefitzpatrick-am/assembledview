@@ -1,9 +1,13 @@
 import type { BillingRecord, BillingType } from "@/lib/types/financeBilling"
 
-export function filterBillingRecordsByClients(
-  rows: BillingRecord[],
-  clientsIdCsv: string | null
-): BillingRecord[] {
+/**
+ * Shared post-derive filters for finance hub list APIs (`GET /api/finance/billing`,
+ * `GET /api/finance/payables`). Single source of truth for hub query-param filtering
+ * after records are built from plans, scopes, or delivery schedules.
+ */
+
+/** Keep rows whose `clients_id` is in the comma-separated id list; empty input = no filter. */
+export function filterByClients(rows: BillingRecord[], clientsIdCsv: string | null): BillingRecord[] {
   const ids = (clientsIdCsv || "")
     .split(",")
     .map((s) => s.trim())
@@ -13,10 +17,8 @@ export function filterBillingRecordsByClients(
   return rows.filter((r) => want.has(String(r.clients_id)))
 }
 
-export function filterBillingRecordsBySearch(
-  rows: BillingRecord[],
-  search: string | null
-): BillingRecord[] {
+/** Case-insensitive substring match across client, campaign, status, and line item text. */
+export function filterBySearch(rows: BillingRecord[], search: string | null): BillingRecord[] {
   const q = (search || "").trim().toLowerCase()
   if (!q) return rows
   return rows.filter((r) => {
@@ -34,10 +36,8 @@ export function filterBillingRecordsBySearch(
   })
 }
 
-export function filterBillingRecordsByStatuses(
-  rows: BillingRecord[],
-  statusCsv: string | null
-): BillingRecord[] {
+/** Keep rows whose `status` is in the comma-separated list; empty input = no filter. */
+export function filterByStatuses(rows: BillingRecord[], statusCsv: string | null): BillingRecord[] {
   const parts = (statusCsv || "")
     .split(",")
     .map((s) => s.trim())
@@ -47,7 +47,8 @@ export function filterBillingRecordsByStatuses(
   return rows.filter((r) => want.has(r.status))
 }
 
-export function filterBillingRecordsByPublisherIds(
+/** Map publisher ids to names; retainer and SOW rows always pass when filter is active. */
+export function filterByPublisherIds(
   rows: BillingRecord[],
   publisherIdsCsv: string | null,
   publisherIdMap: Map<number, string>
@@ -72,10 +73,8 @@ export function filterBillingRecordsByPublisherIds(
   })
 }
 
-export function filterBillingRecordsByBillingTypes(
-  rows: BillingRecord[],
-  types: BillingType[]
-): BillingRecord[] {
+/** Keep rows whose `billing_type` is in `types`; empty `types` = no filter. */
+export function filterByBillingTypes(rows: BillingRecord[], types: BillingType[]): BillingRecord[] {
   if (types.length === 0) return rows
   const want = new Set(types)
   return rows.filter((r) => want.has(r.billing_type))
@@ -101,16 +100,17 @@ export type HubBillingRecordFilterParams = {
   billingTypes: BillingType[]
 }
 
+/** Apply hub post-derive filters in billing-route order (used by payables route). */
 export function applyHubBillingRecordFilters(
   rows: BillingRecord[],
   params: HubBillingRecordFilterParams,
   publisherIdMap: Map<number, string>
 ): BillingRecord[] {
-  let out = rows
-  out = filterBillingRecordsByClients(out, params.clientsIdCsv)
-  out = filterBillingRecordsBySearch(out, params.search)
-  out = filterBillingRecordsByStatuses(out, params.statusCsv)
-  out = filterBillingRecordsByPublisherIds(out, params.publishersIdCsv, publisherIdMap)
-  out = filterBillingRecordsByBillingTypes(out, params.billingTypes)
-  return out
+  let merged = rows
+  merged = filterByClients(merged, params.clientsIdCsv)
+  merged = filterBySearch(merged, params.search)
+  merged = filterByStatuses(merged, params.statusCsv)
+  merged = filterByPublisherIds(merged, params.publishersIdCsv, publisherIdMap)
+  merged = filterByBillingTypes(merged, params.billingTypes)
+  return merged
 }

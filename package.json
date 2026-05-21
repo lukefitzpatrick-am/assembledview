@@ -15,7 +15,7 @@
     "test:expert-mappings": "tsx --test tests/lib/expertChannelMappings.test.ts",
     "test:expert-paste": "node --loader ts-node/esm tests/lib/expertGridPaste.test.ts",
     "test:finance-forecast": "tsx --test tests/finance/buildFinanceForecastDataset.test.ts tests/finance/varianceEngine.test.ts",
-    "test:finance-filters": "tsx --test tests/finance/filterBillingRecords.test.ts",
+    "test:finance-filters": "tsx --test lib/finance/__tests__/filterBillingRecords.test.ts",
     "snowflake:migrate:pacing": "tsx scripts/snowflake/run-pacing-migrations.ts",
     "pacing:backfill:search-mappings": "tsx scripts/pacing/backfill-search-mappings.ts",
     "test:kpi-resolve": "tsx --test lib/kpi/__tests__/resolve.test.ts",
