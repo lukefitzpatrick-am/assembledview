@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server"
 import { normaliseLineItemsByType } from "@/lib/mediaplan/normalizeLineItem"
+
+export const dynamic = "force-dynamic"
+export const revalidate = 0
+export const maxDuration = 60
 import { parseDateOnlyString } from "@/lib/timezone"
 import { roundMoney4 } from "@/lib/format/money"
 

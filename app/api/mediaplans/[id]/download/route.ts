@@ -2,6 +2,10 @@ import { NextResponse } from "next/server"
 import axios from "axios"
 import { xanoUrl } from "@/lib/api/xano"
 
+export const dynamic = "force-dynamic"
+export const revalidate = 0
+export const maxDuration = 60
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }

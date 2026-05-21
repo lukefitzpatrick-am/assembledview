@@ -280,6 +280,7 @@ function emptyDashboardForKnownClient(
     spendByMediaType: [],
     spendByCampaign: [],
     monthlySpend: fyMonths.map((month) => ({ month, data: [] })),
+    monthlySpendByCampaign: fyMonths.map((month) => ({ month, data: [] })),
   }
 }
 
@@ -326,6 +327,7 @@ function buildClientDashboardDataFromVersions(
         spendByMediaType: [],
         spendByCampaign: [],
         monthlySpend: fyMonths.map((month) => ({ month, data: [] })),
+        monthlySpendByCampaign: fyMonths.map((month) => ({ month, data: [] })),
       }
     }
 
@@ -483,7 +485,11 @@ function buildClientDashboardDataFromVersions(
     const deliveryMediaTypeSpend: Record<string, number> = {}
     const deliveryCampaignSpend: Record<string, number> = {}
     const deliveryMonthlyMap: Record<string, Record<string, number>> = {}
-    fyMonths.forEach(month => { deliveryMonthlyMap[month] = {} })
+    const deliveryMonthlyCampaignMap: Record<string, Record<string, number>> = {}
+    fyMonths.forEach(month => {
+      deliveryMonthlyMap[month] = {}
+      deliveryMonthlyCampaignMap[month] = {}
+    })
     const monthLabelFromDate = (date: Date) => fyMonths[(date.getMonth() + 12 - 6) % 12]
 
     bookedApprovedCampaigns.forEach((campaign) => {
@@ -505,6 +511,8 @@ function buildClientDashboardDataFromVersions(
             const campaignKey = campaign.campaignName || campaign.mbaNumber || 'Campaign'
             deliveryCampaignSpend[campaignKey] = (deliveryCampaignSpend[campaignKey] || 0) + amount
             deliveryMonthlyMap[monthLabel]['Unspecified'] = (deliveryMonthlyMap[monthLabel]['Unspecified'] || 0) + amount
+            deliveryMonthlyCampaignMap[monthLabel][campaignKey] =
+              (deliveryMonthlyCampaignMap[monthLabel][campaignKey] || 0) + amount
           }
           return
         }
@@ -527,6 +535,8 @@ function buildClientDashboardDataFromVersions(
           deliveryCampaignSpend[campaignKey] = (deliveryCampaignSpend[campaignKey] || 0) + totalForType
 
           deliveryMonthlyMap[monthLabel][mediaTypeLabel] = (deliveryMonthlyMap[monthLabel][mediaTypeLabel] || 0) + totalForType
+          deliveryMonthlyCampaignMap[monthLabel][campaignKey] =
+            (deliveryMonthlyCampaignMap[monthLabel][campaignKey] || 0) + totalForType
         })
       })
     })
@@ -592,10 +602,27 @@ function buildClientDashboardDataFromVersions(
         .filter(item => item.amount > 0)
     }))
 
+    let monthlySpendByCampaign: Array<{
+      month: string
+      data: Array<{
+        campaignName: string
+        amount: number
+      }>
+    }> = fyMonths.map(month => ({
+      month,
+      data: Object.entries(deliveryMonthlyCampaignMap[month] || {})
+        .map(([campaignName, amount]) => ({ campaignName, amount }))
+        .filter(item => item.amount > 0)
+    }))
+
     // Ensure charts only show booked media types/campaigns with spend in the FY
     spendByMediaType = spendByMediaType.filter(item => item.amount > 0)
     spendByCampaign = spendByCampaign.filter(item => item.amount > 0)
     monthlySpend = monthlySpend.map(month => ({
+      month: month.month,
+      data: (month.data || []).filter(item => item.amount > 0)
+    }))
+    monthlySpendByCampaign = monthlySpendByCampaign.map(month => ({
       month: month.month,
       data: (month.data || []).filter(item => item.amount > 0)
     }))
@@ -612,7 +639,8 @@ function buildClientDashboardDataFromVersions(
       completedCampaignsList,
       spendByMediaType,
       spendByCampaign,
-      monthlySpend
+      monthlySpend,
+      monthlySpendByCampaign
     }
 
     console.log('Dashboard data built for client:', clientName, {

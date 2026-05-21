@@ -40,7 +40,7 @@ export type DonutChartProps = {
   height?: number
 }
 
-type DonutSlice = {
+export type DonutSlice = {
   key: string
   value: number
   percentage: number
@@ -84,7 +84,7 @@ function renderActiveShape(props: ActiveShapeProps) {
   )
 }
 
-function buildSlices(
+export function buildDonutSlices(
   raw: DonutChartDatum[] | undefined,
   maxSlices: number,
   topNBeforeOther: number,
@@ -151,7 +151,7 @@ export function DonutChart({
     ((_: string, index: number) => palette[index % palette.length] ?? "hsl(var(--muted-foreground))")
 
   const { slices, total, labelsByKey } = useMemo(
-    () => buildSlices(data, maxSlices, topNBeforeOther),
+    () => buildDonutSlices(data, maxSlices, topNBeforeOther),
     [data, maxSlices, topNBeforeOther],
   )
 

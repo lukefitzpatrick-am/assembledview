@@ -67,6 +67,8 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Table, TableBody, TableCell, TableHeader, TableRow, TableHead, TableFooter } from "@/components/ui/table"
 import { toast } from "@/components/ui/use-toast"
 import { SavingModal, type SaveStatusItem } from "@/components/ui/saving-modal"
+import { MediaPlanLoadModal } from "@/components/mediaplans/MediaPlanLoadModal"
+import { MediaPlanLoadStatusPill } from "@/components/mediaplans/MediaPlanLoadStatusPill"
 import { OutcomeModal } from "@/components/outcome-modal"
 import { useUnsavedChangesPrompt } from "@/hooks/use-unsaved-changes-prompt"
 import { 
@@ -1245,6 +1247,9 @@ const mediaTypes: Array<{
   { name: 'mp_production', label: "Production", component: ProductionContainer },
 ];
 
+type MediaLoadStatus = "idle" | "loading" | "ready" | "error"
+type LoadPhase = "bootstrapping" | "loadingLineItems" | "ready" | "error"
+
 // Media key map for billing schedule
 const mediaKeyMap: { [key: string]: string } = {
   mp_search: 'search',
@@ -1278,6 +1283,10 @@ function setIfChanged<T>(setter: Dispatch<SetStateAction<T>>, next: T): boolean 
   })
   return didChange
 }
+
+const LINE_ITEM_TIMEOUT_INITIAL_MS = 30_000
+const LINE_ITEM_TIMEOUT_AUTO_RETRY_MS = 90_000
+const LINE_ITEM_TIMEOUT_MANUAL_RETRY_MS = 180_000
 
 export default function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) {
   // Use React's use() hook to unwrap the params Promise
@@ -1716,6 +1725,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   )
   const [error, setError] = useState<string | null>(null)
   const [mediaPlan, setMediaPlan] = useState<any>(null)
+  const [loadPhase, setLoadPhase] = useState<LoadPhase>("bootstrapping")
+  const [lineItemLoadItems, setLineItemLoadItems] = useState<SaveStatusItem[]>([])
+  const [mediaLoadStatus, setMediaLoadStatus] = useState<Partial<Record<MediaTypeKey, MediaLoadStatus>>>({})
   const [loading, setLoading] = useState(true)
   const [isNamingDownloading, setIsNamingDownloading] = useState(false)
   const [searchLineItems, setSearchLineItems] = useState<any[]>([])
@@ -1957,12 +1969,35 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const hasSaveErrors = saveStatus.some(item => item.status === 'error')
   const shouldShowSaveModal = isSaveModalOpen && (isSaving || hasSaveErrors || saveStatus.length > 0)
 
+  const updateLoadStatus = useCallback(
+    (name: string, status: SaveStatusItem['status'], error?: string) => {
+      setLineItemLoadItems((prev) => {
+        const existing = prev.find((item) => item.name === name)
+        if (!existing) {
+          return [...prev, { name, status, error }]
+        }
+        return prev.map((item) =>
+          item.name === name ? { ...item, status, error } : item
+        )
+      })
+    },
+    []
+  )
+
+  const hasLoadErrors = lineItemLoadItems.some((item) => item.status === 'error')
+
   useEffect(() => {
     if (!isSaving && isSaveModalOpen && saveStatus.length > 0 && !hasSaveErrors) {
       setIsSaveModalOpen(false)
       setSaveStatus([])
     }
   }, [hasSaveErrors, isSaveModalOpen, isSaving, saveStatus])
+
+  useEffect(() => {
+    if (loadPhase === 'ready' && !isLoading && lineItemLoadItems.length > 0 && !hasLoadErrors) {
+      setLineItemLoadItems([])
+    }
+  }, [hasLoadErrors, isLoading, lineItemLoadItems.length, loadPhase])
 
   const handleCloseSaveModal = useCallback(() => {
     if (isSaving) return
@@ -2375,6 +2410,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       
       // Reset state when MBA number changes to ensure fresh data
       setLoading(true)
+      setLoadPhase("bootstrapping")
+      setLineItemLoadItems([{ name: "Campaign details", status: "pending" }])
+      setMediaLoadStatus({})
       setError(null)
       setMediaPlan(null)
       
@@ -2458,7 +2496,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         const timestamp = Date.now()
         // Include version parameter if available
         const versionParam = versionNumber ? `&version=${encodeURIComponent(versionNumber)}` : ''
-        const apiUrl = `/api/mediaplans/mba/${encodeURIComponent(mbaNumber)}?t=${timestamp}&billingScheduleFull=1${versionParam}`
+        const apiUrl = `/api/mediaplans/mba/${encodeURIComponent(mbaNumber)}?t=${timestamp}&skipLineItems=true&billingScheduleFull=1${versionParam}`
         console.log(`[FETCH] Calling API: ${apiUrl}`)
         
         const response = await fetch(apiUrl, {
@@ -2572,6 +2610,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           setModalLoading(false)
           
           setError(errorMessage)
+          setLoadPhase("error")
           setLoading(false)
           setIsLoading(false) // Also set isLoading to false
           return
@@ -2814,128 +2853,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           applyClientFees(clientData)
         }
         
-        // Load line items from API response if available, otherwise they'll be loaded in the useEffect
-        if (data.lineItems && typeof data.lineItems === 'object' && !isCancelled) {
-          console.log("[DATA LOAD] Loading line items from API response")
-          try {
-            // Use version from API response (which should match requested version), with fallbacks
-            const versionForFiltering =
-              data.version_number?.toString() ||
-              versionNumber?.toString() ||
-              (loadedVersionNumber ?? 1).toString()
-            console.log(`[DATA LOAD] Filtering line items with version: ${versionForFiltering} (from ${data.version_number ? 'API response' : versionNumber ? 'query params' : 'fallback'})`)
-            
-            // Map API line items to state setters with filtering
-            if (data.lineItems.television) {
-              const filtered = filterLineItemsByPlanNumber(data.lineItems.television, mbaNumber, versionForFiltering, 'television')
-              setTelevisionLineItems(filtered)
-            }
-            if (data.lineItems.radio) {
-              // Only hydrate Radio state if Radio is enabled for this version.
-              // This prevents loading/processing radio rows when mp_radio is false/missing.
-              const radioEnabled =
-                Boolean(formData?.mp_radio) ||
-                Boolean(data?.mp_radio) ||
-                Boolean((data as any)?.mpRadio)
-
-              if (radioEnabled) {
-                const filtered = filterLineItemsByPlanNumber(data.lineItems.radio, mbaNumber, versionForFiltering, 'radio')
-                setRadioLineItems(filtered)
-              } else {
-                setRadioLineItems([])
-              }
-            }
-            if (data.lineItems.newspaper) {
-              const filtered = filterLineItemsByPlanNumber(data.lineItems.newspaper, mbaNumber, versionForFiltering, 'newspaper')
-              setNewspaperLineItems(filtered)
-            }
-            if (data.lineItems.magazines) {
-              const filtered = filterLineItemsByPlanNumber(data.lineItems.magazines, mbaNumber, versionForFiltering, 'magazines')
-              setMagazinesLineItems(filtered)
-            }
-            if (data.lineItems.ooh) {
-              const filtered = filterLineItemsByPlanNumber(data.lineItems.ooh, mbaNumber, versionForFiltering, 'ooh')
-              setOohLineItems(filtered)
-            }
-            if (data.lineItems.cinema) {
-              const filtered = filterLineItemsByPlanNumber(data.lineItems.cinema, mbaNumber, versionForFiltering, 'cinema')
-              setCinemaLineItems(filtered)
-            }
-            if (data.lineItems.digitalDisplay) {
-              const filtered = filterLineItemsByPlanNumber(data.lineItems.digitalDisplay, mbaNumber, versionForFiltering, 'digitalDisplay')
-              setDigitalDisplayLineItems(filtered)
-            }
-            if (data.lineItems.digitalAudio) {
-              const filtered = filterLineItemsByPlanNumber(data.lineItems.digitalAudio, mbaNumber, versionForFiltering, 'digitalAudio')
-              setDigitalAudioLineItems(filtered)
-            }
-            if (data.lineItems.digitalVideo) {
-              const filtered = filterLineItemsByPlanNumber(data.lineItems.digitalVideo, mbaNumber, versionForFiltering, 'digitalVideo')
-              setDigitalVideoLineItems(filtered)
-            }
-            if (data.lineItems.bvod) {
-              const filtered = filterLineItemsByPlanNumber(data.lineItems.bvod, mbaNumber, versionForFiltering, 'bvod')
-              setBvodLineItems(filtered)
-            }
-            if (data.lineItems.integration) {
-              const filtered = filterLineItemsByPlanNumber(data.lineItems.integration, mbaNumber, versionForFiltering, 'integration')
-              setIntegrationLineItems(filtered)
-            }
-            const productionLineItems =
-              data.lineItems.production ||
-              data.lineItems.consulting ||
-              data.lineItems.contentCreator ||
-              data.lineItems.mp_production ||
-              data.lineItems.fixedfee
-            if (productionLineItems) {
-              const filtered = filterLineItemsByPlanNumber(productionLineItems, mbaNumber, versionForFiltering, 'production')
-              setProductionLineItems(filtered)
-              // Auto-enable Production toggle when saved items are present so the container renders
-              if (filtered.length > 0 && !form.getValues('mp_production')) {
-                form.setValue('mp_production', true, { shouldDirty: false })
-              }
-            }
-            if (data.lineItems.search) {
-              const filtered = filterLineItemsByPlanNumber(data.lineItems.search, mbaNumber, versionForFiltering, 'search')
-              setSearchLineItems(filtered)
-            }
-            if (data.lineItems.socialMedia) {
-              const filtered = filterLineItemsByPlanNumber(data.lineItems.socialMedia, mbaNumber, versionForFiltering, 'socialMedia')
-              setSocialMediaLineItems(filtered)
-            }
-            if (data.lineItems.progDisplay) {
-              const filtered = filterLineItemsByPlanNumber(data.lineItems.progDisplay, mbaNumber, versionForFiltering, 'progDisplay')
-              setProgDisplayLineItems(filtered)
-            }
-            if (data.lineItems.progVideo) {
-              const filtered = filterLineItemsByPlanNumber(data.lineItems.progVideo, mbaNumber, versionForFiltering, 'progVideo')
-              setProgVideoLineItems(filtered)
-            }
-            if (data.lineItems.progBvod) {
-              const filtered = filterLineItemsByPlanNumber(data.lineItems.progBvod, mbaNumber, versionForFiltering, 'progBvod')
-              setProgBvodLineItems(filtered)
-            }
-            if (data.lineItems.progAudio) {
-              const filtered = filterLineItemsByPlanNumber(data.lineItems.progAudio, mbaNumber, versionForFiltering, 'progAudio')
-              setProgAudioLineItems(filtered)
-            }
-            if (data.lineItems.progOoh) {
-              const filtered = filterLineItemsByPlanNumber(data.lineItems.progOoh, mbaNumber, versionForFiltering, 'progOoh')
-              setProgOohLineItems(filtered)
-            }
-            if (data.lineItems.influencers) {
-              const filtered = filterLineItemsByPlanNumber(data.lineItems.influencers, mbaNumber, versionForFiltering, 'influencers')
-              setInfluencersLineItems(filtered)
-            }
-            console.log("[DATA LOAD] Line items loaded from API response and filtered")
-          } catch (lineItemsError) {
-            console.error("[DATA LOAD] Error loading line items from API:", lineItemsError)
-          }
-        }
-        
         if (!isCancelled) {
+          updateLoadStatus("Campaign details", "success")
+          setLoadPhase("loadingLineItems")
           setLoading(false)
-          setIsLoading(false) // Also set isLoading to false so buttons are enabled
+          setIsLoading(true)
         }
       } catch (error) {
         if (isCancelled) return
@@ -2945,6 +2867,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         setModalOpen(true)
         setModalLoading(false)
         setError("Failed to fetch media plan")
+        setLoadPhase("error")
         setLoading(false)
         setIsLoading(false) // Also set isLoading to false
       }
@@ -2955,7 +2878,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     return () => {
       isCancelled = true
     }
-  }, [applyClientFees, form, mbaNumber, versionNumber, setContextMbaNumber])
+  }, [applyClientFees, form, mbaNumber, updateLoadStatus, versionNumber, setContextMbaNumber])
 
   // Fetch clients
   useEffect(() => {
@@ -3056,14 +2979,105 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const lastLineItemsLoadKeyRef = useRef("")
   const lastCampaignDatesRef = useRef<{ start: string; end: string } | null>(null)
 
-  // Load all line items immediately for enabled media types when media plan is loaded
-  useEffect(() => {
-    const loadAllLineItems = async () => {
-      if (!mbaNumber || !mediaPlan?.version_number) {
-        return
-      }
+  const lineItemLoaderConfig = useMemo(
+    () =>
+      ({
+        mp_television: { fetchFn: getTelevisionLineItemsByMBA, setter: setTelevisionLineItems },
+        mp_radio: { fetchFn: getRadioLineItemsByMBA, setter: setRadioLineItems },
+        mp_newspaper: { fetchFn: getNewspaperLineItemsByMBA, setter: setNewspaperLineItems },
+        mp_magazines: { fetchFn: getMagazinesLineItemsByMBA, setter: setMagazinesLineItems },
+        mp_ooh: { fetchFn: getOOHLineItemsByMBA, setter: setOohLineItems },
+        mp_cinema: { fetchFn: getCinemaLineItemsByMBA, setter: setCinemaLineItems },
+        mp_digidisplay: { fetchFn: getDigitalDisplayLineItemsByMBA, setter: setDigitalDisplayLineItems },
+        mp_digiaudio: { fetchFn: getDigitalAudioLineItemsByMBA, setter: setDigitalAudioLineItems },
+        mp_digivideo: { fetchFn: getDigitalVideoLineItemsByMBA, setter: setDigitalVideoLineItems },
+        mp_bvod: { fetchFn: getBVODLineItemsByMBA, setter: setBvodLineItems },
+        mp_integration: { fetchFn: getIntegrationLineItemsByMBA, setter: setIntegrationLineItems },
+        mp_production: { fetchFn: getProductionLineItemsByMBA, setter: setProductionLineItems },
+        mp_search: { fetchFn: getSearchLineItemsByMBA, setter: setSearchLineItems },
+        mp_socialmedia: { fetchFn: getSocialMediaLineItemsByMBA, setter: setSocialMediaLineItems },
+        mp_progdisplay: { fetchFn: getProgDisplayLineItemsByMBA, setter: setProgDisplayLineItems },
+        mp_progvideo: { fetchFn: getProgVideoLineItemsByMBA, setter: setProgVideoLineItems },
+        mp_progbvod: { fetchFn: getProgBVODLineItemsByMBA, setter: setProgBvodLineItems },
+        mp_progaudio: { fetchFn: getProgAudioLineItemsByMBA, setter: setProgAudioLineItems },
+        mp_progooh: { fetchFn: getProgOOHLineItemsByMBA, setter: setProgOohLineItems },
+        mp_influencers: { fetchFn: getInfluencersLineItemsByMBA, setter: setInfluencersLineItems },
+      }) as Record<
+        MediaTypeKey,
+        {
+          fetchFn: (mba: string, version?: number, timeoutMs?: number) => Promise<any[]>
+          setter: Dispatch<SetStateAction<any[]>>
+        }
+      >,
+    []
+  )
 
-      const versionToUseEarly =
+  const loadSingleMediaTypeLineItems = useCallback(
+    async (flag: MediaTypeKey, versionToUse: number, timeoutMs?: number) => {
+      const config = lineItemLoaderConfig[flag]
+      if (!config) return
+
+      const { fetchFn, setter } = config
+      const items = await fetchFn(mbaNumber, versionToUse, timeoutMs)
+      const filteredItems = filterLineItemsByPlanNumber(
+        items,
+        mbaNumber,
+        versionToUse.toString(),
+        flag
+      )
+      const processedItems = filteredItems.map((item: any) => ({
+        ...item,
+        bursts_json: item.bursts_json || item.bursts || null,
+      }))
+      setter(processedItems)
+      if (flag === "mp_production" && processedItems.length > 0 && !form.getValues("mp_production")) {
+        form.setValue("mp_production", true, { shouldDirty: false })
+      }
+    },
+    [form, lineItemLoaderConfig, mbaNumber]
+  )
+
+  const retryMediaTypeLoad = useCallback(
+    async (flag: MediaTypeKey, label: string) => {
+      const versionToUse =
+        versionNumber != null && versionNumber !== ""
+          ? parseInt(String(versionNumber), 10)
+          : mediaPlan?.version_number != null
+            ? typeof mediaPlan.version_number === "string"
+              ? parseInt(mediaPlan.version_number, 10)
+              : Number(mediaPlan.version_number)
+            : NaN
+      if (!Number.isFinite(versionToUse)) return
+
+      setMediaLoadStatus((prev) => ({ ...prev, [flag]: "loading" }))
+      updateLoadStatus(label, "pending")
+      try {
+        await loadSingleMediaTypeLineItems(flag, versionToUse, LINE_ITEM_TIMEOUT_MANUAL_RETRY_MS)
+        setMediaLoadStatus((prev) => ({ ...prev, [flag]: "ready" }))
+        updateLoadStatus(label, "success")
+      } catch (err) {
+        console.warn(`[DATA LOAD] Manual retry failed for ${flag}:`, err)
+        lineItemLoaderConfig[flag]?.setter([])
+        setMediaLoadStatus((prev) => ({ ...prev, [flag]: "error" }))
+        updateLoadStatus(label, "error", "Failed to load line items")
+      }
+    },
+    [lineItemLoaderConfig, loadSingleMediaTypeLineItems, mediaPlan?.version_number, updateLoadStatus, versionNumber]
+  )
+
+  // Parallel line-item loads (same pattern as save) after campaign metadata loads
+  useEffect(() => {
+    if (loadPhase !== "loadingLineItems") {
+      return
+    }
+    if (!mbaNumber || mediaPlan?.version_number == null) {
+      return
+    }
+
+    let cancelled = false
+
+    const loadLineItemsInParallel = async () => {
+      const versionToUse =
         versionNumber != null && versionNumber !== ""
           ? typeof versionNumber === "string"
             ? parseInt(versionNumber, 10)
@@ -3074,94 +3088,124 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               : Number(mediaPlan.version_number)
             : NaN
 
-      if (!Number.isFinite(versionToUseEarly)) {
+      if (!Number.isFinite(versionToUse)) {
         return
       }
 
-      const loadKey = `${mbaNumber}|${versionToUseEarly}|${enabledMediaFlagsFingerprint}`
+      const loadKey = `${mbaNumber}|${versionToUse}|${enabledMediaFlagsFingerprint}`
       if (lastLineItemsLoadKeyRef.current === loadKey) {
         return
       }
       lastLineItemsLoadKeyRef.current = loadKey
 
-      console.log("[DATA LOAD] Loading line items for all enabled media types")
-
-      // Get enabled media types from form values directly (not form.watch which may not be reactive)
       const formValues = form.getValues()
-      const enabledFlags = [
-        { flag: 'mp_television', fetchFn: getTelevisionLineItemsByMBA, setter: setTelevisionLineItems, enabled: formValues.mp_television },
-        { flag: 'mp_radio', fetchFn: getRadioLineItemsByMBA, setter: setRadioLineItems, enabled: formValues.mp_radio },
-        { flag: 'mp_newspaper', fetchFn: getNewspaperLineItemsByMBA, setter: setNewspaperLineItems, enabled: formValues.mp_newspaper },
-        { flag: 'mp_magazines', fetchFn: getMagazinesLineItemsByMBA, setter: setMagazinesLineItems, enabled: formValues.mp_magazines },
-        { flag: 'mp_ooh', fetchFn: getOOHLineItemsByMBA, setter: setOohLineItems, enabled: formValues.mp_ooh },
-        { flag: 'mp_cinema', fetchFn: getCinemaLineItemsByMBA, setter: setCinemaLineItems, enabled: formValues.mp_cinema },
-        { flag: 'mp_digidisplay', fetchFn: getDigitalDisplayLineItemsByMBA, setter: setDigitalDisplayLineItems, enabled: formValues.mp_digidisplay },
-        { flag: 'mp_digiaudio', fetchFn: getDigitalAudioLineItemsByMBA, setter: setDigitalAudioLineItems, enabled: formValues.mp_digiaudio },
-        { flag: 'mp_digivideo', fetchFn: getDigitalVideoLineItemsByMBA, setter: setDigitalVideoLineItems, enabled: formValues.mp_digivideo },
-        { flag: 'mp_bvod', fetchFn: getBVODLineItemsByMBA, setter: setBvodLineItems, enabled: formValues.mp_bvod },
-        { flag: 'mp_integration', fetchFn: getIntegrationLineItemsByMBA, setter: setIntegrationLineItems, enabled: formValues.mp_integration },
-        { flag: 'mp_production', fetchFn: getProductionLineItemsByMBA, setter: setProductionLineItems, enabled: formValues.mp_production },
-        { flag: 'mp_search', fetchFn: getSearchLineItemsByMBA, setter: setSearchLineItems, enabled: formValues.mp_search },
-        { flag: 'mp_socialmedia', fetchFn: getSocialMediaLineItemsByMBA, setter: setSocialMediaLineItems, enabled: formValues.mp_socialmedia },
-        { flag: 'mp_progdisplay', fetchFn: getProgDisplayLineItemsByMBA, setter: setProgDisplayLineItems, enabled: formValues.mp_progdisplay },
-        { flag: 'mp_progvideo', fetchFn: getProgVideoLineItemsByMBA, setter: setProgVideoLineItems, enabled: formValues.mp_progvideo },
-        { flag: 'mp_progbvod', fetchFn: getProgBVODLineItemsByMBA, setter: setProgBvodLineItems, enabled: formValues.mp_progbvod },
-        { flag: 'mp_progaudio', fetchFn: getProgAudioLineItemsByMBA, setter: setProgAudioLineItems, enabled: formValues.mp_progaudio },
-        { flag: 'mp_progooh', fetchFn: getProgOOHLineItemsByMBA, setter: setProgOohLineItems, enabled: formValues.mp_progooh },
-        { flag: 'mp_influencers', fetchFn: getInfluencersLineItemsByMBA, setter: setInfluencersLineItems, enabled: formValues.mp_influencers },
-      ].filter(({ enabled }) => enabled)
+      const enabledInOrder = mediaTypes
+        .filter((medium) => formValues[medium.name])
+        .map((medium) => ({
+          flag: medium.name,
+          label: medium.label,
+          ...lineItemLoaderConfig[medium.name],
+        }))
 
-      if (enabledFlags.length === 0) {
+      if (enabledInOrder.length === 0) {
         console.log("[DATA LOAD] No enabled media types to load")
+        if (!cancelled) {
+          setLoadPhase("ready")
+          setIsLoading(false)
+        }
         return
       }
 
-      try {
-        const versionToUse = versionToUseEarly
-        
-        console.log(`[DATA LOAD] Loading line items with version: ${versionToUse} (from ${versionNumber ? 'query params' : 'mediaPlan'})`)
-        
-        const fetchPromises = enabledFlags.map(async ({ fetchFn, setter, flag }) => {
+      for (const { label } of enabledInOrder) {
+        updateLoadStatus(label, "pending")
+      }
+      const initialStatus: Partial<Record<MediaTypeKey, MediaLoadStatus>> = {}
+      enabledInOrder.forEach(({ flag }) => {
+        initialStatus[flag] = "loading"
+      })
+      setMediaLoadStatus(initialStatus)
+
+      console.log(
+        `[DATA LOAD] Parallel loading ${enabledInOrder.length} media types (version ${versionToUse})`
+      )
+
+      await Promise.all(
+        enabledInOrder.map(async ({ flag, label, fetchFn, setter }) => {
+          if (cancelled) return
+
+          const attemptFetch = async (timeoutMs: number) => {
+            const items = await fetchFn(mbaNumber, versionToUse, timeoutMs)
+            return items
+          }
+
           try {
-            const items = await fetchFn(mbaNumber, versionToUse)
-            console.log(`[DATA LOAD] ${flag} line items loaded:`, items.length, items)
-            
-            // Filter items to ensure they match both mba_number and version_number/mp_plannumber
+            let items: any[]
+            try {
+              items = await attemptFetch(LINE_ITEM_TIMEOUT_INITIAL_MS)
+            } catch (firstErr) {
+              if (cancelled) return
+              console.warn(`[DATA LOAD] First attempt failed for ${flag}, auto-retrying with longer timeout:`, firstErr)
+              // Silent auto-retry with longer timeout
+              items = await attemptFetch(LINE_ITEM_TIMEOUT_AUTO_RETRY_MS)
+            }
+            if (cancelled) return
+
             const filteredItems = filterLineItemsByPlanNumber(
               items,
               mbaNumber,
               versionToUse.toString(),
               flag
             )
-            
-            // Ensure all non-calculated fields are properly set
-            const processedItems = filteredItems.map((item: any) => {
-              // Ensure bursts_json is preserved for container parsing
-              // Containers will parse and populate bursts correctly
-              return {
-                ...item,
-                // Keep all original fields including bursts_json
-                bursts_json: item.bursts_json || item.bursts || null
-              }
-            })
+            const processedItems = filteredItems.map((item: any) => ({
+              ...item,
+              bursts_json: item.bursts_json || item.bursts || null,
+            }))
             setter(processedItems)
-            return { flag, success: true, count: processedItems.length }
-          } catch (error) {
-            console.warn(`[DATA LOAD] Error loading ${flag} line items:`, error)
+            if (
+              flag === "mp_production" &&
+              processedItems.length > 0 &&
+              !form.getValues("mp_production")
+            ) {
+              form.setValue("mp_production", true, { shouldDirty: false })
+            }
+
+            if (!cancelled) {
+              setMediaLoadStatus((prev) => ({ ...prev, [flag]: "ready" }))
+              updateLoadStatus(label, "success")
+              console.log(`[DATA LOAD] ${flag} loaded (${processedItems.length} items)`)
+            }
+          } catch (loadError) {
+            if (cancelled) return
+            console.warn(`[DATA LOAD] Both attempts failed for ${flag} line items:`, loadError)
             setter([])
-            return { flag, success: false, error }
+            setMediaLoadStatus((prev) => ({ ...prev, [flag]: "error" }))
+            updateLoadStatus(label, "error", "Failed to load line items")
           }
         })
+      )
 
-        const results = await Promise.all(fetchPromises)
-        console.log("[DATA LOAD] All line items loaded:", results)
-      } catch (error) {
-        console.error("[DATA LOAD] Error loading line items:", error)
+      if (!cancelled) {
+        setLoadPhase("ready")
+        setIsLoading(false)
+        console.log("[DATA LOAD] Parallel line item load complete")
       }
     }
 
-    loadAllLineItems()
-  }, [mbaNumber, mediaPlan?.version_number, versionNumber, enabledMediaFlagsFingerprint])
+    loadLineItemsInParallel()
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    enabledMediaFlagsFingerprint,
+    form,
+    lineItemLoaderConfig,
+    loadPhase,
+    mbaNumber,
+    mediaPlan?.version_number,
+    updateLoadStatus,
+    versionNumber,
+  ])
 
   const handleClientSelect = (client: Client | null) => {
     if (client) {
@@ -7538,18 +7582,51 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   }, [getPageContext]);
 
 
-  if (loading) {
+  if (loadPhase === "bootstrapping") {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <h2 className="text-2xl font-semibold mb-2">Loading...</h2>
-          <p className="text-muted-foreground">Please wait while we load your media plan.</p>
+      <div
+        className="w-full min-h-screen"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
+        <div className="mx-auto w-full max-w-[1920px] px-4 sm:px-5 md:px-6 xl:px-8 2xl:px-10 pt-0 pb-24 space-y-6">
+          <MediaPlanEditorHero
+            className="mb-2"
+            title="Edit Campaign"
+            detail={
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                <span>Loading campaign details…</span>
+              </div>
+            }
+          />
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 xl:gap-7 2xl:gap-8 xl:items-stretch">
+            <div className="flex h-full min-w-0 flex-col gap-4 overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm xl:col-span-2 min-h-[400px]">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
+                <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                  Campaign Details
+                </h3>
+              </div>
+              <div className="flex flex-1 items-center justify-center px-6 pb-6">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                  <span>Loading…</span>
+                </div>
+              </div>
+            </div>
+            <div className="flex h-full min-w-0 flex-col gap-4 overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm min-h-[400px]">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
+                <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                  Quick Actions
+                </h3>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     )
   }
 
-  if (error) {
+  if (loadPhase === "error" || error) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
@@ -8133,9 +8210,43 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               {/* Media Containers */}
               {mediaTypes.map((medium) => {
                 if (!mediaFlagMap[medium.name as MediaTypeKey]) return null;
+
+                const sectionStatus = mediaLoadStatus[medium.name as MediaTypeKey]
+                const showSectionLoader =
+                  loadPhase === "loadingLineItems" &&
+                  sectionStatus !== "ready" &&
+                  sectionStatus !== "error"
+                const showSectionError =
+                  sectionStatus === "error" ||
+                  (sectionStatus === "loading" && loadPhase !== "loadingLineItems")
                 
                 return (
                   <div key={medium.name} id={`media-section-${medium.name}`} className="mt-4 scroll-mt-24">
+                    {showSectionLoader && (
+                      <MediaContainerSuspenseFallback label={medium.label} />
+                    )}
+                    {showSectionError && (
+                      <div className="flex flex-col items-start gap-3 px-6 py-8">
+                        <p className="text-sm text-destructive">
+                          Failed to load {medium.label}. Other sections may still be available.
+                        </p>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => retryMediaTypeLoad(medium.name, medium.label)}
+                          disabled={mediaLoadStatus[medium.name as MediaTypeKey] === "loading"}
+                        >
+                          {mediaLoadStatus[medium.name as MediaTypeKey] === "loading"
+                            ? `Retrying ${medium.label}...`
+                            : `Retry ${medium.label}`}
+                        </Button>
+                        <p className="text-xs text-muted-foreground">
+                          Retry uses a longer timeout (3 minutes). The page will keep your other changes.
+                        </p>
+                      </div>
+                    )}
+                    {!showSectionLoader && !showSectionError && (
                     <Suspense fallback={<MediaContainerSuspenseFallback label={medium.label} />}>
                       {medium.name === "mp_television" && (
                         <TelevisionContainer
@@ -8483,6 +8594,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                         />
                       )}
                     </Suspense>
+                    )}
                   </div>
                 );
               })}
@@ -8546,6 +8658,24 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           </div>
         </DialogContent>
       </Dialog>
+
+      <MediaPlanLoadStatusPill
+        items={lineItemLoadItems}
+        isLoading={loadPhase === "loadingLineItems"}
+        onDismiss={() => {
+          setLineItemLoadItems((prev) => prev.filter((item) => item.status === "error"))
+        }}
+        onItemClick={(name) => {
+          // Find the matching mediaType by label and scroll to it
+          const match = mediaTypes.find((m) => m.label === name)
+          if (match) {
+            const el = document.getElementById(`media-section-${match.name}`)
+            if (el) {
+              el.scrollIntoView({ behavior: "smooth", block: "start" })
+            }
+          }
+        }}
+      />
 
       <SavingModal
         isOpen={shouldShowSaveModal}

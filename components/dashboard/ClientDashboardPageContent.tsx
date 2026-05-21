@@ -91,8 +91,6 @@ export function ClientDashboardPageContent({
   const [detailsModalOpen, setDetailsModalOpen] = useState(false)
   const [financeModalOpen, setFinanceModalOpen] = useState(false)
   const [kpisModalOpen, setKpisModalOpen] = useState(false)
-  const [spendingPeriod, setSpendingPeriod] = useState("month")
-
   const allCampaigns = useMemo(
     () =>
       [
@@ -298,11 +296,10 @@ export function ClientDashboardPageContent({
           <Suspense fallback={loadingFallback}>
             <SpendingInsightsSection
               monthlyData={clientData.monthlySpend}
+              monthlySpendByCampaign={clientData.monthlySpendByCampaign}
               campaignData={clientData.spendByCampaign}
               mediaTypeData={clientData.spendByMediaType}
               brandColour={clientData.brandColour}
-              defaultPeriod="month"
-              onPeriodChange={setSpendingPeriod}
             />
           </Suspense>
         </motion.section>
@@ -315,11 +312,6 @@ export function ClientDashboardPageContent({
           />
         </motion.section>
 
-        <motion.div variants={sectionVariants} className="mt-8 space-y-2 text-xs text-muted-foreground lg:mt-10">
-          <p>
-            Active chart period: <span className="font-medium text-foreground">{spendingPeriod}</span>
-          </p>
-        </motion.div>
       </motion.div>
 
       {isAdmin && (

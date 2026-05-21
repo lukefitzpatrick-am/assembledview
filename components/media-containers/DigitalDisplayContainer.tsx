@@ -418,6 +418,10 @@ export default function DigiDisplayContainer({
           clientPaysForMedia: false,
           budgetIncludesFees: false,
           noadserving: false,
+          ...(() => {
+            const id = buildLineItemId("", MEDIA_TYPE_ID_CODES.digitalDisplay, 1);
+            return { lineItemId: id, line_item_id: id, line_item: 1, lineItem: 1 };
+          })(),
           bursts: [
             {
               budget: "",
@@ -603,8 +607,15 @@ export default function DigiDisplayContainer({
       return;
     }
 
+    const nextNumber = (form.getValues("digidisplaylineItems") || []).length + 1;
+    const newId = buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.digitalDisplay, nextNumber);
+
     const clone = {
       ...source,
+      lineItemId: newId,
+      line_item_id: newId,
+      line_item: nextNumber,
+      lineItem: nextNumber,
       bursts: (source.bursts || []).map((burst: any) => ({
         ...burst,
         startDate: burst?.startDate ? new Date(burst.startDate) : new Date(),
@@ -615,7 +626,7 @@ export default function DigiDisplayContainer({
     };
 
     appendLineItem(clone);
-  }, [appendLineItem, form, toast]);
+  }, [appendLineItem, form, mbaNumber, toast]);
 
   // Watch hook
   const watchedLineItems = useWatch({ 
@@ -2026,6 +2037,11 @@ useEffect(() => {
                                                               clientPaysForMedia: false,
                                                               budgetIncludesFees: false,
                                                               noadserving: false,
+                                                              ...(() => {
+                                                                const nextNumber = lineItemFields.length + 1;
+                                                                const id = buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.digitalDisplay, nextNumber);
+                                                                return { lineItemId: id, line_item_id: id, line_item: nextNumber, lineItem: nextNumber };
+                                                              })(),
                                                               bursts: [
                                                                 {
                                                                   budget: "",
@@ -2036,6 +2052,9 @@ useEffect(() => {
                                                                   fee: 0,
                                                                 },
                                                               ],
+                                                              totalMedia: 0,
+                                                              totalDeliverables: 0,
+                                                              totalFee: 0,
                                                             })
                                                           }
                                                         >

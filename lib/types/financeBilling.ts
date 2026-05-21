@@ -55,6 +55,10 @@ export interface BillingRecord {
   clients_id: number
   client_name: string
   mba_number: string | null
+  /** Populated for synthetic `media` receivable rows derived from `media_plan_versions` (finance hub). */
+  media_plan_version_id?: number | null
+  /** Xano `version_number` for the row above; used with MBA GET `version=` when loading billing JSON. */
+  media_plan_version_number?: number | null
   campaign_name: string | null
   po_number: string | null
   billing_month: string

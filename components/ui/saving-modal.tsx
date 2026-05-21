@@ -18,13 +18,33 @@ interface SavingModalProps {
   items?: SaveStatusItem[];
   isSaving?: boolean;
   onClose?: () => void;
+  title?: string;
+  titleComplete?: string;
+  titleWithErrors?: string;
+  descriptionSaving?: string;
+  descriptionComplete?: string;
+  descriptionError?: string;
+  emptyStateLabel?: string;
 }
 
-export function SavingModal({ isOpen, items = [], isSaving = false, onClose }: SavingModalProps) {
+export function SavingModal({
+  isOpen,
+  items = [],
+  isSaving = false,
+  onClose,
+  title = "Saving Changes",
+  titleComplete = "Saving Complete",
+  titleWithErrors = "Saving with Errors",
+  descriptionSaving = "We are saving your changes. This may take a moment.",
+  descriptionComplete = "All sections have been processed.",
+  descriptionError = "Some sections failed to save. Review the errors below and fix them before retrying.",
+  emptyStateLabel = "Saving changes...",
+}: SavingModalProps) {
   const hasItems = items.length > 0;
   const allComplete = items.length > 0 && items.every(item => item.status !== 'pending');
   const hasErrors = items.some(item => item.status === 'error');
   const canClose = !isSaving;
+  const dialogTitle = hasErrors ? titleWithErrors : allComplete ? titleComplete : title;
 
   const handleClose = () => {
     if (!canClose) return;
@@ -43,16 +63,14 @@ export function SavingModal({ isOpen, items = [], isSaving = false, onClose }: S
       <DialogContent className="flex min-h-[200px] flex-col overflow-hidden border-2 border-secondary bg-background p-0 sm:max-w-[500px]">
         <div className="h-1 shrink-0 bg-gradient-to-r from-primary via-primary/70 to-primary/40" />
         <div className="flex flex-col gap-4 p-6">
-        <DialogTitle className="text-lg font-semibold">
-          {hasErrors ? "Saving with Errors" : allComplete ? "Saving Complete" : "Saving Changes"}
-        </DialogTitle>
+        <DialogTitle className="text-lg font-semibold">{dialogTitle}</DialogTitle>
         {hasItems && (
           <DialogDescription className={cn("text-sm", hasErrors ? "text-destructive" : "text-muted-foreground")}>
             {hasErrors
-              ? "Some sections failed to save. Review the errors below and fix them before retrying."
+              ? descriptionError
               : isSaving
-                ? "We are saving your changes. This may take a moment."
-                : "All sections have been processed."}
+                ? descriptionSaving
+                : descriptionComplete}
           </DialogDescription>
         )}
         
@@ -98,7 +116,7 @@ export function SavingModal({ isOpen, items = [], isSaving = false, onClose }: S
               className="h-16 w-16"
             />
             <DialogDescription className="text-lg font-semibold text-foreground">
-              Saving changes...
+              {emptyStateLabel}
             </DialogDescription>
           </div>
         )}

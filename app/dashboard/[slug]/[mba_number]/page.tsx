@@ -1,3 +1,5 @@
+export const maxDuration = 60
+
 import CampaignPageAssembly from "./components/CampaignPageAssembly"
 import { fetchVersionsForMba } from "@/lib/api/dashboard"
 import { auth0 } from "@/lib/auth0"

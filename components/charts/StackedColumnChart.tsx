@@ -46,6 +46,10 @@ export type StackedColumnChartProps = {
    * series visibility.
    */
   filterViaLegend?: boolean
+  legendVerticalAlign?: "top" | "bottom"
+  /** Controlled legend visibility (e.g. for CSV export of visible series). */
+  hiddenKeys?: Set<string>
+  onHiddenKeysChange?: (next: Set<string>) => void
 }
 
 type BarSegClick = { payload?: ChartStackedColumnRow; value?: number | [number, number] }
@@ -60,19 +64,32 @@ export function StackedColumnChart({
   onDatumClick,
   getDatumId,
   filterViaLegend = false,
+  legendVerticalAlign = "top",
+  hiddenKeys: hiddenKeysProp,
+  onHiddenKeysChange,
 }: StackedColumnChartProps) {
   const theme = useClientBrand()
   const palette = useMemo(() => getChartPalette(theme), [theme])
-  const [hidden, setHidden] = useState<Set<string>>(() => new Set())
+  const [hiddenInternal, setHiddenInternal] = useState<Set<string>>(() => new Set())
+  const isControlled = hiddenKeysProp !== undefined && onHiddenKeysChange !== undefined
+  const hidden = isControlled ? hiddenKeysProp : hiddenInternal
 
-  const toggleKey = useCallback((key: string) => {
-    setHidden((prev) => {
-      const next = new Set(prev)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return next
-    })
-  }, [])
+  const toggleKey = useCallback(
+    (key: string) => {
+      const update = (prev: Set<string>) => {
+        const next = new Set(prev)
+        if (next.has(key)) next.delete(key)
+        else next.add(key)
+        return next
+      }
+      if (isControlled) {
+        onHiddenKeysChange!(update(hidden))
+      } else {
+        setHiddenInternal(update)
+      }
+    },
+    [hidden, isControlled, onHiddenKeysChange],
+  )
 
   const legendPayload = useMemo(
     () =>
@@ -114,10 +131,17 @@ export function StackedColumnChart({
     formatValue: valueFormatter,
   })
 
+  const bottomMargin = legendVerticalAlign === "bottom" ? 56 : 8
+  const xAxisHeight = data.length > 8 ? 52 : 28
+
   return (
     <div className="w-full" style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} margin={{ top: 8, right: 12, left: 4, bottom: 8 }} barCategoryGap="18%">
+        <BarChart
+          data={data}
+          margin={{ top: 8, right: 12, left: 4, bottom: bottomMargin }}
+          barCategoryGap="18%"
+        >
           <CartesianGrid stroke="hsl(var(--border))" vertical={false} />
           <XAxis
             dataKey={xKey}
@@ -128,7 +152,7 @@ export function StackedColumnChart({
             tickMargin={8}
             angle={data.length > 8 ? -25 : 0}
             textAnchor={data.length > 8 ? "end" : "middle"}
-            height={data.length > 8 ? 52 : 28}
+            height={xAxisHeight}
           />
           <YAxis
             tickLine={false}
@@ -139,7 +163,7 @@ export function StackedColumnChart({
           />
           <Tooltip content={renderTooltip} cursor={{ fill: "hsl(var(--muted) / 0.35)" }} />
           <Legend
-            verticalAlign="top"
+            verticalAlign={legendVerticalAlign}
             align="center"
             content={() => (
               <ToggleableLegend payload={legendPayload} hiddenKeys={hidden} onToggleKey={onLegendButton} />

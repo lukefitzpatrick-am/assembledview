@@ -3,6 +3,10 @@ import axios from "axios"
 import { xanoUrl } from "@/lib/api/xano"
 import { filterLineItemsByPlanNumber } from "@/lib/api/mediaPlanVersionHelper"
 
+export const dynamic = "force-dynamic"
+export const revalidate = 0
+export const maxDuration = 60
+
 // GET a single media plan by ID
 export async function GET(
   request: Request,
@@ -23,7 +27,7 @@ export async function GET(
     
     const response = await axios.get(versionsUrl, { 
       headers,
-      timeout: 10000 
+      timeout: 55_000
     })
     
     console.log("API response status:", response.status)

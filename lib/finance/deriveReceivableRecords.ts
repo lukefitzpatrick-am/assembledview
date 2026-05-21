@@ -114,6 +114,14 @@ export function derivePlanReceivableBillingRecordsForMonth(
     const paymentTerms = String(clientRow?.payment_terms ?? "Net 30 days")
 
     const invoiceDate = formatInvoiceDate(year, month)
+    const rawVersionId = version.id
+    const media_plan_version_id =
+      rawVersionId != null && String(rawVersionId).trim() !== ""
+        ? typeof rawVersionId === "string"
+          ? parseInt(rawVersionId, 10)
+          : Number(rawVersionId)
+        : NaN
+    const media_plan_version_number = Number(version.version_number)
     const recordStatus: BillingRecord["status"] =
       status === "completed" ? "booked"
       : status === "approved" ? "booked"
@@ -158,6 +166,8 @@ export function derivePlanReceivableBillingRecordsForMonth(
         clients_id,
         client_name,
         mba_number: mba || null,
+        media_plan_version_id: Number.isFinite(media_plan_version_id) ? media_plan_version_id : null,
+        media_plan_version_number: Number.isFinite(media_plan_version_number) ? media_plan_version_number : null,
         campaign_name: campaign,
         po_number: version.po_number != null ? String(version.po_number) : null,
         billing_month: billingMonth,

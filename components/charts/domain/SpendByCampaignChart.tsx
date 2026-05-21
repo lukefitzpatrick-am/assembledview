@@ -14,20 +14,45 @@ export interface SpendByCampaignChartProps {
     percentage: number
   }>
   brandColour?: string
-  /** Omit outer card chrome when nested inside `Panel`. */
+  /** Omit outer card chrome when nested inside a parent shell. */
   embedded?: boolean
+  height?: number
 }
 
 export default function SpendByCampaignChart({
   data,
   brandColour: _brandColour,
-  embedded: _embedded = false,
+  embedded = false,
+  height = 300,
 }: SpendByCampaignChartProps) {
   const mapped = (data ?? []).map((item) => ({
     key: item.campaignName,
     value: Number(item.amount) || 0,
   }))
   const total = mapped.reduce((s, r) => (r.value > 0 ? s + r.value : s), 0)
+
+  const chart = (
+    <DonutChart
+      data={mapped}
+      colourFn={(key) => getDeterministicColor(key)}
+      labelFn={(k) => k}
+      height={height}
+    />
+  )
+
+  if (embedded) {
+    if (total <= 0) {
+      return (
+        <div
+          className="flex items-center justify-center px-4 py-8 text-sm text-muted-foreground"
+          style={{ minHeight: height }}
+        >
+          No spend data available
+        </div>
+      )
+    }
+    return chart
+  }
 
   return (
     <BaseChartCard
@@ -38,11 +63,7 @@ export default function SpendByCampaignChart({
       isEmpty={total <= 0}
       emptyMessage="No spend data available"
     >
-      <DonutChart
-        data={mapped}
-        colourFn={(key) => getDeterministicColor(key)}
-        labelFn={(k) => k}
-      />
+      {chart}
     </BaseChartCard>
   )
 }

@@ -13,20 +13,45 @@ export interface SpendByMediaTypeChartProps {
     percentage: number
   }>
   brandColour?: string
-  /** Omit outer card chrome when nested inside `Panel`. */
+  /** Omit outer card chrome when nested inside a parent shell. */
   embedded?: boolean
+  height?: number
 }
 
 export default function SpendByMediaTypeChart({
   data,
   brandColour: _brandColour,
-  embedded: _embedded = false,
+  embedded = false,
+  height = 300,
 }: SpendByMediaTypeChartProps) {
   const mapped = (data ?? []).map((item) => ({
     key: item.mediaType,
     value: Number(item.amount) || 0,
   }))
   const total = mapped.reduce((s, r) => (r.value > 0 ? s + r.value : s), 0)
+
+  const chart = (
+    <DonutChart
+      data={mapped}
+      colourFn={(key) => getMediaColor(key)}
+      labelFn={(key) => getMediaLabel(key)}
+      height={height}
+    />
+  )
+
+  if (embedded) {
+    if (total <= 0) {
+      return (
+        <div
+          className="flex items-center justify-center px-4 py-8 text-sm text-muted-foreground"
+          style={{ minHeight: height }}
+        >
+          No spend data available
+        </div>
+      )
+    }
+    return chart
+  }
 
   return (
     <BaseChartCard
@@ -37,7 +62,7 @@ export default function SpendByMediaTypeChart({
       isEmpty={total <= 0}
       emptyMessage="No spend data available"
     >
-      <DonutChart data={mapped} colourFn={(key) => getMediaColor(key)} labelFn={(key) => getMediaLabel(key)} />
+      {chart}
     </BaseChartCard>
   )
 }

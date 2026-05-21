@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server"
 import { xanoUrl } from "@/lib/api/xano"
 
+export const dynamic = "force-dynamic"
+export const revalidate = 0
+export const maxDuration = 60
+
 type Ctx = { params: Promise<{ path: string[] }> }
 
 async function proxy(request: Request, ctx: Ctx) {

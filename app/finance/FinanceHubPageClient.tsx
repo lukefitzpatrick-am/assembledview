@@ -28,6 +28,10 @@ import { expandMonthRange } from "@/lib/finance/monthRange"
 import { formatLineItemDescription } from "@/lib/finance/lineItemDescription"
 import { cn } from "@/lib/utils"
 import { formatMoney } from "@/lib/format/money"
+import { buildBillingScheduleJSON } from "@/lib/billing/buildBillingSchedule"
+import { parsePersistedBillingScheduleToMonths } from "@/lib/billing/parsePersistedBillingScheduleToMonths"
+import { AlterBillingDialog } from "@/components/billing/AlterBillingDialog"
+import type { BillingMonth } from "@/lib/billing/types"
 import { buildFinanceHubWorkbook } from "@/lib/finance/excelFinanceExport"
 import { exportBillingRecordsCsv, exportPayablesDetailCsv } from "@/lib/finance/export"
 import { exportAccrualWorkbook } from "@/lib/finance/accrualExcel"
@@ -147,6 +151,8 @@ type MediaPlanGroup = {
   campaignName: string
   records: BillingRecord[]
   total: number
+  versionId: number | null
+  versionNumber: number | null
 }
 
 type ClientGroup = {
@@ -372,11 +378,19 @@ function useFinanceHubReceivablesData(activeTab: FinanceHubTab): HubReceivablesH
           campaignName: r.campaign_name || mbaKey || "Campaign",
           records: [],
           total: 0,
+          versionId: null,
+          versionNumber: null,
         }
         bucket.push(mp)
       }
       mp.records.push(r)
       mp.total += r.total
+      if (bucket === cg.mediaPlans) {
+        const vid = r.media_plan_version_id
+        const vnum = r.media_plan_version_number
+        if (mp.versionId == null && vid != null && Number.isFinite(vid)) mp.versionId = vid
+        if (mp.versionNumber == null && vnum != null && Number.isFinite(vnum)) mp.versionNumber = vnum
+      }
       cg.total += r.total
     }
 
@@ -430,13 +444,22 @@ function FinanceHubReceivablesSection({
   loading,
   awaitingExplicitLoad,
   loadError,
+  bumpReceivablesFetch,
 }: {
   visibleMonthGroups: MonthGroup[]
   loading: boolean
   awaitingExplicitLoad: boolean
   loadError: string | null
+  bumpReceivablesFetch: () => void
 }) {
   const [aaDownloadKey, setAaDownloadKey] = useState<string | null>(null)
+  const [alterBillingLoadKey, setAlterBillingLoadKey] = useState<string | null>(null)
+  const [alterBillingState, setAlterBillingState] = useState<{
+    versionId: number
+    mbaNumber: string
+    months: BillingMonth[]
+  } | null>(null)
+  const [isAlterBillingSaving, setIsAlterBillingSaving] = useState(false)
 
   const downloadAaMediaPlan = useCallback(async (billingMonth: string, mbaNumber: string) => {
     const key = `${billingMonth}|${mbaNumber}`
@@ -483,6 +506,51 @@ function FinanceHubReceivablesSection({
       })
     } finally {
       setAaDownloadKey(null)
+    }
+  }, [])
+
+  const openAlterBilling = useCallback(async (mp: MediaPlanGroup) => {
+    if (!mp.mbaNumber || mp.versionId == null || mp.versionNumber == null) return
+    const key = `${mp.mbaNumber}|${mp.versionId}`
+    setAlterBillingLoadKey(key)
+    try {
+      const res = await fetch(
+        `/api/mediaplans/mba/${encodeURIComponent(mp.mbaNumber)}?billingScheduleFull=1&version=${mp.versionNumber}`
+      )
+      if (!res.ok) {
+        let message = `Load failed (${res.status})`
+        try {
+          const body = (await res.json()) as { error?: string }
+          if (body?.error) message = String(body.error)
+        } catch {
+          // ignore
+        }
+        toast({ variant: "destructive", title: "Alter Billing", description: message })
+        return
+      }
+      const data = (await res.json()) as { billingSchedule?: unknown }
+      const months = parsePersistedBillingScheduleToMonths(data.billingSchedule)
+      if (!months || months.length === 0) {
+        toast({
+          variant: "destructive",
+          title: "Alter Billing",
+          description: "No billing schedule found for this version.",
+        })
+        return
+      }
+      setAlterBillingState({
+        versionId: mp.versionId,
+        mbaNumber: mp.mbaNumber,
+        months,
+      })
+    } catch (e) {
+      toast({
+        variant: "destructive",
+        title: "Alter Billing",
+        description: e instanceof Error ? e.message : "Failed to load billing schedule",
+      })
+    } finally {
+      setAlterBillingLoadKey(null)
     }
   }, [])
 
@@ -646,6 +714,28 @@ function FinanceHubReceivablesSection({
                                                     </>
                                                   )}
                                                 </Button>
+                                                <Button
+                                                  type="button"
+                                                  variant="outline"
+                                                  size="sm"
+                                                  className="shrink-0"
+                                                  disabled={
+                                                    alterBillingLoadKey !== null ||
+                                                    !mp.mbaNumber ||
+                                                    mp.versionId == null ||
+                                                    mp.versionNumber == null
+                                                  }
+                                                  onClick={() => void openAlterBilling(mp)}
+                                                >
+                                                  {alterBillingLoadKey === `${mp.mbaNumber}|${mp.versionId}` ? (
+                                                    <>
+                                                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden />
+                                                      Billing…
+                                                    </>
+                                                  ) : (
+                                                    "Alter Billing"
+                                                  )}
+                                                </Button>
                                               </div>
                                             ) : (
                                               <Button
@@ -770,6 +860,46 @@ function FinanceHubReceivablesSection({
           })}
         </div>
       )}
+      {alterBillingState ? (
+        <AlterBillingDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setAlterBillingState(null)
+          }}
+          initialMonths={alterBillingState.months}
+          title={alterBillingState.mbaNumber}
+          mbaNumber={alterBillingState.mbaNumber}
+          isSaving={isAlterBillingSaving}
+          onSave={async (newMonths) => {
+            setIsAlterBillingSaving(true)
+            try {
+              const res = await fetch(
+                `/api/mediaplans/versions/${alterBillingState.versionId}/billing-schedule`,
+                {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ billingSchedule: buildBillingScheduleJSON(newMonths) }),
+                }
+              )
+              if (!res.ok) {
+                const err = (await res.json().catch(() => ({ error: "Save failed" }))) as { error?: string }
+                throw new Error(err.error || "Save failed")
+              }
+              setAlterBillingState(null)
+              bumpReceivablesFetch()
+              toast({ title: "Billing updated", description: "Billing schedule saved for this version." })
+            } catch (e) {
+              toast({
+                variant: "destructive",
+                title: "Alter Billing",
+                description: e instanceof Error ? e.message : "Save failed",
+              })
+            } finally {
+              setIsAlterBillingSaving(false)
+            }
+          }}
+        />
+      ) : null}
     </div>
   )
 }
@@ -1286,6 +1416,7 @@ export default function FinanceHubPageClient() {
                 visibleMonthGroups={visibleMonthGroups}
                 awaitingExplicitLoad={!hubReceivablesSynced}
                 loadError={hubReceivablesLoadError}
+                bumpReceivablesFetch={bumpReceivablesFetch}
               />
             </TabsContent>
             <TabsContent value="payables" className="mt-0">

@@ -4,6 +4,10 @@ import { toMelbourneDateString } from "@/lib/timezone"
 import { xanoUrl } from "@/lib/api/xano"
 import { findExistingMasterByMbaNumber } from "@/lib/api/mediaPlanMasterLookup"
 
+export const dynamic = "force-dynamic"
+export const revalidate = 0
+export const maxDuration = 60
+
 export async function POST(request: Request) {
   try {
     // For now, allow access for development

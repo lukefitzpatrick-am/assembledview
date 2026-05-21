@@ -92,6 +92,13 @@ export interface ClientDashboardData {
       amount: number
     }>
   }>
+  monthlySpendByCampaign: Array<{
+    month: string
+    data: Array<{
+      campaignName: string
+      amount: number
+    }>
+  }>
 }
 
 export interface GlobalMonthlySpend {

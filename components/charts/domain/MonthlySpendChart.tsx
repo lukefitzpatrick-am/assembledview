@@ -7,19 +7,31 @@ import BaseChartCard from "@/components/charts/BaseChartCard"
 import { StackedColumnChart } from "@/components/charts/StackedColumnChart"
 import { getMediaLabel } from "@/lib/charts/registry"
 
-export interface MonthlySpendChartProps {
+export type MonthlyStackedEntry = {
+  month: string
   data: Array<{
-    month: string
-    data: Array<{
-      mediaType: string
-      amount: number
-    }>
+    key?: string
+    mediaType?: string
+    campaignName?: string
+    amount: number
   }>
+}
+
+function resolveEntryKey(item: MonthlyStackedEntry["data"][number]): string {
+  return item.key ?? item.mediaType ?? item.campaignName ?? "Unspecified"
+}
+
+export interface MonthlySpendChartProps {
+  data: MonthlyStackedEntry[]
   brandColour?: string
   /** Omit `BaseChartCard` when the parent already supplies title / border chrome. */
   embedded?: boolean
   /** Plot height in px (embedded mode only; defaults to 320). */
   chartHeight?: number
+  getSeriesLabel?: (key: string) => string
+  legendVerticalAlign?: "top" | "bottom"
+  hiddenKeys?: Set<string>
+  onHiddenKeysChange?: (next: Set<string>) => void
 }
 
 export default function MonthlySpendChart({
@@ -27,6 +39,10 @@ export default function MonthlySpendChart({
   brandColour: _brandColour,
   embedded = false,
   chartHeight = 320,
+  getSeriesLabel = getMediaLabel,
+  legendVerticalAlign = "top",
+  hiddenKeys,
+  onHiddenKeysChange,
 }: MonthlySpendChartProps) {
   const pivoted = useMemo(
     () =>
@@ -34,7 +50,8 @@ export default function MonthlySpendChart({
         month: month.month,
         ...month.data.reduce(
           (acc, item) => {
-            acc[item.mediaType] = item.amount
+            const key = resolveEntryKey(item)
+            acc[key] = (acc[key] || 0) + item.amount
             return acc
           },
           {} as Record<string, number>,
@@ -52,8 +69,8 @@ export default function MonthlySpendChart({
     }
     return Array.from(keys)
       .sort()
-      .map((key) => ({ key, label: getMediaLabel(key) }))
-  }, [pivoted])
+      .map((key) => ({ key, label: getSeriesLabel(key) }))
+  }, [getSeriesLabel, pivoted])
 
   const totalPositive = useMemo(
     () =>
@@ -68,6 +85,18 @@ export default function MonthlySpendChart({
 
   const isEmpty = pivoted.length === 0 || totalPositive <= 0
 
+  const chart = (
+    <StackedColumnChart
+      data={pivoted}
+      xKey="month"
+      series={series}
+      height={embedded ? chartHeight : undefined}
+      legendVerticalAlign={legendVerticalAlign}
+      hiddenKeys={hiddenKeys}
+      onHiddenKeysChange={onHiddenKeysChange}
+    />
+  )
+
   if (embedded) {
     if (isEmpty) {
       return (
@@ -76,7 +105,7 @@ export default function MonthlySpendChart({
         </div>
       )
     }
-    return <StackedColumnChart data={pivoted} xKey="month" series={series} height={chartHeight} />
+    return chart
   }
 
   return (
@@ -88,7 +117,7 @@ export default function MonthlySpendChart({
       isEmpty={isEmpty}
       emptyMessage="No spend data for this period"
     >
-      <StackedColumnChart data={pivoted} xKey="month" series={series} />
+      {chart}
     </BaseChartCard>
   )
 }
