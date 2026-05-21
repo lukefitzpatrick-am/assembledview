@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from "next/server"
 import axios from "axios"
-import { parseSingleBillingMonthParam, type FinanceApiErrorBody } from "@/lib/finance/billingApiParams"
+import {
+  parseBillingTypesQueryParam,
+  parseSingleBillingMonthParam,
+  type FinanceApiErrorBody,
+} from "@/lib/finance/billingApiParams"
 import { derivePayableRecordsForMonth } from "@/lib/finance/derivePayableRecords"
+import {
+  applyHubBillingRecordFilters,
+  filterPlanVersionsByIncludeDrafts,
+} from "@/lib/finance/filterBillingRecords"
 import { fetchRelevantPlanVersionsForFinanceMonth } from "@/lib/finance/relevantPlanVersions"
+import { getCachedPublishers } from "@/lib/finance/xanoReferenceCache"
 import type { BillingRecord } from "@/lib/types/financeBilling"
 
 export const maxDuration = 60
@@ -45,32 +54,14 @@ function clientErrorFromUpstreamBody(data: unknown, upstreamStatus: number): Fin
   return { error: `Upstream request failed (${upstreamStatus})` }
 }
 
-function filterByClients(rows: BillingRecord[], clientsIdCsv: string | null): BillingRecord[] {
-  const ids = (clientsIdCsv || "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean)
-  if (ids.length === 0) return rows
-  const want = new Set(ids.map((s) => String(s)))
-  return rows.filter((r) => want.has(String(r.clients_id)))
-}
-
-function filterBySearch(rows: BillingRecord[], search: string | null): BillingRecord[] {
-  const q = (search || "").trim().toLowerCase()
-  if (!q) return rows
-  return rows.filter((r) => {
-    const hay = [
-      r.client_name,
-      r.mba_number,
-      r.campaign_name,
-      r.billing_month,
-      r.status,
-      ...r.line_items.map((li) => [li.publisher_name, li.media_type, li.description].join(" ")),
-    ]
-      .join(" ")
-      .toLowerCase()
-    return hay.includes(q)
-  })
+function buildPublisherIdMap(publishers: Record<string, unknown>[]): Map<number, string> {
+  const m = new Map<number, string>()
+  for (const p of publishers) {
+    const id = Number(p.id)
+    const name = String(p.publisher_name ?? "").trim()
+    if (Number.isFinite(id) && name) m.set(id, name)
+  }
+  return m
 }
 
 export async function GET(request: NextRequest) {
@@ -84,6 +75,12 @@ export async function GET(request: NextRequest) {
     }
 
     const searchParams = request.nextUrl.searchParams
+    const billingTypeRaw = searchParams.get("billing_type")
+    const parsedTypes = parseBillingTypesQueryParam(billingTypeRaw)
+    if (!("ok" in parsedTypes && parsedTypes.ok)) {
+      return jsonError(parsedTypes as FinanceApiErrorBody, 400)
+    }
+
     const billingMonthParam = searchParams.get("billing_month")
     const monthParsed = parseSingleBillingMonthParam(billingMonthParam, { defaultWhenMissing: true })
     if (!("ok" in monthParsed && monthParsed.ok)) {
@@ -91,8 +88,7 @@ export async function GET(request: NextRequest) {
     }
     const monthStr = monthParsed.month
 
-    const clientsIdParam = searchParams.get("clients_id")
-    const searchParam = searchParams.get("search")
+    const includeNonBooked = searchParams.get("include_drafts") !== "0"
 
     let year: number
     let month: number
@@ -108,7 +104,10 @@ export async function GET(request: NextRequest) {
       }
       year = versionsResult.year
       month = versionsResult.month
-      relevantVersions = versionsResult.relevantVersions as Record<string, unknown>[]
+      relevantVersions = filterPlanVersionsByIncludeDrafts(
+        versionsResult.relevantVersions as Record<string, unknown>[],
+        includeNonBooked
+      )
     } catch (e: unknown) {
       const ax = axios.isAxiosError(e)
       const status =
@@ -122,9 +121,21 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ ...base, field: "billing_month" }, { status })
     }
 
+    const publishers = (await getCachedPublishers()) as Record<string, unknown>[]
+    const publisherIdMap = buildPublisherIdMap(publishers)
+
     let derived = derivePayableRecordsForMonth(relevantVersions, year, month)
-    derived = filterByClients(derived, clientsIdParam)
-    derived = filterBySearch(derived, searchParam)
+    derived = applyHubBillingRecordFilters(
+      derived,
+      {
+        clientsIdCsv: searchParams.get("clients_id"),
+        search: searchParams.get("search"),
+        statusCsv: null,
+        publishersIdCsv: searchParams.get("publishers_id"),
+        billingTypes: parsedTypes.types,
+      },
+      publisherIdMap
+    )
 
     return NextResponse.json({ records: derived })
   } catch (error: unknown) {
