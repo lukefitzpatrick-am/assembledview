@@ -1,7 +1,8 @@
 "use client";
 
-import { Fragment, useState } from "react";
+import { Fragment, useState, type CSSProperties } from "react";
 import { ChevronRight } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { statusBadge, statusLabel } from "@/components/dashboard/delivery/shared/statusColours";
 import type {
   PlatformCampaignBreakdown,
@@ -9,6 +10,63 @@ import type {
 } from "@/lib/pacing/campaigns/types";
 
 const XANO_MISSING = "—";
+
+/** Cumulative left offsets for sticky columns 0–7 (colgroup widths). */
+const STICKY_LEFT_OFFSETS = [0, 32, 152, 292, 492, 592, 732, 822];
+
+const STICKY_TARGETING_SHADOW = "2px 0 4px -2px rgba(0,0,0,0.08)";
+
+/** Solid row backgrounds (semi-transparent bg-muted/N bleeds under sticky cells). */
+const ROW_BG_LINE = "hsl(var(--background))";
+const ROW_BG_CAMPAIGN = "hsl(var(--muted))";
+/** Between --background (210 20% 99%) and --muted (210 26% 95%). */
+const ROW_BG_AD_GROUP = "hsl(210 22% 97%)";
+
+type StickyBodyTier = "line" | "campaign" | "adgroup";
+
+function stickyTargetingStyle(colIndex: number): Pick<CSSProperties, "boxShadow"> {
+  return colIndex === 7 ? { boxShadow: STICKY_TARGETING_SHADOW } : {};
+}
+
+function stickyLeftHeaderProps(
+  colIndex: number,
+  className?: string
+): { className: string; style: CSSProperties } {
+  return {
+    className: cn(
+      "sticky top-0 z-30 bg-background p-2 text-left border-b",
+      className
+    ),
+    style: {
+      left: STICKY_LEFT_OFFSETS[colIndex],
+      ...stickyTargetingStyle(colIndex),
+    },
+  };
+}
+
+function stickyScrollHeaderProps(className?: string): { className: string; style: CSSProperties } {
+  return {
+    className: cn("sticky top-0 z-20 bg-background p-2 text-left border-b", className),
+    style: { top: 0 },
+  };
+}
+
+function stickyLeftBodyProps(
+  colIndex: number,
+  tier: StickyBodyTier,
+  className?: string
+): { className: string; style: CSSProperties } {
+  const background =
+    tier === "line" ? ROW_BG_LINE : tier === "campaign" ? ROW_BG_CAMPAIGN : ROW_BG_AD_GROUP;
+  return {
+    className: cn("sticky z-10 p-2 border-b", className),
+    style: {
+      left: STICKY_LEFT_OFFSETS[colIndex],
+      background,
+      ...stickyTargetingStyle(colIndex),
+    },
+  };
+}
 
 function fmtCurrencyOrZero(n: number | null | undefined): string {
   if (n === null || n === undefined) return XANO_MISSING;
@@ -75,41 +133,55 @@ export function SearchPacingCampaignTable({ rows }: { rows: SearchPacingCampaign
   }
 
   return (
-    <div className="overflow-auto rounded border max-h-[calc(100vh-12rem)]">
-      <table className="w-full min-w-[1400px] text-xs">
-        <thead className="sticky top-0 z-10 bg-muted/90 backdrop-blur-sm">
-          <tr className="text-left">
-            <th className="w-8 p-2" />
-            <th className="p-2 whitespace-nowrap">Client</th>
-            <th className="p-2 whitespace-nowrap">Platform</th>
-            <th className="p-2 min-w-[10rem]">Campaign / Ad Group</th>
-            <th className="p-2 whitespace-nowrap">MBA</th>
-            <th className="p-2 whitespace-nowrap">Line Item ID</th>
-            <th className="p-2 whitespace-nowrap">Status</th>
-            <th className="p-2">Targeting</th>
-            <th className="p-2 whitespace-nowrap">Line Start</th>
-            <th className="p-2 whitespace-nowrap">Line End</th>
-            <th className="p-2 text-right whitespace-nowrap">Total Budget</th>
-            <th className="p-2 text-right">Bursts</th>
-            <th className="p-2 text-right">Current</th>
-            <th className="p-2 whitespace-nowrap">Burst Start</th>
-            <th className="p-2 whitespace-nowrap">Burst End</th>
-            <th className="p-2 text-right">Burst Days</th>
-            <th className="p-2 text-right">Days Left</th>
-            <th className="p-2 text-right whitespace-nowrap">Burst Budget</th>
-            <th className="p-2 text-right whitespace-nowrap">Spend (Burst)</th>
-            <th className="p-2 text-right whitespace-nowrap">Spend Yesterday</th>
-            <th className="p-2 text-right whitespace-nowrap">Per-Day Left</th>
-            <th className="p-2 text-right whitespace-nowrap">Remaining (Burst)</th>
-            <th className="p-2 text-right whitespace-nowrap">Spend (Line)</th>
-            <th className="p-2 text-right whitespace-nowrap">Remaining (Line)</th>
-            <th className="p-2 text-right">Clicks</th>
-            <th className="p-2 text-right">CPC</th>
-            <th className="p-2 text-right">CTR</th>
-            <th className="p-2 text-right">Impressions</th>
-            <th className="p-2 text-right">Conversions</th>
-          </tr>
-        </thead>
+    <div className="rounded border">
+      <div className="relative max-h-[calc(100vh-220px)] overflow-auto">
+        <table
+          className="w-full min-w-[1400px] border-separate text-xs"
+          style={{ borderSpacing: 0 }}
+        >
+          <colgroup>
+            <col style={{ width: "32px" }} />
+            <col style={{ width: "120px" }} />
+            <col style={{ width: "140px" }} />
+            <col style={{ width: "200px" }} />
+            <col style={{ width: "100px" }} />
+            <col style={{ width: "140px" }} />
+            <col style={{ width: "90px" }} />
+            <col style={{ width: "200px" }} />
+          </colgroup>
+          <thead>
+            <tr className="text-left">
+              <th {...stickyLeftHeaderProps(0)} />
+              <th {...stickyLeftHeaderProps(1, "whitespace-nowrap")}>Client</th>
+              <th {...stickyLeftHeaderProps(2, "whitespace-nowrap")}>Platform</th>
+              <th {...stickyLeftHeaderProps(3)}>Campaign / Ad Group</th>
+              <th {...stickyLeftHeaderProps(4, "whitespace-nowrap")}>MBA</th>
+              <th {...stickyLeftHeaderProps(5, "whitespace-nowrap")}>Line Item ID</th>
+              <th {...stickyLeftHeaderProps(6, "whitespace-nowrap")}>Status</th>
+              <th {...stickyLeftHeaderProps(7)}>Targeting</th>
+              <th {...stickyScrollHeaderProps("whitespace-nowrap")}>Line Start</th>
+              <th {...stickyScrollHeaderProps("whitespace-nowrap")}>Line End</th>
+              <th {...stickyScrollHeaderProps("text-right whitespace-nowrap")}>Total Budget</th>
+              <th {...stickyScrollHeaderProps("text-right")}>Bursts</th>
+              <th {...stickyScrollHeaderProps("text-right")}>Current</th>
+              <th {...stickyScrollHeaderProps("whitespace-nowrap")}>Burst Start</th>
+              <th {...stickyScrollHeaderProps("whitespace-nowrap")}>Burst End</th>
+              <th {...stickyScrollHeaderProps("text-right")}>Burst Days</th>
+              <th {...stickyScrollHeaderProps("text-right")}>Days Left</th>
+              <th {...stickyScrollHeaderProps("text-right whitespace-nowrap")}>Burst Budget</th>
+              <th {...stickyScrollHeaderProps("text-right whitespace-nowrap")}>Spend (Burst)</th>
+              <th {...stickyScrollHeaderProps("text-right whitespace-nowrap")}>Spend Yesterday</th>
+              <th {...stickyScrollHeaderProps("text-right whitespace-nowrap")}>Per-Day Left</th>
+              <th {...stickyScrollHeaderProps("text-right whitespace-nowrap")}>Remaining (Burst)</th>
+              <th {...stickyScrollHeaderProps("text-right whitespace-nowrap")}>Spend (Line)</th>
+              <th {...stickyScrollHeaderProps("text-right whitespace-nowrap")}>Remaining (Line)</th>
+              <th {...stickyScrollHeaderProps("text-right")}>Clicks</th>
+              <th {...stickyScrollHeaderProps("text-right")}>CPC</th>
+              <th {...stickyScrollHeaderProps("text-right")}>CTR</th>
+              <th {...stickyScrollHeaderProps("text-right")}>Impressions</th>
+              <th {...stickyScrollHeaderProps("text-right")}>Conversions</th>
+            </tr>
+          </thead>
         <tbody>
           {rows.map((row) => (
             <FragmentForLineItem
@@ -122,7 +194,8 @@ export function SearchPacingCampaignTable({ rows }: { rows: SearchPacingCampaign
             />
           ))}
         </tbody>
-      </table>
+        </table>
+      </div>
     </div>
   );
 }
@@ -145,7 +218,7 @@ function FragmentForLineItem({
   return (
     <Fragment>
       <tr
-        className={`border-t ${hasChildren ? "cursor-pointer hover:bg-muted/20" : ""} ${row.currentBurst === null ? "opacity-75" : ""}`}
+        className={`border-t bg-background ${hasChildren ? "cursor-pointer hover:bg-muted/20" : ""} ${row.currentBurst === null ? "opacity-75" : ""}`}
         title={
           row.currentBurst === null
             ? "Live line item — no burst contains today (gap between bursts)"
@@ -153,22 +226,25 @@ function FragmentForLineItem({
         }
         onClick={hasChildren ? onToggle : undefined}
       >
-        <td className="p-2">
+        <td {...stickyLeftBodyProps(0, "line")}>
           {hasChildren ? (
             <ChevronRight
               className={`h-3 w-3 transition-transform ${isExpanded ? "rotate-90" : ""}`}
             />
           ) : null}
         </td>
-        <td className="p-2 font-medium">{row.clientName}</td>
-        <td className="p-2">{row.platform || XANO_MISSING}</td>
-        <td className="p-2">{row.campaignName}</td>
-        <td className="p-2 font-mono text-[10px]">{row.mbaNumber}</td>
-        <td className="p-2 font-mono text-[10px]">{row.lineItemId}</td>
-        <td className="p-2">
+        <td {...stickyLeftBodyProps(1, "line", "font-medium")}>{row.clientName}</td>
+        <td {...stickyLeftBodyProps(2, "line")}>{row.platform || XANO_MISSING}</td>
+        <td {...stickyLeftBodyProps(3, "line")}>{row.campaignName}</td>
+        <td {...stickyLeftBodyProps(4, "line", "font-mono text-[10px]")}>{row.mbaNumber}</td>
+        <td {...stickyLeftBodyProps(5, "line", "font-mono text-[10px]")}>{row.lineItemId}</td>
+        <td {...stickyLeftBodyProps(6, "line")}>
           <StatusCell status={row.lineItemStatus} />
         </td>
-        <td className="p-2 max-w-[8rem] truncate" title={row.creativeTargeting}>
+        <td
+          {...stickyLeftBodyProps(7, "line", "max-w-[8rem] truncate")}
+          title={row.creativeTargeting}
+        >
           {row.creativeTargeting || XANO_MISSING}
         </td>
         <td className="p-2">{fmtXanoDate(row.lineItemStartDate)}</td>
@@ -239,23 +315,25 @@ function FragmentForCampaign({
   return (
     <Fragment>
       <tr
-        className={`border-t bg-muted/10 ${hasAdGroups ? "cursor-pointer hover:bg-muted/25" : ""}`}
+        className={`border-t bg-muted ${hasAdGroups ? "cursor-pointer hover:bg-muted/25" : ""}`}
         onClick={hasAdGroups ? onToggle : undefined}
       >
-        <td className="p-2 pl-6">
+        <td {...stickyLeftBodyProps(0, "campaign", "pl-6")}>
           {hasAdGroups ? (
             <ChevronRight
               className={`h-3 w-3 transition-transform ${isExpanded ? "rotate-90" : ""}`}
             />
           ) : null}
         </td>
-        <td className="p-2" />
-        <td className="p-2" />
-        <td className="p-2 italic text-foreground/90">{campaign.campaignName || campaign.campaignId}</td>
-        <td className="p-2" />
-        <td className="p-2" />
-        <td className="p-2" />
-        <td className="p-2" />
+        <td {...stickyLeftBodyProps(1, "campaign")} />
+        <td {...stickyLeftBodyProps(2, "campaign")} />
+        <td {...stickyLeftBodyProps(3, "campaign", "italic text-foreground/90")}>
+          {campaign.campaignName || campaign.campaignId}
+        </td>
+        <td {...stickyLeftBodyProps(4, "campaign")} />
+        <td {...stickyLeftBodyProps(5, "campaign")} />
+        <td {...stickyLeftBodyProps(6, "campaign")} />
+        <td {...stickyLeftBodyProps(7, "campaign")} />
         <td className="p-2" />
         <td className="p-2" />
         <td className="p-2" />
@@ -287,16 +365,20 @@ function FragmentForCampaign({
         campaign.adGroups.map((ag) => (
           <tr
             key={`${row.lineItemId}|${campaign.campaignId}|${ag.platformLineItemId}`}
-            className="border-t bg-muted/5"
+            className="border-t bg-[hsl(210_22%_97%)]"
           >
-            <td className="p-2 pl-10" />
-            <td className="p-2" />
-            <td className="p-2" />
-            <td className="p-2 pl-4 text-muted-foreground">{ag.lineItemName || ag.platformLineItemId}</td>
-            <td className="p-2" />
-            <td className="p-2 font-mono text-[10px] text-muted-foreground">{ag.platformLineItemId}</td>
-            <td className="p-2" />
-            <td className="p-2" />
+            <td {...stickyLeftBodyProps(0, "adgroup", "pl-10")} />
+            <td {...stickyLeftBodyProps(1, "adgroup")} />
+            <td {...stickyLeftBodyProps(2, "adgroup")} />
+            <td {...stickyLeftBodyProps(3, "adgroup", "pl-4 text-muted-foreground")}>
+              {ag.lineItemName || ag.platformLineItemId}
+            </td>
+            <td {...stickyLeftBodyProps(4, "adgroup")} />
+            <td {...stickyLeftBodyProps(5, "adgroup", "font-mono text-[10px] text-muted-foreground")}>
+              {ag.platformLineItemId}
+            </td>
+            <td {...stickyLeftBodyProps(6, "adgroup")} />
+            <td {...stickyLeftBodyProps(7, "adgroup")} />
             <td className="p-2" />
             <td className="p-2" />
             <td className="p-2" />
