@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { SearchPacingCampaignRow } from "@/lib/pacing/campaigns/types";
-import { SearchPacingCampaignTable } from "./SearchPacingCampaignTable";
+import { LineItemPacingTable } from "@/components/pacing-search";
 
 type ApiShape = { asOfDate: string; rows: SearchPacingCampaignRow[] };
 
@@ -39,7 +39,7 @@ export function CampaignsClient() {
   return (
     <div className="space-y-4 p-4">
       <div className="text-xs text-muted-foreground">As of {data.asOfDate}</div>
-      <SearchPacingCampaignTable rows={data.rows} />
+      <LineItemPacingTable rows={data.rows} />
     </div>
   );
 }

@@ -150,7 +150,9 @@ function fmtXanoNumber(n: number | null): string {
   return new Intl.NumberFormat("en-AU").format(n);
 }
 
-export function SearchPacingCampaignTable({ rows }: { rows: SearchPacingCampaignRow[] }) {
+export type LineItemPacingTableProps = { rows: SearchPacingCampaignRow[] };
+
+export function LineItemPacingTable({ rows }: LineItemPacingTableProps) {
   const [expandedLineItems, setExpandedLineItems] = useState<Set<string>>(new Set());
   const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(new Set());
   const firstRowRef = useRef<HTMLTableRowElement>(null);
