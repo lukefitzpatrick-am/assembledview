@@ -82,6 +82,25 @@ export function getAsOfDate(now: Date = new Date()): string {
   }).format(now)
 }
 
+/**
+ * Returns yesterday in Melbourne timezone as YYYY-MM-DD.
+ *
+ * NOT the same as "latest delivery date" or "asOfDate - 1 in UTC".
+ * Used for the "Spend Yesterday" column on /pacing/campaigns, which
+ * matches DATE_DAY = yesterday in SEARCH_PACING_FACT (a DATE column
+ * stored without timezone — semantically the Melbourne calendar day).
+ */
+export function getMelbourneYesterdayISO(asOfDate?: string): string {
+  const today = asOfDate ?? getAsOfDate()
+  const ms = Date.parse(today + "T00:00:00Z")
+  if (!Number.isFinite(ms)) throw new Error(`Invalid asOfDate: ${today}`)
+  const yesterday = new Date(ms - 86_400_000)
+  const yyyy = yesterday.getUTCFullYear()
+  const mm = String(yesterday.getUTCMonth() + 1).padStart(2, "0")
+  const dd = String(yesterday.getUTCDate()).padStart(2, "0")
+  return `${yyyy}-${mm}-${dd}`
+}
+
 export function computeExpectedPct(daysPassed: number, campaignDays: number): number {
   return div0(daysPassed, campaignDays)
 }
