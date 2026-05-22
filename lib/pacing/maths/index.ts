@@ -86,7 +86,7 @@ export function getAsOfDate(now: Date = new Date()): string {
  * Returns yesterday in Melbourne timezone as YYYY-MM-DD.
  *
  * NOT the same as "latest delivery date" or "asOfDate - 1 in UTC".
- * Used for the "Spend Yesterday" column on /pacing/campaigns, which
+ * Used for the "Spend Yesterday" column on /pacing/search, which
  * matches DATE_DAY = yesterday in SEARCH_PACING_FACT (a DATE column
  * stored without timezone — semantically the Melbourne calendar day).
  */

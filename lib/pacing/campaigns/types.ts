@@ -1,5 +1,5 @@
 /**
- * Row type for the /pacing/campaigns page (Stage 1 Search).
+ * Row type for the /pacing/search page (Stage 1 Search).
  *
  * One row per Xano media_plan_search line item under a live media_plan_master.
  * Snowflake-sourced fields populated in Part 2 via composer hydration.
