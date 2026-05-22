@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { xanoUrl } from '@/lib/api/xano';
+import { sortLineItemsByLineItemNumber } from '@/lib/mediaplan/lineItemIds';
 
 /**
  * Gets the version_number from media_plan_versions table for a given mba_number
@@ -89,45 +90,6 @@ export function filterLineItemsByPlanNumber(
   const requestedVersion = String(versionNumber ?? "").trim()
   const requestedMba = String(mbaNumber ?? "").trim()
 
-  // Sorting helper to enforce deterministic order by line item number
-  const sortByLineItemNumber = (items: any[]) => {
-    const getLineItemNumber = (item: any): number => {
-      // Prefer explicit line_item field
-      if (item?.line_item !== undefined && item?.line_item !== null) {
-        const parsed = typeof item.line_item === 'string'
-          ? parseInt(item.line_item, 10)
-          : item.line_item;
-        if (!Number.isNaN(parsed)) return parsed;
-      }
-
-      // Fallback: extract trailing digits from line_item_id
-      if (typeof item?.line_item_id === 'string') {
-        const match = item.line_item_id.match(/(\d+)(?!.*\d)/);
-        if (match) {
-          const parsed = parseInt(match[1], 10);
-          if (!Number.isNaN(parsed)) return parsed;
-        }
-      }
-
-      return Number.POSITIVE_INFINITY;
-    };
-
-    return [...items]
-      .map((item, index) => ({
-        item,
-        index,
-        lineItemNumber: getLineItemNumber(item)
-      }))
-      .sort((a, b) => {
-        if (a.lineItemNumber !== b.lineItemNumber) {
-          return a.lineItemNumber - b.lineItemNumber;
-        }
-        // Stable fallback by original order
-        return a.index - b.index;
-      })
-      .map(({ item }) => item);
-  };
-
   // Normalize version number for comparison (handle both string and number)
   const filteredData = data.filter((item: any) => {
     const itemMba = String(item.mba_number ?? item.mbaNumber ?? "").trim()
@@ -157,7 +119,7 @@ export function filterLineItemsByPlanNumber(
     )
   }
 
-  return sortByLineItemNumber(filteredData);
+  return sortLineItemsByLineItemNumber(filteredData);
 }
 
 

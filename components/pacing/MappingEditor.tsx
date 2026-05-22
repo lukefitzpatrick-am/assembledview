@@ -173,7 +173,7 @@ export function MappingEditor({
     } else {
       setForm(defaultForm(filters, hintClientId))
     }
-  }, [open, mapping, filters.date_from, filters.date_to, hintClientId])
+  }, [open, mapping, filters, hintClientId])
 
   useEffect(() => {
     if (!open) return

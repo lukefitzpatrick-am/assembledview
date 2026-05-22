@@ -64,6 +64,21 @@ export interface ResolvedKPIRow extends CampaignKPI {
 
 export type CampaignKpiInput = Omit<CampaignKPI, "id" | "created_at">
 
+/** Line item row shape accepted by KPI fan-out matching (API or export rows). */
+export interface LineItemForKpiFanout {
+  line_item_id?: string
+  lineItemId?: string
+  platform?: string
+  bid_strategy?: string
+  bidStrategy?: string
+  line_item?: number | string
+  lineItem?: number | string
+  site?: string
+  network?: string
+  buy_type?: string
+  buyType?: string
+}
+
 // --- from lib/types/clientKpi.ts ---
 
 export interface ClientKpi {

@@ -60,7 +60,12 @@ function stateFromSearchParams(sp: URLSearchParams): PacingFilterState {
 export function PacingFilterToolbar() {
   const router = useRouter()
   const pathname = usePathname() ?? ""
-  const searchParams = useSearchParams() ?? new URLSearchParams()
+  const searchParamsFromRouter = useSearchParams()
+  const searchParamsString = searchParamsFromRouter?.toString() ?? ""
+  const searchParams = useMemo(
+    () => new URLSearchParams(searchParamsString),
+    [searchParamsString],
+  )
   const store = usePacingFilterStoreApi()
 
   const filters = usePacingFilterStore((s) => s.filters)
@@ -114,15 +119,14 @@ export function PacingFilterToolbar() {
     const cur = store.getState().filters
     if (pacingFilterStateEqual(cur, next)) return
     setFiltersState(next)
-  }, [searchParams, setFiltersState, store])
+  }, [searchParams, searchParamsString, setFiltersState, store])
 
   useEffect(() => {
     const params = buildPacingSearchParams(filters)
     const qs = params.toString()
-    const current = searchParams.toString()
-    if (current === qs) return
+    if (searchParamsString === qs) return
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
-  }, [filters, pathname, router, searchParams])
+  }, [filters, pathname, router, searchParamsString])
 
   const onRangeChange = useCallback(
     (next: DateRange | undefined) => {

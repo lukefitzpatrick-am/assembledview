@@ -22,7 +22,13 @@ import { useToast } from "@/components/ui/use-toast"
 import { Label } from "@/components/ui/label"
 import { getPublishersForDigiDisplay, getClientInfo, getDisplaySites, createDisplaySite } from "@/lib/api"
 import { formatBurstLabel } from "@/lib/bursts"
-import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
+import {
+  MEDIA_TYPE_ID_CODES,
+  buildLineItemId,
+  pickLineItemNumber,
+  sortLineItemsByLineItemNumber,
+} from "@/lib/mediaplan/lineItemIds"
+import { reassignDigiDisplayLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { serializeBurstsJson } from "@/lib/mediaplan/serializeBurstsJson"
 import { format } from "date-fns"
@@ -97,6 +103,13 @@ function asStandardDigiDisplayItems(
     clientPaysForMedia?: boolean
     budgetIncludesFees?: boolean
     noadserving?: boolean
+    lineItemId?: string
+    line_item_id?: string
+    line_item?: number | string
+    lineItem?: number | string
+    placement?: string
+    size?: string
+    targetingAttribute?: string
   }> | null | undefined
 ): StandardDigiDisplayFormLineItem[] {
   return (items ?? []).map((li) => ({
@@ -113,7 +126,31 @@ function asStandardDigiDisplayItems(
     budgetIncludesFees: li.budgetIncludesFees ?? false,
     noadserving: li.noadserving ?? false,
     bursts: li.bursts,
+    lineItemId: li.lineItemId,
+    line_item_id: li.line_item_id,
+    line_item: li.line_item,
+    lineItem: li.lineItem,
+    placement: li.placement,
+    size: li.size,
+    targetingAttribute: li.targetingAttribute,
   }))
+}
+
+function resolveDigiDisplayLineNumber(
+  lineItem: { line_item?: number | string; lineItem?: number | string },
+  fallback: number,
+): number {
+  return pickLineItemNumber(lineItem, fallback)
+}
+
+function resolveDigiDisplayLineItemId(
+  lineItem: { line_item_id?: string; lineItemId?: string },
+  lineNumber: number,
+  mba: string,
+): string {
+  const stored = String(lineItem.line_item_id ?? lineItem.lineItemId ?? "").trim()
+  if (stored) return stored
+  return buildLineItemId(mba, MEDIA_TYPE_ID_CODES.digitalDisplay, lineNumber)
 }
 
 /** Display-only: net media when budget is gross incl. fee (read-only Media/Fee columns). Burst deliverables use {@link computeDeliverableFromMedia}. */
@@ -613,7 +650,8 @@ export default function DigiDisplayContainer({
       standard,
       asStandardDigiDisplayItems(prevLineItems)
     )
-    form.setValue("digidisplaylineItems", merged as any, {
+    const reassigned = reassignDigiDisplayLineItemNumbers(merged, mbaNumber)
+    form.setValue("digidisplaylineItems", reassigned as any, {
       shouldDirty: true,
       shouldValidate: false,
     })
@@ -632,6 +670,7 @@ export default function DigiDisplayContainer({
     feedigidisplay,
     form,
     digiDisplayExpertWeekColumns,
+    mbaNumber,
   ])
 
   const handleDuplicateLineItem = useCallback((lineItemIndex: number) => {
@@ -681,7 +720,10 @@ export default function DigiDisplayContainer({
     if (initialLineItems && initialLineItems.length > 0) {
       console.log("[DigitalDisplayContainer] Loading initialLineItems:", initialLineItems);
       
-      const transformedLineItems = initialLineItems.map((item: any, index: number) => {
+      const sortedItems = sortLineItemsByLineItemNumber(initialLineItems)
+      const transformedLineItems = sortedItems.map((item: any, index: number) => {
+        const lineNumber = pickLineItemNumber(item, index + 1)
+        const lineItemId = resolveDigiDisplayLineItemId(item, lineNumber, mbaNumber)
         console.log(`[DigitalDisplayContainer] Processing item ${index}:`, {
           site: item.site,
           placement: item.placement,
@@ -745,6 +787,10 @@ export default function DigiDisplayContainer({
           budgetIncludesFees: item.budget_includes_fees || false,
           noadserving: item.no_adserving || false,
           bursts: bursts,
+          lineItemId,
+          line_item_id: lineItemId,
+          line_item: lineNumber,
+          lineItem: lineNumber,
         };
       });
 
@@ -755,7 +801,7 @@ export default function DigiDisplayContainer({
         overallDeliverables: 0,
       });
     }
-  }, [initialLineItems, form, campaignStartDate, campaignEndDate]);
+  }, [initialLineItems, form, campaignStartDate, campaignEndDate, mbaNumber]);
 
   // Transform form data to API schema format
   useEffect(() => {
@@ -775,6 +821,9 @@ export default function DigiDisplayContainer({
         }
       });
 
+      const lineNumber = resolveDigiDisplayLineNumber(lineItem, index + 1)
+      const line_item_id = resolveDigiDisplayLineItemId(lineItem, lineNumber, mbaNumber)
+
       return {
         media_plan_version: 0,
         mba_number: mbaNumber || "",
@@ -792,14 +841,14 @@ export default function DigiDisplayContainer({
         client_pays_for_media: lineItem.clientPaysForMedia || false,
         budget_includes_fees: lineItem.budgetIncludesFees || false,
         no_adserving: lineItem.noadserving || false,
-        line_item_id: buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.digitalDisplay, index + 1),
+        line_item_id,
         bursts_json: JSON.stringify(serializeBurstsJson({
           bursts: lineItem.bursts,
           feePct: feedigidisplay || 0,
           budgetIncludesFees: lineItem.budgetIncludesFees || false,
           clientPaysForMedia: lineItem.clientPaysForMedia || false,
         })),
-        line_item: index + 1,
+        line_item: lineNumber,
         totalMedia: totalMedia,
       };
     });
@@ -1185,7 +1234,8 @@ useEffect(() => {
       const mediaAmount = computedBurst
         ? computedBurst.mediaAmount
         : parseBudgetSafe(burst?.budget);
-      const lineItemId = buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.digitalDisplay, lineItemIndex + 1);
+      const lineNumber = resolveDigiDisplayLineNumber(lineItem, lineItemIndex + 1)
+      const lineItemId = resolveDigiDisplayLineItemId(lineItem, lineNumber, mbaNumber)
 
       return {
         market: lineItem.market ?? "",
@@ -1203,7 +1253,7 @@ useEffect(() => {
         clientPaysForMedia: lineItem.clientPaysForMedia ?? false,
         line_item_id: lineItemId,
         lineItemId,
-        line_item: lineItemIndex + 1,
+        line_item: lineNumber,
         buyAmount: burst.buyAmount ?? burst.budget,
       };
     })
@@ -1458,11 +1508,16 @@ useEffect(() => {
             <Form {...form}>
               <div className="space-y-6">
                 {lineItemFields.map((field, lineItemIndex) => {
-                  const lineItemId = buildLineItemId(
-                    mbaNumber,
-                    MEDIA_TYPE_ID_CODES.digitalDisplay,
+                  const lineItem = form.getValues(`digidisplaylineItems.${lineItemIndex}`)
+                  const lineNumber = resolveDigiDisplayLineNumber(
+                    lineItem ?? {},
                     lineItemIndex + 1
-                  );
+                  )
+                  const lineItemId = resolveDigiDisplayLineItemId(
+                    lineItem ?? {},
+                    lineNumber,
+                    mbaNumber
+                  )
                   const getTotals = (lineItemIndex: number) => {
                     const lineItem = form.getValues(`digidisplaylineItems.${lineItemIndex}`);
                     let totalMedia = 0;
@@ -1494,7 +1549,7 @@ useEffect(() => {
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
                             <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
-                              {lineItemIndex + 1}
+                              {lineNumber}
                             </div>
                             <div>
                               <CardTitle className="text-sm font-semibold tracking-tight">Digital Display Line Item</CardTitle>

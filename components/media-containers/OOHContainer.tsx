@@ -28,7 +28,12 @@ import { cn } from "@/lib/utils"
 import { ChevronDown, Copy, Plus, Trash2 } from "lucide-react"
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
 import type { LineItem } from '@/lib/generateMediaPlan'
-import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
+import {
+  MEDIA_TYPE_ID_CODES,
+  buildLineItemId,
+  pickLineItemNumber,
+  sortLineItemsByLineItemNumber,
+} from "@/lib/mediaplan/lineItemIds"
 import { formatMoney, parseMoneyInput } from "@/lib/format/money"
 import {
   CpcFamilyBurstCalculatedField,
@@ -69,6 +74,7 @@ import {
   serializeOohExpertRowsBaseline,
   serializeOohStandardLineItemsBaseline,
 } from "@/lib/mediaplan/expertModeSwitch"
+import { reassignOohLineItemNumbers } from "@/lib/mediaplan/oohLineItemOrder"
 import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
 import { SingleDatePicker } from "@/components/ui/single-date-picker"
 import { defaultMediaBurstStartDate, defaultMediaBurstEndDate } from "@/lib/date-picker-anchor"
@@ -533,7 +539,8 @@ export default function OohContainer({
       standard,
       prevLineItems as StandardOohFormLineItem[]
     );
-    form.setValue("lineItems", merged as any, { shouldDirty: true, shouldValidate: false });
+    const reassigned = reassignOohLineItemNumbers(merged, mbaNumber);
+    form.setValue("lineItems", reassigned as any, { shouldDirty: true, shouldValidate: false });
     oohStandardBaselineRef.current = serializeOohStandardLineItemsBaseline(
       form.getValues("lineItems") as StandardOohFormLineItem[]
     );
@@ -548,6 +555,7 @@ export default function OohContainer({
     feeooh,
     form,
     oohExpertWeekColumns,
+    mbaNumber,
   ]);
 
   const handleDuplicateLineItem = useCallback((lineItemIndex: number) => {
@@ -598,9 +606,13 @@ export default function OohContainer({
   // Data loading for edit mode
   useEffect(() => {
     if (initialLineItems && initialLineItems.length > 0) {
-      const transformedLineItems = initialLineItems.map((item: any, index: number) => {
-        const lineNumber = item.line_item ?? item.lineItem ?? index + 1;
-        const lineItemId = item.line_item_id || item.lineItemId || createLineItemId(lineNumber);
+      const sortedItems = sortLineItemsByLineItemNumber(initialLineItems);
+      const transformedLineItems = sortedItems.map((item: any, index: number) => {
+        const lineNumber = pickLineItemNumber(item, index + 1);
+        const lineItemId =
+          item.line_item_id ||
+          item.lineItemId ||
+          createLineItemId(lineNumber);
 
         return {
           network: item.network || item.environment || "",
@@ -617,8 +629,8 @@ export default function OohContainer({
           noAdserving: item.no_adserving || false,
           lineItemId,
           line_item_id: lineItemId,
-          line_item: item.line_item ?? item.lineItem ?? index + 1,
-          lineItem: item.lineItem ?? item.line_item ?? index + 1,
+          line_item: lineNumber,
+          lineItem: lineNumber,
           bursts: item.bursts_json ? (typeof item.bursts_json === 'string' ? JSON.parse(item.bursts_json) : item.bursts_json).map((burst: any) => ({
             budget: burst.budget || "",
             buyAmount: burst.buyAmount || "",
@@ -1366,11 +1378,12 @@ useEffect(() => {
             <Form {...form}>
               <div className="space-y-6">
                 {lineItemFields.map((field, lineItemIndex) => {
-                  const lineItemId = buildLineItemId(
-                    mbaNumber,
-                    MEDIA_TYPE_ID_CODES.ooh,
-                    lineItemIndex + 1
-                  );
+                  const row = form.getValues(`lineItems.${lineItemIndex}`);
+                  const lineNumber = pickLineItemNumber(row, lineItemIndex + 1);
+                  const lineItemId =
+                    row?.line_item_id ||
+                    row?.lineItemId ||
+                    buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.ooh, lineNumber);
                   const getTotals = (lineItemIndex: number) => {
                     const lineItem = form.getValues(`lineItems.${lineItemIndex}`);
                     let totalMedia = 0;
@@ -1393,7 +1406,7 @@ useEffect(() => {
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
                             <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
-                              {lineItemIndex + 1}
+                              {lineNumber}
                             </div>
                             <div>
                               <CardTitle className="text-sm font-semibold tracking-tight">OOH Line Item</CardTitle>

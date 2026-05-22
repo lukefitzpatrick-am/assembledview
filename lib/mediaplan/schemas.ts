@@ -137,6 +137,7 @@ export const digidisplaylineItemSchema = z.object({
   budgetIncludesFees: z.boolean().default(false),
   noadserving: z.boolean().default(false),
   bursts: z.array(digidisplayburstSchema).min(1, "At least one burst is required"),
+  ...lineItemIdFields,
   ...lineItemTotalsShape,
 })
 

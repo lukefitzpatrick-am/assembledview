@@ -338,6 +338,11 @@ function useFinanceHubReceivablesData(activeTab: FinanceHubTab): HubReceivablesH
     activeTab,
     fetchKey,
     filterSig,
+    filters.billingTypes,
+    filters.monthRange,
+    filters.selectedClients,
+    filters.selectedPublishers,
+    filters.statuses,
     filters.monthRange.from,
     filters.monthRange.to,
     filters.includeDrafts,
@@ -964,7 +969,8 @@ export default function FinanceHubPageClient() {
     readSavedViews().map((v) => v.name)
   )
 
-  const savedViewsList = useMemo(() => readSavedViews(), [savedViewNames])
+  // savedViewNames bumps when user saves/deletes a view so we re-read localStorage
+  const savedViewsList = useMemo(() => readSavedViews(), [savedViewNames]) // eslint-disable-line react-hooks/exhaustive-deps -- intentional invalidation key
 
   useEffect(() => {
     logFinanceHubEffectDepChanges(

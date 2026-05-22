@@ -137,8 +137,10 @@ import type { Publisher } from "@/lib/types/publisher"
 import { KPISection } from "@/components/kpis/KPISection"
 import { resolveAllKPIs } from "@/lib/kpi/resolve"
 import { mergeManualKpiOverrides } from "@/lib/kpi/recalc"
-import { getCampaignKPIs, getClientKPIs, getPublisherKPIs, saveCampaignKPIs } from "@/lib/api/kpi"
+import { getCampaignKPIs, getClientKPIs, getPublisherKPIs } from "@/lib/api/kpi"
+import { saveCampaignKpisFromRows } from "@/lib/kpi/saveCampaignKpis"
 import { fanOutKpiPayload } from "@/lib/kpi/fanOut"
+import { buildKpiLineItemsByMediaType } from "@/lib/kpi/lineItemsForFanOut"
 import type { CampaignKPI, ClientKPI, PublisherKPI, ResolvedKPIRow } from "@/lib/kpi/types"
 import {
   advertisingAssociatesFilteredPlanHasLineItems,
@@ -1796,6 +1798,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const [bvodMediaLineItems, setBvodMediaLineItems] = useState<any[]>([])
   const [integrationMediaLineItems, setIntegrationMediaLineItems] = useState<any[]>([])
   const [productionLineItems, setProductionLineItems] = useState<any[]>([])
+  const [productionMediaLineItems, setProductionMediaLineItems] = useState<any[]>([])
+  const [productionItems, setProductionItems] = useState<LineItem[]>([])
   const [searchMediaLineItems, setSearchMediaLineItems] = useState<any[]>([])
   const [socialMediaMediaLineItems, setSocialMediaMediaLineItems] = useState<any[]>([])
   const [progDisplayMediaLineItems, setProgDisplayMediaLineItems] = useState<any[]>([])
@@ -1818,7 +1822,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       digitalVideoLineItems.length +
       bvodLineItems.length +
       integrationLineItems.length +
-      productionLineItems.length +
+      productionMediaLineItems.length +
       searchLineItems.length +
       socialMediaLineItems.length +
       progDisplayLineItems.length +
@@ -1840,7 +1844,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     digitalVideoLineItems,
     bvodLineItems,
     integrationLineItems,
-    productionLineItems,
+    productionMediaLineItems,
     searchLineItems,
     socialMediaLineItems,
     progDisplayLineItems,
@@ -1901,7 +1905,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       cinema: cinemaItems,
       integration: integrationItems,
       influencers: influencersItems,
-      production: productionLineItems,
+      production: productionItems,
     }
     return planHasAdvertisingAssociatesLineItem(
       mediaItems,
@@ -1928,7 +1932,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     cinemaItems,
     integrationItems,
     influencersItems,
-    productionLineItems,
+    productionItems,
     billingPublishers,
   ])
 
@@ -2068,28 +2072,28 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       }
 
       const resolved = resolveAllKPIs({
-        mediaItemsByType: {
-          search: searchItems,
-          socialMedia: socialMediaItems,
-          progDisplay: progDisplayItems,
-          progVideo: progVideoItems,
-          progBvod: progBvodItems,
-          progAudio: progAudioItems,
-          progOoh: progOohItems,
-          digiDisplay: digitalDisplayItems,
-          digiAudio: digitalAudioItems,
-          digiVideo: digitalVideoItems,
-          bvod: bvodItems,
-          integration: integrationItems,
-          television: televisionItems,
-          radio: radioItems,
-          newspaper: newspaperItems,
-          magazines: magazinesItems,
-          ooh: oohItems,
-          cinema: cinemaItems,
-          influencers: influencersItems,
-          production: productionLineItems,
-        },
+        mediaItemsByType: buildKpiLineItemsByMediaType({
+          search: { media: searchMediaLineItems, export: searchItems },
+          socialMedia: { media: socialMediaMediaLineItems, export: socialMediaItems },
+          progDisplay: { media: progDisplayMediaLineItems, export: progDisplayItems },
+          progVideo: { media: progVideoMediaLineItems, export: progVideoItems },
+          progBvod: { media: progBvodMediaLineItems, export: progBvodItems },
+          progAudio: { media: progAudioMediaLineItems, export: progAudioItems },
+          progOoh: { media: progOohMediaLineItems, export: progOohItems },
+          digiDisplay: { media: digitalDisplayMediaLineItems, export: digitalDisplayItems },
+          digiAudio: { media: digitalAudioMediaLineItems, export: digitalAudioItems },
+          digiVideo: { media: digitalVideoMediaLineItems, export: digitalVideoItems },
+          bvod: { media: bvodMediaLineItems, export: bvodItems },
+          integration: { media: integrationMediaLineItems, export: integrationItems },
+          television: { media: televisionMediaLineItems, export: televisionItems },
+          radio: { media: radioMediaLineItems, export: radioItems },
+          newspaper: { media: newspaperMediaLineItems, export: newspaperItems },
+          magazines: { media: magazinesMediaLineItems, export: magazinesItems },
+          ooh: { media: oohMediaLineItems, export: oohItems },
+          cinema: { media: cinemaMediaLineItems, export: cinemaItems },
+          influencers: { media: influencersMediaLineItems, export: influencersItems },
+          production: { media: productionMediaLineItems, export: productionItems },
+        }),
         clientName: fv.mp_clientname,
         mbaNumber: fv.mbanumber ?? mbaNumber ?? "",
         versionNumber:
@@ -2106,26 +2110,46 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       if (kpiRebuildTimerRef.current) clearTimeout(kpiRebuildTimerRef.current)
     }
   }, [
+    searchMediaLineItems,
     searchItems,
+    socialMediaMediaLineItems,
     socialMediaItems,
+    progDisplayMediaLineItems,
     progDisplayItems,
+    progVideoMediaLineItems,
     progVideoItems,
+    progBvodMediaLineItems,
     progBvodItems,
+    progAudioMediaLineItems,
     progAudioItems,
+    progOohMediaLineItems,
     progOohItems,
+    digitalDisplayMediaLineItems,
     digitalDisplayItems,
+    digitalAudioMediaLineItems,
     digitalAudioItems,
+    digitalVideoMediaLineItems,
     digitalVideoItems,
+    bvodMediaLineItems,
     bvodItems,
+    integrationMediaLineItems,
     integrationItems,
+    televisionMediaLineItems,
     televisionItems,
+    radioMediaLineItems,
     radioItems,
+    newspaperMediaLineItems,
     newspaperItems,
+    magazinesMediaLineItems,
     magazinesItems,
+    oohMediaLineItems,
     oohItems,
+    cinemaMediaLineItems,
     cinemaItems,
+    influencersMediaLineItems,
     influencersItems,
-    productionLineItems,
+    productionMediaLineItems,
+    productionItems,
     publisherKPIs,
     clientKPIs,
     savedCampaignKPIs,
@@ -2133,6 +2157,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     kpiTrigger,
     mbaNumber,
     selectedVersionNumber,
+    form,
   ])
 
   useEffect(() => {
@@ -2256,7 +2281,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         form.setValue("mp_plannumber", next, { shouldDirty: false })
       }
     }
-  }, [selectedVersionNumber, mediaPlan?.version_number])
+  }, [selectedVersionNumber, mediaPlan?.version_number, form])
   
   const getRateForMediaType = useCallback((mediaType: string): number => {
     switch (mediaType) {
@@ -2392,6 +2417,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     getRateForMediaType,
     deepCloneBillingMonths,
     isManualBilling,
+    form,
   ]);
 
   // Fetch the media plan data
@@ -2431,6 +2457,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       setBvodLineItems([])
       setIntegrationLineItems([])
       setProductionLineItems([])
+      setProductionMediaLineItems([])
+      setProductionItems([])
       setProgDisplayLineItems([])
       setProgVideoLineItems([])
       setProgBvodLineItems([])
@@ -3335,7 +3363,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       'mp_progooh': { lineItems: progOohMediaLineItems, key: 'progOoh' },
       'mp_influencers': { lineItems: influencersMediaLineItems, key: 'influencers' },
       'mp_integration': { lineItems: integrationMediaLineItems, key: 'integration' },
-      'mp_production': { lineItems: productionLineItems, key: 'production' },
+      'mp_production': { lineItems: productionMediaLineItems, key: 'production' },
     };
 
     // Generate line items once and attach to all months (per–line-item reset uses `autoReferenceBillingMonths` + attach, not modal-open snapshots).
@@ -3501,7 +3529,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           mp_progooh: { lineItems: progOohMediaLineItems, key: "progOoh" },
           mp_influencers: { lineItems: influencersMediaLineItems, key: "influencers" },
           mp_integration: { lineItems: integrationMediaLineItems, key: "integration" },
-          mp_production: { lineItems: productionLineItems, key: "production" },
+          mp_production: { lineItems: productionMediaLineItems, key: "production" },
         }
         monthsForExport = prepareBillingMonthsForLineItemExport(
           workingBillingMonths,
@@ -4174,7 +4202,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       'mp_digivideo': { lineItems: digitalVideoMediaLineItems, key: 'digiVideo' },
       'mp_bvod': { lineItems: bvodMediaLineItems, key: 'bvod' },
       'mp_integration': { lineItems: integrationMediaLineItems, key: 'integration' },
-      'mp_production': { lineItems: productionLineItems, key: 'production' },
+      'mp_production': { lineItems: productionMediaLineItems, key: 'production' },
       'mp_search': { lineItems: searchMediaLineItems, key: 'search' },
       'mp_socialmedia': { lineItems: socialMediaMediaLineItems, key: 'socialMedia' },
       'mp_progdisplay': { lineItems: progDisplayMediaLineItems, key: 'progDisplay' },
@@ -4227,7 +4255,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
     return monthsWithLineItems
   }, [
-    form.control,
+    form,
     televisionMediaLineItems,
     radioMediaLineItems,
     newspaperMediaLineItems,
@@ -4247,7 +4275,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     progAudioMediaLineItems,
     progOohMediaLineItems,
     influencersMediaLineItems,
-    productionLineItems,
+    productionMediaLineItems,
     generateBillingLineItems
   ]);
 
@@ -4331,7 +4359,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     seg("mp_digivideo", "digiVideo", digitalVideoMediaLineItems)
     seg("mp_bvod", "bvod", bvodMediaLineItems)
     seg("mp_integration", "integration", integrationMediaLineItems)
-    seg("mp_production", "production", productionLineItems)
+    seg("mp_production", "production", productionMediaLineItems)
     seg("mp_search", "search", searchMediaLineItems)
     seg("mp_socialmedia", "socialMedia", socialMediaMediaLineItems)
     seg("mp_progdisplay", "progDisplay", progDisplayMediaLineItems)
@@ -4354,7 +4382,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     digitalVideoMediaLineItems,
     bvodMediaLineItems,
     integrationMediaLineItems,
-    productionLineItems,
+    productionMediaLineItems,
     searchMediaLineItems,
     socialMediaMediaLineItems,
     progDisplayMediaLineItems,
@@ -4380,7 +4408,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       n(digitalVideoMediaLineItems),
       n(bvodMediaLineItems),
       n(integrationMediaLineItems),
-      n(productionLineItems),
+      n(productionMediaLineItems),
       n(searchMediaLineItems),
       n(socialMediaMediaLineItems),
       n(progDisplayMediaLineItems),
@@ -4402,7 +4430,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     digitalVideoMediaLineItems,
     bvodMediaLineItems,
     integrationMediaLineItems,
-    productionLineItems,
+    productionMediaLineItems,
     searchMediaLineItems,
     socialMediaMediaLineItems,
     progDisplayMediaLineItems,
@@ -4502,7 +4530,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         mp_digivideo: { lineItems: digitalVideoMediaLineItems, key: "digiVideo" },
         mp_bvod: { lineItems: bvodMediaLineItems, key: "bvod" },
         mp_integration: { lineItems: integrationMediaLineItems, key: "integration" },
-        mp_production: { lineItems: productionLineItems, key: "production" },
+        mp_production: { lineItems: productionMediaLineItems, key: "production" },
         mp_search: { lineItems: searchMediaLineItems, key: "search" },
         mp_socialmedia: { lineItems: socialMediaMediaLineItems, key: "socialMedia" },
         mp_progdisplay: { lineItems: progDisplayMediaLineItems, key: "progDisplay" },
@@ -4604,7 +4632,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       digitalVideoMediaLineItems,
       bvodMediaLineItems,
       integrationMediaLineItems,
-      productionLineItems,
+      productionMediaLineItems,
       searchMediaLineItems,
       socialMediaMediaLineItems,
       progDisplayMediaLineItems,
@@ -4827,7 +4855,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       }
 
       const shouldEnableProduction = Boolean(
-        formValues.mp_production || (productionLineItems?.length ?? 0) > 0
+        formValues.mp_production || (productionMediaLineItems?.length ?? 0) > 0
       )
 
       // 3. Create new media_plan_versions record using PUT (which creates new version and increments version_number)
@@ -4889,28 +4917,28 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       // --- KPI: save campaign KPIs against the new version (non-blocking) (Stage 2) ---
       if (kpiRows.length > 0 && typeof numericSavedVersion === "number" && Number.isFinite(numericSavedVersion)) {
         updateSaveStatus("Campaign KPIs", "pending")
-        const lineItemsByMediaType: Record<string, any[]> = {
-          search: searchItems ?? [],
-          socialMedia: socialMediaItems ?? [],
-          progDisplay: progDisplayItems ?? [],
-          progVideo: progVideoItems ?? [],
-          progBvod: progBvodItems ?? [],
-          progAudio: progAudioItems ?? [],
-          progOoh: progOohItems ?? [],
-          digiDisplay: digitalDisplayItems ?? [],
-          digiAudio: digitalAudioItems ?? [],
-          digiVideo: digitalVideoItems ?? [],
-          bvod: bvodItems ?? [],
-          integration: integrationItems ?? [],
-          television: televisionItems ?? [],
-          radio: radioItems ?? [],
-          newspaper: newspaperItems ?? [],
-          magazines: magazinesItems ?? [],
-          ooh: oohItems ?? [],
-          cinema: cinemaItems ?? [],
-          influencers: influencersItems ?? [],
-          production: productionLineItems ?? [],
-        }
+        const lineItemsByMediaType = buildKpiLineItemsByMediaType({
+          search: { media: searchMediaLineItems, export: searchItems },
+          socialMedia: { media: socialMediaMediaLineItems, export: socialMediaItems },
+          progDisplay: { media: progDisplayMediaLineItems, export: progDisplayItems },
+          progVideo: { media: progVideoMediaLineItems, export: progVideoItems },
+          progBvod: { media: progBvodMediaLineItems, export: progBvodItems },
+          progAudio: { media: progAudioMediaLineItems, export: progAudioItems },
+          progOoh: { media: progOohMediaLineItems, export: progOohItems },
+          digiDisplay: { media: digitalDisplayMediaLineItems, export: digitalDisplayItems },
+          digiAudio: { media: digitalAudioMediaLineItems, export: digitalAudioItems },
+          digiVideo: { media: digitalVideoMediaLineItems, export: digitalVideoItems },
+          bvod: { media: bvodMediaLineItems, export: bvodItems },
+          integration: { media: integrationMediaLineItems, export: integrationItems },
+          television: { media: televisionMediaLineItems, export: televisionItems },
+          radio: { media: radioMediaLineItems, export: radioItems },
+          newspaper: { media: newspaperMediaLineItems, export: newspaperItems },
+          magazines: { media: magazinesMediaLineItems, export: magazinesItems },
+          ooh: { media: oohMediaLineItems, export: oohItems },
+          cinema: { media: cinemaMediaLineItems, export: cinemaItems },
+          influencers: { media: influencersMediaLineItems, export: influencersItems },
+          production: { media: productionMediaLineItems, export: productionItems },
+        })
         const kpiPayload: CampaignKPI[] = fanOutKpiPayload(
           kpiRows,
           {
@@ -4921,13 +4949,15 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           },
           lineItemsByMediaType,
         )
-        if (kpiPayload.length === 0) {
-          updateSaveStatus("Campaign KPIs", "success")
-        } else {
-          saveCampaignKPIs(kpiPayload)
-            .then(() => updateSaveStatus("Campaign KPIs", "success"))
-            .catch((err) => updateSaveStatus("Campaign KPIs", "error", err?.message))
-        }
+        saveCampaignKpisFromRows(kpiRows, kpiPayload).then((result) => {
+          if (result.status === "skipped") {
+            updateSaveStatus("Campaign KPIs", "success")
+          } else if (result.status === "success") {
+            updateSaveStatus("Campaign KPIs", "success")
+          } else {
+            updateSaveStatus("Campaign KPIs", "error", result.message)
+          }
+        })
       }
 
       setAvailableVersions(prev => {
@@ -4990,7 +5020,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           cinema: cinemaItems,
           integration: integrationItems,
           influencers: influencersItems,
-          production: productionLineItems,
+          production: productionItems,
         }
 
         let aaMediaPlanFile: File | undefined
@@ -5201,10 +5231,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             })
         )
       }
-      if (shouldEnableProduction && productionLineItems.length > 0) {
+      if (shouldEnableProduction && productionMediaLineItems.length > 0) {
         updateSaveStatus(mediaTypeDisplayNames.mp_production, 'pending')
         savePromises.push(
-          saveProductionLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), productionLineItems)
+          saveProductionLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), productionMediaLineItems)
             .then(() => updateSaveStatus(mediaTypeDisplayNames.mp_production, 'success'))
             .catch(error => {
               updateSaveStatus(mediaTypeDisplayNames.mp_production, 'error', error.message || String(error))
@@ -5334,7 +5364,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       const formData = form.getValues()
       
       const shouldEnableProduction = Boolean(
-        formData.mp_production || (productionLineItems?.length ?? 0) > 0
+        formData.mp_production || (productionMediaLineItems?.length ?? 0) > 0
       )
 
       // Create new version in media_plan_versions table
@@ -5556,14 +5586,14 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       }
 
       // Production / Consulting
-      if (shouldEnableProduction && productionLineItems && productionLineItems.length > 0) {
+      if (shouldEnableProduction && productionMediaLineItems && productionMediaLineItems.length > 0) {
         mediaTypeSavePromises.push(
           saveProductionLineItems(
             data.id,
             formData.mbanumber,
             formData.mp_clientname,
             mediaPlan.version_number + 1,
-            productionLineItems
+            productionMediaLineItems
           ).catch(error => {
             console.error('Error saving production data:', error);
             return { type: 'production', error };
@@ -5941,7 +5971,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       cinema: cinemaItems.filter(shouldIncludeMediaPlanLineItem),
       integration: integrationItems.filter(shouldIncludeMediaPlanLineItem),
       influencers: influencersItems.filter(shouldIncludeMediaPlanLineItem),
-      production: productionLineItems.filter(shouldIncludeMediaPlanLineItem),
+      production: productionItems.filter(shouldIncludeMediaPlanLineItem),
     }
 
     // MBA totals for Excel
@@ -6422,8 +6452,14 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     }
   }, [markUnsavedChanges])
 
-  const handleProductionLineItemsChange = useCallback((lineItems: LineItem[] | any[]) => {
-    if (setIfChanged(setProductionLineItems, lineItems)) {
+  const handleProductionMediaLineItemsChange = useCallback((lineItems: any[]) => {
+    if (setIfChanged(setProductionMediaLineItems, lineItems)) {
+      markUnsavedChanges()
+    }
+  }, [markUnsavedChanges])
+
+  const handleProductionItemsChange = useCallback((items: LineItem[]) => {
+    if (setIfChanged(setProductionItems, items)) {
       markUnsavedChanges()
     }
   }, [markUnsavedChanges])
@@ -7125,7 +7161,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         { flag: "mp_digivideo", billingKey: "digiVideo", items: digitalVideoMediaLineItems },
         { flag: "mp_bvod", billingKey: "bvod", items: bvodMediaLineItems },
         { flag: "mp_integration", billingKey: "integration", items: integrationMediaLineItems },
-        { flag: "mp_production", billingKey: "production", items: productionLineItems },
+        { flag: "mp_production", billingKey: "production", items: productionMediaLineItems },
         { flag: "mp_search", billingKey: "search", items: searchMediaLineItems },
         { flag: "mp_socialmedia", billingKey: "socialMedia", items: socialMediaMediaLineItems },
         { flag: "mp_progdisplay", billingKey: "progDisplay", items: progDisplayMediaLineItems },
@@ -7226,7 +7262,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     digitalVideoMediaLineItems,
     bvodMediaLineItems,
     integrationMediaLineItems,
-    productionLineItems,
+    productionMediaLineItems,
     searchMediaLineItems,
     socialMediaMediaLineItems,
     progDisplayMediaLineItems,
@@ -7235,6 +7271,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     progAudioMediaLineItems,
     progOohMediaLineItems,
     influencersMediaLineItems,
+    form,
   ])
 
   // Refresh burst-derived auto reference when bursts/totals change (does not write working — append effect applies deltas).
@@ -8445,8 +8482,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                             onTotalMediaChange={handleProductionTotalChange}
                             onBurstsChange={handleProductionBurstsChange}
                             onInvestmentChange={handleInvestmentChange}
-                            onLineItemsChange={handleProductionLineItemsChange}
-                            onMediaLineItemsChange={() => {}}
+                            onLineItemsChange={handleProductionItemsChange}
+                            onMediaLineItemsChange={handleProductionMediaLineItemsChange}
                             campaignStartDate={campaignStartDate}
                             campaignEndDate={campaignEndDate}
                             campaignBudget={campaignBudget}

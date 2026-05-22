@@ -90,8 +90,10 @@ import { checkMediaDatesOutsideCampaign } from "@/lib/utils/mediaPlanValidation"
 import { KPISection } from "@/components/kpis/KPISection"
 import { resolveAllKPIs } from "@/lib/kpi/resolve"
 import { mergeManualKpiOverrides } from "@/lib/kpi/recalc"
-import { getPublisherKPIs, getClientKPIs, getCampaignKPIs, saveCampaignKPIs } from "@/lib/api/kpi"
+import { getPublisherKPIs, getClientKPIs, getCampaignKPIs } from "@/lib/api/kpi"
 import { fanOutKpiPayload } from "@/lib/kpi/fanOut"
+import { buildKpiLineItemsByMediaType } from "@/lib/kpi/lineItemsForFanOut"
+import { saveCampaignKpisFromRows } from "@/lib/kpi/saveCampaignKpis"
 import type { PublisherKPI, ClientKPI, ResolvedKPIRow, CampaignKPI } from "@/lib/kpi/types"
 import type { Publisher } from "@/lib/types/publisher"
 
@@ -744,6 +746,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
     savedCampaignKPIs,
     kpiPublishers,
     mediaPlan?.version_number,
+    form,
+    mediaPlan,
   ])
 
   const stickyBarRef = useRef<HTMLDivElement | null>(null)
@@ -1997,27 +2001,27 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
       // Save KPIs (non-blocking)
       if (kpiRows.length > 0) {
         const fv = form.getValues()
-        const lineItemsByMediaType: Record<string, any[]> = {
-          search: searchMediaLineItems ?? [],
-          socialMedia: socialMediaMediaLineItems ?? [],
-          progDisplay: progDisplayMediaLineItems ?? [],
-          progVideo: progVideoMediaLineItems ?? [],
-          progBvod: progBvodMediaLineItems ?? [],
-          progAudio: progAudioMediaLineItems ?? [],
-          progOoh: progOohMediaLineItems ?? [],
-          digiDisplay: digitalDisplayMediaLineItems ?? [],
-          digiAudio: digitalAudioMediaLineItems ?? [],
-          digiVideo: digitalVideoMediaLineItems ?? [],
-          bvod: bvodMediaLineItems ?? [],
-          integration: integrationMediaLineItems ?? [],
-          television: televisionMediaLineItems ?? [],
-          radio: radioMediaLineItems ?? [],
-          newspaper: newspaperMediaLineItems ?? [],
-          magazines: magazinesMediaLineItems ?? [],
-          ooh: oohMediaLineItems ?? [],
-          cinema: cinemaMediaLineItems ?? [],
-          influencers: influencersMediaLineItems ?? [],
-        }
+        const lineItemsByMediaType = buildKpiLineItemsByMediaType({
+          search: { media: searchMediaLineItems },
+          socialMedia: { media: socialMediaMediaLineItems },
+          progDisplay: { media: progDisplayMediaLineItems },
+          progVideo: { media: progVideoMediaLineItems },
+          progBvod: { media: progBvodMediaLineItems },
+          progAudio: { media: progAudioMediaLineItems },
+          progOoh: { media: progOohMediaLineItems },
+          digiDisplay: { media: digitalDisplayMediaLineItems },
+          digiAudio: { media: digitalAudioMediaLineItems },
+          digiVideo: { media: digitalVideoMediaLineItems },
+          bvod: { media: bvodMediaLineItems },
+          integration: { media: integrationMediaLineItems },
+          television: { media: televisionMediaLineItems },
+          radio: { media: radioMediaLineItems },
+          newspaper: { media: newspaperMediaLineItems },
+          magazines: { media: magazinesMediaLineItems },
+          ooh: { media: oohMediaLineItems },
+          cinema: { media: cinemaMediaLineItems },
+          influencers: { media: influencersMediaLineItems },
+        })
         const kpiPayload: CampaignKPI[] = fanOutKpiPayload(
           kpiRows,
           {
@@ -2028,9 +2032,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
           },
           lineItemsByMediaType,
         )
-        if (kpiPayload.length > 0) {
-          saveCampaignKPIs(kpiPayload).catch((err) => console.warn("KPI save failed:", err))
-        }
+        saveCampaignKpisFromRows(kpiRows, kpiPayload).then((result) => {
+          if (result.status === "error") {
+            console.warn("KPI save failed:", result.message)
+          }
+        })
       }
 
       // Then, save search data if search is enabled

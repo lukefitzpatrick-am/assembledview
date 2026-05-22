@@ -86,8 +86,7 @@ export function mergeOohStandardFromExpertWithPrevious(
     return {
       ...li,
       noAdserving: prev.noAdserving,
-      line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
-      lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
+      // Keep expert row order / `line_item` from `mapOohExpertRowsToStandardLineItems` (idx + 1).
     }
   })
 }
@@ -263,8 +262,6 @@ export function mergeDigiDisplayStandardFromExpertWithPrevious(
       targetingAttribute: prev.targetingAttribute ?? li.targetingAttribute ?? "",
       placement: prev.placement ?? li.placement ?? "",
       size: prev.size ?? li.size ?? "",
-      line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
-      lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
     }
   })
 }

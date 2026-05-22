@@ -123,7 +123,10 @@ export function SpendingInsightsSection({
     [monthlyData, monthlySpendByCampaign, monthlyView],
   )
 
-  const getSeriesLabel = monthlyView === "mediaType" ? getMediaLabel : (key: string) => key
+  const getSeriesLabel = useMemo(
+    () => (monthlyView === "mediaType" ? getMediaLabel : (key: string) => key),
+    [monthlyView],
+  )
 
   const monthlyChartTitle =
     monthlyView === "mediaType" ? "Monthly spend by media type" : "Monthly spend by campaign"

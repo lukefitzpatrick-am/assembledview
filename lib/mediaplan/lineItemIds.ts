@@ -91,3 +91,93 @@ export function buildLineItemIdentity(
   const line_item_id = buildLineItemId(mbaNumber, mediaTypeCode, line_item);
   return { line_item_id, line_item };
 }
+
+/** Media type codes longest-first so e.g. `PO` matches before `O` in ambiguous tails. */
+const MEDIA_TYPE_CODES_BY_LENGTH = Object.values(MEDIA_TYPE_ID_CODES).sort(
+  (a, b) => b.length - a.length
+);
+
+/**
+ * Parse the numeric line-item suffix from a deterministic line_item_id
+ * (e.g. `MBA2024OH68` → 68, legacy `MBA2024ML7` → 7).
+ */
+export function parseLineNumberFromLineItemId(lineItemId: string): number | null {
+  const id = lineItemId.trim();
+  if (!id) return null;
+
+  for (const code of MEDIA_TYPE_CODES_BY_LENGTH) {
+    const match = id.match(new RegExp(`${code}(\\d+)$`, "i"));
+    if (match) {
+      const parsed = parseInt(match[1], 10);
+      if (Number.isFinite(parsed) && parsed > 0) return parsed;
+    }
+  }
+
+  const tail = id.match(/(\d+)$/);
+  if (tail) {
+    const parsed = parseInt(tail[1], 10);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  }
+
+  return null;
+}
+
+function parseLineItemFieldValue(value: unknown): number | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+    return Math.trunc(value);
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    if (/^\d+$/.test(trimmed)) {
+      const parsed = parseInt(trimmed, 10);
+      if (Number.isFinite(parsed) && parsed > 0) return parsed;
+    }
+    return parseLineNumberFromLineItemId(trimmed);
+  }
+  return null;
+}
+
+/**
+ * Resolve a numeric sort key for a line item row (API, form, or export shape).
+ * Uses explicit line_item fields first, then line_item_id suffix parsing.
+ */
+export function resolveLineItemSortNumber(item: any, fallbackIndex = 0): number {
+  const fieldCandidates = [
+    item?.line_item,
+    item?.lineItem,
+    item?.lineitem,
+    item?.lineItemNumber,
+  ];
+
+  for (const value of fieldCandidates) {
+    const parsed = parseLineItemFieldValue(value);
+    if (parsed !== null) return parsed;
+  }
+
+  for (const idValue of [item?.line_item_id, item?.lineItemId]) {
+    if (idValue === undefined || idValue === null) continue;
+    const parsed = parseLineNumberFromLineItemId(String(idValue));
+    if (parsed !== null) return parsed;
+  }
+
+  return Number.POSITIVE_INFINITY;
+}
+
+/** Stable ascending sort by line item number (fixes string-order API responses). */
+export function sortLineItemsByLineItemNumber<T>(items: T[]): T[] {
+  return [...items]
+    .map((item, index) => ({
+      item,
+      index,
+      lineItemNumber: resolveLineItemSortNumber(item, index),
+    }))
+    .sort((a, b) => {
+      if (a.lineItemNumber !== b.lineItemNumber) {
+        return a.lineItemNumber - b.lineItemNumber;
+      }
+      return a.index - b.index;
+    })
+    .map(({ item }) => item);
+}

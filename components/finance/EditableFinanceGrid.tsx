@@ -339,7 +339,7 @@ export function EditableFinanceGrid({
       m.set(row.index, row)
     }
     return m
-  }, [table, records, columns])
+  }, [table])
 
   const leafColumns = table.getVisibleLeafColumns()
 

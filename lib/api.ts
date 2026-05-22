@@ -1,7 +1,13 @@
 import { toMelbourneDateString } from "@/lib/timezone"
 import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
 import { getXanoBaseUrl } from "@/lib/api/xano"
-import { MEDIA_TYPE_ID_CODES, buildLineItemIdentity, buildLineItemId, pickLineItemNumber } from "@/lib/mediaplan/lineItemIds"
+import {
+  MEDIA_TYPE_ID_CODES,
+  buildLineItemIdentity,
+  buildLineItemId,
+  pickLineItemNumber,
+  sortLineItemsByLineItemNumber,
+} from "@/lib/mediaplan/lineItemIds"
 import { serializeBurstsJson } from "@/lib/mediaplan/serializeBurstsJson"
 
 const isBrowser = typeof window !== "undefined"
@@ -1989,7 +1995,7 @@ async function fetchLineItemsFromApi(
       throw new Error(`Failed to fetch ${key} line items (${response.status})`)
     }
     const data = await response.json()
-    return Array.isArray(data) ? data : []
+    return sortLineItemsByLineItemNumber(Array.isArray(data) ? data : [])
   } catch (err: unknown) {
     if (err instanceof Error && err.name === "AbortError") {
       const timeoutError = new Error(`Line item fetch timed out after ${timeoutMs}ms for ${key}`)
@@ -2948,7 +2954,7 @@ export async function saveProductionLineItems(
       const formattedBursts = normalizeBursts(lineItem)
       const { line_item_id, line_item } = buildLineItemMeta(lineItem, mbaNumber, index, 'PROD');
 
-      const mediaType = pickField(lineItem, ['media_type', 'mediaType', 'platform'], '')
+      const mediaType = pickField(lineItem, ['media_type', 'mediaType'], '')
       const publisher = pickField(lineItem, ['publisher', 'network', 'site'], '')
       const description = pickField(lineItem, ['description', 'creative'], '')
       const market = pickField(lineItem, ['market'], '')

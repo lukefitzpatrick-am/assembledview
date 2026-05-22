@@ -229,8 +229,7 @@ function useFinanceHubPayablesData(): {
       cancelled = true
     }
   }, [
-    filters.monthRange.from,
-    filters.monthRange.to,
+    filters.monthRange,
     filters.includeDrafts,
     filters.selectedClients,
     filters.selectedPublishers,

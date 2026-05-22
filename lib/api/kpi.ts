@@ -3,7 +3,16 @@ import type { CampaignKPI, ClientKPI, PublisherKPI } from "@/lib/kpi/types"
 async function jsonOrThrow<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const details = await response.text()
-    throw new Error(details || `Request failed with status ${response.status}`)
+    let message = details
+    try {
+      const parsed = JSON.parse(details) as { error?: string }
+      if (typeof parsed?.error === "string" && parsed.error.trim()) {
+        message = parsed.error
+      }
+    } catch {
+      // keep raw text
+    }
+    throw new Error(message || `Request failed with status ${response.status}`)
   }
   return (await response.json()) as T
 }

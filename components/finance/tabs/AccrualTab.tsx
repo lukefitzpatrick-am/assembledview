@@ -218,7 +218,7 @@ export function AccrualTab() {
 
   const accrualRowsRaw = useMemo(
     () => computeAccrualByClient(receivables, payablesRecords, filters.monthRange, reconcileMap),
-    [receivables, payablesRecords, filters.monthRange, reconcileMap, accrualMonths]
+    [receivables, payablesRecords, filters.monthRange, reconcileMap]
   )
 
   const accrualRows = useMemo(() => {

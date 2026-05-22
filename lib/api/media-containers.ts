@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { xanoUrl } from '@/lib/api/xano'
+import { sortLineItemsByLineItemNumber } from '@/lib/mediaplan/lineItemIds'
 
 // Track which "no data" messages have already been logged to avoid spam
 const missingLineItemsLogCache = new Set<string>()
@@ -165,7 +166,7 @@ export async function fetchMediaContainerLineItems(
         if (filteredFallback.length > 0) {
           console.info(`[${mediaType}] Fallback fetched ${filteredFallback.length} items without version filter for mba_number=${mbaNumber}, version=${versionNumber}`)
         }
-        return filteredFallback
+        return sortLineItemsByLineItemNumber(filteredFallback)
       } catch (fallbackErr) {
         console.warn(`[${mediaType}] Fallback fetch without version failed`, fallbackErr)
       }
@@ -174,8 +175,8 @@ export async function fetchMediaContainerLineItems(
     if (versionNumber !== undefined && versionNumber !== null && filteredPrimary.length !== allItems.length) {
       console.log(`[${mediaType}] Filtered ${allItems.length} items to ${filteredPrimary.length} matching mba_number=${mbaNumber} and version=${versionNumber}`)
     }
-    
-    return filteredPrimary
+
+    return sortLineItemsByLineItemNumber(filteredPrimary)
   } catch (error) {
     if (axios.isAxiosError(error) && error.response?.status === 404) {
       const cacheKey = `${mediaType}:${mbaNumber}:${versionNumber ?? 'latest'}`

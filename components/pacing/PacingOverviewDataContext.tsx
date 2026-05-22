@@ -40,7 +40,6 @@ const PacingOverviewDataContext = createContext<PacingOverviewDataContextValue |
 
 export function PacingOverviewDataProvider({ children }: { children: ReactNode }) {
   const filters = usePacingFilterStore((s) => s.filters)
-  const filtersKey = JSON.stringify(filters)
 
   const [lineItems, setLineItems] = useState<LineItemPacingRow[]>([])
   const [historyById, setHistoryById] = useState<Map<string, LineItemPacingDailyPoint[]>>(new Map())
@@ -120,7 +119,7 @@ export function PacingOverviewDataProvider({ children }: { children: ReactNode }
     return () => {
       cancelled = true
     }
-  }, [filtersKey])
+  }, [filters])
 
   const openDrawer = useCallback((row: LineItemPacingRow) => {
     setDrawerLineItem(row)

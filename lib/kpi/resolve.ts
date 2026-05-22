@@ -79,7 +79,10 @@ function resolveSourceFromLayers(
 export function resolveKPIsForMediaType(opts: ResolveKPIOptions): ResolvedKPIRow[] {
   const { mediaType, clientName, mbaNumber, versionNumber, campaignName } = opts
   const idToNormName = buildPublisherIdToNormNameMap(opts.publishers ?? [])
-  const grouped = groupLineItemsForKPI(opts.lineItems)
+  const grouped = groupLineItemsForKPI(opts.lineItems, {
+    mbaNumber,
+    mediaType,
+  })
 
   return grouped.map((item) => {
     const { publisher, bidStrategy, label } = extractKPIKeys(item, mediaType)

@@ -1,4 +1,6 @@
 import type { LineItem } from "@/lib/generateMediaPlan"
+import { buildLineItemIdentity } from "@/lib/mediaplan/lineItemIds"
+import { idCodeForKpiMediaType } from "./fanOut"
 
 export interface GroupedLineItemForKPI {
   lineItemId: string
@@ -19,14 +21,35 @@ export interface GroupedLineItemForKPI {
   deliverables: number
 }
 
-export function groupLineItemsForKPI(items: LineItem[]): GroupedLineItemForKPI[] {
-  const map = new Map<string, GroupedLineItemForKPI>()
+export type GroupLineItemsForKPIOptions = {
+  mbaNumber?: string
+  mediaType?: string
+}
 
-  for (const item of items) {
-    const id: string =
-      (item as any).line_item_id ??
-      (item as any).lineItemId ??
-      `${(item as any).platform ?? ""}_${(item as any).bidStrategy ?? (item as any).bid_strategy ?? ""}_${(item as any).creative ?? ""}_${(item as any).line_item ?? ""}`
+function syntheticGroupId(item: LineItem): string {
+  return `${(item as any).platform ?? ""}_${(item as any).bidStrategy ?? (item as any).bid_strategy ?? ""}_${(item as any).creative ?? ""}_${(item as any).line_item ?? ""}`
+}
+
+export function groupLineItemsForKPI(
+  items: LineItem[],
+  opts?: GroupLineItemsForKPIOptions,
+): GroupedLineItemForKPI[] {
+  const map = new Map<string, GroupedLineItemForKPI>()
+  const mba = opts?.mbaNumber?.trim() ?? ""
+  const mediaType = opts?.mediaType ?? ""
+  const code = mediaType ? idCodeForKpiMediaType(mediaType) : null
+  const isProduction = mediaType.toLowerCase().trim() === "production"
+
+  items.forEach((item, index) => {
+    let id = String((item as any).line_item_id ?? (item as any).lineItemId ?? "").trim()
+    if (!id && code && mba) {
+      id = buildLineItemIdentity(item, mba, code, index).line_item_id
+    } else if (!id && isProduction && mba) {
+      id = `${mba}PROD${index + 1}`
+    }
+    if (!id) {
+      id = syntheticGroupId(item)
+    }
 
     const spend =
       parseFloat(
@@ -71,7 +94,7 @@ export function groupLineItemsForKPI(items: LineItem[]): GroupedLineItemForKPI[]
         deliverables,
       })
     }
-  }
+  })
 
   return Array.from(map.values())
 }
