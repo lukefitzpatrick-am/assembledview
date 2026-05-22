@@ -27,3 +27,20 @@ export function set<T = unknown>(key: string, value: T, ttlSeconds: number): voi
   globalCache.set(key, { value, expiresAt: Date.now() + ttlMs })
 }
 
+/**
+ * Delete all cache entries whose keys start with the given prefix.
+ *
+ * Returns the count of entries deleted. Safe to call when no matching
+ * keys exist — returns 0.
+ */
+export function deleteByPrefix(prefix: string): number {
+  let count = 0
+  for (const key of globalCache.keys()) {
+    if (key.startsWith(prefix)) {
+      globalCache.delete(key)
+      count++
+    }
+  }
+  return count
+}
+

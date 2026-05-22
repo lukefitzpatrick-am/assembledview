@@ -1,7 +1,7 @@
 import "server-only"
 
 import crypto from "node:crypto"
-import { get as cacheGet, set as cacheSet } from "@/lib/cache/ttlCache"
+import { deleteByPrefix, get as cacheGet, set as cacheSet } from "@/lib/cache/ttlCache"
 import { querySnowflake } from "@/lib/snowflake/query"
 
 /** One ad-group-day row from SEARCH_PACING_FACT at ad-group grain. */
@@ -110,4 +110,13 @@ export async function getSearchCampaignsPacingData(
 
   cacheSet(key, rows, CACHE_TTL_SECONDS)
   return rows
+}
+
+/**
+ * Invalidates every cached SEARCH_PACING_FACT query result for the
+ * campaigns surface. Cheap, called only when an admin override changes
+ * the underlying data and we need next page load to reflect it.
+ */
+export function invalidateSearchCampaignsPacingCache(): number {
+  return deleteByPrefix("searchCampaignsPacing:")
 }
