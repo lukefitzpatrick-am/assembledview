@@ -3,6 +3,7 @@ import { redirect } from "next/navigation"
 import { auth0 } from "@/lib/auth0"
 import { getPacingClientScopeIds } from "@/lib/pacing/pacingScopeServer"
 import { PacingFilterProvider } from "@/lib/pacing/usePacingFilterStore"
+import { getUserRoles } from "@/lib/rbac"
 import { PacingShell } from "@/components/pacing/PacingShell"
 
 export default async function PacingShellLayout({ children }: { children: ReactNode }) {
@@ -13,10 +14,12 @@ export default async function PacingShellLayout({ children }: { children: ReactN
   }
   const scope = await getPacingClientScopeIds(user)
   const assignedStr = scope === null ? [] : scope.map(String)
+  const roles = getUserRoles(user)
+  const isAdmin = roles.includes("admin")
 
   return (
     <PacingFilterProvider initialAssignedClientIds={assignedStr}>
-      <PacingShell>{children}</PacingShell>
+      <PacingShell isAdmin={isAdmin}>{children}</PacingShell>
     </PacingFilterProvider>
   )
 }

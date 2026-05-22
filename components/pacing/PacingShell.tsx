@@ -6,18 +6,23 @@ import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { PacingFilterToolbar } from "@/components/pacing/PacingFilterToolbar"
 
-const tabs = [
+const baseTabs = [
   { href: "/pacing/overview", label: "Overview" },
   { href: "/pacing/campaigns", label: "Campaigns" },
   { href: "/pacing/settings", label: "Settings" },
-]
+] as const
 
 interface PacingShellProps {
   children: ReactNode
+  isAdmin?: boolean
 }
 
-export function PacingShell({ children }: PacingShellProps) {
+export function PacingShell({ children, isAdmin = false }: PacingShellProps) {
   const pathname = usePathname() ?? ""
+  const tabs = [
+    ...baseTabs,
+    ...(isAdmin ? [{ href: "/pacing/admin/orphans", label: "Admin" as const }] : []),
+  ]
 
   return (
     <div className="mx-auto w-full max-w-[1600px] space-y-4 px-4 pb-12 pt-4 md:px-6">
