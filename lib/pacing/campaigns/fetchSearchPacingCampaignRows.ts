@@ -22,7 +22,69 @@ export type FetchSearchPacingCampaignRowsArgs = {
   allowedClientSlugs: Set<string> | null;
 };
 
-type VersionRow = {
+export type GetLiveSearchLineItemsArgs = FetchSearchPacingCampaignRowsArgs;
+
+export type LiveSearchLineItemInput = {
+  master: MediaPlanMaster;
+  versionRow: VersionRow;
+  searchRow: Record<string, unknown>;
+};
+
+/**
+ * Resolves live search line items (masters, versions, Xano search rows)
+ * without Snowflake hydration.
+ */
+export async function resolveLiveSearchLineItemInputs(
+  args: GetLiveSearchLineItemsArgs
+): Promise<LiveSearchLineItemInput[]> {
+  const masters = await fetchAllMasters();
+  const liveMasters = masters.filter((m) => {
+    if (!isLiveCampaignStatus(m.campaign_status)) return false;
+    if (!m.campaign_start_date || !m.campaign_end_date) return false;
+    if (args.asOfDate < m.campaign_start_date || args.asOfDate > m.campaign_end_date) return false;
+    if (args.allowedClientSlugs !== null) {
+      const slug = slugifyPlanClientName(m.mp_client_name);
+      if (!slug || !args.allowedClientSlugs.has(slug)) return false;
+    }
+    return true;
+  });
+
+  if (liveMasters.length === 0) return [];
+
+  const versionRowsByMba = await fetchCurrentVersionRowsForMasters(liveMasters);
+  const inputs: LiveSearchLineItemInput[] = [];
+
+  for (const master of liveMasters) {
+    const versionRow = versionRowsByMba.get(norm(master.mba_number));
+    if (!versionRow) {
+      console.warn(
+        "[pacing/campaigns] no version row for master",
+        master.mba_number,
+        master.version_number
+      );
+      continue;
+    }
+
+    const searchRows = await fetchSearchLineItemsForMba({
+      mba_number: master.mba_number,
+      versionRowId: versionRow.id,
+      versionNumber: master.version_number,
+    });
+
+    for (const searchRow of searchRows) {
+      const lineItemId = String(searchRow.line_item_id ?? searchRow.lineItemId ?? "").trim();
+      if (!lineItemId) {
+        console.warn("[pacing/campaigns] search row missing line_item_id", master.mba_number, searchRow.id);
+        continue;
+      }
+      inputs.push({ master, versionRow, searchRow });
+    }
+  }
+
+  return inputs;
+}
+
+export type VersionRow = {
   id: number;
   version_number: number;
   brand?: string | null;
@@ -97,7 +159,7 @@ function filterByMbaAndVersion(
   }) as Record<string, unknown>[];
 }
 
-async function fetchAllMasters(): Promise<MediaPlanMaster[]> {
+export async function fetchAllMasters(): Promise<MediaPlanMaster[]> {
   const endpoints = ["media_plan_master", "media_plans_master"];
   for (const endpoint of endpoints) {
     try {
@@ -115,7 +177,7 @@ async function fetchAllMasters(): Promise<MediaPlanMaster[]> {
   return [];
 }
 
-async function fetchCurrentVersionRowsForMasters(
+export async function fetchCurrentVersionRowsForMasters(
   masters: MediaPlanMaster[]
 ): Promise<Map<string, VersionRow>> {
   const versionsUrl = xanoUrl("media_plan_versions", [...MEDIA_PLANS_KEYS]);
@@ -142,7 +204,7 @@ async function fetchCurrentVersionRowsForMasters(
   return map;
 }
 
-async function fetchSearchLineItemsForMba(args: {
+export async function fetchSearchLineItemsForMba(args: {
   mba_number: string;
   versionRowId: number;
   versionNumber: number;
@@ -259,50 +321,10 @@ function mapSearchRowToCampaignRow(
 export async function fetchSearchPacingCampaignRows(
   args: FetchSearchPacingCampaignRowsArgs
 ): Promise<SearchPacingCampaignRow[]> {
-  const masters = await fetchAllMasters();
-
-  const liveMasters = masters.filter((m) => {
-    if (!isLiveCampaignStatus(m.campaign_status)) return false;
-    if (!m.campaign_start_date || !m.campaign_end_date) return false;
-    if (args.asOfDate < m.campaign_start_date || args.asOfDate > m.campaign_end_date) return false;
-    if (args.allowedClientSlugs !== null) {
-      const slug = slugifyPlanClientName(m.mp_client_name);
-      if (!slug || !args.allowedClientSlugs.has(slug)) return false;
-    }
-    return true;
-  });
-
-  if (liveMasters.length === 0) return [];
-
-  const versionRowsByMba = await fetchCurrentVersionRowsForMasters(liveMasters);
-  const rows: SearchPacingCampaignRow[] = [];
-
-  for (const master of liveMasters) {
-    const versionRow = versionRowsByMba.get(norm(master.mba_number));
-    if (!versionRow) {
-      console.warn(
-        "[pacing/campaigns] no version row for master",
-        master.mba_number,
-        master.version_number
-      );
-      continue;
-    }
-
-    const searchRows = await fetchSearchLineItemsForMba({
-      mba_number: master.mba_number,
-      versionRowId: versionRow.id,
-      versionNumber: master.version_number,
-    });
-
-    for (const sr of searchRows) {
-      const lineItemId = String(sr.line_item_id ?? sr.lineItemId ?? "").trim();
-      if (!lineItemId) {
-        console.warn("[pacing/campaigns] search row missing line_item_id", master.mba_number, sr.id);
-        continue;
-      }
-      rows.push(mapSearchRowToCampaignRow(master, versionRow, sr, args.asOfDate));
-    }
-  }
+  const inputs = await resolveLiveSearchLineItemInputs(args);
+  const rows: SearchPacingCampaignRow[] = inputs.map(({ master, versionRow, searchRow }) =>
+    mapSearchRowToCampaignRow(master, versionRow, searchRow, args.asOfDate)
+  );
 
   if (rows.length === 0) return rows;
 
