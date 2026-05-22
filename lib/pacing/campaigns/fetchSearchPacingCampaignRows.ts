@@ -242,7 +242,7 @@ function mapSearchRowToCampaignRow(
     impressions: 0,
     clicks: 0,
     conversions: 0,
-    revenue: null,
+    revenue: 0, // TODO Part 2: populated from Snowflake
     cpc: null,
     ctr: null,
     cpm: null,

@@ -2,8 +2,36 @@
  * Row type for the /pacing/campaigns page (Stage 1 Search).
  *
  * One row per Xano media_plan_search line item under a live media_plan_master.
- * Snowflake-sourced fields are stubbed at 0 / null in Part 1 and populated in Part 2.
+ * Snowflake-sourced fields populated in Part 2 via composer hydration.
  */
+
+/** KPI bundle reused at line-item, platform-campaign, and ad-group levels. */
+export type SearchPacingKpis = {
+  spendToDateLineTotal: number;
+  spendToDateCurrentBurst: number;
+  spendYesterday: number;
+  impressions: number; // line-total across all dates in range
+  clicks: number;
+  conversions: number;
+  revenue: number;
+  cpc: number | null; // SUM(spend) / SUM(clicks) — null if clicks = 0
+  ctr: number | null; // SUM(clicks) / SUM(impressions) — null if impressions = 0
+  cpm: number | null; // SUM(spend) / SUM(impressions) * 1000 — null if impressions = 0
+};
+
+/** One ad group under a platform campaign. */
+export type AdGroupBreakdown = SearchPacingKpis & {
+  platformLineItemId: string; // SEARCH_PACING_FACT.PLATFORM_LINE_ITEM_ID
+  lineItemName: string; // SEARCH_PACING_FACT.LINE_ITEM_NAME (platform-side label)
+};
+
+/** One platform campaign under a Xano line item, containing its ad groups. */
+export type PlatformCampaignBreakdown = SearchPacingKpis & {
+  campaignId: string; // SEARCH_PACING_FACT.CAMPAIGN_ID
+  campaignName: string; // SEARCH_PACING_FACT.CAMPAIGN_NAME
+  adGroups: AdGroupBreakdown[];
+};
+
 export type SearchPacingCampaignRow = {
   // --- Identity ---
   mbaNumber: string;
@@ -40,30 +68,28 @@ export type SearchPacingCampaignRow = {
   currentBurstIndex: number | null; // null if today is outside all bursts
   currentBurst: NormalisedBurst | null;
 
-  // --- Calculated (Part 1, no Snowflake) ---
-  lineItemStatus: "on-track" | "ahead" | "behind" | "no-data"; // always "no-data" in Part 1
+  // --- Calculated pacing (Part 2: real values) ---
+  lineItemStatus: "on-track" | "ahead" | "behind" | "no-data";
   burstDays: number | null;
   burstDaysRemaining: number | null;
   spendPerDayRemaining: number | null;
-  spendRemainingCurrentBurst: number | null;
-  spendRemainingLineTotal: number | null;
+  spendRemainingCurrentBurst: number | null; // burstBudget - spendToDateCurrentBurst
+  spendRemainingLineTotal: number | null; // totalLineItemBudget - spendToDateLineTotal
 
-  // --- Snowflake stubs (Part 2) ---
-  platformCampaigns: Array<{
-    campaignId: string;
-    campaignName: string;
-    adGroups: Array<{ platformLineItemId: string; lineItemName: string }>;
-  }>;
-  spendToDateCurrentBurst: number; // 0
-  spendToDateLineTotal: number; // 0
-  spendYesterday: number; // 0
-  impressions: number; // 0
-  clicks: number; // 0
-  conversions: number; // 0
-  revenue: number | null; // null
+  // --- Snowflake KPIs (line-item aggregated) ---
+  spendToDateLineTotal: number;
+  spendToDateCurrentBurst: number;
+  spendYesterday: number;
+  impressions: number;
+  clicks: number;
+  conversions: number;
+  revenue: number;
   cpc: number | null;
   ctr: number | null;
   cpm: number | null;
+
+  // --- Three-level breakdown for UI drill-down ---
+  platformCampaigns: PlatformCampaignBreakdown[];
 };
 
 export type NormalisedBurst = {
