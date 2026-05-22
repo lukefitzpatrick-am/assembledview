@@ -81,6 +81,7 @@ export function SearchPacingCampaignTable({ rows }: { rows: SearchPacingCampaign
           <tr className="text-left">
             <th className="w-8 p-2" />
             <th className="p-2 whitespace-nowrap">Client</th>
+            <th className="p-2 whitespace-nowrap">Platform</th>
             <th className="p-2 min-w-[10rem]">Campaign / Ad Group</th>
             <th className="p-2 whitespace-nowrap">MBA</th>
             <th className="p-2 whitespace-nowrap">Line Item ID</th>
@@ -160,6 +161,7 @@ function FragmentForLineItem({
           ) : null}
         </td>
         <td className="p-2 font-medium">{row.clientName}</td>
+        <td className="p-2">{row.platform || XANO_MISSING}</td>
         <td className="p-2">{row.campaignName}</td>
         <td className="p-2 font-mono text-[10px]">{row.mbaNumber}</td>
         <td className="p-2 font-mono text-[10px]">{row.lineItemId}</td>
@@ -248,6 +250,7 @@ function FragmentForCampaign({
           ) : null}
         </td>
         <td className="p-2" />
+        <td className="p-2" />
         <td className="p-2 italic text-foreground/90">{campaign.campaignName || campaign.campaignId}</td>
         <td className="p-2" />
         <td className="p-2" />
@@ -287,6 +290,7 @@ function FragmentForCampaign({
             className="border-t bg-muted/5"
           >
             <td className="p-2 pl-10" />
+            <td className="p-2" />
             <td className="p-2" />
             <td className="p-2 pl-4 text-muted-foreground">{ag.lineItemName || ag.platformLineItemId}</td>
             <td className="p-2" />
