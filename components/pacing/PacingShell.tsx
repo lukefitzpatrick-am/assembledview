@@ -8,6 +8,7 @@ import { PacingFilterToolbar } from "@/components/pacing/PacingFilterToolbar"
 
 const tabs = [
   { href: "/pacing/overview", label: "Overview" },
+  { href: "/pacing/campaigns", label: "Campaigns" },
   { href: "/pacing/settings", label: "Settings" },
 ]
 
