@@ -2,11 +2,18 @@ import "server-only";
 
 import { fetchAllXanoPages } from "@/lib/api/xanoPagination";
 import { xanoUrl } from "@/lib/api/xano";
+import { aggregateForLineItem } from "@/lib/pacing/campaigns/aggregate";
 import { findCurrentBurstIndex, inclusiveDaysBetween } from "@/lib/pacing/burst/currentBurst";
 import { parseBurstsToNormalised } from "@/lib/pacing/burst/parseBursts";
 import type { SearchPacingCampaignRow } from "@/lib/pacing/campaigns/types";
-import { isLiveCampaignStatus, type MediaPlanMaster } from "@/lib/types/mediaPlanMaster";
+import {
+  computePacing,
+  getMelbourneYesterdayISO,
+  type PacingStatus,
+} from "@/lib/pacing/maths";
 import { slugifyPlanClientName } from "@/lib/pacing/scope/resolveClientSlugs";
+import { getSearchCampaignsPacingData } from "@/lib/snowflake/search-campaigns-pacing";
+import { isLiveCampaignStatus, type MediaPlanMaster } from "@/lib/types/mediaPlanMaster";
 
 const MEDIA_PLANS_KEYS = ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"] as const;
 
@@ -242,7 +249,7 @@ function mapSearchRowToCampaignRow(
     impressions: 0,
     clicks: 0,
     conversions: 0,
-    revenue: 0, // TODO Part 2: populated from Snowflake
+    revenue: 0,
     cpc: null,
     ctr: null,
     cpm: null,
@@ -297,5 +304,91 @@ export async function fetchSearchPacingCampaignRows(
     }
   }
 
+  if (rows.length === 0) return rows;
+
+  // --- Snowflake hydration (Part 2) ---
+  const lineItemIds = Array.from(new Set(rows.map((r) => r.lineItemId.toLowerCase())));
+  const lineTotalStart =
+    rows
+      .map((r) => r.lineItemStartDate)
+      .filter((d): d is string => !!d)
+      .sort()[0] ?? args.asOfDate;
+  const yesterday = getMelbourneYesterdayISO(args.asOfDate);
+
+  const snowflakeRows = await getSearchCampaignsPacingData({
+    lineItemIds,
+    startDate: lineTotalStart,
+    endDate: args.asOfDate,
+  });
+
+  const byLineItem = new Map<string, typeof snowflakeRows>();
+  for (const sr of snowflakeRows) {
+    const k = sr.LINE_ITEM_ID;
+    let bucket = byLineItem.get(k);
+    if (!bucket) {
+      bucket = [];
+      byLineItem.set(k, bucket);
+    }
+    bucket.push(sr);
+  }
+
+  for (const row of rows) {
+    const k = row.lineItemId.toLowerCase();
+    const matched = byLineItem.get(k) ?? [];
+    const { lineItemKpis, platformCampaigns } = aggregateForLineItem(matched, {
+      lineTotalStart: row.lineItemStartDate ?? lineTotalStart,
+      lineTotalEnd: args.asOfDate,
+      currentBurstStart: row.currentBurst?.startDate ?? null,
+      currentBurstEnd: row.currentBurst?.endDate ?? null,
+      yesterday,
+    });
+
+    Object.assign(row, lineItemKpis);
+    row.platformCampaigns = platformCampaigns;
+
+    row.spendRemainingCurrentBurst =
+      row.currentBurst !== null
+        ? row.currentBurst.budget - lineItemKpis.spendToDateCurrentBurst
+        : null;
+    row.spendRemainingLineTotal = row.totalLineItemBudget - lineItemKpis.spendToDateLineTotal;
+    row.spendPerDayRemaining =
+      row.spendRemainingCurrentBurst !== null &&
+      row.burstDaysRemaining !== null &&
+      row.burstDaysRemaining > 0
+        ? row.spendRemainingCurrentBurst / row.burstDaysRemaining
+        : null;
+
+    if (row.currentBurst === null) {
+      row.lineItemStatus = "no-data";
+    } else {
+      const mathsOutput = computePacing({
+        lineItemBudget: row.currentBurst.budget,
+        startDate: row.currentBurst.startDate,
+        endDate: row.currentBurst.endDate,
+        spendToDate: lineItemKpis.spendToDateCurrentBurst,
+        spendYesterday: lineItemKpis.spendYesterday,
+        impressionsToDate: lineItemKpis.impressions,
+        clicksToDate: lineItemKpis.clicks,
+        conversionsToDate: lineItemKpis.conversions,
+        revenueToDate: lineItemKpis.revenue,
+        asOfDate: args.asOfDate,
+      });
+      row.lineItemStatus = lineItemStatusFromPacing(mathsOutput.status);
+    }
+  }
+
   return rows;
+}
+
+/** Maps 7-state computePacing output to the 4-state campaigns table pill. */
+function lineItemStatusFromPacing(
+  status: PacingStatus
+): SearchPacingCampaignRow["lineItemStatus"] {
+  if (status === "on_track" || status === "completed") return "on-track";
+  if (status === "not_started") return "no-data";
+  if (status === "slightly_under" || status === "under_pacing" || status === "no_delivery") {
+    return "behind";
+  }
+  if (status === "slightly_over" || status === "over_pacing") return "ahead";
+  return "no-data";
 }
