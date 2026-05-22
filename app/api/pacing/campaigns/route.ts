@@ -5,12 +5,13 @@ import { fetchSearchPacingCampaignRows } from "@/lib/pacing/campaigns/fetchSearc
 import { getAsOfDate } from "@/lib/pacing/maths";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 /**
  * GET /api/pacing/campaigns
  *
  * Returns the list of live Search line items composed from Xano.
- * Snowflake-sourced fields are 0 / null in Stage 1 Part 1 — populated in Part 2.
+ * Snowflake-sourced spend/KPI fields and three-level hierarchy populated in Part 2.
  *
  * Query params:
  *   asOfDate? — YYYY-MM-DD, defaults to Melbourne timezone today
