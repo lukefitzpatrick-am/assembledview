@@ -2,6 +2,7 @@
 
 import { Fragment, useState } from "react";
 import { ChevronRight } from "lucide-react";
+import { statusBadge, statusLabel } from "@/components/dashboard/delivery/shared/statusColours";
 import type {
   PlatformCampaignBreakdown,
   SearchPacingCampaignRow,
@@ -143,7 +144,12 @@ function FragmentForLineItem({
   return (
     <Fragment>
       <tr
-        className={`border-t ${hasChildren ? "cursor-pointer hover:bg-muted/20" : ""}`}
+        className={`border-t ${hasChildren ? "cursor-pointer hover:bg-muted/20" : ""} ${row.currentBurst === null ? "opacity-75" : ""}`}
+        title={
+          row.currentBurst === null
+            ? "Live line item — no burst contains today (gap between bursts)"
+            : undefined
+        }
         onClick={hasChildren ? onToggle : undefined}
       >
         <td className="p-2">
@@ -318,23 +324,14 @@ function FragmentForCampaign({
 }
 
 function StatusCell({ status }: { status: SearchPacingCampaignRow["lineItemStatus"] }) {
-  const variants: Record<typeof status, string> = {
-    "on-track": "bg-emerald-500/15 text-emerald-800 dark:text-emerald-300",
-    ahead: "bg-blue-500/15 text-blue-800 dark:text-blue-300",
-    behind: "bg-amber-500/15 text-amber-800 dark:text-amber-300",
-    "no-data": "bg-muted text-muted-foreground",
-  };
-  const labels: Record<typeof status, string> = {
-    "on-track": "On track",
-    ahead: "Ahead",
-    behind: "Behind",
-    "no-data": "—",
-  };
+  if (status === "no-data") {
+    return <span className="text-muted-foreground">—</span>;
+  }
   return (
     <span
-      className={`inline-flex items-center rounded px-2 py-0.5 text-[10px] font-medium whitespace-nowrap ${variants[status]}`}
+      className={`inline-flex items-center rounded px-2 py-0.5 text-[10px] font-medium whitespace-nowrap ${statusBadge[status]}`}
     >
-      {labels[status]}
+      {statusLabel[status]}
     </span>
   );
 }
