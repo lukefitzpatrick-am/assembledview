@@ -2599,3 +2599,261 @@ Used at lines 1561, 1656, 3342+, 3572+, 4158, 4658, 4669, 4676, 8769+ (modal UI)
 
 10. **TODO/FIXME in billing code:** No `TODO`/`FIXME` in extracted billing helpers; comment at 672 documents historical adserving zero bug.
 
+---
+
+## Stage 2 Hotfix Discovery: Production Mirror
+
+**Branch:** `domain-4-long-lived` (HEAD `0fd81e47` at discovery start).  
+**Scope:** Read-only. No application code modified.
+
+### Create Page Production Write Path
+
+**Path from enabled production → persisted `billingSchedule`:**
+
+1. **Auto schedule generation** — `computeBillingAndDeliveryMonths` (via `computeSchedule.ts`) distributes `productionBursts` into each month’s `productionTotal` and `mediaCosts.production`, and sets top-level `month.production` to the same allocated amount (lines 135–137, 247, 268 in `lib/billing/computeSchedule.ts`).
+
+2. **Line-item attachment on save** — `handleSaveAll` calls `attachLineItemsToMonths(deepCloneBillingMonths(billingMonthsSource), "billing")`, which includes production in `mediaTypeMap`:
+
+```4303:4303:app/mediaplans/create/page.tsx
+          'mp_production': { lineItems: productionMediaLineItems, key: 'production' },
+```
+
+Production line items are generated with `generateBillingLineItems` and merged into `month.lineItems.production` when `fv.mp_production` is true and `productionMediaLineItems.length > 0`.
+
+3. **JSON serialization** — `buildBillingScheduleJSON(billingMonthsWithLineItems)` is the sole serializer. It writes **both**:
+   - **Top-level** `production` from `month.production` (line 130).
+   - **Optional `mediaTypes` entry** `{ mediaType: "Production", lineItems: [...] }` when `month.lineItems.production` (or any key) has line items with `> $0` for that month (lines 98–124, label map line 44).
+
+Relevant `buildBillingScheduleJSON` production handling:
+
+```79:132:lib/billing/buildBillingSchedule.ts
+export function buildBillingScheduleJSON(billingMonths: BillingMonth[]): BillingScheduleEntry[] {
+  // ...
+    const hasFeeOrAdServing =
+      parseMoney((month as any).feeTotal) !== 0 ||
+      parseMoney((month as any).adservingTechFees) !== 0 ||
+      parseMoney((month as any).production) !== 0;
+  // ...
+    Object.entries(month.lineItems ?? {}).forEach(([mediaKey, lineItems]) => {
+      // ... filters to items with __amountValue > 0 ...
+      if (formattedLineItems.length > 0) {
+        mediaTypes.push({
+          mediaType: mediaTypeLabels[mediaKey] ?? mediaKey,
+          lineItems: formattedLineItems,
+        });
+      }
+    });
+
+    const entry: BillingScheduleEntry = {
+      monthYear: month.monthYear,
+      feeTotal: coerceMoneyString((month as any).feeTotal) || "$0.00",
+      production: coerceMoneyString((month as any).production) || "$0.00",
+      mediaTypes,
+    };
+```
+
+Create-page save call site:
+
+```4407:4414:app/mediaplans/create/page.tsx
+      let billingScheduleJSON = buildBillingScheduleJSON(billingMonthsWithLineItems);
+      if (!billingScheduleJSON.length && billingMonthsWithLineItems.length > 0) {
+        billingScheduleJSON = buildBillingScheduleJSON(
+          billingMonthsWithLineItems.map(synthesizeLineItemsFromTotals)
+        );
+      }
+```
+
+**Finding:** The **current** create write path can persist production in **two places**: top-level `production` (always, from `month.production`) and a `mediaTypes` `"Production"` block (only when `month.lineItems.production` has non-zero line items for that month). If line items are absent or all $0 for a month, persisted JSON has **top-level `production` only** — matching glenda005’s shape. That is **not legacy-only**; it is a normal outcome of the current serializer when production amounts live only at the month rollup (burst allocation) without non-zero production line items in `month.lineItems`.
+
+**Note:** Create-page `handleManualBillingOpen` (lines 3582–3601) omits `mp_production` from its modal `mediaTypeMap`, so the manual-billing modal on create does not inject production line items on open; save still attaches them via `attachLineItemsToMonths`.
+
+### MBA Edit Save Path for Production
+
+`buildBillingScheduleForSave` (lines 4475–4497) routes through the **same** `buildBillingScheduleJSON` as create:
+
+```4475:4490:app/mediaplans/mba/[mba_number]/edit/page.tsx
+  const buildBillingScheduleForSave = useCallback((): Record<string, any> => {
+    const months = workingBillingMonths
+  // ...
+    const monthsForJson: import("@/lib/billing/types").BillingMonth[] = billingMonthsHaveDetailedLineItems(months)
+      ? typedMonths
+      : attachLineItemsToMonths(deepCloneBillingMonths(months), "billing")
+
+    return appendPartialApprovalToBillingSchedule({
+      billingSchedule: buildBillingScheduleJSON(monthsForJson),
+      metadata: isPartialMBA ? partialApprovalMetadata : null,
+    })
+  }, [
+```
+
+**Trace:** `workingBillingMonths` → (optional) `attachLineItemsToMonths` including `mp_production` / key `"production"` (line 4559 in `validateBillingBeforeSave`’s mediaTypeMap; same map in `attachLineItemsToMonths`) → `buildBillingScheduleJSON` → persisted JSON.
+
+**Production placement on save:** Identical to create — top-level `production` always; `mediaTypes` `"Production"` entry only when `month.lineItems.production` has non-zero amounts. No edit-page-specific production serializer.
+
+Campaign save invokes this at line 4855: `const billingScheduleJSON = buildBillingScheduleForSave();`
+
+### Reference Saved JSON Shapes
+
+**`tests/finance/fixtures/realisticMediaPlanVersion.ts`** — August month has **top-level `production: 0` only**; no `mediaTypes` Production entry:
+
+```47:54:tests/finance/fixtures/realisticMediaPlanVersion.ts
+    {
+      monthYear: "2025-08",
+      feeTotal: 2500,
+      assembledFee: 2500,
+      adservingTechFees: 0,
+      production: 0,
+    },
+```
+
+July month has Television in `mediaTypes` only; no production.
+
+**Other repo examples of `billingSchedule` JSON:**
+
+| Location | Production in `mediaTypes`? | Top-level `production`? |
+|---|---|---|
+| `tests/finance/fixtures/realisticMediaPlanVersion.ts` | No | Yes (`production: 0` on fee-only month) |
+| `tests/finance/buildFinanceForecastDataset.test.ts` | No (Television line items only) | No on billing rows; delivery fallback row has `production: 0` (line 289) |
+| `lib/billing/__tests__/compareBillingDivergence.test.ts` | N/A (in-memory `BillingMonth`, not persisted JSON) | `$0.00` on month objects |
+| `AUDIT-DOMAIN-4.md` / Stage 1 excerpts | Examples use channel `mediaTypes`; no Production block cited | Not consistently shown |
+| No test/fixture in repo | **Zero matches** for `"mediaType": "Production"` or `mediaType: 'Production'` | — |
+
+**Finding:** No fixture or test documents a saved JSON with a `mediaTypes` Production entry. All fixtures use top-level `production` (or omit it) for month-level production amounts.
+
+### Parser Production Handling
+
+`parseSavedBillingSchedulePayload` (lines 827–1011 in edit page; mirrored in `lib/billing/parsePersistedBillingScheduleToMonths.ts` lines 30–251).
+
+**Where `mediaCosts.production` gets its value:**
+
+- Initialized to `"$0.00"` for every month (line 890).
+- Updated **only** inside the `mediaTypes` loop when a matching media type has `lineItems` — sum of line item amounts written to `mediaCosts[mediaKey]` (lines 908–918).
+- `"Production"` is **not** in `mediaTypeLabelMap` (lines 845–865); a `"Production"` label would fall through to `String(label).toLowerCase()` → `"production"`, so a present `mediaTypes` Production entry **would** update `mediaCosts.production`.
+- **Never** copied from top-level `entry.production`.
+
+**Where top-level `month.production` (return value) gets its value:**
+
+- Parsed from `entry.production` (line 962), formatted at line 1007 (normal path) or 994 (legacy path).
+
+**Trace — saved JSON with `production: "$500.00"` and no `mediaTypes` Production entry:**
+
+1. `mediaCosts.production` stays `"$0.00"` (init, never updated).
+2. `production` parsed → `500` → returned as `currencyFormatter.format(500)` e.g. `"$500.00"`.
+3. **Result:** `month.production = "$500.00"`, `month.mediaCosts.production = "$0.00"` — **mirror broken on hydrate**.
+
+**Trace — saved JSON with both top-level `production: "$500.00"` AND `mediaTypes: [{ mediaType: "Production", lineItems: [...] }]` summing to $500:**
+
+1. Loop sets `mediaCosts.production` from line-item sum (e.g. `"$500.00"`).
+2. Top-level `production` still parsed independently from `entry.production` → `"$500.00"`.
+3. **Result:** Both fields returned as stored; **no reconciliation**. If saved values disagree, parser returns both as-is; neither wins.
+
+### mediaCosts.production Write Sites
+
+| File | Approx lines | Value written | Also writes `month.production`? |
+|---|---|---|---|
+| `lib/billing/computeSchedule.ts` | 268, 301 | `formatter.format(mediaCosts.production \|\| 0)` from burst distribution | Yes — same numeric intent via `production: formatter.format(productionTotal \|\| 0)` (247, 280) |
+| `app/mediaplans/create/page.tsx` | 3781 | User edit via `handleManualBillingChange` type `'production'` | Yes (3779) |
+| `app/mediaplans/create/page.tsx` | 3772 | User edit type `'media'`, `mediaKey === 'production'` | Yes |
+| `app/mediaplans/create/page.tsx` | 3941 | `handleManualBillingCostPreBillToggle` | Yes (3939) |
+| `app/mediaplans/create/page.tsx` | 6372 | Production input `onChange` in modal | Yes (6370) |
+| `app/mediaplans/mba/[mba_number]/edit/page.tsx` | 609, 699 | `mergeAppendIntoExistingMonth` from auto template | Yes (607, 697) |
+| `app/mediaplans/mba/[mba_number]/edit/page.tsx` | 3678, 3687 | `handleManualBillingChange` type `'media'` / `'production'` | Yes for `'production'` and `mediaKey === 'production'` |
+| `app/mediaplans/mba/[mba_number]/edit/page.tsx` | 3642 | `handleManualBillingChange` type `'lineItem'` — sum of line items for `mediaKey` | **No** — only `mediaCosts[mediaKey]`; does not update `month.production` |
+| `app/mediaplans/mba/[mba_number]/edit/page.tsx` | 467 | `recomputeFullMonthFromLineItems` — sum from `lineItems.production` | **No** — updates `mc.production` from line items; reads existing `row.production` for totals (473–474) |
+| `app/mediaplans/mba/[mba_number]/edit/page.tsx` | 3807, 9228 | Pre-bill toggle / production input `onChange` | Yes |
+| `lib/billing/resetFromAutoReference.ts` | 52–53 | `applyCostBucketFromAutoReferenceAggregates` from auto month | Yes (50–51) |
+| `components/billing/AlterBillingDialog.tsx` | 161 | Finance hub alter-billing production field | Yes (159) |
+| `parseSavedBillingSchedulePayload` | 890, 918 | Init `$0.00`; from `mediaTypes` line-item sum only | Sets `month.production` from `entry.production` separately (962, 1007) — **not synced** |
+
+**Finding:** In-memory schedule generators and manual production-field edits keep `month.production` and `mediaCosts.production` in sync. **Hydrate parser is the only path observed that sets top-level `production` from saved JSON while leaving `mediaCosts.production` at `$0.00`.**
+
+### Validator History
+
+```text
+git log -S "Production total" --oneline -- app/mediaplans/mba/[mba_number]/edit/page.tsx
+→ fb71217 Dashboard refresh, client hub, finance forecast, publishers, expert grids
+```
+
+| Field | Value |
+|---|---|
+| **Commit** | `fb71217c25f00771dae0ae373b2e924b206207ce` |
+| **Date** | 2026-03-31 09:08:47 +1100 |
+| **Message** | Dashboard refresh, client hub, finance forecast, publishers, expert grids |
+| **Function** | `collectBillingMonthStructuralBlockingIssues` introduced in this commit (confirmed via `git show fb71217` diff) |
+
+**Relative to Domain 3b:** Domain 3b Stage 3 (`12dbc35`, 2026-05-01 — “billing consumer audit + double-count fix”) and Stage 2 (`a86921b`, 2026-05-01 — “mp_production / mp_fixedfee disambiguation”) are **after** the validator (2026-03-31). The production-mirror check predates Domain 3b Stage 3 production mirror documentation in `lib/billing/types.ts`.
+
+Domain 4 Stage 2 (`0fd81e47`, 2026-05-24) refactored divergence detection but **did not introduce** this validator; it was already present from `fb71217`.
+
+### Diagnosis Hypothesis
+
+**Most likely: B** — Saved JSON for campaigns like glenda005 (top-level `production`, no `mediaTypes` Production entry) reflects a **valid current write-path outcome** when production month rollups exist without non-zero production line items in `month.lineItems`. The parser is the bug on hydrate: it initializes `mediaCosts.production = "$0.00"` and never derives it from top-level `entry.production` when no `mediaTypes` Production block exists.
+
+**Evidence:**
+
+- Current `buildBillingScheduleJSON` always writes top-level `production`; `mediaTypes` Production is conditional on non-zero line items (Create + MBA Edit save paths).
+- No fixture shows `mediaTypes` Production; glenda005 shape is consistent with current serializer output, not necessarily pre–Domain 3b legacy only.
+- `parseSavedBillingSchedulePayload` lines 890, 962, 1007 — top-level and `mediaCosts.production` are populated from different sources with no fallback mirror.
+- `lib/billing/types.ts` lines 53–57 document that `production` and `mediaCosts.production` should duplicate the same amount in working state; hydrate violates that contract.
+- Validator (`fb71217`, lines 216–219) compares the two fields and blocks save on hydrated glenda005 even before user edits.
+
+**Not C:** Create and MBA edit share one serializer (`buildBillingScheduleJSON`); no separate edit-only production write shape was found.
+
+**Not A alone:** Wording “always lacked production in mediaTypes” overstates — current writes **can** include it when line items exist; glenda005’s shape is one valid branch, not universal history.
+
+### $50 Discrepancy Investigation
+
+**Validator reported:** April `$550.00` vs `$0.00`; May `$1,450.00` vs `$0.00`. **Saved JSON:** `$500.00` / `$1,500.00` top-level production.
+
+**Manual billing modal save handler** (`handleManualBillingSave`, lines 4682–4707): validates `manualBillingMonths`, then `JSON.parse(JSON.stringify(manualBillingMonths))` → `setWorkingBillingMonths`. Does not recompute production fields itself.
+
+**Non-production line item edit** (`handleManualBillingChange`, `type === 'lineItem'`, lines 3595–3644):
+
+- Syncs line-item amount via `syncLineItemMonthlyAmountAcrossAllMonthRows`.
+- Recomputes **`mediaCosts[mediaKey]`** only (e.g. `digiDisplay`) from line-item sum.
+- **Does not** modify `month.production` or `month.mediaCosts.production`.
+
+**Production line item edit** (same branch, `mediaKey === 'production'`): updates `mediaCosts.production` from line-item sum; **does not** update `month.production`.
+
+**Production footer edit** (`type === 'production'`, lines 3684–3688; `onChange` lines 9224–9230): updates **both** `month.production` and `mediaCosts.production`.
+
+**Month total recompute after line-item edit** (lines 3695–3707): uses existing `copy[index].production` for grand total; does not derive production from line items.
+
+```3595:3707:app/mediaplans/mba/[mba_number]/edit/page.tsx
+    if (type === 'lineItem' && mediaKey && lineItemId && monthYear) {
+      // ... syncLineItemMonthlyAmountAcrossAllMonthRows ...
+            if (mediaCosts) {
+              (mediaCosts as any)[mediaKey] = formatter.format(mediaTypeTotal);
+            }
+        }
+      }
+    }
+    // ...
+    } else if (type === 'production') {
+      copy[index].production = formattedValue;
+      if (copy[index].mediaCosts.hasOwnProperty('production')) {
+        copy[index].mediaCosts.production = formattedValue;
+      }
+    }
+    // Recalculate totals for the affected month
+    const productionTotal =
+      parseFloat(String(copy[index].production ?? "$0").replace(/[^0-9.-]/g, "")) || 0
+    copy[index].totalAmount = formatter.format(mediaTotal + feeTotal + adServingTotal + productionTotal);
+```
+
+**Finding on $50:** A **non-production** line item edit (e.g. Digital Display ±$50) does **not** write `month.production` or `month.mediaCosts.production`. The reported `$550` / `$1,450` production totals (saved `$500` / `$1,500` + $50) imply **`month.production` was changed** — consistent with editing the Production footer row or another production-specific path, not a media line-item edit alone. With hydrate leaving `mediaCosts.production` at `$0.00`, the validator would show **`$X` vs `$0.00`** for whatever `month.production` holds after edit. Exact smoke-test step sequence was not reproduced in this read-only pass.
+
+### Hotfix Discovery Open Questions
+
+1. **Smoke-test edit target:** Confirm whether the ±$50 edit was a production footer field, a production line item, or a non-production line item — code paths differ materially (see above).
+
+2. **`mediaTypeLabelMap` omission of `"Production"`:** Harmless today via lowercase fallback, but inconsistent with other labels; worth noting if parser is extended.
+
+3. **Campaigns with both top-level and `mediaTypes` Production in saved JSON:** No fixture exists; parser does not reconcile conflicting values.
+
+4. **Validator age vs hydrate bug:** Check existed since `fb71217` (2026-03-31) but may have been masked until Domain 4 Stage 2 made manual billing / save validation more reachable on hydrate for older campaigns.
+
+5. **Create manual billing modal** excludes `mp_production` from line-item injection on open — separate from glenda005 MBA edit path but affects create-page manual flows.
+
+6. **`recomputeFullMonthFromLineItems`** sets `mediaCosts.production` from production line items without updating `month.production` — potential secondary mirror break when append/resync runs on months with production line items but top-level production from saved JSON.
+
