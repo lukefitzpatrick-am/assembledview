@@ -9,15 +9,23 @@ import {
   type RefObject,
 } from "react";
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { statusBadge, statusLabel } from "@/components/dashboard/delivery/shared/statusColours";
 import { slugifyClientName } from "@/lib/api/dashboard/shared";
 import {
+  buildKpiComparisons,
   computeRowKpiStatus,
   copyForRowKpiStatus,
+  type KpiComparison,
   type RowKpiStatus,
 } from "@/lib/pacing/kpi/computeKpiStatus";
+import {
+  formatRatioAsPercent,
+  formatVariancePercent,
+  labelForMetric,
+} from "@/lib/pacing/kpi/formatKpi";
 import type {
   PlatformCampaignBreakdown,
   SearchPacingCampaignRow,
@@ -479,7 +487,10 @@ function FragmentForLineItem({
           {row.creativeTargeting || XANO_MISSING}
         </td>
         <td className="p-2 border-b">
-          <KpiStatusPill status={computeRowKpiStatus(row)} />
+          <div className="inline-flex items-center gap-1">
+            <KpiStatusPill status={computeRowKpiStatus(row)} />
+            <KpiDrilldownButton row={row} />
+          </div>
         </td>
         <td className="p-2 border-b">{fmtXanoDate(row.lineItemStartDate)}</td>
         <td className="p-2 border-b">{fmtXanoDate(row.lineItemEndDate)}</td>
@@ -737,5 +748,144 @@ function KpiStatusPill({ status }: { status: RowKpiStatus }) {
     >
       {copy}
     </span>
+  );
+}
+
+function KpiDrilldownButton({ row }: { row: SearchPacingCampaignRow }) {
+  const comparisons = buildKpiComparisons(row);
+  const hasTargets = row.kpiTargets !== null;
+  const editorHref = `/mediaplans/mba/${encodeURIComponent(row.mbaNumber)}/edit`;
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
+          aria-label="KPI breakdown"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Info className="h-3.5 w-3.5" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-80 p-3"
+        align="start"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <KpiDrilldownContent
+          row={row}
+          comparisons={comparisons}
+          hasTargets={hasTargets}
+          editorHref={editorHref}
+        />
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function KpiDrilldownContent({
+  row,
+  comparisons,
+  hasTargets,
+  editorHref,
+}: {
+  row: SearchPacingCampaignRow;
+  comparisons: KpiComparison[];
+  hasTargets: boolean;
+  editorHref: string;
+}) {
+  return (
+    <div className="space-y-3">
+      <div>
+        <div className="text-xs font-medium">{row.lineItemId}</div>
+        <div className="text-[10px] text-muted-foreground">{row.campaignName}</div>
+      </div>
+
+      {!hasTargets ? (
+        <EmptyKpiState editorHref={editorHref} />
+      ) : (
+        <>
+          <KpiComparisonTable comparisons={comparisons} />
+          <div className="border-t pt-2">
+            <a
+              href={editorHref}
+              className="text-[11px] text-blue-600 hover:underline"
+              onClick={(e) => e.stopPropagation()}
+            >
+              Edit targets in media plan →
+            </a>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function EmptyKpiState({ editorHref }: { editorHref: string }) {
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-muted-foreground">
+        No KPI targets have been set for this line item yet.
+      </p>
+      <a
+        href={editorHref}
+        className="inline-block text-[11px] text-blue-600 hover:underline"
+        onClick={(e) => e.stopPropagation()}
+      >
+        Set targets in media plan →
+      </a>
+    </div>
+  );
+}
+
+function KpiComparisonTable({ comparisons }: { comparisons: KpiComparison[] }) {
+  return (
+    <table className="w-full text-[11px]">
+      <thead>
+        <tr className="text-muted-foreground">
+          <th className="text-left font-normal pb-1">Metric</th>
+          <th className="text-right font-normal pb-1">Target</th>
+          <th className="text-right font-normal pb-1">Actual</th>
+          <th className="text-right font-normal pb-1">Variance</th>
+        </tr>
+      </thead>
+      <tbody>
+        {comparisons.map((c) => (
+          <KpiComparisonRow key={c.metric} comparison={c} />
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function KpiComparisonRow({ comparison: c }: { comparison: KpiComparison }) {
+  const varianceClass =
+    c.variancePercent === null
+      ? "text-muted-foreground"
+      : c.variancePercent >= 0
+        ? "text-emerald-700"
+        : "text-rose-700";
+
+  const actualDisplay =
+    c.status === "no-target" ? (
+      <span className="text-muted-foreground text-[10px]">Target not set</span>
+    ) : c.status === "no-delivery" ? (
+      <span className="text-muted-foreground text-[10px]">No delivery yet</span>
+    ) : (
+      formatRatioAsPercent(c.actual)
+    );
+
+  return (
+    <tr>
+      <td className="py-0.5 pr-2">{labelForMetric(c.metric)}</td>
+      <td className="py-0.5 pr-2 text-right tabular-nums">
+        {c.status === "no-target" ? "—" : formatRatioAsPercent(c.target)}
+      </td>
+      <td className="py-0.5 pr-2 text-right tabular-nums">{actualDisplay}</td>
+      <td className={`py-0.5 text-right tabular-nums ${varianceClass}`}>
+        {formatVariancePercent(c.variancePercent)}
+      </td>
+    </tr>
   );
 }
