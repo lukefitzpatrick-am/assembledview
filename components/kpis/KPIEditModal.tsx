@@ -22,14 +22,12 @@ import {
 } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 import { Loader2, X } from "lucide-react"
+import type { KpiHost } from "./kpiHost"
 
 export interface KPIEditModalProps {
   open: boolean
   onClose: () => void
-  kpiRows: ResolvedKPIRow[]
-  onSave: (rows: ResolvedKPIRow[]) => void
-  onReset: () => void
-  isSaving?: boolean
+  host: KpiHost
 }
 
 const audFmt = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" })
@@ -85,14 +83,8 @@ function groupByMediaType(
   return order.map((mediaType) => ({ mediaType, entries: map.get(mediaType)! }))
 }
 
-export function KPIEditModal({
-  open,
-  onClose,
-  kpiRows,
-  onSave,
-  onReset,
-  isSaving,
-}: KPIEditModalProps) {
+export function KPIEditModal({ open, onClose, host }: KPIEditModalProps) {
+  const { rows: kpiRows, isSaving, onSave, onReset } = host
   const [editedRows, setEditedRows] = React.useState<ResolvedKPIRow[]>([])
   const [fieldErrors, setFieldErrors] = React.useState<
     Record<number, Partial<Record<"ctr" | "vtr" | "cpv" | "conversion_rate" | "frequency", string>>>

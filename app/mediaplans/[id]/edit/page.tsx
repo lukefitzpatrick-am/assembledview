@@ -88,6 +88,7 @@ import { getScheduleHeaders } from "@/lib/billing/scheduleHeaders"
 import type { BillingMonth, BillingLineItem } from "@/lib/billing/types"
 import { checkMediaDatesOutsideCampaign } from "@/lib/utils/mediaPlanValidation"
 import { KPISection } from "@/components/kpis/KPISection"
+import { createMediaPlanKpiHost } from "@/components/kpis/kpiHost"
 import { resolveAllKPIs } from "@/lib/kpi/resolve"
 import { mergeManualKpiOverrides } from "@/lib/kpi/recalc"
 import { getPublisherKPIs, getClientKPIs, getCampaignKPIs } from "@/lib/api/kpi"
@@ -3386,11 +3387,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                   </div>
                   <div className="px-4 py-3 overflow-x-auto">
                     <KPISection
-                      kpiRows={kpiRows}
+                      host={createMediaPlanKpiHost({
+                        rows: kpiRows,
+                        setRows: setKpiRows,
+                        onResetSavedLayer: handleKPIReset,
+                      })}
                       isLoading={isKPILoading}
-                      onKPIChange={setKpiRows}
-                      onSave={setKpiRows}
-                      onReset={handleKPIReset}
                     />
                   </div>
                 </div>
