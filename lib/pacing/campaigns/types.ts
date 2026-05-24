@@ -5,6 +5,31 @@
  * Snowflake-sourced fields populated in Part 2 via composer hydration.
  */
 
+/**
+ * KPI targets sourced from Xano's campaign_kpi table.
+ *
+ * Targets are set per (mba_number, version_number, line_item_id, media_type).
+ * Stored as nullable numbers because not every line item has a target for
+ * every metric — a Search line item won't have a VTR target, for instance.
+ *
+ * Values are in their natural units:
+ *   - ctr: percentage points (4.5 means 4.5%)
+ *   - conversionRate: percentage points
+ *   - cpv: dollars
+ *   - vtr: percentage points
+ *   - frequency: count (e.g. 3.5 means avg 3.5 impressions per user)
+ */
+export type KpiTargets = {
+  mediaType: string | null;
+  publisher: string | null;
+  bidStrategy: string | null;
+  ctr: number | null;
+  cpv: number | null;
+  conversionRate: number | null;
+  vtr: number | null;
+  frequency: number | null;
+};
+
 /** KPI bundle reused at line-item, platform-campaign, and ad-group levels. */
 export type SearchPacingKpis = {
   spendToDateLineTotal: number;
@@ -87,6 +112,14 @@ export type SearchPacingCampaignRow = {
   cpc: number | null;
   ctr: number | null;
   cpm: number | null;
+
+  // --- KPI targets (Feature 2a) ---
+  /**
+   * Target KPI values from campaign_kpi. null when no matching row exists
+   * (line item has no KPI targets set yet — surfaces as "no targets" in UI
+   * commits 2b/2c).
+   */
+  kpiTargets: KpiTargets | null;
 
   // --- Three-level breakdown for UI drill-down ---
   platformCampaigns: PlatformCampaignBreakdown[];

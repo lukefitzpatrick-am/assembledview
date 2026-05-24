@@ -5,7 +5,8 @@ import { xanoUrl } from "@/lib/api/xano";
 import { aggregateForLineItem } from "@/lib/pacing/campaigns/aggregate";
 import { findCurrentBurstIndex, inclusiveDaysBetween } from "@/lib/pacing/burst/currentBurst";
 import { parseBurstsToNormalised } from "@/lib/pacing/burst/parseBursts";
-import type { SearchPacingCampaignRow } from "@/lib/pacing/campaigns/types";
+import type { KpiTargets, SearchPacingCampaignRow } from "@/lib/pacing/campaigns/types";
+import { fetchCampaignKpisForMbas } from "@/lib/xano/campaignKpi";
 import {
   computePacing,
   getMelbourneYesterdayISO,
@@ -315,6 +316,8 @@ function mapSearchRowToCampaignRow(
     cpc: null,
     ctr: null,
     cpm: null,
+
+    kpiTargets: null,
   };
 }
 
@@ -327,6 +330,38 @@ export async function fetchSearchPacingCampaignRows(
   );
 
   if (rows.length === 0) return rows;
+
+  // --- KPI targets (Feature 2a) ---
+  const liveMbas = Array.from(new Set(rows.map((r) => r.mbaNumber)));
+  const campaignKpiRows = await fetchCampaignKpisForMbas({ mbaNumbers: liveMbas });
+
+  const kpiTargetsByKey = new Map<string, KpiTargets>();
+
+  function makeKpiKey(mba: string, version: number, lineItemId: string): string {
+    return `${mba}|${version}|${lineItemId.toLowerCase().trim()}`;
+  }
+
+  for (const ck of campaignKpiRows) {
+    const key = makeKpiKey(ck.mba_number, ck.version_number, ck.line_item_id);
+    if (kpiTargetsByKey.has(key)) {
+      console.warn(`[fetchSearchPacingCampaignRows] duplicate campaign_kpi for ${key}`);
+    }
+    kpiTargetsByKey.set(key, {
+      mediaType: ck.media_type ?? null,
+      publisher: ck.publisher ?? null,
+      bidStrategy: ck.bid_strategy ?? null,
+      ctr: ck.ctr,
+      cpv: ck.cpv,
+      conversionRate: ck.conversion_rate,
+      vtr: ck.vtr,
+      frequency: ck.frequency,
+    });
+  }
+
+  for (const row of rows) {
+    const key = makeKpiKey(row.mbaNumber, row.mediaPlanVersionNumber, row.lineItemId);
+    row.kpiTargets = kpiTargetsByKey.get(key) ?? null;
+  }
 
   // --- Snowflake hydration (Part 2) ---
   const lineItemIds = Array.from(new Set(rows.map((r) => r.lineItemId.toLowerCase())));
