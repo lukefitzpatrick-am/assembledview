@@ -26,7 +26,10 @@ export function buildResolvedKpiRowFromPacing(
     lineItemId: row.lineItemId,
     lineItemLabel: row.creativeTargeting || row.creative || row.lineItemId,
     spend: row.spendToDateLineTotal,
-    deliverables: 0,
+    deliverables: row.bursts.reduce(
+      (sum, b) => sum + (b.calculatedValue ?? 0),
+      0,
+    ),
     buyType: row.buyType,
     source: targets ? "saved" : "default",
     isManuallyEdited: false,
