@@ -332,8 +332,11 @@ export async function fetchSearchPacingCampaignRows(
   if (rows.length === 0) return rows;
 
   // --- KPI targets (Feature 2a) ---
-  const liveMbas = Array.from(new Set(rows.map((r) => r.mbaNumber)));
-  const campaignKpiRows = await fetchCampaignKpisForMbas({ mbaNumbers: liveMbas });
+  const mbaVersionPairs = rows.map((r) => ({
+    mbaNumber: r.mbaNumber,
+    versionNumber: r.mediaPlanVersionNumber,
+  }));
+  const campaignKpiRows = await fetchCampaignKpisForMbas({ mbaVersionPairs });
 
   const kpiTargetsByKey = new Map<string, KpiTargets>();
 

@@ -1,7 +1,7 @@
 import "server-only";
 
-import axios from "axios";
-import { parseXanoListPayload, xanoUrl } from "@/lib/api/xano";
+import { fetchAllXanoPages } from "@/lib/api/xanoPagination";
+import { xanoUrl } from "@/lib/api/xano";
 
 /**
  * Raw shape of a campaign_kpi row from Xano. Mirrors the table schema.
@@ -27,14 +27,13 @@ export type CampaignKpiRow = {
   line_item_id: string;
 };
 
-export type FetchCampaignKpiArgs = {
-  mbaNumbers: string[];
+export type MbaVersionPair = {
+  mbaNumber: string;
+  versionNumber: number;
 };
 
-const headers: Record<string, string> = {
-  "Content-Type": "application/json",
-  Accept: "application/json",
-  ...(process.env.XANO_API_KEY ? { Authorization: `Bearer ${process.env.XANO_API_KEY}` } : {}),
+export type FetchCampaignKpiArgs = {
+  mbaVersionPairs: MbaVersionPair[];
 };
 
 /**
@@ -47,26 +46,30 @@ const headers: Record<string, string> = {
 export async function fetchCampaignKpisForMbas(
   args: FetchCampaignKpiArgs
 ): Promise<CampaignKpiRow[]> {
-  if (args.mbaNumbers.length === 0) return [];
+  if (args.mbaVersionPairs.length === 0) return [];
 
-  const uniqueMbas = Array.from(new Set(args.mbaNumbers));
+  const uniqueKeys = new Set<string>();
+  const uniquePairs: MbaVersionPair[] = [];
+  for (const pair of args.mbaVersionPairs) {
+    const key = `${pair.mbaNumber}|${pair.versionNumber}`;
+    if (uniqueKeys.has(key)) continue;
+    uniqueKeys.add(key);
+    uniquePairs.push(pair);
+  }
 
   const results: CampaignKpiRow[] = [];
   const url = xanoUrl("campaign_kpi", "XANO_CLIENTS_BASE_URL");
 
-  for (const mba of uniqueMbas) {
+  for (const { mbaNumber, versionNumber } of uniquePairs) {
     try {
-      const response = await axios.get(url, {
-        params: { mba_number: mba },
-        headers,
-        timeout: 15000,
-      });
-      const list = Array.isArray(response.data)
-        ? response.data
-        : parseXanoListPayload(response.data);
-      const rows = list as CampaignKpiRow[];
-
-      results.push(...rows);
+      const rows = await fetchAllXanoPages(
+        url,
+        { mba_number: mbaNumber, version_number: versionNumber },
+        `campaign_kpi_${mbaNumber}_v${versionNumber}`,
+        200,
+        50
+      );
+      results.push(...(rows as CampaignKpiRow[]));
     } catch (err: unknown) {
       const status = (err as { response?: { status?: number } })?.response?.status;
       if (status === 404) {
@@ -74,7 +77,7 @@ export async function fetchCampaignKpisForMbas(
       }
       const body = (err as { response?: { data?: unknown } })?.response?.data;
       throw new Error(
-        `Xano campaign_kpi GET failed for mba=${mba}: ${status ?? "unknown"} ${String(body ?? "")}`
+        `Xano campaign_kpi GET failed for mba=${mbaNumber} version=${versionNumber}: ${status ?? "unknown"} ${String(body ?? "")}`
       );
     }
   }
