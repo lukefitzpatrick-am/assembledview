@@ -88,11 +88,13 @@ function buildAggregateKpiTiles(
   tiles.push({
     label: "CTR",
     value: fmtPct(kpis.ctr),
-    expected: tgt && tgt.ctr > 0 ? fmtPct(tgt.ctr) : undefined,
+    expected: tgt && tgt.ctr != null && tgt.ctr > 0 ? fmtPct(tgt.ctr) : undefined,
     status:
-      tgt && tgt.ctr > 0 ? compareRateStatus(kpis.ctr, tgt.ctr, true) : undefined,
+      tgt && tgt.ctr != null && tgt.ctr > 0 ? compareRateStatus(kpis.ctr, tgt.ctr, true) : undefined,
     progress:
-      tgt && tgt.ctr > 0 ? Math.max(0, Math.min(1, kpis.ctr / tgt.ctr)) : undefined,
+      tgt && tgt.ctr != null && tgt.ctr > 0
+        ? Math.max(0, Math.min(1, kpis.ctr / tgt.ctr))
+        : undefined,
     accentColour,
   })
 
@@ -106,13 +108,15 @@ function buildAggregateKpiTiles(
     label: "CVR",
     value: fmtPct(kpis.cvr),
     expected:
-      tgt && tgt.conversion_rate > 0 ? fmtPct(tgt.conversion_rate) : undefined,
+      tgt && tgt.conversion_rate != null && tgt.conversion_rate > 0
+        ? fmtPct(tgt.conversion_rate)
+        : undefined,
     status:
-      tgt && tgt.conversion_rate > 0
+      tgt && tgt.conversion_rate != null && tgt.conversion_rate > 0
         ? compareRateStatus(kpis.cvr, tgt.conversion_rate, true)
         : undefined,
     progress:
-      tgt && tgt.conversion_rate > 0
+      tgt && tgt.conversion_rate != null && tgt.conversion_rate > 0
         ? Math.max(0, Math.min(1, kpis.cvr / tgt.conversion_rate))
         : undefined,
     accentColour,
@@ -128,8 +132,11 @@ function buildAggregateKpiTiles(
     tiles.push({
       label: "View rate",
       value: fmtPct(kpis.view_rate),
-      expected: tgt && tgt.vtr > 0 ? fmtPct(tgt.vtr) : undefined,
-      status: tgt && tgt.vtr > 0 ? compareRateStatus(kpis.view_rate, tgt.vtr, true) : undefined,
+      expected: tgt && tgt.vtr != null && tgt.vtr > 0 ? fmtPct(tgt.vtr) : undefined,
+      status:
+        tgt && tgt.vtr != null && tgt.vtr > 0
+          ? compareRateStatus(kpis.view_rate, tgt.vtr, true)
+          : undefined,
       accentColour,
     })
     tiles.push({

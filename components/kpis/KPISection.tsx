@@ -58,14 +58,14 @@ function summariseHeadlineMetric(
   for (const r of rows) {
     switch (kind) {
       case "clicks":
-        total += r.calculatedClicks
+        total += r.calculatedClicks ?? 0
         break
       case "views":
       case "listens":
-        total += r.calculatedViews
+        total += r.calculatedViews ?? 0
         break
       case "reach":
-        total += r.calculatedReach
+        total += r.calculatedReach ?? 0
         break
     }
   }

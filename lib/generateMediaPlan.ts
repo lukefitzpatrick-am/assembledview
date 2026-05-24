@@ -58,14 +58,14 @@ export interface KPISheetRow {
   buyType: string;
   spend: number;
   deliverables: number;
-  ctr: number;
-  vtr: number;
-  cpv: number;
-  conversion_rate: number;
-  frequency: number;
-  calculatedClicks: number;
-  calculatedViews: number;
-  calculatedReach: number;
+  ctr: number | null;
+  vtr: number | null;
+  cpv: number | null;
+  conversion_rate: number | null;
+  frequency: number | null;
+  calculatedClicks: number | null;
+  calculatedViews: number | null;
+  calculatedReach: number | null;
 }
 
 export interface Burst { // This is a burst *within* a GroupedItem
@@ -2170,6 +2170,14 @@ export function addKPISheet(
     if (bold) cell.font = { name: 'Aptos', size: 10, bold: true }
   }
 
+  const writeMetric = (cell: ExcelJS.Cell, format: string, value: number | null) => {
+    if (value === null) {
+      cell.value = ""
+    } else {
+      numFmt(cell, format, value)
+    }
+  }
+
   const txt = (cell: ExcelJS.Cell, value: string, bold = false, color?: string) => {
     cell.value = value
     cell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: false }
@@ -2216,21 +2224,21 @@ export function addKPISheet(
       txt(ws.getCell(r, 4), row.buyType)
       numFmt(ws.getCell(r, 5),  '$#,##0.00', row.spend)
       numFmt(ws.getCell(r, 6),  '#,##0',     row.deliverables)
-      numFmt(ws.getCell(r, 7),  '0.00%',     row.ctr)
-      numFmt(ws.getCell(r, 8),  '0.00%',     row.vtr)
-      numFmt(ws.getCell(r, 9),  '$#,##0.00##', row.cpv)
-      numFmt(ws.getCell(r, 10), '0.00%',     row.conversion_rate)
-      numFmt(ws.getCell(r, 11), '0.0',       row.frequency)
-      numFmt(ws.getCell(r, 12), '#,##0',     row.calculatedClicks)
-      numFmt(ws.getCell(r, 13), '#,##0',     row.calculatedViews)
-      numFmt(ws.getCell(r, 14), '#,##0',     row.calculatedReach)
+      writeMetric(ws.getCell(r, 7),  '0.00%',     row.ctr)
+      writeMetric(ws.getCell(r, 8),  '0.00%',     row.vtr)
+      writeMetric(ws.getCell(r, 9),  '$#,##0.00##', row.cpv)
+      writeMetric(ws.getCell(r, 10), '0.00%',     row.conversion_rate)
+      writeMetric(ws.getCell(r, 11), '0.0',       row.frequency)
+      writeMetric(ws.getCell(r, 12), '#,##0',     row.calculatedClicks)
+      writeMetric(ws.getCell(r, 13), '#,##0',     row.calculatedViews)
+      writeMetric(ws.getCell(r, 14), '#,##0',     row.calculatedReach)
       ws.getRow(r).height = 14
       r++
     })
 
     // — Channel subtotal row —
     const sumField = (f: keyof KPISheetRow) =>
-      rows.reduce((s, rw) => s + (rw[f] as number), 0)
+      rows.reduce((s, rw) => s + ((rw[f] as number | null) ?? 0), 0)
 
     for (let c = 1; c <= 14; c++) fillCell(ws.getCell(r, c), tint)
     ws.mergeCells(r, 1, r, 4)
@@ -2256,7 +2264,7 @@ export function addKPISheet(
   txt(ws.getCell(r, 1), 'Grand Total', true)
   fillCell(ws.getCell(r, 1), 'FFBDDC52')
   const grandSum = (f: keyof KPISheetRow) =>
-    allRows.reduce((s, rw) => s + (rw[f] as number), 0)
+    allRows.reduce((s, rw) => s + ((rw[f] as number | null) ?? 0), 0)
   numFmt(ws.getCell(r, 5),  '$#,##0.00', grandSum('spend'),              true)
   numFmt(ws.getCell(r, 6),  '#,##0',     grandSum('deliverables'),       true)
   numFmt(ws.getCell(r, 12), '#,##0',     grandSum('calculatedClicks'),   true)

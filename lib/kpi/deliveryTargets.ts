@@ -6,10 +6,10 @@ import type { CampaignKPI } from "@/lib/kpi/types"
  * CPV is derived from line spend / deliverables at render time, not stored.
  */
 export interface KPITargetValues {
-  ctr: number
-  conversion_rate: number
-  vtr: number
-  frequency: number
+  ctr: number | null
+  conversion_rate: number | null
+  vtr: number | null
+  frequency: number | null
 }
 
 /**
@@ -36,11 +36,16 @@ export function buildKPITargetsMap(rows: CampaignKPI[] | null | undefined): KPIT
   if (!Array.isArray(rows)) return map
   for (const row of rows) {
     const key = normKey(row.media_type, row.publisher, row.bid_strategy)
+    const norm = (v: unknown): number | null => {
+      if (v === null || v === undefined || v === "") return null
+      const n = Number(v)
+      return Number.isFinite(n) ? n : null
+    }
     map.set(key, {
-      ctr: Number(row.ctr) || 0,
-      conversion_rate: Number(row.conversion_rate) || 0,
-      vtr: Number(row.vtr) || 0,
-      frequency: Number(row.frequency) || 0,
+      ctr: norm(row.ctr),
+      conversion_rate: norm(row.conversion_rate),
+      vtr: norm(row.vtr),
+      frequency: norm(row.frequency),
     })
   }
   return map

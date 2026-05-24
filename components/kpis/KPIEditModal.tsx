@@ -94,19 +94,23 @@ export function KPIEditModal({
   isSaving,
 }: KPIEditModalProps) {
   const [editedRows, setEditedRows] = React.useState<ResolvedKPIRow[]>([])
+  const [fieldErrors, setFieldErrors] = React.useState<
+    Record<number, Partial<Record<"ctr" | "vtr" | "conversion_rate" | "frequency", string>>>
+  >({})
   const [filterMediaType, setFilterMediaType] = React.useState("all")
   const [showSourceFilter, setShowSourceFilter] = React.useState("all")
 
   React.useEffect(() => {
     if (!open) return
     setEditedRows([...kpiRows])
+    setFieldErrors({})
   }, [open, kpiRows])
 
   const handleFieldChange = React.useCallback(
     (
       rowIndex: number,
       field: "ctr" | "vtr" | "conversion_rate" | "frequency",
-      value: number,
+      value: number | null,
     ) => {
       setEditedRows((prev) => {
         const copy = [...prev]
@@ -296,9 +300,37 @@ export function KPIEditModal({
                                 defaultValue={formatPercentForInput(row.ctr)}
                                 onBlur={(e) => {
                                   const parsed = parsePercentHeuristic(e.target.value)
+                                  if (parsed !== null && parsed <= 0) {
+                                    setFieldErrors((prev) => ({
+                                      ...prev,
+                                      [rowIndex]: {
+                                        ...prev[rowIndex],
+                                        ctr: "Targets must be positive.",
+                                      },
+                                    }))
+                                    return
+                                  }
+                                  setFieldErrors((prev) => {
+                                    const next = { ...prev }
+                                    if (next[rowIndex]) {
+                                      const rowErr = { ...next[rowIndex] }
+                                      delete rowErr.ctr
+                                      if (Object.keys(rowErr).length === 0) {
+                                        delete next[rowIndex]
+                                      } else {
+                                        next[rowIndex] = rowErr
+                                      }
+                                    }
+                                    return next
+                                  })
                                   handleFieldChange(rowIndex, "ctr", parsed)
                                 }}
                               />
+                              {fieldErrors[rowIndex]?.ctr && (
+                                <div className="text-xs text-destructive mt-1">
+                                  {fieldErrors[rowIndex].ctr}
+                                </div>
+                              )}
                             </td>
                             <td className="border-b border-border/30 px-2 py-1 text-right">
                               <input
@@ -308,9 +340,37 @@ export function KPIEditModal({
                                 defaultValue={formatPercentForInput(row.vtr)}
                                 onBlur={(e) => {
                                   const parsed = parsePercentHeuristic(e.target.value)
+                                  if (parsed !== null && parsed <= 0) {
+                                    setFieldErrors((prev) => ({
+                                      ...prev,
+                                      [rowIndex]: {
+                                        ...prev[rowIndex],
+                                        vtr: "Targets must be positive.",
+                                      },
+                                    }))
+                                    return
+                                  }
+                                  setFieldErrors((prev) => {
+                                    const next = { ...prev }
+                                    if (next[rowIndex]) {
+                                      const rowErr = { ...next[rowIndex] }
+                                      delete rowErr.vtr
+                                      if (Object.keys(rowErr).length === 0) {
+                                        delete next[rowIndex]
+                                      } else {
+                                        next[rowIndex] = rowErr
+                                      }
+                                    }
+                                    return next
+                                  })
                                   handleFieldChange(rowIndex, "vtr", parsed)
                                 }}
                               />
+                              {fieldErrors[rowIndex]?.vtr && (
+                                <div className="text-xs text-destructive mt-1">
+                                  {fieldErrors[rowIndex].vtr}
+                                </div>
+                              )}
                             </td>
                             <td className="border-b border-border/30 px-2 py-1 text-right">
                               <input
@@ -320,31 +380,94 @@ export function KPIEditModal({
                                 defaultValue={formatPercentForInput(row.conversion_rate)}
                                 onBlur={(e) => {
                                   const parsed = parsePercentHeuristic(e.target.value)
+                                  if (parsed !== null && parsed <= 0) {
+                                    setFieldErrors((prev) => ({
+                                      ...prev,
+                                      [rowIndex]: {
+                                        ...prev[rowIndex],
+                                        conversion_rate: "Targets must be positive.",
+                                      },
+                                    }))
+                                    return
+                                  }
+                                  setFieldErrors((prev) => {
+                                    const next = { ...prev }
+                                    if (next[rowIndex]) {
+                                      const rowErr = { ...next[rowIndex] }
+                                      delete rowErr.conversion_rate
+                                      if (Object.keys(rowErr).length === 0) {
+                                        delete next[rowIndex]
+                                      } else {
+                                        next[rowIndex] = rowErr
+                                      }
+                                    }
+                                    return next
+                                  })
                                   handleFieldChange(rowIndex, "conversion_rate", parsed)
                                 }}
                               />
+                              {fieldErrors[rowIndex]?.conversion_rate && (
+                                <div className="text-xs text-destructive mt-1">
+                                  {fieldErrors[rowIndex].conversion_rate}
+                                </div>
+                              )}
                             </td>
                             <td className="border-b border-border/30 px-2 py-1 text-right">
                               <input
                                 type="text"
                                 className={inputClass}
-                                key={`freq-${row.lineItemId}-${row.frequency}`}
-                                defaultValue={row.frequency.toFixed(1)}
+                                key={`freq-${row.lineItemId}-${row.frequency ?? "null"}`}
+                                defaultValue={row.frequency === null ? "" : row.frequency.toFixed(1)}
                                 onBlur={(e) => {
-                                  const val =
-                                    parseFloat(e.target.value.replace(/[^0-9.-]/g, "")) || 0
-                                  handleFieldChange(rowIndex, "frequency", val)
+                                  const cleaned = e.target.value.replace(/[^0-9.-]/g, "").trim()
+                                  const val = cleaned === "" ? null : parseFloat(cleaned)
+                                  const parsed = val !== null && Number.isFinite(val) ? val : null
+                                  if (parsed !== null && parsed <= 0) {
+                                    setFieldErrors((prev) => ({
+                                      ...prev,
+                                      [rowIndex]: {
+                                        ...prev[rowIndex],
+                                        frequency: "Targets must be positive.",
+                                      },
+                                    }))
+                                    return
+                                  }
+                                  setFieldErrors((prev) => {
+                                    const next = { ...prev }
+                                    if (next[rowIndex]) {
+                                      const rowErr = { ...next[rowIndex] }
+                                      delete rowErr.frequency
+                                      if (Object.keys(rowErr).length === 0) {
+                                        delete next[rowIndex]
+                                      } else {
+                                        next[rowIndex] = rowErr
+                                      }
+                                    }
+                                    return next
+                                  })
+                                  handleFieldChange(rowIndex, "frequency", parsed)
                                 }}
                               />
+                              {fieldErrors[rowIndex]?.frequency && (
+                                <div className="text-xs text-destructive mt-1">
+                                  {fieldErrors[rowIndex].frequency}
+                                </div>
+                              )}
                             </td>
                             <td className="border-b border-border/30 px-2 py-1 text-right text-muted-foreground">
-                              {numAuFmt.format(row.calculatedClicks)}
+                              {row.calculatedClicks != null
+                                ? numAuFmt.format(row.calculatedClicks)
+                                : ""}
                             </td>
                             <td className="border-b border-border/30 px-2 py-1 text-right text-muted-foreground">
-                              {numAuFmt.format(row.calculatedViews)}
+                              {row.calculatedViews != null
+                                ? numAuFmt.format(row.calculatedViews)
+                                : ""}
                             </td>
                             <td className="border-b border-border/30 px-2 py-1 text-right text-muted-foreground">
-                              {numAuFmt.format(row.calculatedReach)}
+                              {row.calculatedReach != null
+                                ? numAuFmt.format(row.calculatedReach)
+                                : ""}
                             </td>
                             <td className="border-b border-border/30 px-2 py-1">
                               <Badge
@@ -410,9 +533,14 @@ export function KPIEditModal({
               </Button>
               <Button
                 type="button"
+                variant="default"
                 size="sm"
-                disabled={isSaving}
-                title="KPIs will be saved to Xano when you save the campaign"
+                disabled={isSaving || Object.keys(fieldErrors).length > 0}
+                title={
+                  Object.keys(fieldErrors).length > 0
+                    ? "Fix validation errors before saving."
+                    : "KPIs will be saved to Xano when you save the campaign"
+                }
                 onClick={() => {
                   onSave(editedRows)
                   onClose()

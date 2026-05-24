@@ -79,7 +79,7 @@ test("1. Campaign-saved wins for CTR (saved 0.05, client 0.03, publisher 0.02)",
   test1_savedWins()
 })
 
-test("2. Campaign CTR 0 falls through to client (0.03) when publisher is 0.02", () => {
+test("2. Campaign CTR 0 wins merge (explicit zero, no fall-through to client)", () => {
   const li = lineItem()
   const saved: CampaignKPI = {
     mp_client_name: "c",
@@ -122,8 +122,8 @@ test("2. Campaign CTR 0 falls through to client (0.03) when publisher is 0.02", 
     clientKPIs: [client],
     publisherKPIs: [pub],
   })
-  assert.equal(row.ctr, 0.03)
-  assert.equal(row.source, "client")
+  assert.equal(row.ctr, 0)
+  assert.equal(row.source, "saved")
 })
 
 test("3. No saved, no client, publisher-only CTR 0.02", () => {
@@ -178,7 +178,7 @@ test("4. Publisher tier accepts CTR 0 (no client/saved, publisher match)", () =>
   assert.equal(row.source, "publisher")
 })
 
-test("5. All missing at every tier => default, CTR 0", () => {
+test("5. All missing at every tier => default, CTR null", () => {
   const li = lineItem()
   const [row] = resolveKPIsForMediaType({
     lineItems: [li],
@@ -191,7 +191,7 @@ test("5. All missing at every tier => default, CTR 0", () => {
     clientKPIs: [],
     publisherKPIs: [],
   })
-  assert.equal(row.ctr, 0)
+  assert.equal(row.ctr, null)
   assert.equal(row.source, "default")
 })
 
@@ -294,8 +294,8 @@ test("9. Per-metric: CTR from saved, conversion_rate from client, vtr from publi
     publisher: "acme",
     ...baseKpi,
     ctr: 0.05,
-    conversion_rate: 0,
-    vtr: 0,
+    conversion_rate: null,
+    vtr: null,
   }
   const client: ClientKPI = {
     id: 1,

@@ -7,9 +7,20 @@ export function recalcRow(row: ResolvedKPIRow): ResolvedKPIRow {
   const isView = ["cpv", "vtr"].some((t) => bt.includes(t))
   return {
     ...row,
-    calculatedClicks: isClick ? row.deliverables : Math.round(row.deliverables * row.ctr),
-    calculatedViews: isView ? row.deliverables : Math.round(row.deliverables * row.vtr),
-    calculatedReach: row.frequency > 0 ? Math.round(row.deliverables / row.frequency) : 0,
+    calculatedClicks: isClick
+      ? row.deliverables
+      : row.ctr === null
+        ? null
+        : Math.round(row.deliverables * row.ctr),
+    calculatedViews: isView
+      ? row.deliverables
+      : row.vtr === null
+        ? null
+        : Math.round(row.deliverables * row.vtr),
+    calculatedReach:
+      row.frequency === null || row.frequency <= 0
+        ? null
+        : Math.round(row.deliverables / row.frequency),
   }
 }
 

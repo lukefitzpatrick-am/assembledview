@@ -78,13 +78,13 @@ function rateForMetric(
   item: TargetCurveLineItem,
   kpiTargets: KPITargetsMap,
   metric: TargetMetric,
-): number {
+): number | null {
   const key = kpiTargetKey(item.mediaType, item.publisher, item.bidStrategy)
   const t = kpiTargets.get(key)
-  if (!t) return 0
-  if (metric === "clicks") return Number(t.ctr) || 0
-  if (metric === "views") return Number(t.vtr) || 0
-  return 0
+  if (!t) return null
+  if (metric === "clicks") return t.ctr
+  if (metric === "views") return t.vtr
+  return null
 }
 
 /**
@@ -106,14 +106,14 @@ function totalTargetForLineItem(
       return deliverables
     }
     const rate = rateForMetric(item, kpiTargets, metric)
-    return rate > 0 ? deliverables * rate : 0
+    return rate != null && rate > 0 ? deliverables * rate : 0
   }
   if (metric === "views") {
     if (bt === "cpv" || bt.includes("cpv")) {
       return deliverables
     }
     const rate = rateForMetric(item, kpiTargets, metric)
-    return rate > 0 ? deliverables * rate : 0
+    return rate != null && rate > 0 ? deliverables * rate : 0
   }
   return 0
 }

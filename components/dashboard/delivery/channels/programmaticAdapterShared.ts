@@ -219,9 +219,15 @@ export function buildProgrammaticChannelSection(input: {
     {
       label: "CTR",
       value: fmtPct(kpisRollup.ctr),
-      expected: tgt && tgt.ctr > 0 ? fmtPct(tgt.ctr) : undefined,
-      status: tgt && tgt.ctr > 0 ? compareRateStatus(kpisRollup.ctr, tgt.ctr, true) : undefined,
-      progress: tgt && tgt.ctr > 0 ? Math.max(0, Math.min(1, kpisRollup.ctr / tgt.ctr)) : undefined,
+      expected: tgt && tgt.ctr != null && tgt.ctr > 0 ? fmtPct(tgt.ctr) : undefined,
+      status:
+        tgt && tgt.ctr != null && tgt.ctr > 0
+          ? compareRateStatus(kpisRollup.ctr, tgt.ctr, true)
+          : undefined,
+      progress:
+        tgt && tgt.ctr != null && tgt.ctr > 0
+          ? Math.max(0, Math.min(1, kpisRollup.ctr / tgt.ctr))
+          : undefined,
       accentColour,
     },
     {
@@ -245,9 +251,15 @@ export function buildProgrammaticChannelSection(input: {
     {
       label: "View rate",
       value: fmtPct(kpisRollup.viewRate),
-      expected: tgt && tgt.vtr > 0 ? fmtPct(tgt.vtr) : undefined,
-      status: tgt && tgt.vtr > 0 ? compareRateStatus(kpisRollup.viewRate, tgt.vtr, true) : undefined,
-      progress: tgt && tgt.vtr > 0 ? Math.max(0, Math.min(1, kpisRollup.viewRate / tgt.vtr)) : undefined,
+      expected: tgt && tgt.vtr != null && tgt.vtr > 0 ? fmtPct(tgt.vtr) : undefined,
+      status:
+        tgt && tgt.vtr != null && tgt.vtr > 0
+          ? compareRateStatus(kpisRollup.viewRate, tgt.vtr, true)
+          : undefined,
+      progress:
+        tgt && tgt.vtr != null && tgt.vtr > 0
+          ? Math.max(0, Math.min(1, kpisRollup.viewRate / tgt.vtr))
+          : undefined,
       accentColour,
     },
     {
@@ -258,9 +270,15 @@ export function buildProgrammaticChannelSection(input: {
     {
       label: "CTR",
       value: fmtPct(kpisRollup.ctr),
-      expected: tgt && tgt.ctr > 0 ? fmtPct(tgt.ctr) : undefined,
-      status: tgt && tgt.ctr > 0 ? compareRateStatus(kpisRollup.ctr, tgt.ctr, true) : undefined,
-      progress: tgt && tgt.ctr > 0 ? Math.max(0, Math.min(1, kpisRollup.ctr / tgt.ctr)) : undefined,
+      expected: tgt && tgt.ctr != null && tgt.ctr > 0 ? fmtPct(tgt.ctr) : undefined,
+      status:
+        tgt && tgt.ctr != null && tgt.ctr > 0
+          ? compareRateStatus(kpisRollup.ctr, tgt.ctr, true)
+          : undefined,
+      progress:
+        tgt && tgt.ctr != null && tgt.ctr > 0
+          ? Math.max(0, Math.min(1, kpisRollup.ctr / tgt.ctr))
+          : undefined,
       accentColour,
     },
   ]
@@ -297,9 +315,15 @@ export function buildProgrammaticChannelSection(input: {
             {
               label: "View rate",
               value: fmtPct(liKpis.viewRate),
-              expected: tgtLi && tgtLi.vtr > 0 ? fmtPct(tgtLi.vtr) : undefined,
-              status: tgtLi && tgtLi.vtr > 0 ? compareRateStatus(liKpis.viewRate, tgtLi.vtr, true) : undefined,
-              progress: tgtLi && tgtLi.vtr > 0 ? Math.max(0, Math.min(1, liKpis.viewRate / tgtLi.vtr)) : undefined,
+              expected: tgtLi && tgtLi.vtr != null && tgtLi.vtr > 0 ? fmtPct(tgtLi.vtr) : undefined,
+              status:
+                tgtLi && tgtLi.vtr != null && tgtLi.vtr > 0
+                  ? compareRateStatus(liKpis.viewRate, tgtLi.vtr, true)
+                  : undefined,
+              progress:
+                tgtLi && tgtLi.vtr != null && tgtLi.vtr > 0
+                  ? Math.max(0, Math.min(1, liKpis.viewRate / tgtLi.vtr))
+                  : undefined,
               accentColour,
             },
             {
@@ -310,9 +334,15 @@ export function buildProgrammaticChannelSection(input: {
             {
               label: "CTR",
               value: fmtPct(liKpis.ctr),
-              expected: tgtLi && tgtLi.ctr > 0 ? fmtPct(tgtLi.ctr) : undefined,
-              status: tgtLi && tgtLi.ctr > 0 ? compareRateStatus(liKpis.ctr, tgtLi.ctr, true) : undefined,
-              progress: tgtLi && tgtLi.ctr > 0 ? Math.max(0, Math.min(1, liKpis.ctr / tgtLi.ctr)) : undefined,
+              expected: tgtLi && tgtLi.ctr != null && tgtLi.ctr > 0 ? fmtPct(tgtLi.ctr) : undefined,
+              status:
+                tgtLi && tgtLi.ctr != null && tgtLi.ctr > 0
+                  ? compareRateStatus(liKpis.ctr, tgtLi.ctr, true)
+                  : undefined,
+              progress:
+                tgtLi && tgtLi.ctr != null && tgtLi.ctr > 0
+                  ? Math.max(0, Math.min(1, liKpis.ctr / tgtLi.ctr))
+                  : undefined,
               accentColour,
             },
           ]
@@ -325,9 +355,15 @@ export function buildProgrammaticChannelSection(input: {
             {
               label: "CTR",
               value: fmtPct(liKpis.ctr),
-              expected: tgtLi && tgtLi.ctr > 0 ? fmtPct(tgtLi.ctr) : undefined,
-              status: tgtLi && tgtLi.ctr > 0 ? compareRateStatus(liKpis.ctr, tgtLi.ctr, true) : undefined,
-              progress: tgtLi && tgtLi.ctr > 0 ? Math.max(0, Math.min(1, liKpis.ctr / tgtLi.ctr)) : undefined,
+              expected: tgtLi && tgtLi.ctr != null && tgtLi.ctr > 0 ? fmtPct(tgtLi.ctr) : undefined,
+              status:
+                tgtLi && tgtLi.ctr != null && tgtLi.ctr > 0
+                  ? compareRateStatus(liKpis.ctr, tgtLi.ctr, true)
+                  : undefined,
+              progress:
+                tgtLi && tgtLi.ctr != null && tgtLi.ctr > 0
+                  ? Math.max(0, Math.min(1, liKpis.ctr / tgtLi.ctr))
+                  : undefined,
               accentColour,
             },
             {

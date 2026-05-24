@@ -33,32 +33,38 @@ function normStr(value: unknown): string {
 
 /** KPI metrics from DB rows — CPV is never used from persistence (derived or manual only). */
 function metricsFromRecordNoCpv(
-  r: Pick<PublisherKPI, "ctr" | "conversion_rate" | "vtr" | "frequency">,
-): Record<MetricKey, number> {
+  r: {
+    ctr?: unknown
+    conversion_rate?: unknown
+    vtr?: unknown
+    frequency?: unknown
+  },
+): Record<MetricKey, number | null> {
+  const norm = (v: unknown): number | null => {
+    if (v === null || v === undefined || v === "") return null
+    const n = Number(v)
+    return Number.isFinite(n) ? n : null
+  }
   return {
-    ctr: Number(r.ctr) || 0,
-    conversion_rate: Number(r.conversion_rate) || 0,
-    vtr: Number(r.vtr) || 0,
-    frequency: Number(r.frequency) || 0,
+    ctr: norm(r.ctr),
+    conversion_rate: norm(r.conversion_rate),
+    vtr: norm(r.vtr),
+    frequency: norm(r.frequency),
   }
 }
 
-/**
- * Campaign & client tiers: treat 0 as missing and fall through.
- * Publisher tier: accept 0.
- */
 function pickMergedMetric(
-  saved: number,
+  saved: number | null,
   client: number,
-  pub: number | undefined,
+  pub: number | null | undefined,
 ): {
-  value: number
+  value: number | null
   layer: Layer | null
 } {
-  if (saved !== 0) return { value: saved, layer: "saved" }
+  if (saved !== null) return { value: saved, layer: "saved" }
   if (client !== 0) return { value: client, layer: "client" }
-  if (pub !== undefined) return { value: pub, layer: "publisher" }
-  return { value: 0, layer: null }
+  if (pub !== undefined && pub !== null) return { value: pub, layer: "publisher" }
+  return { value: null, layer: null }
 }
 
 function deriveCpvFromLine(buyType: string, spend: number, deliverables: number): number {
@@ -127,16 +133,16 @@ export function resolveKPIsForMediaType(opts: ResolveKPIOptions): ResolvedKPIRow
     const pubM = pubMatch ? metricsFromRecordNoCpv(pubMatch) : null
 
     const layersUsed = new Set<Layer>()
-    const merged: Record<MetricKey, number> = {
-      ctr: 0,
-      conversion_rate: 0,
-      vtr: 0,
-      frequency: 0,
+    const merged: Record<MetricKey, number | null> = {
+      ctr: null,
+      conversion_rate: null,
+      vtr: null,
+      frequency: null,
     }
 
     for (const key of METRIC_KEYS) {
-      const s = campM?.[key] ?? 0
-      const c = cliM?.[key] ?? 0
+      const s = campM ? campM[key] : null
+      const c = cliM ? (cliM[key] ?? 0) : 0
       const p = pubM ? pubM[key] : undefined
       const { value, layer } = pickMergedMetric(s, c, p)
       merged[key] = value
@@ -167,9 +173,9 @@ export function resolveKPIsForMediaType(opts: ResolveKPIOptions): ResolvedKPIRow
       buyType,
       source,
       isManuallyEdited: false,
-      calculatedClicks: 0,
-      calculatedViews: 0,
-      calculatedReach: 0,
+      calculatedClicks: null,
+      calculatedViews: null,
+      calculatedReach: null,
     }
 
     return recalcRow(row)

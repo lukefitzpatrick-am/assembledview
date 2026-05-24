@@ -41,11 +41,11 @@ export interface CampaignKPI {
   bid_strategy: string
   /** Xano `campaign_kpi.line_item_id` — required on new rows (fan-out from line items). */
   line_item_id?: string
-  ctr: number
-  cpv: number
-  conversion_rate: number
-  vtr: number
-  frequency: number
+  ctr: number | null
+  cpv: number | null
+  conversion_rate: number | null
+  vtr: number | null
+  frequency: number | null
 }
 
 // UI-only — not persisted to Xano directly
@@ -57,9 +57,9 @@ export interface ResolvedKPIRow extends CampaignKPI {
   buyType: string
   source: "client" | "publisher" | "default" | "manual" | "saved"
   isManuallyEdited: boolean
-  calculatedClicks: number
-  calculatedViews: number
-  calculatedReach: number
+  calculatedClicks: number | null
+  calculatedViews: number | null
+  calculatedReach: number | null
 }
 
 export type CampaignKpiInput = Omit<CampaignKPI, "id" | "created_at">
@@ -311,6 +311,22 @@ const kpiMetric = z
     return Number.isFinite(n) ? n : 0
   })
 
+/**
+ * Campaign-tier metric: null for unset, positive number when set.
+ * Zero and negatives are rejected — use null to express "no target."
+ */
+const kpiMetricNullable = z
+  .union([z.string(), z.number(), z.null(), z.undefined()])
+  .transform((v): number | null => {
+    if (v === "" || v === null || v === undefined) return null
+    const n = typeof v === "number" ? v : Number(String(v).trim())
+    if (!Number.isFinite(n)) return null
+    return n
+  })
+  .refine((v) => v === null || v > 0, {
+    message: "Targets must be positive.",
+  })
+
 const nonEmptyStr = z.string().trim().min(1, "Required")
 
 export const publisherKpiCreateBodySchema = z.object({
@@ -363,11 +379,11 @@ const campaignKpiItemSchema = z.object({
   publisher: nonEmptyStr,
   bid_strategy: nonEmptyStr,
   line_item_id: z.string().trim().min(1, "line_item_id is required"),
-  ctr: kpiMetric.optional().default(0),
-  cpv: kpiMetric.optional().default(0),
-  conversion_rate: kpiMetric.optional().default(0),
-  vtr: kpiMetric.optional().default(0),
-  frequency: kpiMetric.optional().default(0),
+  ctr: kpiMetricNullable.nullable().default(null),
+  cpv: kpiMetricNullable.nullable().default(null),
+  conversion_rate: kpiMetricNullable.nullable().default(null),
+  vtr: kpiMetricNullable.nullable().default(null),
+  frequency: kpiMetricNullable.nullable().default(null),
 })
 
 export const campaignKpiCreateBodySchema = z.array(campaignKpiItemSchema)
@@ -381,11 +397,11 @@ export const campaignKpiPatchBodySchema = z.object({
   media_type: z.string().trim().min(1).optional(),
   publisher: z.string().trim().min(1).optional(),
   bid_strategy: z.string().trim().min(1).optional(),
-  ctr: kpiMetric.optional(),
-  cpv: kpiMetric.optional(),
-  conversion_rate: kpiMetric.optional(),
-  vtr: kpiMetric.optional(),
-  frequency: kpiMetric.optional(),
+  ctr: kpiMetricNullable.nullable().optional(),
+  cpv: kpiMetricNullable.nullable().optional(),
+  conversion_rate: kpiMetricNullable.nullable().optional(),
+  vtr: kpiMetricNullable.nullable().optional(),
+  frequency: kpiMetricNullable.nullable().optional(),
 })
 
 // --- new: client KPI API request bodies (match prior manual checks) ---
