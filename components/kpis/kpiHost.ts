@@ -50,3 +50,34 @@ export function createMediaPlanKpiHost(args: MediaPlanKpiHostArgs): KpiHost {
     },
   }
 }
+
+export interface PacingKpiHostArgs {
+  /** The resolved row to display in the modal (built via buildResolvedKpiRowFromPacing). */
+  initialRow: ResolvedKPIRow
+  /** Called when the user clicks Save KPIs. Should perform the sync and refresh display. */
+  onSave: (editedRow: ResolvedKPIRow) => Promise<void>
+  /** Called when the user clicks Reset. For now, just re-open with the initial row. */
+  onReset: () => void
+  /** Reflects async save state for spinner/disable. */
+  isSaving: boolean
+}
+
+/**
+ * Factory for the pacing-surface host. Single row in, single row out.
+ * Save immediately syncs to Xano (via the caller's onSave) and triggers
+ * an optimistic display refresh.
+ */
+export function createPacingKpiHost(args: PacingKpiHostArgs): KpiHost {
+  return {
+    rows: [args.initialRow],
+    isSaving: args.isSaving,
+    onSave: async (editedRows) => {
+      const edited = editedRows[0]
+      if (!edited) return
+      await args.onSave(edited)
+    },
+    onReset: () => {
+      args.onReset()
+    },
+  }
+}

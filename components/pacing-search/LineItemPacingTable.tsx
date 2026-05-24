@@ -2,7 +2,9 @@
 
 import {
   Fragment,
+  useCallback,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -26,7 +28,15 @@ import {
   formatVariancePercent,
   labelForMetric,
 } from "@/lib/pacing/kpi/formatKpi";
+import { createPacingKpiHost } from "@/components/kpis/kpiHost";
+import { KPIEditModal } from "@/components/kpis/KPIEditModal";
+import { syncCampaignKPIs } from "@/lib/api/kpi";
+import type { ResolvedKPIRow } from "@/lib/kpi/types";
+import { applySyncedTargetsToRow } from "@/lib/pacing/kpi/applySyncedTargets";
+import { buildResolvedKpiRowFromPacing } from "@/lib/pacing/kpi/buildResolvedRow";
+import { buildSyncPayloadFromEditedRow } from "@/lib/pacing/kpi/buildSyncPayload";
 import type {
+  KpiTargets,
   PlatformCampaignBreakdown,
   SearchPacingCampaignRow,
 } from "@/lib/pacing/campaigns/types";
@@ -166,9 +176,17 @@ function fmtXanoNumber(n: number | null): string {
   return new Intl.NumberFormat("en-AU").format(n);
 }
 
-export type LineItemPacingTableProps = { rows: SearchPacingCampaignRow[] };
+export type LineItemPacingTableProps = {
+  rows: SearchPacingCampaignRow[];
+  isAdmin: boolean;
+  onRowKpiTargetsUpdated: (lineItemId: string, targets: KpiTargets) => void;
+};
 
-export function LineItemPacingTable({ rows }: LineItemPacingTableProps) {
+export function LineItemPacingTable({
+  rows,
+  isAdmin,
+  onRowKpiTargetsUpdated,
+}: LineItemPacingTableProps) {
   const [expandedLineItems, setExpandedLineItems] = useState<Set<string>>(new Set());
   const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(new Set());
   const firstRowRef = useRef<HTMLTableRowElement>(null);
@@ -403,6 +421,8 @@ export function LineItemPacingTable({ rows }: LineItemPacingTableProps) {
                 onToggleCampaign={toggleCampaign}
                 leftOffsets={leftOffsets}
                 firstRowRef={rowIndex === 0 ? firstRowRef : undefined}
+                isAdmin={isAdmin}
+                onRowKpiTargetsUpdated={onRowKpiTargetsUpdated}
               />
             ))}
           </tbody>
@@ -420,6 +440,8 @@ function FragmentForLineItem({
   onToggleCampaign,
   leftOffsets,
   firstRowRef,
+  isAdmin,
+  onRowKpiTargetsUpdated,
 }: {
   row: SearchPacingCampaignRow;
   isExpanded: boolean;
@@ -428,6 +450,8 @@ function FragmentForLineItem({
   onToggleCampaign: (key: string) => void;
   leftOffsets: number[];
   firstRowRef?: RefObject<HTMLTableRowElement | null>;
+  isAdmin: boolean;
+  onRowKpiTargetsUpdated: (lineItemId: string, targets: KpiTargets) => void;
 }) {
   const hasChildren = row.platformCampaigns.length > 0;
   const clientSlug = slugifyClientName(row.clientName);
@@ -489,7 +513,11 @@ function FragmentForLineItem({
         <td className="p-2 border-b">
           <div className="inline-flex items-center gap-1">
             <KpiStatusPill status={computeRowKpiStatus(row)} />
-            <KpiDrilldownButton row={row} />
+            <KpiDrilldownButton
+              row={row}
+              isAdmin={isAdmin}
+              onTargetsUpdated={(targets) => onRowKpiTargetsUpdated(row.lineItemId, targets)}
+            />
           </div>
         </td>
         <td className="p-2 border-b">{fmtXanoDate(row.lineItemStartDate)}</td>
@@ -751,36 +779,95 @@ function KpiStatusPill({ status }: { status: RowKpiStatus }) {
   );
 }
 
-function KpiDrilldownButton({ row }: { row: SearchPacingCampaignRow }) {
+function KpiDrilldownButton({
+  row,
+  isAdmin,
+  onTargetsUpdated,
+}: {
+  row: SearchPacingCampaignRow;
+  isAdmin: boolean;
+  onTargetsUpdated: (targets: KpiTargets) => void;
+}) {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const comparisons = buildKpiComparisons(row);
   const hasTargets = row.kpiTargets !== null;
   const editorHref = `/mediaplans/mba/${encodeURIComponent(row.mbaNumber)}/edit`;
 
+  const initialRow = useMemo(() => buildResolvedKpiRowFromPacing(row), [row]);
+
+  const handleSave = useCallback(
+    async (editedRow: ResolvedKPIRow) => {
+      setIsSaving(true);
+      try {
+        const payload = buildSyncPayloadFromEditedRow(editedRow);
+        const result = await syncCampaignKPIs([payload]);
+        const synced = result[0];
+        if (synced) {
+          const newTargets = applySyncedTargetsToRow(synced);
+          onTargetsUpdated(newTargets);
+        }
+        setIsModalOpen(false);
+      } catch (err) {
+        console.error("[pacing/kpi] sync failed", err);
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [onTargetsUpdated],
+  );
+
+  const handleReset = useCallback(() => {
+    setIsModalOpen(false);
+  }, []);
+
+  const host = useMemo(
+    () =>
+      createPacingKpiHost({
+        initialRow,
+        onSave: handleSave,
+        onReset: handleReset,
+        isSaving,
+      }),
+    [initialRow, handleSave, handleReset, isSaving],
+  );
+
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className="inline-flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
-          aria-label="KPI breakdown"
+    <>
+      <Popover>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className="inline-flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
+            aria-label="KPI breakdown"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Info className="h-3.5 w-3.5" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent
+          className="w-80 p-3"
+          align="start"
           onClick={(e) => e.stopPropagation()}
         >
-          <Info className="h-3.5 w-3.5" />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent
-        className="w-80 p-3"
-        align="start"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <KpiDrilldownContent
-          row={row}
-          comparisons={comparisons}
-          hasTargets={hasTargets}
-          editorHref={editorHref}
+          <KpiDrilldownContent
+            row={row}
+            comparisons={comparisons}
+            hasTargets={hasTargets}
+            editorHref={editorHref}
+            isAdmin={isAdmin}
+            onOpenModal={() => setIsModalOpen(true)}
+          />
+        </PopoverContent>
+      </Popover>
+      {isAdmin && (
+        <KPIEditModal
+          open={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          host={host}
         />
-      </PopoverContent>
-    </Popover>
+      )}
+    </>
   );
 }
 
@@ -789,11 +876,15 @@ function KpiDrilldownContent({
   comparisons,
   hasTargets,
   editorHref,
+  isAdmin,
+  onOpenModal,
 }: {
   row: SearchPacingCampaignRow;
   comparisons: KpiComparison[];
   hasTargets: boolean;
   editorHref: string;
+  isAdmin: boolean;
+  onOpenModal: () => void;
 }) {
   return (
     <div className="space-y-3">
@@ -803,18 +894,49 @@ function KpiDrilldownContent({
       </div>
 
       {!hasTargets ? (
-        <EmptyKpiState editorHref={editorHref} />
+        isAdmin ? (
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">
+              No KPI targets have been set for this line item yet.
+            </p>
+            <button
+              type="button"
+              className="inline-block rounded bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground hover:bg-primary/90"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenModal();
+              }}
+            >
+              Create targets
+            </button>
+          </div>
+        ) : (
+          <EmptyKpiState editorHref={editorHref} />
+        )
       ) : (
         <>
           <KpiComparisonTable comparisons={comparisons} />
           <div className="border-t pt-2">
-            <a
-              href={editorHref}
-              className="text-[11px] text-blue-600 hover:underline"
-              onClick={(e) => e.stopPropagation()}
-            >
-              Edit targets in media plan →
-            </a>
+            {isAdmin ? (
+              <button
+                type="button"
+                className="text-[11px] text-blue-600 hover:underline"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenModal();
+                }}
+              >
+                Edit targets
+              </button>
+            ) : (
+              <a
+                href={editorHref}
+                className="text-[11px] text-blue-600 hover:underline"
+                onClick={(e) => e.stopPropagation()}
+              >
+                Edit targets in media plan →
+              </a>
+            )}
           </div>
         </>
       )}
