@@ -8,8 +8,11 @@ import {
   type CSSProperties,
   type RefObject,
 } from "react";
+import Link from "next/link";
 import { ChevronRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { statusBadge, statusLabel } from "@/components/dashboard/delivery/shared/statusColours";
+import { slugifyClientName } from "@/lib/api/dashboard/shared";
 import type {
   PlatformCampaignBreakdown,
   SearchPacingCampaignRow,
@@ -362,6 +365,12 @@ export function LineItemPacingTable({ rows }: LineItemPacingTableProps) {
               >
                 Conversions
               </th>
+              <th
+                className="sticky top-0 bg-background p-2 text-right border-b"
+                style={{ zIndex: 20 }}
+              >
+                Actions
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -402,6 +411,7 @@ function FragmentForLineItem({
   firstRowRef?: RefObject<HTMLTableRowElement | null>;
 }) {
   const hasChildren = row.platformCampaigns.length > 0;
+  const clientSlug = slugifyClientName(row.clientName);
 
   return (
     <Fragment>
@@ -494,6 +504,32 @@ function FragmentForLineItem({
         <td className="p-2 border-b text-right tabular-nums">{fmtPct(row.ctr)}</td>
         <td className="p-2 border-b text-right tabular-nums">{fmtNumberOrZero(row.impressions)}</td>
         <td className="p-2 border-b text-right tabular-nums">{fmtNumberOrZero(row.conversions)}</td>
+        <td className="p-2 text-right border-b whitespace-nowrap">
+          <div className="inline-flex items-center gap-1.5">
+            <Button variant="outline" size="sm" className="h-7 px-2.5 text-xs" asChild>
+              <Link
+                href={`/mediaplans/mba/${encodeURIComponent(row.mbaNumber)}/edit`}
+                onClick={(e) => e.stopPropagation()}
+              >
+                Edit
+              </Link>
+            </Button>
+            {clientSlug ? (
+              <Button variant="secondary" size="sm" className="h-7 px-2.5 text-xs" asChild>
+                <Link
+                  href={`/dashboard/${encodeURIComponent(clientSlug)}/${encodeURIComponent(row.mbaNumber)}`}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  View
+                </Link>
+              </Button>
+            ) : (
+              <Button variant="secondary" size="sm" className="h-7 px-2.5 text-xs" disabled>
+                View
+              </Button>
+            )}
+          </div>
+        </td>
       </tr>
 
       {isExpanded &&
@@ -585,6 +621,7 @@ function FragmentForCampaign({
         <td className="p-2 border-b text-right tabular-nums">{fmtPct(campaign.ctr)}</td>
         <td className="p-2 border-b text-right tabular-nums">{fmtNumberOrZero(campaign.impressions)}</td>
         <td className="p-2 border-b text-right tabular-nums">{fmtNumberOrZero(campaign.conversions)}</td>
+        <td className="p-2 border-b" />
       </tr>
 
       {isExpanded &&
@@ -643,6 +680,7 @@ function FragmentForCampaign({
             <td className="p-2 border-b text-right tabular-nums">{fmtPct(ag.ctr)}</td>
             <td className="p-2 border-b text-right tabular-nums">{fmtNumberOrZero(ag.impressions)}</td>
             <td className="p-2 border-b text-right tabular-nums">{fmtNumberOrZero(ag.conversions)}</td>
+            <td className="p-2 border-b" />
           </tr>
         ))}
     </Fragment>
