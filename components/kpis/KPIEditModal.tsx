@@ -96,7 +96,12 @@ export function KPIEditModal({ open, onClose, host }: KPIEditModalProps) {
     if (!open) return
     setEditedRows([...kpiRows])
     setFieldErrors({})
-  }, [open, kpiRows])
+    // The modal intentionally snapshots kpiRows when it opens and ignores
+    // subsequent external updates to the rows reference. Including kpiRows
+    // in the dependency array causes parent re-renders to clobber the
+    // user's in-progress edits. See Stage 2e-1-fix.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
 
   const handleFieldChange = React.useCallback(
     (
