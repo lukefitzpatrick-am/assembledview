@@ -13,6 +13,11 @@ import { ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { statusBadge, statusLabel } from "@/components/dashboard/delivery/shared/statusColours";
 import { slugifyClientName } from "@/lib/api/dashboard/shared";
+import {
+  computeRowKpiStatus,
+  copyForRowKpiStatus,
+  type RowKpiStatus,
+} from "@/lib/pacing/kpi/computeKpiStatus";
 import type {
   PlatformCampaignBreakdown,
   SearchPacingCampaignRow,
@@ -238,6 +243,12 @@ export function LineItemPacingTable({ rows }: LineItemPacingTableProps) {
                 style={stickyHeaderCornerStyle(7, leftOffsets)}
               >
                 Targeting
+              </th>
+              <th
+                className="sticky top-0 bg-background p-2 text-left border-b"
+                style={{ zIndex: 20 }}
+              >
+                KPI Status
               </th>
               <th
                 className="sticky bg-background p-2 whitespace-nowrap text-left border-b"
@@ -467,6 +478,9 @@ function FragmentForLineItem({
         >
           {row.creativeTargeting || XANO_MISSING}
         </td>
+        <td className="p-2 border-b">
+          <KpiStatusPill status={computeRowKpiStatus(row)} />
+        </td>
         <td className="p-2 border-b">{fmtXanoDate(row.lineItemStartDate)}</td>
         <td className="p-2 border-b">{fmtXanoDate(row.lineItemEndDate)}</td>
         <td className="p-2 border-b text-right tabular-nums">
@@ -604,6 +618,7 @@ function FragmentForCampaign({
         <td className="p-2 border-b" />
         <td className="p-2 border-b" />
         <td className="p-2 border-b" />
+        <td className="p-2 border-b" />
         <td className="p-2 border-b text-right tabular-nums">
           {fmtCurrencyOrZero(campaign.spendToDateCurrentBurst)}
         </td>
@@ -696,6 +711,31 @@ function StatusCell({ status }: { status: SearchPacingCampaignRow["lineItemStatu
       className={`inline-flex items-center rounded px-2 py-0.5 text-[10px] font-medium whitespace-nowrap ${statusBadge[status]}`}
     >
       {statusLabel[status]}
+    </span>
+  );
+}
+
+function KpiStatusPill({ status }: { status: RowKpiStatus }) {
+  const copy = copyForRowKpiStatus(status);
+  const classes = (() => {
+    switch (status) {
+      case "kpi-pending":
+        return "bg-muted text-muted-foreground";
+      case "kpi-no-delivery":
+        return "bg-muted text-muted-foreground";
+      case "kpi-on-track":
+        return "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300";
+      case "kpi-mixed":
+        return "bg-amber-500/15 text-amber-700 dark:text-amber-300";
+      case "kpi-off-target":
+        return "bg-rose-500/15 text-rose-700 dark:text-rose-300";
+    }
+  })();
+  return (
+    <span
+      className={`inline-flex items-center rounded px-2 py-0.5 text-[10px] font-medium whitespace-nowrap ${classes}`}
+    >
+      {copy}
     </span>
   );
 }
