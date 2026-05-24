@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { SearchPacingCampaignRow } from "@/lib/pacing/campaigns/types";
 import { LineItemPacingTable } from "@/components/pacing-search";
+import { computeRowKpiStatus } from "@/lib/pacing/kpi/computeKpiStatus";
 
 type ApiShape = { asOfDate: string; rows: SearchPacingCampaignRow[] };
 
@@ -11,6 +12,7 @@ type StatusCounts = {
   ahead: number;
   behind: number;
   noData: number;
+  kpiPending: number;
 };
 
 export function OverviewClient() {
@@ -40,8 +42,8 @@ export function OverviewClient() {
   }, []);
 
   const counts: StatusCounts = useMemo(() => {
-    if (!data) return { onTrack: 0, ahead: 0, behind: 0, noData: 0 };
-    const c: StatusCounts = { onTrack: 0, ahead: 0, behind: 0, noData: 0 };
+    if (!data) return { onTrack: 0, ahead: 0, behind: 0, noData: 0, kpiPending: 0 };
+    const c: StatusCounts = { onTrack: 0, ahead: 0, behind: 0, noData: 0, kpiPending: 0 };
     for (const row of data.rows) {
       switch (row.lineItemStatus) {
         case "on-track":
@@ -56,6 +58,9 @@ export function OverviewClient() {
         case "no-data":
           c.noData++;
           break;
+      }
+      if (computeRowKpiStatus(row) === "kpi-pending") {
+        c.kpiPending++;
       }
     }
     return c;
@@ -105,9 +110,10 @@ function StatusSummary({ counts }: { counts: StatusCounts }) {
     { label: "On track", value: counts.onTrack, tone: "text-emerald-700" },
     { label: "Ahead", value: counts.ahead, tone: "text-blue-700" },
     { label: "No data", value: counts.noData, tone: "text-muted-foreground" },
+    { label: "KPI Pending", value: counts.kpiPending, tone: "text-muted-foreground" },
   ];
   return (
-    <div className="grid grid-cols-4 gap-2 rounded border bg-background p-3">
+    <div className="grid grid-cols-5 gap-2 rounded border bg-background p-3">
       {items.map((item) => (
         <div key={item.label} className="flex flex-col">
           <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
