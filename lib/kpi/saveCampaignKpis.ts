@@ -1,5 +1,5 @@
 import type { CampaignKPI, ResolvedKPIRow } from "./types"
-import { saveCampaignKPIs } from "@/lib/api/kpi"
+import { syncCampaignKPIs } from "@/lib/api/kpi"
 
 export type CampaignKpiSaveResult =
   | { status: "skipped" }
@@ -7,7 +7,9 @@ export type CampaignKpiSaveResult =
   | { status: "error"; message: string }
 
 /**
- * Persist fan-out KPI rows; surfaces match/save failures for save-status UI.
+ * Persist fan-out KPI rows via server-side sync (PATCH-or-POST keyed by
+ * mba_number + version_number + line_item_id). Surfaces match/save failures
+ * for save-status UI.
  */
 export async function saveCampaignKpisFromRows(
   kpiRows: ResolvedKPIRow[],
@@ -30,7 +32,7 @@ export async function saveCampaignKpisFromRows(
     }
   }
   try {
-    await saveCampaignKPIs(payload)
+    await syncCampaignKPIs(payload)
     return { status: "success" }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)

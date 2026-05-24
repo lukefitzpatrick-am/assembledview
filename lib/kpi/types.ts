@@ -388,6 +388,9 @@ const campaignKpiItemSchema = z.object({
 
 export const campaignKpiCreateBodySchema = z.array(campaignKpiItemSchema)
 
+export const campaignKpiSyncBodySchema = campaignKpiCreateBodySchema
+export type CampaignKpiSyncInput = z.infer<typeof campaignKpiSyncBodySchema>
+
 export const campaignKpiPatchBodySchema = z.object({
   id: z.coerce.number(),
   mp_client_name: z.string().trim().min(1).optional(),
@@ -397,6 +400,7 @@ export const campaignKpiPatchBodySchema = z.object({
   media_type: z.string().trim().min(1).optional(),
   publisher: z.string().trim().min(1).optional(),
   bid_strategy: z.string().trim().min(1).optional(),
+  line_item_id: z.string().trim().min(1).optional(),
   ctr: kpiMetricNullable.nullable().optional(),
   cpv: kpiMetricNullable.nullable().optional(),
   conversion_rate: kpiMetricNullable.nullable().optional(),
