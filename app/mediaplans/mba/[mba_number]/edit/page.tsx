@@ -115,6 +115,12 @@ import {
   uploadMediaPlanVersionDocuments
 } from "@/lib/api"
 import type { BillingMonth, BillingLineItem as BillingLineItemType, BillingBurst } from "@/lib/billing/types"
+import {
+  compareBillingDivergence,
+  type BillingDivergenceResult,
+} from "@/lib/billing/compareBillingDivergence"
+import { BillingDivergenceBanner } from "@/components/billing/BillingDivergenceBanner"
+import { BillingDivergenceModal } from "@/components/billing/BillingDivergenceModal"
 import { computeBillingAndDeliveryMonths } from "@/lib/billing/computeSchedule"
 import { buildBillingScheduleJSON } from "@/lib/billing/buildBillingSchedule"
 import { prepareBillingMonthsForLineItemExport } from "@/lib/billing/prepareBillingMonthsForLineItemExport"
@@ -1631,10 +1637,19 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const hasPersistedBillingScheduleRef = useRef(false)
   /** True when a server-backed billing baseline exists (`savedBillingMonths` from version hydrate or after a successful save with months). */
   const [hasPersistedBillingSchedule, setHasPersistedBillingSchedule] = useState(false)
+  const [billingDivergence, setBillingDivergence] = useState<BillingDivergenceResult | null>(null)
+  const [isDivergenceModalOpen, setIsDivergenceModalOpen] = useState(false)
+  const billingDivergenceHydrateCheckedRef = useRef(false)
 
   useEffect(() => {
     hasPersistedBillingScheduleRef.current = hasPersistedBillingSchedule
   }, [hasPersistedBillingSchedule])
+
+  useEffect(() => {
+    billingDivergenceHydrateCheckedRef.current = false
+    setBillingDivergence(null)
+    setIsDivergenceModalOpen(false)
+  }, [mbaNumber, selectedVersionNumber])
 
   const billingTotalDisplayFromWorking = useMemo(
     () =>
@@ -2752,12 +2767,14 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           const deepSaved = JSON.parse(JSON.stringify(persistedMonths)) as BillingMonth[]
           const deepWorking = JSON.parse(JSON.stringify(persistedMonths)) as BillingMonth[]
           hasPersistedBillingScheduleRef.current = true
-          setHasPersistedBillingSchedule(true)
-          setIsManualBilling(true)
           setSavedBillingMonths(deepSaved)
           savedBillingMonthsRef.current = deepSaved
           setWorkingBillingMonths(deepWorking)
           workingBillingMonthsRef.current = deepWorking
+          setHasPersistedBillingSchedule(true)
+          // Divergence check runs in a follow-up effect once auto-reference is computed.
+          // Default manual mode until then so behaviour does not regress while auto calculates.
+          setIsManualBilling(true)
           if (billingHydrated.partial) {
             const h = billingHydrated.partial.hydrate
             setPartialApprovalMetadata(billingHydrated.partial.metadata)
@@ -4309,10 +4326,19 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     workingBillingMonthsRef.current = next
     billingLineItemsFollowAutoRef.current = true
     setIsManualBilling(false)
+    setBillingDivergence(null)
     setManualBillingMonths([])
     setManualBillingCostPreBill({ fee: false, adServing: false, production: false })
     manualBillingCostPreBillSnapshotRef.current = {}
   }, [calculateBillingSchedule, campaignStartDate, campaignEndDate])
+
+  const handleAcknowledgeDivergence = useCallback(() => {
+    const ackKey = `billingDivergenceAcknowledged:${mbaNumber}:${selectedVersionNumber}`
+    if (typeof window !== "undefined") {
+      window.sessionStorage.setItem(ackKey, new Date().toISOString())
+    }
+    setIsDivergenceModalOpen(false)
+  }, [mbaNumber, selectedVersionNumber])
 
   const runConfirmedFullBillingResetToAuto = useCallback(() => {
     setFullBillingResetConfirmOpen(false)
@@ -7131,6 +7157,58 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   ])
 
   /**
+   * After persisted billing hydrates, compare saved baseline to auto-reference once per MBA/version load.
+   * Sets manual mode and optional first-visit divergence modal (sessionStorage acknowledgment).
+   */
+  useEffect(() => {
+    if (billingDivergenceHydrateCheckedRef.current) return
+    if (
+      savedBillingMonths.length === 0 ||
+      workingBillingMonths.length === 0 ||
+      autoReferenceBillingMonths.length === 0
+    ) {
+      return
+    }
+
+    billingDivergenceHydrateCheckedRef.current = true
+
+    const result = compareBillingDivergence(savedBillingMonths, autoReferenceBillingMonths)
+    setBillingDivergence(result)
+    setIsManualBilling(result.isDivergent)
+
+    if (result.isDivergent) {
+      const ackKey = `billingDivergenceAcknowledged:${mbaNumber}:${selectedVersionNumber}`
+      const alreadyAcknowledged =
+        typeof window !== "undefined" && window.sessionStorage.getItem(ackKey)
+      if (!alreadyAcknowledged) {
+        setIsDivergenceModalOpen(true)
+      }
+    }
+  }, [
+    savedBillingMonths,
+    workingBillingMonths,
+    autoReferenceBillingMonths,
+    mbaNumber,
+    selectedVersionNumber,
+  ])
+
+  /**
+   * Re-evaluate divergence as working billing changes (debounced). Modal is hydrate-only.
+   */
+  useEffect(() => {
+    if (!hasPersistedBillingSchedule) return
+    if (workingBillingMonths.length === 0 || autoReferenceBillingMonths.length === 0) return
+
+    const tid = window.setTimeout(() => {
+      const result = compareBillingDivergence(workingBillingMonths, autoReferenceBillingMonths)
+      setBillingDivergence(result)
+      setIsManualBilling(result.isDivergent)
+    }, 500)
+
+    return () => window.clearTimeout(tid)
+  }, [hasPersistedBillingSchedule, workingBillingMonths, autoReferenceBillingMonths])
+
+  /**
    * Main page: append-only billing — new campaign months, media keys, and line-item ids. Waits for
    * `autoReferenceBillingMonths` after `calculateBillingSchedule`; re-runs when line-item arrays gain rows
    * (`billingLineItemsLengthFingerprint`) so enabling a media type then loading containers/API re-appends.
@@ -8143,6 +8221,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             </div>
 
             {/* Billing Schedule Section — summary grid; detail/line edits are in Manual Billing. New months/media/lines merge in via append-only logic without full reset. */}
+            <BillingDivergenceBanner divergence={billingDivergence} />
             <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
                 <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Billing Schedule</h3>
@@ -8727,6 +8806,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         title={modalTitle}
         outcome={modalOutcome}
         isLoading={modalLoading}
+      />
+
+      <BillingDivergenceModal
+        open={isDivergenceModalOpen}
+        divergence={billingDivergence}
+        onAcknowledge={handleAcknowledgeDivergence}
       />
 
       <AlertDialog open={fullBillingResetConfirmOpen} onOpenChange={setFullBillingResetConfirmOpen}>
