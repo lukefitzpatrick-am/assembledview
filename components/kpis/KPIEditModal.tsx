@@ -95,7 +95,7 @@ export function KPIEditModal({
 }: KPIEditModalProps) {
   const [editedRows, setEditedRows] = React.useState<ResolvedKPIRow[]>([])
   const [fieldErrors, setFieldErrors] = React.useState<
-    Record<number, Partial<Record<"ctr" | "vtr" | "conversion_rate" | "frequency", string>>>
+    Record<number, Partial<Record<"ctr" | "vtr" | "cpv" | "conversion_rate" | "frequency", string>>>
   >({})
   const [filterMediaType, setFilterMediaType] = React.useState("all")
   const [showSourceFilter, setShowSourceFilter] = React.useState("all")
@@ -109,7 +109,7 @@ export function KPIEditModal({
   const handleFieldChange = React.useCallback(
     (
       rowIndex: number,
-      field: "ctr" | "vtr" | "conversion_rate" | "frequency",
+      field: "ctr" | "vtr" | "cpv" | "conversion_rate" | "frequency",
       value: number | null,
     ) => {
       setEditedRows((prev) => {
@@ -235,6 +235,7 @@ export function KPIEditModal({
                     <th className={cn(headerCell, "text-right")}>Deliverables</th>
                     <th className={cn(headerCell, "text-right")}>CTR</th>
                     <th className={cn(headerCell, "text-right")}>VTR</th>
+                    <th className={cn(headerCell, "text-right")}>CPV</th>
                     <th className={cn(headerCell, "text-right")}>Conv Rate</th>
                     <th className={cn(headerCell, "text-right")}>Freq</th>
                     <th className={cn(headerCell, "text-right")}>Est. Clicks</th>
@@ -248,7 +249,7 @@ export function KPIEditModal({
                     <React.Fragment key={mediaType}>
                       <tr>
                         <td
-                          colSpan={14}
+                          colSpan={15}
                           className="bg-muted/30 px-3 py-1.5 text-left text-xs font-semibold"
                         >
                           {MEDIA_TYPE_LABELS[mediaType] ?? mediaType} — {entries.length} rows
@@ -369,6 +370,48 @@ export function KPIEditModal({
                               {fieldErrors[rowIndex]?.vtr && (
                                 <div className="text-xs text-destructive mt-1">
                                   {fieldErrors[rowIndex].vtr}
+                                </div>
+                              )}
+                            </td>
+                            <td className="border-b border-border/30 px-2 py-1 text-right">
+                              <input
+                                type="text"
+                                className={inputClass}
+                                key={`cpv-${row.lineItemId}-${row.cpv ?? "null"}`}
+                                defaultValue={row.cpv === null ? "" : row.cpv.toFixed(2)}
+                                onBlur={(e) => {
+                                  const cleaned = e.target.value.replace(/[^0-9.-]/g, "").trim()
+                                  const val = cleaned === "" ? null : parseFloat(cleaned)
+                                  const parsed = val !== null && Number.isFinite(val) ? val : null
+                                  if (parsed !== null && parsed <= 0) {
+                                    setFieldErrors((prev) => ({
+                                      ...prev,
+                                      [rowIndex]: {
+                                        ...prev[rowIndex],
+                                        cpv: "Targets must be positive.",
+                                      },
+                                    }))
+                                    return
+                                  }
+                                  setFieldErrors((prev) => {
+                                    const next = { ...prev }
+                                    if (next[rowIndex]) {
+                                      const rowErr = { ...next[rowIndex] }
+                                      delete rowErr.cpv
+                                      if (Object.keys(rowErr).length === 0) {
+                                        delete next[rowIndex]
+                                      } else {
+                                        next[rowIndex] = rowErr
+                                      }
+                                    }
+                                    return next
+                                  })
+                                  handleFieldChange(rowIndex, "cpv", parsed)
+                                }}
+                              />
+                              {fieldErrors[rowIndex]?.cpv && (
+                                <div className="text-xs text-destructive mt-1">
+                                  {fieldErrors[rowIndex].cpv}
                                 </div>
                               )}
                             </td>
