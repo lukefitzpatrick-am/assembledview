@@ -73,7 +73,20 @@ export async function fetchCampaignKpisForMbas(
       const list = Array.isArray(response.data)
         ? response.data
         : parseXanoListPayload(response.data);
-      results.push(...(list as CampaignKpiRow[]));
+      const rows = list as CampaignKpiRow[];
+
+      if (
+        rows.length > 0 &&
+        rows.some((row) => String(row.mba_number ?? "").trim() !== mba)
+      ) {
+        console.warn(
+          "[campaignKpi] mba_number filter ignored, falling back to full-list scan"
+        );
+        mbaFilterSupported = false;
+        return fetchAllCampaignKpisAndFilter(uniqueMbas);
+      }
+
+      results.push(...rows);
     } catch (err: unknown) {
       const status = (err as { response?: { status?: number } })?.response?.status;
       if (status === 404) {
