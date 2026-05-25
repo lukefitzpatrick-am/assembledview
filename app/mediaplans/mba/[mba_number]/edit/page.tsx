@@ -1322,6 +1322,20 @@ const LINE_ITEM_TIMEOUT_INITIAL_MS = 30_000
 const LINE_ITEM_TIMEOUT_AUTO_RETRY_MS = 90_000
 const LINE_ITEM_TIMEOUT_MANUAL_RETRY_MS = 180_000
 
+/**
+ * Stage 2 divergence detection is PAUSED while fee math inconsistencies
+ * are mapped and fixed (see AUDIT-DOMAIN-4.md "Stage 2 Pause: Fee Math
+ * Inconsistency Discovery"). Re-enable once Phase 2 decision is made.
+ *
+ * When false:
+ * - BillingDivergenceModal does not open (sessionStorage hook is bypassed)
+ * - BillingDivergenceBanner does not render
+ * - compareBillingDivergence is still called and result is still computed;
+ *   only the UI surfacing is suppressed. This keeps unit tests valid and
+ *   makes re-enable a single-line flip.
+ */
+const FF_BILLING_DIVERGENCE_ENABLED = false
+
 export default function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) {
   // Use React's use() hook to unwrap the params Promise
   // This ensures we get the latest value on every render/navigation
@@ -8261,7 +8275,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             </div>
 
             {/* Billing Schedule Section — summary grid; detail/line edits are in Manual Billing. New months/media/lines merge in via append-only logic without full reset. */}
-            <BillingDivergenceBanner divergence={billingDivergence} />
+            {FF_BILLING_DIVERGENCE_ENABLED ? (
+              <BillingDivergenceBanner divergence={billingDivergence} />
+            ) : null}
             <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
                 <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Billing Schedule</h3>
@@ -8848,11 +8864,13 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         isLoading={modalLoading}
       />
 
-      <BillingDivergenceModal
-        open={isDivergenceModalOpen}
-        divergence={billingDivergence}
-        onAcknowledge={handleAcknowledgeDivergence}
-      />
+      {FF_BILLING_DIVERGENCE_ENABLED ? (
+        <BillingDivergenceModal
+          open={isDivergenceModalOpen}
+          divergence={billingDivergence}
+          onAcknowledge={handleAcknowledgeDivergence}
+        />
+      ) : null}
 
       <AlertDialog open={fullBillingResetConfirmOpen} onOpenChange={setFullBillingResetConfirmOpen}>
         <AlertDialogContent>

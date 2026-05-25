@@ -3095,3 +3095,315 @@ Search/progDisplay bursts may still drive correct **month-level** `mediaCosts.se
 
 **Future work:** Audit the save serializer path to determine if line items can be silently dropped from `billingSchedule` during save, and whether a "re-sync containers to billing" action is needed when a campaign is opened with this kind of drift. Likely a future stage in this audit domain.
 
+## Stage 2 Pause: Fee Math Inconsistency Discovery
+
+**Branch:** `domain-4-long-lived` (HEAD `b5bd06df` at discovery start). **Pause commit:** gates `BillingDivergenceModal` / `BillingDivergenceBanner` via `FF_BILLING_DIVERGENCE_ENABLED = false` in `app/mediaplans/mba/[mba_number]/edit/page.tsx`. **Smoke anchor:** `glenda007`, `media_plan_versions` id **725**, version **9**.
+
+**Top-level finding (material for Phase 2):** Line-level fees are **not** persisted in saved `billingSchedule` JSON, and hydrate does **not** populate `feeMonthlyAmounts` / `totalFeeAmount` on line items. However, **burst-level** fees **are** stored in Xano `bursts_json` as `feeAmount` (and month-level `feeTotal` is stored on each month row). The page-local `generateBillingLineItems` fee loop **does not read** `burst.feeAmount`; it recomputes from `feePercentage` / inferred %. When `feePercentage` is absent on bursts and the line has `budget_includes_fees: true` but `total_media` is missing, inference yields **100%** and a bogus **$8,000** line fee — unless the live container path injects client `feeprogdisplay` onto flattened `BillingBurst` objects (then PD3 correctly yields **$1,600**). The **-$1,600** divergence banner is **`savedTotal - computedTotal`** with saved **$0** vs computed **$1,600** on `glenda007PD3`.
+
+---
+
+### Fee storage in saved JSON
+
+**Source:** `lib/billing/buildBillingSchedule.ts` → `buildBillingScheduleJSON(billingMonths)`.
+
+#### Month-level fee fields
+
+| Field | Written? | Source on `BillingMonth` | Formatter |
+|-------|----------|---------------------------|-----------|
+| `feeTotal` | **Always** (per month entry) | `(month as any).feeTotal` | `coerceMoneyString` → AUD `Intl.NumberFormat` if numeric; string passed through |
+| `production` | Always | `month.production` | Same |
+| `adservingTechFees` | **Conditional** — only if parse ≠ 0 | `month.adservingTechFees` | Same |
+
+Months with no line items but non-zero fee/ad serving/production still emit a row (`hasFeeOrAdServing` gate).
+
+#### Line-item-level fee fields
+
+**None.** `BillingScheduleLineItem` type is only:
+
+```typescript
+{ lineItemId, header1, header2, amount, clientPaysForMedia? }
+```
+
+Line items in saved JSON contain **no fee fields** — only `lineItemId`, `header1`, `header2`, `amount` (plus optional `clientPaysForMedia: true`). No `feeMonthlyAmounts`, `totalFeeAmount`, or per-month fee breakdown.
+
+#### Conditional writes
+
+- **Line `amount`:** from `item.monthlyAmounts[month.monthYear]`; rows with `__amountValue <= 0` are **filtered out** (not written).
+- **`clientPaysForMedia`:** spread onto line item only when truthy on `BillingLineItem`.
+- **`adservingTechFees`:** omitted when zero/empty.
+- **Month entry:** pushed if `mediaTypes.length > 0` **or** non-zero `feeTotal` / `adservingTechFees` / `production`.
+
+#### Exact serialised line item shape (all keys)
+
+Example from `buildBillingScheduleJSON` output (glenda007 prog display):
+
+```json
+{
+  "lineItemId": "billing-progDisplay::glenda007PD1",
+  "header1": "DV360",
+  "header2": "test",
+  "amount": "$3,200.00"
+}
+```
+
+With client-pays flag when set:
+
+```json
+{
+  "lineItemId": "billing-search::glenda007SE1",
+  "header1": "ChatGPT - AM",
+  "header2": "",
+  "amount": "$18,000.00",
+  "clientPaysForMedia": true
+}
+```
+
+---
+
+### Fee reconstruction on hydrate
+
+**Parsers:** `parseSavedBillingSchedulePayload` in `app/mediaplans/mba/[mba_number]/edit/page.tsx` (~831–1080) and mirror `parsePersistedBillingScheduleToMonths` in `lib/billing/parsePersistedBillingScheduleToMonths.ts` (same logic; finance hub uses the lib copy).
+
+#### Month-level `feeTotal`
+
+1. Sums **search/social only**: per media type block, `feeAmount = (mediaTotal * searchFee|socialFee) / 100` from caller-supplied `fees` argument (MBA edit: `feeSearchRef` / `feeSocialRef`).
+2. **Overrides** when `entry.feeTotal` parses to **> 0**: `finalFeeTotal = savedFeeTotal` (prog/display and other media do **not** contribute to the pre-override estimate).
+3. Writes `month.feeTotal = currencyFormatter.format(finalFeeTotal)`.
+
+**Confirmed by code reading:** glenda007 May/June `feeTotal` ($6,740 / $3,360) come from saved JSON, not from summing line items.
+
+#### Line-level fees after hydrate
+
+For each line item built from `mediaTypes[].lineItems`:
+
+```typescript
+return {
+  id, header1, header2,
+  monthlyAmounts,  // amount for this month only; cross-month merge pass fills others
+  totalAmount: amount,
+  // NO feeMonthlyAmounts, NO totalFeeAmount
+}
+```
+
+**After hydrate, `feeMonthlyAmounts` and `totalFeeAmount` are `undefined` on all line items** (equivalent to **$0** in UI/comparator via `?? 0`).
+
+#### Parser fee % estimation
+
+- **Search / social:** month-level estimate only (`searchFee` / `socialFee` × media total); **not** applied to line objects.
+- **Other media (incl. prog display):** **no** line-level fee estimate; **no** burst replay in parser.
+- **Does not read** `bursts_json`, `feeAmount`, `fee_percentage`, or `budget_includes_fees` from Xano during hydrate.
+
+#### Search/social note
+
+Stage 1 behaviour **confirmed**: `searchFee` / `socialFee` args affect **month-level** `feeTotal` estimate before saved override only for those keys — **not** line-level prog/display fees.
+
+---
+
+### Fee compute paths
+
+#### 1. Page-local `generateBillingLineItems` (`edit/page.tsx` ~3934–4182)
+
+**Computes:** line-level **media** (`monthlyAmounts`, `totalAmount`) **and** line-level **fees** (`feeMonthlyAmounts`, `totalFeeAmount`) **and** ad serving (`adServingMonthlyAmounts`, `totalAdServingAmount`).
+
+**Fee loop (second pass over bursts, billing mode):** for each burst:
+
+- `feePct` = `burst.feePercentage ?? burst.fee_percentage ?? lineItem.feePercentage ?? lineItem.fee_percentage`, else `inferredLineItemFeePct` when `budgetIncludesFees` on line (infer `(1 - totalMedia/sumRawBudgets)*100`, clamp 0–100).
+- `budgetIncludesFees` from burst or line flags.
+- `burstClientPaysForMedia` from burst or line.
+
+| Condition | `feeForBurst` |
+|-----------|----------------|
+| `budget > 0 && feePct > 0` && `budgetIncludesFees` | `(budget * feePct) / 100` |
+| `budget > 0 && feePct > 0` && `!budgetIncludesFees` && `feePct < 100` && `burstClientPaysForMedia` | `(budget / (100 - feePct)) * feePct` |
+| Same, not client-pays | `(budget * feePct) / (100 - feePct)` |
+| `mode === "billing" && burstClientPaysForMedia` | **Force `feeForBurst = 0`** (after above) |
+
+Prorated across months by burst day overlap. **`burst.feeAmount` in `bursts_json` is never read.**
+
+**Ids:** `billingStableLineItemId(mediaType, lineItem, index)` → `billing-{mediaType}::{line_item_id}`.
+
+#### 2. Module `lib/billing/generateBillingLineItems.ts`
+
+**Computes:** line-level **media only** — **no** `feeMonthlyAmounts` / `totalFeeAmount`.
+
+**Media formula:** same net-media / client-pays / `budgetIncludesFees` rules as page-local first burst loop.
+
+**Ids:** composite `` `${mediaType}-${header1}-${header2}-${index}` `` — **not** stable billing ids.
+
+#### 3. `attachLineItemsToMonths` (`edit/page.tsx` ~4232–4303)
+
+**Calls:** page-local **`generateBillingLineItems`** (closure in component), **not** the lib module.
+
+**Behaviour:** for each enabled media container, generates line items; **merges** only **new** ids into existing `month.lineItems` — does **not** overwrite existing rows’ fee fields on append.
+
+#### 4. `computeBillingAndDeliveryMonths` (`lib/billing/computeSchedule.ts`)
+
+**Computes:** **month-level only** — `feeTotal`, `mediaTotal`, `mediaCosts`, `adservingTechFees`, `production`. **No `lineItems`.**
+
+**Fee source:** precomputed `burst.feeAmount` on each `BillingBurst` in `burstsByMediaType`, prorated: `billingMap[key].totalFee += burst.feeAmount * ratio`.
+
+**Upstream:** MBA edit `calculateBillingSchedule` passes flattened container bursts (e.g. `progDisplayBursts` from `getProgDisplayBursts` → `computeBurstAmounts` with client `feeprogdisplay`). **Different input shape** than raw `bursts_json` in Xano rows.
+
+#### 5. Related (not line-item schedule): `computeBurstAmounts` (`lib/mediaplan/burstAmounts.ts`)
+
+Container / Expert burst math; feeds **`feeAmount`** on `BillingBurst` and into **`computeSchedule`**. Does **not** populate `BillingLineItem.totalFeeAmount` directly.
+
+#### Comparison table
+
+| Path name | Month-level fee? | Line-level fee? | Formula | vs page-local `generateBillingLineItems` |
+|-----------|------------------|-----------------|----------|------------------------------------------|
+| Page-local `generateBillingLineItems` | No | **Yes** | Table in §1; ignores stored `burst.feeAmount` | — |
+| `lib/billing/generateBillingLineItems` | No | **No** | Media only | Missing entire fee/ad-serving second loop |
+| `attachLineItemsToMonths` | No | **Yes** (via page-local) | Delegates to §1 | Same as page-local when invoked |
+| `computeBillingAndDeliveryMonths` | **Yes** | No | Sum prorated `burst.feeAmount` | Uses container bursts, not raw JSON; no line items |
+| Hydrate parsers | **Yes** (saved `feeTotal`) | **No** (undefined) | Saved override + search/social % estimate | Opposite of §1 for lines |
+| `computeBurstAmounts` | No (burst field) | No | 3-branch gross/net/client-pays | Feeds schedule bursts, not line items |
+
+---
+
+### Fee display in Edit Billing modal
+
+**Component:** inline modal in `edit/page.tsx` (not a separate file). **Fee column:** `lineItem.totalFeeAmount || 0` (~9029).
+
+**State:** **`manualBillingMonths`** — set in `handleManualBillingOpen` (~3382).
+
+**Open sequence:**
+
+1. `deepCopiedMonths = JSON.parse(JSON.stringify(workingBillingMonths))`.
+2. `generateBillingLineItems(...)` per enabled media — builds template with fees for **new** ids only.
+3. **Append-only merge:** existing line ids from hydrate **retain** their objects — **no** fee fields copied from generated template for PD1/PD3 already in saved billing.
+4. `setManualBillingMonths(deepCopiedMonths)` — **no** fee recomputation on existing rows.
+
+**Why $0 on first open (glenda007):** `workingBillingMonths` after hydrate has prog lines with **media** amounts from saved JSON but **`totalFeeAmount` undefined**. Modal clones that graph → displays **$0.00** fee column. Month-level fee rows ($6,740 / $3,360) still show in campaign fees panel from `month.feeTotal` on the same months.
+
+**Not a fourth compute path on open** — confirmed by code reading: display is read-only from cloned state unless user resets a line / full reset.
+
+---
+
+### "Reset billing to auto" handler
+
+**Full handler** (`handleResetBillingScheduleToAuto`, ~4337–4363):
+
+```typescript
+const handleResetBillingScheduleToAuto = useCallback(() => {
+  if (campaignStartDate && campaignEndDate) {
+    calculateBillingSchedule(campaignStartDate, campaignEndDate)
+  } else {
+    calculateBillingSchedule(null, null)
+  }
+
+  const autoRows = autoReferenceBillingMonthsRef.current
+  if (!autoRows.length) {
+    toast({
+      variant: "destructive",
+      title: "Cannot reset billing",
+      description: "No auto billing schedule yet. Set campaign dates and media bursts first.",
+    })
+    return
+  }
+
+  const next = buildWorkingMonthsFromAutoReference(autoRows, attachLineItemsToMonthsRef.current)
+  setWorkingBillingMonths(next)
+  workingBillingMonthsRef.current = next
+  billingLineItemsFollowAutoRef.current = true
+  setIsManualBilling(false)
+  setBillingDivergence(null)
+  setManualBillingMonths([])
+  setManualBillingCostPreBill({ fee: false, adServing: false, production: false })
+  manualBillingCostPreBillSnapshotRef.current = {}
+}, [calculateBillingSchedule, campaignStartDate, campaignEndDate])
+```
+
+**State modified:** `workingBillingMonths` (+ ref), `billingLineItemsFollowAutoRef`, `isManualBilling`, `billingDivergence`, `manualBillingMonths`, `manualBillingCostPreBill`, snapshot ref; **`calculateBillingSchedule`** refreshes `autoReferenceBillingMonths` (month-level fees from bursts).
+
+**Fee path:** `buildWorkingMonthsFromAutoReference` → `attachLineItemsToMonths(autoClone, "billing")` → page-local **`generateBillingLineItems`** → sets **`feeMonthlyAmounts` / `totalFeeAmount`** on each generated line.
+
+**Line vs month:** Month-level `feeTotal` on auto reference from **`computeBillingAndDeliveryMonths`** (sum of `burst.feeAmount`). Line-level fees from **separate** page-local loop (may disagree if `feePercentage` missing on raw JSON but present on live `BillingBurst`).
+
+**`lib/billing/resetFromAutoReference.ts`:** **Yes** — `buildWorkingMonthsFromAutoReference` is the core replace. **`applyCostBucketFromAutoReferenceAggregates`** copies month **feeTotal** strings only (not used in this handler). **`copySingleLineItemFromAutoTemplate`** copies `feeMonthlyAmounts` / `totalFeeAmount` when present on template (per-line reset in modal, not full reset).
+
+**glenda007 smoke:** After reset, **$1,600** on one prog row matches **PD3** with client **`feeprogdisplay`** (20%) on container bursts + `budget_includes_fees: true`; **PD1** would show fee only if pct applied; **PD2** stays **$0** (`client_pays_for_media: true` zeros billing fee).
+
+---
+
+### Concrete glenda007 trace
+
+**Data:** Xano `media_plan_prog_display` ids **261** (PD1), **259** (PD2), **260** (PD3), `media_plan_version` **725**. One-off script (not committed).
+
+#### Per-line raw burst / row fields (v9)
+
+| Line | Xano id | `budget_includes_fees` | `client_pays_for_media` | `fee_percentage` (row) | Burst `budget` | Burst `feeAmount` (stored) | Burst `mediaAmount` (stored) | `feePercentage` on burst |
+|------|---------|------------------------|-------------------------|------------------------|----------------|----------------------------|------------------------------|--------------------------|
+| PD1 | 261 | false | false | — | $8,000 | $2,000 | $8,000 | — |
+| PD2 | 259 | false | **true** | — | $8,000 | $2,000 | $8,000 | — |
+| PD3 | 260 | **true** | false | — | $8,000 | **$1,600** | $6,400 | — |
+
+Bursts: single burst each, `2026-05-11` → `2026-06-29`, `buyAmount` $10, `calculatedValue` as in Xano. **`bursts_json` does not include `feePercentage` or `budgetIncludesFees` per burst** — flags live on the **line row**.
+
+#### Page-local computed `totalFeeAmount` (billing mode)
+
+| Line | No `feePct` on burst/row (inference only) | With **20%** channel pct (simulated; matches `getProgDisplayBursts` + `feeprogdisplay`) | Stored `feeAmount` sum in JSON |
+|------|-------------------------------------------|----------------------------------------------------------------------------------------|--------------------------------|
+| PD1 | **$0** | **$2,000** | $2,000 |
+| PD2 | **$0** | **$0** (client pays) | $2,000 (not used in billing fee loop) |
+| PD3 | **$8,000** (inferred **100%** — `total_media` missing) | **$1,600** | $1,600 |
+
+**Which line is $1,600?** **`glenda007PD3` only** when `feePct = 20` and `budgetIncludesFees = true`: `(8000 × 20) / 100 = 1600`. Matches smoke “one row shows $1,600” after reset and divergence **Fee total differs by -$1,600** (saved **0**, computed **1600**).
+
+**PD2 caveat:** In saved billing JSON (Hotfix 2) but missing from persisted schedule; fee trace still shows **$0** billing fee with correct flags (client pays).
+
+**Month-level fees unchanged:** May `feeTotal` $6,740 + June $3,360 = $10,100 campaign panel — **not** sum of line `totalFeeAmount`; stored month buckets independent of line fee fields.
+
+---
+
+### Synthesis: where fee math diverges
+
+1. **Saved `billingSchedule` has no line-level fee fields; hydrate leaves `totalFeeAmount` undefined.**  
+   - **Paths:** `buildBillingScheduleJSON`, `parseSavedBillingSchedulePayload`, Edit Billing modal read.  
+   - **Confidence:** confirmed by code reading.
+
+2. **Month-level `feeTotal` is persisted and hydrated; line-level fees are not derived from it.**  
+   - **Paths:** save JSON month rows; parser override; campaign fees panel vs modal line column.  
+   - **Confidence:** confirmed by code reading.
+
+3. **`bursts_json` stores `feeAmount` but page-local line fee loop ignores it; recomputes from `feePercentage` / inference.**  
+   - **Paths:** Xano containers → `generateBillingLineItems`; mismatch when pct missing (PD3 → bogus $8,000) vs container `computeBurstAmounts` ($1,600 stored).  
+   - **Confidence:** confirmed by code reading + glenda007 script.
+
+4. **Comparator `fee_total` uses `totalFeeAmount` on both operands → false divergence saved $0 vs computed $1,600 (PD3).**  
+   - **Paths:** `compareBillingDivergence` (`difference = savedTotal - computedTotal`); working after append with `attachLineItemsToMonths`.  
+   - **Confidence:** confirmed by code reading; **-$1,600** matches PD3 row.
+
+5. **Edit Billing open clones `workingBillingMonths` without merging fees onto existing line ids.**  
+   - **Paths:** `handleManualBillingOpen` append-only merge.  
+   - **Confidence:** confirmed by code reading.
+
+6. **Full reset replaces working via `attachLineItemsToMonths` → populates line fees (PD3 → $1,600 with live client pct).**  
+   - **Paths:** `handleResetBillingScheduleToAuto`, `buildWorkingMonthsFromAutoReference`.  
+   - **Confidence:** confirmed by code reading + smoke.
+
+7. **`lib/billing/generateBillingLineItems` omits fees entirely** (if ever used for divergence attach by mistake, line fees stay 0). MBA edit uses page-local — **confirmed** attach calls page closure.
+
+8. **`computeBillingAndDeliveryMonths` month fees from `burst.feeAmount`** vs line fees from separate loop — two month-fee stories on auto path.  
+   - **Confidence:** confirmed by code reading.
+
+#### Phase 2 candidate fixes (no recommendation)
+
+| Option | Summary | Trade-offs |
+|--------|---------|------------|
+| **A. Persist line-level fees in saved JSON** | Extend `BillingScheduleLineItem` + parser to read/write `totalFeeAmount` or per-month fee map. | Single source on save; larger JSON; must keep in sync with burst edits. |
+| **B. Hydrate recomputes line fees from containers** | On load, run page-local `generateBillingLineItems` (or shared module with fee loop) and merge into hydrated lines. | Matches reset behaviour; depends on client fee % + row flags; may overwrite intentional manual line fees if not guarded. |
+| **C. Compare month-level fees only** | Stop `fee_total` line comparison in `compareBillingDivergence`; rely on `month.feeTotal`. | Stops PD3 false positive; hides true line-level drift; modal still shows $0 until reset. |
+| **D. Use stored `burst.feeAmount` in line fee loop** | When `feePercentage` missing, fall back to persisted burst fee fields. | Aligns with Xano JSON; brittle if bursts_json stale vs row flags. |
+| **E. Unify lib + page `generateBillingLineItems`** | Move fee loop into `lib/billing/generateBillingLineItems.ts` with stable ids. | Reduces drift; larger refactor; touch create + MBA + tests. |
+
+---
+
+### Open questions
+
+1. **Exact `feeprogdisplay` for glenda007 client** at smoke time — assumed 20% from stored PD3 `feeAmount` / $8,000 gross; not fetched in this pass.
+2. **Whether append-merge should seed fees** for existing ids when `totalFeeAmount` is undefined (would fix modal $0 without full reset).
+3. **PD3 inference bug** when `budget_includes_fees` true and `total_media` absent — should inference use stored `feeAmount` or client pct only?
+4. **PD2** missing from saved billing — separate integrity issue; fee math pause does not resolve it.
+
