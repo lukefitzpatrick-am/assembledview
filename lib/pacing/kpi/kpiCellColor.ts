@@ -8,7 +8,7 @@ import { KPI_TOLERANCE } from "./computeKpiStatus";
  */
 const TINT_ON_TRACK = "bg-emerald-500/15";
 const TINT_OFF_TARGET = "bg-rose-500/15";
-const TINT_NO_COMPARISON = "bg-sky-500/30";
+const TINT_NO_COMPARISON = "bg-sky-100";
 
 /**
  * Normalise a CTR target to a decimal ratio.
@@ -32,7 +32,7 @@ function normaliseCtrTarget(target: number): number {
  * Return the Tailwind background-class for the CTR cell on a pacing
  * line-item row.
  *
- * - `bg-sky-500/15` when either the target or the actual is null
+ * - `bg-sky-100` when either the target or the actual is null
  *   (no meaningful comparison possible).
  * - `bg-emerald-500/15` when the actual is within KPI_TOLERANCE of
  *   the target — the same threshold the row's KPI pill uses.
