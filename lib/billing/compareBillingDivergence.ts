@@ -27,6 +27,24 @@ export type BillingDivergenceResult = {
   divergentMonths: MonthDivergence[]
 }
 
+export type AttachLineItemsCallback = (
+  months: BillingMonth[],
+  mode: "billing" | "delivery"
+) => BillingMonth[]
+
+export type CompareBillingDivergenceOptions = {
+  /**
+   * When the comparator is called with a `computed` operand that has no lineItems
+   * (e.g. raw burst-derived autoReferenceBillingMonths), pass this callback to
+   * attach line items to a deep clone of `computed` before comparison. This makes
+   * the two operands shape-compatible.
+   *
+   * If omitted and `computed` has no lineItems, the comparator falls back to
+   * month-level comparison only (no line-item divergence reported).
+   */
+  attachComputedLineItems?: AttachLineItemsCallback
+}
+
 const currencyFormatter = new Intl.NumberFormat("en-AU", {
   style: "currency",
   currency: "AUD",
@@ -124,16 +142,36 @@ function compareMonthFields(
 
 export function compareBillingDivergence(
   saved: BillingMonth[],
-  computed: BillingMonth[]
+  computed: BillingMonth[],
+  options?: CompareBillingDivergenceOptions
 ): BillingDivergenceResult {
   const divergentLines: LineDivergence[] = []
   const divergentMonths: MonthDivergence[] = []
 
-  const savedLines = collectLinesById(saved)
-  const computedLines = collectLinesById(computed)
-  const allLineIds = new Set([...savedLines.keys(), ...computedLines.keys()])
+  const computedHasLineItems = computed.some(
+    (m) => m.lineItems && Object.keys(m.lineItems).length > 0
+  )
+  const savedHasLineItems = saved.some(
+    (m) => m.lineItems && Object.keys(m.lineItems).length > 0
+  )
 
-  for (const lineItemId of allLineIds) {
+  let effectiveComputed = computed
+  if (!computedHasLineItems && savedHasLineItems && options?.attachComputedLineItems) {
+    const cloned = JSON.parse(JSON.stringify(computed)) as BillingMonth[]
+    effectiveComputed = options.attachComputedLineItems(cloned, "billing")
+  }
+
+  const effectiveComputedHasLineItems = effectiveComputed.some(
+    (m) => m.lineItems && Object.keys(m.lineItems).length > 0
+  )
+  const shouldCompareLineItems = savedHasLineItems && effectiveComputedHasLineItems
+
+  if (shouldCompareLineItems) {
+    const savedLines = collectLinesById(saved)
+    const computedLines = collectLinesById(effectiveComputed)
+    const allLineIds = new Set([...savedLines.keys(), ...computedLines.keys()])
+
+    for (const lineItemId of allLineIds) {
     const savedEntry = savedLines.get(lineItemId)
     const computedEntry = computedLines.get(lineItemId)
 
@@ -195,10 +233,11 @@ export function compareBillingDivergence(
       savedLine.totalAdServingAmount ?? 0,
       computedLine.totalAdServingAmount ?? 0
     )
+    }
   }
 
   const savedByMonth = new Map(saved.map((m) => [m.monthYear, m]))
-  const computedByMonth = new Map(computed.map((m) => [m.monthYear, m]))
+  const computedByMonth = new Map(effectiveComputed.map((m) => [m.monthYear, m]))
   const allMonthYears = new Set([...savedByMonth.keys(), ...computedByMonth.keys()])
 
   for (const monthYear of allMonthYears) {

@@ -4,6 +4,7 @@ import test from "node:test"
 import {
   compareBillingDivergence,
   summarizeBillingDivergence,
+  type AttachLineItemsCallback,
 } from "../compareBillingDivergence.js"
 import type { BillingMonth, BillingLineItem } from "@/lib/billing/types"
 
@@ -255,4 +256,195 @@ test("summarizeBillingDivergence singular and plural headlines", () => {
   })
   assert.match(many.headline, /2 line items/)
   assert.match(many.headline, /2 months/)
+})
+
+test("saved with line items, computed without line items, no attach option → no line-item divergence", () => {
+  const saved = [
+    month("May 2025", {
+      mediaTotal: "$23,760.00",
+      feeTotal: "$6,740.00",
+      adservingTechFees: "$107.52",
+      lines: {
+        search: [
+          line("billing-search::glenda007SE1", {
+            header1: "ChatGPT - AM",
+            header2: "",
+            totalAmount: 18000,
+          }),
+        ],
+        progDisplay: [
+          line("billing-progDisplay::glenda007PD1", {
+            header1: "DV360",
+            header2: "test",
+            totalAmount: 3200,
+          }),
+          line("billing-progDisplay::glenda007PD3", {
+            header1: "DV360",
+            header2: "test",
+            totalAmount: 2560,
+          }),
+        ],
+      },
+    }),
+    month("June 2025", {
+      mediaTotal: "$8,640.00",
+      feeTotal: "$3,360.00",
+      adservingTechFees: "$161.28",
+      lines: {
+        progDisplay: [
+          line("billing-progDisplay::glenda007PD1", {
+            header1: "DV360",
+            header2: "test",
+            totalAmount: 4800,
+          }),
+          line("billing-progDisplay::glenda007PD3", {
+            header1: "DV360",
+            header2: "test",
+            totalAmount: 3840,
+          }),
+        ],
+      },
+    }),
+  ]
+  const computed = [
+    month("May 2025", {
+      mediaTotal: "$23,760.00",
+      feeTotal: "$6,740.00",
+      adservingTechFees: "$107.52",
+    }),
+    month("June 2025", {
+      mediaTotal: "$8,640.00",
+      feeTotal: "$3,360.00",
+      adservingTechFees: "$161.28",
+    }),
+  ]
+  const result = compareBillingDivergence(saved, computed)
+  assert.equal(result.isDivergent, false)
+  assert.equal(result.divergentLines.length, 0)
+  assert.equal(result.divergentMonths.length, 0)
+})
+
+test("saved with line items, computed without, attach produces matching line items → not divergent", () => {
+  const saved = [
+    month("May 2025", {
+      mediaTotal: "$1,000.00",
+      lines: { search: [line("li-1", { totalAmount: 1000 })] },
+    }),
+  ]
+  const computed = [month("May 2025", { mediaTotal: "$1,000.00" })]
+  const attach: AttachLineItemsCallback = (months) => {
+    return months.map((m) => ({
+      ...m,
+      lineItems: { search: [line("li-1", { totalAmount: 1000 })] },
+    }))
+  }
+  const result = compareBillingDivergence(saved, computed, {
+    attachComputedLineItems: attach,
+  })
+  assert.equal(result.isDivergent, false)
+  assert.equal(result.divergentLines.length, 0)
+})
+
+test("saved with line items, computed without, attach produces extra line → missing_in_saved", () => {
+  const saved = [
+    month("May 2025", {
+      mediaTotal: "$5,760.00",
+      lines: {
+        progDisplay: [
+          line("billing-progDisplay::glenda007PD1", { totalAmount: 3200 }),
+          line("billing-progDisplay::glenda007PD3", { totalAmount: 2560 }),
+        ],
+      },
+    }),
+  ]
+  const computed = [month("May 2025", { mediaTotal: "$5,760.00" })]
+  const attach: AttachLineItemsCallback = (months) => {
+    return months.map((m) => ({
+      ...m,
+      lineItems: {
+        progDisplay: [
+          line("billing-progDisplay::glenda007PD1", { totalAmount: 3200 }),
+          line("billing-progDisplay::glenda007PD2", { totalAmount: 1000 }),
+          line("billing-progDisplay::glenda007PD3", { totalAmount: 2560 }),
+        ],
+      },
+    }))
+  }
+  const result = compareBillingDivergence(saved, computed, {
+    attachComputedLineItems: attach,
+  })
+  assert.equal(result.isDivergent, true)
+  assert.equal(result.divergentLines.length, 1)
+  assert.equal(result.divergentLines[0]!.kind, "missing_in_saved")
+  assert.equal(result.divergentLines[0]!.lineItemId, "billing-progDisplay::glenda007PD2")
+})
+
+test("glenda007 May 2026 saved shape vs computed month totals only → no false positive", () => {
+  const saved = [
+    month("May 2026", {
+      mediaTotal: "$23,760.00",
+      feeTotal: "$6,740.00",
+      adservingTechFees: "$107.52",
+      production: "$0.00",
+      lines: {
+        search: [
+          line("billing-search::glenda007SE1", {
+            header1: "ChatGPT - AM",
+            header2: "",
+            totalAmount: 18000,
+          }),
+        ],
+        progDisplay: [
+          line("billing-progDisplay::glenda007PD1", {
+            header1: "DV360",
+            header2: "test",
+            totalAmount: 3200,
+          }),
+          line("billing-progDisplay::glenda007PD3", {
+            header1: "DV360",
+            header2: "test",
+            totalAmount: 2560,
+          }),
+        ],
+      },
+    }),
+    month("June 2026", {
+      mediaTotal: "$8,640.00",
+      feeTotal: "$3,360.00",
+      adservingTechFees: "$161.28",
+      production: "$0.00",
+      lines: {
+        progDisplay: [
+          line("billing-progDisplay::glenda007PD1", {
+            header1: "DV360",
+            header2: "test",
+            totalAmount: 4800,
+          }),
+          line("billing-progDisplay::glenda007PD3", {
+            header1: "DV360",
+            header2: "test",
+            totalAmount: 3840,
+          }),
+        ],
+      },
+    }),
+  ]
+  const computed = [
+    month("May 2026", {
+      mediaTotal: "$23,760.00",
+      feeTotal: "$6,740.00",
+      adservingTechFees: "$107.52",
+      production: "$0.00",
+    }),
+    month("June 2026", {
+      mediaTotal: "$8,640.00",
+      feeTotal: "$3,360.00",
+      adservingTechFees: "$161.28",
+      production: "$0.00",
+    }),
+  ]
+  const result = compareBillingDivergence(saved, computed)
+  assert.equal(result.isDivergent, false)
+  assert.equal(result.divergentLines.length, 0)
+  assert.equal(result.divergentMonths.length, 0)
 })

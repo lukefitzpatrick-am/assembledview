@@ -7202,7 +7202,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
     billingDivergenceHydrateCheckedRef.current = true
 
-    const result = compareBillingDivergence(savedBillingMonths, autoReferenceBillingMonths)
+    const result = compareBillingDivergence(savedBillingMonths, autoReferenceBillingMonths, {
+      attachComputedLineItems: (months, mode) => attachLineItemsToMonths(months, mode),
+    })
     setBillingDivergence(result)
     setIsManualBilling(result.isDivergent)
 
@@ -7218,6 +7220,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     savedBillingMonths,
     workingBillingMonths,
     autoReferenceBillingMonths,
+    attachLineItemsToMonths,
     mbaNumber,
     selectedVersionNumber,
   ])
@@ -7230,13 +7233,20 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     if (workingBillingMonths.length === 0 || autoReferenceBillingMonths.length === 0) return
 
     const tid = window.setTimeout(() => {
-      const result = compareBillingDivergence(workingBillingMonths, autoReferenceBillingMonths)
+      const result = compareBillingDivergence(workingBillingMonths, autoReferenceBillingMonths, {
+        attachComputedLineItems: (months, mode) => attachLineItemsToMonths(months, mode),
+      })
       setBillingDivergence(result)
       setIsManualBilling(result.isDivergent)
     }, 500)
 
     return () => window.clearTimeout(tid)
-  }, [hasPersistedBillingSchedule, workingBillingMonths, autoReferenceBillingMonths])
+  }, [
+    hasPersistedBillingSchedule,
+    workingBillingMonths,
+    autoReferenceBillingMonths,
+    attachLineItemsToMonths,
+  ])
 
   /**
    * Main page: append-only billing — new campaign months, media keys, and line-item ids. Waits for

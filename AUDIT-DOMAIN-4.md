@@ -3083,3 +3083,15 @@ Search/progDisplay bursts may still drive correct **month-level** `mediaCosts.se
 
 5. **Search row history:** Nine `media_plan_search` rows share `glenda007SE1`; confirm `filterLineItemsByPlanNumber` always selects id 361 for version 9 in the editor (no cross-version bleed).
 
+## Known Data Integrity Issue: Container Line Items Missing from Saved Billing
+
+**Surfaced during:** Stage 2 Hotfix 2 discovery (commit `0dba200c`)
+
+**Observation:** glenda007 v9 has `media_plan_prog_display` row PD2 (`line_item_id: glenda007PD2`) in Xano, but the persisted `billingSchedule` JSON contains only PD1 and PD3. Either the save serializer dropped PD2, or PD2 was added to containers after the last campaign save without re-saving.
+
+**Status:** Documented. NOT addressed in this hotfix.
+
+**Expected behaviour post-Stage-2-Hotfix-2:** Once Hotfix 2 lands, opening glenda007 will surface PD2 as `kind: "missing_in_saved"` divergence (because working state picks up PD2 via append, and saved doesn't have it). This is **correct** divergence detection — the banner is doing its job.
+
+**Future work:** Audit the save serializer path to determine if line items can be silently dropped from `billingSchedule` during save, and whether a "re-sync containers to billing" action is needed when a campaign is opened with this kind of drift. Likely a future stage in this audit domain.
+
