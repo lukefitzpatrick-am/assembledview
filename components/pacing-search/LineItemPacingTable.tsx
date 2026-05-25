@@ -28,6 +28,7 @@ import {
   formatVariancePercent,
   labelForMetric,
 } from "@/lib/pacing/kpi/formatKpi";
+import { ctrCellTint } from "@/lib/pacing/kpi/kpiCellColor";
 import { createPacingKpiHost } from "@/components/kpis/kpiHost";
 import { KPIEditModal } from "@/components/kpis/KPIEditModal";
 import { syncCampaignKPIs } from "@/lib/api/kpi";
@@ -554,7 +555,9 @@ function FragmentForLineItem({
         </td>
         <td className="p-2 border-b text-right tabular-nums">{fmtNumberOrZero(row.clicks)}</td>
         <td className="p-2 border-b text-right tabular-nums">{fmtRatio(row.cpc)}</td>
-        <td className="p-2 border-b text-right tabular-nums">{fmtPct(row.ctr)}</td>
+        <td className={`p-2 border-b text-right tabular-nums ${ctrCellTint(row.ctr, row.kpiTargets?.ctr ?? null)}`}>
+          {fmtPct(row.ctr)}
+        </td>
         <td className="p-2 border-b text-right tabular-nums">{fmtNumberOrZero(row.impressions)}</td>
         <td className="p-2 border-b text-right tabular-nums">{fmtNumberOrZero(row.conversions)}</td>
         <td className="p-2 text-right border-b whitespace-nowrap">
