@@ -8,7 +8,7 @@ import { KPI_TOLERANCE } from "./computeKpiStatus";
  */
 const TINT_ON_TRACK = "bg-emerald-500/15";
 const TINT_OFF_TARGET = "bg-rose-500/15";
-const TINT_NO_COMPARISON = "bg-sky-500/15";
+const TINT_NO_COMPARISON = "bg-sky-500/30";
 
 /**
  * Normalise a CTR target to a decimal ratio.
