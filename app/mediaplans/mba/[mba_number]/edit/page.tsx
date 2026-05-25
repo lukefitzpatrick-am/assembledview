@@ -464,7 +464,11 @@ function recomputeFullMonthFromLineItems(row: BillingMonth, formatter: Intl.Numb
       const lis = row.lineItems[mk as keyof typeof row.lineItems] as BillingLineItemType[]
       if (!lis?.length) continue
       const sum = lis.reduce((s, li) => s + (li.monthlyAmounts[row.monthYear] || 0), 0)
-      mc[mk] = formatter.format(sum)
+      const formatted = formatter.format(sum)
+      mc[mk] = formatted
+      if (mk === "production") {
+        row.production = formatted
+      }
       if (mk !== "production") mediaSumExcludingProduction += sum
     }
   }
@@ -983,20 +987,42 @@ function parseSavedBillingSchedulePayload(
         const useFee = feeLegacy > 0 ? feeLegacy : finalFeeTotal
         const useAd = adservLegacy > 0 ? adservLegacy : adservingTechFees
         const useProd = prodLegacy > 0 ? prodLegacy : production
+        const productionLineItemsSumLegacy = (lineItems.production ?? []).reduce(
+          (sum: number, item: any) => sum + (item.totalAmount ?? 0),
+          0
+        )
+        const hasProductionLineItemsLegacy = productionLineItemsSumLegacy > 0
+        const reconciledProductionLegacy = hasProductionLineItemsLegacy
+          ? productionLineItemsSumLegacy
+          : useProd
+        mediaCosts.production = currencyFormatter.format(reconciledProductionLegacy)
+        const finalProductionFormattedLegacy = currencyFormatter.format(reconciledProductionLegacy)
         totalAmountNum =
-          legacyTotal > 0 ? legacyTotal : useMedia + useFee + useAd + useProd
+          legacyTotal > 0
+            ? legacyTotal
+            : useMedia + useFee + useAd + reconciledProductionLegacy
         return {
           monthYear,
           mediaTotal: currencyFormatter.format(useMedia),
           feeTotal: currencyFormatter.format(useFee),
           totalAmount: currencyFormatter.format(totalAmountNum),
           adservingTechFees: currencyFormatter.format(useAd),
-          production: currencyFormatter.format(useProd),
+          production: finalProductionFormattedLegacy,
           mediaCosts,
           lineItems: undefined,
         }
       }
     }
+
+    const productionLineItemsSum = (lineItems.production ?? []).reduce(
+      (sum: number, item: any) => sum + (item.totalAmount ?? 0),
+      0
+    )
+    const hasProductionLineItems = productionLineItemsSum > 0
+    const reconciledProduction = hasProductionLineItems ? productionLineItemsSum : production
+    mediaCosts.production = currencyFormatter.format(reconciledProduction)
+    const finalProductionFormatted = currencyFormatter.format(reconciledProduction)
+    totalAmountNum = totalMedia + finalFeeTotal + adservingTechFees + reconciledProduction
 
     return {
       monthYear,
@@ -1004,7 +1030,7 @@ function parseSavedBillingSchedulePayload(
       feeTotal: currencyFormatter.format(finalFeeTotal),
       totalAmount: currencyFormatter.format(totalAmountNum),
       adservingTechFees: currencyFormatter.format(adservingTechFees),
-      production: currencyFormatter.format(production),
+      production: finalProductionFormatted,
       mediaCosts,
       lineItems: Object.keys(lineItems).length > 0 ? lineItems : undefined,
     }
@@ -3639,7 +3665,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             }
             const mediaCosts = copy[monthIndex].mediaCosts;
             if (mediaCosts) {
-              (mediaCosts as any)[mediaKey] = formatter.format(mediaTypeTotal);
+              const formattedMediaTotal = formatter.format(mediaTypeTotal);
+              (mediaCosts as any)[mediaKey] = formattedMediaTotal;
+              if (mediaKey === "production") {
+                copy[monthIndex].production = formattedMediaTotal;
+              }
             }
         }
       }

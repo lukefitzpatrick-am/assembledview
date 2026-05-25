@@ -193,20 +193,42 @@ export function parsePersistedBillingScheduleToMonths(
         const useFee = feeLegacy > 0 ? feeLegacy : finalFeeTotal
         const useAd = adservLegacy > 0 ? adservLegacy : adservingTechFees
         const useProd = prodLegacy > 0 ? prodLegacy : production
+        const productionLineItemsSumLegacy = (lineItems.production ?? []).reduce(
+          (sum: number, item) => sum + (item.totalAmount ?? 0),
+          0
+        )
+        const hasProductionLineItemsLegacy = productionLineItemsSumLegacy > 0
+        const reconciledProductionLegacy = hasProductionLineItemsLegacy
+          ? productionLineItemsSumLegacy
+          : useProd
+        mediaCosts.production = currencyFormatter.format(reconciledProductionLegacy)
+        const finalProductionFormattedLegacy = currencyFormatter.format(reconciledProductionLegacy)
         totalAmountNum =
-          legacyTotal > 0 ? legacyTotal : useMedia + useFee + useAd + useProd
+          legacyTotal > 0
+            ? legacyTotal
+            : useMedia + useFee + useAd + reconciledProductionLegacy
         return {
           monthYear,
           mediaTotal: currencyFormatter.format(useMedia),
           feeTotal: currencyFormatter.format(useFee),
           totalAmount: currencyFormatter.format(totalAmountNum),
           adservingTechFees: currencyFormatter.format(useAd),
-          production: currencyFormatter.format(useProd),
+          production: finalProductionFormattedLegacy,
           mediaCosts,
           lineItems: undefined,
         }
       }
     }
+
+    const productionLineItemsSum = (lineItems.production ?? []).reduce(
+      (sum: number, item) => sum + (item.totalAmount ?? 0),
+      0
+    )
+    const hasProductionLineItems = productionLineItemsSum > 0
+    const reconciledProduction = hasProductionLineItems ? productionLineItemsSum : production
+    mediaCosts.production = currencyFormatter.format(reconciledProduction)
+    const finalProductionFormatted = currencyFormatter.format(reconciledProduction)
+    totalAmountNum = totalMedia + finalFeeTotal + adservingTechFees + reconciledProduction
 
     return {
       monthYear,
@@ -214,7 +236,7 @@ export function parsePersistedBillingScheduleToMonths(
       feeTotal: currencyFormatter.format(finalFeeTotal),
       totalAmount: currencyFormatter.format(totalAmountNum),
       adservingTechFees: currencyFormatter.format(adservingTechFees),
-      production: currencyFormatter.format(production),
+      production: finalProductionFormatted,
       mediaCosts,
       lineItems: Object.keys(lineItems).length > 0 ? lineItems : undefined,
     }
