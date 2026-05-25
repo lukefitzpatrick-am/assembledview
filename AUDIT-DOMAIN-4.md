@@ -2857,3 +2857,229 @@ Domain 4 Stage 2 (`0fd81e47`, 2026-05-24) refactored divergence detection but **
 
 6. **`recomputeFullMonthFromLineItems`** sets `mediaCosts.production` from production line items without updating `month.production` — potential secondary mirror break when append/resync runs on months with production line items but top-level production from saved JSON.
 
+## Stage 2 Hotfix 2 Discovery: Divergence False Positive on Auto Campaign
+
+**Branch:** `domain-4-long-lived` (HEAD `130ac2fb` at discovery start). **Campaign:** `glenda007`, latest `media_plan_versions` row **id 725**, **version_number 9**. **Data source:** one-off Node script against Xano (`XANO_MEDIA_PLANS_BASE_URL` / `XANO_MEDIAPLANS_BASE_URL` from `.env.local`; no `XANO_API_KEY` in local env — GETs succeeded without auth header).
+
+### glenda007 Saved billingSchedule JSON
+
+```json
+[
+  {
+    "feeTotal": "$6,740.00",
+    "monthYear": "May 2026",
+    "mediaTypes": [
+      {
+        "mediaType": "Search",
+        "lineItems": [
+          {
+            "lineItemId": "billing-search::glenda007SE1",
+            "header1": "ChatGPT - AM",
+            "header2": "",
+            "amount": "$18,000.00"
+          }
+        ]
+      },
+      {
+        "mediaType": "Programmatic Display",
+        "lineItems": [
+          {
+            "lineItemId": "billing-progDisplay::glenda007PD1",
+            "header1": "DV360",
+            "header2": "test",
+            "amount": "$3,200.00"
+          },
+          {
+            "lineItemId": "billing-progDisplay::glenda007PD3",
+            "header1": "DV360",
+            "header2": "test",
+            "amount": "$2,560.00"
+          }
+        ]
+      }
+    ],
+    "production": "$0.00",
+    "adservingTechFees": "$107.52"
+  },
+  {
+    "feeTotal": "$3,360.00",
+    "monthYear": "June 2026",
+    "mediaTypes": [
+      {
+        "mediaType": "Programmatic Display",
+        "lineItems": [
+          {
+            "lineItemId": "billing-progDisplay::glenda007PD1",
+            "header1": "DV360",
+            "header2": "test",
+            "amount": "$4,800.00"
+          },
+          {
+            "lineItemId": "billing-progDisplay::glenda007PD3",
+            "header1": "DV360",
+            "header2": "test",
+            "amount": "$3,840.00"
+          }
+        ]
+      }
+    ],
+    "production": "$0.00",
+    "adservingTechFees": "$161.28"
+  }
+]
+```
+
+**Persisted line items (unique ids across months):**
+
+| Media | lineItemId | header1 | header2 | amount (May / June) |
+|-------|------------|---------|---------|---------------------|
+| Search | `billing-search::glenda007SE1` | ChatGPT - AM | (empty) | $18,000.00 / — |
+| progDisplay | `billing-progDisplay::glenda007PD1` | DV360 | test | $3,200.00 / $4,800.00 |
+| progDisplay | `billing-progDisplay::glenda007PD3` | DV360 | test | $2,560.00 / $3,840.00 |
+
+**Note:** Saved billing does **not** include `billing-progDisplay::glenda007PD2` even though Xano has a third prog display row for version 9 (see below).
+
+### glenda007 Source Line Items
+
+**Version 9 search** (`media_plan_search`, `media_plan_version` 725, Xano id 361):
+
+| Field | Value |
+|-------|-------|
+| id | 361 |
+| line_item_id | `glenda007SE1` |
+| platform | ChatGPT - AM |
+| creative_targeting | (empty) |
+
+**Version 9 programmatic display** (`media_plan_prog_display`, `media_plan_version` 725):
+
+| id | line_item_id | platform | creative_targeting |
+|----|--------------|----------|-------------------|
+| 261 | `glenda007PD1` | DV360 | test |
+| 259 | `glenda007PD2` | DV360 | test |
+| 260 | `glenda007PD3` | DV360 | test |
+
+(Older versions return additional search rows with the same `line_item_id` `glenda007SE1`; the editor filters by plan/version — version 9 uses id 361.)
+
+### billingStableLineItemId Implementation
+
+From `app/mediaplans/mba/[mba_number]/edit/page.tsx` (page-local; used by `generateBillingLineItems` and validation):
+
+```typescript
+function billingStableLineItemId(mediaType: string, lineItem: any, index: number): string {
+  const raw = lineItem?.line_item_id ?? lineItem?.id
+  if (raw != null && String(raw).trim() !== "") {
+    return `billing-${mediaType}::${String(raw)}`
+  }
+  return `billing-${mediaType}::new-${index}`
+}
+```
+
+Headers for compare/display come from `getScheduleHeaders` (`lib/billing/scheduleHeaders.ts`): search/progDisplay use `platform` → header1, `creative_targeting` → header2.
+
+### Computed Auto-Reference Ids for glenda007
+
+For **version 9** source rows only:
+
+| Media | line_item_id | header1 | header2 | billingStableLineItemId |
+|-------|--------------|---------|---------|-------------------------|
+| search | glenda007SE1 | ChatGPT - AM | | `billing-search::glenda007SE1` |
+| progDisplay | glenda007PD1 | DV360 | test | `billing-progDisplay::glenda007PD1` |
+| progDisplay | glenda007PD2 | DV360 | test | `billing-progDisplay::glenda007PD2` |
+| progDisplay | glenda007PD3 | DV360 | test | `billing-progDisplay::glenda007PD3` |
+
+### Id Comparison
+
+| Media | Header1 | Header2 | id in saved JSON | id in auto-reference (billingStableLineItemId) | Match? |
+|-------|---------|---------|------------------|-----------------------------------------------|--------|
+| search | ChatGPT - AM | | `billing-search::glenda007SE1` | `billing-search::glenda007SE1` | **Yes** |
+| progDisplay | DV360 | test | `billing-progDisplay::glenda007PD1` | `billing-progDisplay::glenda007PD1` | **Yes** |
+| progDisplay | DV360 | test | `billing-progDisplay::glenda007PD3` | `billing-progDisplay::glenda007PD3` | **Yes** |
+| progDisplay | DV360 | test | *(not in saved JSON)* | `billing-progDisplay::glenda007PD2` | N/A (saved row absent) |
+
+**Conclusion for Task 4:** For every line item **present in saved billing**, the persisted `lineItemId` already matches what `billingStableLineItemId` would emit from version-9 Xano rows. **Hypothesis A (id scheme mismatch between saved JSON and auto-reference ids) is not supported** for glenda007.
+
+The smoke-test “fourth” divergent prog row (`glenda007PD2`) is explained separately: it exists in Xano and would get the stable id above, but is **omitted from persisted `billingSchedule`**; it can still surface in divergence once **working** billing gains that row via append-merge (see Task 6 / debounced effect).
+
+### Comparator Trace (Ids Match Case)
+
+`compareBillingDivergence` (`lib/billing/compareBillingDivergence.ts`) builds two maps via `collectLinesById`, which only indexes `month.lineItems[mediaKey][].id`:
+
+```52:67:lib/billing/compareBillingDivergence.ts
+function collectLinesById(months: BillingMonth[]): Map<string, CollectedLine> {
+  const map = new Map<string, CollectedLine>()
+  for (const month of months) {
+    const lineItems = month.lineItems
+    if (!lineItems) continue
+    // ...
+  }
+  return map
+}
+```
+
+The hydrate/debounced call sites pass **`autoReferenceBillingMonths` unchanged**:
+
+```7205:7205:app/mediaplans/mba/[mba_number]/edit/page.tsx
+    const result = compareBillingDivergence(savedBillingMonths, autoReferenceBillingMonths)
+```
+
+`autoReferenceBillingMonths` is populated exclusively by `calculateBillingSchedule` → `computeBillingAndDeliveryMonths` (`lib/billing/computeSchedule.ts`). That function returns month rows with **mediaTotals / fees / production** but **never sets `lineItems`** on any month (lines 240–270 of `computeSchedule.ts`).
+
+Therefore, for glenda007 on hydrate:
+
+- **Saved operand:** `collectLinesById` finds 3 ids (`SE1`, `PD1`, `PD3`).
+- **Computed operand:** `collectLinesById` returns an **empty** map (no `lineItems` keys).
+- Loop at lines 136–150: for each saved id, `computedEntry` is undefined → **`kind: "missing_in_computed"`** for all three, regardless of id string equality.
+
+This is **not** a comparator logic bug given empty computed line maps; it is an **operand shape mismatch**. Numeric month totals on the auto side are never compared for these rows because the line loop exits early on `missing_in_computed`.
+
+The debounced effect (`compareBillingDivergence(workingBillingMonths, autoReferenceBillingMonths)`) behaves the same once append adds `glenda007PD2` to **working**, yielding **four** `missing_in_computed` rows (SE1 + PD1 + PD2 + PD3) while computed still has no line items.
+
+### Auto-Reference Readiness on Hydrate
+
+**Source of `autoReferenceBillingMonths` at divergence time:** `setAutoReferenceBillingMonths(billingMonthsCalculated)` inside `calculateBillingSchedule` (lines 2369–2412). Input bursts include `searchBursts`, `progDisplayBursts`, etc., from container state — **not** from `generateBillingLineItems` / `attachLineItemsToMonths`.
+
+**Hydrate divergence effect** (commit `0fd81e47` pattern, lines 7193–7223): runs once when `savedBillingMonths`, `workingBillingMonths`, and `autoReferenceBillingMonths` are all non-empty. It compares **saved** vs **raw auto reference** (not `attachLineItemsToMonths(autoReference, "billing")`).
+
+**Line-item loading:** `mp_search` and `mp_progdisplay` load in parallel in `loadPhase === "loadingLineItems"` (lines 3140–3279), populating `searchMediaLineItems` / `progDisplayMediaLineItems` asynchronously. A separate effect (lines 7246+) calls `calculateBillingSchedule` then append-merge into **working** when `billingLineItemsLengthFingerprint` changes.
+
+**Ordering implications:**
+
+1. Billing hydrate can complete while `autoReferenceBillingMonths` already has month shells from bursts (non-empty length) **but zero line items**.
+2. Divergence hydrate effect can fire as soon as those three arrays are non-empty — **it does not wait** for line-item API loads or for append to attach line items to auto reference.
+3. Even after all media line items load, **`autoReferenceBillingMonths` is never passed through `attachLineItemsToMonths`** — only `workingBillingMonths` is merged via append. So “readiness” is not a transient race alone; the auto operand **never** gains line-item granularity for this comparison.
+
+Search/progDisplay bursts may still drive correct **month-level** `mediaCosts.search` / `mediaCosts.progDisplay` on auto reference; the false positive is specifically at **line-item id** granularity.
+
+### Three Identical progDisplay Rows
+
+**(a) Confirmed:** Three **distinct** Xano rows for version 9 (`glenda007PD1`, `glenda007PD2`, `glenda007PD3`) share the same display headers (`DV360` / `test`) but different `line_item_id` values and different burst economics (`client_pays_for_media`, `budget_includes_fees`, etc. differ per row).
+
+**(b) Not a comparator loop bug:** Divergence lists one entry per **unique** `line.id` across months (`collectLinesById` overwrites by id). Three UI lines with identical labels correspond to three ids (or four after PD2 appears in working).
+
+**Saved vs live plan mismatch:** Persisted billing includes PD1 and PD3 only; PD2 is live in containers but absent from saved `billingSchedule` — a data/sync observation separate from the false-positive mechanism, but relevant to why smoke may report three prog lines while only two are on disk.
+
+### Diagnosis
+
+**E (primary B, not A):** Multiple factors, with one dominant root cause.
+
+| Letter | Verdict | Evidence |
+|--------|---------|----------|
+| **A** Id mismatch | **Ruled out** | Saved `lineItemId` values already use `billing-{media}::{line_item_id}` and match `billingStableLineItemId` for version-9 rows (Id Comparison table). |
+| **B** Race / incomplete auto-reference | **Confirmed (structural)** | `autoReferenceBillingMonths` has no `lineItems` when compared; hydrate effect does not wait for line-item loads and never attaches line items to the auto operand. Empty computed map → universal `missing_in_computed` for saved/working ids. |
+| **C** Comparator bug | **Ruled out** | Behavior matches code path when computed line map is empty; not an ordering or array/object false match. |
+| **D** Three identical rows display bug | **Partial** | Three real Xano rows with identical headers; not a duplicate-id loop. PD2 omitted from saved JSON is a separate persistence gap. |
+
+**Dominant mechanism:** Divergence compares line-item ids on **saved/working** billing against **burst-only** auto reference. Ids align; **line-item presence** on the computed side does not.
+
+### Hotfix 2 Discovery Open Questions
+
+1. **Smoke count “4” vs saved “3”:** Confirm whether the banner was observed after append-merge (working includes `glenda007PD2`) vs immediately at hydrate (saved-only → three divergent lines).
+
+2. **Intended computed operand:** Should hydrate/debounced divergence use `attachLineItemsToMonths(deepClone(autoReferenceBillingMonths), "billing")` (or equivalent) so ids are compared on the same structure validation uses?
+
+3. **PD2 missing from saved `billingSchedule`:** Version 9 containers include PD2; persisted billing does not — was the campaign saved before PD2 existed, or is there a save/serializer gap?
+
+4. **Month-level divergence:** With line-item false positives, are month-level totals (media/fee/adserving) for glenda007 actually aligned on auto vs saved? Not measured in this pass.
+
+5. **Search row history:** Nine `media_plan_search` rows share `glenda007SE1`; confirm `filterLineItemsByPlanNumber` always selects id 361 for version 9 in the editor (no cross-version bleed).
+
