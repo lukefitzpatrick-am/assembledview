@@ -28,7 +28,7 @@ const LINE_ITEM_ENDPOINT_GROUPS: { endpoint: string; label: string; outputKeys: 
   { endpoint: "prog_video_line_items", label: "progVideo", outputKeys: ["prog_video_line_items"] },
   { endpoint: "prog_bvod_line_items", label: "progBvod", outputKeys: ["prog_bvod_line_items"] },
   { endpoint: "prog_audio_line_items", label: "progAudio", outputKeys: ["prog_audio_line_items"] },
-  { endpoint: "prog_ooh_line_items", label: "progOoh", outputKeys: ["prog_ooh_line_items"] },
+  { endpoint: "media_plan_prog_ooh", label: "progOoh", outputKeys: ["prog_ooh_line_items", "media_plan_prog_ooh"] },
   { endpoint: "influencers_line_items", label: "influencers", outputKeys: ["influencers_line_items"] },
 ]
 

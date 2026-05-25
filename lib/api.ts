@@ -1958,7 +1958,7 @@ const LINE_ITEM_BROWSER_API_PATH: Record<string, string> = {
   progVideo: "prog-video",
   progBvod: "prog_bvod_line_items",
   progAudio: "prog_audio_line_items",
-  progOoh: "prog_ooh_line_items",
+  progOoh: "prog-ooh",
   influencers: "influencers",
   production: "production",
 }

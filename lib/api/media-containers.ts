@@ -82,7 +82,7 @@ export const MEDIA_CONTAINER_ENDPOINTS = {
   progVideo: 'prog_video_line_items',
   progBvod: 'prog_bvod_line_items',
   progAudio: 'prog_audio_line_items',
-  progOoh: 'prog_ooh_line_items',
+  progOoh: 'media_plan_prog_ooh',
   influencers: 'influencers_line_items',
   production: 'media_plan_production',
 }

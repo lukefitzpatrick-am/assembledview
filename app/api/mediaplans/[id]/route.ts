@@ -141,7 +141,7 @@ export async function GET(
           fetchVersionScoped("prog_video_line_items", "progVideo"),
           fetchVersionScoped("prog_bvod_line_items", "progBvod"),
           fetchVersionScoped("prog_audio_line_items", "progAudio"),
-          fetchVersionScoped("prog_ooh_line_items", "progOoh"),
+          fetchVersionScoped("media_plan_prog_ooh", "progOoh"),
           fetchVersionScoped("influencers_line_items", "influencers"),
         ])
         
