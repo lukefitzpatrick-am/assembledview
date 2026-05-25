@@ -17,6 +17,7 @@
     "test:finance-forecast": "tsx --test tests/finance/buildFinanceForecastDataset.test.ts tests/finance/varianceEngine.test.ts",
     "test:finance-filters": "tsx --test lib/finance/__tests__/filterBillingRecords.test.ts",
     "test:billing-divergence": "tsx --test lib/billing/__tests__/compareBillingDivergence.test.ts",
+    "test:billing-seed-fees": "tsx --test lib/billing/__tests__/seedLineFees.test.ts",
     "snowflake:migrate:pacing": "tsx scripts/snowflake/run-pacing-migrations.ts",
     "pacing:backfill:search-mappings": "tsx scripts/pacing/backfill-search-mappings.ts",
     "test:kpi-resolve": "tsx --test lib/kpi/__tests__/resolve.test.ts",

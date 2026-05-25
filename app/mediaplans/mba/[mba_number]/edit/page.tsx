@@ -137,6 +137,11 @@ import {
   copySingleLineItemFromAutoTemplate,
   deepCloneBillingMonthsState,
 } from "@/lib/billing/resetFromAutoReference"
+import {
+  seedBillingMonthsLineFees,
+  sumDerivedLineFeesForMonth,
+  type SeedLineFeesMediaConfig,
+} from "@/lib/billing/seedLineFees"
 import { generateMediaPlan, MediaPlanHeader, LineItem, MediaItems } from '@/lib/generateMediaPlan'
 import type { Publisher } from "@/lib/types/publisher"
 // --- KPI domain (Stage 2) ---
@@ -269,53 +274,6 @@ type BillingSaveValidationResult = {
   hasAnyIssue: boolean
 }
 
-function calculateExpectedLineItemFeeTotal(sourceLineItem: any): number {
-  let bursts: any[] = []
-  if (typeof sourceLineItem?.bursts_json === "string") {
-    try {
-      bursts = JSON.parse(sourceLineItem.bursts_json)
-    } catch {
-      bursts = []
-    }
-  } else if (Array.isArray(sourceLineItem?.bursts_json)) {
-    bursts = sourceLineItem.bursts_json
-  } else if (Array.isArray(sourceLineItem?.bursts)) {
-    bursts = sourceLineItem.bursts
-  }
-
-  const parseMoney = (v: any) => parseFloat(String(v ?? "").replace(/[^0-9.-]/g, "")) || 0
-
-  return bursts.reduce((sum: number, burst: any) => {
-    const budget = parseMoney(burst?.budget) || parseMoney(burst?.buyAmount)
-    const feePctRaw =
-      burst?.feePercentage ??
-      burst?.fee_percentage ??
-      sourceLineItem?.feePercentage ??
-      sourceLineItem?.fee_percentage
-    const feePct = Number.isFinite(Number(feePctRaw)) ? Math.max(0, Math.min(100, Number(feePctRaw))) : 0
-    const budgetIncludesFees = Boolean(
-      burst?.budgetIncludesFees ??
-        burst?.budget_includes_fees ??
-        sourceLineItem?.budgetIncludesFees ??
-        sourceLineItem?.budget_includes_fees
-    )
-    const clientPaysForMedia = Boolean(
-      burst?.clientPaysForMedia ??
-        burst?.client_pays_for_media ??
-        sourceLineItem?.clientPaysForMedia ??
-        sourceLineItem?.client_pays_for_media
-    )
-
-    if (budget <= 0 || feePct <= 0) return sum
-    if (budgetIncludesFees) return sum + (budget * feePct) / 100
-    if (feePct >= 100) return sum
-    return (
-      sum +
-      (clientPaysForMedia ? (budget / (100 - feePct)) * feePct : (budget * feePct) / (100 - feePct))
-    )
-  }, 0)
-}
-
 /** JSON deep clone for billing month graphs (merge helpers at file scope). */
 function cloneBillingMonthGraph<T>(x: T): T {
   return JSON.parse(JSON.stringify(x)) as T
@@ -429,6 +387,10 @@ const isBillingAppendDebug =
 
 function billingAppendDebug(...args: unknown[]) {
   if (isBillingAppendDebug) console.log("[billing-append]", ...args)
+}
+
+function billingFeeSeedDebug(...args: unknown[]) {
+  if (isBillingAppendDebug) console.log("[billing-fee-seed]", ...args)
 }
 
 /**
@@ -4079,11 +4041,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           }
         });
 
-      // Calculate fee amounts per month for this line item
-      const feeMonthlyAmounts: Record<string, number> = {}
+      // Ad serving per month (line fees come from seed effect — burst.feeAmount, not % inference)
       const adServingMonthlyAmounts: Record<string, number> = {}
       monthKeys.forEach((key) => {
-        feeMonthlyAmounts[key] = 0
         adServingMonthlyAmounts[key] = 0
       })
 
@@ -4095,48 +4055,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         const sLocalMidnight = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate())
         const eLocalMidnight = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate())
 
-        const budget =
-          parseFloat(burst.budget?.replace?.(/[^0-9.-]/g, "") || String(burst.budget || "0")) ||
-          parseFloat(burst.buyAmount?.replace?.(/[^0-9.-]/g, "") || String(burst.buyAmount || "0")) ||
-          0
-
-        const feePctRaw = (burst.feePercentage ??
-          burst.fee_percentage ??
-          (lineItem as any)?.feePercentage ??
-          (lineItem as any)?.fee_percentage) as any
-        const feePctCandidate = Number(feePctRaw)
-        const feePct = Number.isFinite(feePctCandidate)
-          ? Math.max(0, Math.min(100, feePctCandidate))
-          : inferredLineItemFeePct
-
-        const budgetIncludesFees = Boolean(
-          burst.budgetIncludesFees ??
-            burst.budget_includes_fees ??
-            (lineItem as any)?.budgetIncludesFees ??
-            (lineItem as any)?.budget_includes_fees
-        )
-        const burstClientPaysForMedia = Boolean(
-          burst.clientPaysForMedia ??
-            burst.client_pays_for_media ??
-            (lineItem as any)?.clientPaysForMedia ??
-            (lineItem as any)?.client_pays_for_media ??
-            clientPaysForMedia
-        )
-
-        // Fee calculation
-        let feeForBurst = 0
-        if (budget > 0 && feePct > 0) {
-          if (budgetIncludesFees) {
-            feeForBurst = (budget * feePct) / 100
-          } else if (feePct < 100) {
-            feeForBurst = burstClientPaysForMedia
-              ? (budget / (100 - feePct)) * feePct
-              : (budget * feePct) / (100 - feePct)
-          }
-        }
-        if (mode === "billing" && burstClientPaysForMedia) feeForBurst = 0
-
-        // Ad serving calculation
         const deliverables = Number(burst.deliverables || 0)
         const noAdserving = Boolean(burst.noAdserving)
         let adServingForBurst = 0
@@ -4156,7 +4074,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
         while (currentDate <= lastMonthCursor) {
           const monthKey = format(currentDate, "MMMM yyyy")
-          if (feeMonthlyAmounts.hasOwnProperty(monthKey)) {
+          if (adServingMonthlyAmounts.hasOwnProperty(monthKey)) {
             const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
             const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0)
             const sliceStartMs = Math.max(sLocalMidnight.getTime(), monthStart.getTime())
@@ -4165,7 +4083,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               Math.round((sliceEndMs - sliceStartMs) / (1000 * 60 * 60 * 24)) + 1
             if (daysInMonth > 0) {
               const ratio = daysInMonth / daysTotal
-              feeMonthlyAmounts[monthKey] += feeForBurst * ratio
               adServingMonthlyAmounts[monthKey] += adServingForBurst * ratio
             }
           }
@@ -4173,7 +4090,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         }
       })
 
-      const totalFeeAmount = Object.values(feeMonthlyAmounts).reduce((sum, val) => sum + val, 0)
       const totalAdServingAmount = Object.values(adServingMonthlyAmounts).reduce((sum, val) => sum + val, 0)
 
       // Create or update line item
@@ -4184,8 +4100,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         header2,
         monthlyAmounts,
         totalAmount,
-        feeMonthlyAmounts,
-        totalFeeAmount,
         adServingMonthlyAmounts,
         totalAdServingAmount,
         ...(clientPaysForMedia ? { clientPaysForMedia: true } : {}),
@@ -4636,26 +4550,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             )
           }
 
-          if (feeCheck && act) {
-            const sourceLineItem = lineItems.find(
-              (item, idx) => billingStableLineItemId(key, item, idx) === exp.id
-            )
-            const expectedFeeTotal = sourceLineItem ? calculateExpectedLineItemFeeTotal(sourceLineItem) : 0
-            const currentFeeEstimate =
-              exp.totalAmount > 0
-                ? (currentMediaTotal / exp.totalAmount) * expectedFeeTotal
-                : expectedFeeTotal
-            const feeDiff = currentFeeEstimate - expectedFeeTotal
-            if (Math.abs(feeDiff) > 0.01) {
-              preservedManualOverrides.push(
-                `${key} · "${exp.header1}" / "${exp.header2}": Fee scaling vs bursts differs by ${feeDiff >= 0 ? "+" : "-"}${fmt.format(
-                  Math.abs(feeDiff)
-                )} (burst-implied ${fmt.format(expectedFeeTotal)}, scaled to your media ${fmt.format(
-                  currentFeeEstimate
-                )}) — OK if agency fee was edited manually.`
-              )
-            }
-          }
+          // B1: line-level fee scaling check removed — fees are derived from burst.feeAmount via seed effect
+          void feeCheck
         }
 
         for (const act of unmatchedActual.values()) {
@@ -7406,6 +7302,150 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     form,
   ])
 
+  /**
+   * B1: After line items + container bursts load, seed `feeMonthlyAmounts` / `totalFeeAmount` on hydrated rows
+   * from `burst.feeAmount` (not page-local % inference). Runs after append; idempotent per line id.
+   */
+  useEffect(() => {
+    const working = workingBillingMonthsRef.current
+    if (!working.length) return
+
+    const fv = form.getValues() as Record<string, unknown>
+    const seedConfigs: SeedLineFeesMediaConfig[] = [
+      { billingKey: "television", lineItems: televisionMediaLineItems, containerBursts: televisionBursts },
+      { billingKey: "radio", lineItems: radioMediaLineItems, containerBursts: radioBursts },
+      { billingKey: "newspaper", lineItems: newspaperMediaLineItems, containerBursts: newspaperBursts },
+      { billingKey: "magazines", lineItems: magazinesMediaLineItems, containerBursts: magazinesBursts },
+      { billingKey: "ooh", lineItems: oohMediaLineItems, containerBursts: oohBursts },
+      { billingKey: "cinema", lineItems: cinemaMediaLineItems, containerBursts: cinemaBursts },
+      { billingKey: "digiDisplay", lineItems: digitalDisplayMediaLineItems, containerBursts: digitalDisplayBursts },
+      { billingKey: "digiAudio", lineItems: digitalAudioMediaLineItems, containerBursts: digitalAudioBursts },
+      { billingKey: "digiVideo", lineItems: digitalVideoMediaLineItems, containerBursts: digitalVideoBursts },
+      { billingKey: "bvod", lineItems: bvodMediaLineItems, containerBursts: bvodBursts },
+      { billingKey: "integration", lineItems: integrationMediaLineItems, containerBursts: integrationBursts },
+      { billingKey: "production", lineItems: productionMediaLineItems, containerBursts: productionBursts },
+      { billingKey: "search", lineItems: searchMediaLineItems, containerBursts: searchBursts },
+      { billingKey: "socialMedia", lineItems: socialMediaMediaLineItems, containerBursts: socialMediaBursts },
+      { billingKey: "progDisplay", lineItems: progDisplayMediaLineItems, containerBursts: progDisplayBursts },
+      { billingKey: "progVideo", lineItems: progVideoMediaLineItems, containerBursts: progVideoBursts },
+      { billingKey: "progBvod", lineItems: progBvodMediaLineItems, containerBursts: progBvodBursts },
+      { billingKey: "progAudio", lineItems: progAudioMediaLineItems, containerBursts: progAudioBursts },
+      { billingKey: "progOoh", lineItems: progOohMediaLineItems, containerBursts: progOohBursts },
+      { billingKey: "influencers", lineItems: influencersMediaLineItems, containerBursts: influencersBursts },
+    ]
+
+    const formFlagByKey: Record<string, string> = {
+      television: "mp_television",
+      radio: "mp_radio",
+      newspaper: "mp_newspaper",
+      magazines: "mp_magazines",
+      ooh: "mp_ooh",
+      cinema: "mp_cinema",
+      digiDisplay: "mp_digidisplay",
+      digiAudio: "mp_digiaudio",
+      digiVideo: "mp_digivideo",
+      bvod: "mp_bvod",
+      integration: "mp_integration",
+      production: "mp_production",
+      search: "mp_search",
+      socialMedia: "mp_socialmedia",
+      progDisplay: "mp_progdisplay",
+      progVideo: "mp_progvideo",
+      progBvod: "mp_progbvod",
+      progAudio: "mp_progaudio",
+      progOoh: "mp_progooh",
+      influencers: "mp_influencers",
+    }
+
+    const enabledConfigs = seedConfigs.filter((c) => {
+      const flag = formFlagByKey[c.billingKey]
+      return Boolean(flag && fv[flag] && c.lineItems.length > 0)
+    })
+
+    if (enabledConfigs.length === 0) {
+      billingFeeSeedDebug("seed skipped (no enabled line items)")
+      return
+    }
+
+    const burstsReady = enabledConfigs.some((c) => c.containerBursts.length > 0)
+    if (!burstsReady) {
+      billingFeeSeedDebug("seed skipped (bursts empty)", {
+        enabled: enabledConfigs.map((c) => c.billingKey),
+      })
+      return
+    }
+
+    const workingResult = seedBillingMonthsLineFees(working, enabledConfigs, billingStableLineItemId)
+    if (workingResult.linesSeeded === 0 && workingResult.skippedAlreadySeeded > 0) {
+      billingFeeSeedDebug("seed skipped (already seeded)", {
+        skipped: workingResult.skippedAlreadySeeded,
+      })
+      return
+    }
+    if (workingResult.linesSeeded === 0) {
+      return
+    }
+
+    setWorkingBillingMonths(workingResult.months)
+    workingBillingMonthsRef.current = workingResult.months
+    billingFeeSeedDebug("seed applied (working)", { lines: workingResult.linesSeeded })
+
+    const saved = savedBillingMonthsRef.current
+    if (saved.length > 0) {
+      const savedResult = seedBillingMonthsLineFees(saved, enabledConfigs, billingStableLineItemId)
+      if (savedResult.linesSeeded > 0) {
+        setSavedBillingMonths(savedResult.months)
+        savedBillingMonthsRef.current = savedResult.months
+        billingFeeSeedDebug("seed applied (saved)", { lines: savedResult.linesSeeded })
+      }
+    }
+  }, [
+    workingBillingMonths,
+    savedBillingMonths,
+    billingLineItemsLengthFingerprint,
+    televisionMediaLineItems,
+    radioMediaLineItems,
+    newspaperMediaLineItems,
+    magazinesMediaLineItems,
+    oohMediaLineItems,
+    cinemaMediaLineItems,
+    digitalDisplayMediaLineItems,
+    digitalAudioMediaLineItems,
+    digitalVideoMediaLineItems,
+    bvodMediaLineItems,
+    integrationMediaLineItems,
+    productionMediaLineItems,
+    searchMediaLineItems,
+    socialMediaMediaLineItems,
+    progDisplayMediaLineItems,
+    progVideoMediaLineItems,
+    progBvodMediaLineItems,
+    progAudioMediaLineItems,
+    progOohMediaLineItems,
+    influencersMediaLineItems,
+    televisionBursts,
+    radioBursts,
+    newspaperBursts,
+    magazinesBursts,
+    oohBursts,
+    cinemaBursts,
+    digitalDisplayBursts,
+    digitalAudioBursts,
+    digitalVideoBursts,
+    bvodBursts,
+    integrationBursts,
+    productionBursts,
+    searchBursts,
+    socialMediaBursts,
+    progDisplayBursts,
+    progVideoBursts,
+    progBvodBursts,
+    progAudioBursts,
+    progOohBursts,
+    influencersBursts,
+    form,
+  ])
+
   // Refresh burst-derived auto reference when bursts/totals change (does not write working — append effect applies deltas).
   useEffect(() => {
     if (campaignStartDate && campaignEndDate) {
@@ -8968,7 +9008,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                                     </TableHead>
                                   ))}
                                   <TableHead className="text-right font-bold">Media Total</TableHead>
-                                  <TableHead className="text-right">Fee Total</TableHead>
                                   <TableHead className="text-right">Ad Serving Total</TableHead>
                                 </TableRow>
                               </TableHeader>
@@ -9044,14 +9083,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                                         currency: "AUD",
                                         minimumFractionDigits: 2,
                                         maximumFractionDigits: 2,
-                                      }).format(lineItem.totalFeeAmount || 0)}
-                                    </TableCell>
-                                    <TableCell className="text-right text-muted-foreground">
-                                      {new Intl.NumberFormat("en-AU", {
-                                        style: "currency",
-                                        currency: "AUD",
-                                        minimumFractionDigits: 2,
-                                        maximumFractionDigits: 2,
                                       }).format(lineItem.totalAdServingAmount || 0)}
                                     </TableCell>
                                   </TableRow>
@@ -9082,16 +9113,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                                       maximumFractionDigits: 2,
                                     }).format(
                                       lineItems.reduce((sum, li) => sum + (li.totalAmount || 0), 0)
-                                    )}
-                                  </TableCell>
-                                  <TableCell className="text-right text-muted-foreground">
-                                    {new Intl.NumberFormat("en-AU", {
-                                      style: "currency",
-                                      currency: "AUD",
-                                      minimumFractionDigits: 2,
-                                      maximumFractionDigits: 2,
-                                    }).format(
-                                      lineItems.reduce((sum, li) => sum + (li.totalFeeAmount || 0), 0)
                                     )}
                                   </TableCell>
                                   <TableCell className="text-right text-muted-foreground">
@@ -9137,7 +9158,65 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {/* Fees */}
+                          {/* Line-derived fees (read-only rollup from burst.feeAmount seed) */}
+                          <TableRow className="bg-muted/20">
+                            <TableCell colSpan={4} className="text-muted-foreground text-sm">
+                              Line-derived agency fees
+                            </TableCell>
+                            {manualBillingMonths.map((month) => {
+                              const derivedKeys = mediaTypes
+                                .filter(
+                                  (medium) =>
+                                    medium.name !== "mp_production" &&
+                                    mediaFlagMap[medium.name as MediaTypeKey] &&
+                                    medium.component
+                                )
+                                .map((medium) => mediaKeyMap[medium.name])
+                              const derived = sumDerivedLineFeesForMonth(
+                                manualBillingMonths,
+                                month.monthYear,
+                                derivedKeys
+                              )
+                              return (
+                                <TableCell key={`derived-fee-${month.monthYear}`} className="text-right">
+                                  {new Intl.NumberFormat("en-AU", {
+                                    style: "currency",
+                                    currency: "AUD",
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2,
+                                  }).format(derived)}
+                                </TableCell>
+                              )
+                            })}
+                            <TableCell className="text-right text-muted-foreground">
+                              {new Intl.NumberFormat("en-AU", {
+                                style: "currency",
+                                currency: "AUD",
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              }).format(
+                                manualBillingMonths.reduce(
+                                  (acc, m) =>
+                                    acc +
+                                    sumDerivedLineFeesForMonth(
+                                      manualBillingMonths,
+                                      m.monthYear,
+                                      mediaTypes
+                                        .filter(
+                                          (medium) =>
+                                            medium.name !== "mp_production" &&
+                                            mediaFlagMap[medium.name as MediaTypeKey] &&
+                                            medium.component
+                                        )
+                                        .map((medium) => mediaKeyMap[medium.name])
+                                    ),
+                                  0
+                                )
+                              )}
+                            </TableCell>
+                          </TableRow>
+
+                          {/* Fees — month-level total (editable until B2 invariant) */}
                           <TableRow>
                             <TableCell>
                               <Button
@@ -9155,7 +9234,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                                 onCheckedChange={(next) => handleManualBillingCostPreBillToggle("fee", Boolean(next))}
                               />
                             </TableCell>
-                            <TableCell className="font-medium">Fees</TableCell>
+                            <TableCell className="font-medium">Agency fee (month total)</TableCell>
                             <TableCell className="text-muted-foreground">Total</TableCell>
                             {manualBillingMonths.map((month, monthIndex) => (
                               <TableCell key={month.monthYear} align="right">

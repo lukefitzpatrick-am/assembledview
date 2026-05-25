@@ -3673,3 +3673,74 @@ flowchart LR
 3. Where are **traditional** client fees (`feetelevision`, etc.) edited — Xano admin only?
 4. Should Stage B backfill `feePercentage` into `bursts_json` on save or teach hydrate to apply client % by media key?
 
+---
+
+## Stage 2 Phase 2B1: Line-Level Fees as Derived (Design)
+
+### Task 1 — Hydrate sequencing analysis
+
+**Today's order in `app/mediaplans/mba/[mba_number]/edit/page.tsx` (approximate lines, May 2026):**
+
+| Step | Event | Lines / identifier |
+|------|--------|-------------------|
+| 1 | Campaign fetch starts; billing + line-item state cleared | `useEffect` **fetchMediaPlan** ~2479; reset `savedBillingMonths` / `workingBillingMonths` ~2545–2553 |
+| 2 | **`billingSchedule` → `savedBillingMonths` + `workingBillingMonths`** (deep clone) | Inside fetch ~2793–2813 (`parseSavedBillingSchedulePayload`) |
+| 3 | Form fields, dates, client fees applied | fetch continues ~2836+ |
+| 4 | `loadPhase` → `"loadingLineItems"` | fetch tail |
+| 5 | **Per-channel line items load** (parallel API) | `useEffect` **loadLineItemsInParallel** ~3154–3260 → `setProgDisplayMediaLineItems` etc. |
+| 6 | Containers mount → **`progDisplayBursts` / `*Bursts` populated** via `onBurstsChange` | Container callbacks ~6549+; burst state ~1626+ |
+| 7 | **`calculateBillingSchedule` first fills `autoReferenceBillingMonths`** | `useCallback` ~2370–2449; triggered by `useEffect` ~7410–7453 (burst/total deps) and inside append timeout ~7278 |
+| 8 | **Append effect** merges auto months + `attachLineItemsToMonths` into `workingBillingMonths` | `useEffect` **append-only billing** ~7270–7407 (250ms debounce) |
+
+**Sequencing table (what is available when):**
+
+| Phase | Billing months hydrated? | Line items in state? | `BillingBurst[]` flat arrays populated? | `autoReferenceBillingMonths` non-empty? |
+|-------|-------------------------|----------------------|----------------------------------------|----------------------------------------|
+| After step 2 | Yes (`saved` + `working`) | No | No | No |
+| After step 5 | Yes | Yes (`*MediaLineItems`) | Often partial (containers still mounting) | Maybe (if dates + some bursts exist) |
+| After step 6 | Yes | Yes | Yes (`progDisplayBursts`, etc.) | Often yes |
+| After step 7 | Yes | Yes | Yes | Yes |
+| After step 8 | Yes (working may gain new line ids / media) | Yes | Yes | Yes |
+
+**Seeding window:** Earliest reliable `burst.feeAmount` for every line is **after step 5 (line items)** and **after step 6 (container flatten → `progDisplayBursts` etc.)**. Line-item `bursts_json[].feeAmount` is available at step 5; container slices add live `feeAmount` when step 6 completes. **`progDisplayBursts` (and sibling `*Bursts` state arrays) are the correct container read** — they mirror `get*Bursts` / `flatMap` order in containers. Mapping to a billing row uses **`billingStableLineItemId(mediaKey, lineItem, index)`** (stable id), with burst slice by line index in the flat array (`lib/billing/seedLineFees.ts`).
+
+### Task 2 — Seed-existing-ids approach
+
+**Where:** New **`useEffect` — seed line fees** placed **after** the append effect (~7408+), not inside `attachLineItemsToMonths`. Rationale: append and seed both read container state; a dedicated effect avoids double-writes inside attach, keeps append idempotent for media-only rows, and runs one frame after append when `workingBillingMonths` updates.
+
+**Triggers:**
+
+- `workingBillingMonths.length > 0` and at least one enabled media type has `*MediaLineItems.length > 0`.
+- Early exit: **all** canonical line rows already have `totalFeeAmount !== undefined` → log `seed skipped (already seeded)`.
+- Early exit: enabled media has line items but **no container bursts yet** → log `seed skipped (bursts empty)` (re-runs when burst deps change).
+
+**Per-line algorithm (hydrated row with `totalFeeAmount === undefined`):**
+
+1. Find media line item where `billingStableLineItemId(key, item, idx) === billingLine.id`.
+2. Build burst list: slice `progDisplayBursts` (etc.) by line index, merge `feeAmount` with parsed `bursts_json` (`burstsForLineItem`).
+3. Prorate each burst's **`feeAmount`** across `monthKeys` using the same day-overlap loop as the removed page-local fee loop; **billing mode + `client_pays_for_media` → $0** for that burst.
+4. Set `feeMonthlyAmounts` + `totalFeeAmount` on **every month copy** of that line id.
+
+**Idempotency:** Skip when `totalFeeAmount !== undefined` (including `0`). Re-seed does not clobber manual month fees (B2 scope). **Reset:** `handleResetBillingScheduleToAuto` → `attachLineItemsToMonths` leaves fees undefined; seed effect runs next render — same as hydrate. Brief `$0` rollup flash possible for one frame before seed (acceptable; flag if visible in QA).
+
+**`savedBillingMonths`:** Seed in memory when undefined so **`compareBillingDivergence`** line `fee_total` pairs match after computed operand is attach+seeded. Does not persist until campaign save (path (a) for drifted **month** totals unchanged).
+
+**`client_pays_for_media`:** Matches prior billing-mode behaviour — burst- or line-level client pays forces `$0` line fee in seed.
+
+### Task 3 — Modal UX redesign (B1)
+
+**Current:** Per media accordion table — columns include per-month **media** inputs, trailing **Fee Total** (read-only sum), Ad Serving Total.
+
+**B1 target:**
+
+- Remove **Fee Total** column from line rows (media-only line cells).
+- In **Fees, Ad Serving & Production** accordion: add read-only row **"Line-derived agency fees"** — per month, `sumDerivedLineFeesForMonth(manualBillingMonths, month, enabledKeys)`.
+- Keep editable **Fees** row (`month.feeTotal`) — month invariant deferred to B2.
+- State: still `manualBillingMonths` clone of `workingBillingMonths`; rollup reads `lineItems[*][].feeMonthlyAmounts[month]`. Per-line Reset unchanged (media only).
+
+### B1 implementation notes
+
+- Page-local `generateBillingLineItems` fee loop removed; **ad serving** loop retained. `inferredLineItemFeePct` remains **media-only** (`netMedia` in first burst loop).
+- Module `lib/billing/generateBillingLineItems.ts` untouched.
+- `FF_BILLING_DIVERGENCE_ENABLED` stays false.
+
