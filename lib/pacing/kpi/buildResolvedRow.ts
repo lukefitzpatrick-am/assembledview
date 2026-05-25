@@ -25,7 +25,7 @@ export function buildResolvedKpiRowFromPacing(
     bid_strategy: row.bidStrategy,
     lineItemId: row.lineItemId,
     lineItemLabel: row.creativeTargeting || row.creative || row.lineItemId,
-    spend: row.spendToDateLineTotal,
+    spend: row.totalLineItemBudget,
     deliverables: row.bursts.reduce(
       (sum, b) => sum + (b.calculatedValue ?? 0),
       0,
