@@ -3407,3 +3407,269 @@ Bursts: single burst each, `2026-05-11` → `2026-06-29`, `buyAmount` $10, `calc
 3. **PD3 inference bug** when `budget_includes_fees` true and `total_media` absent — should inference use stored `feeAmount` or client pct only?
 4. **PD2** missing from saved billing — separate integrity issue; fee math pause does not resolve it.
 
+---
+
+## Stage 2 Phase 2A: feePercentage Canonical Home Discovery
+
+**Branch:** `domain-4-long-lived` (HEAD `02b2a39` at discovery start). **Scope:** discovery only — no application code changes. **Builds on:** Stage 2 Pause section above (fee math inconsistency, glenda007 v9 anchor).
+
+**Interpretation X (Phase 2 target, not decided here):** one fee lineage — container burst pipeline (`get*Bursts` → `computeBurstAmounts` → `BillingBurst.feeAmount` / `feePercentage`) as source of truth for both month-level and line-level agency fees.
+
+---
+
+### Task 1: Canonical storage locations
+
+All media agency fee rates are **0–100** (percent points, e.g. `20` = 20%). Not 0–1. Missing/null → **`0`** at compute boundaries via `|| 0`, `?? 0`, or explicit clamp to `[0, 100]`.
+
+| # | Storage location | Field name(s) | Type | Default when missing | Editable? | Confidence |
+|---|------------------|---------------|------|----------------------|-----------|------------|
+| 1 | **Xano `clients` table** — programmatic / search / social | `feesocial`, `feesearch`, `feeprogdisplay`, `feeprogvideo`, `feeprogbvod`, `feeprogaudio`, `feeprogooh`, `feecontentcreator` | number 0–100 | `0` in containers | **Yes** — `EditClientForm` / `AddClientForm` (zod 0–100); PUT `/api/clients/:id` | confirmed by code reading |
+| 2 | **Xano `clients` table** — traditional / digital / other | `feetelevision`, `feeradio`, `feenewspapers`, `feemagazines`, `feeooh`, `feecinema`, `feedigidisplay`, `feedigiaudio`, `feedigivideo`, `feebvod`, `feeintegration`, `feeinfluencers` | number 0–100 | `0` | **Read in MBA edit** from client fetch; **not** in `EditClientForm` / `lib/validations/client.ts` schema — no in-app client UI write found | confirmed by code reading |
+| 3 | **Media plan line item row** (`media_plan_*` tables) | `fee_percentage`, `feePercentage`, `feePct` (read at save only) | number (expected 0–100) | not written by any `save*LineItems` payload inspected | **No** — not present on `saveProgDisplayLineItems` / `saveSearchLineItems` / `saveTelevisionLineItems` bodies | confirmed by code reading |
+| 4 | **`bursts_json` per line item** (Xano) | `feeAmount`, `mediaAmount` (strings, AUD formatted); optional passthrough `feePercentage` / `fee_percentage` if already on burst object | money strings + optional % | recomputed on save via `serializeBurstsJson` + `computeBurstAmounts`; **`feePercentage` not emitted by serializer** | **Indirect** — user edits budget/flags; save recomputes `feeAmount` | confirmed by code reading |
+| 5 | **Runtime `BillingBurst`** (container → MBA state) | `feePercentage`, `feeAmount`, `mediaAmount`, `budgetIncludesFees`, `clientPaysForMedia` | numbers + booleans | `feePercentage: fee* \|\| 0` from client prop in `get*Bursts` | **Not persisted** as % on burst JSON; amounts derived live | confirmed by code reading |
+| 6 | **React form state** (per-channel containers) | line-level `budgetIncludesFees`, `clientPaysForMedia`; burst `budget` / `buyAmount` | booleans, money strings | false / empty | **Yes** — line item UI | confirmed by code reading |
+| 7 | **`billingSchedule` JSON** (version row) | month `feeTotal`; line items have **no** fee % or `totalFeeAmount` | formatted currency strings | hydrate: line fees undefined; month `feeTotal` from saved or search/social estimate | month fee **yes** (manual Edit Billing / save); line fee % **no** | confirmed by code reading (Stage 2 Pause) |
+| 8 | **Working billing state** (`workingBillingMonths`) | `BillingLineItem.totalFeeAmount`, `feeMonthlyAmounts` | numbers per month | undefined after hydrate → UI treats as **$0** | set by page-local `generateBillingLineItems` on reset/append; not on hydrate | confirmed by code reading |
+| 9 | **Legacy `lib/billing.ts`** | `feePercentage` on burst-like input | number 0–100 | 0 | N/A — **no importers** found in app TS/TSX | confirmed by code reading |
+
+**`feepercent_input`:** not found in codebase (grep). **Inferred — needs verification** if it exists only in Xano UI or historical data.
+
+**Line-item `fee_percentage` column on Xano:** referenced in read fallbacks and glenda007 table (all **—** / absent on PD1–PD3). No API write maps a line-item fee column. **Inferred — needs verification** whether Xano schema has the column unused.
+
+#### Client fee column ↔ channel map
+
+| Client field | Channel(s) using it |
+|--------------|---------------------|
+| `feesearch` | Search |
+| `feesocial` | Social media |
+| `feeprogdisplay` | Prog display |
+| `feeprogvideo` | Prog video |
+| `feeprogbvod` | Prog BVOD |
+| `feeprogaudio` | Prog audio |
+| `feeprogooh` | Prog OOH |
+| `feecontentcreator` / `feeinfluencers` | Influencers (MBA: `feeinfluencers ?? feecontentcreator`) |
+| `feetelevision` | Television |
+| `feeradio` | Radio |
+| `feenewspapers` | Newspaper |
+| `feemagazines` | Magazines |
+| `feeooh` | OOH |
+| `feecinema` | Cinema |
+| `feedigidisplay` | Digital display |
+| `feedigiaudio` | Digital audio |
+| `feedigivideo` | Digital video |
+| `feebvod` | BVOD |
+| `feeintegration` | Integration |
+| *(none)* | Production — `feePercentage: 0` hard-coded |
+
+---
+
+### Task 2: Write sites
+
+#### 2.1 Client record (`clients` / Xano)
+
+| File | Lines (approx) | Context | Source value | Trigger | Validation |
+|------|----------------|---------|--------------|---------|------------|
+| `components/EditClientForm.tsx` | 133–149 | `onSubmit` → PUT `/api/clients/:id` | form fields in `clientSchema` only | user saves client | zod 0–100 for fee* in schema |
+| `components/AddClientForm.tsx` | POST create client | defaults e.g. `feeprogdisplay: 20` | new client | same zod subset |
+| `lib/validations/client.ts` | 50–57 | shared zod | — | — | nonnegative (API layer); Edit form uses 0–100 max |
+
+**Not written via in-app client forms:** `feetelevision`, `feeradio`, `feenewspapers`, `feemagazines`, `feeooh`, `feecinema`, `feedigidisplay`, `feedigiaudio`, `feedigivideo`, `feebvod`, `feeintegration`, `feeinfluencers` (MBA edit reads them from Xano only).
+
+#### 2.2 Line item save → `bursts_json` (all channels)
+
+| File | Lines (approx) | Function | Source of fee % for serialize | Trigger |
+|------|----------------|----------|-------------------------------|---------|
+| `lib/api.ts` | 1823–1900 | `extractAndFormatBursts` | `lineItem.feePct ?? feePercentage ?? fee_percentage` → else `deriveFeePctFromSerializedBursts` from stored `feeAmount` | every `save*LineItems` |
+| `lib/mediaplan/serializeBurstsJson.ts` | 47–71 | `serializeBurstsJson` | `feePct` argument → `computeBurstAmounts` | called from extract |
+| `lib/api.ts` | 1796–1811 | `deriveFeePctFromSerializedBursts` | reverse-engineer % from `feeAmount`/`budget` | when line item has no explicit % |
+
+**Per-channel save handlers** (all use same `extractAndFormatBursts` pattern; **none** pass `fee_percentage` as a top-level Xano column):
+
+- `saveTelevisionLineItems` ~1614–1642 — `bursts_json: formattedBursts` (array, not stringified)
+- `saveSearchLineItems` ~3724–3751 — `bursts_json: JSON.stringify(formattedBursts)`
+- `saveProgDisplayLineItems` ~3779–3807 — `bursts_json: JSON.stringify(formattedBursts)`
+- `saveSocialMediaLineItems` ~1902–1928 — `bursts_json: formattedBursts` (array)
+- *(same pattern for remaining 15 `save*LineItems` in `lib/api.ts` ~3206–4066)*
+
+**What gets written into `bursts_json`:** `budget`, `buyAmount`, `startDate`, `endDate`, `calculatedValue`, `mediaAmount`, `feeAmount` (strings). **Not** `feePercentage` from serializer. Extra burst keys preserved if present on input burst (excluding recomputed amount keys).
+
+**Validation on write:** `normalizeFeePct` (finite number); `computeBurstAmounts` clamps non-finite inputs to 0; no explicit 0–100 clamp in `extractAndFormatBursts` (relies on upstream client %).
+
+#### 2.3 Runtime `BillingBurst` (not Xano)
+
+| File | Lines (approx) | Context | Source | Trigger |
+|------|----------------|---------|--------|---------|
+| Each `components/media-containers/*Container.tsx` | `get*Bursts` e.g. ProgDisplay 155–192, Search 169–206, Television 189–230 | `computeBurstAmounts({ feePct: clientFee \|\| 0 })` → sets `feePercentage: pct` on returned burst | client fee prop from MBA edit page | `onBurstsChange` when line items / fee prop change |
+| `components/media-containers/ProgDisplayContainer.tsx` | ~998–1009 | `useEffect` → `onBurstsChange(getProgDisplayBursts(...))` | `feeprogdisplay` prop | form watch |
+
+#### 2.4 Billing schedule JSON
+
+| File | Lines (approx) | What is written | Fee-related |
+|------|----------------|-----------------|-------------|
+| `lib/billing/buildBillingSchedule.ts` | — | month `feeTotal`; line `amount` only | no line-level fee fields (Stage 2 Pause) |
+
+#### 2.5 Working state line fees (ephemeral)
+
+| File | Lines (approx) | Context | Source | Trigger |
+|------|----------------|---------|--------|---------|
+| `app/mediaplans/mba/[mba_number]/edit/page.tsx` | 3948–4182 | page-local `generateBillingLineItems` | recomputed from burst/line % or inference | reset, append, modal open second pass |
+| `lib/billing/resetFromAutoReference.ts` | — | `copySingleLineItemFromAutoTemplate` | copies `totalFeeAmount` from template | per-line reset in modal |
+
+---
+
+### Task 3: Read sites for fee **compute**
+
+| File | Lines (approx) | Function | Reads from | Fallback chain | Uses value for | Missing vs 0 |
+|------|----------------|----------|------------|----------------|----------------|--------------|
+| `lib/mediaplan/burstAmounts.ts` | 72–109 | `computeBurstAmounts` | `feePct` argument | non-finite → 0; `pct === 100` → fee 0 in branches 2–3 | `feeAmount`, `mediaAmount`, `totalAmount` | same as 0 |
+| `components/media-containers/*` `get*Bursts` | per channel | flatten bursts | **client** `fee*` prop | `\|\| 0` | calls `computeBurstAmounts`; sets `BillingBurst.feePercentage` | 0% fee |
+| `lib/billing/computeSchedule.ts` | 97–143 | `distribute` | **`burst.feeAmount`** (precomputed) | — | month `totalFee` proration | 0 fee share |
+| `app/mediaplans/mba/.../edit/page.tsx` | 2370–2412 | `calculateBillingSchedule` | `*Bursts` state arrays | empty array | month fees via schedule | no bursts → no fee |
+| `app/mediaplans/mba/.../edit/page.tsx` | 3948–4182 | page-local `generateBillingLineItems` | burst/line `feePercentage` / `fee_percentage` | else **`inferredLineItemFeePct`** if `budgetIncludesFees` | line `feeMonthlyAmounts`, `totalFeeAmount` | inference: missing `total_media` → **100%** (PD3 bug) |
+| `app/mediaplans/mba/.../edit/page.tsx` | 272–316 | `calculateExpectedLineItemFeeTotal` | same as above | no inference | save validation expected fees | missing % → 0 fee |
+| `app/mediaplans/mba/.../edit/page.tsx` | 831–1080 | `parseSavedBillingSchedulePayload` | `searchFee`/`socialFee` args only for estimate | saved `feeTotal` override | month `feeTotal` only | line fees not set |
+| `lib/billing/parsePersistedBillingScheduleToMonths.ts` | 129–132 | parser | client search/social % | 0 for other media | month fee estimate | same |
+| `lib/billing/generateBillingLineItems.ts` | 45–82 | lib module | burst/line % | **inference** for media split only | **media** monthly amounts; **no fee loop** | inference 100% case for gross lines |
+| `app/mediaplans/create/page.tsx` | 1173–1207, 3557+ | create flow | container bursts + lib `generateBillingLineItems` | lib has inference for media | month fees from `computeBurstAmounts`; line fees **not** in lib | create uses lib (no line fees) |
+| `components/billing/BillingSchedule.tsx` | 116–177 | legacy component | `burst.feePercentage` | `\|\| 0` | search/social month schedule | 0 |
+| `lib/billing.ts` | 4–228 | legacy helpers | `feePercentage` | — | **unused** by app | — |
+| `lib/api.ts` | 1796–1811 | `deriveFeePctFromSerializedBursts` | stored `feeAmount`/`budget` | 0 | **write-path** reverse % | 0 |
+| `lib/finance/accrual.ts`, `utils.ts` | — | finance | month `feeTotal` from billing JSON | — | accrual/receivables | not line % |
+
+**Critical gap:** page-local fee loop **never reads `burst.feeAmount`** from persisted JSON. Month schedule **only** reads `burst.feeAmount` from live `BillingBurst` objects.
+
+---
+
+### Task 4: Container injection path (progDisplay)
+
+**End-to-end (live edit path):**
+
+```mermaid
+flowchart LR
+  A[Xano client.feeprogdisplay] --> B[MBA edit state feeprogdisplay]
+  B --> C[ProgDisplayContainer prop]
+  C --> D["getProgDisplayBursts(form, feeprogdisplay || 0)"]
+  D --> E[computeBurstAmounts feePct]
+  E --> F[BillingBurst feeAmount + feePercentage]
+  F --> G[setProgDisplayBursts via onBurstsChange]
+  G --> H[calculateBillingSchedule]
+  H --> I[computeBillingAndDeliveryMonths sums feeAmount]
+```
+
+| Step | Location | fee % source | Fallback |
+|------|----------|--------------|----------|
+| Load client | `edit/page.tsx` ~1456, ~3050 | `client.feeprogdisplay` | null → `feeprogdisplay \|\| 0` on container |
+| Flatten | `ProgDisplayContainer.tsx` 155–192 | argument `feeprogdisplay` | `pct = feeprogdisplay \|\| 0` |
+| Math | `burstAmounts.ts` 72–109 | `feePct` param | non-finite → 0 |
+| Month billing | `computeSchedule.ts` 131–142 | **`burst.feeAmount`** | not feePercentage |
+| Line billing (separate) | page-local `generateBillingLineItems` | reads **raw** `bursts_json` — usually **no** `feePercentage` | inference → 100% for PD3 |
+
+**Parity:** all 18 non-production `get*Bursts` functions follow the same pattern (client fee prop → `computeBurstAmounts` → `feePercentage: pct`). **Production** uses `feePercentage: 0`. **Expert grids** pass `feePct*` via `expertChannelMappings.ts` options — same math, different wiring.
+
+**Inconsistency:** month-level auto path uses **live** `BillingBurst`; line-level append/reset uses **Xano line items** without client % unless inference or reset after containers loaded.
+
+---
+
+### Task 5: `bursts_json` save path (three channels)
+
+| Aspect | Prog display (`saveProgDisplayLineItems`) | Search (`saveSearchLineItems`) | Television (`saveTelevisionLineItems`) |
+|--------|-------------------------------------------|-------------------------------|----------------------------------------|
+| Fee % input to serialize | `lineItem.feePct ?? feePercentage ?? fee_percentage` (typically **undefined**) | same | same |
+| Effective % at save | **`deriveFeePctFromSerializedBursts`** or **0** | same | same |
+| Serialized shape | `feeAmount`, `mediaAmount` strings; **no new `feePercentage`** | same | same |
+| `bursts_json` encoding | `JSON.stringify(formattedBursts)` | `JSON.stringify(formattedBursts)` | **raw array** (no stringify) |
+| Row flags persisted | `budget_includes_fees`, `client_pays_for_media` on row | same | same |
+
+**Why `feePercentage` is absent on stored bursts:** `serializeBurstsJson` intentionally stores **computed amounts**; % is recoverable via `deriveFeePctFromSerializedBursts` on next save if amounts present.
+
+**Container → save:** line items submitted from React forms do not attach `fee_percentage` on the row; fee math at save uses **client default %** only if line item object carried it (it does not today) or derived from existing `feeAmount`.
+
+---
+
+### Task 6: glenda007 v9 cross-check (PD1 / PD2 / PD3)
+
+**Source:** Stage 2 Pause §Concrete glenda007 trace (Xano `media_plan_prog_display` ids 261/259/260, version 725). **`feeprogdisplay`:** inferred **20%** from PD3 stored `feeAmount` $1,600 on $8,000 gross (`1600/8000×100`). **Not re-fetched** from clients API in this pass.
+
+| Line | Row `fee_percentage` | Burst `feePercentage` in JSON | Client `feeprogdisplay` | `computeBurstAmounts` fee (20%, flags) | Page-local `generateBillingLineItems` reads |
+|------|----------------------|-------------------------------|-------------------------|----------------------------------------|---------------------------------------------|
+| PD1 | — | — | 20% (inferred) | $2,000 (`budget_includes_fees` false → gross-up branch) | **$0** without % on JSON; **$2,000** if 20% injected |
+| PD2 | — | — | 20% | $2,000 stored in JSON; billing fee **$0** (`client_pays_for_media`) | **$0** |
+| PD3 | — | — | 20% | **$1,600** (`budget_includes_fees` true) | **$8,000** if inference only (100%); **$1,600** with 20% |
+
+**Which source does the page-local fee loop use on hydrate?** Parsed **`bursts_json` only** — no client `feeprogdisplay`. Fallback: `inferredLineItemFeePct` → **100%** for PD3 → **$8,000** bogus fee.
+
+**Which source does month `feeTotal` use?** Persisted billing JSON ($6,740 / $3,360) — independent of line fee loop.
+
+**Confidence:** PD row/burst fields — **confirmed by code reading** (Pause script). Client 20% — **inferred — needs verification**.
+
+---
+
+### Inconsistencies and gaps
+
+1. **Orphan read — `feePercentage` on `BillingBurst` at line-item loop:** live bursts have it; persisted `bursts_json` usually does not → line recompute diverges from month recompute.
+2. **Orphan write — `feeAmount` in JSON:** written on every save; page-local line fee loop **ignores** it (Stage 2 Pause).
+3. **Orphan read — `fee_percentage` on line item row:** in fallback chains but **never written** by save handlers.
+4. **Client fee field split:** programmatic fees editable in client form; **nine** traditional/digital fees read in MBA edit but **not** in `EditClientForm` schema.
+5. **Channel encoding:** `bursts_json` sometimes stringified, sometimes array (TV/social vs prog/search).
+6. **Entry-point divergence:** hydrate/modal → raw JSON + inference; reset/auto → container `BillingBurst` with client %.
+7. **100% inference cases:** `inferredLineItemFeePct` when `budget_includes_fees` true and `total_media` / `totalMedia` missing or zero → `(1 - 0/sum)×100` → **100%** (PD3 $8,000 fee). Same formula in lib `generateBillingLineItems` for media split.
+8. **`deriveFeePctFromSerializedBursts` at save:** if line item had wrong flags, reverse % can mis-serialize on next save — **inferred — needs verification** on edge cases.
+9. **Search/social only** in hydrate month-fee estimate (`parseSavedBillingSchedulePayload`); prog display month fees come from saved `feeTotal` only.
+10. **`lib/billing/generateBillingLineItems`:** used by create + MBA attach paths for **media**; MBA line **fees** only in page-local closure — two modules with similar names.
+
+---
+
+### Canonical home — options and trade-offs
+
+| Option | Data model change | Compute path change | Migration cost | Per-channel parity | Hydrate without container roundtrip? |
+|--------|-------------------|---------------------|----------------|--------------------|--------------------------------------|
+| **A. Client per-media-type field** (`feeprogdisplay`, …) | None | Line fee loop must resolve client % by media key (like containers) | Low — already on clients | Excellent if mapping table maintained | **Partial** — needs client loaded + media key map; no line override |
+| **B. Line item row `fee_percentage`** | Add/use column on each `media_plan_*` | Save writes %; read prefers row over client | Medium — backfill from client or derive from `feeAmount` | Must add column to ~19 tables or generic pattern | **Yes** — if hydrate reads row + JSON |
+| **C. `bursts_json[].feePercentage` (+ amounts)** | Extend serializer to persist % alongside `feeAmount` | Single read chain on JSON; aligns with derive on save | Medium — resave campaigns or backfill % from derive | Good if all channels use `serializeBurstsJson` | **Yes** — hydrate from JSON only |
+| **D. `billingSchedule` line-level `totalFeeAmount` / per-month fee map** | Extend `BillingScheduleLineItem` + parser | Persist line fees at save; compare without recompute | High — JSON bloat; sync on burst edit | Channel-agnostic once in billing JSON | **Yes** — pure hydrate |
+| **E. Line loop consumes `burst.feeAmount` (amounts canonical)** | None | Page-local loop uses stored amounts when % missing | Low — code-only | Good — amounts already per channel | **Yes** — from `bursts_json` |
+
+**Alignment with Interpretation X (confidence, not a decision):**
+
+- **Highest:** **A + live container pipeline** for compute-time (already true for month fees) **plus C or E** so persisted/hydrate path sees same numbers without re-deriving %.
+- **Moderate:** **B** — good override story; duplicates client default unless nullable.
+- **Lower for Interpretation X alone:** **D** — fixes billing UI/compare but duplicates burst lineage; still need burst source for non-billing consumers.
+
+---
+
+### Stage B readiness
+
+| Question | Answer | Confidence |
+|----------|--------|------------|
+| Enough info to design Stage B? | **Yes** for primary paths; gap: confirm Xano column list for `fee_percentage` and live `feeprogdisplay` for glenda007 client id | mostly confirmed |
+| Hydrate before line items loaded? | Billing hydrates from version payload **first** (~2800) using `feeSearchRef`/`feeSocialRef` (may still be null). Line-level fees **not** set on hydrate. Month prog fees from saved JSON. Line fee recompute needs **`progDisplayMediaLineItems`** — until loaded, append/reset uses containers or $0 | confirmed by code reading |
+| Create page: `computeBurstAmounts` before `generateBillingLineItems`? | **Yes** for month fees — `calculateBillingSchedule` → `computeBillingAndDeliveryMonths` on container bursts. Lib `generateBillingLineItems` runs for **media** only (no fee fields) | confirmed by code reading |
+| Finance hub consumers | `parsePersistedBillingScheduleToMonths` — **month `feeTotal` only**; `AlterBillingDialog` — edits line **media** amounts, recalculates month totals from `feeTotal` + media; accrual/forecast read month fee fields — **not** line `totalFeeAmount` | confirmed by code reading |
+| `lib/billing/generateBillingLineItems.ts` and fees? | **No fee output.** Callers: create page, `prepareBillingMonthsForLineItemExport`, MBA `attachLineItemsToMonths` / modal paths — MBA **line fees** come from **page-local** homonym. Stage B can extend lib module **or** unify into page-local; leaving lib untouched preserves create behaviour but keeps split | confirmed by code reading |
+
+**Recommended Stage B focus (documentation only):** unify page-local fee loop with `burst.feeAmount` / container `feePercentage`; populate `totalFeeAmount` on hydrate or append when undefined; do not re-enable `FF_BILLING_DIVERGENCE_ENABLED` until parity proven.
+
+---
+
+### Phase 2A confidence summary
+
+| Section | Rating |
+|---------|--------|
+| Task 1 storage locations | confirmed by code reading (Xano column completeness: inferred) |
+| Task 2 write sites | confirmed by code reading |
+| Task 3 read sites | confirmed by code reading |
+| Task 4 progDisplay injection | confirmed by code reading |
+| Task 5 save path comparison | confirmed by code reading |
+| Task 6 glenda007 numbers | confirmed by code reading (Pause); client 20% inferred |
+| Inconsistencies | confirmed by code reading |
+| Canonical options | analysis — no code experiment |
+| Stage B readiness | confirmed by code reading |
+
+### Open questions (Phase 2A)
+
+1. Fetch **glenda007** client row `feeprogdisplay` from Xano to confirm 20%.
+2. Confirm whether Xano `media_plan_*` tables expose `fee_percentage` column unused.
+3. Where are **traditional** client fees (`feetelevision`, etc.) edited — Xano admin only?
+4. Should Stage B backfill `feePercentage` into `bursts_json` on save or teach hydrate to apply client % by media key?
+
