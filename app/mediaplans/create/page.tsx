@@ -102,6 +102,7 @@ import { checkMediaDatesOutsideCampaign } from "@/lib/utils/mediaPlanValidation"
 import { toDateOnlyString } from "@/lib/timezone"
 import { setAssistantContext } from "@/lib/assistantBridge"
 import { KPISection } from "@/components/kpis/KPISection"
+import { createMediaPlanKpiHost } from "@/components/kpis/kpiHost"
 import { resolveAllKPIs } from "@/lib/kpi/resolve"
 import { mergeManualKpiOverrides } from "@/lib/kpi/recalc"
 import { getPublisherKPIs, getClientKPIs } from "@/lib/api/kpi"
@@ -6119,11 +6120,12 @@ const handleSaveAll = async () => {
                 </div>
                 <div className="px-4 py-3 overflow-x-auto">
                   <KPISection
-                    kpiRows={kpiRows}
+                    host={createMediaPlanKpiHost({
+                      rows: kpiRows,
+                      setRows: setKpiRows,
+                      onResetSavedLayer: handleKPIReset,
+                    })}
                     isLoading={isKPILoading}
-                    onKPIChange={setKpiRows}
-                    onSave={setKpiRows}
-                    onReset={handleKPIReset}
                   />
                 </div>
               </div>

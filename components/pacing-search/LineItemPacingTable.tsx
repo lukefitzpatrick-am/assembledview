@@ -2,14 +2,20 @@
 
 import {
   Fragment,
+  useCallback,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
   type RefObject,
 } from "react";
 import Link from "next/link";
-import { ChevronRight, Info } from "lucide-react";
+import { ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Info } from "lucide-react";
+import {
+  compareValues,
+  type SortDirection,
+} from "@/components/ui/sortable-table-header";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { statusBadge, statusLabel } from "@/components/dashboard/delivery/shared/statusColours";
@@ -26,12 +32,171 @@ import {
   formatVariancePercent,
   labelForMetric,
 } from "@/lib/pacing/kpi/formatKpi";
+import { ctrCellTint } from "@/lib/pacing/kpi/kpiCellColor";
+import { createPacingKpiHost } from "@/components/kpis/kpiHost";
+import { KPIEditModal } from "@/components/kpis/KPIEditModal";
+import { syncCampaignKPIs } from "@/lib/api/kpi";
+import type { ResolvedKPIRow } from "@/lib/kpi/types";
+import { applySyncedTargetsToRow } from "@/lib/pacing/kpi/applySyncedTargets";
+import { buildResolvedKpiRowFromPacing } from "@/lib/pacing/kpi/buildResolvedRow";
+import { buildSyncPayloadFromEditedRow } from "@/lib/pacing/kpi/buildSyncPayload";
 import type {
+  KpiTargets,
   PlatformCampaignBreakdown,
   SearchPacingCampaignRow,
 } from "@/lib/pacing/campaigns/types";
+import { cn } from "@/lib/utils";
 
 const XANO_MISSING = "—";
+
+type PacingSortColumn =
+  | "clientName"
+  | "platform"
+  | "campaignName"
+  | "mbaNumber"
+  | "lineItemId"
+  | "lineItemStatus"
+  | "creativeTargeting"
+  | "kpiStatus"
+  | "lineItemStartDate"
+  | "lineItemEndDate"
+  | "totalLineItemBudget"
+  | "totalBursts"
+  | "currentBurstIndex"
+  | "burstStartDate"
+  | "burstEndDate"
+  | "burstDays"
+  | "burstDaysRemaining"
+  | "burstBudget"
+  | "spendToDateCurrentBurst"
+  | "spendYesterday"
+  | "spendPerDayRemaining"
+  | "spendRemainingCurrentBurst"
+  | "spendToDateLineTotal"
+  | "spendRemainingLineTotal"
+  | "clicks"
+  | "cpc"
+  | "ctr"
+  | "impressions"
+  | "conversions";
+
+type SortableValue = string | number | boolean | null | undefined;
+
+const LINE_ITEM_STATUS_ORDER: Record<SearchPacingCampaignRow["lineItemStatus"], number> = {
+  "on-track": 0,
+  ahead: 1,
+  behind: 2,
+  "no-data": 3,
+};
+
+const KPI_STATUS_ORDER: Record<RowKpiStatus, number> = {
+  "kpi-on-track": 0,
+  "kpi-mixed": 1,
+  "kpi-off-target": 2,
+  "kpi-no-delivery": 3,
+  "kpi-pending": 4,
+};
+
+const NUMERIC_SORT_COLUMNS = new Set<PacingSortColumn>([
+  "totalLineItemBudget",
+  "totalBursts",
+  "currentBurstIndex",
+  "burstDays",
+  "burstDaysRemaining",
+  "burstBudget",
+  "spendToDateCurrentBurst",
+  "spendYesterday",
+  "spendPerDayRemaining",
+  "spendRemainingCurrentBurst",
+  "spendToDateLineTotal",
+  "spendRemainingLineTotal",
+  "clicks",
+  "cpc",
+  "ctr",
+  "impressions",
+  "conversions",
+]);
+
+/** Nullable numerics sort after real values (asc and desc). */
+function sortableNumber(value: number | null | undefined): number {
+  return value ?? Number.NEGATIVE_INFINITY;
+}
+
+const ROW_SORT_SELECTORS: Record<
+  PacingSortColumn,
+  (row: SearchPacingCampaignRow) => SortableValue
+> = {
+  clientName: (r) => r.clientName,
+  platform: (r) => r.platform,
+  campaignName: (r) => r.campaignName,
+  mbaNumber: (r) => r.mbaNumber,
+  lineItemId: (r) => r.lineItemId,
+  lineItemStatus: (r) => LINE_ITEM_STATUS_ORDER[r.lineItemStatus],
+  creativeTargeting: (r) => r.creativeTargeting,
+  kpiStatus: (r) => KPI_STATUS_ORDER[computeRowKpiStatus(r)],
+  lineItemStartDate: (r) => r.lineItemStartDate ?? "",
+  lineItemEndDate: (r) => r.lineItemEndDate ?? "",
+  totalLineItemBudget: (r) => r.totalLineItemBudget,
+  totalBursts: (r) => r.totalBursts,
+  currentBurstIndex: (r) => sortableNumber(r.currentBurstIndex),
+  burstStartDate: (r) => r.currentBurst?.startDate ?? "",
+  burstEndDate: (r) => r.currentBurst?.endDate ?? "",
+  burstDays: (r) => sortableNumber(r.burstDays),
+  burstDaysRemaining: (r) => sortableNumber(r.burstDaysRemaining),
+  burstBudget: (r) => sortableNumber(r.currentBurst?.budget),
+  spendToDateCurrentBurst: (r) => r.spendToDateCurrentBurst,
+  spendYesterday: (r) => r.spendYesterday,
+  spendPerDayRemaining: (r) => sortableNumber(r.spendPerDayRemaining),
+  spendRemainingCurrentBurst: (r) => sortableNumber(r.spendRemainingCurrentBurst),
+  spendToDateLineTotal: (r) => r.spendToDateLineTotal,
+  spendRemainingLineTotal: (r) => sortableNumber(r.spendRemainingLineTotal),
+  clicks: (r) => r.clicks,
+  cpc: (r) => sortableNumber(r.cpc),
+  ctr: (r) => sortableNumber(r.ctr),
+  impressions: (r) => r.impressions,
+  conversions: (r) => r.conversions,
+};
+
+function SortablePacingTh({
+  label,
+  column,
+  sortColumn,
+  sortDirection,
+  onToggle,
+  className,
+  style,
+  align = "left",
+}: {
+  label: string;
+  column: PacingSortColumn;
+  sortColumn: PacingSortColumn | null;
+  sortDirection: SortDirection;
+  onToggle: (column: PacingSortColumn) => void;
+  className?: string;
+  style?: CSSProperties;
+  align?: "left" | "right";
+}) {
+  const active = sortColumn === column;
+  const direction = active ? sortDirection : null;
+  const Icon =
+    direction === "asc" ? ChevronUp : direction === "desc" ? ChevronDown : ChevronsUpDown;
+
+  return (
+    <th className={className} style={style}>
+      <button
+        type="button"
+        onClick={() => onToggle(column)}
+        className={cn(
+          "flex w-full min-w-0 items-center gap-0.5 p-0 font-inherit text-inherit hover:text-foreground",
+          align === "right" ? "justify-end" : "justify-start",
+        )}
+      >
+        <span className="whitespace-nowrap">{label}</span>
+        <Icon className="h-3 w-3 shrink-0 text-muted-foreground" />
+      </button>
+    </th>
+  );
+}
 
 /**
  * Number of left-side columns that should be sticky on horizontal scroll.
@@ -166,13 +331,40 @@ function fmtXanoNumber(n: number | null): string {
   return new Intl.NumberFormat("en-AU").format(n);
 }
 
-export type LineItemPacingTableProps = { rows: SearchPacingCampaignRow[] };
+export type LineItemPacingTableProps = {
+  rows: SearchPacingCampaignRow[];
+  isAdmin: boolean;
+  onRowKpiTargetsUpdated: (lineItemId: string, targets: KpiTargets) => void;
+};
 
-export function LineItemPacingTable({ rows }: LineItemPacingTableProps) {
+export function LineItemPacingTable({
+  rows,
+  isAdmin,
+  onRowKpiTargetsUpdated,
+}: LineItemPacingTableProps) {
   const [expandedLineItems, setExpandedLineItems] = useState<Set<string>>(new Set());
   const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(new Set());
+  const [sortColumn, setSortColumn] = useState<PacingSortColumn | null>(null);
+  const [sortDirection, setSortDirection] = useState<Exclude<SortDirection, null>>("asc");
   const firstRowRef = useRef<HTMLTableRowElement>(null);
   const leftOffsets = useStickyLeftOffsets(firstRowRef);
+
+  const sortedRows = useMemo(() => {
+    if (!sortColumn) return rows;
+    const select = ROW_SORT_SELECTORS[sortColumn];
+    return [...rows].sort((a, b) =>
+      compareValues(select(a), select(b), sortDirection),
+    );
+  }, [rows, sortColumn, sortDirection]);
+
+  function toggleSort(column: PacingSortColumn) {
+    if (sortColumn === column) {
+      setSortDirection((d) => (d === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortColumn(column);
+    setSortDirection(NUMERIC_SORT_COLUMNS.has(column) ? "desc" : "asc");
+  }
 
   function toggleLineItem(id: string) {
     setExpandedLineItems((prev) => {
@@ -210,180 +402,284 @@ export function LineItemPacingTable({ rows }: LineItemPacingTableProps) {
                 className="sticky bg-background p-2 text-left border-b"
                 style={stickyHeaderCornerStyle(0, leftOffsets)}
               />
-              <th
+              <SortablePacingTh
+                label="Client"
+                column="clientName"
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
                 className="sticky bg-background p-2 whitespace-nowrap text-left border-b"
                 style={stickyHeaderCornerStyle(1, leftOffsets)}
-              >
-                Client
-              </th>
-              <th
+              />
+              <SortablePacingTh
+                label="Platform"
+                column="platform"
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
                 className="sticky bg-background p-2 whitespace-nowrap text-left border-b"
                 style={stickyHeaderCornerStyle(2, leftOffsets)}
-              >
-                Platform
-              </th>
-              <th
+              />
+              <SortablePacingTh
+                label="Campaign / Ad Group"
+                column="campaignName"
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
                 className="sticky bg-background p-2 text-left border-b"
                 style={stickyHeaderCornerStyle(3, leftOffsets)}
-              >
-                Campaign / Ad Group
-              </th>
-              <th
+              />
+              <SortablePacingTh
+                label="MBA"
+                column="mbaNumber"
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
                 className="sticky bg-background p-2 whitespace-nowrap text-left border-b"
                 style={stickyHeaderCornerStyle(4, leftOffsets)}
-              >
-                MBA
-              </th>
-              <th
+              />
+              <SortablePacingTh
+                label="Line Item ID"
+                column="lineItemId"
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
                 className="sticky bg-background p-2 whitespace-nowrap text-left border-b"
                 style={stickyHeaderCornerStyle(5, leftOffsets)}
-              >
-                Line Item ID
-              </th>
-              <th
+              />
+              <SortablePacingTh
+                label="Status"
+                column="lineItemStatus"
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
                 className="sticky bg-background p-2 whitespace-nowrap text-left border-b"
                 style={stickyHeaderCornerStyle(6, leftOffsets)}
-              >
-                Status
-              </th>
-              <th
+              />
+              <SortablePacingTh
+                label="Targeting"
+                column="creativeTargeting"
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
                 className="sticky bg-background p-2 text-left border-b"
                 style={stickyHeaderCornerStyle(7, leftOffsets)}
-              >
-                Targeting
-              </th>
-              <th
+              />
+              <SortablePacingTh
+                label="KPI Status"
+                column="kpiStatus"
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
                 className="sticky top-0 bg-background p-2 text-left border-b"
                 style={{ zIndex: 20 }}
-              >
-                KPI Status
-              </th>
-              <th
+              />
+              <SortablePacingTh
+                label="Line Start"
+                column="lineItemStartDate"
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
                 className="sticky bg-background p-2 whitespace-nowrap text-left border-b"
                 style={{ top: 0, zIndex: 20 }}
-              >
-                Line Start
-              </th>
-              <th
+              />
+              <SortablePacingTh
+                label="Line End"
+                column="lineItemEndDate"
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
                 className="sticky bg-background p-2 whitespace-nowrap text-left border-b"
                 style={{ top: 0, zIndex: 20 }}
-              >
-                Line End
-              </th>
-              <th
+              />
+              <SortablePacingTh
+                label="Total Budget"
+                column="totalLineItemBudget"
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+                align="right"
                 className="sticky bg-background p-2 text-right whitespace-nowrap border-b"
                 style={{ top: 0, zIndex: 20 }}
-              >
-                Total Budget
-              </th>
-              <th
+              />
+              <SortablePacingTh
+                label="Bursts"
+                column="totalBursts"
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+                align="right"
                 className="sticky bg-background p-2 text-right border-b"
                 style={{ top: 0, zIndex: 20 }}
-              >
-                Bursts
-              </th>
-              <th
+              />
+              <SortablePacingTh
+                label="Current"
+                column="currentBurstIndex"
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+                align="right"
                 className="sticky bg-background p-2 text-right border-b"
                 style={{ top: 0, zIndex: 20 }}
-              >
-                Current
-              </th>
-              <th
+              />
+              <SortablePacingTh
+                label="Burst Start"
+                column="burstStartDate"
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
                 className="sticky bg-background p-2 whitespace-nowrap text-left border-b"
                 style={{ top: 0, zIndex: 20 }}
-              >
-                Burst Start
-              </th>
-              <th
+              />
+              <SortablePacingTh
+                label="Burst End"
+                column="burstEndDate"
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
                 className="sticky bg-background p-2 whitespace-nowrap text-left border-b"
                 style={{ top: 0, zIndex: 20 }}
-              >
-                Burst End
-              </th>
-              <th
+              />
+              <SortablePacingTh
+                label="Burst Days"
+                column="burstDays"
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+                align="right"
                 className="sticky bg-background p-2 text-right border-b"
                 style={{ top: 0, zIndex: 20 }}
-              >
-                Burst Days
-              </th>
-              <th
+              />
+              <SortablePacingTh
+                label="Days Left"
+                column="burstDaysRemaining"
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+                align="right"
                 className="sticky bg-background p-2 text-right border-b"
                 style={{ top: 0, zIndex: 20 }}
-              >
-                Days Left
-              </th>
-              <th
+              />
+              <SortablePacingTh
+                label="Burst Budget"
+                column="burstBudget"
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+                align="right"
                 className="sticky bg-background p-2 text-right whitespace-nowrap border-b"
                 style={{ top: 0, zIndex: 20 }}
-              >
-                Burst Budget
-              </th>
-              <th
+              />
+              <SortablePacingTh
+                label="Spend (Burst)"
+                column="spendToDateCurrentBurst"
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+                align="right"
                 className="sticky bg-background p-2 text-right whitespace-nowrap border-b"
                 style={{ top: 0, zIndex: 20 }}
-              >
-                Spend (Burst)
-              </th>
-              <th
+              />
+              <SortablePacingTh
+                label="Spend Yesterday"
+                column="spendYesterday"
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+                align="right"
                 className="sticky bg-background p-2 text-right whitespace-nowrap border-b"
                 style={{ top: 0, zIndex: 20 }}
-              >
-                Spend Yesterday
-              </th>
-              <th
+              />
+              <SortablePacingTh
+                label="Per-Day Left"
+                column="spendPerDayRemaining"
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+                align="right"
                 className="sticky bg-background p-2 text-right whitespace-nowrap border-b"
                 style={{ top: 0, zIndex: 20 }}
-              >
-                Per-Day Left
-              </th>
-              <th
+              />
+              <SortablePacingTh
+                label="Remaining (Burst)"
+                column="spendRemainingCurrentBurst"
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+                align="right"
                 className="sticky bg-background p-2 text-right whitespace-nowrap border-b"
                 style={{ top: 0, zIndex: 20 }}
-              >
-                Remaining (Burst)
-              </th>
-              <th
+              />
+              <SortablePacingTh
+                label="Spend (Line)"
+                column="spendToDateLineTotal"
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+                align="right"
                 className="sticky bg-background p-2 text-right whitespace-nowrap border-b"
                 style={{ top: 0, zIndex: 20 }}
-              >
-                Spend (Line)
-              </th>
-              <th
+              />
+              <SortablePacingTh
+                label="Remaining (Line)"
+                column="spendRemainingLineTotal"
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+                align="right"
                 className="sticky bg-background p-2 text-right whitespace-nowrap border-b"
                 style={{ top: 0, zIndex: 20 }}
-              >
-                Remaining (Line)
-              </th>
-              <th
+              />
+              <SortablePacingTh
+                label="Clicks"
+                column="clicks"
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+                align="right"
                 className="sticky bg-background p-2 text-right border-b"
                 style={{ top: 0, zIndex: 20 }}
-              >
-                Clicks
-              </th>
-              <th
+              />
+              <SortablePacingTh
+                label="CPC"
+                column="cpc"
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+                align="right"
                 className="sticky bg-background p-2 text-right border-b"
                 style={{ top: 0, zIndex: 20 }}
-              >
-                CPC
-              </th>
-              <th
+              />
+              <SortablePacingTh
+                label="CTR"
+                column="ctr"
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+                align="right"
                 className="sticky bg-background p-2 text-right border-b"
                 style={{ top: 0, zIndex: 20 }}
-              >
-                CTR
-              </th>
-              <th
+              />
+              <SortablePacingTh
+                label="Impressions"
+                column="impressions"
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+                align="right"
                 className="sticky bg-background p-2 text-right border-b"
                 style={{ top: 0, zIndex: 20 }}
-              >
-                Impressions
-              </th>
-              <th
+              />
+              <SortablePacingTh
+                label="Conversions"
+                column="conversions"
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+                align="right"
                 className="sticky bg-background p-2 text-right border-b"
                 style={{ top: 0, zIndex: 20 }}
-              >
-                Conversions
-              </th>
+              />
               <th
                 className="sticky top-0 bg-background p-2 text-right border-b"
                 style={{ zIndex: 20 }}
@@ -393,7 +689,7 @@ export function LineItemPacingTable({ rows }: LineItemPacingTableProps) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, rowIndex) => (
+            {sortedRows.map((row, rowIndex) => (
               <FragmentForLineItem
                 key={`${row.mbaNumber}-${row.lineItemId}-${row.xanoRowId}`}
                 row={row}
@@ -403,6 +699,8 @@ export function LineItemPacingTable({ rows }: LineItemPacingTableProps) {
                 onToggleCampaign={toggleCampaign}
                 leftOffsets={leftOffsets}
                 firstRowRef={rowIndex === 0 ? firstRowRef : undefined}
+                isAdmin={isAdmin}
+                onRowKpiTargetsUpdated={onRowKpiTargetsUpdated}
               />
             ))}
           </tbody>
@@ -420,6 +718,8 @@ function FragmentForLineItem({
   onToggleCampaign,
   leftOffsets,
   firstRowRef,
+  isAdmin,
+  onRowKpiTargetsUpdated,
 }: {
   row: SearchPacingCampaignRow;
   isExpanded: boolean;
@@ -428,6 +728,8 @@ function FragmentForLineItem({
   onToggleCampaign: (key: string) => void;
   leftOffsets: number[];
   firstRowRef?: RefObject<HTMLTableRowElement | null>;
+  isAdmin: boolean;
+  onRowKpiTargetsUpdated: (lineItemId: string, targets: KpiTargets) => void;
 }) {
   const hasChildren = row.platformCampaigns.length > 0;
   const clientSlug = slugifyClientName(row.clientName);
@@ -489,7 +791,11 @@ function FragmentForLineItem({
         <td className="p-2 border-b">
           <div className="inline-flex items-center gap-1">
             <KpiStatusPill status={computeRowKpiStatus(row)} />
-            <KpiDrilldownButton row={row} />
+            <KpiDrilldownButton
+              row={row}
+              isAdmin={isAdmin}
+              onTargetsUpdated={(targets) => onRowKpiTargetsUpdated(row.lineItemId, targets)}
+            />
           </div>
         </td>
         <td className="p-2 border-b">{fmtXanoDate(row.lineItemStartDate)}</td>
@@ -526,7 +832,9 @@ function FragmentForLineItem({
         </td>
         <td className="p-2 border-b text-right tabular-nums">{fmtNumberOrZero(row.clicks)}</td>
         <td className="p-2 border-b text-right tabular-nums">{fmtRatio(row.cpc)}</td>
-        <td className="p-2 border-b text-right tabular-nums">{fmtPct(row.ctr)}</td>
+        <td className={`p-2 border-b text-right tabular-nums ${ctrCellTint(row.ctr, row.kpiTargets?.ctr ?? null)}`}>
+          {fmtPct(row.ctr)}
+        </td>
         <td className="p-2 border-b text-right tabular-nums">{fmtNumberOrZero(row.impressions)}</td>
         <td className="p-2 border-b text-right tabular-nums">{fmtNumberOrZero(row.conversions)}</td>
         <td className="p-2 text-right border-b whitespace-nowrap">
@@ -751,36 +1059,95 @@ function KpiStatusPill({ status }: { status: RowKpiStatus }) {
   );
 }
 
-function KpiDrilldownButton({ row }: { row: SearchPacingCampaignRow }) {
+function KpiDrilldownButton({
+  row,
+  isAdmin,
+  onTargetsUpdated,
+}: {
+  row: SearchPacingCampaignRow;
+  isAdmin: boolean;
+  onTargetsUpdated: (targets: KpiTargets) => void;
+}) {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const comparisons = buildKpiComparisons(row);
   const hasTargets = row.kpiTargets !== null;
   const editorHref = `/mediaplans/mba/${encodeURIComponent(row.mbaNumber)}/edit`;
 
+  const initialRow = useMemo(() => buildResolvedKpiRowFromPacing(row), [row]);
+
+  const handleSave = useCallback(
+    async (editedRow: ResolvedKPIRow) => {
+      setIsSaving(true);
+      try {
+        const payload = buildSyncPayloadFromEditedRow(editedRow);
+        const result = await syncCampaignKPIs([payload]);
+        const synced = result[0];
+        if (synced) {
+          const newTargets = applySyncedTargetsToRow(synced);
+          onTargetsUpdated(newTargets);
+        }
+        setIsModalOpen(false);
+      } catch (err) {
+        console.error("[pacing/kpi] sync failed", err);
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [onTargetsUpdated],
+  );
+
+  const handleReset = useCallback(() => {
+    setIsModalOpen(false);
+  }, []);
+
+  const host = useMemo(
+    () =>
+      createPacingKpiHost({
+        initialRow,
+        onSave: handleSave,
+        onReset: handleReset,
+        isSaving,
+      }),
+    [initialRow, handleSave, handleReset, isSaving],
+  );
+
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className="inline-flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
-          aria-label="KPI breakdown"
+    <>
+      <Popover>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className="inline-flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
+            aria-label="KPI breakdown"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Info className="h-3.5 w-3.5" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent
+          className="w-80 p-3"
+          align="start"
           onClick={(e) => e.stopPropagation()}
         >
-          <Info className="h-3.5 w-3.5" />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent
-        className="w-80 p-3"
-        align="start"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <KpiDrilldownContent
-          row={row}
-          comparisons={comparisons}
-          hasTargets={hasTargets}
-          editorHref={editorHref}
+          <KpiDrilldownContent
+            row={row}
+            comparisons={comparisons}
+            hasTargets={hasTargets}
+            editorHref={editorHref}
+            isAdmin={isAdmin}
+            onOpenModal={() => setIsModalOpen(true)}
+          />
+        </PopoverContent>
+      </Popover>
+      {isAdmin && (
+        <KPIEditModal
+          open={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          host={host}
         />
-      </PopoverContent>
-    </Popover>
+      )}
+    </>
   );
 }
 
@@ -789,11 +1156,15 @@ function KpiDrilldownContent({
   comparisons,
   hasTargets,
   editorHref,
+  isAdmin,
+  onOpenModal,
 }: {
   row: SearchPacingCampaignRow;
   comparisons: KpiComparison[];
   hasTargets: boolean;
   editorHref: string;
+  isAdmin: boolean;
+  onOpenModal: () => void;
 }) {
   return (
     <div className="space-y-3">
@@ -803,18 +1174,49 @@ function KpiDrilldownContent({
       </div>
 
       {!hasTargets ? (
-        <EmptyKpiState editorHref={editorHref} />
+        isAdmin ? (
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">
+              No KPI targets have been set for this line item yet.
+            </p>
+            <button
+              type="button"
+              className="inline-block rounded bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground hover:bg-primary/90"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenModal();
+              }}
+            >
+              Create targets
+            </button>
+          </div>
+        ) : (
+          <EmptyKpiState editorHref={editorHref} />
+        )
       ) : (
         <>
           <KpiComparisonTable comparisons={comparisons} />
           <div className="border-t pt-2">
-            <a
-              href={editorHref}
-              className="text-[11px] text-blue-600 hover:underline"
-              onClick={(e) => e.stopPropagation()}
-            >
-              Edit targets in media plan →
-            </a>
+            {isAdmin ? (
+              <button
+                type="button"
+                className="text-[11px] text-blue-600 hover:underline"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenModal();
+                }}
+              >
+                Edit targets
+              </button>
+            ) : (
+              <a
+                href={editorHref}
+                className="text-[11px] text-blue-600 hover:underline"
+                onClick={(e) => e.stopPropagation()}
+              >
+                Edit targets in media plan →
+              </a>
+            )}
           </div>
         </>
       )}

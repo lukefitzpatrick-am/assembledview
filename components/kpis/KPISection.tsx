@@ -3,6 +3,7 @@
 import * as React from "react"
 import type { ResolvedKPIRow } from "@/lib/kpi/types"
 import { KPIEditModal } from "./KPIEditModal"
+import type { KpiHost } from "./kpiHost"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { MEDIA_TYPE_LABELS, MEDIA_TYPE_COLORS } from "@/lib/media/mediaTypes"
@@ -73,21 +74,13 @@ function summariseHeadlineMetric(
 }
 
 export interface KPISectionProps {
-  kpiRows: ResolvedKPIRow[]
+  host: KpiHost
   isLoading: boolean
-  onKPIChange?: (updatedRows: ResolvedKPIRow[]) => void
-  onSave: (rows: ResolvedKPIRow[]) => void
-  onReset: () => void
   className?: string
 }
 
-export function KPISection({
-  kpiRows,
-  isLoading,
-  onSave,
-  onReset,
-  className,
-}: KPISectionProps) {
+export function KPISection({ host, isLoading, className }: KPISectionProps) {
+  const { rows: kpiRows, onReset } = host
   const [isModalOpen, setIsModalOpen] = React.useState(false)
 
   const channelCount = React.useMemo(
@@ -204,16 +197,17 @@ export function KPISection({
       <KPIEditModal
         open={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        kpiRows={kpiRows}
-        onSave={(updatedRows) => {
-          onSave(updatedRows)
-          setIsModalOpen(false)
+        host={{
+          ...host,
+          onSave: (updatedRows) => {
+            host.onSave(updatedRows)
+            setIsModalOpen(false)
+          },
+          onReset: () => {
+            host.onReset()
+            setIsModalOpen(false)
+          },
         }}
-        onReset={() => {
-          onReset()
-          setIsModalOpen(false)
-        }}
-        isSaving={false}
       />
     </div>
   )

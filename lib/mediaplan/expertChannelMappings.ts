@@ -638,7 +638,9 @@ function emptyOohLineItem(
   campaignEndDate: Date,
   lineNo: number
 ): StandardOohFormLineItem {
-  const id = row.id || String(lineNo)
+  // Same precedence as the main map path: prefer the inbound standard id so
+  // the merge can match by line_item_id even for rows that produced no bursts.
+  const id = ((row as { sourceLineItemId?: string }).sourceLineItemId ?? row.id) || String(lineNo)
   return {
     network: row.network,
     format: row.format,
@@ -726,7 +728,12 @@ export function mapOohExpertRowsToStandardLineItems(
     const lineNo = idx + 1
     const unitRate = parseNum(row.unitRate)
     const buyType = row.buyType
-    const id = row.id || String(lineNo)
+    // Prefer the inbound standard id (carried via sourceLineItemId) so the
+    // apply-time merge in mergeOohStandardFromExpertWithPrevious can match
+    // generated items back to their previous form-state by stable id.
+    // Fall back to row.id (now a UUID) only when no source id exists, e.g. for
+    // newly added rows. reassignOohLineItemNumbers overwrites this anyway.
+    const id = ((row as { sourceLineItemId?: string }).sourceLineItemId ?? row.id) || String(lineNo)
     const budgetIncludesFees = Boolean(
       row.budgetIncludesFees ?? options?.budgetIncludesFees ?? false
     )
@@ -1170,10 +1177,23 @@ export function mapStandardOohLineItemsToExpertRows(
     const firstBurst = bursts.find((b) => b.startDate && !Number.isNaN(b.startDate.getTime()))
     const lastBurst = [...bursts].reverse().find((b) => b.endDate && !Number.isNaN(b.endDate.getTime()))
 
+    // Carry the inbound standard id through for round-trip (read by
+    // mapOohExpertRowsToStandardLineItems → line_item_id). NOT unique across rows
+    // if the source list has stale/duplicated IDs, so it MUST NOT be used as a
+    // React key — see _reactKey below.
     const id = String(item.line_item_id ?? item.lineItemId ?? item.line_item ?? item.lineItem ?? index + 1)
+    // Always-unique opaque key for React reconciliation inside the expert grid.
+    // Decoupled from line_item_id so duplicate or stale inbound IDs (e.g. after a
+    // reorder + reopen) don't produce duplicate React keys.
+    const _reactKey =
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `ooh-expert-import-${Date.now()}-${index}`
 
     return {
-      id,
+      id: _reactKey,
+      // Preserve original standard line_item_id for the apply-time merge / round trip.
+      sourceLineItemId: id,
       market: String(item.market ?? ""),
       network: String(item.network ?? ""),
       format: String(item.format ?? ""),

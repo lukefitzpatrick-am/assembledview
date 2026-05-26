@@ -1,11 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import type { SearchPacingCampaignRow } from "@/lib/pacing/campaigns/types";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { KpiTargets, SearchPacingCampaignRow } from "@/lib/pacing/campaigns/types";
 import { LineItemPacingTable } from "@/components/pacing-search";
 import { computeRowKpiStatus } from "@/lib/pacing/kpi/computeKpiStatus";
 
 type ApiShape = { asOfDate: string; rows: SearchPacingCampaignRow[] };
+
+export type OverviewClientProps = {
+  isAdmin: boolean;
+};
 
 type StatusCounts = {
   onTrack: number;
@@ -15,7 +19,7 @@ type StatusCounts = {
   kpiPending: number;
 };
 
-export function OverviewClient() {
+export function OverviewClient({ isAdmin }: OverviewClientProps) {
   const [data, setData] = useState<ApiShape | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -40,6 +44,21 @@ export function OverviewClient() {
       cancelled = true;
     };
   }, []);
+
+  const handleRowKpiTargetsUpdated = useCallback(
+    (lineItemId: string, targets: KpiTargets) => {
+      setData((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          rows: prev.rows.map((row) =>
+            row.lineItemId === lineItemId ? { ...row, kpiTargets: targets } : row,
+          ),
+        };
+      });
+    },
+    [],
+  );
 
   const counts: StatusCounts = useMemo(() => {
     if (!data) return { onTrack: 0, ahead: 0, behind: 0, noData: 0, kpiPending: 0 };
@@ -98,7 +117,11 @@ export function OverviewClient() {
           ) : null}
         </div>
       ) : (
-        <LineItemPacingTable rows={behindRows} />
+        <LineItemPacingTable
+          rows={behindRows}
+          isAdmin={isAdmin}
+          onRowKpiTargetsUpdated={handleRowKpiTargetsUpdated}
+        />
       )}
     </div>
   );

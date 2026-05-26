@@ -52,6 +52,83 @@ export async function createCampaignKpis(
   return out
 }
 
+/**
+ * Sync campaign_kpi rows by natural key (mba_number, version_number, line_item_id).
+ *
+ * For each input row:
+ * - Fetch existing rows for the (mba_number, version_number) pair.
+ * - If a row exists with matching line_item_id, PATCH it.
+ * - Otherwise, POST a new row.
+ *
+ * Sequential per input row. Empty-line_item_id legacy rows in Xano are
+ * ignored — they're not matched against input rows and not touched.
+ *
+ * Returns the resulting rows after sync (PATCHed or newly created).
+ */
+export async function syncCampaignKpis(
+  inputs: CampaignKpiInput[],
+): Promise<CampaignKPI[]> {
+  if (inputs.length === 0) return []
+
+  const existingByKey = new Map<string, CampaignKPI>()
+  const fetchedPairs = new Set<string>()
+
+  const out: CampaignKPI[] = []
+
+  for (let i = 0; i < inputs.length; i++) {
+    const item = inputs[i]!
+    const lineItemId = String(item.line_item_id ?? "").trim()
+
+    if (!lineItemId) {
+      console.warn("[syncCampaignKpis] Skipping row with empty line_item_id", {
+        mba_number: item.mba_number,
+        version_number: item.version_number,
+      })
+      continue
+    }
+
+    const pairKey = `${item.mba_number}|${item.version_number}`
+    if (!fetchedPairs.has(pairKey)) {
+      const existing = await fetchCampaignKpis(item.mba_number, item.version_number)
+      for (const row of existing) {
+        const rowLineItemId = String(row.line_item_id ?? "").trim()
+        if (!rowLineItemId) continue
+        const key = `${item.mba_number}|${item.version_number}|${rowLineItemId.toLowerCase()}`
+        existingByKey.set(key, row)
+      }
+      fetchedPairs.add(pairKey)
+    }
+
+    const naturalKey = `${item.mba_number}|${item.version_number}|${lineItemId.toLowerCase()}`
+    const existing = existingByKey.get(naturalKey)
+
+    try {
+      if (existing && typeof existing.id === "number") {
+        const patched = await updateCampaignKpi(existing.id, item)
+        if (patched === null) {
+          throw new Error(`updateCampaignKpi returned null for id=${existing.id}`)
+        }
+        out.push(patched)
+        existingByKey.set(naturalKey, patched)
+      } else {
+        const url = xanoUrl("campaign_kpi", "XANO_CLIENTS_BASE_URL")
+        const response = await apiClient.post(url, item)
+        const created = (response.data ?? null) as CampaignKPI | null
+        if (created === null) {
+          throw new Error(`POST returned null for line_item_id=${lineItemId}`)
+        }
+        out.push(created)
+        existingByKey.set(naturalKey, created)
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      throw new Error(`syncCampaignKpis: row ${i} (line_item_id=${lineItemId}) failed: ${msg}`)
+    }
+  }
+
+  return out
+}
+
 export async function updateCampaignKpi(
   id: number,
   input: Partial<CampaignKpiInput>,
