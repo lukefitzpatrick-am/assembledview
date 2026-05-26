@@ -10,7 +10,7 @@ export type LineDivergence = {
   savedTotal: number
   computedTotal: number
   difference: number
-  kind: "line_total" | "fee_total" | "adserving_total" | "missing_in_saved" | "missing_in_computed"
+  kind: "line_total" | "adserving_total" | "missing_in_saved" | "missing_in_computed"
 }
 
 export type MonthDivergence = {
@@ -104,7 +104,7 @@ function compareLineNumericField(
   mediaKey: string,
   savedLine: BillingLineItem,
   computedLine: BillingLineItem,
-  kind: "line_total" | "fee_total" | "adserving_total",
+  kind: "line_total" | "adserving_total",
   savedVal: number,
   computedVal: number
 ): void {
@@ -220,15 +220,6 @@ export function compareBillingDivergence(
       mediaKey,
       savedLine,
       computedLine,
-      "fee_total",
-      savedLine.totalFeeAmount ?? 0,
-      computedLine.totalFeeAmount ?? 0
-    )
-    compareLineNumericField(
-      divergentLines,
-      mediaKey,
-      savedLine,
-      computedLine,
       "adserving_total",
       savedLine.totalAdServingAmount ?? 0,
       computedLine.totalAdServingAmount ?? 0
@@ -260,8 +251,6 @@ function lineKindLabel(kind: LineDivergence["kind"]): string {
   switch (kind) {
     case "line_total":
       return "Line total"
-    case "fee_total":
-      return "Fee total"
     case "adserving_total":
       return "Ad serving total"
     case "missing_in_saved":

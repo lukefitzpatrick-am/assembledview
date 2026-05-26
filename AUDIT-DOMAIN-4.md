@@ -1859,6 +1859,46 @@ Used at lines 1561, 1656, 3342+, 3572+, 4158, 4658, 4669, 4676, 8769+ (modal UI)
 | **Stage 0: hydrate → true** | **Confirmed.** Line **2756:** `setIsManualBilling(true)` inside `if (billingHydrated)` with no auto-equality check. |
 | **false after hydrate true** | Yes: `handleResetBillingScheduleToAuto` (4311); new MBA fetch reset (2497) before re-hydrate; navigate/reload with no billing JSON (2776). **Not** cleared on campaign save — `handleSaveAll` leaves `isManualBilling` unchanged. |
 
+### Reference: `isManualBilling` consumers (post-C2)
+
+Informational only — what the **`true`** branch does at each read site (no correctness analysis). **18 sites** across 5 files.
+
+**MBA edit (`app/mediaplans/mba/[mba_number]/edit/page.tsx`)**
+
+- `app/mediaplans/mba/[mba_number]/edit/page.tsx:2401` — when true (via ref), blocks burst-driven full resync merge of `autoReferenceBillingMonths` into `workingBillingMonths` inside `calculateBillingSchedule`
+- `app/mediaplans/mba/[mba_number]/edit/page.tsx:4622` — when true, enables `hasBillingMismatch` (runs `validateBillingBeforeSave` on `workingBillingMonths` without fee check)
+- `app/mediaplans/mba/[mba_number]/edit/page.tsx:4843` — when true, runs `validateBillingBeforeSave` with `feeCheck: true` before campaign save (`handleSaveAll`)
+- `app/mediaplans/mba/[mba_number]/edit/page.tsx:7389` — when true (via ref), append effect uses append-only merge (no `resyncExistingFromTemplate`) even if `billingLineItemsFollowAutoRef` is set
+- `app/mediaplans/mba/[mba_number]/edit/page.tsx:9968` — when true (via `hasBillingMismatch`), shows amber sticky-bar warning that billing differs from line items
+
+**Create (`app/mediaplans/create/page.tsx`)**
+
+- `app/mediaplans/create/page.tsx:1225` — when true, skips overwriting `billingMonths` / `billingTotal` from auto calculation on burst changes
+- `app/mediaplans/create/page.tsx:1259` — when true, `calculateProductionCosts` sums `month.production` from `billingMonths` instead of `productionTotal`
+- `app/mediaplans/create/page.tsx:1269` — when true, `calculateAdServingFees` sums `month.adservingTechFees` from `billingMonths` instead of recomputing from bursts
+- `app/mediaplans/create/page.tsx:1318` — when true, `calculateAssembledFee` sums `month.feeTotal` from `billingMonths` instead of per-media fee totals
+- `app/mediaplans/create/page.tsx:1371` — when true, `calculateGrossMediaTotal` sums `month.mediaTotal` from `billingMonths` instead of per-media burst totals
+- `app/mediaplans/create/page.tsx:4331` — when true (with `manualBillingMonths.length > 0`), save payload uses `manualBillingMonths` as billing schedule source
+
+**Legacy ID edit (`app/mediaplans/[id]/edit/page.tsx`)**
+
+- `app/mediaplans/[id]/edit/page.tsx:1640` — when true (with manual months), `buildBillingScheduleForSave` maps `manualBillingMonths` into persisted billing JSON shape
+- `app/mediaplans/[id]/edit/page.tsx:1845` — when true (with manual months), save uses manual months as billing source (same pattern as create)
+- `app/mediaplans/[id]/edit/page.tsx:2805` — when true, sets `isManual: true` on legacy billing schedule object built for save
+- `app/mediaplans/[id]/edit/page.tsx:3350` — when true, shows “Reset to Automatic” instead of “Edit Billing” in billing section header
+
+**Legacy component (`components/billing/BillingSchedule.tsx`)**
+
+- `components/billing/BillingSchedule.tsx:209` — when true, stops auto-recalculating schedule from bursts and pushing to parent
+- `components/billing/BillingSchedule.tsx:244` — when true, `showProductionColumn` reads `manualSchedule` totals
+- `components/billing/BillingSchedule.tsx:256` — when true, dialog trigger label is “Reset Billing Schedule”
+- `components/billing/BillingSchedule.tsx:276` — when true, manual-billing dialog table edits `manualSchedule` rows
+- `components/billing/BillingSchedule.tsx:388` — when true, main schedule table displays `manualSchedule` months
+
+**Pure schedule (`lib/billing/computeSchedule.ts`)**
+
+- `lib/billing/computeSchedule.ts:41` — parameter accepted for call-site parity only; **no branch on true** inside `computeBillingAndDeliveryMonths`
+
 ---
 
 ### handleSaveAll

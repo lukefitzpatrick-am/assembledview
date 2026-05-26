@@ -379,45 +379,42 @@ test("saved with line items, computed without, attach produces extra line → mi
   assert.equal(result.divergentLines[0]!.lineItemId, "billing-progDisplay::glenda007PD2")
 })
 
-test("line fee_total: both operands seeded with matching fees → not divergent", () => {
-  const li = line("billing-progDisplay::glenda007PD1", {
-    totalAmount: 3200,
-    totalFeeAmount: 2000,
-    feeMonthlyAmounts: { "May 2026": 2000 },
-  })
-  const rows = [
-    month("May 2026", {
-      mediaTotal: "$3,200.00",
-      feeTotal: "$6,740.00",
-      lines: { progDisplay: [li] },
-    }),
-  ]
-  const saved = JSON.parse(JSON.stringify(rows)) as BillingMonth[]
-  const computed = JSON.parse(JSON.stringify(rows)) as BillingMonth[]
-  const result = compareBillingDivergence(saved, computed)
-  assert.equal(result.isDivergent, false)
-  assert.equal(
-    result.divergentLines.filter((d) => d.kind === "fee_total").length,
-    0
-  )
-})
-
-test("line fee_total: saved seeded, computed missing fee → divergent fee_total", () => {
+test("line totalFeeAmount differs but line_total and adserving match → no line divergence (C2)", () => {
   const savedLi = line("billing-progDisplay::glenda007PD3", {
     totalAmount: 2560,
     totalFeeAmount: 1600,
+    totalAdServingAmount: 50,
     feeMonthlyAmounts: { "May 2026": 1600 },
   })
   const computedLi = line("billing-progDisplay::glenda007PD3", {
     totalAmount: 2560,
-    totalFeeAmount: 8000,
-    feeMonthlyAmounts: { "May 2026": 8000 },
+    totalFeeAmount: 0,
+    totalAdServingAmount: 50,
+    feeMonthlyAmounts: {},
   })
   const saved = [month("May 2026", { lines: { progDisplay: [savedLi] } })]
   const computed = [month("May 2026", { lines: { progDisplay: [computedLi] } })]
   const result = compareBillingDivergence(saved, computed)
-  assert.equal(result.isDivergent, true)
-  assert.equal(result.divergentLines[0]!.kind, "fee_total")
+  assert.equal(result.isDivergent, false)
+  assert.equal(result.divergentLines.length, 0)
+})
+
+test("line totalFeeAmount only mismatch with matching totals → not divergent (regression guard)", () => {
+  const savedLi = line("billing-progDisplay::glenda007PD1", {
+    totalAmount: 3200,
+    totalFeeAmount: 2000,
+    totalAdServingAmount: 0,
+  })
+  const computedLi = line("billing-progDisplay::glenda007PD1", {
+    totalAmount: 3200,
+    totalFeeAmount: 8000,
+    totalAdServingAmount: 0,
+  })
+  const saved = [month("May 2026", { lines: { progDisplay: [savedLi] } })]
+  const computed = [month("May 2026", { lines: { progDisplay: [computedLi] } })]
+  const result = compareBillingDivergence(saved, computed)
+  assert.equal(result.divergentLines.length, 0)
+  assert.equal(result.isDivergent, false)
 })
 
 test("glenda007 May 2026 saved shape vs computed month totals only → no false positive", () => {
