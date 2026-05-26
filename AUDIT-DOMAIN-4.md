@@ -3744,3 +3744,62 @@ flowchart LR
 - Module `lib/billing/generateBillingLineItems.ts` untouched.
 - `FF_BILLING_DIVERGENCE_ENABLED` stays false.
 
+---
+
+## Phase 2B1 Hotfix: client-pays fee inclusion
+
+**Branch:** `domain-4-long-lived` (hotfix on B1 commit `040d7d1`)
+
+### Root cause
+
+B1 treated `client_pays_for_media` as a gate on **both** media and agency fees. In `prorateBurstFeesToMonths`, billing mode zeroed `burst.feeAmount` when the line or burst was client-pays. That dropped PD2’s $2,000 fee from the line-derived rollup ($8,100 vs saved month `feeTotal` $10,100 on glenda007 v10). Media $0 on client-pays lines was already correct; only the fee path was wrong.
+
+Additionally, persisted `billingSchedule` JSON omits $0-media rows (`buildBillingScheduleJSON` filters `amount > 0`), so PD2 could be missing from month[0] `lineItems` even though the campaign line exists — the seed only walked canonical rows and never reached PD2.
+
+### Reconciliation (glenda007 v10, media_plan_versions id 782)
+
+| Line | client_pays | burst.feeAmount | May fee (40%) | June fee (60%) |
+|------|------------|-----------------|---------------|----------------|
+| SE1 (Search, May only) | false | $4,500 | $4,500 | $0 |
+| PD1 | false | $2,000 | $800 | $1,200 |
+| PD2 | **true** | **$2,000** | **$800** | **$1,200** |
+| PD3 | false | $1,600 | $640 | $960 |
+| **Total** | | **$10,100** | **$6,740** | **$3,360** |
+
+After hotfix, line-derived agency fees rollup matches saved month `feeTotal`; B2 month-fee invariant can proceed without migrating saved JSON.
+
+### [DECISION] `client_pays_for_media` is media-gate only
+
+`client_pays_for_media` affects who pays the publisher for **media** only. Agency management fees (`burst.feeAmount` → `totalFeeAmount` / `feeMonthlyAmounts`) always flow to the agency invoice regardless of the flag. Media rollup and `generateBillingLineItems` keep `effectiveBudget = 0` in billing mode for client-pays; fee proration does not.
+
+### [DECISION] Seed idempotency is by-value, not by-defined
+
+Skip seeding a line when `totalFeeAmount === derivedTotalFeeAmount` (within `FEE_SEED_TOLERANCE` = $0.01). Do **not** skip merely because `totalFeeAmount !== undefined`. This re-seeds lines stuck at `0` from buggy B1 and will re-seed when burst economics change, while remaining a no-op when values already match.
+
+### [DECISION] Synthetic $0-media rows inside seed output
+
+When a media line has positive `burst.feeAmount` but no row on month[0] `lineItems` (typical for client-pays lines omitted from saved billing JSON), `seedBillingMonthsLineFees` injects a synthetic billing row on **all** months: `totalAmount: 0`, `monthlyAmounts[*]: 0`, optional `clientPaysForMedia: true`, then seeds fees. Injection runs inside the seed’s cloned months array (approach **(a)**) — single `setWorkingBillingMonths` from the seed effect. `billingPlanStructureKey` is derived from `*MediaLineItems`, not `workingBillingMonths.lineItems`, so append should not re-fire solely because of injected rows.
+
+### [DECISION] Per-line modal table stays media-only (UX)
+
+Option **(i)** for this hotfix: PD2’s row in the progDisplay table remains $0 media; fee visibility is only in the **Line-derived agency fees** rollup row (B1 design). No per-line fee column in this change.
+
+### Files changed
+
+| File | Change |
+|------|--------|
+| `lib/billing/seedLineFees.ts` | Remove client-pays fee zeroing; by-value idempotency; `injectMissingFeeLinesFromMedia`; export `feeAmountsMatch` / `FEE_SEED_TOLERANCE` |
+| `lib/billing/__tests__/seedLineFees.test.ts` | Client-pays fee tests; PD2 proration; synthetic injection; re-seed from `0`; idempotent second pass |
+
+No modal changes (`sumDerivedLineFeesForMonth` unchanged). `lib/billing/generateBillingLineItems.ts` untouched. `compareBillingDivergence.ts` untouched.
+
+### Tests added / updated
+
+- Client-pays: fee = prorated `burst.feeAmount` (not $0)
+- PD2-style two-month proration ($800 / $1,200)
+- Synthetic injection + $0 media regression
+- Re-seed when `totalFeeAmount === 0` but derived &gt; 0
+- Second `seedBillingMonthsLineFees` call is no-op when values match
+
+**Smoke (glenda007 v10):** Line-derived agency fees **May $6,740 / June $3,360 / Total $10,100**; console `[billing-fee-seed] seed applied (working)` with **`lines: 4`**.
+

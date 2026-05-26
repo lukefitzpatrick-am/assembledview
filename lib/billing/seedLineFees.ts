@@ -1,5 +1,6 @@
 import { format } from "date-fns"
 
+import { getScheduleHeaders } from "@/lib/billing/scheduleHeaders"
 import type { BillingBurst, BillingLineItem, BillingMonth } from "@/lib/billing/types"
 
 export type SeedBurstSource = {
@@ -20,8 +21,16 @@ export type SeedLineFeesOptions = {
   mode?: "billing" | "delivery"
 }
 
+/** Match billing divergence / currency rounding tolerance. */
+export const FEE_SEED_TOLERANCE = 0.01
+
 function parseMoney(v: unknown): number {
   return parseFloat(String(v ?? "").replace(/[^0-9.-]/g, "")) || 0
+}
+
+export function feeAmountsMatch(stored: number | undefined, derived: number): boolean {
+  if (stored === undefined) return false
+  return Math.abs(stored - derived) <= FEE_SEED_TOLERANCE
 }
 
 export function parseLineItemBursts(lineItem: any): any[] {
@@ -39,6 +48,21 @@ export function parseLineItemBursts(lineItem: any): any[] {
 
 function toDate(value: Date | string): Date {
   return value instanceof Date ? value : new Date(value)
+}
+
+function lineClientPaysForMedia(
+  sourceLine: any,
+  billingLine?: BillingLineItem
+): boolean {
+  return Boolean(
+    sourceLine?.client_pays_for_media ??
+      sourceLine?.clientPaysForMedia ??
+      billingLine?.clientPaysForMedia
+  )
+}
+
+function burstSourcesHavePositiveFee(sources: SeedBurstSource[]): boolean {
+  return sources.some((b) => b.feeAmount > 0)
 }
 
 /** Slice flat container bursts for one line item (containers flatMap line items in order). */
@@ -88,12 +112,11 @@ export function burstsForLineItem(
 
 /**
  * Prorate burst fee amounts across billing months (day-overlap; same shape as edit-page fee loop).
+ * `client_pays_for_media` does not affect fees — agency fee is always prorated from `burst.feeAmount`.
  */
 export function prorateBurstFeesToMonths(
   bursts: SeedBurstSource[],
-  monthKeys: string[],
-  mode: "billing" | "delivery",
-  lineClientPaysForMedia: boolean
+  monthKeys: string[]
 ): { feeMonthlyAmounts: Record<string, number>; totalFeeAmount: number } {
   const feeMonthlyAmounts: Record<string, number> = {}
   monthKeys.forEach((key) => {
@@ -105,9 +128,7 @@ export function prorateBurstFeesToMonths(
     const endDate = toDate(burst.endDate)
     if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) continue
 
-    let feeForBurst = burst.feeAmount
-    const burstClientPays = Boolean(burst.clientPaysForMedia ?? lineClientPaysForMedia)
-    if (mode === "billing" && burstClientPays) feeForBurst = 0
+    const feeForBurst = burst.feeAmount
     if (feeForBurst <= 0) continue
 
     const sLocalMidnight = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate())
@@ -139,27 +160,94 @@ export function prorateBurstFeesToMonths(
   return { feeMonthlyAmounts, totalFeeAmount }
 }
 
+function createSyntheticBillingLine(
+  id: string,
+  billingKey: string,
+  sourceLine: any,
+  monthKeys: string[],
+  clientPaysForMedia: boolean
+): BillingLineItem {
+  const { header1, header2 } = getScheduleHeaders(billingKey, sourceLine)
+  const monthlyAmounts: Record<string, number> = {}
+  for (const key of monthKeys) {
+    monthlyAmounts[key] = 0
+  }
+  return {
+    id,
+    header1: header1 || "Item",
+    header2: header2 || "Details",
+    monthlyAmounts,
+    totalAmount: 0,
+    ...(clientPaysForMedia ? { clientPaysForMedia: true } : {}),
+  }
+}
+
+/**
+ * Ensure every media line with billable burst fees exists on month[0] lineItems (and all months).
+ * Client-pays lines are often omitted from persisted billingSchedule ($0 media filter).
+ */
+function injectMissingFeeLinesFromMedia(
+  months: BillingMonth[],
+  billingKey: string,
+  lineItems: any[],
+  monthKeys: string[],
+  stableLineItemId: (mediaKey: string, lineItem: any, index: number) => string,
+  containerBursts: BillingBurst[]
+): number {
+  const first = months[0]
+  if (!first) return 0
+
+  if (!first.lineItems) first.lineItems = {}
+  const record = first.lineItems as Record<string, BillingLineItem[]>
+  if (!record[billingKey]) record[billingKey] = []
+
+  let injected = 0
+
+  lineItems.forEach((sourceLine, liIndex) => {
+    const id = stableLineItemId(billingKey, sourceLine, liIndex)
+    const burstSources = burstsForLineItem(sourceLine, liIndex, lineItems, containerBursts)
+    if (!burstSourcesHavePositiveFee(burstSources)) return
+
+    const existsOnCanonical = record[billingKey]!.some((li) => li.id === id)
+    if (existsOnCanonical) return
+
+    const clientPays = lineClientPaysForMedia(sourceLine)
+    const synthetic = createSyntheticBillingLine(id, billingKey, sourceLine, monthKeys, clientPays)
+    injected++
+
+    for (const month of months) {
+      if (!month.lineItems) month.lineItems = {}
+      const monthRecord = month.lineItems as Record<string, BillingLineItem[]>
+      const group = monthRecord[billingKey] ?? []
+      if (group.some((li) => li.id === id)) continue
+      monthRecord[billingKey] = [...group, { ...synthetic, monthlyAmounts: { ...synthetic.monthlyAmounts } }]
+    }
+  })
+
+  return injected
+}
+
 export type SeedLineFeesResult = {
   months: BillingMonth[]
   linesSeeded: number
   skippedAlreadySeeded: number
+  linesInjected: number
 }
 
 /**
- * Populate `feeMonthlyAmounts` / `totalFeeAmount` on billing line items that lack them.
- * Idempotent: skips rows where `totalFeeAmount` is already defined (including 0).
+ * Populate `feeMonthlyAmounts` / `totalFeeAmount` on billing line items from burst.feeAmount.
+ * Idempotent by value: skips when `totalFeeAmount` matches prorated derived total.
  */
 export function seedBillingMonthsLineFees(
   months: BillingMonth[],
   mediaConfigs: SeedLineFeesMediaConfig[],
   stableLineItemId: (mediaKey: string, lineItem: any, index: number) => string,
-  options?: SeedLineFeesOptions
+  _options?: SeedLineFeesOptions
 ): SeedLineFeesResult {
   if (!months?.length) {
-    return { months: months ?? [], linesSeeded: 0, skippedAlreadySeeded: 0 }
+    return { months: months ?? [], linesSeeded: 0, skippedAlreadySeeded: 0, linesInjected: 0 }
   }
 
-  const mode = options?.mode ?? "billing"
   const monthKeys = months.map((m) => m.monthYear)
   const next = months.map((m) => ({
     ...m,
@@ -168,38 +256,46 @@ export function seedBillingMonthsLineFees(
 
   let linesSeeded = 0
   let skippedAlreadySeeded = 0
+  let linesInjected = 0
   const first = next[0]
   if (!first) {
-    return { months: next, linesSeeded, skippedAlreadySeeded }
+    return { months: next, linesSeeded, skippedAlreadySeeded, linesInjected }
   }
 
   for (const { billingKey, lineItems, containerBursts } of mediaConfigs) {
     if (!lineItems?.length) continue
+
+    linesInjected += injectMissingFeeLinesFromMedia(
+      next,
+      billingKey,
+      lineItems,
+      monthKeys,
+      stableLineItemId,
+      containerBursts
+    )
+
     if (!first.lineItems) first.lineItems = {}
     const canonicalGroup = (first.lineItems as Record<string, BillingLineItem[]>)[billingKey]
     if (!canonicalGroup?.length) continue
 
     for (const billingLine of canonicalGroup) {
-      if (billingLine.totalFeeAmount !== undefined) {
-        skippedAlreadySeeded++
-        continue
-      }
-
       const liIndex = lineItems.findIndex(
         (item, idx) => stableLineItemId(billingKey, item, idx) === billingLine.id
       )
       if (liIndex < 0) continue
 
       const sourceLine = lineItems[liIndex]
-      const clientPaysForMedia = Boolean(
-        sourceLine?.client_pays_for_media ??
-          sourceLine?.clientPaysForMedia ??
-          billingLine.clientPaysForMedia
-      )
+      const clientPaysForMedia = lineClientPaysForMedia(sourceLine, billingLine)
       const burstSources = burstsForLineItem(sourceLine, liIndex, lineItems, containerBursts)
       if (burstSources.length === 0) continue
 
-      const seeded = prorateBurstFeesToMonths(burstSources, monthKeys, mode, clientPaysForMedia)
+      const seeded = prorateBurstFeesToMonths(burstSources, monthKeys)
+
+      if (feeAmountsMatch(billingLine.totalFeeAmount, seeded.totalFeeAmount)) {
+        skippedAlreadySeeded++
+        continue
+      }
+
       linesSeeded++
 
       for (const month of next) {
@@ -210,7 +306,7 @@ export function seedBillingMonthsLineFees(
         if (idx < 0) continue
         group[idx] = {
           ...group[idx]!,
-          feeMonthlyAmounts: seeded.feeMonthlyAmounts,
+          feeMonthlyAmounts: { ...seeded.feeMonthlyAmounts },
           totalFeeAmount: seeded.totalFeeAmount,
           ...(clientPaysForMedia ? { clientPaysForMedia: true } : {}),
         }
@@ -218,7 +314,7 @@ export function seedBillingMonthsLineFees(
     }
   }
 
-  return { months: next, linesSeeded, skippedAlreadySeeded }
+  return { months: next, linesSeeded, skippedAlreadySeeded, linesInjected }
 }
 
 /** Sum derived line fees for one month across enabled media keys (modal rollup). */
