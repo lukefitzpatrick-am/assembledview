@@ -1282,9 +1282,12 @@ export function mergeProgVideoStandardFromExpertWithPrevious(
     if (!prev) return li
     return {
       ...li,
+      // NOTE: `placement` and `size` are EDITABLE in the Prog Video
+      // expert grid (ProgVideoExpertScheduleRow), so the generated
+      // values from `mapProgVideoExpertRowsToStandardLineItems` win.
+      // Only `site` and `targetingAttribute` are standard-only and
+      // need to be re-applied from the previous form state here.
       site: prev.site ?? li.site,
-      placement: prev.placement ?? li.placement,
-      size: prev.size ?? li.size,
       targetingAttribute: prev.targetingAttribute ?? li.targetingAttribute,
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,

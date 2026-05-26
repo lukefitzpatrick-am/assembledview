@@ -1291,18 +1291,15 @@ const LINE_ITEM_TIMEOUT_AUTO_RETRY_MS = 90_000
 const LINE_ITEM_TIMEOUT_MANUAL_RETRY_MS = 180_000
 
 /**
- * Stage 2 divergence detection is PAUSED while fee math inconsistencies
- * are mapped and fixed (see AUDIT-DOMAIN-4.md "Stage 2 Pause: Fee Math
- * Inconsistency Discovery"). Re-enable once Phase 2 decision is made.
+ * Stage 2 divergence UI (banner + first-visit modal). Was false from Stage 2
+ * Pause through fee-math work (B1/B1.1, B2). C1.5 confirmed line-level
+ * fee_total false positives on healthy campaigns; C2 (6b7536b) dropped that
+ * check. Month-level feeTotal, line_total, adserving_total, and missing-line
+ * checks remain active.
  *
- * When false:
- * - BillingDivergenceModal does not open (sessionStorage hook is bypassed)
- * - BillingDivergenceBanner does not render
- * - compareBillingDivergence is still called and result is still computed;
- *   only the UI surfacing is suppressed. This keeps unit tests valid and
- *   makes re-enable a single-line flip.
+ * When false: banner/modal suppressed; compareBillingDivergence still runs.
  */
-const FF_BILLING_DIVERGENCE_ENABLED = false
+const FF_BILLING_DIVERGENCE_ENABLED = true
 
 export default function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) {
   // Use React's use() hook to unwrap the params Promise
