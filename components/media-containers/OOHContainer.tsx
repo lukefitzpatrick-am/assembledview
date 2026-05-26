@@ -571,19 +571,8 @@ export default function OohContainer({
       return;
     }
 
-    const baseLineNumber = source.line_item ?? source.lineItem ?? lineItemIndex + 1;
-    const lineNumber =
-      (typeof baseLineNumber === "number"
-        ? baseLineNumber
-        : Number.parseInt(baseLineNumber as string, 10) || lineItemIndex + 1) + 1;
-    const newId = createLineItemId(lineNumber);
-
     const clone = {
       ...source,
-      lineItemId: newId,
-      line_item_id: newId,
-      line_item: lineNumber,
-      lineItem: lineNumber,
       bursts: (source.bursts || []).map((burst: any) => ({
         ...burst,
         startDate: burst?.startDate ? new Date(burst.startDate) : new Date(),
@@ -594,7 +583,13 @@ export default function OohContainer({
     };
 
     appendLineItem(clone);
-  }, [appendLineItem, createLineItemId, form, toast]);
+    const nextItems = form.getValues("lineItems") || [];
+    form.setValue(
+      "lineItems",
+      reassignOohLineItemNumbers(nextItems, mbaNumber) as any,
+      { shouldDirty: true, shouldValidate: false },
+    );
+  }, [appendLineItem, form, mbaNumber, toast]);
 
   // Watch hook
   const watchedLineItems = useWatch({ 

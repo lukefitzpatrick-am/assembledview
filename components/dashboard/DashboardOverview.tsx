@@ -21,8 +21,15 @@ import {
 } from "@/components/dashboard/DashboardEntityCards"
 import { format } from "date-fns"
 import { TreemapShellChart } from "@/components/charts/TreemapShellChart"
+import { ChartExportToolbar } from "@/components/charts/ChartExportToolbar"
 import BaseChartCard from "@/components/charts/BaseChartCard"
 import { StackedColumnChart } from "@/components/charts/StackedColumnChart"
+import { useToast } from "@/components/ui/use-toast"
+import { useChartExport } from "@/hooks/useChartExport"
+import {
+  buildStackedColumnCsvRows,
+  STACKED_COLUMN_CSV_COLUMNS,
+} from "@/lib/charts/stackedColumnExport"
 import type { ChartDatumClickPayload } from "@/components/charts/chartDatumClick"
 import { usePathname, useRouter } from "next/navigation"
 import { AuthPageLoading } from "@/components/AuthLoadingState"
@@ -2264,6 +2271,53 @@ export default function DashboardOverview({
       .map((key) => ({ key, label: key }))
   }, [monthlyPublisherStackedRows])
 
+  const monthlyClientChartRef = useRef<HTMLDivElement>(null)
+  const monthlyPublisherChartRef = useRef<HTMLDivElement>(null)
+  const { exportCsv } = useChartExport()
+  const { toast } = useToast()
+
+  const monthlyClientCsvRows = useMemo(
+    () => buildStackedColumnCsvRows(monthlyClientStackedRows, monthlyClientStackedSeries),
+    [monthlyClientStackedRows, monthlyClientStackedSeries],
+  )
+
+  const monthlyPublisherCsvRows = useMemo(
+    () => buildStackedColumnCsvRows(monthlyPublisherStackedRows, monthlyPublisherStackedSeries),
+    [monthlyPublisherStackedRows, monthlyPublisherStackedSeries],
+  )
+
+  const handleExportMonthlyClientCsv = useCallback(() => {
+    if (!monthlyClientCsvRows.length) {
+      toast({
+        title: "CSV export unavailable",
+        description: "No data available to export for this chart.",
+        variant: "destructive",
+      })
+      return
+    }
+    exportCsv(monthlyClientCsvRows, STACKED_COLUMN_CSV_COLUMNS, "monthly-spend-by-client.csv")
+    toast({
+      title: "CSV exported",
+      description: "Monthly Spend by Client data has been downloaded.",
+    })
+  }, [exportCsv, monthlyClientCsvRows, toast])
+
+  const handleExportMonthlyPublisherCsv = useCallback(() => {
+    if (!monthlyPublisherCsvRows.length) {
+      toast({
+        title: "CSV export unavailable",
+        description: "No data available to export for this chart.",
+        variant: "destructive",
+      })
+      return
+    }
+    exportCsv(monthlyPublisherCsvRows, STACKED_COLUMN_CSV_COLUMNS, "monthly-spend-by-publisher.csv")
+    toast({
+      title: "CSV exported",
+      description: "Monthly Spend by Publisher data has been downloaded.",
+    })
+  }, [exportCsv, monthlyPublisherCsvRows, toast])
+
   const clientSpendSparklineTable = useMemo(() => {
     const rows = clientSpendData.slice(0, DASHBOARD_CLIENT_SPARKLINE_TOP_N)
     if (!monthlyClientSpend.length || rows.length === 0) {
@@ -3117,15 +3171,25 @@ export default function DashboardOverview({
                   variant="icon"
                   icon={BarChart3}
                   className={cn("rounded-lg", chartCardQuiet)}
+                  toolbar={
+                    <ChartExportToolbar
+                      title="Monthly Spend by Client"
+                      chartAreaRef={monthlyClientChartRef}
+                      onExportCsv={handleExportMonthlyClientCsv}
+                    />
+                  }
                 >
-                  <StackedColumnChart
-                    data={monthlyClientStackedRows}
-                    xKey="month"
-                    series={monthlyClientStackedSeries}
-                    seriesColorByKey={dashboardMonthlyClientSeriesColors}
-                    onDatumClick={handleMonthlyClientChartClick}
-                    filterViaLegend
-                  />
+                  <div ref={monthlyClientChartRef}>
+                    <StackedColumnChart
+                      data={monthlyClientStackedRows}
+                      xKey="month"
+                      series={monthlyClientStackedSeries}
+                      seriesColorByKey={dashboardMonthlyClientSeriesColors}
+                      onDatumClick={handleMonthlyClientChartClick}
+                      filterViaLegend
+                      legendVerticalAlign="bottom"
+                    />
+                  </div>
                 </BaseChartCard>
               </PanelContent>
             </Panel>
@@ -3138,14 +3202,24 @@ export default function DashboardOverview({
                   variant="icon"
                   icon={BarChart3}
                   className={cn("rounded-lg", chartCardQuiet)}
+                  toolbar={
+                    <ChartExportToolbar
+                      title="Monthly Spend by Publisher"
+                      chartAreaRef={monthlyPublisherChartRef}
+                      onExportCsv={handleExportMonthlyPublisherCsv}
+                    />
+                  }
                 >
-                  <StackedColumnChart
-                    data={monthlyPublisherStackedRows}
-                    xKey="month"
-                    series={monthlyPublisherStackedSeries}
-                    onDatumClick={handleMonthlyPublisherChartClick}
-                    filterViaLegend
-                  />
+                  <div ref={monthlyPublisherChartRef}>
+                    <StackedColumnChart
+                      data={monthlyPublisherStackedRows}
+                      xKey="month"
+                      series={monthlyPublisherStackedSeries}
+                      onDatumClick={handleMonthlyPublisherChartClick}
+                      filterViaLegend
+                      legendVerticalAlign="bottom"
+                    />
+                  </div>
                 </BaseChartCard>
               </PanelContent>
             </Panel>

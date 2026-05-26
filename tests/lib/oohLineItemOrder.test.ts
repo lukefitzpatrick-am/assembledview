@@ -123,3 +123,18 @@ test("mergeOohStandardFromExpertWithPrevious keeps expert row order line numbers
   assert.equal(merged[0].noAdserving, true)
   assert.equal(merged[1].noAdserving, false)
 })
+
+test("reassignOohLineItemNumbers fixes duplicate ids after a simulated duplicate-line-item insert", () => {
+  const items = reassignOohLineItemNumbers(
+    [
+      { network: "a", line_item: 1, line_item_id: "MBA1OH1", lineItemId: "MBA1OH1" },
+      { network: "b", line_item: 2, line_item_id: "MBA1OH2", lineItemId: "MBA1OH2" },
+      { network: "a-copy", line_item: 2, line_item_id: "MBA1OH2", lineItemId: "MBA1OH2" },
+    ],
+    "MBA1",
+  )
+  assert.equal(items.length, 3)
+  assert.equal(items[0].line_item_id, "MBA1OH1")
+  assert.equal(items[1].line_item_id, "MBA1OH2")
+  assert.equal(items[2].line_item_id, "MBA1OH3")
+})

@@ -165,6 +165,61 @@ export type MediaPlanVersionListEntry = {
   id?: number
 }
 
+/**
+ * Maps the `versions` array from GET /api/mediaplans/mba/:mbaNumber (combined payload)
+ * to the shape used by the campaign dashboard version switcher (newest first).
+ * Avoids a second Xano request for unfiltered `media_plan_versions` on SSR.
+ */
+export function mapMbaCampaignResponseVersionsToListEntries(
+  campaignPayload: Record<string, unknown> | null | undefined,
+  fallback: { versionNumber: number; versionRecordId?: number | null },
+): MediaPlanVersionListEntry[] {
+  const raw = campaignPayload?.versions
+  if (!Array.isArray(raw) || raw.length === 0) {
+    const vn = fallback.versionNumber
+    if (!Number.isFinite(vn) || vn <= 0) return []
+    const entry: MediaPlanVersionListEntry = { versionNumber: vn }
+    const rid = fallback.versionRecordId
+    if (rid != null && Number.isFinite(rid)) {
+      entry.id = Math.trunc(Number(rid))
+    }
+    return [entry]
+  }
+
+  const entries: MediaPlanVersionListEntry[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue
+    const v = item as Record<string, unknown>
+    const vn = Number(v.version_number ?? v.versionNumber)
+    if (!Number.isFinite(vn) || vn <= 0) continue
+
+    const planDate =
+      typeof v.plan_date === "string" && v.plan_date.trim()
+        ? v.plan_date.trim()
+        : typeof v.created_at === "string" && v.created_at.trim()
+          ? v.created_at.trim()
+          : typeof v.updated_at === "string" && v.updated_at.trim()
+            ? v.updated_at.trim()
+            : typeof v.createdAt === "string" && v.createdAt.trim()
+              ? v.createdAt.trim()
+              : undefined
+
+    const idRaw = v.id
+    let id: number | undefined
+    if (typeof idRaw === "number" && Number.isFinite(idRaw)) {
+      id = idRaw
+    } else if (typeof idRaw === "string" && idRaw.trim()) {
+      const p = parseInt(idRaw, 10)
+      if (Number.isFinite(p)) id = p
+    }
+
+    entries.push({ versionNumber: vn, planDate, id })
+  }
+
+  entries.sort((a, b) => b.versionNumber - a.versionNumber)
+  return entries
+}
+
 /** All workspace versions from Xano, filtered to one MBA (newest first). */
 export async function fetchVersionsForMba(mbaNumber: string): Promise<MediaPlanVersionListEntry[]> {
   const all = await fetchMediaPlanVersionsArray()

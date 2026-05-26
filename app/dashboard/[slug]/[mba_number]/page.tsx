@@ -1,7 +1,5 @@
-export const maxDuration = 60
-
 import CampaignPageAssembly from "./components/CampaignPageAssembly"
-import { fetchVersionsForMba } from "@/lib/api/dashboard"
+import { mapMbaCampaignResponseVersionsToListEntries } from "@/lib/api/dashboard"
 import { auth0 } from "@/lib/auth0"
 import { getPrimaryRole, getUserClientIdentifier, getUserMbaNumbers } from "@/lib/rbac"
 import { redirect, notFound } from "next/navigation"
@@ -13,6 +11,8 @@ import {
   resolveCampaignExpectedSpendToDate,
   resolveCampaignTotalPlannedSpend,
 } from "@/lib/spend/resolveCampaignExpectedSpend"
+
+export const maxDuration = 60
 
 interface CampaignDetailPageProps {
   params: Promise<{
@@ -480,9 +480,18 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
   }
 
   const versionNumber = resolvedVersionNumber ?? versionNumberFromQuery
-  const availableVersions = await fetchVersionsForMba(mba_number).catch((err) => {
-    console.warn("[dashboard] failed to load version list:", err)
-    return []
+  const vn = Number(versionNumber)
+  const rawVersionRowId = campaignVersion?.id ?? campaignData?.versionData?.id ?? campaignData?.id ?? null
+  let versionRecordId: number | null = null
+  if (typeof rawVersionRowId === "number" && Number.isFinite(rawVersionRowId)) {
+    versionRecordId = rawVersionRowId
+  } else if (typeof rawVersionRowId === "string" && rawVersionRowId.trim()) {
+    const p = parseInt(rawVersionRowId, 10)
+    if (Number.isFinite(p)) versionRecordId = p
+  }
+  const availableVersions = mapMbaCampaignResponseVersionsToListEntries(campaignData, {
+    versionNumber: vn,
+    versionRecordId,
   })
   const lineItemsMap = (campaignData?.lineItems ?? {}) as Record<string, any[]>
   if (DEBUG_LINE_ITEMS) {

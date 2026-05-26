@@ -9,9 +9,10 @@ import {
   useRef,
   useState,
 } from "react"
-import { Download, FileSpreadsheet, ImageDown, Loader2 } from "lucide-react"
+import { Download } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { ChartExportToolbar } from "@/components/charts/ChartExportToolbar"
 import {
   Card,
   CardContent,
@@ -20,8 +21,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { useToast } from "@/components/ui/use-toast"
-import { useChartExport } from "@/hooks/useChartExport"
 import { CHART_ANIMATION } from "@/lib/charts/dashboardTheme"
 import { cn } from "@/lib/utils"
 
@@ -30,15 +29,6 @@ const formatTimestamp = (value: string | Date): string => {
     return value.toLocaleString("en-AU")
   }
   return value
-}
-
-function exportBasenameFromTitle(title: string): string {
-  const s = title
-    .toLowerCase()
-    .trim()
-    .replace(/\s+/g, "-")
-    .replace(/[^a-z0-9-]/g, "")
-  return s.length > 0 ? s : "chart"
 }
 
 export type ChartShellProps = {
@@ -71,8 +61,8 @@ function ChartShellRoot({
   chartAreaStyle,
   chartAreaRef,
 }: ChartShellProps) {
-  const { exportPng, isExporting, exportError } = useChartExport()
-  const { toast } = useToast()
+  const [isExporting, setIsExporting] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
   const fallbackAreaRef = useRef<HTMLDivElement | null>(null)
   const pngTargetRef = chartAreaRef ?? fallbackAreaRef
 
@@ -85,30 +75,6 @@ function ChartShellRoot({
     },
     [chartAreaRef]
   )
-
-  const baseName = exportBasenameFromTitle(title)
-
-  const handleCsvExport = () => {
-    if (!onExportCsv) {
-      toast({
-        title: "CSV export unavailable",
-        description: "Provide an onExportCsv handler to export this chart as CSV.",
-      })
-      return
-    }
-    onExportCsv()
-  }
-
-  const handlePngExport = async () => {
-    await exportPng(pngTargetRef, `${baseName}.png`)
-    toast({
-      title: "PNG exported",
-      description: `${title} image has been downloaded.`,
-    })
-    onExportPng?.()
-  }
-
-  const csvDisabled = !onExportCsv || isExporting
 
   return (
     <Card
@@ -124,34 +90,14 @@ function ChartShellRoot({
           </div>
 
           {showExport ? (
-            <div className="inline-flex shrink-0 items-center rounded-md border border-input bg-background p-0.5 print:hidden">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-8 gap-1.5 px-2.5"
-                onClick={handleCsvExport}
-                disabled={csvDisabled}
-              >
-                <FileSpreadsheet className="h-4 w-4" />
-                CSV
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-8 gap-1.5 px-2.5"
-                onClick={handlePngExport}
-                disabled={isExporting}
-              >
-                {isExporting ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <ImageDown className="h-4 w-4" />
-                )}
-                PNG
-              </Button>
-            </div>
+            <ChartExportToolbar
+              title={title}
+              chartAreaRef={pngTargetRef}
+              onExportCsv={onExportCsv}
+              onExportPng={onExportPng}
+              onIsExportingChange={setIsExporting}
+              onExportErrorChange={setExportError}
+            />
           ) : null}
         </div>
       </CardHeader>

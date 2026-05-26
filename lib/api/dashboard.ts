@@ -11,6 +11,7 @@ export {
   getSpendByCampaignData,
   getMonthlySpendData,
   fetchVersionsForMba,
+  mapMbaCampaignResponseVersionsToListEntries,
   type MediaPlanVersionListEntry,
 } from "./dashboard/client"
 
