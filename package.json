@@ -18,6 +18,7 @@
     "test:finance-filters": "tsx --test lib/finance/__tests__/filterBillingRecords.test.ts",
     "test:billing-divergence": "tsx --test lib/billing/__tests__/compareBillingDivergence.test.ts",
     "test:billing-seed-fees": "tsx --test lib/billing/__tests__/seedLineFees.test.ts",
+    "test:billing-fee-drift": "tsx --test lib/billing/__tests__/computeDerivedCampaignFeeAmount.test.ts lib/billing/__tests__/validateAgencyFeeMonthTotalDrift.test.ts",
     "snowflake:migrate:pacing": "tsx scripts/snowflake/run-pacing-migrations.ts",
     "pacing:backfill:search-mappings": "tsx scripts/pacing/backfill-search-mappings.ts",
     "test:kpi-resolve": "tsx --test lib/kpi/__tests__/resolve.test.ts",

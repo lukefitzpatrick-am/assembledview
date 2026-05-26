@@ -3803,3 +3803,61 @@ No modal changes (`sumDerivedLineFeesForMonth` unchanged). `lib/billing/generate
 
 **Smoke (glenda007 v10):** Line-derived agency fees **May $6,740 / June $3,360 / Total $10,100**; console `[billing-fee-seed] seed applied (working)` with **`lines: 4`**.
 
+---
+
+## Phase 2B2: Agency fee month total drift validation
+
+B2 adds a soft drift check when saving the Manual Billing Schedule modal: if the sum of editable `month.feeTotal` values diverges from the campaign fee derived from `burst.feeAmount` by **$10 or more**, the user gets an AlertDialog (cancel or save with override). Below $10, save commits silently. A live indicator in the Fees accordion shows derived total, current month-fee sum, and delta while editing. Campaign save (`handleSaveAll`) does not re-check — the modal is the gate.
+
+### [DECISION] Modal save only
+
+Validation fires at `handleManualBillingSave` (modal “Save Billing Changes”). `handleSaveAll` (campaign Save) does **not** re-check fee drift. The modal is where fees are edited; campaign save is downstream and should not re-prompt for fee decisions already made.
+
+### [DECISION] Tolerance: $10 absolute
+
+`|sum(month.feeTotal) - derivedCampaignFee|`. Below threshold = silent commit. At or above = AlertDialog confirmation. Cancel returns to modal with no state change. Override commits modal changes to working state. Strict less-than for pass (`Math.abs(diff) < 10`).
+
+### [DECISION] Derived total from source bursts
+
+`computeDerivedCampaignFeeAmount` sums `burst.feeAmount` across enabled media line items via `burstsForLineItem`. Does not consume `seedLineFees` output. Pure function, no side effects. Includes `client_pays_for_media: true` lines (B1.1 rule).
+
+### [DECISION] Every modal save asks
+
+No session-level “remember my override” — every modal save with drift ≥ $10 prompts.
+
+### [DECISION] `validateBillingBeforeSave` not extended
+
+The dead `feeCheck` parameter stays as-is. B2 hooks into `handleManualBillingSave` as a parallel check.
+
+### [DECISION] Live indicator placement
+
+Fees accordion, between “Line-derived agency fees” and “Agency fee (month total)”. Shows derived campaign fee, current sum of editable month totals, and divergence delta when `|diff| >= 10`. Uses `manualBillingMonths` (modal draft), not `workingBillingMonths`.
+
+### [DECISION] No automatic redistribution
+
+Confirmation is the only intervention. Per-month Reset semantics unchanged.
+
+### [DECISION] Reset semantics unchanged
+
+Per-month Reset still copies that month’s auto value. Does not re-balance month fee totals to match derived campaign fee.
+
+### Files added / changed
+
+| File | Change |
+|------|--------|
+| `lib/billing/computeDerivedCampaignFeeAmount.ts` | **New** — sum `burst.feeAmount` per enabled config + per-line breakdown |
+| `lib/billing/validateAgencyFeeMonthTotalDrift.ts` | **New** — month `feeTotal` sum vs derived, $10 default tolerance |
+| `lib/billing/__tests__/computeDerivedCampaignFeeAmount.test.ts` | **New** — 6 cases |
+| `lib/billing/__tests__/validateAgencyFeeMonthTotalDrift.test.ts` | **New** — 6 cases |
+| `package.json` | `test:billing-fee-drift` script |
+| `app/mediaplans/mba/[mba_number]/edit/page.tsx` | Drift gate on modal save, AlertDialog, live indicator, `billingFeeSeedEnabledConfigs` memo |
+
+### Tests added
+
+- `npm run test:billing-fee-drift` — 12/12 (compute + validate)
+- Regression: `test:billing-seed-fees` 9/9, `test:billing-divergence` 17/17, `npm run typecheck` clean
+
+### Smoke (glenda007 v11)
+
+_Pending manual QA — scenarios A (silent pass), B (drift + override), C (drift + cancel) per B2 spec._
+

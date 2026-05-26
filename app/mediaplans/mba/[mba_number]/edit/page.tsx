@@ -137,11 +137,16 @@ import {
   copySingleLineItemFromAutoTemplate,
   deepCloneBillingMonthsState,
 } from "@/lib/billing/resetFromAutoReference"
+import { computeDerivedCampaignFeeAmount } from "@/lib/billing/computeDerivedCampaignFeeAmount"
 import {
   seedBillingMonthsLineFees,
   sumDerivedLineFeesForMonth,
   type SeedLineFeesMediaConfig,
 } from "@/lib/billing/seedLineFees"
+import {
+  validateAgencyFeeMonthTotalDrift,
+  type FeeDriftValidationResult,
+} from "@/lib/billing/validateAgencyFeeMonthTotalDrift"
 import { generateMediaPlan, MediaPlanHeader, LineItem, MediaItems } from '@/lib/generateMediaPlan'
 import type { Publisher } from "@/lib/types/publisher"
 // --- KPI domain (Stage 2) ---
@@ -1624,6 +1629,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     preservedOverrides: [],
   })
   const [fullBillingResetConfirmOpen, setFullBillingResetConfirmOpen] = useState(false)
+  const [feeDriftConfirmOpen, setFeeDriftConfirmOpen] = useState(false)
+  const [feeDriftValidation, setFeeDriftValidation] = useState<FeeDriftValidationResult | null>(null)
+  const pendingManualBillingSaveForceIgnoreRef = useRef(false)
   const workingBillingMonthsRef = useRef<BillingMonth[]>([])
   /**
    * Assigned each render after `attachLineItemsToMonths` exists. Reset handlers use `.current` so they never
@@ -4619,7 +4627,116 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     return v.hasAnyIssue
   }, [isManualBilling, workingBillingMonths, validateBillingBeforeSave])
 
-  function handleManualBillingSave(forceIgnoreMismatch?: boolean) {
+  const billingFeeSeedEnabledConfigs = useMemo((): SeedLineFeesMediaConfig[] => {
+    const formFlagByKey: Record<string, keyof typeof mediaFlagMap> = {
+      television: "mp_television",
+      radio: "mp_radio",
+      newspaper: "mp_newspaper",
+      magazines: "mp_magazines",
+      ooh: "mp_ooh",
+      cinema: "mp_cinema",
+      digiDisplay: "mp_digidisplay",
+      digiAudio: "mp_digiaudio",
+      digiVideo: "mp_digivideo",
+      bvod: "mp_bvod",
+      integration: "mp_integration",
+      production: "mp_production",
+      search: "mp_search",
+      socialMedia: "mp_socialmedia",
+      progDisplay: "mp_progdisplay",
+      progVideo: "mp_progvideo",
+      progBvod: "mp_progbvod",
+      progAudio: "mp_progaudio",
+      progOoh: "mp_progooh",
+      influencers: "mp_influencers",
+    }
+    const seedConfigs: SeedLineFeesMediaConfig[] = [
+      { billingKey: "television", lineItems: televisionMediaLineItems, containerBursts: televisionBursts },
+      { billingKey: "radio", lineItems: radioMediaLineItems, containerBursts: radioBursts },
+      { billingKey: "newspaper", lineItems: newspaperMediaLineItems, containerBursts: newspaperBursts },
+      { billingKey: "magazines", lineItems: magazinesMediaLineItems, containerBursts: magazinesBursts },
+      { billingKey: "ooh", lineItems: oohMediaLineItems, containerBursts: oohBursts },
+      { billingKey: "cinema", lineItems: cinemaMediaLineItems, containerBursts: cinemaBursts },
+      { billingKey: "digiDisplay", lineItems: digitalDisplayMediaLineItems, containerBursts: digitalDisplayBursts },
+      { billingKey: "digiAudio", lineItems: digitalAudioMediaLineItems, containerBursts: digitalAudioBursts },
+      { billingKey: "digiVideo", lineItems: digitalVideoMediaLineItems, containerBursts: digitalVideoBursts },
+      { billingKey: "bvod", lineItems: bvodMediaLineItems, containerBursts: bvodBursts },
+      { billingKey: "integration", lineItems: integrationMediaLineItems, containerBursts: integrationBursts },
+      { billingKey: "production", lineItems: productionMediaLineItems, containerBursts: productionBursts },
+      { billingKey: "search", lineItems: searchMediaLineItems, containerBursts: searchBursts },
+      { billingKey: "socialMedia", lineItems: socialMediaMediaLineItems, containerBursts: socialMediaBursts },
+      { billingKey: "progDisplay", lineItems: progDisplayMediaLineItems, containerBursts: progDisplayBursts },
+      { billingKey: "progVideo", lineItems: progVideoMediaLineItems, containerBursts: progVideoBursts },
+      { billingKey: "progBvod", lineItems: progBvodMediaLineItems, containerBursts: progBvodBursts },
+      { billingKey: "progAudio", lineItems: progAudioMediaLineItems, containerBursts: progAudioBursts },
+      { billingKey: "progOoh", lineItems: progOohMediaLineItems, containerBursts: progOohBursts },
+      { billingKey: "influencers", lineItems: influencersMediaLineItems, containerBursts: influencersBursts },
+    ]
+    return seedConfigs.filter((c) => {
+      const flag = formFlagByKey[c.billingKey]
+      return Boolean(flag && mediaFlagMap[flag] && c.lineItems.length > 0)
+    })
+  }, [
+    mediaFlagMap,
+    televisionMediaLineItems,
+    radioMediaLineItems,
+    newspaperMediaLineItems,
+    magazinesMediaLineItems,
+    oohMediaLineItems,
+    cinemaMediaLineItems,
+    digitalDisplayMediaLineItems,
+    digitalAudioMediaLineItems,
+    digitalVideoMediaLineItems,
+    bvodMediaLineItems,
+    integrationMediaLineItems,
+    productionMediaLineItems,
+    searchMediaLineItems,
+    socialMediaMediaLineItems,
+    progDisplayMediaLineItems,
+    progVideoMediaLineItems,
+    progBvodMediaLineItems,
+    progAudioMediaLineItems,
+    progOohMediaLineItems,
+    influencersMediaLineItems,
+    televisionBursts,
+    radioBursts,
+    newspaperBursts,
+    magazinesBursts,
+    oohBursts,
+    cinemaBursts,
+    digitalDisplayBursts,
+    digitalAudioBursts,
+    digitalVideoBursts,
+    bvodBursts,
+    integrationBursts,
+    productionBursts,
+    searchBursts,
+    socialMediaBursts,
+    progDisplayBursts,
+    progVideoBursts,
+    progBvodBursts,
+    progAudioBursts,
+    progOohBursts,
+    influencersBursts,
+  ])
+
+  const derivedCampaignFeeFromBursts = useMemo(
+    () => computeDerivedCampaignFeeAmount(billingFeeSeedEnabledConfigs).totalFeeAmount,
+    [billingFeeSeedEnabledConfigs]
+  )
+
+  const manualBillingMonthFeeSum = useMemo(
+    () =>
+      manualBillingMonths.reduce(
+        (acc, m) => acc + (parseFloat(String(m.feeTotal || "$0").replace(/[^0-9.-]/g, "")) || 0),
+        0
+      ),
+    [manualBillingMonths]
+  )
+
+  const agencyFeeMonthTotalDrift = manualBillingMonthFeeSum - derivedCampaignFeeFromBursts
+
+  function handleManualBillingSave(forceIgnoreMismatch?: boolean, overrideFeeDrift?: boolean) {
     if (!forceIgnoreMismatch) {
       const v = validateBillingBeforeSave(manualBillingMonths, { feeCheck: true })
       if (v.blockingErrors.length > 0 || v.preservedManualOverrides.length > 0) {
@@ -4630,6 +4747,15 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         })
         return
       }
+    }
+
+    const derivedCampaignFee = computeDerivedCampaignFeeAmount(billingFeeSeedEnabledConfigs).totalFeeAmount
+    const feeDrift = validateAgencyFeeMonthTotalDrift(manualBillingMonths, derivedCampaignFee)
+    if (!feeDrift.withinTolerance && !overrideFeeDrift) {
+      pendingManualBillingSaveForceIgnoreRef.current = Boolean(forceIgnoreMismatch)
+      setFeeDriftValidation(feeDrift)
+      setFeeDriftConfirmOpen(true)
+      return
     }
 
     const applied = JSON.parse(JSON.stringify(manualBillingMonths)) as BillingMonth[]
@@ -8947,6 +9073,65 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         </AlertDialogContent>
       </AlertDialog>
 
+      <AlertDialog
+        open={feeDriftConfirmOpen}
+        onOpenChange={(open) => {
+          setFeeDriftConfirmOpen(open)
+          if (!open) setFeeDriftValidation(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Agency fee totals don&apos;t match</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>Month fee totals don&apos;t match the derived campaign fee.</p>
+                {feeDriftValidation ? (
+                  <ul className="list-disc space-y-1 pl-5 text-foreground">
+                    <li>
+                      Derived campaign fee:{" "}
+                      <span className="font-medium">
+                        {mbaCurrencyFormatter.format(feeDriftValidation.derivedCampaignFee)}
+                      </span>
+                    </li>
+                    <li>
+                      Current sum of month fees:{" "}
+                      <span className="font-medium">
+                        {mbaCurrencyFormatter.format(feeDriftValidation.sumOfMonthFeeTotals)}
+                      </span>
+                    </li>
+                    <li>
+                      Difference:{" "}
+                      <span className="font-medium">
+                        {feeDriftValidation.diff >= 0 ? "+" : "−"}
+                        {mbaCurrencyFormatter.format(Math.abs(feeDriftValidation.diff))}
+                      </span>
+                    </li>
+                  </ul>
+                ) : null}
+                <p>
+                  This can be intentional if you&apos;re reallocating fee timing across months. Save anyway?
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel type="button">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              type="button"
+              onClick={(e) => {
+                e.preventDefault()
+                setFeeDriftConfirmOpen(false)
+                setFeeDriftValidation(null)
+                handleManualBillingSave(pendingManualBillingSaveForceIgnoreRef.current, true)
+              }}
+            >
+              Save with override
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Manual Billing Modal */}
       <Dialog
         open={isManualBillingModalOpen}
@@ -9216,7 +9401,30 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                             </TableCell>
                           </TableRow>
 
-                          {/* Fees — month-level total (editable until B2 invariant) */}
+                          <TableRow className="border-0 hover:bg-transparent">
+                            <TableCell
+                              colSpan={4 + manualBillingMonths.length + 1}
+                              className="py-1 text-xs text-muted-foreground"
+                            >
+                              <span>
+                                Derived campaign fee:{" "}
+                                {mbaCurrencyFormatter.format(derivedCampaignFeeFromBursts)}
+                              </span>
+                              <span className="mx-2">·</span>
+                              <span>Current sum: {mbaCurrencyFormatter.format(manualBillingMonthFeeSum)}</span>
+                              {Math.abs(agencyFeeMonthTotalDrift) >= 10 ? (
+                                <>
+                                  <span className="mx-2">·</span>
+                                  <span className="text-amber-600 dark:text-amber-500">
+                                    Diff: {agencyFeeMonthTotalDrift >= 0 ? "+" : "−"}
+                                    {mbaCurrencyFormatter.format(Math.abs(agencyFeeMonthTotalDrift))}
+                                  </span>
+                                </>
+                              ) : null}
+                            </TableCell>
+                          </TableRow>
+
+                          {/* Fees — month-level total (editable; B2 drift check on modal save) */}
                           <TableRow>
                             <TableCell>
                               <Button
