@@ -740,4 +740,213 @@ Remaining jobs sequenced based on Stage 1 IA outcomes.
 
 ---
 
-*Stage 0 closed 2026-05-27. Next: Stage 1 — Information Architecture proposal (document-only, no code).*
+## Stage 1 — Information Architecture Proposal (signed off 2026-05-27)
+
+Document-only. No code changes in Stage 1. Implementation begins in Stage 2.
+
+### Ground-truth data shapes (verified from production exports)
+
+Verified from `media_plan_versions` export (7 campaigns, 54 month entries, 398 line items):
+
+**`billingSchedule[]` — array of month entries.** Per-month keys:
+- `monthYear` — string label (e.g. `"April 2026"`)
+- `feeTotal` — string with `$` and commas (e.g. `"$1,166.67"`)
+- `production` — string with `$` and commas
+- `mediaTypes[]` — array of media-type groups
+- `adservingTechFees` — optional string (present on ~44% of months in sample; difference appears to be schedules generated before/after adserving fees feature)
+
+**Per `mediaType` group:** `mediaType` (string label, e.g. `"Social Media"`), `lineItems[]`.
+
+**Per line item (consistent across all 398 sampled):**
+- `amount` — string with `$` and commas
+- `header1` — publisher name (e.g. `"Meta"`)
+- `header2` — targeting / description string
+- `lineItemId` — structured stable key (e.g. `"billing-socialMedia::BICAU003SM1"`)
+
+**`deliverySchedule[]` — identical shape EXCEPT** line items additionally carry `clientPaysForMedia` (boolean). This is the only structural difference between billing and delivery JSON.
+
+**Amounts are stored as `$`-prefixed comma-separated strings.** Parsed on every read. New fields must not be amount strings — keep status as clean primitives.
+
+**Billing total ≠ delivery total per month** on most campaigns. The accrual reconcile concept is the gap between these two schedules per `(client, month)`. Verified examples in sample:
+- `hartm001` April 2026: billing $34,084 / delivery $48,213 (~30% gap)
+- `bowel001` June 2026: billing $82,277 / delivery $288,363 (~3.5× gap)
+
+`lineItemId` is structured and stable across edits — confirmed across all 398 sampled line items in the production export. Usable as a stable key for status records.
+
+---
+
+### Decision 1: Status data model — hybrid B+C
+
+**Invoice-grain status** lives on `finance_billing_records`, extended from SOW-only to cover media. New columns required:
+
+| Column | Type | Purpose |
+|--------|------|---------|
+| `billed` | boolean | Has the client invoice been raised in Xero AND sent to the client |
+| `billed_at` | timestamp \| null | When |
+| `billed_by` | int FK to users \| null | Who marked it |
+| `notes` | text \| null | Free-text finance note on the invoice |
+| `exported_at` | timestamp \| null | Last Xero export that included this row (for audit trail per F1.4) |
+| `exported_by` | int FK to users \| null | Who triggered the export |
+
+Primary key for receivables rows: `(clients_id, mba_number, billing_month)` is unique.
+
+**Line-grain status** for *exceptions only* lives on `finance_billing_line_items`. Default state = no row, treated as "expected / no exception." Rows created lazily when finance records something non-default. New columns required:
+
+| Column | Type | Purpose |
+|--------|------|---------|
+| `line_status` | enum: `received`, `disputed`, `variance` \| null | Exception state |
+| `received_at` | timestamp \| null | When publisher invoice arrived (payables) |
+| `received_amount` | numeric \| null | If different from expected |
+| `note` | text \| null | Free-text per-line note |
+| `orphaned` | boolean default false | Set true when the matching `lineItemId` is removed from the schedule (soft delete; see D6) |
+| `media_plan_version_number` | int | Source version at time the status row was created (for orphan traceability) |
+
+This makes `finance_billing_line_items` the "things finance has touched" table, not the "every line item ever" table.
+
+### Decision 2: Lazy materialisation
+
+`finance_billing_records` rows are **not** pre-created. They are inserted on first finance action:
+- First time anyone marks a `(client, mba, month)` invoice as billed
+- First time anyone adds a PO, note, or invoice date
+- First time the export audit-trail writes `exported_at`
+
+Before any finance action, the hub reads `billingSchedule` JSON as it does today. Read path becomes:
+1. Fetch derived rows from schedule JSON (as today)
+2. LEFT JOIN `finance_billing_records` on `(clients_id, mba_number, billing_month)` to overlay status
+3. Default state where no record exists: `billed: false`, all status fields null
+
+Same pattern for `finance_billing_line_items` on the payables side.
+
+### Decision 3: Tab structure → Overview-as-home
+
+Current: 5 equal tabs (Overview / Client Billing / Publisher Invoices / Accrual / Forecast).
+
+**New IA:**
+
+| URL | Purpose | Audience |
+|-----|---------|----------|
+| `/finance` | Overview / management dashboard — KPI hero, treemaps, attention list | Management glance |
+| `/finance/receivables` | Primary working surface — client billing | Finance daily |
+| `/finance/payables` | Primary working surface — publisher invoices | Finance daily |
+| `/finance/accrual` | Derived reconcile surface | Finance monthly |
+| `/finance/forecast` | Parked; redesigned in Stage 10 | Management |
+
+Implications:
+- KPI hero only renders on `/finance` (resolves CF1)
+- Tab strip becomes top-level nav reflecting the working/derived hierarchy (resolves CF2)
+- Per-tab filters become per-page filters (resolves CF3 — Forecast's FY-only filters no longer need to coexist with the shared month-range bar)
+
+### Decision 4: Receivables surface design
+
+Top-to-bottom for `/finance/receivables`:
+
+**Header:**
+- Compact filter row: Billing month picker (single/range), Clients, Publishers, Search, Include drafts toggle
+- Three live KPIs: **Total to bill** / **Billed** / **Outstanding** — update with filter
+- Primary action top-right: **Export to Xero** (single button, replaces dropdown)
+- Auto-fetch with debounce + month-keyed cache (see D5)
+
+**Body — client list, collapsible:**
+- Client header: name + month + total + **billed status pill**
+- Expand reveals per-MBA breakdown
+- **Identical-row grouping (resolves F5.1):** consecutive line items with same `header1` + `header2` (publisher + description) collapse to a single row showing count and sum. Expandable to individual lines.
+- Per-media-type rollups by default (one row per `mediaType` group inside an MBA), expandable to line items
+- **Inline edits on amounts (resolves F6.2):** click amount → input → tab/blur → PATCH on schedule JSON
+- **One Mark billed action per client-month invoice** — updates `finance_billing_records.billed`
+
+**Heavy edit fallback:**
+- "Edit schedule" button per MBA opens the existing Alter Billing dialog (unchanged)
+- Used for moves between months / structural edits inline cannot express
+
+Visual layout to be prototyped in Stage 3 before code.
+
+### Decision 5: Auto-fetch with caching (pushback on Stage 0 D3)
+
+Stage 0 D3 said all tabs require explicit Load. **Overturned during Stage 1:**
+
+- Auto-fetch on filter change with 300ms debounce
+- Month-keyed cache keyed on `(filterSignature, monthRange)` — cache hits return instantly
+- Cache invalidated by writes (schedule edits, status changes) that affect months in cache
+
+The Load gate was solving a performance problem the wrong way. Caching solves the same problem without forcing the user to click.
+
+If Stage 2 discovers the underlying fetch is too expensive to debounce-and-cache, we revisit.
+
+### Decision 6: Audit trail strategy
+
+Three categories of write, three handling rules.
+
+**Category 1: Finance status changes** (billed, received, reconciled, notes, PO, invoice date).
+- Write to `finance_billing_records` or `finance_billing_line_items` directly (current state)
+- ALSO write a `finance_edits` row with `edit_type: status_change`, `field_name`, `old_value`, `new_value`, `edited_by`, `edited_by_name`
+- Reads come from the current-state tables; `finance_edits` is queried for "who changed what when" investigations only
+
+**Category 2: Schedule amount changes** (Alter Billing dialog save, inline amount edits — anything that mutates a `billingSchedule` or `deliverySchedule` line item amount).
+- PATCH `billingSchedule` / `deliverySchedule` JSON as today (current state)
+- ALSO write a `finance_edits` row with `edit_type: amount_change`, `field_name: lineItemId`, `old_value`, `new_value`, `edited_by`, `edited_by_name`
+- Resolves F9.2 (no diff log)
+- Two-write transaction per save (acknowledged cost)
+
+**Category 3: Campaign structural changes** (new line items added, line items removed via media plan editing).
+- Existing `media_plan_versions` versioning handles this. No new audit work needed.
+- Exception: when a `lineItemId` is removed from a schedule and a `finance_billing_line_items` row exists for it, **soft delete** — set `orphaned: true`, write a `finance_edits` row with `edit_type: line_remove`. Surfaced in the UI as "this line had a note but was removed from the schedule." Resolves the "media planner removes line, finance loses note" risk.
+
+`finance_edits` already has the right shape for all three categories — uses existing TypeScript interface unchanged.
+
+`finance_edits.edit_status` (`draft` / `published` / `reverted`):
+- All entries written by this audit system are `published` immediately (live edits)
+- `draft` and `reverted` reserved for future "preview-then-publish" workflows (out of scope for Domain 5)
+
+### Decision 7: Existing decisions carried from Stage 0
+
+| ID | Decision | Notes |
+|----|----------|-------|
+| D1 (S0) | SOW status stays on `finance_billing_records` | Now extended to also cover media via this stage's schema additions |
+| D2 (S0) | Payables status lives on `deliverySchedule`-derived structures | Resolved via Decision 1: `finance_billing_line_items` (line-grain exceptions, payables side) |
+| D3 (S0) | All tabs explicit Load | **Overturned by Decision 5 above** |
+| D4 (S0) | Export paths unify | Carried forward — single Export to Xero button (Decision 4) |
+| D5 (S0) | Saved views browser-local | Unchanged |
+| D6 (S0) | `super_admin` / month locks out of scope | Unchanged |
+| D7 (S0) | `/finance` admin-only via `AdminGuard` | Stage 9 adds the explicit guard |
+| D8 (S0) | Billed = raised AND sent to client | Encoded in `finance_billing_records.billed` semantics |
+| D9 (S0) | `FinanceReceivablesPanel` is dead code | Deleted opportunistically during any stage that touches the file |
+| D10 (S0) | Forecast total redesign, parked | Stage 10 |
+
+---
+
+### Stage 1 Roadmap
+
+| Stage | Purpose | Touches |
+|-------|---------|---------|
+| **2** | **Status schema migration.** Add `billed`, `billed_at`, `billed_by`, `notes`, `exported_at`, `exported_by` to `finance_billing_records`. Add `line_status`, `received_at`, `received_amount`, `note`, `orphaned`, `media_plan_version_number` to `finance_billing_line_items`. Build lazy-materialisation read path (LEFT JOIN overlay on schedule JSON derivations). No UI changes. | Xano schema, `lib/finance/api.ts`, `lib/finance/deriveReceivableRecords.ts`, related read selectors |
+| **3** | **Receivables surface, take 1 (J2 + J5).** New `/finance/receivables` page. Billed-status pill, rolled-up summaries, identical-row grouping (F5.1), `Mark billed` per invoice. Inline amount edits deferred to Stage 5. Old Client Billing tab still reachable for fallback during this stage. | `app/finance/receivables/page.tsx`, new components, status read paths from Stage 2 |
+| **4** | **Xero export refactor (J1).** Unify `exportReceivablesWorkbook` / Download Finance Report into single Export to Xero button. Pre-flight check modal (draft rows, missing POs, warnings). Audit trail writes (`exported_at`, `exported_by`). Resolves F1.1 / F1.2 / F1.3 / F1.4. | `lib/finance/exportFinanceHub.ts`, new pre-flight component, `finance_billing_records` writes |
+| **5** | **Inline edits on Receivables (F6.2).** Click-to-edit amounts on schedule line items. Validation + optimistic UI. Two-write transaction (schedule PATCH + `finance_edits` audit row per Decision 6 Category 2). Conflict handling for concurrent edits. | Receivables surface, schedule PATCH route, `finance_edits` writes |
+| **6** | **Payables surface (J3 + J7).** Mirror of Receivables for `/finance/payables`. `received` / `disputed` / `variance` status via `finance_billing_line_items` (payables side). Variance recording (received vs expected). | `app/finance/payables/page.tsx`, payables read paths, `finance_billing_line_items` writes |
+| **7** | **Accrual UX polish (J4 + J9).** Unreconciled-only filter. Materiality signal (visual emphasis on large deltas). Bidirectional drill-through (receivable card → contributing payables and vice versa). | `components/finance/tabs/AccrualTab.tsx`, navigation wiring |
+| **8** | **Upcoming view (J8).** New surface or extended filter; decide after Stage 2 surfaces what forward-looking data is available. Forward-looking buckets: next 30 days, ageing payables, etc. | New page or new filter mode on Receivables/Payables |
+| **9** | **Overview as home (CF1/CF2 finish).** Move Overview tab content to `/finance` root. Restructure URLs. Add `AdminGuard` to the route (D7 from Stage 0). Sidebar nav reflects new IA. | `app/finance/page.tsx`, `FinanceHubPageClient.tsx`, sidebar, route guards |
+| **10** | **Forecast redesign (J12).** Deep redesign per Stage 0 D10. Out of scope to plan now — separate discovery sub-stage opens at the start of Stage 10. | TBD |
+
+**Opportunistic cleanup across stages:**
+- Delete `FinanceReceivablesPanel.tsx` (dead code per D9 Stage 0) — slot into Stage 3
+- Delete `ReceivablesTab.tsx` and `PayablesTab.tsx` (unmounted grid implementations) — slot into Stages 3 and 6 respectively unless we decide to restore the grid pattern
+
+**Stage count: 9 active + 1 deferred = 10 stages.**
+
+---
+
+### Open items carried into Stage 2
+
+| ID | Item | Resolution timing |
+|----|------|-------------------|
+| O1 (S0) | Cards vs grid for redesigned Receivables | Resolved by Decision 4 — cards with inline edits |
+| O2 (S0) | Where publisher corrections happen | Resolved by Decision 1 — `finance_billing_line_items` line-grain exception rows |
+| O3 (S0) | Full Xano column schemas | Captured this stage: `finance_billing_records`, `finance_billing_line_items`, `finance_edits` interfaces provided by Luke 2026-05-27 |
+| O4 (S0) | Full JSON shape of `billingSchedule` / `deliverySchedule` | Captured this stage: verified from production export |
+| O1 (S1) | Whether `media_plan_version_number` on `finance_billing_line_items` is sufficient for orphan traceability, or whether the deleted line's snapshot needs to be preserved | Confirm during Stage 2 schema work |
+| O2 (S1) | Cache invalidation strategy for Decision 5 — granular per-month-key, or coarse per-filter-signature | Confirm during Stage 2 read-path work |
+
+---
+
+*Stage 1 closed 2026-05-27. Next: Stage 2 — Status schema migration (code changes begin).*
