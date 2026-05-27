@@ -1391,6 +1391,7 @@ Likely **existing** columns per `BillingEdit` TS. **new** / confirm in Xano UI:
 | `GET /api/finance/edits` loads **all** edits then filters | **Med** | Add Xano filter params or month-scoped endpoint |
 | Legacy `/api/finance/publishers` reads `finance_billing_records` | **Low** | Document deprecation; avoid divergent status |
 | No role gating on finance PATCH routes | **Med** | Align with accrual (block `client` role) in 2.2 |
+| Dead `/api/finance/edits/publish` proxy to missing Xano endpoint; `EditableFinanceGrid` still calls it | **Med** | **Stage 2.2 cleanup only:** remove `app/api/finance/edits/publish/route.ts` and update `components/finance/EditableFinanceGrid.tsx` to stop calling it in the same change set |
 | `normalizeReceivableBillingRecord` unused | **Low** | Wire into overlay reader or remove |
 
 ### 7.5 Splitting Stage 2.2
