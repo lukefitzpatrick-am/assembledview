@@ -3950,3 +3950,205 @@ This is a **scope-narrowing**, not a fee-math fix. Fee math was confirmed author
 
 No further code changes in Domain 4. Next domain to be scoped separately.
 
+---
+
+## Pre-next-domain verification
+
+**Setup (2026-05-27):** branch `localhost`, HEAD `1f044c2`, working tree clean.
+
+### A — Branch inventory
+
+```
+git branch -a
+```
+
+```
+  domain-4-api-fetch-efficiency
+  domain-4-long-lived
+  feature/behavioural-planner-mock
+* localhost
+  main
+  pacing-overview-consolidation
+  pacing-search-rebuild
+  remotes/origin/HEAD -> origin/main
+  remotes/origin/main
+  remotes/origin/pacing-search-rebuild
+```
+
+| Branch | Tip | Reachable from `localhost` HEAD? |
+|--------|-----|----------------------------------|
+| `domain-4-api-fetch-efficiency` | `d62a3c3` feat(domain-4): dashboard, billing, mediaplan UX, and API version forwarding | MERGED |
+| `domain-4-long-lived` | `6b97053` chore(consolidate): integrate selective stash WIP into localhost | MERGED |
+| `feature/behavioural-planner-mock` | `cf2e211` feat(bcp): stage 4 polish - tabs, budget input, reset, responsive | MERGED |
+| `pacing-overview-consolidation` | `2f8e4b0` feat(pacing): repoint /api/pacing/line-items at consolidated path | MERGED |
+| `pacing-search-rebuild` | `185caea` feat(pacing): sort search delivery table by any column | MERGED |
+
+**Summary:** Every local branch except `main` has its tip merged into `localhost`; none hold unique commits. Safe to delete locally if desired. `remotes/origin/pacing-search-rebuild` exists on remote only; not evaluated with `merge-base` (remote-only `origin/*` excluded per spec). No `domain-4-finance-hub` branch on disk.
+
+### B — AlterBillingDialog in finance hub
+
+**B1 — `git grep -n "AlterBillingDialog"`**
+
+```
+AUDIT-DOMAIN-4.md:69:...
+AUDIT-DOMAIN-4.md:588:...
+(... audit doc / AUDIT.md hits omitted — see repo grep for full list)
+app/finance/FinanceHubPageClient.tsx:33:import { AlterBillingDialog } from "@/components/billing/AlterBillingDialog"
+app/finance/FinanceHubPageClient.tsx:869:        <AlterBillingDialog
+components/billing/AlterBillingDialog.tsx:93:export function AlterBillingDialog({
+```
+
+**B2 — Consumer (`app/finance/FinanceHubPageClient.tsx`)**
+
+Import:
+
+```33:33:app/finance/FinanceHubPageClient.tsx
+import { AlterBillingDialog } from "@/components/billing/AlterBillingDialog"
+```
+
+Trigger (Billing tab receivables section — per media plan group):
+
+```722:743:app/finance/FinanceHubPageClient.tsx
+                                                <Button
+                                                  type="button"
+                                                  variant="outline"
+                                                  size="sm"
+                                                  className="shrink-0"
+                                                  disabled={
+                                                    alterBillingLoadKey !== null ||
+                                                    !mp.mbaNumber ||
+                                                    mp.versionId == null ||
+                                                    mp.versionNumber == null
+                                                  }
+                                                  onClick={() => void openAlterBilling(mp)}
+                                                >
+                                                  {alterBillingLoadKey === `${mp.mbaNumber}|${mp.versionId}` ? (
+                                                    <>
+                                                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden />
+                                                      Billing…
+                                                    </>
+                                                  ) : (
+                                                    "Alter Billing"
+                                                  )}
+                                                </Button>
+```
+
+Mounted dialog (conditional on `alterBillingState` after `openAlterBilling` loads schedule):
+
+```868:906:app/finance/FinanceHubPageClient.tsx
+      {alterBillingState ? (
+        <AlterBillingDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setAlterBillingState(null)
+          }}
+          initialMonths={alterBillingState.months}
+          title={alterBillingState.mbaNumber}
+          mbaNumber={alterBillingState.mbaNumber}
+          isSaving={isAlterBillingSaving}
+          onSave={async (newMonths) => {
+            ...
+          }}
+        />
+      ) : null}
+```
+
+**B3 — Report:** **AlterBillingDialog is wired** — `FinanceHubReceivablesSection` in `app/finance/FinanceHubPageClient.tsx` (Billing tab): "Alter Billing" button per media plan group (`openAlterBilling` → fetch schedule → `setAlterBillingState`); dialog mounted with `open`, `initialMonths`, `title`, `mbaNumber`, `isSaving`, `onSave` (PATCH billing-schedule). Disabled when MBA/version missing or load in flight.
+
+### C — Stage 1a finance-hub filters on `localhost`
+
+**C1**
+
+```
+lib/finance/filterBillingRecords.ts
+lib/finance/__tests__/filterBillingRecords.test.ts
+```
+
+**C2 — `app/api/finance/payables/route.ts`**
+
+```
+81:    const billingTypeRaw = searchParams.get("billing_type")
+94:    const includeNonBooked = searchParams.get("include_drafts") !== "0"
+134:    const publishersIdParam = searchParams.get("publishers_id")
+```
+
+(Also applied via `filterByPublisherIds`, `filterByBillingTypes`, and draft gating on versions.)
+
+**C3 — `components/finance/FinanceFilterToolbar.tsx`**
+
+```
+25:  bump: () => void
+29:  /** When set (e.g. finance hub Receivables tab), Load/Refresh receivables uses the same control row as filter apply. */
+30:  receivables?: FinanceFilterToolbarReceivablesProps | null
+41:export function FinanceFilterToolbar({ receivables }: FinanceFilterToolbarProps) {
+122:    if (receivables) {
+124:        receivables.bump()
+127:  }, [draft, receivables, setFilters])
+145:      {receivables ? (
+...
+242:              if (receivables) {
+244:                  receivables.bump()
+```
+
+Hub passes `receivables` when `activeTab === "billing"` (`FinanceHubPageClient.tsx` ~1396–1405). Search `Enter` calls `setFilters(draft)` then `receivables.bump()`.
+
+**C4 — Report:** **Stage 1a is on localhost** — shared filter module + tests present; payables route reads `billing_type`, `include_drafts`, `publishers_id`; billing route imports same helpers; toolbar bumps receivables on Load and Search Enter on billing tab. Branch `domain-4-finance-hub` not present locally (work appears merged on `localhost`).
+
+### D — page-local vs `lib/billing/generateBillingLineItems.ts`
+
+**D1 — Lib (full)**
+
+See `lib/billing/generateBillingLineItems.ts` (142 lines): media burst proration, `getScheduleHeaders`, inferred fee %, `mode` billing/delivery, composite id `${mediaType}-${header1}-${header2}-${index}`, optional `clientPaysForMedia`. No ad-serving fields. Comment notes MBA edit extends elsewhere.
+
+**D1 — Page-local (`app/mediaplans/mba/[mba_number]/edit/page.tsx`)**
+
+```3917:4117:app/mediaplans/mba/[mba_number]/edit/page.tsx
+  const generateBillingLineItems = useCallback((
+    mediaLineItems: any[],
+    mediaType: string,
+    months: { monthYear: string }[],
+    mode: "billing" | "delivery" = "billing"
+  ): BillingLineItemType[] => {
+    ...
+      const itemId = billingStableLineItemId(mediaType, lineItem, index);
+    ...
+      // Ad serving per month (line fees come from seed effect — burst.feeAmount, not % inference)
+      const adServingMonthlyAmounts: Record<string, number> = {}
+      ...
+      lineItemsMap.set(itemId, {
+        id: itemId,
+        header1,
+        header2,
+        monthlyAmounts,
+        totalAmount,
+        adServingMonthlyAmounts,
+        totalAdServingAmount,
+        ...(clientPaysForMedia ? { clientPaysForMedia: true } : {}),
+      });
+    ...
+  }, [getRateForMediaType]);
+```
+
+**D2 — Diff notes**
+
+1. **Fee loop:** Removed (comment: fees from `seedBillingMonthsLineFees` / `burst.feeAmount`). Media burst loop still applies fee % for **net media** only.
+2. **Ad-serving loop:** Yes — second burst pass; `getRateForMediaType`, CPM vs per-deliverable; outputs `adServingMonthlyAmounts` / `totalAdServingAmount`.
+3. **Id scheme:** Page uses `billingStableLineItemId` → `billing-{mediaType}::{line_item_id}` (or `::new-{index}`). Lib uses header/index composite id.
+4. **Page-local vs lib:** Ad-serving fields; stable ids; page `getScheduleHeaders` is local `useCallback` (same underlying helper pattern as lib import on create). Budget parse: page uses `burst.budget?.replace` (assumes string); lib uses `String(burst.budget ?? "")`. Media/fee/client-pays proration logic largely aligned with lib.
+5. **Call sites (`git grep -n "generateBillingLineItems" -- "*.ts" "*.tsx"`):**
+   - `lib/billing/generateBillingLineItems.ts` — export definition
+   - `lib/billing/prepareBillingMonthsForLineItemExport.ts` — **lib**; export prep
+   - `app/mediaplans/create/page.tsx` — **lib** import; attach months / export
+   - `app/mediaplans/[id]/edit/page.tsx` — **page-local** closure (older overlap-day math, no mode/fees/ad-serving)
+   - `app/mediaplans/mba/[mba_number]/edit/page.tsx` — **page-local** only (no lib import); `handleManualBillingOpen`, `attachLineItemsToMonths`, divergence `expected` compare
+
+**D3 — Report:** **Page-local still does X that lib does not** — stable billing line ids and ad-serving monthly totals. Fee line generation is not in either (seed handles fees on MBA). Unification: extend lib with optional `lineItemId` factory + ad-serving pass, then delete MBA closure. **Confidence: ~85%** (did not trace every downstream consumer of `adServingMonthlyAmounts` / stable id in save JSON).
+
+### E — Typecheck
+
+```
+npm run typecheck
+```
+
+Exit code **0** (`tsc --noEmit`).
+
