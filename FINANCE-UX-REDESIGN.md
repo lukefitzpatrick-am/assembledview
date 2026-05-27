@@ -563,4 +563,181 @@ Forecast GET also scopes non-admin users via `getUserClientSlugs` → `allowedCl
 
 ---
 
-*End of Stage 0 discovery.*
+## Jobs-to-be-Done (signed off 2026-05-27)
+
+Numbered for reference. Grouped by frequency. Each job represents a discrete outcome the finance team is trying to achieve on `/finance`.
+
+### Monthly jobs (the core cycle)
+
+**J1. Generate the client Xero export for the month.**
+Pick a billing month, confirm receivables are correct, click Export, hand the workbook to accounts.
+
+**J2. Mark each client invoice as billed once it has been raised AND sent to the client in Xero.**
+After accounts raises invoices in Xero and sends them out, the finance person marks each client-month-invoice as "billed" in AssembledView so the team knows what has been shipped vs what remains outstanding. Billed = in the client's hands.
+
+**J3. Track expected publisher invoices and mark them received and correct.**
+For each publisher, for each line item, the team is expecting an invoice for a known amount. When the invoice arrives, the team marks "received and correct" (or "received and disputed" / "received but amount differs").
+
+**J4. Reconcile the accrual for each client-month.**
+For each client where receivable timing doesn't match payable timing, confirm the timing gap is intentional and tick the row off.
+
+### Weekly jobs
+
+**J5. Spot-check a specific client's billing before invoicing.**
+Drill into a client, see the rolled-up amount, see the breakdown, see whether anything looks off.
+
+**J6. Edit a billing schedule when something has changed.**
+A campaign got extended, a client changed payment terms, a media plan was repriced. Open the schedule, change the amounts/months, save.
+
+**J7. Spot-check a publisher invoice that has arrived against what was expected.**
+Match received against expected for a single publisher/line-item.
+
+### Cyclical / monthly-plus jobs
+
+**J8. See what's upcoming for the next month or two.**
+Forward-looking view of client invoices due to be raised and publisher invoices due to arrive.
+
+**J9. Investigate a discrepancy.**
+Walk an accrual row back to source line items, see what's contributing.
+
+### Ad-hoc / management jobs
+
+**J10. Answer "what are we spending with [publisher] across the year?"**
+Publisher-level FY view at line-item or summary grain.
+
+**J11. Answer "what is [client] spending across the year and on what?"**
+Client-level FY view.
+
+**J12. Forecast revenue and cost for the FY.**
+**Parked — total redesign required, scheduled for the end of Domain 5.**
+
+**J13. Pull a custom view of data for a one-off analysis.**
+Export-and-Excel escape hatch.
+
+### Coordination / handover jobs
+
+**J14. Hand the Xero export workbook to the accounts team.**
+The human step around J1. Audit trail of when the export happened and by whom is desirable.
+
+---
+
+## Friction Inventory
+
+For each job, where the current UI obstructs it. Confidence ratings denote how strongly the friction is evidenced by the Stage 0 code inventory vs. inferred from the brief.
+
+### J1. Generate the client Xero export
+
+- **F1.1 (~95%)** Export hides behind two clicks in a dropdown menu. Should be a first-class button.
+- **F1.2 (~90%)** Two different exports produce two different outputs (`exportReceivablesWorkbook` via "Export to Excel" using store records vs. "Download Finance Report" using `visibleMonthGroups`). Confirmed to be unified (open question 5).
+- **F1.3 (~80%)** No pre-flight check before export — no "N rows are draft, M schedules have warnings, export anyway?" gate.
+- **F1.4 (~70%)** No audit trail of when the export happened or by whom.
+
+### J2. Mark each client invoice as billed
+
+- **F2.1 (~95%)** **No billed status exists anywhere** — not on `billingSchedule` JSON, not in the UI. Single biggest gap in the surface vs. the brief.
+- **F2.2 (~95%)** Therefore no "unbilled" filter, no outstanding view, no tick-off affordance.
+- **F2.3 (~85%)** Status grain is per-client-per-month-per-invoice, not per-line-item.
+
+### J3. Track expected publisher invoices and mark received/correct
+
+- **F3.1 (~95%)** No received/correct/disputed status on `deliverySchedule[]` rows.
+- **F3.2 (~90%)** No variance flag affordance for "received but amount differs."
+- **F3.3 (~80%)** No ageing view ("which publishers haven't sent their April invoice yet").
+
+### J4. Reconcile the accrual for each client-month
+
+- **F4.1 (~85%)** No filter for "unreconciled only" — reconciled is the only status that exists today, but the team has to scroll the grid to find untoggled rows.
+- **F4.2 (~70%)** No visual signal for which rows materially need attention (large delta vs. rounding noise).
+- **F4.3 (~60%)** Row detail sheet lists contributors but doesn't narrate the *why* of the timing gap.
+
+### J5. Spot-check a specific client's billing
+
+- **F5.1 (~95%)** The 20-row-repetition problem (Image 3). Identical-description-identical-amount line items should collapse to a grouped row with expand affordance.
+- **F5.2 (~90%)** No rolled-up "this client owes us $X this month for $Y media + $Z fees + $W production" view at the client header. The summary the user is mentally building is exactly what should display by default.
+- **F5.3 (~85%)** Load required before any data appears. Load button is far from the primary action.
+- **F5.4 (~70%)** "AA plan" export per media plan is noise for clients that aren't Advertising Associates handovers.
+
+### J6. Edit a billing schedule
+
+- **F6.1 (~90%)** Alter Billing edits one media plan at a time. The mental model is per-client-per-month; the tool is per-media-plan.
+- **F6.2 (~85%)** No inline edits on Client Billing. Even trivial amount corrections require the full dialog.
+- **F6.3 (~80%)** "Edit" (full MBA edit page) and "Alter Billing" (dialog) coexist on the same media plan group with overlapping intent. Label disambiguation worth reviewing.
+- **F6.4 (~60%)** No draft/preview/diff state. Save PATCHes `billingSchedule` directly with no preview of what's about to change.
+
+### J7. Spot-check a publisher invoice
+
+- **F7.1 (~85%)** Publisher Invoices groups by publisher → line item; users typically arrive with a line item in mind, not a publisher. Search exists but isn't surfaced for this flow.
+- **F7.2 (~80%)** No "match received against expected" affordance.
+- **F7.3 (~70%)** No notes/comments per line item.
+
+### J8. See what's upcoming
+
+- **F8.1 (~95%)** **"Upcoming" doesn't exist as a view.** No "next 30 days," no expected-invoices-in-the-next-week, no forward-looking surface.
+- **F8.2 (~85%)** No ageing buckets.
+
+### J9. Investigate a discrepancy
+
+- **F9.1 (~75%)** Accrual → contributors trace is one-way. From a receivable card you can't navigate to the contributing payables.
+- **F9.2 (~70%)** No diff log of who changed what on a schedule and when.
+
+### J10 / J11. Spend by publisher / spend by client across the year
+
+- **F10.1 (~80%)** Treemaps show relative size, not absolute amounts or trends. Wrong visualisation for the question.
+- **F10.2 (~70%)** No drilldown from the treemap to contributing line items.
+- **F10.3 (~60%)** These charts live on Overview, which the finance team opens least often. Data is in the wrong place for the users who'd benefit from it.
+
+### J13. Custom view for one-off analysis
+
+- **F13.1 (~75%)** Every job currently bottoms out at Export-and-Excel because in-app surfaces don't answer the question. Successful redesign should reduce Excel reliance substantially.
+
+### J14. Hand the export to accounts
+
+- **F14.1 (~80%)** No "marked as exported / batch shipped" intermediate state. Tied to F1.4 and F2.
+
+### Cross-cutting frictions (not tied to a single job)
+
+- **CF1 (~90%)** KPI hero is fixed on all tabs. Useful on Overview, noise on the four working tabs. ~150px of fixed vertical real estate paid for on every load.
+- **CF2 (~90%)** Five tabs implying equality. Overview and Forecast are read-only summaries; Client Billing, Publisher Invoices, Accrual are working surfaces. IA should reflect this hierarchy.
+- **CF3 (~90%)** Filter bar lives above tabs; some filters apply differently per tab (Forecast ignores month range entirely). Per-tab filter affordances would let each surface ask for only what it needs.
+- **CF4 (~90%)** No multi-select / bulk actions anywhere.
+- **CF5 (~95%)** Status is the spine of the redesign and currently doesn't exist outside the accrual reconcile checkbox.
+
+---
+
+## Stage 0 Decisions (locked)
+
+| ID | Decision | Notes |
+|----|----------|-------|
+| D1 | Long-term billing status lives on `billingSchedule` JSON, not `finance_billing_records` | `finance_billing_records` is SOW-only |
+| D2 | Long-term payable status lives on `deliverySchedule` JSON | Symmetric to D1 |
+| D3 | All tabs require explicit Load (no auto-fetch on filter change) | Aligns Overview/Accrual to Client Billing's current pattern |
+| D4 | Export paths unify: one Xero export function for receivables | Resolves the "Export to Excel" vs "Download Finance Report" split |
+| D5 | Saved views remain browser-local (`localStorage`) | No Xano persistence in Domain 5 |
+| D6 | `super_admin` / billing month locks are out of scope for Domain 5 | Deferred to a future domain |
+| D7 | `/finance` is admin-only; add explicit `AdminGuard` to the route | Today it's admin-by-convention via sidebar gating |
+| D8 | "Billed" means client invoice raised in Xero **and** sent to the client | Not "raised only," not "paid" |
+| D9 | `FinanceReceivablesPanel` is dead code, to be deleted in a later stage | Confirmed not a planned switch-back |
+| D10 | Forecast tab requires total redesign, parked for the end of Domain 5 | Last stage in the domain |
+
+### Open within Stage 1
+
+- **O1** Cards vs grid for the redesigned Client Billing surface — to be decided visually during IA proposal
+- **O2** Where publisher corrections happen if the payables grid is retired — to be decided alongside Stage 1 IA
+- **O3** Full Xano column schemas for `finance_billing_records`, `finance_billing_line_items`, `finance_edits` — Stage 1 will require these pulled from the Xano UI
+- **O4** Full JSON shape of `billingSchedule` and `deliverySchedule` per-month rows — Stage 1 will need these to design the status field addition
+
+---
+
+## Stage 1 priority
+
+User-signed-off priority of jobs to address first in implementation stages, after Stage 1 IA proposal:
+
+1. **J2** — billed status (single biggest gap)
+2. **J5** — spot-check client billing (most repeated/painful daily friction)
+3. **J1** — Xero export (the monthly deliverable everything else feeds)
+
+Remaining jobs sequenced based on Stage 1 IA outcomes.
+
+---
+
+*Stage 0 closed 2026-05-27. Next: Stage 1 — Information Architecture proposal (document-only, no code).*
