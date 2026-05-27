@@ -3137,7 +3137,7 @@ Search/progDisplay bursts may still drive correct **month-level** `mediaCosts.se
 
 ## Stage 2 Pause: Fee Math Inconsistency Discovery
 
-**Branch:** `domain-4-long-lived` (HEAD `b5bd06df` at discovery start). **Pause commit:** gates `BillingDivergenceModal` / `BillingDivergenceBanner` via `FF_BILLING_DIVERGENCE_ENABLED = false` in `app/mediaplans/mba/[mba_number]/edit/page.tsx`. **Smoke anchor:** `glenda007`, `media_plan_versions` id **725**, version **9**.
+**Branch:** `domain-4-long-lived` (HEAD `b5bd06df` at discovery start). **Pause commit:** gates `BillingDivergenceModal` / `BillingDivergenceBanner` via `FF_BILLING_DIVERGENCE_ENABLED = false` in `app/mediaplans/mba/[mba_number]/edit/page.tsx`. **Smoke anchor:** `glenda007`, `media_plan_versions` id **725**, version **9**. [Closed C2: flag re-enabled to `true` on `localhost` after commit `6b7536b`. Final smoke on glenda007 v11. See Stage C2 close-out section below.]
 
 **Top-level finding (material for Phase 2):** Line-level fees are **not** persisted in saved `billingSchedule` JSON, and hydrate does **not** populate `feeMonthlyAmounts` / `totalFeeAmount` on line items. However, **burst-level** fees **are** stored in Xano `bursts_json` as `feeAmount` (and month-level `feeTotal` is stored on each month row). The page-local `generateBillingLineItems` fee loop **does not read** `burst.feeAmount`; it recomputes from `feePercentage` / inferred %. When `feePercentage` is absent on bursts and the line has `budget_includes_fees: true` but `total_media` is missing, inference yields **100%** and a bogus **$8,000** line fee — unless the live container path injects client `feeprogdisplay` onto flattened `BillingBurst` objects (then PD3 correctly yields **$1,600**). The **-$1,600** divergence banner is **`savedTotal - computedTotal`** with saved **$0** vs computed **$1,600** on `glenda007PD3`.
 
@@ -3688,7 +3688,7 @@ flowchart LR
 | Finance hub consumers | `parsePersistedBillingScheduleToMonths` — **month `feeTotal` only**; `AlterBillingDialog` — edits line **media** amounts, recalculates month totals from `feeTotal` + media; accrual/forecast read month fee fields — **not** line `totalFeeAmount` | confirmed by code reading |
 | `lib/billing/generateBillingLineItems.ts` and fees? | **No fee output.** Callers: create page, `prepareBillingMonthsForLineItemExport`, MBA `attachLineItemsToMonths` / modal paths — MBA **line fees** come from **page-local** homonym. Stage B can extend lib module **or** unify into page-local; leaving lib untouched preserves create behaviour but keeps split | confirmed by code reading |
 
-**Recommended Stage B focus (documentation only):** unify page-local fee loop with `burst.feeAmount` / container `feePercentage`; populate `totalFeeAmount` on hydrate or append when undefined; do not re-enable `FF_BILLING_DIVERGENCE_ENABLED` until parity proven.
+**Recommended Stage B focus (documentation only):** unify page-local fee loop with `burst.feeAmount` / container `feePercentage`; populate `totalFeeAmount` on hydrate or append when undefined; do not re-enable `FF_BILLING_DIVERGENCE_ENABLED` until parity proven. [Resolved C2: re-enabled after dropping the line-level fee_total check that was the source of false positives. See Stage C2 close-out section below.]
 
 ---
 
@@ -3782,7 +3782,7 @@ flowchart LR
 
 - Page-local `generateBillingLineItems` fee loop removed; **ad serving** loop retained. `inferredLineItemFeePct` remains **media-only** (`netMedia` in first burst loop).
 - Module `lib/billing/generateBillingLineItems.ts` untouched.
-- `FF_BILLING_DIVERGENCE_ENABLED` stays false.
+- `FF_BILLING_DIVERGENCE_ENABLED` stays false. [Updated C2: re-enabled to `true` after dropping the line-level fee_total check; see Stage C2 close-out.]
 
 ---
 
@@ -3900,4 +3900,53 @@ Per-month Reset still copies that month’s auto value. Does not re-balance mont
 ### Smoke (glenda007 v11)
 
 _Pending manual QA — scenarios A (silent pass), B (drift + override), C (drift + cancel) per B2 spec._
+
+---
+
+## Stage C2 — Close-out
+
+**Status:** Closed.
+**Branch of record:** `localhost` (Domain 4 work was bundled into the consolidate-stash commit `6b97053` rather than landing as discrete commits on `domain-4-long-lived`). The `domain-4-long-lived` branch is left as-is and is not the canonical Domain 4 ancestor.
+
+### Commits
+
+| Commit | Title | What it did |
+|---|---|---|
+| `6b7536b` | `fix(billing): drop line-level fee_total divergence check` | Removed the line-level `fee_total` comparison from `lib/billing/compareBillingDivergence.ts` and updated the corresponding unit tests. This was the source of false-positive divergence banners on healthy campaigns. |
+| `6b97053` (consolidate) | `chore(consolidate): integrate selective stash WIP into localhost` | Among other unrelated WIP, integrated `FF_BILLING_DIVERGENCE_ENABLED = true` (the flag flip) and a JSDoc update. The flag flip was the planned "commit 2" of Stage C2; it landed bundled rather than discrete. |
+
+### What C1.5 found (recap for the file)
+
+On a healthy campaign (`glenda007` v9), `compareBillingDivergence` was reporting line-level `fee_total` mismatches because line-level fees are not persisted in the saved `billingSchedule` JSON, so the comparator's reconstructed value diverged from the (always-zero) saved value. Month-level `feeTotal`, `line_total`, `adserving_total`, and missing-line checks all returned clean. The false-positive source was strictly the line-level `fee_total` field.
+
+### What C2 changed
+
+The line-level `fee_total` divergence check was removed from `compareBillingDivergence`. Month-level `feeTotal` and all other divergence checks remain active. The flag was then re-enabled.
+
+This is a **scope-narrowing**, not a fee-math fix. Fee math was confirmed authoritative earlier in the audit and is out of scope. Line-level fee persistence remains absent from saved JSON; the comparator now simply does not assert on it.
+
+### Final smoke
+
+| Surface | Target | Result |
+|---|---|---|
+| Hydrate, no banner | glenda007 v11 | Pass |
+| Hydrate, no auto-open modal | glenda007 v11 | Pass |
+| Manual Billing modal (B2) opens | glenda007 v11 | Pass |
+| B2 live indicator visible | glenda007 v11 | Pass |
+| B2 drift dialog on $10+ edit | glenda007 v11 | Pass |
+| B2 override accept + reset | glenda007 v11 | Pass |
+| B2 modal close, no console errors | glenda007 v11 | Pass |
+| Save button stays disabled on no-op edits | glenda007 v11 | Pass |
+| Pacing / Production / MBA Details sections load | glenda007 v11 | Pass |
+| 30s general-interaction console health | glenda007 v11 | Pass |
+
+### Out of scope, documented for future
+
+- Line-level fee fields are still not persisted in saved `billingSchedule` JSON. The comparator no longer flags this. If a future story needs to round-trip line-level fees, it would need to (a) extend the saved JSON shape, (b) extend the hydrate path, and (c) restore (a corrected version of) the line-level `fee_total` divergence check. Not actioned here.
+- `bursts_json` does store `feeAmount` at the burst level; the page-local `generateBillingLineItems` ignores this. Out of scope for C2.
+- The `domain-4-long-lived` branch was not used as the final ancestor. If a clean per-domain branch history matters for a future retro, the audit-trail of record is this `AUDIT-DOMAIN-4.md` file plus the two referenced commits on `localhost`.
+
+### Domain 4 — closed
+
+No further code changes in Domain 4. Next domain to be scoped separately.
 
