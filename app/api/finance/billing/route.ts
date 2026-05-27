@@ -9,6 +9,11 @@ import {
 import { derivePlanReceivableBillingRecordsForMonth, receivableMergeKey } from "@/lib/finance/deriveReceivableRecords"
 import { deriveRetainerBillingRecordsForMonth } from "@/lib/finance/deriveRetainerReceivables"
 import { deriveSowBillingRecordsFromScopes, type ScopeOfWorkRow } from "@/lib/finance/deriveScopeSowReceivables"
+import {
+  applyStatusOverlay,
+  fetchPersistedFinanceStatusForMonth,
+  indexPersistedStatusByInvoiceKey,
+} from "@/lib/finance/overlayFinanceStatus"
 import { fetchRelevantPlanVersionsForFinanceMonth } from "@/lib/finance/relevantPlanVersions"
 import { getCachedClients, getCachedPublishers } from "@/lib/finance/xanoReferenceCache"
 import type { BillingRecord } from "@/lib/types/financeBilling"
@@ -196,6 +201,11 @@ export async function GET(request: NextRequest) {
       if (!byReceivableKey.has(k)) byReceivableKey.set(k, rec)
     }
     let merged = [...byReceivableKey.values()].filter((r) => r.billing_month === monthStr)
+    // Domain 5 Stage 2.2a — overlay persisted status onto derived rows.
+    // Read-only: amounts and line structure remain authoritative from schedule JSON.
+    const persistedStatusRows = await fetchPersistedFinanceStatusForMonth(monthStr)
+    const statusOverlayMap = indexPersistedStatusByInvoiceKey(persistedStatusRows)
+    merged = merged.map((rec) => applyStatusOverlay(rec, statusOverlayMap))
 
     const clientsIdParam = incoming.get("clients_id")
     const searchParam = incoming.get("search")

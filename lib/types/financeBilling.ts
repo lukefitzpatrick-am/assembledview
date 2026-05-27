@@ -71,6 +71,16 @@ export interface BillingRecord {
   has_pending_edits: boolean
   source_billing_schedule_id: number | null
   finance_accrual?: FinanceAccrualBreakdown | null
+  // Domain 5 Stage 2.2a — status overlay from finance_billing_records
+  // Optional because rows may be derived-only (no persisted record yet, lazy materialisation).
+  persisted_record_id?: number | null
+  billed?: boolean
+  billed_at?: number | null
+  billed_by?: number | null
+  notes?: string | null
+  exported_at?: number | null
+  exported_by?: number | null
+  invoice_key?: string | null
 }
 
 export interface BillingEdit {
