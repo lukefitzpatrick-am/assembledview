@@ -34,18 +34,3 @@ export interface BillingOverride {
   manualMediaAmount: number | null;
   manualFeeAmount: number | null;
 }
-
-export type BillingScheduleType = {
-  month: string;
-  searchAmount: number;
-  socialAmount: number;
-  feeAmount: number;
-  totalAmount: number;
-}[];
-
-export interface BillingSchedule {
-  months: BillingMonth[];
-  overrides: BillingOverride[];
-  isManual: boolean;
-  campaignId: string;
-} 

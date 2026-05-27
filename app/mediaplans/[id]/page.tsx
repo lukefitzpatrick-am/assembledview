@@ -23,6 +23,7 @@ interface MediaPlan {
   mp_campaignbudget: number
   mbaidentifier: string
   mbanumber: string
+  mba_number?: string
   /**
    * mp_fixedfee — Client billed on fixed-fee structure. Independent of production line items.
    */
@@ -341,7 +342,19 @@ export default function MediaPlanPage({ params }: { params: Promise<{ id: string
               <FileText className="mr-2 h-4 w-4" />
               Generate MBA
             </Button>
-            <Button onClick={() => router.push(`/mediaplans/${id}/edit`)}>
+            <Button
+              onClick={() => {
+                if (!mediaPlan) return
+                const mbaNumber = (mediaPlan.mba_number ?? mediaPlan.mbanumber ?? "").trim()
+                if (!mbaNumber) return
+                const versionQuery =
+                  mediaPlan.version_number != null
+                    ? `?version=${mediaPlan.version_number}`
+                    : ""
+                router.push(`/mediaplans/mba/${encodeURIComponent(mbaNumber)}/edit${versionQuery}`)
+              }}
+              disabled={!mediaPlan || !(mediaPlan.mba_number ?? mediaPlan.mbanumber)?.trim()}
+            >
               Edit Media Plan
             </Button>
           </div>

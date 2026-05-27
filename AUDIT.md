@@ -946,4 +946,431 @@ Stage 1 should fix **`GET /api/finance/payables`** (`app/api/finance/payables/ro
 
 ---
 
-_End of AUDIT.md. Discovery complete._
+## Domain 4 — Stage 1 Discovery
+
+**Scope:** Line item flight date-range warnings on `mediaplans/create` and `mediaplans/mba/[mba_number]/edit`. Discovery only — no code changes, no fix proposals.
+
+**Note on terminology:** Internal docs (e.g. `BURSTS_AUDIT.md`) refer to standard media containers (Television, Search, etc.) as **“consulting-style”** containers. There is **no** separate `ConsultingContainer` in the codebase. **Production / consulting** in save-path comments refers to the **Production** section (`ProductionContainer`), which holds production-type line items (including rows whose `mediaType` / production-type label may represent consulting work). Domain 3b’s `productionLineItems` state on the MBA edit page is the API-hydration source for that container.
+
+---
+
+### A. Campaign dates — source of truth on each page
+
+#### 1. `mediaplans/create`
+
+| Item | Detail |
+|------|--------|
+| **File** | `app/mediaplans/create/page.tsx` |
+| **Schema** | `mediaPlanSchema` — `mp_campaigndates_start` and `mp_campaigndates_end` as `z.date()` (`128:133`) |
+| **Form state** | React Hook Form via `useForm<MediaPlanFormValues>` (`685:723`) |
+| **Default values** | `mp_campaigndates_start: new Date()`, `mp_campaigndates_end: new Date()` (`691:692`) |
+| **Reactive reads** | `useWatch` → `campaignStart`, `campaignEnd` (`756:758`) |
+| **UI binding** | `FormField` + `SingleDatePicker` for each date (`5739:5788`) |
+| **Shape** | Two separate form fields (not a single range object). Types: `Date` (inferred from schema). |
+
+#### 2. `mediaplans/mba/[mba_number]/edit`
+
+| Item | Detail |
+|------|--------|
+| **File** | `app/mediaplans/mba/[mba_number]/edit/page.tsx` |
+| **Schema** | `mediaPlanSchema` — same field names `mp_campaigndates_start` / `mp_campaigndates_end` (`1116:1121`) |
+| **Form state** | `useForm<MediaPlanFormValues>` (`1967:1988`) |
+| **Defaults** | `new Date()` for both (`1973:1974`) until load completes |
+| **Loaded on mount** | Yes. MBA/version fetch maps API → `form.reset(formData)` with `mp_campaigndates_start: parseDate(data.campaign_start_date)` and `mp_campaigndates_end: parseDate(data.campaign_end_date)` (`2847:2848`, `2886`). Load occurs in the page’s data-load `useEffect` (context around `2685:2890`). |
+| **Reactive reads** | `useWatch` → `campaignStartDate`, `campaignEndDate` (`2214:2215`) |
+| **UI** | **Editable** — `FormField` + `SingleDatePicker` (`8153:8202`), same pattern as create |
+| **Shape** | Two separate `Date` fields in RHF |
+
+#### 3. Symmetry / divergence (campaign dates)
+
+| Aspect | Create | MBA edit |
+|--------|--------|----------|
+| Field names for dates | `mp_campaigndates_start`, `mp_campaigndates_end` | Same |
+| Types | `Date` (Zod) | Same |
+| Storage | RHF only (no parallel `useState` for campaign dates) | Same |
+| `useWatch` aliases | `campaignStart`, `campaignEnd` | `campaignStartDate`, `campaignEndDate` |
+| Other form naming | e.g. `mp_client_name`, `mba_number` | e.g. `mp_clientname`, `mbanumber` (differs) |
+| Initial source | Defaults only | API `campaign_start_date` / `campaign_end_date` on load |
+
+Campaign **date** shape and naming are aligned; surrounding campaign metadata field names diverge.
+
+---
+
+### B. Line item dates — source of truth on each page
+
+#### 4. Create page — path by container type
+
+**Pattern (all 18 media types):** Each enabled media section uses a lazy-loaded `*Container` under `app/mediaplans/create/page.tsx` (`6634:6757`). Inside the container, line item dates live in **container-local RHF state** (e.g. `televisionlineItems[].bursts[].startDate` / `endDate` as `Date` in `TelevisionContainer`). On every `watchedLineItems` change, a `useEffect` serializes to the page via `onMediaLineItemsChange` → `*MediaLineItems` arrays (e.g. `bursts_json` string on API-shaped objects in `TelevisionContainer.tsx` ~`1271`).
+
+**Page-level state (authoritative for save, billing, and existing date warning):**
+
+| Container group | Page state variables | Setter / handler (examples) |
+|-----------------|----------------------|-----------------------------|
+| Television … Influencers (18 types) | `{type}MediaLineItems` e.g. `televisionMediaLineItems` (`583` area, one per type) | e.g. `handleTelevisionMediaLineItemsChange` → `setTelevisionMediaLineItems` (`2081`) |
+| Production | `productionMediaLineItems`, also `productionItems` (export), `productionBursts` (billing) | `handleProductionMediaLineItemsChange` (`2104:2107`), `handleProductionItemsChange` (`2109:2112`) |
+
+**Production / consulting (create):**
+
+- UI: `ProductionContainer` when `mp_production` is enabled (`6777:6792`).
+- In-container path: `lineItems[].bursts[].startDate` / `endDate` (`ProductionContainer.tsx` `55:68`, `847:891`).
+- Lifted to page: `productionMediaLineItems` via `onMediaLineItemsChange` → objects with a `bursts` array (`425:456` in `ProductionContainer.tsx`), not `bursts_json` in the live callback shape.
+- `productionLineItems` as a separate page state name **does not exist** on create (only on MBA edit for API hydration).
+
+**“Consulting” line items (product sense):** Implemented as the 18 standard media containers above, not a separate state tree.
+
+#### 5. MBA edit page — path by container type
+
+**Dual state per media type on edit (important):**
+
+| Role | State | Example lines |
+|------|--------|----------------|
+| API hydration / `initialLineItems` | `{type}LineItems` | `televisionLineItems` (`1763`), `productionLineItems` (`1824`) |
+| Live edited / save & billing | `{type}MediaLineItems` | `televisionMediaLineItems` (`1813`), `productionMediaLineItems` (`1825`) |
+
+Load: `lineItemLoaderConfig` fetches per type and calls `setTelevisionLineItems`, `setProductionLineItems`, etc. (`3036:3058`, `3069:3091`). Containers receive `initialLineItems={televisionLineItems}` (`8604`) or `initialLineItems={productionLineItems}` (`8793`) and push updates via `onMediaLineItemsChange` → `*MediaLineItems` handlers (`6480:6550`).
+
+**Production (post–Domain 3b):**
+
+- `productionLineItems` — loaded from `getProductionLineItemsByMBA` (`3050`).
+- `productionMediaLineItems` — runtime mirror used for billing/save/KPIs (`1825`, `6546:6549`, `8787`).
+- Dates still originate in `ProductionContainer` burst fields; persisted shape uses `bursts` on lifted objects and `bursts_json` when saved to API.
+
+#### 6. Derived / defaulted dates (not direct user entry)
+
+| Mechanism | Where | Behaviour |
+|-----------|--------|-----------|
+| Default burst window | `lib/date-picker-anchor.ts` `defaultMediaBurstStartDate` / `defaultMediaBurstEndDate` (`15:33`) | New bursts default to campaign start/end when campaign window is valid |
+| Production default burst | `ProductionContainer` `makeDefaultBurst` (`258:266`, `305`) | Uses campaign dates; if no window, `getPeriodEnd` for end |
+| TV / Radio expert modes | `TelevisionContainer` expert grid (`357:366`, mappings in `lib/mediaplan/expertChannelMappings.ts`) | Weekly/expert UI maps to standard line items with `startDate`/`endDate` on bursts — dates are **derived** when switching modes, then stored on bursts |
+| Hydration from API | All containers’ `initialLineItems` effects | Parse `bursts_json` or `bursts` into `Date` fields (e.g. `TelevisionContainer.tsx` `695:742`, `ProductionContainer.tsx` `362:404`) |
+| Calendar UX | Most containers | `calendarContext="media-burst"` on `SingleDatePicker` affects **initial calendar month**, not hard disable of out-of-range days (`components/ui/single-date-picker.tsx` `56:66`) |
+| TV burst picker (example) | `TelevisionContainer.tsx` `1984:1990` | Raw `Calendar` — only disables `date > 2100`; **does not** clamp to campaign window |
+
+Users can enter or retain flight dates outside the campaign window; defaults merely suggest in-range values.
+
+---
+
+### C. Existing date validation or warning logic
+
+#### 7. Line item vs campaign — today
+
+| Page | Exists? | Details |
+|------|---------|---------|
+| **`mediaplans/create`** | **Yes (partial)** | `hasDateWarning` state (`673`). `useEffect` calls `checkMediaDatesOutsideCampaign` (`1467:1517`). UI: sticky footer text (`7201:7205`) — “Media placement outside campaign dates”, `text-destructive`, pulsing dot. **Reactive** (deps: `campaignStart`, `campaignEnd`, all `*MediaLineItems` except production). **Not** save-gated. |
+| **`mediaplans/mba/[mba_number]/edit`** | **No** | No import or use of `checkMediaDatesOutsideCampaign` or `hasDateWarning` in this file (grep). Sticky bar shows **billing mismatch** only (`9952:9958`). |
+| **`mediaplans/[id]/edit`** (legacy) | Yes | Same utility + sticky pattern as create (`89`, `392`, `791:818`, `3906:3910`) — **out of scoped routes** but shows prior art |
+
+**Gaps in existing create warning:**
+
+- **`productionMediaLineItems` not included** in the `useEffect` dependency object (`1467:1517`).
+- Utility `checkMediaDatesOutsideCampaign` only accepts the 18 media `*MediaLineItems` keys — **no production** parameter (`lib/utils/mediaPlanValidation.ts` `11:31`).
+- Checks each burst’s **start** and **end** independently against campaign bounds (`62:107`) — matches the locked Domain 4 rule (boundary violation if start &lt; campaign start OR end &gt; campaign end).
+- Does **not** block save; warning only.
+
+#### 8. `lib/billing/computeSchedule.ts`
+
+- **No** “out of range” validation or warning.
+- Uses `campaignStart` / `campaignEnd` to build month buckets (`61:95`), then distributes each burst across months (`97:120`). Bursts extending outside the campaign window still contribute dollars to months **inside** the loop that only iterates campaign months — behaviour is financial distribution, not user warnings. No surfaced UI from this file.
+
+#### 9. Related `lib/` utilities
+
+| File | Purpose |
+|------|---------|
+| `lib/utils/mediaPlanValidation.ts` | `checkMediaDatesOutsideCampaign` — only consumer-facing range check found for media plan editors |
+| `lib/date-picker-anchor.ts` | Campaign-window helpers for default burst dates and calendar month anchor |
+| `lib/dashboard/dateFilter.ts` | `clipDateRangeToCampaign`, `filterDailySeriesByRange` — dashboard filtering, not plan editor validation |
+| `lib/pacing/calcExpected.ts` | `expandDateRange` — pacing expected delivery |
+| `lib/finance/utils.ts` | Burst/month **overlap** for billing amounts — not campaign-boundary warnings |
+| `lib/kpi/deliveryTargetCurve.ts` | “outside campaign window” → `"no-data"` for on-track KPI (`217:218`) — pacing/KPI only |
+
+No shared `isLineItemOutsideCampaign` helper used by both create and MBA edit today.
+
+---
+
+### D. Page composition — where could a warning be surfaced?
+
+#### 10. Create page layout (`app/mediaplans/create/page.tsx`)
+
+| Region | Lines (approx.) | Description |
+|--------|-----------------|-------------|
+| **Hero** | `5556:5573` | `MediaPlanEditorHero` — title “Create a Campaign”, Copy Context |
+| **Campaign details card** | `5577:5876` | Client, campaign name, status, PO, **campaign dates**, budget, MBA fields |
+| **Media types card** | `5878:5916` | Toggles for enabled containers |
+| **MBA details / billing / KPI row** | `5919:6132` | MBA identifiers, billing schedule table, `KPISection` |
+| **Media containers** | `6634:7120` | One scroll section per enabled type (`id=media-section-{name}`) |
+| **Floating nav** | `7412` | `FloatingSectionNav` → `enabledSections` |
+| **Sticky footer** | `7195:7238` | `hasDateWarning` text + `CampaignExportsSection` + Save / Generate MBA |
+| **Modals** | Various | Unsaved changes, save progress, partial MBA, manual billing |
+
+#### 11. MBA edit page layout (`app/mediaplans/mba/[mba_number]/edit/page.tsx`)
+
+| Region | Lines (approx.) | Description |
+|--------|-----------------|-------------|
+| **Hero** | `7986:8003` | `MediaPlanEditorHero` — “Edit Campaign” |
+| **Version rollback dialog** | `8006:8025` | Load prior version |
+| **Campaign details** | `8029:8203+` | Same grid as create + **version selector** in header (`8031:8050`) |
+| **Media types / MBA / billing / KPI** | Same structural grid as create (~`8205:8537`) |
+| **Media containers** | `8540:8930+` | Per-type sections with load/retry UI (`8563:8579`) |
+| **Sticky footer** | `9946:10024` | Billing mismatch banner + exports + Save (no date warning today) |
+| **Floating nav** | `10110` | `FloatingSectionNav` with `storageKey="mediaplan-edit-section-nav-collapsed"` |
+
+#### 12. Page-level warning banners (existing patterns)
+
+| Pattern | Location | Use |
+|---------|----------|-----|
+| Sticky footer destructive text | `app/mediaplans/create/page.tsx` `7201:7205` | Date warning (create) |
+| Sticky footer amber text | `app/mediaplans/mba/[mba_number]/edit/page.tsx` `9952:9958` | Billing schedule mismatch |
+| Yellow `role="alert"` box | `app/mediaplans/create/page.tsx` `6474:6481` | Partial MBA budget mismatch (inside modal content) |
+| shadcn `Alert` | e.g. `components/finance/tabs/ForecastTab.tsx` `460:466`, `661:666` | Finance hub — not used on media plan editors |
+
+No top-of-page `Alert` on create/edit MBA routes today for line-item dates.
+
+#### 13. Inline per-row warnings
+
+- Media containers use RHF **`FormMessage`** for Zod field errors (required fields, min bursts, etc.) — not campaign-range warnings.
+- **No** codebase matches for inline “outside campaign” copy on line item rows (grep across `components/media-containers`).
+- Row-level badges are media-type accent styling (`mediaTypeLineItemBadgeStyle`), not validation.
+
+#### 14. Toast / snackbar for validation
+
+- `toast` from `@/components/ui/use-toast` is used on MBA edit for **save/download outcomes** (e.g. `3527`, `5832`, `6185`) — not for date-range validation.
+- Create uses `toast` similarly for operational feedback (`43`).
+- Container-level `toast({ variant: "destructive" })` for actions like duplicate failures — not date validation.
+
+---
+
+### E. Reactivity plumbing
+
+#### 15. Line item date changes → page state
+
+1. User edits burst `startDate` / `endDate` in container RHF form.
+2. `useWatch` on line items triggers container `useEffect`.
+3. Container calls `onMediaLineItemsChange(transformed)` (and usually `onBurstsChange` for billing).
+4. Page handler updates `*MediaLineItems` `useState` (and optionally `*Bursts`).
+
+**Not** blur-gated; updates on each watched change. **Not** stored in the top-level `form`’s `lineItems` schema on create (that schema exists at `172:185` but page-level line items use parallel state).
+
+#### 16. Campaign date changes
+
+- Bound to RHF `FormField` + `SingleDatePicker` `onChange` → immediate form update.
+- `useWatch` on create (`756:758`) / edit (`2214:2215`) propagates to containers via props `campaignStartDate` / `campaignEndDate` (e.g. create `6769:6770`, edit `8599:8600`).
+- Edit page also triggers billing recalculation `useEffect`s when campaign dates change (e.g. `4273:4298`, `7292:7400`).
+
+Same RHF mechanism for campaign dates; line items use separate container forms + lift via callbacks.
+
+#### 17. Natural integration points for reactive “any line item out of range”
+
+| Page | Integration point |
+|------|-------------------|
+| **Create** | Extend or replace the existing `useEffect` at `1467:1517` — already watches `campaignStart`/`campaignEnd` and 18 `*MediaLineItems` arrays. Add `productionMediaLineItems`. Optionally centralize in `checkMediaDatesOutsideCampaign` or a sibling helper. |
+| **MBA edit** | **New** page-level `useEffect` (none exists) watching `campaignStartDate`, `campaignEndDate`, all `*MediaLineItems` (including `productionMediaLineItems`), same helper. Reuse sticky footer slot used for billing mismatch (`9951`) or hero/top banner. |
+| **Shared** | `lib/utils/mediaPlanValidation.ts` — single pure function for all container payloads (must handle both `bursts` and `bursts_json`). |
+
+Container-internal hooks would duplicate logic 19×; page-level aggregation matches the existing create pattern.
+
+---
+
+### F. Symmetry between pages
+
+#### 18. Structural differences affecting warnings
+
+| Topic | Create | MBA edit |
+|-------|--------|----------|
+| Persisted data | None until save | Loaded MBA + version; `initialLineItems` hydration |
+| Versioning | Fixed plan “1” | Version selector, rollback, `loadSingleMediaTypeLineItems` |
+| Line item state | `*MediaLineItems` only | `*LineItems` (API) + `*MediaLineItems` (live) |
+| Date warning | Present (media only) | Absent |
+| Other sticky warning | — | Billing mismatch |
+| Form field names | `mp_client_name`, `mba_number` | `mp_clientname`, `mbanumber` |
+| Container loading | Lazy + `lazyWithChunkRetry` | Lazy `import()`; per-section load status |
+| Unsaved / save | `handleSaveAll`, modals | Same family + line-item load modal |
+
+#### 19. Shared composition
+
+**Shared components (both pages):**
+
+- `components/mediaplans/MediaPlanEditorHero.tsx`
+- `components/mediaplans/FloatingSectionNav.tsx`
+- `components/dashboard/CampaignExportsSection.tsx`
+- `components/kpis/KPISection.tsx`
+- All `components/media-containers/*` (lazy)
+- `lib/utils/mediaPlanValidation.ts` (create + legacy edit only today)
+
+**Not shared:** Each route is a large standalone `page.tsx` (~7k–10k lines). There is **no** shared layout wrapper that currently hosts validation UI; warnings would be added per page or extracted to a new shared component in Stage 2.
+
+---
+
+### G. Risks and unknowns
+
+#### Surprises / fragility (with confidence)
+
+| Finding | Confidence |
+|---------|------------|
+| MBA edit route has **no** date warning while create does | **High** |
+| Create warning **omits production** line items | **High** |
+| `checkMediaDatesOutsideCampaign` compares **point** dates (start/end), not interval overlap semantics beyond the locked rule | **High** — matches spec |
+| Campaign end normalized to `23:59:59.999` in helper (`41:42`) while burst dates use midnight (`66:67`) — edge-case timezone/day boundary risk | **Medium** |
+| TV uses raw `Calendar` without campaign clamp; Production uses `SingleDatePicker` without `isDateDisabled` for campaign | **High** |
+| Expert TV/Radio modes derive bursts from weekly grids — warning logic must use **serialized** `*MediaLineItems`, not expert-only state | **Medium–High** |
+| MBA edit: warning logic must use `*MediaLineItems`, not stale `*LineItems` before container mounts | **High** |
+| `productionLineItems` vs `productionMediaLineItems` split on edit — easy to wire the wrong array | **High** |
+
+#### Ambiguity: “consulting line items”
+
+- **Code interpretation A:** All 18 media containers (“consulting-style” in `BURSTS_AUDIT.md`). **High confidence** this is the main bucket.
+- **Interpretation B:** Rows inside `ProductionContainer` whose production-type label is consulting-like. **Low confidence** without product glossary — `mediaTypes` passed to production on create is **all** channel labels (`6791`), not a consulting-only list.
+
+#### Needs Luke input before Stage 2 design
+
+1. Confirm **consulting** = standard media containers only, or also production-type rows (or both).
+2. Confirm MBA edit should **match create** warning placement (sticky footer) vs top-of-form `Alert` vs per-row.
+3. Whether **legacy** `mediaplans/[id]/edit` should stay in parity (out of scope list but has existing warning).
+4. Whether violating dates should **block save** or remain warn-only (create is warn-only today).
+5. Copy: create says “Media placement…” — include production/consulting in wording?
+
+#### Out of scope but worth flagging
+
+- Legacy `app/mediaplans/[id]/edit/page.tsx` still in repo with date warning; may confuse if URLs still linked.
+- `app/mediaplans/[id]/edit/page.tsx` vs `mba/[mba_number]/edit` duplication (~10k lines each).
+- Existing create warning does not cover production despite Domain 3b consolidation emphasis on `productionLineItems`.
+- Partial MBA modal budget warning (`6474:6481`) is a precedent for in-form yellow alert pattern.
+
+---
+
+## Domain 4 — Stage 2.5 Legacy Deletion
+
+**Date:** 2026-05-27  
+**Canonical edit route:** `app/mediaplans/mba/[mba_number]/edit/page.tsx`
+
+### Pre-flight grep results
+
+| Pattern | Production hits | Notes |
+|---------|-----------------|-------|
+| `mediaplans/[id]/edit` | Docs/audit only (no runtime imports of legacy page) | Legacy page was not imported elsewhere |
+| `/mediaplans/${id}/edit` | `app/mediaplans/[id]/page.tsx:344` | **Only production caller** — "Edit Media Plan" on ID detail view |
+| `/mediaplans/mba/.../edit` | `app/mediaplans/page.tsx`, `DashboardOverview.tsx`, `CampaignSection.tsx`, `CampaignDetailsModal.tsx`, `ClientDashboardPageContent.tsx`, `FinanceHubPageClient.tsx`, `PacingPageClient.tsx`, `LineItemPacingTable.tsx`, `AlterBillingDialog.tsx` | Already canonical |
+| `router.push` / `Link` to numeric-id edit | Same as above (`[id]/page.tsx` only) | Sidebar / CommandPalette link to `/mediaplans` and `/mediaplans/create` only |
+| Imports from `[id]/edit/page.tsx` | None | No cross-file imports |
+
+**Legacy route behaviour before deletion:** No redirect — full legacy client editor (~4k lines) rendered at `/mediaplans/{id}/edit`. No `loading.tsx` / `error.tsx` siblings in `app/mediaplans/[id]/edit/`.
+
+**Navigation audit:** `AppSidebar`, `CommandPalette`, dashboards, finance hub, pacing — all MBA edit URLs. No blockers outside `[id]/page.tsx`.
+
+### Files deleted
+
+| File | Reason |
+|------|--------|
+| `app/mediaplans/[id]/edit/page.tsx` (legacy editor, ~4034 lines) | Replaced with redirect stub (see below) |
+| `components/billing/BillingSchedule.tsx` | Exclusive to legacy editor |
+| `types/billing.ts` — `BillingScheduleType`, `BillingSchedule` interface | Exclusive to legacy editor |
+
+**Not deleted:** `app/mediaplans/[id]/page.tsx` (detail view remains; edit button updated).
+
+### References updated
+
+| File | Change |
+|------|--------|
+| `app/mediaplans/[id]/page.tsx` | Edit button → `/mediaplans/mba/{mba}/edit?version={n}`; disabled when no MBA |
+| `app/mediaplans/[id]/edit/page.tsx` | Replaced legacy editor with server redirect to MBA edit |
+
+### Redirect added
+
+**Yes** — `app/mediaplans/[id]/edit/page.tsx` (server component):
+
+- Fetches `media_plan_versions` by numeric `id` (same Xano query as `app/api/mediaplans/[id]/route.ts`).
+- `redirect()` to `/mediaplans/mba/{mba_number}/edit?version={version_number}` when MBA present; `notFound()` otherwise.
+
+Preserves old bookmarks without keeping the legacy editor.
+
+### Blockers
+
+None after pre-flight fix. The single production link on `[id]/page.tsx` was updated before removing the editor.
+
+### Smoke test
+
+| Check | Result |
+|-------|--------|
+| `npm run build` | **Pass** (2026-05-27) |
+| `/mediaplans/create` | Route unchanged |
+| `/mediaplans/mba/{mba}/edit` | Canonical page unchanged |
+| Nav / dashboard / finance links | Pre-flight: already MBA URLs |
+| Legacy `/mediaplans/{id}/edit` redirect | New server redirect page |
+
+---
+
+## Domain 4 — Stage 2 Implementation
+
+**Completed:** 2026-05-27  
+**Scope:** Shared date-range warning helper + sticky footer on `mediaplans/create` and `mediaplans/mba/[mba_number]/edit`. Warn-only; no save blocking.
+
+### Files changed
+
+| File | Line ranges (approx.) | Change |
+|------|----------------------|--------|
+| `lib/utils/mediaPlanValidation.ts` | `1:144` (full rewrite) | Renamed `checkMediaDatesOutsideCampaign` → `checkLineItemDatesOutsideCampaign`; new signature, `startOfDay` comparison, burst resolver, `offendingCount`, production bucket, exported types |
+| `app/mediaplans/create/page.tsx` | `101`, `673:676`, `1470:1522`, `7206:7213` | `dateWarning` state, helper call incl. `productionMediaLineItems`, sticky footer copy with count |
+| `app/mediaplans/mba/[mba_number]/edit/page.tsx` | `173`, `1836:1839`, `2305:2356`, `10010:10017` | Import, state, `useEffect` on `*MediaLineItems` + `productionMediaLineItems`, sticky footer warning stacked above billing mismatch |
+
+### Caller migration
+
+| File | Status |
+|------|--------|
+| `app/mediaplans/create/page.tsx` | Migrated to `checkLineItemDatesOutsideCampaign` |
+| `app/mediaplans/mba/[mba_number]/edit/page.tsx` | New consumer (Stage 2) |
+| `app/mediaplans/[id]/edit/page.tsx` | **No migration needed** — file is a server redirect stub to MBA edit (`1:54`), not an editor. Stage 1 discovery referenced a prior monolithic editor that is no longer in the tree. |
+
+**Grep result:** Zero remaining references to `checkMediaDatesOutsideCampaign` in source (only historical mentions in this AUDIT discovery section above).
+
+### Deviations / surprises
+
+1. **Legacy `[id]/edit` already removed** — Design Step 2 assumed a compile-only rename on `app/mediaplans/[id]/edit/page.tsx`. That route is now `LegacyMediaPlanEditRedirect` only; no helper import to update.
+2. **`npm run build` fails on pre-existing error** — `app/mediaplans/[id]/page.tsx:347` (`mediaPlan` possibly null). Unrelated to Stage 2. Changed files have no IDE/linter diagnostics.
+3. **Burst check requires both valid dates** — Per locked spec, a burst with only one valid date is skipped entirely (not partially evaluated). Differs slightly from the old helper which could still flag the valid side.
+4. **Removed `23:59:59.999` campaign-end fudge** — Intentional; date-only `startOfDay` on all four values. Burst end equal to campaign end is in-range.
+
+### Smoke test readiness (15 steps)
+
+All paths are wired via `checkLineItemDatesOutsideCampaign` + reactive `useEffect` on campaign dates and lifted `*MediaLineItems` / `productionMediaLineItems`. Luke can run on localhost:
+
+**Create (`/mediaplans/create`)**
+
+| # | Step | Wired? |
+|---|------|--------|
+| 1 | Baseline in-range TV burst | Yes — `dateWarning.hasViolation` false |
+| 2 | Burst start one day before campaign | Yes — count 1, footer copy |
+| 3 | Burst end one day after campaign | Yes |
+| 4 | Second out-of-range line item (other type) | Yes — count 2 |
+| 5 | Production burst outside window | Yes — `productionLineItems: productionMediaLineItems` |
+| 6 | Widen campaign end to clear warning | Yes — deps include `campaignEnd` |
+| 7 | Burst end equals campaign end (no warning) | Yes — `burstEnd > campaignEnd` is strict |
+
+**MBA edit (`/mediaplans/mba/[mba]/edit`)**
+
+| # | Step | Wired? |
+|---|------|--------|
+| 8 | Saved MBA, all in-range after hydration | Yes — empty arrays until lift → no false positive |
+| 9 | Saved MBA with out-of-range burst after hydration | Yes |
+| 10 | Narrow campaign end in real time | Yes — `campaignStartDate` / `campaignEndDate` in deps |
+| 11 | Production burst violation counted | Yes — `productionMediaLineItems` only (not `productionLineItems` API array) |
+| 12 | Date + billing mismatch both in sticky footer | Yes — stacked `dateWarning` then `hasBillingMismatch` |
+
+**Helper edge cases**
+
+| # | Step | Wired? |
+|---|------|--------|
+| 13 | Null campaign start → no warning | Yes — early return |
+| 14 | Empty bursts → no crash | Yes — skip line item |
+| 15 | Null burst startDate → skip burst | Yes |
+
+No unit test file existed for `mediaPlanValidation.ts`; none added per spec.
+
+### Follow-up (out of scope, not fixed)
+
+- `app/mediaplans/[id]/page.tsx` TypeScript build error (`mediaPlan` possibly null).
+- Legacy route cleanup (Stage 2.5) largely done for edit; confirm no stale links to old editor UX.
+- Expert TV/Radio modes: warning uses lifted `*MediaLineItems` only — if expert grid desyncs from lifted state, warning could lag (Stage 1 medium risk; unchanged).
+- `socialMediaLineItems` vs `socialMediaMediaLineItems` on create — warning uses `socialMediaMediaLineItems` (lifted container state), consistent with pre-Stage-2 create behaviour.
+
+---
+
+_End of AUDIT.md._
