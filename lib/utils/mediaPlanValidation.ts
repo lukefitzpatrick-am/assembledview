@@ -1,225 +1,144 @@
-/**
- * Utility function to check if any media placement dates fall outside campaign dates
- * @param campaignStartDate - Campaign start date
- * @param campaignEndDate - Campaign end date
- * @param allMediaLineItems - Object containing all media line item arrays
- * @returns true if any dates are outside campaign range, false otherwise
- */
-export function checkMediaDatesOutsideCampaign(
-  campaignStartDate: Date | null | undefined,
-  campaignEndDate: Date | null | undefined,
-  allMediaLineItems: {
-    televisionMediaLineItems?: any[];
-    radioMediaLineItems?: any[];
-    newspaperMediaLineItems?: any[];
-    magazineMediaLineItems?: any[];
-    oohMediaLineItems?: any[];
-    cinemaMediaLineItems?: any[];
-    digiDisplayMediaLineItems?: any[];
-    digiAudioMediaLineItems?: any[];
-    digiVideoMediaLineItems?: any[];
-    bvodMediaLineItems?: any[];
-    integrationMediaLineItems?: any[];
-    searchMediaLineItems?: any[];
-    socialMediaMediaLineItems?: any[];
-    progDisplayMediaLineItems?: any[];
-    progVideoMediaLineItems?: any[];
-    progBvodMediaLineItems?: any[];
-    progAudioMediaLineItems?: any[];
-    progOohMediaLineItems?: any[];
-    influencersMediaLineItems?: any[];
-  }
-): boolean {
-  // If campaign dates are not set, return false (no warning)
-  if (!campaignStartDate || !campaignEndDate) {
-    return false;
-  }
+import { isValid, startOfDay } from "date-fns"
 
-  // Normalize campaign dates to date-only (ignore time)
-  const campaignStart = new Date(campaignStartDate);
-  campaignStart.setHours(0, 0, 0, 0);
-  const campaignEnd = new Date(campaignEndDate);
-  campaignEnd.setHours(23, 59, 59, 999);
+/** Keys for the 18 standard media container lifted-state arrays. */
+export type MediaLineItemKey =
+  | "televisionMediaLineItems"
+  | "radioMediaLineItems"
+  | "newspaperMediaLineItems"
+  | "magazineMediaLineItems"
+  | "oohMediaLineItems"
+  | "cinemaMediaLineItems"
+  | "digiDisplayMediaLineItems"
+  | "digiAudioMediaLineItems"
+  | "digiVideoMediaLineItems"
+  | "bvodMediaLineItems"
+  | "integrationMediaLineItems"
+  | "searchMediaLineItems"
+  | "socialMediaMediaLineItems"
+  | "progDisplayMediaLineItems"
+  | "progVideoMediaLineItems"
+  | "progBvodMediaLineItems"
+  | "progAudioMediaLineItems"
+  | "progOohMediaLineItems"
+  | "influencersMediaLineItems"
 
-  // Helper function to parse a date from various formats
-  const parseDate = (dateValue: any): Date | null => {
-    if (!dateValue) return null;
-    
-    if (dateValue instanceof Date) {
-      return dateValue;
-    }
-    
-    if (typeof dateValue === 'string') {
-      const parsed = new Date(dateValue);
-      if (!isNaN(parsed.getTime())) {
-        return parsed;
-      }
-    }
-    
-    return null;
-  };
-
-  // Helper function to check if a date is outside campaign range
-  const isDateOutsideRange = (date: Date | null): boolean => {
-    if (!date) return false;
-    const normalizedDate = new Date(date);
-    normalizedDate.setHours(0, 0, 0, 0);
-    return normalizedDate < campaignStart || normalizedDate > campaignEnd;
-  };
-
-  // Helper function to extract and check bursts from a line item
-  const checkLineItemBursts = (lineItem: any): boolean => {
-    if (!lineItem) return false;
-
-    let bursts: any[] = [];
-
-    // Try to get bursts from bursts_json (string or array)
-    if (lineItem.bursts_json) {
-      if (typeof lineItem.bursts_json === 'string') {
-        try {
-          const parsed = JSON.parse(lineItem.bursts_json);
-          bursts = Array.isArray(parsed) ? parsed : [parsed];
-        } catch (e) {
-          // If parsing fails, try to use it as-is
-          if (Array.isArray(lineItem.bursts_json)) {
-            bursts = lineItem.bursts_json;
-          }
-        }
-      } else if (Array.isArray(lineItem.bursts_json)) {
-        bursts = lineItem.bursts_json;
-      }
-    }
-
-    // Also check for bursts field (some containers use this)
-    if (lineItem.bursts && Array.isArray(lineItem.bursts)) {
-      bursts = lineItem.bursts;
-    }
-
-    // Check each burst's start and end dates
-    for (const burst of bursts) {
-      if (!burst) continue;
-
-      const startDate = parseDate(burst.startDate);
-      const endDate = parseDate(burst.endDate);
-
-      if (isDateOutsideRange(startDate) || isDateOutsideRange(endDate)) {
-        return true;
-      }
-    }
-
-    return false;
-  };
-
-  // Check all media line item arrays
-  const mediaArrays = [
-    allMediaLineItems.televisionMediaLineItems,
-    allMediaLineItems.radioMediaLineItems,
-    allMediaLineItems.newspaperMediaLineItems,
-    allMediaLineItems.magazineMediaLineItems,
-    allMediaLineItems.oohMediaLineItems,
-    allMediaLineItems.cinemaMediaLineItems,
-    allMediaLineItems.digiDisplayMediaLineItems,
-    allMediaLineItems.digiAudioMediaLineItems,
-    allMediaLineItems.digiVideoMediaLineItems,
-    allMediaLineItems.bvodMediaLineItems,
-    allMediaLineItems.integrationMediaLineItems,
-    allMediaLineItems.searchMediaLineItems,
-    allMediaLineItems.socialMediaMediaLineItems,
-    allMediaLineItems.progDisplayMediaLineItems,
-    allMediaLineItems.progVideoMediaLineItems,
-    allMediaLineItems.progBvodMediaLineItems,
-    allMediaLineItems.progAudioMediaLineItems,
-    allMediaLineItems.progOohMediaLineItems,
-    allMediaLineItems.influencersMediaLineItems,
-  ];
-
-  // Check each media type's line items
-  for (const mediaArray of mediaArrays) {
-    if (!Array.isArray(mediaArray)) continue;
-
-    for (const lineItem of mediaArray) {
-      if (checkLineItemBursts(lineItem)) {
-        return true;
-      }
-    }
-  }
-
-  return false;
+export type MediaLineItemLike = {
+  bursts?: Array<{ startDate?: unknown; endDate?: unknown }>
+  bursts_json?: string | Array<{ startDate?: unknown; endDate?: unknown }>
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+export type ProductionLineItemLike = MediaLineItemLike
+
+type BurstLike = { startDate?: unknown; endDate?: unknown }
+
+function parseToDate(value: unknown): Date | null {
+  if (value == null) return null
+  const parsed = value instanceof Date ? value : new Date(value as string | number)
+  if (!isValid(parsed)) return null
+  return parsed
+}
+
+function normalizeCampaignDate(value: Date | null | undefined): Date | null {
+  const parsed = parseToDate(value)
+  if (!parsed) return null
+  return startOfDay(parsed)
+}
+
+function resolveBursts(lineItem: MediaLineItemLike): BurstLike[] {
+  if (Array.isArray(lineItem.bursts)) {
+    return lineItem.bursts
+  }
+
+  if (lineItem.bursts_json == null) {
+    return []
+  }
+
+  if (Array.isArray(lineItem.bursts_json)) {
+    return lineItem.bursts_json
+  }
+
+  if (typeof lineItem.bursts_json === "string") {
+    try {
+      const parsed = JSON.parse(lineItem.bursts_json)
+      return Array.isArray(parsed) ? parsed : parsed ? [parsed] : []
+    } catch {
+      return []
+    }
+  }
+
+  return []
+}
+
+function lineItemHasBurstViolation(
+  lineItem: MediaLineItemLike,
+  campaignStart: Date,
+  campaignEnd: Date
+): boolean {
+  const bursts = resolveBursts(lineItem)
+  if (bursts.length === 0) return false
+
+  for (const burst of bursts) {
+    if (!burst) continue
+
+    const startDate = parseToDate(burst.startDate)
+    const endDate = parseToDate(burst.endDate)
+    if (!startDate || !endDate) continue
+
+    const burstStart = startOfDay(startDate)
+    const burstEnd = startOfDay(endDate)
+
+    if (burstStart < campaignStart || burstEnd > campaignEnd) {
+      return true
+    }
+  }
+
+  return false
+}
+
+/**
+ * Returns whether any line items have flight dates outside the campaign window.
+ *
+ * Comparison rule (date-only via startOfDay on all values):
+ * A burst violates if burst.startDate < campaignStart OR burst.endDate > campaignEnd.
+ * A line item violates if any of its bursts violate.
+ * offendingCount is the number of distinct violating line items (not bursts).
+ */
+export function checkLineItemDatesOutsideCampaign(params: {
+  campaignStart: Date | null | undefined
+  campaignEnd: Date | null | undefined
+  mediaLineItems: Partial<Record<MediaLineItemKey, MediaLineItemLike[]>>
+  productionLineItems?: ProductionLineItemLike[]
+}): { hasViolation: boolean; offendingCount: number } {
+  const campaignStart = normalizeCampaignDate(params.campaignStart)
+  const campaignEnd = normalizeCampaignDate(params.campaignEnd)
+
+  if (!campaignStart || !campaignEnd) {
+    return { hasViolation: false, offendingCount: 0 }
+  }
+
+  let offendingCount = 0
+
+  const mediaArrays = Object.values(params.mediaLineItems)
+  for (const mediaArray of mediaArrays) {
+    if (!Array.isArray(mediaArray)) continue
+
+    for (const lineItem of mediaArray) {
+      if (lineItem && lineItemHasBurstViolation(lineItem, campaignStart, campaignEnd)) {
+        offendingCount += 1
+      }
+    }
+  }
+
+  if (params.productionLineItems) {
+    for (const lineItem of params.productionLineItems) {
+      if (lineItem && lineItemHasBurstViolation(lineItem, campaignStart, campaignEnd)) {
+        offendingCount += 1
+      }
+    }
+  }
+
+  return {
+    hasViolation: offendingCount > 0,
+    offendingCount,
+  }
+}

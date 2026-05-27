@@ -1373,4 +1373,435 @@ No unit test file existed for `mediaPlanValidation.ts`; none added per spec.
 
 ---
 
+## Domain 5 — Stage 1 Discovery
+
+**Scope:** New line item auto-add billing behaviour on `app/mediaplans/mba/[mba_number]/edit/page.tsx` (post–Domain 3b). Discovery only — no fix proposals.
+
+---
+
+### A. Line item identity — what makes a line item "new"?
+
+#### A1. Initial state when user adds a line item (before save)
+
+**Cleanest trace example: Television** (`components/media-containers/TelevisionContainer.tsx`)
+
+| Step | Location | Behaviour |
+|------|----------|-----------|
+| User clicks "Add Line Item" | Lines 2137–2179 | `appendLineItem({ … })` via RHF `useFieldArray` |
+| IDs assigned at click | Lines 2157–2163 | `createLineItemId(nextNum)` → `buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.television, nextNum)` (e.g. `MBA123TV3`) set as both `lineItemId` and `line_item_id` |
+| Other fields | Lines 2142–2173 | Empty network/station/etc.; default burst with `startDate`/`endDate` = `new Date()`; `line_item` / `lineItem` = next line number |
+| No `__new` flag | — | None in Television or other containers checked |
+
+`createLineItemId` definition: ```389:393:components/media-containers/TelevisionContainer.tsx```
+
+Add handler: ```2137:2179:components/media-containers/TelevisionContainer.tsx```
+
+**Production** (`components/media-containers/ProductionContainer.tsx`) differs:
+
+| Step | Location | Behaviour |
+|------|----------|-----------|
+| Add handler | Lines 458–467 | `handleAddLineItem` → `appendLineItem({ … lineItemId: "" … })` — **no ID at click** |
+| ID assigned later | Lines 425–456 (`apiLineItems` `useEffect`) | `line_item_id: lineItem.lineItemId \|\| buildLineItemId(mbaNumber, "PROD", index + 1)` — note `"PROD"` is **not** in `MEDIA_TYPE_ID_CODES` (`lib/mediaplan/lineItemIds.ts`) |
+
+**Billing-side stable id** (edit page, used in append/merge): ```176:182:app/mediaplans/mba/[mba_number]/edit/page.tsx```
+
+- If `line_item_id` / `id` present → `billing-{mediaType}::{rawId}` (e.g. `billing-television::MBA123TV3`)
+- Else → `billing-{mediaType}::new-{index}`
+
+New TV rows get a deterministic MBA id immediately, so they typically get a **prefixed** billing id, not `::new-{index}`.
+
+#### A2. Snapshot of loaded line item ids after hydrate
+
+**No dedicated snapshot** of “loaded line item ids” for new-vs-loaded diffing.
+
+What exists instead:
+
+| State | Role | Path |
+|-------|------|------|
+| `*LineItems` (e.g. `televisionLineItems`) | API fetch result passed as `initialLineItems` to containers | Set in `lineItemLoaderConfig` / `loadSingleMediaTypeLineItems` (~3094–3144); passed at render e.g. `initialLineItems={televisionLineItems}` (~8662) |
+| `*MediaLineItems` (e.g. `televisionMediaLineItems`) | Live lifted state from container `onMediaLineItemsChange` | Declared ~1813–1835; updated via handlers e.g. `handleTelevisionMediaLineItemsChange` (~6538–6542) |
+| `savedBillingMonths` | Persisted **billing** baseline from version hydrate / post-save | ~1568, hydrate ~2831–2840 |
+| `billingPlanStructureKey` | Fingerprint of enabled media + stable line ids + burst counts (not a mount snapshot) | ~4377–4420 |
+
+Containers hydrate once from `initialLineItems` (e.g. Television `hasProcessedInitialLineItemsRef` / hydrate effect ~700–792). After that, **in-session adds only update `*MediaLineItems`**, not the original `*LineItems` arrays.
+
+**Conclusion:** “New” could be computed by diffing `*MediaLineItems` ids against `*LineItems` ids at hydrate time, but **no code does this today**.
+
+#### A3. Identity on save
+
+**Save entry:** `handleSaveAll` (~4879+).
+
+| Aspect | Behaviour | Evidence |
+|--------|-----------|----------|
+| Billing payload | `buildBillingScheduleForSave()` clones **`workingBillingMonths`** (attach line items only if months lack detail) | ~4977–4978, `buildBillingScheduleForSave` ~4497–4520 |
+| Line items | Saved in parallel after version PUT with client-side `line_item_id` values from container/export shapes (step 4 ~5125+) | ~5125–5128 |
+| Backend id assignment | Could not determine from frontend alone whether Xano overwrites `line_item_id` on insert; containers **generate** ids client-side before save (`buildLineItemId` / `buildLineItemIdentity` in `lib/mediaplan/lineItemIds.ts`) | — |
+| State after successful save | `router.push('/mediaplans')` (~5496) — user leaves edit page; no in-place re-hydrate of line items | ~5494–5496 |
+| Billing after save | `savedBillingMonths` ← deep copy of `workingBillingMonths`; `workingBillingMonths` unchanged; `billingLineItemsFollowAutoRef` cleared | ~5040–5048 |
+| “New” flag | None persisted | — |
+
+On save failure: master/version errors leave prior editor state; `savedBillingMonths` only updates on **full** successful version save (~5045). Partial failure (master OK, version fail) leaves billing state unchanged relative to pre-save.
+
+---
+
+### B. Billing schedule — the mutation surface
+
+#### B4. All mutation call sites (`workingBillingMonths`, `savedBillingMonths`, related)
+
+**File:** `app/mediaplans/mba/[mba_number]/edit/page.tsx` only (no other app files call `setWorkingBillingMonths`).
+
+| Lines | Variable(s) | Trigger | Replace vs merge |
+|-------|---------------|---------|------------------|
+| 2572–2580 | `saved`, `working`, `autoReference` cleared | MBA/version fetch reset (`useEffect` ~2506) | Full replace → `[]` |
+| 2837–2840 | `saved`, `working` | Billing hydrate from `parseSavedBillingSchedulePayload` | Full replace (clone of persisted months) |
+| 2857–2858 | `saved` | No billing on fetch | Clear |
+| 2453, 2454 | `autoReference`, `autoDelivery` | `calculateBillingSchedule` | Auto ref: full replace; **does not** touch working (comment ~2394–2395) |
+| 2474–2475 | `working` | Inside `calculateBillingSchedule` when `billingLineItemsFollowAutoRef && !isManualBilling` | Merge via `appendAutoReferenceIntoWorkingBilling` with `{ resyncExistingFromTemplate: true }` |
+| 4348–4349 | `working` | `handleResetBillingScheduleToAuto` (Edit Billing confirmed full reset) | **Full replace** via `buildWorkingMonthsFromAutoReference` |
+| 4819–4820 | `working` | `handleManualBillingSave` | **Full replace** from `manualBillingMonths` clone |
+| 5046–5047 | `saved` only | Successful `handleSaveAll` version PUT | Snapshot of working; working unchanged |
+| 7445–7446 | `working` | Main append `useEffect` (~7349) | **Merge** via `appendAutoReferenceIntoWorkingBilling` |
+| 7572–7573, 7580–7581 | `working`, optionally `saved` | Fee seed `useEffect` (~7492) | In-place month graph updates (`seedBillingMonthsLineFees`) |
+
+**`manualBillingMonths`:** modal draft only — many `setManualBillingMonths` from open/edit (~3576, ~3648+, UI temp copies). Commits to working only via `handleManualBillingSave` (~4819).
+
+**`autoReferenceBillingMonths`:** set in `calculateBillingSchedule` (~2453); read by append effect; not user-facing schedule.
+
+#### B5. Dependency surfaces (key paths)
+
+**`calculateBillingSchedule`** (~2397–2503): `useCallback` deps — all `*Bursts` arrays, fee/ad-serving inputs, `isManualBilling`, `form`, etc. Does **not** list `*MediaLineItems`. Writes auto ref; conditionally merges working with **resync** when follow-auto.
+
+**Append effect** (~7349–7486): deps include `campaignStartDate`, `campaignEndDate`, `billingPlanStructureKey`, `billingLineItemsLengthFingerprint`, **all `*MediaLineItems` arrays**, `autoReferenceBillingMonths.length`, `attachLineItemsToMonths`, `calculateBillingSchedule`, `isManualBilling`, `form`. **250ms debounce**; deep-equality skip before `setWorkingBillingMonths` (~7438–7443).
+
+**Burst-only auto refresh** (~7633–7705): deps — campaign dates + media **totals** + **bursts** + ad-serving; calls `calculateBillingSchedule` only (no direct working write).
+
+**Fee seed** (~7492–7630): deps — `workingBillingMonths`, `savedBillingMonths`, `billingLineItemsLengthFingerprint`, all `*MediaLineItems`, all `*Bursts`, `form`.
+
+#### B6. Canonical billing-calculation functions
+
+| Function | Path | Used on MBA edit for |
+|----------|------|----------------------|
+| `computeBillingAndDeliveryMonths` | `lib/billing/computeSchedule.ts` (~48+) | Month-level auto aggregates from bursts (`calculateBillingSchedule` ~2411) |
+| `calculateBillingSchedule` | `app/mediaplans/mba/[mba_number]/edit/page.tsx` ~2397–2503 | Page-local wrapper; burst → `autoReferenceBillingMonths` |
+| `generateBillingLineItems` (page-local) | Same file ~3975–4175 | Per-line burst distribution; used by `attachLineItemsToMonths`, modal open, validation |
+| `generateBillingLineItems` (shared) | `lib/billing/generateBillingLineItems.ts` | **Not** imported on MBA edit page (create uses shared module) |
+| `attachLineItemsToMonths` | Edit page ~4225–4320 | Builds template with line items from **all** enabled `*MediaLineItems` |
+| `appendAutoReferenceIntoWorkingBilling` | Edit page ~751–770 | Append merge into working |
+| `buildWorkingMonthsFromAutoReference` | `lib/billing/resetFromAutoReference.ts` ~22–31 | Full working reset from auto |
+| `parseSavedBillingSchedulePayload` | Edit page ~800+ | Hydrate saved/working from API |
+| `compareBillingDivergence` | `lib/billing/compareBillingDivergence.ts` | Manual vs auto detection |
+| `seedBillingMonthsLineFees` | (imported) | Post-append fee seeding on working/saved |
+| Alter Billing dialog | `components/billing/AlterBillingDialog.tsx` | **Finance Hub only** (`app/finance/FinanceHubPageClient.tsx` ~869) — **not** MBA edit |
+
+#### B7. Full set vs subset
+
+| Function / path | Scope |
+|-----------------|--------|
+| `computeBillingAndDeliveryMonths` | **Full campaign** — all burst arrays passed in (~2414–2435) |
+| Page `generateBillingLineItems` | **Per media type** — one container’s `*MediaLineItems` array per call (~3986+) |
+| `attachLineItemsToMonths` | **All enabled media types** — iterates `mediaTypeMap` (~4259–4267) |
+| `appendAutoReferenceIntoWorkingBilling` | **All months / all template keys**; merge logic is append-only per id (~344–379, ~537–684) except `resyncExistingFromTemplate` |
+| `handleManualBillingLineItemResetToAuto` | **Single** line item (~4182–4223) |
+| `copySingleLineItemFromAutoTemplate` | **Single** line item (`lib/billing/resetFromAutoReference.ts` ~74–108) |
+
+---
+
+### C. Existing "preserved vs computed" semantics
+
+#### C8. Manual billing modal — how edits survive
+
+| Question | Answer |
+|----------|--------|
+| Where stored | `manualBillingMonths` while modal open; commit copies to `workingBillingMonths` (~4818–4820) |
+| What prevents overwrite | Comments/state model (~1560–1566): working preserved; append should only add **new** line ids; `isManualBilling` set true on modal save (~4822); `billingLineItemsFollowAutoRef` cleared (~4823) |
+| Explicit per-line lock | **No** `Set` of locked ids on working. Modal rows support `preBill` / `preBillSnapshot` on **draft** rows (~322–336, pre-bill toggles ~3804+) |
+| Divergence | `compareBillingDivergence` + `isManualBilling` (~7286–7333, ~7302) |
+
+Append path preserves existing ids unless `resyncExistingFromTemplate` (~558–585) or zero-amount backfill (~363–371).
+
+**ID format risk (high confidence):** Hydrated billing rows use **raw** ids from saved JSON (~909–914: `String(rawLiId)`). Template from `generateBillingLineItems` uses **`billing-{mediaType}::{rawId}`** (~3988). `appendMissingLineItemsOnly` compares normalized string keys (~352–356). Mismatch → template rows treated as **new** → duplicate line rows + bucket deltas (~619–639). Could present as “re-spread” / duplicated totals when append re-runs.
+
+#### C9. Create page comparison (`app/mediaplans/create/page.tsx`)
+
+| Behaviour | Classification |
+|-----------|----------------|
+| `calculateBillingSchedule` when `!isManualBilling` | **(a) Full auto-compute** — `setBillingMonths(billingMonthsCalculated)` (~1228–1230) |
+| When `isManualBilling` | Auto ref still computed; **billing months not replaced** (~1228–1230) |
+| Line item add | No separate “append only new line” pipeline; burst/total `useEffect` (~2304+) recomputes auto for whole campaign |
+| Incremental preserve | **(b) not implemented** on create — only manual **mode** gate, not per-line or append-merge |
+
+**Conclusion:** Create is **(a)** with manual mode gate; edit intends append-only **(b)**-like behaviour but implementation is more complex (see D/E).
+
+#### C10. Edit page: loaded vs in-session line item in billing logic
+
+**No explicit “came from API” vs “added in-session” flag** in billing code.
+
+Proxies that exist:
+
+- `hasPersistedBillingSchedule` / hydrate path skips some modal regeneration (~3522–3526)
+- `billingLineItemsFollowAutoRef` + `resyncExistingFromTemplate` (post–full reset only)
+- `billingStableLineItemId` / `::new-{index}` only when **no** `line_item_id` (uncommon for TV after add)
+- `savedBillingMonths` vs `workingBillingMonths` for divergence, not new-line detection
+
+---
+
+### D. The re-spread trigger — likely root cause
+
+#### D11. `useEffect`s that write billing schedule and touch line items / dates / flags
+
+| Lines | Writes | Deps (summary) |
+|-------|--------|----------------|
+| 7349–7486 | `setWorkingBillingMonths` (merge) | Campaign dates, `billingPlanStructureKey`, `billingLineItemsLengthFingerprint`, all `*MediaLineItems`, auto ref length, … |
+| 7492–7630 | `setWorkingBillingMonths`, `setSavedBillingMonths` (fee seed) | `workingBillingMonths`, `savedBillingMonths`, fingerprint, all `*MediaLineItems`, all `*Bursts`, `form` |
+| 2456–2476 (inside `calculateBillingSchedule`) | `setWorkingBillingMonths` when follow-auto | Invoked from 7633–7705 and append effect |
+| 4330–4356 | Full working reset | Handler, not effect |
+| 7286–7319 | Sets `isManualBilling` only | `saved`, `working`, `autoReference` |
+| 7324–7342 | Updates `isManualBilling` / divergence | `workingBillingMonths`, debounced 500ms |
+
+**Not writing working:** 7633–7705 (auto ref only), 2506 hydrate reset, 7286+ divergence.
+
+`mp_production` / `mp_fixedfee`: no billing `useEffect` deps on those form flags directly; production line items flow via `productionMediaLineItems` and `mp_production` in `mediaTypeMap` / append rows (~7375, ~4245).
+
+#### D12. Hypotheses for full re-spread (confidence)
+
+| Hypothesis | Mechanism | Confidence |
+|------------|-----------|------------|
+| **H1: Billing id mismatch on append** | Hydrated working ids unprefixed; template prefixed → duplicates + bucket re-sum | **High** (code paths verified; runtime symptom match plausible) |
+| **H2: `resyncExistingFromTemplate`** | `billingLineItemsFollowAutoRef` true after “Reset billing to auto” → all existing lines overwritten from template (~558–585) | **High** when that mode active; **Low** for typical edit-after-hydrate |
+| **H3: Fee seed effect** | Re-seeds `feeMonthlyAmounts` on working when bursts arrive (~7561–7573) | **Medium** — affects fees, not necessarily all media cells |
+| **H4: Manual modal not applied** | User edits main table only (read-only summary ~8523+) — must use Edit Billing | **Medium** — UX, not auto-spread |
+| **H5: Zero-amount backfill** | Existing row `totalAmount === 0` replaced from template (~363–371) | **Medium** for edge cases |
+| **H6: `attachLineItemsToMonths` on save** | Only if months lack detail (`buildBillingScheduleForSave` ~4506–4508) | **Low** during edit session |
+
+#### D13. Gates / debouncing
+
+| Mechanism | Present? |
+|-----------|----------|
+| Append effect debounce | **Yes** — 250ms (~7356, 7455) |
+| Append skip if deep-equal merged | **Yes** (~7438–7443) |
+| `calculateBillingSchedule` fingerprint | **Yes** — JSON compare auto ref (~2441–2445) |
+| “Needs recompute?” for line add | **No** — `billingLineItemsLengthFingerprint` is **count-only** (~4446–4469), not diff of ids |
+| Skip append when `isManualBilling` | **No** — append still runs; only `followAuto` controls resync (~7429–7436) |
+
+---
+
+### E. Add-line-item flow — end-to-end
+
+#### E14. Television on MBA edit (reference flow)
+
+1. **Click** “Add Line Item” — `TelevisionContainer` ~2137–2179 → RHF append with `lineItemId` / `line_item_id` from `createLineItemId`.
+2. **`useWatch`** (`watchedLineItems`) updates → effects run:
+   - Transform lift: ~1232–1287 → `onMediaLineItemsChangeRef.current(transformedLineItems)`.
+   - Bursts/totals: ~1289+ → `onBurstsChange` → page `setTelevisionBursts`.
+3. **Page** `handleTelevisionMediaLineItemsChange` (~6538) → `setTelevisionMediaLineItems`.
+4. **Billing effects fired** (order approximate, debounced):
+   - `billingLineItemsLengthFingerprint` changes → **append effect** (~7349).
+   - Burst/total changes → **7633–7705** → `calculateBillingSchedule` → updates `autoReferenceBillingMonths`.
+   - Append timeout: `calculateBillingSchedule` again, then `appendAutoReferenceIntoWorkingBilling(working, autoRef, …)` (~7431–7446).
+   - Possible **fee seed** (~7492) if bursts populated.
+5. **Written to `workingBillingMonths`:** merge template from **all** `*MediaLineItems` via `attachLineItemsToMonths` → `appendMissingLineItemsOnly` per month/key. **Intended:** only new billing ids appended. **Risk:** H1 duplicate ids if hydrate format ≠ template format.
+6. **What can be lost:** Manual per-cell amounts on **existing** rows if resync mode (H2), id mismatch duplicates (H1), or zero-backfill (H5). Loaded rows with stable matching ids should keep `monthlyAmounts` (append ~340–341 comment, ~619–647).
+
+#### E15. Media vs production
+
+| Aspect | Media (e.g. TV) | Production |
+|--------|-----------------|------------|
+| Add handler | ID at click | `lineItemId: ""` until effect (~458–467) |
+| Lifted state | `productionMediaLineItems` | Same (+ `productionLineItems` API array, `productionItems` export) |
+| Billing key | media type key | `production` (~7375, ~4245) |
+| Append / attach | Same pipeline | Same `mediaTypeMap` entry |
+| Burst source | Container `onBurstsChange` | `buildBillingBursts(watchedLineItems)` in container (~449–451) |
+| ID code | `MEDIA_TYPE_ID_CODES.*` | `"PROD"` string (~437) — separate from enum |
+
+**Conclusion:** Same append architecture; production adds **timing gap** (empty id until next effect) and **PROD** id convention — could affect first append pass if effect order is wrong. Could not confirm race without runtime trace.
+
+---
+
+### F. Save path
+
+#### F16. Billing payload
+
+- **Source:** `workingBillingMonths` via `buildBillingScheduleForSave()` (~4977–4978).
+- **Not** recomputed from bursts at save time for the version JSON (bursts sent separately in PUT body ~5017–5027).
+- **Transform:** If months lack detailed `lineItems`, `attachLineItemsToMonths` runs on a clone (~4506–4508); then `buildBillingScheduleJSON` + partial approval wrapper (~4510–4513).
+
+#### F17. After successful save
+
+| Item | Behaviour |
+|------|-----------|
+| Line item identities | Not re-fetched on page (navigation away ~5496) |
+| `workingBillingMonths` | Unchanged in memory until unmount |
+| `savedBillingMonths` | Deep copy of working (~5045–5047) |
+| New / dirty tracking | `billingLineItemsFollowAutoRef = false`; `hasUnsavedChanges` cleared on navigate (~5048, ~5495) |
+
+#### F18. Save failure
+
+- Early exit on billing validation (~4906–4924): no PUT; state unchanged.
+- Master fail (~4971–4972): version not attempted.
+- Version fail (~5030–5033): throw; **no** `savedBillingMonths` update (only on success ~5045); working unchanged.
+- User remains on page with prior working billing (if version fails after master success).
+
+---
+
+### G. Manual override mechanism (existing)
+
+#### G19. MBA edit manual billing entry and commit
+
+| Item | Detail |
+|------|--------|
+| Entry | “Edit Billing” button ~8518 → `handleManualBillingOpen` ~3423 |
+| Draft | Clone `workingBillingMonths` → `manualBillingMonths` (~3426–3427) |
+| Modal open merge | Injects generated rows for **missing** ids only (~3498–3518); respects existing rows per media key |
+| Commit | `handleManualBillingSave` → full replace `workingBillingMonths` (~4818–4820); `isManualBilling = true` |
+| Alter Billing (Finance Hub) | **Not on MBA edit** — `AlterBillingDialog` in `app/finance/FinanceHubPageClient.tsx` only |
+
+#### G20. “User-controlled line item — don’t auto-calculate” pattern
+
+| Pattern | Exists? |
+|---------|---------|
+| `Set` of locked line item ids | **No** on working schedule |
+| Boolean on line items | **No** session-level “manual line” flag |
+| `isManualBilling` (campaign-level) | **Yes** — divergence / post-modal; does **not** block append effect |
+| `billingLineItemsFollowAutoRef` | **Yes** — after full reset; enables **resync all** lines from template |
+| Implicit (working values authoritative) | **Intended** via append-only merge | **Undermined** if id mismatch or resync |
+| Modal `preBill` | **Draft only** — not consulted by append pipeline on working |
+
+Per-line reset in modal: `handleManualBillingLineItemResetToAuto` (~4182) pulls one row from auto template.
+
+---
+
+### H. Risks and unknowns
+
+#### H21. Surprises / fragile areas (with confidence)
+
+| Finding | Confidence |
+|---------|------------|
+| Hydrated billing line `id` vs `billingStableLineItemId` template `id` format mismatch | **90%** code issue; **70%** it explains reported symptom without repro |
+| `billingLineItemsLengthFingerprint` is count-only — reorder/duplicate index edge cases not detected | **85%** |
+| Append runs when `isManualBilling` true (only resync gated) | **95%** |
+| Production new row starts with `lineItemId: ""` | **95%** |
+| `"PROD"` not in `MEDIA_TYPE_ID_CODES` | **95%** |
+| Comments claim “append-only on main page” but multiple writers (fee seed, follow-auto resync, modal full replace) | **90%** |
+| Create vs edit architectural divergence (full recompute vs append) | **95%** |
+
+#### H22. Needs Luke / product clarification
+
+1. Exact saved billing JSON shape for line item ids in production MBAs (prefixed or raw?).
+2. Whether reported “re-spread” is **duplicate rows**, **changed amounts on existing rows**, or **month-level fee/tech/production** changes.
+3. Whether users had clicked “Reset billing to auto” in session (`billingLineItemsFollowAutoRef`).
+4. Whether Finance Hub Alter Billing edits overlap with MBA edit testing (separate surface).
+5. Backend: does PUT return new `line_item_id`s or always echo client ids?
+
+#### H23. Out of scope smells (not acted on)
+
+- `handleSaveCampaign` (~5509) PUT without `billingSchedule` — separate/lighter save path vs `handleSaveAll`.
+- Navigate away on save prevents validating post-save reload behaviour on edit page.
+- `generateBillingLineItems` duplicated (page-local vs `lib/billing/generateBillingLineItems.ts`) with **different** `itemId` strategies.
+- Expert TV mode parallel state (`expertTvRows`) — billing uses lifted `*MediaLineItems` only (Domain 4 note pattern).
+
+#### H24. `Object.values(mediaTotals)` and `mp_production` / `mp_fixedfee`
+
+| Check | Result |
+|-------|--------|
+| `Object.values(mediaTotals)` | **No sightings** in repo (grep entire project) |
+| `mp_production` vs `mp_fixedfee` | **De-conflated** on edit: separate form fields (~1135–1140, ~2925–2927); `mp_production` gates Production container section; `shouldEnableProduction` on save also checks `productionMediaLineItems.length` (~5006–5008). `mp_fixedfee` not used in billing append map. |
+| `Object.values` elsewhere | e.g. `partialMBAValues.mediaTotals` uses **`Object.entries`** (~5948, ~7178) — not the known double-count trap pattern |
+
+---
+
+### Stage 2 Block 0 Validation
+
+**Date:** 2026-05-27  
+**MBA fixture:** `glenda007` (saved billing, prefixed line item ids per Stage 1 / Domain 4 notes)
+
+#### Step 0.1 — Effect map (code review)
+
+| Effect / function | Lines | Dep array | State written | Async boundary |
+|-------------------|-------|-----------|---------------|----------------|
+| MBA fetch + billing hydrate | `2508–3000` | `[applyClientFees, form, mbaNumber, updateLoadStatus, versionNumber, setContextMbaNumber]` | Resets `saved`/`working`/`autoReference` at `2574–2582`; hydrate `setSavedBillingMonths` + `setWorkingBillingMonths` at `2840–2844` (with data) or clears saved + flag at `2862–2867` (no data); `form.reset` with campaign dates at `2949` **after** billing hydrate in the same `fetch` callback | `await fetch(...)` at `2615`; JSON parse at `2732`; hydrate runs before `form.reset` in callback, but append can still run on an **earlier render** while fetch is in flight |
+| `calculateBillingSchedule` | `2399–2505` | All `*Bursts`, fees, `isManualBilling`, `form`, … | `setAutoReferenceBillingMonths`, `setAutoDeliveryMonths`; **conditionally** `setWorkingBillingMonths` when `billingLineItemsFollowAutoRef && !isManualBilling` (`2474–2477`) | Sync; called inside append timeout and burst-only effect `7639–7644` |
+| Append (main) | `7355–7494` | `billingHydrationComplete`, `campaignStartDate`, `campaignEndDate`, `billingPlanStructureKey`, `billingLineItemsLengthFingerprint`, `autoReferenceBillingMonths.length`, all `*MediaLineItems`, `calculateBillingSchedule`, `isManualBilling`, `form` | `setWorkingBillingMonths` via `appendAutoReferenceIntoWorkingBilling` (`7451–7452`) | **250ms** `setTimeout` at `7362`; reads `workingBillingMonthsRef.current` at timeout fire time; **pre-fix:** no guard before debounce except campaign dates |
+
+#### Step 0.2 — Log capture
+
+Temporary `[billing-hydrate]` / `[billing-append] effect scheduled` instrumentation was added, then removed in Block 1. Automated Playwright capture was attempted but blocked (browsers not installed locally).
+
+**Luke’s pre-fix console (same MBA, development):**
+
+1. `[billing-append] appendAutoReferenceIntoWorkingBilling` — `workingMonths: 0`, `skeleton: "autoReference"`, `autoRefMonths: 1`
+2. `[billing-append] appendAutoReferenceIntoWorkingBilling` — `workingMonths: 2`, `autoRefMonths: 2`, `resyncExistingFromTemplate: false`
+
+**Inferred chronological mechanism (code + logs):**
+
+1. MBA fetch effect starts → synchronously clears `workingBillingMonths` / ref to `[]` (`2574–2582`).
+2. Campaign dates remain in form (or become available) while fetch is still in flight → append effect schedules 250ms timeout.
+3. Timeout fires before fetch hydrate completes → `workingBillingMonthsRef.current.length === 0` → merge uses auto-reference skeleton → corrupts working.
+4. Fetch completes → `setWorkingBillingMonths` with saved months (`2840–2844`) → append runs again with populated working.
+
+This matches the hypothesised ordering: **append before hydrate completion**, not id-format mismatch.
+
+#### Step 0.3 — Interpretation
+
+| Result | **Hypothesis confirmed** |
+|--------|--------------------------|
+| Proceed to Block 1? | **Yes** |
+
+---
+
+## Domain 5 — Stage 2 Implementation
+
+**Date:** 2026-05-27  
+**Branch:** local / uncommitted  
+**Scope:** Hydration-ordering gate on MBA edit billing append (Block 1). Block 2 not run.
+
+### 1. Block 0 validation result
+
+**Confirmed.** Append merge ran against empty `workingBillingMonths` while saved billing hydrate was still pending (async fetch + 250ms debounce race). Luke’s logs show `workingMonths: 0` + `skeleton: "autoReference"` before a second append with `workingMonths: 2`.
+
+### 2. Files changed
+
+| File | Change |
+|------|--------|
+| `app/mediaplans/mba/[mba_number]/edit/page.tsx` | `billingHydrationComplete` state (`1570`); reset `false` on MBA fetch reset (`2577`); set `true` after saved billing hydrate (`2844`) and no-saved-billing path (`2863`); append effect early-return + dep (`7355`, `7463`) |
+
+**Block 0 temporary `console.log` lines:** added for validation, **removed** before Block 1 landed (none remain).
+
+**Pre-existing debug:** `[billing-append]` via `billingAppendDebug` in `appendAutoReferenceIntoWorkingBilling` (`~392–396`, `~758`) — left intact.
+
+### 3. Block 2 outcome
+
+**Skipped** (pending Luke smoke on Block 1).
+
+Reasoning: Stage 1 production `lineItemId: ""` / `"PROD"` issues are secondary compounding factors; root cause is hydrate vs append ordering. Block 2 runs only if post–Block 1 smoke shows production add still misbehaves.
+
+### 4. Design notes / surprises
+
+- Billing hydrate (`setWorkingBillingMonths`) already runs **before** `form.reset` in the fetch callback, but append can still fire on renders where working was cleared at fetch start and dates are already present — the race is **cross-render** (debounce vs `await fetch`), not intra-callback ordering.
+- `calculateBillingSchedule` can still write working when `billingLineItemsFollowAutoRef` is true; Luke confirmed Q2 = no session reset — not gated separately.
+- Fetch **error** path does not set `billingHydrationComplete` (append stays gated). Acceptable: no dates / no schedule to merge in error UX.
+
+### 5. Smoke readiness (Luke on `localhost`)
+
+| # | Step | Wired path | Expected after Block 1 |
+|---|------|------------|-------------------------|
+| 1 | Reload MBA with saved billing | Fetch hydrate `2840–2845` → `billingHydrationComplete` → gated append `7357+` | Working matches saved; no duplicate rows |
+| 2 | Console on load | `billingAppendDebug` in append merge | No `workingMonths: 0` + `skeleton: "autoReference"` on initial load |
+| 3 | Reload MBA without saved billing | No-data path `2862–2867` sets flag; append builds from auto | Schedule from auto; no loop |
+| 4 | Add media line item | Append after hydration; merge append-only | Existing rows untouched; new id appended |
+| 5 | Edit Billing manual cell | `handleManualBillingSave` `4819+` | Manual edit sticks across subsequent adds |
+| 6 | Add production line item | Production container + append (Block 2 not run) | **Observe** — may still have transient `""` id until apiLineItems effect |
+| 7 | Edit campaign date | `calculateBillingSchedule` + append merge | Manual amounts on existing ids preserved (`resyncExistingFromTemplate: false` when not follow-auto) |
+| 8 | Toggle media off/on | Form flags + `billingPlanStructureKey` | Document round-trip behaviour |
+| 9 | Save + reload | `handleSaveAll` `5046+` + fetch hydrate | Persisted billing matches pre-save UI |
+| 10 | Domain 4 date warning + billing | Independent effects | No new console errors |
+
+### 6. Follow-up (out of scope)
+
+- Block 2 production identity (`ProductionContainer` `lineItemId: ""`, `"PROD"` ∉ `MEDIA_TYPE_ID_CODES`) if smoke 6 fails.
+- Append merge logic itself (if corruption persists with hydration gate) — flag only, do not refactor here.
+- `calculateBillingSchedule` follow-auto branch writing working without hydration gate (only if users use “Reset billing to auto” during load).
+- Post-save `router.push` prevents in-place reload validation on edit page (Stage 1 H23).
+
+---
+
 _End of AUDIT.md._

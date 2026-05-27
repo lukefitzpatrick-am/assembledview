@@ -98,7 +98,7 @@ import {
   saveInfluencersLineItems,
   saveProductionLineItems
 } from "@/lib/api"
-import { checkMediaDatesOutsideCampaign } from "@/lib/utils/mediaPlanValidation"
+import { checkLineItemDatesOutsideCampaign } from "@/lib/utils/mediaPlanValidation"
 import { toDateOnlyString } from "@/lib/timezone"
 import { setAssistantContext } from "@/lib/assistantBridge"
 import { KPISection } from "@/components/kpis/KPISection"
@@ -670,7 +670,10 @@ export default function CreateMediaPlan() {
   const [totalInvestment, setTotalInvestment] = useState(0);
   const [isPartialMBA, setIsPartialMBA] = useState(false);
   const [isPartialMBAModalOpen, setIsPartialMBAModalOpen] = useState(false);
-  const [hasDateWarning, setHasDateWarning] = useState(false);
+  const [dateWarning, setDateWarning] = useState<{
+    hasViolation: boolean
+    offendingCount: number
+  }>({ hasViolation: false, offendingCount: 0 })
 
   const [kpiRows, setKpiRows] = useState<ResolvedKPIRow[]>([])
   const [publisherKPIs, setPublisherKPIs] = useState<PublisherKPI[]>([])
@@ -1464,12 +1467,12 @@ export default function CreateMediaPlan() {
     setTotalInvestment(newTotalInvestment)
   }, [calculateGrossMediaTotal, calculateAssembledFee, calculateAdServingFees, calculateProductionCosts])
 
-  // Check if any media placement dates are outside campaign dates
+  // Check if any line item flight dates are outside the campaign window
   useEffect(() => {
-    const hasWarning = checkMediaDatesOutsideCampaign(
+    const result = checkLineItemDatesOutsideCampaign({
       campaignStart,
       campaignEnd,
-      {
+      mediaLineItems: {
         televisionMediaLineItems,
         radioMediaLineItems,
         newspaperMediaLineItems,
@@ -1489,9 +1492,10 @@ export default function CreateMediaPlan() {
         progAudioMediaLineItems,
         progOohMediaLineItems,
         influencersMediaLineItems,
-      }
-    );
-    setHasDateWarning(hasWarning);
+      },
+      productionLineItems: productionMediaLineItems,
+    })
+    setDateWarning(result)
   }, [
     campaignStart,
     campaignEnd,
@@ -1514,7 +1518,8 @@ export default function CreateMediaPlan() {
     progAudioMediaLineItems,
     progOohMediaLineItems,
     influencersMediaLineItems,
-  ]);
+    productionMediaLineItems,
+  ])
 
   const updateBurstBudget = useCallback(
     async ({ mediaType, burstIndex = 0, budget }: { mediaType: string; burstIndex?: number; budget: number }) => {
@@ -7198,10 +7203,12 @@ const handleSaveAll = async () => {
         className="fixed bottom-0 left-0 right-0 z-50 flex justify-center md:left-[var(--sidebar-width)]"
       >
         <div className="inline-flex max-w-full flex-col items-center gap-2 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-2">
-          {hasDateWarning && (
+          {dateWarning.hasViolation && (
             <div className="flex items-center gap-2 text-sm font-medium text-destructive">
               <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-destructive" />
-              Media placement outside campaign dates
+              {dateWarning.offendingCount === 1
+                ? "1 line item has flight dates outside the campaign window"
+                : `${dateWarning.offendingCount} line items have flight dates outside the campaign window`}
             </div>
           )}
           <CampaignExportsSection

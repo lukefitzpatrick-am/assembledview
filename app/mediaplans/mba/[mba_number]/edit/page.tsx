@@ -170,6 +170,7 @@ import { generateNamingWorkbook } from '@/lib/namingConventions'
 import { saveAs } from 'file-saver'
 import { filterLineItemsByPlanNumber } from '@/lib/api/mediaPlanVersionHelper'
 import { toDateOnlyString, parseDateOnlyString } from "@/lib/timezone"
+import { checkLineItemDatesOutsideCampaign } from "@/lib/utils/mediaPlanValidation"
 
 /** Stable id for billing rows so merge/save validation align with persisted `lineItemId` / `line_item_id`. */
 function billingStableLineItemId(mediaType: string, lineItem: any, index: number): string {
@@ -1565,6 +1566,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
    * - manualBillingMonths — Edit Billing modal draft only.
    */
   const [savedBillingMonths, setSavedBillingMonths] = useState<BillingMonth[]>([])
+  /** False until MBA fetch has resolved persisted billing (or confirmed none). Gates append effect. */
+  const [billingHydrationComplete, setBillingHydrationComplete] = useState(false)
   const savedBillingMonthsRef = useRef<BillingMonth[]>([])
   useEffect(() => {
     savedBillingMonthsRef.current = savedBillingMonths
@@ -1832,6 +1835,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const [progAudioMediaLineItems, setProgAudioMediaLineItems] = useState<any[]>([])
   const [progOohMediaLineItems, setProgOohMediaLineItems] = useState<any[]>([])
   const [influencersMediaLineItems, setInfluencersMediaLineItems] = useState<any[]>([])
+  const [dateWarning, setDateWarning] = useState<{
+    hasViolation: boolean
+    offendingCount: number
+  }>({ hasViolation: false, offendingCount: 0 })
 
   const editLineItemCount = useMemo(() => {
     return (
@@ -2298,6 +2305,59 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   }, [campaignStartDate, campaignEndDate, mbaNumber, selectedVersionNumber])
 
   useEffect(() => {
+    const result = checkLineItemDatesOutsideCampaign({
+      campaignStart: campaignStartDate,
+      campaignEnd: campaignEndDate,
+      mediaLineItems: {
+        televisionMediaLineItems,
+        radioMediaLineItems,
+        newspaperMediaLineItems,
+        magazineMediaLineItems: magazinesMediaLineItems,
+        oohMediaLineItems,
+        cinemaMediaLineItems,
+        digiDisplayMediaLineItems: digitalDisplayMediaLineItems,
+        digiAudioMediaLineItems: digitalAudioMediaLineItems,
+        digiVideoMediaLineItems: digitalVideoMediaLineItems,
+        bvodMediaLineItems,
+        integrationMediaLineItems,
+        searchMediaLineItems,
+        socialMediaMediaLineItems,
+        progDisplayMediaLineItems,
+        progVideoMediaLineItems,
+        progBvodMediaLineItems,
+        progAudioMediaLineItems,
+        progOohMediaLineItems,
+        influencersMediaLineItems,
+      },
+      productionLineItems: productionMediaLineItems,
+    })
+    setDateWarning(result)
+  }, [
+    campaignStartDate,
+    campaignEndDate,
+    televisionMediaLineItems,
+    radioMediaLineItems,
+    newspaperMediaLineItems,
+    magazinesMediaLineItems,
+    oohMediaLineItems,
+    cinemaMediaLineItems,
+    digitalDisplayMediaLineItems,
+    digitalAudioMediaLineItems,
+    digitalVideoMediaLineItems,
+    bvodMediaLineItems,
+    integrationMediaLineItems,
+    searchMediaLineItems,
+    socialMediaMediaLineItems,
+    progDisplayMediaLineItems,
+    progVideoMediaLineItems,
+    progBvodMediaLineItems,
+    progAudioMediaLineItems,
+    progOohMediaLineItems,
+    influencersMediaLineItems,
+    productionMediaLineItems,
+  ])
+
+  useEffect(() => {
     const v = selectedVersionNumber ?? mediaPlan?.version_number
     if (v != null && v !== undefined) {
       const next = String(v)
@@ -2514,6 +2574,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       setSavedBillingMonths([])
       savedBillingMonthsRef.current = []
       setWorkingBillingMonths([])
+      setBillingHydrationComplete(false)
       setAutoReferenceBillingMonths([])
       autoReferenceBillingMonthsRef.current = []
       hasPersistedBillingScheduleRef.current = false
@@ -2780,6 +2841,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           savedBillingMonthsRef.current = deepSaved
           setWorkingBillingMonths(deepWorking)
           workingBillingMonthsRef.current = deepWorking
+          setBillingHydrationComplete(true)
           setHasPersistedBillingSchedule(true)
           // Divergence check runs in a follow-up effect once auto-reference is computed.
           // Default manual mode until then so behaviour does not regress while auto calculates.
@@ -2798,6 +2860,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           hasPersistedBillingScheduleRef.current = false
           setSavedBillingMonths([])
           savedBillingMonthsRef.current = []
+          setBillingHydrationComplete(true)
           setHasPersistedBillingSchedule(false)
           setIsManualBilling(false)
         }
@@ -7289,6 +7352,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
    * (`billingLineItemsLengthFingerprint`) so enabling a media type then loading containers/API re-appends.
    */
   useEffect(() => {
+    if (!billingHydrationComplete) return
     if (!campaignStartDate || !campaignEndDate) return
 
     const startKey = toDateOnlyString(campaignStartDate)
@@ -7396,6 +7460,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
     return () => window.clearTimeout(tid)
   }, [
+    billingHydrationComplete,
     campaignStartDate,
     campaignEndDate,
     billingPlanStructureKey,
@@ -9949,6 +10014,14 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         className="fixed bottom-0 left-0 right-0 z-50 flex justify-center md:left-[var(--sidebar-width)]"
       >
         <div className="inline-flex max-w-full flex-col items-center gap-2 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-2">
+          {dateWarning.hasViolation && (
+            <div className="flex items-center gap-2 text-sm font-medium text-destructive">
+              <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-destructive" />
+              {dateWarning.offendingCount === 1
+                ? "1 line item has flight dates outside the campaign window"
+                : `${dateWarning.offendingCount} line items have flight dates outside the campaign window`}
+            </div>
+          )}
           {hasBillingMismatch && (
             <div className="flex items-center gap-2 text-center text-sm font-medium text-amber-600 dark:text-amber-500">
               <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-amber-500" aria-hidden="true" />
