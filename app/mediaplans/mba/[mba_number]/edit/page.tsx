@@ -125,7 +125,14 @@ import { computeBillingAndDeliveryMonths } from "@/lib/billing/computeSchedule"
 import { buildBillingScheduleJSON } from "@/lib/billing/buildBillingSchedule"
 import { prepareBillingMonthsForLineItemExport } from "@/lib/billing/prepareBillingMonthsForLineItemExport"
 import { syncLineItemMonthlyAmountAcrossAllMonthRows } from "@/lib/billing/syncLineItemAmountAcrossMonthRows"
-import { EditableLineItemMonthInput } from "@/components/billing/EditableLineItemMonthInput"
+import { ManualBillingSpreadsheetCostInput } from "@/components/billing/ManualBillingSpreadsheetCostInput"
+import { ManualBillingSpreadsheetLineItemInput } from "@/components/billing/ManualBillingSpreadsheetLineItemInput"
+import { ManualBillingSpreadsheetProvider } from "@/components/billing/manualBillingSpreadsheetContext"
+import {
+  buildManualBillingMediaSections,
+  defaultManualBillingAccordionExpanded,
+  useManualBillingSpreadsheetCallbacks,
+} from "@/lib/billing/useManualBillingSpreadsheetCallbacks"
 import {
   buildBillingScheduleExcelBlob,
   sanitizeFilenamePart,
@@ -1608,6 +1615,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
    */
   const billingLineItemsFollowAutoRef = useRef(false)
   const [isManualBillingModalOpen, setIsManualBillingModalOpen] = useState(false)
+  const [manualBillingAccordionExpanded, setManualBillingAccordionExpanded] = useState<string[]>([])
   const [manualBillingCostPreBill, setManualBillingCostPreBill] = useState<{
     fee: boolean;
     adServing: boolean;
@@ -3582,6 +3590,13 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     // UI-only state: reset pre-bill toggles for cost rows on open
     setManualBillingCostPreBill({ fee: false, adServing: false, production: false })
     manualBillingCostPreBillSnapshotRef.current = {}
+    const sections = buildManualBillingMediaSections(
+      mediaTypes,
+      mediaFlagMap,
+      mediaKeyMap,
+      deepCopiedMonths
+    )
+    setManualBillingAccordionExpanded(defaultManualBillingAccordionExpanded(sections))
     setIsManualBillingModalOpen(true)
   }
 
@@ -3784,6 +3799,23 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
     setManualBillingMonths(copy)
   }
+
+  const manualBillingMediaSections = useMemo(
+    () =>
+      buildManualBillingMediaSections(
+        mediaTypes,
+        mediaFlagMap,
+        mediaKeyMap,
+        manualBillingMonths
+      ),
+    [mediaTypes, mediaFlagMap, manualBillingMonths]
+  )
+
+  const manualBillingSpreadsheetCallbacks = useManualBillingSpreadsheetCallbacks({
+    manualBillingMonths,
+    setManualBillingMonths,
+    handleManualBillingChange,
+  })
 
   const recalculateManualBillingTotals = (months: BillingMonth[], formatter: Intl.NumberFormat) => {
     months.forEach((m) => {
@@ -9233,8 +9265,34 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               </p>
             </div>
 
+            <ManualBillingSpreadsheetProvider
+              months={manualBillingMonths}
+              expandedAccordionValues={manualBillingAccordionExpanded}
+              mediaSections={manualBillingMediaSections}
+              formatter={mbaCurrencyFormatter}
+              callbacks={manualBillingSpreadsheetCallbacks}
+              onPasteLayout={(layout) => {
+                if (layout === "tile") {
+                  toast({
+                    title: "Pattern repeated across selection",
+                    description:
+                      "Clipboard values were tiled or repeated to fill the selected cells.",
+                  })
+                } else if (layout === "clip") {
+                  toast({
+                    title: "Paste clipped to selection",
+                    description: "Only the top-left part of the clipboard fit the selected area.",
+                  })
+                }
+              }}
+            >
             <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-4">
-              <Accordion type="multiple" className="w-full">
+              <Accordion
+                type="multiple"
+                className="w-full"
+                value={manualBillingAccordionExpanded}
+                onValueChange={setManualBillingAccordionExpanded}
+              >
                 {mediaTypes
                   .filter((medium) => medium.name !== "mp_production")
                   .filter((medium) => mediaFlagMap[medium.name as MediaTypeKey] && medium.component)
@@ -9297,8 +9355,14 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                                       const monthAmount = lineItem.monthlyAmounts?.[month.monthYear] || 0
                                       return (
                                         <TableCell key={month.monthYear} align="right">
-                                          <EditableLineItemMonthInput
+                                          <ManualBillingSpreadsheetLineItemInput
                                             key={`${lineItem.id}__${month.monthYear}`}
+                                            cellKey={{
+                                              tableKey: mediaKey,
+                                              rowKind: "lineItem",
+                                              rowId: lineItem.id,
+                                              monthYear: month.monthYear,
+                                            }}
                                             className="text-right w-28"
                                             amount={monthAmount}
                                             formatter={mbaCurrencyFormatter}
@@ -9520,13 +9584,18 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                             {manualBillingMonths.map((month, monthIndex) => (
                               <TableCell key={month.monthYear} align="right">
                                 <div className="space-y-1">
-                                  <Input
-                                    className="text-right w-28"
+                                  <ManualBillingSpreadsheetCostInput
+                                    cellKey={{
+                                      tableKey: "cost",
+                                      rowKind: "cost",
+                                      rowId: "fee",
+                                      monthYear: month.monthYear,
+                                    }}
                                     value={month.feeTotal}
-                                    onBlur={(e) => handleManualBillingChange(monthIndex, "fee", e.target.value)}
-                                    onChange={(e) => {
+                                    onBlur={(raw) => handleManualBillingChange(monthIndex, "fee", raw)}
+                                    onChange={(next) => {
                                       const tempCopy = [...manualBillingMonths]
-                                      tempCopy[monthIndex].feeTotal = e.target.value
+                                      tempCopy[monthIndex].feeTotal = next
                                       setManualBillingMonths(tempCopy)
                                     }}
                                   />
@@ -9576,13 +9645,20 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                             {manualBillingMonths.map((month, monthIndex) => (
                               <TableCell key={month.monthYear} align="right">
                                 <div className="space-y-1">
-                                  <Input
-                                    className="text-right w-28"
+                                  <ManualBillingSpreadsheetCostInput
+                                    cellKey={{
+                                      tableKey: "cost",
+                                      rowKind: "cost",
+                                      rowId: "adServing",
+                                      monthYear: month.monthYear,
+                                    }}
                                     value={month.adservingTechFees}
-                                    onBlur={(e) => handleManualBillingChange(monthIndex, "adServing", e.target.value)}
-                                    onChange={(e) => {
+                                    onBlur={(raw) =>
+                                      handleManualBillingChange(monthIndex, "adServing", raw)
+                                    }
+                                    onChange={(next) => {
                                       const tempCopy = [...manualBillingMonths]
-                                      tempCopy[monthIndex].adservingTechFees = e.target.value
+                                      tempCopy[monthIndex].adservingTechFees = next
                                       setManualBillingMonths(tempCopy)
                                     }}
                                   />
@@ -9633,17 +9709,22 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                             {manualBillingMonths.map((month, monthIndex) => (
                               <TableCell key={month.monthYear} align="right">
                                 <div className="space-y-1">
-                                  <Input
-                                    className="text-right w-28"
+                                  <ManualBillingSpreadsheetCostInput
+                                    cellKey={{
+                                      tableKey: "cost",
+                                      rowKind: "cost",
+                                      rowId: "production",
+                                      monthYear: month.monthYear,
+                                    }}
                                     value={month.production || "$0.00"}
-                                    onBlur={(e) =>
-                                      handleManualBillingChange(monthIndex, "production", e.target.value, "production")
+                                    onBlur={(raw) =>
+                                      handleManualBillingChange(monthIndex, "production", raw, "production")
                                     }
-                                    onChange={(e) => {
+                                    onChange={(next) => {
                                       const tempCopy = [...manualBillingMonths]
-                                      tempCopy[monthIndex].production = e.target.value
+                                      tempCopy[monthIndex].production = next
                                       if (tempCopy[monthIndex].mediaCosts?.production !== undefined) {
-                                        tempCopy[monthIndex].mediaCosts.production = e.target.value
+                                        tempCopy[monthIndex].mediaCosts.production = next
                                       }
                                       setManualBillingMonths(tempCopy)
                                     }}
@@ -9727,6 +9808,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 )}
               </div>
             </div>
+            </ManualBillingSpreadsheetProvider>
 
             <div className="shrink-0 border-t px-6 py-4">
               <DialogFooter className="sm:justify-between">

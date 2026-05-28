@@ -48,7 +48,7 @@ type CellContextValue = Readonly<{
   registerCell: (key: SpreadsheetCellKey, rowIndex: number, colIndex: number) => void
   getCellCoords: (serializedKey: string) => { rowIndex: number; colIndex: number } | null
   isSelected: (serializedKey: string) => boolean
-  isCopied: (rowIndex: number, colIndex: number) => boolean
+  isCopied: (serializedKey: string, rowIndex: number, colIndex: number) => boolean
   getOutlineFlags: (rowIndex: number, colIndex: number) => {
     inRange: boolean
     top: boolean
