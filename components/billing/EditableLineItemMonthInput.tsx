@@ -11,11 +11,14 @@ function parseBillingAmountInput(raw: string): number {
 
 export type EditableLineItemMonthInputProps = {
   className?: string
+  id?: string
   amount: number
   formatter: Intl.NumberFormat
   /** Fires on every change while the user is typing; commit full schedule logic is usually on `onCommit` (blur). */
   onAmountChange: (numericValue: number) => void
   onCommit: (rawValue: string) => void
+  onKeyDown?: React.KeyboardEventHandler<HTMLInputElement>
+  onFocus?: React.FocusEventHandler<HTMLInputElement>
 }
 
 /**
@@ -24,10 +27,13 @@ export type EditableLineItemMonthInputProps = {
  */
 export function EditableLineItemMonthInput({
   className,
+  id,
   amount,
   formatter,
   onAmountChange,
   onCommit,
+  onKeyDown,
+  onFocus,
 }: EditableLineItemMonthInputProps) {
   const [focused, setFocused] = useState(false)
   const [draft, setDraft] = useState("")
@@ -38,11 +44,13 @@ export function EditableLineItemMonthInput({
     <Input
       type="text"
       inputMode="decimal"
+      id={id}
       className={cn("text-right w-28", className)}
       value={displayValue}
-      onFocus={() => {
+      onFocus={(e) => {
         setFocused(true)
         setDraft(formatter.format(amount))
+        onFocus?.(e)
       }}
       onChange={(e) => {
         const next = e.target.value
@@ -53,6 +61,7 @@ export function EditableLineItemMonthInput({
         onCommit(draft)
         setFocused(false)
       }}
+      onKeyDown={onKeyDown}
     />
   )
 }
