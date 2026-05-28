@@ -61,7 +61,14 @@ import {
 import { generateBillingLineItems } from "@/lib/billing/generateBillingLineItems"
 import { getMediaTypeHeadersForSchedule } from "@/lib/billing/mediaTypeHeaders"
 import { syncLineItemMonthlyAmountAcrossAllMonthRows } from "@/lib/billing/syncLineItemAmountAcrossMonthRows"
-import { EditableLineItemMonthInput } from "@/components/billing/EditableLineItemMonthInput"
+import { ManualBillingSpreadsheetCostInput } from "@/components/billing/ManualBillingSpreadsheetCostInput"
+import { ManualBillingSpreadsheetLineItemInput } from "@/components/billing/ManualBillingSpreadsheetLineItemInput"
+import { ManualBillingSpreadsheetProvider } from "@/components/billing/manualBillingSpreadsheetContext"
+import {
+  buildManualBillingMediaSections,
+  defaultManualBillingAccordionExpanded,
+  useManualBillingSpreadsheetCallbacks,
+} from "@/lib/billing/useManualBillingSpreadsheetCallbacks"
 import { prepareBillingMonthsForLineItemExport } from "@/lib/billing/prepareBillingMonthsForLineItemExport"
 import {
   buildBillingScheduleExcelBlob,
@@ -634,6 +641,7 @@ export default function CreateMediaPlan() {
   const [investmentPerMonth, setInvestmentPerMonth] = useState([])
   const [isManualBilling, setIsManualBilling] = useState(false)
   const [isManualBillingModalOpen, setIsManualBillingModalOpen] = useState(false)
+  const [manualBillingAccordionExpanded, setManualBillingAccordionExpanded] = useState<string[]>([])
   const [manualBillingMonths, setManualBillingMonths] = useState<BillingMonth[]>([])
   const [manualBillingTotal, setManualBillingTotal] = useState("$0.00")
   const [manualBillingCostPreBill, setManualBillingCostPreBill] = useState<{
@@ -3724,6 +3732,13 @@ export default function CreateMediaPlan() {
     setManualBillingTotal(billingTotal);
     setManualBillingCostPreBill({ fee: false, adServing: false, production: false });
     manualBillingCostPreBillSnapshotRef.current = {};
+    const sections = buildManualBillingMediaSections(
+      mediaTypes,
+      watchedMediaTypesMap,
+      mediaKeyMap,
+      deepCopiedMonths
+    );
+    setManualBillingAccordionExpanded(defaultManualBillingAccordionExpanded(sections));
     setIsManualBillingModalOpen(true);
   }
 
@@ -3812,6 +3827,23 @@ export default function CreateMediaPlan() {
     setManualBillingTotal(formatter.format(grandTotal));
     setManualBillingMonths(copy);
   }
+
+  const manualBillingMediaSections = useMemo(
+    () =>
+      buildManualBillingMediaSections(
+        mediaTypes,
+        watchedMediaTypesMap,
+        mediaKeyMap,
+        manualBillingMonths
+      ),
+    [mediaTypes, watchedMediaTypesMap, manualBillingMonths]
+  );
+
+  const manualBillingSpreadsheetCallbacks = useManualBillingSpreadsheetCallbacks({
+    manualBillingMonths,
+    setManualBillingMonths,
+    handleManualBillingChange,
+  });
 
   const recalculateManualBillingTotals = (months: BillingMonth[], formatter: Intl.NumberFormat) => {
     months.forEach((m) => {
@@ -6150,8 +6182,34 @@ const handleSaveAll = async () => {
         </p>
       </div>
 
+      <ManualBillingSpreadsheetProvider
+        months={manualBillingMonths}
+        expandedAccordionValues={manualBillingAccordionExpanded}
+        mediaSections={manualBillingMediaSections}
+        formatter={mbaCurrencyFormatter}
+        callbacks={manualBillingSpreadsheetCallbacks}
+        onPasteLayout={(layout) => {
+          if (layout === "tile") {
+            toast({
+              title: "Pattern repeated across selection",
+              description:
+                "Clipboard values were tiled or repeated to fill the selected cells.",
+            });
+          } else if (layout === "clip") {
+            toast({
+              title: "Paste clipped to selection",
+              description: "Only the top-left part of the clipboard fit the selected area.",
+            });
+          }
+        }}
+      >
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-4">
-        <Accordion type="multiple" className="w-full">
+        <Accordion
+          type="multiple"
+          className="w-full"
+          value={manualBillingAccordionExpanded}
+          onValueChange={setManualBillingAccordionExpanded}
+        >
           {mediaTypes
             .filter((medium) => medium.name !== "mp_production")
             .filter((medium) => watchedMediaTypesMap[medium.name] && medium.component)
@@ -6211,8 +6269,14 @@ const handleSaveAll = async () => {
                                 const monthAmount = lineItem.monthlyAmounts?.[month.monthYear] || 0;
                                 return (
                                   <TableCell key={month.monthYear} align="right">
-                                    <EditableLineItemMonthInput
+                                    <ManualBillingSpreadsheetLineItemInput
                                       key={`${lineItem.id}__${month.monthYear}`}
+                                      cellKey={{
+                                        tableKey: mediaKey,
+                                        rowKind: "lineItem",
+                                        rowId: lineItem.id,
+                                        monthYear: month.monthYear,
+                                      }}
                                       className="text-right w-28"
                                       amount={monthAmount}
                                       formatter={mbaCurrencyFormatter}
@@ -6300,13 +6364,18 @@ const handleSaveAll = async () => {
                       <TableCell className="text-muted-foreground">Total</TableCell>
                       {manualBillingMonths.map((month, monthIndex) => (
                         <TableCell key={month.monthYear} align="right">
-                          <Input
-                            className="text-right w-28"
+                          <ManualBillingSpreadsheetCostInput
+                            cellKey={{
+                              tableKey: "cost",
+                              rowKind: "cost",
+                              rowId: "fee",
+                              monthYear: month.monthYear,
+                            }}
                             value={month.feeTotal}
-                            onBlur={(e) => handleManualBillingChange(monthIndex, "fee", e.target.value)}
-                            onChange={(e) => {
+                            onBlur={(raw) => handleManualBillingChange(monthIndex, "fee", raw)}
+                            onChange={(next) => {
                               const tempCopy = [...manualBillingMonths];
-                              tempCopy[monthIndex].feeTotal = e.target.value;
+                              tempCopy[monthIndex].feeTotal = next;
                               setManualBillingMonths(tempCopy);
                             }}
                           />
@@ -6334,13 +6403,20 @@ const handleSaveAll = async () => {
                       <TableCell className="text-muted-foreground">Tech fees</TableCell>
                       {manualBillingMonths.map((month, monthIndex) => (
                         <TableCell key={month.monthYear} align="right">
-                          <Input
-                            className="text-right w-28"
+                          <ManualBillingSpreadsheetCostInput
+                            cellKey={{
+                              tableKey: "cost",
+                              rowKind: "cost",
+                              rowId: "adServing",
+                              monthYear: month.monthYear,
+                            }}
                             value={month.adservingTechFees}
-                            onBlur={(e) => handleManualBillingChange(monthIndex, "adServing", e.target.value)}
-                            onChange={(e) => {
+                            onBlur={(raw) =>
+                              handleManualBillingChange(monthIndex, "adServing", raw)
+                            }
+                            onChange={(next) => {
                               const tempCopy = [...manualBillingMonths];
-                              tempCopy[monthIndex].adservingTechFees = e.target.value;
+                              tempCopy[monthIndex].adservingTechFees = next;
                               setManualBillingMonths(tempCopy);
                             }}
                           />
@@ -6368,15 +6444,22 @@ const handleSaveAll = async () => {
                       <TableCell className="text-muted-foreground">Total</TableCell>
                       {manualBillingMonths.map((month, monthIndex) => (
                         <TableCell key={month.monthYear} align="right">
-                          <Input
-                            className="text-right w-28"
+                          <ManualBillingSpreadsheetCostInput
+                            cellKey={{
+                              tableKey: "cost",
+                              rowKind: "cost",
+                              rowId: "production",
+                              monthYear: month.monthYear,
+                            }}
                             value={month.production || "$0.00"}
-                            onBlur={(e) => handleManualBillingChange(monthIndex, "production", e.target.value, "production")}
-                            onChange={(e) => {
+                            onBlur={(raw) =>
+                              handleManualBillingChange(monthIndex, "production", raw, "production")
+                            }
+                            onChange={(next) => {
                               const tempCopy = [...manualBillingMonths];
-                              tempCopy[monthIndex].production = e.target.value;
+                              tempCopy[monthIndex].production = next;
                               if (tempCopy[monthIndex].mediaCosts?.production !== undefined) {
-                                tempCopy[monthIndex].mediaCosts.production = e.target.value;
+                                tempCopy[monthIndex].mediaCosts.production = next;
                               }
                               setManualBillingMonths(tempCopy);
                             }}
@@ -6414,6 +6497,7 @@ const handleSaveAll = async () => {
           )}
         </div>
       </div>
+      </ManualBillingSpreadsheetProvider>
 
       <div className="shrink-0 border-t px-6 py-4">
         <DialogFooter className="sm:justify-end">

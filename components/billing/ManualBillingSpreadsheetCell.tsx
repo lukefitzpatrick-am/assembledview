@@ -34,7 +34,7 @@ export function ManualBillingSpreadsheetCell({
   const { rowIndex, colIndex } = coords
   const flags = ctx.getOutlineFlags(rowIndex, colIndex)
   const selected = ctx.isSelected(serialized)
-  const copied = ctx.isCopied(rowIndex, colIndex)
+  const copied = ctx.isCopied(serialized, rowIndex, colIndex)
 
   return (
     <div

@@ -22,6 +22,7 @@ import {
 } from "@/lib/spreadsheet/selection"
 import type {
   SpreadsheetCopiedCells,
+  SpreadsheetMultiCellSelection,
   SpreadsheetPasteLayoutMode,
   SpreadsheetRectSelection,
 } from "@/lib/spreadsheet/types"
@@ -92,10 +93,7 @@ export function useSpreadsheetClipboard(args: UseSpreadsheetClipboardArgs) {
     let layout: SpreadsheetPasteLayoutMode = "direct"
 
     if (enumerated && enumerated.targets.length > 0) {
-      const originRow = enumerated.originRow
-      const originCol = enumerated.originCol
-      originRow = enumerated.originRow
-      originCol = enumerated.originCol
+      const { originRow, originCol } = enumerated
       const mapped = mapClipboardMatrixToTargets(
         working,
         originRow,
@@ -146,7 +144,7 @@ export function useSpreadsheetClipboard(args: UseSpreadsheetClipboardArgs) {
     if (!sel) return false
 
     let text: string | null = null
-    let bounds = null
+    let bounds: SpreadsheetMultiCellSelection | null = null
 
     if (sel.kind === "rect") {
       text = buildExportTsvFromRect(registry.entries, sel.rect, (e) =>
