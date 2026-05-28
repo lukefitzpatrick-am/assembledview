@@ -464,28 +464,11 @@ export function EditableFinanceGrid({
   }, [fetchBilling, refreshPendingDraftCount, toast])
 
   const handlePublish = useCallback(async () => {
-    try {
-      const res = await fetch("/api/finance/edits/publish", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      })
-      if (!res.ok) {
-        const text = await res.text()
-        throw new Error(text || res.statusText)
-      }
-      setLocalDirtyIds(new Set())
-      await fetchBilling()
-      await refreshPendingDraftCount()
-      toast({ title: "Published", description: "Finance edits publish completed." })
-    } catch (e) {
-      toast({
-        variant: "destructive",
-        title: "Publish failed",
-        description: e instanceof Error ? e.message : "Unknown error",
-      })
-    }
-  }, [fetchBilling, refreshPendingDraftCount, toast])
+    console.warn(
+      "[EditableFinanceGrid] Publish button is a no-op; finance edits publish was removed in " +
+        "Domain 5 Stage 2.2b. This UI is slated for redesign in Stage 3+."
+    )
+  }, [])
 
   const onPasteCapture = useCallback(
     (e: React.ClipboardEvent) => {

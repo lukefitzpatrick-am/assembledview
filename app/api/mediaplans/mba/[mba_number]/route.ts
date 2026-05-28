@@ -4,7 +4,10 @@ import { parseDateOnlyString, toMelbourneDateString } from "@/lib/timezone"
 import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
 import { getXanoBaseUrl, parseXanoListPayload, xanoUrl } from "@/lib/api/xano"
 import { getXanoClientsCollectionUrl } from "@/lib/api/xanoClients"
+import { getCurrentUser } from "@/lib/auth/getCurrentUser"
 import { roundMoney4 } from "@/lib/format/money"
+import { diffBillingSchedules } from "@/lib/finance/scheduleDiff"
+import { writeScheduleDiffEdits } from "@/lib/finance/writeFinanceAuditEdits"
 import { extractBillingMonthStart } from "@/lib/spend/billingScheduleExpectedToDate"
 import { expectedSpendToDateFromDeliveryScheduleMonthly } from "@/lib/spend/monthlyPlanCalendar"
 
@@ -150,6 +153,17 @@ function parseVersion(value: any): number | null {
   if (value === null || value === undefined) return null
   const num = typeof value === "string" ? parseInt(value, 10) : Number(value)
   return Number.isNaN(num) ? null : num
+}
+
+function parseJsonField(value: unknown): unknown {
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value)
+    } catch {
+      return null
+    }
+  }
+  return value ?? null
 }
 
 function parseAmount(value: any): number {
@@ -1298,6 +1312,12 @@ export async function PUT(
     const latestVersionNumber = allVersionsForMBA.length > 0
       ? Math.max(...allVersionsForMBA.map((v: any) => parseVersion(v.version_number)))
       : parseVersion(masterData.version_number)
+
+    const previousVersion =
+      latestVersionNumber != null
+        ? allVersionsForMBA.find((v: any) => parseVersion(v.version_number) === latestVersionNumber) ??
+          null
+        : null
     
     const nextVersionNumber = (latestVersionNumber || 0) + 1
     
@@ -1367,6 +1387,32 @@ export async function PUT(
     
     console.log("New version created:", versionResponse.data)
     console.log("Master updated:", masterUpdateResponse.data)
+
+    // Domain 5 Stage 2.2b — audit billingSchedule diff between previous and new version
+    try {
+      const user = await getCurrentUser(request)
+      if (user) {
+        const oldSchedule = parseJsonField(previousVersion?.billingSchedule)
+        const newSchedule = parseJsonField(newVersionData.billingSchedule)
+        const changes = diffBillingSchedules(oldSchedule, newSchedule)
+        if (changes.length > 0) {
+          const audit = await writeScheduleDiffEdits(changes, {
+            editedBy: user.id,
+            editedByName: user.name ?? user.email ?? String(user.id),
+            recordType: "version_create_diff",
+          })
+          if (audit.succeeded < audit.attempted) {
+            console.warn("[mba-put] partial audit failure", audit)
+          }
+        }
+      } else {
+        console.error("[mba-put] no user resolved; skipping audit")
+      }
+    } catch (auditError) {
+      console.error("[mba-put] audit step threw", {
+        message: auditError instanceof Error ? auditError.message : String(auditError),
+      })
+    }
     
     return NextResponse.json({
       version: versionResponse.data,
