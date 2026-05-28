@@ -3797,6 +3797,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     copy[index].mediaTotal = formatter.format(mediaTotal);
     copy[index].totalAmount = formatter.format(mediaTotal + feeTotal + adServingTotal + productionTotal);
 
+    recalculateManualBillingTotals(copy, formatter)
     setManualBillingMonths(copy)
   }
 
@@ -9285,8 +9286,37 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                   })
                 }
               }}
+              footer={
+                <div className="shrink-0 border-t px-6 py-4">
+                  <DialogFooter className="sm:justify-between">
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="ghost"
+                        onClick={() => {
+                          setIsManualBillingModalOpen(false)
+                          setBillingError({ show: false, blockingErrors: [], preservedOverrides: [] })
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        variant="outline"
+                        type="button"
+                        onClick={() => {
+                          setFullBillingResetConfirmOpen(true)
+                        }}
+                      >
+                        Reset billing to auto
+                      </Button>
+                      <Button type="button" onClick={() => handleManualBillingSave()}>
+                        Save Billing Changes
+                      </Button>
+                    </div>
+                  </DialogFooter>
+                </div>
+              }
             >
-            <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-4">
+            <div className="space-y-6 px-6 py-4">
               <Accordion
                 type="multiple"
                 className="w-full"
@@ -9809,34 +9839,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               </div>
             </div>
             </ManualBillingSpreadsheetProvider>
-
-            <div className="shrink-0 border-t px-6 py-4">
-              <DialogFooter className="sm:justify-between">
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    variant="ghost"
-                    onClick={() => {
-                      setIsManualBillingModalOpen(false)
-                      setBillingError({ show: false, blockingErrors: [], preservedOverrides: [] })
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    variant="outline"
-                    type="button"
-                    onClick={() => {
-                      setFullBillingResetConfirmOpen(true)
-                    }}
-                  >
-                    Reset billing to auto
-                  </Button>
-                  <Button type="button" onClick={() => handleManualBillingSave()}>
-                    Save Billing Changes
-                  </Button>
-                </div>
-              </DialogFooter>
-            </div>
           </div>
         </DialogContent>
       </Dialog>

@@ -35,12 +35,15 @@ export function ManualBillingSpreadsheetCell({
   const flags = ctx.getOutlineFlags(rowIndex, colIndex)
   const selected = ctx.isSelected(serialized)
   const copied = ctx.isCopied(serialized, rowIndex, colIndex)
+  const outlineFlags = flags.inRange
+    ? flags
+    : { inRange: true, top: true, bottom: true, left: true, right: true }
 
   return (
     <div
       className={cn(
         "relative rounded-sm",
-        (selected || copied) && spreadsheetCellOutlineClass(flags),
+        (selected || copied) && spreadsheetCellOutlineClass(outlineFlags),
         copied && "bg-amber-500/15",
         className
       )}

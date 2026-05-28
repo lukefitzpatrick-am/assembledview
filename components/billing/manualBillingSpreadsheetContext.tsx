@@ -34,6 +34,8 @@ export type ManualBillingSpreadsheetCallbacks = Readonly<{
 
 type ProviderProps = Readonly<{
   children: ReactNode
+  /** Rendered below the selection status bar (e.g. modal Cancel / Save footer). */
+  footer?: ReactNode
   months: BillingMonth[]
   expandedAccordionValues: string[]
   mediaSections: ManualBillingMediaSection[]
@@ -84,6 +86,7 @@ export function useManualBillingSpreadsheetCell() {
 
 export function ManualBillingSpreadsheetProvider({
   children,
+  footer,
   months,
   expandedAccordionValues,
   mediaSections,
@@ -220,6 +223,7 @@ export function ManualBillingSpreadsheetProvider({
             formatter={formatter}
           />
         ) : null}
+        {footer ?? null}
       </div>
     </SpreadsheetCellContext.Provider>
   )
