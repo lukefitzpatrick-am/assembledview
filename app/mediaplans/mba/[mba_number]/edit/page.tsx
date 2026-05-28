@@ -7290,6 +7290,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
    */
   useEffect(() => {
     if (billingDivergenceHydrateCheckedRef.current) return
+    // Gate: do not auto-open the divergence modal until line items have finished
+    // loading. Without this, the comparator runs against empty *MediaLineItems
+    // arrays and produces false-positive missing_in_computed divergence against
+    // the fully-populated saved billing schedule.
+    if (loadPhase !== "ready") return
     if (
       savedBillingMonths.length === 0 ||
       workingBillingMonths.length === 0 ||
@@ -7315,6 +7320,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       }
     }
   }, [
+    loadPhase,
     savedBillingMonths,
     workingBillingMonths,
     autoReferenceBillingMonths,
@@ -7328,6 +7334,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
    */
   useEffect(() => {
     if (!hasPersistedBillingSchedule) return
+    if (loadPhase !== "ready") return
     if (workingBillingMonths.length === 0 || autoReferenceBillingMonths.length === 0) return
 
     const tid = window.setTimeout(() => {
@@ -7341,6 +7348,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     return () => window.clearTimeout(tid)
   }, [
     hasPersistedBillingSchedule,
+    loadPhase,
     workingBillingMonths,
     autoReferenceBillingMonths,
     attachLineItemsToMonths,
