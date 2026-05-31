@@ -6867,7 +6867,6 @@ const handleSaveAll = async () => {
                         <Suspense fallback={<MediaContainerSuspenseFallback label="Production" />}>
                           <ProductionContainer
                             clientId={selectedClientId}
-                            feesearch={feeProduction || 0}
                             onTotalMediaChange={handleProductionTotalChange}
                             onBurstsChange={handleProductionBurstsChange}
                             onInvestmentChange={handleInvestmentChange}

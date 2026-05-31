@@ -8885,7 +8885,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                         <Suspense fallback={<MediaContainerSuspenseFallback label="Production" />}>
                           <ProductionContainer
                             clientId={selectedClientId}
-                            feesearch={feeProduction || 0}
                             onTotalMediaChange={handleProductionTotalChange}
                             onBurstsChange={handleProductionBurstsChange}
                             onInvestmentChange={handleInvestmentChange}

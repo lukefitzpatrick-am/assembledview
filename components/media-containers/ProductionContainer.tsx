@@ -107,7 +107,6 @@ type MediaTypeOption = { value: string; label: string }
 
 interface ProductionContainerProps {
   clientId: string
-  feesearch?: number
   onTotalMediaChange: (totalMedia: number, totalFee: number) => void
   onBurstsChange: (bursts: BillingBurst[]) => void
   onInvestmentChange: (investmentByMonth: any) => void
@@ -237,7 +236,6 @@ const mapLineItemsForExport = (
 
 export default function ProductionContainer({
   clientId,
-  feesearch = 0,
   onTotalMediaChange,
   onBurstsChange,
   onInvestmentChange,
