@@ -103,6 +103,61 @@ const formatDateString = (d?: Date | string): string => {
   return `${year}-${month}-${day}`
 }
 
+function coerceHydrationKeyNumber(value: unknown): number {
+  if (typeof value === "string") {
+    return parseFloat(value.replace(/[^0-9.-]/g, "")) || 0
+  }
+  return Number(value ?? 0) || 0
+}
+
+function formatHydrationKeyDate(value: unknown): string {
+  return formatDateString(
+    value instanceof Date || typeof value === "string" ? (value as Date | string) : undefined
+  )
+}
+
+/** Parse burst source the same way as the hydration effect (string vs array). */
+function parseRawBurstsForHydrationKey(item: any): any[] {
+  if (typeof item.bursts_json === "string") {
+    try {
+      const parsed = JSON.parse(item.bursts_json)
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  }
+  if (Array.isArray(item.bursts_json)) return item.bursts_json
+  if (Array.isArray(item.bursts)) return item.bursts
+  return []
+}
+
+/** Stable key for incoming initialLineItems; excludes server metadata and normalises burst shape. */
+function buildProductionInitialLineItemsKey(items: ReadonlyArray<any>): string {
+  const rows = items.map((item, idx) => {
+    const stableId = String(
+      item.line_item_id ?? item.lineItemId ?? item.line_item ?? item.lineItem ?? idx
+    )
+    const bursts = parseRawBurstsForHydrationKey(item).map((burst) => ({
+      cost: coerceHydrationKeyNumber(burst.cost ?? burst.budget ?? burst.mediaValue),
+      amount: coerceHydrationKeyNumber(burst.amount ?? burst.deliverables ?? burst.buyAmount),
+      startDate: formatHydrationKeyDate(burst.startDate ?? burst.start_date),
+      endDate: formatHydrationKeyDate(burst.endDate ?? burst.end_date),
+    }))
+    return {
+      stableId,
+      mediaType: String(item.media_type ?? item.mediaType ?? item.platform ?? ""),
+      publisher: String(item.publisher ?? item.network ?? ""),
+      description: String(item.description ?? item.creative ?? ""),
+      market: String(item.market ?? ""),
+      bursts,
+    }
+  })
+
+  rows.sort((a, b) => a.stableId.localeCompare(b.stableId, undefined, { numeric: true }))
+
+  return JSON.stringify(rows)
+}
+
 type MediaTypeOption = { value: string; label: string }
 
 interface ProductionContainerProps {
@@ -347,13 +402,13 @@ export default function ProductionContainer({
     name: "lineItems",
   })
 
-  const hasHydratedRef = useRef(false)
+  const lastHydratedKeyRef = useRef<string | null>(null)
 
   // Hydrate form when initialLineItems are provided (edit flow)
   useEffect(() => {
     if (!initialLineItems || initialLineItems.length === 0) return
-    if (hasHydratedRef.current) return
-    hasHydratedRef.current = true
+    const incomingKey = buildProductionInitialLineItemsKey(initialLineItems)
+    if (incomingKey === lastHydratedKeyRef.current) return
     try {
       const normalized = initialLineItems.map((item: any, idx: number) => {
         const rawBursts =
@@ -404,6 +459,7 @@ export default function ProductionContainer({
       form.reset({
         lineItems: normalized,
       })
+      lastHydratedKeyRef.current = incomingKey
     } catch (err) {
       console.warn("[ProductionContainer] Failed to hydrate initial line items", err)
     }
