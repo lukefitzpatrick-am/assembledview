@@ -48,7 +48,7 @@ import {
   mediaTypeLineItemBadgeStyle,
   mediaTypeSummaryStripeStyle,
 } from "@/lib/mediaplan/mediaTypeAccents"
-import { buildLineItemId } from "@/lib/mediaplan/lineItemIds"
+import { buildLineItemId, MEDIA_TYPE_ID_CODES } from "@/lib/mediaplan/lineItemIds"
 
 const MEDIA_ACCENT_HEX = getMediaTypeThemeHex("production")
 
@@ -273,7 +273,7 @@ const mapLineItemsForExport = (
       const mediaAmount = (burst.cost || 0) * (burst.amount || 0)
       const lineId =
         lineItem.lineItemId ||
-        buildLineItemId(mbaNumber, "PROD", lineIndex + 1)
+        buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.production, lineIndex + 1)
       burstIndex += 1
       return {
         market: lineItem.market || "",
@@ -456,7 +456,7 @@ export default function ProductionContainer({
           lineItemId:
             item.line_item_id ||
             item.lineItemId ||
-            buildLineItemId(mbaNumber, "PROD", idx + 1),
+            buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.production, idx + 1),
           bursts: bursts.length > 0 ? bursts : [makeDefaultBurst()],
         }
       })
@@ -492,7 +492,7 @@ export default function ProductionContainer({
       description: lineItem.description || "",
       line_item_id:
         lineItem.lineItemId ||
-        buildLineItemId(mbaNumber, "PROD", index + 1),
+        buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.production, index + 1),
       bursts: (lineItem.bursts || []).map((burst) => ({
         cost: Number(burst.cost) || 0,
         amount: Number(burst.amount) || 0,
@@ -620,7 +620,7 @@ export default function ProductionContainer({
           {lineItemFields.map((field, lineItemIndex) => {
             const lineItemId =
               form.watch(`lineItems.${lineItemIndex}.lineItemId`) ||
-              buildLineItemId(mbaNumber, "PROD", lineItemIndex + 1)
+              buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.production, lineItemIndex + 1)
             const lineItemBursts = form.watch(`lineItems.${lineItemIndex}.bursts`) || []
             const lineItemMediaTotal =
               lineItemBursts.reduce(

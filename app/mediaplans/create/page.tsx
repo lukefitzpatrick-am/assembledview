@@ -58,6 +58,7 @@ import {
   type PartialApprovalMetadata,
   type PartialMbaValues,
 } from "@/lib/mediaplan/partialMba"
+import { MEDIA_TYPE_ID_CODES } from "@/lib/mediaplan/lineItemIds"
 import { generateBillingLineItems } from "@/lib/billing/generateBillingLineItems"
 import { getMediaTypeHeadersForSchedule } from "@/lib/billing/mediaTypeHeaders"
 import { syncLineItemMonthlyAmountAcrossAllMonthRows } from "@/lib/billing/syncLineItemAmountAcrossMonthRows"
@@ -2602,7 +2603,7 @@ export default function CreateMediaPlan() {
       cinema:       assignLineItemIds(validCinemaItems,       "CIN"),
       integration:  assignLineItemIds(validIntegrationItems,  "INT"),
       influencers:  assignLineItemIds(validInfluencersItems,  "INF"),
-      production:   assignLineItemIds(validProductionLineItems,   "PROD"),
+      production:   assignLineItemIds(validProductionLineItems,   MEDIA_TYPE_ID_CODES.production),
     };
 
     const productionTotal = calculateProductionCosts()
