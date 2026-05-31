@@ -137,6 +137,10 @@ function buildProductionInitialLineItemsKey(items: ReadonlyArray<any>): string {
     const stableId = String(
       item.line_item_id ?? item.lineItemId ?? item.line_item ?? item.lineItem ?? idx
     )
+    // Bursts keep fetch array order (not sorted). Current fetch paths return stable
+    // row and burst order for identical saved data. A future path that reorders bursts
+    // for the same data would produce a different key, trigger re-hydration, and
+    // clobber an unsaved edit.
     const bursts = parseRawBurstsForHydrationKey(item).map((burst) => ({
       cost: coerceHydrationKeyNumber(burst.cost ?? burst.budget ?? burst.mediaValue),
       amount: coerceHydrationKeyNumber(burst.amount ?? burst.deliverables ?? burst.buyAmount),
