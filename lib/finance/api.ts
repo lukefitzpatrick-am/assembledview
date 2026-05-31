@@ -260,6 +260,31 @@ export async function updateBillingRecord(
   return jsonOrThrow<BillingRecord>(response, `/api/finance/billing/${id}`)
 }
 
+export async function markBilled(params: {
+  billing_type: BillingType
+  clients_id: number
+  client_name: string
+  mba_number: string | null
+  campaign_name: string | null
+  billing_month: string
+  billed: boolean
+  total?: number
+}): Promise<{
+  persisted_record_id: number
+  invoice_key: string
+  billed: boolean
+  billed_at: number | null
+  billed_by: number | null
+}> {
+  const path = "/api/finance/billing/mark-billed"
+  const response = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  })
+  return jsonOrThrow(response, path)
+}
+
 export async function updateLineItem(
   id: number,
   data: Partial<BillingLineItem>
