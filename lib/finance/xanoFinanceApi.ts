@@ -4,7 +4,6 @@ import { parseXanoListPayload, xanoUrl } from "@/lib/api/xano"
 export const FINANCE_BILLING_RECORDS_PATH = "finance_billing_records"
 export const FINANCE_BILLING_LINE_ITEMS_PATH = "finance_billing_line_items"
 export const FINANCE_EDITS_PATH = "finance_edits"
-export const FINANCE_EDITS_PUBLISH_PATH = "finance_edits/publish"
 export const FINANCE_SAVED_VIEWS_PATH = "finance_saved_views"
 
 export async function xanoFinanceGet(path: string, params?: Record<string, unknown>) {

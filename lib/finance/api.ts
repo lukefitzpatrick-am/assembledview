@@ -294,17 +294,6 @@ export async function deleteLineItem(id: number): Promise<void> {
   }
 }
 
-export async function publishEdits(recordId: number): Promise<void> {
-  const response = await fetch("/api/finance/edits/publish", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ finance_billing_records_id: recordId }),
-  })
-  if (!response.ok) {
-    throw new Error(await response.text())
-  }
-}
-
 export async function fetchEditHistory(recordId: number): Promise<BillingEdit[]> {
   const path = `/api/finance/edits?finance_billing_records_id=${recordId}`
   const response = await fetch(path)
