@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { KpiTargets, SearchPacingCampaignRow } from "@/lib/pacing/campaigns/types";
 import { LineItemPacingTable } from "@/components/pacing-search";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type ApiShape = { asOfDate: string; rows: SearchPacingCampaignRow[] };
 
@@ -51,7 +52,35 @@ export function CampaignsClient({ isAdmin }: CampaignsClientProps) {
     [],
   );
 
-  if (loading) return <div className="p-6 text-sm text-muted-foreground">Loading…</div>;
+  if (loading) {
+    return (
+      <div className="space-y-4 p-4">
+        <Skeleton className="h-3 w-32" />
+        <div className="rounded border">
+          <div className="relative max-h-[calc(100vh-220px)] overflow-hidden">
+            <div className="flex gap-2 border-b p-2">
+              <Skeleton className="h-8 w-6 shrink-0" />
+              <Skeleton className="h-8 w-20" />
+              <Skeleton className="h-8 w-16" />
+              <Skeleton className="h-8 w-36" />
+              <Skeleton className="h-8 w-16" />
+              <Skeleton className="h-8 w-24" />
+              <Skeleton className="h-8 w-16" />
+              <Skeleton className="h-8 w-20" />
+            </div>
+            <div className="space-y-2 p-2">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
   if (error) return <div className="p-6 text-sm text-destructive">Failed to load: {error}</div>;
   if (!data) return null;
 
