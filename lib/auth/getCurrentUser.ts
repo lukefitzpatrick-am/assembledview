@@ -1,18 +1,12 @@
 import "server-only"
-
-import axios from "axios"
 import type { NextRequest } from "next/server"
 import { auth0 } from "@/lib/auth0"
-import { parseXanoListPayload } from "@/lib/api/xano"
-import { xanoUrl } from "@/lib/api/xano"
 
 export type CurrentUser = {
   id: number
   name?: string | null
   email?: string | null
 }
-
-const AUTH0_ID_KEYS = ["auth0_user_id", "auth0_id", "auth0_sub", "external_id", "user_id"] as const
 
 function pickNumericUsersId(source: Record<string, unknown>): number | null {
   for (const key of ["users_id", "xano_users_id"]) {
@@ -28,67 +22,27 @@ function pickNumericUsersId(source: Record<string, unknown>): number | null {
   return null
 }
 
-function auth0SubMatches(row: Record<string, unknown>, sub: string): boolean {
-  for (const k of AUTH0_ID_KEYS) {
-    if (String(row[k] ?? "").trim() === sub) return true
-  }
-  return false
-}
-
 /**
- * Resolves the authenticated caller to a Xano `users` row id for audit fields.
- * Returns null when unauthenticated or when no matching Xano user exists.
+ * Resolves the authenticated caller for audit fields from the Auth0 session.
+ * There is no Xano users table; identity is Auth0-only. A numeric users id is
+ * not present on the session today, so audit number fields (edited_by /
+ * billed_by) default to 0 and the human identity is carried in the *_name
+ * field via email, falling back to sub. pickNumericUsersId is retained so a
+ * numeric claim added later is picked up automatically.
  */
 export async function getCurrentUser(request: NextRequest | Request): Promise<CurrentUser | null> {
   const session = await auth0.getSession(request as NextRequest)
   if (!session?.user) return null
-
   const user = session.user as Record<string, unknown>
+
+  const nameClaim = typeof user.name === "string" && user.name.trim() ? user.name.trim() : null
+  const email = typeof user.email === "string" && user.email.trim() ? user.email.trim() : null
+  const sub = typeof user.sub === "string" && user.sub.trim() ? user.sub.trim() : null
+
   const directId = pickNumericUsersId(user)
-  if (directId != null) {
-    return {
-      id: directId,
-      name: typeof user.name === "string" ? user.name : null,
-      email: typeof user.email === "string" ? user.email : null,
-    }
-  }
-
-  const sub = typeof user.sub === "string" ? user.sub.trim() : ""
-  if (!sub) return null
-
-  try {
-    const url = xanoUrl("user", "XANO_CLIENTS_BASE_URL")
-    const response = await axios.get(url, { timeout: 12_000 })
-    const rows = parseXanoListPayload(response.data) as Record<string, unknown>[]
-    const match = rows.find((row) => auth0SubMatches(row, sub))
-    if (!match) return null
-
-    const id = Number(match.id)
-    if (!Number.isFinite(id) || id <= 0) return null
-
-    const name =
-      typeof match.name === "string" && match.name.trim()
-        ? match.name.trim()
-        : typeof match.first_name === "string" && match.first_name.trim()
-          ? match.first_name.trim()
-          : typeof user.name === "string"
-            ? user.name
-            : null
-
-    return {
-      id,
-      name,
-      email:
-        typeof match.email === "string" && match.email.trim()
-          ? match.email.trim()
-          : typeof user.email === "string"
-            ? user.email
-            : null,
-    }
-  } catch (error) {
-    console.error("[getCurrentUser] Xano user lookup failed", {
-      message: error instanceof Error ? error.message : String(error),
-    })
-    return null
+  return {
+    id: directId ?? 0,
+    name: nameClaim ?? email ?? sub,
+    email,
   }
 }
