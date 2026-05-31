@@ -42,6 +42,7 @@ function buildMediaTypeRollups(records: BillingRecord[]): MediaTypeRollup[] {
 type ReceivablesMediaPlanSectionProps = {
   mp: MediaPlanGroup
   sectionLabel?: string
+  onToggleBilled: (rec: BillingRecord, nextBilled: boolean) => Promise<void>
 }
 
 function MediaTypeRollupRow({ rollup }: { rollup: MediaTypeRollup }) {
@@ -80,7 +81,7 @@ function MediaTypeRollupRow({ rollup }: { rollup: MediaTypeRollup }) {
   )
 }
 
-export function ReceivablesMediaPlanSection({ mp, sectionLabel }: ReceivablesMediaPlanSectionProps) {
+export function ReceivablesMediaPlanSection({ mp, sectionLabel, onToggleBilled }: ReceivablesMediaPlanSectionProps) {
   const rollups = useMemo(() => buildMediaTypeRollups(mp.records), [mp.records])
 
   return (
@@ -100,9 +101,11 @@ export function ReceivablesMediaPlanSection({ mp, sectionLabel }: ReceivablesMed
 
       {mp.records.length > 0 ? (
         <div className="flex flex-wrap gap-1.5">
-          {mp.records.map((rec, idx) => (
-            <BilledStatusPill key={`${rec.id}-${idx}`} billed={rec.billed} />
-          ))}
+          <BilledStatusPill
+            billed={mp.records[0]?.billed}
+            onToggle={(next) => onToggleBilled(mp.records[0], next)}
+            disabled={!mp.records[0]?.invoice_key}
+          />
         </div>
       ) : null}
 

@@ -1,13 +1,15 @@
 "use client"
 
-import { useMemo } from "react"
+import { useCallback, useMemo } from "react"
 import { ChevronDown, Loader2 } from "lucide-react"
 import { FinanceFilterToolbar } from "@/components/finance/FinanceFilterToolbar"
 import { ReceivablesClientCard } from "@/components/finance/receivables/ReceivablesClientCard"
 import { ReceivablesSummaryStrip } from "@/components/finance/receivables/ReceivablesSummaryStrip"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { useFinanceStore } from "@/lib/finance/useFinanceStore"
+import { markBilled } from "@/lib/finance/api"
 import { useReceivablesData, type MonthGroup } from "@/lib/finance/useReceivablesData"
+import { useToast } from "@/components/ui/use-toast"
 import { expandMonthRange } from "@/lib/finance/monthRange"
 import { formatMoney } from "@/lib/format/money"
 import type { BillingRecord } from "@/lib/types/financeBilling"
@@ -87,7 +89,13 @@ function sumMonthGroupsTotal(groups: MonthGroup[]): number {
   return groups.reduce((s, mg) => s + mg.total, 0)
 }
 
-function ReceivablesMonthSections({ groups }: { groups: ReturnType<typeof useReceivablesData>["visibleMonthGroups"] }) {
+function ReceivablesMonthSections({
+  groups,
+  onToggleBilled,
+}: {
+  groups: ReturnType<typeof useReceivablesData>["visibleMonthGroups"]
+  onToggleBilled: (rec: BillingRecord, nextBilled: boolean) => Promise<void>
+}) {
   if (groups.length === 0) return null
 
   return (
@@ -104,6 +112,7 @@ function ReceivablesMonthSections({ groups }: { groups: ReturnType<typeof useRec
                 key={`${mg.monthIso}-${client.clientsId}`}
                 client={client}
                 monthLabel={mg.monthLabel}
+                onToggleBilled={onToggleBilled}
               />
             ))}
           </div>
@@ -122,7 +131,48 @@ export function ReceivablesPageClient() {
     loadedSignature,
     loadError,
     bumpReceivablesFetch,
+    updateBilledByInvoiceKey,
   } = useReceivablesData("billing")
+
+  const { toast } = useToast()
+
+  const handleToggleBilled = useCallback(
+    async (rec: BillingRecord, nextBilled: boolean) => {
+      if (!rec.invoice_key) {
+        toast({
+          variant: "destructive",
+          title: "Cannot mark billed",
+          description: "This invoice has no billing key (missing MBA or month).",
+        })
+        return
+      }
+      try {
+        const res = await markBilled({
+          billing_type: rec.billing_type,
+          clients_id: rec.clients_id,
+          client_name: rec.client_name,
+          mba_number: rec.mba_number,
+          campaign_name: rec.campaign_name,
+          billing_month: rec.billing_month,
+          billed: nextBilled,
+          total: rec.total,
+        })
+        updateBilledByInvoiceKey(res.invoice_key, {
+          billed: res.billed,
+          billed_at: res.billed_at,
+          billed_by: res.billed_by,
+          persisted_record_id: res.persisted_record_id,
+        })
+      } catch (e) {
+        toast({
+          variant: "destructive",
+          title: nextBilled ? "Mark billed failed" : "Un-mark failed",
+          description: e instanceof Error ? e.message : "Unknown error",
+        })
+      }
+    },
+    [toast, updateBilledByInvoiceKey]
+  )
 
   const synced = loadedSignature === filterSig
   const awaitingExplicitLoad = !synced
@@ -210,7 +260,7 @@ export function ReceivablesPageClient() {
               <p className="text-sm text-muted-foreground">All invoices billed for this period.</p>
             ) : null}
 
-            <ReceivablesMonthSections groups={unbilledGroups} />
+            <ReceivablesMonthSections groups={unbilledGroups} onToggleBilled={handleToggleBilled} />
 
             {billedInvoiceCount > 0 ? (
               <Collapsible defaultOpen={false} className="group/billed">
@@ -222,7 +272,7 @@ export function ReceivablesPageClient() {
                   </span>
                 </CollapsibleTrigger>
                 <CollapsibleContent className="mt-4">
-                  <ReceivablesMonthSections groups={billedGroups} />
+                  <ReceivablesMonthSections groups={billedGroups} onToggleBilled={handleToggleBilled} />
                 </CollapsibleContent>
               </Collapsible>
             ) : (

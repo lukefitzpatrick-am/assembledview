@@ -4,6 +4,7 @@ import { ChevronDown } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import type { ClientGroup } from "@/lib/finance/useReceivablesData"
+import type { BillingRecord } from "@/lib/types/financeBilling"
 import { clientAccentColour, clientInitials } from "@/lib/finance/cardHelpers"
 import { formatMoney } from "@/lib/format/money"
 import { BilledStatusPill } from "./BilledStatusPill"
@@ -12,9 +13,10 @@ import { ReceivablesMediaPlanSection } from "./ReceivablesMediaPlanSection"
 type ReceivablesClientCardProps = {
   client: ClientGroup
   monthLabel: string
+  onToggleBilled: (rec: BillingRecord, nextBilled: boolean) => Promise<void>
 }
 
-export function ReceivablesClientCard({ client, monthLabel }: ReceivablesClientCardProps) {
+export function ReceivablesClientCard({ client, monthLabel, onToggleBilled }: ReceivablesClientCardProps) {
   const invCount =
     client.mediaPlans.reduce((n, mp) => n + mp.records.length, 0) +
     client.scopeOfWorks.reduce((n, mp) => n + mp.records.length, 0) +
@@ -55,6 +57,7 @@ export function ReceivablesClientCard({ client, monthLabel }: ReceivablesClientC
                 key={`mp-${client.clientsId}-${mpIdx}-${mp.mbaNumber}`}
                 mp={mp}
                 sectionLabel={mpIdx === 0 && client.mediaPlans.length ? "Media plans" : undefined}
+                onToggleBilled={onToggleBilled}
               />
             ))}
             {client.scopeOfWorks.map((mp, mpIdx) => (
@@ -62,6 +65,7 @@ export function ReceivablesClientCard({ client, monthLabel }: ReceivablesClientC
                 key={`sow-${client.clientsId}-${mpIdx}-${mp.mbaNumber}`}
                 mp={mp}
                 sectionLabel="Fees"
+                onToggleBilled={onToggleBilled}
               />
             ))}
             {client.retainers.length > 0 ? (
@@ -79,7 +83,11 @@ export function ReceivablesClientCard({ client, monthLabel }: ReceivablesClientC
                       ) : null}
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
-                      <BilledStatusPill billed={rec.billed} />
+                      <BilledStatusPill
+                        billed={rec.billed}
+                        onToggle={(next) => onToggleBilled(rec, next)}
+                        disabled={!rec.invoice_key}
+                      />
                       <p className="text-sm font-semibold tabular-nums">{formatMoney(rec.total)}</p>
                     </div>
                   </div>
