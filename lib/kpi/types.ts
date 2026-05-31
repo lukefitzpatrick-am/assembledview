@@ -312,8 +312,8 @@ const kpiMetric = z
   })
 
 /**
- * Campaign-tier metric: null for unset, positive number when set.
- * Zero and negatives are rejected — use null to express "no target."
+ * Campaign-tier metric: null for unset, zero or positive number when set.
+ * Negatives are rejected. Use null to express "no target" and 0 for a real zero target.
  */
 const kpiMetricNullable = z
   .union([z.string(), z.number(), z.null(), z.undefined()])
@@ -323,8 +323,8 @@ const kpiMetricNullable = z
     if (!Number.isFinite(n)) return null
     return n
   })
-  .refine((v) => v === null || v > 0, {
-    message: "Targets must be positive.",
+  .refine((v) => v === null || v >= 0, {
+    message: "Targets cannot be negative.",
   })
 
 const nonEmptyStr = z.string().trim().min(1, "Required")

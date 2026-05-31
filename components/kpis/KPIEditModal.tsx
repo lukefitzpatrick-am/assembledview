@@ -298,12 +298,12 @@ export function KPIEditModal({ open, onClose, host }: KPIEditModalProps) {
                                 defaultValue={formatPercentForInput(row.ctr)}
                                 onBlur={(e) => {
                                   const parsed = parsePercentHeuristic(e.target.value)
-                                  if (parsed !== null && parsed <= 0) {
+                                  if (parsed !== null && parsed < 0) {
                                     setFieldErrors((prev) => ({
                                       ...prev,
                                       [rowIndex]: {
                                         ...prev[rowIndex],
-                                        ctr: "Targets must be positive.",
+                                        ctr: "Targets cannot be negative.",
                                       },
                                     }))
                                     return
@@ -338,12 +338,12 @@ export function KPIEditModal({ open, onClose, host }: KPIEditModalProps) {
                                 defaultValue={formatPercentForInput(row.vtr)}
                                 onBlur={(e) => {
                                   const parsed = parsePercentHeuristic(e.target.value)
-                                  if (parsed !== null && parsed <= 0) {
+                                  if (parsed !== null && parsed < 0) {
                                     setFieldErrors((prev) => ({
                                       ...prev,
                                       [rowIndex]: {
                                         ...prev[rowIndex],
-                                        vtr: "Targets must be positive.",
+                                        vtr: "Targets cannot be negative.",
                                       },
                                     }))
                                     return
@@ -380,12 +380,12 @@ export function KPIEditModal({ open, onClose, host }: KPIEditModalProps) {
                                   const cleaned = e.target.value.replace(/[^0-9.-]/g, "").trim()
                                   const val = cleaned === "" ? null : parseFloat(cleaned)
                                   const parsed = val !== null && Number.isFinite(val) ? val : null
-                                  if (parsed !== null && parsed <= 0) {
+                                  if (parsed !== null && parsed < 0) {
                                     setFieldErrors((prev) => ({
                                       ...prev,
                                       [rowIndex]: {
                                         ...prev[rowIndex],
-                                        cpv: "Targets must be positive.",
+                                        cpv: "Targets cannot be negative.",
                                       },
                                     }))
                                     return
@@ -420,12 +420,12 @@ export function KPIEditModal({ open, onClose, host }: KPIEditModalProps) {
                                 defaultValue={formatPercentForInput(row.conversion_rate)}
                                 onBlur={(e) => {
                                   const parsed = parsePercentHeuristic(e.target.value)
-                                  if (parsed !== null && parsed <= 0) {
+                                  if (parsed !== null && parsed < 0) {
                                     setFieldErrors((prev) => ({
                                       ...prev,
                                       [rowIndex]: {
                                         ...prev[rowIndex],
-                                        conversion_rate: "Targets must be positive.",
+                                        conversion_rate: "Targets cannot be negative.",
                                       },
                                     }))
                                     return
@@ -462,12 +462,12 @@ export function KPIEditModal({ open, onClose, host }: KPIEditModalProps) {
                                   const cleaned = e.target.value.replace(/[^0-9.-]/g, "").trim()
                                   const val = cleaned === "" ? null : parseFloat(cleaned)
                                   const parsed = val !== null && Number.isFinite(val) ? val : null
-                                  if (parsed !== null && parsed <= 0) {
+                                  if (parsed !== null && parsed < 0) {
                                     setFieldErrors((prev) => ({
                                       ...prev,
                                       [rowIndex]: {
                                         ...prev[rowIndex],
-                                        frequency: "Targets must be positive.",
+                                        frequency: "Targets cannot be negative.",
                                       },
                                     }))
                                     return
