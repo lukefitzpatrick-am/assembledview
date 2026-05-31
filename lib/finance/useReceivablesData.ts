@@ -77,6 +77,15 @@ export type HubReceivablesHubState = {
   loadedSignature: string | null
   loadError: string | null
   bumpReceivablesFetch: () => void
+  updateBilledByInvoiceKey: (
+    invoiceKey: string,
+    fields: {
+      billed: boolean
+      billed_at: number | null
+      billed_by: number | null
+      persisted_record_id?: number | null
+    }
+  ) => void
 }
 
 export function useReceivablesData(activeTab: FinanceHubTab): HubReceivablesHubState {
@@ -108,6 +117,27 @@ export function useReceivablesData(activeTab: FinanceHubTab): HubReceivablesHubS
   const bumpReceivablesFetch = useCallback(() => {
     setFetchKey((k) => k + 1)
   }, [])
+
+  const updateBilledByInvoiceKey = useCallback<HubReceivablesHubState["updateBilledByInvoiceKey"]>(
+    (invoiceKey, fields) => {
+      if (!invoiceKey) return
+      setRecords((prev) =>
+        prev.map((r) =>
+          r.invoice_key === invoiceKey
+            ? {
+                ...r,
+                billed: fields.billed,
+                billed_at: fields.billed_at,
+                billed_by: fields.billed_by,
+                persisted_record_id:
+                  fields.persisted_record_id ?? r.persisted_record_id ?? null,
+              }
+            : r
+        )
+      )
+    },
+    []
+  )
 
   useEffect(() => {
     logReceivablesEffectDepChanges(
@@ -290,6 +320,7 @@ export function useReceivablesData(activeTab: FinanceHubTab): HubReceivablesHubS
     loadedSignature,
     loadError,
     bumpReceivablesFetch,
+    updateBilledByInvoiceKey,
   }
 }
 
