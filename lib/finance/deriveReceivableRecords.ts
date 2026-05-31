@@ -37,6 +37,8 @@ function financeMediaLineToBillingLine(
   }
 }
 
+export type ClientMbaIdentifierEntry = { mbaidentifier: string; id: number; name: string }
+
 function hashClientNameToId(name: string): number {
   let h = 5381
   for (let i = 0; i < name.length; i++) {
@@ -45,9 +47,23 @@ function hashClientNameToId(name: string): number {
   return (Math.abs(h) % 900_000) + 100_000
 }
 
+function resolveClientIdByMbaPrefix(
+  mbaNumber: string,
+  mbaIdentifiers: ClientMbaIdentifierEntry[]
+): ClientMbaIdentifierEntry | null {
+  const mba = (mbaNumber ?? "").trim().toUpperCase()
+  if (!mba) return null
+  for (const entry of mbaIdentifiers) {
+    const id = entry.mbaidentifier.trim().toUpperCase()
+    if (id && mba.startsWith(id)) return entry
+  }
+  return null
+}
+
 function buildClientResolution(
   version: Record<string, unknown>,
-  clientMap: Map<string, unknown>
+  clientMap: Map<string, unknown>,
+  mbaIdentifiers: ClientMbaIdentifierEntry[]
 ): { clients_id: number; client_name: string } {
   const numeric =
     Number(version.clients_id ?? version.mp_clients_id ?? version.client_id ?? 0) || 0
@@ -58,6 +74,17 @@ function buildClientResolution(
   const rec = (clientName ? clientMap.get(clientName) : undefined) as Record<string, unknown> | undefined
   const id = rec?.id != null ? Number(rec.id) || 0 : 0
   if (id !== 0) return { clients_id: id, client_name: clientName || "Unknown" }
+
+  const mbaNumber = String(version.mba_number ?? "").trim()
+  const byMba = resolveClientIdByMbaPrefix(mbaNumber, mbaIdentifiers)
+  if (byMba) {
+    return { clients_id: byMba.id, client_name: byMba.name || clientName || "Unknown" }
+  }
+
+  console.warn(
+    "[finance-derive] client id resolved via hash fallback (no FK, no name match, no mbaidentifier prefix)",
+    { clientName, mbaNumber }
+  )
   return { clients_id: hashClientNameToId(clientName), client_name: clientName }
 }
 
@@ -71,8 +98,13 @@ export function derivePlanReceivableBillingRecordsForMonth(
   month: number,
   publisherMap: Map<string, unknown>,
   clientMap: Map<string, unknown>,
+  mbaIdentifiers: ClientMbaIdentifierEntry[],
   options: { includeNonBookedCampaigns: boolean }
 ): BillingRecord[] {
+  console.log("[finance-derive] mbaIdentifiers triage", {
+    count: mbaIdentifiers.length,
+    sample: mbaIdentifiers.slice(0, 5),
+  })
   const billingMonth = `${year}-${String(month).padStart(2, "0")}`
   const out: BillingRecord[] = []
   let syntheticId = 1
@@ -93,7 +125,7 @@ export function derivePlanReceivableBillingRecordsForMonth(
       }
     }
 
-    const { clients_id, client_name } = buildClientResolution(version, clientMap)
+    const { clients_id, client_name } = buildClientResolution(version, clientMap, mbaIdentifiers)
     const mba = String(version.mba_number ?? "").trim()
     const campaign = String(version.campaign_name ?? "").trim() || mba || "Campaign"
 

@@ -76,6 +76,22 @@ function buildClientNameMap(clients: Record<string, unknown>[]): Map<string, Rec
   return m
 }
 
+function buildClientMbaIdentifierMap(
+  clients: Record<string, unknown>[]
+): Array<{ mbaidentifier: string; id: number; name: string }> {
+  const out: Array<{ mbaidentifier: string; id: number; name: string }> = []
+  for (const c of clients) {
+    const mbaid = String(c.mbaidentifier ?? c.mba_identifier ?? c.mbaIdentifier ?? "").trim()
+    const id = Number(c.id)
+    const name = String(c.mp_client_name ?? c.clientname_input ?? c.name ?? "").trim()
+    if (mbaid && Number.isFinite(id) && id > 0) {
+      out.push({ mbaidentifier: mbaid, id, name })
+    }
+  }
+  out.sort((a, b) => b.mbaidentifier.length - a.mbaidentifier.length)
+  return out
+}
+
 function buildPublisherIdMap(publishers: Record<string, unknown>[]): Map<number, string> {
   const m = new Map<number, string>()
   for (const p of publishers) {
@@ -141,6 +157,7 @@ export async function GET(request: NextRequest) {
 
     const [clients, publishers] = await Promise.all([getCachedClients(), getCachedPublishers()])
     const clientMap = buildClientNameMap(clients as Record<string, unknown>[])
+    const mbaIdentifiers = buildClientMbaIdentifierMap(clients as Record<string, unknown>[])
     const publisherNameMap = new Map<string, unknown>()
     for (const p of publishers as Record<string, unknown>[]) {
       const name = String(p.publisher_name ?? "").trim()
@@ -157,6 +174,7 @@ export async function GET(request: NextRequest) {
         month,
         publisherNameMap,
         clientMap,
+        mbaIdentifiers,
         { includeNonBookedCampaigns: includeNonBooked }
       )
       derived.push(...fromPlans)
