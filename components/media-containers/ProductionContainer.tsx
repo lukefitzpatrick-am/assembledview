@@ -111,7 +111,7 @@ interface ProductionContainerProps {
   onBurstsChange: (bursts: BillingBurst[]) => void
   onInvestmentChange: (investmentByMonth: any) => void
   onLineItemsChange: (items: LineItem[]) => void
-  onMediaLineItemsChange?: (items: any[]) => void
+  onMediaLineItemsChange: (items: any[]) => void
   campaignStartDate: Date
   campaignEndDate: Date
   campaignBudget: number
