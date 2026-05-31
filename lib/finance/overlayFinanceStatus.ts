@@ -28,12 +28,19 @@ export type PersistedFinanceStatusRow = {
 }
 
 /**
- * Compose the discriminated invoice_key used to overlay status onto derived rows.
- * Matches the key the app will write at materialisation time in Stage 2.2b.
+ * Compose the discriminated invoice_key used to overlay status onto derived rows
+ * and to key lazy materialisation. Stage 2.2b-ii (Option B): media and sow key on
+ * the stored mba_number, which uniquely implies the client, so the key no longer
+ * depends on resolved clients_id. Retainers have no mba_number and take clients_id
+ * straight from clients.id, so they keep it.
  *
- *   media | sow      → media:{clients_id}:{mba_number}:{billing_month}
- *                      sow:{clients_id}:{mba_number}:{billing_month}
- *   retainer         → retainer:{clients_id}:{campaign_name}:{billing_month}
+ *   media | sow   -> media:{mba_number}:{billing_month}
+ *                    sow:{mba_number}:{billing_month}
+ *   retainer      -> retainer:{clients_id}:{billing_month}
+ *   payable       -> null (later stage)
+ *
+ * clientsId remains a parameter for the retainer branch and to preserve call sites;
+ * it is intentionally unused for media and sow.
  */
 export function composeInvoiceKey(
   billingType: BillingRecord["billing_type"],
@@ -44,14 +51,12 @@ export function composeInvoiceKey(
 ): string | null {
   if (!billingMonth) return null
   if (billingType === "retainer") {
-    const camp = (campaignName ?? "").trim()
-    if (!camp) return null
-    return `retainer:${clientsId}:${camp}:${billingMonth}`
+    return `retainer:${clientsId}:${billingMonth}`
   }
-  if (billingType === "payable") return null // payables overlay is a later stage
+  if (billingType === "payable") return null
   const mba = (mbaNumber ?? "").trim()
   if (!mba) return null
-  return `${billingType}:${clientsId}:${mba}:${billingMonth}`
+  return `${billingType}:${mba}:${billingMonth}`
 }
 
 /**
