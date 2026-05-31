@@ -1,5 +1,6 @@
 import axios from "axios"
 import { xanoUrl } from "@/lib/api/xano"
+import { getXanoClientsCollectionUrl } from "@/lib/api/xanoClients"
 
 const CACHE_TTL_MS = 30_000
 
@@ -20,12 +21,20 @@ export async function getCachedClients(): Promise<any[]> {
 
   const promise = (async (): Promise<any[]> => {
     try {
-      const res = await axios
-        .get(xanoUrl("get_clients", "XANO_CLIENTS_BASE_URL"))
-        .catch(() => ({ data: [] as any[] }))
-      const data = Array.isArray(res.data) ? res.data : []
+      const res = await axios.get(getXanoClientsCollectionUrl())
+      const raw = res.data
+      const data: any[] = Array.isArray(raw)
+        ? raw
+        : Array.isArray(raw?.items)
+          ? raw.items
+          : []
+      // Only successful fetches reach here, so caching the result is safe.
       clientsCacheEntry = { expiresAt: Date.now() + CACHE_TTL_MS, value: data }
       return data
+    } catch (e: any) {
+      // Do not cache an empty list produced by an error. Next call retries.
+      console.error("[ref-cache] getCachedClients fetch failed", e?.response?.status, e?.message)
+      return []
     } finally {
       clientsInFlightPromise = null
     }
