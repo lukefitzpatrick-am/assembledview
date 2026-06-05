@@ -1804,4 +1804,252 @@ Reasoning: Stage 1 production `lineItemId: ""` / `"PROD"` issues are secondary c
 
 ---
 
+## Discovery: MBA edit page version-scoped loading
+
+_Discovery only (Stage 0). No application code changed._
+
+### A. Edit page entry and orchestration
+
+#### 1. Route component
+
+| Item | Value |
+|------|-------|
+| **Route** | `/mediaplans/mba/[mba_number]/edit` |
+| **Page component** | `app/mediaplans/mba/[mba_number]/edit/page.tsx` (`EditMediaPlan`, default export) |
+| **Route loading UI** | `app/mediaplans/mba/[mba_number]/edit/loading.tsx` (static spinner; no data fetch) |
+
+#### 2. Mount-time data fetches, hooks, and effects (execution order)
+
+React runs effects in declaration order after each render. On **first mount**, network I/O starts from these effects (others are ref-sync, form-watch, or gated on later state):
+
+| Order | Trigger | What runs | Network? |
+|-------|---------|-----------|----------|
+| 1 | Mount | Sticky banner `ResizeObserver` (`page.tsx` ~1334) | No |
+| 2 | Mount `[]` | `fetch("/api/publishers")` (~1898) | Yes — unscoped |
+| 3 | Mount `[]` | `getPublisherKPIs()` → `/api/kpis/publisher` (~1914) | Yes — unscoped |
+| 4 | Mount `[]` | `fetch("/api/clients")` (~3009) | Yes — unscoped |
+| 5 | `[mbaNumber, versionNumber, …]` | **Primary bootstrap** `fetchMediaPlan` (~2516): `GET /api/mediaplans/mba/{mba}?skipLineItems=true&billingScheduleFull=1[&version=N]` | Yes — see §B |
+| 6 | After bootstrap sets `selectedVersionNumber` | `getCampaignKPIs(mba, version)` (~2073) → `/api/kpis/campaign?mbaNumber&versionNumber` | Yes — **version-scoped** |
+| 7 | After form reset sets `mp_clientname` | `getClientKPIs(clientName)` (~2060) → `/api/kpis/client?mp_client_name=` | Yes — client-scoped |
+| 8 | After bootstrap → `loadPhase === "loadingLineItems"` | Parallel `get*LineItemsByMBA` per enabled media flag (~3194) → `/api/media_plans/{type}?…` | Yes — **intended version-scoped** (see §D) |
+| 9 | After `clients` + `mediaPlan` | Client lookup / optional `fetch(/api/clients/{id})` for fees (~3027, ~1486) | Sometimes |
+
+**Not used on this page:** Zustand stores (grep: no `useFinanceStore` / `zustand` in `edit/page.tsx`). `useMediaPlanContext` only calls `setMbaNumber` after bootstrap (~2964).
+
+**Post-ready effects** (not initial load blockers): billing divergence (~7324), billing append (~7395), KPI debounced rebuild (~2096), `setAssistantContext` (~7997), date-warning validation (~2315).
+
+#### 3. Three-phase load state machine
+
+Types at `page.tsx` ~1260–1261:
+
+```typescript
+type LoadPhase = "bootstrapping" | "loadingLineItems" | "ready" | "error"
+```
+
+| Phase | Set where | What completes | Version data role |
+|-------|-----------|----------------|-------------------|
+| **`bootstrapping`** | Initial state (~1765); reset on MBA/version change (~2531) | `fetchMediaPlan` (~2516): master + **all** `media_plan_versions` rows (server), form reset, billing hydrate from **one** version’s `billingSchedule` | **Version list + target version row** loaded here; line items **skipped** (`skipLineItems=true`) |
+| **`loadingLineItems`** | After successful bootstrap (~2983) | Parallel per-media `get*LineItemsByMBA` (~3194) | Line items for **active version only** (client passes `versionToUse`) |
+| **`ready`** | All enabled media loads finish or none enabled (~3238, ~3313) | Editor interactive; divergence check waits for `ready` (~7330) | — |
+| **`error`** | Bootstrap failure (~2734, ~2995) | Modal + error state | — |
+
+Per-media status also tracked in `mediaLoadStatus` (`idle` \| `loading` \| `ready` \| `error`) and `lineItemLoadItems` (load modal).
+
+---
+
+### B. `media_plan_versions` loading
+
+#### 4. Endpoints and call sites
+
+| Layer | File | Xano / app endpoint |
+|-------|------|---------------------|
+| **Bootstrap (edit page)** | `app/mediaplans/mba/[mba_number]/edit/page.tsx` ~2620 | `GET /api/mediaplans/mba/{mba_number}?skipLineItems=true&billingScheduleFull=1[&version=N]` |
+| **Bootstrap handler** | `app/api/mediaplans/mba/[mba_number]/route.ts` ~738, ~822–825 | Xano `media_plan_master?mba_number={mba}` then **`media_plan_versions?mba_number={mba}`** (no version filter) |
+| **Line-item routes** (per type) | e.g. `app/api/media_plans/television/route.ts` ~125 | `getVersionNumberForMBA` may hit `media_plan_versions?media_plan_master_id={id}&version_number={n}` when version not passed (`lib/api/mediaPlanVersionHelper.ts` ~52–54). **Edit page passes version**, so this path is skipped when `mp_plannumber` / `media_plan_version` query params are present (~18–20 helper). |
+
+#### 5. All versions vs one version
+
+**The MBA bootstrap route fetches ALL version rows for the MBA**, then picks one in memory.
+
+```822:847:app/api/mediaplans/mba/[mba_number]/route.ts
+    // Fetch ALL versions for this MBA to derive target and latest
+    const versionsResponse = await axios.get(
+      `${mediaPlansBaseUrl}/media_plan_versions?mba_number=${encodeURIComponent(mba_number)}`
+    )
+    // ...
+    let targetVersionNumber = requestedVersionNumber ?? latestVersionNumber ?? parseVersion(masterData?.version_number) ?? 1
+    let versionData = allVersionsForMBA.find((v: any) => parseVersion(v.version_number) === targetVersionNumber) || null
+```
+
+The edit page **does** forward an optional `version` query param to that route (~2618–2620). That scopes which row is **selected** for the response, but **does not** scope the Xano list query — every version row is still downloaded server-side.
+
+The client receives a trimmed list for the switcher only:
+
+```2796:2801:app/mediaplans/mba/[mba_number]/edit/page.tsx
+        const versionsFromApi = Array.isArray(data.versions) ? data.versions.map((v: any) => ({
+          id: v.id,
+          version_number: typeof v.version_number === 'string' ? parseInt(v.version_number, 10) : v.version_number,
+          created_at: v.created_at ?? null
+        })) : []
+        setAvailableVersions(versionsFromApi)
+```
+
+(API builds `versions` from `versionsMetadata` at `route.ts` ~1172, not full rows.)
+
+#### 6. Related container / line-item data on version rows
+
+- **Bootstrap path (`skipLineItems=true`):** Line items are **not** loaded in the MBA handler (~883–925 skipped). Billing/delivery JSON and version-level flags come from the **selected** `versionData` row (~930–960).
+- **`media_plan_versions` list rows** do not carry per-media line-item tables in the edit flow; finance code documents that list endpoints often omit related rows and hydrate separately (`lib/finance/planLineItemEnrichment.ts` ~5–10, `hydratePlanVersionsForBillingLineEnrichment`).
+- **Line items** are fetched in phase 2 via separate `media_plan_*` / `*_line_items` tables through `/api/media_plans/{type}`.
+
+#### 7. Active / correct version resolution
+
+| Priority | Source | Code |
+|----------|--------|------|
+| 1 | URL query `?version=` | `const versionNumber = searchParams.get('version')` (~1323); appended to bootstrap URL (~2618–2620) |
+| 2 | Server MBA handler | `requestedVersionNumber ?? latestVersionNumber ?? masterData.version_number ?? 1` (`route.ts` ~845) |
+| 3 | Client after bootstrap | `setSelectedVersionNumber(loadedVersionNumber)` from `data.version_number` (~2795) |
+| 4 | Line-item phase | `versionToUse` = URL `versionNumber` if set, else `mediaPlan.version_number` (~3205–3214) |
+
+Version switcher (~7784–7801): selecting another version opens a rollback modal, then `router.push(…/edit?version={n})`, which re-runs bootstrap with `version` param.
+
+---
+
+### C. Reference pattern: media container version filtering
+
+#### 8. Mechanism
+
+**Shared query builder** — `lib/api/mediaPlanLineItemQuery.ts`:
+
+```1:14:lib/api/mediaPlanLineItemQuery.ts
+export function lineItemPaginationParams(
+  mbaNumber: string,
+  versionNumber: string | null | undefined
+): Record<string, string> {
+  const params: Record<string, string> = { mba_number: mbaNumber }
+  if (versionNumber != null && String(versionNumber).trim() !== "") {
+    const v = String(versionNumber)
+    params.mp_plannumber = v
+    params.version_number = v
+    params.media_plan_version = v
+  }
+  return params
+}
+```
+
+**Media-container helper** — `lib/api/media-containers.ts` `buildMediaContainerUrl` (~8–25): same three param names on container Xano endpoints.
+
+**Browser client** — `lib/api.ts` `fetchLineItemsFromApi` (~1979–1984): adds `media_plan_version`, `mp_plannumber`, `version_number` to `/api/media_plans/{type}`.
+
+**MBA route server-side** — `fetchXanoTableForMediaType` (`route.ts` ~686–698): fallback chain `media_plan_version` (FK id) → `mp_plannumber` → `version_number` → `media_plan_version` (numeric).
+
+**Safety filter** — `filterLineItemsByPlanNumber` / `filterByMbaAndVersion` after fetch.
+
+**Xano `==?` null-safe operator:** Not used anywhere in this repo (grep `==?` / `??` in API layers: zero matches). Filtering uses plain query-string equality params only.
+
+#### 9. Identifier
+
+- **Default:** `mp_plannumber` (plus `version_number` and `media_plan_version` sent together for legacy compatibility).
+- **Best (when FK known):** `media_plan_version` / `media_plan_version_id` = `media_plan_versions.id` (`route.ts` ~658–662).
+- **Divergence — production:** `media_plan_production` — comment states Xano filters by `mba_number` only; version params are forward-compat; JS filter + MBA-wide fallback (`app/api/media_plans/production/route.ts` ~40–76).
+
+#### 10. Pattern summary (mirror target)
+
+1. Resolve target version number (from URL or master).
+2. Pass **`mba_number` + `mp_plannumber` / `version_number` / `media_plan_version`** on every line-item Xano request.
+3. Prefer **`media_plan_versions.id`** as `media_plan_version` when available.
+4. Paginate via `fetchAllXanoPages` with those params.
+5. Apply `filterLineItemsByPlanNumber` as a JS safety net when the server returns extra historic rows.
+
+---
+
+### D. Over-fetch quantification
+
+#### 11. What “all elements” means today
+
+| Category | On edit load? | Scoped to active version? |
+|----------|---------------|---------------------------|
+| **All `media_plan_versions` rows** (full records: flags, `billingSchedule`, `deliverySchedule`, etc.) | Yes — server fetches every row for MBA | **No** — all versions downloaded; one row used |
+| **Version list metadata** (`id`, `version_number`, `created_at`) | Yes — returned as `data.versions` | N/A (list is intentionally all versions) |
+| **Per-media line items** (18 tables) | Yes — phase 2, enabled types only | **Intended yes** — version params on every request + JS filter |
+| **Production line items** | If `mp_production` enabled | **Partial** — Xano MBA-wide; JS filter; fallback returns all MBA rows if filter empty |
+| **Nested line-item arrays on version rows** | Not used on edit path | — |
+
+#### 12. Network-call inventory (single edit-page load)
+
+Assume MBA `X`, active version `V`, `N` enabled media types.
+
+| # | Call | Version-scoped? |
+|---|------|-----------------|
+| 1 | `GET /api/mediaplans/mba/X?skipLineItems=true&billingScheduleFull=1[&version=V]` | Response uses one version; **Xano `media_plan_versions` query is not scoped** |
+| 2 | `GET /api/clients` | No |
+| 3 | `GET /api/publishers` | No |
+| 4 | `GET /api/kpis/publisher` | No |
+| 5 | `GET /api/kpis/campaign?mbaNumber=X&versionNumber=V` | Yes |
+| 6 | `GET /api/kpis/client?mp_client_name=…` | Client-scoped |
+| 7–(6+N) | `GET /api/media_plans/{type}?mba_number=X&media_plan_version=V&mp_plannumber=V&version_number=V` × N | **Intended yes** (production: see §C.9) |
+| Optional | `GET /api/clients/{id}` | No |
+
+**Server-side sub-calls inside (1):** Xano `media_plan_master?mba_number=X`, Xano `media_plan_versions?mba_number=X` (all rows).
+
+**Server-side sub-calls inside (7–):** Xano `media_plan_{type}?mba_number=X&…version params…` per route; `getVersionNumberForMBA` short-circuits when `mp_plannumber` provided.
+
+**Confidence &lt;90%:** Whether each Xano line-item table actually honors version query params server-side (vs returning all MBA rows and relying on JS filter). No runtime trace was captured in this discovery.
+
+---
+
+### E. Endpoint capability (`media_plan_versions`)
+
+Existing filter params **already used elsewhere in the codebase**:
+
+| Param | Example call site |
+|-------|-------------------|
+| `mba_number` | `app/api/mediaplans/mba/[mba_number]/route.ts` ~824 |
+| `media_plan_master_id` | `lib/api/mediaPlanVersionHelper.ts` ~53; `app/api/campaigns/[mba_number]/route.ts` ~569 |
+| `version_number` (with `media_plan_master_id`) | `mediaPlanVersionHelper.ts` ~53 |
+| `id` | `app/mediaplans/[id]/edit/page.tsx` ~23 |
+
+**Not evidenced in repo:** `media_plan_versions?mba_number=X&version_number=V` as a **combined** filter (only `master_id + version_number` is quoted). A scoped single-version fetch likely needs **client/route change** to add `version_number` (and/or `id`) to the MBA bootstrap query; Xano may already support it via the same mechanism as `mediaPlanVersionHelper`, but that combined shape was **not verified** here (&lt;90% confidence without Xano schema or live probe).
+
+There is **no** evidence of a lightweight “metadata-only” list endpoint — the switcher today piggybacks on the full-row list fetch.
+
+---
+
+### F. Coupling and risk
+
+| Need | Data required | Current fetch | Scoping editor body safely? |
+|------|---------------|---------------|---------------------------|
+| **Version switcher / rollback modal** | `id`, `version_number`, `created_at` for all versions | `versionsMetadata` from full `media_plan_versions?mba_number=` | Yes — keep a **list** fetch (can remain MBA-wide if cheap metadata) |
+| **Latest / next save version** | `max(version_number)`, `nextVersionNumber` | Derived from same full list (~837–841, ~1173–1174) | List metadata only |
+| **Editor body** | One `versionData` row (flags, schedules, client) | One row selected from full list | **Can scope** — does not need other versions’ `billingSchedule` / `deliverySchedule` payloads |
+| **Line-item containers** | Per-type rows for active version | Phase 2 parallel fetches | Already version-targeted at API layer |
+| **KPIs** | Campaign KPIs for active version | `/api/kpis/campaign` with `versionNumber` | Already scoped |
+
+**Critical split:** Scoping **element payloads** (single version row + line items) must **not** remove the **version list** used by `availableVersions` / `handleVersionSelect` (~8143–8150). Those need all `(id, version_number, created_at)` tuples, not full schedule JSON for every version.
+
+---
+
+### Explicit answers
+
+**Where is the single highest-value change point to load only the active version's elements?**
+
+`app/api/mediaplans/mba/[mba_number]/route.ts` ~822–847: replace unconditional `media_plan_versions?mba_number=` with (a) a **single-version** fetch for `versionData` when `version` query param is present (and/or after `targetVersionNumber` is known from master), and (b) a **separate lightweight list** fetch for switcher metadata if the full-row list is still required.
+
+Line items are already phase-split and version-parameterized; the dominant over-fetch in bootstrap is **all version rows’ heavy JSON**, not the phase-2 line-item calls.
+
+**Is the active version resolvable BEFORE the expensive fetch fires?**
+
+- **Yes**, when `?version=V` is in the URL (~1323) — known on first render before `fetchMediaPlan`.
+- **Partially**, when `version` is omitted: latest could be inferred from `media_plan_master.version_number` without downloading every version row, but the current handler **always** loads all versions first to compute `latestVersionNumber` (~837–845).
+
+Phase-2 line-item fetches are **gated** on bootstrap completing (`loadPhase === "loadingLineItems"` and `mediaPlan.version_number`, ~3194–3198), so they do not start until after the expensive bootstrap even when URL version is known.
+
+**Does scoping require only client-side change, Xano filter param, or both?**
+
+- **`media_plan_versions` element payload:** Primarily **server route change** in `app/api/mediaplans/mba/[mba_number]/route.ts` to pass `version_number` / `id` on the Xano query; possibly **no Xano schema change** if existing filters work (&lt;90% for `mba_number` + `version_number` combo — see §E).
+- **Line items:** Already wired client + API routes; remaining gap is **`media_plan_production`** (documented Xano MBA-wide behaviour) — may need Xano column/filter work.
+- **Pure client-only** scoping of version **rows** is not possible today: the over-fetch happens in the **Next API route’s** Xano call, not in the browser.
+
+---
+
 _End of AUDIT.md._
