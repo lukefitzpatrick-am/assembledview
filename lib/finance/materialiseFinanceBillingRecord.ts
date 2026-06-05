@@ -84,7 +84,7 @@ export async function ensureFinanceBillingRecord(
       exported_by: null,
       // Existing columns we leave as default
       po_number: "",
-      invoice_date: "",
+      invoice_date: null,
       source_billing_schedule_id: 0,
     })
     const newId = Number(response.data?.id)
