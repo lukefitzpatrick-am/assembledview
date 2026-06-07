@@ -18,6 +18,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import { format } from "date-fns"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
@@ -67,6 +68,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Table, TableBody, TableCell, TableHeader, TableRow, TableHead, TableFooter } from "@/components/ui/table"
 import { toast } from "@/components/ui/use-toast"
 import { SavingModal, type SaveStatusItem } from "@/components/ui/saving-modal"
+import { Skeleton } from "@/components/ui/skeleton"
 import { MediaPlanLoadModal } from "@/components/mediaplans/MediaPlanLoadModal"
 import { MediaPlanLoadStatusPill } from "@/components/mediaplans/MediaPlanLoadStatusPill"
 import { OutcomeModal } from "@/components/outcome-modal"
@@ -1195,14 +1197,54 @@ interface Client {
   postcode?: string | number
 }
 
+function MediaContainerSkeletonCard({ label }: { label?: string }) {
+  return (
+    <Card className="overflow-hidden border-0 shadow-md">
+      <div className="h-1 bg-gradient-to-r from-primary via-primary/70 to-primary/40" />
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          {label ? (
+            <span className="text-sm text-muted-foreground">Loading {label}…</span>
+          ) : (
+            <Skeleton className="h-4 w-32" />
+          )}
+          <Skeleton className="h-4 w-24" />
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-0">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="py-2.5 border-b border-border/40">
+            <Skeleton className="h-4 w-full" />
+          </div>
+        ))}
+        <div className="space-y-4 pt-4">
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className="flex h-[150px] flex-col justify-center gap-3 rounded-lg border p-4"
+            >
+              <div className="flex items-center gap-3">
+                <Skeleton className="h-7 w-7 shrink-0 rounded-full" />
+                <Skeleton className="h-5 w-40" />
+              </div>
+              <div className="grid grid-cols-4 gap-4">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-full" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 function MediaContainerSuspenseFallback({ label }: { label: string }) {
   return (
-    <div className="flex items-center gap-3 px-6 py-8">
-      <div className="relative h-5 w-5 shrink-0">
-        <div className="absolute inset-0 rounded-full border-2 border-muted" />
-        <div className="absolute inset-0 animate-spin rounded-full border-2 border-t-primary" />
-      </div>
-      <span className="text-sm text-muted-foreground">Loading {label}…</span>
+    <div className="space-y-6">
+      <MediaContainerSkeletonCard label={label} />
     </div>
   )
 }
@@ -8039,28 +8081,125 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               </div>
             }
           />
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 xl:gap-7 2xl:gap-8 xl:items-stretch">
-            <div className="flex h-full min-w-0 flex-col gap-4 overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm xl:col-span-2 min-h-[400px]">
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
-                <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                  Campaign Details
-                </h3>
+
+          <div className="space-y-6">
+            {/* Row 2 — Campaign Details + Media Types */}
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 xl:gap-7 2xl:gap-8 xl:items-stretch">
+              <div className="flex h-full min-w-0 flex-col gap-4 overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm xl:col-span-2">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
+                  <Skeleton className="h-5 w-40" />
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="h-3 w-8" />
+                    <Skeleton className="h-3 w-16" />
+                    <Skeleton className="h-7 w-28" />
+                  </div>
+                </div>
+                <div className="grid w-full flex-1 grid-cols-1 gap-4 px-6 pb-6 md:grid-cols-2 xl:grid-cols-3">
+                  {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((i) => (
+                    <div key={i} className="space-y-2">
+                      <Skeleton className="h-3 w-24" />
+                      <Skeleton className="h-10 w-full" />
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="flex flex-1 items-center justify-center px-6 pb-6">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                  <span>Loading…</span>
+
+              <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm xl:col-span-1">
+                <div className="border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
+                  <Skeleton className="h-5 w-28" />
+                </div>
+                <div className="grid min-h-0 w-full flex-1 grid-cols-1 content-start gap-x-3 gap-y-1.5 px-6 py-4 md:grid-cols-2">
+                  {Array.from({ length: 20 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-3 py-0.5">
+                      <Skeleton className="h-5 w-9 shrink-0 rounded-full" />
+                      <Skeleton className="h-4 flex-1" />
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
-            <div className="flex h-full min-w-0 flex-col gap-4 overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm min-h-[400px]">
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
-                <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                  Quick Actions
-                </h3>
+
+            {/* Row 3 — MBA Details + Billing + KPIs */}
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 xl:gap-7 2xl:gap-8 xl:items-stretch">
+              <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm">
+                <div className="flex items-center justify-between border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
+                  <Skeleton className="h-5 w-28" />
+                  <Skeleton className="h-8 w-24" />
+                </div>
+                <div className="space-y-3 px-6 py-4">
+                  {[0, 1, 2, 3, 4, 5].map((i) => (
+                    <div key={i} className="flex items-center justify-between py-1">
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-4 w-16" />
+                    </div>
+                  ))}
+                  <Skeleton className="h-px w-full" />
+                  {[0, 1, 2, 3].map((i) => (
+                    <div key={i} className="flex items-center justify-between py-1">
+                      <Skeleton className="h-4 w-28" />
+                      <Skeleton className="h-4 w-20" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
+                  <Skeleton className="h-5 w-36" />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Skeleton className="h-9 w-32" />
+                    <Skeleton className="h-9 w-28" />
+                  </div>
+                </div>
+                <div className="min-w-0 flex-1 overflow-x-auto px-6 py-4">
+                  <div className="space-y-2">
+                    <div className="flex gap-4 pb-2">
+                      {[0, 1, 2, 3, 4, 5].map((i) => (
+                        <Skeleton key={i} className="h-4 w-14 shrink-0" />
+                      ))}
+                    </div>
+                    {[0, 1, 2].map((i) => (
+                      <Skeleton key={i} className="h-10 w-full" />
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm">
+                <div className="border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
+                  <Skeleton className="h-5 w-16" />
+                </div>
+                <div className="px-4 py-3">
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    {[0, 1, 2, 3, 4, 5].map((i) => (
+                      <div key={i} className="space-y-2 rounded-lg border p-3">
+                        <Skeleton className="h-3 w-16" />
+                        <Skeleton className="h-6 w-full" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Media Containers */}
+            <div className="space-y-6">
+              <div className="relative pb-2 pt-8">
+                <div className="absolute inset-x-0 top-4 h-px bg-border/50" />
+                <Skeleton className="relative h-5 w-36 bg-background" />
+              </div>
+              <div className="space-y-4">
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="mt-4">
+                    <MediaContainerSkeletonCard />
+                  </div>
+                ))}
               </div>
             </div>
           </div>
+
+          {/* Spacer so the fixed save bar never covers the last field */}
+          <div aria-hidden="true" style={{ height: 160 }} />
         </div>
       </div>
     )
