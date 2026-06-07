@@ -7491,7 +7491,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           enabledWithLineItems,
           workingMonths: source.length,
           lineItemsFingerprint: billingLineItemsLengthFingerprint,
-          isManualBilling,
+          isManualBilling: isManualBillingRef.current,
         })
         return
       }
@@ -7508,7 +7508,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         pendingEmptyLineSlots,
         autoRefMonths: autoRef.length,
         workingMonths: source.length,
-        isManualBilling,
+        isManualBilling: isManualBillingRef.current,
         enabledFlags,
         enabledMissingLineItems,
         enabledWithLineItems,
@@ -7551,7 +7551,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     autoReferenceBillingMonths.length,
     attachLineItemsToMonths,
     calculateBillingSchedule,
-    isManualBilling,
     televisionMediaLineItems,
     radioMediaLineItems,
     newspaperMediaLineItems,
