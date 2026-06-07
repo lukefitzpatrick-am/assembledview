@@ -17,6 +17,8 @@ import { Panel, PanelActions, PanelContent, PanelHeader, PanelTitle } from "@/co
 import { useListGridLayoutPreference } from "@/lib/hooks/useListGridLayoutPreference"
 import { ListGridToggle } from "@/components/ui/list-grid-toggle"
 import { DashboardCampaignPlanCard, dashboardCampaignGridClassName } from "@/components/dashboard/DashboardEntityCards"
+import { CampaignCardSkeleton } from "@/components/dashboard/skeletons"
+import { Skeleton } from "@/components/ui/skeleton"
 
 const slugifyClientName = (name?: string | null) => {
   if (!name || typeof name !== "string") return ""
@@ -393,9 +395,30 @@ export default function MediaPlansPage() {
           )}
 
           {loading ? (
-            <div className="space-y-4">
+            <div className="space-y-6">
               {CAMPAIGN_STATUSES.map((status) => (
-                <Panel key={status} variant="loading" className="border-border/40 shadow-sm" />
+                <Panel
+                  key={status}
+                  className="overflow-hidden border-border/40 shadow-sm"
+                  aria-busy
+                >
+                  <PanelHeader className="border-b border-border/40 bg-muted/20 pb-3">
+                    <PanelTitle className="flex items-center gap-2.5">
+                      <Skeleton className="h-2.5 w-2.5 shrink-0 rounded-full" />
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-4 w-8" />
+                    </PanelTitle>
+                    <PanelActions />
+                  </PanelHeader>
+                  <PanelContent className="px-0 pb-0 pt-0">
+                    <div className="px-4 py-4">
+                      <div className={dashboardCampaignGridClassName(false)}>
+                        <CampaignCardSkeleton />
+                        <CampaignCardSkeleton />
+                      </div>
+                    </div>
+                  </PanelContent>
+                </Panel>
               ))}
             </div>
           ) : (
