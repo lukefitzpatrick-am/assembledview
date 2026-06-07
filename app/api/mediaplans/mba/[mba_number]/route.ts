@@ -819,37 +819,45 @@ export async function GET(
       billingScheduleFullParam === "true" ||
       billingScheduleFullParam === "yes"
     
-    // Fetch ALL versions for this MBA to derive target and latest
-    const versionsResponse = await axios.get(
-      `${mediaPlansBaseUrl}/media_plan_versions?mba_number=${encodeURIComponent(mba_number)}`
+    // Lightweight version list for switcher metadata + latest/next derivation
+    const trimmedVersionsResponse = await axios.get(
+      `${mediaPlansBaseUrl}/media_plan_versions_trimmed?mba_number=${encodeURIComponent(mba_number)}`
     )
-    
-    const allVersionsForMBA = Array.isArray(versionsResponse.data)
-      ? versionsResponse.data.filter((v: any) => normalise(v?.mba_number) === requestedNormalized)
+
+    const trimmedVersionsForMBA = Array.isArray(trimmedVersionsResponse.data)
+      ? trimmedVersionsResponse.data
       : []
-    
-    const versionsMetadata = allVersionsForMBA.map((v: any) => ({
+
+    const versionsMetadata = trimmedVersionsForMBA.map((v: any) => ({
       id: v.id,
       version_number: parseVersion(v.version_number) ?? 0,
       created_at: v.created_at ?? v.createdAt ?? v.created ?? null
     }))
-    
+
     const latestVersionNumber = versionsMetadata.length > 0
       ? Math.max(...versionsMetadata.map(v => v.version_number || 0))
       : parseVersion(masterData?.version_number) ?? 0
-    
+
     const nextVersionNumber = (latestVersionNumber || 0) + 1
-    
-    // Choose target version: requested > master version > latest available > 1
+
+    // Choose target version: requested > latest available > master version > 1
     // Default to the latest version when none is requested
     let targetVersionNumber = requestedVersionNumber ?? latestVersionNumber ?? parseVersion(masterData?.version_number) ?? 1
-    
-    let versionData = allVersionsForMBA.find((v: any) => parseVersion(v.version_number) === targetVersionNumber) || null
-    
+
+    const scopedVersionResponse = await axios.get(
+      `${mediaPlansBaseUrl}/media_plan_versions?mba_number=${encodeURIComponent(mba_number)}&version_number=${targetVersionNumber}`
+    )
+
+    const scopedVersionsForMBA = Array.isArray(scopedVersionResponse.data)
+      ? scopedVersionResponse.data.filter((v: any) => normalise(v?.mba_number) === requestedNormalized)
+      : []
+
+    let versionData = scopedVersionsForMBA[0] || null
+
     if (requestedVersionNumber !== null && !versionData) {
       console.error(`[API] Requested version ${requestedVersionNumber} not found for mba_number ${mba_number}`)
       return NextResponse.json(
-        { 
+        {
           error: `Media plan version ${requestedVersionNumber} not found for MBA number ${mba_number}`,
           requestedVersion: requestedVersionNumber,
           requestedMbaNumber: mba_number
@@ -857,11 +865,18 @@ export async function GET(
         { status: 404 }
       )
     }
-    
+
     // Fallback to latest if target missing
-    if (!versionData && allVersionsForMBA.length > 0) {
-      versionData = allVersionsForMBA.sort((a: any, b: any) => (parseVersion(b.version_number) || 0) - (parseVersion(a.version_number) || 0))[0]
-      targetVersionNumber = parseVersion(versionData?.version_number) || targetVersionNumber
+    if (!versionData && versionsMetadata.length > 0) {
+      const fallbackVersionNumber = latestVersionNumber
+      const fallbackVersionResponse = await axios.get(
+        `${mediaPlansBaseUrl}/media_plan_versions?mba_number=${encodeURIComponent(mba_number)}&version_number=${fallbackVersionNumber}`
+      )
+      const fallbackVersionsForMBA = Array.isArray(fallbackVersionResponse.data)
+        ? fallbackVersionResponse.data.filter((v: any) => normalise(v?.mba_number) === requestedNormalized)
+        : []
+      versionData = fallbackVersionsForMBA[0] || null
+      targetVersionNumber = parseVersion(versionData?.version_number) || fallbackVersionNumber
       console.warn(`[API] Target version missing, using latest version ${targetVersionNumber} for mba_number ${mba_number}`)
     }
     
