@@ -42,6 +42,8 @@ export function ManualBillingSpreadsheetCell({
     : { inRange: true, top: true, bottom: true, left: true, right: true }
   const focused = ctx.isFocused(serialized)
   const showClear = focused && ctx.getCellNumericValue(serialized) !== 0
+  const moveGrip = ctx.showMoveGrip(rowIndex, colIndex)
+  const dropTarget = ctx.isDropTarget(rowIndex, colIndex)
 
   return (
     <div
@@ -50,6 +52,7 @@ export function ManualBillingSpreadsheetCell({
         focused && "ring-2 ring-inset ring-primary",
         !focused && (selected || copied) && spreadsheetCellOutlineClass(outlineFlags),
         copied && "bg-amber-500/15",
+        dropTarget && "ring-2 ring-inset ring-primary/60",
         className
       )}
       onPointerDown={(e) => {
@@ -57,8 +60,21 @@ export function ManualBillingSpreadsheetCell({
         ctx.onCellPointerDown(serialized, rowIndex, colIndex, e)
       }}
       onPointerEnter={() => ctx.onCellPointerEnter(rowIndex, colIndex)}
+      onDragOver={(e) => ctx.onCellDragOver(rowIndex, colIndex, e)}
+      onDrop={(e) => ctx.onCellDrop(rowIndex, colIndex, e)}
     >
       {children}
+      {moveGrip ? (
+        <div
+          draggable
+          aria-label="Move selection"
+          title="Drag to move"
+          className="absolute inset-y-0 left-0 z-10 w-1.5 cursor-move rounded-l-sm bg-primary/70 hover:bg-primary"
+          onPointerDown={(e) => e.stopPropagation()}
+          onDragStart={(e) => ctx.onGripDragStart(e)}
+          onDragEnd={() => ctx.onGripDragEnd()}
+        />
+      ) : null}
       {showClear ? (
         <button
           type="button"

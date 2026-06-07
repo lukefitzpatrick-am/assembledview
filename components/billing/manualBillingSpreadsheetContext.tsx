@@ -18,6 +18,7 @@ import { handleSpreadsheetInputKeyDown } from "@/lib/spreadsheet/keyboardNav"
 import { parseSpreadsheetCellKey } from "@/lib/spreadsheet/cellKey"
 import type { SpreadsheetCellKey } from "@/lib/spreadsheet/types"
 import { useSpreadsheetClipboard } from "@/lib/spreadsheet/useSpreadsheetClipboard"
+import { useSpreadsheetDragMove } from "@/lib/spreadsheet/useSpreadsheetDragMove"
 import { useSpreadsheetSelection } from "@/lib/spreadsheet/useSpreadsheetSelection"
 import { cn } from "@/lib/utils"
 
@@ -76,6 +77,12 @@ type CellContextValue = Readonly<{
     e: KeyboardEvent<HTMLInputElement>
   ) => void
   onInputFocus: (serializedKey: string, rowIndex: number, colIndex: number) => void
+  showMoveGrip: (rowIndex: number, colIndex: number) => boolean
+  isDropTarget: (rowIndex: number, colIndex: number) => boolean
+  onGripDragStart: (e: React.DragEvent) => void
+  onGripDragEnd: () => void
+  onCellDragOver: (rowIndex: number, colIndex: number, e: React.DragEvent) => void
+  onCellDrop: (rowIndex: number, colIndex: number, e: React.DragEvent) => void
 }>
 
 const SpreadsheetCellContext = createContext<CellContextValue | null>(null)
@@ -183,6 +190,25 @@ export function ManualBillingSpreadsheetProvider({
     },
   })
 
+  const dragMove = useSpreadsheetDragMove({
+    registry,
+    getFocused: selection.getFocused,
+    getRectSelection: selection.getRectSelection,
+    getStripSelection: selection.getStripSelection,
+    getMultiCellSelection: selection.getMultiCellSelection,
+    callbacks: {
+      getNumericValue,
+      setValueFromPaste: valueCallbacks.setValueFromPaste,
+      clearValue: valueCallbacks.clearValue,
+    },
+    onInvalidDrop: () => {
+      toast({
+        title: "Can't move there",
+        description: "Part of the selection would fall outside the grid.",
+      })
+    },
+  })
+
   const keyToCoords = useMemo(() => {
     const m = new Map<string, { rowIndex: number; colIndex: number }>()
     for (const e of registry.entries) {
@@ -209,6 +235,12 @@ export function ManualBillingSpreadsheetProvider({
       onInputFocus: (serializedKey, rowIndex, colIndex) => {
         selection.focusCell(serializedKey, rowIndex, colIndex)
       },
+      showMoveGrip: dragMove.showMoveGrip,
+      isDropTarget: dragMove.isDropTarget,
+      onGripDragStart: dragMove.onGripDragStart,
+      onGripDragEnd: dragMove.onGripDragEnd,
+      onCellDragOver: dragMove.onCellDragOver,
+      onCellDrop: dragMove.onCellDrop,
       onInputKeyDown: (serializedKey, rowIndex, colIndex, e) => {
         if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") {
           e.preventDefault()
@@ -224,7 +256,7 @@ export function ManualBillingSpreadsheetProvider({
         })
       },
     }),
-    [keyToCoords, registry, selection, getNumericValue, valueCallbacks]
+    [keyToCoords, registry, selection, getNumericValue, valueCallbacks, dragMove]
   )
 
   return (
