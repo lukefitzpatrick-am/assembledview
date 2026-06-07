@@ -50,6 +50,12 @@ import {
 } from "@/components/dashboard/templates"
 import { Label } from "@/components/ui/label"
 import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
+import {
+  CampaignCardSkeleton,
+  ChartSkeleton,
+  KPICardSkeleton,
+} from "@/components/dashboard/skeletons"
+import { Skeleton } from "@/components/ui/skeleton"
 
 // Types reused from the original dashboard page
 type MediaPlan = {
@@ -943,6 +949,52 @@ function DashboardCollapsiblePanel({
       </Panel>
     </Collapsible>
   )
+}
+
+const DASHBOARD_TABLE_SKELETON_ROWS = 5
+const DASHBOARD_CAMPAIGN_SKELETON_COUNT = 6
+const DASHBOARD_DUE_SOON_SKELETON_COUNT = 4
+
+function DashboardTablePanelSkeleton({ rows = DASHBOARD_TABLE_SKELETON_ROWS }: { rows?: number }) {
+  return (
+    <div className="space-y-3" aria-hidden>
+      <div className="flex flex-wrap gap-2">
+        {Array.from({ length: 6 }).map((_, index) => (
+          <Skeleton key={`table-header-${index}`} className="h-8 w-24 rounded-md" />
+        ))}
+      </div>
+      <div className="space-y-2">
+        {Array.from({ length: rows }).map((_, index) => (
+          <Skeleton key={`table-row-${index}`} className="h-10 w-full rounded-md" />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function DashboardCampaignGridSkeleton({ count = DASHBOARD_CAMPAIGN_SKELETON_COUNT }: { count?: number }) {
+  return (
+    <div className={dashboardCampaignGridClassName(false)}>
+      {Array.from({ length: count }).map((_, index) => (
+        <CampaignCardSkeleton key={`campaign-skeleton-${index}`} />
+      ))}
+    </div>
+  )
+}
+
+function DashboardPanelBodySkeleton({
+  listGridMode,
+  gridCount = DASHBOARD_CAMPAIGN_SKELETON_COUNT,
+  tableRows = DASHBOARD_TABLE_SKELETON_ROWS,
+}: {
+  listGridMode: "list" | "grid"
+  gridCount?: number
+  tableRows?: number
+}) {
+  if (listGridMode === "list") {
+    return <DashboardTablePanelSkeleton rows={tableRows} />
+  }
+  return <DashboardCampaignGridSkeleton count={gridCount} />
 }
 
 export default function DashboardOverview({
@@ -2674,6 +2726,13 @@ export default function DashboardOverview({
         <PanelRow
           title="Key metrics"
         >
+          {loading ? (
+            Array.from({ length: 4 }).map((_, index) => (
+              <PanelRowCell key={`kpi-skeleton-${index}`} span="quarter">
+                <KPICardSkeleton />
+              </PanelRowCell>
+            ))
+          ) : (
           <TooltipProvider delayDuration={200}>
             {dashboardMetrics.map((metric) => (
               <PanelRowCell key={metric.title} span="quarter">
@@ -2701,6 +2760,7 @@ export default function DashboardOverview({
               </PanelRowCell>
             ))}
           </TooltipProvider>
+          )}
         </PanelRow>
       ) : null}
 
@@ -2726,10 +2786,7 @@ export default function DashboardOverview({
               </PanelHeader>
               <PanelContent>
                 {loading ? (
-                  <div className="space-y-2">
-                    <div className="h-10 w-full bg-muted/40 animate-pulse rounded"></div>
-                    <div className="h-10 w-full bg-muted/40 animate-pulse rounded"></div>
-                  </div>
+                  <DashboardPanelBodySkeleton listGridMode={listGridMode} tableRows={5} />
                 ) : liveCampaigns.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-8">No live campaigns</p>
                 ) : listGridMode === "list" ? (
@@ -2837,9 +2894,7 @@ export default function DashboardOverview({
               }
             >
                 {loading ? (
-                  <div className="space-y-2">
-                    <div className="h-10 w-full bg-muted/40 animate-pulse rounded"></div>
-                  </div>
+                  <DashboardPanelBodySkeleton listGridMode={listGridMode} />
                 ) : liveScopes.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-8">No live scopes of work</p>
                 ) : listGridMode === "list" ? (
@@ -2904,9 +2959,10 @@ export default function DashboardOverview({
               }
             >
                 {loading ? (
-                  <div className="space-y-2">
-                    <div className="h-10 w-full bg-muted/40 animate-pulse rounded"></div>
-                  </div>
+                  <DashboardPanelBodySkeleton
+                    listGridMode={listGridMode}
+                    gridCount={DASHBOARD_DUE_SOON_SKELETON_COUNT}
+                  />
                 ) : campaignsDueToStart.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-8">No campaigns starting in the next 10 days</p>
                 ) : listGridMode === "list" ? (
@@ -3016,9 +3072,7 @@ export default function DashboardOverview({
               }
             >
                 {loading ? (
-                  <div className="space-y-2">
-                    <div className="h-10 w-full bg-muted/40 animate-pulse rounded"></div>
-                  </div>
+                  <DashboardPanelBodySkeleton listGridMode={listGridMode} />
                 ) : campaignsFinishedRecently.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-8">No campaigns finished in the past 40 days</p>
                 ) : listGridMode === "list" ? (
@@ -3124,6 +3178,17 @@ export default function DashboardOverview({
           title="Spend breakdown"
           helperText="Media cost only — current financial year (billing schedule). Publisher treemap: drill down to the publishers list (query param). Client treemap: filter tables above."
         >
+          {loading ? (
+            <>
+              <PanelRowCell>
+                <ChartSkeleton />
+              </PanelRowCell>
+              <PanelRowCell>
+                <ChartSkeleton />
+              </PanelRowCell>
+            </>
+          ) : (
+            <>
           <PanelRowCell>
             <Panel className="overflow-hidden border-0 shadow-md">
               <PanelContent standalone className="p-0">
@@ -3151,6 +3216,8 @@ export default function DashboardOverview({
               </PanelContent>
             </Panel>
           </PanelRowCell>
+            </>
+          )}
         </PanelRow>
       ) : null}
 
@@ -3162,6 +3229,12 @@ export default function DashboardOverview({
           title="Monthly breakdowns"
           helperText="Stacked totals by client and publisher for the current financial year. Click a segment or legend to filter by client or publisher (and month when clicking a bar segment). Each chart also has a keyboard filter control below the graphic."
         >
+          {loading ? (
+            <div className="flex flex-col gap-4">
+              <ChartSkeleton />
+              <ChartSkeleton />
+            </div>
+          ) : (
           <div className="flex flex-col gap-4">
             <Panel className="overflow-hidden border-0 shadow-md">
               <PanelContent standalone className="p-0">
@@ -3224,6 +3297,7 @@ export default function DashboardOverview({
               </PanelContent>
             </Panel>
           </div>
+          )}
         </MobileCollapsibleSection>
       ) : null}
 
