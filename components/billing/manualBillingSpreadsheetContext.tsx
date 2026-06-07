@@ -58,6 +58,9 @@ type CellContextValue = Readonly<{
     left: boolean
     right: boolean
   }
+  isFocused: (serializedKey: string) => boolean
+  getCellNumericValue: (serializedKey: string) => number
+  clearCell: (serializedKey: string) => void
   onCellPointerDown: (
     serializedKey: string,
     rowIndex: number,
@@ -181,6 +184,9 @@ export function ManualBillingSpreadsheetProvider({
       isSelected: selection.isSelected,
       isCopied: selection.isCopied,
       getOutlineFlags: selection.getOutlineFlags,
+      isFocused: (serializedKey) => selection.focused?.serializedKey === serializedKey,
+      getCellNumericValue: getNumericValue,
+      clearCell: (serializedKey) => valueCallbacks.clearValue(serializedKey),
       onCellPointerDown: selection.onCellPointerDown,
       onCellPointerEnter: selection.onCellPointerEnter,
       onInputFocus: (serializedKey, rowIndex, colIndex) => {
@@ -201,7 +207,7 @@ export function ManualBillingSpreadsheetProvider({
         })
       },
     }),
-    [keyToCoords, registry, selection]
+    [keyToCoords, registry, selection, getNumericValue, valueCallbacks]
   )
 
   return (

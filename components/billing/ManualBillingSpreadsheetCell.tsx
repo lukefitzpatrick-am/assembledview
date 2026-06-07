@@ -2,6 +2,8 @@
 
 import type { ReactNode } from "react"
 
+import { X } from "lucide-react"
+
 import { serializeSpreadsheetCellKey } from "@/lib/spreadsheet/cellKey"
 import { spreadsheetCellDomId } from "@/lib/spreadsheet/cellKey"
 import type { SpreadsheetCellKey } from "@/lib/spreadsheet/types"
@@ -38,12 +40,15 @@ export function ManualBillingSpreadsheetCell({
   const outlineFlags = flags.inRange
     ? flags
     : { inRange: true, top: true, bottom: true, left: true, right: true }
+  const focused = ctx.isFocused(serialized)
+  const showClear = focused && ctx.getCellNumericValue(serialized) !== 0
 
   return (
     <div
       className={cn(
         "relative rounded-sm",
-        (selected || copied) && spreadsheetCellOutlineClass(outlineFlags),
+        focused && "ring-2 ring-inset ring-primary",
+        !focused && (selected || copied) && spreadsheetCellOutlineClass(outlineFlags),
         copied && "bg-amber-500/15",
         className
       )}
@@ -54,6 +59,23 @@ export function ManualBillingSpreadsheetCell({
       onPointerEnter={() => ctx.onCellPointerEnter(rowIndex, colIndex)}
     >
       {children}
+      {showClear ? (
+        <button
+          type="button"
+          aria-label="Clear cell"
+          className="absolute right-0 top-0 z-10 -translate-y-1/2 translate-x-1/2 rounded-full border bg-background p-0.5 text-muted-foreground shadow-sm hover:text-foreground"
+          onPointerDown={(e) => {
+            e.stopPropagation()
+          }}
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            ctx.clearCell(serialized)
+          }}
+        >
+          <X className="h-3 w-3" />
+        </button>
+      ) : null}
     </div>
   )
 }
