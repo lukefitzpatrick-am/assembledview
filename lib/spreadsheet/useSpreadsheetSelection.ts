@@ -52,6 +52,7 @@ export function useSpreadsheetSelection({ registry, getNumericValue }: UseSpread
   const multiClickGuardRef = useRef(false)
 
   const [isSelecting, setIsSelecting] = useState(false)
+
   const dragAnchorRef = useRef<{ rowIndex: number; colIndex: number } | null>(null)
 
   const selectedKeySet = useMemo(() => {
@@ -145,15 +146,15 @@ export function useSpreadsheetSelection({ registry, getNumericValue }: UseSpread
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault()
         multiClickGuardRef.current = true
+        const seedFrom = focusedRef.current
         setRectSelection(null)
         setStripSelection(null)
         setMultiSelect(null)
         setMultiCellSelection((prev) => {
           const next = new Set(prev ?? [])
           if (!prev || prev.size === 0) {
-            const f = focusedRef.current
-            if (f && f.serializedKey !== serializedKey) {
-              next.add(f.serializedKey)
+            if (seedFrom && seedFrom.serializedKey !== serializedKey) {
+              next.add(seedFrom.serializedKey)
             }
           }
           if (next.has(serializedKey)) next.delete(serializedKey)
