@@ -360,6 +360,15 @@ function appendMissingLineItemsOnly(
   const list = existingItems.map((li) => cloneBillingMonthGraph(li))
   const oldIds = new Set(list.map((li) => billingLineItemIdKey(li.id)))
   let didAppend = false
+  // Single-line scheme-drift reconcile: a line saved under a pre-migration id scheme will not
+  // match the regenerated current-scheme template id. When the bucket holds exactly one existing
+  // and one template line, they are unambiguously the same logical line, so adopt the current id
+  // onto the existing row rather than appending a duplicate. Multi-line buckets are excluded:
+  // there is no safe 1:1 mapping, so they fall through to existing behaviour and the save validator.
+  const singleLineSchemeDrift =
+    existingItems.length === 1 &&
+    templateItems.length === 1 &&
+    !oldIds.has(billingLineItemIdKey(templateItems[0]?.id))
   for (const tLi of templateItems) {
     const tid = billingLineItemIdKey(tLi.id)
     if (!tid) continue
@@ -380,6 +389,28 @@ function appendMissingLineItemsOnly(
         didAppend = true
       }
       continue
+    }
+    if (singleLineSchemeDrift) {
+      const existing = list[0]
+      if (existing) {
+        if (resync) {
+          resyncExistingLineItemFromTemplate(existing, tLi, allCampaignMonthKeys)
+        } else if (existing.totalAmount === 0 && tLi.totalAmount > 0) {
+          const seeded = seedLineItemMonthKeysFromTemplate(tLi, allCampaignMonthKeys)
+          existing.monthlyAmounts = seeded.monthlyAmounts
+          existing.totalAmount = seeded.totalAmount
+          if (seeded.feeMonthlyAmounts) existing.feeMonthlyAmounts = seeded.feeMonthlyAmounts
+          if (seeded.totalFeeAmount != null) existing.totalFeeAmount = seeded.totalFeeAmount
+          if (seeded.adServingMonthlyAmounts) existing.adServingMonthlyAmounts = seeded.adServingMonthlyAmounts
+          if (seeded.totalAdServingAmount != null) existing.totalAdServingAmount = seeded.totalAdServingAmount
+        }
+        // Adopt the current-scheme id (overrides the legacy-id pin that resync would otherwise restore).
+        const oldId = billingLineItemIdKey(existing.id)
+        existing.id = tLi.id
+        didAppend = true
+        billingAppendDebug("scheme-drift reconcile (single-line)", { from: oldId, to: tLi.id })
+        continue
+      }
     }
     list.push(seedLineItemMonthKeysFromTemplate(tLi, allCampaignMonthKeys))
     oldIds.add(tid)
