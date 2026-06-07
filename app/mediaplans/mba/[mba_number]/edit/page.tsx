@@ -9255,14 +9255,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               <DialogHeader>
                 <DialogTitle>Manual Billing Schedule</DialogTitle>
               </DialogHeader>
-              <p className="mt-1 text-sm text-muted-foreground">
-                <span className="font-medium text-foreground">Billing control surface:</span> the main page only adds new
-                months, media types, and line items. Any reset or rebuild of existing amounts happens here only.
-                Subtotals follow line items. <span className="font-medium text-foreground">Reset levels:</span> (1) Fee / Ad
-                serving / Production row buttons — that cost bucket only, from auto month totals. (2) Per-row Reset — that
-                line’s months from the auto snapshot. (3) “Reset billing to auto” in the footer — full schedule from bursts
-                + line items; confirms before running. Save the campaign to persist a new version baseline.
-              </p>
             </div>
 
             <ManualBillingSpreadsheetProvider
