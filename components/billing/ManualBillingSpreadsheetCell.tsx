@@ -44,6 +44,7 @@ export function ManualBillingSpreadsheetCell({
   const showClear = focused && ctx.getCellNumericValue(serialized) !== 0
   const moveGrip = ctx.showMoveGrip(rowIndex, colIndex)
   const dropTarget = ctx.isDropTarget(rowIndex, colIndex)
+  const fillHandle = ctx.showFillHandle(rowIndex, colIndex)
 
   return (
     <div
@@ -73,6 +74,17 @@ export function ManualBillingSpreadsheetCell({
           onPointerDown={(e) => e.stopPropagation()}
           onDragStart={(e) => ctx.onGripDragStart(e)}
           onDragEnd={() => ctx.onGripDragEnd()}
+        />
+      ) : null}
+      {fillHandle ? (
+        <div
+          draggable
+          aria-label="Fill"
+          title="Drag to fill"
+          className="absolute bottom-0 right-0 z-10 h-2 w-2 cursor-crosshair rounded-sm bg-primary"
+          onPointerDown={(e) => e.stopPropagation()}
+          onDragStart={(e) => ctx.onFillHandleDragStart(e)}
+          onDragEnd={() => ctx.onFillHandleDragEnd()}
         />
       ) : null}
       {showClear ? (

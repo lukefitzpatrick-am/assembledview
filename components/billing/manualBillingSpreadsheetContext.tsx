@@ -83,6 +83,9 @@ type CellContextValue = Readonly<{
   onGripDragEnd: () => void
   onCellDragOver: (rowIndex: number, colIndex: number, e: React.DragEvent) => void
   onCellDrop: (rowIndex: number, colIndex: number, e: React.DragEvent) => void
+  showFillHandle: (rowIndex: number, colIndex: number) => boolean
+  onFillHandleDragStart: (e: React.DragEvent) => void
+  onFillHandleDragEnd: () => void
 }>
 
 const SpreadsheetCellContext = createContext<CellContextValue | null>(null)
@@ -241,6 +244,9 @@ export function ManualBillingSpreadsheetProvider({
       onGripDragEnd: dragMove.onGripDragEnd,
       onCellDragOver: dragMove.onCellDragOver,
       onCellDrop: dragMove.onCellDrop,
+      showFillHandle: dragMove.showFillHandle,
+      onFillHandleDragStart: dragMove.onFillHandleDragStart,
+      onFillHandleDragEnd: dragMove.onFillHandleDragEnd,
       onInputKeyDown: (serializedKey, rowIndex, colIndex, e) => {
         if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") {
           e.preventDefault()
