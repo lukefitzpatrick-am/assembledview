@@ -40,6 +40,8 @@ export type UseSpreadsheetClipboardArgs = Readonly<{
   getRectSelection: () => SpreadsheetRectSelection | null
   getStripSelection: () => { rowIndex: number } | null
   getMultiSelect: () => { rowIndex: number; cols: number[] } | null
+  getMultiCellSelection: () => Set<string> | null
+  onBlockedCopyPaste?: (kind: "copy" | "paste") => void
   setCopiedCells: (v: SpreadsheetCopiedCells | null) => void
   callbacks: SpreadsheetValueCallbacks
   onPasteLayout?: (layout: SpreadsheetPasteLayoutMode) => void
@@ -69,8 +71,10 @@ export function useSpreadsheetClipboard(args: UseSpreadsheetClipboardArgs) {
       getRectSelection,
       getStripSelection,
       getMultiSelect,
+      getMultiCellSelection,
       callbacks,
       onPasteLayout,
+      onBlockedCopyPaste,
     } = argsRef.current
 
     let working = trimEmptyEdgeColumns(matrix)
@@ -78,6 +82,25 @@ export function useSpreadsheetClipboard(args: UseSpreadsheetClipboardArgs) {
 
     const focused = getFocused()
     if (!focused) return
+
+    const multiKeys = getMultiCellSelection()
+    if (multiKeys && multiKeys.size >= 2) {
+      const isSingleValue =
+        working.length === 1 && (working[0]?.length ?? 0) === 1
+      if (!isSingleValue) {
+        onBlockedCopyPaste?.("paste")
+        return
+      }
+      const raw = working[0]?.[0] ?? ""
+      const validKeys = new Set(
+        registry.entries.map((e) => serializeSpreadsheetCellKey(e))
+      )
+      for (const k of multiKeys) {
+        if (validKeys.has(k)) callbacks.setValueFromPaste(k, raw)
+      }
+      onPasteLayout?.("direct")
+      return
+    }
 
     const enumerated = enumeratePasteTargets(
       focused.rowIndex,
@@ -130,9 +153,17 @@ export function useSpreadsheetClipboard(args: UseSpreadsheetClipboardArgs) {
       getFocused,
       getRectSelection,
       getStripSelection,
+      getMultiCellSelection,
       callbacks,
       setCopiedCells,
+      onBlockedCopyPaste,
     } = argsRef.current
+
+    const multi = getMultiCellSelection()
+    if (multi && multi.size >= 2) {
+      onBlockedCopyPaste?.("copy")
+      return false
+    }
 
     const focused = getFocused()
     const sel = resolveExportSelection(

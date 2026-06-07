@@ -22,6 +22,7 @@ import { useSpreadsheetSelection } from "@/lib/spreadsheet/useSpreadsheetSelecti
 import { cn } from "@/lib/utils"
 
 import { ManualBillingSelectionStatusBar } from "@/components/billing/ManualBillingSelectionStatusBar"
+import { toast } from "@/components/ui/use-toast"
 
 export type ManualBillingSpreadsheetCallbacks = Readonly<{
   getLineItemAmount: (mediaKey: string, lineItemId: string, monthYear: string) => number
@@ -161,9 +162,25 @@ export function ManualBillingSpreadsheetProvider({
     getRectSelection: selection.getRectSelection,
     getStripSelection: selection.getStripSelection,
     getMultiSelect: selection.getMultiSelect,
+    getMultiCellSelection: selection.getMultiCellSelection,
     setCopiedCells: selection.setCopiedCells,
     callbacks: valueCallbacks,
     onPasteLayout,
+    onBlockedCopyPaste: (kind) => {
+      if (kind === "copy") {
+        toast({
+          title: "Can't copy a non-adjacent selection",
+          description:
+            "Copy works on a single block of cells. Clear the multi-select and try again.",
+        })
+      } else {
+        toast({
+          title: "Can't paste a block onto a non-adjacent selection",
+          description:
+            "Paste a single value to fill the selected cells, or select one block.",
+        })
+      }
+    },
   })
 
   const keyToCoords = useMemo(() => {

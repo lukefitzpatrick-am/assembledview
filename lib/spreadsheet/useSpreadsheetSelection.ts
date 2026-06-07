@@ -45,12 +45,25 @@ export function useSpreadsheetSelection({ registry, getNumericValue }: UseSpread
 
   const [copiedCells, setCopiedCells] = useState<SpreadsheetCopiedCells | null>(null)
 
+  const [multiCellSelection, setMultiCellSelection] = useState<Set<string> | null>(null)
+  const multiCellSelectionRef = useRef(multiCellSelection)
+  multiCellSelectionRef.current = multiCellSelection
+
+  const multiClickGuardRef = useRef(false)
+
   const [isSelecting, setIsSelecting] = useState(false)
   const dragAnchorRef = useRef<{ rowIndex: number; colIndex: number } | null>(null)
 
   const selectedKeySet = useMemo(() => {
     const set = new Set<string>()
-    if (rectSelection) {
+    if (multiCellSelection && multiCellSelection.size > 0) {
+      const valid = new Set(
+        registry.entries.map((e) => serializeSpreadsheetCellKey(e))
+      )
+      for (const k of multiCellSelection) {
+        if (valid.has(k)) set.add(k)
+      }
+    } else if (rectSelection) {
       for (const k of keysInRect(registry.entries, rectSelection, serializeSpreadsheetCellKey)) {
         set.add(k)
       }
@@ -71,7 +84,7 @@ export function useSpreadsheetSelection({ registry, getNumericValue }: UseSpread
       set.add(focused.serializedKey)
     }
     return set
-  }, [rectSelection, stripSelection, multiSelect, focused, registry.entries])
+  }, [multiCellSelection, rectSelection, stripSelection, multiSelect, focused, registry.entries])
 
   const statusBar = useMemo(() => {
     if (selectedKeySet.size < 2) return null
@@ -103,10 +116,16 @@ export function useSpreadsheetSelection({ registry, getNumericValue }: UseSpread
     setRectSelection(null)
     setStripSelection(null)
     setMultiSelect(null)
+    setMultiCellSelection(null)
   }, [])
 
   const focusCell = useCallback(
     (serializedKey: string, rowIndex: number, colIndex: number) => {
+      if (multiClickGuardRef.current) {
+        multiClickGuardRef.current = false
+        setFocused({ serializedKey, rowIndex, colIndex })
+        return
+      }
       setFocused({ serializedKey, rowIndex, colIndex })
       clearSelections()
     },
@@ -121,37 +140,50 @@ export function useSpreadsheetSelection({ registry, getNumericValue }: UseSpread
       e: React.PointerEvent
     ) => {
       if (e.button !== 0) return
-      const target = e.target
-      if (target instanceof HTMLInputElement && document.activeElement === target) {
-        // Allow text caret placement when already focused
+
+      // Ctrl/Cmd+click: toggle a disjoint multi-cell selection
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault()
+        multiClickGuardRef.current = true
+        setRectSelection(null)
+        setStripSelection(null)
+        setMultiSelect(null)
+        setMultiCellSelection((prev) => {
+          const next = new Set(prev ?? [])
+          if (!prev || prev.size === 0) {
+            const f = focusedRef.current
+            if (f && f.serializedKey !== serializedKey) {
+              next.add(f.serializedKey)
+            }
+          }
+          if (next.has(serializedKey)) next.delete(serializedKey)
+          else next.add(serializedKey)
+          return next.size > 0 ? next : null
+        })
+        setFocused({ serializedKey, rowIndex, colIndex })
+        return
       }
 
       if (e.shiftKey && focusedRef.current) {
         const anchor = focusedRef.current
-        if (anchor.rowIndex === rowIndex) {
-          setMultiSelect(null)
-          setStripSelection(null)
-          setRectSelection(
-            normalizeSpreadsheetRect(anchor.rowIndex, anchor.colIndex, rowIndex, colIndex)
-          )
-        } else {
-          setMultiSelect(null)
-          setStripSelection(null)
-          setRectSelection(
-            normalizeSpreadsheetRect(anchor.rowIndex, anchor.colIndex, rowIndex, colIndex)
-          )
-        }
+        multiClickGuardRef.current = false
+        setMultiSelect(null)
+        setStripSelection(null)
+        setMultiCellSelection(null)
+        setRectSelection(
+          normalizeSpreadsheetRect(anchor.rowIndex, anchor.colIndex, rowIndex, colIndex)
+        )
         e.preventDefault()
         return
       }
 
+      multiClickGuardRef.current = false
       dragAnchorRef.current = { rowIndex, colIndex }
       setIsSelecting(true)
       setStripSelection(null)
       setMultiSelect(null)
-      setRectSelection(
-        normalizeSpreadsheetRect(rowIndex, colIndex, rowIndex, colIndex)
-      )
+      setMultiCellSelection(null)
+      setRectSelection(normalizeSpreadsheetRect(rowIndex, colIndex, rowIndex, colIndex))
       setFocused({ serializedKey, rowIndex, colIndex })
     },
     []
@@ -183,12 +215,15 @@ export function useSpreadsheetSelection({ registry, getNumericValue }: UseSpread
     setStripSelection({ rowIndex })
     setRectSelection(null)
     setMultiSelect(null)
+    setMultiCellSelection(null)
   }, [])
 
   const getFocused = useCallback(() => focusedRef.current, [])
   const getRectSelection = useCallback(() => rectSelectionRef.current, [])
   const getStripSelection = useCallback(() => stripSelectionRef.current, [])
   const getMultiSelect = useCallback(() => multiSelectRef.current, [])
+
+  const getMultiCellSelection = useCallback(() => multiCellSelectionRef.current, [])
 
   const isSelected = useCallback(
     (serializedKey: string) => selectedKeySet.has(serializedKey),
@@ -227,6 +262,7 @@ export function useSpreadsheetSelection({ registry, getNumericValue }: UseSpread
     getRectSelection,
     getStripSelection,
     getMultiSelect,
+    getMultiCellSelection,
     setCopiedCells,
     copiedCells,
     clearSelections,
