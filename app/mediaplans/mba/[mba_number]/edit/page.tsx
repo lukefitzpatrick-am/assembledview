@@ -8284,6 +8284,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               <div className="p-6">
                 <DialogHeader>
                   <DialogTitle>Load version v{rollbackTargetVersion}</DialogTitle>
+                  <DialogDescription className="sr-only">
+                    Load a previously saved version of this media plan, replacing the current unsaved state.
+                  </DialogDescription>
                 </DialogHeader>
                 <p className="text-sm text-foreground">
                   Load the selected version? Unsaved changes on this page will be lost.
@@ -10017,6 +10020,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             <div className="shrink-0 px-6 pt-6">
               <DialogHeader>
                 <DialogTitle>Partial MBA Override</DialogTitle>
+                <DialogDescription className="sr-only">
+                  Override the summary totals and delivery months for a partial MBA.
+                </DialogDescription>
               </DialogHeader>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
