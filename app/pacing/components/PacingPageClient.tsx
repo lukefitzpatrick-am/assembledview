@@ -491,9 +491,6 @@ export default function PacingPageClient({
           </div>
 
           <PanelActions className="flex flex-wrap items-center gap-2 pt-0">
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/pacing/settings">Settings</Link>
-            </Button>
             <Badge variant="outline" className="w-fit rounded-full px-3 py-1 text-[11px]">
               Admin
             </Badge>
