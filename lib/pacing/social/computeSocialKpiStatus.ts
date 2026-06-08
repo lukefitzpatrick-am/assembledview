@@ -73,24 +73,6 @@ function variancePercent(target: number | null, actual: number | null): number |
 }
 
 /**
- * Line-item KPI actuals from row totals — same formulas as aggregateSocialForLineItem.
- * Fetch will copy precomputed ratios onto the row in a later commit; until then we derive here.
- */
-function socialLineItemActuals(row: SocialPacingCampaignRow): {
-  ctr: number | null;
-  conversionRate: number | null;
-  cpv: number | null;
-  vtr: number | null;
-} {
-  return {
-    ctr: row.impressions > 0 ? row.clicks / row.impressions : null,
-    conversionRate: row.impressions > 0 ? row.results / row.impressions : null,
-    cpv: row.videoViews > 0 ? row.spend / row.videoViews : null,
-    vtr: row.impressions > 0 ? row.videoViews / row.impressions : null,
-  };
-}
-
-/**
  * Builds per-KPI comparisons for a social pacing row.
  *
  * Metrics: ctr, conversionRate (results/impressions), cpv (lower-is-better), vtr.
@@ -98,10 +80,9 @@ function socialLineItemActuals(row: SocialPacingCampaignRow): {
  */
 export function buildSocialKpiComparisons(row: SocialPacingCampaignRow): SocialKpiComparison[] {
   const targets = row.kpiTargets;
-  const actuals = socialLineItemActuals(row);
 
   const targetCtr = resolveRatioTarget(targets?.ctr);
-  const actualCtr = actuals.ctr;
+  const actualCtr = row.ctr;
   const ctrComparison: SocialKpiComparison = {
     metric: "ctr",
     target: targetCtr,
@@ -111,7 +92,7 @@ export function buildSocialKpiComparisons(row: SocialPacingCampaignRow): SocialK
   };
 
   const targetConvRate = resolveRatioTarget(targets?.conversionRate);
-  const actualConvRate = actuals.conversionRate;
+  const actualConvRate = row.conversionRate;
   const convRateComparison: SocialKpiComparison = {
     metric: "conversionRate",
     target: targetConvRate,
@@ -121,7 +102,7 @@ export function buildSocialKpiComparisons(row: SocialPacingCampaignRow): SocialK
   };
 
   const targetCpv = resolveDollarTarget(targets?.cpv);
-  const actualCpv = actuals.cpv;
+  const actualCpv = row.cpv;
   const cpvComparison: SocialKpiComparison = {
     metric: "cpv",
     target: targetCpv,
@@ -131,7 +112,7 @@ export function buildSocialKpiComparisons(row: SocialPacingCampaignRow): SocialK
   };
 
   const targetVtr = resolveRatioTarget(targets?.vtr);
-  const actualVtr = actuals.vtr;
+  const actualVtr = row.vtr;
   const vtrComparison: SocialKpiComparison = {
     metric: "vtr",
     target: targetVtr,

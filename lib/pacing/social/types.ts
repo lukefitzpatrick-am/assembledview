@@ -105,9 +105,14 @@ export type SocialPacingCampaignRow = {
   results: number;
   videoViews: number;
   deliverableActual: number; // value of whichever deliverableMetric applies
+  /** Line-item KPI actuals — copied from aggregateSocialForLineItem metrics (single source of truth). */
+  ctr: number | null;
+  conversionRate: number | null;
+  cpv: number | null;
+  vtr: number | null;
 
   /**
-   * Target KPI values from campaign_kpi. null until joined in a later commit.
+   * Target KPI values from campaign_kpi. null when no matching row exists.
    * Frequency target has no matching actual — social facts have no reach column.
    */
   kpiTargets: KpiTargets | null;

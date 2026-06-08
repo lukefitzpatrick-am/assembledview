@@ -291,6 +291,11 @@ function mapSocialRowToCampaignRow(
     videoViews: 0,
     deliverableActual: 0,
 
+    ctr: null,
+    conversionRate: null,
+    cpv: null,
+    vtr: null,
+
     kpiTargets: null,
 
     platformCampaigns: [],

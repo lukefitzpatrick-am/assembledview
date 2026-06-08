@@ -1,6 +1,8 @@
 import "server-only";
 
 import type { DateWindows } from "@/lib/pacing/campaigns/aggregate";
+import type { KpiTargets } from "@/lib/pacing/campaigns/types";
+import { fetchCampaignKpisForMbas } from "@/lib/xano/campaignKpi";
 import {
   aggregateSocialForLineItem,
   type SocialFactRow,
@@ -108,10 +110,6 @@ export async function fetchSocialPacingCampaignRows(
     )
   );
 
-  if (metaIds.length === 0 && tiktokIds.length === 0) {
-    return rows;
-  }
-
   const lineTotalStart =
     rows
       .map((r) => r.lineItemStartDate)
@@ -119,84 +117,125 @@ export async function fetchSocialPacingCampaignRows(
       .sort()[0] ?? args.asOfDate;
   const yesterday = getMelbourneYesterdayISO(args.asOfDate);
 
-  const [metaFacts, tiktokFacts] = await Promise.all([
-    fetchFactsForPlatform("meta", metaIds, lineTotalStart, args.asOfDate),
-    fetchFactsForPlatform("tiktok", tiktokIds, lineTotalStart, args.asOfDate),
-  ]);
-  const allFacts = [...metaFacts, ...tiktokFacts];
+  if (metaIds.length > 0 || tiktokIds.length > 0) {
+    const [metaFacts, tiktokFacts] = await Promise.all([
+      fetchFactsForPlatform("meta", metaIds, lineTotalStart, args.asOfDate),
+      fetchFactsForPlatform("tiktok", tiktokIds, lineTotalStart, args.asOfDate),
+    ]);
+    const allFacts = [...metaFacts, ...tiktokFacts];
 
-  const byLineItem = new Map<string, SocialFactRow[]>();
-  for (const fact of allFacts) {
-    const k = String(fact.LINE_ITEM_ID ?? "")
-      .trim()
-      .toLowerCase();
-    if (!k) continue;
-    let bucket = byLineItem.get(k);
-    if (!bucket) {
-      bucket = [];
-      byLineItem.set(k, bucket);
+    const byLineItem = new Map<string, SocialFactRow[]>();
+    for (const fact of allFacts) {
+      const k = String(fact.LINE_ITEM_ID ?? "")
+        .trim()
+        .toLowerCase();
+      if (!k) continue;
+      let bucket = byLineItem.get(k);
+      if (!bucket) {
+        bucket = [];
+        byLineItem.set(k, bucket);
+      }
+      bucket.push(fact);
     }
-    bucket.push(fact);
+
+    for (const row of rows) {
+      const matched = byLineItem.get(row.lineItemId.toLowerCase()) ?? [];
+      const windows: DateWindows = {
+        lineTotalStart: row.lineItemStartDate ?? lineTotalStart,
+        lineTotalEnd: args.asOfDate,
+        currentBurstStart: row.currentBurst?.startDate ?? null,
+        currentBurstEnd: row.currentBurst?.endDate ?? null,
+        yesterday,
+      };
+
+      const { metrics, deliverableActual, campaigns } = aggregateSocialForLineItem(
+        matched,
+        windows,
+        row.deliverableMetric
+      );
+      const spendWindows = aggregateSocialSpendWindows(matched, windows);
+
+      row.spendToDateLineTotal = spendWindows.spendToDateLineTotal;
+      row.spendToDateCurrentBurst = spendWindows.spendToDateCurrentBurst;
+      row.spendYesterday = spendWindows.spendYesterday;
+
+      row.spend = metrics.spend;
+      row.impressions = metrics.impressions;
+      row.clicks = metrics.clicks;
+      row.results = metrics.results;
+      row.videoViews = metrics.videoViews;
+      row.deliverableActual = deliverableActual;
+      row.ctr = metrics.ctr;
+      row.conversionRate = metrics.conversionRate;
+      row.cpv = metrics.cpv;
+      row.vtr = metrics.vtr;
+      row.platformCampaigns = campaigns;
+
+      row.spendRemainingCurrentBurst =
+        row.currentBurst !== null
+          ? row.currentBurst.budget - spendWindows.spendToDateCurrentBurst
+          : null;
+      row.spendRemainingLineTotal = row.totalLineItemBudget - spendWindows.spendToDateLineTotal;
+      row.spendPerDayRemaining =
+        row.spendRemainingCurrentBurst !== null &&
+        row.burstDaysRemaining !== null &&
+        row.burstDaysRemaining > 0
+          ? row.spendRemainingCurrentBurst / row.burstDaysRemaining
+          : null;
+
+      if (row.currentBurst === null) {
+        row.lineItemStatus = "no-data";
+      } else {
+        const mathsOutput = computePacing({
+          lineItemBudget: row.currentBurst.budget,
+          startDate: row.currentBurst.startDate,
+          endDate: row.currentBurst.endDate,
+          spendToDate: spendWindows.spendToDateCurrentBurst,
+          spendYesterday: spendWindows.spendYesterday,
+          impressionsToDate: metrics.impressions,
+          clicksToDate: metrics.clicks,
+          conversionsToDate: 0,
+          revenueToDate: 0,
+          asOfDate: args.asOfDate,
+        });
+        row.lineItemStatus = lineItemStatusFromPacing(mathsOutput.status);
+      }
+    }
+  }
+
+  // --- KPI targets (mirrors fetchSearchPacingCampaignRows) ---
+  const mbaVersionPairs = rows.map((r) => ({
+    mbaNumber: r.mbaNumber,
+    versionNumber: r.mediaPlanVersionNumber,
+  }));
+  const campaignKpiRows = await fetchCampaignKpisForMbas({ mbaVersionPairs });
+
+  const kpiTargetsByKey = new Map<string, KpiTargets>();
+
+  function makeKpiKey(mba: string, version: number, lineItemId: string): string {
+    return `${mba}|${version}|${lineItemId.toLowerCase().trim()}`;
+  }
+
+  for (const ck of campaignKpiRows) {
+    const key = makeKpiKey(ck.mba_number, ck.version_number, ck.line_item_id);
+    if (kpiTargetsByKey.has(key)) {
+      console.warn(`[fetchSocialPacingCampaignRows] duplicate campaign_kpi for ${key}`);
+    }
+    kpiTargetsByKey.set(key, {
+      mediaType: ck.media_type ?? null,
+      publisher: ck.publisher ?? null,
+      bidStrategy: ck.bid_strategy ?? null,
+      ctr: ck.ctr,
+      cpv: ck.cpv,
+      conversionRate: ck.conversion_rate,
+      vtr: ck.vtr,
+      frequency: ck.frequency,
+    });
   }
 
   for (const row of rows) {
-    const matched = byLineItem.get(row.lineItemId.toLowerCase()) ?? [];
-    const windows: DateWindows = {
-      lineTotalStart: row.lineItemStartDate ?? lineTotalStart,
-      lineTotalEnd: args.asOfDate,
-      currentBurstStart: row.currentBurst?.startDate ?? null,
-      currentBurstEnd: row.currentBurst?.endDate ?? null,
-      yesterday,
-    };
-
-    const { metrics, deliverableActual, campaigns } = aggregateSocialForLineItem(
-      matched,
-      windows,
-      row.deliverableMetric
-    );
-    const spendWindows = aggregateSocialSpendWindows(matched, windows);
-
-    row.spendToDateLineTotal = spendWindows.spendToDateLineTotal;
-    row.spendToDateCurrentBurst = spendWindows.spendToDateCurrentBurst;
-    row.spendYesterday = spendWindows.spendYesterday;
-
-    row.spend = metrics.spend;
-    row.impressions = metrics.impressions;
-    row.clicks = metrics.clicks;
-    row.results = metrics.results;
-    row.videoViews = metrics.videoViews;
-    row.deliverableActual = deliverableActual;
-    row.platformCampaigns = campaigns;
-
-    row.spendRemainingCurrentBurst =
-      row.currentBurst !== null
-        ? row.currentBurst.budget - spendWindows.spendToDateCurrentBurst
-        : null;
-    row.spendRemainingLineTotal = row.totalLineItemBudget - spendWindows.spendToDateLineTotal;
-    row.spendPerDayRemaining =
-      row.spendRemainingCurrentBurst !== null &&
-      row.burstDaysRemaining !== null &&
-      row.burstDaysRemaining > 0
-        ? row.spendRemainingCurrentBurst / row.burstDaysRemaining
-        : null;
-
-    if (row.currentBurst === null) {
-      row.lineItemStatus = "no-data";
-    } else {
-      const mathsOutput = computePacing({
-        lineItemBudget: row.currentBurst.budget,
-        startDate: row.currentBurst.startDate,
-        endDate: row.currentBurst.endDate,
-        spendToDate: spendWindows.spendToDateCurrentBurst,
-        spendYesterday: spendWindows.spendYesterday,
-        impressionsToDate: metrics.impressions,
-        clicksToDate: metrics.clicks,
-        conversionsToDate: 0,
-        revenueToDate: 0,
-        asOfDate: args.asOfDate,
-      });
-      row.lineItemStatus = lineItemStatusFromPacing(mathsOutput.status);
-    }
+    const key = makeKpiKey(row.mbaNumber, row.mediaPlanVersionNumber, row.lineItemId);
+    row.kpiTargets = kpiTargetsByKey.get(key) ?? null;
   }
 
   return rows;
