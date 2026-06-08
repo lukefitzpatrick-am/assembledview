@@ -13,10 +13,11 @@ import { ReceivablesMediaPlanSection } from "./ReceivablesMediaPlanSection"
 type ReceivablesClientCardProps = {
   client: ClientGroup
   monthLabel: string
+  refetch: () => void
   onToggleBilled: (rec: BillingRecord, nextBilled: boolean) => Promise<void>
 }
 
-export function ReceivablesClientCard({ client, monthLabel, onToggleBilled }: ReceivablesClientCardProps) {
+export function ReceivablesClientCard({ client, monthLabel, refetch, onToggleBilled }: ReceivablesClientCardProps) {
   const invCount =
     client.mediaPlans.reduce((n, mp) => n + mp.records.length, 0) +
     client.scopeOfWorks.reduce((n, mp) => n + mp.records.length, 0) +
@@ -56,7 +57,9 @@ export function ReceivablesClientCard({ client, monthLabel, onToggleBilled }: Re
               <ReceivablesMediaPlanSection
                 key={`mp-${client.clientsId}-${mpIdx}-${mp.mbaNumber}`}
                 mp={mp}
+                kind="media"
                 sectionLabel={mpIdx === 0 && client.mediaPlans.length ? "Media plans" : undefined}
+                refetch={refetch}
                 onToggleBilled={onToggleBilled}
               />
             ))}
@@ -64,7 +67,9 @@ export function ReceivablesClientCard({ client, monthLabel, onToggleBilled }: Re
               <ReceivablesMediaPlanSection
                 key={`sow-${client.clientsId}-${mpIdx}-${mp.mbaNumber}`}
                 mp={mp}
+                kind="sow"
                 sectionLabel="Fees"
+                refetch={refetch}
                 onToggleBilled={onToggleBilled}
               />
             ))}

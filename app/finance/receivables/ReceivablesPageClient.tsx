@@ -91,9 +91,11 @@ function sumMonthGroupsTotal(groups: MonthGroup[]): number {
 
 function ReceivablesMonthSections({
   groups,
+  refetch,
   onToggleBilled,
 }: {
   groups: ReturnType<typeof useReceivablesData>["visibleMonthGroups"]
+  refetch: () => void
   onToggleBilled: (rec: BillingRecord, nextBilled: boolean) => Promise<void>
 }) {
   if (groups.length === 0) return null
@@ -112,6 +114,7 @@ function ReceivablesMonthSections({
                 key={`${mg.monthIso}-${client.clientsId}`}
                 client={client}
                 monthLabel={mg.monthLabel}
+                refetch={refetch}
                 onToggleBilled={onToggleBilled}
               />
             ))}
@@ -260,7 +263,11 @@ export function ReceivablesPageClient() {
               <p className="text-sm text-muted-foreground">All invoices billed for this period.</p>
             ) : null}
 
-            <ReceivablesMonthSections groups={unbilledGroups} onToggleBilled={handleToggleBilled} />
+            <ReceivablesMonthSections
+              groups={unbilledGroups}
+              refetch={bumpReceivablesFetch}
+              onToggleBilled={handleToggleBilled}
+            />
 
             {billedInvoiceCount > 0 ? (
               <Collapsible defaultOpen={false} className="group/billed">
@@ -272,7 +279,11 @@ export function ReceivablesPageClient() {
                   </span>
                 </CollapsibleTrigger>
                 <CollapsibleContent className="mt-4">
-                  <ReceivablesMonthSections groups={billedGroups} onToggleBilled={handleToggleBilled} />
+                  <ReceivablesMonthSections
+                    groups={billedGroups}
+                    refetch={bumpReceivablesFetch}
+                    onToggleBilled={handleToggleBilled}
+                  />
                 </CollapsibleContent>
               </Collapsible>
             ) : (

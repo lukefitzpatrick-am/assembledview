@@ -8,6 +8,7 @@ import type { MediaPlanGroup } from "@/lib/finance/useReceivablesData"
 import { groupIdenticalLineItems } from "@/lib/finance/groupIdenticalLineItems"
 import { formatMoney } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
+import { MediaPlanActionBar } from "@/components/finance/MediaPlanActionBar"
 import { BilledStatusPill } from "./BilledStatusPill"
 import { ReceivablesLineGroupRow } from "./ReceivablesLineGroupRow"
 
@@ -41,7 +42,9 @@ function buildMediaTypeRollups(records: BillingRecord[]): MediaTypeRollup[] {
 
 type ReceivablesMediaPlanSectionProps = {
   mp: MediaPlanGroup
+  kind: "media" | "sow"
   sectionLabel?: string
+  refetch: () => void
   onToggleBilled: (rec: BillingRecord, nextBilled: boolean) => Promise<void>
 }
 
@@ -81,7 +84,13 @@ function MediaTypeRollupRow({ rollup }: { rollup: MediaTypeRollup }) {
   )
 }
 
-export function ReceivablesMediaPlanSection({ mp, sectionLabel, onToggleBilled }: ReceivablesMediaPlanSectionProps) {
+export function ReceivablesMediaPlanSection({
+  mp,
+  kind,
+  sectionLabel,
+  refetch,
+  onToggleBilled,
+}: ReceivablesMediaPlanSectionProps) {
   const rollups = useMemo(() => buildMediaTypeRollups(mp.records), [mp.records])
 
   return (
@@ -96,7 +105,16 @@ export function ReceivablesMediaPlanSection({ mp, sectionLabel, onToggleBilled }
             <p className="truncate text-[11px] tabular-nums text-muted-foreground">{mp.mbaNumber}</p>
           ) : null}
         </div>
-        <p className="text-sm font-semibold tabular-nums">{formatMoney(mp.total)}</p>
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+          {kind === "media" ? (
+            <MediaPlanActionBar
+              mp={mp}
+              billingMonth={mp.records[0]?.billing_month ?? ""}
+              onSaved={refetch}
+            />
+          ) : null}
+          <p className="text-sm font-semibold tabular-nums">{formatMoney(mp.total)}</p>
+        </div>
       </div>
 
       {mp.records.length > 0 ? (
