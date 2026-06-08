@@ -2838,18 +2838,6 @@ export async function updateSearchLineItem(id: number, data: Partial<SearchLineI
 }
 
 export async function deleteSearchLineItem(id: number): Promise<void> {
-  if (isBrowser) {
-    try {
-      await fetch("/api/pacing/mappings/prepare-search-container-delete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify({ search_container_id: id }),
-      })
-    } catch (e) {
-      console.warn("[deleteSearchLineItem] pacing prepare failed", e)
-    }
-  }
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_search/${id}`, {
     method: 'DELETE',
   });
