@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { useToast } from "@/components/ui/use-toast"
 import type { BillingRecord, BillingType } from "@/lib/types/financeBilling"
 import {
@@ -456,6 +456,7 @@ export function AccrualTab() {
                 </>
               ) : null}
             </SheetTitle>
+            <SheetDescription className="sr-only">Accrual details for this period.</SheetDescription>
           </SheetHeader>
           {panelRow ? (
             <ScrollArea className="mt-4 flex-1 pr-3">

@@ -19,7 +19,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Skeleton } from "@/components/ui/skeleton"
 import { createSavedPacingViewAction, deleteSavedPacingViewAction, updateSavedPacingViewAction } from "@/app/pacing/actions"
@@ -928,6 +928,7 @@ export default function PacingPageClient({
         <SheetContent side="right" className="w-full sm:max-w-3xl overflow-y-auto">
           <SheetHeader>
             <SheetTitle>Pacing drill-down</SheetTitle>
+            <SheetDescription className="sr-only">Pacing detail drill-down.</SheetDescription>
           </SheetHeader>
 
           {!selectedLineItem || !drawerLineItemProps ? (

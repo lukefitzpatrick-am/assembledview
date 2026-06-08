@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { useFinanceStore } from "@/lib/finance/useFinanceStore"
 import type { FinanceFilters } from "@/lib/types/financeBilling"
 import { cn } from "@/lib/utils"
@@ -334,6 +334,7 @@ export function FinanceFilterToolbar({ receivables }: FinanceFilterToolbarProps)
           <SheetContent side="bottom" className="h-[min(85vh,640px)]">
             <SheetHeader>
               <SheetTitle>Filters</SheetTitle>
+              <SheetDescription className="sr-only">Filter finance records.</SheetDescription>
             </SheetHeader>
             <div className="mt-4 grid grid-cols-1 gap-4">
               {controls}

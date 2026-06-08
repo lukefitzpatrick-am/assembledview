@@ -9,7 +9,7 @@ import { DateRangePicker } from "@/components/ui/date-range-picker"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { usePacingFilterStore, usePacingFilterStoreApi } from "@/lib/pacing/usePacingFilterStore"
 import {
   PACING_MEDIA_TYPE_OPTIONS,
@@ -234,6 +234,7 @@ export function PacingFilterToolbar() {
           <SheetContent side="bottom" className="h-[min(85vh,720px)]">
             <SheetHeader>
               <SheetTitle>Filters</SheetTitle>
+              <SheetDescription className="sr-only">Filter pacing data.</SheetDescription>
             </SheetHeader>
             <div className="mt-4 grid grid-cols-1 gap-4">{sheetControls}</div>
           </SheetContent>
