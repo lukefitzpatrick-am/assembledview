@@ -6178,9 +6178,9 @@ const handleSaveAll = async () => {
         <DialogHeader>
           <DialogTitle>Manual Billing Schedule</DialogTitle>
         </DialogHeader>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <DialogDescription className="mt-1 text-sm text-muted-foreground">
           Subtotals are calculated from line items. Fees, ad serving, and production are editable at the bottom.
-        </p>
+        </DialogDescription>
       </div>
 
       <ManualBillingSpreadsheetProvider

@@ -9423,6 +9423,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             <div className="shrink-0 border-b px-6 py-4">
               <DialogHeader>
                 <DialogTitle>Manual Billing Schedule</DialogTitle>
+                <DialogDescription className="sr-only">
+                  Edit the manual billing schedule for this media plan. Subtotals are calculated from line items; fees, ad serving, and production are editable.
+                </DialogDescription>
               </DialogHeader>
             </div>
 
