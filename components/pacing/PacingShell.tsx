@@ -9,7 +9,6 @@ import { PacingFilterToolbar } from "@/components/pacing/PacingFilterToolbar"
 const baseTabs = [
   { href: "/pacing/overview", label: "Overview" },
   { href: "/pacing/search", label: "Search" },
-  { href: "/pacing/settings", label: "Settings" },
 ] as const
 
 interface PacingShellProps {
