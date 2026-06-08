@@ -14,6 +14,26 @@ function num(value: number | null | undefined): number {
   return value ?? 0;
 }
 
+/**
+ * KPI ratios computed from sums, not averaged. Returns nulls when denominators
+ * are zero to surface "no signal" rather than NaN/Infinity (mirrors computeRatios
+ * in lib/pacing/campaigns/aggregate.ts).
+ */
+function computeSocialRatios(
+  spend: number,
+  impressions: number,
+  clicks: number,
+  results: number,
+  videoViews: number,
+): Pick<SocialPacingMetrics, "ctr" | "conversionRate" | "cpv" | "vtr"> {
+  return {
+    ctr: impressions > 0 ? clicks / impressions : null,
+    conversionRate: impressions > 0 ? results / impressions : null,
+    cpv: videoViews > 0 ? spend / videoViews : null,
+    vtr: impressions > 0 ? videoViews / impressions : null,
+  };
+}
+
 /** Empty metrics bundle — used when no fact rows match a Xano line item. */
 export function emptySocialMetrics(): SocialPacingMetrics {
   return {
@@ -22,6 +42,10 @@ export function emptySocialMetrics(): SocialPacingMetrics {
     clicks: 0,
     results: 0,
     videoViews: 0,
+    ctr: null,
+    conversionRate: null,
+    cpv: null,
+    vtr: null,
   };
 }
 
@@ -59,7 +83,14 @@ function aggregateRows(rows: SocialFactRow[], windows: DateWindows): SocialPacin
     }
   }
 
-  return { spend, impressions, clicks, results, videoViews };
+  return {
+    spend,
+    impressions,
+    clicks,
+    results,
+    videoViews,
+    ...computeSocialRatios(spend, impressions, clicks, results, videoViews),
+  };
 }
 
 function sumMetrics(children: SocialPacingMetrics[]): SocialPacingMetrics {
@@ -77,7 +108,14 @@ function sumMetrics(children: SocialPacingMetrics[]): SocialPacingMetrics {
     videoViews += c.videoViews;
   }
 
-  return { spend, impressions, clicks, results, videoViews };
+  return {
+    spend,
+    impressions,
+    clicks,
+    results,
+    videoViews,
+    ...computeSocialRatios(spend, impressions, clicks, results, videoViews),
+  };
 }
 
 /**

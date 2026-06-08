@@ -7,18 +7,28 @@
  * of burst calculatedValue for the line item.
  */
 
-import type { NormalisedBurst } from "@/lib/pacing/campaigns/types";
+import type { KpiTargets, NormalisedBurst } from "@/lib/pacing/campaigns/types";
 import type { DeliverableMetric } from "@/lib/pacing/deliverables/mapDeliverableMetric";
 
 export type SocialPlatform = "meta" | "tiktok";
 
-/** Snowflake delivery metrics reused at line-item, platform-campaign, and ad-set levels. */
+/**
+ * Snowflake delivery metrics and KPI ratios reused at line-item, platform-campaign,
+ * and ad-set levels (mirrors SearchPacingKpis carrying cpc/ctr/cpm on breakdowns).
+ *
+ * Frequency is intentionally absent from actuals: the social fact has no reach
+ * column, so frequency can never get an actual.
+ */
 export type SocialPacingMetrics = {
   spend: number;
   impressions: number;
   clicks: number;
   results: number;
   videoViews: number;
+  ctr: number | null; // SUM(clicks) / SUM(impressions) — decimal ratio; null if impressions = 0
+  conversionRate: number | null; // SUM(results) / SUM(impressions) — decimal ratio; null if impressions = 0
+  cpv: number | null; // SUM(spend) / SUM(videoViews) — dollars; null if videoViews = 0
+  vtr: number | null; // SUM(videoViews) / SUM(impressions) — decimal ratio; null if impressions = 0
 };
 
 /** One ad set under a platform campaign. */
@@ -95,6 +105,12 @@ export type SocialPacingCampaignRow = {
   results: number;
   videoViews: number;
   deliverableActual: number; // value of whichever deliverableMetric applies
+
+  /**
+   * Target KPI values from campaign_kpi. null until joined in a later commit.
+   * Frequency target has no matching actual — social facts have no reach column.
+   */
+  kpiTargets: KpiTargets | null;
 
   // --- Three-level breakdown for UI drill-down ---
   platformCampaigns: SocialPlatformCampaignBreakdown[];
