@@ -9,15 +9,28 @@ import {
   type CSSProperties,
   type RefObject,
 } from "react";
-import { ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown } from "lucide-react";
+import { ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Info } from "lucide-react";
 import {
   compareValues,
   type SortDirection,
 } from "@/components/ui/sortable-table-header";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { statusBadge, statusLabel } from "@/components/dashboard/delivery/shared/statusColours";
 import type { DeliverableMetric } from "@/lib/pacing/deliverables/mapDeliverableMetric";
 import { inclusiveDaysBetween } from "@/lib/pacing/burst/currentBurst";
 import { pacingDeviationSparklineClass } from "@/lib/pacing/pacingDeviationStyle";
+import {
+  formatRatioAsPercent,
+  formatVariancePercent,
+} from "@/lib/pacing/kpi/formatKpi";
+import {
+  buildSocialKpiComparisons,
+  computeSocialRowKpiStatus,
+  copyForRowKpiStatus,
+  type RowKpiStatus,
+  type SocialKpiComparison,
+  type SocialKpiMetric,
+} from "@/lib/pacing/social/computeSocialKpiStatus";
 import type {
   SocialAdSetBreakdown,
   SocialPacingCampaignRow,
@@ -39,6 +52,7 @@ type PacingSortColumn =
   | "lineItemId"
   | "lineItemStatus"
   | "creativeTargeting"
+  | "kpiStatus"
   | "lineItemStartDate"
   | "lineItemEndDate"
   | "totalLineItemBudget"
@@ -58,6 +72,14 @@ const LINE_ITEM_STATUS_ORDER: Record<SocialPacingCampaignRow["lineItemStatus"], 
   ahead: 1,
   behind: 2,
   "no-data": 3,
+};
+
+const KPI_STATUS_ORDER: Record<RowKpiStatus, number> = {
+  "kpi-on-track": 0,
+  "kpi-mixed": 1,
+  "kpi-off-target": 2,
+  "kpi-no-delivery": 3,
+  "kpi-pending": 4,
 };
 
 const NUMERIC_SORT_COLUMNS = new Set<PacingSortColumn>([
@@ -86,6 +108,7 @@ const ROW_SORT_SELECTORS: Record<
   lineItemId: (r) => r.lineItemId,
   lineItemStatus: (r) => LINE_ITEM_STATUS_ORDER[r.lineItemStatus],
   creativeTargeting: (r) => r.creativeTargeting,
+  kpiStatus: (r) => KPI_STATUS_ORDER[computeSocialRowKpiStatus(r)],
   lineItemStartDate: (r) => r.lineItemStartDate ?? "",
   lineItemEndDate: (r) => r.lineItemEndDate ?? "",
   totalLineItemBudget: (r) => r.totalLineItemBudget,
@@ -243,6 +266,16 @@ function fmtNumberOrZero(n: number | null | undefined): string {
 
 function fmtXanoDate(d: string | null): string {
   return d || XANO_MISSING;
+}
+
+function fmtCpv(n: number | null | undefined): string {
+  if (n === null || n === undefined) return XANO_MISSING;
+  return new Intl.NumberFormat("en-AU", {
+    style: "currency",
+    currency: "AUD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(n);
 }
 
 function formatSocialPlatform(platform: SocialPlatform): string {
@@ -433,6 +466,15 @@ export function LineItemPacingTable({ rows, asOfDate }: LineItemPacingTableProps
                 onToggle={toggleSort}
                 className="sticky bg-background p-2 text-left border-b"
                 style={stickyHeaderCornerStyle(7, leftOffsets)}
+              />
+              <SortablePacingTh
+                label="KPI Status"
+                column="kpiStatus"
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+                className="sticky top-0 bg-background p-2 text-left border-b"
+                style={{ zIndex: 20 }}
               />
               <SortablePacingTh
                 label="Line Start"
@@ -642,6 +684,12 @@ function FragmentForLineItem({
         >
           {row.creativeTargeting || XANO_MISSING}
         </td>
+        <td className="p-2 border-b">
+          <div className="inline-flex items-center gap-1">
+            <KpiStatusPill status={computeSocialRowKpiStatus(row)} />
+            <KpiDrilldownButton row={row} />
+          </div>
+        </td>
         <td className="p-2 border-b">{fmtXanoDate(row.lineItemStartDate)}</td>
         <td className="p-2 border-b">{fmtXanoDate(row.lineItemEndDate)}</td>
         <td className="p-2 border-b text-right tabular-nums">
@@ -738,6 +786,7 @@ function FragmentForCampaign({
         <td className="p-2 border-b" />
         <td className="p-2 border-b" />
         <td className="p-2 border-b" />
+        <td className="p-2 border-b" />
         <td className="p-2 border-b text-right tabular-nums">{fmtCurrencyOrZero(campaign.spend)}</td>
         <td className="p-2 border-b text-right tabular-nums">{fmtNumberOrZero(campaign.impressions)}</td>
         <td className="p-2 border-b text-right tabular-nums">{fmtNumberOrZero(campaign.clicks)}</td>
@@ -793,6 +842,7 @@ function AdSetRow({
       <td className="p-2 border-b" />
       <td className="p-2 border-b" />
       <td className="p-2 border-b" />
+      <td className="p-2 border-b" />
       <td className="p-2 border-b text-right tabular-nums">{fmtCurrencyOrZero(adSet.spend)}</td>
       <td className="p-2 border-b text-right tabular-nums">{fmtNumberOrZero(adSet.impressions)}</td>
       <td className="p-2 border-b text-right tabular-nums">{fmtNumberOrZero(adSet.clicks)}</td>
@@ -814,5 +864,232 @@ function StatusCell({ status }: { status: SocialPacingCampaignRow["lineItemStatu
     >
       {statusLabel[status]}
     </span>
+  );
+}
+
+function KpiStatusPill({ status }: { status: RowKpiStatus }) {
+  const copy = copyForRowKpiStatus(status);
+  const classes = (() => {
+    switch (status) {
+      case "kpi-pending":
+        return "bg-muted text-muted-foreground";
+      case "kpi-no-delivery":
+        return "bg-muted text-muted-foreground";
+      case "kpi-on-track":
+        return "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300";
+      case "kpi-mixed":
+        return "bg-amber-500/15 text-amber-700 dark:text-amber-300";
+      case "kpi-off-target":
+        return "bg-rose-500/15 text-rose-700 dark:text-rose-300";
+    }
+  })();
+  return (
+    <span
+      className={`inline-flex items-center rounded px-2 py-0.5 text-[10px] font-medium whitespace-nowrap ${classes}`}
+    >
+      {copy}
+    </span>
+  );
+}
+
+function KpiDrilldownButton({ row }: { row: SocialPacingCampaignRow }) {
+  const comparisons = buildSocialKpiComparisons(row);
+  const hasTargets = row.kpiTargets !== null;
+  const editorHref = `/mediaplans/mba/${encodeURIComponent(row.mbaNumber)}/edit`;
+  const frequencyTarget = resolveFrequencyTarget(row);
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
+          aria-label="KPI breakdown"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Info className="h-3.5 w-3.5" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-80 p-3"
+        align="start"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <KpiDrilldownContent
+          row={row}
+          comparisons={comparisons}
+          hasTargets={hasTargets}
+          frequencyTarget={frequencyTarget}
+          editorHref={editorHref}
+        />
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function resolveFrequencyTarget(row: SocialPacingCampaignRow): number | null {
+  const frequency = row.kpiTargets?.frequency;
+  if (frequency === null || frequency === undefined || frequency === 0) return null;
+  return frequency;
+}
+
+function KpiDrilldownContent({
+  row,
+  comparisons,
+  hasTargets,
+  frequencyTarget,
+  editorHref,
+}: {
+  row: SocialPacingCampaignRow;
+  comparisons: SocialKpiComparison[];
+  hasTargets: boolean;
+  frequencyTarget: number | null;
+  editorHref: string;
+}) {
+  return (
+    <div className="space-y-3">
+      <div>
+        <div className="text-xs font-medium">{row.lineItemId}</div>
+        <div className="text-[10px] text-muted-foreground">{row.campaignName}</div>
+      </div>
+
+      {!hasTargets ? (
+        <EmptyKpiState editorHref={editorHref} />
+      ) : (
+        <>
+          <SocialKpiComparisonTable
+            comparisons={comparisons}
+            frequencyTarget={frequencyTarget}
+          />
+          <div className="border-t pt-2">
+            <a
+              href={editorHref}
+              className="text-[11px] text-blue-600 hover:underline"
+              onClick={(e) => e.stopPropagation()}
+            >
+              Edit targets in media plan →
+            </a>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function EmptyKpiState({ editorHref }: { editorHref: string }) {
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-muted-foreground">
+        No KPI targets have been set for this line item yet.
+      </p>
+      <a
+        href={editorHref}
+        className="inline-block text-[11px] text-blue-600 hover:underline"
+        onClick={(e) => e.stopPropagation()}
+      >
+        Set targets in media plan →
+      </a>
+    </div>
+  );
+}
+
+function labelForSocialMetric(metric: SocialKpiMetric): string {
+  switch (metric) {
+    case "ctr":
+      return "CTR";
+    case "conversionRate":
+      return "Conv. rate (results/impr)";
+    case "cpv":
+      return "CPV ↓";
+    case "vtr":
+      return "VTR";
+  }
+}
+
+function SocialKpiComparisonTable({
+  comparisons,
+  frequencyTarget,
+}: {
+  comparisons: SocialKpiComparison[];
+  frequencyTarget: number | null;
+}) {
+  return (
+    <table className="w-full text-[11px]">
+      <thead>
+        <tr className="text-muted-foreground">
+          <th className="text-left font-normal pb-1">Metric</th>
+          <th className="text-right font-normal pb-1">Target</th>
+          <th className="text-right font-normal pb-1">Actual</th>
+          <th className="text-right font-normal pb-1">Variance</th>
+        </tr>
+      </thead>
+      <tbody>
+        {comparisons.map((c) => (
+          <SocialKpiComparisonRow key={c.metric} comparison={c} />
+        ))}
+        {frequencyTarget !== null ? (
+          <tr>
+            <td className="py-0.5 pr-2">Frequency</td>
+            <td className="py-0.5 pr-2 text-right tabular-nums">
+              {fmtNumberOrZero(frequencyTarget)}
+            </td>
+            {/* Social facts have no reach column — frequency has no actual. */}
+            <td className="py-0.5 pr-2 text-right tabular-nums text-muted-foreground">
+              {XANO_MISSING}
+            </td>
+            <td className="py-0.5 text-right tabular-nums text-muted-foreground">
+              {XANO_MISSING}
+            </td>
+          </tr>
+        ) : null}
+      </tbody>
+    </table>
+  );
+}
+
+function SocialKpiComparisonRow({ comparison: c }: { comparison: SocialKpiComparison }) {
+  const isLowerBetter = c.metric === "cpv";
+  const varianceClass =
+    c.variancePercent === null
+      ? "text-muted-foreground"
+      : isLowerBetter
+        ? c.variancePercent <= 0
+          ? "text-emerald-700"
+          : "text-rose-700"
+        : c.variancePercent >= 0
+          ? "text-emerald-700"
+          : "text-rose-700";
+
+  const actualDisplay =
+    c.status === "no-target" ? (
+      <span className="text-muted-foreground text-[10px]">Target not set</span>
+    ) : c.status === "no-delivery" ? (
+      <span className="text-muted-foreground text-[10px]">No delivery yet</span>
+    ) : c.metric === "cpv" ? (
+      fmtCpv(c.actual)
+    ) : (
+      formatRatioAsPercent(c.actual)
+    );
+
+  const targetDisplay =
+    c.status === "no-target"
+      ? XANO_MISSING
+      : c.metric === "cpv"
+        ? fmtCpv(c.target)
+        : formatRatioAsPercent(c.target);
+
+  return (
+    <tr>
+      <td className="py-0.5 pr-2">
+        <span title={isLowerBetter ? "Lower is better" : undefined}>
+          {labelForSocialMetric(c.metric)}
+        </span>
+      </td>
+      <td className="py-0.5 pr-2 text-right tabular-nums">{targetDisplay}</td>
+      <td className="py-0.5 pr-2 text-right tabular-nums">{actualDisplay}</td>
+      <td className={`py-0.5 text-right tabular-nums ${varianceClass}`}>
+        {formatVariancePercent(c.variancePercent)}
+      </td>
+    </tr>
   );
 }
