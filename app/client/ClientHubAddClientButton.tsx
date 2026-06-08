@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { PlusCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { AddClientForm } from '@/components/AddClientForm'
 
 export function ClientHubAddClientButton() {
@@ -20,6 +20,9 @@ export function ClientHubAddClientButton() {
       <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Add new client</DialogTitle>
+          <DialogDescription className="sr-only">
+            Add a new client to the client hub.
+          </DialogDescription>
         </DialogHeader>
         <AddClientForm
           onSuccess={() => {

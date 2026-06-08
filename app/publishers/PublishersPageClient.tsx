@@ -8,7 +8,7 @@ import { PlusCircle, Edit, X, Building2, Search } from "lucide-react"
 import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
 import { AddPublisherForm } from "@/components/AddPublisherForm"
 import { cn } from "@/lib/utils"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { SortableTableHeader, type SortDirection } from "@/components/ui/sortable-table-header"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -342,6 +342,9 @@ export function PublishersPageClient() {
                 <div className="min-h-0 flex-1 overflow-y-auto p-6">
                   <DialogHeader>
                     <DialogTitle>Add New Publisher</DialogTitle>
+                    <DialogDescription className="sr-only">
+                      Add a new publisher to the directory.
+                    </DialogDescription>
                   </DialogHeader>
                   <AddPublisherForm
                     onSuccess={() => {
