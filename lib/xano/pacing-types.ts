@@ -1,5 +1,5 @@
 /**
- * Pacing API types: Xano mirror tables + Snowflake mart rows + request/response envelopes.
+ * Pacing API types: Snowflake mart rows + request/response envelopes.
  * Field names use snake_case to match Xano / REST conventions.
  */
 
@@ -14,44 +14,6 @@ export type PacingStatus =
   | "completed"
 
 export type PacingDeliveryHealth = "spending" | "no_delivery" | "no_recent_delivery" | "paused_yesterday"
-
-export type PacingMatchType = "exact" | "prefix" | "regex" | "suffix_id"
-
-/** Xano `pacing_mappings.created_via` — how the row was created */
-export type PacingCreatedVia = "manual" | "search_sync"
-
-/** Xano table `pacing_mappings` */
-export type PacingMapping = {
-  id: number
-  clients_id: number
-  media_plan_id: number | null
-  av_line_item_id: string
-  av_line_item_label: string | null
-  media_type: string | null
-  platform: string | null
-  match_type: PacingMatchType
-  campaign_name_pattern: string | null
-  group_name_pattern: string | null
-  /**
-   * Suffix after last "-" in ad group / asset group name (`media_plan_search.line_item_id` for auto search rows).
-   * Required when `match_type` is `suffix_id` (ignored for other match types).
-   */
-  av_line_item_code?: string | null
-  budget_split_pct: number
-  line_item_budget: number | null
-  start_date: string | null
-  end_date: string | null
-  is_active: boolean
-  /** UI / sync origin; null if column missing (legacy rows) */
-  created_via?: PacingCreatedVia | null
-  created_at: number | string | null
-  updated_at: number | string | null
-  created_by_users_id: number | null
-}
-
-/** When `match_type` is `suffix_id`, set `av_line_item_code`; campaign/group patterns are ignored. */
-export type PacingMappingInput = Partial<Omit<PacingMapping, "id">> &
-  Pick<PacingMapping, "clients_id" | "av_line_item_id">
 
 /** Snowflake ASSEMBLEDVIEW.VW_PACING.V_LINE_ITEM_PACING — API-normalized row */
 export type LineItemPacingRow = {
@@ -83,42 +45,4 @@ export type LineItemPacingDailyPoint = {
   clicks: number | null
   conversions: number | null
   [key: string]: unknown
-}
-
-export type PacingTestMatchRequest = {
-  platform: string
-  match_type: PacingMatchType
-  campaign_name_pattern: string | null
-  group_name_pattern: string | null
-  /** Required when match_type is suffix_id */
-  av_line_item_code?: string | null
-  start_date: string
-  end_date: string
-}
-
-export type PacingTestMatchRow = {
-  campaign_name: string | null
-  group_name: string | null
-  group_type: string | null
-}
-
-/** POST `/api/pacing/mappings/test-match` — `data` envelope */
-export type PacingTestMatchResponse = {
-  match_count: number
-  matches: PacingTestMatchRow[]
-}
-
-/** Rows from `/api/pacing/search-mappings-no-recent-delivery` */
-export type SearchMappingNoRecentDeliveryRow = {
-  av_line_item_id: string | null
-  av_line_item_label: string | null
-  av_line_item_code: string | null
-}
-
-export type PacingListResponse<T> = {
-  data: T[]
-}
-
-export type PacingItemResponse<T> = {
-  data: T
 }
