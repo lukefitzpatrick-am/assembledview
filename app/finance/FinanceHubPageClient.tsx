@@ -27,10 +27,7 @@ import { clientAccentColour, clientInitials } from "@/lib/finance/cardHelpers"
 import { formatLineItemDescription } from "@/lib/finance/lineItemDescription"
 import { cn } from "@/lib/utils"
 import { formatMoney } from "@/lib/format/money"
-import { buildBillingScheduleJSON } from "@/lib/billing/buildBillingSchedule"
-import { parsePersistedBillingScheduleToMonths } from "@/lib/billing/parsePersistedBillingScheduleToMonths"
-import { AlterBillingDialog } from "@/components/billing/AlterBillingDialog"
-import type { BillingMonth } from "@/lib/billing/types"
+import { MediaPlanActionBar } from "@/components/finance/MediaPlanActionBar"
 import { buildFinanceHubWorkbook } from "@/lib/finance/excelFinanceExport"
 import { exportBillingRecordsCsv, exportPayablesDetailCsv } from "@/lib/finance/export"
 import { exportAccrualWorkbook } from "@/lib/finance/accrualExcel"
@@ -51,7 +48,6 @@ import {
   isReceivableRecord,
   receivableRecordSectionLabel,
   useReceivablesData,
-  type MediaPlanGroup,
   type MonthGroup,
 } from "@/lib/finance/useReceivablesData"
 import {
@@ -194,108 +190,6 @@ function FinanceHubReceivablesSection({
   loadError: string | null
   bumpReceivablesFetch: () => void
 }) {
-  const [aaDownloadKey, setAaDownloadKey] = useState<string | null>(null)
-  const [alterBillingLoadKey, setAlterBillingLoadKey] = useState<string | null>(null)
-  const [alterBillingState, setAlterBillingState] = useState<{
-    versionId: number
-    mbaNumber: string
-    months: BillingMonth[]
-  } | null>(null)
-  const [isAlterBillingSaving, setIsAlterBillingSaving] = useState(false)
-
-  const downloadAaMediaPlan = useCallback(async (billingMonth: string, mbaNumber: string) => {
-    const key = `${billingMonth}|${mbaNumber}`
-    setAaDownloadKey(key)
-    const fallbackName = `AA-${mbaNumber}-${billingMonth}.xlsx`
-    try {
-      const url = `/api/finance/receivables/aa-media-plan?mba_number=${encodeURIComponent(
-        mbaNumber
-      )}&billing_month=${encodeURIComponent(billingMonth)}`
-      const res = await fetch(url)
-      if (!res.ok) {
-        let message = `Download failed (${res.status})`
-        try {
-          const body = (await res.json()) as { error?: string }
-          if (body?.error) message = String(body.error)
-        } catch {
-          // ignore
-        }
-        toast({ variant: "destructive", title: "AA media plan", description: message })
-        return
-      }
-      const blob = await res.blob()
-      const cd = res.headers.get("Content-Disposition")
-      let filename = fallbackName
-      if (cd) {
-        const star = /filename\*=UTF-8''([^;\s]+)/i.exec(cd)
-        if (star?.[1]) {
-          try {
-            filename = decodeURIComponent(star[1].trim())
-          } catch {
-            // keep fallback
-          }
-        } else {
-          const quoted = /filename="([^"]+)"/i.exec(cd)
-          if (quoted?.[1]) filename = quoted[1]
-        }
-      }
-      saveAs(blob, filename)
-    } catch (e) {
-      toast({
-        variant: "destructive",
-        title: "AA media plan",
-        description: e instanceof Error ? e.message : "Download failed",
-      })
-    } finally {
-      setAaDownloadKey(null)
-    }
-  }, [])
-
-  const openAlterBilling = useCallback(async (mp: MediaPlanGroup) => {
-    if (!mp.mbaNumber || mp.versionId == null || mp.versionNumber == null) return
-    const key = `${mp.mbaNumber}|${mp.versionId}`
-    setAlterBillingLoadKey(key)
-    try {
-      const res = await fetch(
-        `/api/mediaplans/mba/${encodeURIComponent(mp.mbaNumber)}?billingScheduleFull=1&version=${mp.versionNumber}`
-      )
-      if (!res.ok) {
-        let message = `Load failed (${res.status})`
-        try {
-          const body = (await res.json()) as { error?: string }
-          if (body?.error) message = String(body.error)
-        } catch {
-          // ignore
-        }
-        toast({ variant: "destructive", title: "Alter Billing", description: message })
-        return
-      }
-      const data = (await res.json()) as { billingSchedule?: unknown }
-      const months = parsePersistedBillingScheduleToMonths(data.billingSchedule)
-      if (!months || months.length === 0) {
-        toast({
-          variant: "destructive",
-          title: "Alter Billing",
-          description: "No billing schedule found for this version.",
-        })
-        return
-      }
-      setAlterBillingState({
-        versionId: mp.versionId,
-        mbaNumber: mp.mbaNumber,
-        months,
-      })
-    } catch (e) {
-      toast({
-        variant: "destructive",
-        title: "Alter Billing",
-        description: e instanceof Error ? e.message : "Failed to load billing schedule",
-      })
-    } finally {
-      setAlterBillingLoadKey(null)
-    }
-  }, [])
-
   const emptyCopy = (
     <p className="py-10 text-sm text-muted-foreground">
       No receivable billing rows for the current filters and billing months in view.
@@ -425,71 +319,11 @@ function FinanceHubReceivablesSection({
                                                 </p>
                                               ) : null}
                                             </div>
-                                            {mp.mbaNumber ? (
-                                              <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-                                                <Button variant="outline" size="sm" asChild className="shrink-0">
-                                                  <a
-                                                    href={`/mediaplans/mba/${encodeURIComponent(mp.mbaNumber)}/edit`}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                  >
-                                                    Edit
-                                                  </a>
-                                                </Button>
-                                                <Button
-                                                  type="button"
-                                                  variant="outline"
-                                                  size="sm"
-                                                  className="shrink-0"
-                                                  disabled={aaDownloadKey === `${mg.monthIso}|${mp.mbaNumber}`}
-                                                  onClick={() => void downloadAaMediaPlan(mg.monthIso, mp.mbaNumber)}
-                                                >
-                                                  {aaDownloadKey === `${mg.monthIso}|${mp.mbaNumber}` ? (
-                                                    <>
-                                                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden />
-                                                      AA…
-                                                    </>
-                                                  ) : (
-                                                    <>
-                                                      <Download className="mr-1.5 h-3.5 w-3.5" aria-hidden />
-                                                      AA plan
-                                                    </>
-                                                  )}
-                                                </Button>
-                                                <Button
-                                                  type="button"
-                                                  variant="outline"
-                                                  size="sm"
-                                                  className="shrink-0"
-                                                  disabled={
-                                                    alterBillingLoadKey !== null ||
-                                                    !mp.mbaNumber ||
-                                                    mp.versionId == null ||
-                                                    mp.versionNumber == null
-                                                  }
-                                                  onClick={() => void openAlterBilling(mp)}
-                                                >
-                                                  {alterBillingLoadKey === `${mp.mbaNumber}|${mp.versionId}` ? (
-                                                    <>
-                                                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden />
-                                                      Billing…
-                                                    </>
-                                                  ) : (
-                                                    "Alter Billing"
-                                                  )}
-                                                </Button>
-                                              </div>
-                                            ) : (
-                                              <Button
-                                                variant="outline"
-                                                size="sm"
-                                                className="shrink-0"
-                                                disabled
-                                                title="No MBA number on billing rows for this group"
-                                              >
-                                                Edit
-                                              </Button>
-                                            )}
+                                            <MediaPlanActionBar
+                                              mp={mp}
+                                              billingMonth={mg.monthIso}
+                                              onSaved={bumpReceivablesFetch}
+                                            />
                                           </div>
                                           <div className="grid gap-3 lg:grid-cols-2">
                                             {mp.records.map((rec, recIdx) => (
@@ -602,46 +436,6 @@ function FinanceHubReceivablesSection({
           })}
         </div>
       )}
-      {alterBillingState ? (
-        <AlterBillingDialog
-          open
-          onOpenChange={(open) => {
-            if (!open) setAlterBillingState(null)
-          }}
-          initialMonths={alterBillingState.months}
-          title={alterBillingState.mbaNumber}
-          mbaNumber={alterBillingState.mbaNumber}
-          isSaving={isAlterBillingSaving}
-          onSave={async (newMonths) => {
-            setIsAlterBillingSaving(true)
-            try {
-              const res = await fetch(
-                `/api/mediaplans/versions/${alterBillingState.versionId}/billing-schedule`,
-                {
-                  method: "PATCH",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ billingSchedule: buildBillingScheduleJSON(newMonths) }),
-                }
-              )
-              if (!res.ok) {
-                const err = (await res.json().catch(() => ({ error: "Save failed" }))) as { error?: string }
-                throw new Error(err.error || "Save failed")
-              }
-              setAlterBillingState(null)
-              bumpReceivablesFetch()
-              toast({ title: "Billing updated", description: "Billing schedule saved for this version." })
-            } catch (e) {
-              toast({
-                variant: "destructive",
-                title: "Alter Billing",
-                description: e instanceof Error ? e.message : "Save failed",
-              })
-            } finally {
-              setIsAlterBillingSaving(false)
-            }
-          }}
-        />
-      ) : null}
     </div>
   )
 }
