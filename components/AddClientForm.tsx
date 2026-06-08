@@ -593,11 +593,11 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Monthly Retainer</FormLabel>
-                  <FormControl>
-                    <div className="relative">
-                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                        $
-                      </span>
+                  <div className="relative">
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                      $
+                    </span>
+                    <FormControl>
                       <Input
                         {...field}
                         className="pl-7"
@@ -609,8 +609,8 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
                         onChange={(e) => field.onChange(numberOrUndefined(e.target.value, e.target.valueAsNumber))}
                         placeholder="0.00"
                       />
-                    </div>
-                  </FormControl>
+                    </FormControl>
+                  </div>
                   <FormMessage />
                 </FormItem>
               )}
@@ -623,11 +623,11 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Organic Social Retainer</FormLabel>
-                  <FormControl>
-                    <div className="relative">
-                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                        $
-                      </span>
+                  <div className="relative">
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                      $
+                    </span>
+                    <FormControl>
                       <Input
                         {...field}
                         className="pl-7"
@@ -639,8 +639,8 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
                         onChange={(e) => field.onChange(numberOrUndefined(e.target.value, e.target.valueAsNumber))}
                         placeholder="0.00"
                       />
-                    </div>
-                  </FormControl>
+                    </FormControl>
+                  </div>
                   <FormMessage />
                 </FormItem>
               )}
@@ -696,8 +696,8 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>{`${feeType.charAt(0).toUpperCase() + feeType.slice(1)} Fee`}</FormLabel>
-                      <FormControl>
-                        <div className="relative">
+                      <div className="relative">
+                        <FormControl>
                           <Input
                             {...field}
                             className="pr-7"
@@ -710,11 +710,11 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
                             onChange={(e) => field.onChange(numberOrUndefined(e.target.value, e.target.valueAsNumber))}
                             placeholder="0"
                           />
-                          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                            %
-                          </span>
-                        </div>
-                      </FormControl>
+                        </FormControl>
+                        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                          %
+                        </span>
+                      </div>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -733,11 +733,11 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>{`Ad Serve ${adServType.charAt(0).toUpperCase() + adServType.slice(1)}`}</FormLabel>
-                    <FormControl>
-                      <div className="relative">
-                        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                          $
-                        </span>
+                    <div className="relative">
+                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                        $
+                      </span>
+                      <FormControl>
                         <Input
                           {...field}
                           className="pl-7"
@@ -749,8 +749,8 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
                           onChange={(e) => field.onChange(numberOrUndefined(e.target.value, e.target.valueAsNumber))}
                           placeholder="0.00"
                         />
-                      </div>
-                    </FormControl>
+                      </FormControl>
+                    </div>
                     <FormMessage />
                   </FormItem>
                 )}
