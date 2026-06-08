@@ -813,12 +813,14 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
                     />
                   </FormControl>
                   <input
+                    id="client-brand-colour-picker"
                     type="color"
                     className="h-10 w-16 rounded border"
                     value={
                       field.value?.startsWith("#") ? field.value : `#${field.value}`
                     }
                     onChange={(e) => field.onChange(formatHexColour(e.target.value))}
+                    aria-label="Brand colour"
                   />
                 </div>
                 <p className="text-sm text-muted-foreground">

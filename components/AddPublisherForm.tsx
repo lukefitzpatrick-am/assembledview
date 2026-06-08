@@ -230,11 +230,12 @@ export function AddPublisherForm({ onSuccess }: AddPublisherFormProps) {
                         aria-hidden
                       />
                       <input
+                        id="publisher-brand-colour-picker"
                         type="color"
                         className="h-9 w-12 cursor-pointer rounded border-0 bg-transparent p-0"
                         value={hasValidHex ? cssHex : NATIVE_COLOR_INPUT_FALLBACK}
                         onChange={(e) => field.onChange(e.target.value)}
-                        aria-label="Pick brand colour"
+                        aria-label="Brand colour"
                       />
                       <Input
                         className="w-28 font-mono text-xs"
