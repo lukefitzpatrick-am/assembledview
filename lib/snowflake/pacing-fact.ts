@@ -50,6 +50,23 @@ type QueryPacingFactOptions = {
   signal?: AbortSignal
 }
 
+function toNumber(value: unknown): number {
+  const n = typeof value === "number" ? value : Number(value ?? 0)
+  return Number.isFinite(n) ? n : 0
+}
+
+function normalizePacingFactRow(r: PacingFactRow): PacingFactRow {
+  return {
+    ...r,
+    DATE_DAY: String(r.DATE_DAY ?? "").slice(0, 10),
+    AMOUNT_SPENT: toNumber(r.AMOUNT_SPENT),
+    IMPRESSIONS: toNumber(r.IMPRESSIONS),
+    CLICKS: toNumber(r.CLICKS),
+    RESULTS: toNumber(r.RESULTS),
+    VIDEO_3S_VIEWS: toNumber(r.VIDEO_3S_VIEWS),
+  }
+}
+
 export async function queryPacingFact(params: QueryPacingFactParams, options: QueryPacingFactOptions = {}) {
   const { channel, lineItemIds, startDate, endDate } = params
   const ids = lineItemIds
@@ -86,7 +103,7 @@ export async function queryPacingFact(params: QueryPacingFactParams, options: Qu
 
   const baseSql = `  SELECT
     CHANNEL,
-    CAST(DATE_DAY AS DATE) AS DATE_DAY,
+    TO_VARCHAR(CAST(DATE_DAY AS DATE), 'YYYY-MM-DD') AS DATE_DAY,
     LINE_ITEM_ID,
     ENTITY_NAME,
     ENTITY_ID,
@@ -111,11 +128,12 @@ export async function queryPacingFact(params: QueryPacingFactParams, options: Qu
 
   const queryWindow = async (windowStartISO: string, windowEndISO: string) => {
     const binds = [...ids, windowStartISO, windowEndISO]
-    return querySnowflake<PacingFactRow>(baseSql, binds, {
+    const rawRows = await querySnowflake<PacingFactRow>(baseSql, binds, {
       requestId: options.requestId,
       signal: options.signal,
       label: `pacing_fact_${channel}`,
     })
+    return rawRows.map(normalizePacingFactRow)
   }
 
   // First, try single-shot query.
