@@ -13,8 +13,6 @@ export type PacingStatus =
   | "no_delivery"
   | "completed"
 
-export type PacingSeverity = "info" | "warning" | "critical"
-
 export type PacingDeliveryHealth = "spending" | "no_delivery" | "no_recent_delivery" | "paused_yesterday"
 
 export type PacingMatchType = "exact" | "prefix" | "regex" | "suffix_id"
@@ -55,51 +53,6 @@ export type PacingMapping = {
 export type PacingMappingInput = Partial<Omit<PacingMapping, "id">> &
   Pick<PacingMapping, "clients_id" | "av_line_item_id">
 
-/** Xano table `pacing_thresholds` */
-export type PacingThreshold = {
-  id: number
-  clients_id: number
-  on_track_pct: number
-  slightly_threshold_pct: number
-  no_delivery_days: number
-  updated_at: number | string | null
-}
-
-export type PacingThresholdUpsertInput = {
-  clients_id: number
-  on_track_pct?: number
-  slightly_threshold_pct?: number
-  no_delivery_days?: number
-}
-
-export type PacingAlertSubscription = {
-  id: number
-  users_id: number
-  clients_ids: number[]
-  media_types: string[]
-  min_severity: Exclude<PacingSeverity, "info"> | PacingSeverity
-  send_time_local: string | null
-  timezone: string
-  channel: string
-  send_when_no_alerts: boolean
-  is_active: boolean
-}
-
-export type PacingAlertSubscriptionInput = Omit<
-  Partial<PacingAlertSubscription>,
-  "id"
->
-
-export type PacingAlertLog = {
-  id: number
-  subscription_id: number
-  users_id: number
-  sent_at: number | string | null
-  alert_count: number
-  status: string
-  error_message: string | null
-}
-
 /** Snowflake ASSEMBLEDVIEW.VW_PACING.V_LINE_ITEM_PACING — API-normalized row */
 export type LineItemPacingRow = {
   clients_id: number
@@ -129,17 +82,6 @@ export type LineItemPacingDailyPoint = {
   impressions: number | null
   clicks: number | null
   conversions: number | null
-  [key: string]: unknown
-}
-
-export type PacingAlert = {
-  clients_id: number
-  severity: PacingSeverity | string
-  media_type: string | null
-  av_line_item_id: string | null
-  alert_message: string | null
-  alert_code: string | null
-  pacing_status?: string | null
   [key: string]: unknown
 }
 

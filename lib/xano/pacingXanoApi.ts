@@ -2,9 +2,6 @@ import axios from "axios"
 import { parseXanoListPayload, xanoUrl } from "@/lib/api/xano"
 
 export const PACING_MAPPINGS_PATH = "pacing_mappings"
-export const PACING_THRESHOLDS_PATH = "pacing_thresholds"
-export const PACING_ALERT_SUBS_PATH = "pacing_alert_subscriptions"
-export const PACING_ALERT_LOG_PATH = "pacing_alert_log"
 
 export async function xanoPacingGet(path: string, params?: Record<string, unknown>) {
   const response = await axios.get(xanoUrl(path, "XANO_CLIENTS_BASE_URL"), { params })
