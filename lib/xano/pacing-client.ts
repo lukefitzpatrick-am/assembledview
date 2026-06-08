@@ -1,8 +1,6 @@
 import { FinanceHttpError } from "@/lib/finance/api"
 import type {
   LineItemPacingRow,
-  PacingAlertSubscription,
-  PacingAlertSubscriptionInput,
   PacingItemResponse,
   PacingListResponse,
   PacingMapping,
@@ -11,8 +9,6 @@ import type {
   PacingTestMatchResponse,
   PacingTestMatchRow,
   SearchMappingNoRecentDeliveryRow,
-  PacingThreshold,
-  PacingThresholdUpsertInput,
 } from "@/lib/xano/pacing-types"
 
 function absoluteRequestUrl(pathOrUrl: string): string {
@@ -142,66 +138,6 @@ export async function updatePacingMapping(
 
 export async function deletePacingMapping(id: number): Promise<{ ok: boolean }> {
   const path = `/api/pacing/mappings/${id}`
-  const res = await fetch(path, { method: "DELETE", cache: "no-store" })
-  return jsonOrThrow(res, path)
-}
-
-export async function fetchPacingThresholds(params?: {
-  clients_id?: number
-}): Promise<PacingListResponse<PacingThreshold>> {
-  const path = `/api/pacing/thresholds${searchParamsFromRecord(params ?? {})}`
-  const res = await fetch(path, { cache: "no-store" })
-  return jsonOrThrow(res, path)
-}
-
-export async function upsertPacingThresholds(body: PacingThresholdUpsertInput): Promise<unknown> {
-  const path = "/api/pacing/thresholds"
-  const res = await fetch(path, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    cache: "no-store",
-  })
-  return jsonOrThrow(res, path)
-}
-
-export async function fetchPacingAlertSubscriptions(): Promise<
-  PacingListResponse<PacingAlertSubscription>
-> {
-  const path = "/api/pacing/alert-subscriptions"
-  const res = await fetch(path, { cache: "no-store" })
-  return jsonOrThrow(res, path)
-}
-
-export async function createPacingAlertSubscription(
-  body: PacingAlertSubscriptionInput
-): Promise<unknown> {
-  const path = "/api/pacing/alert-subscriptions"
-  const res = await fetch(path, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    cache: "no-store",
-  })
-  return jsonOrThrow(res, path)
-}
-
-export async function updatePacingAlertSubscription(
-  id: number,
-  body: Partial<PacingAlertSubscriptionInput>
-): Promise<unknown> {
-  const path = `/api/pacing/alert-subscriptions/${id}`
-  const res = await fetch(path, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    cache: "no-store",
-  })
-  return jsonOrThrow(res, path)
-}
-
-export async function deletePacingAlertSubscription(id: number): Promise<{ ok: boolean }> {
-  const path = `/api/pacing/alert-subscriptions/${id}`
   const res = await fetch(path, { method: "DELETE", cache: "no-store" })
   return jsonOrThrow(res, path)
 }
