@@ -1,9 +1,6 @@
 import { FinanceHttpError } from "@/lib/finance/api"
 import type {
-  DeliveryPacingRow,
-  LineItemPacingDailyPoint,
   LineItemPacingRow,
-  PacingAlert,
   PacingAlertSubscription,
   PacingAlertSubscriptionInput,
   PacingItemResponse,
@@ -73,57 +70,6 @@ export async function fetchPacingLineItems(params: {
   media_plan_id?: number
 }): Promise<PacingListResponse<LineItemPacingRow>> {
   const path = `/api/pacing/line-items${searchParamsFromRecord(params)}`
-  const res = await fetch(path, { cache: "no-store" })
-  return jsonOrThrow(res, path)
-}
-
-export async function fetchPacingLineItemHistory(
-  avLineItemId: string,
-  params?: { days?: number }
-): Promise<PacingListResponse<LineItemPacingDailyPoint>> {
-  const q =
-    params?.days !== undefined
-      ? searchParamsFromRecord({ days: params.days })
-      : ""
-  const enc = encodeURIComponent(avLineItemId)
-  const path = `/api/pacing/line-items/${enc}/history${q}`
-  const res = await fetch(path, { cache: "no-store" })
-  return jsonOrThrow(res, path)
-}
-
-export async function fetchPacingLineItemHistoryBatch(body: {
-  av_line_item_ids: string[]
-  days?: number
-}): Promise<{ data: Record<string, LineItemPacingDailyPoint[]> }> {
-  const path = "/api/pacing/line-items/history/batch"
-  const res = await fetch(path, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      av_line_item_ids: body.av_line_item_ids,
-      days: body.days ?? 14,
-    }),
-    cache: "no-store",
-  })
-  return jsonOrThrow(res, path)
-}
-
-export async function fetchPacingDelivery(params: {
-  av_line_item_id: string
-  platform?: string
-  group_type?: string
-}): Promise<PacingListResponse<DeliveryPacingRow>> {
-  const path = `/api/pacing/delivery${searchParamsFromRecord(params)}`
-  const res = await fetch(path, { cache: "no-store" })
-  return jsonOrThrow(res, path)
-}
-
-export async function fetchPacingAlertsList(params: {
-  clients_id?: string
-  severity?: string
-  media_type?: string
-}): Promise<PacingListResponse<PacingAlert>> {
-  const path = `/api/pacing/alerts${searchParamsFromRecord(params)}`
   const res = await fetch(path, { cache: "no-store" })
   return jsonOrThrow(res, path)
 }

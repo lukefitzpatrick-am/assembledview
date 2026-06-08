@@ -17,8 +17,6 @@ export type PacingSeverity = "info" | "warning" | "critical"
 
 export type PacingDeliveryHealth = "spending" | "no_delivery" | "no_recent_delivery" | "paused_yesterday"
 
-export type PacingGroupType = "campaign" | "ad_group" | "asset_group" | "ad_set" | "line_item"
-
 export type PacingMatchType = "exact" | "prefix" | "regex" | "suffix_id"
 
 /** Xano `pacing_mappings.created_via` — how the row was created */
@@ -131,34 +129,6 @@ export type LineItemPacingDailyPoint = {
   impressions: number | null
   clicks: number | null
   conversions: number | null
-  [key: string]: unknown
-}
-
-export type DeliveryPacingRow = {
-  av_line_item_id: string
-  platform: string | null
-  group_type: PacingGroupType | string | null
-  campaign_name: string | null
-  group_name: string | null
-  delivery_date: string | null
-  spend: number | null
-  impressions?: number | null
-  clicks?: number | null
-  conversions?: number | null
-  ctr?: number | null
-  cpc?: number | null
-  cpa?: number | null
-  roas?: number | null
-  target_cpa?: number | null
-  target_roas?: number | null
-  delivery_health?: string | null
-  reach?: number | null
-  frequency?: number | null
-  viewable_impressions?: number | null
-  viewability?: number | null
-  completed_views?: number | null
-  vcr?: number | null
-  delivery_pct?: number | null
   [key: string]: unknown
 }
 

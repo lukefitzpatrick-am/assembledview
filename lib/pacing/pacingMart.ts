@@ -2,8 +2,6 @@ import "server-only"
 
 import { querySnowflake } from "@/lib/snowflake/client"
 import type {
-  DeliveryPacingRow,
-  LineItemPacingDailyPoint,
   LineItemPacingRow,
   PacingAlert,
   PacingMatchType,
@@ -12,8 +10,6 @@ import type {
 } from "@/lib/xano/pacing-types"
 
 const VW_LINE = "ASSEMBLEDVIEW.VW_PACING.V_LINE_ITEM_PACING"
-const VW_LINE_DAILY = "ASSEMBLEDVIEW.VW_PACING.V_LINE_ITEM_PACING_DAILY"
-const VW_DELIVERY = "ASSEMBLEDVIEW.VW_PACING.V_DELIVERY_PACING"
 const VW_ALERTS = "ASSEMBLEDVIEW.VW_PACING.V_PACING_ALERTS"
 const FACT_DELIVERY = "ASSEMBLEDVIEW.MART_PACING.FACT_DELIVERY_DAILY"
 
@@ -67,46 +63,6 @@ export function mapLineItemPacingRow(row: Record<string, unknown>): LineItemPaci
     expected_spend: num(row, "EXPECTED_SPEND", "expected_spend"),
     start_date: str(row, "START_DATE", "start_date"),
     end_date: str(row, "END_DATE", "end_date"),
-  }
-}
-
-function mapDaily(row: Record<string, unknown>): LineItemPacingDailyPoint {
-  return {
-    delivery_date: str(row, "DELIVERY_DATE", "delivery_date", "DATE_DAY", "date_day") ?? "",
-    av_line_item_id: str(row, "AV_LINE_ITEM_ID", "av_line_item_id") ?? "",
-    spend: num(row, "SPEND", "spend", "AMOUNT_SPENT", "amount_spent"),
-    impressions: num(row, "IMPRESSIONS", "impressions"),
-    clicks: num(row, "CLICKS", "clicks"),
-    conversions: num(row, "CONVERSIONS", "conversions"),
-  }
-}
-
-function mapDelivery(row: Record<string, unknown>): DeliveryPacingRow {
-  return {
-    av_line_item_id: str(row, "AV_LINE_ITEM_ID", "av_line_item_id") ?? "",
-    platform: str(row, "PLATFORM", "platform"),
-    group_type: str(row, "GROUP_TYPE", "group_type"),
-    campaign_name: str(row, "CAMPAIGN_NAME", "campaign_name"),
-    group_name: str(row, "GROUP_NAME", "group_name"),
-    delivery_date: str(row, "DELIVERY_DATE", "delivery_date", "DATE_DAY", "date_day"),
-    spend: num(row, "SPEND", "spend", "AMOUNT_SPENT", "amount_spent"),
-    impressions: num(row, "IMPRESSIONS", "impressions"),
-    clicks: num(row, "CLICKS", "clicks"),
-    conversions: num(row, "CONVERSIONS", "conversions", "RESULTS", "results"),
-    ctr: num(row, "CTR", "ctr"),
-    cpc: num(row, "CPC", "cpc"),
-    cpa: num(row, "CPA", "cpa"),
-    roas: num(row, "ROAS", "roas"),
-    target_cpa: num(row, "TARGET_CPA", "target_cpa"),
-    target_roas: num(row, "TARGET_ROAS", "target_roas"),
-    delivery_health: str(row, "DELIVERY_HEALTH", "delivery_health"),
-    reach: num(row, "REACH", "reach"),
-    frequency: num(row, "FREQUENCY", "frequency"),
-    viewable_impressions: num(row, "VIEWABLE_IMPRESSIONS", "viewable_impressions"),
-    viewability: num(row, "VIEWABILITY", "viewability"),
-    completed_views: num(row, "COMPLETED_VIEWS", "completed_views"),
-    vcr: num(row, "VCR", "vcr"),
-    delivery_pct: num(row, "DELIVERY_PCT", "delivery_pct"),
   }
 }
 
@@ -214,118 +170,6 @@ export async function fetchLineItemPacingRows(opts: {
     label: "pacing_v_line_item",
   })) ?? []
   return raw.map((r) => mapLineItemPacingRow(r))
-}
-
-function lineItemScopeSql(
-  filter: ClientFilterMode,
-  tableAlias: string
-): { sql: string; binds: number[] } {
-  if (filter.mode === "none") return { sql: " 1=0 ", binds: [] }
-  if (filter.mode === "all") return { sql: " 1=1 ", binds: [] }
-  const { sql: csql, binds } = clientPredicate(filter)
-  return {
-    sql: ` ${tableAlias}.AV_LINE_ITEM_ID IN (SELECT AV_LINE_ITEM_ID FROM ${VW_LINE} WHERE (${csql})) `,
-    binds: [...binds],
-  }
-}
-
-export async function fetchLineItemPacingDaily(opts: {
-  clientFilter: ClientFilterMode
-  avLineItemId: string
-  days: number
-}): Promise<LineItemPacingDailyPoint[]> {
-  if (opts.clientFilter.mode === "none") return []
-  const days = Math.min(Math.max(opts.days, 1), 366)
-  const { sql: scopeSql, binds: scopeBinds } = lineItemScopeSql(opts.clientFilter, "d")
-  const binds: (string | number)[] = [...scopeBinds, opts.avLineItemId.trim(), -days]
-  const sql = `
-    SELECT d.* FROM ${VW_LINE_DAILY} d
-    WHERE (${scopeSql})
-      AND LOWER(TRIM(COALESCE(d.AV_LINE_ITEM_ID, ''))) = LOWER(TRIM(?))
-      AND COALESCE(d.DELIVERY_DATE, d.DATE_DAY)::DATE >= DATEADD('day', ?, CURRENT_DATE())
-    ORDER BY COALESCE(d.DELIVERY_DATE, d.DATE_DAY) ASC
-    LIMIT 20000
-  `
-  const raw = (await querySnowflake<Record<string, unknown>>(sql, binds, {
-    label: "pacing_v_line_daily",
-  })) ?? []
-  return raw.map((r) => mapDaily(r))
-}
-
-/** Many line items in one round-trip (cap 400 ids / request). */
-export async function fetchLineItemPacingDailyBatch(opts: {
-  clientFilter: ClientFilterMode
-  avLineItemIds: readonly string[]
-  days: number
-}): Promise<Map<string, LineItemPacingDailyPoint[]>> {
-  const out = new Map<string, LineItemPacingDailyPoint[]>()
-  if (opts.clientFilter.mode === "none") return out
-  const norm = [
-    ...new Set(
-      opts.avLineItemIds.map((s) => String(s ?? "").trim().toLowerCase()).filter(Boolean)
-    ),
-  ].slice(0, 400)
-  if (norm.length === 0) return out
-  const days = Math.min(Math.max(opts.days, 1), 366)
-  const { sql: scopeSql, binds: scopeBinds } = lineItemScopeSql(opts.clientFilter, "d")
-  const placeholders = norm.map(() => "?").join(", ")
-  const binds: (string | number)[] = [...scopeBinds, ...norm, -days]
-  const sql = `
-    SELECT d.* FROM ${VW_LINE_DAILY} d
-    WHERE (${scopeSql})
-      AND LOWER(TRIM(COALESCE(d.AV_LINE_ITEM_ID, ''))) IN (${placeholders})
-      AND COALESCE(d.DELIVERY_DATE, d.DATE_DAY)::DATE >= DATEADD('day', ?, CURRENT_DATE())
-    ORDER BY d.AV_LINE_ITEM_ID, COALESCE(d.DELIVERY_DATE, d.DATE_DAY) ASC
-    LIMIT 500000
-  `
-  const raw =
-    (await querySnowflake<Record<string, unknown>>(sql, binds, {
-      label: "pacing_v_line_daily_batch",
-    })) ?? []
-  const lowerToOriginal = new Map<string, string>()
-  for (const id of opts.avLineItemIds) {
-    const t = String(id ?? "").trim()
-    if (!t) continue
-    lowerToOriginal.set(t.toLowerCase(), t)
-  }
-  for (const row of raw) {
-    const mapped = mapDaily(row)
-    const key = String(mapped.av_line_item_id ?? "").trim()
-    const orig = lowerToOriginal.get(key.toLowerCase()) ?? key
-    const list = out.get(orig) ?? []
-    list.push(mapped)
-    out.set(orig, list)
-  }
-  return out
-}
-
-export async function fetchDeliveryPacingRows(opts: {
-  clientFilter: ClientFilterMode
-  avLineItemId: string
-  platform?: string | null
-  groupType?: string | null
-  limit?: number
-}): Promise<DeliveryPacingRow[]> {
-  if (opts.clientFilter.mode === "none") return []
-  const { sql: scopeSql, binds: scopeBinds } = lineItemScopeSql(opts.clientFilter, "v")
-  const binds: (string | number)[] = [...scopeBinds, opts.avLineItemId.trim()]
-  const parts: string[] = [
-    `SELECT v.* FROM ${VW_DELIVERY} v WHERE (${scopeSql}) AND LOWER(TRIM(COALESCE(v.AV_LINE_ITEM_ID, ''))) = LOWER(TRIM(?))`,
-  ]
-  if (opts.platform?.trim()) {
-    parts.push(` AND LOWER(TRIM(COALESCE(v.PLATFORM, ''))) = LOWER(?) `)
-    binds.push(opts.platform.trim())
-  }
-  if (opts.groupType?.trim()) {
-    parts.push(` AND LOWER(TRIM(COALESCE(v.GROUP_TYPE, ''))) = LOWER(?) `)
-    binds.push(opts.groupType.trim())
-  }
-  const limit = Math.min(Math.max(opts.limit ?? 5000, 1), 50_000)
-  parts.push(` LIMIT ${limit}`)
-  const raw = (await querySnowflake<Record<string, unknown>>(parts.join(""), binds, {
-    label: "pacing_v_delivery",
-  })) ?? []
-  return raw.map((r) => mapDelivery(r))
 }
 
 function severityRankExpr(column = "SEVERITY"): string {
