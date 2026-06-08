@@ -291,6 +291,8 @@ function mapSocialRowToCampaignRow(
     videoViews: 0,
     deliverableActual: 0,
 
+    kpiTargets: null,
+
     platformCampaigns: [],
   };
 }
