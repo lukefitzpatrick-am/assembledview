@@ -1,6 +1,6 @@
 "use client"
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import {
   summarizeBillingDivergence,
@@ -25,6 +25,9 @@ export function BillingDivergenceModal({ open, divergence, onAcknowledge }: Prop
       >
         <DialogHeader>
           <DialogTitle>This campaign has manual billing differences</DialogTitle>
+          <DialogDescription className="sr-only">
+            Review manual billing differences between the saved schedule and computed bursts, then acknowledge to continue.
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 text-sm text-muted-foreground">
           <p>

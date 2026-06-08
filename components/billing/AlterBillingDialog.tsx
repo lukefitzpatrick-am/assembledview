@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion"
 import {
   Table,
@@ -200,11 +200,11 @@ export function AlterBillingDialog({
             <DialogHeader>
               <DialogTitle>Alter Billing Schedule{title ? ` — ${title}` : ""}</DialogTitle>
             </DialogHeader>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <DialogDescription className="mt-1 text-sm text-muted-foreground">
               Shift amounts between months and line items. The grand total must remain the same as the
               original (±{currencyFormatter.format(GRAND_TOTAL_TOLERANCE)}). Saving will patch this
               version&apos;s billing schedule in place — no new version will be created.
-            </p>
+            </DialogDescription>
           </div>
           <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-4">
             <Accordion type="multiple" className="w-full">
