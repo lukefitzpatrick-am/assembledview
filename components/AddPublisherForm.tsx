@@ -12,6 +12,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Combobox } from "@/components/ui/combobox"
 import { SavingModal } from "@/components/ui/saving-modal"
 import { SuccessModal } from "@/components/ui/success-modal"
+import { useToast } from "@/components/ui/use-toast"
 import {
   publisherCreateSchema,
   type PublisherCreateInput,
@@ -25,6 +26,7 @@ interface AddPublisherFormProps {
 }
 
 export function AddPublisherForm({ onSuccess }: AddPublisherFormProps) {
+  const { toast } = useToast()
   const [isSaving, setIsSaving] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
 
@@ -102,7 +104,11 @@ export function AddPublisherForm({ onSuccess }: AddPublisherFormProps) {
       onSuccess()
     } catch (error) {
       console.error("Failed to create publisher:", error)
-      // TODO: Show error message to user
+      toast({
+        title: "Failed to save publisher",
+        description: error instanceof Error ? error.message : "An unexpected error occurred",
+        variant: "destructive",
+      })
     } finally {
       setIsSaving(false)
     }

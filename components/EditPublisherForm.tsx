@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Combobox } from "@/components/ui/combobox"
 import { SavingModal } from "@/components/ui/saving-modal"
+import { useToast } from "@/components/ui/use-toast"
 import {
   publisherDetailsUpdateSchema,
   type PublisherDetailsFormValues,
@@ -83,6 +84,7 @@ interface EditPublisherFormProps {
 }
 
 export function EditPublisherForm({ publisher, onSuccess }: EditPublisherFormProps) {
+  const { toast } = useToast()
   const [isSaving, setIsSaving] = useState(false)
   const defaults = useMemo(() => toDetailsDefaults(publisher), [publisher])
 
@@ -109,6 +111,11 @@ export function EditPublisherForm({ publisher, onSuccess }: EditPublisherFormPro
       await onSuccess(updated)
     } catch (error) {
       console.error("Failed to update publisher:", error)
+      toast({
+        title: "Failed to save publisher",
+        description: error instanceof Error ? error.message : "An unexpected error occurred",
+        variant: "destructive",
+      })
     } finally {
       setIsSaving(false)
     }
