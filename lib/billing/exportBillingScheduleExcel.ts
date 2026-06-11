@@ -1,4 +1,4 @@
-import ExcelJS from "exceljs"
+import type ExcelJS from "exceljs"
 import { parseCurrency } from "@/lib/mediaplan/partialMba"
 import { getMediaTypeHeadersForSchedule } from "@/lib/billing/mediaTypeHeaders"
 import type { BillingLineItem, BillingMonth } from "@/lib/billing/types"
@@ -145,6 +145,7 @@ export async function buildBillingScheduleExcelBlob(
   months: BillingMonth[],
   meta: BillingScheduleExcelMeta
 ): Promise<Blob> {
+  const ExcelJS = (await import("exceljs")).default
   const workbook = new ExcelJS.Workbook()
   const sheet = workbook.addWorksheet("Billing Schedule", {
     views: [{ state: "normal", showGridLines: false }],

@@ -1,4 +1,4 @@
-import ExcelJS from "exceljs"
+import type ExcelJS from "exceljs"
 import { format } from "date-fns"
 import type { BillingRecord } from "@/lib/types/financeBilling"
 import type { FinanceCampaignData } from "@/lib/finance/utils"
@@ -499,6 +499,7 @@ function usedFinanceHubSheetNames() {
 export async function buildFinanceHubWorkbook(
   monthGroups: FinanceHubWorkbookMonthGroup[]
 ): Promise<ArrayBuffer> {
+  const ExcelJS = (await import("exceljs")).default
   const clientMetaById = await fetchFinanceHubClientMetaByClientId()
   const workbook = new ExcelJS.Workbook()
   const nextRetainerSheetName = usedFinanceHubSheetNames()

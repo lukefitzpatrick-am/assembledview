@@ -1,9 +1,9 @@
-import ExcelJS from "exceljs"
 import { saveAs } from "file-saver"
 import type { BillingRecord } from "@/lib/types/financeBilling"
 import type { PublisherGroup } from "@/lib/types/financePublisherGroup"
 
 export async function exportBillingRecordsExcel(records: BillingRecord[], filename: string) {
+  const ExcelJS = (await import("exceljs")).default
   const workbook = new ExcelJS.Workbook()
   const sheet = workbook.addWorksheet("Billing")
   sheet.columns = [
@@ -102,6 +102,7 @@ export async function exportPayablesPublisherDetailExcel(
   monthLabel: string,
   fileStem: string
 ): Promise<void> {
+  const ExcelJS = (await import("exceljs")).default
   const workbook = new ExcelJS.Workbook()
   const sheet = workbook.addWorksheet("Payables")
   sheet.columns = [
@@ -194,6 +195,7 @@ export function exportPayablesDetailCsv(records: BillingRecord[], filename: stri
 }
 
 export async function exportPublishersExcel(publishers: PublisherGroup[], monthLabel: string, fileStem: string) {
+  const ExcelJS = (await import("exceljs")).default
   const workbook = new ExcelJS.Workbook()
   const sheet = workbook.addWorksheet("Publisher invoices")
   sheet.columns = [{ width: 28 }, { width: 26 }, { width: 18 }, { width: 36 }, { width: 16 }]

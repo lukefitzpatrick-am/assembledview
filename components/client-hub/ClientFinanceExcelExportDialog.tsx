@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import ExcelJS from "exceljs"
 import { saveAs } from "file-saver"
 import { addMonths, format, startOfMonth } from "date-fns"
 import { Download } from "lucide-react"
@@ -115,6 +114,7 @@ export function ClientFinanceExcelExportDialog({
     const warnings: string[] = []
 
     try {
+      const ExcelJS = (await import("exceljs")).default
       const workbook = new ExcelJS.Workbook()
       const [y, m] = selectedMonthYear.split("-").map(Number)
 

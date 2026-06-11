@@ -1,5 +1,5 @@
 import { format } from "date-fns";
-import ExcelJS from "exceljs";
+import type ExcelJS from "exceljs";
 import { LineItem } from "./generateMediaPlan";
 
 type MediaFlags = Record<string, boolean | undefined>;
@@ -218,6 +218,7 @@ const MEDIA_SECTION_ORDER: { label: string; key: keyof NamingInputs["items"] }[]
 ];
 
 export async function generateNamingWorkbook(inputs: NamingWorkbookInputs): Promise<ExcelJS.Workbook> {
+  const ExcelJS = (await import("exceljs")).default;
   const {
     brand,
     campaignName,

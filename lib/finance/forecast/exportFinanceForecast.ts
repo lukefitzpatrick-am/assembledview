@@ -3,7 +3,7 @@
  * Keeps IO/presentation separate from dataset calculation (`buildFinanceForecastDataset`).
  */
 
-import ExcelJS from "exceljs"
+import type ExcelJS from "exceljs"
 import { format } from "date-fns"
 
 import {
@@ -224,6 +224,7 @@ export async function buildFinanceForecastWorkbook(
   apiMeta: FinanceForecastExportApiMeta | null | undefined,
   exportedAt: Date = new Date()
 ): Promise<ExcelJS.Workbook> {
+  const ExcelJS = (await import("exceljs")).default
   const workbook = new ExcelJS.Workbook()
   workbook.creator = "Finance Forecast"
 

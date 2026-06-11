@@ -1,4 +1,4 @@
-import ExcelJS from 'exceljs';
+import type ExcelJS from 'exceljs';
 
 const KPI_MEDIA_LABELS: Record<string, string> = {
   television: 'Television', radio: 'Radio', newspaper: 'Newspaper',
@@ -312,6 +312,7 @@ export async function generateMediaPlan(
   },
   options?: GenerateMediaPlanOptions
 ): Promise<ExcelJS.Workbook> {
+  const ExcelJS = (await import('exceljs')).default;
   const mbaTotalsLayout = options?.mbaTotalsLayout ?? 'standard'
   const {
     logoBase64,

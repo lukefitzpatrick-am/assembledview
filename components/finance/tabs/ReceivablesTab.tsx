@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
-import ExcelJS from "exceljs"
+import type ExcelJS from "exceljs"
 import { saveAs } from "file-saver"
 import { ChevronDown, ChevronRight, Download, Loader2, Save, Bookmark } from "lucide-react"
 import { EditableFinanceGrid } from "@/components/finance/EditableFinanceGrid"
@@ -144,6 +144,7 @@ function usedSheetNamesTracker() {
 }
 
 async function buildReceivablesExcelWorkbook(records: BillingRecord[]): Promise<ExcelJS.Workbook> {
+  const ExcelJS = (await import("exceljs")).default
   const workbook = new ExcelJS.Workbook()
   const nextName = usedSheetNamesTracker()
   const byClient = new Map<string, BillingRecord[]>()

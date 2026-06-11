@@ -1,4 +1,4 @@
-import ExcelJS from "exceljs"
+import type ExcelJS from "exceljs"
 import { saveAs } from "file-saver"
 import type { AccrualRow } from "@/lib/finance/computeAccrual"
 
@@ -43,6 +43,7 @@ function applyAccrualDetailAlignment(sheet: ExcelJS.Worksheet) {
 }
 
 export async function exportAccrualWorkbook(rows: AccrualRow[], filename: string) {
+  const ExcelJS = (await import("exceljs")).default
   const workbook = new ExcelJS.Workbook()
 
   const summary = workbook.addWorksheet("Accrual by client")

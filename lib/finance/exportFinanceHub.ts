@@ -1,4 +1,3 @@
-import ExcelJS from "exceljs"
 import { saveAs } from "file-saver"
 import type { BillingRecord } from "@/lib/types/financeBilling"
 import { billingRecordsToFinanceCampaigns } from "@/lib/finance/billingRecordToCampaignData"
@@ -37,6 +36,7 @@ export async function exportReceivablesWorkbook(
   monthLabel: string,
   fileStem: string
 ): Promise<void> {
+  const ExcelJS = (await import("exceljs")).default
   const workbook = new ExcelJS.Workbook()
   const media = records.filter((r) => r.billing_type === "media")
   const sow = records.filter((r) => r.billing_type === "sow")

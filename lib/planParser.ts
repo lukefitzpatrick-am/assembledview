@@ -1,5 +1,4 @@
 import { parse as parseCsv } from "csv-parse/sync"
-import ExcelJS from "exceljs"
 import { callOpenAIChat } from "@/lib/openai"
 
 export type MediaContainer = {
@@ -154,6 +153,7 @@ export async function extractPlanFromText(text: string, fileName?: string) {
 }
 
 async function parseXlsxBuffer(buffer: Buffer, fileName: string): Promise<ParsedFile> {
+  const ExcelJS = (await import("exceljs")).default
   const workbook = new ExcelJS.Workbook()
   await workbook.xlsx.load(buffer as never)
 
