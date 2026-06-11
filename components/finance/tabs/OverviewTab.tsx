@@ -146,6 +146,7 @@ type FinanceOverviewContextValue = {
   onAttentionClick: (item: AttentionItem) => void
   loading: boolean
   chartsLoading: boolean
+  loadError: string | null
   fyStart: number
   currentMonth: string
   hubRangeLabel: string
@@ -192,6 +193,7 @@ export function FinanceOverviewProvider({ children }: { children: ReactNode }) {
   const [monthlyClientSpend, setMonthlyClientSpend] = useState<GlobalMonthlyClientRow[]>([])
   const [clientProfileColors, setClientProfileColors] = useState<Record<string, string>>({})
   const [chartsLoading, setChartsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [scheduleFytd, setScheduleFytd] = useState({ billingYtd: 0, deliveryYtd: 0 })
   const [currentMonthBillingRecords, setCurrentMonthBillingRecords] = useState<BillingRecord[]>([])
   const [currentMonthPayablesRecords, setCurrentMonthPayablesRecords] = useState<BillingRecord[]>([])
@@ -280,6 +282,7 @@ export function FinanceOverviewProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false
     const ac = new AbortController()
+    setLoadError(null)
     void (async () => {
       try {
         const months = [currentMonth]
@@ -290,8 +293,15 @@ export function FinanceOverviewProvider({ children }: { children: ReactNode }) {
         if (cancelled) return
         setCurrentMonthBillingRecords(billing)
         setCurrentMonthPayablesRecords(payables)
-      } catch {
+      } catch (e) {
+        if (
+          (e instanceof DOMException && e.name === "AbortError") ||
+          (e instanceof Error && e.name === "AbortError")
+        ) {
+          return
+        }
         if (!cancelled) {
+          setLoadError(e instanceof Error ? e.message : "Failed to load overview data")
           setCurrentMonthBillingRecords([])
           setCurrentMonthPayablesRecords([])
         }
@@ -550,6 +560,7 @@ export function FinanceOverviewProvider({ children }: { children: ReactNode }) {
       onAttentionClick,
       loading,
       chartsLoading,
+      loadError,
       fyStart,
       currentMonth,
       hubRangeLabel,
@@ -574,6 +585,7 @@ export function FinanceOverviewProvider({ children }: { children: ReactNode }) {
       onAttentionClick,
       loading,
       chartsLoading,
+      loadError,
       fyStart,
       currentMonth,
       hubRangeLabel,
@@ -809,6 +821,7 @@ export function FinanceOverviewHero() {
 export function OverviewTab() {
   const {
     chartsLoading,
+    loadError,
     publisherSpendData,
     clientSpendData,
     dashboardClientTreemapColors,
@@ -888,6 +901,10 @@ export function OverviewTab() {
           <div className="rounded-xl border border-border/60 bg-muted/20 py-16 text-center text-sm text-muted-foreground">
             Loading charts…
           </div>
+        ) : loadError ? (
+          <p className="text-sm text-destructive" role="alert">
+            {loadError}
+          </p>
         ) : (
           <div className="flex flex-col gap-4">
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
