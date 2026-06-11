@@ -123,6 +123,47 @@ function netMediaPctOfGross(rawBudget: number, budgetIncludesFees: boolean, feeP
   return (rawBudget * (100 - (feePct || 0))) / 100;
 }
 
+function computeLoadedDeliverables(
+  buyType: string,
+  burst: any,
+  budgetIncludesFees: boolean,
+  feePct: number,
+) {
+  const buyTypeLower = (buyType || "").toLowerCase()
+
+  if (
+    buyTypeLower === "bonus" ||
+    buyTypeLower === "package_inclusions" ||
+    buyTypeLower === "package"
+  ) {
+    return parseFloat(
+      String(burst?.calculatedValue ?? burst?.deliverables ?? 0)
+        .replace(/[^0-9.]/g, "")
+    ) || 0
+  }
+
+  const rawBudget = parseFloat(String(burst?.budget ?? "0").replace(/[^0-9.]/g, "")) || 0
+  const buyAmount = parseFloat(String(burst?.buyAmount ?? "1").replace(/[^0-9.]/g, "")) || 0
+  const bt = coerceBuyTypeWithDevWarn(buyType, "IntegrationContainer.computeLoadedDeliverables")
+
+  const value = computeDeliverableFromMedia({
+    buyType: bt,
+    rawBudget,
+    buyAmount,
+    budgetIncludesFees,
+    feePct,
+  })
+
+  if (Number.isNaN(value)) {
+    return parseFloat(
+      String(burst?.calculatedValue ?? burst?.deliverables ?? 0)
+        .replace(/[^0-9.]/g, "")
+    ) || 0
+  }
+
+  return value
+}
+
 // Exported utility function to get bursts
 export function getAllBursts(form) {
   const lineItems = form.getValues("lineItems") || [];
@@ -308,6 +349,8 @@ export default function IntegrationContainer({
   const prevInvestmentRef = useRef<{ monthYear: string; amount: string }[]>([]);
   const prevBurstsRef = useRef<BillingBurst[]>([]);
   const publishersRef = useRef<Publisher[]>([]);
+  const hasProcessedInitialLineItemsRef = useRef(false);
+  const lastProcessedLineItemsRef = useRef<string>('');
 
   const [publishers, setPublishers] = useState<Publisher[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -534,44 +577,155 @@ export default function IntegrationContainer({
   useEffect(() => {
     if (integrationExpertModalOpenRef.current) return;
     if (initialLineItems && initialLineItems.length > 0) {
-      const transformedLineItems = initialLineItems.map((item: any) => ({
-        platform: item.platform || "",
-        bidStrategy: item.bid_strategy || "",
-        objective: item.objective || "",
-        campaign: item.campaign || "",
-        buyType: item.buy_type || "",
-        creativeTargeting: item.creative_targeting || "",
-        creative: item.creative || "",
-        buyingDemo: item.buying_demo || "",
-        market: item.market || "",
-        targetingAttribute: item.targeting_attribute || "",
-        fixedCostMedia: item.fixed_cost_media || false,
-        clientPaysForMedia: item.client_pays_for_media || false,
-        budgetIncludesFees: item.budget_includes_fees || false,
-        noAdserving: item.no_adserving || false,
-        bursts: item.bursts_json ? (typeof item.bursts_json === 'string' ? JSON.parse(item.bursts_json) : item.bursts_json).map((burst: any) => ({
+      const dedupedInitialLineItems = (() => {
+        const seen = new Set<string>();
+        const deduped: any[] = [];
+
+        for (const item of initialLineItems) {
+          const primaryKey =
+            (item?.line_item_id || item?.lineItemId || item?.id) ??
+            "";
+
+          if (primaryKey && String(primaryKey).trim()) {
+            const key = `id:${String(primaryKey).trim()}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            deduped.push(item);
+            continue;
+          }
+
+          const fallbackKey = JSON.stringify({
+            platform: item?.platform ?? "",
+            objective: item?.objective ?? "",
+            campaign: item?.campaign ?? "",
+            buy_type: item?.buy_type ?? item?.buyType ?? "",
+            targeting_attribute: item?.targeting_attribute ?? item?.targetingAttribute ?? "",
+          });
+          const key = `fallback:${fallbackKey}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          deduped.push(item);
+        }
+
+        if (deduped.length !== initialLineItems.length) {
+          console.warn(
+            `[IntegrationContainer] Deduped initialLineItems from ${initialLineItems.length} to ${deduped.length}`
+          );
+        }
+
+        return deduped;
+      })();
+
+      const lineItemsKey = JSON.stringify(dedupedInitialLineItems.map((item: any) => ({
+        id: item.id,
+        platform: item.platform,
+        objective: item.objective,
+        campaign: item.campaign,
+        buy_type: item.buy_type,
+      })));
+
+      if (hasProcessedInitialLineItemsRef.current && lastProcessedLineItemsRef.current === lineItemsKey) {
+        console.log("[IntegrationContainer] Skipping duplicate initialLineItems load");
+      } else {
+      hasProcessedInitialLineItemsRef.current = true;
+      lastProcessedLineItemsRef.current = lineItemsKey;
+
+      const transformedLineItems = dedupedInitialLineItems.map((item: any, index: number) => {
+        let parsedBursts: any[] = [];
+
+        if (item.bursts) {
+          try {
+            if (Array.isArray(item.bursts)) {
+              parsedBursts = item.bursts;
+            } else if (typeof item.bursts === 'string') {
+              const trimmed = item.bursts.trim();
+              if (trimmed) {
+                parsedBursts = JSON.parse(trimmed);
+              }
+            } else if (typeof item.bursts === 'object') {
+              parsedBursts = [item.bursts];
+            }
+          } catch (parseError) {
+            console.error(`[IntegrationContainer] Error parsing bursts for item ${index}:`, parseError, item.bursts);
+            parsedBursts = [];
+          }
+        } else if (item.bursts_json) {
+          try {
+            if (typeof item.bursts_json === 'string') {
+              const trimmed = item.bursts_json.trim();
+              if (trimmed) {
+                parsedBursts = JSON.parse(trimmed);
+              }
+            } else if (Array.isArray(item.bursts_json)) {
+              parsedBursts = item.bursts_json;
+            } else if (typeof item.bursts_json === 'object') {
+              parsedBursts = [item.bursts_json];
+            }
+          } catch (parseError) {
+            console.error(`[IntegrationContainer] Error parsing bursts_json for item ${index}:`, parseError, item.bursts_json);
+            parsedBursts = [];
+          }
+        }
+
+        if (!Array.isArray(parsedBursts)) {
+          parsedBursts = [];
+        }
+
+        const budgetIncludesFees = Boolean(item.budget_includes_fees || item.budgetIncludesFees);
+        const buyType = item.buy_type || item.buyType || "";
+
+        const bursts = parsedBursts.length > 0 ? parsedBursts.map((burst: any) => ({
           budget: burst.budget || "",
           buyAmount: burst.buyAmount || "",
-          startDate: burst.startDate ? new Date(burst.startDate) : new Date(),
-          endDate: burst.endDate ? new Date(burst.endDate) : new Date(),
-          calculatedValue: burst.calculatedValue ?? 0,
+          startDate: burst.startDate ? new Date(burst.startDate) : defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
+          endDate: burst.endDate ? new Date(burst.endDate) : defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
+          calculatedValue: computeLoadedDeliverables(
+            buyType,
+            burst,
+            budgetIncludesFees,
+            feeintegration ?? 0
+          ),
           fee: burst.fee ?? 0,
         })) : [{
           budget: "",
           buyAmount: "",
           startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
           endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
-          calculatedValue: 0,
+          calculatedValue: computeLoadedDeliverables(
+            buyType,
+            {},
+            budgetIncludesFees,
+            feeintegration ?? 0
+          ),
           fee: 0,
-        }],
-      }));
+        }];
+
+        return {
+          platform: item.platform || "",
+          bidStrategy: item.bid_strategy || "",
+          objective: item.objective || "",
+          campaign: item.campaign || "",
+          buyType,
+          creativeTargeting: item.creative_targeting || "",
+          creative: item.creative || "",
+          buyingDemo: item.buying_demo || "",
+          market: item.market || "",
+          targetingAttribute: item.targeting_attribute || "",
+          fixedCostMedia: item.fixed_cost_media || false,
+          clientPaysForMedia: item.client_pays_for_media || false,
+          budgetIncludesFees,
+          noAdserving: item.no_adserving || false,
+          bursts,
+        };
+      });
 
       form.reset({
         lineItems: transformedLineItems,
         overallDeliverables: 0,
       });
+      }
     }
-  }, [initialLineItems, form, campaignStartDate, campaignEndDate]);
+  }, [initialLineItems, form, campaignStartDate, campaignEndDate, feeintegration]);
 
   // Transform form data to API schema format
   useEffect(() => {
