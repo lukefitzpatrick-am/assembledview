@@ -160,7 +160,7 @@ Representative pages under [app](app):
 | Directory | `/clients`, `/publishers`, `/management`, `/support` |
 | Account | `/profile`, `/account` |
 | Learning | `/learning` (redirects to definitions), `/learning/[section]` |
-| Admin / debug (operators) | `/admin/users/new`, `/admin/auth-debug`, `/debug/auth` |
+| Admin (operators) | `/admin/users/new` |
 
 Internal or demo routes (e.g. `dashboard-demo`, `test-dashboard`) exist for development; treat them as non-production.
 
