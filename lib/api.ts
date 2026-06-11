@@ -471,18 +471,15 @@ interface SocialMediaLineItem {
 
 interface IntegrationLineItem {
   id: number;
-  created_at: number;
   media_plan_version: number;
   mba_number: string;
   mp_client_name: string;
   mp_plannumber: string;
   platform: string;
-  bid_strategy: string;
+  objective: string;
+  campaign: string;
   buy_type: string;
-  creative_targeting: string;
-  creative: string;
-  buying_demo: string;
-  market: string;
+  targeting_attribute: string;
   fixed_cost_media: boolean;
   client_pays_for_media: boolean;
   budget_includes_fees: boolean;
@@ -490,6 +487,12 @@ interface IntegrationLineItem {
   line_item_id: string;
   bursts_json: any; // JSON field
   line_item: number;
+  bid_strategy: string;
+  creative_targeting?: string;
+  creative?: string;
+  buying_demo: string;
+  market: string;
+  created_at: number;
 }
 
 interface InfluencersLineItem {
@@ -3670,6 +3673,11 @@ export async function saveIntegrationLineItems(mediaPlanVersionId: number, mbaNu
         campaign: getField(lineItem, 'campaign', 'campaign', ''),
         buy_type: getField(lineItem, 'buy_type', 'buyType', ''),
         targeting_attribute: getField(lineItem, 'targeting_attribute', 'targetingAttribute', ''),
+        bid_strategy: getField(lineItem, 'bid_strategy', 'bidStrategy', ''),
+        creative_targeting: getField(lineItem, 'creative_targeting', 'creativeTargeting', ''),
+        creative: getField(lineItem, 'creative', 'creative', ''),
+        buying_demo: getField(lineItem, 'buying_demo', 'buyingDemo', ''),
+        market: getField(lineItem, 'market', 'market', ''),
         fixed_cost_media: getBooleanField(lineItem, 'fixed_cost_media', 'fixedCostMedia', false),
         client_pays_for_media: getBooleanField(lineItem, 'client_pays_for_media', 'clientPaysForMedia', false),
         budget_includes_fees: getBooleanField(lineItem, 'budget_includes_fees', 'budgetIncludesFees', false),
