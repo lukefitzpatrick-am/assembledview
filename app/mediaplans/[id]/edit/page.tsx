@@ -3585,7 +3585,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ id: string
                       {medium.name === "mp_integration" && (
                         <IntegrationContainer
                           clientId={selectedClientId}
-                          feeintegration={selectedClient?.feesearch || 0}
+                          feeintegration={selectedClient?.feeintegration || 0}
                           onTotalMediaChange={handleIntegrationTotalChange}
                           onBurstsChange={handleBurstsChange}
                           onInvestmentChange={handleInvestmentChange}
