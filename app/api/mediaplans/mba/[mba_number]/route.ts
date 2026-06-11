@@ -3,8 +3,8 @@ import { checkClientMbaAccess } from "@/lib/auth/checkClientMbaAccess"
 import axios from "axios"
 import { parseDateOnlyString, toMelbourneDateString } from "@/lib/timezone"
 import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
-import { getXanoBaseUrl, parseXanoListPayload, xanoUrl } from "@/lib/api/xano"
-import { getXanoClientsCollectionUrl } from "@/lib/api/xanoClients"
+import { getXanoBaseUrl, xanoUrl } from "@/lib/api/xano"
+import { getCachedClients } from "@/lib/finance/xanoReferenceCache"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
 import { roundMoney4 } from "@/lib/format/money"
 import { diffBillingSchedules } from "@/lib/finance/scheduleDiff"
@@ -257,8 +257,7 @@ function slugifyClientName(name: string | null | undefined): string {
 async function fetchClientBrandColour(clientName?: string | null): Promise<string | null> {
   if (!clientName) return null
   try {
-    const response = await axios.get(getXanoClientsCollectionUrl())
-    const clients = parseXanoListPayload(response.data)
+    const clients = await getCachedClients()
     const targetSlug = slugifyClientName(clientName)
     const match = clients.find((client: any) => slugifyClientName(client?.mp_client_name || client?.name) === targetSlug) as
       | { brand_colour?: unknown; brandColor?: unknown }
