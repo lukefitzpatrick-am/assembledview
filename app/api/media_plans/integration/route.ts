@@ -22,6 +22,11 @@ interface IntegrationData {
   campaign: string;
   buy_type: string;
   targeting_attribute: string;
+  bid_strategy: string;
+  creative_targeting: string;
+  creative: string;
+  buying_demo: string;
+  market: string;
   fixed_cost_media: boolean;
   client_pays_for_media: boolean;
   budget_includes_fees: boolean;
@@ -62,6 +67,11 @@ export async function POST(request: Request) {
       campaign: data.campaign || "",
       buy_type: data.buy_type || "",
       targeting_attribute: data.targeting_attribute || "",
+      bid_strategy: data.bid_strategy || "",
+      creative_targeting: data.creative_targeting || "",
+      creative: data.creative || "",
+      buying_demo: data.buying_demo || "",
+      market: data.market || "",
       fixed_cost_media: data.fixed_cost_media !== undefined ? data.fixed_cost_media : false,
       client_pays_for_media: data.client_pays_for_media !== undefined ? data.client_pays_for_media : false,
       budget_includes_fees: data.budget_includes_fees !== undefined ? data.budget_includes_fees : false,
