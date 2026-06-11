@@ -157,12 +157,14 @@ function buildPayableMonthGroups(
 
 function useFinanceHubPayablesData(): {
   loading: boolean
+  loadError: string | null
   visibleMonthGroups: PayableMonthGroup[]
   flatFilteredRecords: BillingRecord[]
 } {
   const filters = useFinanceStore((s) => s.filters)
   const [records, setRecords] = useState<BillingRecord[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [publishers, setPublishers] = useState<Publisher[]>([])
 
   useEffect(() => {
@@ -199,6 +201,7 @@ function useFinanceHubPayablesData(): {
   useEffect(() => {
     let cancelled = false
     setLoading(true)
+    setLoadError(null)
     const params: Omit<FinanceBillingQuery, "billing_month"> = {}
     if (!filters.includeDrafts) params.include_drafts = false
     if (filters.selectedClients.length) params.clients_id = filters.selectedClients.join(",")
@@ -221,6 +224,18 @@ function useFinanceHubPayablesData(): {
     void fetchFinancePayablesForMonths(payableMonths, params)
       .then((rows) => {
         if (!cancelled) setRecords(rows.filter((r) => r.billing_type === "payable"))
+      })
+      .catch((e) => {
+        if (
+          (e instanceof DOMException && e.name === "AbortError") ||
+          (e instanceof Error && e.name === "AbortError")
+        ) {
+          return
+        }
+        if (!cancelled) {
+          setRecords([])
+          setLoadError(e instanceof Error ? e.message : "Failed to load payables")
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -271,6 +286,7 @@ function useFinanceHubPayablesData(): {
 
   return {
     loading,
+    loadError,
     visibleMonthGroups,
     flatFilteredRecords: filtered,
   }
@@ -360,7 +376,7 @@ function PayableInvoiceCard({
 export default function FinanceHubPayablesSection() {
   const [hideClientPaidLines, setHideClientPaidLines] = usePayablesHideClientPaid()
   const filters = useFinanceStore((s) => s.filters)
-  const { loading, visibleMonthGroups, flatFilteredRecords } = useFinanceHubPayablesData()
+  const { loading, loadError, visibleMonthGroups, flatFilteredRecords } = useFinanceHubPayablesData()
   const { toast } = useToast()
 
   const handleExportExcel = useCallback(async () => {
@@ -418,14 +434,20 @@ export default function FinanceHubPayablesSection() {
         </DropdownMenu>
       </div>
 
+      {loadError ? (
+        <p className="text-sm text-destructive" role="alert">
+          {loadError}
+        </p>
+      ) : null}
+
       {loading && visibleMonthGroups.length === 0 ? (
         <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
           <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
           Loading payables…
         </div>
-      ) : !loading && visibleMonthGroups.length === 0 ? (
+      ) : !loading && !loadError && visibleMonthGroups.length === 0 ? (
         emptyCopy
-      ) : (
+      ) : !loadError ? (
         <div className="space-y-8 pt-1">
           {visibleMonthGroups.map((mg) => {
             const lineItemCount = mg.publishers.reduce(
@@ -511,7 +533,7 @@ export default function FinanceHubPayablesSection() {
             )
           })}
         </div>
-      )}
+      ) : null}
     </div>
   )
 }

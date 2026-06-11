@@ -95,6 +95,18 @@ function absoluteRequestUrl(pathOrUrl: string): string {
   }
 }
 
+function isAbortError(err: unknown): boolean {
+  return (
+    (err instanceof DOMException && err.name === "AbortError") ||
+    (err instanceof Error && err.name === "AbortError")
+  )
+}
+
+function monthLabelFromIso(monthIso: string): string {
+  const monthDate = new Date(`${monthIso}-01T00:00:00`)
+  return monthDate.toLocaleString("en-AU", { month: "long", year: "numeric" })
+}
+
 async function jsonOrThrow<T>(response: Response, pathForUrl: string): Promise<T> {
   const requestUrl = absoluteRequestUrl(pathForUrl)
   if (!response.ok) {
@@ -141,12 +153,14 @@ export async function fetchFinanceBillingForMonths(
   signal?: AbortSignal
 ): Promise<BillingRecord[]> {
   const results = await Promise.all(
-    months.map((m) =>
-      fetchFinanceBilling({ ...params, billing_month: m }, { signal }).catch((err: unknown) => {
-        if (err instanceof DOMException && err.name === "AbortError") throw err
-        return []
-      })
-    )
+    months.map(async (m) => {
+      try {
+        return await fetchFinanceBilling({ ...params, billing_month: m }, { signal })
+      } catch (err) {
+        if (isAbortError(err)) throw err
+        throw new Error(`Failed to load ${monthLabelFromIso(m)} finance data`, { cause: err })
+      }
+    })
   )
   const seen = new Set<string>()
   const out: BillingRecord[] = []
@@ -181,7 +195,14 @@ export async function fetchFinancePayablesForMonths(
   params: Omit<FinanceBillingQuery, "billing_month"> = {}
 ): Promise<BillingRecord[]> {
   const results = await Promise.all(
-    months.map((m) => fetchFinancePayable({ ...params, billing_month: m }).catch(() => []))
+    months.map(async (m) => {
+      try {
+        return await fetchFinancePayable({ ...params, billing_month: m })
+      } catch (err) {
+        if (isAbortError(err)) throw err
+        throw new Error(`Failed to load ${monthLabelFromIso(m)} finance data`, { cause: err })
+      }
+    })
   )
   const seen = new Set<string>()
   const out: BillingRecord[] = []

@@ -201,6 +201,12 @@ export function useReceivablesData(activeTab: FinanceHubTab): HubReceivablesHubS
         setLoadedSignature(filterSig)
       })
       .catch((e) => {
+        if (
+          (e instanceof DOMException && e.name === "AbortError") ||
+          (e instanceof Error && e.name === "AbortError")
+        ) {
+          return
+        }
         if (!cancelled) {
           setRecords([])
           setLoadedSignature(null)
