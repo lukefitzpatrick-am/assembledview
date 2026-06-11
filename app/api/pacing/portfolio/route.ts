@@ -74,18 +74,23 @@ export async function POST(request: NextRequest) {
   }
 
   let cacheHit = false
-  const payload = await getPortfolioPacingData(input, {
-    requestId,
-    startedAtMs: t0,
-    onCacheHit: () => {
-      cacheHit = true
-    },
-  })
+  try {
+    const payload = await getPortfolioPacingData(input, {
+      requestId,
+      startedAtMs: t0,
+      onCacheHit: () => {
+        cacheHit = true
+      },
+    })
 
-  const response = NextResponse.json(payload)
-  if (!cacheHit) {
-    response.headers.set("Cache-Control", "no-store, max-age=0")
+    const response = NextResponse.json(payload)
+    if (!cacheHit) {
+      response.headers.set("Cache-Control", "no-store, max-age=0")
+    }
+
+    return response
+  } catch (err) {
+    console.error("[api/pacing/portfolio] failed", err)
+    return NextResponse.json({ error: "internal_error" }, { status: 500 })
   }
-
-  return response
 }
