@@ -3,8 +3,7 @@ import { xanoUrl } from "@/lib/api/xano"
 import { getCachedClients } from "@/lib/cache/clientsCache"
 
 /**
- * Client slug used by {@link fetchPortfolioPlan} / {@link normalisePlan} (from Xano client display name).
- * Must stay aligned with `slugifyClientName` in `lib/pacing/plan/normalisePlan.ts` and `fetchPortfolioPlan`.
+ * Client slug for pacing plan scope (from Xano client display name).
  */
 export function slugifyPlanClientName(value: unknown): string {
   const s = String(value ?? "").trim().toLowerCase()
@@ -61,8 +60,7 @@ export type ResolveClientSlugsDeps = {
 }
 
 /**
- * Maps `requirePacingAccess` numeric Xano client ids (or null for admin / unscoped) to plan client slugs
- * for {@link fetchPortfolioPlan}.
+ * Maps `requirePacingAccess` numeric Xano client ids (or null for admin / unscoped) to plan client slugs.
  *
  * - `null` → all clients from `get_clients`
  * - `[]` → `[]` (no Xano call)

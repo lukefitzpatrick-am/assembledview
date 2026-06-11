@@ -19,7 +19,7 @@ function parseNumber(value: unknown): number {
 
 /**
  * Parses bursts_json (or inline bursts array) into sorted NormalisedBurst rows.
- * Field keys align with lib/pacing/plan/normalisePlan.ts and serializeBurstsJson.
+ * Field keys align with serializeBurstsJson.
  */
 export function parseBurstsToNormalised(raw: unknown): NormalisedBurst[] {
   const source = (() => {

@@ -154,7 +154,7 @@ Representative pages under [app](app):
 | Mediaplans | `/mediaplans`, `/mediaplans/create`, `/mediaplans/[id]`, `/mediaplans/mba/[mba_number]/edit` |
 | Dashboards | `/dashboard`, `/dashboard/[slug]`, `/dashboard/[slug]/[mba_number]` |
 | Client dashboard previews | `/client-dashboard/_preview/primitives`, `/client-dashboard/_preview/charts`, `/client-dashboard/mock` |
-| Pacing | `/pacing`, portfolio, overview, mappings, settings under `app/pacing` |
+| Pacing | `/pacing`, overview, search, social, mappings, settings under `app/pacing` |
 | Finance | `/finance`, forecast / variance under `app/finance` |
 | Scopes of work | `/scopes-of-work`, create, `[id]/edit` |
 | Directory | `/clients`, `/publishers`, `/management`, `/support` |
@@ -171,7 +171,7 @@ Internal or demo routes (e.g. `dashboard-demo`, `test-dashboard`) exist for deve
 There are many handlers under [app/api](app/api) (on the order of **90+** `route.ts` files). They generally fall into these buckets:
 
 - **Mediaplans & media line items** — CRUD, downloads, PDFs, MBA resolution, version documents
-- **Pacing & Snowflake** — line items, portfolio, delivery, mappings, alerts, saved views, bulk operations
+- **Pacing & Snowflake** — line items, delivery, mappings, alerts, bulk operations
 - **Finance** — billing, accrual, forecast snapshots, payables, receivables, edits, hub schedules
 - **Dashboards & KPIs** — client/publisher/campaign KPIs, global spend aggregates
 - **Client dashboard rendering** — reusable visual primitives, chart examples, brand theme helpers

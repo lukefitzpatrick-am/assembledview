@@ -23,7 +23,6 @@ TSK_ROOT_DAILY_REFRESH            CRON 06:30 Australia/Melbourne, SELECT 1
 ## App read paths
 
 - `/api/pacing/campaigns` reads `SEARCH_PACING_FACT` (search surface and overview).
-- `/api/pacing/portfolio` unions `PACING_FACT` + `SOCIAL_PACING_FACT` + `SEARCH_PACING_FACT`.
 
 ## Notes
 
