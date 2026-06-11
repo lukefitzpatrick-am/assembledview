@@ -857,7 +857,7 @@ export async function getClientHubSummariesForAdminHub(): Promise<ClientHubSumma
       failedUrl: e?.config?.url ?? '(unknown)',
       err: e,
     })
-    return []
+    throw e
   }
 }
 
