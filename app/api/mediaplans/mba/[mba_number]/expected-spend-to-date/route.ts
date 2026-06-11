@@ -323,7 +323,7 @@ export async function GET(
         })
       }
       return NextResponse.json(
-        { error: "Failed to load media plan data", details: body },
+        { error: "Failed to load media plan data" },
         { status: response.status }
       )
     }

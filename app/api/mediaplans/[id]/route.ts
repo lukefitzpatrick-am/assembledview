@@ -201,26 +201,15 @@ export async function GET(
       })
       
       return NextResponse.json(
-        { 
+        {
           error: `Failed to fetch media plan: ${error.response?.data?.message || error.message}`,
-          details: {
-            status: error.response?.status,
-            data: error.response?.data,
-            message: error.message,
-            url: error.config?.url,
-          }
         },
         { status: error.response?.status || 500 }
       )
     }
-    
-    return NextResponse.json(
-      { 
-        error: "Failed to fetch media plan", 
-        details: error 
-      },
-      { status: 500 }
-    )
+
+    console.error("[api/mediaplans/[id] GET] unexpected error", error)
+    return NextResponse.json({ error: "Failed to fetch media plan" }, { status: 500 })
   }
 }
 
@@ -347,26 +336,15 @@ export async function PUT(
       })
       
       return NextResponse.json(
-        { 
+        {
           error: `Failed to create new version: ${error.response?.data?.message || error.message}`,
-          details: {
-            status: error.response?.status,
-            data: error.response?.data,
-            message: error.message,
-            url: error.config?.url,
-          }
         },
         { status: error.response?.status || 500 }
       )
     }
-    
-    return NextResponse.json(
-      { 
-        error: "Failed to create new version", 
-        details: error 
-      },
-      { status: 500 }
-    )
+
+    console.error("[api/mediaplans/[id] PUT] unexpected error", error)
+    return NextResponse.json({ error: "Failed to create new version" }, { status: 500 })
   }
 }
 

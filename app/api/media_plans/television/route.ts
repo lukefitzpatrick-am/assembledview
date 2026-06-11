@@ -174,14 +174,8 @@ export async function GET(request: Request) {
       });
       
       return NextResponse.json(
-        { 
+        {
           error: `Failed to fetch television data: ${error.response?.data?.message || error.message}`,
-          details: {
-            status: error.response?.status,
-            data: error.response?.data,
-            message: error.message,
-            url: error.config?.url,
-          }
         },
         { status: error.response?.status || 500 }
       );

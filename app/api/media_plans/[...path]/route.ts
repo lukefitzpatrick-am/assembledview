@@ -31,6 +31,17 @@ async function proxy(request: Request, ctx: Ctx) {
   const upstream = await fetch(url.toString(), init)
   const text = await upstream.text()
 
+  if (!upstream.ok) {
+    console.error("[api/media_plans/[...path]] upstream error", {
+      path,
+      method: request.method,
+      url: url.toString(),
+      status: upstream.status,
+      body: text,
+    })
+    return NextResponse.json({ error: "Media plan request failed" }, { status: upstream.status })
+  }
+
   const contentType = upstream.headers.get("content-type") || ""
   if (contentType.includes("application/json")) {
     return NextResponse.json(JSON.parse(text), { status: upstream.status })

@@ -219,17 +219,14 @@ export async function POST(
     const patchText = await patchRes.text()
 
     if (!patchRes.ok) {
-      if (patchType.includes("application/json")) {
-        try {
-          return NextResponse.json(JSON.parse(patchText), { status: patchRes.status })
-        } catch {
-          return NextResponse.json({ error: patchText || "Invalid JSON from upstream" }, { status: patchRes.status })
-        }
-      }
-      return new NextResponse(patchText, {
+      console.error("[api/mediaplans/versions/documents POST] patch failed", {
         status: patchRes.status,
-        headers: { "content-type": patchType || "text/plain" },
+        body: patchText,
       })
+      return NextResponse.json(
+        { error: "Failed to upload documents" },
+        { status: patchRes.status }
+      )
     }
 
     if (patchType.includes("application/json")) {
@@ -242,11 +239,8 @@ export async function POST(
 
     return NextResponse.json({ ok: true }, { status: patchRes.status })
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    return NextResponse.json(
-      { error: "Failed to upload documents", details: message },
-      { status: 500 }
-    )
+    console.error("[api/mediaplans/versions/documents POST]", error)
+    return NextResponse.json({ error: "Failed to upload documents" }, { status: 500 })
   }
 }
 

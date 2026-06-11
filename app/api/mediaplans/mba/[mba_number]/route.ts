@@ -1249,44 +1249,28 @@ export async function GET(
       // Handle network errors (no response)
       if (!error.response) {
         return NextResponse.json(
-          { 
-            error: `Network error: ${error.message || "Failed to connect to API"}`,
-            code: error.code || "NETWORK_ERROR"
+          {
+            error: "Network error: Failed to connect to API",
+            code: error.code || "NETWORK_ERROR",
           },
           { status: 503 }
         )
       }
-      
-      // Extract error message from response
-      const errorMessage = error.response?.data?.error || 
-                          error.response?.data?.message || 
-                          error.message || 
-                          "Failed to fetch media plan"
-      
+
+      const errorMessage =
+        error.response?.data?.error ||
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to fetch media plan"
+
       return NextResponse.json(
-        { 
-          error: errorMessage,
-          details: {
-            status: error.response.status,
-            statusText: error.response.statusText,
-            url: error.config?.url,
-            message: error.message,
-          }
-        },
+        { error: errorMessage },
         { status: error.response.status || 500 }
       )
     }
-    
-    // Handle non-axios errors
-    const errorMessage = error instanceof Error ? error.message : String(error)
-    
-    return NextResponse.json(
-      { 
-        error: `Failed to fetch media plan: ${errorMessage}`,
-        message: errorMessage
-      },
-      { status: 500 }
-    )
+
+    console.error("[api/mediaplans/mba/[mba_number] GET] unexpected error", error)
+    return NextResponse.json({ error: "Failed to fetch media plan" }, { status: 500 })
   }
 }
 
@@ -1470,26 +1454,15 @@ export async function PUT(
       })
       
       return NextResponse.json(
-        { 
+        {
           error: `Failed to create new version: ${error.response?.data?.message || error.message}`,
-          details: {
-            status: error.response?.status,
-            data: error.response?.data,
-            message: error.message,
-            url: error.config?.url,
-          }
         },
         { status: error.response?.status || 500 }
       )
     }
-    
-    return NextResponse.json(
-      { 
-        error: "Failed to create new version", 
-        details: error 
-      },
-      { status: 500 }
-    )
+
+    console.error("[api/mediaplans/mba/[mba_number] PUT] unexpected error", error)
+    return NextResponse.json({ error: "Failed to create new version" }, { status: 500 })
   }
 }
 
@@ -1646,11 +1619,13 @@ export async function PATCH(
       
       return NextResponse.json(masterUpdateResponse.data)
     } else {
-      console.error(`[PATCH] Unexpected response status: ${masterUpdateResponse.status}`)
+      console.error("[api/mediaplans/mba/[mba_number] PATCH] unexpected response status", {
+        status: masterUpdateResponse.status,
+        data: masterUpdateResponse.data,
+      })
       return NextResponse.json(
-        { 
+        {
           error: `Failed to update media plan master: Unexpected status ${masterUpdateResponse.status}`,
-          details: masterUpdateResponse.data
         },
         { status: masterUpdateResponse.status }
       )
@@ -1668,26 +1643,15 @@ export async function PATCH(
       })
       
       return NextResponse.json(
-        { 
+        {
           error: `Failed to update media plan master: ${error.response?.data?.message || error.message}`,
-          details: {
-            status: error.response?.status,
-            data: error.response?.data,
-            message: error.message,
-            url: error.config?.url,
-          }
         },
         { status: error.response?.status || 500 }
       )
     }
-    
-    return NextResponse.json(
-      { 
-        error: "Failed to update media plan master", 
-        details: error instanceof Error ? error.message : String(error)
-      },
-      { status: 500 }
-    )
+
+    console.error("[api/mediaplans/mba/[mba_number] PATCH] unexpected error", error)
+    return NextResponse.json({ error: "Failed to update media plan master" }, { status: 500 })
   }
 }
 

@@ -168,19 +168,14 @@ export async function PATCH(
     return NextResponse.json({ ok: true, data: xanoResponse.data })
 
   } catch (error) {
-
-    const message =
-
-      (error as { response?: { data?: { message?: string } }; message?: string })?.response?.data
-
-        ?.message ||
-
-      (error as { message?: string })?.message ||
-
-      "Failed to patch billing schedule"
-
-    return NextResponse.json({ error: message }, { status: 500 })
-
+    const status =
+      (error as { response?: { status?: number } })?.response?.status || 500
+    console.error("[api/mediaplans/versions/billing-schedule PATCH]", {
+      error,
+      status,
+      upstream: (error as { response?: { data?: unknown } })?.response?.data,
+    })
+    return NextResponse.json({ error: "Failed to patch billing schedule" }, { status })
   }
 
 }
