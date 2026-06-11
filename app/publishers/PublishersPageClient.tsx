@@ -17,6 +17,7 @@ import { useListGridLayoutPreference } from "@/lib/hooks/useListGridLayoutPrefer
 import { ListGridToggle } from "@/components/ui/list-grid-toggle"
 import { CSVExportButton } from "@/components/ui/csv-export-button"
 import { Panel, PanelActions, PanelContent, PanelDescription, PanelHeader, PanelTitle } from "@/components/layout/Panel"
+import { Skeleton } from "@/components/ui/skeleton"
 import type { Publisher } from "@/lib/types/publisher"
 import { publisherHubPath } from "@/lib/publisher/publisherHubPath"
 import { MEDIA_TYPE_SLUG_TO_DASHBOARD_LABEL } from "@/lib/publisher/scheduleLabels"
@@ -198,6 +199,8 @@ export function PublishersPageClient() {
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [publishers, setPublishers] = useState<Publisher[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [directorySearch, setDirectorySearch] = useState("")
   const [sortKey, setSortKey] = useState<PublisherSortKey>("name")
   const [sortDir, setSortDir] = useState<Exclude<SortDirection, null>>("asc")
@@ -207,6 +210,8 @@ export function PublishersPageClient() {
   }, [])
 
   async function fetchPublishers() {
+    setIsLoading(true)
+    setLoadError(null)
     try {
       const response = await fetch("/api/publishers")
       if (!response.ok) {
@@ -216,6 +221,16 @@ export function PublishersPageClient() {
       setPublishers(data)
     } catch (error) {
       console.error("Error fetching publishers:", error)
+      const isNetwork =
+        error instanceof TypeError ||
+        (error instanceof Error && error.message === "Failed to fetch")
+      setLoadError(
+        isNetwork
+          ? "We couldn't reach the server. Check your connection and try again."
+          : "Something went wrong while loading publishers."
+      )
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -425,8 +440,101 @@ export function PublishersPageClient() {
             <CSVExportButton data={csvData} filename="publishers.csv" headers={csvHeaders} buttonText="Export CSV" />
           </PanelActions>
         </PanelHeader>
-        <PanelContent className="px-0 pb-0 pt-0">
-          {listGridMode === "list" ? (
+        <PanelContent className="px-0 pb-0 pt-0" aria-busy={isLoading}>
+          {loadError ? (
+            <div
+              role="alert"
+              className={cn(
+                "mx-4 my-4 flex flex-col gap-3 rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive",
+                "sm:flex-row sm:items-center sm:justify-between"
+              )}
+            >
+              <p className="min-w-0 flex-1">{loadError}</p>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-8 w-full shrink-0 border-destructive/40 text-xs text-destructive hover:bg-destructive/10 sm:w-auto"
+                onClick={() => {
+                  setLoadError(null)
+                  void fetchPublishers()
+                }}
+              >
+                Retry
+              </Button>
+            </div>
+          ) : isLoading ? (
+            listGridMode === "list" ? (
+              <Table>
+                <TableHeader className="bg-muted/20">
+                  <TableRow className="hover:bg-muted/20">
+                    <TableHead className="w-[40px] p-2" />
+                    <TableHead>Publisher</TableHead>
+                    <TableHead className="w-[14%]">ID</TableHead>
+                    <TableHead className="w-[11rem] whitespace-nowrap">Type</TableHead>
+                    <TableHead>Media types</TableHead>
+                    <TableHead className="w-[1%] px-4 py-3 text-right font-medium text-muted-foreground">
+                      Actions
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody className="[&_tr:nth-child(even)]:bg-muted/5">
+                  {Array.from({ length: 6 }).map((_, index) => (
+                    <TableRow key={index} className="border-b border-border/20">
+                      <TableCell className="w-[40px] p-2 align-middle">
+                        <div className="flex justify-center">
+                          <Skeleton className="h-2.5 w-2.5 shrink-0 rounded-full" />
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-40" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-16" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-20" />
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1.5">
+                          <Skeleton className="h-5 w-14 rounded-full" />
+                          <Skeleton className="h-5 w-14 rounded-full" />
+                          <Skeleton className="h-5 w-10 rounded-full" />
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Skeleton className="ml-auto h-8 w-24" />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 p-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {Array.from({ length: 6 }).map((_, index) => (
+                  <div
+                    key={index}
+                    className="flex flex-col overflow-hidden rounded-xl border border-border bg-card p-4 shadow-sm"
+                  >
+                    <div className="flex gap-3">
+                      <Skeleton className="h-10 w-10 shrink-0 rounded-full" />
+                      <div className="min-w-0 flex-1 space-y-2">
+                        <Skeleton className="h-4 w-3/4" />
+                        <Skeleton className="h-3 w-1/2" />
+                        <Skeleton className="h-3 w-1/3" />
+                      </div>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-1.5 border-t border-border/30 pt-3">
+                      <Skeleton className="h-5 w-14 rounded-full" />
+                      <Skeleton className="h-5 w-14 rounded-full" />
+                    </div>
+                    <div className="mt-3 flex justify-end border-t border-border/30 pt-3">
+                      <Skeleton className="h-8 w-24" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
+          ) : listGridMode === "list" ? (
             <Table>
               <TableHeader className="bg-muted/20">
                 <TableRow className="hover:bg-muted/20">
@@ -465,7 +573,7 @@ export function PublishersPageClient() {
                         ? "No publishers match your search."
                         : showFilterChip
                           ? "No publishers match this filter."
-                          : publishers.length === 0
+                          : !loadError && !isLoading && publishers.length === 0
                             ? "No publishers loaded."
                             : "No rows to display."}
                     </TableCell>
@@ -539,7 +647,7 @@ export function PublishersPageClient() {
                 ? "No publishers match your search."
                 : showFilterChip
                   ? "No publishers match this filter."
-                  : publishers.length === 0
+                  : !loadError && !isLoading && publishers.length === 0
                     ? "No publishers loaded."
                     : "No rows to display."}
             </p>
