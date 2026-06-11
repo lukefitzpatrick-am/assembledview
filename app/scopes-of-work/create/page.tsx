@@ -100,6 +100,7 @@ export default function CreateScopePage() {
   const [isDownloading, setIsDownloading] = useState(false)
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
   const [scopeId, setScopeId] = useState<string>("")
+  const [scopeIdError, setScopeIdError] = useState(false)
 
   const form = useForm<ScopeFormValues>({
     resolver: zodResolver(scopeSchema),
@@ -166,26 +167,52 @@ export default function CreateScopePage() {
     fetchClients()
   }, [])
 
+  const scopeIdFailureToast = () => {
+    toast({
+      title: "Error",
+      description: "Could not generate a scope ID — retry or refresh",
+      variant: "destructive",
+    })
+  }
+
   // Generate scope ID when client is selected
   useEffect(() => {
     const generateScopeId = async () => {
-      if (selectedClient?.mbaidentifier) {
-        try {
-          const response = await fetch("/api/scopes-of-work/generate-scope-id", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              mbaIdentifier: selectedClient.mbaidentifier,
-              clientName: selectedClient.mp_client_name,
-            }),
-          })
-          if (response.ok) {
-            const data = await response.json()
-            setScopeId(data.scopeId || "")
-          }
-        } catch (error) {
-          console.error("Error generating scope ID:", error)
+      if (!selectedClient?.mbaidentifier) {
+        setScopeId("")
+        setScopeIdError(false)
+        return
+      }
+
+      setScopeId("")
+      setScopeIdError(false)
+
+      try {
+        const response = await fetch("/api/scopes-of-work/generate-scope-id", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            mbaIdentifier: selectedClient.mbaidentifier,
+            clientName: selectedClient.mp_client_name,
+          }),
+        })
+        if (!response.ok) {
+          setScopeIdError(true)
+          scopeIdFailureToast()
+          return
         }
+        const data = await response.json()
+        const id = data.scopeId || ""
+        if (!id) {
+          setScopeIdError(true)
+          scopeIdFailureToast()
+          return
+        }
+        setScopeId(id)
+      } catch (error) {
+        console.error("Error generating scope ID:", error)
+        setScopeIdError(true)
+        scopeIdFailureToast()
       }
     }
     generateScopeId()
@@ -426,7 +453,15 @@ export default function CreateScopePage() {
 
                   <div className="space-y-2">
                     <FormLabel>Scope ID</FormLabel>
-                    <Input value={scopeId} readOnly placeholder="Will be generated after selecting client" />
+                    <Input
+                      value={scopeId}
+                      readOnly
+                      placeholder={
+                        scopeIdError
+                          ? "Could not generate — retry or refresh"
+                          : "Will be generated after selecting client"
+                      }
+                    />
                   </div>
                 </div>
               </CardContent>
@@ -876,7 +911,7 @@ export default function CreateScopePage() {
           </Button>
           <Button
             onClick={form.handleSubmit(onSubmit)}
-            disabled={isSaving}
+            disabled={isSaving || (Boolean(selectedClient) && !scopeId)}
           >
             <Save className="mr-2 h-4 w-4" />
             {isSaving ? "Saving..." : "Save Scope"}
