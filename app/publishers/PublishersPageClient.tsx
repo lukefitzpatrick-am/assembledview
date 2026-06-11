@@ -464,7 +464,8 @@ export function PublishersPageClient() {
             </div>
           ) : isLoading ? (
             listGridMode === "list" ? (
-              <Table>
+              <div className="overflow-x-auto">
+                <Table>
                 <TableHeader className="bg-muted/20">
                   <TableRow className="hover:bg-muted/20">
                     <TableHead className="w-[40px] p-2" />
@@ -508,6 +509,7 @@ export function PublishersPageClient() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             ) : (
               <div className="grid grid-cols-1 gap-4 p-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {Array.from({ length: 6 }).map((_, index) => (
@@ -535,7 +537,8 @@ export function PublishersPageClient() {
               </div>
             )
           ) : listGridMode === "list" ? (
-            <Table>
+            <div className="overflow-x-auto">
+              <Table>
               <TableHeader className="bg-muted/20">
                 <TableRow className="hover:bg-muted/20">
                   <TableHead className="w-[40px] p-2" />
@@ -641,6 +644,7 @@ export function PublishersPageClient() {
                 )}
               </TableBody>
             </Table>
+            </div>
           ) : sortedPublishers.length === 0 ? (
             <p className="py-12 text-center text-muted-foreground">
               {showSearchQuery

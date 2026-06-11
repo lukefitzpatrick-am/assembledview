@@ -673,7 +673,8 @@ export default function CreateScopePage() {
                 <CardTitle>Cost Breakdown</CardTitle>
               </CardHeader>
               <CardContent>
-                <Table>
+                <div className="overflow-x-auto">
+                  <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Expense Category</TableHead>
@@ -759,6 +760,7 @@ export default function CreateScopePage() {
                     </TableRow>
                   </TableFooter>
                 </Table>
+                </div>
                 <Button
                   type="button"
                   variant="outline"

@@ -758,7 +758,8 @@ export default function EditScopePage() {
                 <CardTitle>Cost Breakdown</CardTitle>
               </CardHeader>
               <CardContent>
-                <Table>
+                <div className="overflow-x-auto">
+                  <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Expense Category</TableHead>
@@ -844,6 +845,7 @@ export default function EditScopePage() {
                     </TableRow>
                   </TableFooter>
                 </Table>
+                </div>
                 <Button
                   type="button"
                   variant="outline"
