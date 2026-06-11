@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { checkClientMbaAccess } from "@/lib/auth/checkClientMbaAccess"
 import {
   createCampaignKpis,
   deleteCampaignKpi,
@@ -26,6 +27,10 @@ export async function GET(request: NextRequest) {
         { status: 400 },
       )
     }
+
+    const access = await checkClientMbaAccess(request, mbaNumber)
+    if (!access.ok) return access.response
+
     const data = await fetchCampaignKpis(mbaNumber, versionNumber)
     return NextResponse.json(data)
   } catch (error) {

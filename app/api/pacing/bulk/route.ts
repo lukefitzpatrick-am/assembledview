@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { checkClientMbaAccess } from "@/lib/auth/checkClientMbaAccess"
 import { getCampaignPacingData } from "@/lib/snowflake/pacing-service"
 import { getSearchPacingData, type SearchPacingResponse } from "@/lib/snowflake/search-pacing-service"
 
@@ -86,6 +87,17 @@ export async function POST(request: NextRequest) {
     const searchEndDate = body?.searchEndDate
 
     console.info("[api/pacing/bulk] timing", { requestId, stage: "parsed_validated", ms: Date.now() - t0 })
+
+    const access = await checkClientMbaAccess(request, mbaNumber)
+    if (!access.ok) return access.response
+    if (access.isClient) {
+      const allIds = [...(rawLineItemIds ?? []), ...(searchLineItemIds ?? [])]
+      const prefix = mbaNumber.toLowerCase()
+      const foreign = allIds.filter((id) => !String(id).toLowerCase().startsWith(prefix))
+      if (foreign.length > 0) {
+        return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 })
+      }
+    }
 
     if (DEBUG) {
       console.log("[api/pacing/bulk] request", {

@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
+import { checkClientMbaAccess } from "@/lib/auth/checkClientMbaAccess"
 import axios from "axios"
 import { parseDateOnlyString, toMelbourneDateString } from "@/lib/timezone"
 import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
@@ -725,12 +726,16 @@ async function fetchXanoTableForMediaType(
 
 // GET latest version by MBA number
 export async function GET(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ mba_number: string }> }
 ) {
   try {
     const mediaPlansBaseUrl = getXanoBaseUrl(["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
     const { mba_number } = await params
+
+    const access = await checkClientMbaAccess(request, mba_number)
+    if (!access.ok) return access.response
+
     console.log(`[API] Received request for MBA number: "${mba_number}"`)
     console.log(`[API] MBA number type: ${typeof mba_number}, length: ${mba_number?.length}`)
     
