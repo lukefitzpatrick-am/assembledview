@@ -1,7 +1,6 @@
 "use client"
 
 import { useCallback, useState, type RefObject } from "react"
-import html2canvas from "html2canvas"
 import { saveAs } from "file-saver"
 
 type ExportColumn<T> = {
@@ -82,6 +81,7 @@ export function useChartExport(): UseChartExportResult {
     setIsExporting(true)
 
     try {
+      const html2canvas = (await import("html2canvas")).default
       const canvas = await html2canvas(ref.current, {
         scale: 2,
         useCORS: true,
