@@ -182,7 +182,9 @@ export async function GET(request: NextRequest) {
 
     if (wantSow) {
       try {
-        const scopesResponse = await axios.get(xanoUrl("scope_of_work", "XANO_SCOPES_BASE_URL"))
+        const scopesResponse = await axios.get(xanoUrl("scope_of_work", "XANO_SCOPES_BASE_URL"), {
+          timeout: 15_000,
+        })
         const scopes: ScopeOfWorkRow[] = Array.isArray(scopesResponse.data) ? scopesResponse.data : []
 
         const resolveClientId = (clientName: string): number => {

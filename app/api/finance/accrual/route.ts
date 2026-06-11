@@ -162,7 +162,11 @@ function pickLatestVersions(versions: XanoVersion[], masters: XanoMaster[]) {
   return Array.from(bestByMba.values())
 }
 
-async function fetchXanoJson<T>(request: NextRequest, url: string): Promise<T> {
+async function fetchXanoJson<T>(
+  request: NextRequest,
+  url: string,
+  timeoutMs: number = 15_000
+): Promise<T> {
   const headers: Record<string, string> = {
     Accept: "application/json",
   }
@@ -170,19 +174,26 @@ async function fetchXanoJson<T>(request: NextRequest, url: string): Promise<T> {
   const apiKey = process.env.XANO_API_KEY
   if (apiKey) headers.Authorization = `Bearer ${apiKey}`
 
-  const res = await fetch(url, {
-    method: "GET",
-    headers,
-    cache: "no-store",
-    // keep cookies out of upstream call; auth is via XANO_API_KEY
-  })
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const res = await fetch(url, {
+      method: "GET",
+      headers,
+      cache: "no-store",
+      signal: controller.signal,
+      // keep cookies out of upstream call; auth is via XANO_API_KEY
+    })
 
-  if (!res.ok) {
-    const text = await res.text().catch(() => "")
-    throw new Error(`Xano request failed (${res.status}) for ${url}${text ? `: ${text}` : ""}`)
+    if (!res.ok) {
+      const text = await res.text().catch(() => "")
+      throw new Error(`Xano request failed (${res.status}) for ${url}${text ? `: ${text}` : ""}`)
+    }
+
+    return (await res.json()) as T
+  } finally {
+    clearTimeout(timeoutId)
   }
-
-  return (await res.json()) as T
 }
 
 function responseNoStore(payload: AccrualApiResponse, init?: ResponseInit) {
@@ -234,8 +245,8 @@ export async function GET(request: NextRequest) {
     const versionsUrl = xanoUrl("media_plan_versions", baseKeys as unknown as string[])
 
     const [masters, versions] = await Promise.all([
-      fetchXanoJson<any[]>(request, mastersUrl).catch(() => []),
-      fetchXanoJson<any[]>(request, versionsUrl).catch(() => []),
+      fetchXanoJson<any[]>(request, mastersUrl, 15_000).catch(() => []),
+      fetchXanoJson<any[]>(request, versionsUrl, 30_000).catch(() => []),
     ])
 
     const mastersArray = Array.isArray(masters) ? (masters as XanoMaster[]) : []

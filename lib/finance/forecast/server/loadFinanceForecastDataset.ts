@@ -122,9 +122,9 @@ async function fetchFinanceForecastRawFromXanoUncached(): Promise<{
   const publishersUrl = xanoUrl("get_publishers", "XANO_PUBLISHERS_BASE_URL")
 
   const [versionsRes, clientsRes, publishersRes] = await Promise.all([
-    axios.get(versionsUrl).catch(() => ({ data: [] })),
-    axios.get(clientsUrl).catch(() => ({ data: [] })),
-    axios.get(publishersUrl).catch(() => ({ data: [] })),
+    axios.get(versionsUrl, { timeout: 30_000 }).catch(() => ({ data: [] })),
+    axios.get(clientsUrl, { timeout: 15_000 }).catch(() => ({ data: [] })),
+    axios.get(publishersUrl, { timeout: 15_000 }).catch(() => ({ data: [] })),
   ])
 
   const versions = unwrapArray(versionsRes.data) as FinanceForecastMediaPlanVersionInput[]
