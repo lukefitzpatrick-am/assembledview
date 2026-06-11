@@ -16,6 +16,8 @@ import { writeScheduleDiffEdits } from "@/lib/finance/writeFinanceAuditEdits"
 
 const MEDIA_PLANS_ENV_KEYS = ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"] as const
 
+const XANO_LONG_TIMEOUT_MS = 30_000
+
 
 
 export async function PATCH(
@@ -83,9 +85,8 @@ export async function PATCH(
     try {
 
       const currentVersionRes = await axios.get(
-
-        `${mediaPlansBaseUrl}/media_plan_versions/${encodeURIComponent(id)}`
-
+        `${mediaPlansBaseUrl}/media_plan_versions/${encodeURIComponent(id)}`,
+        { timeout: XANO_LONG_TIMEOUT_MS }
       )
 
       const raw = currentVersionRes.data?.billingSchedule
@@ -107,11 +108,9 @@ export async function PATCH(
 
 
     const xanoResponse = await axios.patch(
-
       `${mediaPlansBaseUrl}/media_plan_versions/${encodeURIComponent(id)}`,
-
-      { billingSchedule: newSchedule }
-
+      { billingSchedule: newSchedule },
+      { timeout: XANO_LONG_TIMEOUT_MS }
     )
 
 

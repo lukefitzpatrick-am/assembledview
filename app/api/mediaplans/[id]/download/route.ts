@@ -6,6 +6,8 @@ export const dynamic = "force-dynamic"
 export const revalidate = 0
 export const maxDuration = 60
 
+const XANO_LONG_TIMEOUT_MS = 30_000
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -15,7 +17,8 @@ export async function GET(
     const response = await axios.get(
       `${xanoUrl("download_mediaplan", "XANO_MEDIAPLANS_BASE_URL")}/${id}`,
       {
-      responseType: 'arraybuffer'
+        responseType: "arraybuffer",
+        timeout: XANO_LONG_TIMEOUT_MS,
       }
     )
     

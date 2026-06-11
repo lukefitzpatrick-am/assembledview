@@ -7,6 +7,9 @@ export const dynamic = "force-dynamic"
 export const revalidate = 0
 export const maxDuration = 60
 
+const XANO_TIMEOUT_MS = 15_000
+const XANO_LONG_TIMEOUT_MS = 30_000
+
 // GET a single media plan by ID
 export async function GET(
   request: Request,
@@ -68,7 +71,9 @@ export async function GET(
         const fetchVersionScoped = async (endpoint: string, mediaTypeLabel: string) => {
           const baseUrl = xanoUrl(endpoint, ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
           if (!hasVersion) {
-            const res = await axios.get(`${baseUrl}?mba_number=${mbaNumber}`, { headers }).catch(() => ({ data: [] }))
+            const res = await axios
+              .get(`${baseUrl}?mba_number=${mbaNumber}`, { headers, timeout: XANO_TIMEOUT_MS })
+              .catch(() => ({ data: [] }))
             return Array.isArray(res.data) ? res.data : []
           }
 
@@ -81,7 +86,9 @@ export async function GET(
           let bestRawCount = Number.POSITIVE_INFINITY
 
           for (const params of attempts) {
-            const res = await axios.get(baseUrl, { headers, params }).catch(() => ({ data: [] }))
+            const res = await axios
+              .get(baseUrl, { headers, params, timeout: XANO_TIMEOUT_MS })
+              .catch(() => ({ data: [] }))
             const raw = Array.isArray(res.data) ? res.data : []
             const filtered = filterLineItemsByPlanNumber(raw, mbaNumber, versionParam, mediaTypeLabel)
 
@@ -244,7 +251,8 @@ export async function PUT(
     
     // First, get the current version to get the media_plan_master_id and determine next version number
     const currentVersionResponse = await axios.get(
-      `${xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?id=${id}`
+      `${xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?id=${id}`,
+      { timeout: XANO_LONG_TIMEOUT_MS }
     )
     const currentVersion = Array.isArray(currentVersionResponse.data) 
       ? currentVersionResponse.data[0]
@@ -259,7 +267,8 @@ export async function PUT(
 
     // Get all versions for this media plan master to determine next version number
     const allVersionsResponse = await axios.get(
-      `${xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?media_plan_master_id=${currentVersion.media_plan_master_id}`
+      `${xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?media_plan_master_id=${currentVersion.media_plan_master_id}`,
+      { timeout: XANO_LONG_TIMEOUT_MS }
     )
     const allVersions = Array.isArray(allVersionsResponse.data) ? allVersionsResponse.data : [allVersionsResponse.data]
     const nextVersionNumber = Math.max(...allVersions.map(v => v.version_number)) + 1
@@ -317,7 +326,8 @@ export async function PUT(
     // Create new version in media_plan_versions table
     const response = await axios.post(
       xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]),
-      newVersionData
+      newVersionData,
+      { timeout: XANO_LONG_TIMEOUT_MS }
     )
     
     console.log("New version created:", response.data)

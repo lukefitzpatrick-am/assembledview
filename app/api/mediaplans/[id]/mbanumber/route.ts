@@ -2,6 +2,8 @@ import { NextResponse } from "next/server"
 import axios from "axios"
 import { xanoUrl } from "@/lib/api/xano"
 
+const XANO_TIMEOUT_MS = 15_000
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -9,7 +11,9 @@ export async function POST(
   try {
     const { id } = await params
     const response = await axios.post(
-      `${xanoUrl("generate_mbanumber", "XANO_MEDIAPLANS_BASE_URL")}/${id}`
+      `${xanoUrl("generate_mbanumber", "XANO_MEDIAPLANS_BASE_URL")}/${id}`,
+      undefined,
+      { timeout: XANO_TIMEOUT_MS }
     )
     return NextResponse.json(response.data)
   } catch (error) {

@@ -8,6 +8,9 @@ export const dynamic = "force-dynamic"
 export const revalidate = 0
 export const maxDuration = 60
 
+const XANO_TIMEOUT_MS = 15_000
+const XANO_LONG_TIMEOUT_MS = 30_000
+
 export async function POST(request: Request) {
   try {
     // For now, allow access for development
@@ -56,7 +59,8 @@ export async function POST(request: Request) {
     // Create MediaPlanMaster
     const masterResponse = await axios.post(
       xanoUrl("media_plan_master", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]),
-      mediaPlanMasterData
+      mediaPlanMasterData,
+      { timeout: XANO_TIMEOUT_MS }
     )
     
     // Note: Version creation is handled separately by handleSaveMediaPlanVersion 
@@ -102,8 +106,12 @@ export async function GET() {
     try {
       // Fetch both media_plan_versions and media_plan_master in parallel
       const [versionsResponse, masterResponse] = await Promise.all([
-        axios.get(xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])),
-        axios.get(xanoUrl("media_plan_master", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]))
+        axios.get(xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]), {
+          timeout: XANO_LONG_TIMEOUT_MS,
+        }),
+        axios.get(xanoUrl("media_plan_master", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]), {
+          timeout: XANO_TIMEOUT_MS,
+        }),
       ])
       
       const versionsData = versionsResponse.data
@@ -164,7 +172,8 @@ export async function GET() {
         let masterMap = new Map<string, any>()
         try {
           const masterResponse = await axios.get(
-            xanoUrl("media_plan_master", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
+            xanoUrl("media_plan_master", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]),
+            { timeout: XANO_TIMEOUT_MS }
           )
           const masters = Array.isArray(masterResponse.data) ? masterResponse.data : [masterResponse.data]
           masters.forEach((master: any) => {
@@ -186,7 +195,8 @@ export async function GET() {
         
         const originalResponse = await axios.post(
           xanoUrl("get_mediaplan_topline", "XANO_MEDIAPLANS_BASE_URL"),
-          { version_number: latestVersionId }
+          { version_number: latestVersionId },
+          { timeout: XANO_LONG_TIMEOUT_MS }
         )
         console.log("Original endpoint response:", originalResponse.data)
         
