@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react"
+import { useStableHydration } from "@/hooks/useStableHydration"
 import { useForm, useFieldArray, UseFormReturn } from "react-hook-form"
 import { useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -560,12 +561,12 @@ export default function SearchContainer({
   });
 
   // Data loading for edit mode
-  useEffect(() => {
-    if (searchExpertModalOpenRef.current) return
-    if (initialLineItems && initialLineItems.length > 0) {
+  useStableHydration(
+    initialLineItems,
+    (items) => {
       console.log("[SearchContainer] Loading initialLineItems:", initialLineItems);
       
-      const transformedLineItems = initialLineItems.map((item: any, index: number) => {
+      const transformedLineItems = items.map((item: any, index: number) => {
         // Log each item for debugging
         console.log(`[SearchContainer] Processing item ${index}:`, {
           platform: item.platform,
@@ -642,8 +643,9 @@ export default function SearchContainer({
         lineItems: transformedLineItems,
         overallDeliverables: 0,
       });
-    }
-  }, [initialLineItems, form, campaignStartDate, campaignEndDate]);
+    },
+    searchExpertModalOpenRef,
+  )
 
   // Transform form data to API schema format
   useEffect(() => {
