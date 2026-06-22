@@ -80,6 +80,12 @@ import {
   coerceBuyTypeWithDevWarn,
   computeDeliverableFromMedia,
 } from "@/lib/mediaplan/deliverableBudget"
+import {
+  appendBurst,
+  removeBurst,
+  newBurstReactKey,
+  stampBurstReactKeys,
+} from "@/lib/mediaplan/burstOperations"
 
 const PROG_AUDIO_MEDIA_HEX = getMediaTypeThemeHex("progaudio")
 
@@ -335,7 +341,8 @@ export default function ProgAudioContainer({
               endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
               calculatedValue: 0,
               fee: 0,
-            },
+              _reactKey: newBurstReactKey(),
+            } as any,
           ],
           totalMedia: 0,
           totalDeliverables: 0,
@@ -496,7 +503,8 @@ export default function ProgAudioContainer({
       standard,
       prevLineItems as StandardProgAudioFormLineItem[]
     )
-    form.setValue("lineItems", merged as ProgAudioFormValues["lineItems"], {
+    const keyedMerged = stampBurstReactKeys(merged)
+    form.setValue("lineItems", keyedMerged as ProgAudioFormValues["lineItems"], {
       shouldDirty: true,
       shouldValidate: false,
     })
@@ -538,6 +546,7 @@ export default function ProgAudioContainer({
         endDate: burst?.endDate ? new Date(burst.endDate) : new Date(),
         calculatedValue: burst?.calculatedValue ?? 0,
         fee: burst?.fee ?? 0,
+        _reactKey: newBurstReactKey(),
       })),
     };
 
@@ -588,7 +597,7 @@ export default function ProgAudioContainer({
       }));
 
       form.reset({
-        lineItems: transformedLineItems,
+        lineItems: stampBurstReactKeys(transformedLineItems),
         overallDeliverables: 0,
       });
     
@@ -795,46 +804,16 @@ export default function ProgAudioContainer({
   }, [feeprogaudio, form, handleLineItemValueChange]);
 
   const handleAppendBurst = useCallback((lineItemIndex: number) => {
-    const currentBursts = form.getValues(`lineItems.${lineItemIndex}.bursts`) || [];
-    
-    // Check if we've reached the maximum number of bursts (12)
-    if (currentBursts.length >= 12) {
-      toast({
-        title: "Maximum bursts reached",
-        description: "Can't add more bursts. Each line item is limited to 12 bursts.",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    // Get the end date of the last burst
-    let startDate = new Date();
-    if (currentBursts.length > 0) {
-      const lastBurst = currentBursts[currentBursts.length - 1];
-      if (lastBurst.endDate) {
-        // Set start date to one day after the end date of the last burst
-        startDate = new Date(lastBurst.endDate);
-        startDate.setDate(startDate.getDate() + 1);
-      }
-    }
-    
-    // Set end date to the last day of the month based on the start date
-    const endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0);
-    
-    form.setValue(`lineItems.${lineItemIndex}.bursts`, [
-      ...currentBursts,
-      {
-        budget: "",
-        buyAmount: "",
-        startDate: startDate,
-        endDate: endDate,
-        calculatedValue: 0,
-        fee: 0,
-      },
-    ]);
-
-    handleLineItemValueChange(lineItemIndex);
-  }, [form, handleLineItemValueChange, toast]);
+    appendBurst({
+      form,
+      fieldKey: "lineItems",
+      lineItemIndex,
+      campaignStartDate,
+      campaignEndDate,
+      onAfter: handleLineItemValueChange,
+      toast: toast as Parameters<typeof appendBurst>[0]["toast"],
+    })
+  }, [form, handleLineItemValueChange, toast, campaignStartDate, campaignEndDate]);
 
   const handleDuplicateBurst = useCallback((lineItemIndex: number) => {
     const currentBursts = form.getValues(`lineItems.${lineItemIndex}.bursts`) || [];
@@ -874,6 +853,7 @@ export default function ProgAudioContainer({
       endDate,
       calculatedValue: lastBurst?.calculatedValue ?? 0,
       fee: lastBurst?.fee ?? 0,
+      _reactKey: newBurstReactKey(),
     };
 
     form.setValue(`lineItems.${lineItemIndex}.bursts`, [
@@ -885,14 +865,15 @@ export default function ProgAudioContainer({
   }, [form, handleLineItemValueChange, toast]);
 
   const handleRemoveBurst = useCallback((lineItemIndex: number, burstIndex: number) => {
-    const currentBursts = form.getValues(`lineItems.${lineItemIndex}.bursts`) || [];
-    form.setValue(
-      `lineItems.${lineItemIndex}.bursts`,
-      currentBursts.filter((_, index) => index !== burstIndex),
-    );
-
-    handleLineItemValueChange(lineItemIndex);
-  }, [form, handleLineItemValueChange]);
+    removeBurst({
+      form,
+      fieldKey: "lineItems",
+      lineItemIndex,
+      burstIndex,
+      onAfter: handleLineItemValueChange,
+      toast: toast as Parameters<typeof removeBurst>[0]["toast"],
+    })
+  }, [form, handleLineItemValueChange, toast]);
 
   const getDeliverablesLabel = useCallback((buyType: string) => {
     if (!buyType) return "Deliverables";
@@ -1534,7 +1515,7 @@ useEffect(() => {
                       <div className="space-y-4">
                         {form.watch(`lineItems.${lineItemIndex}.bursts`, []).map((burstField, burstIndex) => {
                           return (
-                            <Card key={`${lineItemIndex}-${burstIndex}`} className={MP_BURST_CARD}>
+                            <Card key={(burstField as any)._reactKey ?? `${lineItemIndex}-${burstIndex}`} className={MP_BURST_CARD}>
                               <CardContent className={MP_BURST_CARD_CONTENT}>
                                 <div className={MP_BURST_ROW_SHELL}>
                                   <div className="w-24 flex-shrink-0">
@@ -1807,7 +1788,8 @@ useEffect(() => {
                                                               endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
                                                               calculatedValue: 0,
                                                               fee: 0,
-                                                            },
+                                                              _reactKey: newBurstReactKey(),
+                                                            } as any,
                                                           ],
                                                         })
                                                       }
