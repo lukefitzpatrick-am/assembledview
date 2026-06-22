@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react"
+import { useStableHydration } from "@/hooks/useStableHydration"
 import { useForm, useFieldArray, UseFormReturn } from "react-hook-form"
 import { useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -618,10 +619,10 @@ export default function DigiVideoContainer({
   });
 
   // Data loading for edit mode
-  useEffect(() => {
-    if (digiVideoExpertModalOpenRef.current) return
-    if (initialLineItems && initialLineItems.length > 0) {
-      const transformedLineItems = initialLineItems.map((item: any) => ({
+  useStableHydration(
+    initialLineItems,
+    (items) => {
+      const transformedLineItems = items.map((item: any) => ({
         platform: item.platform || "",
         publisher: item.publisher || "",
         site: item.site || "",
@@ -659,8 +660,9 @@ export default function DigiVideoContainer({
         digivideolineItems: transformedLineItems,
         overallDeliverables: 0,
       });
-    }
-  }, [initialLineItems, form, campaignStartDate, campaignEndDate]);
+    },
+    digiVideoExpertModalOpenRef,
+  )
 
   // Transform form data to API schema format
   useEffect(() => {
