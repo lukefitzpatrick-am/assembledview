@@ -9,6 +9,61 @@ export function newBurstReactKey(): string {
     : `burst-${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
+type BurstDates = { startDate: Date; endDate: Date }
+
+type ComputeDatesArgs = {
+  currentBursts: any[]
+  campaignStartDate: Date | null | undefined
+  campaignEndDate: Date | null | undefined
+}
+
+function defaultComputeDates({
+  currentBursts,
+  campaignStartDate,
+  campaignEndDate,
+}: ComputeDatesArgs): BurstDates {
+  let startDate = defaultMediaBurstStartDate(campaignStartDate, campaignEndDate)
+  let endDate = defaultMediaBurstEndDate(campaignStartDate, campaignEndDate)
+  if (currentBursts.length > 0) {
+    const lastBurst = currentBursts[currentBursts.length - 1]
+    if (lastBurst?.endDate) {
+      startDate = new Date(lastBurst.endDate)
+      startDate.setDate(startDate.getDate() + 1)
+      endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0)
+    }
+  }
+  return { startDate, endDate }
+}
+
+export type BurstFactory = (dates: BurstDates) => Record<string, unknown>
+
+export const standardBurstDefaults: BurstFactory = ({ startDate, endDate }) => ({
+  budget: "",
+  buyAmount: "",
+  startDate,
+  endDate,
+  calculatedValue: 0,
+  fee: 0,
+})
+
+export const televisionBurstDefaults: BurstFactory = ({ startDate, endDate }) => ({
+  budget: "",
+  buyAmount: "",
+  startDate,
+  endDate,
+  size: "30s",
+  tarps: "",
+  calculatedValue: 0,
+  fee: 0,
+})
+
+export const productionBurstDefaults: BurstFactory = ({ startDate, endDate }) => ({
+  cost: 0,
+  amount: 0,
+  startDate,
+  endDate,
+})
+
 type BurstOpArgs = {
   form: UseFormReturn<any>
   fieldKey: string
@@ -17,6 +72,8 @@ type BurstOpArgs = {
   campaignEndDate: Date | null | undefined
   onAfter: (lineItemIndex: number) => void
   toast: (opts: { title: string; description: string; variant?: string }) => void
+  makeBurst?: BurstFactory
+  computeDates?: (args: ComputeDatesArgs) => BurstDates
 }
 
 /**
@@ -32,6 +89,8 @@ export function appendBurst({
   campaignEndDate,
   onAfter,
   toast,
+  makeBurst,
+  computeDates,
 }: BurstOpArgs): void {
   const path = `${fieldKey}.${lineItemIndex}.bursts`
   const currentBursts = (form.getValues(path) as any[]) || []
@@ -44,25 +103,22 @@ export function appendBurst({
     return
   }
 
-  // Default into the campaign window (Seam 2a correction)
-  let startDate = defaultMediaBurstStartDate(campaignStartDate, campaignEndDate)
-  let endDate = defaultMediaBurstEndDate(campaignStartDate, campaignEndDate)
-  if (currentBursts.length > 0) {
-    const lastBurst = currentBursts[currentBursts.length - 1]
-    if (lastBurst?.endDate) {
-      // Preserve existing advance-from-prior-end behaviour: next burst starts day after last end,
-      // ends at month-end of that start.
-      startDate = new Date(lastBurst.endDate)
-      startDate.setDate(startDate.getDate() + 1)
-      endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0)
-    }
-  }
+  const { startDate, endDate } = (computeDates ?? defaultComputeDates)({
+    currentBursts,
+    campaignStartDate,
+    campaignEndDate,
+  })
+  const base = (makeBurst ?? standardBurstDefaults)({ startDate, endDate })
 
-  form.setValue(path, [
-    ...currentBursts,
-    { _reactKey: newBurstReactKey(), budget: "", buyAmount: "", startDate, endDate, calculatedValue: 0, fee: 0 },
-  ])
+  form.setValue(path, [...currentBursts, { ...base, _reactKey: newBurstReactKey() }])
   onAfter(lineItemIndex)
+}
+
+export function stampBurstReactKeys<T extends { bursts?: any[] }>(lineItems: T[]): T[] {
+  return lineItems.map((li) => ({
+    ...li,
+    bursts: (li.bursts || []).map((b) => ({ ...b, _reactKey: newBurstReactKey() })),
+  }))
 }
 
 /**
