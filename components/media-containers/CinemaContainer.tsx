@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef, useMemo, useCallback } from "react"
+import { useStableHydration } from "@/hooks/useStableHydration"
 import { useForm, useFieldArray, UseFormReturn } from "react-hook-form"
 import { useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -541,9 +542,10 @@ export default function CinemaContainer({
   )
 
   // Data loading for edit mode
-  useEffect(() => {
-    if (initialLineItems && initialLineItems.length > 0) {
-      const transformedLineItems = initialLineItems.map((item: any, index: number) => {
+  useStableHydration(
+    initialLineItems,
+    (items) => {
+      const transformedLineItems = items.map((item: any, index: number) => {
         const lineNum =
           Number(item.line_item ?? item.lineItem ?? index + 1) || index + 1;
         const lineItemId =
@@ -590,8 +592,8 @@ export default function CinemaContainer({
         cinemalineItems: transformedLineItems,
         overallDeliverables: 0,
       });
-    }
-  }, [initialLineItems, form, campaignStartDate, campaignEndDate, cinemaBurstDeliverables, mbaNumber, createLineItemId]);
+    },
+  )
 
   // Transform form data to API schema format
   useEffect(() => {
