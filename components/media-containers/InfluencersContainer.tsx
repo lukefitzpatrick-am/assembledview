@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react"
+import { useStableHydration } from "@/hooks/useStableHydration"
 import { useForm, useFieldArray, UseFormReturn } from "react-hook-form"
 import { useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -530,10 +531,10 @@ export default function InfluencersContainer({
   });
 
   // Data loading for edit mode
-  useEffect(() => {
-    if (influencersExpertModalOpenRef.current) return
-    if (initialLineItems && initialLineItems.length > 0) {
-      const transformedLineItems = initialLineItems.map((item: any, idx: number) => ({
+  useStableHydration(
+    initialLineItems,
+    (items) => {
+      const transformedLineItems = items.map((item: any, idx: number) => ({
         platform: item.platform || "",
         objective: item.objective || "",
         campaign: item.campaign || "",
@@ -575,8 +576,9 @@ export default function InfluencersContainer({
         lineItems: transformedLineItems,
         overallDeliverables: 0,
       });
-    }
-  }, [initialLineItems, form, campaignStartDate, campaignEndDate, mbaNumber]);
+    },
+    influencersExpertModalOpenRef,
+  )
 
   // Transform form data to API schema format
   useEffect(() => {
