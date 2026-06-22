@@ -25,6 +25,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { useToast } from "@/components/ui/use-toast"
+import { useStableHydration } from "@/hooks/useStableHydration"
 import { getPublishersForSocialMedia, getClientInfo } from "@/lib/api"
 import { formatBurstLabel } from "@/lib/bursts"
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
@@ -603,12 +604,12 @@ export default function SocialMediaContainer({
   });
 
   // Data loading for edit mode
-  useEffect(() => {
-    if (socialExpertModalOpenRef.current) return
-    if (initialLineItems && initialLineItems.length > 0) {
-      console.log("[SocialMediaContainer] Loading initialLineItems:", initialLineItems);
+  useStableHydration(
+    initialLineItems,
+    (items) => {
+      console.log("[SocialMediaContainer] Loading initialLineItems:", items);
       
-      const transformedLineItems = initialLineItems.map((item: any, index: number) => {
+      const transformedLineItems = items.map((item: any, index: number) => {
         // Log each item for debugging
         console.log(`[SocialMediaContainer] Processing item ${index}:`, {
           platform: item.platform,
@@ -740,8 +741,9 @@ export default function SocialMediaContainer({
           });
         });
       }, 100);
-    }
-  }, [initialLineItems, form, campaignStartDate, campaignEndDate]);
+    },
+    socialExpertModalOpenRef,
+  )
 
   // Transform form data to API schema format
   useEffect(() => {
