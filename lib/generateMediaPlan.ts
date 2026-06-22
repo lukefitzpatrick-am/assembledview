@@ -1924,7 +1924,14 @@ export async function generateMediaPlan(
     });
 
     for (const { monthYear, startCol, endCol } of monthRanges) {
-      const grossForMonth = monthlyGrandTotals[monthYear] ?? 0;
+      // Issue 4: production has its own section + totals line; exclude it from the
+      // media total row so it is not counted twice. Mirrors column N which already
+      // uses media-only gross. monthlyByChannel['production'] is left intact for the
+      // Production section's own monthly columns.
+      const grossForMonth = Object.keys(monthlyByChannel).reduce((sum, key) => {
+        if (key === "production") return sum;
+        return sum + (monthlyByChannel[key]?.[monthYear] ?? 0);
+      }, 0);
       const totalForMonth = mbaTotalsLayout === 'standard'
         ? grossForMonth + (monthlyServiceFee[monthYear] ?? 0) + (monthlyAdServing[monthYear] ?? 0)
         : grossForMonth;
