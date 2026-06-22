@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react"
+import { useStableHydration } from "@/hooks/useStableHydration"
 import { useForm, useFieldArray, UseFormReturn } from "react-hook-form"
 import { useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -715,12 +716,12 @@ export default function DigiDisplayContainer({
   });
 
   // Data loading for edit mode
-  useEffect(() => {
-    if (digiDisplayExpertModalOpenRef.current) return
-    if (initialLineItems && initialLineItems.length > 0) {
+  useStableHydration(
+    initialLineItems,
+    (items) => {
       console.log("[DigitalDisplayContainer] Loading initialLineItems:", initialLineItems);
       
-      const sortedItems = sortLineItemsByLineItemNumber(initialLineItems)
+      const sortedItems = sortLineItemsByLineItemNumber(items)
       const transformedLineItems = sortedItems.map((item: any, index: number) => {
         const lineNumber = pickLineItemNumber(item, index + 1)
         const lineItemId = resolveDigiDisplayLineItemId(item, lineNumber, mbaNumber)
@@ -800,8 +801,9 @@ export default function DigiDisplayContainer({
         digidisplaylineItems: transformedLineItems,
         overallDeliverables: 0,
       });
-    }
-  }, [initialLineItems, form, campaignStartDate, campaignEndDate, mbaNumber]);
+    },
+    digiDisplayExpertModalOpenRef,
+  )
 
   // Transform form data to API schema format
   useEffect(() => {
