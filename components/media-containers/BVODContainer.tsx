@@ -23,7 +23,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { Label } from "@/components/ui/label";
 import { getPublishersForBvod, getClientInfo, getBVODSites, createBVODSite } from "@/lib/api"
 import { formatBurstLabel } from "@/lib/bursts"
-import { appendBurst, removeBurst } from "@/lib/mediaplan/burstOperations"
+import { appendBurst, newBurstReactKey, removeBurst } from "@/lib/mediaplan/burstOperations"
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { serializeBurstsJson } from "@/lib/mediaplan/serializeBurstsJson"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
@@ -454,13 +454,14 @@ export default function BVODContainer({
           noadserving: false,
           bursts: [
             {
+              _reactKey: newBurstReactKey(),
               budget: "",
               buyAmount: "",
               startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
               endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
               calculatedValue: 0,
               fee: 0,
-            },
+            } as any,
           ],
           totalMedia: 0,
           totalDeliverables: 0,
@@ -601,7 +602,14 @@ export default function BVODContainer({
       standard,
       prevLineItems as StandardBvodFormLineItem[]
     )
-    form.setValue("bvodlineItems", merged as any, {
+    const keyedMerged = merged.map((lineItem) => ({
+      ...lineItem,
+      bursts: (lineItem.bursts || []).map((burst) => ({
+        ...burst,
+        _reactKey: newBurstReactKey(),
+      })),
+    }))
+    form.setValue("bvodlineItems", keyedMerged as any, {
       shouldDirty: true,
       shouldValidate: false,
     })
@@ -638,6 +646,7 @@ export default function BVODContainer({
       ...source,
       bursts: (source.bursts || []).map((burst: any) => ({
         ...burst,
+        _reactKey: newBurstReactKey(),
         startDate: burst?.startDate ? new Date(burst.startDate) : new Date(),
         endDate: burst?.endDate ? new Date(burst.endDate) : new Date(),
         calculatedValue: burst?.calculatedValue ?? 0,
@@ -695,6 +704,7 @@ export default function BVODContainer({
         }
 
         const bursts = parsedBursts.length > 0 ? parsedBursts.map((burst: any) => ({
+          _reactKey: newBurstReactKey(),
           budget: burst.budget || "",
           buyAmount: burst.buyAmount || burst.rate || burst.buy_amount || "",
           startDate: burst.startDate
@@ -715,6 +725,7 @@ export default function BVODContainer({
           ),
           fee: burst.fee ?? 0,
         })) : [{
+          _reactKey: newBurstReactKey(),
           budget: "",
           buyAmount: "",
           startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
@@ -1000,6 +1011,7 @@ export default function BVODContainer({
     const endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0);
 
     const duplicatedBurst = {
+      _reactKey: newBurstReactKey(),
       budget: lastBurst?.budget ?? "",
       buyAmount: lastBurst?.buyAmount ?? "",
       startDate,
@@ -1786,7 +1798,7 @@ useEffect(() => {
                       <div className="space-y-4">
                         {form.watch(`bvodlineItems.${lineItemIndex}.bursts`, []).map((burstField, burstIndex) => {
                           return (
-                            <Card key={`${lineItemIndex}-${burstIndex}`} className={MP_BURST_CARD}>
+                            <Card key={(burstField as any)._reactKey ?? `${lineItemIndex}-${burstIndex}`} className={MP_BURST_CARD}>
                               <CardContent className={MP_BURST_CARD_CONTENT}>
                                 <div className={MP_BURST_ROW_SHELL}>
                                   <div className="w-24 flex-shrink-0">
@@ -2051,13 +2063,14 @@ useEffect(() => {
                                                           noadserving: false,
                                                           bursts: [
                                                             {
+                                                              _reactKey: newBurstReactKey(),
                                                               budget: "",
                                                               buyAmount: "",
                                                               startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
                                                               endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
                                                               calculatedValue: 0,
                                                               fee: 0,
-                                                            },
+                                                            } as any,
                                                           ],
                                                         })
                                                       }
