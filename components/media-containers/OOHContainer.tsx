@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react"
+import { useStableHydration } from "@/hooks/useStableHydration"
 import { useForm, useFieldArray, UseFormReturn } from "react-hook-form"
 import { useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -360,8 +361,10 @@ export default function OohContainer({
   const [oohExpertExitConfirmOpen, setOohExpertExitConfirmOpen] = useState(false);
   /** Brief visual cue on Expert segment so users notice the toggle on first paint. */
   const [expertSegmentAttention, setExpertSegmentAttention] = useState(true);
+  const oohExpertModalOpenRef = useRef(false);
   const oohStandardBaselineRef = useRef<string>("");
   const oohExpertRowsBaselineRef = useRef<string>("");
+  oohExpertModalOpenRef.current = oohExpertModalOpen;
 
   const oohExpertWeekColumns = useMemo(
     () => buildWeeklyGanttColumnsFromCampaign(campaignStartDate, campaignEndDate),
@@ -604,9 +607,10 @@ export default function OohContainer({
   });
 
   // Data loading for edit mode
-  useEffect(() => {
-    if (initialLineItems && initialLineItems.length > 0) {
-      const sortedItems = sortLineItemsByLineItemNumber(initialLineItems);
+  useStableHydration(
+    initialLineItems,
+    (items) => {
+      const sortedItems = sortLineItemsByLineItemNumber(items);
       const transformedLineItems = sortedItems.map((item: any, index: number) => {
         const lineNumber = pickLineItemNumber(item, index + 1);
         const lineItemId =
@@ -663,11 +667,9 @@ export default function OohContainer({
         lineItems: transformedLineItems,
         overallDeliverables: 0,
       });
-    }
-    oohStandardBaselineRef.current = serializeOohStandardLineItemsBaseline(
-      form.getValues("lineItems") as StandardOohFormLineItem[]
-    );
-  }, [initialLineItems, form, campaignStartDate, campaignEndDate, createLineItemId, feeooh]);
+    },
+    oohExpertModalOpenRef,
+  )
 
   // Transform form data to API schema format
   useEffect(() => {
