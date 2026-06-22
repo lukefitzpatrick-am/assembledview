@@ -33,6 +33,7 @@ import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { serializeBurstsJson } from "@/lib/mediaplan/serializeBurstsJson"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
+import { useStableHydration } from "@/hooks/useStableHydration"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
 import { ChevronDown, Copy, Plus, Trash2 } from "lucide-react"
@@ -672,16 +673,16 @@ export default function RadioContainer({
   });
 
   // Data loading for edit mode (do not reset form while the expert modal owns draft state).
-  useEffect(() => {
-    if (radioExpertModalOpenRef.current) return;
-    if (initialLineItems && initialLineItems.length > 0) {
+  useStableHydration(
+    initialLineItems,
+    (items) => {
       // Defensive dedupe: upstream API pagination bugs can cause repeated rows.
       // Keep first occurrence per stable identifier.
       const dedupedInitialLineItems = (() => {
         const seen = new Set<string>();
         const deduped: any[] = [];
 
-        for (const item of initialLineItems) {
+        for (const item of items) {
           const primaryKey =
             (item?.line_item_id || item?.lineItemId || item?.id) ??
             "";
@@ -708,9 +709,9 @@ export default function RadioContainer({
           deduped.push(item);
         }
 
-        if (deduped.length !== initialLineItems.length) {
+        if (deduped.length !== items.length) {
           console.warn(
-            `[RadioContainer] Deduped initialLineItems from ${initialLineItems.length} to ${deduped.length}`
+            `[RadioContainer] Deduped initialLineItems from ${items.length} to ${deduped.length}`
           );
         }
 
@@ -853,11 +854,9 @@ export default function RadioContainer({
         overallDeliverables: 0,
       });
       }
-    }
-    radioStandardBaselineRef.current = serializeRadioStandardLineItemsBaseline(
-      form.getValues("radiolineItems")
-    );
-  }, [initialLineItems, form, campaignStartDate, campaignEndDate, mbaNumber, feeradio, createLineItemId]);
+    },
+    radioExpertModalOpenRef,
+  )
 
   // Transform form data to API schema format
   useEffect(() => {
