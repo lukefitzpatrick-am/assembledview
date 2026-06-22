@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react"
+import { useStableHydration } from "@/hooks/useStableHydration"
 import { useForm, useFieldArray, UseFormReturn, type Resolver } from "react-hook-form"
 import { useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -724,10 +725,10 @@ const handleAddNewNewspaperAdSize = async () => {
   });
 
   // Data loading for edit mode
-  useEffect(() => {
-    if (newspaperExpertModalOpenRef.current) return
-    if (initialLineItems && initialLineItems.length > 0) {
-      const transformedLineItems = initialLineItems.map((item: any, index: number) => {
+  useStableHydration(
+    initialLineItems,
+    (items) => {
+      const transformedLineItems = items.map((item: any, index: number) => {
         const lineNum =
           Number(item.line_item ?? item.lineItem ?? index + 1) || index + 1;
         const lineItemId =
@@ -783,8 +784,9 @@ const handleAddNewNewspaperAdSize = async () => {
         newspaperlineItems: transformedLineItems,
         overallDeliverables: 0,
       });
-    }
-  }, [initialLineItems, form, campaignStartDate, campaignEndDate, mbaNumber, createLineItemId, feenewspapers]);
+    },
+    newspaperExpertModalOpenRef,
+  )
 
   // Transform form data to API schema format
   useEffect(() => {
