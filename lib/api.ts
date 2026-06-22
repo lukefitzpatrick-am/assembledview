@@ -1889,7 +1889,7 @@ function extractAndFormatBursts(lineItem: any, feePct?: number): any[] {
   return serializedBursts.map((serializedBurst, index) => {
     const burst = bursts[index] || {};
     const extraFields = Object.keys(burst).reduce((fields: Record<string, any>, key) => {
-      if (!['budget', 'buyAmount', 'startDate', 'endDate', 'calculatedValue', 'fee', 'mediaAmount', 'feeAmount'].includes(key)) {
+      if (!['budget', 'buyAmount', 'startDate', 'endDate', 'calculatedValue', 'fee', 'mediaAmount', 'feeAmount', '_reactKey'].includes(key)) {
         fields[key] = burst[key];
       }
       return fields;

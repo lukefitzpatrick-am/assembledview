@@ -3,6 +3,12 @@ import { defaultMediaBurstStartDate, defaultMediaBurstEndDate } from "@/lib/date
 
 const MAX_BURSTS = 12
 
+export function newBurstReactKey(): string {
+  return (typeof crypto !== "undefined" && crypto.randomUUID)
+    ? crypto.randomUUID()
+    : `burst-${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
 type BurstOpArgs = {
   form: UseFormReturn<any>
   fieldKey: string
@@ -27,6 +33,7 @@ export function appendBurst({
   onAfter,
   toast,
 }: BurstOpArgs): void {
+  console.log("[appendBurst] INVOKED", { fieldKey, lineItemIndex, currentLen: ((form.getValues(`${fieldKey}.${lineItemIndex}.bursts`) as any[]) || []).length, ts: Date.now() })
   const path = `${fieldKey}.${lineItemIndex}.bursts`
   const currentBursts = (form.getValues(path) as any[]) || []
   if (currentBursts.length >= MAX_BURSTS) {
@@ -54,8 +61,9 @@ export function appendBurst({
 
   form.setValue(path, [
     ...currentBursts,
-    { budget: "", buyAmount: "", startDate, endDate, calculatedValue: 0, fee: 0 },
+    { _reactKey: newBurstReactKey(), budget: "", buyAmount: "", startDate, endDate, calculatedValue: 0, fee: 0 },
   ])
+  console.log("[appendBurst] AFTER setValue", { fieldKey, lineItemIndex, newLen: ((form.getValues(`${fieldKey}.${lineItemIndex}.bursts`) as any[]) || []).length, ts: Date.now() })
   onAfter(lineItemIndex)
 }
 
