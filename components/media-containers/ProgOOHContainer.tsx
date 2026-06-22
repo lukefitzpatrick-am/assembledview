@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react"
+import { useStableHydration } from "@/hooks/useStableHydration"
 import { useForm, useFieldArray, UseFormReturn, type Resolver } from "react-hook-form"
 import { useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -557,10 +558,10 @@ export default function ProgOOHContainer({
   });
 
   // Data loading for edit mode
-  useEffect(() => {
-    if (progoohExpertModalOpenRef.current) return
-    if (initialLineItems && initialLineItems.length > 0) {
-      const transformedLineItems = initialLineItems.map((item: any) => ({
+  useStableHydration(
+    initialLineItems,
+    (items) => {
+      const transformedLineItems = items.map((item: any) => ({
         platform: item.platform || "",
         bidStrategy: item.bid_strategy || "",
         buyType: item.buy_type || "",
@@ -602,8 +603,9 @@ export default function ProgOOHContainer({
         lineItems: transformedLineItems,
         overallDeliverables: 0,
       });
-    }
-  }, [initialLineItems, form, campaignStartDate, campaignEndDate]);
+    },
+    progoohExpertModalOpenRef,
+  )
 
   // Transform form data to API schema format
   useEffect(() => {
