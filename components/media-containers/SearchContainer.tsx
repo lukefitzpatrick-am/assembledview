@@ -28,7 +28,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/componen
 import { useToast } from "@/components/ui/use-toast"
 import { getPublishersForSearch, getClientInfo } from "@/lib/api"
 import { formatBurstLabel } from "@/lib/bursts"
-import { appendBurst, removeBurst } from "@/lib/mediaplan/burstOperations"
+import { appendBurst, newBurstReactKey, removeBurst } from "@/lib/mediaplan/burstOperations"
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { serializeBurstsJson } from "@/lib/mediaplan/serializeBurstsJson"
 import { format } from "date-fns"
@@ -360,6 +360,7 @@ export default function SearchContainer({
           noadserving: false,
           bursts: [
             {
+              _reactKey: newBurstReactKey(),
               budget: "",
               buyAmount: "",
               startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
@@ -508,7 +509,14 @@ export default function SearchContainer({
       standard,
       prevLineItems as StandardSearchFormLineItem[]
     )
-    form.setValue("lineItems", merged as any, {
+    const keyedMerged = merged.map((lineItem) => ({
+      ...lineItem,
+      bursts: (lineItem.bursts || []).map((burst) => ({
+        ...burst,
+        _reactKey: newBurstReactKey(),
+      })),
+    }))
+    form.setValue("lineItems", keyedMerged as any, {
       shouldDirty: true,
       shouldValidate: false,
     })
@@ -544,6 +552,7 @@ export default function SearchContainer({
       ...source,
       bursts: (source.bursts || []).map((burst: any) => ({
         ...burst,
+        _reactKey: newBurstReactKey(),
         startDate: burst?.startDate ? new Date(burst.startDate) : new Date(),
         endDate: burst?.endDate ? new Date(burst.endDate) : new Date(),
         calculatedValue: burst?.calculatedValue ?? 0,
@@ -604,6 +613,7 @@ export default function SearchContainer({
         }
 
         const bursts = parsedBursts.length > 0 ? parsedBursts.map((burst: any) => ({
+          _reactKey: newBurstReactKey(),
           budget: burst.budget || "",
           buyAmount: burst.buyAmount || "",
           startDate: burst.startDate ? new Date(burst.startDate) : defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
@@ -611,6 +621,7 @@ export default function SearchContainer({
           calculatedValue: burst.calculatedValue || 0,
           fee: burst.fee || 0,
         })) : [{
+          _reactKey: newBurstReactKey(),
           budget: "",
           buyAmount: "",
           startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
@@ -887,6 +898,7 @@ export default function SearchContainer({
     const endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0);
 
     const duplicatedBurst = {
+      _reactKey: newBurstReactKey(),
       budget: lastBurst?.budget ?? "",
       buyAmount: lastBurst?.buyAmount ?? "",
       startDate,
@@ -1603,7 +1615,7 @@ useEffect(() => {
                         {form.watch(`lineItems.${lineItemIndex}.bursts`, []).map((burstField, burstIndex) => {
                           return (
                             <Card
-                              key={`${lineItemIndex}-${burstIndex}`}
+                              key={burstField._reactKey ?? `${lineItemIndex}-${burstIndex}`}
                               className={MP_BURST_CARD}
                             >
                               <CardContent className={MP_BURST_CARD_CONTENT}>
@@ -1858,6 +1870,7 @@ useEffect(() => {
                                                               noadserving: false,
                                                               bursts: [
                                                                 {
+                                                                  _reactKey: newBurstReactKey(),
                                                                   budget: "",
                                                                   buyAmount: "",
                                                                   startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
