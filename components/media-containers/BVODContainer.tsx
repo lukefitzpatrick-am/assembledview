@@ -23,7 +23,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { Label } from "@/components/ui/label";
 import { getPublishersForBvod, getClientInfo, getBVODSites, createBVODSite } from "@/lib/api"
 import { formatBurstLabel } from "@/lib/bursts"
-import { appendBurst, newBurstReactKey, removeBurst } from "@/lib/mediaplan/burstOperations"
+import { appendBurst, newBurstReactKey, removeBurst, stampBurstReactKeys } from "@/lib/mediaplan/burstOperations"
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { serializeBurstsJson } from "@/lib/mediaplan/serializeBurstsJson"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
@@ -602,13 +602,7 @@ export default function BVODContainer({
       standard,
       prevLineItems as StandardBvodFormLineItem[]
     )
-    const keyedMerged = merged.map((lineItem) => ({
-      ...lineItem,
-      bursts: (lineItem.bursts || []).map((burst) => ({
-        ...burst,
-        _reactKey: newBurstReactKey(),
-      })),
-    }))
+    const keyedMerged = stampBurstReactKeys(merged)
     form.setValue("bvodlineItems", keyedMerged as any, {
       shouldDirty: true,
       shouldValidate: false,
