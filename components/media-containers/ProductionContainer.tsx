@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { useToast } from "@/components/ui/use-toast"
 import { Check, ChevronDown, ChevronsUpDown, Copy, Plus, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { formatCurrencyFull } from "@/lib/format/currency"
@@ -28,6 +29,13 @@ import {
   defaultMediaBurstEndDate,
   hasCampaignDateWindow,
 } from "@/lib/date-picker-anchor"
+import {
+  appendBurst,
+  removeBurst,
+  newBurstReactKey,
+  stampBurstReactKeys,
+  productionBurstDefaults,
+} from "@/lib/mediaplan/burstOperations"
 import MediaContainerTimelineCollapsible from "@/components/media-containers/MediaContainerTimelineCollapsible"
 import {
   MP_BURST_ACTION_COLUMN,
@@ -190,6 +198,25 @@ const addDays = (date: Date, days: number) => {
   return toDateOnly(next) || next
 }
 
+const productionComputeDates = ({
+  currentBursts,
+  campaignStartDate,
+  campaignEndDate,
+}: {
+  currentBursts: any[]
+  campaignStartDate: Date | null | undefined
+  campaignEndDate: Date | null | undefined
+}) => {
+  const lastBurst = currentBursts[currentBursts.length - 1]
+  const lastEndDate = toDateOnly(lastBurst?.endDate)
+  const anchor =
+    toDateOnly(defaultMediaBurstStartDate(campaignStartDate, campaignEndDate)) ??
+    defaultMediaBurstStartDate(campaignStartDate, campaignEndDate)
+  const startDate = lastEndDate ? addDays(lastEndDate, 1) : anchor
+  const endDate = getPeriodEnd(startDate)
+  return { startDate, endDate }
+}
+
 const buildMediaTypeOptions = (mediaTypes: Array<string | MediaTypeOption>): MediaTypeOption[] => {
   return mediaTypes.map((item) =>
     typeof item === "string" ? { value: item, label: item } : item
@@ -308,10 +335,11 @@ export default function ProductionContainer({
   initialLineItems = [],
 }: ProductionContainerProps) {
   const { mbaNumber } = useMediaPlanContext()
+  const { toast } = useToast()
   const mediaTypeOptions = useMemo(() => buildMediaTypeOptions(mediaTypes), [mediaTypes])
   const [openMediaIndex, setOpenMediaIndex] = useState<number | null>(null)
 
-  const makeDefaultBurst = useCallback((): z.infer<typeof burstSchema> => {
+  const makeDefaultBurst = useCallback((): z.infer<typeof burstSchema> & { _reactKey: string } => {
     const startRaw = defaultMediaBurstStartDate(campaignStartDate, campaignEndDate)
     const startDate = toDateOnly(startRaw) || startRaw
     let endRaw = defaultMediaBurstEndDate(campaignStartDate, campaignEndDate)
@@ -319,7 +347,7 @@ export default function ProductionContainer({
     if (!hasCampaignDateWindow(campaignStartDate, campaignEndDate)) {
       endDate = getPeriodEnd(startDate)
     }
-    return { cost: 0, amount: 0, startDate, endDate }
+    return { cost: 0, amount: 0, startDate, endDate, _reactKey: newBurstReactKey() }
   }, [campaignStartDate, campaignEndDate])
 
   // Keep stable references to parent callbacks to avoid effect loops
@@ -461,7 +489,7 @@ export default function ProductionContainer({
         }
       })
       form.reset({
-        lineItems: normalized,
+        lineItems: stampBurstReactKeys(normalized),
       })
       lastHydratedKeyRef.current = incomingKey
     } catch (err) {
@@ -530,29 +558,23 @@ export default function ProductionContainer({
       insertLineItem(index + 1, {
         ...current,
         lineItemId: "",
-        bursts: current.bursts.map((b) => ({ ...b })),
+        bursts: current.bursts.map((b) => ({ ...b, _reactKey: newBurstReactKey() })),
       })
     }
   }
 
   const handleAddBurst = (lineItemIndex: number) => {
-    const currentBursts = form.getValues(`lineItems.${lineItemIndex}.bursts`) || []
-    const lastBurst = currentBursts[currentBursts.length - 1]
-    const lastEndDate = toDateOnly(lastBurst?.endDate)
-    const anchor =
-      toDateOnly(defaultMediaBurstStartDate(campaignStartDate, campaignEndDate)) ??
-      defaultMediaBurstStartDate(campaignStartDate, campaignEndDate)
-    const nextStart = lastEndDate ? addDays(lastEndDate, 1) : anchor
-    const nextEnd = getPeriodEnd(nextStart)
-    form.setValue(`lineItems.${lineItemIndex}.bursts`, [
-      ...currentBursts,
-      {
-        cost: 0,
-        amount: 0,
-        startDate: nextStart,
-        endDate: nextEnd,
-      },
-    ])
+    appendBurst({
+      form,
+      fieldKey: "lineItems",
+      lineItemIndex,
+      campaignStartDate,
+      campaignEndDate,
+      onAfter: () => {},
+      toast: toast as Parameters<typeof appendBurst>[0]["toast"],
+      makeBurst: productionBurstDefaults,
+      computeDates: productionComputeDates,
+    })
   }
 
   const handleDuplicateBurst = (lineItemIndex: number, burstIndex: number) => {
@@ -566,7 +588,7 @@ export default function ProductionContainer({
       defaultMediaBurstStartDate(campaignStartDate, campaignEndDate)
     const startDate = lastEndDate ? addDays(lastEndDate, 1) : anchor
     const endDate = getPeriodEnd(startDate)
-    const cloned = { ...burst, startDate, endDate }
+    const cloned = { ...burst, startDate, endDate, _reactKey: newBurstReactKey() }
     const updated = [
       ...currentBursts.slice(0, burstIndex + 1),
       cloned,
@@ -576,11 +598,14 @@ export default function ProductionContainer({
   }
 
   const handleRemoveBurst = (lineItemIndex: number, burstIndex: number) => {
-    const currentBursts = form.getValues(`lineItems.${lineItemIndex}.bursts`) || []
-    form.setValue(
-      `lineItems.${lineItemIndex}.bursts`,
-      currentBursts.filter((_, idx) => idx !== burstIndex)
-    )
+    removeBurst({
+      form,
+      fieldKey: "lineItems",
+      lineItemIndex,
+      burstIndex,
+      onAfter: () => {},
+      toast: toast as Parameters<typeof removeBurst>[0]["toast"],
+    })
   }
 
   return (
@@ -846,7 +871,7 @@ export default function ProductionContainer({
                   {lineItemBursts.map((burst, burstIndex) => {
                     const mediaValue = (burst.cost || 0) * (burst.amount || 0)
                     return (
-                      <Card key={`${lineItemIndex}-${burstIndex}`} className={MP_BURST_CARD}>
+                      <Card key={(burst as any)._reactKey ?? `${lineItemIndex}-${burstIndex}`} className={MP_BURST_CARD}>
                         <CardContent className={MP_BURST_CARD_CONTENT}>
                           <div className={MP_BURST_ROW_SHELL}>
                             <div className={MP_BURST_LABEL_COLUMN}>
