@@ -311,7 +311,7 @@ export function roundDeliverables(buyType: BuyType, value: number): number {
     case "fixed_cost":
       return 1;
     default:
-      return Math.round(value * 100) / 100;
+      return Math.round(value);
   }
 }
 
