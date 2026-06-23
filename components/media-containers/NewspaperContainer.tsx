@@ -24,6 +24,7 @@ import { Label } from "@/components/ui/label"
 import { getPublishersForNewspapers, getClientInfo, getNewspapers, createNewspaper, getNewspapersAdSizes, createNewspaperAdSize } from "@/lib/api"
 import { formatBurstLabel } from "@/lib/bursts"
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
+import { appendBurst, removeBurst, newBurstReactKey, stampBurstReactKeys } from "@/lib/mediaplan/burstOperations"
 import { serializeBurstsJson } from "@/lib/mediaplan/serializeBurstsJson"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
@@ -527,13 +528,14 @@ const handleAddNewNewspaperAdSize = async () => {
           ...(() => { const id = createLineItemId(1); return { lineItemId: id, line_item_id: id, line_item: 1, lineItem: 1 }; })(),
           bursts: [
             {
+              _reactKey: newBurstReactKey(),
               budget: "",
               buyAmount: "",
               startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
               endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
               calculatedValue: 0,
               fee: 0,
-            },
+            } as NewspapersFormValues["newspaperlineItems"][number]["bursts"][number] & { _reactKey: string },
           ],
           totalMedia: 0,
           totalDeliverables: 0,
@@ -696,7 +698,8 @@ const handleAddNewNewspaperAdSize = async () => {
       standard,
       prevLineItems as StandardNewspaperFormLineItem[]
     )
-    form.setValue("newspaperlineItems", merged as NewspapersFormValues["newspaperlineItems"], {
+    const keyedMerged = stampBurstReactKeys(merged)
+    form.setValue("newspaperlineItems", keyedMerged as NewspapersFormValues["newspaperlineItems"], {
       shouldDirty: true,
       shouldValidate: false,
     })
@@ -781,7 +784,7 @@ const handleAddNewNewspaperAdSize = async () => {
       });
 
       form.reset({
-        newspaperlineItems: transformedLineItems,
+        newspaperlineItems: stampBurstReactKeys(transformedLineItems),
         overallDeliverables: 0,
       });
     },
@@ -957,6 +960,7 @@ const handleAddNewNewspaperAdSize = async () => {
       lineItem: nextLineItemNumber,
       bursts: (source.bursts || []).map((burst: any) => ({
         ...burst,
+        _reactKey: newBurstReactKey(),
         startDate: burst?.startDate ? new Date(burst.startDate) : new Date(),
         endDate: burst?.endDate ? new Date(burst.endDate) : new Date(),
         calculatedValue: burst?.calculatedValue ?? 0,
@@ -1031,46 +1035,16 @@ const handleAddNewNewspaperAdSize = async () => {
   }, [feenewspapers, form, handleLineItemValueChange]);
 
   const handleAppendBurst = useCallback((lineItemIndex: number) => {
-    const currentBursts = form.getValues(`newspaperlineItems.${lineItemIndex}.bursts`) || [];
-    
-    // Check if we've reached the maximum number of bursts (12)
-    if (currentBursts.length >= 12) {
-      toast({
-        title: "Maximum bursts reached",
-        description: "Can't add more bursts. Each line item is limited to 12 bursts.",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    // Get the end date of the last burst
-    let startDate = new Date();
-    if (currentBursts.length > 0) {
-      const lastBurst = currentBursts[currentBursts.length - 1];
-      if (lastBurst.endDate) {
-        // Set start date to one day after the end date of the last burst
-        startDate = new Date(lastBurst.endDate);
-        startDate.setDate(startDate.getDate() + 1);
-      }
-    }
-    
-    // Set end date to the last day of the month based on the start date
-    const endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0);
-    
-    form.setValue(`newspaperlineItems.${lineItemIndex}.bursts`, [
-      ...currentBursts,
-      {
-        budget: "",
-        buyAmount: "",
-        startDate: startDate,
-        endDate: endDate,
-        calculatedValue: 0,
-        fee: 0,
-      },
-    ]);
-
-    handleLineItemValueChange(lineItemIndex);
-  }, [form, handleLineItemValueChange, toast]);
+    appendBurst({
+      form,
+      fieldKey: "newspaperlineItems",
+      lineItemIndex,
+      campaignStartDate,
+      campaignEndDate,
+      onAfter: handleLineItemValueChange,
+      toast: toast as Parameters<typeof appendBurst>[0]["toast"],
+    })
+  }, [form, handleLineItemValueChange, toast, campaignStartDate, campaignEndDate]);
 
   const handleDuplicateBurst = useCallback((lineItemIndex: number) => {
     const currentBursts = form.getValues(`newspaperlineItems.${lineItemIndex}.bursts`) || [];
@@ -1104,6 +1078,7 @@ const handleAddNewNewspaperAdSize = async () => {
     const endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0);
 
     const duplicatedBurst = {
+      _reactKey: newBurstReactKey(),
       budget: lastBurst?.budget ?? "",
       buyAmount: lastBurst?.buyAmount ?? "",
       startDate,
@@ -1121,14 +1096,15 @@ const handleAddNewNewspaperAdSize = async () => {
   }, [form, handleLineItemValueChange, toast]);
 
   const handleRemoveBurst = useCallback((lineItemIndex: number, burstIndex: number) => {
-    const currentBursts = form.getValues(`newspaperlineItems.${lineItemIndex}.bursts`) || [];
-    form.setValue(
-      `newspaperlineItems.${lineItemIndex}.bursts`,
-      currentBursts.filter((_, index) => index !== burstIndex),
-    );
-
-    handleLineItemValueChange(lineItemIndex);
-  }, [form, handleLineItemValueChange]);
+    removeBurst({
+      form,
+      fieldKey: "newspaperlineItems",
+      lineItemIndex,
+      burstIndex,
+      onAfter: handleLineItemValueChange,
+      toast: toast as Parameters<typeof removeBurst>[0]["toast"],
+    })
+  }, [form, handleLineItemValueChange, toast]);
 
   const getDeliverablesLabel = useCallback((buyType: string) => {
     if (!buyType) return "Deliverables";
@@ -1937,7 +1913,7 @@ useEffect(() => {
                         {form.watch(`newspaperlineItems.${lineItemIndex}.bursts`, []).map((burstField, burstIndex) => {
                           const buyType = form.watch(`newspaperlineItems.${lineItemIndex}.buyType`);
                           return (
-                            <Card key={`${lineItemIndex}-${burstIndex}`} className={MP_BURST_CARD}>
+                            <Card key={(burstField as any)._reactKey ?? `${lineItemIndex}-${burstIndex}`} className={MP_BURST_CARD}>
                               <CardContent className={MP_BURST_CARD_CONTENT}>
                                 <div className={MP_BURST_ROW_SHELL}>
                                   <div className={MP_BURST_LABEL_COLUMN}>
@@ -2191,13 +2167,14 @@ useEffect(() => {
                                                           })(),
                                                           bursts: [
                                                             {
+                                                              _reactKey: newBurstReactKey(),
                                                               budget: "",
                                                               buyAmount: "",
                                                               startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
                                                               endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
                                                               calculatedValue: 0,
                                                               fee: 0,
-                                                            },
+                                                            } as NewspapersFormValues["newspaperlineItems"][number]["bursts"][number] & { _reactKey: string },
                                                           ],
                                                         })
                                                       }
