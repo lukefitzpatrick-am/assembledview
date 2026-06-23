@@ -30,6 +30,7 @@ import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemId
 import {
   coerceBuyTypeWithDevWarn,
   computeDeliverableFromMedia,
+  computeLoadedDeliverables,
 } from "@/lib/mediaplan/deliverableBudget"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
@@ -297,47 +298,6 @@ export function calculateBurstInvestmentPerMonth(form, feemagazines) {
     amount: amount.toFixed(2),
   }));
 }
-
-const computeLoadedDeliverables = (
-  buyType: string,
-  burst: any,
-  budgetIncludesFees: boolean,
-  feePct: number,
-) => {
-  const buyTypeLower = (buyType || "").toLowerCase()
-
-  if (
-    buyTypeLower === "bonus" ||
-    buyTypeLower === "package_inclusions" ||
-    buyTypeLower === "package"
-  ) {
-    return parseFloat(
-      String(burst?.calculatedValue ?? burst?.deliverables ?? 0)
-        .replace(/[^0-9.]/g, "")
-    ) || 0
-  }
-
-  const rawBudget = parseFloat(String(burst?.budget ?? "0").replace(/[^0-9.]/g, "")) || 0
-  const buyAmount = parseFloat(String(burst?.buyAmount ?? "1").replace(/[^0-9.]/g, "")) || 0
-  const bt = coerceBuyTypeWithDevWarn(buyType, "MagazinesContainer.computeLoadedDeliverables")
-
-  const value = computeDeliverableFromMedia({
-    buyType: bt,
-    rawBudget,
-    buyAmount,
-    budgetIncludesFees,
-    feePct,
-  })
-
-  if (Number.isNaN(value)) {
-    return parseFloat(
-      String(burst?.calculatedValue ?? burst?.deliverables ?? 0)
-        .replace(/[^0-9.]/g, "")
-    ) || 0
-  }
-
-  return value
-};
 
 export default function MagazinesContainer({
   clientId,
@@ -796,6 +756,7 @@ const form = useForm<MagazinesFormValues>({
               burst,
               Boolean(item.budget_includes_fees || item.budgetIncludesFees),
               feemagazines ?? 0,
+              { round: false },
             ),
             fee: burst.fee ?? 0,
           })) : [{
@@ -808,6 +769,7 @@ const form = useForm<MagazinesFormValues>({
               {},
               Boolean(item.budget_includes_fees || item.budgetIncludesFees),
               feemagazines ?? 0,
+              { round: false },
             ),
             fee: 0,
           }],

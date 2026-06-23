@@ -38,6 +38,7 @@ import { formatMoney, parseMoneyInput } from "@/lib/format/money"
 import {
   coerceBuyTypeWithDevWarn,
   computeDeliverableFromMedia,
+  computeLoadedDeliverables,
   netFromGross,
   roundDeliverables,
 } from "@/lib/mediaplan/deliverableBudget"
@@ -94,47 +95,6 @@ const formatDateString = (d?: Date | string): string => {
   
   return `${year}-${month}-${day}`;
 };
-
-function computeLoadedDeliverables(
-  buyType: string,
-  burst: any,
-  budgetIncludesFees: boolean,
-  feePct: number,
-): number {
-  const buyTypeLower = (buyType || "").toLowerCase()
-
-  if (
-    buyTypeLower === "bonus" ||
-    buyTypeLower === "package_inclusions" ||
-    buyTypeLower === "package"
-  ) {
-    return parseFloat(
-      String(burst?.calculatedValue ?? burst?.deliverables ?? 0)
-        .replace(/[^0-9.]/g, "")
-    ) || 0
-  }
-
-  const rawBudget = parseFloat(String(burst?.budget ?? "0").replace(/[^0-9.]/g, "")) || 0
-  const buyAmount = parseFloat(String(burst?.buyAmount ?? "1").replace(/[^0-9.]/g, "")) || 0
-  const bt = coerceBuyTypeWithDevWarn(buyType, "DigitalAudioContainer.computeLoadedDeliverables")
-
-  const value = computeDeliverableFromMedia({
-    buyType: bt,
-    rawBudget,
-    buyAmount,
-    budgetIncludesFees,
-    feePct,
-  })
-
-  if (Number.isNaN(value)) {
-    return parseFloat(
-      String(burst?.calculatedValue ?? burst?.deliverables ?? 0)
-        .replace(/[^0-9.]/g, "")
-    ) || 0
-  }
-
-  return roundDeliverables(bt, value)
-}
 
 // Exported utility function to get bursts
 export function getAllBursts(form) {
@@ -687,7 +647,8 @@ export default function DigiAudioContainer({
             item.buy_type || item.buyType || "",
             burst,
             !!item.budget_includes_fees,
-            feedigiaudio || 0
+            feedigiaudio || 0,
+            { round: true }
           ),
           fee: burst.fee ?? 0,
         })) : [{

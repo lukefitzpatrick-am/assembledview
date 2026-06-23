@@ -89,6 +89,7 @@ import {
 import {
   coerceBuyTypeWithDevWarn,
   computeDeliverableFromMedia,
+  computeLoadedDeliverables,
   roundDeliverables,
 } from "@/lib/mediaplan/deliverableBudget"
 
@@ -297,39 +298,6 @@ export function calculateBurstInvestmentPerMonth(form, feeooh) {
     monthYear,
     amount: amount.toFixed(2),
   }));
-}
-
-function computeLoadedDeliverables(
-  buyType: string,
-  burst: any,
-  budgetIncludesFees: boolean,
-  feePct: number
-): number {
-  const buyTypeLower = String(buyType || "").toLowerCase()
-  if (
-    buyTypeLower === "bonus" ||
-    buyTypeLower === "package_inclusions" ||
-    buyTypeLower === "package"
-  ) {
-    return parseFloat(String(burst?.calculatedValue ?? 0).replace(/[^0-9.]/g, "")) || 0
-  }
-  const rawBudget = parseFloat(String(burst?.budget ?? "0").replace(/[^0-9.]/g, "")) || 0
-  const buyAmount = parseFloat(String(burst?.buyAmount ?? "1").replace(/[^0-9.]/g, "")) || 0
-  const bt = coerceBuyTypeWithDevWarn(buyType, "OOHContainer.computeLoadedDeliverables")
-
-  const value = computeDeliverableFromMedia({
-    buyType: bt,
-    rawBudget,
-    buyAmount,
-    budgetIncludesFees,
-    feePct,
-  })
-
-  if (Number.isNaN(value)) {
-    return parseFloat(String(burst?.calculatedValue ?? 0).replace(/[^0-9.]/g, "")) || 0
-  }
-
-  return roundDeliverables(bt, value)
 }
 
 export default function OohContainer({
@@ -643,7 +611,8 @@ export default function OohContainer({
               item.buy_type || item.buyType,
               burst,
               Boolean(item.budget_includes_fees || item.budgetIncludesFees),
-              feeooh ?? 0
+              feeooh ?? 0,
+              { round: true, bonusFallbackFields: ["calculatedValue", "deliverables"] }
             ),
             fee: burst.fee ?? 0,
           })) : [{
@@ -655,7 +624,8 @@ export default function OohContainer({
               item.buy_type || item.buyType,
               {},
               Boolean(item.budget_includes_fees || item.budgetIncludesFees),
-              feeooh ?? 0
+              feeooh ?? 0,
+              { round: true, bonusFallbackFields: ["calculatedValue", "deliverables"] }
             ),
             fee: 0,
           }],

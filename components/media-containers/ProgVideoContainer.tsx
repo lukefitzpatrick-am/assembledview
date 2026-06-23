@@ -79,52 +79,11 @@ import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColu
 import { getMediaTypeThemeHex, rgbaFromHex } from "@/lib/mediaplan/mediaTypeAccents"
 import {
   computeDeliverableFromMedia,
+  computeLoadedDeliverables,
   coerceBuyTypeWithDevWarn,
 } from "@/lib/mediaplan/deliverableBudget"
 
 const PROG_VIDEO_MEDIA_HEX = getMediaTypeThemeHex("progvideo")
-
-const computeLoadedDeliverables = (
-  buyType: string,
-  burst: any,
-  budgetIncludesFees: boolean,
-  feePct: number,
-) => {
-  const buyTypeLower = (buyType || "").toLowerCase()
-
-  // bonus / package_inclusions / package: preserve manually-entered value
-  if (
-    buyTypeLower === "bonus" ||
-    buyTypeLower === "package_inclusions" ||
-    buyTypeLower === "package"
-  ) {
-    return parseFloat(
-      String(burst?.calculatedValue ?? burst?.deliverables ?? 0)
-        .replace(/[^0-9.]/g, "")
-    ) || 0
-  }
-
-  const rawBudget = parseFloat(String(burst?.budget ?? "0").replace(/[^0-9.]/g, "")) || 0
-  const buyAmount = parseFloat(String(burst?.buyAmount ?? "1").replace(/[^0-9.]/g, "")) || 0
-  const bt = coerceBuyTypeWithDevWarn(buyType, "ProgVideoContainer.computeLoadedDeliverables")
-
-  const value = computeDeliverableFromMedia({
-    buyType: bt,
-    rawBudget,
-    buyAmount,
-    budgetIncludesFees,
-    feePct,
-  })
-
-  if (Number.isNaN(value)) {
-    return parseFloat(
-      String(burst?.calculatedValue ?? burst?.deliverables ?? 0)
-        .replace(/[^0-9.]/g, "")
-    ) || 0
-  }
-
-  return value
-}
 
 // Format Dates
 const formatDateString = (d?: Date | string): string => {
@@ -643,6 +602,7 @@ export default function ProgVideoContainer({
                   burst,
                   Boolean(item.budget_includes_fees || item.budgetIncludesFees),
                   feeprogvideo ?? 0,
+                  { round: false },
                 ),
                 fee: burst.fee || 0,
               }))
@@ -657,6 +617,7 @@ export default function ProgVideoContainer({
                     {},
                     Boolean(item.budget_includes_fees || item.budgetIncludesFees),
                     feeprogvideo ?? 0,
+                    { round: false },
                   ),
                   fee: 0,
                 },

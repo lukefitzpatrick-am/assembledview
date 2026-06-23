@@ -49,11 +49,7 @@ import { ChevronDown, Copy, Plus, Trash2 } from "lucide-react"
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
 import type { LineItem } from '@/lib/generateMediaPlan'
 import { formatMoney, parseMoneyInput } from "@/lib/format/money"
-import {
-  coerceBuyTypeWithDevWarn,
-  computeDeliverableFromMedia,
-  roundDeliverables,
-} from "@/lib/mediaplan/deliverableBudget"
+import { computeLoadedDeliverables } from "@/lib/mediaplan/deliverableBudget"
 import MediaContainerTimelineCollapsible from "@/components/media-containers/MediaContainerTimelineCollapsible"
 import { TelevisionBurstTarpsField } from "@/components/media-containers/burst-calculated-fields"
 import {
@@ -114,57 +110,6 @@ export function getAllBursts(form) {
 }
 
 const EMPTY_TELEVISION_LINE_ITEMS: TelevisionFormValues["televisionlineItems"] = []
-
-function computeTelevisionLoadedDeliverables(
-  buyType: string,
-  burst: any,
-  budgetIncludesFees: boolean,
-  feePct: number
-): number {
-  const buyTypeLower = (buyType || "").toLowerCase()
-
-  if (
-    buyTypeLower === "bonus" ||
-    buyTypeLower === "package_inclusions" ||
-    buyTypeLower === "package"
-  ) {
-    return parseFloat(
-      String(
-        burst?.calculatedValue ??
-          burst?.deliverables ??
-          burst?.tarps ??
-          burst?.spots ??
-          0
-      ).replace(/[^0-9.]/g, "")
-    ) || 0
-  }
-
-  const rawBudget = parseFloat(String(burst?.budget ?? "0").replace(/[^0-9.]/g, "")) || 0
-  const buyAmount = parseFloat(String(burst?.buyAmount ?? "1").replace(/[^0-9.]/g, "")) || 0
-  const bt = coerceBuyTypeWithDevWarn(buyType, "TelevisionContainer.computeTelevisionLoadedDeliverables")
-
-  const value = computeDeliverableFromMedia({
-    buyType: bt,
-    rawBudget,
-    buyAmount,
-    budgetIncludesFees,
-    feePct,
-  })
-
-  if (Number.isNaN(value)) {
-    return parseFloat(
-      String(
-        burst?.calculatedValue ??
-          burst?.deliverables ??
-          burst?.tarps ??
-          burst?.spots ??
-          0
-      ).replace(/[^0-9.]/g, "")
-    ) || 0
-  }
-
-  return roundDeliverables(bt, value)
-}
 
 interface Publisher {
   id: number;
@@ -739,11 +684,12 @@ export default function TelevisionContainer({
           endDate: burst.endDate ? new Date(burst.endDate) : (campaignEndDate || new Date()),
           size: burst.size || "",
           tarps: burst.tarps || "",
-          calculatedValue: computeTelevisionLoadedDeliverables(
+          calculatedValue: computeLoadedDeliverables(
             item.buy_type || item.buyType,
             burst,
             Boolean(item.budget_includes_fees || item.budgetIncludesFees),
-            feetelevision ?? 0
+            feetelevision ?? 0,
+            { round: true, bonusFallbackFields: ["calculatedValue", "deliverables", "tarps", "spots"] }
           ),
           fee: burst.fee ?? 0,
         })) : [{
@@ -753,11 +699,12 @@ export default function TelevisionContainer({
           endDate: campaignEndDate || new Date(),
           size: "30s",
           tarps: "",
-          calculatedValue: computeTelevisionLoadedDeliverables(
+          calculatedValue: computeLoadedDeliverables(
             item.buy_type || item.buyType,
             {},
             Boolean(item.budget_includes_fees || item.budgetIncludesFees),
-            feetelevision ?? 0
+            feetelevision ?? 0,
+            { round: true, bonusFallbackFields: ["calculatedValue", "deliverables", "tarps", "spots"] }
           ),
           fee: 0,
         }];

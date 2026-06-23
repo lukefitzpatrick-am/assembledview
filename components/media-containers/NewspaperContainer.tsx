@@ -82,6 +82,7 @@ import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemId
 import {
   coerceBuyTypeWithDevWarn,
   computeDeliverableFromMedia,
+  computeLoadedDeliverables,
 } from "@/lib/mediaplan/deliverableBudget"
 
 const MEDIA_ACCENT_HEX = getMediaTypeThemeHex("newspaper")
@@ -299,47 +300,6 @@ export function calculateBurstInvestmentPerMonth(form, feenewspapers) {
     amount: amount.toFixed(2),
   }));
 }
-
-const computeLoadedDeliverables = (
-  buyType: string,
-  burst: any,
-  budgetIncludesFees: boolean,
-  feePct: number,
-) => {
-  const buyTypeLower = (buyType || "").toLowerCase()
-
-  if (
-    buyTypeLower === "bonus" ||
-    buyTypeLower === "package_inclusions" ||
-    buyTypeLower === "package"
-  ) {
-    return parseFloat(
-      String(burst?.calculatedValue ?? burst?.deliverables ?? 0)
-        .replace(/[^0-9.]/g, "")
-    ) || 0
-  }
-
-  const rawBudget = parseFloat(String(burst?.budget ?? "0").replace(/[^0-9.]/g, "")) || 0
-  const buyAmount = parseFloat(String(burst?.buyAmount ?? "1").replace(/[^0-9.]/g, "")) || 0
-  const bt = coerceBuyTypeWithDevWarn(buyType, "NewspapersContainer.computeLoadedDeliverables")
-
-  const value = computeDeliverableFromMedia({
-    buyType: bt,
-    rawBudget,
-    buyAmount,
-    budgetIncludesFees,
-    feePct,
-  })
-
-  if (Number.isNaN(value)) {
-    return parseFloat(
-      String(burst?.calculatedValue ?? burst?.deliverables ?? 0)
-        .replace(/[^0-9.]/g, "")
-    ) || 0
-  }
-
-  return value
-};
 
 export default function NewspapersContainer({
   clientId,
@@ -765,6 +725,7 @@ const handleAddNewNewspaperAdSize = async () => {
               burst,
               Boolean(item.budget_includes_fees || item.budgetIncludesFees),
               feenewspapers ?? 0,
+              { round: false },
             ),
             fee: burst.fee ?? 0,
           })) : [{
@@ -777,6 +738,7 @@ const handleAddNewNewspaperAdSize = async () => {
               {},
               Boolean(item.budget_includes_fees || item.budgetIncludesFees),
               feenewspapers ?? 0,
+              { round: false },
             ),
             fee: 0,
           }],

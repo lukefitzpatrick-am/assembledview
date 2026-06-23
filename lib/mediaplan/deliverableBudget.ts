@@ -172,6 +172,67 @@ export function computeDeliverableFromMedia({
   return deliverablesFromBudget(buyType, netMedia, buyAmount);
 }
 
+function parseLoadedDeliverableValue(value: unknown): number {
+  return Number.parseFloat(String(value).replace(/[^0-9.]/g, "")) || 0;
+}
+
+function parseFirstPresentLoadedDeliverable(
+  burst: { [k: string]: unknown },
+  fields: string[]
+): number {
+  for (const field of fields) {
+    const value = burst[field];
+    if (value !== undefined && value !== null) {
+      return parseLoadedDeliverableValue(value);
+    }
+  }
+
+  return 0;
+}
+
+export function computeLoadedDeliverables(
+  buyType: string,
+  burst: {
+    budget?: unknown;
+    buyAmount?: unknown;
+    calculatedValue?: unknown;
+    deliverables?: unknown;
+    [k: string]: unknown;
+  },
+  budgetIncludesFees: boolean,
+  feePct: number,
+  options?: { round?: boolean; bonusFallbackFields?: string[] }
+): number {
+  const fallbackFields = options?.bonusFallbackFields ?? ["calculatedValue", "deliverables"];
+  const buyTypeLower = (buyType || "").toLowerCase();
+
+  if (
+    buyTypeLower === "bonus" ||
+    buyTypeLower === "package_inclusions" ||
+    buyTypeLower === "package"
+  ) {
+    return parseFirstPresentLoadedDeliverable(burst, fallbackFields);
+  }
+
+  const rawBudget = parseLoadedDeliverableValue(burst?.budget ?? "0");
+  const buyAmount = parseLoadedDeliverableValue(burst?.buyAmount ?? "1");
+  const bt = coerceBuyTypeWithDevWarn(buyType, "computeLoadedDeliverables");
+
+  const value = computeDeliverableFromMedia({
+    buyType: bt,
+    rawBudget,
+    buyAmount,
+    budgetIncludesFees,
+    feePct,
+  });
+
+  if (Number.isNaN(value)) {
+    return parseFirstPresentLoadedDeliverable(burst, fallbackFields);
+  }
+
+  return options?.round ? roundDeliverables(bt, value) : value;
+}
+
 export function netMediaFromDeliverables(
   buyType: BuyType,
   deliverables: number,

@@ -67,6 +67,7 @@ import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColu
 import {
   coerceBuyTypeWithDevWarn,
   computeDeliverableFromMedia,
+  computeLoadedDeliverables,
 } from "@/lib/mediaplan/deliverableBudget"
 import {
   CpcFamilyBurstCalculatedField,
@@ -123,47 +124,6 @@ const formatDateString = (d?: Date | string): string => {
 function netMediaPctOfGross(rawBudget: number, budgetIncludesFees: boolean, feePct: number): number {
   if (!budgetIncludesFees) return rawBudget;
   return (rawBudget * (100 - (feePct || 0))) / 100;
-}
-
-function computeLoadedDeliverables(
-  buyType: string,
-  burst: any,
-  budgetIncludesFees: boolean,
-  feePct: number,
-) {
-  const buyTypeLower = (buyType || "").toLowerCase()
-
-  if (
-    buyTypeLower === "bonus" ||
-    buyTypeLower === "package_inclusions" ||
-    buyTypeLower === "package"
-  ) {
-    return parseFloat(
-      String(burst?.calculatedValue ?? burst?.deliverables ?? 0)
-        .replace(/[^0-9.]/g, "")
-    ) || 0
-  }
-
-  const rawBudget = parseFloat(String(burst?.budget ?? "0").replace(/[^0-9.]/g, "")) || 0
-  const buyAmount = parseFloat(String(burst?.buyAmount ?? "1").replace(/[^0-9.]/g, "")) || 0
-  const bt = coerceBuyTypeWithDevWarn(buyType, "IntegrationContainer.computeLoadedDeliverables")
-
-  const value = computeDeliverableFromMedia({
-    buyType: bt,
-    rawBudget,
-    buyAmount,
-    budgetIncludesFees,
-    feePct,
-  })
-
-  if (Number.isNaN(value)) {
-    return parseFloat(
-      String(burst?.calculatedValue ?? burst?.deliverables ?? 0)
-        .replace(/[^0-9.]/g, "")
-    ) || 0
-  }
-
-  return value
 }
 
 // Exported utility function to get bursts
@@ -687,7 +647,8 @@ export default function IntegrationContainer({
             buyType,
             burst,
             budgetIncludesFees,
-            feeintegration ?? 0
+            feeintegration ?? 0,
+            { round: false }
           ),
           fee: burst.fee ?? 0,
         })) : [{
@@ -699,7 +660,8 @@ export default function IntegrationContainer({
             buyType,
             {},
             budgetIncludesFees,
-            feeintegration ?? 0
+            feeintegration ?? 0,
+            { round: false }
           ),
           fee: 0,
         }];
