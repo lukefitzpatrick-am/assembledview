@@ -29,6 +29,7 @@ import { useStableHydration } from "@/hooks/useStableHydration"
 import { getPublishersForSocialMedia, getClientInfo } from "@/lib/api"
 import { formatBurstLabel } from "@/lib/bursts"
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
+import { appendBurst, removeBurst, newBurstReactKey, stampBurstReactKeys } from "@/lib/mediaplan/burstOperations"
 import { serializeBurstsJson } from "@/lib/mediaplan/serializeBurstsJson"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
@@ -347,6 +348,7 @@ export default function SocialMediaContainer({
           noadserving: false,
           bursts: [
             {
+              _reactKey: newBurstReactKey(),
               budget: "",
               buyAmount: "",
               startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
@@ -489,7 +491,8 @@ export default function SocialMediaContainer({
       standard,
       prevLineItems as StandardSocialMediaFormLineItem[]
     )
-    form.setValue("lineItems", merged as any, {
+    const keyedMerged = stampBurstReactKeys(merged);
+    form.setValue("lineItems", keyedMerged as any, {
       shouldDirty: true,
       shouldValidate: false,
     })
@@ -525,6 +528,7 @@ export default function SocialMediaContainer({
       ...source,
       bursts: (source.bursts || []).map((burst: any) => ({
         ...burst,
+        _reactKey: newBurstReactKey(),
         startDate: burst?.startDate ? new Date(burst.startDate) : new Date(),
         endDate: burst?.endDate ? new Date(burst.endDate) : new Date(),
         calculatedValue: burst?.calculatedValue ?? 0,
@@ -703,7 +707,7 @@ export default function SocialMediaContainer({
       console.log("[SocialMediaContainer] Transformed line items:", transformedLineItems);
 
       form.reset({
-        lineItems: transformedLineItems,
+        lineItems: stampBurstReactKeys(transformedLineItems),
         overallDeliverables: 0,
       });
 
@@ -889,46 +893,16 @@ export default function SocialMediaContainer({
   }, [feesocial, form, handleLineItemValueChange]);
 
   const handleAppendBurst = useCallback((lineItemIndex: number) => {
-    const currentBursts = form.getValues(`lineItems.${lineItemIndex}.bursts`) || [];
-  
-  // Check if we've reached the maximum number of bursts (12)
-  if (currentBursts.length >= 12) {
-    toast({
-      title: "Maximum bursts reached",
-      description: "Can't add more bursts. Each line item is limited to 12 bursts.",
-      variant: "destructive",
-    });
-    return;
-  }
-  
-  // Get the end date of the last burst
-  let startDate = new Date();
-  if (currentBursts.length > 0) {
-    const lastBurst = currentBursts[currentBursts.length - 1];
-    if (lastBurst.endDate) {
-      // Set start date to one day after the end date of the last burst
-      startDate = new Date(lastBurst.endDate);
-      startDate.setDate(startDate.getDate() + 1);
-    }
-  }
-  
-  // Set end date to the last day of the month based on the start date
-  const endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0);
-  
-  form.setValue(`lineItems.${lineItemIndex}.bursts`, [
-    ...currentBursts,
-    {
-      budget: "",
-      buyAmount: "",
-      startDate: startDate,
-      endDate: endDate,
-      calculatedValue: 0,
-      fee: 0,
-    },
-  ]);
-
-  handleLineItemValueChange(lineItemIndex);
-  }, [form, handleLineItemValueChange, toast]);
+    appendBurst({
+      form,
+      fieldKey: "lineItems",
+      lineItemIndex,
+      campaignStartDate,
+      campaignEndDate,
+      onAfter: handleLineItemValueChange,
+      toast: toast as Parameters<typeof appendBurst>[0]["toast"],
+    })
+  }, [form, handleLineItemValueChange, toast, campaignStartDate, campaignEndDate]);
 
   const handleDuplicateBurst = useCallback((lineItemIndex: number) => {
     const currentBursts = form.getValues(`lineItems.${lineItemIndex}.bursts`) || [];
@@ -962,6 +936,7 @@ export default function SocialMediaContainer({
     const endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0);
 
     const duplicatedBurst = {
+      _reactKey: newBurstReactKey(),
       budget: lastBurst?.budget ?? "",
       buyAmount: lastBurst?.buyAmount ?? "",
       startDate,
@@ -979,14 +954,15 @@ export default function SocialMediaContainer({
   }, [form, handleLineItemValueChange, toast]);
   
   const handleRemoveBurst = useCallback((lineItemIndex: number, burstIndex: number) => {
-    const currentBursts = form.getValues(`lineItems.${lineItemIndex}.bursts`) || [];
-    form.setValue(
-      `lineItems.${lineItemIndex}.bursts`,
-      currentBursts.filter((_, index) => index !== burstIndex),
-    );
-  
-	  handleLineItemValueChange(lineItemIndex);
-  }, [form, handleLineItemValueChange]);
+    removeBurst({
+      form,
+      fieldKey: "lineItems",
+      lineItemIndex,
+      burstIndex,
+      onAfter: handleLineItemValueChange,
+      toast: toast as Parameters<typeof removeBurst>[0]["toast"],
+    })
+  }, [form, handleLineItemValueChange, toast]);
   
   const getDeliverablesLabel = useCallback((buyType: string) => {
     if (!buyType) return "Deliverables";
@@ -1703,7 +1679,7 @@ const getBursts = () => {
                         {form.watch(`lineItems.${lineItemIndex}.bursts`, []).map((burstField, burstIndex) => {
                           const buyType = form.watch(`lineItems.${lineItemIndex}.buyType`);
                           return (
-                            <Card key={`${lineItemIndex}-${burstIndex}`} className={MP_BURST_CARD}>
+                            <Card key={(burstField as any)._reactKey ?? `${lineItemIndex}-${burstIndex}`} className={MP_BURST_CARD}>
                               <CardContent className={MP_BURST_CARD_CONTENT}>
                                 <div className={MP_BURST_ROW_SHELL}>
                                   <div className={MP_BURST_LABEL_COLUMN}>
@@ -1948,6 +1924,7 @@ const getBursts = () => {
                                                           noadserving: false,
                                                           bursts: [
                                                             {
+                                                              _reactKey: newBurstReactKey(),
                                                               budget: "",
                                                               buyAmount: "",
                                                               startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
