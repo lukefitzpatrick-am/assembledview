@@ -8,6 +8,7 @@ import {
   useMemo,
   useCallback,
 } from "react"
+import { useStableHydration } from "@/hooks/useStableHydration"
 import { useForm, useFieldArray, UseFormReturn } from "react-hook-form"
 import { useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -658,11 +659,11 @@ export default function TelevisionContainer({
   ])
 
   // Data loading for edit mode
-  useEffect(() => {
-    if (tvExpertModalOpenRef.current) return
-    if (initialLineItems && initialLineItems.length > 0) {
+  useStableHydration(
+    initialLineItems,
+    (items) => {
       // Create a unique key from the line items to detect if they've changed
-      const lineItemsKey = JSON.stringify(initialLineItems.map((item: any) => ({
+      const lineItemsKey = JSON.stringify(items.map((item: any) => ({
         id: item.id,
         market: item.market,
         network: item.network,
@@ -683,7 +684,7 @@ export default function TelevisionContainer({
       hasProcessedInitialLineItemsRef.current = true;
       lastProcessedLineItemsRef.current = lineItemsKey;
       
-      const transformedLineItems = initialLineItems.map((item: any, index: number) => {
+      const transformedLineItems = items.map((item: any, index: number) => {
         // Log each item for debugging
         console.log(`[TelevisionContainer] Processing item ${index}:`, {
           market: item.market,
@@ -788,8 +789,9 @@ export default function TelevisionContainer({
         televisionlineItems: transformedLineItems,
         overallDeliverables: 0,
       });
-    }
-  }, [initialLineItems, form, campaignStartDate, campaignEndDate, createLineItemId, feetelevision])
+    },
+    tvExpertModalOpenRef,
+  )
 
   // Callback handlers
   const handleLineItemValueChange = useCallback((lineItemIndex: number) => {

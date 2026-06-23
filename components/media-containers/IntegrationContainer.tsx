@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react"
+import { useStableHydration } from "@/hooks/useStableHydration"
 import { useForm, useFieldArray, UseFormReturn } from "react-hook-form"
 import { useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -574,14 +575,14 @@ export default function IntegrationContainer({
   });
 
   // Data loading for edit mode
-  useEffect(() => {
-    if (integrationExpertModalOpenRef.current) return;
-    if (initialLineItems && initialLineItems.length > 0) {
+  useStableHydration(
+    initialLineItems,
+    (items) => {
       const dedupedInitialLineItems = (() => {
         const seen = new Set<string>();
         const deduped: any[] = [];
 
-        for (const item of initialLineItems) {
+        for (const item of items) {
           const primaryKey =
             (item?.line_item_id || item?.lineItemId || item?.id) ??
             "";
@@ -607,9 +608,9 @@ export default function IntegrationContainer({
           deduped.push(item);
         }
 
-        if (deduped.length !== initialLineItems.length) {
+        if (deduped.length !== items.length) {
           console.warn(
-            `[IntegrationContainer] Deduped initialLineItems from ${initialLineItems.length} to ${deduped.length}`
+            `[IntegrationContainer] Deduped initialLineItems from ${items.length} to ${deduped.length}`
           );
         }
 
@@ -724,8 +725,9 @@ export default function IntegrationContainer({
         overallDeliverables: 0,
       });
       }
-    }
-  }, [initialLineItems, form, campaignStartDate, campaignEndDate, feeintegration]);
+    },
+    integrationExpertModalOpenRef,
+  )
 
   // Transform form data to API schema format
   useEffect(() => {

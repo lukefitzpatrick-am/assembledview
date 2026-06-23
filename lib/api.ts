@@ -1889,7 +1889,7 @@ function extractAndFormatBursts(lineItem: any, feePct?: number): any[] {
   return serializedBursts.map((serializedBurst, index) => {
     const burst = bursts[index] || {};
     const extraFields = Object.keys(burst).reduce((fields: Record<string, any>, key) => {
-      if (!['budget', 'buyAmount', 'startDate', 'endDate', 'calculatedValue', 'fee', 'mediaAmount', 'feeAmount'].includes(key)) {
+      if (!['budget', 'buyAmount', 'startDate', 'endDate', 'calculatedValue', 'fee', 'mediaAmount', 'feeAmount', '_reactKey'].includes(key)) {
         fields[key] = burst[key];
       }
       return fields;
@@ -1952,7 +1952,7 @@ const LINE_ITEM_BROWSER_API_PATH: Record<string, string> = {
   cinema: "cinema",
   digitalDisplay: "media_plan_digi_display",
   digitalAudio: "digital_audio_line_items",
-  digitalVideo: "digital_video_line_items",
+  digitalVideo: "media_plan_digi_video",
   bvod: "digi-bvod",
   integration: "integration",
   search: "search",
