@@ -689,7 +689,7 @@ export default function TelevisionContainer({
             burst,
             Boolean(item.budget_includes_fees || item.budgetIncludesFees),
             feetelevision ?? 0,
-            { round: true, bonusFallbackFields: ["calculatedValue", "deliverables", "tarps", "spots"] }
+            { bonusFallbackFields: ["calculatedValue", "deliverables", "tarps", "spots"] }
           ),
           fee: burst.fee ?? 0,
         })) : [{
@@ -704,7 +704,7 @@ export default function TelevisionContainer({
             {},
             Boolean(item.budget_includes_fees || item.budgetIncludesFees),
             feetelevision ?? 0,
-            { round: true, bonusFallbackFields: ["calculatedValue", "deliverables", "tarps", "spots"] }
+            { bonusFallbackFields: ["calculatedValue", "deliverables", "tarps", "spots"] }
           ),
           fee: 0,
         }];

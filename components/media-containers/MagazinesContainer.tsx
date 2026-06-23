@@ -756,7 +756,6 @@ const form = useForm<MagazinesFormValues>({
               burst,
               Boolean(item.budget_includes_fees || item.budgetIncludesFees),
               feemagazines ?? 0,
-              { round: false },
             ),
             fee: burst.fee ?? 0,
           })) : [{
@@ -769,7 +768,6 @@ const form = useForm<MagazinesFormValues>({
               {},
               Boolean(item.budget_includes_fees || item.budgetIncludesFees),
               feemagazines ?? 0,
-              { round: false },
             ),
             fee: 0,
           }],

@@ -675,8 +675,7 @@ export default function BVODContainer({
             item.buy_type || item.buyType || "",
             burst,
             !!item.budget_includes_fees,
-            feebvod || 0,
-            { round: true }
+            feebvod || 0
           ),
           fee: burst.fee ?? 0,
         })) : [{

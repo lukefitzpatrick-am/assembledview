@@ -602,7 +602,6 @@ export default function ProgVideoContainer({
                   burst,
                   Boolean(item.budget_includes_fees || item.budgetIncludesFees),
                   feeprogvideo ?? 0,
-                  { round: false },
                 ),
                 fee: burst.fee || 0,
               }))
@@ -617,7 +616,6 @@ export default function ProgVideoContainer({
                     {},
                     Boolean(item.budget_includes_fees || item.budgetIncludesFees),
                     feeprogvideo ?? 0,
-                    { round: false },
                   ),
                   fee: 0,
                 },

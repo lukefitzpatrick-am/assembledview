@@ -725,7 +725,6 @@ const handleAddNewNewspaperAdSize = async () => {
               burst,
               Boolean(item.budget_includes_fees || item.budgetIncludesFees),
               feenewspapers ?? 0,
-              { round: false },
             ),
             fee: burst.fee ?? 0,
           })) : [{
@@ -738,7 +737,6 @@ const handleAddNewNewspaperAdSize = async () => {
               {},
               Boolean(item.budget_includes_fees || item.budgetIncludesFees),
               feenewspapers ?? 0,
-              { round: false },
             ),
             fee: 0,
           }],

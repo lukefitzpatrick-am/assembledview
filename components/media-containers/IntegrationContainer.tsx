@@ -647,8 +647,7 @@ export default function IntegrationContainer({
             buyType,
             burst,
             budgetIncludesFees,
-            feeintegration ?? 0,
-            { round: false }
+            feeintegration ?? 0
           ),
           fee: burst.fee ?? 0,
         })) : [{
@@ -660,8 +659,7 @@ export default function IntegrationContainer({
             buyType,
             {},
             budgetIncludesFees,
-            feeintegration ?? 0,
-            { round: false }
+            feeintegration ?? 0
           ),
           fee: 0,
         }];

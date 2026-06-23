@@ -201,7 +201,7 @@ export function computeLoadedDeliverables(
   },
   budgetIncludesFees: boolean,
   feePct: number,
-  options?: { round?: boolean; bonusFallbackFields?: string[] }
+  options?: { bonusFallbackFields?: string[] }
 ): number {
   const fallbackFields = options?.bonusFallbackFields ?? ["calculatedValue", "deliverables"];
   const buyTypeLower = (buyType || "").toLowerCase();
@@ -230,7 +230,7 @@ export function computeLoadedDeliverables(
     return parseFirstPresentLoadedDeliverable(burst, fallbackFields);
   }
 
-  return options?.round ? roundDeliverables(bt, value) : value;
+  return roundDeliverables(bt, value);
 }
 
 export function netMediaFromDeliverables(

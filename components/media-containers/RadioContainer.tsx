@@ -763,8 +763,7 @@ export default function RadioContainer({
             item.buy_type || item.buyType,
             burst,
             Boolean(item.budget_includes_fees || item.budgetIncludesFees),
-            feeradio ?? 0,
-            { round: false }
+            feeradio ?? 0
           ),
           fee: burst.fee ?? 0,
         })) : [{
@@ -776,8 +775,7 @@ export default function RadioContainer({
             item.buy_type || item.buyType,
             {},
             Boolean(item.budget_includes_fees || item.budgetIncludesFees),
-            feeradio ?? 0,
-            { round: false }
+            feeradio ?? 0
           ),
           fee: 0,
         }];

@@ -647,8 +647,7 @@ export default function DigiAudioContainer({
             item.buy_type || item.buyType || "",
             burst,
             !!item.budget_includes_fees,
-            feedigiaudio || 0,
-            { round: true }
+            feedigiaudio || 0
           ),
           fee: burst.fee ?? 0,
         })) : [{

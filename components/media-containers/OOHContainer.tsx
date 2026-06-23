@@ -612,7 +612,7 @@ export default function OohContainer({
               burst,
               Boolean(item.budget_includes_fees || item.budgetIncludesFees),
               feeooh ?? 0,
-              { round: true, bonusFallbackFields: ["calculatedValue", "deliverables"] }
+              { bonusFallbackFields: ["calculatedValue", "deliverables"] }
             ),
             fee: burst.fee ?? 0,
           })) : [{
@@ -625,7 +625,7 @@ export default function OohContainer({
               {},
               Boolean(item.budget_includes_fees || item.budgetIncludesFees),
               feeooh ?? 0,
-              { round: true, bonusFallbackFields: ["calculatedValue", "deliverables"] }
+              { bonusFallbackFields: ["calculatedValue", "deliverables"] }
             ),
             fee: 0,
           }],
