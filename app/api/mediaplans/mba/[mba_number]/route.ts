@@ -11,6 +11,7 @@ import { diffBillingSchedules } from "@/lib/finance/scheduleDiff"
 import { writeScheduleDiffEdits } from "@/lib/finance/writeFinanceAuditEdits"
 import { extractBillingMonthStart } from "@/lib/spend/billingScheduleExpectedToDate"
 import { expectedSpendToDateFromDeliveryScheduleMonthly } from "@/lib/spend/monthlyPlanCalendar"
+import { getDraftReturnRejection } from "@/lib/mediaplan/campaignStatusGuard"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -1307,6 +1308,17 @@ export async function PUT(
       )
     }
 
+    const draftReturnRejection = getDraftReturnRejection(
+      masterData.campaign_status,
+      data.mp_campaignstatus ?? data.campaign_status
+    )
+    if (draftReturnRejection) {
+      return NextResponse.json(
+        { error: draftReturnRejection.error },
+        { status: draftReturnRejection.status }
+      )
+    }
+
     // Calculate next version number based on max existing version for this MBA
     const versionsResponse = await axios
       .get(`${mediaPlansBaseUrl}/media_plan_versions?mba_number=${encodeURIComponent(mba_number)}`, {
@@ -1522,6 +1534,17 @@ export async function PATCH(
       return NextResponse.json(
         { error: `Media plan master not found for MBA number: ${mba_number}` },
         { status: 404 }
+      )
+    }
+
+    const draftReturnRejection = getDraftReturnRejection(
+      masterData.campaign_status,
+      data.campaign_status ?? data.mp_campaignstatus
+    )
+    if (draftReturnRejection) {
+      return NextResponse.json(
+        { error: draftReturnRejection.error },
+        { status: draftReturnRejection.status }
       )
     }
     

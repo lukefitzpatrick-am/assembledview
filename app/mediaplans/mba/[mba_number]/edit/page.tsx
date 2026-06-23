@@ -180,6 +180,16 @@ import { saveAs } from 'file-saver'
 import { filterLineItemsByPlanNumber } from '@/lib/api/mediaPlanVersionHelper'
 import { toDateOnlyString, parseDateOnlyString } from "@/lib/timezone"
 import { checkLineItemDatesOutsideCampaign } from "@/lib/utils/mediaPlanValidation"
+import { normaliseStatus } from "@/lib/mediaplan/campaignStatusGuard"
+
+const CAMPAIGN_STATUS_OPTIONS = [
+  { value: "approved", label: "Approved" },
+  { value: "booked", label: "Booked" },
+  { value: "cancelled", label: "Cancelled" },
+  { value: "completed", label: "Completed" },
+  { value: "draft", label: "Draft" },
+  { value: "planned", label: "Planned" },
+] as const
 
 /** Stable id for billing rows so merge/save validation align with persisted `lineItemId` / `line_item_id`. */
 function billingStableLineItemId(mediaType: string, lineItem: any, index: number): string {
@@ -1835,6 +1845,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   )
   const [error, setError] = useState<string | null>(null)
   const [mediaPlan, setMediaPlan] = useState<any>(null)
+  const canReturnToDraft = normaliseStatus(mediaPlan?.campaign_status ?? mediaPlan?.mp_campaignstatus) === "draft"
+  const campaignStatusOptions = useMemo(
+    () => CAMPAIGN_STATUS_OPTIONS.filter((option) => canReturnToDraft || option.value !== "draft"),
+    [canReturnToDraft]
+  )
   const [loadPhase, setLoadPhase] = useState<LoadPhase>("bootstrapping")
   const [lineItemLoadItems, setLineItemLoadItems] = useState<SaveStatusItem[]>([])
   const [mediaLoadStatus, setMediaLoadStatus] = useState<Partial<Record<MediaTypeKey, MediaLoadStatus>>>({})
@@ -2982,7 +2997,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         // The API returns combined data from masterData and versionData
         // Normalize campaign status to lowercase to match dropdown values
         const rawCampaignStatus = data.campaign_status || data.mp_campaignstatus || ""
-        const normalizedCampaignStatus = rawCampaignStatus.toLowerCase() || "draft"
+        const normalizedCampaignStatus = normaliseStatus(rawCampaignStatus) || "draft"
         
         const formData = {
           mp_clientname: data.mp_client_name || data.client_name || data.mp_clientname || "",
@@ -7898,14 +7913,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         semanticType: "status",
         group: "campaign",
         source: "ui",
-        options: [
-          { label: "Draft", value: "draft" },
-          { label: "Planned", value: "planned" },
-          { label: "Approved", value: "approved" },
-          { label: "Booked", value: "booked" },
-          { label: "Completed", value: "completed" },
-          { label: "Cancelled", value: "cancelled" },
-        ],
+        options: campaignStatusOptions.map(({ label, value }) => ({ label, value })),
         validation: { required: true },
       },
       {
@@ -8385,14 +8393,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                         onValueChange={field.onChange}
                         placeholder="Select campaign status"
                         searchPlaceholder="Search statuses..."
-                        options={[
-                          { value: "approved", label: "Approved" },
-                          { value: "booked", label: "Booked" },
-                          { value: "cancelled", label: "Cancelled" },
-                          { value: "completed", label: "Completed" },
-                          { value: "draft", label: "Draft" },
-                          { value: "planned", label: "Planned" },
-                        ]}
+                        options={campaignStatusOptions}
                       />
                     </FormControl>
                     <FormMessage />
