@@ -181,6 +181,7 @@ import { filterLineItemsByPlanNumber } from '@/lib/api/mediaPlanVersionHelper'
 import { toDateOnlyString, parseDateOnlyString } from "@/lib/timezone"
 import { checkLineItemDatesOutsideCampaign } from "@/lib/utils/mediaPlanValidation"
 import { normaliseStatus } from "@/lib/mediaplan/campaignStatusGuard"
+import { clearVersionChildren, clearVersionKpis } from "@/lib/mediaplan/clearVersionChildren"
 
 const CAMPAIGN_STATUS_OPTIONS = [
   { value: "approved", label: "Approved" },
@@ -5177,8 +5178,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         setHasPersistedBillingSchedule(true)
       }
 
-      // Get the version number from the response (PUT endpoint increments it)
-      const savedVersionNumber = versionData.nextVersionNumber 
+      // Get the version number from the response (PUT endpoint increments it unless draft v1 is overwritten)
+      const mode = versionData.mode
+      const versionId = versionData.versionId ?? versionData.version?.id ?? versionData.id
+      const savedVersionNumber = versionData.versionNumber
+        ?? versionData.nextVersionNumber
         ?? versionData.version?.version_number 
         ?? versionData.master?.version_number 
         ?? targetSaveVersion
@@ -5188,9 +5192,16 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       setNextSaveVersionNumber(updatedLatest + 1)
       setSelectedVersionNumber(typeof savedVersionNumber === 'string' ? parseInt(savedVersionNumber, 10) : savedVersionNumber)
       const numericSavedVersion = typeof savedVersionNumber === 'string' ? parseInt(savedVersionNumber, 10) : savedVersionNumber
+      const isOverwriteMode = mode === "overwrite"
+      if (isOverwriteMode && !versionId) {
+        throw new Error("Missing version 1 ID for draft overwrite")
+      }
 
       // --- KPI: save campaign KPIs against the new version (non-blocking) (Stage 2) ---
-      if (kpiRows.length > 0 && typeof numericSavedVersion === "number" && Number.isFinite(numericSavedVersion)) {
+      const startCampaignKpiSync = () => {
+        if (kpiRows.length === 0 || typeof numericSavedVersion !== "number" || !Number.isFinite(numericSavedVersion)) {
+          return Promise.resolve()
+        }
         updateSaveStatus("Campaign KPIs", "pending")
         const lineItemsByMediaType = buildKpiLineItemsByMediaType({
           search: { media: searchMediaLineItems, export: searchItems },
@@ -5224,7 +5235,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           },
           lineItemsByMediaType,
         )
-        saveCampaignKpisFromRows(kpiRows, kpiPayload).then((result) => {
+        return saveCampaignKpisFromRows(kpiRows, kpiPayload).then((result) => {
           if (result.status === "skipped") {
             updateSaveStatus("Campaign KPIs", "success")
           } else if (result.status === "success") {
@@ -5234,11 +5245,14 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           }
         })
       }
+      if (!isOverwriteMode) {
+        startCampaignKpiSync()
+      }
 
       setAvailableVersions(prev => {
         const existing = prev.some(v => v.version_number === numericSavedVersion)
         const newEntry = {
-          id: versionData.version?.id,
+          id: versionId,
           version_number: numericSavedVersion,
           created_at: versionData.version?.created_at ?? Date.now()
         }
@@ -5251,14 +5265,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       // 4. Save all line items with new version number
       const savePromises: Promise<any>[] = []
       const clientName = formValues.mp_clientname || selectedClient?.clientname_input || ""
-      
-      // Need to get the version ID from the created version
-      const versionId = versionData.version?.id || versionData.id
 
       // 4a. Generate + upload documents to Xano (no downloads)
       updateSaveStatus("MBA PDF Upload", "pending")
       updateSaveStatus("Media Plan Upload", "pending")
-      const documentUploadPromise = (async () => {
+      const uploadVersionDocuments = async (): Promise<void> => {
         if (!versionId) {
           throw new Error("Missing media plan version ID for document upload")
         }
@@ -5355,12 +5366,28 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             updateSaveStatus("AA Media Plan Upload", "error", message)
           }
         }
-      })().catch((err: any) => {
-        const message = err?.message || String(err)
-        console.error("Document upload failed:", err)
-        updateSaveStatus("MBA PDF Upload", "error", message)
-        updateSaveStatus("Media Plan Upload", "error", message)
-      })
+      }
+      let documentUploadPromise: Promise<void> | null = null
+      if (!isOverwriteMode) {
+        documentUploadPromise = uploadVersionDocuments().catch((err: any) => {
+          const message = err?.message || String(err)
+          console.error("Document upload failed:", err)
+          updateSaveStatus("MBA PDF Upload", "error", message)
+          updateSaveStatus("Media Plan Upload", "error", message)
+        })
+      }
+
+      if (isOverwriteMode) {
+        updateSaveStatus("Version 1 Children Clear", "pending")
+        const childClearResult = await clearVersionChildren(mbaNumber, versionId)
+        console.log("[draft-overwrite] version 1 child clear result", childClearResult)
+        updateSaveStatus("Version 1 Children Clear", "success")
+
+        updateSaveStatus("Campaign KPI Clear", "pending")
+        const kpiClearResult = await clearVersionKpis(mbaNumber, versionId)
+        console.log("[draft-overwrite] version 1 KPI clear result", kpiClearResult)
+        updateSaveStatus("Campaign KPI Clear", "success")
+      }
       
       // Initialize save status for enabled media types
       if (formValues.mp_search && searchMediaLineItems.length > 0) {
@@ -5593,6 +5620,16 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         if (errors.length > 0) {
           console.warn('Some media types failed to save:', errors)
         }
+      }
+
+      if (isOverwriteMode) {
+        startCampaignKpiSync()
+        documentUploadPromise = uploadVersionDocuments().catch((err: any) => {
+          const message = err?.message || String(err)
+          console.error("Document upload failed:", err)
+          updateSaveStatus("MBA PDF Upload", "error", message)
+          updateSaveStatus("Media Plan Upload", "error", message)
+        })
       }
 
       // Wait for document generation+upload (do not throw; errors already handled above)

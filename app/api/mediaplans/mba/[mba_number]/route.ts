@@ -1346,6 +1346,11 @@ export async function PUT(
         : null
     
     const nextVersionNumber = (latestVersionNumber || 0) + 1
+    const v1Row = allVersionsForMBA.find((v: any) => parseVersion(v.version_number) === 1) ?? null
+    const overwriteMode =
+      v1Row != null &&
+      latestVersionNumber === 1 &&
+      normalise(v1Row.campaign_status) === "draft"
     
     const campaignStartDate = data.mp_campaigndates_start ?? masterData.campaign_start_date
     const campaignEndDate = data.mp_campaigndates_end ?? masterData.campaign_end_date
@@ -1356,12 +1361,13 @@ export async function PUT(
     const mpProductionFlag = isTruthyFlag(data.mp_production)
     const resolvedClientName =
       data.mp_client_name || data.mp_clientname || data.client_name || masterData.mp_client_name
+    const resolvedCampaignStatus = normalise(data.mp_campaignstatus || masterData.campaign_status)
     const newVersionData = {
       media_plan_master_id: masterData.id,
       version_number: nextVersionNumber,
       mba_number: mba_number,
       campaign_name: data.mp_campaignname || masterData.mp_campaignname,
-      campaign_status: data.mp_campaignstatus || masterData.campaign_status,
+      campaign_status: resolvedCampaignStatus,
       campaign_start_date: normalizedCampaignStartDate,
       campaign_end_date: normalizedCampaignEndDate,
       brand: data.mp_brand || "",
@@ -1395,27 +1401,63 @@ export async function PUT(
       deliverySchedule: data.deliverySchedule ?? data.delivery_schedule ?? null,
       delivery_schedule: data.deliverySchedule ?? data.delivery_schedule ?? null,
     }
-    
-    // Create new version in media_plan_versions table
-    const versionResponse = await axios.post(`${mediaPlansBaseUrl}/media_plan_versions`, newVersionData, {
-      timeout: XANO_LONG_TIMEOUT_MS,
-    })
 
     // Update MediaPlanMaster with new version number and campaign name
     const masterUpdateData = {
       version_number: nextVersionNumber,
       mp_campaignname: data.mp_campaignname || masterData.mp_campaignname,
-      campaign_status: data.mp_campaignstatus || masterData.campaign_status,
+      campaign_status: resolvedCampaignStatus,
       campaign_start_date: normalizedCampaignStartDate,
       campaign_end_date: normalizedCampaignEndDate,
       mp_campaignbudget: data.mp_campaignbudget || masterData.mp_campaignbudget
     }
-    
-    const masterUpdateResponse = await axios.patch(
-      `${mediaPlansBaseUrl}/media_plan_master/${masterData.id}`,
-      masterUpdateData,
-      { timeout: XANO_TIMEOUT_MS }
-    )
+
+    let versionResponse: any
+    let masterUpdateResponse: any
+    let savedVersionNumber = nextVersionNumber
+
+    if (overwriteMode) {
+      const overwriteData = {
+        ...newVersionData,
+        version_number: 1,
+      }
+      const overwriteMasterUpdateData = {
+        ...masterUpdateData,
+        version_number: 1,
+      }
+
+      try {
+        versionResponse = await axios.patch(
+          `${mediaPlansBaseUrl}/media_plan_versions/${v1Row.id}`,
+          overwriteData,
+          { timeout: XANO_LONG_TIMEOUT_MS },
+        )
+      } catch (versionPatchError) {
+        console.error("[mba-put] failed to overwrite draft version 1", versionPatchError)
+        return NextResponse.json(
+          { error: "Failed to overwrite draft version 1. No new version was created." },
+          { status: 500 },
+        )
+      }
+
+      masterUpdateResponse = await axios.patch(
+        `${mediaPlansBaseUrl}/media_plan_master/${masterData.id}`,
+        overwriteMasterUpdateData,
+        { timeout: XANO_TIMEOUT_MS },
+      )
+      savedVersionNumber = 1
+    } else {
+      // Create new version in media_plan_versions table
+      versionResponse = await axios.post(`${mediaPlansBaseUrl}/media_plan_versions`, newVersionData, {
+        timeout: XANO_LONG_TIMEOUT_MS,
+      })
+
+      masterUpdateResponse = await axios.patch(
+        `${mediaPlansBaseUrl}/media_plan_master/${masterData.id}`,
+        masterUpdateData,
+        { timeout: XANO_TIMEOUT_MS }
+      )
+    }
 
     console.log("New version created:", versionResponse.data)
     console.log("Master updated:", masterUpdateResponse.data)
@@ -1449,8 +1491,11 @@ export async function PUT(
     return NextResponse.json({
       version: versionResponse.data,
       master: masterUpdateResponse.data,
+      mode: overwriteMode ? "overwrite" : "increment",
+      versionId: overwriteMode ? v1Row.id : versionResponse.data?.id,
+      versionNumber: savedVersionNumber,
       latestVersionNumber,
-      nextVersionNumber
+      nextVersionNumber: overwriteMode ? 1 : nextVersionNumber
     })
   } catch (error) {
     console.error("Error creating new media plan version:", error)
