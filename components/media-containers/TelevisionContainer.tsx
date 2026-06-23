@@ -31,6 +31,13 @@ import { Label } from "@/components/ui/label";
 import { getPublishersForTelevision, getClientInfo, getTVStations, createTVStation} from "@/lib/api"
 import { formatBurstLabel } from "@/lib/bursts"
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
+import {
+  appendBurst,
+  removeBurst,
+  newBurstReactKey,
+  stampBurstReactKeys,
+  televisionBurstDefaults,
+} from "@/lib/mediaplan/burstOperations"
 import { serializeBurstsJson } from "@/lib/mediaplan/serializeBurstsJson"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
@@ -501,6 +508,7 @@ export default function TelevisionContainer({
               tarps: "",
               calculatedValue: 0,
               fee: 0,
+              _reactKey: newBurstReactKey(),
             },
           ],
         },
@@ -638,7 +646,8 @@ export default function TelevisionContainer({
       standard,
       prevLineItems as StandardTelevisionFormLineItem[]
     )
-    form.setValue("televisionlineItems", merged as any, {
+    const keyedMerged = stampBurstReactKeys(merged);
+    form.setValue("televisionlineItems", keyedMerged as any, {
       shouldDirty: true,
       shouldValidate: false,
     })
@@ -786,7 +795,7 @@ export default function TelevisionContainer({
       console.log("[TelevisionContainer] Transformed line items:", transformedLineItems);
 
       form.reset({
-        televisionlineItems: transformedLineItems,
+        televisionlineItems: stampBurstReactKeys(transformedLineItems),
         overallDeliverables: 0,
       });
     },
@@ -862,6 +871,7 @@ export default function TelevisionContainer({
         size: burst?.size ?? "30s",
         calculatedValue: burst?.calculatedValue ?? 0,
         fee: burst?.fee ?? 0,
+        _reactKey: newBurstReactKey(),
       })),
     };
 
@@ -960,46 +970,17 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
 }, [handleLineItemValueChange]);
 
   const handleAppendBurst = useCallback((lineItemIndex: number) => {
-    const currentBursts = form.getValues(`televisionlineItems.${lineItemIndex}.bursts`) || [];
-    
-    // Check if we've reached the maximum number of bursts (12)
-    if (currentBursts.length >= 12) {
-      toast({
-        title: "Maximum bursts reached",
-        description: "Can't add more bursts. Each line item is limited to 12 bursts.",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    // Get the end date of the last burst
-    let startDate = new Date();
-    if (currentBursts.length > 0) {
-      const lastBurst = currentBursts[currentBursts.length - 1];
-      if (lastBurst.endDate) {
-        // Set start date to one day after the end date of the last burst
-        startDate = new Date(lastBurst.endDate);
-        startDate.setDate(startDate.getDate() + 1);
-      }
-    }
-    
-    // Set end date to the last day of the month based on the start date
-    const endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0);
-    
-    form.setValue(`televisionlineItems.${lineItemIndex}.bursts`, [
-      ...currentBursts,
-      {
-        budget: "",
-        buyAmount: "",
-        startDate: startDate,
-        endDate: endDate,
-        tarps: "",
-        size: "30s",
-      },
-    ]);
-
-    handleLineItemValueChange(lineItemIndex);
-  }, [form, handleLineItemValueChange, toast]);
+    appendBurst({
+      form,
+      fieldKey: "televisionlineItems",
+      lineItemIndex,
+      campaignStartDate,
+      campaignEndDate,
+      onAfter: handleLineItemValueChange,
+      toast: toast as Parameters<typeof appendBurst>[0]["toast"],
+      makeBurst: televisionBurstDefaults,
+    })
+  }, [form, handleLineItemValueChange, toast, campaignStartDate, campaignEndDate]);
 
   const handleDuplicateBurst = useCallback((lineItemIndex: number) => {
     const currentBursts = form.getValues(`televisionlineItems.${lineItemIndex}.bursts`) || [];
@@ -1041,6 +1022,7 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
       size: lastBurst?.size ?? "30s",
       calculatedValue: lastBurst?.calculatedValue ?? 0,
       fee: lastBurst?.fee ?? 0,
+      _reactKey: newBurstReactKey(),
     };
 
     form.setValue(`televisionlineItems.${lineItemIndex}.bursts`, [
@@ -1052,14 +1034,15 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
   }, [form, handleLineItemValueChange, toast]);
 
   const handleRemoveBurst = useCallback((lineItemIndex: number, burstIndex: number) => {
-    const currentBursts = form.getValues(`televisionlineItems.${lineItemIndex}.bursts`) || [];
-    form.setValue(
-      `televisionlineItems.${lineItemIndex}.bursts`,
-      currentBursts.filter((_, index) => index !== burstIndex),
-    );
-
-    handleLineItemValueChange(lineItemIndex);
-  }, [form, handleLineItemValueChange]);
+    removeBurst({
+      form,
+      fieldKey: "televisionlineItems",
+      lineItemIndex,
+      burstIndex,
+      onAfter: handleLineItemValueChange,
+      toast: toast as Parameters<typeof removeBurst>[0]["toast"],
+    })
+  }, [form, handleLineItemValueChange, toast]);
 
   const getDeliverablesLabel = useCallback((buyType: string) => {
     if (!buyType) return "Deliverables";
@@ -1878,7 +1861,7 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
                         {form.watch(`televisionlineItems.${lineItemIndex}.bursts`, []).map((burstField, burstIndex) => {
                           const buyType = form.watch(`televisionlineItems.${lineItemIndex}.buyType`);
                           return (
-                            <Card key={`${lineItemIndex}-${burstIndex}`} className="border border-gray-200 bg-muted/30 mx-2">
+                            <Card key={(burstField as any)._reactKey ?? `${lineItemIndex}-${burstIndex}`} className="border border-gray-200 bg-muted/30 mx-2">
                               <CardContent className="py-2 px-4">
                                 <div className="flex items-center gap-3">
                                   <div className="w-24 flex-shrink-0">
@@ -2171,6 +2154,9 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
                                                               endDate: new Date(),
                                                               size: "30s",
                                                               tarps: "",
+                                                              calculatedValue: 0,
+                                                              fee: 0,
+                                                              _reactKey: newBurstReactKey(),
                                                             },
                                                           ],
                                                         })
