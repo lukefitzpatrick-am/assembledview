@@ -22,12 +22,12 @@ import type { BillingBurst } from "@/lib/billing/types"
 import { formatBurstLabel } from "@/lib/bursts"
 import type { LineItem } from "@/lib/generateMediaPlan"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
+import { useStableHydration } from "@/hooks/useStableHydration"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { SingleDatePicker } from "@/components/ui/single-date-picker"
 import {
   defaultMediaBurstStartDate,
   defaultMediaBurstEndDate,
-  hasCampaignDateWindow,
 } from "@/lib/date-picker-anchor"
 import {
   appendBurst,
@@ -111,65 +111,6 @@ const formatDateString = (d?: Date | string): string => {
   return `${year}-${month}-${day}`
 }
 
-function coerceHydrationKeyNumber(value: unknown): number {
-  if (typeof value === "string") {
-    return parseFloat(value.replace(/[^0-9.-]/g, "")) || 0
-  }
-  return Number(value ?? 0) || 0
-}
-
-function formatHydrationKeyDate(value: unknown): string {
-  return formatDateString(
-    value instanceof Date || typeof value === "string" ? (value as Date | string) : undefined
-  )
-}
-
-/** Parse burst source the same way as the hydration effect (string vs array). */
-function parseRawBurstsForHydrationKey(item: any): any[] {
-  if (typeof item.bursts_json === "string") {
-    try {
-      const parsed = JSON.parse(item.bursts_json)
-      return Array.isArray(parsed) ? parsed : []
-    } catch {
-      return []
-    }
-  }
-  if (Array.isArray(item.bursts_json)) return item.bursts_json
-  if (Array.isArray(item.bursts)) return item.bursts
-  return []
-}
-
-/** Stable key for incoming initialLineItems; excludes server metadata and normalises burst shape. */
-function buildProductionInitialLineItemsKey(items: ReadonlyArray<any>): string {
-  const rows = items.map((item, idx) => {
-    const stableId = String(
-      item.line_item_id ?? item.lineItemId ?? item.line_item ?? item.lineItem ?? idx
-    )
-    // Bursts keep fetch array order (not sorted). Current fetch paths return stable
-    // row and burst order for identical saved data. A future path that reorders bursts
-    // for the same data would produce a different key, trigger re-hydration, and
-    // clobber an unsaved edit.
-    const bursts = parseRawBurstsForHydrationKey(item).map((burst) => ({
-      cost: coerceHydrationKeyNumber(burst.cost ?? burst.budget ?? burst.mediaValue),
-      amount: coerceHydrationKeyNumber(burst.amount ?? burst.deliverables ?? burst.buyAmount),
-      startDate: formatHydrationKeyDate(burst.startDate ?? burst.start_date),
-      endDate: formatHydrationKeyDate(burst.endDate ?? burst.end_date),
-    }))
-    return {
-      stableId,
-      mediaType: String(item.media_type ?? item.mediaType ?? item.platform ?? ""),
-      publisher: String(item.publisher ?? item.network ?? ""),
-      description: String(item.description ?? item.creative ?? ""),
-      market: String(item.market ?? ""),
-      bursts,
-    }
-  })
-
-  rows.sort((a, b) => a.stableId.localeCompare(b.stableId, undefined, { numeric: true }))
-
-  return JSON.stringify(rows)
-}
-
 type MediaTypeOption = { value: string; label: string }
 
 interface ProductionContainerProps {
@@ -185,36 +126,6 @@ interface ProductionContainerProps {
   campaignId: string
   mediaTypes: Array<string | MediaTypeOption>
   initialLineItems?: any[]
-}
-
-const getPeriodEnd = (start: Date) => {
-  const end = new Date(start.getFullYear(), start.getMonth() + 1, 0)
-  return toDateOnly(end) || end
-}
-
-const addDays = (date: Date, days: number) => {
-  const next = new Date(date)
-  next.setDate(next.getDate() + days)
-  return toDateOnly(next) || next
-}
-
-const productionComputeDates = ({
-  currentBursts,
-  campaignStartDate,
-  campaignEndDate,
-}: {
-  currentBursts: any[]
-  campaignStartDate: Date | null | undefined
-  campaignEndDate: Date | null | undefined
-}) => {
-  const lastBurst = currentBursts[currentBursts.length - 1]
-  const lastEndDate = toDateOnly(lastBurst?.endDate)
-  const anchor =
-    toDateOnly(defaultMediaBurstStartDate(campaignStartDate, campaignEndDate)) ??
-    defaultMediaBurstStartDate(campaignStartDate, campaignEndDate)
-  const startDate = lastEndDate ? addDays(lastEndDate, 1) : anchor
-  const endDate = getPeriodEnd(startDate)
-  return { startDate, endDate }
 }
 
 const buildMediaTypeOptions = (mediaTypes: Array<string | MediaTypeOption>): MediaTypeOption[] => {
@@ -342,11 +253,8 @@ export default function ProductionContainer({
   const makeDefaultBurst = useCallback((): z.infer<typeof burstSchema> & { _reactKey: string } => {
     const startRaw = defaultMediaBurstStartDate(campaignStartDate, campaignEndDate)
     const startDate = toDateOnly(startRaw) || startRaw
-    let endRaw = defaultMediaBurstEndDate(campaignStartDate, campaignEndDate)
-    let endDate = toDateOnly(endRaw) || endRaw
-    if (!hasCampaignDateWindow(campaignStartDate, campaignEndDate)) {
-      endDate = getPeriodEnd(startDate)
-    }
+    const endRaw = defaultMediaBurstEndDate(campaignStartDate, campaignEndDate)
+    const endDate = toDateOnly(endRaw) || endRaw
     return { cost: 0, amount: 0, startDate, endDate, _reactKey: newBurstReactKey() }
   }, [campaignStartDate, campaignEndDate])
 
@@ -434,68 +342,64 @@ export default function ProductionContainer({
     name: "lineItems",
   })
 
-  const lastHydratedKeyRef = useRef<string | null>(null)
+  useStableHydration(
+    initialLineItems,
+    (items) => {
+      try {
+        const normalized = items.map((item: any, idx: number) => {
+          const rawBursts =
+            typeof item.bursts_json === "string"
+              ? (() => {
+                  try {
+                    const parsed = JSON.parse(item.bursts_json)
+                    return Array.isArray(parsed) ? parsed : []
+                  } catch {
+                    return []
+                  }
+                })()
+              : Array.isArray(item.bursts_json)
+                ? item.bursts_json
+                : Array.isArray(item.bursts)
+                  ? item.bursts
+                  : []
 
-  // Hydrate form when initialLineItems are provided (edit flow)
-  useEffect(() => {
-    if (!initialLineItems || initialLineItems.length === 0) return
-    const incomingKey = buildProductionInitialLineItemsKey(initialLineItems)
-    if (incomingKey === lastHydratedKeyRef.current) return
-    try {
-      const normalized = initialLineItems.map((item: any, idx: number) => {
-        const rawBursts =
-          typeof item.bursts_json === "string"
-            ? (() => {
-                try {
-                  const parsed = JSON.parse(item.bursts_json)
-                  return Array.isArray(parsed) ? parsed : []
-                } catch {
-                  return []
-                }
-              })()
-            : (item.bursts_json ?? item.bursts ?? [])
-
-        const bursts = (rawBursts || []).map((burst: any) => {
-          const cost = typeof burst.cost === "string" ? parseFloat(burst.cost.replace(/[^0-9.-]/g, "")) || 0 : Number(burst.cost || 0)
-          const amountRaw = burst.amount ?? burst.deliverables ?? 0
-          const amount = typeof amountRaw === "string" ? parseFloat(amountRaw.replace(/[^0-9.-]/g, "")) || 0 : Number(amountRaw || 0)
-          const fallbackStart = defaultMediaBurstStartDate(campaignStartDate, campaignEndDate)
-          const startDate =
-            toDateOnly(burst.startDate || burst.start_date) ??
-            toDateOnly(fallbackStart) ??
-            fallbackStart
-          let endDate = toDateOnly(burst.endDate || burst.end_date)
-          if (!endDate) {
-            if (hasCampaignDateWindow(campaignStartDate, campaignEndDate)) {
-              const fe = defaultMediaBurstEndDate(campaignStartDate, campaignEndDate)
-              endDate = toDateOnly(fe) || fe
-            } else {
-              endDate = getPeriodEnd(startDate)
+          const bursts = (rawBursts || []).map((burst: any) => {
+            const cost = typeof burst.cost === "string" ? parseFloat(burst.cost.replace(/[^0-9.-]/g, "")) || 0 : Number(burst.cost || 0)
+            const amountRaw = burst.amount ?? burst.deliverables ?? 0
+            const amount = typeof amountRaw === "string" ? parseFloat(amountRaw.replace(/[^0-9.-]/g, "")) || 0 : Number(amountRaw || 0)
+            const fallbackStart = defaultMediaBurstStartDate(campaignStartDate, campaignEndDate)
+            const startDate =
+              toDateOnly(burst.startDate || burst.start_date) ??
+              toDateOnly(fallbackStart) ??
+              fallbackStart
+            let endDate = toDateOnly(burst.endDate || burst.end_date)
+            if (!endDate) {
+              const fallbackEnd = defaultMediaBurstEndDate(campaignStartDate, campaignEndDate)
+              endDate = toDateOnly(fallbackEnd) || fallbackEnd
             }
-          }
-          return { cost, amount, startDate, endDate }
-        })
+            return { cost, amount, startDate, endDate }
+          })
 
-        return {
-          mediaType: item.mediaType || item.platform || item.media_type || "",
-          publisher: item.publisher || item.network || "",
-          description: item.description || item.creative || "",
-          market: item.market || "",
-          lineItemId:
-            item.line_item_id ||
-            item.lineItemId ||
-            buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.production, idx + 1),
-          bursts: bursts.length > 0 ? bursts : [makeDefaultBurst()],
-        }
-      })
-      form.reset({
-        lineItems: stampBurstReactKeys(normalized),
-      })
-      lastHydratedKeyRef.current = incomingKey
-    } catch (err) {
-      console.warn("[ProductionContainer] Failed to hydrate initial line items", err)
+          return {
+            mediaType: item.mediaType || item.platform || item.media_type || "",
+            publisher: item.publisher || item.network || "",
+            description: item.description || item.creative || "",
+            market: item.market || "",
+            lineItemId:
+              item.line_item_id ||
+              item.lineItemId ||
+              buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.production, idx + 1),
+            bursts: bursts.length > 0 ? bursts : [makeDefaultBurst()],
+          }
+        })
+        form.reset({
+          lineItems: stampBurstReactKeys(normalized),
+        })
+      } catch (err) {
+        console.warn("[ProductionContainer] Failed to hydrate initial line items", err)
+      }
     }
-  }, [initialLineItems, form, mbaNumber, campaignStartDate, campaignEndDate, makeDefaultBurst])
+  )
 
   const totals = useMemo(() => {
     const totalMedia = watchedLineItems?.reduce((sum, li) => {
@@ -573,7 +477,6 @@ export default function ProductionContainer({
       onAfter: () => {},
       toast: toast as Parameters<typeof appendBurst>[0]["toast"],
       makeBurst: productionBurstDefaults,
-      computeDates: productionComputeDates,
     })
   }
 
@@ -582,12 +485,14 @@ export default function ProductionContainer({
     const burst = currentBursts[burstIndex]
     if (!burst) return
     const lastBurst = currentBursts[currentBursts.length - 1]
-    const lastEndDate = toDateOnly(lastBurst?.endDate)
-    const anchor =
-      toDateOnly(defaultMediaBurstStartDate(campaignStartDate, campaignEndDate)) ??
-      defaultMediaBurstStartDate(campaignStartDate, campaignEndDate)
-    const startDate = lastEndDate ? addDays(lastEndDate, 1) : anchor
-    const endDate = getPeriodEnd(startDate)
+    let startDate = defaultMediaBurstStartDate(campaignStartDate, campaignEndDate)
+    let endDate = defaultMediaBurstEndDate(campaignStartDate, campaignEndDate)
+    // Mirrors burstOperations.defaultComputeDates so add and duplicate stay aligned.
+    if (currentBursts.length > 0 && lastBurst?.endDate) {
+      startDate = new Date(lastBurst.endDate)
+      startDate.setDate(startDate.getDate() + 1)
+      endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0)
+    }
     const cloned = { ...burst, startDate, endDate, _reactKey: newBurstReactKey() }
     const updated = [
       ...currentBursts.slice(0, burstIndex + 1),
