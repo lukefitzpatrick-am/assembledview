@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react"
 import { useEffect, useMemo, useState } from "react"
+import { parseDateSafe } from "@/lib/api/dashboard/shared"
 import type { PacingRow as CombinedPacingRow } from "@/lib/snowflake/pacing-service"
 import type { SearchPacingResponse } from "@/lib/snowflake/search-pacing-service"
 
@@ -23,13 +24,6 @@ type DeliveryDataProviderProps = {
     loading: boolean
     error: string | null
   }) => ReactNode
-}
-
-function parseDateSafe(value?: string | null): Date | null {
-  if (!value) return null
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return null
-  return d
 }
 
 function normalizeISODateOnly(value?: string | null): string | null {

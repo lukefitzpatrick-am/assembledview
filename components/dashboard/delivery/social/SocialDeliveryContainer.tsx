@@ -34,6 +34,7 @@ import {
   summariseDelivery,
 } from "@/lib/pacing/social/metaPacing"
 import { downloadCSV } from "@/lib/utils/csv-export"
+import { parseDateSafe } from "@/lib/api/dashboard/shared"
 import { CHART_NEUTRAL } from "@/lib/charts/theme"
 import { assignEntityColors } from "@/lib/charts/registry"
 import { PACING_CHART_STROKE } from "@/lib/charts/dashboardTheme"
@@ -209,13 +210,6 @@ function endOfDay(date: Date) {
 
 function toISO(date: Date) {
   return startOfDay(date).toISOString().slice(0, 10)
-}
-
-function parseDateSafe(value?: string | null): Date | null {
-  if (!value) return null
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return null
-  return d
 }
 
 function eachDay(start: Date, end: Date): string[] {

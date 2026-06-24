@@ -14,6 +14,7 @@ import { DeliveryCard, DeliverySubCard } from "@/components/dashboard/delivery/D
 import { ActualsCumulativeVsTargetChart } from "@/components/dashboard/delivery/common/ActualsCumulativeVsTargetChart"
 import { useToast } from "@/components/ui/use-toast"
 import { downloadCSV } from "@/lib/utils/csv-export"
+import { parseDateSafe } from "@/lib/api/dashboard/shared"
 import type { PacingRow as CombinedPacingRow } from "@/lib/snowflake/pacing-service"
 import type { Dv360DailyRow } from "@/lib/pacing/dv360/dv360Pacing"
 import { mapDeliverableMetric } from "@/lib/pacing/deliverables/mapDeliverableMetric"
@@ -160,13 +161,6 @@ async function parseResponseJsonSafely(response: Response): Promise<any> {
     throw new Error(`Expected JSON but got ${contentType}. Response: ${text.slice(0, 200)}`)
   }
   return response.json()
-}
-
-function parseDateSafe(value?: string | null): Date | null {
-  if (!value) return null
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return null
-  return d
 }
 
 function startOfDay(date: Date) {

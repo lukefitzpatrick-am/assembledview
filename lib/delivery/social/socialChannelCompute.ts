@@ -8,6 +8,7 @@ import { getDeliverableKey } from "@/lib/pacing/calcPacing"
 import { MetaPacingRow, normalisePlatform, summariseDelivery } from "@/lib/pacing/social/metaPacing"
 import type { PacingRow as CombinedPacingRow } from "@/lib/snowflake/pacing-service"
 import { getMelbourneTodayISO, getPacingWindow } from "@/lib/pacing/pacingWindow"
+import { parseDateSafe } from "@/lib/api/dashboard/shared"
 import type { KPITargetsMap } from "@/lib/kpi/deliveryTargets"
 import {
   buildCumulativeTargetCurve,
@@ -126,13 +127,6 @@ function endOfDay(date: Date) {
 
 function toISO(date: Date) {
   return startOfDay(date).toISOString().slice(0, 10)
-}
-
-function parseDateSafe(value?: string | null): Date | null {
-  if (!value) return null
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return null
-  return d
 }
 
 function eachDay(start: Date, end: Date): string[] {

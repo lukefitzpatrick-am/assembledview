@@ -5,6 +5,7 @@ import type { PacingRow as CombinedPacingRow } from "@/lib/snowflake/pacing-serv
 import type { Dv360DailyRow } from "@/lib/pacing/dv360/dv360Pacing"
 import { mapDeliverableMetric } from "@/lib/pacing/deliverables/mapDeliverableMetric"
 import { getMelbourneTodayISO } from "@/lib/pacing/pacingWindow"
+import { parseDateSafe } from "@/lib/api/dashboard/shared"
 import type { KPITargetsMap } from "@/lib/kpi/deliveryTargets"
 import {
   buildCumulativeTargetCurve,
@@ -116,13 +117,6 @@ export function normalizeDv360ProgrammaticLineItems(items: unknown[] | undefined
         },
       ]
     })
-}
-
-function parseDateSafe(value?: string | null): Date | null {
-  if (!value) return null
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return null
-  return d
 }
 
 function startOfDay(date: Date) {

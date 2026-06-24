@@ -8,6 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Panel, PanelContent, PanelHeader, PanelTitle, PanelActions } from "@/components/layout/Panel"
 import { CHART_NEUTRAL } from "@/lib/charts/theme"
 import { getMediaColor } from "@/lib/charts/registry"
+import { parseDateSafe } from "@/lib/api/dashboard/shared"
 import { downloadCSV } from "@/lib/utils/csv-export"
 
 export type MediaPlanVizBurst = {
@@ -42,12 +43,6 @@ type Props = {
   mbaNumber?: string
   /** Use Panel shell instead of Card (dashboard route). */
   embedded?: boolean
-}
-
-function parseDateSafe(value?: string) {
-  if (!value) return null
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? null : date
 }
 
 function startOfDay(date: Date) {
