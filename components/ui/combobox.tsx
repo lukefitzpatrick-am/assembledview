@@ -9,6 +9,18 @@ import { Button } from "@/components/ui/button"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
+const ComboboxModalContext = React.createContext(false)
+
+/**
+ * Opt-in modal behaviour for Comboboxes rendered inside a modal Dialog.
+ * Wrap expert-grid dialog content in this provider so the Combobox popover
+ * owns its own focus scope and pointer-events instead of being trapped by the
+ * parent Dialog. Standard, non-dialog Comboboxes stay non-modal (the default).
+ */
+export function ComboboxModalProvider({ children }: { children: React.ReactNode }) {
+  return <ComboboxModalContext.Provider value={true}>{children}</ComboboxModalContext.Provider>
+}
+
 export type ComboboxOption = {
   value: string
   label: string
@@ -52,6 +64,7 @@ export function Combobox({
   onTriggerFocus,
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false)
+  const modal = React.useContext(ComboboxModalContext)
 
   const setOpenBoth = React.useCallback(
     (next: boolean) => {
@@ -72,7 +85,7 @@ export function Combobox({
   )
 
   return (
-    <Popover open={open} onOpenChange={setOpenBoth}>
+    <Popover open={open} onOpenChange={setOpenBoth} modal={modal}>
       <PopoverTrigger asChild>
         <Button
           id={id}
