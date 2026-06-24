@@ -333,7 +333,7 @@ export function addExpertWeekColumnDelta(
 }
 
 /**
- * Split standard-burst deliverables across overlapping Gantt week keys; last key absorbs rounding.
+ * Split standard-burst deliverables across overlapping Gantt week keys; earliest keys absorb remainders.
  * Used when mapping standard line items → expert weekly rows.
  */
 export function distributeBurstDeliverablesToExpertWeeks(
@@ -349,17 +349,12 @@ export function distributeBurstDeliverablesToExpertWeeks(
     return;
   }
 
+  const t = Math.round(total);
   const n = overlapKeys.length;
-  const each = total / n;
-  let allocated = 0;
-  for (let i = 0; i < n - 1; i++) {
-    const v = roundDeliverables(buyType, each);
+  const base = Math.floor(t / n);
+  const remainder = t - base * n;
+  for (let i = 0; i < n; i++) {
+    const v = i < remainder ? base + 1 : base;
     addExpertWeekColumnDelta(weeklyValues, overlapKeys[i]!, v);
-    allocated += v;
   }
-  addExpertWeekColumnDelta(
-    weeklyValues,
-    overlapKeys[n - 1]!,
-    roundDeliverables(buyType, total - allocated)
-  );
 }

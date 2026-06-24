@@ -1060,7 +1060,7 @@ function addRadioWeeklyDelta(
   weeklyValues[key] = prevNum + add
 }
 
-/** Splits standard burst deliverables across Gantt weeks; last week absorbs rounding remainder. */
+/** Splits standard burst deliverables across Gantt weeks; earliest weeks absorb remainders. */
 function distributeRadioStandardDeliverablesToWeeks(
   buyType: string,
   total: number,
@@ -1075,19 +1075,14 @@ function distributeRadioStandardDeliverablesToWeeks(
     return
   }
 
+  const t = Math.round(total)
   const n = overlapKeys.length
-  const each = total / n
-  let allocated = 0
-  for (let i = 0; i < n - 1; i++) {
-    const v = roundDeliverables(bt, each)
+  const base = Math.floor(t / n)
+  const remainder = t - base * n
+  for (let i = 0; i < n; i++) {
+    const v = i < remainder ? base + 1 : base
     addRadioWeeklyDelta(weeklyValues, overlapKeys[i]!, v)
-    allocated += v
   }
-  addRadioWeeklyDelta(
-    weeklyValues,
-    overlapKeys[n - 1]!,
-    roundDeliverables(bt, total - allocated)
-  )
 }
 
 /** Panel count for expert grid from a standard burst (handles legacy buyAmount-as-qty rows). */
