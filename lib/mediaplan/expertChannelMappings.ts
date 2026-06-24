@@ -677,7 +677,7 @@ function emptyRadioLineItem(
   lineNo: number,
   budgetIncludesFees: boolean
 ): StandardRadioFormLineItem {
-  const id = row.id || String(lineNo)
+  const id = ((row as { sourceLineItemId?: string }).sourceLineItemId ?? row.id) || String(lineNo)
   return {
     network: row.network,
     station: row.station,
@@ -879,7 +879,7 @@ export function mapRadioExpertRowsToStandardLineItems(
     const lineNo = idx + 1
     const unitRate = parseNum(row.unitRate)
     const buyType = row.buyType
-    const id = row.id || String(lineNo)
+    const id = ((row as { sourceLineItemId?: string }).sourceLineItemId ?? row.id) || String(lineNo)
     const budgetIncludesFees = Boolean(
       row.budgetIncludesFees ?? options?.budgetIncludesFees ?? false
     )
@@ -1275,9 +1275,14 @@ export function mapStandardRadioLineItemsToExpertRows(
         item.lineItem ??
         index + 1
     )
+    const _reactKey =
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `radio-expert-import-${Date.now()}-${index}`
 
     return {
-      id,
+      id: _reactKey,
+      sourceLineItemId: id,
       startDate: firstBurst
         ? formatYmd(firstBurst.startDate)
         : formatYmd(campaignStartDate),
