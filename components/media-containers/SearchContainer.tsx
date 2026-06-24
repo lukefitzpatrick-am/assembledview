@@ -20,7 +20,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Combobox } from "@/components/ui/combobox"
+import { Combobox, ComboboxModalProvider } from "@/components/ui/combobox"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Textarea } from "@/components/ui/textarea"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
@@ -1014,6 +1014,18 @@ useEffect(() => {
           ? computedBurst.mediaAmount
           : parseFloat(String(burst.budget).replace(/[^0-9.-]+/g, "")) || 0;
         const lineItemId = buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.search, lineItemIndex + 1);
+        const recomputedDeliverable = computeDeliverableFromMedia({
+          buyType: lineItem.buyType,
+          rawBudget: parseFloat(String(burst.budget).replace(/[^0-9.-]+/g, "")) || 0,
+          buyAmount: parseFloat(String(burst.buyAmount ?? burst.budget).replace(/[^0-9.-]+/g, "")) || 0,
+          budgetIncludesFees: !!lineItem.budgetIncludesFees,
+          feePct: feesearch || 0,
+        });
+        // computeDeliverableFromMedia returns NaN for bonus / package_inclusions
+        // (manual qty). Preserve the saved value in that case.
+        const deliverableForExcel = Number.isNaN(recomputedDeliverable)
+          ? (burst.calculatedValue ?? 0)
+          : recomputedDeliverable;
 
         return {
           market: lineItem.market,                                // or fixed value
@@ -1023,7 +1035,7 @@ useEffect(() => {
           creative:   lineItem.creative,
           startDate: formatDateString(burst.startDate),
           endDate:   formatDateString(burst.endDate),
-          deliverables: burst.calculatedValue ?? 0,
+          deliverables: deliverableForExcel,
           buyingDemo:   lineItem.buyingDemo,
           buyType:      lineItem.buyType,
           deliverablesAmount: burst.budget,
@@ -1903,16 +1915,18 @@ useEffect(() => {
           <DialogHeader className="flex-shrink-0 pb-2">
             <DialogTitle>Search Media Expert Mode</DialogTitle>
           </DialogHeader>
-          <div className="flex-1 min-h-0 overflow-auto">
-            <SearchExpertGrid
-              campaignStartDate={campaignStartDate}
-              campaignEndDate={campaignEndDate}
-              feesearch={feesearch}
-              rows={expertSearchRows}
-              onRowsChange={handleExpertSearchRowsChange}
-              publishers={publishers}
-            />
-          </div>
+          <ComboboxModalProvider>
+            <div className="flex-1 min-h-0 overflow-auto">
+              <SearchExpertGrid
+                campaignStartDate={campaignStartDate}
+                campaignEndDate={campaignEndDate}
+                feesearch={feesearch}
+                rows={expertSearchRows}
+                onRowsChange={handleExpertSearchRowsChange}
+                publishers={publishers}
+              />
+            </div>
+          </ComboboxModalProvider>
           <DialogFooter className="flex-shrink-0 border-t pt-3 mt-2">
             <Button type="button" onClick={handleSearchExpertApply}>
               Apply
