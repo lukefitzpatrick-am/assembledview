@@ -1060,6 +1060,23 @@ useEffect(() => {
         ? computedBurst.mediaAmount
         : parseFloat(String(burst.budget).replace(/[^0-9.-]+/g, "")) || 0;
       const lineItemId = buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.integration, lineItemIndex + 1);
+      const buyTypeLower = String(lineItem.buyType || "").toLowerCase();
+      const isManualBuyType =
+        buyTypeLower === "bonus" ||
+        buyTypeLower === "package_inclusions" ||
+        buyTypeLower === "package";
+      const recomputedDeliverable = isManualBuyType
+        ? NaN
+        : computeDeliverableFromMedia({
+            buyType: coerceBuyTypeWithDevWarn(lineItem.buyType, "IntegrationContainer.ExcelExport"),
+            rawBudget: parseFloat(String(burst.budget).replace(/[^0-9.-]+/g, "")) || 0,
+            buyAmount: parseFloat(String(burst.buyAmount ?? burst.budget).replace(/[^0-9.-]+/g, "")) || 0,
+            budgetIncludesFees: !!lineItem.budgetIncludesFees,
+            feePct: feeintegration || 0,
+          });
+      const deliverableForExcel = Number.isNaN(recomputedDeliverable)
+        ? (burst.calculatedValue ?? 0)
+        : recomputedDeliverable;
 
       return {
         market: lineItem.market,                                // or fixed value
@@ -1069,7 +1086,7 @@ useEffect(() => {
         creative:   lineItem.creative,
         startDate: formatDateString(burst.startDate),
         endDate:   formatDateString(burst.endDate),
-        deliverables: burst.calculatedValue ?? 0,
+        deliverables: deliverableForExcel,
         buyingDemo:   lineItem.buyingDemo,
         buyType:      lineItem.buyType,
         deliverablesAmount: burst.budget,
