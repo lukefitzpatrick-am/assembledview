@@ -84,6 +84,7 @@ import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColu
 import {
   coerceBuyTypeWithDevWarn,
   computeDeliverableFromMedia,
+  computeLoadedDeliverables,
 } from "@/lib/mediaplan/deliverableBudget"
 
 const MEDIA_ACCENT_HEX_SOCIAL = getMediaTypeThemeHex("socialmedia")
@@ -651,25 +652,12 @@ export default function SocialMediaContainer({
 
         const bursts = parsedBursts.length > 0 ? parsedBursts.map((burst: any) => {
           // Calculate calculatedValue based on buyType, budget, and buyAmount
-          const budget = parseFloat((burst.budget || "0").toString().replace(/[^0-9.]/g, "")) || 0;
-          const buyAmount = parseFloat((burst.buyAmount || "1").toString().replace(/[^0-9.]/g, "")) || 1;
-          const buyType = item.buy_type || "";
-          
-          let calculatedValue = 0;
-          switch (buyType) {
-            case "cpc":
-            case "cpv":
-              calculatedValue = buyAmount !== 0 ? budget / buyAmount : 0;
-              break;
-            case "cpm":
-              calculatedValue = buyAmount !== 0 ? (budget / buyAmount) * 1000 : 0;
-              break;
-            case "fixed_cost":
-              calculatedValue = 1;
-              break;
-            default:
-              calculatedValue = burst.calculatedValue || 0;
-          }
+          const calculatedValue = computeLoadedDeliverables(
+            String(item.buy_type || ""),
+            burst,
+            Boolean(item.budget_includes_fees),
+            feesocial || 0
+          );
           
           return {
             budget: burst.budget || "",
@@ -716,25 +704,12 @@ export default function SocialMediaContainer({
       setTimeout(() => {
         transformedLineItems.forEach((lineItem, lineItemIndex) => {
           lineItem.bursts.forEach((burst, burstIndex) => {
-            const budget = parseFloat((burst.budget || "0").toString().replace(/[^0-9.]/g, "")) || 0;
-            const buyAmount = parseFloat((burst.buyAmount || "1").toString().replace(/[^0-9.]/g, "")) || 1;
-            const buyType = lineItem.buyType || "";
-            
-            let calculatedValue = 0;
-            switch (buyType) {
-              case "cpc":
-              case "cpv":
-                calculatedValue = buyAmount !== 0 ? budget / buyAmount : 0;
-                break;
-              case "cpm":
-                calculatedValue = buyAmount !== 0 ? (budget / buyAmount) * 1000 : 0;
-                break;
-              case "fixed_cost":
-                calculatedValue = 1;
-                break;
-              default:
-                calculatedValue = burst.calculatedValue || 0;
-            }
+            const calculatedValue = computeLoadedDeliverables(
+              String(lineItem.buyType || ""),
+              burst,
+              Boolean(lineItem.budgetIncludesFees),
+              feesocial || 0
+            );
             
             if (calculatedValue !== burst.calculatedValue) {
               form.setValue(`lineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`, calculatedValue, {
