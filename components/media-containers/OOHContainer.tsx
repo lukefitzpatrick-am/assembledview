@@ -1048,6 +1048,23 @@ useEffect(() => {
         form.setValue(`lineItems.${lineItemIndex}.lineItemId`, lineItemId);
         form.setValue(`lineItems.${lineItemIndex}.line_item_id`, lineItemId);
       }
+      const buyTypeLower = String(lineItem.buyType || "").toLowerCase();
+      const isManualBuyType =
+        buyTypeLower === "bonus" ||
+        buyTypeLower === "package_inclusions" ||
+        buyTypeLower === "package";
+      const recomputedDeliverable = isManualBuyType
+        ? NaN
+        : computeDeliverableFromMedia({
+            buyType: lineItem.buyType as Parameters<typeof computeDeliverableFromMedia>[0]["buyType"],
+            rawBudget: parseFloat(String(burst.budget).replace(/[^0-9.-]+/g, "")) || 0,
+            buyAmount: parseFloat(String(burst.buyAmount ?? burst.budget).replace(/[^0-9.-]+/g, "")) || 0,
+            budgetIncludesFees: !!lineItem.budgetIncludesFees,
+            feePct: feeooh || 0,
+          });
+      const deliverableForExcel = Number.isNaN(recomputedDeliverable)
+        ? (burst.calculatedValue ?? 0)
+        : recomputedDeliverable;
 
       return {
         market: lineItem.market || "",                                // or fixed value
@@ -1060,7 +1077,7 @@ useEffect(() => {
         buyingDemo: lineItem.buyingDemo || "",
         startDate: formatDateString(burst.startDate),
         endDate:   formatDateString(burst.endDate),
-        deliverables: burst.calculatedValue ?? 0,
+        deliverables: deliverableForExcel,
         deliverablesAmount: burst.budget,
         grossMedia: String(mediaAmount),
         clientPaysForMedia: lineItem.clientPaysForMedia ?? false,

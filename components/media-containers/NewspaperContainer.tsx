@@ -1197,6 +1197,23 @@ useEffect(() => {
         form.setValue(`newspaperlineItems.${lineItemIndex}.line_item_id`, lineItemId);
       }
       const lineNumber = lineItem.line_item ?? lineItem.lineItem ?? lineItemIndex + 1;
+      const buyTypeLower = String(lineItem.buyType || "").toLowerCase();
+      const isManualBuyType =
+        buyTypeLower === "bonus" ||
+        buyTypeLower === "package_inclusions" ||
+        buyTypeLower === "package";
+      const recomputedDeliverable = isManualBuyType
+        ? NaN
+        : computeDeliverableFromMedia({
+            buyType: lineItem.buyType as Parameters<typeof computeDeliverableFromMedia>[0]["buyType"],
+            rawBudget: parseFloat(String(burst.budget).replace(/[^0-9.-]+/g, "")) || 0,
+            buyAmount: parseFloat(String(burst.buyAmount ?? burst.budget).replace(/[^0-9.-]+/g, "")) || 0,
+            budgetIncludesFees: !!lineItem.budgetIncludesFees,
+            feePct: feenewspapers || 0,
+          });
+      const deliverableForExcel = Number.isNaN(recomputedDeliverable)
+        ? (burst.calculatedValue ?? 0)
+        : recomputedDeliverable;
 
       return {
         market: lineItem.market || "",                                // or fixed value
@@ -1210,7 +1227,7 @@ useEffect(() => {
         budgetIncludesFees: lineItem.budgetIncludesFees || false,
         startDate: formatDateString(burst.startDate),
         endDate:   formatDateString(burst.endDate),
-        deliverables: burst.calculatedValue ?? 0,
+        deliverables: deliverableForExcel,
         buyType:      lineItem.buyType,
         deliverablesAmount: burst.budget,
         grossMedia: String(mediaAmount),
