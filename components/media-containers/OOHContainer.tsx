@@ -123,17 +123,6 @@ const formatDateString = (d?: Date | string): string => {
 
 const MEDIA_ACCENT_HEX = getMediaTypeThemeHex("ooh")
 
-/**
- * Net media when budget is gross incl. fee. Used by the read-only Media
- * and Fee dollar display inputs on the burst row. Deliverable
- * computation goes through computeDeliverableFromMedia instead.
- */
-function netMediaFeeMarkup(rawBudget: number, budgetIncludesFees: boolean, feePct: number): number {
-  if (!budgetIncludesFees) return rawBudget;
-  const pct = feePct || 0;
-  return (rawBudget * (100 - pct)) / 100;
-}
-
 // Exported utility function to get bursts
 
 interface Publisher {
@@ -1821,7 +1810,6 @@ useEffect(() => {
                                           burstIndex={burstIndex}
                                           field={field}
                                           feePct={feeooh || 0}
-                                          netMedia={netMediaFeeMarkup}
                                           variant="ooh"
                                           inputClassName="w-full"
                                           bonusInputClassName="w-full h-10 text-sm"

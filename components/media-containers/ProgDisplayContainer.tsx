@@ -117,13 +117,6 @@ const formatDateString = (d?: Date | string): string => {
   return `${year}-${month}-${day}`;
 };
 
-/** Display-only: net media when budget is gross incl. fee (read-only Media/Fee columns). Burst deliverables use {@link computeDeliverableFromMedia}. */
-function netMediaFeeMarkup(rawBudget: number, budgetIncludesFees: boolean, feePct: number): number {
-  if (!budgetIncludesFees) return rawBudget;
-  const pct = feePct || 0;
-  return (rawBudget * (100 - pct)) / 100;
-}
-
 // Exported utility function to get bursts
 
 interface Publisher {
@@ -1693,7 +1686,6 @@ useEffect(() => {
                                           burstIndex={burstIndex}
                                           field={field}
                                           feePct={feeprogdisplay || 0}
-                                          netMedia={netMediaFeeMarkup}
                                           variant="cpcCpvCpm"
                                           bonusInputClassName="w-full h-10 text-sm"
                                         />
