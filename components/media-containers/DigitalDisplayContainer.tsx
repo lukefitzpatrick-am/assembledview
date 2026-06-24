@@ -183,18 +183,6 @@ const formatDateString = (d?: Date | string): string => {
 };
 
 // Exported utility function to get bursts
-export function getAllBursts(form) {
-  const digidisplaylineItems = form.getValues("digidisplaylineItems") || [];
-
-  return digidisplaylineItems.flatMap((lineItem) =>
-    lineItem.bursts.map((burst) => ({
-      startDate: burst.startDate,
-      endDate: burst.endDate,
-      budget: burst.budget,
-    }))
-  );
-}
-
 // Type definition for form values
 
 interface Publisher {

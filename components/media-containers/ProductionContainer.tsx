@@ -82,18 +82,6 @@ const formSchema = z.object({
 
 type ProductionFormValues = z.infer<typeof formSchema>
 
-export function getAllBursts(form: UseFormReturn<ProductionFormValues>) {
-  const lineItems = form.getValues("lineItems") || []
-  return lineItems.flatMap((lineItem) =>
-    lineItem.bursts.map((burst) => ({
-      startDate: burst.startDate,
-      endDate: burst.endDate,
-      cost: burst.cost,
-      amount: burst.amount,
-    }))
-  )
-}
-
 // Normalize to a date-only value (local midnight) to avoid TZ off-by-one.
 const toDateOnly = (d?: Date | string | null): Date | null => {
   if (!d) return null

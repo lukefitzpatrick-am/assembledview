@@ -97,18 +97,6 @@ const formatDateString = (d?: Date | string): string => {
 };
 
 // Exported utility function to get bursts
-export function getAllBursts(form) {
-  const digiaudiolineItems = form.getValues("digiaudiolineItems") || [];
-
-  return digiaudiolineItems.flatMap((lineItem) =>
-    lineItem.bursts.map((burst) => ({
-      startDate: burst.startDate,
-      endDate: burst.endDate,
-      budget: burst.budget,
-    }))
-  );
-}
-
 
 // Type definition for form values
 

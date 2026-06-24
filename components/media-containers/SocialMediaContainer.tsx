@@ -118,18 +118,6 @@ const formatDateString = (d?: Date | string): string => {
 };
 
 // Exported utility function to get bursts
-export function getAllBursts(form) {
-  const lineItems = form.getValues("lineItems") || [];
-
-  return lineItems.flatMap((lineItem) =>
-    lineItem.bursts.map((burst) => ({
-      startDate: burst.startDate,
-      endDate: burst.endDate,
-      budget: burst.budget,
-    }))
-  );
-}
-
 
 interface Publisher {
   id: number

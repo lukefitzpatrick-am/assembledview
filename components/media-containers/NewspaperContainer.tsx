@@ -123,18 +123,6 @@ function netMediaFeeMarkup(rawBudget: number, budgetIncludesFees: boolean, feePc
 }
 
 // Exported utility function to get bursts
-export function getAllBursts(form) {
-  const newspaperlineItems = form.getValues("newspaperlineItems") || [];
-
-  return newspaperlineItems.flatMap((lineItem) =>
-    lineItem.bursts.map((burst) => ({
-      startDate: burst.startDate,
-      endDate: burst.endDate,
-      budget: burst.budget,
-    }))
-  );
-}
-
 
 // Type definition for form values
 interface Publisher {

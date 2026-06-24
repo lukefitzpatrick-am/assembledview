@@ -97,18 +97,6 @@ const formatDateString = (d?: Date | string): string => {
 };
 
 // Exported utility function to get bursts
-export function getAllBursts(form) {
-  const televisionlineItems = form.getValues("televisionlineItems") || [];
-
-  return televisionlineItems.flatMap((lineItem) =>
-    lineItem.bursts.map((burst) => ({
-      startDate: burst.startDate,
-      endDate: burst.endDate,
-      budget: burst.budget,
-    }))
-  );
-}
-
 const EMPTY_TELEVISION_LINE_ITEMS: TelevisionFormValues["televisionlineItems"] = []
 
 interface Publisher {

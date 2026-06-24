@@ -112,18 +112,6 @@ function netMediaPctOfGross(rawBudget: number, budgetIncludesFees: boolean, feeP
 }
 
 // Exported utility function to get bursts
-export function getAllBursts(form) {
-  const radiolineItems = form.getValues("radiolineItems") || [];
-
-  return radiolineItems.flatMap((lineItem) =>
-    lineItem.bursts.map((burst) => ({
-      startDate: burst.startDate,
-      endDate: burst.endDate,
-      budget: burst.budget,
-    }))
-  );
-}
-
 
 interface Publisher {
   id: number;
