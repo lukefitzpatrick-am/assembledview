@@ -987,6 +987,27 @@ useEffect(() => {
       const mediaAmount = computedBurst
         ? computedBurst.mediaAmount
         : parseFloat(String(burst.budget).replace(/[^0-9.-]+/g, "")) || 0;
+      const buyTypeLower = String(lineItem.buyType || "").toLowerCase();
+      const isManualBuyType =
+        buyTypeLower === "bonus" ||
+        buyTypeLower === "package_inclusions" ||
+        buyTypeLower === "package";
+      let deliverableForExcel: number;
+      if (isManualBuyType) {
+        deliverableForExcel = burst.calculatedValue ?? 0;
+      } else {
+        const bt = coerceBuyTypeWithDevWarn(String(lineItem.buyType || ""), "CinemaContainer.excelBridge");
+        const recomputed = computeDeliverableFromMedia({
+          buyType: bt,
+          rawBudget: parseFloat(String(burst.budget).replace(/[^0-9.-]+/g, "")) || 0,
+          buyAmount: parseFloat(String(burst.buyAmount ?? burst.budget).replace(/[^0-9.-]+/g, "")) || 0,
+          budgetIncludesFees: !!lineItem.budgetIncludesFees,
+          feePct: feecinema || 0,
+        });
+        deliverableForExcel = Number.isNaN(recomputed)
+          ? (burst.calculatedValue ?? 0)
+          : roundDeliverables(bt, recomputed);
+      }
       let lineItemId = lineItem.lineItemId || lineItem.line_item_id;
       if (!lineItemId) {
         lineItemId = createLineItemId(lineItemIndex + 1);
@@ -1006,7 +1027,7 @@ useEffect(() => {
         duration:   lineItem.duration,
         startDate: formatDateString(burst.startDate),
         endDate:   formatDateString(burst.endDate),
-        deliverables: burst.calculatedValue ?? 0,
+        deliverables: deliverableForExcel,
         buyingDemo:   lineItem.buyingDemo,
         buyType:      lineItem.buyType,
         deliverablesAmount: burst.budget,
