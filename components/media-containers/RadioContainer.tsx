@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { Combobox } from "@/components/ui/combobox"
+import { Combobox, ComboboxModalProvider } from "@/components/ui/combobox"
 import {
   Dialog,
   DialogContent,
@@ -2230,17 +2230,19 @@ useEffect(() => {
           <DialogHeader className="flex-shrink-0 pb-2">
             <DialogTitle>Radio Expert Mode</DialogTitle>
           </DialogHeader>
-          <div className="flex-1 min-h-0 overflow-auto">
-            <RadioExpertGrid
-              campaignStartDate={campaignStartDate}
-              campaignEndDate={campaignEndDate}
-              feeradio={feeradio}
-              rows={expertRadioRows}
-              onRowsChange={handleExpertRadioRowsChange}
-              publishers={publishers}
-              radioStations={radioStations}
-            />
-          </div>
+          <ComboboxModalProvider>
+            <div className="flex-1 min-h-0 overflow-auto">
+              <RadioExpertGrid
+                campaignStartDate={campaignStartDate}
+                campaignEndDate={campaignEndDate}
+                feeradio={feeradio}
+                rows={expertRadioRows}
+                onRowsChange={handleExpertRadioRowsChange}
+                publishers={publishers}
+                radioStations={radioStations}
+              />
+            </div>
+          </ComboboxModalProvider>
           <DialogFooter className="flex-shrink-0 border-t pt-3 mt-2">
             <Button type="button" onClick={handleRadioExpertApply}>
               Apply
