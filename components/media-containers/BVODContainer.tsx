@@ -666,6 +666,8 @@ export default function BVODContainer({
             feebvod || 0
           ),
           fee: burst.fee ?? 0,
+          adServingRatePct: burst.adServingRatePct,
+          adServingImpressions: burst.adServingImpressions,
         })) : [{
           _reactKey: newBurstReactKey(),
           budget: "",
@@ -1217,7 +1219,9 @@ useEffect(() => {
           budgetIncludesFees: item.budgetIncludesFees,
           noAdserving: item.noadserving,
           deliverables: burst.calculatedValue ?? 0,
-          buyType: item.buyType
+          buyType: item.buyType,
+          adServingRatePct: burst.adServingRatePct,
+          adServingImpressions: burst.adServingImpressions,
         };
 
         return billingBurst;

@@ -14,6 +14,8 @@ export type SerializedBurst = {
   calculatedValue: number
   mediaAmount: string
   feeAmount: string
+  adServingRatePct?: number
+  adServingImpressions?: number
 }
 
 type BurstInput = {
@@ -22,6 +24,8 @@ type BurstInput = {
   startDate?: Date | string
   endDate?: Date | string
   calculatedValue?: number
+  adServingRatePct?: number
+  adServingImpressions?: number
 }
 
 function formatStringOrMoney(value: string | number | undefined): string {
@@ -67,6 +71,8 @@ export function serializeBurstsJson(input: {
       calculatedValue: burst.calculatedValue ?? 0,
       mediaAmount: formatMoney(amounts.deliveryMediaAmount, MONEY_FORMAT_OPTIONS),
       feeAmount: formatMoney(amounts.feeAmount, MONEY_FORMAT_OPTIONS),
+      adServingRatePct: burst.adServingRatePct,
+      adServingImpressions: burst.adServingImpressions,
     }
   })
 }

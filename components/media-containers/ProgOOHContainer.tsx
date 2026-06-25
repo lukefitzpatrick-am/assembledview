@@ -571,6 +571,8 @@ export default function ProgOOHContainer({
           endDate: burst.endDate ? new Date(burst.endDate) : new Date(),
           calculatedValue: burst.calculatedValue || 0,
           fee: burst.fee || 0,
+          adServingRatePct: burst.adServingRatePct,
+          adServingImpressions: burst.adServingImpressions,
         })) : [{
           budget: "",
           buyAmount: "",
@@ -1038,7 +1040,9 @@ useEffect(() => {
           budgetIncludesFees: item.budgetIncludesFees,
           noAdserving: item.noadserving,
           deliverables: burst.calculatedValue ?? 0,
-          buyType: item.buyType
+          buyType: item.buyType,
+          adServingRatePct: burst.adServingRatePct,
+          adServingImpressions: burst.adServingImpressions,
         };
 
         return billingBurst;

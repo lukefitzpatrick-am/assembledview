@@ -7,6 +7,8 @@ export function computeAdServingCost(input: {
   mediaType: string;
   rate: number;
   adservaudio?: number | null;
+  adServingRatePct?: number;
+  adServingImpressions?: number;
 }): number {
   const { quantity, mediaType, rate, adservaudio } = input;
   const buyType = input.buyType?.toLowerCase?.() || "";
@@ -21,6 +23,16 @@ export function computeAdServingCost(input: {
   const effectiveRate =
     isDigiAudio && (isCpm || isBonus) ? (adservaudio ?? rate) : rate;
 
+  // Stored overrides are human-facing percentages; absent/non-positive values use baselines.
+  const ctrDecimal =
+    input.adServingRatePct != null && input.adServingRatePct > 0
+      ? input.adServingRatePct / 100
+      : BASELINE_CTR;
+  const vtrDecimal =
+    input.adServingRatePct != null && input.adServingRatePct > 0
+      ? input.adServingRatePct / 100
+      : BASELINE_VTR;
+
   // Derive impressions from the deliverable by buy type.
   let impressions: number;
   switch (buyType) {
@@ -30,13 +42,16 @@ export function computeAdServingCost(input: {
       impressions = quantity;            // deliverable already impressions
       break;
     case "cpc":
-      impressions = BASELINE_CTR > 0 ? quantity / BASELINE_CTR : 0;
+      impressions = ctrDecimal > 0 ? quantity / ctrDecimal : 0;
       break;
     case "cpv":
-      impressions = BASELINE_VTR > 0 ? quantity / BASELINE_VTR : 0;
+      impressions = vtrDecimal > 0 ? quantity / vtrDecimal : 0;
       break;
     case "fixed_cost":
-      impressions = 0;                   // no countable unit; Phase 2 manual entry
+      impressions =
+        input.adServingImpressions != null && input.adServingImpressions > 0
+          ? input.adServingImpressions
+          : 0;
       break;
     default:
       impressions = 0;                   // unknown/unsupported -> no charge

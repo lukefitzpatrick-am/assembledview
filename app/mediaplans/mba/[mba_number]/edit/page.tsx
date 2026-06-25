@@ -4258,6 +4258,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             mediaType,
             rate: getRateForMediaType(mediaType),
             adservaudio,
+            adServingRatePct: burst.adServingRatePct,
+            adServingImpressions: burst.adServingImpressions,
           })
         }
 
@@ -7056,6 +7058,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         mediaType: b.mediaType,
         rate: getRateForMediaType(b.mediaType),
         adservaudio,
+        adServingRatePct: b.adServingRatePct,
+        adServingImpressions: b.adServingImpressions,
       })
       return sum + cost
     }, 0)

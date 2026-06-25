@@ -212,6 +212,8 @@ export function computeBillingAndDeliveryMonths(
             mediaType,
             rate: getRateForMediaType(mediaType),
             adservaudio,
+            adServingRatePct: burst.adServingRatePct,
+            adServingImpressions: burst.adServingImpressions,
           });
 
           billingMap[monthKey].adServing += cost;

@@ -755,6 +755,8 @@ export default function DigiDisplayContainer({
           startDate: burst.startDate ? new Date(burst.startDate) : defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
           endDate: burst.endDate ? new Date(burst.endDate) : defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
           calculatedValue: typeof burst.calculatedValue === "number" ? burst.calculatedValue : (parseBudgetSafe(burst.calculatedValue) || 0),
+          adServingRatePct: burst.adServingRatePct,
+          adServingImpressions: burst.adServingImpressions,
         })) : [{
           budget: "",
           buyAmount: "",
@@ -1312,7 +1314,9 @@ useEffect(() => {
           budgetIncludesFees: item.budgetIncludesFees ?? false,
           noAdserving: item.noadserving ?? false,
           deliverables: burst.calculatedValue ?? 0,
-          buyType: item.buyType
+          buyType: item.buyType,
+          adServingRatePct: burst.adServingRatePct,
+          adServingImpressions: burst.adServingImpressions,
         };
 
         return billingBurst;

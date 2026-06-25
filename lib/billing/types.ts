@@ -16,6 +16,8 @@ export type BillingBurst = {
   budgetIncludesFees:  boolean;
   deliverables: number;
   buyType: 'cpm' | 'cpc' | 'cpv' | 'fixed cost' | 'package' | 'insertion' | string;
+  adServingRatePct?: number;
+  adServingImpressions?: number;
 };
 
 export type BillingLineItem = {

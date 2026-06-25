@@ -41,6 +41,8 @@ const baseBurstShape = {
   mediaAmount: z.union([z.string(), z.number()]).optional(),
   feeAmount: z.union([z.string(), z.number()]).optional(),
   fee: z.number().optional(),
+  adServingRatePct: z.number().optional(),
+  adServingImpressions: z.number().optional(),
 } as const
 
 /** Universal line item totals appearing on every channel. */

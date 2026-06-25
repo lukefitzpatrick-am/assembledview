@@ -1305,6 +1305,8 @@ export default function CreateMediaPlan() {
         mediaType: b.mediaType,
         rate: getRateForMediaType(b.mediaType),
         adservaudio,
+        adServingRatePct: b.adServingRatePct,
+        adServingImpressions: b.adServingImpressions,
       })
       return sum + cost
     }, 0)
