@@ -48,6 +48,7 @@ import { SavingModal, type SaveStatusItem } from "@/components/ui/saving-modal"
 import { OutcomeModal } from "@/components/outcome-modal"
 import type { BillingBurst, BillingMonth, BillingLineItem } from "@/lib/billing/types" // adjust path if needed
 import { buildBillingScheduleJSON } from "@/lib/billing/buildBillingSchedule"
+import { computeAdServingCost } from "@/lib/billing/computeAdServingCost"
 import { computeBillingAndDeliveryMonths } from "@/lib/billing/computeSchedule"
 import {
   appendPartialApprovalToBillingSchedule,
@@ -1297,19 +1298,13 @@ export default function CreateMediaPlan() {
     ]
     return allBursts.reduce((sum, b) => {
       if (b.noAdserving) return sum
-      const rate = getRateForMediaType(b.mediaType)
-      const buyType = b.buyType?.toLowerCase?.() || ""
-      const isCPM = buyType === "cpm"
-      const isBonus = buyType === "bonus"
-      const isDigiAudio =
-        typeof b.mediaType === "string" && b.mediaType.toLowerCase().replace(/\s+/g, "") === "digiaudio"
-      const isCpmOrBonusForDigiAudio = isDigiAudio && (isCPM || isBonus)
-      const effectiveRate = isCpmOrBonusForDigiAudio ? (adservaudio ?? rate) : rate
-      const cost = isCpmOrBonusForDigiAudio
-        ? (b.deliverables / 1000) * effectiveRate
-        : isCPM
-          ? (b.deliverables / 1000) * rate
-          : b.deliverables * rate
+      const cost = computeAdServingCost({
+        quantity: b.deliverables,
+        buyType: b.buyType || "",
+        mediaType: b.mediaType,
+        rate: getRateForMediaType(b.mediaType),
+        adservaudio,
+      })
       return sum + cost
     }, 0)
   }, [

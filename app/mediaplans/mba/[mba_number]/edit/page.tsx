@@ -123,6 +123,7 @@ import {
 } from "@/lib/billing/compareBillingDivergence"
 import { BillingDivergenceBanner } from "@/components/billing/BillingDivergenceBanner"
 import { BillingDivergenceModal } from "@/components/billing/BillingDivergenceModal"
+import { computeAdServingCost } from "@/lib/billing/computeAdServingCost"
 import { computeBillingAndDeliveryMonths } from "@/lib/billing/computeSchedule"
 import { buildBillingScheduleJSON } from "@/lib/billing/buildBillingSchedule"
 import { prepareBillingMonthsForLineItemExport } from "@/lib/billing/prepareBillingMonthsForLineItemExport"
@@ -7045,19 +7046,13 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     ]
     return allBursts.reduce((sum, b) => {
       if (b.noAdserving) return sum
-      const rate = getRateForMediaType(b.mediaType)
-      const buyType = b.buyType?.toLowerCase?.() || ""
-      const isCPM = buyType === "cpm"
-      const isBonus = buyType === "bonus"
-      const isDigiAudio =
-        typeof b.mediaType === "string" && b.mediaType.toLowerCase().replace(/\s+/g, "") === "digiaudio"
-      const isCpmOrBonusForDigiAudio = isDigiAudio && (isCPM || isBonus)
-      const effectiveRate = isCpmOrBonusForDigiAudio ? (adservaudio ?? rate) : rate
-      const cost = isCpmOrBonusForDigiAudio
-        ? (b.deliverables / 1000) * effectiveRate
-        : isCPM
-          ? (b.deliverables / 1000) * rate
-          : b.deliverables * rate
+      const cost = computeAdServingCost({
+        quantity: b.deliverables,
+        buyType: b.buyType || "",
+        mediaType: b.mediaType,
+        rate: getRateForMediaType(b.mediaType),
+        adservaudio,
+      })
       return sum + cost
     }, 0)
   }, [

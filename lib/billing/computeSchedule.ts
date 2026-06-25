@@ -1,4 +1,5 @@
 import { format } from "date-fns";
+import { computeAdServingCost } from "./computeAdServingCost";
 import type { BillingBurst, BillingMonth } from "./types";
 
 type MonthEntry = {
@@ -205,19 +206,13 @@ export function computeBillingAndDeliveryMonths(
         if (daysInMonth > 0) {
           const share = burst.deliverables * (daysInMonth / daysTotal);
 
-          const rate = getRateForMediaType(mediaType);
-          const buyType = burst.buyType?.toLowerCase?.() || "";
-          const isCpm = buyType === "cpm";
-          const isBonus = buyType === "bonus";
-          const isDigiAudio =
-            typeof mediaType === "string" && mediaType.toLowerCase().replace(/\s+/g, "") === "digiaudio";
-          const isCpmOrBonusForDigiAudio = isDigiAudio && (isCpm || isBonus);
-          const effectiveRate = isCpmOrBonusForDigiAudio ? adservaudio ?? rate : rate;
-          const cost = isCpmOrBonusForDigiAudio
-            ? (share / 1000) * effectiveRate
-            : isCpm
-              ? (share / 1000) * rate
-              : share * rate;
+          const cost = computeAdServingCost({
+            quantity: share,
+            buyType: burst.buyType || "",
+            mediaType,
+            rate: getRateForMediaType(mediaType),
+            adservaudio,
+          });
 
           billingMap[monthKey].adServing += cost;
           deliveryMap[monthKey].adServing += cost;
