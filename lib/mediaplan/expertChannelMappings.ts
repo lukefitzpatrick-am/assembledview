@@ -59,6 +59,8 @@ export interface StandardMediaBurst {
   endDate: Date
   calculatedValue?: number
   fee?: number
+  adServingRatePct?: number
+  adServingImpressions?: number
 }
 
 /** OOH `lineItems` entry shape used by {@link OOHContainer}. */
@@ -4781,7 +4783,7 @@ function emptyNewspaperLineItem(
   lineNo: number,
   budgetIncludesFees: boolean
 ): StandardNewspaperFormLineItem {
-  const id = row.id || String(lineNo)
+  const id = ((row as { sourceLineItemId?: string }).sourceLineItemId ?? row.id) || String(lineNo)
   return {
     network: row.network,
     publisher: row.publisher ?? "",
@@ -4829,7 +4831,7 @@ export function mapNewspaperExpertRowsToStandardLineItems(
     const lineNo = idx + 1
     const unitRate = parseNum(row.unitRate)
     const buyType = row.buyType
-    const id = row.id || String(lineNo)
+    const id = ((row as { sourceLineItemId?: string }).sourceLineItemId ?? row.id) || String(lineNo)
     const budgetIncludesFees = Boolean(
       row.budgetIncludesFees ?? options?.budgetIncludesFees ?? false
     )
@@ -5019,9 +5021,14 @@ export function mapStandardNewspaperLineItemsToExpertRows(
         item.lineItem ??
         index + 1
     )
+    const _reactKey =
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `newspaper-expert-import-${Date.now()}-${index}`
 
     return {
-      id,
+      id: _reactKey,
+      sourceLineItemId: id,
       startDate: firstBurst
         ? formatYmd(firstBurst.startDate)
         : formatYmd(campaignStartDate),
