@@ -169,6 +169,18 @@ export interface ExpertToStandardBurstOptions {
   budgetIncludesFees?: boolean
 }
 
+type ExpertRowWithSourceLineItemId = {
+  id?: string
+  sourceLineItemId?: string
+}
+
+function deriveExpertSourceLineItemId(
+  row: ExpertRowWithSourceLineItemId,
+  lineNo: number
+): string {
+  return (row.sourceLineItemId ?? row.id) || String(lineNo)
+}
+
 function parseNum(v: number | string | undefined | null): number {
   if (v === undefined || v === null || v === "") return 0
   if (typeof v === "number") return Number.isFinite(v) ? v : 0
@@ -642,7 +654,7 @@ function emptyOohLineItem(
 ): StandardOohFormLineItem {
   // Same precedence as the main map path: prefer the inbound standard id so
   // the merge can match by line_item_id even for rows that produced no bursts.
-  const id = ((row as { sourceLineItemId?: string }).sourceLineItemId ?? row.id) || String(lineNo)
+  const id = deriveExpertSourceLineItemId(row, lineNo)
   return {
     network: row.network,
     format: row.format,
@@ -679,7 +691,7 @@ function emptyRadioLineItem(
   lineNo: number,
   budgetIncludesFees: boolean
 ): StandardRadioFormLineItem {
-  const id = ((row as { sourceLineItemId?: string }).sourceLineItemId ?? row.id) || String(lineNo)
+  const id = deriveExpertSourceLineItemId(row, lineNo)
   return {
     network: row.network,
     station: row.station,
@@ -735,7 +747,7 @@ export function mapOohExpertRowsToStandardLineItems(
     // generated items back to their previous form-state by stable id.
     // Fall back to row.id (now a UUID) only when no source id exists, e.g. for
     // newly added rows. reassignOohLineItemNumbers overwrites this anyway.
-    const id = ((row as { sourceLineItemId?: string }).sourceLineItemId ?? row.id) || String(lineNo)
+    const id = deriveExpertSourceLineItemId(row, lineNo)
     const budgetIncludesFees = Boolean(
       row.budgetIncludesFees ?? options?.budgetIncludesFees ?? false
     )
@@ -881,7 +893,7 @@ export function mapRadioExpertRowsToStandardLineItems(
     const lineNo = idx + 1
     const unitRate = parseNum(row.unitRate)
     const buyType = row.buyType
-    const id = ((row as { sourceLineItemId?: string }).sourceLineItemId ?? row.id) || String(lineNo)
+    const id = deriveExpertSourceLineItemId(row, lineNo)
     const budgetIncludesFees = Boolean(
       row.budgetIncludesFees ?? options?.budgetIncludesFees ?? false
     )
@@ -1428,7 +1440,7 @@ function emptyTelevisionLineItem(
   lineNo: number,
   budgetIncludesFees: boolean
 ): StandardTelevisionFormLineItem {
-  const id = ((row as { sourceLineItemId?: string }).sourceLineItemId ?? row.id) || String(lineNo)
+  const id = deriveExpertSourceLineItemId(row, lineNo)
   return {
     market: row.market,
     network: row.network,
@@ -1479,7 +1491,7 @@ export function mapTvExpertRowsToStandardLineItems(
     const lineNo = idx + 1
     const unitRate = parseNum(row.unitRate)
     const buyType = row.buyType
-    const id = ((row as { sourceLineItemId?: string }).sourceLineItemId ?? row.id) || String(lineNo)
+    const id = deriveExpertSourceLineItemId(row, lineNo)
     const budgetIncludesFees = Boolean(
       row.budgetIncludesFees ?? options?.budgetIncludesFees ?? false
     )
@@ -1829,7 +1841,7 @@ function emptyBvodLineItem(
   lineNo: number,
   budgetIncludesFees: boolean
 ): StandardBvodFormLineItem {
-  const id = ((row as { sourceLineItemId?: string }).sourceLineItemId ?? row.id) || String(lineNo)
+  const id = deriveExpertSourceLineItemId(row, lineNo)
   return {
     platform: row.platform,
     site: row.site,
@@ -1881,7 +1893,7 @@ export function mapBvodExpertRowsToStandardLineItems(
     const lineNo = idx + 1
     const unitRate = parseNum(row.unitRate)
     const buyType = row.buyType
-    const id = ((row as { sourceLineItemId?: string }).sourceLineItemId ?? row.id) || String(lineNo)
+    const id = deriveExpertSourceLineItemId(row, lineNo)
     const budgetIncludesFees = Boolean(
       row.budgetIncludesFees ?? options?.budgetIncludesFees ?? false
     )
@@ -2201,7 +2213,7 @@ function emptyDigiVideoLineItem(
   lineNo: number,
   budgetIncludesFees: boolean
 ): StandardDigiVideoFormLineItem {
-  const id = ((row as { sourceLineItemId?: string }).sourceLineItemId ?? row.id) || String(lineNo)
+  const id = deriveExpertSourceLineItemId(row, lineNo)
   return {
     platform: row.platform,
     site: row.site,
@@ -2257,7 +2269,7 @@ export function mapDigiVideoExpertRowsToStandardLineItems(
     const lineNo = idx + 1
     const unitRate = parseNum(row.unitRate)
     const buyType = row.buyType
-    const id = ((row as { sourceLineItemId?: string }).sourceLineItemId ?? row.id) || String(lineNo)
+    const id = deriveExpertSourceLineItemId(row, lineNo)
     const budgetIncludesFees = Boolean(
       row.budgetIncludesFees ?? options?.budgetIncludesFees ?? false
     )
@@ -2595,7 +2607,7 @@ function emptyDigiDisplayLineItem(
   lineNo: number,
   budgetIncludesFees: boolean
 ): StandardDigiDisplayFormLineItem {
-  const id = ((row as { sourceLineItemId?: string }).sourceLineItemId ?? row.id) || String(lineNo)
+  const id = deriveExpertSourceLineItemId(row, lineNo)
   return {
     platform: row.platform,
     site: row.site,
@@ -2649,7 +2661,7 @@ export function mapDigitalDisplayExpertRowsToStandardLineItems(
     const lineNo = idx + 1
     const unitRate = parseNum(row.unitRate)
     const buyType = row.buyType
-    const id = ((row as { sourceLineItemId?: string }).sourceLineItemId ?? row.id) || String(lineNo)
+    const id = deriveExpertSourceLineItemId(row, lineNo)
     const budgetIncludesFees = Boolean(
       row.budgetIncludesFees ?? options?.budgetIncludesFees ?? false
     )
@@ -2981,7 +2993,7 @@ function emptyDigiAudioLineItem(
   lineNo: number,
   budgetIncludesFees: boolean
 ): StandardDigiAudioFormLineItem {
-  const id = ((row as { sourceLineItemId?: string }).sourceLineItemId ?? row.id) || String(lineNo)
+  const id = deriveExpertSourceLineItemId(row, lineNo)
   return {
     platform: row.platform,
     site: row.site,
@@ -3035,7 +3047,7 @@ export function mapDigitalAudioExpertRowsToStandardLineItems(
     const lineNo = idx + 1
     const unitRate = parseNum(row.unitRate)
     const buyType = row.buyType
-    const id = ((row as { sourceLineItemId?: string }).sourceLineItemId ?? row.id) || String(lineNo)
+    const id = deriveExpertSourceLineItemId(row, lineNo)
     const budgetIncludesFees = Boolean(
       row.budgetIncludesFees ?? options?.budgetIncludesFees ?? false
     )
@@ -3720,7 +3732,7 @@ function emptySearchLineItem(
   lineNo: number,
   budgetIncludesFees: boolean
 ): StandardSearchFormLineItem {
-  const id = ((row as { sourceLineItemId?: string }).sourceLineItemId ?? row.id) || String(lineNo)
+  const id = deriveExpertSourceLineItemId(row, lineNo)
   return {
     platform: row.platform,
     bidStrategy: row.bidStrategy,
@@ -3770,7 +3782,7 @@ export function mapSearchExpertRowsToStandardLineItems(
     const lineNo = idx + 1
     const unitRate = parseNum(row.unitRate)
     const buyType = row.buyType
-    const id = ((row as { sourceLineItemId?: string }).sourceLineItemId ?? row.id) || String(lineNo)
+    const id = deriveExpertSourceLineItemId(row, lineNo)
     const budgetIncludesFees = Boolean(
       row.budgetIncludesFees ?? options?.budgetIncludesFees ?? false
     )
@@ -4798,7 +4810,7 @@ function emptyNewspaperLineItem(
   lineNo: number,
   budgetIncludesFees: boolean
 ): StandardNewspaperFormLineItem {
-  const id = ((row as { sourceLineItemId?: string }).sourceLineItemId ?? row.id) || String(lineNo)
+  const id = deriveExpertSourceLineItemId(row, lineNo)
   return {
     network: row.network,
     publisher: row.publisher ?? "",
@@ -4846,7 +4858,7 @@ export function mapNewspaperExpertRowsToStandardLineItems(
     const lineNo = idx + 1
     const unitRate = parseNum(row.unitRate)
     const buyType = row.buyType
-    const id = ((row as { sourceLineItemId?: string }).sourceLineItemId ?? row.id) || String(lineNo)
+    const id = deriveExpertSourceLineItemId(row, lineNo)
     const budgetIncludesFees = Boolean(
       row.budgetIncludesFees ?? options?.budgetIncludesFees ?? false
     )
@@ -5132,7 +5144,7 @@ function emptyMagazineLineItem(
   lineNo: number,
   budgetIncludesFees: boolean
 ): StandardMagazineFormLineItem {
-  const id = ((row as { sourceLineItemId?: string }).sourceLineItemId ?? row.id) || String(lineNo)
+  const id = deriveExpertSourceLineItemId(row, lineNo)
   return {
     network: row.network,
     title: row.title,
@@ -5179,7 +5191,7 @@ export function mapMagazineExpertRowsToStandardLineItems(
     const lineNo = idx + 1
     const unitRate = parseNum(row.unitRate)
     const buyType = row.buyType
-    const id = ((row as { sourceLineItemId?: string }).sourceLineItemId ?? row.id) || String(lineNo)
+    const id = deriveExpertSourceLineItemId(row, lineNo)
     const budgetIncludesFees = Boolean(
       row.budgetIncludesFees ?? options?.budgetIncludesFees ?? false
     )
@@ -5674,7 +5686,7 @@ function emptyProgAudioLineItem(
   lineNo: number,
   budgetIncludesFees: boolean
 ): StandardProgAudioFormLineItem {
-  const id = ((row as { sourceLineItemId?: string }).sourceLineItemId ?? row.id) || String(lineNo)
+  const id = deriveExpertSourceLineItemId(row, lineNo)
   return {
     platform: row.platform,
     bidStrategy: row.bidStrategy,
@@ -5721,7 +5733,7 @@ export function mapProgAudioExpertRowsToStandardLineItems(
 
   return rows.map((row, idx) => {
     const lineNo = idx + 1
-    const id = ((row as { sourceLineItemId?: string }).sourceLineItemId ?? row.id) || String(lineNo)
+    const id = deriveExpertSourceLineItemId(row, lineNo)
     const budgetIncludesFees = Boolean(
       row.budgetIncludesFees ?? options?.budgetIncludesFees ?? false
     )
@@ -5869,7 +5881,7 @@ function emptyProgBvodLineItem(
   lineNo: number,
   budgetIncludesFees: boolean
 ): StandardProgBvodFormLineItem {
-  const id = ((row as { sourceLineItemId?: string }).sourceLineItemId ?? row.id) || String(lineNo)
+  const id = deriveExpertSourceLineItemId(row, lineNo)
   return {
     platform: row.platform,
     bidStrategy: row.bidStrategy,
@@ -5912,7 +5924,7 @@ export function mapProgBvodExpertRowsToStandardLineItems(
   const feePct = options?.feePctProgBvod ?? 0
   return rows.map((row, idx) => {
     const lineNo = idx + 1
-    const id = ((row as { sourceLineItemId?: string }).sourceLineItemId ?? row.id) || String(lineNo)
+    const id = deriveExpertSourceLineItemId(row, lineNo)
     const budgetIncludesFees = Boolean(
       row.budgetIncludesFees ?? options?.budgetIncludesFees ?? false
     )
@@ -6057,7 +6069,7 @@ function emptyProgDisplayLineItem(
   lineNo: number,
   budgetIncludesFees: boolean
 ): StandardProgDisplayFormLineItem {
-  const id = ((row as { sourceLineItemId?: string }).sourceLineItemId ?? row.id) || String(lineNo)
+  const id = deriveExpertSourceLineItemId(row, lineNo)
   return {
     platform: row.platform,
     bidStrategy: row.bidStrategy,
@@ -6104,7 +6116,7 @@ export function mapProgDisplayExpertRowsToStandardLineItems(
   const feePct = options?.feePctProgDisplay ?? 0
   return rows.map((row, idx) => {
     const lineNo = idx + 1
-    const id = ((row as { sourceLineItemId?: string }).sourceLineItemId ?? row.id) || String(lineNo)
+    const id = deriveExpertSourceLineItemId(row, lineNo)
     const budgetIncludesFees = Boolean(
       row.budgetIncludesFees ?? options?.budgetIncludesFees ?? false
     )
@@ -6253,7 +6265,7 @@ function emptyProgVideoLineItem(
   lineNo: number,
   budgetIncludesFees: boolean
 ): StandardProgVideoFormLineItem {
-  const id = ((row as { sourceLineItemId?: string }).sourceLineItemId ?? row.id) || String(lineNo)
+  const id = deriveExpertSourceLineItemId(row, lineNo)
   return {
     platform: row.platform,
     bidStrategy: row.bidStrategy,
@@ -6300,7 +6312,7 @@ export function mapProgVideoExpertRowsToStandardLineItems(
   const feePct = options?.feePctProgVideo ?? 0
   return rows.map((row, idx) => {
     const lineNo = idx + 1
-    const id = ((row as { sourceLineItemId?: string }).sourceLineItemId ?? row.id) || String(lineNo)
+    const id = deriveExpertSourceLineItemId(row, lineNo)
     const budgetIncludesFees = Boolean(
       row.budgetIncludesFees ?? options?.budgetIncludesFees ?? false
     )
@@ -6453,7 +6465,7 @@ function emptyProgOohLineItem(
   lineNo: number,
   budgetIncludesFees: boolean
 ): StandardProgOohFormLineItem {
-  const id = ((row as { sourceLineItemId?: string }).sourceLineItemId ?? row.id) || String(lineNo)
+  const id = deriveExpertSourceLineItemId(row, lineNo)
   return {
     platform: row.platform,
     bidStrategy: row.bidStrategy,
@@ -6502,7 +6514,7 @@ export function mapProgOohExpertRowsToStandardLineItems(
   const feePct = options?.feePctProgOoh ?? 0
   return rows.map((row, idx) => {
     const lineNo = idx + 1
-    const id = ((row as { sourceLineItemId?: string }).sourceLineItemId ?? row.id) || String(lineNo)
+    const id = deriveExpertSourceLineItemId(row, lineNo)
     const budgetIncludesFees = Boolean(
       row.budgetIncludesFees ?? options?.budgetIncludesFees ?? false
     )
