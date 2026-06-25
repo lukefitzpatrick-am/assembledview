@@ -551,6 +551,13 @@ export interface ProgVideoExpertScheduleRow {
 /** Programmatic OOH — expert schedule row (placement + size after creative). */
 export interface ProgOohExpertScheduleRow {
   id: string
+  /**
+   * Original standard line_item_id captured at import time so the apply-time
+   * merge can match generated standard items back to their previous form state
+   * by stable id. Decoupled from `id` (React key) since `id` is a UUID and not
+   * tied to line numbering. Undefined on rows added inside expert mode.
+   */
+  sourceLineItemId?: string
   startDate: string
   endDate: string
   platform: string
