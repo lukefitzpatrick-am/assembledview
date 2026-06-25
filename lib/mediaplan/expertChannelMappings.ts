@@ -5674,7 +5674,7 @@ function emptyProgAudioLineItem(
   lineNo: number,
   budgetIncludesFees: boolean
 ): StandardProgAudioFormLineItem {
-  const id = row.id || String(lineNo)
+  const id = ((row as { sourceLineItemId?: string }).sourceLineItemId ?? row.id) || String(lineNo)
   return {
     platform: row.platform,
     bidStrategy: row.bidStrategy,
@@ -5721,7 +5721,7 @@ export function mapProgAudioExpertRowsToStandardLineItems(
 
   return rows.map((row, idx) => {
     const lineNo = idx + 1
-    const id = row.id || String(lineNo)
+    const id = ((row as { sourceLineItemId?: string }).sourceLineItemId ?? row.id) || String(lineNo)
     const budgetIncludesFees = Boolean(
       row.budgetIncludesFees ?? options?.budgetIncludesFees ?? false
     )
@@ -5797,9 +5797,14 @@ export function mapStandardProgAudioLineItemsToExpertRows(
         item.lineItem ??
         index + 1
     )
+    const _reactKey =
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `progaudio-expert-import-${Date.now()}-${index}`
 
     return {
-      id,
+      id: _reactKey,
+      sourceLineItemId: id,
       startDate: firstBurst
         ? formatYmd(firstBurst.startDate)
         : formatYmd(campaignStartDate),
