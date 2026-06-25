@@ -33,6 +33,7 @@ import { reassignDigiDisplayLineItemNumbers } from "@/lib/mediaplan/lineItemOrde
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { appendBurst, removeBurst, newBurstReactKey, stampBurstReactKeys } from "@/lib/mediaplan/burstOperations"
 import { serializeBurstsJson } from "@/lib/mediaplan/serializeBurstsJson"
+import { expertApplyClearedAdServingOverride } from "@/lib/mediaplan/adServingOverrideNotice"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -654,10 +655,21 @@ export default function DigiDisplayContainer({
     )
     const reassigned = reassignDigiDisplayLineItemNumbers(merged, mbaNumber)
     const keyedMerged = stampBurstReactKeys(reassigned)
+    const clearedOverride = expertApplyClearedAdServingOverride(
+      prevLineItems as any,
+      keyedMerged as any
+    )
     form.setValue("digidisplaylineItems", keyedMerged as any, {
       shouldDirty: true,
       shouldValidate: false,
     })
+    if (clearedOverride) {
+      toast({
+        title: "Ad serving overrides reset",
+        description:
+          "Applying expert mode reset per-burst ad serving overrides on this channel to baseline. Re-enter them on the affected bursts if needed.",
+      })
+    }
     digiDisplayStandardBaselineRef.current =
       serializeDigiDisplayStandardLineItemsBaseline(
         asStandardDigiDisplayItems(form.getValues("digidisplaylineItems"))
@@ -674,6 +686,7 @@ export default function DigiDisplayContainer({
     form,
     digiDisplayExpertWeekColumns,
     mbaNumber,
+    toast,
   ])
 
   const handleDuplicateLineItem = useCallback((lineItemIndex: number) => {

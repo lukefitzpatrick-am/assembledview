@@ -30,6 +30,7 @@ import { getPublishersForProgAudio, getClientInfo } from "@/lib/api"
 import { formatBurstLabel } from "@/lib/bursts"
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { serializeBurstsJson } from "@/lib/mediaplan/serializeBurstsJson"
+import { expertApplyClearedAdServingOverride } from "@/lib/mediaplan/adServingOverrideNotice"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
@@ -496,10 +497,21 @@ export default function ProgAudioContainer({
       prevLineItems as StandardProgAudioFormLineItem[]
     )
     const keyedMerged = stampBurstReactKeys(merged)
+    const clearedOverride = expertApplyClearedAdServingOverride(
+      prevLineItems as any,
+      keyedMerged as any
+    )
     form.setValue("lineItems", keyedMerged as ProgAudioFormValues["lineItems"], {
       shouldDirty: true,
       shouldValidate: false,
     })
+    if (clearedOverride) {
+      toast({
+        title: "Ad serving overrides reset",
+        description:
+          "Applying expert mode reset per-burst ad serving overrides on this channel to baseline. Re-enter them on the affected bursts if needed.",
+      })
+    }
     progAudioStandardBaselineRef.current =
       serializeProgAudioStandardLineItemsBaseline(
         form.getValues("lineItems") as StandardProgAudioFormLineItem[]
@@ -515,6 +527,7 @@ export default function ProgAudioContainer({
     feeprogaudio,
     form,
     progAudioExpertWeekColumns,
+    toast,
   ])
 
   const handleDuplicateLineItem = useCallback((lineItemIndex: number) => {

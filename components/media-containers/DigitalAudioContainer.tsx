@@ -25,6 +25,7 @@ import { getPublishersForDigiAudio, getClientInfo, getAudioSites, createAudioSit
 import { formatBurstLabel } from "@/lib/bursts"
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { serializeBurstsJson } from "@/lib/mediaplan/serializeBurstsJson"
+import { expertApplyClearedAdServingOverride } from "@/lib/mediaplan/adServingOverrideNotice"
 import { appendBurst, removeBurst, newBurstReactKey, stampBurstReactKeys } from "@/lib/mediaplan/burstOperations"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
@@ -561,10 +562,21 @@ export default function DigiAudioContainer({
       prevLineItems as StandardDigiAudioFormLineItem[]
     )
     const keyedMerged = stampBurstReactKeys(merged)
+    const clearedOverride = expertApplyClearedAdServingOverride(
+      prevLineItems as any,
+      keyedMerged as any
+    )
     form.setValue("digiaudiolineItems", keyedMerged as any, {
       shouldDirty: true,
       shouldValidate: false,
     })
+    if (clearedOverride) {
+      toast({
+        title: "Ad serving overrides reset",
+        description:
+          "Applying expert mode reset per-burst ad serving overrides on this channel to baseline. Re-enter them on the affected bursts if needed.",
+      })
+    }
     digiAudioStandardBaselineRef.current =
       serializeDigiAudioStandardLineItemsBaseline(
         form.getValues("digiaudiolineItems")
@@ -580,6 +592,7 @@ export default function DigiAudioContainer({
     feedigiaudio,
     form,
     digiAudioExpertWeekColumns,
+    toast,
   ])
 
   const handleDuplicateLineItem = useCallback((lineItemIndex: number) => {

@@ -30,6 +30,7 @@ import { getPublishersForProgBvod, getClientInfo } from "@/lib/api"
 import { formatBurstLabel } from "@/lib/bursts"
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { serializeBurstsJson } from "@/lib/mediaplan/serializeBurstsJson"
+import { expertApplyClearedAdServingOverride } from "@/lib/mediaplan/adServingOverrideNotice"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -496,10 +497,21 @@ export default function ProgBVODContainer({
       prevLineItems as StandardProgBvodFormLineItem[]
     )
     const keyedMerged = stampBurstReactKeys(merged)
+    const clearedOverride = expertApplyClearedAdServingOverride(
+      prevLineItems as any,
+      keyedMerged as any
+    )
     form.setValue("lineItems", keyedMerged as ProgBvodFormValues["lineItems"], {
       shouldDirty: true,
       shouldValidate: false,
     })
+    if (clearedOverride) {
+      toast({
+        title: "Ad serving overrides reset",
+        description:
+          "Applying expert mode reset per-burst ad serving overrides on this channel to baseline. Re-enter them on the affected bursts if needed.",
+      })
+    }
     progbvodStandardBaselineRef.current =
       serializeProgBvodStandardLineItemsBaseline(
         form.getValues("lineItems") as StandardProgBvodFormLineItem[]
@@ -515,6 +527,7 @@ export default function ProgBVODContainer({
     feeprogbvod,
     form,
     progbvodExpertWeekColumns,
+    toast,
   ])
 
   const handleDuplicateLineItem = useCallback((lineItemIndex: number) => {
