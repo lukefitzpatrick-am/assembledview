@@ -83,6 +83,17 @@ import {
   coerceBuyTypeWithDevWarn,
 } from "@/lib/mediaplan/deliverableBudget"
 
+const AD_SERVING_OVERRIDE_BURST_GRID =
+  "grid grid-cols-8 gap-3 items-end flex-1 min-w-0"
+
+const shouldShowAdServingOverrideInput = (buyType?: string) =>
+  buyType === "cpc" || buyType === "cpv" || buyType === "fixed_cost"
+
+const parseAdServingOverrideInput = (value: string) => {
+  const parsed = Number(value.replace(/,/g, ""))
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined
+}
+
 const PROG_VIDEO_MEDIA_HEX = getMediaTypeThemeHex("progvideo")
 
 // Format Dates
@@ -1539,7 +1550,7 @@ useEffect(() => {
                           <div className={MP_BURST_HEADER_INNER}>
                             <div className={MP_BURST_LABEL_COLUMN} aria-hidden />
                             <div className={MP_BURST_HEADER_ROW}>
-                              <div className={`${MP_BURST_GRID_7} text-[11px] font-semibold uppercase tracking-wider text-muted-foreground`}>
+                              <div className={`${shouldShowAdServingOverrideInput(form.watch(`lineItems.${lineItemIndex}.buyType`)) ? AD_SERVING_OVERRIDE_BURST_GRID : MP_BURST_GRID_7} text-[11px] font-semibold uppercase tracking-wider text-muted-foreground`}>
                                 <span>Budget</span>
                                 <span>Buy Amount</span>
                                 <span>Start</span>
@@ -1550,6 +1561,9 @@ useEffect(() => {
                                     form.watch(`lineItems.${lineItemIndex}.buyType`) || ""
                                   )}
                                 </span>
+                                {shouldShowAdServingOverrideInput(form.watch(`lineItems.${lineItemIndex}.buyType`)) && (
+                                  <span>Ad serving</span>
+                                )}
                                 <span>Media</span>
                                 <span>{`Fee (${feeprogvideo}%)`}</span>
                               </div>
@@ -1560,6 +1574,8 @@ useEffect(() => {
                           </div>
                         </div>
                         {form.watch(`lineItems.${lineItemIndex}.bursts`, []).map((burstField, burstIndex) => {
+                          const buyType = form.watch(`lineItems.${lineItemIndex}.buyType`);
+                          const showAdServingOverrideInput = shouldShowAdServingOverrideInput(buyType);
                           return (
                             <Card key={burstField._reactKey ?? `${lineItemIndex}-${burstIndex}`} className={MP_BURST_CARD}>
                               <CardContent className={MP_BURST_CARD_CONTENT}>
@@ -1574,7 +1590,7 @@ useEffect(() => {
                                     </h4>
                                   </div>
                                   
-                                  <div className={MP_BURST_GRID_7}>
+                                  <div className={showAdServingOverrideInput ? AD_SERVING_OVERRIDE_BURST_GRID : MP_BURST_GRID_7}>
                                     <FormField
                                       control={form.control}
                                       name={`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`}
@@ -1715,6 +1731,64 @@ useEffect(() => {
                                         />
                                       )}
                                     />
+
+                                    {(buyType === "cpc" || buyType === "cpv") && (
+                                      <FormField
+                                        control={form.control}
+                                        name={`lineItems.${lineItemIndex}.bursts.${burstIndex}.adServingRatePct`}
+                                        render={({ field }) => (
+                                          <FormItem>
+                                            <FormLabel className="text-xs leading-tight">
+                                              {buyType === "cpc" ? "Ad serving CTR %" : "Ad serving VTR %"}
+                                            </FormLabel>
+                                            <FormControl>
+                                              <Input
+                                                {...field}
+                                                type="number"
+                                                inputMode="decimal"
+                                                placeholder={buyType === "cpc" ? "0.1" : "25"}
+                                                className="w-full h-10 text-sm"
+                                                value={field.value ?? ""}
+                                                onChange={(e) => {
+                                                  field.onChange(parseAdServingOverrideInput(e.target.value));
+                                                  handleValueChange(lineItemIndex, burstIndex);
+                                                  handleLineItemValueChange(lineItemIndex);
+                                                }}
+                                              />
+                                            </FormControl>
+                                            <FormMessage />
+                                          </FormItem>
+                                        )}
+                                      />
+                                    )}
+
+                                    {buyType === "fixed_cost" && (
+                                      <FormField
+                                        control={form.control}
+                                        name={`lineItems.${lineItemIndex}.bursts.${burstIndex}.adServingImpressions`}
+                                        render={({ field }) => (
+                                          <FormItem>
+                                            <FormLabel className="text-xs leading-tight">Ad serving impressions</FormLabel>
+                                            <FormControl>
+                                              <Input
+                                                {...field}
+                                                type="number"
+                                                inputMode="numeric"
+                                                placeholder="0"
+                                                className="w-full h-10 text-sm"
+                                                value={field.value ?? ""}
+                                                onChange={(e) => {
+                                                  field.onChange(parseAdServingOverrideInput(e.target.value));
+                                                  handleValueChange(lineItemIndex, burstIndex);
+                                                  handleLineItemValueChange(lineItemIndex);
+                                                }}
+                                              />
+                                            </FormControl>
+                                            <FormMessage />
+                                          </FormItem>
+                                        )}
+                                      />
+                                    )}
 
                                     <Input
                                         type="text"

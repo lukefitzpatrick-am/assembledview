@@ -80,6 +80,17 @@ import {
 } from "@/lib/mediaplan/expertModeSwitch"
 import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
 
+const AD_SERVING_OVERRIDE_BURST_GRID =
+  "grid grid-cols-8 gap-3 items-end flex-1 min-w-0"
+
+const shouldShowAdServingOverrideInput = (buyType?: string) =>
+  buyType === "cpc" || buyType === "cpv" || buyType === "fixed_cost"
+
+const parseAdServingOverrideInput = (value: string) => {
+  const parsed = Number(value.replace(/,/g, ""))
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined
+}
+
 // Format Dates
 const formatDateString = (d?: Date | string): string => {
   if (!d) return '';
@@ -1755,6 +1766,8 @@ useEffect(() => {
 
                       <div className="space-y-4">
                         {form.watch(`bvodlineItems.${lineItemIndex}.bursts`, []).map((burstField, burstIndex) => {
+                          const buyType = form.watch(`bvodlineItems.${lineItemIndex}.buyType`);
+                          const showAdServingOverrideInput = shouldShowAdServingOverrideInput(buyType);
                           return (
                             <Card key={(burstField as any)._reactKey ?? `${lineItemIndex}-${burstIndex}`} className={MP_BURST_CARD}>
                               <CardContent className={MP_BURST_CARD_CONTENT}>
@@ -1769,7 +1782,7 @@ useEffect(() => {
                                     </h4>
                                   </div>
                                   
-                                  <div className="grid grid-cols-7 gap-3 items-center flex-grow">
+                                  <div className={showAdServingOverrideInput ? AD_SERVING_OVERRIDE_BURST_GRID : "grid grid-cols-7 gap-3 items-center flex-grow"}>
                                     <FormField
                                       control={form.control}
                                       name={`bvodlineItems.${lineItemIndex}.bursts.${burstIndex}.budget`}
@@ -1914,6 +1927,64 @@ useEffect(() => {
                                         />
                                       )}
                                     />
+
+                                    {(buyType === "cpc" || buyType === "cpv") && (
+                                      <FormField
+                                        control={form.control}
+                                        name={`bvodlineItems.${lineItemIndex}.bursts.${burstIndex}.adServingRatePct`}
+                                        render={({ field }) => (
+                                          <FormItem>
+                                            <FormLabel className="text-xs leading-tight">
+                                              {buyType === "cpc" ? "Ad serving CTR %" : "Ad serving VTR %"}
+                                            </FormLabel>
+                                            <FormControl>
+                                              <Input
+                                                {...field}
+                                                type="number"
+                                                inputMode="decimal"
+                                                placeholder={buyType === "cpc" ? "0.1" : "25"}
+                                                className="w-full h-10 text-sm"
+                                                value={field.value ?? ""}
+                                                onChange={(e) => {
+                                                  field.onChange(parseAdServingOverrideInput(e.target.value));
+                                                  handleValueChange(lineItemIndex, burstIndex);
+                                                  handleLineItemValueChange(lineItemIndex);
+                                                }}
+                                              />
+                                            </FormControl>
+                                            <FormMessage />
+                                          </FormItem>
+                                        )}
+                                      />
+                                    )}
+
+                                    {buyType === "fixed_cost" && (
+                                      <FormField
+                                        control={form.control}
+                                        name={`bvodlineItems.${lineItemIndex}.bursts.${burstIndex}.adServingImpressions`}
+                                        render={({ field }) => (
+                                          <FormItem>
+                                            <FormLabel className="text-xs leading-tight">Ad serving impressions</FormLabel>
+                                            <FormControl>
+                                              <Input
+                                                {...field}
+                                                type="number"
+                                                inputMode="numeric"
+                                                placeholder="0"
+                                                className="w-full h-10 text-sm"
+                                                value={field.value ?? ""}
+                                                onChange={(e) => {
+                                                  field.onChange(parseAdServingOverrideInput(e.target.value));
+                                                  handleValueChange(lineItemIndex, burstIndex);
+                                                  handleLineItemValueChange(lineItemIndex);
+                                                }}
+                                              />
+                                            </FormControl>
+                                            <FormMessage />
+                                          </FormItem>
+                                        )}
+                                      />
+                                    )}
 
                                     <div className="space-y-1">
                                       <FormLabel className="text-xs leading-tight">Media</FormLabel>
