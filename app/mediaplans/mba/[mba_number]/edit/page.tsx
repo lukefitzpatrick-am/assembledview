@@ -4252,10 +4252,13 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         const noAdserving = Boolean(burst.noAdserving)
         let adServingForBurst = 0
         if (!noAdserving && deliverables > 0) {
-          const buyType = burst.buyType?.toLowerCase?.() || ""
-          const isCpm = buyType === "cpm"
-          const rate = getRateForMediaType(mediaType)
-          adServingForBurst = isCpm ? (deliverables / 1000) * rate : deliverables * rate
+          adServingForBurst = computeAdServingCost({
+            quantity: deliverables,
+            buyType: burst.buyType || "",
+            mediaType,
+            rate: getRateForMediaType(mediaType),
+            adservaudio,
+          })
         }
 
         const daysTotal =
@@ -4300,7 +4303,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     });
 
     return Array.from(lineItemsMap.values());
-  }, [getRateForMediaType]);
+  }, [adservaudio, getRateForMediaType]);
 
   /**
    * Level 2 — per–line-item reset (modal draft): copy that row from the auto template built as
@@ -7038,6 +7041,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       ...progDisplayBursts,
       ...progVideoBursts,
       ...progBvodBursts,
+      ...progOohBursts,
       ...progAudioBursts,
       ...digitalAudioBursts,
       ...digitalDisplayBursts,
@@ -7060,6 +7064,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     progDisplayBursts,
     progVideoBursts,
     progBvodBursts,
+    progOohBursts,
     progAudioBursts,
     digitalAudioBursts,
     digitalDisplayBursts,
