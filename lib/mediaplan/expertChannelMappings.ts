@@ -5117,7 +5117,7 @@ function emptyMagazineLineItem(
   lineNo: number,
   budgetIncludesFees: boolean
 ): StandardMagazineFormLineItem {
-  const id = row.id || String(lineNo)
+  const id = ((row as { sourceLineItemId?: string }).sourceLineItemId ?? row.id) || String(lineNo)
   return {
     network: row.network,
     title: row.title,
@@ -5164,7 +5164,7 @@ export function mapMagazineExpertRowsToStandardLineItems(
     const lineNo = idx + 1
     const unitRate = parseNum(row.unitRate)
     const buyType = row.buyType
-    const id = row.id || String(lineNo)
+    const id = ((row as { sourceLineItemId?: string }).sourceLineItemId ?? row.id) || String(lineNo)
     const budgetIncludesFees = Boolean(
       row.budgetIncludesFees ?? options?.budgetIncludesFees ?? false
     )
@@ -5353,9 +5353,14 @@ export function mapStandardMagazineLineItemsToExpertRows(
         item.lineItem ??
         index + 1
     )
+    const _reactKey =
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `magazines-expert-import-${Date.now()}-${index}`
 
     return {
-      id,
+      id: _reactKey,
+      sourceLineItemId: id,
       startDate: firstBurst
         ? formatYmd(firstBurst.startDate)
         : formatYmd(campaignStartDate),
