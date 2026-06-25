@@ -1426,7 +1426,7 @@ function emptyTelevisionLineItem(
   lineNo: number,
   budgetIncludesFees: boolean
 ): StandardTelevisionFormLineItem {
-  const id = row.id || String(lineNo)
+  const id = ((row as { sourceLineItemId?: string }).sourceLineItemId ?? row.id) || String(lineNo)
   return {
     market: row.market,
     network: row.network,
@@ -1477,7 +1477,7 @@ export function mapTvExpertRowsToStandardLineItems(
     const lineNo = idx + 1
     const unitRate = parseNum(row.unitRate)
     const buyType = row.buyType
-    const id = row.id || String(lineNo)
+    const id = ((row as { sourceLineItemId?: string }).sourceLineItemId ?? row.id) || String(lineNo)
     const budgetIncludesFees = Boolean(
       row.budgetIncludesFees ?? options?.budgetIncludesFees ?? false
     )
@@ -1660,6 +1660,10 @@ export function mapStandardTvLineItemsToExpertRows(
         item.lineItem ??
         index + 1
     )
+    const _reactKey =
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `tv-expert-import-${Date.now()}-${index}`
 
     const sizeFromBurst = firstBurst?.size
       ? String(firstBurst.size)
@@ -1670,7 +1674,8 @@ export function mapStandardTvLineItemsToExpertRows(
     )
 
     return {
-      id,
+      id: _reactKey,
+      sourceLineItemId: id,
       startDate: firstBurst
         ? formatYmd(firstBurst.startDate)
         : formatYmd(campaignStartDate),
