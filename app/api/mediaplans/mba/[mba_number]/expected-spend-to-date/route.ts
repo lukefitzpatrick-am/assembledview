@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server"
 import { normaliseLineItemsByType } from "@/lib/mediaplan/normalizeLineItem"
+import { parseDateSafe } from "@/lib/dates/parseDateSafe"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
 export const maxDuration = 60
-import { parseDateOnlyString } from "@/lib/timezone"
 import { roundMoney4 } from "@/lib/format/money"
 
 const DEBUG_SPEND = process.env.NEXT_PUBLIC_DEBUG_SPEND === "true"
@@ -24,23 +24,6 @@ function parseAmount(value: any): number {
     return Number.isFinite(parsed) ? parsed : 0
   }
   return 0
-}
-
-function parseDateSafe(value?: string | Date | null): Date | null {
-  if (!value) return null
-  if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return new Date(value)
-  }
-  if (typeof value === "string") {
-    try {
-      return parseDateOnlyString(value)
-    } catch {
-      const parsed = new Date(value)
-      return Number.isNaN(parsed.getTime()) ? null : parsed
-    }
-  }
-  const parsed = new Date(value)
-  return Number.isNaN(parsed.getTime()) ? null : parsed
 }
 
 function startOfDay(date: Date) {

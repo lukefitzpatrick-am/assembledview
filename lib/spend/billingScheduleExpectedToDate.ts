@@ -1,4 +1,4 @@
-import { parseDateOnlyString } from "@/lib/timezone"
+import { parseDateSafe as safeParseDate } from "@/lib/dates/parseDateSafe"
 import { roundMoney4 } from "@/lib/format/money"
 
 function parseAmount(value: unknown): number {
@@ -10,23 +10,6 @@ function parseAmount(value: unknown): number {
     return Number.isFinite(parsed) ? parsed : 0
   }
   return 0
-}
-
-function safeParseDate(value: unknown): Date | null {
-  if (!value) return null
-  if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return new Date(value)
-  }
-  if (typeof value === "string") {
-    try {
-      return parseDateOnlyString(value)
-    } catch {
-      const parsed = new Date(value)
-      return Number.isNaN(parsed.getTime()) ? null : parsed
-    }
-  }
-  const parsed = new Date(value as string | number)
-  return Number.isNaN(parsed.getTime()) ? null : parsed
 }
 
 function startOfDay(date: Date): Date {

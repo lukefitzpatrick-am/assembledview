@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { checkClientMbaAccess } from "@/lib/auth/checkClientMbaAccess"
 import axios from "axios"
+import { parseDateSafe as safeParseDate } from "@/lib/dates/parseDateSafe"
 import { parseDateOnlyString, toMelbourneDateString } from "@/lib/timezone"
 import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
 import { getXanoBaseUrl, xanoUrl } from "@/lib/api/xano"
@@ -180,23 +181,6 @@ function parseAmount(value: any): number {
     return Number.isFinite(parsed) ? parsed : 0
   }
   return 0
-}
-
-function safeParseDate(value: any): Date | null {
-  if (!value) return null
-  if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return new Date(value)
-  }
-  if (typeof value === "string") {
-    try {
-      return parseDateOnlyString(value)
-    } catch {
-      const parsed = new Date(value)
-      return Number.isNaN(parsed.getTime()) ? null : parsed
-    }
-  }
-  const parsed = new Date(value)
-  return Number.isNaN(parsed.getTime()) ? null : parsed
 }
 
 function normalizeISODateOnlySafe(value: any): string | null {
