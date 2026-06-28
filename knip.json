@@ -1,0 +1,21 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "app/**/{page,layout,loading,error,not-found,route,template,default,global-error}.{ts,tsx}",
+    "app/**/{icon,apple-icon,opengraph-image,twitter-image,sitemap,robots,manifest}.{ts,tsx}",
+    "middleware.{ts,tsx}",
+    "next.config.{js,mjs,ts}",
+    "scripts/**/*.{ts,tsx,js,cjs,mjs}"
+  ],
+  "project": ["**/*.{ts,tsx}"],
+  "ignore": [
+    "components/ui/**"
+  ],
+  "ignoreDependencies": [
+    "autoprefixer",
+    "postcss",
+    "@babel/runtime",
+    "core-js",
+    "eslint-config-next"
+  ]
+}
