@@ -1,15 +1,11 @@
+import { parseDateNativeSafe as parseDateSafe } from "../dates/parseDateNativeSafe"
+
 export type NormalisedBurst = {
   id: string
   startDate: string
   endDate: string
   spend?: number
   deliverables?: number
-}
-
-function parseDateSafe(value?: string | Date | number | null) {
-  if (!value) return null
-  const date = value instanceof Date ? value : new Date(value)
-  return Number.isNaN(date.getTime()) ? null : date
 }
 
 function toIsoDate(date: Date) {

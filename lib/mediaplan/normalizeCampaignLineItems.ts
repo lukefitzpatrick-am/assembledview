@@ -1,10 +1,5 @@
+import { parseDateNativeSafe as parseDateSafe } from "../dates/parseDateNativeSafe"
 import { parseBurstArray } from "./deriveBursts"
-
-function parseDateSafe(value?: any): Date | null {
-  if (!value) return null
-  const date = value instanceof Date ? value : new Date(value)
-  return Number.isNaN(date.getTime()) ? null : date
-}
 
 function toIso(date: Date | null | undefined) {
   return date ? date.toISOString() : undefined
