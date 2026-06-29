@@ -40,6 +40,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils"
 import { ChevronDown, Copy, Plus, Trash2 } from "lucide-react"
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
+import { resolveBillingBurstLineItemId } from "@/lib/billing/resolveBillingBurstLineItemId"
 import type { LineItem } from '@/lib/generateMediaPlan'
 import { formatMoney, parseMoneyInput } from "@/lib/format/money"
 import {
@@ -232,13 +233,14 @@ type DigiDisplayFormGetValues = {
 
 export function getDigiDisplayBursts(
   form: DigiDisplayFormGetValues,
-  feedigidisplay: number
+  feedigidisplay: number,
+  mbaNumber?: string,
 ): BillingBurst[] {
   const digidisplaylineItems = asStandardDigiDisplayItems(
     form.getValues("digidisplaylineItems") as Parameters<typeof asStandardDigiDisplayItems>[0]
   )
 
-  return digidisplaylineItems.flatMap(li =>
+  return digidisplaylineItems.flatMap((li, liIndex) =>
     (li.bursts || []).map(burst => {
       const rawBudget = parseBudgetSafe(burst?.budget)
 
@@ -266,7 +268,13 @@ export function getDigiDisplayBursts(
         budgetIncludesFees: li.budgetIncludesFees,
         noAdserving: li.noadserving,
         deliverables: burst.calculatedValue ?? 0,
-        buyType: li.buyType
+        buyType: li.buyType,
+        lineItemId: resolveBillingBurstLineItemId(
+          li,
+          mbaNumber,
+          MEDIA_TYPE_ID_CODES.digitalDisplay,
+          liIndex,
+        ),
       }
     })
   )
@@ -1217,7 +1225,7 @@ useEffect(() => {
 
 useEffect(() => {
   // convert each form lineItem into the shape needed for Excel
-  const calculatedBursts = getDigiDisplayBursts(form, feedigidisplay || 0);
+  const calculatedBursts = getDigiDisplayBursts(form, feedigidisplay || 0, mbaNumber);
   let burstIndex = 0;
 
   const items: LineItem[] = (form.getValues('digidisplaylineItems') || []).flatMap((lineItem, lineItemIndex) =>
@@ -1270,7 +1278,7 @@ useEffect(() => {
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       const investmentByMonth = calculateInvestmentPerMonth(form, feedigidisplay || 0);
-      const bursts = getDigiDisplayBursts(form, feedigidisplay || 0);
+      const bursts = getDigiDisplayBursts(form, feedigidisplay || 0, mbaNumber);
       
       const hasInvestmentChanges = JSON.stringify(investmentByMonth) !== JSON.stringify(prevInvestmentRef.current);
       const hasBurstChanges = JSON.stringify(bursts) !== JSON.stringify(prevBurstsRef.current);
