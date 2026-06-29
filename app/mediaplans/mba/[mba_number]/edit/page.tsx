@@ -126,6 +126,7 @@ import { BillingDivergenceModal } from "@/components/billing/BillingDivergenceMo
 import { computeAdServingCost } from "@/lib/billing/computeAdServingCost"
 import { computeBillingAndDeliveryMonths } from "@/lib/billing/computeSchedule"
 import { buildBillingScheduleJSON } from "@/lib/billing/buildBillingSchedule"
+import { prorateAcrossMonths } from "@/lib/billing/prorateAcrossMonths"
 import { prepareBillingMonthsForLineItemExport } from "@/lib/billing/prepareBillingMonthsForLineItemExport"
 import { syncLineItemMonthlyAmountAcrossAllMonthRows } from "@/lib/billing/syncLineItemAmountAcrossMonthRows"
 import { ManualBillingSpreadsheetCostInput } from "@/components/billing/ManualBillingSpreadsheetCostInput"
@@ -4201,36 +4202,14 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
           if (isNaN(startDate.getTime()) || isNaN(endDate.getTime()) || effectiveBudget === 0) return;
 
-          // Normalise burst endpoints to local midnight so day counts don't drift
-          // when bursts come from UTC ISO strings (e.g. "2026-05-30T14:00:00.000Z").
-          const sLocalMidnight = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
-          const eLocalMidnight = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
-
-          const daysTotal =
-            Math.round((eLocalMidnight.getTime() - sLocalMidnight.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-          if (daysTotal <= 0) return;
-
-          // Walk months by constructing fresh first-of-month Dates instead of mutating
-          // with setMonth/setDate, which has a rollover bug: e.g. setting month=June on
-          // a Date whose day is 31 normalises to 1 July, silently skipping June.
-          let currentDate = new Date(sLocalMidnight.getFullYear(), sLocalMidnight.getMonth(), 1);
-          const lastMonthCursor = new Date(eLocalMidnight.getFullYear(), eLocalMidnight.getMonth(), 1);
-
-          while (currentDate <= lastMonthCursor) {
-            const monthKey = format(currentDate, "MMMM yyyy");
-            if (monthlyAmounts.hasOwnProperty(monthKey)) {
-              const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-              const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
-              const sliceStartMs = Math.max(sLocalMidnight.getTime(), monthStart.getTime());
-              const sliceEndMs = Math.min(eLocalMidnight.getTime(), monthEnd.getTime());
-              const daysInMonth =
-                Math.round((sliceEndMs - sliceStartMs) / (1000 * 60 * 60 * 24)) + 1;
-              if (daysInMonth > 0) {
-                const share = effectiveBudget * (daysInMonth / daysTotal);
-                monthlyAmounts[monthKey] += share;
-              }
-            }
-            currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
+          const shares = prorateAcrossMonths({
+            amount: effectiveBudget,
+            burstStart: startDate,
+            burstEnd: endDate,
+            monthKeys,
+          });
+          for (const monthKey of monthKeys) {
+            monthlyAmounts[monthKey] += shares[monthKey] ?? 0;
           }
         });
 
@@ -4244,9 +4223,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         const startDate = new Date(burst.startDate)
         const endDate = new Date(burst.endDate)
         if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return
-
-        const sLocalMidnight = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate())
-        const eLocalMidnight = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate())
 
         const deliverables = Number(burst.deliverables || 0)
         const noAdserving = Boolean(burst.noAdserving)
@@ -4263,28 +4239,14 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           })
         }
 
-        const daysTotal =
-          Math.round((eLocalMidnight.getTime() - sLocalMidnight.getTime()) / (1000 * 60 * 60 * 24)) + 1
-        if (daysTotal <= 0) return
-
-        let currentDate = new Date(sLocalMidnight.getFullYear(), sLocalMidnight.getMonth(), 1)
-        const lastMonthCursor = new Date(eLocalMidnight.getFullYear(), eLocalMidnight.getMonth(), 1)
-
-        while (currentDate <= lastMonthCursor) {
-          const monthKey = format(currentDate, "MMMM yyyy")
-          if (adServingMonthlyAmounts.hasOwnProperty(monthKey)) {
-            const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
-            const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0)
-            const sliceStartMs = Math.max(sLocalMidnight.getTime(), monthStart.getTime())
-            const sliceEndMs = Math.min(eLocalMidnight.getTime(), monthEnd.getTime())
-            const daysInMonth =
-              Math.round((sliceEndMs - sliceStartMs) / (1000 * 60 * 60 * 24)) + 1
-            if (daysInMonth > 0) {
-              const ratio = daysInMonth / daysTotal
-              adServingMonthlyAmounts[monthKey] += adServingForBurst * ratio
-            }
-          }
-          currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1)
+        const shares = prorateAcrossMonths({
+          amount: adServingForBurst,
+          burstStart: startDate,
+          burstEnd: endDate,
+          monthKeys,
+        })
+        for (const monthKey of monthKeys) {
+          adServingMonthlyAmounts[monthKey] += shares[monthKey] ?? 0
         }
       })
 
@@ -5055,6 +5017,18 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           })
           setIsSaving(false)
           return
+        }
+      }
+
+      if (workingBillingMonths.length > 0 && autoReferenceBillingMonths.length > 0) {
+        const saveDivergence = compareBillingDivergence(workingBillingMonths, autoReferenceBillingMonths, {
+          attachComputedLineItems: (months, mode) => attachLineItemsToMonths(months, mode),
+        })
+        if (saveDivergence.isDivergent) {
+          toast({
+            title: "Manual billing differences",
+            description: "Saving a billing schedule that differs from the auto-computed values.",
+          })
         }
       }
 
@@ -7448,7 +7422,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
   /**
    * After persisted billing hydrates, compare saved baseline to auto-reference once per MBA/version load.
-   * Sets manual mode and optional first-visit divergence modal (sessionStorage acknowledgment).
+   * Sets manual mode for the banner and billing state.
    */
   useEffect(() => {
     if (billingDivergenceHydrateCheckedRef.current) return
@@ -7472,23 +7446,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     })
     setBillingDivergence(result)
     setIsManualBilling(result.isDivergent)
-
-    if (result.isDivergent) {
-      const ackKey = `billingDivergenceAcknowledged:${mbaNumber}:${selectedVersionNumber}`
-      const alreadyAcknowledged =
-        typeof window !== "undefined" && window.sessionStorage.getItem(ackKey)
-      if (!alreadyAcknowledged) {
-        setIsDivergenceModalOpen(true)
-      }
-    }
   }, [
     loadPhase,
     savedBillingMonths,
     workingBillingMonths,
     autoReferenceBillingMonths,
     attachLineItemsToMonths,
-    mbaNumber,
-    selectedVersionNumber,
   ])
 
   /**
