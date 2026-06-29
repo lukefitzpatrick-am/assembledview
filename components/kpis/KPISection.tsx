@@ -156,6 +156,9 @@ export function KPISection({ host, isLoading, className }: KPISectionProps) {
                 ? "bg-amber-400"
                 : "bg-green-400"
             const headline = summariseHeadlineMetric(mediaType, rows)
+            const missingPublisherCount = rows.filter(
+              (r) => r.hasPublisherKpi === false,
+            ).length
             return (
               <div
                 key={mediaType}
@@ -170,6 +173,14 @@ export function KPISection({ host, isLoading, className }: KPISectionProps) {
                     {MEDIA_TYPE_LABELS[mediaType] ?? mediaType}
                   </span>
                   <span className="text-muted-foreground">({rows.length})</span>
+                  {missingPublisherCount > 0 ? (
+                    <span
+                      className="rounded bg-amber-100 px-1 text-[10px] font-medium text-amber-700"
+                      title={`${missingPublisherCount} line item(s) have no publisher KPI`}
+                    >
+                      ⚠ {missingPublisherCount} no pub KPI
+                    </span>
+                  ) : null}
                 </div>
                 <div className="flex items-center gap-3 tabular-nums text-muted-foreground">
                   {headline === null ? (

@@ -510,15 +510,25 @@ export function KPIEditModal({ open, onClose, host }: KPIEditModalProps) {
                                 : ""}
                             </td>
                             <td className="border-b border-border/30 px-2 py-1">
-                              <Badge
-                                variant="outline"
-                                className={cn(
-                                  "px-1.5 py-0 text-[10px] font-medium",
-                                  sourceBadgeClass(row.source),
-                                )}
-                              >
-                                {row.source}
-                              </Badge>
+                              <div className="flex flex-wrap items-center gap-1">
+                                <Badge
+                                  variant="outline"
+                                  className={cn(
+                                    "px-1.5 py-0 text-[10px] font-medium",
+                                    sourceBadgeClass(row.source),
+                                  )}
+                                >
+                                  {row.source}
+                                </Badge>
+                                {row.hasPublisherKpi === false ? (
+                                  <span
+                                    className="rounded bg-amber-100 px-1 text-[10px] font-medium text-amber-700"
+                                    title="This line item has no publisher KPI row."
+                                  >
+                                    no pub KPI
+                                  </span>
+                                ) : null}
+                              </div>
                             </td>
                           </tr>
                         )
