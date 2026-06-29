@@ -38,6 +38,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils"
 import { ChevronDown, Copy, Plus, Trash2 } from "lucide-react"
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
+import { resolveBillingBurstLineItemId } from "@/lib/billing/resolveBillingBurstLineItemId"
 import type { LineItem } from '@/lib/generateMediaPlan'
 import { formatMoney, parseMoneyInput } from "@/lib/format/money"
 import {
@@ -154,11 +155,12 @@ interface ProgDisplayContainerProps {
 
 export function getProgDisplayBursts(
   form: UseFormReturn<ProgDisplayFormValues>,
-  feeprogdisplay: number
+  feeprogdisplay: number,
+  mbaNumber?: string,
 ): BillingBurst[] {
   const lineItems = form.getValues("lineItems") || []
 
-  return lineItems.flatMap(li =>
+  return lineItems.flatMap((li, liIndex) =>
     li.bursts.map(burst => {
       const rawBudget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0
 
@@ -187,6 +189,12 @@ export function getProgDisplayBursts(
         deliverables: burst.calculatedValue ?? 0,
         buyType: li.buyType,
         noAdserving: li.noadserving,
+        lineItemId: resolveBillingBurstLineItemId(
+          li,
+          mbaNumber,
+          MEDIA_TYPE_ID_CODES.progDisplay,
+          liIndex,
+        ),
       }
     })
   )
@@ -945,7 +953,7 @@ useEffect(() => {
 
 useEffect(() => {
   // convert each form lineItem into the shape needed for Excel
-  const calculatedBursts = getProgDisplayBursts(form, feeprogdisplay || 0);
+  const calculatedBursts = getProgDisplayBursts(form, feeprogdisplay || 0, mbaNumber);
   let burstIndex = 0;
 
   const items: LineItem[] = form.getValues('lineItems').flatMap((lineItem, lineItemIndex) =>
@@ -997,7 +1005,7 @@ useEffect(() => {
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       const investmentByMonth = calculateInvestmentPerMonth(form, feeprogdisplay || 0);
-      const bursts = getProgDisplayBursts(form, feeprogdisplay || 0);
+      const bursts = getProgDisplayBursts(form, feeprogdisplay || 0, mbaNumber);
       
       const hasInvestmentChanges = JSON.stringify(investmentByMonth) !== JSON.stringify(prevInvestmentRef.current);
       const hasBurstChanges = JSON.stringify(bursts) !== JSON.stringify(prevBurstsRef.current);
