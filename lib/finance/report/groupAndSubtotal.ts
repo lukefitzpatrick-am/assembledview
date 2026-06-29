@@ -35,8 +35,21 @@ function compareKeys(a: string, b: string): number {
 }
 
 function dimensionKey(row: ReportRow, dimension: ReportDimension): string {
-  const value = row[dimension]?.trim()
-  return value || UNSPECIFIED
+  const value =
+    dimension === "mediaType"
+      ? row.mediaType
+      : dimension === "publisher"
+        ? row.publisher
+        : dimension === "buyType"
+          ? row.buyType
+          : dimension === "format"
+            ? row.format
+            : dimension === "station"
+              ? row.station
+              : dimension === "client"
+                ? row.client
+                : row.billingMonth
+  return value.trim() || UNSPECIFIED
 }
 
 function buildNode(

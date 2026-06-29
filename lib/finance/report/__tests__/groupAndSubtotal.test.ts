@@ -99,6 +99,46 @@ test("groupAndSubtotal reorder changes nesting without changing totals", () => {
   assert.equal(mediaFirst.rowCount, publisherFirst.rowCount)
 })
 
+test("groupAndSubtotal groups by client and keeps the grand total invariant", () => {
+  const rows = [
+    row({ client: "Acme", totalBillable: 100, mediaSpend: 80, agencyFee: 20 }),
+    row({ client: "Beta", totalBillable: 75, mediaSpend: 60, agencyFee: 15 }),
+    row({ client: "Acme", totalBillable: 25, mediaSpend: 20, agencyFee: 5 }),
+  ]
+
+  const clientRoot = groupAndSubtotal(rows, ["client"])
+  const mediaRoot = groupAndSubtotal(rows, ["mediaType"])
+
+  assert.deepEqual(
+    clientRoot.children.map((child) => `${child.dimension}:${child.key}:${child.measures.totalBillable}`),
+    ["client:Acme:125", "client:Beta:75"]
+  )
+  assert.equal(clientRoot.measures.totalBillable, mediaRoot.measures.totalBillable)
+  assert.equal(clientRoot.measures.totalBillable, sumTotal(rows))
+})
+
+test("groupAndSubtotal groups by billing month then media type without changing the grand total", () => {
+  const rows = [
+    row({ billingMonth: "2026-05", mediaType: "Search", totalBillable: 100 }),
+    row({ billingMonth: "2026-05", mediaType: "Radio", totalBillable: 75 }),
+    row({ billingMonth: "2026-06", mediaType: "Search", totalBillable: 25 }),
+  ]
+
+  const root = groupAndSubtotal(rows, ["billingMonth", "mediaType"])
+  const mediaRoot = groupAndSubtotal(rows, ["mediaType"])
+  const may = root.children.find((child) => child.key === "2026-05")
+  assert.ok(may)
+
+  assert.equal(may.dimension, "billingMonth")
+  assert.equal(may.measures.totalBillable, 175)
+  assert.deepEqual(
+    may.children.map((child) => `${child.dimension}:${child.key}:${child.measures.totalBillable}`),
+    ["mediaType:Radio:75", "mediaType:Search:100"]
+  )
+  assert.equal(root.measures.totalBillable, mediaRoot.measures.totalBillable)
+  assert.equal(root.measures.totalBillable, sumTotal(rows))
+})
+
 test("groupAndSubtotal supports empty input", () => {
   const root = groupAndSubtotal([], ["mediaType", "publisher"])
 

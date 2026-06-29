@@ -1,4 +1,11 @@
-export type ReportDimension = "mediaType" | "publisher" | "buyType" | "format" | "station"
+export type ReportDimension =
+  | "mediaType"
+  | "publisher"
+  | "buyType"
+  | "format"
+  | "station"
+  | "client"
+  | "billingMonth"
 
 export interface ReportRow {
   mbaNumber: string

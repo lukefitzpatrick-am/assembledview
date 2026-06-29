@@ -41,6 +41,8 @@ const dimensions: Array<{ key: ReportDimension; label: string }> = [
   { key: "buyType", label: "Buy type" },
   { key: "format", label: "Format" },
   { key: "station", label: "Station" },
+  { key: "client", label: "Client" },
+  { key: "billingMonth", label: "Billing month" },
 ]
 
 type ReportTableRow = {
