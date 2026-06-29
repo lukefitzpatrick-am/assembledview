@@ -6163,6 +6163,12 @@ const handleSaveAll = async () => {
                       onResetSavedLayer: handleKPIReset,
                     })}
                     isLoading={isKPILoading}
+                    publishers={kpiPublishers}
+                    onPublisherKpiAdded={async () => {
+                      const data = await getPublisherKPIs()
+                      setPublisherKPIs(data)
+                      setKpiTrigger((t) => t + 1)
+                    }}
                   />
                 </div>
               </div>

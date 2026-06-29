@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import type { ResolvedKPIRow } from "@/lib/kpi/types"
+import type { Publisher } from "@/lib/types/publisher"
 import { KPIEditModal } from "./KPIEditModal"
 import type { KpiHost } from "./kpiHost"
 import { Button } from "@/components/ui/button"
@@ -77,9 +78,17 @@ export interface KPISectionProps {
   host: KpiHost
   isLoading: boolean
   className?: string
+  publishers?: Publisher[]
+  onPublisherKpiAdded?: () => void | Promise<void>
 }
 
-export function KPISection({ host, isLoading, className }: KPISectionProps) {
+export function KPISection({
+  host,
+  isLoading,
+  className,
+  publishers,
+  onPublisherKpiAdded,
+}: KPISectionProps) {
   const { rows: kpiRows, onReset } = host
   const [isModalOpen, setIsModalOpen] = React.useState(false)
 
@@ -208,6 +217,8 @@ export function KPISection({ host, isLoading, className }: KPISectionProps) {
       <KPIEditModal
         open={isModalOpen}
         onClose={() => setIsModalOpen(false)}
+        publishers={publishers}
+        onPublisherKpiAdded={onPublisherKpiAdded}
         host={{
           ...host,
           onSave: (updatedRows) => {

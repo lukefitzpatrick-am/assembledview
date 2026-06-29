@@ -8884,6 +8884,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                       onResetSavedLayer: handleKPIReset,
                     })}
                     isLoading={isKPILoading}
+                    publishers={billingPublishers}
+                    onPublisherKpiAdded={async () => {
+                      const data = await getPublisherKPIs()
+                      setPublisherKPIs(data)
+                      setKpiTrigger((t) => t + 1)
+                    }}
                   />
                 </div>
               </div>
