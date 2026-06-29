@@ -1,6 +1,7 @@
 import { getScheduleHeaders } from "@/lib/billing/scheduleHeaders"
 import { prorateAcrossMonths } from "@/lib/billing/prorateAcrossMonths"
 import type { BillingLineItem, BillingMonth } from "@/lib/billing/types"
+import { resolveLineDimensions } from "@/lib/finance/resolveLineDimensions"
 
 /**
  * Build per-month media amounts for each container line item (billing or delivery mode).
@@ -112,12 +113,14 @@ export function generateBillingLineItems(
     })
 
     const totalAmount = Object.values(monthlyAmounts).reduce((sum, val) => sum + val, 0)
+    const dimensions = resolveLineDimensions(mediaType, lineItem)
     lineItemsMap.set(itemId, {
       id: itemId,
       header1,
       header2,
       monthlyAmounts,
       totalAmount,
+      ...dimensions,
       ...(clientPaysForMedia ? { clientPaysForMedia: true } : {}),
     })
   })

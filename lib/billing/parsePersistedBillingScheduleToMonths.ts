@@ -23,6 +23,16 @@ export function normalizeBillingScheduleToArray(raw: unknown): unknown[] | null 
 
 const parseMoneySaved = (val: unknown) => parseFloat(String(val ?? "").replace(/[^0-9.-]/g, "")) || 0
 
+function optionalString(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined
+  const trimmed = value.trim()
+  return trimmed ? trimmed : undefined
+}
+
+function optionalFiniteNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined
+}
+
 /**
  * Parse persisted `billingSchedule` JSON (compact Xano / MBA shape) into `BillingMonth[]`
  * for finance hub Alter Billing. Mirrors the edit page hydrate path with fees defaulting to 0.
@@ -142,6 +152,22 @@ export function parsePersistedBillingScheduleToMonths(
             })
 
             const rawLiId = item.lineItemId ?? item.line_item_id
+            const mediaAmount = optionalFiniteNumber(item.mediaAmount)
+            const feeAmount = optionalFiniteNumber(item.feeAmount)
+            const mediaTypeValue = optionalString(item.mediaType)
+            const publisher = optionalString(item.publisher)
+            const buyType = optionalString(item.buyType)
+            const format = optionalString(item.format)
+            const station = optionalString(item.station)
+            const feeMonthlyAmounts =
+              feeAmount !== undefined
+                ? Object.fromEntries(
+                    (parsed as Record<string, unknown>[]).map((e) => {
+                      const m = String(e.monthYear ?? e.month ?? "").trim()
+                      return [m, m === monthYear ? feeAmount : 0]
+                    })
+                  )
+                : undefined
             return {
               id:
                 rawLiId != null && String(rawLiId).trim() !== ""
@@ -151,6 +177,14 @@ export function parsePersistedBillingScheduleToMonths(
               header2: String(item.header2 ?? ""),
               monthlyAmounts,
               totalAmount: amount,
+              ...(mediaTypeValue ? { mediaType: mediaTypeValue } : {}),
+              ...(publisher ? { publisher } : {}),
+              ...(buyType ? { buyType } : {}),
+              ...(format ? { format } : {}),
+              ...(station ? { station } : {}),
+              ...(mediaAmount !== undefined ? { mediaAmount } : {}),
+              ...(feeAmount !== undefined ? { feeAmount, feeMonthlyAmounts, totalFeeAmount: feeAmount } : {}),
+              ...(item.clientPaysForMedia === true ? { clientPaysForMedia: true } : {}),
             }
           })
         }

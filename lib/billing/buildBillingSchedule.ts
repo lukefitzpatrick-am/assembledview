@@ -6,6 +6,13 @@ type BillingScheduleLineItem = {
   header2: string;
   amount: string;
   billingMode?: "auto" | "manual";
+  mediaType?: string;
+  publisher?: string;
+  buyType?: string;
+  format?: string;
+  station?: string;
+  mediaAmount?: number;
+  feeAmount?: number;
   clientPaysForMedia?: boolean;
 };
 
@@ -104,6 +111,9 @@ export function buildBillingScheduleJSON(billingMonths: BillingMonth[]): Billing
       const formattedLineItems: BillingScheduleLineItem[] = lineItems
         .map((item: BillingLineItem) => {
           const amountValue = item.monthlyAmounts?.[month.monthYear] || 0;
+          const feeAmountValue = item.feeMonthlyAmounts?.[month.monthYear] || 0;
+          const hasMediaAmount = Object.hasOwn(item.monthlyAmounts ?? {}, month.monthYear);
+          const hasFeeAmount = Object.hasOwn(item.feeMonthlyAmounts ?? {}, month.monthYear);
 
           return {
             lineItemId: item.id,
@@ -111,12 +121,20 @@ export function buildBillingScheduleJSON(billingMonths: BillingMonth[]): Billing
             header2: item.header2,
             amount: currencyFormatter.format(amountValue),
             ...(item.billingMode ? { billingMode: item.billingMode } : {}),
+            ...(item.mediaType ? { mediaType: item.mediaType } : {}),
+            ...(item.publisher ? { publisher: item.publisher } : {}),
+            ...(item.buyType ? { buyType: item.buyType } : {}),
+            ...(item.format ? { format: item.format } : {}),
+            ...(item.station ? { station: item.station } : {}),
+            ...(hasMediaAmount ? { mediaAmount: amountValue } : {}),
+            ...(hasFeeAmount ? { feeAmount: feeAmountValue } : {}),
             ...(item.clientPaysForMedia ? { clientPaysForMedia: true } : {}),
             __amountValue: amountValue,
+            __feeAmountValue: feeAmountValue,
           };
         })
-        .filter(item => item.__amountValue > 0)
-        .map(({ __amountValue, ...rest }) => rest);
+        .filter(item => item.__amountValue > 0 || item.__feeAmountValue > 0)
+        .map(({ __amountValue, __feeAmountValue, ...rest }) => rest);
 
       if (formattedLineItems.length > 0) {
         mediaTypes.push({

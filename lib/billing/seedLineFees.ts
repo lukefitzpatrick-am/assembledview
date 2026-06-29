@@ -1,6 +1,7 @@
 import { getScheduleHeaders } from "@/lib/billing/scheduleHeaders"
 import { prorateAcrossMonths } from "@/lib/billing/prorateAcrossMonths"
 import type { BillingBurst, BillingLineItem, BillingMonth } from "@/lib/billing/types"
+import { resolveLineDimensions } from "@/lib/finance/resolveLineDimensions"
 
 export type SeedBurstSource = {
   startDate: Date | string
@@ -145,6 +146,7 @@ function createSyntheticBillingLine(
   clientPaysForMedia: boolean
 ): BillingLineItem {
   const { header1, header2 } = getScheduleHeaders(billingKey, sourceLine)
+  const dimensions = resolveLineDimensions(billingKey, sourceLine)
   const monthlyAmounts: Record<string, number> = {}
   for (const key of monthKeys) {
     monthlyAmounts[key] = 0
@@ -155,8 +157,24 @@ function createSyntheticBillingLine(
     header2: header2 || "Details",
     monthlyAmounts,
     totalAmount: 0,
+    ...dimensions,
     ...(clientPaysForMedia ? { clientPaysForMedia: true } : {}),
   }
+}
+
+function needsReportDimensionHeal(
+  billingLine: BillingLineItem,
+  dimensions: ReturnType<typeof resolveLineDimensions>,
+  clientPaysForMedia: boolean
+): boolean {
+  return (
+    billingLine.mediaType !== dimensions.mediaType ||
+    (dimensions.publisher !== undefined && billingLine.publisher !== dimensions.publisher) ||
+    (dimensions.buyType !== undefined && billingLine.buyType !== dimensions.buyType) ||
+    (dimensions.format !== undefined && billingLine.format !== dimensions.format) ||
+    (dimensions.station !== undefined && billingLine.station !== dimensions.station) ||
+    (clientPaysForMedia && billingLine.clientPaysForMedia !== true)
+  )
 }
 
 /**
@@ -264,12 +282,18 @@ export function seedBillingMonthsLineFees(
 
       const sourceLine = lineItems[liIndex]
       const clientPaysForMedia = lineClientPaysForMedia(sourceLine, billingLine)
+      const dimensions = resolveLineDimensions(billingKey, sourceLine)
       const burstSources = burstsForLineItem(sourceLine, liIndex, lineItems, containerBursts)
       if (burstSources.length === 0) continue
 
       const seeded = prorateBurstFeesToMonths(burstSources, monthKeys)
+      const needsDimensionHeal = needsReportDimensionHeal(
+        billingLine,
+        dimensions,
+        clientPaysForMedia
+      )
 
-      if (feeAmountsMatch(billingLine.totalFeeAmount, seeded.totalFeeAmount)) {
+      if (feeAmountsMatch(billingLine.totalFeeAmount, seeded.totalFeeAmount) && !needsDimensionHeal) {
         skippedAlreadySeeded++
         continue
       }
@@ -284,6 +308,7 @@ export function seedBillingMonthsLineFees(
         if (idx < 0) continue
         group[idx] = {
           ...group[idx]!,
+          ...dimensions,
           feeMonthlyAmounts: { ...seeded.feeMonthlyAmounts },
           totalFeeAmount: seeded.totalFeeAmount,
           ...(clientPaysForMedia ? { clientPaysForMedia: true } : {}),

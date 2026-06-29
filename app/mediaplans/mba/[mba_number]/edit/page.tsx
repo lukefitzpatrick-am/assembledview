@@ -129,6 +129,7 @@ import { buildBillingScheduleJSON } from "@/lib/billing/buildBillingSchedule"
 import { prorateAcrossMonths } from "@/lib/billing/prorateAcrossMonths"
 import { prepareBillingMonthsForLineItemExport } from "@/lib/billing/prepareBillingMonthsForLineItemExport"
 import { syncLineItemMonthlyAmountAcrossAllMonthRows } from "@/lib/billing/syncLineItemAmountAcrossMonthRows"
+import { resolveLineDimensions } from "@/lib/finance/resolveLineDimensions"
 import {
   applyBillingLineMode,
   billingMonthsHaveExplicitLineModes,
@@ -860,6 +861,16 @@ function normalizeBillingScheduleToArray(raw: unknown): any[] | null {
 const parseMoneySaved = (val: unknown) =>
   parseFloat(String(val ?? "").replace(/[^0-9.-]/g, "")) || 0
 
+function optionalSavedString(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined
+  const trimmed = value.trim()
+  return trimmed ? trimmed : undefined
+}
+
+function optionalSavedNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined
+}
+
 /**
  * Parse persisted billingSchedule JSON from `media_plan_versions` into `BillingMonth[]` for hydrate → working/saved.
  * (Fees only affect search/social fee estimate when saved feeTotal absent.)
@@ -978,6 +989,20 @@ function parseSavedBillingSchedulePayload(
               item.billingMode === "auto" || item.billingMode === "manual"
                 ? item.billingMode
                 : undefined
+            const mediaAmount = optionalSavedNumber(item.mediaAmount)
+            const feeAmount = optionalSavedNumber(item.feeAmount)
+            const mediaTypeValue = optionalSavedString(item.mediaType)
+            const publisher = optionalSavedString(item.publisher)
+            const buyType = optionalSavedString(item.buyType)
+            const format = optionalSavedString(item.format)
+            const station = optionalSavedString(item.station)
+            const feeMonthlyAmounts =
+              feeAmount !== undefined
+                ? Object.fromEntries(parsed.map((e: any) => {
+                    const m = String(e.monthYear ?? e.month ?? "").trim()
+                    return [m, m === monthYear ? feeAmount : 0]
+                  }))
+                : undefined
             return {
               id:
                 rawLiId != null && String(rawLiId).trim() !== ""
@@ -988,6 +1013,14 @@ function parseSavedBillingSchedulePayload(
               monthlyAmounts,
               totalAmount: amount,
               ...(billingMode ? { billingMode } : {}),
+              ...(mediaTypeValue ? { mediaType: mediaTypeValue } : {}),
+              ...(publisher ? { publisher } : {}),
+              ...(buyType ? { buyType } : {}),
+              ...(format ? { format } : {}),
+              ...(station ? { station } : {}),
+              ...(mediaAmount !== undefined ? { mediaAmount } : {}),
+              ...(feeAmount !== undefined ? { feeAmount, feeMonthlyAmounts, totalFeeAmount: feeAmount } : {}),
+              ...(item.clientPaysForMedia === true ? { clientPaysForMedia: true } : {}),
             }
           })
         }
@@ -4280,12 +4313,14 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
       // Create or update line item
       const totalAmount = Object.values(monthlyAmounts).reduce((sum, val) => sum + val, 0);
+      const dimensions = resolveLineDimensions(mediaType, lineItem);
       lineItemsMap.set(itemId, {
         id: itemId,
         header1,
         header2,
         monthlyAmounts,
         totalAmount,
+        ...dimensions,
         adServingMonthlyAmounts,
         totalAdServingAmount,
         ...(clientPaysForMedia ? { clientPaysForMedia: true } : {}),

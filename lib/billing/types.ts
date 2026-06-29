@@ -27,6 +27,13 @@ export type BillingLineItem = {
   monthlyAmounts: Record<string, number>; // Month key -> amount for that month
   totalAmount: number;
   billingMode?: "auto" | "manual";
+  mediaType?: string;
+  publisher?: string;
+  buyType?: string;
+  format?: string;
+  station?: string;
+  mediaAmount?: number;
+  feeAmount?: number;
   /** When true, client pays supplier directly; excluded from agency publisher-invoice views. */
   clientPaysForMedia?: boolean;
   /**
