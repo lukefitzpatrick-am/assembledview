@@ -5,12 +5,10 @@
  */
 
 /** Canonical display names for social pacing channels in Snowflake. */
-export const SOCIAL_PACING_CHANNEL_NAMES = ["Social - Meta", "Social - TikTok"] as const
+const SOCIAL_PACING_CHANNEL_NAMES = ["Social - Meta", "Social - TikTok"] as const
 
 /** Normalized channel types used by the app for social pacing. */
 export const SOCIAL_PACING_CHANNEL_TYPES = ["meta", "tiktok"] as const
-
-export type SocialPacingChannelType = (typeof SOCIAL_PACING_CHANNEL_TYPES)[number]
 
 /** Snowflake table for social pacing data. */
 export const SOCIAL_PACING_TABLE = "ASSEMBLEDVIEW.MART.SOCIAL_PACING_FACT"

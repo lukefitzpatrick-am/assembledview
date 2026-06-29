@@ -42,7 +42,7 @@ export interface PacingFilterStoreState {
 
 export type PacingFilterStore = ReturnType<typeof createPacingFilterStoreInstance>
 
-export function createPacingFilterStoreInstance(initialAssignedClientIds: string[]) {
+function createPacingFilterStoreInstance(initialAssignedClientIds: string[]) {
   const defaults: PacingFilterState = createDefaultPacingFilters()
 
   return createStore<PacingFilterStoreState>((set) => ({

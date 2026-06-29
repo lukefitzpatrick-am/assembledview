@@ -19,7 +19,7 @@ export type SocialKpiComparison = {
   status: SingleKpiStatus;
 };
 
-export { KPI_TOLERANCE, copyForRowKpiStatus, type RowKpiStatus, type SingleKpiStatus };
+export { copyForRowKpiStatus, type RowKpiStatus };
 
 /** Social campaign_kpi export uses 0 for unset — treat 0 like null for every metric. */
 function unsetAsNull(value: number | null | undefined): number | null {

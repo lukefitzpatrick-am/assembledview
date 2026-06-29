@@ -27,31 +27,3 @@ export type PacingFiltersSnapshot = {
   date_to: string
   search: string
 }
-
-export function lineItemsApiParamsFromSnapshot(s: PacingFiltersSnapshot): {
-  clients_id?: string
-  media_type?: string
-  status?: string
-  date_from: string
-  date_to: string
-  search?: string
-} {
-  return {
-    ...(s.client_ids.length > 0 ? { clients_id: s.client_ids.join(",") } : {}),
-    ...(s.media_types.length > 0 ? { media_type: s.media_types.join(",") } : {}),
-    ...(s.statuses.length > 0 ? { status: s.statuses.join(",") } : {}),
-    date_from: s.date_from,
-    date_to: s.date_to,
-    ...(s.search.trim() ? { search: s.search.trim() } : {}),
-  }
-}
-
-export function alertsApiParamsFromSnapshot(s: PacingFiltersSnapshot): {
-  clients_id?: string
-  media_type?: string
-} {
-  return {
-    ...(s.client_ids.length > 0 ? { clients_id: s.client_ids.join(",") } : {}),
-    ...(s.media_types.length > 0 ? { media_type: s.media_types.join(",") } : {}),
-  }
-}

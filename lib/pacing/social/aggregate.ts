@@ -35,7 +35,7 @@ function computeSocialRatios(
 }
 
 /** Empty metrics bundle — used when no fact rows match a Xano line item. */
-export function emptySocialMetrics(): SocialPacingMetrics {
+function emptySocialMetrics(): SocialPacingMetrics {
   return {
     spend: 0,
     impressions: 0,
