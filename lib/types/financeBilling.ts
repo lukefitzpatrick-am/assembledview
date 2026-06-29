@@ -1,3 +1,5 @@
+import type { ReportLine } from "@/lib/finance/extractReportLinesFromBillingSchedule"
+
 /** `payable` = publisher/delivery view from `media_plan_versions.deliverySchedule`, not `billingSchedule`. */
 export type BillingType = "media" | "sow" | "retainer" | "payable"
 
@@ -67,6 +69,8 @@ export interface BillingRecord {
   payment_terms: string
   status: BillingStatus
   line_items: BillingLineItem[]
+  /** Unfiltered enriched schedule lines for finance hub reporting; present on derived media records only. */
+  report_lines?: ReportLine[]
   total: number
   has_pending_edits: boolean
   source_billing_schedule_id: number | null

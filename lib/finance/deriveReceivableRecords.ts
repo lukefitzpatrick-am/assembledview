@@ -1,4 +1,5 @@
 import type { BillingLineItem, BillingRecord } from "@/lib/types/financeBilling"
+import { extractReportLinesFromBillingSchedule } from "@/lib/finance/extractReportLinesFromBillingSchedule"
 import {
   buildPlanLineItemMediaDetailLookup,
   compactMediaDetailSlice,
@@ -161,6 +162,7 @@ export function derivePlanReceivableBillingRecordsForMonth(
       : "draft"
 
     const mediaLines = financeMediaLines.map((li, i) => financeMediaLineToBillingLine(li, i, planLookup))
+    const reportLines = extractReportLinesFromBillingSchedule(billingSchedule, billingMonth)
     const feeLines: BillingLineItem[] = []
     let order = mediaLines.length
     const pushFee = (item_code: string, description: string, amount: number) => {
@@ -192,7 +194,7 @@ export function derivePlanReceivableBillingRecordsForMonth(
         .filter((li) => li.line_type === "service")
         .reduce((s, li) => s + li.amount, 0)
       const total = Math.round((mediaTotal + serviceTotal) * 100) / 100
-      out.push({
+      const record: BillingRecord = {
         id: syntheticId++,
         billing_type: "media",
         clients_id,
@@ -211,7 +213,9 @@ export function derivePlanReceivableBillingRecordsForMonth(
         total,
         has_pending_edits: false,
         source_billing_schedule_id: null,
-      })
+        ...(reportLines.length > 0 ? { report_lines: reportLines } : {}),
+      }
+      out.push(record)
     }
   }
 
