@@ -18,6 +18,7 @@ export type BillingBurst = {
   buyType: 'cpm' | 'cpc' | 'cpv' | 'fixed cost' | 'package' | 'insertion' | string;
   adServingRatePct?: number;
   adServingImpressions?: number;
+  lineItemId?: string;
 };
 
 export type BillingLineItem = {

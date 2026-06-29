@@ -9,6 +9,8 @@ export function computeAdServingCost(input: {
   adservaudio?: number | null;
   adServingRatePct?: number;
   adServingImpressions?: number;
+  kpiCtr?: number | null;
+  kpiVtr?: number | null;
 }): number {
   const { quantity, mediaType, rate, adservaudio } = input;
   const buyType = input.buyType?.toLowerCase?.() || "";
@@ -23,15 +25,15 @@ export function computeAdServingCost(input: {
   const effectiveRate =
     isDigiAudio && (isCpm || isBonus) ? (adservaudio ?? rate) : rate;
 
-  // Stored overrides are human-facing percentages; absent/non-positive values use baselines.
+  // Stored overrides are manual-only human-facing percentages.
+  const manualPct =
+    input.adServingRatePct != null && input.adServingRatePct > 0
+      ? input.adServingRatePct / 100
+      : null;
   const ctrDecimal =
-    input.adServingRatePct != null && input.adServingRatePct > 0
-      ? input.adServingRatePct / 100
-      : BASELINE_CTR;
+    manualPct ?? (input.kpiCtr != null && input.kpiCtr > 0 ? input.kpiCtr : BASELINE_CTR);
   const vtrDecimal =
-    input.adServingRatePct != null && input.adServingRatePct > 0
-      ? input.adServingRatePct / 100
-      : BASELINE_VTR;
+    manualPct ?? (input.kpiVtr != null && input.kpiVtr > 0 ? input.kpiVtr : BASELINE_VTR);
 
   // Derive impressions from the deliverable by buy type.
   let impressions: number;
