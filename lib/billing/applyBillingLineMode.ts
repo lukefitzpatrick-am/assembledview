@@ -21,6 +21,30 @@ export function billingMonthsHaveExplicitLineModes(months: BillingMonth[]): bool
   )
 }
 
+export function stampAllBillingLineModes(
+  months: BillingMonth[],
+  mode: BillingLineMode
+): BillingMonth[] {
+  return months.map((month) => {
+    if (!month.lineItems) return month
+
+    let changedMonth = false
+    const nextLineItems: NonNullable<BillingMonth["lineItems"]> = { ...month.lineItems }
+
+    for (const [mediaKey, lines] of Object.entries(month.lineItems)) {
+      if (!lines?.length) continue
+      const nextLines = lines.map((line) => {
+        if (line.billingMode === mode) return line
+        changedMonth = true
+        return { ...line, billingMode: mode }
+      })
+      nextLineItems[mediaKey as keyof typeof nextLineItems] = nextLines as BillingLineItem[]
+    }
+
+    return changedMonth ? { ...month, lineItems: nextLineItems } : month
+  })
+}
+
 export function applyBillingLineMode(
   months: BillingMonth[],
   lineItemId: string,

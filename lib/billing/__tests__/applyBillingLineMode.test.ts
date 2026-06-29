@@ -6,6 +6,7 @@ import {
   applyBillingLineMode,
   billingMonthsHaveExplicitLineModes,
   shouldResyncBillingLineFromAuto,
+  stampAllBillingLineModes,
 } from "../applyBillingLineMode.js"
 
 function month(lineItems: BillingMonth["lineItems"]): BillingMonth {
@@ -149,4 +150,36 @@ test("detects whether a billing month graph has explicit line modes", () => {
     ]),
     true
   )
+})
+
+test("stampAllBillingLineModes sets every billing row to the requested explicit mode", () => {
+  const result = stampAllBillingLineModes(
+    [
+      month({
+        search: [
+          {
+            id: "billing-search::manual",
+            header1: "Google",
+            header2: "Brand",
+            monthlyAmounts: { "May 2026": 100 },
+            totalAmount: 100,
+            billingMode: "manual",
+          },
+        ],
+        socialMedia: [
+          {
+            id: "billing-socialMedia::legacy",
+            header1: "Meta",
+            header2: "Prospecting",
+            monthlyAmounts: { "May 2026": 200 },
+            totalAmount: 200,
+          },
+        ],
+      }),
+    ],
+    "auto"
+  )
+
+  assert.equal(result[0]!.lineItems!.search![0]!.billingMode, "auto")
+  assert.equal(result[0]!.lineItems!.socialMedia![0]!.billingMode, "auto")
 })

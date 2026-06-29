@@ -133,6 +133,7 @@ import {
   applyBillingLineMode,
   billingMonthsHaveExplicitLineModes,
   shouldResyncBillingLineFromAuto,
+  stampAllBillingLineModes,
   type BillingLineMode,
 } from "@/lib/billing/applyBillingLineMode"
 import { ManualBillingSpreadsheetCostInput } from "@/components/billing/ManualBillingSpreadsheetCostInput"
@@ -4326,8 +4327,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       return
     }
 
+    const copyWithAutoMode = applyBillingLineMode(copy, lineItemId, "auto")
     const formatter = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" })
-    copy.forEach((month) => {
+    copyWithAutoMode.forEach((month) => {
       const monthLineItems = month?.lineItems?.[mediaKey as keyof typeof month.lineItems] as
         | BillingLineItemType[]
         | undefined
@@ -4338,8 +4340,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       }
     })
 
-    recalculateManualBillingTotals(copy, formatter)
-    setManualBillingMonths(copy)
+    recalculateManualBillingTotals(copyWithAutoMode, formatter)
+    setManualBillingMonths(copyWithAutoMode)
   }, [manualBillingMonths])
 
   const attachLineItemsToMonths = useCallback((
@@ -4464,7 +4466,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       return
     }
 
-    const next = buildWorkingMonthsFromAutoReference(autoRows, attachLineItemsToMonthsRef.current)
+    const next = stampAllBillingLineModes(
+      buildWorkingMonthsFromAutoReference(autoRows, attachLineItemsToMonthsRef.current),
+      "auto"
+    )
     setWorkingBillingMonths(next)
     workingBillingMonthsRef.current = next
     billingLineItemsFollowAutoRef.current = true
