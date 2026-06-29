@@ -5,6 +5,7 @@ type BillingScheduleLineItem = {
   header1: string;
   header2: string;
   amount: string;
+  billingMode?: "auto" | "manual";
   clientPaysForMedia?: boolean;
 };
 
@@ -109,6 +110,7 @@ export function buildBillingScheduleJSON(billingMonths: BillingMonth[]): Billing
             header1: item.header1,
             header2: item.header2,
             amount: currencyFormatter.format(amountValue),
+            ...(item.billingMode ? { billingMode: item.billingMode } : {}),
             ...(item.clientPaysForMedia ? { clientPaysForMedia: true } : {}),
             __amountValue: amountValue,
           };

@@ -26,6 +26,7 @@ export type BillingLineItem = {
   header2: string; // Second column header (Station/Title/Site/Bid Strategy/Format)
   monthlyAmounts: Record<string, number>; // Month key -> amount for that month
   totalAmount: number;
+  billingMode?: "auto" | "manual";
   /** When true, client pays supplier directly; excluded from agency publisher-invoice views. */
   clientPaysForMedia?: boolean;
   /**

@@ -960,6 +960,10 @@ function parseSavedBillingSchedulePayload(
             })
 
             const rawLiId = item.lineItemId ?? item.line_item_id
+            const billingMode =
+              item.billingMode === "auto" || item.billingMode === "manual"
+                ? item.billingMode
+                : undefined
             return {
               id:
                 rawLiId != null && String(rawLiId).trim() !== ""
@@ -969,6 +973,7 @@ function parseSavedBillingSchedulePayload(
               header2: item.header2 || "",
               monthlyAmounts,
               totalAmount: amount,
+              ...(billingMode ? { billingMode } : {}),
             }
           })
         }
