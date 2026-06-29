@@ -20,18 +20,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/components/ui/use-toast"
 import { formatMoney } from "@/lib/format/money"
 import { buildReportRows } from "@/lib/finance/report/buildReportRows"
 import { exportReportExcel } from "@/lib/finance/report/exportReportExcel"
 import { groupAndSubtotal, type SubtotalNode } from "@/lib/finance/report/groupAndSubtotal"
-import type { ReportDimension } from "@/lib/finance/report/types"
+import type { ReportDimension, ReportRow } from "@/lib/finance/report/types"
 import { useFinanceStore } from "@/lib/finance/useFinanceStore"
 import type { FinanceFilters } from "@/lib/types/financeBilling"
 import { cn } from "@/lib/utils"
 
 const GROUP_BY_STORAGE_KEY = "financeReport:groupBy"
 const EXPANDED_STORAGE_KEY = "financeReport:expanded"
+const SHOW_DETAIL_ROWS_STORAGE_KEY = "financeReport:showDetailRows"
 const DEFAULT_GROUP_BY: ReportDimension[] = ["mediaType", "publisher", "buyType"]
 const moneyOptions = { locale: "en-AU", currency: "AUD" } as const
 
@@ -47,10 +49,11 @@ const dimensions: Array<{ key: ReportDimension; label: string }> = [
 
 type ReportTableRow = {
   id: string
+  kind: "subtotal" | "detail"
   label: string
   dimension: string
   depth: number
-  rowCount: number
+  rowCount: number | null
   measures: SubtotalNode["measures"]
   hasChildren: boolean
 }
@@ -81,6 +84,15 @@ function readExpanded(): Record<string, boolean> {
   }
 }
 
+function readShowDetailRows(): boolean {
+  if (typeof window === "undefined") return false
+  try {
+    return localStorage.getItem(SHOW_DETAIL_ROWS_STORAGE_KEY) === "1"
+  } catch {
+    return false
+  }
+}
+
 function dimensionLabel(dimension: ReportDimension | null): string {
   if (!dimension) return ""
   return dimensions.find((d) => d.key === dimension)?.label ?? dimension
@@ -90,9 +102,29 @@ function nodeId(node: SubtotalNode, depth: number, parentId: string): string {
   return `${parentId}/${depth}:${node.dimension ?? "root"}:${node.key}`
 }
 
+function serviceDetailLabel(row: ReportRow): string {
+  if (row.serviceType === "adServing") return "Ad Serving"
+  if (row.serviceType === "production") return "Production"
+  if (row.serviceType === "agencyFee") return "Agency Fee"
+  return row.mediaType
+}
+
+function mediaDetailLabel(row: ReportRow): string {
+  const parts = [row.publisher, row.buyType, row.format, row.station].filter(
+    (value) => value && value !== "Unspecified"
+  )
+  const label = parts.length > 0 ? parts.join(" · ") : row.mediaType
+  return row.clientPays ? `${label} (client pays)` : label
+}
+
+function detailLabel(row: ReportRow): string {
+  return row.rowKind === "service" ? serviceDetailLabel(row) : mediaDetailLabel(row)
+}
+
 function flattenNodes(
   node: SubtotalNode,
   expanded: Record<string, boolean>,
+  showDetailRows: boolean,
   depth = 0,
   parentId = "root"
 ): ReportTableRow[] {
@@ -102,6 +134,7 @@ function flattenNodes(
     const hasChildren = child.children.length > 0
     rows.push({
       id,
+      kind: "subtotal",
       label: child.key,
       dimension: dimensionLabel(child.dimension),
       depth,
@@ -110,7 +143,24 @@ function flattenNodes(
       hasChildren,
     })
     if (hasChildren && expanded[id] !== false) {
-      rows.push(...flattenNodes(child, expanded, depth + 1, id))
+      rows.push(...flattenNodes(child, expanded, showDetailRows, depth + 1, id))
+    } else if (!hasChildren && showDetailRows) {
+      rows.push(
+        ...child.leafRows.map((detail, index) => ({
+          id: `${id}/detail:${index}`,
+          kind: "detail" as const,
+          label: detailLabel(detail),
+          dimension: "Detail",
+          depth: depth + 1,
+          rowCount: null,
+          measures: {
+            totalBillable: detail.totalBillable,
+            mediaSpend: detail.mediaSpend,
+            agencyFee: detail.agencyFee,
+          },
+          hasChildren: false,
+        }))
+      )
     }
   }
   return rows
@@ -151,6 +201,7 @@ export default function FinanceReportPanel() {
 
   const [groupBy, setGroupBy] = useState<ReportDimension[]>(() => readGroupBy())
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() => readExpanded())
+  const [showDetailRows, setShowDetailRows] = useState(() => readShowDetailRows())
   const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
@@ -161,9 +212,16 @@ export default function FinanceReportPanel() {
     localStorage.setItem(EXPANDED_STORAGE_KEY, JSON.stringify(expanded))
   }, [expanded])
 
+  useEffect(() => {
+    localStorage.setItem(SHOW_DETAIL_ROWS_STORAGE_KEY, showDetailRows ? "1" : "0")
+  }, [showDetailRows])
+
   const reportRows = useMemo(() => buildReportRows(billingRecords), [billingRecords])
   const subtotalRoot = useMemo(() => groupAndSubtotal(reportRows, groupBy), [groupBy, reportRows])
-  const tableRows = useMemo(() => flattenNodes(subtotalRoot, expanded), [expanded, subtotalRoot])
+  const tableRows = useMemo(
+    () => flattenNodes(subtotalRoot, expanded, showDetailRows),
+    [expanded, showDetailRows, subtotalRoot]
+  )
   const activeFilterLabel = useMemo(() => filterLabel(filters), [filters])
 
   const toggleDimension = useCallback((dimension: ReportDimension) => {
@@ -217,7 +275,7 @@ export default function FinanceReportPanel() {
               ) : (
                 <span className="h-5 w-5" aria-hidden />
               )}
-              <span className="font-medium">{original.label}</span>
+              <span className={cn(original.kind === "subtotal" && "font-medium")}>{original.label}</span>
             </div>
           )
         },
@@ -230,7 +288,9 @@ export default function FinanceReportPanel() {
       {
         id: "rowCount",
         header: "Rows",
-        cell: ({ row }) => <span className="tabular-nums text-muted-foreground">{row.original.rowCount}</span>,
+        cell: ({ row }) => (
+          <span className="tabular-nums text-muted-foreground">{row.original.rowCount ?? ""}</span>
+        ),
       },
       {
         id: "totalBillable",
@@ -326,15 +386,28 @@ export default function FinanceReportPanel() {
             })}
           </div>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => void handleExport()}
-          disabled={reportRows.length === 0 || exporting}
-        >
-          {exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-          Export
-        </Button>
+        <div className="flex flex-wrap items-center gap-3">
+          <label
+            htmlFor="finance-report-detail-rows"
+            className="flex items-center gap-2 text-sm text-muted-foreground"
+          >
+            <Switch
+              id="finance-report-detail-rows"
+              checked={showDetailRows}
+              onCheckedChange={setShowDetailRows}
+            />
+            Show detail rows
+          </label>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void handleExport()}
+            disabled={reportRows.length === 0 || exporting}
+          >
+            {exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+            Export
+          </Button>
+        </div>
       </div>
 
       {billingLoading ? (
@@ -375,7 +448,13 @@ export default function FinanceReportPanel() {
             </TableHeader>
             <TableBody>
               {table.getRowModel().rows.map((row) => (
-                <TableRow key={row.original.id} className={cn(row.original.depth === 0 && "bg-muted/15")}>
+                <TableRow
+                  key={row.original.id}
+                  className={cn(
+                    row.original.kind === "subtotal" && row.original.depth === 0 && "bg-muted/15",
+                    row.original.kind === "detail" && "text-muted-foreground"
+                  )}
+                >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell
                       key={cell.id}

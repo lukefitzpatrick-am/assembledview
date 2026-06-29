@@ -139,6 +139,46 @@ test("groupAndSubtotal groups by billing month then media type without changing 
   assert.equal(root.measures.totalBillable, sumTotal(rows))
 })
 
+test("groupAndSubtotal keeps sorted detail rows on the deepest subtotal leaves", () => {
+  const rows = [
+    row({ client: "Acme", publisher: "Unspecified", totalBillable: 25, mediaSpend: 25, agencyFee: 0 }),
+    row({ client: "Acme", publisher: "Google", totalBillable: 100, mediaSpend: 80, agencyFee: 20 }),
+    row({
+      client: "Acme",
+      mediaType: "Production",
+      publisher: "Unspecified",
+      rowKind: "service",
+      serviceType: "production",
+      totalBillable: 40,
+      mediaSpend: 0,
+      agencyFee: 40,
+    }),
+    row({
+      client: "Acme",
+      mediaType: "Ad Serving",
+      publisher: "Unspecified",
+      rowKind: "service",
+      serviceType: "adServing",
+      totalBillable: 10,
+      mediaSpend: 0,
+      agencyFee: 10,
+    }),
+  ]
+
+  const root = groupAndSubtotal(rows, ["client"])
+  const acme = root.children[0]
+  assert.ok(acme)
+
+  assert.deepEqual(
+    acme.leafRows.map((detail) => `${detail.rowKind}:${detail.publisher}:${detail.serviceType ?? ""}`),
+    ["media:Google:", "media:Unspecified:", "service:Unspecified:adServing", "service:Unspecified:production"]
+  )
+  assert.equal(
+    acme.leafRows.reduce((sum, detail) => sum + detail.totalBillable, 0),
+    acme.measures.totalBillable
+  )
+})
+
 test("groupAndSubtotal supports empty input", () => {
   const root = groupAndSubtotal([], ["mediaType", "publisher"])
 

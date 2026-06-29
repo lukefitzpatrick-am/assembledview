@@ -10,18 +10,21 @@ const root: SubtotalNode = {
   key: "Grand Total",
   rowCount: 3,
   measures: { totalBillable: 175, mediaSpend: 140, agencyFee: 35 },
+  leafRows: [],
   children: [
     {
       dimension: "mediaType",
       key: "Search",
       rowCount: 2,
       measures: { totalBillable: 125, mediaSpend: 100, agencyFee: 25 },
+      leafRows: [],
       children: [
         {
           dimension: "publisher",
           key: "Google",
           rowCount: 2,
           measures: { totalBillable: 125, mediaSpend: 100, agencyFee: 25 },
+          leafRows: [],
           children: [],
         },
       ],
@@ -31,6 +34,7 @@ const root: SubtotalNode = {
       key: "Radio",
       rowCount: 1,
       measures: { totalBillable: 50, mediaSpend: 40, agencyFee: 10 },
+      leafRows: [],
       children: [],
     },
   ],

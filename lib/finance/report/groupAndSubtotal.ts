@@ -5,6 +5,7 @@ export interface SubtotalNode {
   key: string
   measures: { totalBillable: number; mediaSpend: number; agencyFee: number }
   children: SubtotalNode[]
+  leafRows: ReportRow[]
   rowCount: number
 }
 
@@ -32,6 +33,26 @@ function compareKeys(a: string, b: string): number {
   if (a === UNSPECIFIED && b !== UNSPECIFIED) return 1
   if (b === UNSPECIFIED && a !== UNSPECIFIED) return -1
   return a.localeCompare(b, undefined, { sensitivity: "base" })
+}
+
+function detailSortLabel(row: ReportRow): string {
+  if (row.rowKind === "service") {
+    if (row.serviceType === "adServing") return "Ad Serving"
+    if (row.serviceType === "production") return "Production"
+    return row.mediaType
+  }
+  return row.publisher
+}
+
+function detailSortRank(row: ReportRow): number {
+  if (row.rowKind === "service") return 2
+  return detailSortLabel(row) === UNSPECIFIED ? 1 : 0
+}
+
+function compareDetailRows(a: ReportRow, b: ReportRow): number {
+  const rankDelta = detailSortRank(a) - detailSortRank(b)
+  if (rankDelta !== 0) return rankDelta
+  return compareKeys(detailSortLabel(a), detailSortLabel(b))
 }
 
 function dimensionKey(row: ReportRow, dimension: ReportDimension): string {
@@ -70,6 +91,7 @@ function buildNode(
       key,
       measures,
       children: [],
+      leafRows: [...rows].sort(compareDetailRows),
       rowCount: rows.length,
     }
   }
@@ -97,6 +119,7 @@ function buildNode(
     key,
     measures,
     children,
+    leafRows: [],
     rowCount: rows.length,
   }
 }
