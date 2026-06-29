@@ -1,14 +1,16 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { saveAs } from "file-saver"
 import {
   flexRender,
   getCoreRowModel,
   useReactTable,
   type ColumnDef,
 } from "@tanstack/react-table"
-import { ChevronDown, ChevronRight, Loader2, X } from "lucide-react"
+import { ChevronDown, ChevronRight, Download, Loader2, X } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import {
   Table,
   TableBody,
@@ -18,11 +20,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { useToast } from "@/components/ui/use-toast"
 import { formatMoney } from "@/lib/format/money"
 import { buildReportRows } from "@/lib/finance/report/buildReportRows"
+import { exportReportExcel } from "@/lib/finance/report/exportReportExcel"
 import { groupAndSubtotal, type SubtotalNode } from "@/lib/finance/report/groupAndSubtotal"
 import type { ReportDimension } from "@/lib/finance/report/types"
 import { useFinanceStore } from "@/lib/finance/useFinanceStore"
+import type { FinanceFilters } from "@/lib/types/financeBilling"
 import { cn } from "@/lib/utils"
 
 const GROUP_BY_STORAGE_KEY = "financeReport:groupBy"
@@ -119,12 +124,32 @@ function moveDimension(order: ReportDimension[], dimension: ReportDimension, dir
   return next
 }
 
+function filterLabel(filters: FinanceFilters): string {
+  const month =
+    filters.monthRange.from === filters.monthRange.to
+      ? filters.monthRange.from
+      : `${filters.monthRange.from} to ${filters.monthRange.to}`
+  const clients =
+    filters.selectedClients.length > 0 ? `${filters.selectedClients.length} client(s)` : "all clients"
+  const types = filters.billingTypes.length > 0 ? filters.billingTypes.join(", ") : "all types"
+  const statuses = filters.statuses.length > 0 ? filters.statuses.join(", ") : "all statuses"
+  const drafts = filters.includeDrafts ? "including drafts" : "excluding drafts"
+  return `${month} · ${clients} · ${types} · ${statuses} · ${drafts}`
+}
+
+function filenameToday(): string {
+  return new Date().toISOString().slice(0, 10)
+}
+
 export default function FinanceReportPanel() {
   const billingRecords = useFinanceStore((s) => s.billingRecords)
   const billingLoading = useFinanceStore((s) => s.billingLoading)
+  const filters = useFinanceStore((s) => s.filters)
+  const { toast } = useToast()
 
   const [groupBy, setGroupBy] = useState<ReportDimension[]>(() => readGroupBy())
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() => readExpanded())
+  const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
     localStorage.setItem(GROUP_BY_STORAGE_KEY, JSON.stringify(groupBy))
@@ -137,6 +162,7 @@ export default function FinanceReportPanel() {
   const reportRows = useMemo(() => buildReportRows(billingRecords), [billingRecords])
   const subtotalRoot = useMemo(() => groupAndSubtotal(reportRows, groupBy), [groupBy, reportRows])
   const tableRows = useMemo(() => flattenNodes(subtotalRoot, expanded), [expanded, subtotalRoot])
+  const activeFilterLabel = useMemo(() => filterLabel(filters), [filters])
 
   const toggleDimension = useCallback((dimension: ReportDimension) => {
     setGroupBy((current) =>
@@ -149,6 +175,23 @@ export default function FinanceReportPanel() {
   const toggleExpanded = useCallback((id: string) => {
     setExpanded((current) => ({ ...current, [id]: current[id] === false }))
   }, [])
+
+  const handleExport = useCallback(async () => {
+    setExporting(true)
+    try {
+      const blob = await exportReportExcel(subtotalRoot, groupBy, { filterLabel: activeFilterLabel })
+      saveAs(blob, `assembled-report_${filenameToday()}.xlsx`)
+      toast({ title: "Export ready", description: "Download should start shortly." })
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Export failed",
+        description: error instanceof Error ? error.message : "Unknown error",
+      })
+    } finally {
+      setExporting(false)
+    }
+  }, [activeFilterLabel, groupBy, subtotalRoot, toast])
 
   const columns = useMemo<ColumnDef<ReportTableRow>[]>(
     () => [
@@ -281,6 +324,15 @@ export default function FinanceReportPanel() {
             })}
           </div>
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => void handleExport()}
+          disabled={reportRows.length === 0 || exporting}
+        >
+          {exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+          Export
+        </Button>
       </div>
 
       {billingLoading ? (
