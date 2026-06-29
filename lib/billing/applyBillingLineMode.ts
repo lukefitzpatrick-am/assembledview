@@ -2,6 +2,25 @@ import type { BillingLineItem, BillingMonth } from "@/lib/billing/types"
 
 export type BillingLineMode = NonNullable<BillingLineItem["billingMode"]>
 
+type BillingLineModeCarrier = Pick<BillingLineItem, "billingMode">
+
+export function shouldResyncBillingLineFromAuto(
+  line: BillingLineModeCarrier,
+  isManualBilling: boolean
+): boolean {
+  if (line.billingMode === "manual") return false
+  if (line.billingMode === "auto") return true
+  return !isManualBilling
+}
+
+export function billingMonthsHaveExplicitLineModes(months: BillingMonth[]): boolean {
+  return months.some((month) =>
+    Object.values(month.lineItems ?? {}).some((lines) =>
+      lines?.some((line) => line.billingMode === "auto" || line.billingMode === "manual")
+    )
+  )
+}
+
 export function applyBillingLineMode(
   months: BillingMonth[],
   lineItemId: string,

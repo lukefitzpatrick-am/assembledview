@@ -2,7 +2,11 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 import type { BillingMonth } from "@/lib/billing/types"
-import { applyBillingLineMode } from "../applyBillingLineMode.js"
+import {
+  applyBillingLineMode,
+  billingMonthsHaveExplicitLineModes,
+  shouldResyncBillingLineFromAuto,
+} from "../applyBillingLineMode.js"
 
 function month(lineItems: BillingMonth["lineItems"]): BillingMonth {
   return {
@@ -99,4 +103,50 @@ test("auto mode only sets the target line", () => {
   const items = result[0]!.lineItems!.search!
   assert.equal(items[0]!.billingMode, "auto")
   assert.equal(items[1]!.billingMode, undefined)
+})
+
+test("resync predicate honors per-line mode before legacy plan state", () => {
+  assert.equal(shouldResyncBillingLineFromAuto({ billingMode: "manual" }, true), false)
+  assert.equal(shouldResyncBillingLineFromAuto({ billingMode: "manual" }, false), false)
+  assert.equal(shouldResyncBillingLineFromAuto({ billingMode: "auto" }, true), true)
+  assert.equal(shouldResyncBillingLineFromAuto({ billingMode: "auto" }, false), true)
+  assert.equal(shouldResyncBillingLineFromAuto({}, true), false)
+  assert.equal(shouldResyncBillingLineFromAuto({}, false), true)
+})
+
+test("detects whether a billing month graph has explicit line modes", () => {
+  assert.equal(
+    billingMonthsHaveExplicitLineModes([
+      month({
+        search: [
+          {
+            id: "billing-search::legacy",
+            header1: "Google",
+            header2: "Legacy",
+            monthlyAmounts: { "May 2026": 50 },
+            totalAmount: 50,
+          },
+        ],
+      }),
+    ]),
+    false
+  )
+
+  assert.equal(
+    billingMonthsHaveExplicitLineModes([
+      month({
+        search: [
+          {
+            id: "billing-search::auto",
+            header1: "Google",
+            header2: "Auto",
+            monthlyAmounts: { "May 2026": 50 },
+            totalAmount: 50,
+            billingMode: "auto",
+          },
+        ],
+      }),
+    ]),
+    true
+  )
 })

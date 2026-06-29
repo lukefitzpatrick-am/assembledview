@@ -129,7 +129,12 @@ import { buildBillingScheduleJSON } from "@/lib/billing/buildBillingSchedule"
 import { prorateAcrossMonths } from "@/lib/billing/prorateAcrossMonths"
 import { prepareBillingMonthsForLineItemExport } from "@/lib/billing/prepareBillingMonthsForLineItemExport"
 import { syncLineItemMonthlyAmountAcrossAllMonthRows } from "@/lib/billing/syncLineItemAmountAcrossMonthRows"
-import { applyBillingLineMode, type BillingLineMode } from "@/lib/billing/applyBillingLineMode"
+import {
+  applyBillingLineMode,
+  billingMonthsHaveExplicitLineModes,
+  shouldResyncBillingLineFromAuto,
+  type BillingLineMode,
+} from "@/lib/billing/applyBillingLineMode"
 import { ManualBillingSpreadsheetCostInput } from "@/components/billing/ManualBillingSpreadsheetCostInput"
 import { ManualBillingSpreadsheetLineItemInput } from "@/components/billing/ManualBillingSpreadsheetLineItemInput"
 import { ManualBillingSpreadsheetProvider } from "@/components/billing/manualBillingSpreadsheetContext"
@@ -351,9 +356,11 @@ function resyncExistingLineItemFromTemplate(
   const seeded = seedLineItemMonthKeysFromTemplate(tLi, allCampaignMonthKeys)
   const preserveId = existing.id
   const preserveLegacy = existing.legacySaved
+  const preserveBillingMode = existing.billingMode
   Object.assign(existing, seeded)
   existing.id = preserveId
   if (preserveLegacy) existing.legacySaved = true
+  if (preserveBillingMode) existing.billingMode = preserveBillingMode
   existing.preBill = false
   existing.preBillSnapshot = undefined
 }
@@ -368,9 +375,10 @@ function appendMissingLineItemsOnly(
   existingItems: BillingLineItemType[],
   templateItems: BillingLineItemType[],
   allCampaignMonthKeys: string[],
-  opts?: { resyncExistingFromTemplate?: boolean }
+  opts?: { isManualBilling?: boolean; resyncExistingFromTemplate?: boolean }
 ): { list: BillingLineItemType[]; didAppend: boolean } {
   const resync = Boolean(opts?.resyncExistingFromTemplate)
+  const isManualBilling = Boolean(opts?.isManualBilling)
   const list = existingItems.map((li) => cloneBillingMonthGraph(li))
   const oldIds = new Set(list.map((li) => billingLineItemIdKey(li.id)))
   let didAppend = false
@@ -389,10 +397,11 @@ function appendMissingLineItemsOnly(
     if (oldIds.has(tid)) {
       const existing = list.find((li) => billingLineItemIdKey(li.id) === tid)
       if (!existing) continue
-      if (resync) {
+      const shouldResync = shouldResyncBillingLineFromAuto(existing, isManualBilling)
+      if (resync && shouldResync) {
         resyncExistingLineItemFromTemplate(existing, tLi, allCampaignMonthKeys)
         didAppend = true
-      } else if (existing.totalAmount === 0 && tLi.totalAmount > 0) {
+      } else if (shouldResync && existing.totalAmount === 0 && tLi.totalAmount > 0) {
         const seeded = seedLineItemMonthKeysFromTemplate(tLi, allCampaignMonthKeys)
         existing.monthlyAmounts = seeded.monthlyAmounts
         existing.totalAmount = seeded.totalAmount
@@ -407,9 +416,10 @@ function appendMissingLineItemsOnly(
     if (singleLineSchemeDrift) {
       const existing = list[0]
       if (existing) {
-        if (resync) {
+        const shouldResync = shouldResyncBillingLineFromAuto(existing, isManualBilling)
+        if (resync && shouldResync) {
           resyncExistingLineItemFromTemplate(existing, tLi, allCampaignMonthKeys)
-        } else if (existing.totalAmount === 0 && tLi.totalAmount > 0) {
+        } else if (shouldResync && existing.totalAmount === 0 && tLi.totalAmount > 0) {
           const seeded = seedLineItemMonthKeysFromTemplate(tLi, allCampaignMonthKeys)
           existing.monthlyAmounts = seeded.monthlyAmounts
           existing.totalAmount = seeded.totalAmount
@@ -593,7 +603,7 @@ function mergeAppendIntoExistingMonth(
   templateRow: BillingMonth,
   allCampaignMonthKeys: string[],
   formatter: Intl.NumberFormat,
-  opts?: { resyncExistingFromTemplate?: boolean }
+  opts?: { isManualBilling?: boolean; resyncExistingFromTemplate?: boolean }
 ): BillingMonth {
   const resync = Boolean(opts?.resyncExistingFromTemplate)
   const templateMediaKeys = templateRow.lineItems
@@ -623,6 +633,7 @@ function mergeAppendIntoExistingMonth(
         appendNewMediaTypeIntoWorkingMonth(base, mk, templateItems, allCampaignMonthKeys, formatter)
       } else {
         const { list } = appendMissingLineItemsOnly(existingItems, templateItems, allCampaignMonthKeys, {
+          isManualBilling: opts?.isManualBilling,
           resyncExistingFromTemplate: true,
         })
         ;(base.lineItems as Record<string, BillingLineItemType[]>)[mk] = list
@@ -674,7 +685,8 @@ function mergeAppendIntoExistingMonth(
       const { list, didAppend } = appendMissingLineItemsOnly(
         existingItems,
         templateItems,
-        allCampaignMonthKeys
+        allCampaignMonthKeys,
+        { isManualBilling: opts?.isManualBilling }
       )
       if (didAppend) {
         ;(base.lineItems as Record<string, BillingLineItemType[]>)[mk] = list
@@ -750,7 +762,7 @@ function appendAutoLineItemTemplateIntoWorking(
   workingMonths: BillingMonth[],
   templateWithLineItems: BillingMonth[],
   formatter: Intl.NumberFormat,
-  opts?: { resyncExistingFromTemplate?: boolean }
+  opts?: { isManualBilling?: boolean; resyncExistingFromTemplate?: boolean }
 ): BillingMonth[] {
   if (!templateWithLineItems.length) return workingMonths
 
@@ -807,7 +819,7 @@ function appendAutoReferenceIntoWorkingBilling(
   autoReferenceMonths: BillingMonth[],
   formatter: Intl.NumberFormat,
   attachLineItemsToMonths: (months: BillingMonth[], mode: "billing" | "delivery") => BillingMonth[],
-  opts?: { resyncExistingFromTemplate?: boolean }
+  opts?: { isManualBilling?: boolean; resyncExistingFromTemplate?: boolean }
 ): BillingMonth[] {
   billingAppendDebug("appendAutoReferenceIntoWorkingBilling", {
     autoRefMonths: autoReferenceMonths.length,
@@ -2562,7 +2574,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
     if (
       billingLineItemsFollowAutoRef.current &&
-      !isManualBillingRef.current &&
       billingMonthsCalculated.length > 0
     ) {
       const fmt = new Intl.NumberFormat("en-AU", {
@@ -2576,7 +2587,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         billingMonthsCalculated,
         fmt,
         attachLineItemsToMonthsRef.current,
-        { resyncExistingFromTemplate: true }
+        {
+          isManualBilling: isManualBillingRef.current,
+          resyncExistingFromTemplate: true,
+        }
       )
       setWorkingBillingMonths(merged)
       workingBillingMonthsRef.current = merged
@@ -4926,7 +4940,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     workingBillingMonthsRef.current = applied
     // `savedBillingMonths` updates only after a successful campaign/version save — not from modal commit.
     setIsManualBilling(true)
-    billingLineItemsFollowAutoRef.current = false
+    billingLineItemsFollowAutoRef.current = billingMonthsHaveExplicitLineModes(applied)
     setIsManualBillingModalOpen(false)
     setManualBillingMonths([])
     setBillingError({ show: false, blockingErrors: [], preservedOverrides: [] })
@@ -7576,14 +7590,18 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         lineItemsFingerprint: billingLineItemsLengthFingerprint,
       })
 
-      const followAuto =
-        billingLineItemsFollowAutoRef.current && !isManualBillingRef.current
+      const followAuto = billingLineItemsFollowAutoRef.current
       const merged = appendAutoReferenceIntoWorkingBilling(
         source,
         autoRef,
         formatter,
         attachLineItemsToMonths,
-        followAuto ? { resyncExistingFromTemplate: true } : undefined
+        followAuto
+          ? {
+              isManualBilling: isManualBillingRef.current,
+              resyncExistingFromTemplate: true,
+            }
+          : undefined
       )
       if (JSON.stringify(merged) === JSON.stringify(source)) {
         billingAppendDebug("append skipped: merged deep-equals working snapshot", {

@@ -283,6 +283,7 @@ export function seedBillingMonthsLineFees(
         (item, idx) => stableLineItemId(billingKey, item, idx) === billingLine.id
       )
       if (liIndex < 0) continue
+      if (billingLine.billingMode === "manual") continue
 
       const sourceLine = lineItems[liIndex]
       const clientPaysForMedia = lineClientPaysForMedia(sourceLine, billingLine)

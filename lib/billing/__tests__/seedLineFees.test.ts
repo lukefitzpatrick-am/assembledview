@@ -268,6 +268,71 @@ test("re-seeds line previously seeded with totalFeeAmount 0 (buggy B1)", () => {
   )
 })
 
+test("seedBillingMonthsLineFees skips manual billingMode lines", () => {
+  const months: BillingMonth[] = [
+    {
+      monthYear: "May 2026",
+      mediaTotal: "$0.00",
+      feeTotal: "$0.00",
+      totalAmount: "$0.00",
+      adservingTechFees: "$0.00",
+      production: "$0.00",
+      mediaCosts: emptyMediaCosts(),
+      lineItems: {
+        progDisplay: [
+          {
+            id: "billing-progDisplay::glenda007PD2",
+            header1: "DV360",
+            header2: "test",
+            monthlyAmounts: { "May 2026": 0 },
+            totalAmount: 0,
+            billingMode: "manual",
+            totalFeeAmount: 123,
+            feeMonthlyAmounts: { "May 2026": 123 },
+          },
+        ],
+      },
+    },
+  ]
+
+  const lineItems = [
+    {
+      line_item_id: "glenda007PD2",
+      platform: "DV360",
+      targeting: "test",
+      bursts_json: [
+        { startDate: "2026-05-01", endDate: "2026-05-31", feeAmount: "$2,000.00" },
+      ],
+    },
+  ]
+  const containerBursts: BillingBurst[] = [
+    {
+      startDate: new Date("2026-05-01"),
+      endDate: new Date("2026-05-31"),
+      mediaAmount: 0,
+      feeAmount: 2000,
+      totalAmount: 2000,
+      mediaType: "prog display",
+      feePercentage: 20,
+      clientPaysForMedia: false,
+      budgetIncludesFees: false,
+      deliverables: 0,
+      buyType: "cpm",
+      noAdserving: false,
+    },
+  ]
+
+  const result = seedBillingMonthsLineFees(
+    months,
+    [{ billingKey: "progDisplay", lineItems, containerBursts }],
+    stableId
+  )
+
+  assert.equal(result.linesSeeded, 0)
+  assert.equal(result.months[0]!.lineItems!.progDisplay![0]!.totalFeeAmount, 123)
+  assert.equal(result.months[0]!.lineItems!.progDisplay![0]!.feeMonthlyAmounts!["May 2026"], 123)
+})
+
 test("multi-month burst: fee prorated by day overlap", () => {
   const bursts = [
     {
