@@ -3,8 +3,11 @@ import { useCallback, useMemo } from "react"
 import type { ManualBillingMediaSection } from "@/lib/billing/buildManualBillingSpreadsheetRegistry"
 import type { BillingLineItem, BillingMonth } from "@/lib/billing/types"
 import type { ManualBillingSpreadsheetCallbacks } from "@/components/billing/manualBillingSpreadsheetContext"
+import type { BillingLineMode } from "@/lib/billing/applyBillingLineMode"
 
 type CostBucket = "fee" | "adServing" | "production"
+
+const noopSetLineBillingMode = () => {}
 
 export type UseManualBillingSpreadsheetCallbacksArgs = Readonly<{
   manualBillingMonths: BillingMonth[]
@@ -17,12 +20,14 @@ export type UseManualBillingSpreadsheetCallbacksArgs = Readonly<{
     lineItemId?: string,
     monthYear?: string
   ) => void
+  setLineBillingMode?: (lineItemId: string, mode: BillingLineMode) => void
 }>
 
 export function useManualBillingSpreadsheetCallbacks({
   manualBillingMonths,
   setManualBillingMonths,
   handleManualBillingChange,
+  setLineBillingMode = noopSetLineBillingMode,
 }: UseManualBillingSpreadsheetCallbacksArgs): ManualBillingSpreadsheetCallbacks {
   const getLineItemAmount = useCallback(
     (mediaKey: string, lineItemId: string, monthYear: string) => {
@@ -88,6 +93,7 @@ export function useManualBillingSpreadsheetCallbacks({
     () => ({
       getLineItemAmount,
       getCostFieldRaw,
+      setLineBillingMode,
       onLineItemPaste,
       onLineItemClear,
       onCostPaste,
@@ -96,6 +102,7 @@ export function useManualBillingSpreadsheetCallbacks({
     [
       getLineItemAmount,
       getCostFieldRaw,
+      setLineBillingMode,
       onLineItemPaste,
       onLineItemClear,
       onCostPaste,

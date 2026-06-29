@@ -28,6 +28,7 @@ import { toast } from "@/components/ui/use-toast"
 export type ManualBillingSpreadsheetCallbacks = Readonly<{
   getLineItemAmount: (mediaKey: string, lineItemId: string, monthYear: string) => number
   getCostFieldRaw: (rowId: string, monthYear: string) => string
+  setLineBillingMode: (lineItemId: string, mode: "auto" | "manual") => void
   onLineItemPaste: (mediaKey: string, lineItemId: string, monthYear: string, raw: string) => void
   onLineItemClear: (mediaKey: string, lineItemId: string, monthYear: string) => void
   onCostPaste: (rowId: string, monthYear: string, raw: string) => void

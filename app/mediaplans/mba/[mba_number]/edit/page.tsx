@@ -129,6 +129,7 @@ import { buildBillingScheduleJSON } from "@/lib/billing/buildBillingSchedule"
 import { prorateAcrossMonths } from "@/lib/billing/prorateAcrossMonths"
 import { prepareBillingMonthsForLineItemExport } from "@/lib/billing/prepareBillingMonthsForLineItemExport"
 import { syncLineItemMonthlyAmountAcrossAllMonthRows } from "@/lib/billing/syncLineItemAmountAcrossMonthRows"
+import { applyBillingLineMode, type BillingLineMode } from "@/lib/billing/applyBillingLineMode"
 import { ManualBillingSpreadsheetCostInput } from "@/components/billing/ManualBillingSpreadsheetCostInput"
 import { ManualBillingSpreadsheetLineItemInput } from "@/components/billing/ManualBillingSpreadsheetLineItemInput"
 import { ManualBillingSpreadsheetProvider } from "@/components/billing/manualBillingSpreadsheetContext"
@@ -3908,10 +3909,15 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     [mediaTypes, mediaFlagMap, manualBillingMonths]
   )
 
+  const setManualBillingLineMode = useCallback((lineItemId: string, mode: BillingLineMode) => {
+    setManualBillingMonths((current) => applyBillingLineMode(current, lineItemId, mode))
+  }, [])
+
   const manualBillingSpreadsheetCallbacks = useManualBillingSpreadsheetCallbacks({
     manualBillingMonths,
     setManualBillingMonths,
     handleManualBillingChange,
+    setLineBillingMode: setManualBillingLineMode,
   })
 
   const recalculateManualBillingTotals = (months: BillingMonth[], formatter: Intl.NumberFormat) => {
@@ -9522,6 +9528,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                                 <TableRow>
                                   <TableHead className="w-[90px]">Reset row</TableHead>
                                   <TableHead className="w-[90px]">Pre-bill</TableHead>
+                                  <TableHead className="w-[150px]">Billing mode</TableHead>
                                   <TableHead>{headers.header1}</TableHead>
                                   <TableHead>{headers.header2}</TableHead>
                                   {manualBillingMonths.map((m) => (
@@ -9554,6 +9561,23 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                                           handleManualBillingLineItemPreBillToggle(mediaKey, lineItem.id, Boolean(next))
                                         }
                                       />
+                                    </TableCell>
+                                    <TableCell>
+                                      <div className="flex items-center gap-2 whitespace-nowrap">
+                                        <Switch
+                                          checked={lineItem.billingMode === "manual"}
+                                          aria-label={`Set ${lineItem.header1} ${lineItem.header2} billing mode`}
+                                          onCheckedChange={(checked) =>
+                                            manualBillingSpreadsheetCallbacks.setLineBillingMode(
+                                              lineItem.id,
+                                              checked ? "manual" : "auto"
+                                            )
+                                          }
+                                        />
+                                        <span className="text-sm text-muted-foreground">
+                                          {lineItem.billingMode === "manual" ? "Manual" : "Follow auto"}
+                                        </span>
+                                      </div>
                                     </TableCell>
                                     <TableCell>{lineItem.header1}</TableCell>
                                     <TableCell>{lineItem.header2}</TableCell>
