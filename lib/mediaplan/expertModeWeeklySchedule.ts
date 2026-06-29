@@ -1,7 +1,3 @@
-import type { WeeklyGanttWeekColumn } from "../utils/weeklyGanttColumns"
-
-export type { WeeklyGanttWeekColumn }
-
 /**
  * Week column key from {@link buildWeeklyGanttColumnsFromCampaign} (local Sunday, yyyy-MM-dd).
  * Also used as keys in per-week schedule cells.

@@ -83,7 +83,7 @@ export const WEEK_CELL_VISUAL_CLASSES = {
   populatedSingleTd: "bg-blue-500/10 dark:bg-blue-400/16",
 } as const
 
-export const WEEK_PASTE_NEAREST_START_TOLERANCE_DAYS = 4
+const WEEK_PASTE_NEAREST_START_TOLERANCE_DAYS = 4
 
 export type ExpertGridMergeSpan = Readonly<{
   id: string
@@ -474,12 +474,12 @@ export function enumerateWeeklyPasteTargets(
   return null
 }
 
-export function clampWeekPasteIndex(i: number, weekLen: number): number {
+function clampWeekPasteIndex(i: number, weekLen: number): number {
   if (weekLen <= 0) return 0
   return Math.max(0, Math.min(weekLen - 1, i))
 }
 
-export function resolveClosestCampaignWeekIndex(
+function resolveClosestCampaignWeekIndex(
   parsed: Date,
   weekColumns: readonly WeeklyGanttWeekColumn[],
   nearestReserved: ReadonlySet<number>
@@ -511,7 +511,7 @@ export function resolveClosestCampaignWeekIndex(
   return null
 }
 
-export function mapPastedWeekColumnsToCampaignWeeks(
+function mapPastedWeekColumnsToCampaignWeeks(
   headerCells: readonly string[] | null,
   numCols: number,
   weekColumns: readonly WeeklyGanttWeekColumn[],
@@ -622,7 +622,7 @@ export function prepareWeeklyPasteDataWithWeekAlignment(
   return { dataMatrix, colToCampaignWi, usedWeekAlignmentToast }
 }
 
-export function pasteColumnIndexForCampaignWeekIndex(
+function pasteColumnIndexForCampaignWeekIndex(
   wi: number,
   originWi: number,
   colToCampaignWi: number[]
@@ -1007,9 +1007,6 @@ export function normalizeWeekMergeSelection(
   return null
 }
 
-/** @deprecated Use {@link normalizeWeekMergeSelection} */
-export const normalizeOohWeekMergeSelection = normalizeWeekMergeSelection
-
 export function weekPlainClickPreservesWeekAreaSelection(
   rowIndex: number,
   weekKey: string,
@@ -1040,9 +1037,6 @@ export function deriveMergeEligibility(
 ): WeekMergeSelectionNormalized | null {
   return normalizeWeekMergeSelection(rect, multi, weekKeys)
 }
-
-/** @deprecated Use {@link deriveMergeEligibility} */
-export const deriveOohMergeEligibility = deriveMergeEligibility
 
 export function weekCellExportText<R extends ExpertGridRowWithWeekly>(
   row: R,

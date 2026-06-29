@@ -46,7 +46,7 @@ function isoDate(d: Date | string | undefined): string {
 }
 
 /** Stable key for matching standard line items across expert ↔ standard conversions. */
-export function stableStandardLineItemKey(
+function stableStandardLineItemKey(
   item: {
     line_item_id?: string
     lineItemId?: string

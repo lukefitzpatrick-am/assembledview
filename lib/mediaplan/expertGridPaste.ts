@@ -149,7 +149,7 @@ export function parseDatePasteValue(raw: string): PasteCellResult<string> {
 }
 
 /** First HTML table in clipboard → matrix of cell text (row-major). */
-export function matrixFromHtmlTable(html: string): string[][] | null {
+function matrixFromHtmlTable(html: string): string[][] | null {
   if (!html.trim()) return null
   try {
     const doc = new DOMParser().parseFromString(html, "text/html")
@@ -181,7 +181,7 @@ export function clipboardMatrixFromDataTransfer(
  * Build a paste matrix from raw strings (e.g. `navigator.clipboard.read()`).
  * Prefer plain TSV; if plain is empty, parse HTML table (Excel often provides both).
  */
-export function clipboardMatrixFromStrings(
+function clipboardMatrixFromStrings(
   textPlain: string,
   textHtml?: string
 ): string[][] | null {
