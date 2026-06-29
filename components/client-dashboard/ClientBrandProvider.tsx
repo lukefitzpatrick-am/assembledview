@@ -39,7 +39,7 @@ export function useClientBrandOptional(): ClientBrandTheme | null {
   return useContext(ClientBrandContext)
 }
 
-export function brandStyleVars(theme: ClientBrandTheme): CSSProperties {
+function brandStyleVars(theme: ClientBrandTheme): CSSProperties {
   return {
     "--brand-primary": theme.primary,
     "--brand-primary-dark": theme.primaryDark,

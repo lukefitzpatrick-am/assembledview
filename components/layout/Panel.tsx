@@ -5,7 +5,7 @@ import * as React from "react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 
-export type PanelVariant = "default" | "loading" | "empty" | "error"
+type PanelVariant = "default" | "loading" | "empty" | "error"
 
 type PanelContextValue = {
   variant: PanelVariant
@@ -23,7 +23,7 @@ function usePanelContext(component: string) {
   return ctx
 }
 
-export type PanelProps = React.HTMLAttributes<HTMLDivElement> & {
+type PanelProps = React.HTMLAttributes<HTMLDivElement> & {
   variant?: PanelVariant
   /** Shown when `variant` is `empty` (unless `PanelContent` supplies its own handling). */
   emptyMessage?: React.ReactNode
@@ -118,7 +118,7 @@ function PanelLoadingState() {
   )
 }
 
-export type PanelContentProps = React.HTMLAttributes<HTMLDivElement> & {
+type PanelContentProps = React.HTMLAttributes<HTMLDivElement> & {
   /**
    * Use when there is no `PanelHeader` so top padding matches side padding.
    * When false (default), top padding is tuned for use below a header.
@@ -177,5 +177,4 @@ export {
   PanelDescription,
   PanelActions,
   PanelContent,
-  PanelLoadingState,
 }

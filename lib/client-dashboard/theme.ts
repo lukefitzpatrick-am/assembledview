@@ -115,7 +115,7 @@ function derivePrimaryDark(primary: string): string {
  * Default Assembled Media marketing accent: `tailwind.config.js` `brandPalette.lime`
  * and `lib/utils` `colors.limeGreen` (production CTA / chart accent).
  */
-export const ASSEMBLED_MEDIA_APP_BRAND_PRIMARY_HEX = "#b5d337"
+const ASSEMBLED_MEDIA_APP_BRAND_PRIMARY_HEX = "#b5d337"
 
 export function buildAssembledMediaAppDefaultTheme(): ClientBrandTheme {
   return buildClientTheme({
@@ -127,7 +127,7 @@ export function buildAssembledMediaAppDefaultTheme(): ClientBrandTheme {
 /**
  * Parses shadcn-style HSL components from `:root` (no `hsl()` wrapper), e.g. `"210 57% 55%"`.
  */
-export function hexFromCssHslTriplet(triplet: string): string | null {
+function hexFromCssHslTriplet(triplet: string): string | null {
   const m = triplet.trim().match(/^([\d.]+)\s+([\d.]+)%\s+([\d.]+)%$/)
   if (!m) return null
   const h = (Number(m[1]) % 360) / 360

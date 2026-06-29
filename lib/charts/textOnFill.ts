@@ -9,7 +9,7 @@ function linearizeSrgbChannel(c255: number): number {
 }
 
 /** WCAG 2.x relative luminance, 0–1 (higher = lighter). */
-export function relativeLuminance(r255: number, g255: number, b255: number): number {
+function relativeLuminance(r255: number, g255: number, b255: number): number {
   const R = linearizeSrgbChannel(r255)
   const G = linearizeSrgbChannel(g255)
   const B = linearizeSrgbChannel(b255)
@@ -107,7 +107,7 @@ function parseHslFunction(input: string): { r: number; g: number; b: number } | 
   return null
 }
 
-export function parseCssColorToRgb(fill: string): { r: number; g: number; b: number } | null {
+function parseCssColorToRgb(fill: string): { r: number; g: number; b: number } | null {
   if (!fill || /var\s*\(/i.test(fill) || /^currentColor$/i.test(fill.trim())) return null
   const t = fill.trim()
   const hex = parseHexRgb(t)

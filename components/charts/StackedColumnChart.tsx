@@ -25,10 +25,7 @@ import { ToggleableLegend } from "@/components/charts/ToggleableLegend"
 import { formatCurrencyAUD } from "@/lib/format/currency"
 import { getChartPalette } from "@/lib/client-dashboard/theme"
 
-/** @deprecated Prefer `ChartStackedColumnRow` from `chartDatumClick` — legacy admin chart row shape (Phase 3). */
-export type StackedColumnData = ChartStackedColumnRow
-
-export type StackedColumnSeries = { key: string; label: string }
+type StackedColumnSeries = { key: string; label: string }
 
 export type StackedColumnChartProps = {
   data: Array<Record<string, number | string>>

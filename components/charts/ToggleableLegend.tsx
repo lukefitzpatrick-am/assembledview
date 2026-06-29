@@ -5,7 +5,7 @@ import { useCallback, type KeyboardEvent } from "react"
 import { CLIENT_DASHBOARD_FOCUS_RING } from "@/components/client-dashboard/focus-styles"
 import { cn } from "@/lib/utils"
 
-export type LegendTogglePayload = {
+type LegendTogglePayload = {
   value?: unknown
   dataKey?: string | number
   color?: string

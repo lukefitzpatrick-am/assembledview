@@ -23,11 +23,3 @@ export const statusLabel: Record<DeliveryStatus, string> = {
   behind: "Off pace",
   "no-data": "No data",
 }
-
-/** Stroke colour for chart series, paired with status. */
-export const statusStroke: Record<DeliveryStatus, string> = {
-  "on-track": "hsl(160 84% 39%)",
-  ahead: "hsl(217 91% 60%)",
-  behind: "hsl(38 92% 50%)",
-  "no-data": "hsl(var(--muted-foreground))",
-}

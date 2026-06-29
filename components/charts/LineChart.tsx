@@ -21,7 +21,7 @@ import { getChartPalette } from "@/lib/client-dashboard/theme"
 const defaultCountFormatter = (n: number): string =>
   Math.round(n).toLocaleString("en-AU", { maximumFractionDigits: 0 })
 
-export type LineChartSeries = { key: string; label: string; yAxis?: "left" | "right" }
+type LineChartSeries = { key: string; label: string; yAxis?: "left" | "right" }
 
 export type LineChartProps = {
   data: Array<Record<string, string | number>>

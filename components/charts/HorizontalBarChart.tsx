@@ -18,7 +18,7 @@ import { ToggleableLegend } from "@/components/charts/ToggleableLegend"
 import { formatCurrencyAUD } from "@/lib/format/currency"
 import { getChartPalette } from "@/lib/client-dashboard/theme"
 
-export type HorizontalBarSeries = { key: string; label: string }
+type HorizontalBarSeries = { key: string; label: string }
 
 export type HorizontalBarChartProps = {
   data: Array<Record<string, number | string>>
@@ -124,11 +124,3 @@ export function HorizontalBarChart({
   )
 }
 
-/** @deprecated Use `HorizontalBarChart` — renamed in chart consolidation. */
-export const StackedBarChart = HorizontalBarChart
-
-/** @deprecated Use `HorizontalBarChartProps` */
-export type StackedBarChartProps = HorizontalBarChartProps
-
-/** @deprecated Use `HorizontalBarSeries` */
-export type StackedBarSeries = HorizontalBarSeries

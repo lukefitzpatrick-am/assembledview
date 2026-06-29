@@ -7,7 +7,7 @@ import type { ReactNode } from "react"
 import { useClientBrandOptional } from "@/components/client-dashboard/ClientBrandProvider"
 import { cn } from "@/lib/utils"
 
-export type BaseChartCardVariant = "icon" | "accent" | "minimal"
+type BaseChartCardVariant = "icon" | "accent" | "minimal"
 
 export type BaseChartCardProps = {
   title: string

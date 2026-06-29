@@ -12,6 +12,3 @@ export const AV_HOUSE_PALETTE = [
   "#9801b5",
   "#4ac7eb",
 ] as const
-
-/** Matches Tailwind `dashboard-surface` / CSS `--dashboard-surface` token. */
-export const DASHBOARD_SURFACE = "#DEE5F4" as const

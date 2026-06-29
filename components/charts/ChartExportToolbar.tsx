@@ -8,7 +8,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { useChartExport } from "@/hooks/useChartExport"
 import { cn } from "@/lib/utils"
 
-export function exportBasenameFromTitle(title: string): string {
+function exportBasenameFromTitle(title: string): string {
   const s = title
     .toLowerCase()
     .trim()

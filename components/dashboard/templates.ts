@@ -88,7 +88,7 @@ export const executiveOverviewTemplate: DashboardTemplate = {
   timeRange: "current_fy",
 }
 
-export const publisherPerformanceTemplate: DashboardTemplate = {
+const publisherPerformanceTemplate: DashboardTemplate = {
   id: "publisher-performance",
   label: "Publisher performance",
   description: "Publisher spend split, monthly publisher trends, and live campaigns.",
@@ -116,7 +116,7 @@ export const publisherPerformanceTemplate: DashboardTemplate = {
   timeRange: "current_fy",
 }
 
-export const clientDeliveryTemplate: DashboardTemplate = {
+const clientDeliveryTemplate: DashboardTemplate = {
   id: "client-delivery",
   label: "Client delivery",
   description: "Client spend context, monthly client trends, live campaigns, scopes, and upcoming starts.",

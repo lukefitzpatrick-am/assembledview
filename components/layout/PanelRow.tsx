@@ -2,7 +2,7 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
-export type PanelRowProps = Omit<React.HTMLAttributes<HTMLElement>, "title"> & {
+type PanelRowProps = Omit<React.HTMLAttributes<HTMLElement>, "title"> & {
   /** Section heading (e.g. field group label). Omit when panels supply their own titles. */
   title?: React.ReactNode
   helperText?: React.ReactNode
@@ -52,9 +52,9 @@ const spanPresets = {
   twoThirds: "col-span-12 md:col-span-8",
 } as const
 
-export type PanelRowCellSpan = keyof typeof spanPresets
+type PanelRowCellSpan = keyof typeof spanPresets
 
-export type PanelRowCellProps = React.HTMLAttributes<HTMLDivElement> & {
+type PanelRowCellProps = React.HTMLAttributes<HTMLDivElement> & {
   /** Preset span on the 12-column grid at `md+`. Mobile is always full width unless overridden via `className`. */
   span?: PanelRowCellSpan
 }
@@ -66,4 +66,4 @@ const PanelRowCell = React.forwardRef<HTMLDivElement, PanelRowCellProps>(
 )
 PanelRowCell.displayName = "PanelRowCell"
 
-export { PanelRow, PanelRowCell, spanPresets }
+export { PanelRow, PanelRowCell }

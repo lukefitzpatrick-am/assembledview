@@ -31,7 +31,7 @@ const formatTimestamp = (value: string | Date): string => {
   return value
 }
 
-export type ChartShellProps = {
+type ChartShellProps = {
   title: string
   description?: string
   children: ReactNode
@@ -138,13 +138,13 @@ function ChartShellRoot({
   )
 }
 
-export type ChartShellLegendItem = {
+type ChartShellLegendItem = {
   key: string
   label: string
   color: string
 }
 
-export type ChartShellLegendProps = {
+type ChartShellLegendProps = {
   items: ChartShellLegendItem[]
   hiddenKeys: Set<string>
   onToggle: (key: string) => void

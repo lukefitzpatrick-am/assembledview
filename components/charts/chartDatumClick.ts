@@ -4,13 +4,13 @@ export interface PieChartData {
   percentage: number
 }
 
-export type WaterfallDatum = {
+type WaterfallDatum = {
   name: string
   value: number
   type: 'increase' | 'decrease' | 'total'
 }
 
-export type HorizontalBarDatum = { name: string; value: number }
+type HorizontalBarDatum = { name: string; value: number }
 
 /** Row shape aligned with `StackedColumnData` (month + series keys). */
 export type ChartStackedColumnRow = { month: string } & Record<string, string | number>
@@ -72,7 +72,7 @@ export type ChartDatumClickCore =
 
 export type ChartDatumClickPayload = ChartDatumClickCore & { id: string }
 
-export function defaultChartDatumId(core: ChartDatumClickCore): string {
+function defaultChartDatumId(core: ChartDatumClickCore): string {
   if (core.chart === 'pie') {
     return `pie:${core.source}:${core.index}:${core.name}`
   }
