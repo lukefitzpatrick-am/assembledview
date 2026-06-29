@@ -130,7 +130,8 @@ test("buildReportRows reconciles enriched line rows and month-level services to 
   )
 
   assert.ok(record)
-  const rows = buildReportRows([record], new Map([["MBA-3B", persisted]]))
+  assert.ok(record.report_lines)
+  const rows = buildReportRows([record])
 
   assert.equal(round2(rows.reduce((sum, row) => sum + row.totalBillable, 0)), round2(record.total))
   assert.equal(
@@ -195,7 +196,8 @@ test("buildReportRows emits visibly degraded agency fee fallback for legacy sche
   )
 
   assert.ok(record)
-  const rows = buildReportRows([record], new Map([["MBA-LEGACY", legacySchedule]]))
+  assert.equal(record.report_lines, undefined)
+  const rows = buildReportRows([record])
 
   assert.equal(round2(rows.reduce((sum, row) => sum + row.totalBillable, 0)), round2(record.total))
   assert.ok(rows.find((row) => row.rowKind === "service" && row.serviceType === "agencyFee"))
