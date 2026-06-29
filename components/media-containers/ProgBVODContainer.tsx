@@ -39,6 +39,7 @@ import { ChevronDown, Copy, Plus, Trash2 } from "lucide-react"
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
 import type { LineItem } from '@/lib/generateMediaPlan'
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
+import { resolveBillingBurstLineItemId } from "@/lib/billing/resolveBillingBurstLineItemId"
 import { formatMoney, parseMoneyInput } from "@/lib/format/money"
 import {
   CpcFamilyBurstCalculatedField,
@@ -154,11 +155,12 @@ interface ProgBvodContainerProps {
 
 export function getProgBvodBursts(
   form: UseFormReturn<ProgBvodFormValues>,
-  feeprogbvod: number
+  feeprogbvod: number,
+  mbaNumber?: string,
 ): BillingBurst[] {
   const lineItems = form.getValues("lineItems") || []
 
-  return lineItems.flatMap(li =>
+  return lineItems.flatMap((li, liIndex) =>
     li.bursts.map(burst => {
       const rawBudget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0
 
@@ -187,6 +189,12 @@ export function getProgBvodBursts(
         deliverables: burst.calculatedValue ?? 0,
         buyType: li.buyType,
         noAdserving:        li.noadserving,
+        lineItemId: resolveBillingBurstLineItemId(
+          li,
+          mbaNumber,
+          MEDIA_TYPE_ID_CODES.progBVOD,
+          liIndex,
+        ),
       }
     })
   )
@@ -928,7 +936,7 @@ useEffect(() => {
 
 useEffect(() => {
   // convert each form lineItem into the shape needed for Excel
-  const calculatedBursts = getProgBvodBursts(form, feeprogbvod || 0);
+  const calculatedBursts = getProgBvodBursts(form, feeprogbvod || 0, mbaNumber);
   let burstIndex = 0;
 
   const items: LineItem[] = form.getValues('lineItems').flatMap((lineItem, lineItemIndex) =>
@@ -980,7 +988,7 @@ useEffect(() => {
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       const investmentByMonth = calculateInvestmentPerMonth(form, feeprogbvod || 0);
-      const bursts = getProgBvodBursts(form, feeprogbvod || 0);
+      const bursts = getProgBvodBursts(form, feeprogbvod || 0, mbaNumber);
       
       const hasInvestmentChanges = JSON.stringify(investmentByMonth) !== JSON.stringify(prevInvestmentRef.current);
       const hasBurstChanges = JSON.stringify(bursts) !== JSON.stringify(prevBurstsRef.current);
@@ -1006,7 +1014,7 @@ useEffect(() => {
     }, 300); // 300ms debounce
 
     return () => clearTimeout(timeoutId);
-  }, [watchedLineItems, feeprogbvod, form, onBurstsChange, onInvestmentChange]);
+  }, [watchedLineItems, feeprogbvod, form, mbaNumber, onBurstsChange, onInvestmentChange]);
 
   const getBursts = () => {
     const formLineItems = form.getValues("lineItems") || [];
