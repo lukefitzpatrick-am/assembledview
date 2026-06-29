@@ -173,6 +173,7 @@ export function resolveKPIsForMediaType(opts: ResolveKPIOptions): ResolvedKPIRow
       buyType,
       source,
       isManuallyEdited: false,
+      hasPublisherKpi: Boolean(pubMatch),
       calculatedClicks: null,
       calculatedViews: null,
       calculatedReach: null,

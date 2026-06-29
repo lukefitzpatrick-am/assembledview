@@ -57,6 +57,11 @@ export interface ResolvedKPIRow extends CampaignKPI {
   buyType: string
   source: "client" | "publisher" | "default" | "manual" | "saved"
   isManuallyEdited: boolean
+  /**
+   * True when a publisher_kpi row exists for this line's publisher+bid_strategy+media_type,
+   * regardless of which tier won the metric value. UI-only.
+   */
+  hasPublisherKpi?: boolean
   calculatedClicks: number | null
   calculatedViews: number | null
   calculatedReach: number | null

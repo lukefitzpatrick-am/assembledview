@@ -152,6 +152,57 @@ test("3. No saved, no client, publisher-only CTR 0.02", () => {
   assert.equal(row.source, "publisher")
 })
 
+test("3b. Publisher KPI presence is exposed independently of winning metric tier", () => {
+  const li = lineItem()
+  const client: ClientKPI = {
+    id: 1,
+    created_at: 0,
+    mp_client_name: "c",
+    publisher_name: "acme",
+    media_type: "digiDisplay",
+    ...baseKpi,
+    ctr: 0.03,
+    conversion_rate: 0,
+  }
+  const pub: PublisherKPI = {
+    id: 1,
+    created_at: 0,
+    media_type: "digiDisplay",
+    publisher: "acme",
+    ...baseKpi,
+    ctr: 0.02,
+    conversion_rate: 0,
+  }
+
+  const [clientOnlyRow] = resolveKPIsForMediaType({
+    lineItems: [li],
+    mediaType: "digiDisplay",
+    clientName: "c",
+    mbaNumber: "M1",
+    versionNumber: 1,
+    campaignName: "camp",
+    savedCampaignKPIs: [],
+    clientKPIs: [client],
+    publisherKPIs: [],
+  })
+  const [clientWinsWithPublisherRow] = resolveKPIsForMediaType({
+    lineItems: [li],
+    mediaType: "digiDisplay",
+    clientName: "c",
+    mbaNumber: "M1",
+    versionNumber: 1,
+    campaignName: "camp",
+    savedCampaignKPIs: [],
+    clientKPIs: [client],
+    publisherKPIs: [pub],
+  })
+
+  assert.equal(clientOnlyRow.source, "client")
+  assert.equal(clientOnlyRow.hasPublisherKpi, false)
+  assert.equal(clientWinsWithPublisherRow.source, "client")
+  assert.equal(clientWinsWithPublisherRow.hasPublisherKpi, true)
+})
+
 test("4. Publisher tier accepts CTR 0 (no client/saved, publisher match)", () => {
   const li = lineItem()
   const pub: PublisherKPI = {
