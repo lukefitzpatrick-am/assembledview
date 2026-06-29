@@ -1,7 +1,7 @@
 import { parse as parseCsv } from "csv-parse/sync"
 import { callOpenAIChat } from "@/lib/openai"
 
-export type MediaContainer = {
+type MediaContainer = {
   name: string
   channel?: string
   publisher?: string
@@ -127,7 +127,7 @@ function normalizeCsvRow(row: Record<string, string>, fileName: string): MediaCo
   }
 }
 
-export async function extractPlanFromText(text: string, fileName?: string) {
+async function extractPlanFromText(text: string, fileName?: string) {
   const prompt = [
     "You are extracting media plan or publisher specs into JSON.",
     "Return JSON only. Use this shape:",

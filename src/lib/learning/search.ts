@@ -1,6 +1,6 @@
 import Fuse from "fuse.js";
 import type { IFuseOptions } from "fuse.js";
-import { LearningTerm, Section, SortMode } from "./types";
+import { LearningTerm, SortMode } from "./types";
 
 export type SearchResult = {
   item: LearningTerm;
@@ -24,25 +24,6 @@ const fuseOptions: IFuseOptions<LearningTerm> = {
 
 export function buildFuseIndex(terms: LearningTerm[]) {
   return new Fuse(terms, fuseOptions);
-}
-
-export function filterBySection(terms: LearningTerm[], section: Section): LearningTerm[] {
-  switch (section) {
-    case "definitions":
-      return terms.filter((t) => t.type === "definition");
-    case "acronyms":
-      return terms.filter((t) => t.type === "acronym");
-    case "formulas":
-      return terms.filter((t) => t.type === "formula");
-    default:
-      return terms;
-  }
-}
-
-export function filterByCategories(terms: LearningTerm[], categories: string[]): LearningTerm[] {
-  if (!categories.length) return terms;
-  const lowered = categories.map((c) => c.toLowerCase());
-  return terms.filter((t) => lowered.includes((t.category || "").toLowerCase()));
 }
 
 export function sortResults(items: SearchResult[], sort: SortMode, recentOrder: Record<string, number>): SearchResult[] {

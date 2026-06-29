@@ -28,7 +28,7 @@ export interface ClientHubSummary {
 }
 
 /** Matches `ClientFinanceSlideOver` `finance` prop when the dashboard supplies a pre-built summary. */
-export type ClientDashboardFinancePayload = {
+type ClientDashboardFinancePayload = {
   totalBudget: number
   ytdSpend: number
   currency: string

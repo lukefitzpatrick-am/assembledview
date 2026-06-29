@@ -12,7 +12,7 @@ export type AvaToolContext = {
   capturedPatch: FormPatch | null;
 };
 
-export type AvaToolResult = {
+type AvaToolResult = {
   content: string;
   isError?: boolean;
 };

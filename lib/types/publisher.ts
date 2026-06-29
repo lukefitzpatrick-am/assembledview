@@ -1,5 +1,5 @@
 /** Default KPI columns on Xano publishers (digital / social / programmatic families). */
-export interface PublisherKpiDefaults {
+interface PublisherKpiDefaults {
   digitaldisplay_cpm_default?: number
   digitaldisplay_cpc_default?: number
   digitaldisplay_cpv_default?: number
@@ -61,8 +61,6 @@ export interface PublisherKpiDefaults {
   progaudio_vtr_default?: number
   progaudio_frequency_default?: number
 }
-
-export type PublisherKpiFieldKey = keyof PublisherKpiDefaults
 
 /**
  * Xano publishers table shape. Legacy `*_default` KPI columns may still appear on GET responses
@@ -174,9 +172,3 @@ export interface PublisherDashboardData {
   shareByMediaType: PublisherMediaTypeShare[]
 }
 
-export const emptyPublisherDashboardData: PublisherDashboardData = {
-  campaigns: [],
-  monthlySpend: [],
-  spendByClient: [],
-  shareByMediaType: [],
-}

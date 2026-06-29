@@ -69,7 +69,7 @@ export interface KPISheetRow {
   calculatedReach: number | null;
 }
 
-export interface Burst { // This is a burst *within* a GroupedItem
+interface Burst { // This is a burst *within* a GroupedItem
   startDate: string; // ISO Date string YYYY-MM-DD
   endDate: string;   // ISO Date string YYYY-MM-DD
   deliverablesAmount: number; // Budget of the burst
@@ -129,7 +129,7 @@ function lineItemIsClientPaysForMedia(item: LineItem): boolean {
 }
 
 // Enhanced GroupedItem
-export interface GroupedItem {
+interface GroupedItem {
   market: string;
   platform?: string;
   network?: string;

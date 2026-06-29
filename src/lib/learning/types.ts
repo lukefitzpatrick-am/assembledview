@@ -1,4 +1,4 @@
-export type LearningType = "definition" | "acronym" | "formula";
+type LearningType = "definition" | "acronym" | "formula";
 
 export type FormulaVariable = {
   key: string;
@@ -7,7 +7,7 @@ export type FormulaVariable = {
   required?: boolean;
 };
 
-export type FormulaOutput = {
+type FormulaOutput = {
   label: string;
   unit?: string;
 };

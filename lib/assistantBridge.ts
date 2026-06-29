@@ -1,6 +1,6 @@
 import type { PageContext } from "@/lib/openai"
 
-export type AssistantActionHandlers = {
+type AssistantActionHandlers = {
   /**
    * Update the budget for a specific burst within a media type.
    * Expected payload shape:
@@ -51,13 +51,4 @@ export function setAssistantContext(next: AssistantContext) {
     },
   }
 }
-
-export function setAssistantSummary(summary: unknown) {
-  setAssistantContext({ summary })
-}
-
-export function getAssistantSummary(): unknown | undefined {
-  return getAssistantContext()?.summary
-}
-
 

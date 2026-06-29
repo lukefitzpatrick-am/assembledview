@@ -65,7 +65,7 @@ export type PageContext = {
   }
 }
 
-export type FormPatchUpdate = { fieldId: string; value: unknown }
+type FormPatchUpdate = { fieldId: string; value: unknown }
 export type FormPatch = { updates: FormPatchUpdate[] }
 export type ModelChatReply = { replyText: string; patch: FormPatch | null }
 
@@ -255,18 +255,6 @@ export async function callOpenAIChat(
   const reply = completion.choices[0]?.message?.content || ""
   return { reply, completion }
 }
-
-export function summarizeData(data: unknown) {
-  if (!data) return "No data provided."
-  if (typeof data === "string") return data
-  try {
-    return JSON.stringify(data, null, 2)
-  } catch (error) {
-    console.error("Failed to stringify data for summary", error)
-    return "Unserializable data."
-  }
-}
-
 
 
 

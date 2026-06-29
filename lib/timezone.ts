@@ -26,45 +26,6 @@ const getDateParts = (value: DateInput) => {
   return { year, month, day }
 }
 
-const getTimeZoneOffsetMinutes = (date: Date, timeZone: string) => {
-  const dtf = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  })
-
-  const parts = dtf.formatToParts(date)
-  const filled = Object.fromEntries(parts.map((p) => [p.type, p.value]))
-
-  const asUTC = Date.UTC(
-    Number(filled.year),
-    Number(filled.month) - 1,
-    Number(filled.day),
-    Number(filled.hour),
-    Number(filled.minute),
-    Number(filled.second)
-  )
-
-  return (asUTC - date.getTime()) / 60000
-}
-
-/**
- * Returns an ISO string anchored to midnight in Australia/Melbourne
- * for the provided date input.
- */
-export const toMelbourneDateISOString = (value: DateInput) => {
-  const { year, month, day } = getDateParts(value)
-  const utcMidnight = Date.UTC(Number(year), Number(month) - 1, Number(day), 0, 0, 0)
-  const offsetMinutes = getTimeZoneOffsetMinutes(new Date(utcMidnight), MELBOURNE_TZ)
-  const melbourneMidnightUtc = new Date(utcMidnight - offsetMinutes * 60000)
-  return melbourneMidnightUtc.toISOString()
-}
-
 /**
  * Returns a YYYY-MM-DD string for the date as it would be in
  * Australia/Melbourne.

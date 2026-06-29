@@ -20,7 +20,7 @@ export interface MediaPlanMaster {
 }
 
 /** Statuses that count as "live" for the pacing/campaigns page. */
-export const LIVE_CAMPAIGN_STATUSES = ["booked", "approved"] as const;
+const LIVE_CAMPAIGN_STATUSES = ["booked", "approved"] as const;
 export type LiveCampaignStatus = (typeof LIVE_CAMPAIGN_STATUSES)[number];
 
 export function isLiveCampaignStatus(status: string | undefined | null): status is LiveCampaignStatus {
