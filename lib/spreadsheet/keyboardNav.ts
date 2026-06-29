@@ -2,7 +2,7 @@ import { serializeSpreadsheetCellKey, spreadsheetCellDomId } from "@/lib/spreads
 import type { BuiltSpreadsheetRegistry } from "@/lib/spreadsheet/registry"
 import { registryEntryAt } from "@/lib/spreadsheet/registry"
 
-export function focusSpreadsheetCell(serializedKey: string): boolean {
+function focusSpreadsheetCell(serializedKey: string): boolean {
   const el = document.getElementById(spreadsheetCellDomId(serializedKey))
   if (!el) return false
   if (el instanceof HTMLInputElement) {
@@ -17,7 +17,7 @@ export function focusSpreadsheetCell(serializedKey: string): boolean {
   return false
 }
 
-export function focusSpreadsheetCellAt(
+function focusSpreadsheetCellAt(
   registry: BuiltSpreadsheetRegistry,
   rowIndex: number,
   colIndex: number

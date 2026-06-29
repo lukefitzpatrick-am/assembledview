@@ -1,7 +1,7 @@
 import { getClientDisplayName, slugifyClientNameForUrl } from '@/lib/clients/slug'
 
 /** Aligns with `normalizeClientName` in `lib/api/dashboard.ts`. */
-export function normalizeClientNameForDashboardSlug(name: string): string {
+function normalizeClientNameForDashboardSlug(name: string): string {
   if (!name) return ''
   return name
     .trim()

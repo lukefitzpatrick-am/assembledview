@@ -27,7 +27,7 @@ import type {
   SpreadsheetRectSelection,
 } from "@/lib/spreadsheet/types"
 
-export type SpreadsheetValueCallbacks = Readonly<{
+type SpreadsheetValueCallbacks = Readonly<{
   getCopyText: (serializedKey: string) => string
   getNumericValue: (serializedKey: string) => number
   setValueFromPaste: (serializedKey: string, raw: string) => void

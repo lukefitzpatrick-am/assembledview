@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react"
 export type ListGridLayoutMode = "list" | "grid"
 
 /** Shared across dashboard, client hub, and publishers. */
-export const LIST_GRID_LAYOUT_STORAGE_KEY = "avmp:listGridLayout:v1"
+const LIST_GRID_LAYOUT_STORAGE_KEY = "avmp:listGridLayout:v1"
 
 function readStored(): ListGridLayoutMode {
   if (typeof window === "undefined") return "list"

@@ -5,7 +5,7 @@ export function isValidPickerDate(d: unknown): d is Date {
   return d instanceof Date && !Number.isNaN(d.getTime())
 }
 
-export function hasCampaignDateWindow(
+function hasCampaignDateWindow(
   campaignStart?: Date | null,
   campaignEnd?: Date | null
 ): boolean {

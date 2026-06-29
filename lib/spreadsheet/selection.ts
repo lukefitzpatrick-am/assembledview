@@ -57,14 +57,14 @@ export function keysInRect(
   return out
 }
 
-export type SpreadsheetSelectionBounds = Readonly<{
+type SpreadsheetSelectionBounds = Readonly<{
   rowStart: number
   rowEnd: number
   colStart: number
   colEnd: number
 }>
 
-export function coerceSelectionBounds(
+function coerceSelectionBounds(
   anchorRow: number,
   anchorCol: number,
   rectSelection: SpreadsheetRectSelection | null,

@@ -154,10 +154,6 @@ function buildLineItemName(opts: {
   ]);
 }
 
-export function generateNamingCsv(inputs: NamingInputs): string {
-  return "Naming CSV has been replaced by Excel export. Use generateNamingWorkbook instead.";
-}
-
 function toNumber(value: any): number {
   const n = parseFloat(String(value ?? "").replace(/[^0-9.-]+/g, ""));
   return Number.isFinite(n) ? n : 0;

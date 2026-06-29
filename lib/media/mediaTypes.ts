@@ -44,5 +44,3 @@ export const MEDIA_TYPE_COLORS: Record<string, string> = {
   influencers: "FF880E4F",
   production: "FF4E342E",
 }
-
-export const MEDIA_TYPE_KEYS: readonly string[] = Object.keys(MEDIA_TYPE_LABELS)

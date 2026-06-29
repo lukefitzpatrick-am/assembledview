@@ -1,7 +1,5 @@
-import { mediaTypeTheme } from "@/lib/utils"
-
 /** Display labels for publisher `pub_*` flag suffixes (and matching slugs). */
-export const MEDIA_TYPE_LABELS: Record<string, string> = {
+const MEDIA_TYPE_LABELS: Record<string, string> = {
   television: "Television",
   radio: "Radio",
   newspaper: "Newspaper",
@@ -47,24 +45,3 @@ export function normalizeCampaignMediaTypeKey(raw: string): string {
   return NORMALIZED_DISPLAY_TO_SLUG[compact] ?? compact
 }
 
-export function getMediaTypeColour(slug: string): string {
-  const colors = mediaTypeTheme.colors as Record<string, string | undefined>
-  const direct = colors[slug]
-  if (direct) return direct
-
-  const altKeys: Record<string, string> = {
-    digidisplay: "digitalDisplay",
-    digiaudio: "digitalAudio",
-    digivideo: "digitalVideo",
-    socialmedia: "socialMedia",
-    progdisplay: "progDisplay",
-    progvideo: "progVideo",
-    progbvod: "progBvod",
-    progaudio: "progAudio",
-    progooh: "progOoh",
-  }
-  const alt = altKeys[slug]
-  if (alt && colors[alt]) return colors[alt]!
-
-  return colors.production ?? "#64748B"
-}

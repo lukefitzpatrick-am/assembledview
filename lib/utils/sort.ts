@@ -10,10 +10,6 @@ function getCollator(locale: SortLocale = DEFAULT_LOCALE) {
   })
 }
 
-export function compareAZ(a: string, b: string, locale: SortLocale = DEFAULT_LOCALE) {
-  return getCollator(locale).compare(a ?? "", b ?? "")
-}
-
 export function sortByLabel<T>(
   items: readonly T[],
   getLabel: (item: T) => string,

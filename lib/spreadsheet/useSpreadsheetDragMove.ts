@@ -17,7 +17,7 @@ type MoveSourceBounds = Readonly<{
 
 type DragKind = "move" | "fill"
 
-export type SpreadsheetDragMoveCallbacks = Readonly<{
+type SpreadsheetDragMoveCallbacks = Readonly<{
   getNumericValue: (serializedKey: string) => number
   setValueFromPaste: (serializedKey: string, raw: string) => void
   clearValue: (serializedKey: string) => void

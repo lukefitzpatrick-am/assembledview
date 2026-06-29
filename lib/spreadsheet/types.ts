@@ -35,7 +35,7 @@ export type SpreadsheetCopiedCells = Readonly<{
   selection: SpreadsheetMultiCellSelection
 }>
 
-export type SpreadsheetRegistryTableRow = Readonly<{
+type SpreadsheetRegistryTableRow = Readonly<{
   rowKind: "lineItem" | "cost"
   rowId: string
 }>

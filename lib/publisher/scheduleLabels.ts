@@ -1,5 +1,5 @@
 /** Maps publisher pub_* flags to delivery schedule `mediaType` labels (media plan editor). */
-export const PUB_FLAG_TO_SCHEDULE_LABEL: Record<string, string> = {
+const PUB_FLAG_TO_SCHEDULE_LABEL: Record<string, string> = {
   pub_television: "Television",
   pub_radio: "Radio",
   pub_newspaper: "Newspaper",

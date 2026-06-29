@@ -8,7 +8,7 @@
  * @param headers Optional custom headers mapping (key: display name)
  * @returns CSV string
  */
-export function convertToCSV<T extends Record<string, any>>(
+function convertToCSV<T extends Record<string, any>>(
   data: T[],
   headers?: Record<string, string>
 ): string {

@@ -98,7 +98,7 @@ const MONTH_NAMES = [
 ]
 
 /** First day of calendar month for a spend row / schedule key label. */
-export function parseMonthYearLabel(value: string): Date | null {
+function parseMonthYearLabel(value: string): Date | null {
   if (!value || typeof value !== "string") return null
   const trimmed = value.trim()
   if (!trimmed) return null

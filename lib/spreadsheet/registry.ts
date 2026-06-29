@@ -65,14 +65,6 @@ export function buildSpreadsheetRegistry(
   }
 }
 
-export function registryIndexForKey(
-  registry: BuiltSpreadsheetRegistry,
-  serializedKey: string
-): number | null {
-  const i = registry.keyToIndex.get(serializedKey)
-  return i === undefined ? null : i
-}
-
 export function registryEntryAt(
   registry: BuiltSpreadsheetRegistry,
   rowIndex: number,
