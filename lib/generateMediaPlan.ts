@@ -1,4 +1,5 @@
 import type ExcelJS from 'exceljs';
+import { prorateAcrossMonths } from '@/lib/billing/prorateAcrossMonths';
 
 const KPI_MEDIA_LABELS: Record<string, string> = {
   television: 'Television', radio: 'Radio', newspaper: 'Newspaper',
@@ -644,6 +645,7 @@ export async function generateMediaPlan(
   ];
 
   const monthlyByChannel: Record<string, Record<string, number>> = {};
+  const monthKeys = monthRanges.map((range) => range.monthYear);
   function distributeBurstToMonths(
     startDate: string,
     endDate: string,
@@ -653,25 +655,18 @@ export async function generateMediaPlan(
     const s = parseDateStringYYYYMMDD(startDate);
     const e = parseDateStringYYYYMMDD(endDate);
     if (isNaN(s.getTime()) || isNaN(e.getTime()) || s > e) return;
-    const daysTotal = Math.ceil((e.getTime() - s.getTime()) / msPerDay) + 1;
-    if (daysTotal <= 0) return;
 
-    let d = new Date(s.getTime());
-    while (d <= e) {
-      const monthYear = d.toLocaleString('en-AU', { month: 'long', year: 'numeric', timeZone: 'UTC' });
-      const monthStart = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
-      const monthEnd = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0));
-      const sliceStart = Math.max(s.getTime(), monthStart.getTime());
-      const sliceEnd = Math.min(e.getTime(), monthEnd.getTime());
-      const daysInMonth = Math.ceil((sliceEnd - sliceStart) / msPerDay) + 1;
-      const ratio = daysInMonth / daysTotal;
-      const share = mediaAmount * ratio;
-
+    const shares = prorateAcrossMonths({
+      amount: mediaAmount,
+      burstStart: s,
+      burstEnd: e,
+      monthKeys,
+    });
+    for (const monthYear of monthKeys) {
+      const share = shares[monthYear] ?? 0;
+      if (share === 0) continue;
       if (!monthlyByChannel[mediaKey]) monthlyByChannel[mediaKey] = {};
       monthlyByChannel[mediaKey][monthYear] = (monthlyByChannel[mediaKey][monthYear] || 0) + share;
-
-      d.setUTCMonth(d.getUTCMonth() + 1);
-      d.setUTCDate(1);
     }
   }
 

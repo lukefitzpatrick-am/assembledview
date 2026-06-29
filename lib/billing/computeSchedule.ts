@@ -1,5 +1,6 @@
 import { format } from "date-fns";
 import { computeAdServingCost } from "./computeAdServingCost";
+import { prorateAcrossMonths } from "./prorateAcrossMonths";
 import type { BillingBurst, BillingMonth } from "./types";
 
 type MonthEntry = {
@@ -96,55 +97,43 @@ export function computeBillingAndDeliveryMonths(
   }
 
   function distribute(burst: BillingBurst, mediaType: DistributeMediaType) {
-    const s = new Date(burst.startDate);
-    const e = new Date(burst.endDate);
-    if (isNaN(s.getTime()) || isNaN(e.getTime()) || s > e) return;
+    const monthKeys = Object.keys(billingMap);
+    const billingMediaShares = prorateAcrossMonths({
+      amount: burst.mediaAmount,
+      burstStart: burst.startDate,
+      burstEnd: burst.endDate,
+      monthKeys,
+    });
+    const deliveryMediaShares = prorateAcrossMonths({
+      amount: burst.deliveryMediaAmount ?? burst.mediaAmount,
+      burstStart: burst.startDate,
+      burstEnd: burst.endDate,
+      monthKeys,
+    });
+    const feeShares = prorateAcrossMonths({
+      amount: burst.feeAmount,
+      burstStart: burst.startDate,
+      burstEnd: burst.endDate,
+      monthKeys,
+    });
 
-    // Normalise burst endpoints to local midnight so day counts don't drift
-    // when bursts come from UTC ISO strings (e.g. "2026-05-30T14:00:00.000Z").
-    const sLocalMidnight = new Date(s.getFullYear(), s.getMonth(), s.getDate());
-    const eLocalMidnight = new Date(e.getFullYear(), e.getMonth(), e.getDate());
+    for (const key of monthKeys) {
+      const billingMediaShare = billingMediaShares[key] ?? 0;
+      const deliveryMediaShare = deliveryMediaShares[key] ?? 0;
+      const feeShare = feeShares[key] ?? 0;
+      if (billingMediaShare === 0 && deliveryMediaShare === 0 && feeShare === 0) continue;
 
-    const daysTotal =
-      Math.round((eLocalMidnight.getTime() - sLocalMidnight.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-    if (daysTotal <= 0) return;
-
-    // Walk months by constructing fresh first-of-month Dates instead of mutating
-    // with setMonth/setDate, which has a rollover bug: e.g. setting month=June on
-    // a Date whose day is 31 normalises to 1 July, silently skipping June.
-    let d = new Date(sLocalMidnight.getFullYear(), sLocalMidnight.getMonth(), 1);
-    const lastMonthCursor = new Date(eLocalMidnight.getFullYear(), eLocalMidnight.getMonth(), 1);
-
-    while (d <= lastMonthCursor) {
-      const key = format(d, "MMMM yyyy");
-      if (billingMap[key] && deliveryMap[key]) {
-        const monthStart = new Date(d.getFullYear(), d.getMonth(), 1);
-        const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-        const sliceStartMs = Math.max(sLocalMidnight.getTime(), monthStart.getTime());
-        const sliceEndMs = Math.min(eLocalMidnight.getTime(), monthEnd.getTime());
-        const daysInMonth =
-          Math.round((sliceEndMs - sliceStartMs) / (1000 * 60 * 60 * 24)) + 1;
-
-        if (daysInMonth > 0) {
-          const ratio = daysInMonth / daysTotal;
-          const billingMediaShare = burst.mediaAmount * ratio;
-          const deliveryMediaShare = (burst.deliveryMediaAmount ?? burst.mediaAmount) * ratio;
-          const feeShare = burst.feeAmount * ratio;
-
-          billingMap[key].mediaCosts[mediaType] += billingMediaShare;
-          deliveryMap[key].mediaCosts[mediaType] += deliveryMediaShare;
-          if (mediaType === "production") {
-            billingMap[key].productionTotal += billingMediaShare;
-            deliveryMap[key].productionTotal += deliveryMediaShare;
-          } else {
-            billingMap[key].totalMedia += billingMediaShare;
-            deliveryMap[key].totalMedia += deliveryMediaShare;
-          }
-          billingMap[key].totalFee += feeShare;
-          deliveryMap[key].totalFee += feeShare;
-        }
+      billingMap[key].mediaCosts[mediaType] += billingMediaShare;
+      deliveryMap[key].mediaCosts[mediaType] += deliveryMediaShare;
+      if (mediaType === "production") {
+        billingMap[key].productionTotal += billingMediaShare;
+        deliveryMap[key].productionTotal += deliveryMediaShare;
+      } else {
+        billingMap[key].totalMedia += billingMediaShare;
+        deliveryMap[key].totalMedia += deliveryMediaShare;
       }
-      d = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+      billingMap[key].totalFee += feeShare;
+      deliveryMap[key].totalFee += feeShare;
     }
   }
 
@@ -178,49 +167,31 @@ export function computeBillingAndDeliveryMonths(
   });
 
   function distributeAdServing(burst: BillingBurst, mediaType: string) {
-    const s = new Date(burst.startDate);
-    const e = new Date(burst.endDate);
     if (burst.noAdserving) return;
-    if (isNaN(s.getTime()) || isNaN(e.getTime()) || s > e) return;
+    const monthKeys = Object.keys(billingMap);
+    const deliverableShares = prorateAcrossMonths({
+      amount: burst.deliverables,
+      burstStart: burst.startDate,
+      burstEnd: burst.endDate,
+      monthKeys,
+    });
 
-    const sLocalMidnight = new Date(s.getFullYear(), s.getMonth(), s.getDate());
-    const eLocalMidnight = new Date(e.getFullYear(), e.getMonth(), e.getDate());
+    for (const monthKey of monthKeys) {
+      if (!Object.prototype.hasOwnProperty.call(deliverableShares, monthKey)) continue;
+      const share = deliverableShares[monthKey] ?? 0;
 
-    const daysTotal =
-      Math.round((eLocalMidnight.getTime() - sLocalMidnight.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-    if (daysTotal <= 0) return;
+      const cost = computeAdServingCost({
+        quantity: share,
+        buyType: burst.buyType || "",
+        mediaType,
+        rate: getRateForMediaType(mediaType),
+        adservaudio,
+        adServingRatePct: burst.adServingRatePct,
+        adServingImpressions: burst.adServingImpressions,
+      });
 
-    let d = new Date(sLocalMidnight.getFullYear(), sLocalMidnight.getMonth(), 1);
-    const lastMonthCursor = new Date(eLocalMidnight.getFullYear(), eLocalMidnight.getMonth(), 1);
-
-    while (d <= lastMonthCursor) {
-      const monthKey = format(d, "MMMM yyyy");
-      if (billingMap[monthKey] && deliveryMap[monthKey]) {
-        const monthStart = new Date(d.getFullYear(), d.getMonth(), 1);
-        const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-        const sliceStartMs = Math.max(sLocalMidnight.getTime(), monthStart.getTime());
-        const sliceEndMs = Math.min(eLocalMidnight.getTime(), monthEnd.getTime());
-        const daysInMonth =
-          Math.round((sliceEndMs - sliceStartMs) / (1000 * 60 * 60 * 24)) + 1;
-
-        if (daysInMonth > 0) {
-          const share = burst.deliverables * (daysInMonth / daysTotal);
-
-          const cost = computeAdServingCost({
-            quantity: share,
-            buyType: burst.buyType || "",
-            mediaType,
-            rate: getRateForMediaType(mediaType),
-            adservaudio,
-            adServingRatePct: burst.adServingRatePct,
-            adServingImpressions: burst.adServingImpressions,
-          });
-
-          billingMap[monthKey].adServing += cost;
-          deliveryMap[monthKey].adServing += cost;
-        }
-      }
-      d = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+      billingMap[monthKey].adServing += cost;
+      deliveryMap[monthKey].adServing += cost;
     }
   }
 

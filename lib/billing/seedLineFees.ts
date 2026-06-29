@@ -1,6 +1,5 @@
-import { format } from "date-fns"
-
 import { getScheduleHeaders } from "@/lib/billing/scheduleHeaders"
+import { prorateAcrossMonths } from "@/lib/billing/prorateAcrossMonths"
 import type { BillingBurst, BillingLineItem, BillingMonth } from "@/lib/billing/types"
 
 export type SeedBurstSource = {
@@ -44,10 +43,6 @@ export function parseLineItemBursts(lineItem: any): any[] {
   if (Array.isArray(lineItem?.bursts_json)) return lineItem.bursts_json
   if (Array.isArray(lineItem?.bursts)) return lineItem.bursts
   return []
-}
-
-function toDate(value: Date | string): Date {
-  return value instanceof Date ? value : new Date(value)
 }
 
 function lineClientPaysForMedia(
@@ -124,35 +119,17 @@ export function prorateBurstFeesToMonths(
   })
 
   for (const burst of bursts) {
-    const startDate = toDate(burst.startDate)
-    const endDate = toDate(burst.endDate)
-    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) continue
-
     const feeForBurst = burst.feeAmount
     if (feeForBurst <= 0) continue
 
-    const sLocalMidnight = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate())
-    const eLocalMidnight = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate())
-    const daysTotal =
-      Math.round((eLocalMidnight.getTime() - sLocalMidnight.getTime()) / (1000 * 60 * 60 * 24)) + 1
-    if (daysTotal <= 0) continue
-
-    let currentDate = new Date(sLocalMidnight.getFullYear(), sLocalMidnight.getMonth(), 1)
-    const lastMonthCursor = new Date(eLocalMidnight.getFullYear(), eLocalMidnight.getMonth(), 1)
-
-    while (currentDate <= lastMonthCursor) {
-      const monthKey = format(currentDate, "MMMM yyyy")
-      if (Object.prototype.hasOwnProperty.call(feeMonthlyAmounts, monthKey)) {
-        const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
-        const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0)
-        const sliceStartMs = Math.max(sLocalMidnight.getTime(), monthStart.getTime())
-        const sliceEndMs = Math.min(eLocalMidnight.getTime(), monthEnd.getTime())
-        const daysInMonth = Math.round((sliceEndMs - sliceStartMs) / (1000 * 60 * 60 * 24)) + 1
-        if (daysInMonth > 0) {
-          feeMonthlyAmounts[monthKey] += feeForBurst * (daysInMonth / daysTotal)
-        }
-      }
-      currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1)
+    const shares = prorateAcrossMonths({
+      amount: feeForBurst,
+      burstStart: burst.startDate,
+      burstEnd: burst.endDate,
+      monthKeys,
+    })
+    for (const monthKey of monthKeys) {
+      feeMonthlyAmounts[monthKey] += shares[monthKey] ?? 0
     }
   }
 

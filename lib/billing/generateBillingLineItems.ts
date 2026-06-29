@@ -1,5 +1,5 @@
-import { format } from "date-fns"
 import { getScheduleHeaders } from "@/lib/billing/scheduleHeaders"
+import { prorateAcrossMonths } from "@/lib/billing/prorateAcrossMonths"
 import type { BillingLineItem, BillingMonth } from "@/lib/billing/types"
 
 /**
@@ -100,30 +100,14 @@ export function generateBillingLineItems(
 
       if (isNaN(startDate.getTime()) || isNaN(endDate.getTime()) || effectiveBudget === 0) return
 
-      const sLocalMidnight = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate())
-      const eLocalMidnight = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate())
-
-      const daysTotal =
-        Math.round((eLocalMidnight.getTime() - sLocalMidnight.getTime()) / (1000 * 60 * 60 * 24)) + 1
-      if (daysTotal <= 0) return
-
-      let currentDate = new Date(sLocalMidnight.getFullYear(), sLocalMidnight.getMonth(), 1)
-      const lastMonthCursor = new Date(eLocalMidnight.getFullYear(), eLocalMidnight.getMonth(), 1)
-
-      while (currentDate <= lastMonthCursor) {
-        const monthKey = format(currentDate, "MMMM yyyy")
-        if (Object.prototype.hasOwnProperty.call(monthlyAmounts, monthKey)) {
-          const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
-          const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0)
-          const sliceStartMs = Math.max(sLocalMidnight.getTime(), monthStart.getTime())
-          const sliceEndMs = Math.min(eLocalMidnight.getTime(), monthEnd.getTime())
-          const daysInMonth = Math.round((sliceEndMs - sliceStartMs) / (1000 * 60 * 60 * 24)) + 1
-          if (daysInMonth > 0) {
-            const share = effectiveBudget * (daysInMonth / daysTotal)
-            monthlyAmounts[monthKey] += share
-          }
-        }
-        currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1)
+      const shares = prorateAcrossMonths({
+        amount: effectiveBudget,
+        burstStart: startDate,
+        burstEnd: endDate,
+        monthKeys,
+      })
+      for (const monthKey of monthKeys) {
+        monthlyAmounts[monthKey] += shares[monthKey] ?? 0
       }
     })
 
