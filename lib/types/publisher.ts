@@ -1,3 +1,5 @@
+import type { BestPractice } from "./bestPractice"
+
 /** Default KPI columns on Xano publishers (digital / social / programmatic families). */
 interface PublisherKpiDefaults {
   digitaldisplay_cpm_default?: number
@@ -134,6 +136,16 @@ export interface Publisher extends Partial<PublisherKpiDefaults> {
   pub_progaudio_comms?: number
   pub_progooh_comms?: number
   pub_influencers_comms?: number
+}
+
+export interface MediaContainerBestPractice {
+  id: number
+  created_at?: number
+  updated_at?: number | null
+  media_container: string
+  best_practice: BestPractice
+  is_active: boolean
+  _name?: string | null
 }
 
 export interface PublisherCampaignRow {
