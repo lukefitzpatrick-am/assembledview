@@ -13,6 +13,7 @@ import { recalcRow } from "@/lib/kpi/recalc"
 import { formatPercentForInput, parsePercentHeuristic } from "@/lib/kpi/metrics"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { EmptyState } from "@/components/ui/states"
 import { useToast } from "@/components/ui/use-toast"
 import {
   Dialog,
@@ -122,16 +123,32 @@ export function buildPublisherKpiCreateBody(
 function sourceBadgeClass(source: ResolvedKPIRow["source"]): string {
   switch (source) {
     case "client":
-      return "bg-blue-100 text-blue-700 border-transparent"
+      return "bg-pacing-on-track-bg text-status-on-track-fg border-transparent"
     case "publisher":
-      return "bg-slate-100 text-slate-600 border-transparent"
+      return "bg-surface-panel text-muted-foreground border-border"
     case "saved":
-      return "bg-green-100 text-green-700 border-transparent"
+      return "bg-pacing-ahead-bg text-status-ahead-fg border-transparent"
     case "manual":
-      return "bg-amber-100 text-amber-700 border-transparent"
+      return "bg-pacing-behind-bg text-status-behind-fg border-transparent"
     case "default":
     default:
-      return "bg-red-50 text-red-400 border-transparent"
+      return "bg-pacing-critical-bg text-status-critical-fg border-transparent"
+  }
+}
+
+function sourceDotClassName(source: ResolvedKPIRow["source"]): string {
+  switch (source) {
+    case "client":
+      return "text-status-on-track-fg"
+    case "publisher":
+      return "text-muted-foreground"
+    case "saved":
+      return "text-status-ahead-fg"
+    case "manual":
+      return "text-status-behind-fg"
+    case "default":
+    default:
+      return "text-status-critical-fg"
   }
 }
 
@@ -365,17 +382,15 @@ export function KPIEditModal({
           {/* Body */}
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
             {editedRows.length === 0 ? (
-              <div className="flex flex-col items-center justify-center gap-3 py-16">
-                <p className="text-sm text-muted-foreground">
-                  No KPI rows yet. Add line items to your media plan to generate KPIs.
-                </p>
-              </div>
+              <EmptyState
+                title="No KPI rows yet"
+                message="Add line items to your media plan to generate KPIs."
+              />
             ) : filteredIndexed.length === 0 ? (
-              <div className="flex flex-col items-center justify-center gap-3 py-16">
-                <p className="text-sm text-muted-foreground">
-                  No rows match the current filters.
-                </p>
-              </div>
+              <EmptyState
+                title="No rows match the current filters"
+                message="Change the media type or source filter to show KPI rows."
+              />
             ) : (
               <table className="w-full border-collapse text-[11px] tabular-nums">
                 <thead>
@@ -677,12 +692,14 @@ export function KPIEditModal({
                                   {row.source}
                                 </Badge>
                                 {row.hasPublisherKpi === false ? (
-                                  <span
-                                    className="rounded bg-amber-100 px-1 text-[10px] font-medium text-amber-700"
+                                  <Badge
+                                    variant="behind"
+                                    size="sm"
+                                    className="rounded-pill px-1 py-0 text-[10px] font-medium"
                                     title="This line item has no publisher KPI row."
                                   >
                                     no pub KPI
-                                  </span>
+                                  </Badge>
                                 ) : null}
                                 {row.hasPublisherKpi === false && onPublisherKpiAdded ? (
                                   <Button
@@ -698,7 +715,7 @@ export function KPIEditModal({
                                 ) : null}
                               </div>
                               {publisherKpiDraftRowId === row.lineItemId ? (
-                                <div className="mt-2 w-[360px] max-w-[75vw] rounded-lg border border-amber-200 bg-amber-50/50 p-2 text-left shadow-sm">
+                                <div className="mt-2 w-[360px] max-w-[75vw] rounded-card border border-border bg-pacing-behind-bg p-2 text-left shadow-e1">
                                   <div className="mb-2 flex items-start justify-between gap-2">
                                     <div className="min-w-0">
                                       <p className="text-[11px] font-semibold text-foreground">
@@ -709,7 +726,7 @@ export function KPIEditModal({
                                         {row.bid_strategy || "No bid strategy"}
                                       </p>
                                       {!resolvePublisherForPublisherKpi(row, publishers).resolvedByPublisherId ? (
-                                        <p className="mt-1 text-[10px] text-amber-700">
+                                        <p className="mt-1 text-[10px] text-status-behind-fg">
                                           Publisher ID not found; this will be saved by name.
                                         </p>
                                       ) : null}
@@ -801,19 +818,19 @@ export function KPIEditModal({
           <div className="flex shrink-0 flex-col gap-3 border-t px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
               <span>
-                <span className="text-green-600">●</span> Saved
+                <span className={sourceDotClassName("saved")}>●</span> Saved
               </span>
               <span>
-                <span className="text-blue-600">●</span> Client
+                <span className={sourceDotClassName("client")}>●</span> Client
               </span>
               <span>
-                <span className="text-slate-500">●</span> Publisher
+                <span className={sourceDotClassName("publisher")}>●</span> Publisher
               </span>
               <span>
-                <span className="text-amber-600">●</span> Manual
+                <span className={sourceDotClassName("manual")}>●</span> Manual
               </span>
               <span>
-                <span className="text-red-400">●</span> Default
+                <span className={sourceDotClassName("default")}>●</span> Default
               </span>
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">

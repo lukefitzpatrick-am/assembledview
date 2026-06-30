@@ -5,7 +5,9 @@ import type { ResolvedKPIRow } from "@/lib/kpi/types"
 import type { Publisher } from "@/lib/types/publisher"
 import { KPIEditModal } from "./KPIEditModal"
 import type { KpiHost } from "./kpiHost"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { EmptyState, LoadingState } from "@/components/ui/states"
 import { cn } from "@/lib/utils"
 import { MEDIA_TYPE_LABELS, MEDIA_TYPE_COLORS } from "@/lib/media/mediaTypes"
 
@@ -44,6 +46,12 @@ const HEADLINE_LABEL: Record<Exclude<HeadlineKind, "none">, string> = {
   views: "views",
   listens: "listens",
   reach: "reach",
+}
+
+function sourceDotClassName(hasDefault: boolean, allDefault: boolean) {
+  if (allDefault) return "bg-pacing-critical"
+  if (hasDefault) return "bg-pacing-behind"
+  return "bg-pacing-ahead"
 }
 
 /**
@@ -145,25 +153,19 @@ export function KPISection({
       </div>
 
       {isLoading ? (
-        <div className="space-y-2">
-          <div className="h-8 animate-pulse rounded bg-muted" />
-          <div className="h-8 animate-pulse rounded bg-muted" />
-          <div className="h-8 animate-pulse rounded bg-muted" />
-        </div>
+        <LoadingState rows={3} className="border-border bg-card" />
       ) : kpiRows.length === 0 ? (
-        <p className="py-2 text-center text-sm text-muted-foreground">
-          Add line items to generate KPIs
-        </p>
+        <EmptyState
+          className="min-h-32 py-6"
+          title="No KPIs yet"
+          message="Add line items to generate KPIs."
+        />
       ) : (
         <div className="space-y-1">
           {Object.entries(rowsByMediaType).map(([mediaType, rows]) => {
             const hasDefault = rows.some((r) => r.source === "default")
             const allDefault = rows.every((r) => r.source === "default")
-            const dotColor = allDefault
-              ? "bg-red-400"
-              : hasDefault
-                ? "bg-amber-400"
-                : "bg-green-400"
+            const dotColor = sourceDotClassName(hasDefault, allDefault)
             const headline = summariseHeadlineMetric(mediaType, rows)
             const missingPublisherCount = rows.filter(
               (r) => r.hasPublisherKpi === false,
@@ -171,27 +173,29 @@ export function KPISection({
             return (
               <div
                 key={mediaType}
-                className="flex cursor-pointer items-center justify-between rounded px-1 py-0.5 text-[11px] hover:bg-muted/30"
+                className="flex cursor-pointer items-center justify-between rounded-input px-1 py-0.5 text-[11px] hover:bg-table-row-hover"
                 onClick={() => setIsModalOpen(true)}
               >
                 <div className="flex items-center gap-1.5">
                   <span
-                    className={`h-1.5 w-1.5 shrink-0 rounded-full ${dotColor}`}
+                    className={cn("h-1.5 w-1.5 shrink-0 rounded-pill", dotColor)}
                   />
                   <span className="font-medium">
                     {MEDIA_TYPE_LABELS[mediaType] ?? mediaType}
                   </span>
                   <span className="text-muted-foreground">({rows.length})</span>
                   {missingPublisherCount > 0 ? (
-                    <span
-                      className="rounded bg-amber-100 px-1 text-[10px] font-medium text-amber-700"
+                    <Badge
+                      variant="behind"
+                      size="sm"
+                      className="rounded-pill px-1 py-0 text-[10px] font-medium"
                       title={`${missingPublisherCount} line item(s) have no publisher KPI`}
                     >
                       ⚠ {missingPublisherCount} no pub KPI
-                    </span>
+                    </Badge>
                   ) : null}
                 </div>
-                <div className="flex items-center gap-3 tabular-nums text-muted-foreground">
+                <div className="num flex items-center gap-3 text-muted-foreground">
                   {headline === null ? (
                     <span className="text-muted-foreground/70">—</span>
                   ) : headline.total > 0 ? (

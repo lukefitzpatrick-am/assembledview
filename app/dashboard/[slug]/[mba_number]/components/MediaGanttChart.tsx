@@ -17,8 +17,9 @@ import {
   buildGanttSidelineLabel,
   type NormalisedLineItem,
 } from "@/lib/mediaplan/normalizeLineItem"
-import { getMediaColor } from "@/lib/charts/registry"
+import { normalizeEntityKey } from "@/lib/charts/registry"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { EmptyState } from "@/components/ui/states"
 import { cn } from "@/lib/utils"
 
 export interface MediaGanttChartProps {
@@ -34,6 +35,63 @@ const LABEL_WIDTH = 224
 const MIN_BAR_PX = 6
 /** Minimum bar width as % of timeline (monthly fluid) so thin bursts stay visible. */
 const MIN_BAR_PCT = 0.22
+const todayMarkerClassName = "border-pacing-on-track"
+const todayMarkerPillClassName =
+  "absolute -top-2 -translate-x-1/2 rounded-pill bg-pacing-on-track px-1.5 py-0.5 text-[10px] font-medium text-secondary-foreground"
+
+const mediaToneClasses: Record<string, { accent: string; bar: string }> = {
+  television: {
+    accent: "bg-channel-tv",
+    bar: "bg-channel-tv text-destructive-foreground",
+  },
+  cinema: {
+    accent: "bg-channel-tv",
+    bar: "bg-channel-tv text-destructive-foreground",
+  },
+  bvod: {
+    accent: "bg-channel-bvod",
+    bar: "bg-channel-bvod text-destructive-foreground",
+  },
+  prog_bvod: {
+    accent: "bg-channel-bvod",
+    bar: "bg-channel-bvod text-destructive-foreground",
+  },
+  prog_video: {
+    accent: "bg-channel-bvod",
+    bar: "bg-channel-bvod text-destructive-foreground",
+  },
+  digital_video: {
+    accent: "bg-channel-bvod",
+    bar: "bg-channel-bvod text-destructive-foreground",
+  },
+  social_media: {
+    accent: "bg-channel-social",
+    bar: "bg-channel-social text-secondary-foreground",
+  },
+  prog_display: {
+    accent: "bg-channel-progDisplay",
+    bar: "bg-channel-progDisplay text-foreground",
+  },
+  digital_display: {
+    accent: "bg-channel-progDisplay",
+    bar: "bg-channel-progDisplay text-foreground",
+  },
+  search: {
+    accent: "bg-channel-search",
+    bar: "bg-channel-search text-status-success-foreground",
+  },
+  ooh: {
+    accent: "bg-channel-ooh",
+    bar: "bg-channel-ooh text-status-success-foreground",
+  },
+}
+
+function mediaToneClassName(mediaType: string) {
+  return mediaToneClasses[normalizeEntityKey(mediaType)] ?? {
+    accent: "bg-muted-foreground",
+    bar: "bg-muted text-foreground",
+  }
+}
 
 function safeNumber(value: number | undefined) {
   return typeof value === "number" && Number.isFinite(value) ? value : 0
@@ -174,8 +232,11 @@ const MediaGanttChart = forwardRef<HTMLDivElement, MediaGanttChartProps>(functio
 
   if (!ganttData || ganttData.rows.length === 0) {
     return (
-      <div ref={ref} className="flex h-48 items-center justify-center text-muted-foreground">
-        No timeline data available
+      <div ref={ref}>
+        <EmptyState
+          title="No timeline data available"
+          message="There are no campaign bursts in the selected date window."
+        />
       </div>
     )
   }
@@ -222,14 +283,15 @@ const MediaGanttChart = forwardRef<HTMLDivElement, MediaGanttChartProps>(functio
             <div className="relative w-full">
               {todayOffset !== null ? (
                 <div
-                  className="pointer-events-none absolute bottom-0 top-0 z-10 border-l-2 border-dashed border-sky-500/70"
+                  className={cn(
+                    "pointer-events-none absolute bottom-0 top-0 z-10 border-l-2 border-dashed",
+                    todayMarkerClassName,
+                  )}
                   style={{
                     left: `calc(${LABEL_WIDTH}px + (100% - ${LABEL_WIDTH}px) * ${todayOffset / totalDays})`,
                   }}
                 >
-                  <span className="absolute -top-2 -translate-x-1/2 rounded-full bg-sky-500 px-1.5 py-0.5 text-[10px] font-medium text-white">
-                    Today
-                  </span>
+                  <span className={todayMarkerPillClassName}>Today</span>
                 </div>
               ) : null}
               {rows.map((row, rowIndex) => (
@@ -242,8 +304,7 @@ const MediaGanttChart = forwardRef<HTMLDivElement, MediaGanttChartProps>(functio
                 >
                   <div className={labelColClass}>
                     <span
-                      className="h-6 w-1.5 shrink-0 rounded-full"
-                      style={{ backgroundColor: getMediaColor(row.mediaType) }}
+                      className={cn("h-6 w-1.5 shrink-0 rounded-pill", mediaToneClassName(row.mediaType).accent)}
                     />
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -256,21 +317,22 @@ const MediaGanttChart = forwardRef<HTMLDivElement, MediaGanttChartProps>(functio
                     {row.bars.map((bar, barIndex) => {
                       const leftPct = dayToXPct(bar.startOffset)
                       const widthPct = spanToWPct(bar.width)
-                      const barColor = getMediaColor(row.mediaType)
                       return (
                         <Tooltip key={barIndex}>
                           <TooltipTrigger asChild>
                             <div
-                              className="absolute top-1/2 flex h-6 max-w-full -translate-y-1/2 cursor-default items-center justify-center rounded-md border border-black/10 text-xs font-medium text-white shadow-sm transition-transform duration-150 hover:scale-[1.01]"
+                              className={cn(
+                                "absolute top-1/2 flex h-6 max-w-full -translate-y-1/2 cursor-default items-center justify-center rounded-input border border-border/40 text-xs font-medium shadow-e0 transition-all duration-150 hover:scale-[1.01] hover:shadow-e1",
+                                mediaToneClassName(row.mediaType).bar,
+                              )}
                               style={{
                                 left: `${leftPct}%`,
                                 width: `${widthPct}%`,
-                                backgroundColor: barColor,
                                 minWidth: `${MIN_BAR_PX}px`,
                               }}
                             >
                               {widthPct >= 3 ? (
-                                <span className="truncate px-1">
+                                <span className="num truncate px-1">
                                   {bar.deliverables > 0
                                     ? formatDeliverablesDisplay(bar.deliverables)
                                     : `${format(bar.start, "d/M")}–${format(bar.end, "d/M")}`}
@@ -334,12 +396,13 @@ const MediaGanttChart = forwardRef<HTMLDivElement, MediaGanttChartProps>(functio
           <div className="relative" style={{ width: headerWidthPx }}>
             {todayOffset !== null ? (
               <div
-                className="pointer-events-none absolute bottom-0 top-0 z-10 border-l-2 border-dashed border-sky-500/70"
+                className={cn(
+                  "pointer-events-none absolute bottom-0 top-0 z-10 border-l-2 border-dashed",
+                  todayMarkerClassName,
+                )}
                 style={{ left: `${LABEL_WIDTH + dayToXPx(todayOffset)}px` }}
               >
-                <span className="absolute -top-2 -translate-x-1/2 rounded-full bg-sky-500 px-1.5 py-0.5 text-[10px] font-medium text-white">
-                  Today
-                </span>
+                <span className={todayMarkerPillClassName}>Today</span>
               </div>
             ) : null}
             {rows.map((row, rowIndex) => (
@@ -352,8 +415,7 @@ const MediaGanttChart = forwardRef<HTMLDivElement, MediaGanttChartProps>(functio
               >
                 <div className={labelColClass} style={{ width: LABEL_WIDTH }}>
                   <span
-                    className="h-6 w-1.5 rounded-full"
-                    style={{ backgroundColor: getMediaColor(row.mediaType) }}
+                    className={cn("h-6 w-1.5 rounded-pill", mediaToneClassName(row.mediaType).accent)}
                   />
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -366,22 +428,23 @@ const MediaGanttChart = forwardRef<HTMLDivElement, MediaGanttChartProps>(functio
                   {row.bars.map((bar, barIndex) => {
                     const left = dayToXPx(bar.startOffset)
                     const width = spanToWPx(bar.width)
-                    const barColor = getMediaColor(row.mediaType)
 
                     return (
                       <Tooltip key={barIndex}>
                         <TooltipTrigger asChild>
                           <div
-                            className="absolute top-1/2 flex h-6 -translate-y-1/2 cursor-default items-center justify-center rounded-md border border-black/10 text-xs font-medium text-white shadow-sm transition-transform duration-150 hover:scale-[1.01]"
+                            className={cn(
+                              "absolute top-1/2 flex h-6 -translate-y-1/2 cursor-default items-center justify-center rounded-input border border-border/40 text-xs font-medium shadow-e0 transition-all duration-150 hover:scale-[1.01] hover:shadow-e1",
+                              mediaToneClassName(row.mediaType).bar,
+                            )}
                             style={{
                               left: `${left}px`,
                               width: `${width}px`,
-                              backgroundColor: barColor,
                               minWidth: `${MIN_BAR_PX}px`,
                             }}
                           >
                             {width > 52 && (
-                              <span className="truncate px-1">
+                              <span className="num truncate px-1">
                                 {bar.deliverables > 0
                                   ? formatDeliverablesDisplay(bar.deliverables)
                                   : `${format(bar.start, "d/M")}–${format(bar.end, "d/M")}`}

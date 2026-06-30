@@ -15,6 +15,7 @@ import CampaignDetailsModal from "@/components/dashboard/campaign/CampaignDetail
 import { CampaignDeliverySection } from "@/components/dashboard/delivery/CampaignDeliverySection"
 import CampaignActions from "./CampaignActions"
 import type { MediaPlanVersionListEntry } from "@/lib/api/dashboard"
+import { ErrorState, LoadingState } from "@/components/ui/states"
 import {
   aggregateSpendByChannelFromMonthly,
   burstOverlapsRange,
@@ -47,16 +48,12 @@ class SectionBoundary extends Component<SectionBoundaryProps, SectionBoundarySta
   render() {
     if (this.state.hasError) {
       return (
-        <div className="rounded-2xl border border-rose-300/40 bg-rose-500/5 p-4 text-sm text-rose-700">
-          <p className="font-medium">{this.props.title} failed to load.</p>
-          <button
-            type="button"
-            className="mt-2 text-rose-700 underline underline-offset-2"
-            onClick={() => this.setState({ hasError: false })}
-          >
-            Retry section
-          </button>
-        </div>
+        <ErrorState
+          title={`${this.props.title} failed to load.`}
+          message="Retry this section or refresh the campaign if the problem continues."
+          onRetry={() => this.setState({ hasError: false })}
+          retryLabel="Retry section"
+        />
       )
     }
     return this.props.children
@@ -64,28 +61,28 @@ class SectionBoundary extends Component<SectionBoundaryProps, SectionBoundarySta
 }
 
 function CampaignHeroBannerSkeleton() {
-  return <div className="h-40 w-full rounded-2xl skeleton-shimmer" />
+  return <LoadingState rows={3} className="min-h-40" />
 }
 
 function CampaignSummarySectionSkeleton() {
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-      <div className="h-32 rounded-2xl skeleton-shimmer" />
-      <div className="h-32 rounded-2xl skeleton-shimmer" />
+      <LoadingState rows={3} className="min-h-32" />
+      <LoadingState rows={3} className="min-h-32" />
     </div>
   )
 }
 
 function SpendChartsRowSkeleton() {
-  return <div className="h-[420px] w-full rounded-2xl skeleton-shimmer" />
+  return <LoadingState rows={5} className="min-h-[420px]" />
 }
 
 function MediaPlanVizSectionSkeleton() {
-  return <div className="h-[520px] w-full rounded-2xl skeleton-shimmer" />
+  return <LoadingState rows={6} className="min-h-[520px]" />
 }
 
 function DeliverySectionSkeleton() {
-  return <div className="h-[520px] w-full rounded-2xl skeleton-shimmer" />
+  return <LoadingState rows={6} className="min-h-[520px]" />
 }
 
 type CampaignPageAssemblyProps = {

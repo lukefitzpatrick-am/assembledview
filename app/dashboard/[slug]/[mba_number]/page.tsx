@@ -11,6 +11,7 @@ import {
   resolveCampaignExpectedSpendToDate,
   resolveCampaignTotalPlannedSpend,
 } from "@/lib/spend/resolveCampaignExpectedSpend"
+import { ErrorState } from "@/components/ui/states"
 
 export const maxDuration = 60
 
@@ -126,26 +127,6 @@ function normaliseHexColour(input: unknown): string | undefined {
   }
 
   return undefined
-}
-
-function hexToRgba(hex: string | undefined, alpha: number) {
-  if (!hex) return null
-  const normalised = normaliseHexColour(hex)
-  if (!normalised) return null
-  const stripped = normalised.slice(1)
-  const r = Number.parseInt(stripped.slice(0, 2), 16)
-  const g = Number.parseInt(stripped.slice(2, 4), 16)
-  const b = Number.parseInt(stripped.slice(4, 6), 16)
-  if ([r, g, b].some((value) => Number.isNaN(value))) return null
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`
-}
-
-function getBrandGradientStyle(brandColour?: string) {
-  const start = brandColour ? hexToRgba(brandColour, 0.55) : null
-  const mid = brandColour ? hexToRgba(brandColour, 0.22) : null
-  const end = brandColour ? hexToRgba(brandColour, 0) : null
-  if (!start || !mid || !end) return undefined
-  return { backgroundImage: `linear-gradient(90deg, ${start} 0%, ${mid} 45%, ${end} 100%)` }
 }
 
 /**
@@ -470,11 +451,11 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
   if (error || !campaignData) {
     return (
       <div className="flex h-96 items-center justify-center">
-        <div className="max-w-2xl text-center">
-          <h2 className="mb-4 text-2xl font-bold text-red-900">Campaign Not Found</h2>
-          <p className="mb-4 text-red-600">{error || "The requested campaign could not be found."}</p>
-          <p className="text-sm text-gray-600">Please check the MBA number and try again.</p>
-        </div>
+        <ErrorState
+          className="max-w-2xl"
+          title="Campaign not found"
+          message={error || "The requested campaign could not be found. Please check the MBA number and try again."}
+        />
       </div>
     )
   }
@@ -775,12 +756,10 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
     campaignData?.clientDetails?.brand_colour,
   ]
   const brandColour = normaliseHexColour(brandCandidates.find(Boolean))
-  const brandGradientDebug = getBrandGradientStyle(brandColour)
   if (DEBUG_BRAND) {
     console.log("[Brand Debug] brand colour resolution", {
       brandCandidates,
       brandColour,
-      hasGradient: Boolean(brandGradientDebug),
     })
   }
 

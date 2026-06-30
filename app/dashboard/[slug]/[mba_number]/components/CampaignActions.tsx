@@ -278,7 +278,7 @@ export default function CampaignActions({
               <Button
                 type="button"
                 variant="outline"
-                className="h-9 rounded-full px-4 focus-visible:ring-2 focus-visible:ring-ring"
+                className="h-9 rounded-pill px-4 focus-visible:ring-2 focus-visible:ring-ring"
                 disabled={isBusy}
               >
                 <MoreHorizontal className="mr-1.5 h-4 w-4" />
@@ -331,7 +331,7 @@ export default function CampaignActions({
         >
           <SelectTrigger
             className={cn(
-              "h-9 w-auto min-w-[80px] rounded-full border-border/60 bg-background/90 text-xs font-medium shadow-sm",
+              "h-9 w-auto min-w-[80px] rounded-pill border-border/60 bg-background/90 text-xs font-medium shadow-e0",
               showFloating ? "hidden md:inline-flex" : "inline-flex",
             )}
           >
@@ -356,9 +356,9 @@ export default function CampaignActions({
         onClick={handleDownloadMediaPlan}
         disabled={isBusy}
         className={cn(
-          "h-9 rounded-full px-4 py-2 text-white",
+          "h-9 rounded-pill px-4 py-2 text-primary-foreground",
           showFloating ? "hidden md:inline-flex" : "inline-flex",
-          "bg-lime hover:bg-lime/90 focus-visible:ring-2 focus-visible:ring-ring",
+          "bg-primary hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring",
         )}
       >
         <ActionIcon action="mediaPlan" loading={isDownloadingMediaPlan} icon={<Download className="h-4 w-4" />} />
@@ -368,7 +368,7 @@ export default function CampaignActions({
         onClick={handleDownloadMba}
         disabled={isBusy}
         className={cn(
-          "h-9 rounded-full px-4 py-2 text-white",
+          "h-9 rounded-pill px-4 py-2 text-destructive-foreground",
           showFloating ? "hidden md:inline-flex" : "inline-flex",
           "bg-brand-dark hover:bg-brand-dark/90 focus-visible:ring-2 focus-visible:ring-ring",
         )}
@@ -380,7 +380,7 @@ export default function CampaignActions({
         onClick={handleDownloadBilling}
         disabled={isBusy}
         className={cn(
-          "h-9 rounded-full px-4 py-2",
+          "h-9 rounded-pill px-4 py-2",
           showFloating ? "hidden md:inline-flex" : "inline-flex",
           "bg-muted text-foreground hover:bg-muted/80 focus-visible:ring-2 focus-visible:ring-ring",
         )}

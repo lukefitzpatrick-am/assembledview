@@ -9,9 +9,12 @@ import { NormalisedLineItem, groupByLineItemId } from '@/lib/mediaplan/normalize
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { getMediaColor, getMediaLabel } from '@/lib/charts/registry'
+import { getMediaLabel, normalizeEntityKey } from '@/lib/charts/registry'
 import { cn } from '@/lib/utils'
 import { formatAUD } from '@/lib/format/money'
+import { MediaChannelTag } from '@/components/dashboard/MediaChannelTag'
+import { EmptyState } from '@/components/ui/states'
+import { ProgressBar } from '@/components/ui/ProgressBar'
 
 interface MediaTableProps {
   lineItems: Record<string, NormalisedLineItem[]>
@@ -35,6 +38,24 @@ type GroupedItem = {
   groupStartDate: string
   groupEndDate: string
   bursts: NormalisedLineItem['bursts']
+}
+
+const mediaAccentClasses: Record<string, string> = {
+  television: "bg-channel-tv",
+  cinema: "bg-channel-tv",
+  bvod: "bg-channel-bvod",
+  prog_bvod: "bg-channel-bvod",
+  prog_video: "bg-channel-bvod",
+  digital_video: "bg-channel-bvod",
+  social_media: "bg-channel-social",
+  prog_display: "bg-channel-progDisplay",
+  digital_display: "bg-channel-progDisplay",
+  search: "bg-channel-search",
+  ooh: "bg-channel-ooh",
+}
+
+function mediaAccentClassName(mediaType: string) {
+  return mediaAccentClasses[normalizeEntityKey(mediaType)] ?? "bg-muted-foreground"
 }
 
 function safeNumber(value: number | undefined) {
@@ -158,9 +179,10 @@ export default function MediaTable({ lineItems }: MediaTableProps) {
 
   if (!hasLineItems) {
     return (
-      <div className="flex items-center justify-center h-64 text-muted-foreground">
-        No media line items available
-      </div>
+      <EmptyState
+        title="No media line items available"
+        message="Add media line items to show campaign rows and burst pacing."
+      />
     )
   }
 
@@ -187,6 +209,13 @@ export default function MediaTable({ lineItems }: MediaTableProps) {
         />
       </div>
 
+      {Object.keys(groupedData).length === 0 ? (
+        <EmptyState
+          title="No rows match the current filters"
+          message="Clear or change the filter to show campaign rows."
+        />
+      ) : null}
+
       {Object.entries(groupedData).map(([mediaType, groups]) => {
         if (!groups || groups.length === 0) return null
 
@@ -196,24 +225,23 @@ export default function MediaTable({ lineItems }: MediaTableProps) {
         const isTypeExpanded = expandedMediaTypes.has(mediaType)
 
         return (
-          <div key={mediaType} className="space-y-2 rounded-xl border border-border/60">
+          <div key={mediaType} className="space-y-2 rounded-card border border-border/60 bg-card shadow-e0">
             <button
               type="button"
-              className="flex w-full items-center justify-between rounded-t-xl bg-muted/20 px-3 py-2 text-left"
+              className="flex w-full items-center justify-between rounded-t-card bg-surface-panel px-3 py-2 text-left transition-colors hover:bg-table-row-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               onClick={() => toggleMediaType(mediaType)}
             >
               <div className="flex items-center gap-2">
-                <span className="h-5 w-1.5 rounded-full" style={{ backgroundColor: getMediaColor(mediaType) }} />
-                <h3 className="text-sm font-semibold">{displayName}</h3>
+                <MediaChannelTag label={displayName} />
               </div>
-              <Badge variant="outline">
+              <Badge variant="outline" className="num">
                 {groups.length} {groups.length === 1 ? 'group' : 'groups'} • {totalItems} {totalItems === 1 ? 'burst' : 'bursts'} • Total: {formatCurrency(totalSpend)}
               </Badge>
             </button>
             {isTypeExpanded ? (
             <div
               data-export="media-plan-table-scroll"
-              className="max-h-[520px] overflow-auto rounded-b-xl"
+              className="max-h-[520px] overflow-auto rounded-b-card"
             >
               <Table>
                 <TableHeader className="sticky top-0 z-20 bg-background">
@@ -287,20 +315,20 @@ export default function MediaTable({ lineItems }: MediaTableProps) {
                       <Fragment key={groupKey}>
                         <TableRow
                           className={cn(
-                            "cursor-pointer transition-colors hover:bg-muted/20",
-                            groupIndex % 2 === 1 && "bg-muted/[0.04]"
+                            "cursor-pointer transition-colors hover:bg-table-row-hover",
+                            groupIndex % 2 === 1 && "bg-surface-panel"
                           )}
                           onClick={() => toggleGroup(groupKey)}
                         >
                           <TableCell>
-                            <button className="rounded p-1 hover:bg-muted/40">
+                            <button className="rounded-input p-1 hover:bg-table-row-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                               {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                             </button>
                           </TableCell>
                           <TableCell className="font-medium">{group.market || '—'}</TableCell>
                           <TableCell className="text-sm text-muted-foreground">
                             <div className="flex items-start gap-2">
-                              <span className="mt-1 h-2 w-2 rounded-full" style={{ backgroundColor: getMediaColor(mediaType) }} />
+                              <span className={cn("mt-1 h-2 w-2 rounded-pill", mediaAccentClassName(mediaType))} />
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <span className="line-clamp-1">
@@ -314,8 +342,8 @@ export default function MediaTable({ lineItems }: MediaTableProps) {
                           <TableCell>
                             {formatDate(group.groupStartDate)} - {formatDate(group.groupEndDate)}
                           </TableCell>
-                          <TableCell>{group.totalDeliverables.toLocaleString()}</TableCell>
-                          <TableCell className="font-medium">{formatCurrency(group.totalMedia)}</TableCell>
+                          <TableCell className="num">{group.totalDeliverables.toLocaleString()}</TableCell>
+                          <TableCell className="num font-medium">{formatCurrency(group.totalMedia)}</TableCell>
                           <TableCell>
                             <Badge variant="secondary">{group.bursts.length} {group.bursts.length === 1 ? 'burst' : 'bursts'}</Badge>
                           </TableCell>
@@ -332,7 +360,7 @@ export default function MediaTable({ lineItems }: MediaTableProps) {
                             <TableRow
                               key={`${groupKey}-burst-${burstIndex}`}
                               className={cn(
-                                "bg-muted/[0.08] transition-all duration-200",
+                                "bg-surface-panel transition-all duration-200",
                                 "animate-in fade-in-0"
                               )}
                             >
@@ -344,27 +372,19 @@ export default function MediaTable({ lineItems }: MediaTableProps) {
                               <TableCell className="text-sm">
                                 <div className="space-y-1">
                                   <span>{formatDate(burst.startDate)} - {formatDate(burst.endDate)}</span>
-                                  <div className="h-1.5 w-40 overflow-hidden rounded-full bg-muted">
-                                    <div
-                                      className="h-full rounded-full"
-                                      style={{
-                                        width: `${Math.min(
-                                          100,
-                                          Math.max(
-                                            0,
-                                            ((burstDeliverablesAmount || 0) / Math.max(group.totalMedia || 1, 1)) * 100
-                                          )
-                                        )}%`,
-                                        backgroundColor: getMediaColor(mediaType),
-                                      }}
-                                    />
-                                  </div>
+                                  <ProgressBar
+                                    value={burstDeliverablesAmount || 0}
+                                    max={Math.max(group.totalMedia || 1, 1)}
+                                    size="sm"
+                                    color="info"
+                                    className="w-40"
+                                  />
                                 </div>
                               </TableCell>
-                              <TableCell className="text-sm">
+                              <TableCell className="num text-sm">
                                 {(burst.deliverables ?? 0).toLocaleString()}
                               </TableCell>
-                              <TableCell className="text-sm font-medium">
+                              <TableCell className="num text-sm font-medium">
                                 {formatCurrency(burstDeliverablesAmount)}
                               </TableCell>
                               <TableCell></TableCell>

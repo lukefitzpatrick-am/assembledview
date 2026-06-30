@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation'
 import { getClientDashboardData } from '@/lib/api/dashboard'
 import { fetchXanoClientRowByUrlSlug } from '@/lib/clients/fetchClientRowByUrlSlug'
 import { ClientDashboardPageContent } from '@/components/dashboard/ClientDashboardPageContent'
+import { EmptyState, ErrorState } from '@/components/ui/states'
 
 interface ClientDashboardProps {
   params: Promise<{
@@ -78,11 +79,11 @@ export default async function ClientDashboard({ params }: ClientDashboardProps) 
   if (error) {
     return (
       <div className="flex h-96 items-center justify-center">
-        <div className="max-w-2xl text-center">
-          <h2 className="mb-4 text-2xl font-bold text-red-900">Dashboard Unavailable</h2>
-          <p className="mb-4 text-red-600">An error occurred while loading the dashboard data.</p>
-          <p className="text-sm text-gray-600">Please contact support if this issue persists.</p>
-        </div>
+        <ErrorState
+          className="max-w-2xl"
+          title="Dashboard unavailable"
+          message="An error occurred while loading the dashboard data. Please contact support if this issue persists."
+        />
       </div>
     )
   }
@@ -90,10 +91,10 @@ export default async function ClientDashboard({ params }: ClientDashboardProps) 
   if (!clientData) {
     return (
       <div className="flex h-96 items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-foreground">Client not found</h2>
-          <p className="text-muted-foreground">The requested client dashboard could not be found.</p>
-        </div>
+        <EmptyState
+          title="Client not found"
+          message="The requested client dashboard could not be found."
+        />
       </div>
     )
   }
