@@ -71,12 +71,14 @@ import {
   handleExpertGridInputKeyDown,
 } from "@/lib/mediaplan/expertGridKeyboardNav"
 import {
+  expertRowCostSplit,
+  expertRowNetMedia,
+  expertRowNetMediaTooltip,
+  expertRowQuantitySum,
+} from "@/lib/mediaplan/expertRowCost"
+import {
   deriveRadioExpertRowScheduleYmdFromRow,
 } from "@/lib/mediaplan/expertChannelMappings"
-import {
-  type BuyType,
-  netMediaFromDeliverables,
-} from "@/lib/mediaplan/deliverableBudget"
 import {
   buildWeeklyGanttColumnsFromCampaign,
   type WeeklyGanttWeekColumn,
@@ -97,7 +99,6 @@ import {
   WEEK_SCROLLER_EDGE as RADIO_EXPERT_WEEK_SCROLLER_EDGE,
   WEEK_CELL_VISUAL_CLASSES as RADIO_WEEK_CELL_VISUAL_CLASSES,
   expertGridParseNum as parseNum,
-  expertRowFeeSplit,
   weekKeysInSpanInclusive,
   findMergedSpanForWeek,
   weekCellIsPopulated,
@@ -151,20 +152,6 @@ const radioExpertTotalsRowBgStyle = {
 }
 
 const DEBUG_RADIO_MERGE = false
-
-function sumWeeklyQuantities(
-  weeklyValues: ExpertWeeklyValues,
-  weekKeys: string[]
-): number {
-  return weekKeys.reduce((s, k) => s + parseNum(weeklyValues[k]), 0)
-}
-
-function sumMergedQuantities(row: RadioExpertScheduleRow): number {
-  return (row.mergedWeekSpans ?? []).reduce(
-    (s, sp) => s + (Number.isFinite(sp.totalQty) ? sp.totalQty : 0),
-    0
-  )
-}
 
 /**
  * Parse clipboard text that may contain tab-separated values (Excel/Sheets)
@@ -232,42 +219,6 @@ function normalizeRadioStationPaste(raw: string, stationNames: string[]): string
 }
 
 /** Row gross / raw cost from expert Σ qty × unit rate (see `lib/mediaplan/deliverableBudget`). */
-function rowGrossCost(row: RadioExpertScheduleRow, weekKeys: string[]): number {
-  const rate = parseNum(row.unitRate)
-  const qty =
-    sumWeeklyQuantities(row.weeklyValues, weekKeys) + sumMergedQuantities(row)
-  return netMediaFromDeliverables(
-    String(row.buyType || "").toLowerCase() as BuyType,
-    qty,
-    rate
-  )
-}
-
-function rowNetMedia(
-  row: RadioExpertScheduleRow,
-  weekKeys: string[],
-  feePct: number
-): number {
-  const raw = rowGrossCost(row, weekKeys)
-  return expertRowFeeSplit(
-    raw,
-    !!row.budgetIncludesFees,
-    feePct,
-    !!row.clientPaysForMedia
-  ).net
-}
-
-function rowNetMediaTooltip(
-  row: RadioExpertScheduleRow,
-  qtySum: number
-): string {
-  const bt = String(row.buyType || "").toLowerCase()
-  const rate = parseNum(row.unitRate)
-  if (bt === "bonus") return "Bonus: net media = 0"
-  if (bt === "cpm")
-    return `CPM: (Σ qty / 1000) × rate (${qtySum} / 1000 × ${rate})`
-  return `Σ qty × rate (${qtySum} × ${rate})`
-}
 
 export function createEmptyRadioExpertRow(
   id: string,
@@ -1977,15 +1928,9 @@ export function RadioExpertGrid({
     for (const k of weekKeys) perWeek[k] = 0
 
     for (const row of normalizedRows) {
-      const raw = rowGrossCost(row, weekKeys)
-      const split = expertRowFeeSplit(
-        raw,
-        !!row.budgetIncludesFees,
-        feeradio,
-        !!row.clientPaysForMedia
-      )
-      sumNet += split.net
-      sumFee += split.fee
+      const { net, fee } = expertRowCostSplit(row, weekKeys, feeradio)
+      sumNet += net
+      sumFee += fee
       for (const k of weekKeys) {
         const q = parseNum(row.weeklyValues[k])
         perWeek[k] += q
@@ -2190,11 +2135,9 @@ export function RadioExpertGrid({
                   </thead>
                   <tbody>
                     {normalizedRows.map((row, rowIndex) => {
-                      const net = rowNetMedia(row, weekKeys, feeradio)
-                      const qtySum =
-                        sumWeeklyQuantities(row.weeklyValues, weekKeys) +
-                        sumMergedQuantities(row)
-                      const netMediaTooltip = rowNetMediaTooltip(row, qtySum)
+                      const net = expertRowNetMedia(row, weekKeys, feeradio)
+                      const qtySum = expertRowQuantitySum(row, weekKeys)
+                      const netMediaTooltip = expertRowNetMediaTooltip(row, qtySum)
                       const stripe =
                         rowIndex % 2 === 1 ? "bg-muted/10" : ""
                       const stripeStyle =
