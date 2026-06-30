@@ -46,7 +46,7 @@ export function MediaPlanLoadStatusPill({
   return (
     <div
       className={cn(
-        "fixed bottom-4 right-4 z-40 flex flex-col w-[320px] max-w-[90vw] rounded-lg border-2 bg-background shadow-lg",
+        "fixed bottom-4 right-4 z-40 flex w-[320px] max-w-[90vw] flex-col rounded-card border bg-surface-panel shadow-e2",
         hasErrors ? "border-destructive/50" : "border-border"
       )}
       role="status"
@@ -63,7 +63,7 @@ export function MediaPlanLoadStatusPill({
           ) : hasErrors ? (
             <AlertCircle className="h-4 w-4 shrink-0 text-destructive" aria-hidden />
           ) : (
-            <Check className="h-4 w-4 shrink-0 text-green-600" aria-hidden />
+            <Check className="h-4 w-4 shrink-0 text-status-ahead-fg" aria-hidden />
           )}
           <span className="truncate text-sm font-medium">{headerLabel}</span>
         </div>
@@ -107,7 +107,7 @@ export function MediaPlanLoadStatusPill({
                   className={cn(
                     "flex items-start gap-2 rounded px-2 py-1.5 text-sm",
                     item.status === "error" && "bg-destructive/10",
-                    item.status === "success" && "bg-green-500/5",
+                    item.status === "success" && "bg-pacing-ahead-bg",
                     clickable && "cursor-pointer hover:bg-destructive/15"
                   )}
                   onClick={() => {
@@ -119,7 +119,7 @@ export function MediaPlanLoadStatusPill({
                       <LoadingDots size="sm" dotClassName="bg-muted-foreground" aria-label="Pending" />
                     )}
                     {item.status === "success" && (
-                      <Check className="h-4 w-4 text-green-600" />
+                      <Check className="h-4 w-4 text-status-ahead-fg" />
                     )}
                     {item.status === "error" && (
                       <X className="h-4 w-4 text-destructive" />
