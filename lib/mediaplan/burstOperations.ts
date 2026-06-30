@@ -76,6 +76,14 @@ type BurstOpArgs = {
   computeDates?: (args: ComputeDatesArgs) => BurstDates
 }
 
+type DuplicateBurstArgs = {
+  form: UseFormReturn<any>
+  fieldKey: string
+  lineItemIndex: number
+  onAfter: (lineItemIndex: number) => void
+  toast: (opts: { title: string; description: string; variant?: string }) => void
+}
+
 /**
  * Seam 2a: shared burst append.
  * Default-date change: new bursts default to the CAMPAIGN WINDOW (was new Date()).
@@ -111,6 +119,57 @@ export function appendBurst({
   const base = (makeBurst ?? standardBurstDefaults)({ startDate, endDate })
 
   form.setValue(path, [...currentBursts, { ...base, _reactKey: newBurstReactKey() }])
+  onAfter(lineItemIndex)
+}
+
+/**
+ * Seam 2b: shared standalone burst duplicate.
+ * Duplicates the LAST burst, advances dates (next day after last end date,
+ * close at month end; falls back to today if the last burst has no end date),
+ * and appends. Spreads the source burst so ALL fields carry over
+ * (incl. adServingRatePct/adServingImpressions, mediaAmount/feeAmount,
+ * Television size/tarps, Production cost/amount). _reactKey is regenerated
+ * after the spread so the source key cannot survive.
+ */
+export function duplicateBurst({
+  form,
+  fieldKey,
+  lineItemIndex,
+  onAfter,
+  toast,
+}: DuplicateBurstArgs): void {
+  const path = `${fieldKey}.${lineItemIndex}.bursts`
+  const currentBursts = (form.getValues(path) as any[]) || []
+
+  if (currentBursts.length === 0) {
+    toast({
+      title: "No burst to duplicate",
+      description: "Add a burst first before duplicating.",
+      variant: "destructive",
+    })
+    return
+  }
+  if (currentBursts.length >= MAX_BURSTS) {
+    toast({
+      title: "Maximum bursts reached",
+      description: "Can't add more bursts. Each line item is limited to 12 bursts.",
+      variant: "destructive",
+    })
+    return
+  }
+
+  const lastBurst = currentBursts[currentBursts.length - 1]
+  let startDate = new Date()
+  if (lastBurst?.endDate) {
+    startDate = new Date(lastBurst.endDate)
+    startDate.setDate(startDate.getDate() + 1)
+  }
+  const endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0)
+
+  form.setValue(path, [
+    ...currentBursts,
+    { ...lastBurst, startDate, endDate, _reactKey: newBurstReactKey() },
+  ])
   onAfter(lineItemIndex)
 }
 
