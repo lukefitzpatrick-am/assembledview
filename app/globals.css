@@ -337,6 +337,18 @@
 }
 
 @layer components {
+  .interactive {
+    @apply cursor-pointer transition-all duration-150 hover:-translate-y-0.5 hover:shadow-e2 hover:border-[var(--dashboard-border-hover)] active:translate-y-0;
+  }
+
+  .interactive-tint {
+    @apply cursor-pointer transition-colors hover:bg-[var(--row-hover)];
+  }
+
+  .interactive-row {
+    @apply cursor-pointer transition-colors hover:bg-table-hover;
+  }
+
   .dashboard-card {
     @apply rounded-2xl border border-border/60 bg-card shadow-card transition-all duration-200;
   }
