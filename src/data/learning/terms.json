@@ -230,7 +230,18 @@
     "category_raw": "Bidding",
     "group": "Buying & Trading",
     "definition": "Amount actually paid per click",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "What you actually pay per click - often less than your max CPC.",
+    "whyItMatters": "In a second-price-style auction you usually pay just enough to beat the next advertiser, so actual < max.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Ads Help - Maximum CPC",
+        "url": "https://support.google.com/google-ads/answer/6326"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "ad-structure-2066e696",
@@ -712,7 +723,18 @@
     "category_raw": "Trading",
     "group": "Buying & Trading",
     "definition": "Buying low selling high inventory",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Buying inventory cheaply and reselling it at a markup, often without disclosing the margin.",
+    "whyItMatters": "A transparency red flag in the supply chain - it inflates cost without adding value; SPO and ads.txt fight it.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "ANA - Programmatic supply chain transparency study",
+        "url": "https://www.ana.net/miccontent/show/id/rr-2023-12-ana-programmatic-media-supply-chain-transparency-study"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "aspect-ratio-creative-8d1536dd",
@@ -846,7 +868,18 @@
     "category_raw": "Bidding",
     "group": "Buying & Trading",
     "definition": "Bid modifier for audiences",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A bid modifier for specific audience segments.",
+    "whyItMatters": "Bid up for high-value audiences (e.g. past purchasers) layered onto a campaign.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - About bid adjustments",
+        "url": "https://support.google.com/google-ads/answer/2732132"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "audience-delivery-delivery-1dccc4c9",
@@ -972,7 +1005,18 @@
     "category_raw": "Bidding",
     "group": "Buying & Trading",
     "definition": "Initial bid before modifiers",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The starting bid before any adjustments/modifiers are applied.",
+    "whyItMatters": "The number every device/location/time modifier multiplies against.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - About bid adjustments",
+        "url": "https://support.google.com/google-ads/answer/2732132"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "baseline-measurement-6bfb9a5b",
@@ -1010,7 +1054,18 @@
     "category_raw": "Bidding",
     "group": "Buying & Trading",
     "definition": "Amount advertiser is willing to pay",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The amount an advertiser is willing to pay for a click, impression or action in an auction.",
+    "whyItMatters": "The price lever in every auction - too low and you don't win impressions, too high and you overpay. Most modern bidding automates this.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Ads Help - Maximum CPC",
+        "url": "https://support.google.com/google-ads/answer/6326"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "bid-adjustment-bidding-8a2f98ee",
@@ -1019,7 +1074,19 @@
     "category_raw": "Bidding",
     "group": "Buying & Trading",
     "definition": "Modifier applied to base bid",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A percentage modifier that raises or lowers your bid in certain contexts (device, location, time, audience).",
+    "whyItMatters": "Lets manual bidding flex to value differences; largely automated away by Smart Bidding, which adjusts at auction time.",
+    "example": "+20% on mobile, -50% after 9pm.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - About bid adjustments",
+        "url": "https://support.google.com/google-ads/answer/2732132"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "bid-cap-bidding-466dba1d",
@@ -1028,7 +1095,18 @@
     "category_raw": "Bidding",
     "group": "Buying & Trading",
     "definition": "Maximum bid limit",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A Meta bid strategy setting the maximum bid in each auction.",
+    "whyItMatters": "Hard control over auction price; needs careful setting or delivery stalls. For advanced, hands-on buyers.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "Meta Business Help - About bid cap",
+        "url": "https://www.facebook.com/business/help/272503946776144"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "bid-floor-mechanics-32870a39",
@@ -1046,7 +1124,18 @@
     "category_raw": "Bidding",
     "group": "Buying & Trading",
     "definition": "Adjustment applied to base bid",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The factor a bid adjustment applies to the base bid.",
+    "whyItMatters": "Another name for the bid-adjustment percentage - the lever that scales bids by context.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - About bid adjustments",
+        "url": "https://support.google.com/google-ads/answer/2732132"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "bid-rate-supply-471c7b91",
@@ -1115,7 +1204,18 @@
     "category_raw": "Bidding",
     "group": "Buying & Trading",
     "definition": "Lowering bids in first-price auctions",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A DSP technique that lowers your bid in a first-price auction to roughly what's needed to win - no more.",
+    "whyItMatters": "Stops you overpaying after the industry shift to first-price auctions; a default efficiency feature in most DSPs.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "Basis - Understanding bid shading",
+        "url": "https://basis.com/blog/understanding-the-basics-of-bid-shading"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "bid-stacking-strategy-7a272761",
@@ -1272,7 +1372,18 @@
     "category_raw": "Match Type",
     "group": "Buying & Trading",
     "definition": "Triggers on related queries via intent",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The loosest keyword match - your ad can show on searches related in meaning, not just the exact words.",
+    "whyItMatters": "Most reach, least control; works best paired with Smart Bidding and strong negatives, or it wastes spend.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Keyword matching options",
+        "url": "https://support.google.com/google-ads/answer/7478529"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "broad-match-expansion-mechanics-d603fcba",
@@ -1678,7 +1789,18 @@
     "category_raw": "Match Type",
     "group": "Buying & Trading",
     "definition": "Plural misspelling or reordered terms",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A near-match to your keyword - misspellings, plurals, reordered or same-meaning terms - that still triggers your ad.",
+    "whyItMatters": "Even Exact match now includes close variants, so 'exact' isn't literal; watch search terms and add negatives.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Close variants",
+        "url": "https://support.google.com/google-ads/answer/9342105"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "cm360-channel-66cd4aef",
@@ -1964,7 +2086,18 @@
     "category_raw": "Bidding",
     "group": "Buying & Trading",
     "definition": "Target average cost control",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A Meta bid strategy that keeps your average cost per result around a target while maximising volume.",
+    "whyItMatters": "Controls efficiency without a hard per-auction cap; can limit delivery if the cap is too tight.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Meta Business Help - About cost cap",
+        "url": "https://www.facebook.com/business/help/272336376749096"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "cost-per-lead-metric-26b84ba7",
@@ -2856,7 +2989,18 @@
     "category_raw": "Trading",
     "group": "Buying & Trading",
     "definition": "Agreed trading terms between buyer and seller",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Agreed trading terms (price, inventory, audience) between a buyer and a publisher in programmatic.",
+    "whyItMatters": "The container for PMP/preferred/guaranteed arrangements - how premium inventory is transacted programmatically.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ad Manager Help - Private Marketplace",
+        "url": "https://support.google.com/admanager/answer/16536966"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "deal-id-programmatic-c9f7ee0a",
@@ -2865,7 +3009,18 @@
     "category_raw": "Programmatic",
     "group": "Buying & Trading",
     "definition": "Identifier used to transact a deal",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A unique identifier that connects a buyer and seller to transact a specific programmatic deal.",
+    "whyItMatters": "The handshake that activates a PMP/preferred/guaranteed deal in the DSP.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ad Manager Help - Private Marketplace",
+        "url": "https://support.google.com/admanager/answer/16536966"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "delivery-delivery-64827211",
@@ -2892,7 +3047,18 @@
     "category_raw": "Supply",
     "group": "Buying & Trading",
     "definition": "Buyer interest in inventory",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Buyer interest in inventory - how many advertisers want to reach a given audience/placement.",
+    "whyItMatters": "High demand bids prices up; it's the other half of the auction dynamic that sets CPMs.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "IAB Tech Lab - OpenRTB",
+        "url": "https://iabtechlab.com/standards/openrtb/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "demand-side-platform-platform-feeea41d",
@@ -2957,7 +3123,18 @@
     "category_raw": "Bidding",
     "group": "Buying & Trading",
     "definition": "Bid modifier by device",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A bid modifier by device type (mobile, desktop, tablet).",
+    "whyItMatters": "Bid more where conversion value is higher per device - or let Smart Bidding handle it.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - About bid adjustments",
+        "url": "https://support.google.com/google-ads/answer/2732132"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "device-graph-identity-f890b9c3",
@@ -3002,7 +3179,18 @@
     "category_raw": "Trading",
     "group": "Buying & Trading",
     "definition": "Single hop supply route",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Buying inventory through the shortest route - ideally one hop from buyer to publisher.",
+    "whyItMatters": "Fewer intermediaries, fewer fees, less risk of reselling/fraud; the goal of supply path optimisation.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "IAB Europe - Supply path optimisation guide",
+        "url": "https://iabeurope.eu/knowledge-hub/how-to-optimise-your-supply-path-in-four-steps-a-guide-for-buyers/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "display-format-6724c838",
@@ -3047,7 +3235,18 @@
     "category_raw": "Programmatic",
     "group": "Buying & Trading",
     "definition": "Demand Side Platform used to buy ads",
-    "type": "acronym"
+    "type": "acronym",
+    "plainEnglish": "Demand-Side Platform - the software advertisers use to buy programmatic inventory across many sources.",
+    "whyItMatters": "The buyer's cockpit for programmatic (e.g. DV360, The Trade Desk) - where targeting, bidding and frequency are set.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "IAB UK - Demand-side platform",
+        "url": "https://www.iabuk.com/node/30363"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "duplication-metric-78640b3b",
@@ -3154,7 +3353,19 @@
     "category_raw": "Bidding",
     "group": "Buying & Trading",
     "definition": "Enhanced CPC automation layer",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Enhanced CPC - a semi-automated layer that adjusts your manual bids up or down to win likely conversions.",
+    "whyItMatters": "A halfway house between manual and Smart Bidding - now deprecated in Google Ads (since ~2025), so treat as legacy.",
+    "practitionerNotes": "Deprecated for Search/Display in Google Ads around March 2025.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Enhanced CPC",
+        "url": "https://support.google.com/google-ads/answer/2464964"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "ecpm-metric-d4d968df",
@@ -3465,7 +3676,18 @@
     "category_raw": "Match Type",
     "group": "Buying & Trading",
     "definition": "Triggers on close variant exact queries",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Your ad shows on searches with the same meaning as your keyword (incl. close variants).",
+    "whyItMatters": "Tightest control and intent; lowest reach. Good for your most valuable, proven terms.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Keyword matching options",
+        "url": "https://support.google.com/google-ads/answer/7478529"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "exclusion-audience-92c49008",
@@ -4116,7 +4338,18 @@
     "category_raw": "Trading",
     "group": "Buying & Trading",
     "definition": "Undisclosed intermediary fees",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Undisclosed fees taken by intermediaries between the advertiser's budget and the publisher.",
+    "whyItMatters": "The 'ad tech tax' - the gap between what you spend and what reaches working media. Transparency and SPO recover it.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "ANA - Programmatic supply chain transparency study",
+        "url": "https://www.ana.net/miccontent/show/id/rr-2023-12-ana-programmatic-media-supply-chain-transparency-study"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "high-top-of-page-bid-metric-d44f9274",
@@ -4281,7 +4514,18 @@
     "category_raw": "Bidding",
     "group": "Buying & Trading",
     "definition": "Optimise for impressions",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Bidding/delivery optimised to win the most impressions (e.g. target impression share).",
+    "whyItMatters": "Used for visibility/brand-defence goals where being seen matters more than cost per action.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - About Smart Bidding",
+        "url": "https://support.google.com/google-ads/answer/7065882"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "impression-share-metric-e25e169f",
@@ -4477,7 +4721,18 @@
     "category_raw": "Supply",
     "group": "Buying & Trading",
     "definition": "Available ad impressions",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The available ad impressions a publisher has to sell.",
+    "whyItMatters": "The supply side of the market - quality, viewability and brand safety of inventory matter as much as price.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "IAB Tech Lab - ads.txt (authorised sellers)",
+        "url": "https://iabtechlab.com/ads-txt/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "inventory-quality-governance-b89c64d8",
@@ -4917,7 +5172,18 @@
     "category_raw": "Bidding",
     "group": "Buying & Trading",
     "definition": "Bid modifier by geography",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A bid modifier by geographic area.",
+    "whyItMatters": "Bid up in your best regions/catchments and down where you can't service or convert.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - About bid adjustments",
+        "url": "https://support.google.com/google-ads/answer/2732132"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "location-extension-creative-84dcf725",
@@ -5040,7 +5306,18 @@
     "category_raw": "Bidding",
     "group": "Buying & Trading",
     "definition": "Optimise for cheapest results",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Meta's default bid strategy - get the most results for your budget (also called highest volume).",
+    "whyItMatters": "No cost target, so cost per result can drift; simplest way to spend the full budget.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Meta Business Help - Highest volume / lowest cost",
+        "url": "https://www.facebook.com/business/help/721453268045071"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "lpv-metric-bd84dec5",
@@ -5114,7 +5391,18 @@
     "category_raw": "Bidding",
     "group": "Buying & Trading",
     "definition": "Advertiser sets bids manually",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "You set the maximum click bids yourself rather than letting the system bid.",
+    "whyItMatters": "Maximum control, but no auction-time signals - mostly superseded by Smart Bidding for performance.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Manual CPC",
+        "url": "https://support.google.com/google-ads/answer/2464960"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "manual-placements-delivery-1593c7e0",
@@ -5183,7 +5471,18 @@
     "category_raw": "Bidding",
     "group": "Buying & Trading",
     "definition": "Maximum cost per click bid",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The most you're willing to pay for a single click.",
+    "whyItMatters": "A ceiling, not the price you pay - the actual CPC is usually lower. The core control in manual bidding.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Ads Help - Maximum CPC",
+        "url": "https://support.google.com/google-ads/answer/6326"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "maximise-conversion-value-bidding-c2a84592",
@@ -5192,7 +5491,18 @@
     "category_raw": "Bidding",
     "group": "Buying & Trading",
     "definition": "Automated value optimisation strategy",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A Smart Bidding strategy that gets the most total conversion value within budget.",
+    "whyItMatters": "Optimises for revenue rather than conversion count; add a tROAS to also control efficiency.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Maximize conversion value",
+        "url": "https://support.google.com/google-ads/answer/7684216"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "maximise-conversions-bidding-454a891d",
@@ -5201,7 +5511,18 @@
     "category_raw": "Bidding",
     "group": "Buying & Trading",
     "definition": "Automated conversion volume strategy",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A Smart Bidding strategy that gets the most conversions within your budget.",
+    "whyItMatters": "Good when you want volume and will spend the full budget; add a tCPA to also control cost.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Maximize conversions",
+        "url": "https://support.google.com/google-ads/answer/7381968"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "mba-commercial-fd22ea86",
@@ -5388,7 +5709,18 @@
     "category_raw": "Bidding",
     "group": "Buying & Trading",
     "definition": "Minimum bid to enter auction",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The minimum bid required to enter the auction for a keyword.",
+    "whyItMatters": "Bid below it and your ad won't show - a floor set by quality and competition.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Maximum CPC",
+        "url": "https://support.google.com/google-ads/answer/6326"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "mmm-measurement-8af14950",
@@ -5530,7 +5862,18 @@
     "category_raw": "Match Type",
     "group": "Buying & Trading",
     "definition": "Blocks related terms broadly",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A negative keyword that blocks searches containing your terms in any order.",
+    "whyItMatters": "Widest exclusion - powerful for cleaning broad-match traffic, but can over-block if careless.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Negative keywords",
+        "url": "https://support.google.com/google-ads/answer/2453972"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "negative-exact-match-type-c2e2c420",
@@ -5539,7 +5882,18 @@
     "category_raw": "Match Type",
     "group": "Buying & Trading",
     "definition": "Blocks exact search term",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A negative keyword that blocks only the exact term (and its close variants are not blocked the same way).",
+    "whyItMatters": "Surgical exclusion - stop one specific unwanted query without over-blocking.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Negative keywords",
+        "url": "https://support.google.com/google-ads/answer/2453972"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "negative-keyword-structure-cd15210a",
@@ -5557,7 +5911,18 @@
     "category_raw": "Match Type",
     "group": "Buying & Trading",
     "definition": "Blocks phrase-based terms",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A negative keyword that blocks searches containing your phrase in order.",
+    "whyItMatters": "Broader exclusion than negative exact - blocks a family of unwanted queries.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Negative keywords",
+        "url": "https://support.google.com/google-ads/answer/2453972"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "negotiated-rate-media-6d882cd9",
@@ -5796,7 +6161,18 @@
     "category_raw": "Trading",
     "group": "Buying & Trading",
     "definition": "Open exchange available to all buyers",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The open exchange where any buyer can bid on inventory in real time (RTB).",
+    "whyItMatters": "Maximum scale and lowest cost, but least control over where ads run - watch brand safety and quality.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "IAB Tech Lab - OpenRTB",
+        "url": "https://iabtechlab.com/standards/openrtb/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "optimisation-event-optimisation-c080c372",
@@ -6087,7 +6463,18 @@
     "category_raw": "Match Type",
     "group": "Buying & Trading",
     "definition": "Triggers on phrase meaning",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Your ad shows on searches that include the meaning of your phrase.",
+    "whyItMatters": "A middle ground - more control than broad, more reach than exact.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Keyword matching options",
+        "url": "https://support.google.com/google-ads/answer/7478529"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "pinterest-ads-channel-7119a9d0",
@@ -6172,7 +6559,18 @@
     "category_raw": "Programmatic",
     "group": "Buying & Trading",
     "definition": "Private Marketplace deal",
-    "type": "acronym"
+    "type": "acronym",
+    "plainEnglish": "Private Marketplace - an invite-only programmatic auction between a publisher and selected buyers.",
+    "whyItMatters": "Premium, brand-safe inventory with negotiated terms - more control than the open auction, more scale than direct.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ad Manager Help - Private Marketplace",
+        "url": "https://support.google.com/admanager/answer/16536966"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "po-commercial-5805c5e8",
@@ -6199,7 +6597,18 @@
     "category_raw": "Bidding",
     "group": "Buying & Trading",
     "definition": "Bid strategy shared across campaigns",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "An automated bid strategy shared across multiple campaigns toward one goal.",
+    "whyItMatters": "Pools data and budget so the algorithm optimises across campaigns, not in silos - better for small accounts.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "Google Ads Help - Portfolio bid strategies",
+        "url": "https://support.google.com/google-ads/answer/6263058"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "position-above-rate-metric-d4669123",
@@ -6294,7 +6703,18 @@
     "category_raw": "Programmatic",
     "group": "Buying & Trading",
     "definition": "Fixed price non-guaranteed deal",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A fixed-price, non-guaranteed programmatic deal giving a buyer first look at inventory.",
+    "whyItMatters": "Negotiated price and priority without a volume commitment - a middle ground between PMP and guaranteed.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "Google Ad Manager Help - Preferred Deals",
+        "url": "https://support.google.com/admanager/answer/7630763"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "price-extension-creative-f59dd6be",
@@ -6529,7 +6949,18 @@
     "category_raw": "Programmatic",
     "group": "Buying & Trading",
     "definition": "Guaranteed impressions at fixed price",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A programmatic deal with guaranteed impressions at a fixed, negotiated price.",
+    "whyItMatters": "Combines the certainty of a direct buy with programmatic pipes - reserved premium inventory, automated.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "Google Ad Manager Help - Programmatic Guaranteed",
+        "url": "https://support.google.com/admanager/answer/7637485"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "project-fee-finance-f2b84cbc",
@@ -6771,7 +7202,18 @@
     "category_raw": "Bidding",
     "group": "Buying & Trading",
     "definition": "Optimise for reach delivery",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Bidding/delivery optimised to maximise unique reach.",
+    "whyItMatters": "An upper-funnel goal - get the message in front of as many distinct people as possible, not the cheapest clicks.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - About Smart Bidding",
+        "url": "https://support.google.com/google-ads/answer/7065882"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "real-time-bidding-mechanics-cb8b656d",
@@ -6845,7 +7287,18 @@
     "category_raw": "Supply",
     "group": "Buying & Trading",
     "definition": "Intermediary authorised to sell inventory",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "An intermediary authorised to sell another company's inventory.",
+    "whyItMatters": "Legitimate when declared (ads.txt/sellers.json); undeclared reselling is where fraud and hidden margin creep in.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "IAB Tech Lab - ads.txt",
+        "url": "https://iabtechlab.com/ads-txt/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "reservation-trading-7f7146aa",
@@ -6854,7 +7307,18 @@
     "category_raw": "Trading",
     "group": "Buying & Trading",
     "definition": "Guaranteed booked inventory",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Inventory booked and guaranteed in advance (a reserved/direct buy).",
+    "whyItMatters": "Certainty of delivery for key placements/dates - the opposite of buying on the open auction.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ad Manager Help - Programmatic Guaranteed",
+        "url": "https://support.google.com/admanager/answer/7637485"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "reset-learning-optimisation-7791b31a",
@@ -7647,7 +8111,18 @@
     "category_raw": "Bidding",
     "group": "Buying & Trading",
     "definition": "Automated bidding using machine learning",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Automated bidding that uses machine learning to set bids at auction time for a goal (conversions or value).",
+    "whyItMatters": "The default for performance - it reads signals (device, time, audience, query) no human could bid on manually. Feed it good conversion data.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - About Smart Bidding",
+        "url": "https://support.google.com/google-ads/answer/7065882"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "snap-ads-channel-06e50516",
@@ -7750,7 +8225,18 @@
     "category_raw": "Programmatic",
     "group": "Buying & Trading",
     "definition": "Supply Path Optimisation",
-    "type": "acronym"
+    "type": "acronym",
+    "plainEnglish": "Supply Path Optimisation - choosing the most direct, efficient route to buy a publisher's inventory.",
+    "whyItMatters": "Cuts out redundant intermediaries and their fees, improving transparency and the working-media ratio.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "IAB Europe - Supply path optimisation guide",
+        "url": "https://iabeurope.eu/knowledge-hub/how-to-optimise-your-supply-path-in-four-steps-a-guide-for-buyers/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "spot-placement-8bd7b45f",
@@ -7786,7 +8272,18 @@
     "category_raw": "Programmatic",
     "group": "Buying & Trading",
     "definition": "Supply Side Platform used by publishers",
-    "type": "acronym"
+    "type": "acronym",
+    "plainEnglish": "Supply-Side Platform - the software publishers use to sell their inventory programmatically.",
+    "whyItMatters": "The seller's side of the auction; SSPs connect publisher inventory to DSPs and manage yield.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "IAB UK - Supply-side platform",
+        "url": "https://www.iabuk.com/node/30433"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "stories-placement-b15d4138",
@@ -7833,7 +8330,18 @@
     "category_raw": "Supply",
     "group": "Buying & Trading",
     "definition": "Total available inventory",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The total ad inventory available to buy across publishers/exchanges.",
+    "whyItMatters": "Supply vs demand sets price; abundant supply keeps CPMs low, scarce premium supply commands a premium.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "IAB Tech Lab - ads.txt",
+        "url": "https://iabtechlab.com/ads-txt/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "supply-path-trading-8568deac",
@@ -7842,7 +8350,18 @@
     "category_raw": "Trading",
     "group": "Buying & Trading",
     "definition": "Route from buyer to publisher",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The chain of intermediaries an ad buy passes through from DSP to the publisher.",
+    "whyItMatters": "Every hop can take a fee - shorter, cleaner paths mean more of the budget reaches working media.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "IAB Europe - Supply path optimisation guide",
+        "url": "https://iabeurope.eu/knowledge-hub/how-to-optimise-your-supply-path-in-four-steps-a-guide-for-buyers/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "supply-path-optimisation-trading-88a0287c",
@@ -7974,7 +8493,18 @@
     "category_raw": "Bidding",
     "group": "Buying & Trading",
     "definition": "Target cost per acquisition strategy",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Target CPA - a Smart Bidding strategy that aims for an average cost per conversion you set.",
+    "whyItMatters": "Tells the system the price you'll pay per acquisition; set it realistically or volume throttles.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - About Target CPA",
+        "url": "https://support.google.com/google-ads/answer/6268632"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "teads-channel-6c97a448",
@@ -8157,7 +8687,18 @@
     "category_raw": "Bidding",
     "group": "Buying & Trading",
     "definition": "Bid modifier by time of day",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A bid modifier by time of day or day of week (ad scheduling).",
+    "whyItMatters": "Concentrate spend when your audience converts; quieten it when it doesn't.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - About bid adjustments",
+        "url": "https://support.google.com/google-ads/answer/2732132"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "time-decay-attribution-29b5f02c",
@@ -8274,7 +8815,18 @@
     "category_raw": "Bidding",
     "group": "Buying & Trading",
     "definition": "Target return on ad spend strategy",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Target ROAS - a Smart Bidding strategy that aims for an average return on ad spend you set.",
+    "whyItMatters": "Optimises to revenue/value, not just conversion count; needs accurate conversion values to work.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - About Target ROAS",
+        "url": "https://support.google.com/google-ads/answer/6268637"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "trp-metric-756ad51f",
@@ -8597,7 +9149,18 @@
     "category_raw": "Bidding",
     "group": "Buying & Trading",
     "definition": "Optimise for conversion value",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Bidding optimised toward conversion value rather than volume.",
+    "whyItMatters": "Steers spend to higher-value customers/orders - only as good as the values you pass back.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Maximize conversion value",
+        "url": "https://support.google.com/google-ads/answer/7684216"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "valuetrack-parameter-tracking-b755ce55",
@@ -9020,7 +9583,18 @@
     "category_raw": "Supply",
     "group": "Buying & Trading",
     "definition": "Revenue generated per impression",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The revenue a publisher earns per impression/unit of inventory.",
+    "whyItMatters": "The publisher's headline measure of how well they're monetising; the seller-side mirror of an advertiser's CPM.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Publift - Yield optimisation",
+        "url": "https://www.publift.com/blog/effective-yield-optimization-for-publishers"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "yield-optimisation-supply-cbd223d1",
@@ -9029,7 +9603,18 @@
     "category_raw": "Supply",
     "group": "Buying & Trading",
     "definition": "Improving revenue outcomes",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A publisher's work to maximise revenue per impression across demand sources.",
+    "whyItMatters": "Balances fill rate and price so inventory isn't sold too cheap or left empty - the seller-side equivalent of bid optimisation.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "Publift - Yield optimisation",
+        "url": "https://www.publift.com/blog/effective-yield-optimization-for-publishers"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "youtube-channel-e919a652",
