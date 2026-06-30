@@ -31,6 +31,7 @@ import {
 } from "@/lib/date-picker-anchor"
 import {
   appendBurst,
+  duplicateBurst,
   removeBurst,
   newBurstReactKey,
   stampBurstReactKeys,
@@ -468,26 +469,14 @@ export default function ProductionContainer({
     })
   }
 
-  const handleDuplicateBurst = (lineItemIndex: number, burstIndex: number) => {
-    const currentBursts = form.getValues(`lineItems.${lineItemIndex}.bursts`) || []
-    const burst = currentBursts[burstIndex]
-    if (!burst) return
-    const lastBurst = currentBursts[currentBursts.length - 1]
-    let startDate = defaultMediaBurstStartDate(campaignStartDate, campaignEndDate)
-    let endDate = defaultMediaBurstEndDate(campaignStartDate, campaignEndDate)
-    // Mirrors burstOperations.defaultComputeDates so add and duplicate stay aligned.
-    if (currentBursts.length > 0 && lastBurst?.endDate) {
-      startDate = new Date(lastBurst.endDate)
-      startDate.setDate(startDate.getDate() + 1)
-      endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0)
-    }
-    const cloned = { ...burst, startDate, endDate, _reactKey: newBurstReactKey() }
-    const updated = [
-      ...currentBursts.slice(0, burstIndex + 1),
-      cloned,
-      ...currentBursts.slice(burstIndex + 1),
-    ]
-    form.setValue(`lineItems.${lineItemIndex}.bursts`, updated)
+  const handleDuplicateBurst = (lineItemIndex: number) => {
+    duplicateBurst({
+      form,
+      fieldKey: "lineItems",
+      lineItemIndex,
+      onAfter: () => {},
+      toast: toast as Parameters<typeof duplicateBurst>[0]["toast"],
+    })
   }
 
   const handleRemoveBurst = (lineItemIndex: number, burstIndex: number) => {
@@ -892,7 +881,7 @@ export default function ProductionContainer({
                                 variant="ghost"
                                 size="icon"
                                 className="h-8 w-8"
-                                onClick={() => handleDuplicateBurst(lineItemIndex, burstIndex)}
+                                onClick={() => handleDuplicateBurst(lineItemIndex)}
                                 title="Duplicate burst"
                               >
                                 <Copy className="h-3.5 w-3.5" />
