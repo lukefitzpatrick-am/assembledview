@@ -130,7 +130,7 @@ export function FormulaCalculator({ formula, fallbackText }: Props) {
 
   if (isUnmapped) {
     return (
-      <Alert variant="default" className="bg-muted/60">
+      <Alert variant="default" className="rounded-card bg-muted/60">
         <AlertTitle>Formula reference</AlertTitle>
         <AlertDescription>{fallbackText || formula.expression}</AlertDescription>
       </Alert>
@@ -168,7 +168,7 @@ export function FormulaCalculator({ formula, fallbackText }: Props) {
             <Label className="text-sm font-medium text-foreground">
               {variable.label}
               {variable.unit ? ` (${variable.unit})` : ""}
-              {variable.required && <span className="text-brand ml-1">*</span>}
+              {variable.required && <span className="text-primary ml-1">*</span>}
             </Label>
             <Input
               inputMode="decimal"
@@ -177,6 +177,7 @@ export function FormulaCalculator({ formula, fallbackText }: Props) {
               placeholder={solveFor === variable.key ? "Auto-calculated" : "0"}
               readOnly={solveFor === variable.key}
               disabled={solveFor === variable.key}
+              className="num"
             />
           </div>
         ))}
@@ -193,6 +194,7 @@ export function FormulaCalculator({ formula, fallbackText }: Props) {
           placeholder={solveFor === "output" ? "Auto-calculated" : "Enter desired output"}
           readOnly={solveFor === "output"}
           disabled={solveFor === "output"}
+          className="num"
         />
       </div>
       <div className="flex flex-wrap items-center gap-2">
@@ -207,9 +209,9 @@ export function FormulaCalculator({ formula, fallbackText }: Props) {
         </span>
       </div>
       <Separator />
-      <div className="rounded-lg border bg-card p-4">
+      <div className="rounded-card border border-border bg-card p-4 shadow-e1">
         <p className="text-xs uppercase text-muted-foreground tracking-wide mb-1">Result</p>
-        <p className="text-2xl font-semibold text-foreground">
+        <p className="num text-2xl font-semibold text-foreground">
           {solveFor === "output" ? result || "—" : values[solveFor] || "—"}
         </p>
       </div>

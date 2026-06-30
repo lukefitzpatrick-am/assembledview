@@ -34,10 +34,10 @@ export default function CalculatorsPage() {
 
   return (
     <div className="flex flex-col h-full bg-background text-foreground">
-      <div className="sticky top-0 z-30 border-b bg-background/90 backdrop-blur">
+      <div className="sticky top-0 z-30 border-b border-border bg-background/90 backdrop-blur">
         <div className="px-4 py-3 md:px-6 space-y-3">
           <div>
-            <p className="text-xs font-semibold uppercase text-brand tracking-wide">Knowledge Hub</p>
+            <p className="text-xs font-semibold uppercase text-primary tracking-wide">Knowledge Hub</p>
             <h1 className="text-xl font-semibold">Calculators</h1>
             <p className="text-sm text-muted-foreground">
               Solve for any variable — enter what you know, get the rest.
@@ -58,28 +58,28 @@ export default function CalculatorsPage() {
       <div className="px-4 md:px-6 py-4">
         <div className="grid gap-4 lg:grid-cols-2">
           {filtered.map((t) => (
-              <Card key={t.id}>
-                <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <Calculator className="h-4 w-4 text-brand" />
-                      {t.term}
-                    </CardTitle>
-                    <Badge
-                      variant="outline"
-                      className="border-border bg-surface-muted text-text-secondary"
-                    >
-                      {t.group ?? "Other / Uncategorised"}
-                    </Badge>
-                  </div>
-                  {(t.plainEnglish ?? t.definition) && (
-                    <p className="text-xs text-muted-foreground">{t.plainEnglish ?? t.definition}</p>
-                  )}
-                </CardHeader>
-                <CardContent>
-                  <FormulaCalculator formula={t.formula!} fallbackText={t.formula_or_notes} />
-                </CardContent>
-              </Card>
+            <Card key={t.id} className="rounded-card shadow-e1">
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between gap-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Calculator className="h-4 w-4 text-primary" />
+                    {t.term}
+                  </CardTitle>
+                  <Badge
+                    variant="outline"
+                    className="border-border bg-surface-muted text-text-secondary"
+                  >
+                    {t.group ?? "Other / Uncategorised"}
+                  </Badge>
+                </div>
+                {(t.plainEnglish ?? t.definition) && (
+                  <p className="text-xs text-muted-foreground">{t.plainEnglish ?? t.definition}</p>
+                )}
+              </CardHeader>
+              <CardContent>
+                <FormulaCalculator formula={t.formula!} fallbackText={t.formula_or_notes} />
+              </CardContent>
+            </Card>
           ))}
         </div>
         {!filtered.length && (
