@@ -65,7 +65,7 @@ export default function KnowledgeHubHome() {
             <ExploreCard href="/knowledge/definitions" icon={BookOpen} title="Glossary" desc={<><span className="num">634</span> terms — definitions, acronyms & formulas.</>} live />
             <ExploreCard href="/knowledge/calculators" icon={Calculator} title="Calculators" desc="Live media-math calculators on every formula." live />
             <ExploreCard href="/knowledge/guides" icon={Compass} title="Guides" desc="Best-practice across planning, measurement & channels." live />
-            <ExploreCard icon={Layers} title="Platforms" desc="Google, Meta, TikTok & programmatic skills." />
+            <ExploreCard href="/knowledge/platforms" icon={Layers} title="Platforms" desc="Google, Meta, TikTok & programmatic skills." live />
             <ExploreCard icon={FolderOpen} title="Internal docs" desc="Assembled Media playbooks, processes & templates." />
           </div>
         </div>
