@@ -55,6 +55,8 @@ export default function LearningSectionPage({ params }: PageProps) {
   const [query, setQuery] = useState("");
   const [sortMode, setSortMode] = useState<SortMode>("relevance");
   const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
+  const [selectedLevels, setSelectedLevels] = useState<string[]>([]);
+  const [activeLetter, setActiveLetter] = useState<string | null>(null);
   const [recentlyViewed, setRecentlyViewed] = useState<string[]>([]);
   const [savedQueries, setSavedQueries] = useState<string[]>([]);
   const [activeTermId, setActiveTermId] = useState<string | null>(null);
@@ -114,10 +116,12 @@ export default function LearningSectionPage({ params }: PageProps) {
       if (selectedGroups.length) {
         if (!selectedGroups.includes(item.group ?? "Other / Uncategorised")) return false;
       }
+      if (selectedLevels.length && !selectedLevels.includes(item.level ?? "")) return false;
+      if (activeLetter && (item.term[0]?.toUpperCase() ?? "") !== activeLetter) return false;
       return true;
     });
     return sortResults(filtered, sortMode, recentOrder);
-  }, [searchResults, section, selectedGroups, sortMode, recentOrder]);
+  }, [searchResults, section, selectedGroups, selectedLevels, activeLetter, sortMode, recentOrder]);
 
   const displayedTerms = filteredResults.map((r) => r.item);
   const activeTerm = activeTermId ? terms.find((t) => t.id === activeTermId) : null;
@@ -138,6 +142,8 @@ export default function LearningSectionPage({ params }: PageProps) {
   const clearFilters = () => {
     setQuery("");
     setSelectedGroups([]);
+    setSelectedLevels([]);
+    setActiveLetter(null);
     setSortMode("relevance");
   };
 
@@ -243,6 +249,17 @@ export default function LearningSectionPage({ params }: PageProps) {
                   Recent
                 </ToggleGroupItem>
               </ToggleGroup>
+              <ToggleGroup type="multiple" value={selectedLevels} onValueChange={setSelectedLevels}>
+                <ToggleGroupItem value="foundational" aria-label="Filter foundational terms" className="data-[state=on]:bg-primary/80 data-[state=on]:text-primary-foreground">
+                  Foundational
+                </ToggleGroupItem>
+                <ToggleGroupItem value="intermediate" aria-label="Filter intermediate terms" className="data-[state=on]:bg-primary/80 data-[state=on]:text-primary-foreground">
+                  Intermediate
+                </ToggleGroupItem>
+                <ToggleGroupItem value="advanced" aria-label="Filter advanced terms" className="data-[state=on]:bg-primary/80 data-[state=on]:text-primary-foreground">
+                  Advanced
+                </ToggleGroupItem>
+              </ToggleGroup>
               <Button variant="ghost" size="sm" onClick={clearFilters}>
                 <X className="h-4 w-4 mr-1" />
                 Reset
@@ -260,6 +277,23 @@ export default function LearningSectionPage({ params }: PageProps) {
       </div>
 
       <div className="px-4 md:px-6 py-4">
+        <div className="mb-4 flex flex-wrap gap-1">
+          <button
+            onClick={() => setActiveLetter(null)}
+            className={cn("px-2 py-0.5 text-xs rounded hover:bg-muted", !activeLetter && "bg-primary text-primary-foreground")}
+          >
+            All
+          </button>
+          {"ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").map((letter) => (
+            <button
+              key={letter}
+              onClick={() => setActiveLetter(letter)}
+              className={cn("px-2 py-0.5 text-xs rounded hover:bg-muted", activeLetter === letter && "bg-primary text-primary-foreground")}
+            >
+              {letter}
+            </button>
+          ))}
+        </div>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {displayedTerms.map((term) => (
             <LearningCard
