@@ -58,6 +58,7 @@ import {
   mediaTypeSummaryStripeStyle,
 } from "@/lib/mediaplan/mediaTypeAccents"
 import { buildLineItemId, MEDIA_TYPE_ID_CODES } from "@/lib/mediaplan/lineItemIds"
+import { assignStableLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 
 const MEDIA_ACCENT_HEX = getMediaTypeThemeHex("production")
 
@@ -402,7 +403,8 @@ export default function ProductionContainer({
   }, [watchedLineItems])
 
   const apiLineItems = useMemo(() => {
-    return (watchedLineItems || []).map((lineItem, index) => ({
+    const stableProductionItems = assignStableLineItemNumbers<any>(watchedLineItems || [], mbaNumber, MEDIA_TYPE_ID_CODES.production)
+    return stableProductionItems.map((lineItem) => ({
       media_plan_version: 0,
       mba_number: mbaNumber || "",
       mp_client_name: "",
@@ -411,16 +413,14 @@ export default function ProductionContainer({
       publisher: lineItem.publisher || "",
       market: lineItem.market || "",
       description: lineItem.description || "",
-      line_item_id:
-        lineItem.lineItemId ||
-        buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.production, index + 1),
+      line_item_id: lineItem.line_item_id,
       bursts: (lineItem.bursts || []).map((burst) => ({
         cost: Number(burst.cost) || 0,
         amount: Number(burst.amount) || 0,
         startDate: formatDateString(burst.startDate),
         endDate: formatDateString(burst.endDate),
       })),
-      line_item: index + 1,
+      line_item: lineItem.line_item,
     }))
   }, [watchedLineItems, mbaNumber])
 
