@@ -79,6 +79,7 @@ import {
 } from "@/lib/mediaplan/expertModeSwitch"
 import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
+import { normalizeLineItemsForSave } from "@/lib/mediaplan/lineItemOrder"
 import {
   coerceBuyTypeWithDevWarn,
   computeDeliverableFromMedia,
@@ -1164,8 +1165,13 @@ useEffect(() => {
   // convert each form lineItem into the shape needed for Excel
   const calculatedBursts = getNewspapersBursts(form, feenewspapers || 0);
   let burstIndex = 0;
+  const normalizedLineItems = normalizeLineItemsForSave<any>(
+    form.getValues('newspaperlineItems') || [],
+    mbaNumber,
+    MEDIA_TYPE_ID_CODES.newspaper,
+  );
 
-  const items: LineItem[] = form.getValues('newspaperlineItems').flatMap((lineItem, lineItemIndex) =>
+  const items: LineItem[] = normalizedLineItems.flatMap((lineItem, lineItemIndex) =>
     lineItem.bursts.map(burst => {
       const computedBurst = calculatedBursts[burstIndex++];
       const mediaAmount = computedBurst
@@ -1222,13 +1228,17 @@ useEffect(() => {
   
   // push it up to page.tsx
   onLineItemsChange(items);
-}, [watchedLineItems, feenewspapers, createLineItemId, form, onLineItemsChange]);
+}, [watchedLineItems, feenewspapers, createLineItemId, form, mbaNumber, onLineItemsChange]);
 
 // Add new useEffect to capture raw newspaper line items data
 useEffect(() => {
-  const rawLineItems = watchedLineItems || [];
+  const rawLineItems = normalizeLineItemsForSave<any>(
+    watchedLineItems || [],
+    mbaNumber,
+    MEDIA_TYPE_ID_CODES.newspaper,
+  );
   onNewspaperLineItemsChange(rawLineItems);
-}, [watchedLineItems, onNewspaperLineItemsChange]);
+}, [watchedLineItems, mbaNumber, onNewspaperLineItemsChange]);
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {

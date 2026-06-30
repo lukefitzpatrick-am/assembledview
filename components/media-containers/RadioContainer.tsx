@@ -41,6 +41,7 @@ import { ChevronDown, Copy, Plus, Trash2 } from "lucide-react"
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
 import type { LineItem } from '@/lib/generateMediaPlan'
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
+import { normalizeLineItemsForSave } from "@/lib/mediaplan/lineItemOrder"
 import { formatMoney, parseMoneyInput } from "@/lib/format/money"
 import {
   CpcFamilyBurstCalculatedField,
@@ -811,7 +812,11 @@ export default function RadioContainer({
 
   // Transform form data to API schema format
   useEffect(() => {
-    const formLineItems = form.getValues('radiolineItems') || [];
+    const formLineItems = normalizeLineItemsForSave<any>(
+      form.getValues('radiolineItems') || [],
+      mbaNumber,
+      MEDIA_TYPE_ID_CODES.radio,
+    );
     
     const transformedLineItems = formLineItems.map((lineItem, index) => {
       // Calculate totalMedia from raw budget amounts (for display in MBA section)

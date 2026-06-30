@@ -41,6 +41,14 @@ export function reassignLineItemNumbers<T extends LineItemWithIdentity>(
   })
 }
 
+export function normalizeLineItemsForSave<T extends LineItemWithIdentity>(
+  items: T[],
+  mbaNumber: string,
+  mediaTypeCode: MediaCode,
+): T[] {
+  return reassignLineItemNumbers(items, mbaNumber, mediaTypeCode)
+}
+
 export function reassignOohLineItemNumbers<T extends LineItemWithIdentity>(
   items: T[],
   mbaNumber: string,
