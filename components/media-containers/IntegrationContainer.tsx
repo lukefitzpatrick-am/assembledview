@@ -38,7 +38,7 @@ import { cn } from "@/lib/utils"
 import { ChevronDown, Plus, Trash2, Copy } from "lucide-react"
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
 import type { LineItem } from '@/lib/generateMediaPlan'
-import { formatMoney, parseMoneyInput } from "@/lib/format/money"
+import { formatAUD, formatMoney, parseMoneyInput } from "@/lib/format/money"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
 import {
   getMediaTypeThemeHex,
@@ -1285,15 +1285,15 @@ useEffect(() => {
                   </div>
                   <div className="text-right">
                     <span className="text-[11px] text-muted-foreground block">Media</span>
-                    <span>{formatMoney(item.media, { locale: "en-AU", currency: "AUD" })}</span>
+                    <span>{formatAUD(item.media)}</span>
                   </div>
                   <div className="text-right">
                     <span className="text-[11px] text-muted-foreground block">Fee</span>
-                    <span>{formatMoney(item.fee, { locale: "en-AU", currency: "AUD" })}</span>
+                    <span>{formatAUD(item.fee)}</span>
                   </div>
                   <div className="text-right">
                     <span className="text-[11px] text-muted-foreground block">Total</span>
-                    <span className="font-semibold">{formatMoney(item.totalCost, { locale: "en-AU", currency: "AUD" })}</span>
+                    <span className="font-semibold">{formatAUD(item.totalCost)}</span>
                   </div>
                 </div>
               </div>
@@ -1307,15 +1307,15 @@ useEffect(() => {
               <div className="flex items-center gap-6 text-sm font-semibold tabular-nums">
                 <div className="text-right">
                   <span className="text-[11px] text-muted-foreground font-normal block">Media</span>
-                  <span>{formatMoney(overallTotals.overallMedia, { locale: "en-AU", currency: "AUD" })}</span>
+                  <span>{formatAUD(overallTotals.overallMedia)}</span>
                 </div>
                 <div className="text-right">
                   <span className="text-[11px] text-muted-foreground font-normal block">Fee ({feeintegration}%)</span>
-                  <span>{formatMoney(overallTotals.overallFee, { locale: "en-AU", currency: "AUD" })}</span>
+                  <span>{formatAUD(overallTotals.overallFee)}</span>
                 </div>
                 <div className="text-right">
                   <span className="text-[11px] text-muted-foreground font-normal block">Total</span>
-                  <span className="text-primary">{formatMoney(overallTotals.overallCost, { locale: "en-AU", currency: "AUD" })}</span>
+                  <span className="text-primary">{formatAUD(overallTotals.overallCost)}</span>
                 </div>
               </div>
             </div>

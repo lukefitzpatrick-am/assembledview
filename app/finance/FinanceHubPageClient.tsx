@@ -26,7 +26,7 @@ import type { BillingRecord, FinanceFilters } from "@/lib/types/financeBilling"
 import { clientAccentColour, clientInitials } from "@/lib/finance/cardHelpers"
 import { formatLineItemDescription } from "@/lib/finance/lineItemDescription"
 import { cn } from "@/lib/utils"
-import { formatMoney } from "@/lib/format/money"
+import { formatAUD } from "@/lib/format/money"
 import { MediaPlanActionBar } from "@/components/finance/MediaPlanActionBar"
 import { buildFinanceHubWorkbook } from "@/lib/finance/excelFinanceExport"
 import { exportBillingRecordsCsv, exportPayablesDetailCsv } from "@/lib/finance/export"
@@ -148,7 +148,7 @@ function HubReceivableRecordArticle({ rec }: { rec: BillingRecord }) {
           >
             {receivableRecordSectionLabel(rec.billing_type)}
           </Badge>
-          <p className="text-sm font-semibold tabular-nums">{formatMoney(rec.total)}</p>
+          <p className="text-sm font-semibold tabular-nums">{formatAUD(rec.total)}</p>
         </div>
       </div>
       <div className="px-3 py-1">
@@ -170,7 +170,7 @@ function HubReceivableRecordArticle({ rec }: { rec: BillingRecord }) {
                       {channelLabel}
                     </p>
                   </div>
-                  <p className="shrink-0 text-xs tabular-nums text-muted-foreground">{formatMoney(li.amount)}</p>
+                  <p className="shrink-0 text-xs tabular-nums text-muted-foreground">{formatAUD(li.amount)}</p>
                 </div>
               )
             })
@@ -249,7 +249,7 @@ function FinanceHubReceivablesSection({
                       {mg.clients.length} {clientNoun} · {invoiceCount} {invoiceNoun}
                     </p>
                     <p className="text-xs font-medium tabular-nums text-foreground">
-                      {formatMoney(mg.total)}
+                      {formatAUD(mg.total)}
                     </p>
                   </div>
                 </div>
@@ -287,7 +287,7 @@ function FinanceHubReceivablesSection({
                                   Subtotal
                                 </p>
                                 <p className="text-base font-semibold tabular-nums">
-                                  {formatMoney(client.total)}
+                                  {formatAUD(client.total)}
                                 </p>
                               </div>
                               <ChevronDown

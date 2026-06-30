@@ -12,6 +12,7 @@ import { Combobox } from "@/components/ui/combobox"
 import { SavingModal } from "@/components/ui/saving-modal"
 import { SuccessModal } from "@/components/ui/success-modal"
 import { Badge } from "@/components/ui/badge"
+import { formatAUD } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
 
 const optionalString = z.string().optional().or(z.literal(""))
@@ -164,7 +165,7 @@ export function EditClientForm({ client, onSuccess, layout = "page" }: EditClien
 
   const formatCurrency = (value: string) => {
     const numericValue = value.replace(/[^0-9.]/g, "")
-    return numericValue ? `$${Number(numericValue).toFixed(2)}` : ""
+    return numericValue ? formatAUD(Number(numericValue)) : ""
   }
 
   const formatPercentage = (value: string) => {

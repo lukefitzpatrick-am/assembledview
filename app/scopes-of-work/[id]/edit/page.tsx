@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils"
 import { toast } from "@/components/ui/use-toast"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { formatAUD } from "@/lib/format/money"
 
 const scopeSchema = z.object({
   client_name: z.string().min(1, "Client name is required"),
@@ -321,15 +322,6 @@ export default function EditScopePage() {
 
   // Calculate total cost
   const totalCost = form.watch("cost").reduce((sum, item) => sum + (item.cost || 0), 0)
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(value)
-  }
 
   const handleCostChange = (index: number, field: "expense_category" | "description" | "cost", value: string | number) => {
     const currentCost = form.getValues("cost")
@@ -839,7 +831,7 @@ export default function EditScopePage() {
                         TOTAL (EX GST):
                       </TableCell>
                       <TableCell className="text-right font-bold">
-                        {formatCurrency(totalCost)}
+                        {formatAUD(totalCost)}
                       </TableCell>
                       <TableCell></TableCell>
                     </TableRow>

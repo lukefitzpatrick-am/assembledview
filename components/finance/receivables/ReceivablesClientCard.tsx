@@ -6,7 +6,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import type { ClientGroup } from "@/lib/finance/useReceivablesData"
 import type { BillingRecord } from "@/lib/types/financeBilling"
 import { clientAccentColour, clientInitials } from "@/lib/finance/cardHelpers"
-import { formatMoney } from "@/lib/format/money"
+import { formatAUD } from "@/lib/format/money"
 import { BilledStatusPill } from "./BilledStatusPill"
 import { ReceivablesMediaPlanSection } from "./ReceivablesMediaPlanSection"
 
@@ -43,7 +43,7 @@ export function ReceivablesClientCard({ client, monthLabel, refetch, onToggleBil
             </div>
             <div className="text-right">
               <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Subtotal</p>
-              <p className="text-base font-semibold tabular-nums">{formatMoney(client.total)}</p>
+              <p className="text-base font-semibold tabular-nums">{formatAUD(client.total)}</p>
             </div>
             <ChevronDown
               className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=closed]/client:-rotate-90"
@@ -93,7 +93,7 @@ export function ReceivablesClientCard({ client, monthLabel, refetch, onToggleBil
                         onToggle={(next) => onToggleBilled(rec, next)}
                         disabled={!rec.invoice_key}
                       />
-                      <p className="text-sm font-semibold tabular-nums">{formatMoney(rec.total)}</p>
+                      <p className="text-sm font-semibold tabular-nums">{formatAUD(rec.total)}</p>
                     </div>
                   </div>
                 ))}

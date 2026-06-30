@@ -32,7 +32,7 @@ import { usePayablesHideClientPaid } from "@/components/finance/usePayablesHideC
 import { expandMonthRange } from "@/lib/finance/monthRange"
 import type { BillingLineItem, BillingRecord } from "@/lib/types/financeBilling"
 import type { Publisher } from "@/lib/types/publisher"
-import { formatMoney } from "@/lib/format/money"
+import { formatAUD } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
 import { useFinanceStore } from "@/lib/finance/useFinanceStore"
 
@@ -324,7 +324,7 @@ function PayableInvoiceCard({
           >
             {channelLabelBadge}
           </Badge>
-          <p className="text-sm font-semibold tabular-nums">{formatMoney(totalAgency)}</p>
+          <p className="text-sm font-semibold tabular-nums">{formatAUD(totalAgency)}</p>
         </div>
       </div>
       <div className="px-3 py-1">
@@ -359,9 +359,9 @@ function PayableInvoiceCard({
                 </div>
                 <p className="shrink-0 text-xs tabular-nums text-muted-foreground">
                   {isClientPaid ? (
-                    <span className="line-through tabular-nums">{formatMoney(li.amount)}</span>
+                    <span className="line-through tabular-nums">{formatAUD(li.amount)}</span>
                   ) : (
-                    formatMoney(li.amount)
+                    formatAUD(li.amount)
                   )}
                 </p>
               </div>
@@ -469,7 +469,7 @@ export default function FinanceHubPayablesSection() {
                     <p className="text-xs text-muted-foreground">
                       {mg.publishers.length} {pubNoun} · {lineItemCount} {lineNoun}
                     </p>
-                    <p className="text-xs font-medium tabular-nums text-foreground">{formatMoney(mg.totalExpected)}</p>
+                    <p className="text-xs font-medium tabular-nums text-foreground">{formatAUD(mg.totalExpected)}</p>
                   </div>
                 </div>
 
@@ -504,7 +504,7 @@ export default function FinanceHubPayablesSection() {
                               <div className="text-right">
                                 <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Owed</p>
                                 <p className="text-base font-semibold tabular-nums">
-                                  {formatMoney(pub.totalExpected)}
+                                  {formatAUD(pub.totalExpected)}
                                 </p>
                               </div>
                               <ChevronDown

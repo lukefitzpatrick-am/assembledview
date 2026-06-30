@@ -84,7 +84,7 @@ import {
   buildWeeklyGanttColumnsFromCampaign,
   type WeeklyGanttWeekColumn,
 } from "@/lib/utils/weeklyGanttColumns"
-import { formatCurrencyFull } from "@/lib/format/currency"
+import { formatAUD } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
 import {
   getMediaTypeThemeHex,
@@ -379,7 +379,6 @@ export interface OohExpertGridProps {
   publishers?: { publisher_name: string }[]
 }
 
-const moneyOpts = { locale: "en-AU" as const, currency: "AUD" as const }
 
 type OohExpertFocusedCell = { rowIndex: number; columnKey: string }
 type WeekDragSource =
@@ -2735,7 +2734,7 @@ export function OohExpertGrid({
                               className="flex h-8 items-center px-1 text-xs tabular-nums"
                               title={netMediaTooltip}
                             >
-                              {formatCurrencyFull(net, moneyOpts)}
+                              {formatAUD(net)}
                             </div>
                           </td>
                           <td
@@ -3580,7 +3579,7 @@ export function OohExpertGrid({
                         }}
                       >
                         <div className="flex h-full items-center">
-                          {formatCurrencyFull(containerTotals.sumNet, moneyOpts)}
+                          {formatAUD(containerTotals.sumNet)}
                         </div>
                       </td>
                       <td
@@ -3658,7 +3657,7 @@ export function OohExpertGrid({
               <span className="inline-flex items-baseline gap-2 rounded-full border border-border/70 bg-background/80 px-3 py-1 text-xs shadow-sm">
                 <span className="text-muted-foreground">Net media</span>
                 <span className="font-semibold tabular-nums text-foreground">
-                  {formatCurrencyFull(containerTotals.sumNet, moneyOpts)}
+                  {formatAUD(containerTotals.sumNet)}
                 </span>
               </span>
               <span className="inline-flex items-baseline gap-2 rounded-full border border-border/70 bg-background/80 px-3 py-1 text-xs shadow-sm">
@@ -3666,7 +3665,7 @@ export function OohExpertGrid({
                   Fees ({feeooh}% on net)
                 </span>
                 <span className="font-semibold tabular-nums text-foreground">
-                  {formatCurrencyFull(containerTotals.fee, moneyOpts)}
+                  {formatAUD(containerTotals.fee)}
                 </span>
               </span>
               <span
@@ -3681,7 +3680,7 @@ export function OohExpertGrid({
                   className="font-semibold tabular-nums"
                   style={{ color: MEDIA_ACCENT_HEX }}
                 >
-                  {formatCurrencyFull(containerTotals.totalWithFee, moneyOpts)}
+                  {formatAUD(containerTotals.totalWithFee)}
                 </span>
               </span>
             </div>

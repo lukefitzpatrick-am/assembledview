@@ -1,4 +1,4 @@
-import { formatMoney } from "@/lib/format/money"
+import { formatAUD } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
 
 type ReceivablesSummaryStripProps = {
@@ -16,7 +16,7 @@ function KpiCard({ label, value, loading }: { label: string; value: number; load
       {loading ? (
         <div className="mt-2 h-8 w-28 animate-pulse rounded bg-muted" />
       ) : (
-        <p className="mt-2 text-2xl font-bold tabular-nums text-foreground">{formatMoney(value)}</p>
+        <p className="mt-2 text-2xl font-bold tabular-nums text-foreground">{formatAUD(value)}</p>
       )}
     </div>
   )

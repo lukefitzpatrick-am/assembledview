@@ -26,7 +26,7 @@ import {
 } from "@/lib/finance/computeAccrual"
 import { exportAccrualWorkbook } from "@/lib/finance/accrualExcel"
 import { fetchFinanceEditsList, postAccrualReconcileEdit } from "@/lib/finance/api"
-import { formatMoney } from "@/lib/format/money"
+import { formatAUD } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
 import { useAccrualMonths, useFinanceStore } from "@/lib/finance/useFinanceStore"
 
@@ -307,7 +307,7 @@ export function AccrualTab() {
       cell: ({ row }) => {
         const fa = row.original.finance_accrual
         if (!fa) return "—"
-        return <span className="tabular-nums">{formatMoney(fa.receivable_total)}</span>
+        return <span className="tabular-nums">{formatAUD(fa.receivable_total)}</span>
       },
     }
 
@@ -319,7 +319,7 @@ export function AccrualTab() {
       cell: ({ row }) => {
         const fa = row.original.finance_accrual
         if (!fa) return "—"
-        return <span className="tabular-nums">{formatMoney(fa.payable_total)}</span>
+        return <span className="tabular-nums">{formatAUD(fa.payable_total)}</span>
       },
     }
 
@@ -331,7 +331,7 @@ export function AccrualTab() {
       cell: ({ row }) => {
         const fa = row.original.finance_accrual
         if (!fa) return "—"
-        return <span className="tabular-nums">{formatMoney(fa.fees_total)}</span>
+        return <span className="tabular-nums">{formatAUD(fa.fees_total)}</span>
       },
     }
 
@@ -353,7 +353,7 @@ export function AccrualTab() {
               v === 0 && "text-muted-foreground"
             )}
           >
-            {v > 0 ? `+${formatMoney(v)}` : formatMoney(v)}
+            {v > 0 ? `+${formatAUD(v)}` : formatAUD(v)}
           </span>
         )
       },
@@ -473,7 +473,7 @@ export function AccrualTab() {
                             {r.billing_type} · {r.mba_number || "—"}
                           </div>
                           <div className="text-muted-foreground">{r.campaign_name || "—"}</div>
-                          <div className="mt-1 tabular-nums">{formatMoney(Number(r.total || 0))}</div>
+                          <div className="mt-1 tabular-nums">{formatAUD(Number(r.total || 0))}</div>
                           <div className="text-xs text-muted-foreground">Status: {r.status}</div>
                         </li>
                       ))
@@ -495,7 +495,7 @@ export function AccrualTab() {
                           <li key={r.id} className="rounded-md border border-border/50 bg-muted/20 p-2">
                             <div className="font-medium">{r.mba_number || "—"}</div>
                             <div className="text-muted-foreground">{r.campaign_name || "—"}</div>
-                            <div className="mt-1 tabular-nums">{formatMoney(expected)}</div>
+                            <div className="mt-1 tabular-nums">{formatAUD(expected)}</div>
                             <div className="text-xs text-muted-foreground">Status: {r.status}</div>
                           </li>
                         )

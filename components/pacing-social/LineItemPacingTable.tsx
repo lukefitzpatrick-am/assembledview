@@ -38,6 +38,7 @@ import type {
   SocialPlatform,
   SocialPlatformCampaignBreakdown,
 } from "@/lib/pacing/social/types";
+import { formatAUD } from "@/lib/format/money";
 import { cn } from "@/lib/utils";
 
 const XANO_MISSING = "—";
@@ -256,7 +257,7 @@ function stickyHeaderCornerStyle(
 
 function fmtCurrencyOrZero(n: number | null | undefined): string {
   if (n === null || n === undefined) return XANO_MISSING;
-  return new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(n);
+  return formatAUD(n);
 }
 
 function fmtNumberOrZero(n: number | null | undefined): string {
@@ -270,12 +271,7 @@ function fmtXanoDate(d: string | null): string {
 
 function fmtCpv(n: number | null | undefined): string {
   if (n === null || n === undefined) return XANO_MISSING;
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(n);
+  return formatAUD(n);
 }
 
 function formatSocialPlatform(platform: SocialPlatform): string {

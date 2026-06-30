@@ -6,7 +6,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import type { BillingLineItem, BillingRecord } from "@/lib/types/financeBilling"
 import type { MediaPlanGroup } from "@/lib/finance/useReceivablesData"
 import { groupIdenticalLineItems } from "@/lib/finance/groupIdenticalLineItems"
-import { formatMoney } from "@/lib/format/money"
+import { formatAUD } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
 import { MediaPlanActionBar } from "@/components/finance/MediaPlanActionBar"
 import { BilledStatusPill } from "./BilledStatusPill"
@@ -71,7 +71,7 @@ function MediaTypeRollupRow({ rollup }: { rollup: MediaTypeRollup }) {
           />
           <span className="truncate text-xs font-medium capitalize text-foreground">{rollup.mediaType}</span>
         </div>
-        <span className="shrink-0 text-xs font-medium tabular-nums">{formatMoney(rollup.total)}</span>
+        <span className="shrink-0 text-xs font-medium tabular-nums">{formatAUD(rollup.total)}</span>
       </CollapsibleTrigger>
       <CollapsibleContent>
         <div className="mx-2 mb-2 rounded-md border border-border/50 bg-background px-2">
@@ -113,7 +113,7 @@ export function ReceivablesMediaPlanSection({
               onSaved={refetch}
             />
           ) : null}
-          <p className="text-sm font-semibold tabular-nums">{formatMoney(mp.total)}</p>
+          <p className="text-sm font-semibold tabular-nums">{formatAUD(mp.total)}</p>
         </div>
       </div>
 

@@ -17,7 +17,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { Check, ChevronDown, ChevronsUpDown, Copy, Plus, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { formatCurrencyFull } from "@/lib/format/currency"
-import { formatMoney } from "@/lib/format/money"
+import { formatAUD, formatMoney } from "@/lib/format/money"
 import type { BillingBurst } from "@/lib/billing/types"
 import { formatBurstLabel } from "@/lib/bursts"
 import type { LineItem } from "@/lib/generateMediaPlan"
@@ -517,7 +517,7 @@ export default function ProductionContainer({
                 className="text-sm font-semibold tabular-nums"
                 style={mediaTypeAccentTextStyle(MEDIA_ACCENT_HEX)}
               >
-                {formatCurrencyFull(totals.totalMedia, { locale: "en-AU", currency: "AUD" })}
+                {formatAUD(totals.totalMedia)}
               </span>
             </div>
           </div>
@@ -566,7 +566,7 @@ export default function ProductionContainer({
                       <div className="text-right">
                         <span className="block text-[11px] text-muted-foreground">Total</span>
                         <span className="text-sm font-bold tabular-nums">
-                          {formatCurrencyFull(lineItemMediaTotal, { locale: "en-AU", currency: "AUD" })}
+                          {formatAUD(lineItemMediaTotal)}
                         </span>
                       </div>
                       <Button
@@ -872,7 +872,7 @@ export default function ProductionContainer({
                                 className="h-10 w-full min-w-0 text-sm tabular-nums bg-muted/30 border-border/40 text-muted-foreground"
                                 readOnly
                                 title="Production total (cost × quantity)"
-                                value={formatMoney(mediaValue, { locale: "en-AU", currency: "AUD" })}
+                                value={formatAUD(mediaValue)}
                               />
                             </div>
 

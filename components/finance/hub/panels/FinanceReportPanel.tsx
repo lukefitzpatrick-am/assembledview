@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/table"
 import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/components/ui/use-toast"
-import { formatMoney } from "@/lib/format/money"
+import { formatAUD } from "@/lib/format/money"
 import { buildReportRows } from "@/lib/finance/report/buildReportRows"
 import { exportReportExcel } from "@/lib/finance/report/exportReportExcel"
 import { groupAndSubtotal, type SubtotalNode } from "@/lib/finance/report/groupAndSubtotal"
@@ -35,7 +35,6 @@ const GROUP_BY_STORAGE_KEY = "financeReport:groupBy"
 const EXPANDED_STORAGE_KEY = "financeReport:expanded"
 const SHOW_DETAIL_ROWS_STORAGE_KEY = "financeReport:showDetailRows"
 const DEFAULT_GROUP_BY: ReportDimension[] = ["mediaType", "publisher", "buyType"]
-const moneyOptions = { locale: "en-AU", currency: "AUD" } as const
 
 const dimensions: Array<{ key: ReportDimension; label: string }> = [
   { key: "mediaType", label: "Media type" },
@@ -296,21 +295,21 @@ export default function FinanceReportPanel() {
         id: "totalBillable",
         header: "Total billable",
         cell: ({ row }) => (
-          <span className="tabular-nums">{formatMoney(row.original.measures.totalBillable, moneyOptions)}</span>
+          <span className="tabular-nums">{formatAUD(row.original.measures.totalBillable)}</span>
         ),
       },
       {
         id: "mediaSpend",
         header: "Media spend",
         cell: ({ row }) => (
-          <span className="tabular-nums">{formatMoney(row.original.measures.mediaSpend, moneyOptions)}</span>
+          <span className="tabular-nums">{formatAUD(row.original.measures.mediaSpend)}</span>
         ),
       },
       {
         id: "agencyFee",
         header: "Agency fee",
         cell: ({ row }) => (
-          <span className="tabular-nums">{formatMoney(row.original.measures.agencyFee, moneyOptions)}</span>
+          <span className="tabular-nums">{formatAUD(row.original.measures.agencyFee)}</span>
         ),
       },
     ],
@@ -476,13 +475,13 @@ export default function FinanceReportPanel() {
                 <TableCell />
                 <TableCell className="px-3 py-3 text-right tabular-nums">{subtotalRoot.rowCount}</TableCell>
                 <TableCell className="px-3 py-3 text-right tabular-nums font-semibold">
-                  {formatMoney(subtotalRoot.measures.totalBillable, moneyOptions)}
+                  {formatAUD(subtotalRoot.measures.totalBillable)}
                 </TableCell>
                 <TableCell className="px-3 py-3 text-right tabular-nums font-semibold">
-                  {formatMoney(subtotalRoot.measures.mediaSpend, moneyOptions)}
+                  {formatAUD(subtotalRoot.measures.mediaSpend)}
                 </TableCell>
                 <TableCell className="px-3 py-3 text-right tabular-nums font-semibold">
-                  {formatMoney(subtotalRoot.measures.agencyFee, moneyOptions)}
+                  {formatAUD(subtotalRoot.measures.agencyFee)}
                 </TableCell>
               </TableRow>
             </TableFooter>

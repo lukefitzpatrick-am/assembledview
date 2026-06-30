@@ -11,7 +11,7 @@ import { markBilled } from "@/lib/finance/api"
 import { useReceivablesData, type MonthGroup } from "@/lib/finance/useReceivablesData"
 import { useToast } from "@/components/ui/use-toast"
 import { expandMonthRange } from "@/lib/finance/monthRange"
-import { formatMoney } from "@/lib/format/money"
+import { formatAUD } from "@/lib/format/money"
 import type { BillingRecord } from "@/lib/types/financeBilling"
 
 function formatMonthRangeSubtitle(from: string, to: string): string {
@@ -106,7 +106,7 @@ function ReceivablesMonthSections({
         <section key={mg.monthIso} className="space-y-4">
           <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1 border-b border-border/50 pb-2">
             <p className="text-sm font-medium text-foreground">{mg.monthLabel}</p>
-            <p className="text-xs font-medium tabular-nums text-foreground">{formatMoney(mg.total)}</p>
+            <p className="text-xs font-medium tabular-nums text-foreground">{formatAUD(mg.total)}</p>
           </div>
           <div className="space-y-4">
             {mg.clients.map((client) => (
@@ -275,7 +275,7 @@ export function ReceivablesPageClient() {
                   <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]/billed:rotate-180" />
                   <span className="text-sm font-medium">
                     Billed this month · {billedInvoiceCount} {billedInvoiceCount === 1 ? "invoice" : "invoices"} ·{" "}
-                    {formatMoney(billedTotal)}
+                    {formatAUD(billedTotal)}
                   </span>
                 </CollapsibleTrigger>
                 <CollapsibleContent className="mt-4">
@@ -291,7 +291,7 @@ export function ReceivablesPageClient() {
                 <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-lg border border-border/60 bg-muted/30 px-4 py-3 text-left hover:bg-muted/45">
                   <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-data-[state=closed]/billed:-rotate-90" />
                   <span className="text-sm font-medium text-muted-foreground">
-                    Billed this month · 0 invoices · {formatMoney(0)}
+                    Billed this month · 0 invoices · {formatAUD(0)}
                   </span>
                 </CollapsibleTrigger>
                 <CollapsibleContent className="mt-4">

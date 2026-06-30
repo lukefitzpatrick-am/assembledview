@@ -3,6 +3,7 @@
 import { jsPDF } from "jspdf";
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { formatAUD } from "./format/money";
 
 export interface ScopeOfWorkData {
   client_name: string;
@@ -31,11 +32,6 @@ export interface ScopeOfWorkData {
     cost: number;
   }>;
 }
-
-// Helper function to format currency
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(amount);
-};
 
 // Helper to fetch the logo and convert it to a format jspdf can use
 // Works in both browser and Node.js environments
@@ -334,7 +330,7 @@ export async function generateScopeOfWork(scopeData: ScopeOfWorkData): Promise<B
         doc.text(categoryLines[i] || "", margin.left, y);
         doc.text(descLines[i] || "", margin.left + 50, y);
         if (i === 0) {
-          doc.text(formatCurrency(costValue), margin.left + pageW, y, { align: 'right' });
+          doc.text(formatAUD(costValue), margin.left + pageW, y, { align: 'right' });
         }
         y += lineHeight;
       }
@@ -353,7 +349,7 @@ export async function generateScopeOfWork(scopeData: ScopeOfWorkData): Promise<B
   y += lineHeight;
   doc.setFont("helvetica", "bold");
   doc.text("TOTAL (EX GST):", margin.left + (pageW / 2), y, { align: 'right' });
-  doc.text(formatCurrency(totalCost), margin.left + pageW, y, { align: 'right' });
+  doc.text(formatAUD(totalCost), margin.left + pageW, y, { align: 'right' });
   y += lineHeight * 2;
 
   // Payment Terms and Conditions
@@ -410,7 +406,7 @@ export async function generateScopeOfWork(scopeData: ScopeOfWorkData): Promise<B
       }
       
       doc.text(monthDisplay, margin.left, y);
-      doc.text(formatCurrency(costValue), margin.left + pageW, y, { align: 'right' });
+      doc.text(formatAUD(costValue), margin.left + pageW, y, { align: 'right' });
       y += lineHeight;
     });
 

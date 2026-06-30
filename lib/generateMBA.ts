@@ -3,6 +3,7 @@
 import { jsPDF } from "jspdf";
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { formatAUD } from "./format/money";
 
 // Keep your existing MBAData interface
 export interface MBAData {
@@ -34,16 +35,6 @@ export interface MBAData {
   };
   billingSchedule: { monthYear: string; totalAmount: string }[];
 }
-
-// Helper function to format currency
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount);
-};
 
 const parseCurrency = (value: string | number | null | undefined): number => {
   if (typeof value === "number") return Number.isFinite(value) ? value : 0
@@ -156,7 +147,7 @@ export async function generateMBA(mbaData: MBAData): Promise<Blob> {
   doc.setFont("helvetica", "normal");
   mbaData.gross_media.forEach(item => {
     doc.text(item.media_type, margin.left, y);
-    doc.text(formatCurrency(item.gross_amount), margin.left + pageW, y, { align: 'right' });
+    doc.text(formatAUD(item.gross_amount), margin.left + pageW, y, { align: 'right' });
     y += lineHeight;
   });
   y += lineHeight;
@@ -168,37 +159,37 @@ export async function generateMBA(mbaData: MBAData): Promise<Blob> {
   doc.setFont("helvetica", "bold");
   doc.text('Total Gross Media:', totalsX, y, { align: 'right' });
   doc.setFont("helvetica", "normal");
-  doc.text(formatCurrency(mbaData.totals.gross_media), valueX, y, { align: 'right' });
+  doc.text(formatAUD(mbaData.totals.gross_media), valueX, y, { align: 'right' });
   y += lineHeight;
   
   doc.setFont("helvetica", "bold");
   doc.text('Service Fee:', totalsX, y, { align: 'right' });
   doc.setFont("helvetica", "normal");
-  doc.text(formatCurrency(mbaData.totals.service_fee), valueX, y, { align: 'right' });
+  doc.text(formatAUD(mbaData.totals.service_fee), valueX, y, { align: 'right' });
   y += lineHeight;
 
   doc.setFont("helvetica", "bold");
   doc.text('Production:', totalsX, y, { align: 'right' });
   doc.setFont("helvetica", "normal");
-  doc.text(formatCurrency(mbaData.totals.production), valueX, y, { align: 'right' });
+  doc.text(formatAUD(mbaData.totals.production), valueX, y, { align: 'right' });
   y += lineHeight;
 
   doc.setFont("helvetica", "bold");
   doc.text('Adserving/Tech:', totalsX, y, { align: 'right' });
   doc.setFont("helvetica", "normal");
-  doc.text(formatCurrency(mbaData.totals.adserving), valueX, y, { align: 'right' });
+  doc.text(formatAUD(mbaData.totals.adserving), valueX, y, { align: 'right' });
   y += lineHeight;
 
   doc.setFont("helvetica", "bold");
   doc.text('Total ex. GST:', totalsX, y, { align: 'right' });
   doc.setFont("helvetica", "normal");
-  doc.text(formatCurrency(mbaData.totals.totals_ex_gst), valueX, y, { align: 'right' });
+  doc.text(formatAUD(mbaData.totals.totals_ex_gst), valueX, y, { align: 'right' });
   y += lineHeight;
   
   doc.setFont("helvetica", "bold");
   doc.text('Total inc. GST:', totalsX, y, { align: 'right' });
   doc.setFont("helvetica", "normal");
-  doc.text(formatCurrency(mbaData.totals.total_inc_gst), valueX, y, { align: 'right' });
+  doc.text(formatAUD(mbaData.totals.total_inc_gst), valueX, y, { align: 'right' });
   y += lineHeight * 3;
 
   // Client Approval
@@ -243,7 +234,7 @@ export async function generateMBA(mbaData: MBAData): Promise<Blob> {
   doc.setFont("helvetica", "normal");
   mbaData.billingSchedule.forEach(b => {
     doc.text(b.monthYear, margin.left, y);
-    doc.text(formatCurrency(parseCurrency(b.totalAmount)), margin.left + pageW, y, { align: 'right' });
+    doc.text(formatAUD(parseCurrency(b.totalAmount)), margin.left + pageW, y, { align: 'right' });
     y += lineHeight;
   });
 

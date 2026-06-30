@@ -39,8 +39,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils"
 import { ChevronDown, Copy, Plus, Trash2 } from "lucide-react"
 import type { BillingBurst } from "@/lib/billing/types"
+import { resolveBillingBurstLineItemId } from "@/lib/billing/resolveBillingBurstLineItemId"
 import type { LineItem } from '@/lib/generateMediaPlan'
-import { formatMoney, parseMoneyInput } from "@/lib/format/money"
+import { formatAUD, formatMoney, parseMoneyInput } from "@/lib/format/money"
 import {
   CpcFamilyBurstCalculatedField,
   getCpcFamilyBurstCalculatedColumnLabel,
@@ -150,11 +151,12 @@ interface ProgVideoContainerProps {
 
 export function getProgVideoBursts(
   form: UseFormReturn<ProgVideoFormValues>,
-  feeprogvideo: number
+  feeprogvideo: number,
+  mbaNumber?: string,
 ): BillingBurst[] {
   const lineItems = form.getValues("lineItems") || []
 
-  return lineItems.flatMap(li =>
+  return lineItems.flatMap((li, liIndex) =>
     li.bursts.map(burst => {
       const rawBudget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0
 
@@ -183,6 +185,12 @@ export function getProgVideoBursts(
         noAdserving: li.noadserving,
         deliverables: burst.calculatedValue ?? 0,
         buyType: li.buyType,
+        lineItemId: resolveBillingBurstLineItemId(
+          li,
+          mbaNumber,
+          MEDIA_TYPE_ID_CODES.progVideo,
+          liIndex,
+        ),
       }
     })
   )
@@ -963,7 +971,7 @@ useEffect(() => {
 
 useEffect(() => {
   // convert each form lineItem into the shape needed for Excel
-  const calculatedBursts = getProgVideoBursts(form, feeprogvideo || 0);
+  const calculatedBursts = getProgVideoBursts(form, feeprogvideo || 0, mbaNumber);
   let burstIndex = 0;
 
   const items: LineItem[] = form.getValues('lineItems').flatMap((lineItem, lineItemIndex) =>
@@ -1015,7 +1023,7 @@ useEffect(() => {
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       const investmentByMonth = calculateInvestmentPerMonth(form, feeprogvideo || 0);
-      const bursts = getProgVideoBursts(form, feeprogvideo || 0);
+      const bursts = getProgVideoBursts(form, feeprogvideo || 0, mbaNumber);
       
       const hasInvestmentChanges = JSON.stringify(investmentByMonth) !== JSON.stringify(prevInvestmentRef.current);
       const hasBurstChanges = JSON.stringify(bursts) !== JSON.stringify(prevBurstsRef.current);
@@ -1202,15 +1210,15 @@ useEffect(() => {
                   </div>
                   <div className="text-right">
                     <span className="text-[11px] text-muted-foreground block">Media</span>
-                    <span>{formatMoney(item.media, { locale: "en-AU", currency: "AUD" })}</span>
+                    <span>{formatAUD(item.media)}</span>
                   </div>
                   <div className="text-right">
                     <span className="text-[11px] text-muted-foreground block">Fee</span>
-                    <span>{formatMoney(item.fee, { locale: "en-AU", currency: "AUD" })}</span>
+                    <span>{formatAUD(item.fee)}</span>
                   </div>
                   <div className="text-right">
                     <span className="text-[11px] text-muted-foreground block">Total</span>
-                    <span className="font-semibold">{formatMoney(item.totalCost, { locale: "en-AU", currency: "AUD" })}</span>
+                    <span className="font-semibold">{formatAUD(item.totalCost)}</span>
                   </div>
                 </div>
               </div>
@@ -1221,15 +1229,15 @@ useEffect(() => {
               <div className="flex items-center gap-6 text-sm font-semibold tabular-nums">
                 <div className="text-right">
                   <span className="text-[11px] text-muted-foreground font-normal block">Media</span>
-                  <span>{formatMoney(overallTotals.overallMedia, { locale: "en-AU", currency: "AUD" })}</span>
+                  <span>{formatAUD(overallTotals.overallMedia)}</span>
                 </div>
                 <div className="text-right">
                   <span className="text-[11px] text-muted-foreground font-normal block">Fee ({feeprogvideo}%)</span>
-                  <span>{formatMoney(overallTotals.overallFee, { locale: "en-AU", currency: "AUD" })}</span>
+                  <span>{formatAUD(overallTotals.overallFee)}</span>
                 </div>
                 <div className="text-right">
                   <span className="text-[11px] text-muted-foreground font-normal block">Total</span>
-                  <span className="text-primary">{formatMoney(overallTotals.overallCost, { locale: "en-AU", currency: "AUD" })}</span>
+                  <span className="text-primary">{formatAUD(overallTotals.overallCost)}</span>
                 </div>
               </div>
             </div>

@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { getMediaColor, getMediaLabel } from '@/lib/charts/registry'
 import { cn } from '@/lib/utils'
+import { formatAUD } from '@/lib/format/money'
 
 interface MediaTableProps {
   lineItems: Record<string, NormalisedLineItem[]>
@@ -113,12 +114,7 @@ export default function MediaTable({ lineItems }: MediaTableProps) {
     const num = typeof value === 'string' 
       ? parseFloat(value.replace(/[^0-9.-]+/g, '')) 
       : value
-    return new Intl.NumberFormat('en-AU', {
-      style: 'currency',
-      currency: 'AUD',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(num || 0)
+    return formatAUD(num || 0)
   }
 
   const groupedData = useMemo(() => {

@@ -5,7 +5,7 @@ import { ChevronDown } from "lucide-react"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { formatLineItemDescription } from "@/lib/finance/lineItemDescription"
 import type { GroupedLineItem } from "@/lib/finance/groupIdenticalLineItems"
-import { formatMoney } from "@/lib/format/money"
+import { formatAUD } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
 
 type ReceivablesLineGroupRowProps = {
@@ -26,7 +26,7 @@ export function ReceivablesLineGroupRow({ group }: ReceivablesLineGroupRowProps)
           <p className="truncate text-xs text-foreground">{primary}</p>
           <p className="mt-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">{channelLabel}</p>
         </div>
-        <p className="shrink-0 text-xs tabular-nums text-muted-foreground">{formatMoney(li.amount)}</p>
+        <p className="shrink-0 text-xs tabular-nums text-muted-foreground">{formatAUD(li.amount)}</p>
       </div>
     )
   }
@@ -36,7 +36,7 @@ export function ReceivablesLineGroupRow({ group }: ReceivablesLineGroupRowProps)
       <CollapsibleTrigger className="flex w-full items-center justify-between gap-3 border-b border-border/40 py-2 text-left last:border-0 hover:bg-muted/30">
         <div className="min-w-0 flex-1">
           <p className="truncate text-xs text-foreground">
-            {publisher} · {description} · ×{group.count} · {formatMoney(group.total)}
+            {publisher} · {description} · ×{group.count} · {formatAUD(group.total)}
           </p>
           <p className="mt-0.5 text-[10px] text-muted-foreground">
             {open ? "Hide breakdown" : "Show breakdown"}
@@ -60,7 +60,7 @@ export function ReceivablesLineGroupRow({ group }: ReceivablesLineGroupRowProps)
                   <p className="truncate text-[11px] text-foreground">{primary}</p>
                   <p className="mt-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">{channelLabel}</p>
                 </div>
-                <p className="shrink-0 text-[11px] tabular-nums text-muted-foreground">{formatMoney(li.amount)}</p>
+                <p className="shrink-0 text-[11px] tabular-nums text-muted-foreground">{formatAUD(li.amount)}</p>
               </div>
             )
           })}
