@@ -65,6 +65,38 @@ test("assigns colliding later rows the next available stable number", () => {
   )
 })
 
+test("claims a missing number from deterministic line_item_id", () => {
+  const items: LineItemWithIdentity[] = [{ line_item_id: "MBA1DA5" }]
+  const stable = assignStableLineItemNumbers(
+    items,
+    "MBA1",
+    MEDIA_TYPE_ID_CODES.digitalAudio
+  )
+
+  assert.equal(stable[0].line_item, 5)
+  assert.equal(stable[0].lineItem, 5)
+  assert.equal(stable[0].line_item_id, "MBA1DA5")
+  assert.equal(stable[0].lineItemId, "MBA1DA5")
+})
+
+test("fills missing numbers above deterministic line_item_id claims", () => {
+  const items: LineItemWithIdentity[] = [{ line_item_id: "MBA1DA5" }, {}]
+  const stable = assignStableLineItemNumbers(
+    items,
+    "MBA1",
+    MEDIA_TYPE_ID_CODES.digitalAudio
+  )
+
+  assert.deepEqual(
+    stable.map((item) => item.line_item),
+    [5, 6]
+  )
+  assert.deepEqual(
+    stable.map((item) => item.line_item_id),
+    ["MBA1DA5", "MBA1DA6"]
+  )
+})
+
 test("falls back to existing id or line number string when mbaNumber is empty", () => {
   const stable = assignStableLineItemNumbers(
     [

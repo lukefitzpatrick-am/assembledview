@@ -2,6 +2,7 @@ import {
   buildLineItemId,
   MEDIA_TYPE_ID_CODES,
   pickLineItemNumber,
+  parseLineNumberFromLineItemId,
 } from "@/lib/mediaplan/lineItemIds"
 
 export interface LineItemWithIdentity {
@@ -42,6 +43,22 @@ export function reassignLineItemNumbers<T extends LineItemWithIdentity>(
 }
 
 /**
+ * Resolve a claimable line number: explicit number field first, else the
+ * number embedded in the deterministic line_item_id (e.g. "MBA1DA5" -> 5).
+ * Returns null when neither yields a positive integer.
+ */
+function claimLineNumber(item: LineItemWithIdentity): number | null {
+  const n = pickLineItemNumber(item, 0)
+  if (n > 0) return n
+  for (const id of [item.line_item_id, item.lineItemId]) {
+    if (id == null) continue
+    const parsed = parseLineNumberFromLineItemId(String(id))
+    if (parsed && parsed > 0) return parsed
+  }
+  return null
+}
+
+/**
  * Path A: assign STABLE, UNIQUE line numbers.
  * - Each item with a valid existing line number keeps it (first occurrence wins).
  * - Items with no number, or a number already claimed by an earlier item, get the
@@ -60,8 +77,8 @@ export function assignStableLineItemNumbers<T extends LineItemWithIdentity>(
 
   // Pass 1: claim valid, not-yet-used existing numbers (first occurrence wins).
   const claimed: Array<number | null> = items.map((item) => {
-    const n = pickLineItemNumber(item, 0)
-    if (n > 0 && !used.has(n)) {
+    const n = claimLineNumber(item)
+    if (n != null && !used.has(n)) {
       used.add(n)
       return n
     }
