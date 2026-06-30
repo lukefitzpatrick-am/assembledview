@@ -34,6 +34,7 @@ import { expertApplyClearedAdServingOverride } from "@/lib/mediaplan/adServingOv
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
+import { assignStableLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
 import { ChevronDown, Copy, Plus, Trash2 } from "lucide-react"
@@ -598,6 +599,10 @@ export default function ProgDisplayContainer({
         clientPaysForMedia: item.client_pays_for_media || false,
         budgetIncludesFees: item.budget_includes_fees || false,
         noadserving: item.no_adserving || false,
+        line_item: item.line_item ?? item.lineItem,
+        lineItem: item.lineItem ?? item.line_item,
+        line_item_id: item.line_item_id || item.lineItemId,
+        lineItemId: item.line_item_id || item.lineItemId,
         bursts: item.bursts_json ? (typeof item.bursts_json === 'string' ? JSON.parse(item.bursts_json) : item.bursts_json).map((burst: any) => ({
           budget: burst.budget || "",
           buyAmount: burst.buyAmount || "",
@@ -631,8 +636,9 @@ export default function ProgDisplayContainer({
   // Transform form data to API schema format
   useEffect(() => {
     const formLineItems = form.getValues('lineItems') || [];
+    const stableItems = assignStableLineItemNumbers<any>(formLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.progDisplay);
     
-    const transformedLineItems = formLineItems.map((lineItem, index) => {
+    const transformedLineItems = stableItems.map((lineItem, index) => {
       // Calculate totalMedia from raw budget amounts (for display in MBA section)
       let totalMedia = 0;
       lineItem.bursts.forEach((burst) => {
@@ -666,14 +672,14 @@ export default function ProgDisplayContainer({
         client_pays_for_media: lineItem.clientPaysForMedia || false,
         budget_includes_fees: lineItem.budgetIncludesFees || false,
         no_adserving: lineItem.noadserving || false,
-        line_item_id: buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.progDisplay, index + 1),
+        line_item_id: lineItem.line_item_id,
         bursts_json: JSON.stringify(serializeBurstsJson({
           bursts: lineItem.bursts,
           feePct: feeprogdisplay || 0,
           budgetIncludesFees: lineItem.budgetIncludesFees || false,
           clientPaysForMedia: lineItem.clientPaysForMedia || false,
         })),
-        line_item: index + 1,
+        line_item: lineItem.line_item,
         totalMedia: totalMedia,
       };
     });
