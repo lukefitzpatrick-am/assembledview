@@ -78,6 +78,7 @@ export interface Publisher extends Partial<PublisherKpiDefaults> {
   financecode: string
   /** Optional brand colour from Xano (hex string, e.g. "#4F8FCB"). */
   publisher_colour?: string | null
+  best_practice?: BestPractice
   pub_television: boolean
   pub_radio: boolean
   pub_newspaper: boolean

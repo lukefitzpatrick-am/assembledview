@@ -10,6 +10,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Combobox } from "@/components/ui/combobox"
 import { SavingModal } from "@/components/ui/saving-modal"
 import { useToast } from "@/components/ui/use-toast"
+import { BestPracticeEditor } from "@/components/best-practice/BestPracticeEditor"
 import {
   publisherDetailsUpdateSchema,
   type PublisherDetailsFormValues,
@@ -23,6 +24,7 @@ import {
   normalizeDefaultPublisherColour,
 } from "@/lib/publisher/publisherColourFormUtils"
 import { cn } from "@/lib/utils"
+import { EMPTY_BEST_PRACTICE, type BestPractice } from "@/lib/types/bestPractice"
 
 function asBool(v: unknown): boolean {
   return v === true || v === 1 || v === "1"
@@ -37,6 +39,7 @@ function toDetailsDefaults(publisher: Publisher): PublisherDetailsFormValues {
     billingagency: (publisher.billingagency as PublisherDetailsFormValues["billingagency"]) || "assembled media",
     financecode: publisher.financecode ?? "",
     publisher_colour: normalizeDefaultPublisherColour(publisher.publisher_colour ?? null),
+    best_practice: publisher.best_practice ?? null,
     pub_television: asBool(publisher.pub_television),
     pub_radio: asBool(publisher.pub_radio),
     pub_newspaper: asBool(publisher.pub_newspaper),
@@ -312,6 +315,23 @@ export function EditPublisherForm({ publisher, onSuccess }: EditPublisherFormPro
             />
           ))}
         </div>
+
+        <FormField
+          control={form.control}
+          name="best_practice"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Best Practice Notes</FormLabel>
+              <FormControl>
+                <BestPracticeEditor
+                  value={(field.value as BestPractice) ?? EMPTY_BEST_PRACTICE}
+                  onChange={field.onChange}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
         <div className="grid grid-cols-3 gap-4">
           {[

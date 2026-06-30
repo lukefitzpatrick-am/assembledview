@@ -1,4 +1,5 @@
 import * as z from "zod"
+import { bestPracticeSchema } from "@/lib/types/bestPractice"
 
 const comms = z
   .union([z.string(), z.number(), z.null(), z.undefined()])
@@ -68,6 +69,7 @@ const publisherCoreFields = {
   billingagency: z.enum(["assembled media", "advertising associates"]),
   financecode: z.string().min(1, "Finance code is required"),
   publisher_colour: publisherColourField,
+  best_practice: bestPracticeSchema.optional().nullable(),
   ...publisherBooleanFields,
   ...publisherCommsFields,
 }

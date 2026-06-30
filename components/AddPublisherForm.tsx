@@ -13,6 +13,8 @@ import { Combobox } from "@/components/ui/combobox"
 import { SavingModal } from "@/components/ui/saving-modal"
 import { SuccessModal } from "@/components/ui/success-modal"
 import { useToast } from "@/components/ui/use-toast"
+import { BestPracticeEditor } from "@/components/best-practice/BestPracticeEditor"
+import { EMPTY_BEST_PRACTICE, type BestPractice } from "@/lib/types/bestPractice"
 import {
   publisherCreateSchema,
   type PublisherCreateInput,
@@ -44,6 +46,7 @@ export function AddPublisherForm({ onSuccess }: AddPublisherFormProps) {
       billingagency: "assembled media",
       financecode: "",
       publisher_colour: null,
+      best_practice: null,
       pub_television: false,
       pub_radio: false,
       pub_newspaper: false,
@@ -316,6 +319,23 @@ export function AddPublisherForm({ onSuccess }: AddPublisherFormProps) {
               ))}
             </div>
           </div>
+
+          <FormField
+            control={form.control}
+            name="best_practice"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Best Practice Notes</FormLabel>
+                <FormControl>
+                  <BestPracticeEditor
+                    value={(field.value as BestPractice) ?? EMPTY_BEST_PRACTICE}
+                    onChange={field.onChange}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
           <div className="grid grid-cols-3 gap-6">
             {[
