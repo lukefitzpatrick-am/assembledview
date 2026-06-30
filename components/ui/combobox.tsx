@@ -74,10 +74,18 @@ export function Combobox({
     [onOpenChange]
   )
 
-  const sortedOptions = React.useMemo(
-    () => sortByLabel(options, (o) => o.label),
-    [options]
-  )
+  const sortedOptions = React.useMemo(() => {
+    const seen = new Set<ComboboxOption["value"]>()
+    const uniqueOptions: ComboboxOption[] = []
+
+    for (const option of options) {
+      if (seen.has(option.value)) continue
+      seen.add(option.value)
+      uniqueOptions.push(option)
+    }
+
+    return sortByLabel(uniqueOptions, (o) => o.label)
+  }, [options])
 
   const selected = React.useMemo(
     () => sortedOptions.find((o) => o.value === value),
