@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { WaveRibbon } from "@/components/ui/wave-ribbon"
 import { formatCurrencyAUD } from "@/lib/format/currency"
-import { cn, hexToRgba } from "@/lib/utils"
+import { cn } from "@/lib/utils"
 import AdminDateRangeSelector from "@/app/dashboard/[slug]/[mba_number]/components/AdminDateRangeSelector"
 
 interface CampaignHeroBannerProps {
@@ -59,13 +59,17 @@ function resolveStatusKind(status: string): StatusKind {
   return "default"
 }
 
+function colorMix(color: string, percentage: number): string {
+  return `color-mix(in srgb, ${color} ${percentage}%, transparent)`
+}
+
 function StatusBadge({ status }: { status: string }) {
   const kind = resolveStatusKind(status)
   const label = status.trim() || "—"
 
   if (kind === "booked") {
     return (
-      <Badge className="border-0 bg-emerald-500/15 capitalize text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-300">
+      <Badge className="border-0 bg-pacing-ahead-bg capitalize text-status-ahead-fg hover:bg-pacing-ahead-bg">
         {label}
       </Badge>
     )
@@ -85,7 +89,7 @@ function StatusBadge({ status }: { status: string }) {
     )
   }
   return (
-    <Badge className="border-0 bg-blue-500/15 capitalize text-blue-700 hover:bg-blue-500/20 dark:text-blue-300">
+    <Badge className="border-0 bg-pacing-on-track-bg capitalize text-status-on-track-fg hover:bg-pacing-on-track-bg">
       {label}
     </Badge>
   )
@@ -93,7 +97,7 @@ function StatusBadge({ status }: { status: string }) {
 
 export default function CampaignHeroBanner({
   campaign,
-  brandColour = "#4f8fcb",
+  brandColour = "var(--pacing-on-track)",
   daysRemaining,
   onOpenDetails,
   onDownload,
@@ -106,7 +110,7 @@ export default function CampaignHeroBanner({
 
   const budget = Number(campaign.budget ?? 0) || 0
 
-  const washGradient = `linear-gradient(125deg, rgba(255,255,255,1) 0%, rgba(255,255,255,0.97) 35%, ${hexToRgba(brandColour, 0.1)} 55%, ${hexToRgba(brandColour, 0.2)} 100%)`
+  const washGradient = `linear-gradient(125deg, hsl(var(--background)) 0%, color-mix(in srgb, hsl(var(--background)) 97%, transparent) 35%, ${colorMix(brandColour, 10)} 55%, ${colorMix(brandColour, 20)} 100%)`
 
   return (
     <section
@@ -124,7 +128,7 @@ export default function CampaignHeroBanner({
       <div
         className="absolute inset-0 z-0 hidden dark:block"
         style={{
-          backgroundImage: `linear-gradient(125deg, hsl(var(--background)) 0%, hsl(var(--background) / 0.97) 35%, ${hexToRgba(brandColour, 0.12)} 55%, ${hexToRgba(brandColour, 0.22)} 100%)`,
+          backgroundImage: `linear-gradient(125deg, hsl(var(--background)) 0%, color-mix(in srgb, hsl(var(--background)) 97%, transparent) 35%, ${colorMix(brandColour, 12)} 55%, ${colorMix(brandColour, 22)} 100%)`,
         }}
         aria-hidden
       />

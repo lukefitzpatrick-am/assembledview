@@ -125,7 +125,7 @@ export function HeroKPIBar({
                 <div
                   className={cn(
                     "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium",
-                    isRoasPositive ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"
+                    isRoasPositive ? "bg-pacing-ahead-bg text-status-ahead-fg" : "bg-pacing-critical-bg text-status-critical-fg"
                   )}
                 >
                   {isRoasPositive ? <ArrowUpRight className="h-3.5 w-3.5" /> : <ArrowDownRight className="h-3.5 w-3.5" />}

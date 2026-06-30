@@ -89,8 +89,8 @@ export function ClientDetailsSlideOver({
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
-              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-amber-500/10">
-                <AlertCircle className="h-8 w-8 text-amber-500" />
+              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-pacing-behind-bg">
+                <AlertCircle className="h-8 w-8 text-status-behind-fg" />
               </div>
               <h3 className="mb-2 font-semibold text-foreground">Client Record Not Found</h3>
               <p className="max-w-[280px] text-sm text-muted-foreground">

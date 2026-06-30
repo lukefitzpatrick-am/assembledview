@@ -96,10 +96,10 @@ function formatDate(value: string): string {
 }
 
 function quarterProgressClass(status: QuarterStatus, isOverBudget: boolean): string {
-  if (isOverBudget) return "bg-rose-500"
-  if (status === "complete") return "bg-emerald-500"
-  if (status === "in-progress") return "bg-blue-500"
-  return "bg-slate-400"
+  if (isOverBudget) return "bg-pacing-critical"
+  if (status === "complete") return "bg-pacing-ahead"
+  if (status === "in-progress") return "bg-pacing-on-track"
+  return "bg-muted-foreground/60"
 }
 
 function quarterStatusText(
@@ -207,10 +207,10 @@ export function ClientFinanceSlideOver({
                           />
                         </div>
                         <div className="mt-2 flex items-center justify-between">
-                          <p className={cn("text-xs", isOverBudget ? "text-rose-600" : "text-muted-foreground")}>
+                          <p className={cn("text-xs", isOverBudget ? "text-status-critical-fg" : "text-muted-foreground")}>
                             {quarterStatusText(quarter.status, quarter.spent, quarter.budget, finance.currency, isOverBudget)}
                           </p>
-                          {isOverBudget ? <AlertTriangle className="h-4 w-4 text-rose-600" aria-hidden /> : null}
+                          {isOverBudget ? <AlertTriangle className="h-4 w-4 text-status-critical-fg" aria-hidden /> : null}
                         </div>
                       </article>
                     )
@@ -237,7 +237,7 @@ export function ClientFinanceSlideOver({
                           </span>
                         </div>
                         <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-                          <div className="h-full rounded-full bg-blue-500" style={{ width: `${widthPct}%` }} aria-hidden />
+                          <div className="h-full rounded-full bg-pacing-on-track" style={{ width: `${widthPct}%` }} aria-hidden />
                         </div>
                       </div>
                     )
@@ -282,7 +282,7 @@ export function ClientFinanceSlideOver({
                               <p
                                 className={cn(
                                   "shrink-0 text-sm font-medium",
-                                  isPositive ? "text-emerald-600" : "text-foreground"
+                                  isPositive ? "text-status-ahead-fg" : "text-foreground"
                                 )}
                               >
                                 {isPositive ? "+" : "-"}

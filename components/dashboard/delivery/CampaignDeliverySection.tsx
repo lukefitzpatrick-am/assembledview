@@ -222,7 +222,7 @@ function CampaignDeliveryBody({
   return (
     <div className="space-y-3">
       {error ? (
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+        <div className="rounded-2xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">{error}</div>
       ) : null}
       <DeliveryContainer channels={channels} onRefresh={() => window.location.reload()} />
     </div>

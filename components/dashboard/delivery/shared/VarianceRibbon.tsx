@@ -19,8 +19,8 @@ export function VarianceRibbon({ variance, label, className }: VarianceRibbonPro
   const positive = variance >= 0
   const Icon = positive ? TrendingUp : TrendingDown
   const tone = positive
-    ? "text-emerald-700 dark:text-emerald-400"
-    : "text-rose-700 dark:text-rose-400"
+    ? "text-status-ahead-fg"
+    : "text-status-critical-fg"
   return (
     <div className={cn("flex items-center justify-between text-xs", className)}>
       {label ? <span className="text-muted-foreground">{label}</span> : <span />}

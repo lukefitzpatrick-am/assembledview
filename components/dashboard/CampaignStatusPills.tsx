@@ -132,11 +132,11 @@ export function CampaignStatusPills({ activeStatus, counts, onChange }: Campaign
               className="relative z-10 inline-flex items-center gap-2"
             >
               {item.key === "live" ? (
-                <span className="inline-flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" aria-hidden />
+                <span className="inline-flex h-2 w-2 rounded-full bg-pacing-ahead animate-pulse" aria-hidden />
               ) : item.key === "planned" ? (
-                <span className="inline-flex h-2 w-2 rounded-full bg-blue-500" aria-hidden />
+                <span className="inline-flex h-2 w-2 rounded-full bg-pacing-on-track" aria-hidden />
               ) : (
-                <Check className="h-3.5 w-3.5 text-slate-500" aria-hidden />
+                <Check className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
               )}
               <span>
                 {item.label} ({item.count.toLocaleString("en-US")})

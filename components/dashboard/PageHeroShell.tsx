@@ -5,7 +5,7 @@ import type { CSSProperties, ReactNode } from "react"
 import { AccentBar } from "@/components/ui/accent-bar"
 import { CornerDotCluster } from "@/components/ui/corner-dot-cluster"
 import { WaveRibbon } from "@/components/ui/wave-ribbon"
-import { cn, hexToRgba } from "@/lib/utils"
+import { cn } from "@/lib/utils"
 
 type BrandStyle = CSSProperties & {
   "--brand-color"?: string
@@ -20,14 +20,14 @@ export interface PageHeroShellProps {
 }
 
 export function PageHeroShell({
-  brandColour = "#4f8fcb",
+  brandColour = "var(--pacing-on-track)",
   className,
   children,
 }: PageHeroShellProps) {
   const brandStyle: BrandStyle = {
     "--brand-color": brandColour,
-    "--brand-color-light": hexToRgba(brandColour, 0.08),
-    "--brand-color-medium": hexToRgba(brandColour, 0.15),
+    "--brand-color-light": `color-mix(in srgb, ${brandColour} 8%, transparent)`,
+    "--brand-color-medium": `color-mix(in srgb, ${brandColour} 15%, transparent)`,
   }
 
   return (

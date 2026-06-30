@@ -233,9 +233,9 @@ export function ClientDashboardPageContent({
         <motion.section variants={sectionVariants} className="mt-8 w-full space-y-4 lg:mt-10 lg:space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <span className="inline-flex h-2.5 w-2.5 animate-pulse rounded-full bg-emerald-500" aria-hidden />
+            <span className="inline-flex h-2.5 w-2.5 animate-pulse rounded-full bg-pacing-ahead" aria-hidden />
             <h2 className="text-lg font-semibold text-foreground">Live now</h2>
-            <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-medium text-emerald-600">
+            <span className="rounded-full bg-pacing-ahead-bg px-2 py-0.5 text-xs font-medium text-status-ahead-fg">
               {statusCounts.live}
             </span>
             <span className="text-xs text-muted-foreground">Updated 2 min ago</span>

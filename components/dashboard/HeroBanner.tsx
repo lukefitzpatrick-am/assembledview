@@ -6,7 +6,7 @@ import { BarChart3, DollarSign, FileText } from "lucide-react"
 import { PageHeroShell } from "@/components/dashboard/PageHeroShell"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { formatCurrencyCompact } from "@/lib/format/currency"
-import { cn, hexToRgba } from "@/lib/utils"
+import { cn } from "@/lib/utils"
 
 export interface HeroBannerProps {
   clientName: string
@@ -42,10 +42,14 @@ function formatPercent(value: number): string {
   }).format(Math.abs(value))
 }
 
+function colorMix(color: string, percentage: number): string {
+  return `color-mix(in srgb, ${color} ${percentage}%, transparent)`
+}
+
 export function HeroBanner({
   clientName,
   clientLogo,
-  brandColour = "#4f8fcb",
+  brandColour = "var(--pacing-on-track)",
   totalSpend,
   activeCampaigns,
   averageRoas,
@@ -79,7 +83,7 @@ export function HeroBanner({
               <div className="relative h-16 w-16 shrink-0">
                 <div
                   className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-full border-2 shadow-lg"
-                  style={{ borderColor: hexToRgba(brandColour, 0.3) }}
+                  style={{ borderColor: colorMix(brandColour, 30) }}
                 >
                   {clientLogo ? (
                     <Image
@@ -91,7 +95,7 @@ export function HeroBanner({
                     />
                   ) : (
                     <span
-                      className="flex h-full w-full items-center justify-center text-lg font-semibold text-white"
+                      className="flex h-full w-full items-center justify-center text-lg font-semibold text-primary-foreground"
                       style={{ backgroundColor: brandColour }}
                       aria-label={`${clientName} initials`}
                     >
@@ -100,7 +104,7 @@ export function HeroBanner({
                   )}
                 </div>
                 <span
-                  className="absolute bottom-px right-px h-[10px] w-[10px] rounded-full bg-[#C5D82D] shadow-[0_0_0_2px_rgb(255,255,255)]"
+                  className="absolute bottom-px right-px h-[10px] w-[10px] rounded-full bg-accent shadow-[0_0_0_2px_hsl(var(--card))]"
                   aria-hidden
                 />
               </div>
@@ -115,7 +119,7 @@ export function HeroBanner({
                 <p
                   className={cn(
                     "text-sm font-medium md:text-base",
-                    performanceVsBenchmark >= 0 ? "text-emerald-600" : "text-amber-600"
+                    performanceVsBenchmark >= 0 ? "text-status-ahead-fg" : "text-status-behind-fg"
                   )}
                 >
                   Your campaigns are performing {formatPercent(performanceVsBenchmark)}%{" "}

@@ -187,7 +187,7 @@ export default function MediaPlanVizSection({
 
       const html2canvas = (await import("html2canvas")).default
       const canvas = await html2canvas(el, {
-        backgroundColor: "#ffffff",
+        backgroundColor: "hsl(var(--card))",
         scale: 2,
         useCORS: true,
         logging: false,

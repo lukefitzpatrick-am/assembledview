@@ -805,7 +805,7 @@ export function ClientKpiSection({ clientName, urlSlug }: ClientKpiSectionProps)
                       Saved · {row.publisher_name || "—"} · {mediaLabel} · ID {row.id}
                     </span>
                     {dirtyIds.has(row.id) ? (
-                      <span className="text-xs text-amber-600 dark:text-amber-400">Unsaved changes</span>
+                      <span className="text-xs text-status-behind-fg">Unsaved changes</span>
                     ) : null}
                   </div>
 

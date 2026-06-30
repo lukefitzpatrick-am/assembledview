@@ -6,6 +6,7 @@ import { CalendarDays, Copy, Download, ExternalLink } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
+import { formatAUD } from "@/lib/format/money"
 import {
   Sheet,
   SheetContent,
@@ -43,14 +44,6 @@ export interface CampaignDetailsModalProps {
   lineItemCounts?: Record<string, number>
 }
 
-function formatCurrency(value: number | undefined, currency = "AUD"): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 0,
-  }).format(value ?? 0)
-}
-
 function formatDate(value?: string): string {
   if (!value) return "Not set"
   const parsed = new Date(value)
@@ -65,10 +58,10 @@ function clampPct(value: number): number {
 
 function statusClass(status: string): string {
   const normalized = status.toLowerCase()
-  if (normalized.includes("booked") || normalized.includes("approved")) return "bg-emerald-500/15 text-emerald-600"
-  if (normalized.includes("progress") || normalized.includes("active") || normalized.includes("live")) return "bg-blue-500/15 text-blue-600"
-  if (normalized.includes("complete") || normalized.includes("closed")) return "bg-slate-500/15 text-slate-600"
-  return "bg-amber-500/15 text-amber-600"
+  if (normalized.includes("booked") || normalized.includes("approved")) return "bg-pacing-ahead-bg text-status-ahead-fg"
+  if (normalized.includes("progress") || normalized.includes("active") || normalized.includes("live")) return "bg-pacing-on-track-bg text-status-on-track-fg"
+  if (normalized.includes("complete") || normalized.includes("closed")) return "bg-muted text-muted-foreground"
+  return "bg-pacing-behind-bg text-status-behind-fg"
 }
 
 function SectionHeader({ title }: { title: string }) {
@@ -171,7 +164,7 @@ export default function CampaignDetailsModal({
                     </span>
                   </div>
                   <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-                    <div className="h-full rounded-full bg-blue-500 transition-all duration-500" style={{ width: `${elapsedPct}%` }} aria-hidden />
+                    <div className="h-full rounded-full bg-pacing-on-track transition-all duration-500" style={{ width: `${elapsedPct}%` }} aria-hidden />
                   </div>
                 </div>
               </div>
@@ -184,17 +177,17 @@ export default function CampaignDetailsModal({
               <div className="space-y-3">
                 <article className="rounded-lg bg-muted/50 p-4">
                   <p className="text-xs uppercase tracking-wide text-muted-foreground">Campaign budget</p>
-                  <p className="mt-2 text-3xl font-semibold text-foreground">{formatCurrency(campaign.budget)}</p>
+                  <p className="mt-2 text-3xl font-semibold text-foreground">{formatAUD(campaign.budget)}</p>
                 </article>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <article className="rounded-lg bg-muted/50 p-4">
                     <p className="text-xs uppercase tracking-wide text-muted-foreground">Expected spend to date</p>
-                    <p className="mt-2 text-lg font-semibold text-foreground">{formatCurrency(expectedSpend)}</p>
+                    <p className="mt-2 text-lg font-semibold text-foreground">{formatAUD(expectedSpend)}</p>
                   </article>
                   <article className="rounded-lg bg-muted/50 p-4">
                     <p className="text-xs uppercase tracking-wide text-muted-foreground">Actual spend to date</p>
                     <p className="mt-2 text-lg font-semibold text-foreground">
-                      {campaign.actualSpend !== undefined ? formatCurrency(actualSpend) : "Not available"}
+                      {campaign.actualSpend !== undefined ? formatAUD(actualSpend) : "Not available"}
                     </p>
                   </article>
                 </div>
@@ -204,7 +197,7 @@ export default function CampaignDetailsModal({
                     <span>{Math.round(utilizationPct)}%</span>
                   </div>
                   <div className="h-2 overflow-hidden rounded-full bg-muted">
-                    <div className="h-full rounded-full bg-blue-500 transition-all duration-500" style={{ width: `${utilizationPct}%` }} aria-hidden />
+                    <div className="h-full rounded-full bg-pacing-on-track transition-all duration-500" style={{ width: `${utilizationPct}%` }} aria-hidden />
                   </div>
                 </article>
               </div>
@@ -252,11 +245,11 @@ export default function CampaignDetailsModal({
                             <span className="text-foreground">{channel}</span>
                             <span className="text-muted-foreground">
                               {count !== undefined ? `${count} items • ` : ""}
-                              {share.toFixed(1)}% • {formatCurrency(amount)}
+                              {share.toFixed(1)}% • {formatAUD(amount)}
                             </span>
                           </div>
                           <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-                            <div className="h-full rounded-full bg-blue-500" style={{ width: `${pct}%` }} aria-hidden />
+                            <div className="h-full rounded-full bg-pacing-on-track" style={{ width: `${pct}%` }} aria-hidden />
                           </div>
                         </div>
                       )

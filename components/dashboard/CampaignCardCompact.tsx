@@ -50,27 +50,27 @@ type StatusTone = {
 
 const statusMap: Record<CampaignCardCompactProps["status"], StatusTone> = {
   live: {
-    badge: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
+    badge: "bg-pacing-ahead-bg text-status-ahead-fg",
     label: "Live",
   },
   planned: {
-    badge: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
+    badge: "bg-pacing-on-track-bg text-status-on-track-fg",
     label: "Planned",
   },
   completed: {
-    badge: "bg-slate-500/15 text-slate-600 dark:text-slate-400",
+    badge: "bg-muted text-muted-foreground",
     label: "Completed",
   },
   paused: {
-    badge: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+    badge: "bg-pacing-behind-bg text-status-behind-fg",
     label: "Paused",
   },
 }
 
 function getProgressTone(percent: number): string {
-  if (percent < 25) return "bg-rose-500"
-  if (percent < 75) return "bg-blue-500"
-  return "bg-emerald-500"
+  if (percent < 25) return "bg-pacing-critical"
+  if (percent < 75) return "bg-pacing-on-track"
+  return "bg-pacing-ahead"
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -167,7 +167,7 @@ export function CampaignCardCompact({
               statusTone.badge
             )}
           >
-            {status === "live" ? <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" aria-hidden /> : null}
+            {status === "live" ? <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-pacing-ahead" aria-hidden /> : null}
             {statusTone.label}
           </span>
 
