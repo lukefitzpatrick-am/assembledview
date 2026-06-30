@@ -40,6 +40,7 @@ import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
 import type { LineItem } from '@/lib/generateMediaPlan'
 import { formatAUD, formatMoney, parseMoneyInput } from "@/lib/format/money"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
+import { assignStableLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import {
   getSocialBurstCalculatedColumnLabel,
   SocialLineBurstCalculatedField,
@@ -664,6 +665,9 @@ export default function SocialMediaContainer({
           fee: 0,
         }];
 
+        const lineNum = Number(item.line_item ?? item.lineItem ?? index + 1) || index + 1
+        const lineItemId = item.line_item_id || item.lineItemId || buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.socialMedia, lineNum)
+
         return {
           platform: item.platform || "",
           bidStrategy: item.bid_strategy || "",
@@ -676,6 +680,10 @@ export default function SocialMediaContainer({
           clientPaysForMedia: item.client_pays_for_media || false,
           budgetIncludesFees: item.budget_includes_fees || false,
           noadserving: item.no_adserving || false,
+          lineItemId,
+          line_item_id: lineItemId,
+          line_item: item.line_item ?? item.lineItem ?? index + 1,
+          lineItem: item.lineItem ?? item.line_item ?? index + 1,
           bursts: bursts,
         };
       });
@@ -715,8 +723,13 @@ export default function SocialMediaContainer({
   // Transform form data to API schema format
   useEffect(() => {
     const formLineItems = form.getValues('lineItems') || [];
+    const stableSocialItems = assignStableLineItemNumbers<any>(
+      formLineItems,
+      mbaNumber,
+      MEDIA_TYPE_ID_CODES.socialMedia,
+    )
     
-    const transformedLineItems = formLineItems.map((lineItem, index) => {
+    const transformedLineItems = stableSocialItems.map((lineItem, index) => {
       // Calculate totalMedia from raw budget amounts (for display in MBA section)
       let totalMedia = 0;
       lineItem.bursts.forEach((burst) => {
@@ -747,14 +760,14 @@ export default function SocialMediaContainer({
         client_pays_for_media: lineItem.clientPaysForMedia || false,
         budget_includes_fees: lineItem.budgetIncludesFees || false,
         no_adserving: lineItem.noadserving || false,
-        line_item_id: buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.socialMedia, index + 1),
+        line_item_id: lineItem.line_item_id,
         bursts_json: JSON.stringify(serializeBurstsJson({
           bursts: lineItem.bursts,
           feePct: feesocial || 0,
           budgetIncludesFees: lineItem.budgetIncludesFees || false,
           clientPaysForMedia: lineItem.clientPaysForMedia || false,
         })),
-        line_item: index + 1,
+        line_item: lineItem.line_item,
         totalMedia: totalMedia,
       };
     });

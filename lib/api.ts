@@ -1909,6 +1909,7 @@ export async function saveSocialMediaLineItems(mediaPlanVersionId: number, mbaNu
     const savePromises = socialMediaLineItems.map(async (lineItem, index) => {
       // Format bursts data to ensure dates are properly serialized
       const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
+      const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.socialMedia, index)
 
       const socialMediaData = {
         media_plan_version: mediaPlanVersionId,
@@ -1925,9 +1926,9 @@ export async function saveSocialMediaLineItems(mediaPlanVersionId: number, mbaNu
         fixed_cost_media: lineItem.fixed_cost_media !== undefined ? lineItem.fixed_cost_media : (lineItem.fixedCostMedia || false),
         client_pays_for_media: lineItem.client_pays_for_media !== undefined ? lineItem.client_pays_for_media : (lineItem.clientPaysForMedia || false),
         budget_includes_fees: lineItem.budget_includes_fees !== undefined ? lineItem.budget_includes_fees : (lineItem.budgetIncludesFees || false),
-        line_item_id: `${mbaNumber}SM${index + 1}`,
+        line_item_id,
         bursts_json: formattedBursts,
-        line_item: index + 1,
+        line_item,
       };
 
       return await saveSocialMediaData(socialMediaData);
