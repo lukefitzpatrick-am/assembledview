@@ -28,6 +28,7 @@ import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { serializeBurstsJson } from "@/lib/mediaplan/serializeBurstsJson"
 import { expertApplyClearedAdServingOverride } from "@/lib/mediaplan/adServingOverrideNotice"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
+import { resolveBillingBurstLineItemId } from "@/lib/billing/resolveBillingBurstLineItemId"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -148,11 +149,12 @@ interface BVODContainerProps {
 
 export function getBVODBursts(
   form: UseFormReturn<BVODFormValues>,
-  feebvod: number
+  feebvod: number,
+  mbaNumber?: string,
 ): BillingBurst[] {
   const bvodlineItems = form.getValues("bvodlineItems") || []
 
-  return bvodlineItems.flatMap(li =>
+  return bvodlineItems.flatMap((li, liIndex) =>
     li.bursts.map(burst => {
       const rawBudget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0
 
@@ -180,7 +182,13 @@ export function getBVODBursts(
         budgetIncludesFees: li.budgetIncludesFees,
         noAdserving: li.noadserving,
         deliverables: burst.calculatedValue ?? 0,
-        buyType: li.buyType
+        buyType: li.buyType,
+        lineItemId: resolveBillingBurstLineItemId(
+          li,
+          mbaNumber,
+          MEDIA_TYPE_ID_CODES.bvod,
+          liIndex,
+        ),
       }
     })
   )
@@ -1118,7 +1126,7 @@ useEffect(() => {
 
 useEffect(() => {
   // convert each form lineItem into the shape needed for Excel
-  const calculatedBursts = getBVODBursts(form, feebvod || 0);
+  const calculatedBursts = getBVODBursts(form, feebvod || 0, mbaNumber);
   let burstIndex = 0;
 
   const items: LineItem[] = form.getValues('bvodlineItems').flatMap((lineItem, lineItemIndex) =>
@@ -1171,7 +1179,7 @@ useEffect(() => {
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       const investmentByMonth = calculateInvestmentPerMonth(form, feebvod || 0);
-      const bursts = getBVODBursts(form, feebvod || 0);
+      const bursts = getBVODBursts(form, feebvod || 0, mbaNumber);
       
       const hasInvestmentChanges = JSON.stringify(investmentByMonth) !== JSON.stringify(prevInvestmentRef.current);
       const hasBurstChanges = JSON.stringify(bursts) !== JSON.stringify(prevBurstsRef.current);
@@ -1197,7 +1205,7 @@ useEffect(() => {
     }, 300); // 300ms debounce
 
     return () => clearTimeout(timeoutId);
-  }, [watchedLineItems, feebvod, form, onBurstsChange, onInvestmentChange]);
+  }, [watchedLineItems, feebvod, form, mbaNumber, onBurstsChange, onInvestmentChange]);
 
   const getBursts = () => {
     const formLineItems = form.getValues("bvodlineItems") || [];
