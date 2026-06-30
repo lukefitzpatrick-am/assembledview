@@ -343,6 +343,7 @@ export default function InfluencersContainer({
    const {
     fields: lineItemFields,
     append: appendLineItem,
+    insert: insertLineItem,
     remove: removeLineItemBase,
   } = useFieldArray({
     control: form.control,
@@ -779,6 +780,29 @@ export default function InfluencersContainer({
       toast: toast as Parameters<typeof appendBurst>[0]["toast"],
     })
   }, [form, handleLineItemValueChange, toast, campaignStartDate, campaignEndDate]);
+
+  const handleDuplicateLineItem = useCallback((lineItemIndex: number) => {
+    const source = form.getValues(`lineItems.${lineItemIndex}`) as any
+    if (!source) return
+    const clone = {
+      ...source,
+      // Path A: a duplicate is a NEW line — clear identity so assignStableLineItemNumbers
+      // mints a fresh number above max at save (source keeps its id).
+      line_item: undefined,
+      lineItem: undefined,
+      line_item_id: undefined,
+      lineItemId: undefined,
+      bursts: (source.bursts || []).map((burst: any) => ({
+        ...burst,
+        _reactKey: newBurstReactKey(),
+        startDate: burst?.startDate ? new Date(burst.startDate) : new Date(),
+        endDate: burst?.endDate ? new Date(burst.endDate) : new Date(),
+        calculatedValue: burst?.calculatedValue ?? 0,
+        fee: burst?.fee ?? 0,
+      })),
+    }
+    insertLineItem(lineItemIndex + 1, clone as InfluencersFormValues["lineItems"][number])
+  }, [form, insertLineItem])
   
   const handleDuplicateBurst = useCallback((lineItemIndex: number) => {
     duplicateBurst({
@@ -1741,6 +1765,10 @@ const getBursts = () => {
                           <Button type="button" variant="outline" size="sm" onClick={() => handleAppendBurst(lineItemIndex)}>
                             <Plus className="h-3.5 w-3.5 mr-1.5" />
                             Add Burst
+                          </Button>
+                          <Button type="button" variant="outline" size="sm" onClick={() => handleDuplicateLineItem(lineItemIndex)}>
+                            <Copy className="h-3.5 w-3.5 mr-1.5" />
+                            Duplicate Line
                           </Button>
                           {lineItemIndex === lineItemFields.length - 1 && (
                                                     <Button
