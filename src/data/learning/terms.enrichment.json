@@ -3803,5 +3803,434 @@
     "sources": [{ "label": "The Trade Desk - Cross-device targeting", "url": "https://www.thetradedesk.com/us/our-platform/dsp-demand-side-platform/cross-device-targeting" }],
     "status": "reviewed",
     "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Gross Media Cost",
+    "plainEnglish": "The media cost before agency/tech fees are netted out (the rate-card or booked cost).",
+    "whyItMatters": "The top-line spend figure; what's 'working media' depends on what fees sit between gross and net.",
+    "practitionerNotes": "Agency commercial term; defined in-house.",
+    "level": "intermediate",
+    "sources": [{ "label": "MFA - Glossary of terms", "url": "https://www.mediafederation.org.au/resources/learning-resources/mfa-digital-foundations-glossary-of-terms" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Net Media Cost",
+    "plainEnglish": "The media cost after tech/platform fees are removed - closer to what reaches the publisher.",
+    "whyItMatters": "The gap between gross and net is where ad-tech fees live; a key transparency number for clients.",
+    "practitionerNotes": "Agency commercial term; defined in-house.",
+    "level": "intermediate",
+    "sources": [{ "label": "MFA - Glossary of terms", "url": "https://www.mediafederation.org.au/resources/learning-resources/mfa-digital-foundations-glossary-of-terms" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Gross Cost",
+    "plainEnglish": "Media cost including fees - the all-in figure billed before any rebates/discounts.",
+    "whyItMatters": "What a client sees billed; understanding what's inside it (fees, tech) is the basis of fee transparency.",
+    "practitionerNotes": "Agency commercial term; defined in-house.",
+    "level": "intermediate",
+    "sources": [{ "label": "MFA - Glossary of terms", "url": "https://www.mediafederation.org.au/resources/learning-resources/mfa-digital-foundations-glossary-of-terms" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Net Cost",
+    "plainEnglish": "Media cost before the agency's fees are added.",
+    "whyItMatters": "The base the agency fee/commission is calculated on; clarity on net vs gross avoids billing disputes.",
+    "practitionerNotes": "Agency commercial term; defined in-house.",
+    "level": "intermediate",
+    "sources": [{ "label": "MFA - Glossary of terms", "url": "https://www.mediafederation.org.au/resources/learning-resources/mfa-digital-foundations-glossary-of-terms" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Effective Rate",
+    "plainEnglish": "The blended, realised rate actually paid after fees, discounts and added value.",
+    "whyItMatters": "The true cost of the media - more honest than headline rates, which ignore rebates and value-adds.",
+    "practitionerNotes": "Agency commercial term; defined in-house.",
+    "level": "intermediate",
+    "sources": [{ "label": "MFA - Glossary of terms", "url": "https://www.mediafederation.org.au/resources/learning-resources/mfa-digital-foundations-glossary-of-terms" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Fee",
+    "plainEnglish": "A fixed or time-based charge for the agency's services (as opposed to a % commission).",
+    "whyItMatters": "The transparent, decoupled-from-spend remuneration model clients increasingly prefer over commission.",
+    "practitionerNotes": "Agency commercial term; defined in-house.",
+    "level": "foundational",
+    "sources": [{ "label": "MFA - Glossary of terms", "url": "https://www.mediafederation.org.au/resources/learning-resources/mfa-digital-foundations-glossary-of-terms" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Agency Fee",
+    "plainEnglish": "The agency's service charge - a fixed or time-based fee for planning, buying and managing media.",
+    "whyItMatters": "How the agency is paid; fee-based (vs commission) decouples remuneration from spend, reducing conflicts of interest.",
+    "practitionerNotes": "Agency commercial term; defined in-house.",
+    "level": "foundational",
+    "sources": [{ "label": "MFA - Glossary of terms", "url": "https://www.mediafederation.org.au/resources/learning-resources/mfa-digital-foundations-glossary-of-terms" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Commission",
+    "plainEnglish": "An agency's earnings calculated as a percentage of media spend.",
+    "whyItMatters": "The traditional model - simple, but ties agency income to spend, which can misalign incentives. Often replaced by fees.",
+    "practitionerNotes": "Agency commercial term; defined in-house.",
+    "level": "foundational",
+    "sources": [{ "label": "MFA - Glossary of terms", "url": "https://www.mediafederation.org.au/resources/learning-resources/mfa-digital-foundations-glossary-of-terms" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Retainer",
+    "plainEnglish": "An ongoing, regular (usually monthly) fee for continuous agency services.",
+    "whyItMatters": "Predictable income/cost for both sides; suits always-on relationships rather than one-off projects.",
+    "practitionerNotes": "Agency commercial term; defined in-house.",
+    "level": "foundational",
+    "sources": [{ "label": "MFA - Glossary of terms", "url": "https://www.mediafederation.org.au/resources/learning-resources/mfa-digital-foundations-glossary-of-terms" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Project Fee",
+    "plainEnglish": "A fixed fee for a defined piece of work/scope.",
+    "whyItMatters": "Clear cost for a clear deliverable; good for one-offs but needs a tight scope to avoid creep.",
+    "practitionerNotes": "Agency commercial term; defined in-house.",
+    "level": "foundational",
+    "sources": [{ "label": "MFA - Glossary of terms", "url": "https://www.mediafederation.org.au/resources/learning-resources/mfa-digital-foundations-glossary-of-terms" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Margin",
+    "plainEnglish": "The agency's revenue left after its costs - what it actually keeps.",
+    "whyItMatters": "The health of the commercial relationship; too thin and the agency under-resources, too fat and it's poor value.",
+    "practitionerNotes": "Agency commercial term; defined in-house.",
+    "level": "intermediate",
+    "sources": [{ "label": "MFA - Glossary of terms", "url": "https://www.mediafederation.org.au/resources/learning-resources/mfa-digital-foundations-glossary-of-terms" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Markup",
+    "plainEnglish": "An amount added to a cost price to produce the sell price (the margin added on top of cost).",
+    "whyItMatters": "How some media/services are priced; transparency on markup is central to client-agency trust.",
+    "practitionerNotes": "Agency commercial term; defined in-house.",
+    "level": "intermediate",
+    "sources": [{ "label": "MFA - Glossary of terms", "url": "https://www.mediafederation.org.au/resources/learning-resources/mfa-digital-foundations-glossary-of-terms" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Gross Margin",
+    "plainEnglish": "Revenue minus the direct cost of delivering it, before overheads.",
+    "whyItMatters": "The first read of profitability on a piece of business; falling gross margin is an early warning sign.",
+    "level": "intermediate",
+    "sources": [{ "label": "AASB 15 - Revenue recognition", "url": "https://standards.aasb.gov.au/aasb-15-dec-2022" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Net Margin",
+    "plainEnglish": "Profit left after all costs (direct and overhead) are taken out.",
+    "whyItMatters": "The bottom-line profitability of the business/account - what's actually retained.",
+    "level": "intermediate",
+    "sources": [{ "label": "AASB 15 - Revenue recognition", "url": "https://standards.aasb.gov.au/aasb-15-dec-2022" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Profit Margin",
+    "plainEnglish": "Profit as a percentage of revenue.",
+    "whyItMatters": "The headline measure of how profitable an account or the business is.",
+    "level": "intermediate",
+    "sources": [{ "label": "AASB 15 - Revenue recognition", "url": "https://standards.aasb.gov.au/aasb-15-dec-2022" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Take Rate",
+    "plainEnglish": "The percentage of spend retained by an intermediary (platform, exchange, reseller) as it passes through.",
+    "whyItMatters": "Each take rate in the chain reduces working media - the heart of supply-path transparency.",
+    "level": "advanced",
+    "sources": [{ "label": "ANA - Programmatic supply chain transparency", "url": "https://www.ana.net/miccontent/show/id/rr-2023-12-ana-programmatic-media-supply-chain-transparency-study" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Fee Stack",
+    "plainEnglish": "The cumulative layer of technology and platform fees taken across the programmatic supply chain.",
+    "whyItMatters": "The 'ad tech tax' - the gap between budget and working media; minimising it (via SPO) is a core efficiency lever.",
+    "level": "advanced",
+    "sources": [{ "label": "ANA - Programmatic supply chain transparency", "url": "https://www.ana.net/miccontent/show/id/rr-2023-12-ana-programmatic-media-supply-chain-transparency-study" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Technology Fee",
+    "plainEnglish": "A fee charged by a DSP/platform for using its technology to buy media.",
+    "whyItMatters": "Part of the fee stack between gross and net; transparency on tech fees is a client expectation.",
+    "level": "intermediate",
+    "sources": [{ "label": "ANA - Programmatic supply chain transparency", "url": "https://www.ana.net/miccontent/show/id/rr-2023-12-ana-programmatic-media-supply-chain-transparency-study" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Data Fee",
+    "plainEnglish": "A charge for using audience/third-party data in targeting.",
+    "whyItMatters": "Another layer in the fee stack; data costs can quietly erode working media if not tracked.",
+    "level": "intermediate",
+    "sources": [{ "label": "ANA - Programmatic supply chain transparency", "url": "https://www.ana.net/miccontent/show/id/rr-2023-12-ana-programmatic-media-supply-chain-transparency-study" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Invoice",
+    "plainEnglish": "A billing document issued by a supplier requesting payment for goods/services.",
+    "whyItMatters": "The instrument that moves money; in Australia a valid tax invoice is required to claim GST credits.",
+    "level": "foundational",
+    "sources": [{ "label": "ATO - Tax invoices", "url": "https://www.ato.gov.au/businesses-and-organisations/gst-excise-and-indirect-taxes/gst/tax-invoices" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Accrual",
+    "plainEnglish": "Recognising a cost (or revenue) when it's incurred/earned, even if not yet invoiced or paid.",
+    "whyItMatters": "Keeps the books matched to the period the activity happened - essential for media that delivers before it's billed.",
+    "level": "intermediate",
+    "sources": [{ "label": "AASB 15 - Revenue recognition", "url": "https://standards.aasb.gov.au/aasb-15-dec-2022" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Accrued Media",
+    "plainEnglish": "Media that has been delivered but not yet invoiced.",
+    "whyItMatters": "Recognised as a cost/liability in the period it ran, so the accounts reflect reality before the invoice arrives.",
+    "level": "intermediate",
+    "sources": [{ "label": "AASB 15 - Revenue recognition", "url": "https://standards.aasb.gov.au/aasb-15-dec-2022" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Accrual Adjustment",
+    "plainEnglish": "A correction to a previous accrual estimate once actuals are known.",
+    "whyItMatters": "Trues-up the books when the real invoice differs from what was estimated - a routine month-end reconciliation step.",
+    "practitionerNotes": "Finance ops term; defined in-house.",
+    "level": "advanced",
+    "sources": [{ "label": "AASB 15 - Revenue recognition", "url": "https://standards.aasb.gov.au/aasb-15-dec-2022" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Revenue Recognition",
+    "plainEnglish": "The accounting rules for when revenue can be booked.",
+    "whyItMatters": "Governs when an agency can recognise income (e.g. as media delivers vs when invoiced); AASB 15/IFRS 15 set the standard.",
+    "level": "advanced",
+    "sources": [{ "label": "AASB 15 - Revenue from contracts with customers", "url": "https://standards.aasb.gov.au/aasb-15-dec-2022" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Reconciliation",
+    "plainEnglish": "Matching invoices against what was booked and what actually delivered.",
+    "whyItMatters": "Catches over/under-delivery, billing errors and discrepancies - the financial close-out of a campaign.",
+    "practitionerNotes": "Finance ops term; defined in-house.",
+    "level": "intermediate",
+    "sources": [{ "label": "MFA - Glossary of terms", "url": "https://www.mediafederation.org.au/resources/learning-resources/mfa-digital-foundations-glossary-of-terms" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Billing Month",
+    "plainEnglish": "The month in which spend is recognised and billed.",
+    "whyItMatters": "Determines which period a cost lands in - important when a campaign straddles month-ends.",
+    "practitionerNotes": "Finance ops term; defined in-house.",
+    "level": "foundational",
+    "sources": [{ "label": "MFA - Glossary of terms", "url": "https://www.mediafederation.org.au/resources/learning-resources/mfa-digital-foundations-glossary-of-terms" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Billing Schedule",
+    "plainEnglish": "The planned breakdown of how a campaign's spend will be billed month by month.",
+    "whyItMatters": "The basis of invoicing and cashflow forecasting; it's what finance reconciles delivery against.",
+    "practitionerNotes": "Finance ops term; defined in-house.",
+    "level": "foundational",
+    "sources": [{ "label": "MFA - Glossary of terms", "url": "https://www.mediafederation.org.au/resources/learning-resources/mfa-digital-foundations-glossary-of-terms" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "GST",
+    "plainEnglish": "Goods and Services Tax - Australia's 10% tax on most goods and services.",
+    "whyItMatters": "Added to most media invoices; registered businesses charge it and claim credits, so quotes specify inc/ex GST.",
+    "level": "foundational",
+    "sources": [{ "label": "ATO - How GST works", "url": "https://www.ato.gov.au/businesses-and-organisations/gst-excise-and-indirect-taxes/gst/how-gst-works" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Inc GST",
+    "plainEnglish": "A price that already includes the 10% GST.",
+    "whyItMatters": "Always confirm inc vs ex GST on quotes/budgets - a 10% misread blows a budget. Divide by 11 to find the GST portion.",
+    "level": "foundational",
+    "sources": [{ "label": "ATO - Tax invoices", "url": "https://www.ato.gov.au/businesses-and-organisations/gst-excise-and-indirect-taxes/gst/tax-invoices" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Ex GST",
+    "plainEnglish": "A price that excludes GST (GST is added on top).",
+    "whyItMatters": "Media is often quoted ex GST; add 10% for the billed amount. Mixing inc/ex GST is a common budgeting error.",
+    "level": "foundational",
+    "sources": [{ "label": "ATO - Tax invoices", "url": "https://www.ato.gov.au/businesses-and-organisations/gst-excise-and-indirect-taxes/gst/tax-invoices" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "ABN",
+    "plainEnglish": "Australian Business Number - a unique identifier for a business, used on invoices and contracts.",
+    "whyItMatters": "Required to invoice and deal with other businesses; without a supplier's ABN, you may have to withhold tax.",
+    "level": "foundational",
+    "sources": [{ "label": "business.gov.au - Register for an ABN", "url": "https://business.gov.au/registrations/register-for-an-australian-business-number-abn" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "IO",
+    "plainEnglish": "Insertion Order - the document that books media, setting out what runs, when, where and at what price.",
+    "whyItMatters": "The contract for a media buy; the IAB/4As standard terms define the rights and obligations on both sides.",
+    "level": "foundational",
+    "sources": [{ "label": "IAB/4As - Standard terms (IO)", "url": "https://www.iab.com/wp-content/uploads/2015/06/IAB_4As-tsandcs-FINAL.pdf" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "PO",
+    "plainEnglish": "Purchase Order - a document a client issues to authorise and reference spend.",
+    "whyItMatters": "Many clients won't pay an invoice without a matching PO number; getting it up front avoids billing delays.",
+    "practitionerNotes": "Commercial process term; defined in-house.",
+    "level": "foundational",
+    "sources": [{ "label": "MFA - Glossary of terms", "url": "https://www.mediafederation.org.au/resources/learning-resources/mfa-digital-foundations-glossary-of-terms" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "MBA",
+    "plainEnglish": "Media Booking Authority - an internal approval that authorises media spend before it's booked.",
+    "whyItMatters": "The control that ties a booking to client approval and budget; the spine of agency spend governance.",
+    "practitionerNotes": "Australian agency term; defined in-house (no public page).",
+    "level": "intermediate",
+    "sources": [{ "label": "MFA - Glossary of terms", "url": "https://www.mediafederation.org.au/resources/learning-resources/mfa-digital-foundations-glossary-of-terms" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "SOW",
+    "plainEnglish": "Statement of Work - the document defining the scope, deliverables and timing of an engagement.",
+    "whyItMatters": "What you're contracted to deliver; a tight SOW prevents scope creep and disputes.",
+    "practitionerNotes": "Commercial contract term; defined in-house.",
+    "level": "foundational",
+    "sources": [{ "label": "MFA - Glossary of terms", "url": "https://www.mediafederation.org.au/resources/learning-resources/mfa-digital-foundations-glossary-of-terms" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "MSA",
+    "plainEnglish": "Master Services Agreement - the overarching contract governing the client-agency relationship.",
+    "whyItMatters": "Sets the standing terms (liability, IP, payment) so each SOW doesn't re-negotiate them.",
+    "practitionerNotes": "Commercial contract term; defined in-house.",
+    "level": "intermediate",
+    "sources": [{ "label": "MFA - Glossary of terms", "url": "https://www.mediafederation.org.au/resources/learning-resources/mfa-digital-foundations-glossary-of-terms" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "SLA",
+    "plainEnglish": "Service Level Agreement - agreed standards (e.g. response/turnaround times) the agency commits to.",
+    "whyItMatters": "Makes 'good service' measurable and accountable; often tied to remuneration or review.",
+    "practitionerNotes": "Commercial term; defined in-house.",
+    "level": "intermediate",
+    "sources": [{ "label": "MFA - Glossary of terms", "url": "https://www.mediafederation.org.au/resources/learning-resources/mfa-digital-foundations-glossary-of-terms" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "NDA",
+    "plainEnglish": "Non-Disclosure Agreement - a contract to keep shared information confidential.",
+    "whyItMatters": "Standard before sharing sensitive briefs/data, especially during pitches.",
+    "level": "foundational",
+    "sources": [{ "label": "IP Australia - Non-disclosure agreements", "url": "https://www.ipaustralia.gov.au/tools-and-research/business-resources/non-disclosure-agreements" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "T&Cs",
+    "plainEnglish": "Terms and Conditions - the standard terms that apply to a service or media buy.",
+    "whyItMatters": "Define rights, liabilities and remedies (e.g. makegoods, cancellation); the IAB/4As terms are the media standard.",
+    "practitionerNotes": "Commercial term; defined in-house.",
+    "level": "foundational",
+    "sources": [{ "label": "IAB/4As - Standard terms", "url": "https://www.iab.com/wp-content/uploads/2015/06/IAB_4As-tsandcs-FINAL.pdf" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "AOR",
+    "plainEnglish": "Agency of Record - the agency formally appointed to handle a client's media/advertising.",
+    "whyItMatters": "The lead, accountable agency relationship; the prize of a pitch and the basis of the MSA.",
+    "practitionerNotes": "Commercial term; defined in-house.",
+    "level": "intermediate",
+    "sources": [{ "label": "4As/ANA - Principles of pitching", "url": "https://www.aaaa.org/blog/ana-and-4as-10-principles-of-pitching/" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Pitch",
+    "plainEnglish": "The competitive process by which a client selects an agency.",
+    "whyItMatters": "How accounts are won and lost; run well (per 4As/ANA principles) it's fair and efficient, run badly it's costly for all.",
+    "level": "foundational",
+    "sources": [{ "label": "4As/ANA - Principles of pitching", "url": "https://www.aaaa.org/blog/ana-and-4as-10-principles-of-pitching/" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "RFP",
+    "plainEnglish": "Request for Proposal - a client's formal invitation for agencies to propose an approach and price.",
+    "whyItMatters": "The brief that kicks off a pitch; the quality of the RFP shapes the quality of responses.",
+    "level": "foundational",
+    "sources": [{ "label": "4As/ANA - Principles of pitching", "url": "https://www.aaaa.org/blog/ana-and-4as-10-principles-of-pitching/" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "RFQ",
+    "plainEnglish": "Request for Quote - a request focused on pricing for a defined scope.",
+    "whyItMatters": "Narrower than an RFP - used when the work is clear and the question is mainly cost.",
+    "practitionerNotes": "Commercial process term; defined in-house.",
+    "level": "foundational",
+    "sources": [{ "label": "4As/ANA - Principles of pitching", "url": "https://www.aaaa.org/blog/ana-and-4as-10-principles-of-pitching/" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Retail Media",
+    "plainEnglish": "Advertising sold by retailers across their own sites, apps and audiences using their first-party shopper data.",
+    "whyItMatters": "The fastest-growing channel - close to purchase, rich first-party data, closed-loop sales measurement, now extending to CTV/in-store.",
+    "level": "intermediate",
+    "sources": [{ "label": "IAB Australia - Retail media hub", "url": "https://www.iabaustralia.com.au/retail-media-hub/" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Amazon Ads",
+    "plainEnglish": "Amazon's advertising platform - Sponsored Products/Brands/Display plus its DSP, powered by shopper data.",
+    "whyItMatters": "The largest retail-media network - captures intent at the point of purchase with closed-loop sales data.",
+    "level": "foundational",
+    "sources": [{ "label": "Amazon Ads - Sponsored Products", "url": "https://advertising.amazon.com/solutions/products/sponsored-products" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   }
 ]
