@@ -5,7 +5,7 @@ import type { PacingRow as CombinedPacingRow } from "@/lib/snowflake/pacing-serv
 import type { Dv360DailyRow } from "@/lib/pacing/dv360/dv360Pacing"
 import { mapDeliverableMetric } from "@/lib/pacing/deliverables/mapDeliverableMetric"
 import { getMelbourneTodayISO } from "@/lib/pacing/pacingWindow"
-import { parseDateSafe } from "@/lib/api/dashboard/shared"
+import { parseDateNativeSafe } from "@/lib/dates/parseDateNativeSafe"
 import type { KPITargetsMap } from "@/lib/kpi/deliveryTargets"
 import {
   buildCumulativeTargetCurve,
@@ -142,8 +142,8 @@ function eachDay(start: Date, end: Date): string[] {
 
 /** ISO dates from campaign start through end (inclusive). */
 export function buildProgrammaticCampaignDateRange(campaignStart: string, campaignEnd: string): string[] {
-  const cs = parseDateSafe(campaignStart)
-  const ce = parseDateSafe(campaignEnd)
+  const cs = parseDateNativeSafe(campaignStart)
+  const ce = parseDateNativeSafe(campaignEnd)
   if (!cs || !ce) return []
   return eachDay(cs, ce)
 }
@@ -210,14 +210,14 @@ function getLineItemWindow(bursts: any[], fallbackStart?: string, fallbackEnd?: 
   const ends: Date[] = []
 
   bursts.forEach((burst) => {
-    const s = parseDateSafe(burst.start_date)
-    const e = parseDateSafe(burst.end_date)
+    const s = parseDateNativeSafe(burst.start_date)
+    const e = parseDateNativeSafe(burst.end_date)
     if (s) starts.push(s)
     if (e) ends.push(e)
   })
 
-  const fallbackStartDate = parseDateSafe(fallbackStart ?? undefined)
-  const fallbackEndDate = parseDateSafe(fallbackEnd ?? undefined)
+  const fallbackStartDate = parseDateNativeSafe(fallbackStart ?? undefined)
+  const fallbackEndDate = parseDateNativeSafe(fallbackEnd ?? undefined)
 
   const startDate = starts.length ? new Date(Math.min(...starts.map((d) => d.getTime()))) : fallbackStartDate
   const endDate = ends.length ? new Date(Math.max(...ends.map((d) => d.getTime()))) : fallbackEndDate
@@ -231,12 +231,12 @@ function getLineItemWindow(bursts: any[], fallbackStart?: string, fallbackEnd?: 
 }
 
 function computeShouldToDateFromBursts(bursts: any[], asAtISO: string, kind: "spend" | "deliverables") {
-  const asAtDate = parseDateSafe(asAtISO)
+  const asAtDate = parseDateNativeSafe(asAtISO)
   if (!asAtDate) return 0
 
   return bursts.reduce((sum, burst) => {
-    const burstStart = parseDateSafe(burst.start_date)
-    const burstEnd = parseDateSafe(burst.end_date)
+    const burstStart = parseDateNativeSafe(burst.start_date)
+    const burstEnd = parseDateNativeSafe(burst.end_date)
     if (!burstStart || !burstEnd) return sum
 
     const total = kind === "spend" ? burst.budget_number ?? burst.media_investment ?? 0 : burst.calculated_value_number ?? burst.deliverables ?? 0
@@ -253,7 +253,7 @@ function computeShouldToDateFromBursts(bursts: any[], asAtISO: string, kind: "sp
 }
 
 function previousCalendarDayISOProg(iso: string): string {
-  const d = parseDateSafe(iso)
+  const d = parseDateNativeSafe(iso)
   if (!d) return iso
   const prev = startOfDay(d)
   prev.setDate(prev.getDate() - 1)
@@ -753,8 +753,8 @@ export function buildProgrammaticAggregatedMetrics(
   campaignEndISO: string,
   filterRange?: DateRange,
 ): ProgrammaticPacingResult {
-  const cs = parseDateSafe(campaignStartISO)
-  const ce = parseDateSafe(campaignEndISO)
+  const cs = parseDateNativeSafe(campaignStartISO)
+  const ce = parseDateNativeSafe(campaignEndISO)
   if (!cs || !ce) {
     return {
       asAtDate: asAtDate ?? null,

@@ -8,7 +8,7 @@ import { getDeliverableKey } from "@/lib/pacing/calcPacing"
 import { MetaPacingRow, normalisePlatform, summariseDelivery } from "@/lib/pacing/social/metaPacing"
 import type { PacingRow as CombinedPacingRow } from "@/lib/snowflake/pacing-service"
 import { getMelbourneTodayISO, getPacingWindow } from "@/lib/pacing/pacingWindow"
-import { parseDateSafe } from "@/lib/api/dashboard/shared"
+import { parseDateNativeSafe } from "@/lib/dates/parseDateNativeSafe"
 import type { KPITargetsMap } from "@/lib/kpi/deliveryTargets"
 import {
   buildCumulativeTargetCurve,
@@ -201,7 +201,7 @@ function sumDeliveredUpToDate(
 }
 
 function previousCalendarDayISO(iso: string): string {
-  const d = parseDateSafe(iso)
+  const d = parseDateNativeSafe(iso)
   if (!d) return iso
   const prev = startOfDay(d)
   prev.setDate(prev.getDate() - 1)
@@ -536,14 +536,14 @@ function getLineItemWindow(bursts: Burst[], fallbackStart?: string, fallbackEnd?
   const ends: Date[] = []
 
   bursts.forEach((burst) => {
-    const s = parseDateSafe(burst.start_date)
-    const e = parseDateSafe(burst.end_date)
+    const s = parseDateNativeSafe(burst.start_date)
+    const e = parseDateNativeSafe(burst.end_date)
     if (s) starts.push(s)
     if (e) ends.push(e)
   })
 
-  const fallbackStartDate = parseDateSafe(fallbackStart ?? undefined)
-  const fallbackEndDate = parseDateSafe(fallbackEnd ?? undefined)
+  const fallbackStartDate = parseDateNativeSafe(fallbackStart ?? undefined)
+  const fallbackEndDate = parseDateNativeSafe(fallbackEnd ?? undefined)
 
   const startDate = starts.length ? new Date(Math.min(...starts.map((d) => d.getTime()))) : fallbackStartDate
   const endDate = ends.length ? new Date(Math.max(...ends.map((d) => d.getTime()))) : fallbackEndDate
@@ -561,12 +561,12 @@ function computeShouldToDateFromBursts(
   asAtISO: string,
   kind: "spend" | "deliverables"
 ) {
-  const asAtDate = parseDateSafe(asAtISO)
+  const asAtDate = parseDateNativeSafe(asAtISO)
   if (!asAtDate) return 0
 
   return bursts.reduce((sum, burst) => {
-    const burstStart = parseDateSafe(burst.start_date)
-    const burstEnd = parseDateSafe(burst.end_date)
+    const burstStart = parseDateNativeSafe(burst.start_date)
+    const burstEnd = parseDateNativeSafe(burst.end_date)
     if (!burstStart || !burstEnd) return sum
 
     const total =
@@ -619,8 +619,8 @@ function buildAggregatedMetrics(
   campaignEndISO: string,
   filterRange?: DateRange,
 ): SocialLineMetrics["pacing"] {
-  const cs = parseDateSafe(campaignStartISO)
-  const ce = parseDateSafe(campaignEndISO)
+  const cs = parseDateNativeSafe(campaignStartISO)
+  const ce = parseDateNativeSafe(campaignEndISO)
   if (!cs || !ce) {
     return {
       asAtDate: asAtDate ?? null,
@@ -808,9 +808,9 @@ export function computeSocialLineMetricsForPlatform(input: {
   const resolvedCampaignEnd = campaignEnd
     if (!activeItems.length) return []
     const today = startOfDay(new Date())
-    const asAtForSummary = parseDateSafe(pacingWindow.asAtISO) ?? today
-    const campaignStartD = parseDateSafe(campaignStart)
-    const campaignEndD = parseDateSafe(campaignEnd)
+    const asAtForSummary = parseDateNativeSafe(pacingWindow.asAtISO) ?? today
+    const campaignStartD = parseDateNativeSafe(campaignStart)
+    const campaignEndD = parseDateNativeSafe(campaignEnd)
     const campaignDayRange =
       campaignStartD && campaignEndD ? eachDay(campaignStartD, campaignEndD) : []
 

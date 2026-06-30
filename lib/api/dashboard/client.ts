@@ -10,6 +10,7 @@ import { getClientDisplayName, slugifyClientNameForUrl } from '@/lib/clients/slu
 import { findClientRawByDashboardSlug } from '@/lib/clients/xanoClientSlugMatch'
 import { expectedSpendToDateFromDeliveryScheduleMonthly } from '@/lib/spend/monthlyPlanCalendar'
 import { normalizeDateToMelbourneISO } from '@/lib/dates/normalizeCampaignDateISO'
+import { parseDateNativeSafe } from '@/lib/dates/parseDateNativeSafe'
 import {
   apiClient,
   isDashboardDebug,
@@ -19,7 +20,6 @@ import {
   isBookedApprovedCompleted,
   hasBookedApprovedCompletedTag,
   slugifyClientName,
-  parseDateSafe,
   getAustralianFinancialYear,
   getLast30DaysWindow,
   getAustralianFinancialYearWindow,
@@ -276,7 +276,7 @@ function buildYtdCountBySlugFromMaster(
     if (!statusMatches) continue
 
     const startDate =
-      parseDateSafe(
+      parseDateNativeSafe(
         plan?.campaign_start_date ??
           plan?.mp_campaigndates_start ??
           plan?.campaign_start ??
@@ -284,7 +284,7 @@ function buildYtdCountBySlugFromMaster(
           plan?.startDate
       ) ?? null
     const endDate =
-      parseDateSafe(
+      parseDateNativeSafe(
         plan?.campaign_end_date ??
           plan?.mp_campaigndates_end ??
           plan?.campaign_end ??

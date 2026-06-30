@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react"
 import { useEffect, useMemo, useState } from "react"
-import { parseDateSafe } from "@/lib/api/dashboard/shared"
+import { parseDateNativeSafe } from "@/lib/dates/parseDateNativeSafe"
 import type { PacingRow as CombinedPacingRow } from "@/lib/snowflake/pacing-service"
 import type { SearchPacingResponse } from "@/lib/snowflake/search-pacing-service"
 
@@ -31,7 +31,7 @@ function normalizeISODateOnly(value?: string | null): string | null {
   const trimmed = String(value).trim()
   if (!trimmed) return null
   if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed
-  const parsed = parseDateSafe(trimmed)
+  const parsed = parseDateNativeSafe(trimmed)
   return parsed ? parsed.toISOString().slice(0, 10) : null
 }
 

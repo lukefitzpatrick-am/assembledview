@@ -3,6 +3,7 @@
  */
 import axios from 'axios'
 import { slugifyClientNameForUrl } from '@/lib/clients/slug'
+import { parseDateNativeSafe } from '@/lib/dates/parseDateNativeSafe'
 
 export const MELBOURNE_TZ = 'Australia/Melbourne'
 export const DAY_MS = 24 * 60 * 60 * 1000
@@ -54,8 +55,8 @@ export function pickHighestVersionRow(versions: any[]): any | null {
     const bn = numericVersion(best)
     if (vn > bn) return v
     if (vn < bn) return best
-    const vUp = parseDateSafe(v.updated_at)?.getTime() ?? 0
-    const bUp = parseDateSafe(best.updated_at)?.getTime() ?? 0
+    const vUp = parseDateNativeSafe(v.updated_at)?.getTime() ?? 0
+    const bUp = parseDateNativeSafe(best.updated_at)?.getTime() ?? 0
     return vUp >= bUp ? v : best
   })
 }
@@ -101,12 +102,6 @@ export function getAustralianFinancialYear(date = new Date()) {
   const months = ['Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun']
 
   return { start, end, months }
-}
-
-export function parseDateSafe(value: any): Date | null {
-  if (!value) return null
-  const date = new Date(value)
-  return isNaN(date.getTime()) ? null : date
 }
 
 export type TzParts = { year: number; month: number; day: number; hour: number; minute: number; second: number }
@@ -296,7 +291,7 @@ export function computeSpendFromDelivery(
 
   deliverySchedule.forEach((entry) => {
     const monthRange = parseMonthYearLabel(entry?.monthYear ?? entry?.month_year ?? entry?.monthLabel ?? entry?.month_label)
-    const explicitDate = parseDateSafe(entry?.date ?? entry?.day ?? entry?.startDate ?? entry?.start_date)
+    const explicitDate = parseDateNativeSafe(entry?.date ?? entry?.day ?? entry?.startDate ?? entry?.start_date)
 
     const amount = sumLineItems(entry)
     if (!amount || amount <= 0) return

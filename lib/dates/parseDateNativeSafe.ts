@@ -1,7 +1,8 @@
 /**
- * Native-semantics safe date parser. Strings parse via the platform Date
- * constructor (plain YYYY-MM-DD => UTC midnight). Returns null for falsy/
- * invalid input. Valid Date inputs are cloned.
+ * Safe NATIVE/UTC date parser. Strings parse via the platform Date constructor
+ * (plain YYYY-MM-DD => UTC midnight). Do not swap with parseDateSafe (LOCAL);
+ * they can differ by up to a day in non-UTC timezones. Returns null for
+ * falsy/invalid input. Valid Date inputs are cloned.
  *
  * NOTE: intentionally does NOT use parseDateOnlyString. For local date-only
  * preservation, use lib/dates/parseDateSafe instead.
