@@ -2736,12 +2736,11 @@ export default function DashboardOverview({
 
       {showTables && tableSectionVisible ? (
         <>
-          <div className="pt-4 pb-1">
+          <div className="mb-4 flex items-center justify-between pt-4">
             <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">Campaigns & scope data</h2>
+            <ListGridToggle value={listGridMode} onChange={setListGridMode} />
           </div>
-          <PanelRow
-            actions={<ListGridToggle value={listGridMode} onChange={setListGridMode} />}
-          >
+          <PanelRow className="space-y-0">
           {layoutPanels.liveCampaigns ? (
           <PanelRowCell span="full">
             <Panel className="w-full overflow-hidden border-0 shadow-md">
