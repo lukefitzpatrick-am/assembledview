@@ -141,8 +141,6 @@ type DashboardMetricCard = {
   accent: string
   iconBg: string
   iconText: string
-  sparklineTone: string
-  sparklineData: number[]
 }
 
 const LIVE_STATUSES = ["booked", "approved", "completed"]
@@ -1055,8 +1053,6 @@ export default function DashboardOverview({
       accent: "bg-pacing-on-track",
       iconBg: "bg-pacing-on-track-bg",
       iconText: "text-status-on-track-fg",
-      sparklineTone: "text-pacing-on-track",
-      sparklineData: [0, 0],
     },
     {
       title: "Total Live Scopes of Work",
@@ -1066,8 +1062,6 @@ export default function DashboardOverview({
       accent: "bg-pacing-ahead",
       iconBg: "bg-pacing-ahead-bg",
       iconText: "text-status-ahead-fg",
-      sparklineTone: "text-pacing-ahead",
-      sparklineData: [0, 0],
     },
     {
       title: "Total Live Clients",
@@ -1077,8 +1071,6 @@ export default function DashboardOverview({
       accent: "bg-channel-bvod",
       iconBg: "bg-surface-panel",
       iconText: "text-channel-bvod",
-      sparklineTone: "text-channel-bvod",
-      sparklineData: [0, 0],
     },
     {
       title: "Total Live Publishers",
@@ -1088,8 +1080,6 @@ export default function DashboardOverview({
       accent: "bg-pacing-behind",
       iconBg: "bg-pacing-behind-bg",
       iconText: "text-status-behind-fg",
-      sparklineTone: "text-pacing-behind",
-      sparklineData: [0, 0],
     },
   ])
 
@@ -1679,8 +1669,6 @@ export default function DashboardOverview({
           accent: "bg-pacing-on-track",
           iconBg: "bg-pacing-on-track-bg",
           iconText: "text-status-on-track-fg",
-          sparklineTone: "text-pacing-on-track",
-          sparklineData: [0, totalLiveCampaigns],
         },
         {
           title: "Total Live Scopes of Work",
@@ -1690,8 +1678,6 @@ export default function DashboardOverview({
           accent: "bg-pacing-ahead",
           iconBg: "bg-pacing-ahead-bg",
           iconText: "text-status-ahead-fg",
-          sparklineTone: "text-pacing-ahead",
-          sparklineData: [0, totalLiveScopes],
         },
         {
           title: "Total Live Clients",
@@ -1701,8 +1687,6 @@ export default function DashboardOverview({
           accent: "bg-channel-bvod",
           iconBg: "bg-surface-panel",
           iconText: "text-channel-bvod",
-          sparklineTone: "text-channel-bvod",
-          sparklineData: [0, totalLiveClients],
         },
         {
           title: "Total Live Publishers",
@@ -1712,8 +1696,6 @@ export default function DashboardOverview({
           accent: "bg-pacing-behind",
           iconBg: "bg-pacing-behind-bg",
           iconText: "text-status-behind-fg",
-          sparklineTone: "text-pacing-behind",
-          sparklineData: [0, totalLivePublishers],
         },
       ])
       setDataLastRefreshedAt(new Date())
@@ -2737,8 +2719,6 @@ export default function DashboardOverview({
                         icon={metric.icon}
                         iconContainerClassName={metric.iconBg}
                         iconClassName={metric.iconText}
-                        sparklineData={metric.sparklineData}
-                        sparklineClassName={metric.sparklineTone}
                         className="h-full"
                       />
                     </button>
