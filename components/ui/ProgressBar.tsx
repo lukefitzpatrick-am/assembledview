@@ -5,7 +5,7 @@ import { useMemo } from "react"
 import { cn } from "@/lib/utils"
 
 type ProgressColor = "default" | "success" | "warning" | "danger" | "info"
-type ProgressSize = "sm" | "md" | "lg"
+type ProgressSize = "sm" | "md" | "lg" | "pacing"
 
 export interface ProgressBarProps {
   value: number
@@ -22,14 +22,15 @@ const sizeClass: Record<ProgressSize, string> = {
   sm: "h-1.5",
   md: "h-2.5",
   lg: "h-3.5",
+  pacing: "h-[7px]",
 }
 
 const toneClass: Record<ProgressColor, string> = {
   default: "bg-primary",
-  success: "bg-emerald-500",
-  warning: "bg-amber-500",
-  danger: "bg-rose-500",
-  info: "bg-blue-500",
+  success: "bg-pacing-ahead",
+  warning: "bg-pacing-behind",
+  danger: "bg-pacing-critical",
+  info: "bg-pacing-on-track",
 }
 
 export function ProgressBar({
@@ -49,7 +50,7 @@ export function ProgressBar({
 
   return (
     <div className={cn("w-full", className)}>
-      <div className={cn("w-full overflow-hidden rounded-full bg-muted", sizeClass[size])}>
+      <div className={cn("w-full overflow-hidden rounded-full bg-[var(--fill-track)]", sizeClass[size])}>
         <div
           className={cn("h-full rounded-full", customColor ? "" : toneClass[color])}
           style={{
