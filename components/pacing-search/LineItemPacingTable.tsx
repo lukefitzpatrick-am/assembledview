@@ -16,9 +16,9 @@ import {
   compareValues,
   type SortDirection,
 } from "@/components/ui/sortable-table-header";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { statusBadge, statusLabel } from "@/components/dashboard/delivery/shared/statusColours";
 import { slugifyClientName } from "@/lib/api/dashboard/shared";
 import {
   buildKpiComparisons,
@@ -215,11 +215,47 @@ function SortablePacingTh({
  */
 const STICKY_LEFT_COUNT = 8;
 
-const LINE_ITEM_BG = "hsl(210 20% 99%)";
-const PLATFORM_CAMPAIGN_BG = "hsl(210 26% 95%)";
-const AD_GROUP_BG = "hsl(210 22% 97%)";
+const LINE_ITEM_BG = "hsl(var(--card))";
+const PLATFORM_CAMPAIGN_BG = "hsl(var(--surface-panel))";
+const AD_GROUP_BG = "var(--fill-track)";
 
-const TARGETING_COLUMN_SHADOW = "2px 0 4px -2px rgba(0,0,0,0.08)";
+const TARGETING_COLUMN_SHADOW = "-1px 0 0 hsl(var(--border)) inset";
+
+const statusLabel: Record<SearchPacingCampaignRow["lineItemStatus"], string> = {
+  "on-track": "On track",
+  ahead: "Ahead",
+  behind: "Off pace",
+  "no-data": "No data",
+};
+
+function statusBadgeVariant(
+  status: SearchPacingCampaignRow["lineItemStatus"]
+): "on-track" | "ahead" | "behind" | "secondary" {
+  switch (status) {
+    case "on-track":
+      return "on-track";
+    case "ahead":
+      return "ahead";
+    case "behind":
+      return "behind";
+    case "no-data":
+      return "secondary";
+  }
+}
+
+function kpiStatusBadgeVariant(status: RowKpiStatus): "secondary" | "on-track" | "behind" | "critical" {
+  switch (status) {
+    case "kpi-pending":
+    case "kpi-no-delivery":
+      return "secondary";
+    case "kpi-on-track":
+      return "on-track";
+    case "kpi-mixed":
+      return "behind";
+    case "kpi-off-target":
+      return "critical";
+  }
+}
 
 /** Returns cumulative left offsets for sticky columns, in px. */
 function computeLeftOffsets(widths: number[]): number[] {
@@ -1027,36 +1063,18 @@ function StatusCell({ status }: { status: SearchPacingCampaignRow["lineItemStatu
     return <span className="text-muted-foreground">—</span>;
   }
   return (
-    <span
-      className={`inline-flex items-center rounded px-2 py-0.5 text-[10px] font-medium whitespace-nowrap ${statusBadge[status]}`}
-    >
+    <Badge variant={statusBadgeVariant(status)} size="sm" className="whitespace-nowrap text-[10px]">
       {statusLabel[status]}
-    </span>
+    </Badge>
   );
 }
 
 function KpiStatusPill({ status }: { status: RowKpiStatus }) {
   const copy = copyForRowKpiStatus(status);
-  const classes = (() => {
-    switch (status) {
-      case "kpi-pending":
-        return "bg-muted text-muted-foreground";
-      case "kpi-no-delivery":
-        return "bg-muted text-muted-foreground";
-      case "kpi-on-track":
-        return "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300";
-      case "kpi-mixed":
-        return "bg-amber-500/15 text-amber-700 dark:text-amber-300";
-      case "kpi-off-target":
-        return "bg-rose-500/15 text-rose-700 dark:text-rose-300";
-    }
-  })();
   return (
-    <span
-      className={`inline-flex items-center rounded px-2 py-0.5 text-[10px] font-medium whitespace-nowrap ${classes}`}
-    >
+    <Badge variant={kpiStatusBadgeVariant(status)} size="sm" className="whitespace-nowrap text-[10px]">
       {copy}
-    </span>
+    </Badge>
   );
 }
 
@@ -1201,7 +1219,7 @@ function KpiDrilldownContent({
             {isAdmin ? (
               <button
                 type="button"
-                className="text-[11px] text-blue-600 hover:underline"
+                className="text-[11px] text-primary hover:text-primary/80 hover:underline"
                 onClick={(e) => {
                   e.stopPropagation();
                   onOpenModal();
@@ -1212,7 +1230,7 @@ function KpiDrilldownContent({
             ) : (
               <a
                 href={editorHref}
-                className="text-[11px] text-blue-600 hover:underline"
+                className="text-[11px] text-primary hover:text-primary/80 hover:underline"
                 onClick={(e) => e.stopPropagation()}
               >
                 Edit targets in media plan →
@@ -1233,7 +1251,7 @@ function EmptyKpiState({ editorHref }: { editorHref: string }) {
       </p>
       <a
         href={editorHref}
-        className="inline-block text-[11px] text-blue-600 hover:underline"
+        className="inline-block text-[11px] text-primary hover:text-primary/80 hover:underline"
         onClick={(e) => e.stopPropagation()}
       >
         Set targets in media plan →
@@ -1267,8 +1285,8 @@ function KpiComparisonRow({ comparison: c }: { comparison: KpiComparison }) {
     c.variancePercent === null
       ? "text-muted-foreground"
       : c.variancePercent >= 0
-        ? "text-emerald-700"
-        : "text-rose-700";
+        ? "text-status-ahead-fg"
+        : "text-status-critical-fg";
 
   const actualDisplay =
     c.status === "no-target" ? (
@@ -1282,11 +1300,11 @@ function KpiComparisonRow({ comparison: c }: { comparison: KpiComparison }) {
   return (
     <tr>
       <td className="py-0.5 pr-2">{labelForMetric(c.metric)}</td>
-      <td className="py-0.5 pr-2 text-right tabular-nums">
+      <td className="num py-0.5 pr-2 text-right">
         {c.status === "no-target" ? "—" : formatRatioAsPercent(c.target)}
       </td>
-      <td className="py-0.5 pr-2 text-right tabular-nums">{actualDisplay}</td>
-      <td className={`py-0.5 text-right tabular-nums ${varianceClass}`}>
+      <td className="num py-0.5 pr-2 text-right">{actualDisplay}</td>
+      <td className={`num py-0.5 text-right ${varianceClass}`}>
         {formatVariancePercent(c.variancePercent)}
       </td>
     </tr>

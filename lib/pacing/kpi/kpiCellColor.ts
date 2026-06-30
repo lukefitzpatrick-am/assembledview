@@ -2,13 +2,11 @@ import { KPI_TOLERANCE } from "./computeKpiStatus";
 
 /**
  * Tailwind class strings for the three KPI cell tint states. Matches the
- * translucent /15 vocabulary used by KpiStatusPill and StatusCell on the
- * pacing surface — see components/pacing-search and
- * components/dashboard/delivery/shared/statusColours.ts.
+ * token vocabulary used by KpiStatusPill and StatusCell on the pacing surface.
  */
-const TINT_ON_TRACK = "bg-emerald-500/15";
-const TINT_OFF_TARGET = "bg-rose-500/15";
-const TINT_NO_COMPARISON = "bg-sky-100";
+const TINT_ON_TRACK = "bg-pacing-on-track-bg";
+const TINT_OFF_TARGET = "bg-pacing-critical-bg";
+const TINT_NO_COMPARISON = "bg-[var(--fill-track)]";
 
 /**
  * Normalise a CTR target to a decimal ratio.
@@ -32,11 +30,11 @@ function normaliseCtrTarget(target: number): number {
  * Return the Tailwind background-class for the CTR cell on a pacing
  * line-item row.
  *
- * - `bg-sky-100` when either the target or the actual is null
+ * - neutral track fill when either the target or the actual is null
  *   (no meaningful comparison possible).
- * - `bg-emerald-500/15` when the actual is within KPI_TOLERANCE of
+ * - on-track pacing tint when the actual is within KPI_TOLERANCE of
  *   the target — the same threshold the row's KPI pill uses.
- * - `bg-rose-500/15` otherwise.
+ * - critical pacing tint otherwise.
  */
 export function ctrCellTint(
   actual: number | null,

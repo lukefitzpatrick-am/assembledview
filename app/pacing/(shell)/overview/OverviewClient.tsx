@@ -129,20 +129,20 @@ export function OverviewClient({ isAdmin }: OverviewClientProps) {
 
 function StatusSummary({ counts }: { counts: StatusCounts }) {
   const items: Array<{ label: string; value: number; tone: string }> = [
-    { label: "Behind", value: counts.behind, tone: "text-amber-700" },
-    { label: "On track", value: counts.onTrack, tone: "text-emerald-700" },
-    { label: "Ahead", value: counts.ahead, tone: "text-blue-700" },
+    { label: "Behind", value: counts.behind, tone: "text-status-behind-fg" },
+    { label: "On track", value: counts.onTrack, tone: "text-status-on-track-fg" },
+    { label: "Ahead", value: counts.ahead, tone: "text-status-ahead-fg" },
     { label: "No data", value: counts.noData, tone: "text-muted-foreground" },
     { label: "KPI Pending", value: counts.kpiPending, tone: "text-muted-foreground" },
   ];
   return (
-    <div className="grid grid-cols-5 gap-2 rounded border bg-background p-3">
+    <div className="grid grid-cols-5 gap-2 rounded-card border border-border bg-card p-3 shadow-e0">
       {items.map((item) => (
         <div key={item.label} className="flex flex-col">
           <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
             {item.label}
           </span>
-          <span className={`text-lg font-semibold tabular-nums ${item.tone}`}>{item.value}</span>
+          <span className={`num text-lg font-semibold ${item.tone}`}>{item.value}</span>
         </div>
       ))}
     </div>
