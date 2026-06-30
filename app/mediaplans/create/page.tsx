@@ -20,22 +20,16 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Segmented, SegmentedItem } from "@/components/ui/segmented"
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Combobox } from "@/components/ui/combobox"
 import { MultiSelectCombobox, type MultiSelectOption } from "@/components/ui/multi-select-combobox"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { SingleDatePicker } from "@/components/ui/single-date-picker"
-import { CalendarIcon, ChevronDown, ChevronsUpDown, Check, Download, FileText, Loader2, MoreHorizontal, X } from "lucide-react"
+import { ChevronsUpDown, Check, Download, FileText, Loader2, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { CampaignExportsSection } from "@/components/dashboard/CampaignExportsSection"
 import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
-import FloatingSectionNav from "@/components/mediaplans/FloatingSectionNav"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { sortByLabel } from "@/lib/utils/sort"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose, DialogDescription } from "@/components/ui/dialog"
@@ -381,6 +375,35 @@ type Burst = {
   budgetIncludesFees: boolean;
 };
 
+type CreateCampaignStepId = "campaign-setup" | "channel-allocation" | "mba-billing" | "review-export"
+
+const createCampaignSteps: { id: CreateCampaignStepId; label: string; eyebrow: string }[] = [
+  { id: "campaign-setup", label: "Campaign setup", eyebrow: "01" },
+  { id: "channel-allocation", label: "Channel allocation", eyebrow: "02" },
+  { id: "mba-billing", label: "MBA & billing", eyebrow: "03" },
+  { id: "review-export", label: "Review & files", eyebrow: "04" },
+]
+
+const objectiveOptions = [
+  { value: "awareness", label: "Awareness" },
+  { value: "consideration", label: "Consideration" },
+  { value: "conversion", label: "Conversion" },
+]
+
+const buyBasisOptions = [
+  { value: "net", label: "Net media" },
+  { value: "gross", label: "Gross media" },
+  { value: "client-pays", label: "Client pays direct" },
+]
+
+const getChannelBarClass = (mediaName: string) => {
+  if (mediaName === "mp_television" || mediaName === "mp_radio" || mediaName === "mp_cinema") return "bg-channel-tv"
+  if (mediaName === "mp_bvod" || mediaName === "mp_progvideo" || mediaName === "mp_progbvod" || mediaName === "mp_digivideo") return "bg-channel-bvod"
+  if (mediaName === "mp_socialmedia" || mediaName === "mp_influencers") return "bg-channel-social"
+  if (mediaName === "mp_progdisplay" || mediaName === "mp_digidisplay" || mediaName === "mp_progaudio" || mediaName === "mp_digiaudio") return "bg-channel-progDisplay"
+  return "bg-channel-search"
+}
+
 export default function CreateMediaPlan() {
 
   //general and client info
@@ -413,31 +436,6 @@ export default function CreateMediaPlan() {
     setHasUnsavedChanges(true);
   }, []);
 
-  // Sticky action bar sizing (ensure scroll space is 2x bar height)
-  const stickyBarRef = useRef<HTMLDivElement | null>(null);
-  const [stickyBarHeight, setStickyBarHeight] = useState(0);
-
-  useEffect(() => {
-    const el = stickyBarRef.current;
-    if (!el) return;
-
-    const update = () => {
-      const next = el.getBoundingClientRect().height || 0;
-      setStickyBarHeight(next);
-    };
-
-    update();
-
-    if (typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver(update);
-    ro.observe(el);
-    window.addEventListener("resize", update);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener("resize", update);
-    };
-  }, []);
-  
   // Media type display names mapping
   const mediaTypeDisplayNames: Record<string, string> = {
     mp_television: 'Television',
@@ -1140,20 +1138,14 @@ export default function CreateMediaPlan() {
     []
   )
 
-  const enabledSections = useMemo(() => {
-    return mediaTypes
-      .filter((medium) => medium.name !== "mp_fixedfee")
-      .filter((medium) => watchedMediaTypesMap[medium.name] && medium.component)
-      .map((medium) => ({
-        id: `media-section-${medium.name}`,
-        label: medium.label,
-      }))
-  }, [mediaTypes, watchedMediaTypesMap])
-
   // Fields to expose to the assistant
   const watchedClientName = useWatch({ control: form.control, name: "mp_client_name" })
   const watchedCampaignName = useWatch({ control: form.control, name: "mp_campaignname" })
   const watchedCampaignBudget = useWatch({ control: form.control, name: "mp_campaignbudget" })
+  const watchedFixedFee = useWatch({ control: form.control, name: "mp_fixedfee" })
+  const [activeStep, setActiveStep] = useState<CreateCampaignStepId>(createCampaignSteps[0].id)
+  const [objective, setObjective] = useState(objectiveOptions[0].value)
+  const [buyBasis, setBuyBasis] = useState(buyBasisOptions[0].value)
   const currencyFormatter = new Intl.NumberFormat("en-AU", {
     style: "currency",
     currency: "AUD",
@@ -1170,6 +1162,47 @@ export default function CreateMediaPlan() {
       }),
     []
   )
+
+  const selectedMediaCount = useMemo(
+    () =>
+      mediaTypes
+        .filter((medium) => medium.name !== "mp_fixedfee")
+        .filter((medium) => watchedMediaTypesMap[medium.name])
+        .length,
+    [mediaTypes, watchedMediaTypesMap]
+  )
+
+  const activeStepIndex = createCampaignSteps.findIndex((step) => step.id === activeStep)
+
+  useEffect(() => {
+    if (typeof IntersectionObserver === "undefined") return
+
+    const stepElements = createCampaignSteps
+      .map((step) => document.getElementById(step.id))
+      .filter((node): node is HTMLElement => Boolean(node))
+
+    if (stepElements.length === 0) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)
+
+        if (visible[0]?.target.id) {
+          setActiveStep(visible[0].target.id as CreateCampaignStepId)
+        }
+      },
+      {
+        root: null,
+        rootMargin: "-18px 0px -62% 0px",
+        threshold: [0.2, 0.45, 0.7],
+      }
+    )
+
+    stepElements.forEach((node) => observer.observe(node))
+    return () => observer.disconnect()
+  }, [])
 
   /** Billing schedule preview: column visibility from calculated totals (not formatted strings). */
   const billingSchedulePreviewColumns = useMemo(() => {
@@ -5651,14 +5684,8 @@ const handleSaveAll = async () => {
   }, [getPageContext]);
   
   return (
-    <div
-      className="w-full min-h-screen"
-      style={{
-        // Always keep iOS home-indicator / mobile browser UI from covering content
-        paddingBottom: "env(safe-area-inset-bottom)",
-      }}
-    >
-      <div className="mx-auto w-full max-w-[1920px] px-4 sm:px-5 md:px-6 xl:px-8 2xl:px-10 pt-0 pb-24 space-y-6">
+    <div className="w-full min-h-screen overflow-visible pb-[env(safe-area-inset-bottom)]">
+      <div className="mx-auto w-full max-w-[1920px] space-y-6 overflow-visible px-4 pb-24 pt-0 sm:px-5 md:px-6 xl:px-8 2xl:px-10">
         <MediaPlanEditorHero
           className="mb-2"
           title="Create a Campaign"
@@ -5677,11 +5704,100 @@ const handleSaveAll = async () => {
             </Button>
           }
         />
-        <div className="w-full">
+        <div className="grid w-full grid-cols-1 items-start gap-6 overflow-visible xl:grid-cols-[18rem_minmax(0,1fr)] xl:gap-8">
+          <aside className="xl:sticky xl:top-[18px] xl:self-start">
+            <div className="space-y-4">
+              <nav className="rounded-frame border border-border bg-card p-3 shadow-e1" aria-label="Create campaign progress">
+                <ol className="space-y-1">
+                  {createCampaignSteps.map((step, index) => {
+                    const isCurrent = step.id === activeStep
+                    const isPassed = index < activeStepIndex
+
+                    return (
+                      <li key={step.id}>
+                        <button
+                          type="button"
+                          onClick={() => document.getElementById(step.id)?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                          className={cn(
+                            "group flex w-full items-center gap-3 rounded-card px-3 py-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                            isCurrent ? "bg-table-row-hover text-foreground shadow-e0" : "text-muted-foreground hover:bg-table-row-hover hover:text-foreground"
+                          )}
+                          aria-current={isCurrent ? "step" : undefined}
+                        >
+                          <span
+                            className={cn(
+                              "flex h-7 w-7 shrink-0 items-center justify-center rounded-pill border text-[11px] font-semibold num",
+                              isPassed
+                                ? "border-primary bg-primary text-primary-foreground"
+                                : isCurrent
+                                  ? "border-primary text-primary"
+                                  : "border-border bg-[var(--fill-track)] text-muted-foreground"
+                            )}
+                            aria-hidden="true"
+                          >
+                            {isPassed ? <Check className="h-3.5 w-3.5" /> : step.eyebrow}
+                          </span>
+                          <span className="font-medium">{step.label}</span>
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ol>
+              </nav>
+
+              <div className="rounded-frame border border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar-bg))] p-4 text-[hsl(var(--sidebar-foreground))] shadow-frame">
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--sidebar-foreground)/0.65)]">Draft Summary</p>
+                  <h2 className="text-lg font-semibold leading-tight">{watchedCampaignName || "Untitled campaign"}</h2>
+                  <p className="text-sm text-[hsl(var(--sidebar-foreground)/0.72)]">{watchedClientName || "No client selected"}</p>
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wider text-[hsl(var(--sidebar-foreground)/0.55)]">Budget</p>
+                    <p className="num font-semibold">{currencyFormatter.format(Number(watchedCampaignBudget) || 0)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wider text-[hsl(var(--sidebar-foreground)/0.55)]">Channels</p>
+                    <p className="num font-semibold">{selectedMediaCount}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wider text-[hsl(var(--sidebar-foreground)/0.55)]">Fee model</p>
+                    <p className="font-semibold">{watchedFixedFee ? "Fixed" : "Commission"}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wider text-[hsl(var(--sidebar-foreground)/0.55)]">Status</p>
+                    <p className="font-semibold">Draft</p>
+                  </div>
+                </div>
+                <div className="mt-4 space-y-2">
+                  <Button type="button" onClick={handleGenerateMBA} disabled={isLoading} className="w-full bg-primary text-primary-foreground hover:bg-primary/90">
+                    {isLoading ? "Generating..." : "Generate MBA"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleSaveAll}
+                    disabled={isLoading || isPlanSaving || isVersionSaving}
+                    className="w-full border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar-accent))] text-[hsl(var(--sidebar-accent-foreground))] hover:bg-[hsl(var(--sidebar-accent)/0.86)]"
+                  >
+                    {isLoading || isPlanSaving || isVersionSaving ? "Saving..." : "Save draft"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </aside>
+
+          <div className="min-w-0 space-y-6 overflow-visible">
           <Form {...form}>
           <form className="space-y-6">
+            <section id="campaign-setup" data-create-step className="scroll-mt-[18px] rounded-frame border border-border bg-card p-4 shadow-e1 sm:p-5">
+            <div className="mb-5 flex flex-col gap-1">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Step 01</p>
+              <h2 className="text-xl font-semibold text-foreground">Campaign setup</h2>
+              <p className="text-sm text-muted-foreground">Set the core campaign details and planning model before allocating channels.</p>
+            </div>
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 xl:gap-7 2xl:gap-8 xl:items-stretch">
-            <div className="flex h-full min-w-0 flex-col gap-4 overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm xl:col-span-2">
+            <div className="flex h-full min-w-0 flex-col gap-4 overflow-visible rounded-card border border-border bg-surface-panel shadow-e0 xl:col-span-2">
               <div className="border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
                 <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Campaign Details</h3>
               </div>
@@ -5981,15 +6097,92 @@ const handleSaveAll = async () => {
               </div>
             </div>
 
-            <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm xl:col-span-1">
-              <div className="border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
-                <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Media Types</h3>
+            <div className="flex h-full min-w-0 flex-col overflow-visible rounded-card border border-border bg-surface-panel shadow-e0 xl:col-span-1">
+              <div className="border-b border-border bg-[var(--fill-track)] px-6 pb-3 pt-5">
+                <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Planning controls</h3>
               </div>
-              <div className="grid min-h-0 w-full flex-1 grid-cols-1 content-start gap-x-3 gap-y-1.5 px-6 py-4 md:grid-cols-2">
+              <div className="space-y-5 px-6 py-4">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-[var(--text-secondary)]">Objective</Label>
+                  <Segmented value={objective} onValueChange={(value) => value && setObjective(value)} className="grid w-full grid-cols-3">
+                    {objectiveOptions.map((option) => (
+                      <SegmentedItem key={option.value} value={option.value} className="h-8 px-2 text-xs">
+                        {option.label}
+                      </SegmentedItem>
+                    ))}
+                  </Segmented>
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name="mp_fixedfee"
+                  render={({ field }) => (
+                    <FormItem className="space-y-2">
+                      <FormLabel className="text-sm font-medium text-[var(--text-secondary)]">Fee model</FormLabel>
+                      <FormControl>
+                        <Segmented
+                          value={field.value ? "fixed" : "commission"}
+                          onValueChange={(value) => {
+                            if (!value) return
+                            field.onChange(value === "fixed")
+                          }}
+                          className="grid w-full grid-cols-2"
+                        >
+                          <SegmentedItem value="commission" className="h-8">Commission</SegmentedItem>
+                          <SegmentedItem value="fixed" className="h-8">Fixed fee</SegmentedItem>
+                        </Segmented>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-[var(--text-secondary)]">Buy basis</Label>
+                  <div className="grid gap-2">
+                    {buyBasisOptions.map((option) => (
+                      <label
+                        key={option.value}
+                        className={cn(
+                          "flex cursor-pointer items-center gap-3 rounded-card border border-border bg-card px-3 py-2 text-sm transition-colors hover:bg-table-row-hover",
+                          buyBasis === option.value && "border-primary bg-table-row-hover text-foreground"
+                        )}
+                      >
+                        <input
+                          type="radio"
+                          name="buy-basis"
+                          value={option.value}
+                          checked={buyBasis === option.value}
+                          onChange={(event) => setBuyBasis(event.currentTarget.value)}
+                          className="h-4 w-4 accent-[hsl(var(--primary))]"
+                        />
+                        <span>{option.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+            </div>
+            </section>
+
+            <section id="channel-allocation" data-create-step className="scroll-mt-[18px] rounded-frame border border-border bg-card p-4 shadow-e1 sm:p-5">
+              <div className="mb-5 flex flex-col gap-1">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Step 02</p>
+                <h2 className="text-xl font-semibold text-foreground">Channel allocation</h2>
+                <p className="text-sm text-muted-foreground">Select channel families and build the active media line items in one continuous flow.</p>
+              </div>
+
+              <div className="rounded-card border border-border bg-surface-panel shadow-e0">
+                <div className="border-b border-border bg-[var(--fill-track)] px-6 pb-3 pt-5">
+                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Media channels</h3>
+                </div>
+                <div className="grid min-h-0 w-full grid-cols-1 content-start gap-2 px-6 py-4 md:grid-cols-2 xl:grid-cols-3">
                 {mediaTypes.filter(medium => medium.name !== "mp_fixedfee").map((medium) => {
                   const switchId = `media-type-${medium.name}`
                   return (
-                    <div key={medium.name} className="flex items-center gap-3 py-0.5">
+                    <div key={medium.name} className="flex items-center gap-3 rounded-card border border-border bg-card px-3 py-2 shadow-e0">
+                      <span className={cn("h-8 w-1.5 shrink-0 rounded-pill", getChannelBarClass(medium.name))} aria-hidden="true" />
                       <Controller
                         control={form.control}
                         name={medium.name as keyof MediaPlanFormValues}
@@ -6018,14 +6211,21 @@ const handleSaveAll = async () => {
                     </div>
                   )
                 })}
+                </div>
               </div>
-            </div>
-            </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 xl:gap-7 2xl:gap-8 xl:items-stretch">
+            </section>
+
+            <section id="mba-billing" data-create-step className="scroll-mt-[18px] rounded-frame border border-border bg-card p-4 shadow-e1 sm:p-5">
+              <div className="mb-5 flex flex-col gap-1">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Step 03</p>
+                <h2 className="text-xl font-semibold text-foreground">MBA &amp; billing</h2>
+                <p className="text-sm text-muted-foreground">Review draft investment totals, billing months, and KPI assumptions.</p>
+              </div>
+              <div className="grid grid-cols-1 gap-6 xl:grid-cols-3 xl:gap-7 2xl:gap-8">
               {/* MBA Details Section */}
-              <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm">
-                <div className="flex items-center justify-between border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
+              <div className="flex h-full min-w-0 flex-col overflow-visible rounded-card border border-border bg-surface-panel shadow-e0">
+                <div className="flex items-center justify-between border-b border-border bg-[var(--fill-track)] px-6 pb-3 pt-5">
                   <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">MBA Details</h3>
                   <div className="flex flex-wrap items-center justify-end gap-2">
                     {isPartialMBA ? (
@@ -6130,8 +6330,8 @@ const handleSaveAll = async () => {
               </div>
 
               {/* Billing Schedule Section */}
-              <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm">
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
+              <div className="flex h-full min-w-0 flex-col overflow-visible rounded-card border border-border bg-surface-panel shadow-e0">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-[var(--fill-track)] px-6 pb-3 pt-5">
                   <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Billing Schedule</h3>
                   <div className="flex flex-wrap items-center gap-2">
                     <Button
@@ -6220,8 +6420,8 @@ const handleSaveAll = async () => {
                 </div>
               </div>
 
-              <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm">
-                <div className="border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
+              <div className="flex h-full min-w-0 flex-col overflow-visible rounded-card border border-border bg-surface-panel shadow-e0">
+                <div className="border-b border-border bg-[var(--fill-track)] px-6 pb-3 pt-5">
                   <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">KPIs</h3>
                 </div>
                 <div className="px-4 py-3 overflow-x-auto">
@@ -6241,7 +6441,8 @@ const handleSaveAll = async () => {
                   />
                 </div>
               </div>
-            </div>
+              </div>
+            </section>
 
               {/* === Manual Billing Modal === */}
               <Dialog open={isManualBillingModalOpen} onOpenChange={setIsManualBillingModalOpen}>
@@ -7292,6 +7493,108 @@ const handleSaveAll = async () => {
               return null;
             })}
             </div>
+            <section id="review-export" data-create-step className="scroll-mt-[18px] rounded-frame border border-border bg-card p-4 shadow-e1 sm:p-5">
+              <div className="mb-5 flex flex-col gap-1">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Step 04</p>
+                <h2 className="text-xl font-semibold text-foreground">Review &amp; files</h2>
+                <p className="text-sm text-muted-foreground">Generate draft files or save the campaign once allocations and billing are ready.</p>
+              </div>
+
+              {dateWarning.hasViolation ? (
+                <div className="mb-4 rounded-card border border-pacing-critical bg-pacing-critical-bg p-3 text-sm font-medium text-status-critical-fg">
+                  {dateWarning.offendingCount === 1
+                    ? "1 line item has flight dates outside the campaign window"
+                    : `${dateWarning.offendingCount} line items have flight dates outside the campaign window`}
+                </div>
+              ) : null}
+
+              <CampaignExportsSection
+                variant="embedded"
+                mbaNumber={mbaNumber?.trim() ? String(mbaNumber) : "—"}
+                lineItemCount={builderLineItemCount}
+                isBusy={
+                  isDownloading ||
+                  isDownloadingAa ||
+                  isNamingDownloading ||
+                  isLoading ||
+                  isPlanSaving ||
+                  isVersionSaving
+                }
+                ariaStatus=""
+                className="max-w-full"
+              >
+                <Button
+                  type="button"
+                  onClick={handleDownloadMediaPlan}
+                  disabled={
+                    isDownloading ||
+                    isDownloadingAa ||
+                    isNamingDownloading ||
+                    isLoading ||
+                    isPlanSaving ||
+                    isVersionSaving
+                  }
+                  className="h-9 rounded-pill bg-accent px-4 py-2 text-foreground hover:bg-accent/90 focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                  <span className="ml-2">{isDownloading ? "Creating Media Plan..." : "Media Plan"}</span>
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleDownloadAdvertisingAssociatesMediaPlan}
+                  disabled={
+                    !hasAdvertisingAssociatesBilling ||
+                    isDownloading ||
+                    isDownloadingAa ||
+                    isNamingDownloading ||
+                    isLoading ||
+                    isPlanSaving ||
+                    isVersionSaving
+                  }
+                  className={cn(
+                    "h-9 rounded-pill bg-brand-dark px-4 py-2 text-primary-foreground hover:bg-brand-dark/90 focus-visible:ring-2 focus-visible:ring-ring",
+                    !hasAdvertisingAssociatesBilling && "opacity-50"
+                  )}
+                >
+                  {isDownloadingAa ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                  <span className="ml-2">{isDownloadingAa ? "Creating AA Plan..." : "Media Plan (AA)"}</span>
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleDownloadNamingConventions}
+                  disabled={
+                    isDownloading ||
+                    isDownloadingAa ||
+                    isNamingDownloading ||
+                    isLoading ||
+                    isPlanSaving ||
+                    isVersionSaving
+                  }
+                  className="h-9 rounded-pill border-border px-4 py-2 focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {isNamingDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                  <span className="ml-2">{isNamingDownloading ? "Generating Names..." : "Naming Conventions"}</span>
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleSaveAndDownloadAll}
+                  disabled={isLoading || isDownloading || isDownloadingAa || isPlanSaving || isVersionSaving}
+                  className="h-9 rounded-pill bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {isLoading || isDownloading || isDownloadingAa || isPlanSaving || isVersionSaving ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <FileText className="h-4 w-4" />
+                  )}
+                  <span className="ml-2">
+                    {isLoading || isDownloading || isDownloadingAa || isPlanSaving || isVersionSaving
+                      ? "Processing..."
+                      : "Save & Download All"}
+                  </span>
+                </Button>
+              </CampaignExportsSection>
+            </section>
           </form>
           </Form>
         </div>
@@ -7352,232 +7655,7 @@ const handleSaveAll = async () => {
         </DialogContent>
       </Dialog>
 
-      {/* Spacer so the fixed save bar never covers the last field */}
-      <div
-        aria-hidden="true"
-        style={{ height: stickyBarHeight ? stickyBarHeight + 24 : 160 }}
-      />
-
-      {/* Sticky action bar: single centered pill (main column only, excludes sidebar) */}
-      <div
-        ref={stickyBarRef}
-        className="fixed bottom-0 left-0 right-0 z-50 flex justify-center md:left-[var(--sidebar-width)]"
-      >
-        <div className="inline-flex max-w-full flex-col items-center gap-2 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-2">
-          {dateWarning.hasViolation && (
-            <div className="flex items-center gap-2 text-sm font-medium text-destructive">
-              <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-destructive" />
-              {dateWarning.offendingCount === 1
-                ? "1 line item has flight dates outside the campaign window"
-                : `${dateWarning.offendingCount} line items have flight dates outside the campaign window`}
-            </div>
-          )}
-          <CampaignExportsSection
-            variant="embedded"
-            mbaNumber={mbaNumber?.trim() ? String(mbaNumber) : "—"}
-            lineItemCount={builderLineItemCount}
-            isBusy={
-              isDownloading ||
-              isDownloadingAa ||
-              isNamingDownloading ||
-              isLoading ||
-              isPlanSaving ||
-              isVersionSaving
-            }
-            ariaStatus=""
-            className="z-40 max-w-[min(98vw,88rem)]"
-          >
-            <Button
-              type="button"
-              onClick={handleSaveAll}
-              disabled={isLoading || isPlanSaving || isVersionSaving}
-              className="h-9 shrink-0 rounded-full bg-success px-4 text-white shadow-sm hover:bg-success-hover focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              {isLoading || isPlanSaving || isVersionSaving ? "Saving..." : "Save"}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleGenerateMBA}
-              disabled={isLoading}
-              className="h-9 shrink-0 rounded-full border-border px-4 focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              {isLoading ? "Generating..." : "Generate MBA"}
-            </Button>
-                <div className="md:hidden">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="h-9 rounded-full px-4 focus-visible:ring-2 focus-visible:ring-ring"
-                        disabled={
-                          isDownloading ||
-                          isDownloadingAa ||
-                          isNamingDownloading ||
-                          isLoading ||
-                          isPlanSaving ||
-                          isVersionSaving
-                        }
-                      >
-                        <MoreHorizontal className="mr-1.5 h-4 w-4" />
-                        Downloads
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        onClick={handleDownloadMediaPlan}
-                        disabled={
-                          isDownloading ||
-                          isDownloadingAa ||
-                          isNamingDownloading ||
-                          isLoading ||
-                          isPlanSaving ||
-                          isVersionSaving
-                        }
-                      >
-                        Media Plan
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={handleDownloadAdvertisingAssociatesMediaPlan}
-                        disabled={
-                          !hasAdvertisingAssociatesBilling ||
-                          isDownloading ||
-                          isDownloadingAa ||
-                          isNamingDownloading ||
-                          isLoading ||
-                          isPlanSaving ||
-                          isVersionSaving
-                        }
-                        className={cn(
-                          "text-brand-dark focus:bg-highlight/25 focus:text-brand-dark",
-                          !hasAdvertisingAssociatesBilling && "opacity-50",
-                        )}
-                      >
-                        Media Plan (AA)
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={handleDownloadNamingConventions}
-                        disabled={
-                          isDownloading ||
-                          isDownloadingAa ||
-                          isNamingDownloading ||
-                          isLoading ||
-                          isPlanSaving ||
-                          isVersionSaving
-                        }
-                      >
-                        Naming Conventions
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={handleSaveAndDownloadAll}
-                        disabled={
-                          isLoading ||
-                          isDownloading ||
-                          isDownloadingAa ||
-                          isPlanSaving ||
-                          isVersionSaving
-                        }
-                      >
-                        Save &amp; Download All
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-                <Button
-                  type="button"
-                  onClick={handleDownloadMediaPlan}
-                  disabled={
-                    isDownloading ||
-                    isDownloadingAa ||
-                    isNamingDownloading ||
-                    isLoading ||
-                    isPlanSaving ||
-                    isVersionSaving
-                  }
-                  className="hidden h-9 rounded-full px-4 py-2 text-white md:inline-flex bg-lime hover:bg-lime/90 focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  {isDownloading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Download className="h-4 w-4" />
-                  )}
-                  <span className="ml-2">
-                    {isDownloading ? "Creating Media Plan..." : "Media Plan"}
-                  </span>
-                </Button>
-                <Button
-                  type="button"
-                  onClick={handleDownloadAdvertisingAssociatesMediaPlan}
-                  disabled={
-                    !hasAdvertisingAssociatesBilling ||
-                    isDownloading ||
-                    isDownloadingAa ||
-                    isNamingDownloading ||
-                    isLoading ||
-                    isPlanSaving ||
-                    isVersionSaving
-                  }
-                  className={cn(
-                    "hidden h-9 rounded-full px-4 py-2 md:inline-flex bg-highlight text-brand-dark hover:bg-highlight/85 focus-visible:ring-2 focus-visible:ring-ring",
-                    !hasAdvertisingAssociatesBilling && "opacity-50 grayscale",
-                  )}
-                >
-                  {isDownloadingAa ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Download className="h-4 w-4" />
-                  )}
-                  <span className="ml-2">
-                    {isDownloadingAa ? "Creating AA Plan..." : "Media Plan (AA)"}
-                  </span>
-                </Button>
-                <Button
-                  type="button"
-                  onClick={handleDownloadNamingConventions}
-                  disabled={
-                    isDownloading ||
-                    isDownloadingAa ||
-                    isNamingDownloading ||
-                    isLoading ||
-                    isPlanSaving ||
-                    isVersionSaving
-                  }
-                  className="hidden h-9 rounded-full px-4 py-2 md:inline-flex bg-muted text-foreground hover:bg-muted/80 focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  {isNamingDownloading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Download className="h-4 w-4" />
-                  )}
-                  <span className="ml-2">
-                    {isNamingDownloading ? "Generating Names..." : "Naming Conventions"}
-                  </span>
-                </Button>
-                <Button
-                  type="button"
-                  onClick={handleSaveAndDownloadAll}
-                  disabled={
-                    isLoading || isDownloading || isDownloadingAa || isPlanSaving || isVersionSaving
-                  }
-                  className="hidden h-9 rounded-full px-4 py-2 text-white md:inline-flex bg-brand-dark hover:bg-brand-dark/90 focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  {isLoading || isDownloading || isDownloadingAa || isPlanSaving || isVersionSaving ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <FileText className="h-4 w-4" />
-                  )}
-                  <span className="ml-2">
-                    {isLoading || isDownloading || isDownloadingAa || isPlanSaving || isVersionSaving
-                      ? "Processing..."
-                      : "Save & Download All"}
-                  </span>
-                </Button>
-              </CampaignExportsSection>
-        </div>
       </div>
-
-      <FloatingSectionNav sections={enabledSections} />
     </div>
   )
 }
