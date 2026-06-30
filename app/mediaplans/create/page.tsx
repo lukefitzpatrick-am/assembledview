@@ -1313,8 +1313,25 @@ export default function CreateMediaPlan() {
       ...digiVideoBursts,
       ...bvodBursts,
     ]
+    const kpiByLineId = new Map(kpiRows.map((r) => [r.lineItemId, r]))
+    const toDecimal = (v: number | null | undefined) =>
+      v == null ? null : (v >= 1 ? v / 100 : v)
+
     return allBursts.reduce((sum, b) => {
       if (b.noAdserving) return sum
+      const kpi = b.lineItemId ? kpiByLineId.get(b.lineItemId) : undefined
+
+      if (process.env.NODE_ENV !== "production") {
+        const bt = (b.buyType || "").toLowerCase()
+        if ((bt === "cpc" || bt === "cpv") && !kpi) {
+          console.warn("[adserving] cpc/cpv burst unmatched to KPI — baseline used", {
+            lineItemId: b.lineItemId,
+            mediaType: b.mediaType,
+            buyType: b.buyType,
+          })
+        }
+      }
+
       const cost = computeAdServingCost({
         quantity: b.deliverables,
         buyType: b.buyType || "",
@@ -1323,6 +1340,8 @@ export default function CreateMediaPlan() {
         adservaudio,
         adServingRatePct: b.adServingRatePct,
         adServingImpressions: b.adServingImpressions,
+        kpiCtr: toDecimal(kpi?.ctr ?? null),
+        kpiVtr: toDecimal(kpi?.vtr ?? null),
       })
       return sum + cost
     }, 0)
@@ -1340,6 +1359,7 @@ export default function CreateMediaPlan() {
     bvodBursts,
     getRateForMediaType,
     adservaudio,
+    kpiRows,
   ])
 
   const calculateAssembledFee = useCallback((): number => {
@@ -5327,6 +5347,37 @@ const handleSaveAll = async () => {
       zip.file(mbaFileName, mbaBlob);
       zip.file(mediaPlanFileName, mediaPlanBlob);
       zip.file(namingFileName, namingBlob);
+      // Standalone KPI workbook (only when KPI rows exist)
+      if (kpiRows.length > 0) {
+        const ExcelJS = (await import("exceljs")).default;
+        const { addKPISheet } = await import("@/lib/generateMediaPlan");
+        const kpiWorkbook = new ExcelJS.Workbook();
+        addKPISheet(
+          kpiWorkbook,
+          kpiRows.map((r) => ({
+            mediaType: r.media_type,
+            publisher: r.publisher,
+            label: r.lineItemLabel,
+            buyType: r.buyType,
+            spend: r.spend,
+            deliverables: r.deliverables,
+            ctr: r.ctr,
+            vtr: r.vtr,
+            cpv: r.cpv,
+            conversion_rate: r.conversion_rate,
+            frequency: r.frequency,
+            calculatedClicks: r.calculatedClicks,
+            calculatedViews: r.calculatedViews,
+            calculatedReach: r.calculatedReach,
+          })),
+        );
+        const kpiArrayBuffer = await kpiWorkbook.xlsx.writeBuffer();
+        const kpiBlob = new Blob([kpiArrayBuffer], {
+          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        });
+        const kpiFileName = `KPIs_${fv.mp_campaignname || "campaign"}.xlsx`;
+        zip.file(kpiFileName, kpiBlob);
+      }
       const zipBlob = await zip.generateAsync({ type: "blob" });
 
       const campaignNameSafe = (fv.mp_campaignname || "campaign")
