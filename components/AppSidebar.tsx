@@ -197,7 +197,7 @@ export function AppSidebar() {
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild isActive={active}>
                       <Link href={item.href} className="flex items-center">
-                        <Icon className="mr-2 h-4 w-4 shrink-0" aria-hidden />
+                        <Icon className="mr-2 h-[17px] w-[17px] shrink-0 stroke-[1.8]" aria-hidden />
                         <span>{item.title}</span>
                       </Link>
                     </SidebarMenuButton>
@@ -214,13 +214,13 @@ export function AppSidebar() {
                     className="flex w-full items-center justify-between"
                   >
                     <div className="flex items-center">
-                      <BarChart3 className="mr-2 h-4 w-4 shrink-0" aria-hidden />
+                      <BarChart3 className="mr-2 h-[17px] w-[17px] shrink-0 stroke-[1.8]" aria-hidden />
                       <span>Client Dashboards</span>
                     </div>
                     {isClientsExpanded ? (
-                      <ChevronDown className="h-4 w-4 shrink-0" aria-hidden />
+                      <ChevronDown className="h-[17px] w-[17px] shrink-0 stroke-[1.8]" aria-hidden />
                     ) : (
-                      <ChevronRight className="h-4 w-4 shrink-0" aria-hidden />
+                      <ChevronRight className="h-[17px] w-[17px] shrink-0 stroke-[1.8]" aria-hidden />
                     )}
                   </SidebarMenuButton>
                   {isClientsExpanded && (
@@ -248,7 +248,7 @@ export function AppSidebar() {
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={pathMatchesHref(pathname, "/admin/users/new")}>
                     <Link href="/admin/users/new" className="flex items-center">
-                      <UserCircle className="mr-2 h-4 w-4 shrink-0" aria-hidden />
+                      <UserCircle className="mr-2 h-[17px] w-[17px] shrink-0 stroke-[1.8]" aria-hidden />
                       <span>Admin User Enrolment</span>
                     </Link>
                   </SidebarMenuButton>

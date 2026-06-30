@@ -40,11 +40,16 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
             >
               Skip to content
             </a>
-            <div className="flex min-h-dvh w-full overflow-hidden">
+            <div className="flex min-h-dvh w-full overflow-visible">
               {isShellVisible && <AppSidebar />}
-              <SidebarInset className="flex-1 min-w-0 flex flex-col bg-surface-muted">
+              <SidebarInset
+                className={cn(
+                  "flex-1 min-w-0 flex flex-col overflow-visible bg-surface-muted",
+                  isShellVisible && "md:m-2 md:min-h-[calc(100svh-theme(spacing.4))] md:rounded-frame md:shadow-frame",
+                )}
+              >
                 {isShellVisible && (
-                  <header className="flex h-16 shrink-0 items-center border-b transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
+                  <header className="flex h-12 shrink-0 items-center rounded-t-frame border-b border-border bg-card transition-[width,height] ease-linear">
                     <div
                       className={cn(
                         "flex h-full w-full items-center gap-2",
@@ -73,7 +78,10 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
                 <main
                   id="main"
                   tabIndex={-1}
-                  className="flex-1 min-w-0 overflow-y-auto bg-surface-muted outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                  className={cn(
+                    "flex-1 min-w-0 overflow-y-auto bg-surface-muted outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+                    isShellVisible && "rounded-b-frame",
+                  )}
                 >
                   {children}
                 </main>
