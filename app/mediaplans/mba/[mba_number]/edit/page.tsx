@@ -192,6 +192,8 @@ import { toDateOnlyString, parseDateOnlyString } from "@/lib/timezone"
 import { checkLineItemDatesOutsideCampaign } from "@/lib/utils/mediaPlanValidation"
 import { normaliseStatus } from "@/lib/mediaplan/campaignStatusGuard"
 import { clearVersionChildren, clearVersionKpis } from "@/lib/mediaplan/clearVersionChildren"
+import { MEDIA_TYPE_ID_CODES } from "@/lib/mediaplan/lineItemIds"
+import { reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 
 const CAMPAIGN_STATUS_OPTIONS = [
   { value: "approved", label: "Approved" },
@@ -1397,6 +1399,28 @@ const mediaTypes: Array<{
 
 type MediaLoadStatus = "idle" | "loading" | "ready" | "error"
 type LoadPhase = "bootstrapping" | "loadingLineItems" | "ready" | "error"
+type MediaLineItemSaveSnapshots = {
+  television: any[]
+  radio: any[]
+  newspaper: any[]
+  magazines: any[]
+  ooh: any[]
+  cinema: any[]
+  digitalDisplay: any[]
+  digitalAudio: any[]
+  digitalVideo: any[]
+  bvod: any[]
+  integration: any[]
+  production: any[]
+  search: any[]
+  socialMedia: any[]
+  progDisplay: any[]
+  progVideo: any[]
+  progBvod: any[]
+  progAudio: any[]
+  progOoh: any[]
+  influencers: any[]
+}
 
 // Media key map for billing schedule
 const mediaKeyMap: { [key: string]: string } = {
@@ -4397,33 +4421,34 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
   const attachLineItemsToMonths = useCallback((
     months: BillingMonth[],
-    mode: "billing" | "delivery"
+    mode: "billing" | "delivery",
+    lineItemSnapshots?: MediaLineItemSaveSnapshots
   ): BillingMonth[] => {
     if (!months || months.length === 0) return [];
 
     let monthsWithLineItems = [...months];
 
     const mediaTypeMap: Record<string, { lineItems: any[], key: string }> = {
-      'mp_television': { lineItems: televisionMediaLineItems, key: 'television' },
-      'mp_radio': { lineItems: radioMediaLineItems, key: 'radio' },
-      'mp_newspaper': { lineItems: newspaperMediaLineItems, key: 'newspaper' },
-      'mp_magazines': { lineItems: magazinesMediaLineItems, key: 'magazines' },
-      'mp_ooh': { lineItems: oohMediaLineItems, key: 'ooh' },
-      'mp_cinema': { lineItems: cinemaMediaLineItems, key: 'cinema' },
-      'mp_digidisplay': { lineItems: digitalDisplayMediaLineItems, key: 'digiDisplay' },
-      'mp_digiaudio': { lineItems: digitalAudioMediaLineItems, key: 'digiAudio' },
-      'mp_digivideo': { lineItems: digitalVideoMediaLineItems, key: 'digiVideo' },
-      'mp_bvod': { lineItems: bvodMediaLineItems, key: 'bvod' },
-      'mp_integration': { lineItems: integrationMediaLineItems, key: 'integration' },
-      'mp_production': { lineItems: productionMediaLineItems, key: 'production' },
-      'mp_search': { lineItems: searchMediaLineItems, key: 'search' },
-      'mp_socialmedia': { lineItems: socialMediaMediaLineItems, key: 'socialMedia' },
-      'mp_progdisplay': { lineItems: progDisplayMediaLineItems, key: 'progDisplay' },
-      'mp_progvideo': { lineItems: progVideoMediaLineItems, key: 'progVideo' },
-      'mp_progbvod': { lineItems: progBvodMediaLineItems, key: 'progBvod' },
-      'mp_progaudio': { lineItems: progAudioMediaLineItems, key: 'progAudio' },
-      'mp_progooh': { lineItems: progOohMediaLineItems, key: 'progOoh' },
-      'mp_influencers': { lineItems: influencersMediaLineItems, key: 'influencers' },
+      'mp_television': { lineItems: lineItemSnapshots?.television ?? televisionMediaLineItems, key: 'television' },
+      'mp_radio': { lineItems: lineItemSnapshots?.radio ?? radioMediaLineItems, key: 'radio' },
+      'mp_newspaper': { lineItems: lineItemSnapshots?.newspaper ?? newspaperMediaLineItems, key: 'newspaper' },
+      'mp_magazines': { lineItems: lineItemSnapshots?.magazines ?? magazinesMediaLineItems, key: 'magazines' },
+      'mp_ooh': { lineItems: lineItemSnapshots?.ooh ?? oohMediaLineItems, key: 'ooh' },
+      'mp_cinema': { lineItems: lineItemSnapshots?.cinema ?? cinemaMediaLineItems, key: 'cinema' },
+      'mp_digidisplay': { lineItems: lineItemSnapshots?.digitalDisplay ?? digitalDisplayMediaLineItems, key: 'digiDisplay' },
+      'mp_digiaudio': { lineItems: lineItemSnapshots?.digitalAudio ?? digitalAudioMediaLineItems, key: 'digiAudio' },
+      'mp_digivideo': { lineItems: lineItemSnapshots?.digitalVideo ?? digitalVideoMediaLineItems, key: 'digiVideo' },
+      'mp_bvod': { lineItems: lineItemSnapshots?.bvod ?? bvodMediaLineItems, key: 'bvod' },
+      'mp_integration': { lineItems: lineItemSnapshots?.integration ?? integrationMediaLineItems, key: 'integration' },
+      'mp_production': { lineItems: lineItemSnapshots?.production ?? productionMediaLineItems, key: 'production' },
+      'mp_search': { lineItems: lineItemSnapshots?.search ?? searchMediaLineItems, key: 'search' },
+      'mp_socialmedia': { lineItems: lineItemSnapshots?.socialMedia ?? socialMediaMediaLineItems, key: 'socialMedia' },
+      'mp_progdisplay': { lineItems: lineItemSnapshots?.progDisplay ?? progDisplayMediaLineItems, key: 'progDisplay' },
+      'mp_progvideo': { lineItems: lineItemSnapshots?.progVideo ?? progVideoMediaLineItems, key: 'progVideo' },
+      'mp_progbvod': { lineItems: lineItemSnapshots?.progBvod ?? progBvodMediaLineItems, key: 'progBvod' },
+      'mp_progaudio': { lineItems: lineItemSnapshots?.progAudio ?? progAudioMediaLineItems, key: 'progAudio' },
+      'mp_progooh': { lineItems: lineItemSnapshots?.progOoh ?? progOohMediaLineItems, key: 'progOoh' },
+      'mp_influencers': { lineItems: lineItemSnapshots?.influencers ?? influencersMediaLineItems, key: 'influencers' },
     };
 
     const allLineItems: Record<string, BillingLineItemType[]> = {};
@@ -4671,7 +4696,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   }, [workingBillingMonths])
 
   /** Version PUT: serialize **workingBillingMonths** (attach line items to a clone only when months lack detail). */
-  const buildBillingScheduleForSave = useCallback((): Record<string, any> => {
+  const buildBillingScheduleForSave = useCallback((lineItemSnapshots?: MediaLineItemSaveSnapshots): Record<string, any> => {
     const months = workingBillingMonths
     if (!months?.length) {
       return {}
@@ -4681,7 +4706,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
     const monthsForJson: import("@/lib/billing/types").BillingMonth[] = billingMonthsHaveDetailedLineItems(months)
       ? typedMonths
-      : attachLineItemsToMonths(deepCloneBillingMonths(months), "billing")
+      : attachLineItemsToMonths(deepCloneBillingMonths(months), "billing", lineItemSnapshots)
 
     return appendPartialApprovalToBillingSchedule({
       billingSchedule: buildBillingScheduleJSON(monthsForJson),
@@ -4695,7 +4720,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     partialApprovalMetadata,
   ])
 
-  const buildDeliveryScheduleForSave = useCallback((): Record<string, any> => {
+  const buildDeliveryScheduleForSave = useCallback((lineItemSnapshots?: MediaLineItemSaveSnapshots): Record<string, any> => {
     const snapshot = deliveryScheduleSnapshotRef.current
     const deliveryMonths =
       snapshot && snapshot.length > 0
@@ -4707,7 +4732,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     if (!deliveryMonths || deliveryMonths.length === 0) {
       return {};
     }
-    const monthsWithLineItems = attachLineItemsToMonths(deliveryMonths as BillingMonth[], "delivery");
+    const monthsWithLineItems = attachLineItemsToMonths(deliveryMonths as BillingMonth[], "delivery", lineItemSnapshots);
     return buildBillingScheduleJSON(monthsWithLineItems as import("@/lib/billing/types").BillingMonth[]);
   }, [
     attachLineItemsToMonths,
@@ -5072,6 +5097,49 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         throw new Error("MBA number and media plan ID are required")
       }
 
+      const televisionMediaLineItemsForSave = reassignLineItemNumbers(televisionMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.television)
+      const radioMediaLineItemsForSave = reassignLineItemNumbers(radioMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.radio)
+      const newspaperMediaLineItemsForSave = reassignLineItemNumbers(newspaperMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.newspaper)
+      const magazinesMediaLineItemsForSave = reassignLineItemNumbers(magazinesMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.magazines)
+      const oohMediaLineItemsForSave = reassignLineItemNumbers(oohMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.ooh)
+      const cinemaMediaLineItemsForSave = reassignLineItemNumbers(cinemaMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.cinema)
+      const digitalDisplayMediaLineItemsForSave = reassignLineItemNumbers(digitalDisplayMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.digitalDisplay)
+      const digitalAudioMediaLineItemsForSave = reassignLineItemNumbers(digitalAudioMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.digitalAudio)
+      const digitalVideoMediaLineItemsForSave = reassignLineItemNumbers(digitalVideoMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.digitalVideo)
+      const bvodMediaLineItemsForSave = reassignLineItemNumbers(bvodMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.bvod)
+      const integrationMediaLineItemsForSave = reassignLineItemNumbers(integrationMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.integration)
+      const productionMediaLineItemsForSave = reassignLineItemNumbers(productionMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.production)
+      const searchMediaLineItemsForSave = reassignLineItemNumbers(searchMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.search)
+      const socialMediaMediaLineItemsForSave = reassignLineItemNumbers(socialMediaMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.socialMedia)
+      const progDisplayMediaLineItemsForSave = reassignLineItemNumbers(progDisplayMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.progDisplay)
+      const progVideoMediaLineItemsForSave = reassignLineItemNumbers(progVideoMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.progVideo)
+      const progBvodMediaLineItemsForSave = reassignLineItemNumbers(progBvodMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.progBVOD)
+      const progAudioMediaLineItemsForSave = reassignLineItemNumbers(progAudioMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.progAudio)
+      const progOohMediaLineItemsForSave = reassignLineItemNumbers(progOohMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.progOOH)
+      const influencersMediaLineItemsForSave = reassignLineItemNumbers(influencersMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.influencers)
+      const lineItemSnapshotsForSave: MediaLineItemSaveSnapshots = {
+        television: televisionMediaLineItemsForSave,
+        radio: radioMediaLineItemsForSave,
+        newspaper: newspaperMediaLineItemsForSave,
+        magazines: magazinesMediaLineItemsForSave,
+        ooh: oohMediaLineItemsForSave,
+        cinema: cinemaMediaLineItemsForSave,
+        digitalDisplay: digitalDisplayMediaLineItemsForSave,
+        digitalAudio: digitalAudioMediaLineItemsForSave,
+        digitalVideo: digitalVideoMediaLineItemsForSave,
+        bvod: bvodMediaLineItemsForSave,
+        integration: integrationMediaLineItemsForSave,
+        production: productionMediaLineItemsForSave,
+        search: searchMediaLineItemsForSave,
+        socialMedia: socialMediaMediaLineItemsForSave,
+        progDisplay: progDisplayMediaLineItemsForSave,
+        progVideo: progVideoMediaLineItemsForSave,
+        progBvod: progBvodMediaLineItemsForSave,
+        progAudio: progAudioMediaLineItemsForSave,
+        progOoh: progOohMediaLineItemsForSave,
+        influencers: influencersMediaLineItemsForSave,
+      }
+
       if (
         isManualBilling &&
         workingBillingMonths.length > 0 &&
@@ -5103,7 +5171,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
       if (workingBillingMonths.length > 0 && autoReferenceBillingMonths.length > 0) {
         const saveDivergence = compareBillingDivergence(workingBillingMonths, autoReferenceBillingMonths, {
-          attachComputedLineItems: (months, mode) => attachLineItemsToMonths(months, mode),
+          attachComputedLineItems: (months, mode) => attachLineItemsToMonths(months, mode, lineItemSnapshotsForSave),
         })
         if (saveDivergence.isDivergent) {
           toast({
@@ -5163,8 +5231,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       updateSaveStatus('Media Plan Master', 'success')
       
       // 2. Billing / delivery JSON — billing always from **workingBillingMonths** (see `buildBillingScheduleForSave`).
-      const billingScheduleJSON = buildBillingScheduleForSave();
-      const deliveryScheduleJSON = buildDeliveryScheduleForSave();
+      const billingScheduleJSON = buildBillingScheduleForSave(lineItemSnapshotsForSave);
+      const deliveryScheduleJSON = buildDeliveryScheduleForSave(lineItemSnapshotsForSave);
 
       // Dev-only logs right before save (required)
       const hasWorkingBillingPayload = workingBillingMonths.length > 0
@@ -5192,7 +5260,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       }
 
       const shouldEnableProduction = Boolean(
-        formValues.mp_production || (productionMediaLineItems?.length ?? 0) > 0
+        formValues.mp_production || (productionMediaLineItemsForSave?.length ?? 0) > 0
       )
 
       // 3. Create new media_plan_versions record using PUT (which creates new version and increments version_number)
@@ -5265,26 +5333,26 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         }
         updateSaveStatus("Campaign KPIs", "pending")
         const lineItemsByMediaType = buildKpiLineItemsByMediaType({
-          search: { media: searchMediaLineItems, export: searchItems },
-          socialMedia: { media: socialMediaMediaLineItems, export: socialMediaItems },
-          progDisplay: { media: progDisplayMediaLineItems, export: progDisplayItems },
-          progVideo: { media: progVideoMediaLineItems, export: progVideoItems },
-          progBvod: { media: progBvodMediaLineItems, export: progBvodItems },
-          progAudio: { media: progAudioMediaLineItems, export: progAudioItems },
-          progOoh: { media: progOohMediaLineItems, export: progOohItems },
-          digiDisplay: { media: digitalDisplayMediaLineItems, export: digitalDisplayItems },
-          digiAudio: { media: digitalAudioMediaLineItems, export: digitalAudioItems },
-          digiVideo: { media: digitalVideoMediaLineItems, export: digitalVideoItems },
-          bvod: { media: bvodMediaLineItems, export: bvodItems },
-          integration: { media: integrationMediaLineItems, export: integrationItems },
-          television: { media: televisionMediaLineItems, export: televisionItems },
-          radio: { media: radioMediaLineItems, export: radioItems },
-          newspaper: { media: newspaperMediaLineItems, export: newspaperItems },
-          magazines: { media: magazinesMediaLineItems, export: magazinesItems },
-          ooh: { media: oohMediaLineItems, export: oohItems },
-          cinema: { media: cinemaMediaLineItems, export: cinemaItems },
-          influencers: { media: influencersMediaLineItems, export: influencersItems },
-          production: { media: productionMediaLineItems, export: productionItems },
+          search: { media: searchMediaLineItemsForSave, export: searchItems },
+          socialMedia: { media: socialMediaMediaLineItemsForSave, export: socialMediaItems },
+          progDisplay: { media: progDisplayMediaLineItemsForSave, export: progDisplayItems },
+          progVideo: { media: progVideoMediaLineItemsForSave, export: progVideoItems },
+          progBvod: { media: progBvodMediaLineItemsForSave, export: progBvodItems },
+          progAudio: { media: progAudioMediaLineItemsForSave, export: progAudioItems },
+          progOoh: { media: progOohMediaLineItemsForSave, export: progOohItems },
+          digiDisplay: { media: digitalDisplayMediaLineItemsForSave, export: digitalDisplayItems },
+          digiAudio: { media: digitalAudioMediaLineItemsForSave, export: digitalAudioItems },
+          digiVideo: { media: digitalVideoMediaLineItemsForSave, export: digitalVideoItems },
+          bvod: { media: bvodMediaLineItemsForSave, export: bvodItems },
+          integration: { media: integrationMediaLineItemsForSave, export: integrationItems },
+          television: { media: televisionMediaLineItemsForSave, export: televisionItems },
+          radio: { media: radioMediaLineItemsForSave, export: radioItems },
+          newspaper: { media: newspaperMediaLineItemsForSave, export: newspaperItems },
+          magazines: { media: magazinesMediaLineItemsForSave, export: magazinesItems },
+          ooh: { media: oohMediaLineItemsForSave, export: oohItems },
+          cinema: { media: cinemaMediaLineItemsForSave, export: cinemaItems },
+          influencers: { media: influencersMediaLineItemsForSave, export: influencersItems },
+          production: { media: productionMediaLineItemsForSave, export: productionItems },
         })
         const kpiPayload: CampaignKPI[] = fanOutKpiPayload(
           kpiRows,
@@ -5451,10 +5519,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       }
       
       // Initialize save status for enabled media types
-      if (formValues.mp_search && searchMediaLineItems.length > 0) {
+      if (formValues.mp_search && searchMediaLineItemsForSave.length > 0) {
         updateSaveStatus(mediaTypeDisplayNames.mp_search, 'pending')
         savePromises.push(
-          saveSearchLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), searchMediaLineItems)
+          saveSearchLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), searchMediaLineItemsForSave)
             .then(() => updateSaveStatus(mediaTypeDisplayNames.mp_search, 'success'))
             .catch(error => {
               updateSaveStatus(mediaTypeDisplayNames.mp_search, 'error', error.message || String(error))
@@ -5462,10 +5530,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             })
         )
       }
-      if (formValues.mp_socialmedia && socialMediaMediaLineItems.length > 0) {
+      if (formValues.mp_socialmedia && socialMediaMediaLineItemsForSave.length > 0) {
         updateSaveStatus(mediaTypeDisplayNames.mp_socialmedia, 'pending')
         savePromises.push(
-          saveSocialMediaLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), socialMediaMediaLineItems)
+          saveSocialMediaLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), socialMediaMediaLineItemsForSave)
             .then(() => updateSaveStatus(mediaTypeDisplayNames.mp_socialmedia, 'success'))
             .catch(error => {
               updateSaveStatus(mediaTypeDisplayNames.mp_socialmedia, 'error', error.message || String(error))
@@ -5473,10 +5541,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             })
         )
       }
-      if (formValues.mp_television && televisionMediaLineItems.length > 0) {
+      if (formValues.mp_television && televisionMediaLineItemsForSave.length > 0) {
         updateSaveStatus(mediaTypeDisplayNames.mp_television, 'pending')
         savePromises.push(
-          saveTelevisionLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), televisionMediaLineItems)
+          saveTelevisionLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), televisionMediaLineItemsForSave)
             .then(() => updateSaveStatus(mediaTypeDisplayNames.mp_television, 'success'))
             .catch(error => {
               updateSaveStatus(mediaTypeDisplayNames.mp_television, 'error', error.message || String(error))
@@ -5484,10 +5552,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             })
         )
       }
-      if (formValues.mp_radio && radioMediaLineItems.length > 0) {
+      if (formValues.mp_radio && radioMediaLineItemsForSave.length > 0) {
         updateSaveStatus(mediaTypeDisplayNames.mp_radio, 'pending')
         savePromises.push(
-          saveRadioLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), radioMediaLineItems)
+          saveRadioLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), radioMediaLineItemsForSave)
             .then(() => updateSaveStatus(mediaTypeDisplayNames.mp_radio, 'success'))
             .catch(error => {
               updateSaveStatus(mediaTypeDisplayNames.mp_radio, 'error', error.message || String(error))
@@ -5495,10 +5563,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             })
         )
       }
-      if (formValues.mp_newspaper && newspaperMediaLineItems.length > 0) {
+      if (formValues.mp_newspaper && newspaperMediaLineItemsForSave.length > 0) {
         updateSaveStatus(mediaTypeDisplayNames.mp_newspaper, 'pending')
         savePromises.push(
-          saveNewspaperLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), newspaperMediaLineItems)
+          saveNewspaperLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), newspaperMediaLineItemsForSave)
             .then(() => updateSaveStatus(mediaTypeDisplayNames.mp_newspaper, 'success'))
             .catch(error => {
               updateSaveStatus(mediaTypeDisplayNames.mp_newspaper, 'error', error.message || String(error))
@@ -5506,10 +5574,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             })
         )
       }
-      if (formValues.mp_magazines && magazinesMediaLineItems.length > 0) {
+      if (formValues.mp_magazines && magazinesMediaLineItemsForSave.length > 0) {
         updateSaveStatus(mediaTypeDisplayNames.mp_magazines, 'pending')
         savePromises.push(
-          saveMagazinesLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), magazinesMediaLineItems)
+          saveMagazinesLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), magazinesMediaLineItemsForSave)
             .then(() => updateSaveStatus(mediaTypeDisplayNames.mp_magazines, 'success'))
             .catch(error => {
               updateSaveStatus(mediaTypeDisplayNames.mp_magazines, 'error', error.message || String(error))
@@ -5517,10 +5585,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             })
         )
       }
-      if (formValues.mp_ooh && oohMediaLineItems.length > 0) {
+      if (formValues.mp_ooh && oohMediaLineItemsForSave.length > 0) {
         updateSaveStatus(mediaTypeDisplayNames.mp_ooh, 'pending')
         savePromises.push(
-          saveOOHLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), oohMediaLineItems)
+          saveOOHLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), oohMediaLineItemsForSave)
             .then(() => updateSaveStatus(mediaTypeDisplayNames.mp_ooh, 'success'))
             .catch(error => {
               updateSaveStatus(mediaTypeDisplayNames.mp_ooh, 'error', error.message || String(error))
@@ -5528,10 +5596,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             })
         )
       }
-      if (formValues.mp_cinema && cinemaMediaLineItems.length > 0) {
+      if (formValues.mp_cinema && cinemaMediaLineItemsForSave.length > 0) {
         updateSaveStatus(mediaTypeDisplayNames.mp_cinema, 'pending')
         savePromises.push(
-          saveCinemaLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), cinemaMediaLineItems, nextVersion)
+          saveCinemaLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), cinemaMediaLineItemsForSave, nextVersion)
             .then(() => updateSaveStatus(mediaTypeDisplayNames.mp_cinema, 'success'))
             .catch(error => {
               updateSaveStatus(mediaTypeDisplayNames.mp_cinema, 'error', error.message || String(error))
@@ -5539,10 +5607,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             })
         )
       }
-      if (formValues.mp_digidisplay && digitalDisplayMediaLineItems.length > 0) {
+      if (formValues.mp_digidisplay && digitalDisplayMediaLineItemsForSave.length > 0) {
         updateSaveStatus(mediaTypeDisplayNames.mp_digidisplay, 'pending')
         savePromises.push(
-          saveDigitalDisplayLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), digitalDisplayMediaLineItems)
+          saveDigitalDisplayLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), digitalDisplayMediaLineItemsForSave)
             .then(() => updateSaveStatus(mediaTypeDisplayNames.mp_digidisplay, 'success'))
             .catch(error => {
               updateSaveStatus(mediaTypeDisplayNames.mp_digidisplay, 'error', error.message || String(error))
@@ -5550,10 +5618,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             })
         )
       }
-      if (formValues.mp_digiaudio && digitalAudioMediaLineItems.length > 0) {
+      if (formValues.mp_digiaudio && digitalAudioMediaLineItemsForSave.length > 0) {
         updateSaveStatus(mediaTypeDisplayNames.mp_digiaudio, 'pending')
         savePromises.push(
-          saveDigitalAudioLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), digitalAudioMediaLineItems)
+          saveDigitalAudioLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), digitalAudioMediaLineItemsForSave)
             .then(() => updateSaveStatus(mediaTypeDisplayNames.mp_digiaudio, 'success'))
             .catch(error => {
               updateSaveStatus(mediaTypeDisplayNames.mp_digiaudio, 'error', error.message || String(error))
@@ -5561,10 +5629,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             })
         )
       }
-      if (formValues.mp_digivideo && digitalVideoMediaLineItems.length > 0) {
+      if (formValues.mp_digivideo && digitalVideoMediaLineItemsForSave.length > 0) {
         updateSaveStatus(mediaTypeDisplayNames.mp_digivideo, 'pending')
         savePromises.push(
-          saveDigitalVideoLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), digitalVideoMediaLineItems)
+          saveDigitalVideoLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), digitalVideoMediaLineItemsForSave)
             .then(() => updateSaveStatus(mediaTypeDisplayNames.mp_digivideo, 'success'))
             .catch(error => {
               updateSaveStatus(mediaTypeDisplayNames.mp_digivideo, 'error', error.message || String(error))
@@ -5572,10 +5640,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             })
         )
       }
-      if (formValues.mp_bvod && bvodMediaLineItems.length > 0) {
+      if (formValues.mp_bvod && bvodMediaLineItemsForSave.length > 0) {
         updateSaveStatus(mediaTypeDisplayNames.mp_bvod, 'pending')
         savePromises.push(
-          saveBVODLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), bvodMediaLineItems)
+          saveBVODLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), bvodMediaLineItemsForSave)
             .then(() => updateSaveStatus(mediaTypeDisplayNames.mp_bvod, 'success'))
             .catch(error => {
               updateSaveStatus(mediaTypeDisplayNames.mp_bvod, 'error', error.message || String(error))
@@ -5583,10 +5651,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             })
         )
       }
-      if (formValues.mp_integration && integrationMediaLineItems.length > 0) {
+      if (formValues.mp_integration && integrationMediaLineItemsForSave.length > 0) {
         updateSaveStatus(mediaTypeDisplayNames.mp_integration, 'pending')
         savePromises.push(
-          saveIntegrationLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), integrationMediaLineItems)
+          saveIntegrationLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), integrationMediaLineItemsForSave)
             .then(() => updateSaveStatus(mediaTypeDisplayNames.mp_integration, 'success'))
             .catch(error => {
               updateSaveStatus(mediaTypeDisplayNames.mp_integration, 'error', error.message || String(error))
@@ -5594,10 +5662,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             })
         )
       }
-      if (shouldEnableProduction && productionMediaLineItems.length > 0) {
+      if (shouldEnableProduction && productionMediaLineItemsForSave.length > 0) {
         updateSaveStatus(mediaTypeDisplayNames.mp_production, 'pending')
         savePromises.push(
-          saveProductionLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), productionMediaLineItems)
+          saveProductionLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), productionMediaLineItemsForSave)
             .then(() => updateSaveStatus(mediaTypeDisplayNames.mp_production, 'success'))
             .catch(error => {
               updateSaveStatus(mediaTypeDisplayNames.mp_production, 'error', error.message || String(error))
@@ -5605,7 +5673,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             })
         )
       }
-      const progDisplayPayload = buildProgDisplayPayload(progDisplayMediaLineItems);
+      const progDisplayPayload = buildProgDisplayPayload(progDisplayMediaLineItemsForSave);
       if (formValues.mp_progdisplay && progDisplayPayload.length > 0) {
         updateSaveStatus(mediaTypeDisplayNames.mp_progdisplay, 'pending')
         savePromises.push(
@@ -5617,10 +5685,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             })
         )
       }
-      if (formValues.mp_progvideo && progVideoMediaLineItems.length > 0) {
+      if (formValues.mp_progvideo && progVideoMediaLineItemsForSave.length > 0) {
         updateSaveStatus(mediaTypeDisplayNames.mp_progvideo, 'pending')
         savePromises.push(
-          saveProgVideoLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), progVideoMediaLineItems)
+          saveProgVideoLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), progVideoMediaLineItemsForSave)
             .then(() => updateSaveStatus(mediaTypeDisplayNames.mp_progvideo, 'success'))
             .catch(error => {
               updateSaveStatus(mediaTypeDisplayNames.mp_progvideo, 'error', error.message || String(error))
@@ -5628,10 +5696,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             })
         )
       }
-      if (formValues.mp_progbvod && progBvodMediaLineItems.length > 0) {
+      if (formValues.mp_progbvod && progBvodMediaLineItemsForSave.length > 0) {
         updateSaveStatus(mediaTypeDisplayNames.mp_progbvod, 'pending')
         savePromises.push(
-          saveProgBVODLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), progBvodMediaLineItems)
+          saveProgBVODLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), progBvodMediaLineItemsForSave)
             .then(() => updateSaveStatus(mediaTypeDisplayNames.mp_progbvod, 'success'))
             .catch(error => {
               updateSaveStatus(mediaTypeDisplayNames.mp_progbvod, 'error', error.message || String(error))
@@ -5639,10 +5707,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             })
         )
       }
-      if (formValues.mp_progaudio && progAudioMediaLineItems.length > 0) {
+      if (formValues.mp_progaudio && progAudioMediaLineItemsForSave.length > 0) {
         updateSaveStatus(mediaTypeDisplayNames.mp_progaudio, 'pending')
         savePromises.push(
-          saveProgAudioLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), progAudioMediaLineItems)
+          saveProgAudioLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), progAudioMediaLineItemsForSave)
             .then(() => updateSaveStatus(mediaTypeDisplayNames.mp_progaudio, 'success'))
             .catch(error => {
               updateSaveStatus(mediaTypeDisplayNames.mp_progaudio, 'error', error.message || String(error))
@@ -5650,10 +5718,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             })
         )
       }
-      if (formValues.mp_progooh && progOohMediaLineItems.length > 0) {
+      if (formValues.mp_progooh && progOohMediaLineItemsForSave.length > 0) {
         updateSaveStatus(mediaTypeDisplayNames.mp_progooh, 'pending')
         savePromises.push(
-          saveProgOOHLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), progOohMediaLineItems)
+          saveProgOOHLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), progOohMediaLineItemsForSave)
             .then(() => updateSaveStatus(mediaTypeDisplayNames.mp_progooh, 'success'))
             .catch(error => {
               updateSaveStatus(mediaTypeDisplayNames.mp_progooh, 'error', error.message || String(error))
@@ -5661,10 +5729,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             })
         )
       }
-      if (formValues.mp_influencers && influencersMediaLineItems.length > 0) {
+      if (formValues.mp_influencers && influencersMediaLineItemsForSave.length > 0) {
         updateSaveStatus(mediaTypeDisplayNames.mp_influencers, 'pending')
         savePromises.push(
-          saveInfluencersLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), influencersMediaLineItems)
+          saveInfluencersLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), influencersMediaLineItemsForSave)
             .then(() => updateSaveStatus(mediaTypeDisplayNames.mp_influencers, 'success'))
             .catch(error => {
               updateSaveStatus(mediaTypeDisplayNames.mp_influencers, 'error', error.message || String(error))
@@ -6611,6 +6679,37 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       zip.file(mbaFileName, mbaBlob);
       zip.file(mediaPlanFileName, mediaPlanBlob);
       zip.file(namingFileName, namingBlob);
+      // Standalone KPI workbook (only when KPI rows exist)
+      if (kpiRows.length > 0) {
+        const ExcelJS = (await import("exceljs")).default;
+        const { addKPISheet } = await import("@/lib/generateMediaPlan");
+        const kpiWorkbook = new ExcelJS.Workbook();
+        addKPISheet(
+          kpiWorkbook,
+          kpiRows.map((r) => ({
+            mediaType: r.media_type,
+            publisher: r.publisher,
+            label: r.lineItemLabel,
+            buyType: r.buyType,
+            spend: r.spend,
+            deliverables: r.deliverables,
+            ctr: r.ctr,
+            vtr: r.vtr,
+            cpv: r.cpv,
+            conversion_rate: r.conversion_rate,
+            frequency: r.frequency,
+            calculatedClicks: r.calculatedClicks,
+            calculatedViews: r.calculatedViews,
+            calculatedReach: r.calculatedReach,
+          })),
+        );
+        const kpiArrayBuffer = await kpiWorkbook.xlsx.writeBuffer();
+        const kpiBlob = new Blob([kpiArrayBuffer], {
+          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        });
+        const kpiFileName = `KPIs_${fv.mp_campaignname || "campaign"}.xlsx`;
+        zip.file(kpiFileName, kpiBlob);
+      }
       const zipBlob = await zip.generateAsync({ type: "blob" });
 
       const campaignNameSafe = (fv.mp_campaignname || "campaign")
@@ -7107,8 +7206,25 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       ...digitalVideoBursts,
       ...bvodBursts,
     ]
+    const kpiByLineId = new Map(kpiRows.map((r) => [r.lineItemId, r]))
+    const toDecimal = (v: number | null | undefined) =>
+      v == null ? null : (v >= 1 ? v / 100 : v)
+
     return allBursts.reduce((sum, b) => {
       if (b.noAdserving) return sum
+      const kpi = b.lineItemId ? kpiByLineId.get(b.lineItemId) : undefined
+
+      if (process.env.NODE_ENV !== "production") {
+        const bt = (b.buyType || "").toLowerCase()
+        if ((bt === "cpc" || bt === "cpv") && !kpi) {
+          console.warn("[adserving] cpc/cpv burst unmatched to KPI — baseline used", {
+            lineItemId: b.lineItemId,
+            mediaType: b.mediaType,
+            buyType: b.buyType,
+          })
+        }
+      }
+
       const cost = computeAdServingCost({
         quantity: b.deliverables,
         buyType: b.buyType || "",
@@ -7117,6 +7233,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         adservaudio,
         adServingRatePct: b.adServingRatePct,
         adServingImpressions: b.adServingImpressions,
+        kpiCtr: toDecimal(kpi?.ctr ?? null),
+        kpiVtr: toDecimal(kpi?.vtr ?? null),
       })
       return sum + cost
     }, 0)
@@ -7133,6 +7251,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     bvodBursts,
     getRateForMediaType,
     adservaudio,
+    kpiRows,
   ])
 
   const calculateProductionCosts = useCallback(() => {
