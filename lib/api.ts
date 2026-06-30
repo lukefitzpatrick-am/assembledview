@@ -1683,6 +1683,7 @@ export async function saveNewspaperLineItems(mediaPlanVersionId: number, mbaNumb
     const savePromises = newspaperLineItems.map(async (lineItem, index) => {
       // Format bursts data to ensure dates are properly serialized
       const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
+      const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.newspaper, index)
 
       const newspaperData = {
         media_plan_version: mediaPlanVersionId,
@@ -1701,9 +1702,9 @@ export async function saveNewspaperLineItems(mediaPlanVersionId: number, mbaNumb
         fixed_cost_media: getBooleanField(lineItem, 'fixed_cost_media', 'fixedCostMedia', false),
         client_pays_for_media: getBooleanField(lineItem, 'client_pays_for_media', 'clientPaysForMedia', false),
         budget_includes_fees: getBooleanField(lineItem, 'budget_includes_fees', 'budgetIncludesFees', false),
-        line_item_id: `${mbaNumber}NP${index + 1}`,
+        line_item_id,
         bursts_json: formattedBursts,
-        line_item: index + 1,
+        line_item,
       };
 
       return await saveNewspaperData(newspaperData);

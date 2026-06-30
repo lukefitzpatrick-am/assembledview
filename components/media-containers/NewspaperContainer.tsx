@@ -79,7 +79,7 @@ import {
 } from "@/lib/mediaplan/expertModeSwitch"
 import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
-import { normalizeLineItemsForSave } from "@/lib/mediaplan/lineItemOrder"
+import { assignStableLineItemNumbers, normalizeLineItemsForSave } from "@/lib/mediaplan/lineItemOrder"
 import {
   coerceBuyTypeWithDevWarn,
   computeDeliverableFromMedia,
@@ -736,8 +736,13 @@ const handleAddNewNewspaperAdSize = async () => {
   // Transform form data to API schema format
   useEffect(() => {
     const formLineItems = watchedLineItems || [];
+    const stableNewspaperItems = assignStableLineItemNumbers<any>(
+      formLineItems,
+      mbaNumber,
+      MEDIA_TYPE_ID_CODES.newspaper,
+    )
     
-    const transformedLineItems = formLineItems.map((lineItem, index) => {
+    const transformedLineItems = stableNewspaperItems.map((lineItem, index) => {
       // Calculate totalMedia from raw budget amounts (for display in MBA section)
       let totalMedia = 0;
       lineItem.bursts.forEach((burst) => {

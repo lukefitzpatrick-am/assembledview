@@ -82,11 +82,20 @@ export function mergeOohStandardFromExpertWithPrevious(
   return generated.map((li, i) => {
     const k = stableStandardLineItemKey(li, i)
     const prev = prevByKey.get(k)
-    if (!prev) return li
+    if (!prev) {
+      return {
+        ...li,
+        line_item: undefined,
+        lineItem: undefined,
+        line_item_id: undefined,
+        lineItemId: undefined,
+      }
+    }
     return {
       ...li,
       noAdserving: prev.noAdserving,
-      // Keep expert row order / `line_item` from `mapOohExpertRowsToStandardLineItems` (idx + 1).
+      line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
+      lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
     }
   })
 }
@@ -103,9 +112,7 @@ export function mergeTelevisionStandardFromExpertWithPrevious(
   return generated.map((li, i) => {
     const k = stableStandardLineItemKey(li, i)
     const prev = prevByKey.get(k)
-    if (!prev) {
-      return { ...li, line_item: undefined, lineItem: undefined, line_item_id: undefined, lineItemId: undefined }
-    }
+    if (!prev) return li
     return {
       ...li,
       fixedCostMedia: prev.fixedCostMedia,
@@ -162,7 +169,9 @@ export function mergeNewspaperStandardFromExpertWithPrevious(
   return generated.map((li, i) => {
     const k = stableStandardLineItemKey(li, i)
     const prev = prevByKey.get(k)
-    if (!prev) return li
+    if (!prev) {
+      return { ...li, line_item: undefined, lineItem: undefined, line_item_id: undefined, lineItemId: undefined }
+    }
     return {
       ...li,
       fixedCostMedia: prev.fixedCostMedia,
