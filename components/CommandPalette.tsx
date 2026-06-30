@@ -125,6 +125,12 @@ function getPrimaryNavItems(isAdmin: boolean, userClient: string | null): NavIte
         icon: BookOpen,
         searchTerms: "learning knowledge glossary definitions acronyms formulas",
       },
+      {
+        title: "Calculators",
+        href: "/knowledge/calculators",
+        icon: BookOpen,
+        searchTerms: "calculator cpm roas media math knowledge",
+      },
     ]
   }
 
