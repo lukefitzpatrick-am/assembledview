@@ -33,7 +33,6 @@ import {
 import type { ChartDatumClickPayload } from "@/components/charts/chartDatumClick"
 import { usePathname, useRouter } from "next/navigation"
 import { AuthPageLoading } from "@/components/AuthLoadingState"
-import { getMediaBadgeStyle } from "@/lib/charts/registry"
 import { cn } from "@/lib/utils"
 import { compareValues, SortableTableHeader, SortDirection } from "@/components/ui/sortable-table-header"
 import { useAuthContext } from "@/contexts/AuthContext"
@@ -142,6 +141,15 @@ type DashboardMetricCard = {
   iconBg: string
   iconText: string
 }
+
+const PACING_AHEAD_GRADIENT =
+  "from-pacing-ahead via-[color-mix(in_srgb,var(--pacing-ahead)_70%,transparent)] to-[color-mix(in_srgb,var(--pacing-ahead)_40%,transparent)]"
+const PACING_ON_TRACK_GRADIENT =
+  "from-[var(--pacing-on-track)] via-[color-mix(in_srgb,var(--pacing-on-track)_70%,transparent)] to-[color-mix(in_srgb,var(--pacing-on-track)_40%,transparent)]"
+const PACING_BEHIND_GRADIENT =
+  "from-pacing-behind via-[color-mix(in_srgb,var(--pacing-behind)_70%,transparent)] to-[color-mix(in_srgb,var(--pacing-behind)_40%,transparent)]"
+const BRAND_DARK_GRADIENT =
+  "from-brand-dark via-[color-mix(in_srgb,var(--channel-bvod)_70%,transparent)] to-[color-mix(in_srgb,var(--channel-bvod)_40%,transparent)]"
 
 const LIVE_STATUSES = ["booked", "approved", "completed"]
 
@@ -1074,40 +1082,40 @@ export default function DashboardOverview({
       value: "0",
       icon: BarChart3,
       tooltip: "Campaigns booked/approved/completed running today",
-      color: "bg-blue-500",
-      gradient: "from-blue-500 via-blue-500/70 to-blue-500/40",
-      iconBg: "bg-blue-500/10",
-      iconText: "text-blue-500",
+      color: "bg-[var(--pacing-on-track)]",
+      gradient: PACING_ON_TRACK_GRADIENT,
+      iconBg: "bg-[var(--pacing-on-track-bg)]",
+      iconText: "text-status-on-track-fg",
     },
     {
       title: "Total Live Scopes of Work",
       value: "0",
       icon: TrendingUp,
       tooltip: "Sum of scopes with status Approved or In-Progress",
-      color: "bg-green-500",
-      gradient: "from-green-500 via-green-500/70 to-green-500/40",
-      iconBg: "bg-green-500/10",
-      iconText: "text-green-500",
+      color: "bg-pacing-ahead",
+      gradient: PACING_AHEAD_GRADIENT,
+      iconBg: "bg-[var(--pacing-ahead-bg)]",
+      iconText: "text-status-ahead-fg",
     },
     {
       title: "Total Live Clients",
       value: "0",
       icon: Users,
       tooltip: "Sum of unique clients with live activity from campaigns and scopes",
-      color: "bg-purple-500",
-      gradient: "from-purple-500 via-purple-500/70 to-purple-500/40",
-      iconBg: "bg-purple-500/10",
-      iconText: "text-purple-500",
+      color: "bg-brand-dark",
+      gradient: BRAND_DARK_GRADIENT,
+      iconBg: "bg-[color-mix(in_srgb,var(--channel-bvod)_12%,transparent)]",
+      iconText: "text-channel-bvod",
     },
     {
       title: "Total Live Publishers",
       value: "0",
       icon: ShoppingCart,
       tooltip: "Sum of unique publishers with live activity from campaigns",
-      color: "bg-amber-500",
-      gradient: "from-amber-500 via-amber-500/70 to-amber-500/40",
-      iconBg: "bg-amber-500/10",
-      iconText: "text-amber-500",
+      color: "bg-pacing-behind",
+      gradient: PACING_BEHIND_GRADIENT,
+      iconBg: "bg-[var(--pacing-behind-bg)]",
+      iconText: "text-status-behind-fg",
     },
   ])
 
@@ -1694,40 +1702,40 @@ export default function DashboardOverview({
           value: totalLiveCampaigns.toString(),
           icon: BarChart3,
           tooltip: "Campaigns booked/approved/completed running today",
-          color: "bg-blue-500",
-          gradient: "from-blue-500 via-blue-500/70 to-blue-500/40",
-          iconBg: "bg-blue-500/10",
-          iconText: "text-blue-500",
+          color: "bg-[var(--pacing-on-track)]",
+          gradient: PACING_ON_TRACK_GRADIENT,
+          iconBg: "bg-[var(--pacing-on-track-bg)]",
+          iconText: "text-status-on-track-fg",
         },
         {
           title: "Total Live Scopes of Work",
           value: totalLiveScopes.toString(),
           icon: TrendingUp,
           tooltip: "Sum of scopes with status Approved or In-Progress",
-          color: "bg-green-500",
-          gradient: "from-green-500 via-green-500/70 to-green-500/40",
-          iconBg: "bg-green-500/10",
-          iconText: "text-green-500",
+          color: "bg-pacing-ahead",
+          gradient: PACING_AHEAD_GRADIENT,
+          iconBg: "bg-[var(--pacing-ahead-bg)]",
+          iconText: "text-status-ahead-fg",
         },
         {
           title: "Total Live Clients",
           value: totalLiveClients.toString(),
           icon: Users,
           tooltip: "Unique clients with live campaigns or scopes",
-          color: "bg-purple-500",
-          gradient: "from-purple-500 via-purple-500/70 to-purple-500/40",
-          iconBg: "bg-purple-500/10",
-          iconText: "text-purple-500",
+          color: "bg-brand-dark",
+          gradient: BRAND_DARK_GRADIENT,
+          iconBg: "bg-[color-mix(in_srgb,var(--channel-bvod)_12%,transparent)]",
+          iconText: "text-channel-bvod",
         },
         {
           title: "Total Live Publishers",
           value: totalLivePublishers.toString(),
           icon: ShoppingCart,
           tooltip: "Unique publishers appearing on live campaigns",
-          color: "bg-amber-500",
-          gradient: "from-amber-500 via-amber-500/70 to-amber-500/40",
-          iconBg: "bg-amber-500/10",
-          iconText: "text-amber-500",
+          color: "bg-pacing-behind",
+          gradient: PACING_BEHIND_GRADIENT,
+          iconBg: "bg-[var(--pacing-behind-bg)]",
+          iconText: "text-status-behind-fg",
         },
       ])
       setDataLastRefreshedAt(new Date())
@@ -2450,24 +2458,48 @@ export default function DashboardOverview({
   }
 
   const getStatusBadgeColor = (status: string) => {
-    if (!status) return "bg-gray-500/15 text-gray-600 border-0"
+    if (!status) return "bg-muted text-muted-foreground border-0"
     switch (status.toLowerCase()) {
       case "booked":
-        return "bg-purple-500/15 text-purple-700 border-0"
+        return "bg-[var(--pacing-on-track-bg)] text-status-on-track-fg border-0"
       case "approved":
-        return "bg-green-500/15 text-green-700 border-0"
+        return "bg-[var(--pacing-ahead-bg)] text-status-ahead-fg border-0"
       case "planned":
-        return "bg-blue-500/15 text-blue-700 border-0"
+        return "bg-[var(--pacing-on-track-bg)] text-status-on-track-fg border-0"
       case "draft":
-        return "bg-gray-500/15 text-gray-600 border-0"
+        return "bg-muted text-muted-foreground border-0"
       case "completed":
-        return "bg-teal-500/15 text-teal-700 border-0"
+        return "bg-[var(--pacing-ahead-bg)] text-status-ahead-fg border-0"
       case "cancelled":
-        return "bg-red-500/15 text-red-700 border-0"
+        return "bg-[var(--pacing-critical-bg)] text-status-critical-fg border-0"
       case "in-progress":
-        return "bg-purple-500/15 text-purple-700 border-0"
+        return "bg-[var(--pacing-on-track-bg)] text-status-on-track-fg border-0"
       default:
-        return "bg-gray-500/15 text-gray-600 border-0"
+        return "bg-muted text-muted-foreground border-0"
+    }
+  }
+
+  const getMediaBadgeClassName = (key: string) => {
+    switch (key) {
+      case "television":
+        return "bg-[var(--pacing-critical-bg)] text-status-critical-fg border-channel-tv"
+      case "bvod":
+      case "digivideo":
+      case "progvideo":
+      case "progbvod":
+        return "bg-[color-mix(in_srgb,var(--channel-bvod)_12%,transparent)] text-channel-bvod border-channel-bvod"
+      case "socialmedia":
+      case "influencers":
+        return "bg-channel-social-bg text-channel-social-fg border-channel-social"
+      case "digidisplay":
+      case "progdisplay":
+        return "bg-[var(--pacing-behind-bg)] text-status-behind-fg border-channel-progDisplay"
+      case "search":
+      case "ooh":
+      case "progooh":
+        return "bg-[var(--pacing-ahead-bg)] text-status-ahead-fg border-channel-search"
+      default:
+        return "bg-muted text-muted-foreground border-border"
     }
   }
 
@@ -2505,7 +2537,7 @@ export default function DashboardOverview({
 
     return enabledTypes.map(({ key }) => {
       return (
-        <Badge key={key} className="mr-1 mb-1 border text-[10px] font-medium" style={getMediaBadgeStyle(key)}>
+        <Badge key={key} className={cn("mr-1 mb-1 border text-[10px] font-medium", getMediaBadgeClassName(key))}>
           {key}
         </Badge>
       )
@@ -2775,11 +2807,11 @@ export default function DashboardOverview({
           {layoutPanels.liveCampaigns ? (
           <PanelRowCell span="full">
             <Panel className="w-full overflow-hidden border-0 shadow-md">
-              <div className="h-1 bg-gradient-to-r from-green-500 via-green-500/70 to-green-500/40" />
+              <div className={`h-1 bg-gradient-to-r ${PACING_AHEAD_GRADIENT}`} />
               <PanelHeader className="items-center pb-2">
                 <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <PanelTitle className="text-base">Live Campaigns (Booked / Approved / Completed)</PanelTitle>
-                  <Badge variant="secondary" className="w-fit shrink-0 bg-green-500/10 text-green-600 border-0 text-xs font-medium tabular-nums">
+                  <Badge variant="secondary" className="w-fit shrink-0 bg-[var(--pacing-ahead-bg)] text-status-ahead-fg border-0 text-xs font-medium tabular-nums">
                     {liveCampaigns.length} {liveCampaigns.length === 1 ? "Campaign" : "Campaigns"}
                   </Badge>
                 </div>
@@ -2886,9 +2918,9 @@ export default function DashboardOverview({
               open={openScopesPanel}
               onOpenChange={setOpenScopesPanel}
               panelTitle="Live Scopes of Work"
-              gradientClassName="bg-gradient-to-r from-green-500 via-green-500/70 to-green-500/40"
+              gradientClassName={`bg-gradient-to-r ${PACING_AHEAD_GRADIENT}`}
               badge={
-                <Badge variant="secondary" className="ml-auto w-fit shrink-0 bg-green-500/10 text-green-600 border-0 text-xs font-medium tabular-nums">
+                <Badge variant="secondary" className="ml-auto w-fit shrink-0 bg-[var(--pacing-ahead-bg)] text-status-ahead-fg border-0 text-xs font-medium tabular-nums">
                   {liveScopes.length} {liveScopes.length === 1 ? "Scope" : "Scopes"}
                 </Badge>
               }
@@ -2951,9 +2983,9 @@ export default function DashboardOverview({
               open={openDueSoonPanel}
               onOpenChange={setOpenDueSoonPanel}
               panelTitle="Campaigns Starting Soon (Next 10 Days)"
-              gradientClassName="bg-gradient-to-r from-blue-500 via-blue-500/70 to-blue-500/40"
+              gradientClassName={`bg-gradient-to-r ${PACING_ON_TRACK_GRADIENT}`}
               badge={
-                <Badge variant="secondary" className="ml-auto w-fit shrink-0 bg-blue-500/10 text-blue-600 border-0 text-xs font-medium tabular-nums">
+                <Badge variant="secondary" className="ml-auto w-fit shrink-0 bg-[var(--pacing-on-track-bg)] text-status-on-track-fg border-0 text-xs font-medium tabular-nums">
                   {campaignsDueToStart.length} {campaignsDueToStart.length === 1 ? "Campaign" : "Campaigns"}
                 </Badge>
               }
@@ -3063,9 +3095,9 @@ export default function DashboardOverview({
               open={openFinishedPanel}
               onOpenChange={setOpenFinishedPanel}
               panelTitle="Campaigns Finished in Past 40 Days"
-              gradientClassName="bg-gradient-to-r from-teal-500 via-teal-500/70 to-teal-500/40"
+              gradientClassName={`bg-gradient-to-r ${PACING_AHEAD_GRADIENT}`}
               badge={
-                <Badge variant="secondary" className="ml-auto w-fit shrink-0 bg-teal-500/10 text-teal-600 border-0 text-xs font-medium tabular-nums">
+                <Badge variant="secondary" className="ml-auto w-fit shrink-0 bg-[var(--pacing-ahead-bg)] text-status-ahead-fg border-0 text-xs font-medium tabular-nums">
                   {campaignsFinishedRecently.length}{" "}
                   {campaignsFinishedRecently.length === 1 ? "Campaign" : "Campaigns"}
                 </Badge>
