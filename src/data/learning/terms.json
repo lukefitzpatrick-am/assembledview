@@ -201,15 +201,6 @@
     "reviewedAt": "2026-06-30"
   },
   {
-    "id": "accelerated-delivery-delivery-cb10e8ac",
-    "term": "Accelerated Delivery",
-    "category": "Delivery",
-    "category_raw": "Delivery",
-    "group": "Buying & Trading",
-    "definition": "Spend faster than even pacing",
-    "type": "definition"
-  },
-  {
     "id": "accelerated-pacing-delivery-189e4bab",
     "term": "Accelerated Pacing",
     "category": "Delivery",
@@ -624,25 +615,13 @@
     "reviewedAt": "2026-06-30"
   },
   {
-    "id": "addressable-tv-formula-50d91db1",
+    "id": "addressable-tv-channel-1be4f2f5",
     "term": "Addressable TV",
-    "category": "Formula",
-    "category_raw": "Formula",
-    "group": "Other / Uncategorised",
-    "definition": "Channel",
-    "formula_or_notes": "TV,Household-level targeted TV ads",
-    "type": "formula",
-    "formula": {
-      "expression": "TV,Household-level targeted TV ads",
-      "variables": [],
-      "output": {
-        "label": "Result",
-        "unit": ""
-      },
-      "format": "number",
-      "inferred": true,
-      "unmapped": true
-    },
+    "category": "Channel",
+    "category_raw": "Channel",
+    "group": "Channels & Formats",
+    "definition": "Household-level targeted TV ads",
+    "type": "definition",
     "plainEnglish": "Delivering different TV ads to different households based on data, rather than everyone seeing the same spot.",
     "whyItMatters": "Brings digital-style targeting to TV (via BVOD/CTV and addressable linear) - reach with relevance.",
     "practitionerNotes": "Dataset category for this row is an artifact ('Formula') - recategorise to Channels.",
@@ -2916,15 +2895,6 @@
     "reviewedAt": "2026-06-30"
   },
   {
-    "id": "cookie-syncing-identity-a9209750",
-    "term": "Cookie Syncing",
-    "category": "Identity",
-    "category_raw": "Identity",
-    "group": "Audiences & Targeting",
-    "definition": "Alias of ID Syncing",
-    "type": "definition"
-  },
-  {
     "id": "copy-creative-7a61ed56",
     "term": "Copy",
     "category": "Creative",
@@ -3838,13 +3808,12 @@
     "reviewedAt": "2026-06-30"
   },
   {
-    "id": "daily-cap-definition-80ac3c5c",
+    "id": "daily-cap-delivery-5c6343fd",
     "term": "Daily Cap",
-    "category": "Definition",
-    "category_raw": "Definition",
-    "group": "Other / Uncategorised",
-    "definition": "Delivery",
-    "formula_or_notes": "Programmatic,Daily spend limit",
+    "category": "Delivery",
+    "category_raw": "Delivery",
+    "group": "Buying & Trading",
+    "definition": "Daily spend limit",
     "type": "definition",
     "plainEnglish": "A limit on how much can be spent (or delivered) in a single day.",
     "whyItMatters": "Paces delivery and protects budget; set too low and the campaign becomes delivery-limited.",
@@ -4059,15 +4028,6 @@
     ],
     "status": "reviewed",
     "reviewedAt": "2026-06-30"
-  },
-  {
-    "id": "demand-side-platform-platform-feeea41d",
-    "term": "Demand Side Platform",
-    "category": "Platform",
-    "category_raw": "Platform",
-    "group": "Platforms & Tools",
-    "definition": "Alias of DSP",
-    "type": "definition"
   },
   {
     "id": "demo-audience-e220a035",
@@ -4726,15 +4686,6 @@
     "reviewedAt": "2026-06-30"
   },
   {
-    "id": "enhanced-cpc-bidding-eb0a2d20",
-    "term": "Enhanced CPC",
-    "category": "Bidding",
-    "category_raw": "Bidding",
-    "group": "Buying & Trading",
-    "definition": "Alias of eCPC",
-    "type": "definition"
-  },
-  {
     "id": "equivalisation-planning-14e11e8c",
     "term": "Equivalisation",
     "category": "Planning",
@@ -4815,15 +4766,6 @@
     ],
     "status": "reviewed",
     "reviewedAt": "2026-06-30"
-  },
-  {
-    "id": "even-delivery-delivery-c6c95cf9",
-    "term": "Even Delivery",
-    "category": "Delivery",
-    "category_raw": "Delivery",
-    "group": "Buying & Trading",
-    "definition": "Spend evenly across time",
-    "type": "definition"
   },
   {
     "id": "even-pacing-delivery-e728b039",
@@ -5393,13 +5335,12 @@
     "reviewedAt": "2026-06-30"
   },
   {
-    "id": "frequency-optimisation-definition-cee0b543",
+    "id": "frequency-optimisation-planning-c5184913",
     "term": "Frequency Optimisation",
-    "category": "Definition",
-    "category_raw": "Definition",
-    "group": "Other / Uncategorised",
-    "definition": "Planning",
-    "formula_or_notes": "TV,Managing exposure repetition",
+    "category": "Planning",
+    "category_raw": "Planning",
+    "group": "Planning & Strategy",
+    "definition": "Managing exposure repetition",
     "type": "definition",
     "plainEnglish": "Managing exposure so each person sees the ad an effective number of times - not too few, not too many.",
     "whyItMatters": "Protects reach and budget from over-exposure while ensuring the message lands; the planning side of frequency capping.",
@@ -5618,56 +5559,12 @@
     "reviewedAt": "2026-06-30"
   },
   {
-    "id": "gross-margin-finance-778a172d",
+    "id": "gross-margin-finance-0d39fc1a",
     "term": "Gross Margin",
     "category": "Finance",
     "category_raw": "Finance",
     "group": "Finance & Commercial",
     "definition": "Revenue minus cost of goods",
-    "formula_or_notes": "(Revenue - COGS) / Revenue",
-    "type": "formula",
-    "formula": {
-      "calculatorId": "gross-margin",
-      "expression": "(revenue - cogs) / revenue",
-      "variables": [
-        {
-          "key": "revenue",
-          "label": "Revenue",
-          "unit": "$",
-          "required": true
-        },
-        {
-          "key": "cogs",
-          "label": "COGS",
-          "unit": "$",
-          "required": true
-        }
-      ],
-      "output": {
-        "label": "Gross Margin",
-        "unit": ""
-      },
-      "format": "percent"
-    },
-    "plainEnglish": "Revenue minus the direct cost of delivering it, before overheads.",
-    "whyItMatters": "The first read of profitability on a piece of business; falling gross margin is an early warning sign.",
-    "level": "intermediate",
-    "sources": [
-      {
-        "label": "AASB 15 - Revenue recognition",
-        "url": "https://standards.aasb.gov.au/aasb-15-dec-2022"
-      }
-    ],
-    "status": "reviewed",
-    "reviewedAt": "2026-06-30"
-  },
-  {
-    "id": "gross-margin-finance-62b5aff1",
-    "term": "GROSS MARGIN",
-    "category": "Finance",
-    "category_raw": "Finance",
-    "group": "Finance & Commercial",
-    "definition": "",
     "formula_or_notes": "(Revenue - COGS) / Revenue,",
     "type": "formula",
     "formula": {
@@ -7238,15 +7135,6 @@
     "type": "definition"
   },
   {
-    "id": "low-quality-inventory-governance-327fef5f",
-    "term": "Low-quality Inventory",
-    "category": "Governance",
-    "category_raw": "Governance",
-    "group": "Governance & Privacy",
-    "definition": "Alias of MFA",
-    "type": "definition"
-  },
-  {
     "id": "lower-funnel-strategy-6001e742",
     "term": "Lower Funnel",
     "category": "Strategy",
@@ -8175,56 +8063,12 @@
     "reviewedAt": "2026-06-30"
   },
   {
-    "id": "net-margin-finance-655e100c",
+    "id": "net-margin-finance-539067ab",
     "term": "Net Margin",
     "category": "Finance",
     "category_raw": "Finance",
     "group": "Finance & Commercial",
     "definition": "Profit after all costs",
-    "formula_or_notes": "Net Profit / Revenue",
-    "type": "formula",
-    "formula": {
-      "calculatorId": "net-margin",
-      "expression": "net_profit / revenue",
-      "variables": [
-        {
-          "key": "net_profit",
-          "label": "Net Profit",
-          "unit": "$",
-          "required": true
-        },
-        {
-          "key": "revenue",
-          "label": "Revenue",
-          "unit": "$",
-          "required": true
-        }
-      ],
-      "output": {
-        "label": "Net Margin",
-        "unit": ""
-      },
-      "format": "percent"
-    },
-    "plainEnglish": "Profit left after all costs (direct and overhead) are taken out.",
-    "whyItMatters": "The bottom-line profitability of the business/account - what's actually retained.",
-    "level": "intermediate",
-    "sources": [
-      {
-        "label": "AASB 15 - Revenue recognition",
-        "url": "https://standards.aasb.gov.au/aasb-15-dec-2022"
-      }
-    ],
-    "status": "reviewed",
-    "reviewedAt": "2026-06-30"
-  },
-  {
-    "id": "net-margin-finance-57959acf",
-    "term": "NET MARGIN",
-    "category": "Finance",
-    "category_raw": "Finance",
-    "group": "Finance & Commercial",
-    "definition": "",
     "formula_or_notes": "Net Profit / Revenue,",
     "type": "formula",
     "formula": {
@@ -8869,15 +8713,6 @@
     "reviewedAt": "2026-06-30"
   },
   {
-    "id": "pg-trading-6e69ce1a",
-    "term": "PG",
-    "category": "Trading",
-    "category_raw": "Trading",
-    "group": "Buying & Trading",
-    "definition": "Alias of Programmatic Guaranteed",
-    "type": "acronym"
-  },
-  {
     "id": "phrase-match-match-type-bb92e4e5",
     "term": "Phrase Match",
     "category": "Match Type",
@@ -9405,15 +9240,6 @@
     "reviewedAt": "2026-06-30"
   },
   {
-    "id": "private-marketplace-trading-2845a7ee",
-    "term": "Private Marketplace",
-    "category": "Trading",
-    "category_raw": "Trading",
-    "group": "Buying & Trading",
-    "definition": "Alias of PMP",
-    "type": "definition"
-  },
-  {
     "id": "probabilistic-id-identity-4a497d1c",
     "term": "Probabilistic ID",
     "category": "Identity",
@@ -9434,12 +9260,12 @@
     "reviewedAt": "2026-06-30"
   },
   {
-    "id": "profit-margin-finance-05160979",
-    "term": "PROFIT MARGIN",
+    "id": "profit-margin-finance-86c6dc80",
+    "term": "Profit Margin",
     "category": "Finance",
     "category_raw": "Finance",
     "group": "Finance & Commercial",
-    "definition": "",
+    "definition": "Profit as a percentage of revenue",
     "formula_or_notes": "(Revenue - Cost) / Revenue,",
     "type": "formula",
     "formula": {
@@ -9478,11 +9304,11 @@
     "reviewedAt": "2026-06-30"
   },
   {
-    "id": "program-context-d4b638cc",
+    "id": "program-channel-011ecc50",
     "term": "Program",
-    "category": "Context",
-    "category_raw": "Context",
-    "group": "Other / Uncategorised",
+    "category": "Channel",
+    "category_raw": "Channel",
+    "group": "Channels & Formats",
     "definition": "Specific TV show or content",
     "type": "definition",
     "plainEnglish": "A specific TV show or piece of content.",
@@ -9977,15 +9803,6 @@
     ],
     "status": "reviewed",
     "reviewedAt": "2026-06-30"
-  },
-  {
-    "id": "real-time-bidding-mechanics-cb8b656d",
-    "term": "Real Time Bidding",
-    "category": "Mechanics",
-    "category_raw": "Mechanics",
-    "group": "Tracking & Ad Ops",
-    "definition": "Alias of RTB",
-    "type": "definition"
   },
   {
     "id": "reconciliation-finance-be90845d",
@@ -10769,13 +10586,12 @@
     "reviewedAt": "2026-06-30"
   },
   {
-    "id": "search-saturation-definition-42254242",
+    "id": "search-saturation-economics-f5c2ef51",
     "term": "Search Saturation",
-    "category": "Definition",
-    "category_raw": "Definition",
-    "group": "Other / Uncategorised",
-    "definition": "Economics",
-    "formula_or_notes": "Search,Point where more spend adds minimal value",
+    "category": "Economics",
+    "category_raw": "Economics",
+    "group": "Buying & Trading",
+    "definition": "Point where more spend adds minimal value",
     "type": "definition",
     "plainEnglish": "The point where extra search spend stops buying more results - you've captured the available demand.",
     "whyItMatters": "Signals when to stop adding budget to search and diversify; the search version of diminishing returns.",
@@ -11486,15 +11302,6 @@
     "reviewedAt": "2026-06-30"
   },
   {
-    "id": "sqr-reporting-24b0d516",
-    "term": "SQR",
-    "category": "Reporting",
-    "category_raw": "Reporting",
-    "group": "Measurement & Attribution",
-    "definition": "Alias of Search Query Report",
-    "type": "acronym"
-  },
-  {
     "id": "ssp-programmatic-fc489a9c",
     "term": "SSP",
     "category": "Programmatic",
@@ -11613,24 +11420,6 @@
     ],
     "status": "reviewed",
     "reviewedAt": "2026-06-30"
-  },
-  {
-    "id": "supply-path-optimisation-trading-88a0287c",
-    "term": "Supply Path Optimisation",
-    "category": "Trading",
-    "category_raw": "Trading",
-    "group": "Buying & Trading",
-    "definition": "Alias of SPO",
-    "type": "definition"
-  },
-  {
-    "id": "supply-side-platform-platform-4f42d411",
-    "term": "Supply Side Platform",
-    "category": "Platform",
-    "category_raw": "Platform",
-    "group": "Platforms & Tools",
-    "definition": "Alias of SSP",
-    "type": "definition"
   },
   {
     "id": "suppression-audience-4d928d32",
@@ -11752,24 +11541,6 @@
     ],
     "status": "reviewed",
     "reviewedAt": "2026-06-30"
-  },
-  {
-    "id": "target-cpa-bidding-bc387ef8",
-    "term": "Target CPA",
-    "category": "Bidding",
-    "category_raw": "Bidding",
-    "group": "Buying & Trading",
-    "definition": "Alias of tCPA",
-    "type": "definition"
-  },
-  {
-    "id": "target-roas-bidding-b77f1140",
-    "term": "Target ROAS",
-    "category": "Bidding",
-    "category_raw": "Bidding",
-    "group": "Buying & Trading",
-    "definition": "Alias of tROAS",
-    "type": "definition"
   },
   {
     "id": "tcpa-bidding-d76f9476",
@@ -12901,15 +12672,6 @@
     ],
     "status": "reviewed",
     "reviewedAt": "2026-06-30"
-  },
-  {
-    "id": "virtual-australia-measurement-71d3a685",
-    "term": "Virtual Australia",
-    "category": "Measurement",
-    "category_raw": "Measurement",
-    "group": "Measurement & Attribution",
-    "definition": "Alias of VOZ",
-    "type": "definition"
   },
   {
     "id": "visual-creative-ed42b262",
