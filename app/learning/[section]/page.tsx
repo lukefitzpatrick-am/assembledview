@@ -303,12 +303,30 @@ export default function LearningSectionPage({ params }: PageProps) {
                   >
                     {activeGroupLabel}
                   </Badge>
+                  {activeTerm.level && <Badge variant="outline">{activeTerm.level}</Badge>}
                   {activeTerm.canonicalTerm && <Badge variant="outline">AKA {activeTerm.canonicalTerm}</Badge>}
                 </SheetDescription>
               </SheetHeader>
 
-              <div className="space-y-2">
-                <p className="text-sm text-muted-foreground whitespace-pre-wrap">{activeTerm.definition}</p>
+              <div className="space-y-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase text-brand tracking-wide mb-1">In plain English</p>
+                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                    {activeTerm.plainEnglish ?? activeTerm.definition}
+                  </p>
+                </div>
+                {activeTerm.whyItMatters && (
+                  <div>
+                    <p className="text-xs font-semibold uppercase text-primary tracking-wide mb-1">Why it matters</p>
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">{activeTerm.whyItMatters}</p>
+                  </div>
+                )}
+                {activeTerm.example && (
+                  <div className="rounded-md bg-muted/60 px-3 py-2">
+                    <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide mb-1">Example</p>
+                    <p className="text-sm text-foreground/80 whitespace-pre-wrap">{activeTerm.example}</p>
+                  </div>
+                )}
                 {activeTerm.formula_or_notes && (
                   <p className="text-sm text-foreground/80 bg-muted/60 rounded-md px-3 py-2 whitespace-pre-wrap">
                     {activeTerm.formula_or_notes}
@@ -321,8 +339,13 @@ export default function LearningSectionPage({ params }: PageProps) {
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    const body = `${activeTerm.term}\n${activeTerm.definition}${activeTerm.formula_or_notes ? `\n${activeTerm.formula_or_notes}` : ""}`;
-                    navigator?.clipboard?.writeText(body);
+                    const parts = [
+                      activeTerm.term,
+                      activeTerm.plainEnglish ?? activeTerm.definition,
+                      activeTerm.whyItMatters,
+                      activeTerm.example,
+                    ].filter(Boolean);
+                    navigator?.clipboard?.writeText(parts.join("\n"));
                   }}
                 >
                   <Copy className="h-4 w-4 mr-1" />
@@ -366,6 +389,25 @@ export default function LearningSectionPage({ params }: PageProps) {
                         <p className="font-medium">{related.term}</p>
                         <p className="text-xs text-muted-foreground line-clamp-1">{related.definition}</p>
                       </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {activeTerm.sources && activeTerm.sources.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold">Further reading</h3>
+                  <div className="flex flex-col gap-1">
+                    {activeTerm.sources.map((s) => (
+                      <a
+                        key={s.url}
+                        href={s.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-primary hover:underline"
+                      >
+                        {s.label} &#8599;
+                      </a>
                     ))}
                   </div>
                 </div>

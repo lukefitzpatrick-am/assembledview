@@ -44,11 +44,13 @@ export function LearningCard({ term, onClick, highlight }: Props) {
         )}
       </CardHeader>
       <CardContent className="space-y-2 pt-0">
-        <p className="text-sm text-muted-foreground line-clamp-3">{term.definition}</p>
-        {term.formula_or_notes && (
-          <p className="text-xs text-foreground/80 bg-muted/60 rounded-md px-3 py-2 line-clamp-3">
-            {term.formula_or_notes}
-          </p>
+        <p className="text-sm text-muted-foreground line-clamp-3">
+          {term.plainEnglish ?? term.definition}
+        </p>
+        {term.level && (
+          <span className="inline-block text-[10px] uppercase tracking-wide rounded px-1.5 py-0.5 bg-muted text-muted-foreground">
+            {term.level}
+          </span>
         )}
       </CardContent>
     </Card>
