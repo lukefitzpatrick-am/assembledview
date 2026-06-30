@@ -130,7 +130,7 @@ export default function LearningSectionPage({ params }: PageProps) {
 
   const setTab = (value: string) => {
     const next = validSections.includes(value as Section) ? value : "definitions";
-    router.replace(`/learning/${next}${activeTermId ? `?id=${activeTermId}` : ""}`, { scroll: false });
+    router.replace(`/knowledge/${next}${activeTermId ? `?id=${activeTermId}` : ""}`, { scroll: false });
   };
 
   const handleCardClick = (term: LearningTerm) => {
@@ -159,7 +159,7 @@ export default function LearningSectionPage({ params }: PageProps) {
         <div className="px-4 py-3 md:px-6 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <p className="text-xs font-semibold uppercase text-brand tracking-wide">Learning</p>
+              <p className="text-xs font-semibold uppercase text-brand tracking-wide">Knowledge Hub</p>
               <h1 className="text-xl font-semibold">Definitions, Acronyms, Formulas</h1>
             </div>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -314,7 +314,7 @@ export default function LearningSectionPage({ params }: PageProps) {
       <Sheet open={Boolean(activeTerm)} onOpenChange={(open) => {
         if (!open) {
           setActiveTermId(null);
-          router.replace(`/learning/${section}`, { scroll: false });
+          router.replace(`/knowledge/${section}`, { scroll: false });
         }
       }}>
         <SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto">

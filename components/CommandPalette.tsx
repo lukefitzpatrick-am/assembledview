@@ -78,7 +78,7 @@ function recordRecent(href: string, title: string) {
 }
 
 /**
- * Mirrors AppSidebar: full internal nav for admin; client slug dashboard + Learning for others.
+ * Mirrors AppSidebar: full internal nav for admin; client slug dashboard + Knowledge Hub for others.
  */
 function isHrefVisibleForUser(
   href: string,
@@ -86,7 +86,7 @@ function isHrefVisibleForUser(
   userClient: string | null
 ): boolean {
   if (isAdmin) return true
-  if (href === "/learning" || href.startsWith("/learning/")) return true
+  if (href === "/knowledge" || href.startsWith("/knowledge/")) return true
   if (userClient) {
     const base = `/dashboard/${userClient}`
     if (href === base || href.startsWith(`${base}/`)) return true
@@ -120,9 +120,10 @@ function getPrimaryNavItems(isAdmin: boolean, userClient: string | null): NavIte
         searchTerms: "campaigns mediaplans",
       },
       {
-        title: "Learning",
-        href: "/learning",
+        title: "Knowledge Hub",
+        href: "/knowledge",
         icon: BookOpen,
+        searchTerms: "learning knowledge glossary definitions acronyms formulas",
       },
     ]
   }
@@ -136,7 +137,7 @@ function getPrimaryNavItems(isAdmin: boolean, userClient: string | null): NavIte
       searchTerms: "home client",
     })
   }
-  items.push({ title: "Learning", href: "/learning", icon: BookOpen })
+  items.push({ title: "Knowledge Hub", href: "/knowledge", icon: BookOpen, searchTerms: "learning knowledge glossary" })
   return items
 }
 

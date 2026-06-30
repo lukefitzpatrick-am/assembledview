@@ -90,7 +90,7 @@ export function AppSidebar() {
     { title: "Publishers", icon: Building2, href: "/publishers" },
     { title: "Client hub", icon: Users, href: "/client", exact: true as const },
     { title: "Finance", icon: DollarSign, href: "/finance", exact: false as const, isActive: isFinanceNavActive },
-    { title: "Learning", icon: BookOpen, href: "/learning" },
+    { title: "Knowledge Hub", icon: BookOpen, href: "/knowledge" },
     { title: "Create Campaign", icon: PlusCircle, href: "/mediaplans/create", isActive: isCreateCampaignActive },
   ]), [isCampaignsNavActive, isCreateCampaignActive, isFinanceNavActive]);
 
@@ -112,7 +112,7 @@ export function AppSidebar() {
       href: string;
       exact?: boolean;
     }> = [
-      { title: "Learning", icon: BookOpen, href: "/learning" },
+      { title: "Knowledge Hub", icon: BookOpen, href: "/knowledge" },
     ];
     if (userClient) {
       links.unshift({

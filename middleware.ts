@@ -4,7 +4,7 @@ import { auth0 } from './lib/auth0';
 import { getUserClientIdentifier, getUserRoles } from './lib/rbac';
 
 const STATIC_PATHS = ['/favicon.ico', '/robots.txt', '/sitemap.xml'];
-const PUBLIC_PATHS = ['/', '/forbidden', '/learning'];
+const PUBLIC_PATHS = ['/', '/forbidden', '/knowledge'];
 const DEBUG_AUTH_ENABLED = process.env.NEXT_PUBLIC_DEBUG_AUTH === 'true';
 
 const normalizePath = (p: string) => (p !== '/' && p.endsWith('/') ? p.slice(0, -1) : p);
@@ -102,7 +102,7 @@ export async function middleware(request: NextRequest) {
         redirectTarget = base;
         reason = 'client-cross-tenant-block';
       }
-    } else if (pathname === '/learning' || pathname.startsWith('/learning/') || pathname === '/forbidden' || pathname === '/unauthorized') {
+    } else if (pathname === '/knowledge' || pathname.startsWith('/knowledge/') || pathname === '/forbidden' || pathname === '/unauthorized') {
       // allow these pages
     } else {
       redirectTarget = `/dashboard/${clientSlug}`;
