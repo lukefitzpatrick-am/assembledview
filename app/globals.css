@@ -3,6 +3,11 @@
 @tailwind utilities;
 
 @layer utilities {
+  .num {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+
   .scrollbar-thin {
     scrollbar-width: thin;
   }
@@ -19,35 +24,39 @@
 @layer base {
   :root {
     /* Base shadcn tokens */
-    --background: 210 20% 99%;
-    --foreground: 222 34% 12%;
+    --background: 90 17% 95%;
+    --foreground: 137 32% 9%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222 34% 12%;
+    --card-foreground: 137 32% 9%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222 34% 12%;
+    --popover-foreground: 137 32% 9%;
 
-    --primary: 210 57% 55%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 160 100% 28%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 180 80% 44%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 209 54% 55%;
+    --secondary-foreground: 0 0% 100%;
 
-    --muted: 210 26% 95%;
-    --muted-foreground: 215 16% 42%;
+    --muted: 90 12% 94%;
+    --muted-foreground: 139 7% 63%;
 
-    --accent: 84 64% 52%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 72 64% 52%;
+    --accent-foreground: 137 32% 9%;
 
-    --destructive: 16 100% 50%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 9 76% 57%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 214 22% 88%;
-    --input: 214 22% 88%;
-    --ring: 180 80% 44%;
+    --border: 90 17% 91%;
+    --input: 90 17% 91%;
+    --ring: 160 100% 28%;
 
     --radius: 0.5rem;
+    --radius-input: 9px;
+    --radius-card: 14px;
+    --radius-frame: 18px;
+    --radius-pill: 99px;
 
     --sidebar-width: 16rem;
     --sidebar-width-icon: 3rem;
@@ -57,163 +66,197 @@
     /*
      * Sidebar-specific semantic tokens (separate from general page tokens)
      */
-    --sidebar-bg: 220 55% 14%; /* deep navy surface (light mode) */
-    --sidebar-fg: 210 40% 98%; /* high-contrast text on navy */
-    --sidebar-muted: 214 22% 82%; /* secondary labels / muted text */
-    --sidebar-border: 220 36% 20%; /* subtle separators on navy */
-    --sidebar-hover-bg: 220 48% 18%; /* obvious hover state */
-    --sidebar-hover-fg: 210 40% 98%;
-    --sidebar-active-bg: 220 52% 22%; /* selected item surface */
+    --sidebar-bg: 137 32% 9%;
+    --sidebar-fg: 0 0% 100%;
+    --sidebar-muted: 145 12% 75%;
+    --sidebar-border: 142 26% 16%;
+    --sidebar-hover-bg: 72 64% 52%;
+    --sidebar-hover-fg: 0 0% 100%;
+    --sidebar-active-bg: 72 64% 52%;
     --sidebar-active-fg: 0 0% 100%;
-    --sidebar-icon: 214 24% 86%; /* default icon tone */
-    --sidebar-ring: 84 64% 52%; /* visible focus ring on navy */
+    --sidebar-icon: 146 14% 52%;
+    --sidebar-ring: 72 64% 52%;
+    --sidebar-hover-tint: rgba(255, 255, 255, 0.06);
+    --sidebar-active-tint: rgba(181, 211, 55, 0.1);
+    --sidebar-active-bar: #b5d337;
 
     /* Back-compat shadcn/ui sidebar tokens */
     --sidebar-background: var(--sidebar-bg);
     --sidebar-foreground: var(--sidebar-fg);
-    --sidebar-primary: 210 57% 55%;
-    --sidebar-primary-foreground: 210 40% 98%;
+    --sidebar-primary: 160 100% 28%;
+    --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: var(--sidebar-hover-bg);
     --sidebar-accent-foreground: var(--sidebar-hover-fg);
-    --sidebar-border: var(--sidebar-border);
 
     /* ------------------------------------------------------------
      * Semantic app tokens (use these in components vs raw colors)
      * ------------------------------------------------------------ */
-    --app-bg: 210 20% 99%;
-    --app-fg: 222 34% 12%;
+    --app-bg: 90 17% 95%;
+    --app-fg: 137 32% 9%;
 
     --surface-panel: 0 0% 100%;
-    --surface-muted: 220 26% 95%;
+    --surface-muted: 90 12% 94%;
     --surface-elevated: 0 0% 100%;
     --surface-input: 0 0% 100%;
     --surface-popover: 0 0% 100%;
 
     --table-row: 0 0% 100%;
-    --table-row-hover: 210 26% 94%;
-    --table-row-active: 210 26% 92%;
+    --table-row-hover: 90 24% 96%;
+    --table-row-active: 90 12% 94%;
 
-    --state-active: 210 26% 92%;
+    --state-active: 90 12% 94%;
 
-    --status-success: 158 62% 34%;
+    --status-success: 160 100% 28%;
     --status-success-foreground: 0 0% 100%;
-    --status-warning: 38 92% 48%;
-    --status-warning-foreground: 20 14% 6%;
-    --status-danger: 16 100% 50%;
+    --status-warning: 40 82% 50%;
+    --status-warning-foreground: 36 86% 18%;
+    --status-danger: 9 76% 57%;
     --status-danger-foreground: 0 0% 100%;
-    --status-accent: 84 64% 52%;
-    --status-accent-foreground: 222 34% 12%;
+    --status-accent: 72 64% 52%;
+    --status-accent-foreground: 137 32% 9%;
 
     /* Dashboard + pacing design tokens (available to charts/components via CSS vars) */
-    --dashboard-surface: #dee5f4;
+    --dashboard-surface: #f3f5f1;
     --dashboard-card: #ffffff;
-    --dashboard-card-hover: #fafbfc;
-    --dashboard-border: #e2e8f0;
-    --dashboard-border-hover: #cbd5e1;
+    --dashboard-card-hover: #fafbfa;
+    --dashboard-border: #e7ebe3;
+    --dashboard-border-hover: #dde3d8;
+    --dashboard-card-inner: #edf0ea;
 
-    --pacing-ahead: #10b981;
-    --pacing-ahead-bg: rgba(16, 185, 129, 0.1);
-    --pacing-on-track: #0ea5e9;
-    --pacing-on-track-bg: rgba(14, 165, 233, 0.1);
-    --pacing-behind: #f59e0b;
-    --pacing-behind-bg: rgba(245, 158, 11, 0.1);
-    --pacing-critical: #ef4444;
-    --pacing-critical-bg: rgba(239, 68, 68, 0.1);
+    --pacing-ahead: #008e5e;
+    --pacing-ahead-bg: rgba(0, 142, 94, 0.12);
+    --pacing-on-track: #4f8fcb;
+    --pacing-on-track-bg: rgba(79, 143, 203, 0.14);
+    --pacing-behind: #e8a317;
+    --pacing-behind-bg: rgba(232, 163, 23, 0.16);
+    --pacing-critical: #e5573e;
+    --pacing-critical-bg: rgba(229, 87, 62, 0.13);
+
+    --status-ahead-fg: #00704a;
+    --status-on-track-fg: #356296;
+    --status-behind-fg: #9a6a08;
+    --status-critical-fg: #b23b27;
+
+    --channel-tv: #e5573e;
+    --channel-bvod: #472477;
+    --channel-social: #49c7eb;
+    --channel-social-bg: rgba(73, 199, 235, 0.16);
+    --channel-social-fg: #1f7fa0;
+    --channel-prog-display: #e8a317;
+    --channel-search: #008e5e;
+    --channel-ooh: #008e5e;
+
+    --text-secondary: #3c4b41;
+    --text-tertiary: #6b7a70;
+    --fill-track: #eef1ea;
+    --row-hover: #f5f7f2;
+    --canvas: #e9ede6;
   }
 
   .dark {
     /* Softer dark surfaces (avoid harsh pure-black) */
-    --background: 222 22% 10%;
-    --foreground: 210 25% 96%;
+    --background: 150 29% 7%;
+    --foreground: 129 16% 92%;
 
-    --card: 222 20% 13%;
-    --card-foreground: 210 25% 96%;
+    --card: 154 28% 10%;
+    --card-foreground: 129 16% 92%;
 
-    --popover: 222 20% 14%;
-    --popover-foreground: 210 25% 96%;
+    --popover: 154 28% 10%;
+    --popover-foreground: 129 16% 92%;
 
-    --primary: 210 57% 55%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --primary: 154 69% 55%;
+    --primary-foreground: 150 29% 7%;
 
-    --secondary: 180 80% 44%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 209 54% 55%;
+    --secondary-foreground: 0 0% 100%;
 
-    --muted: 222 16% 18%;
-    --muted-foreground: 215 18% 72%;
+    --muted: 154 24% 14%;
+    --muted-foreground: 141 10% 46%;
 
-    --accent: 84 64% 52%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 72 64% 52%;
+    --accent-foreground: 150 29% 7%;
 
-    --destructive: 16 100% 50%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 9 76% 57%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 222 14% 24%;
-    --input: 222 14% 24%;
-    --ring: 180 80% 44%;
+    --border: 142 26% 16%;
+    --input: 142 26% 16%;
+    --ring: 154 69% 55%;
 
     /*
      * Sidebar semantics (dark mode) — distinct from light mode navy
      */
-    --sidebar-bg: 224 22% 9%; /* near-slate */
-    --sidebar-fg: 210 25% 96%;
-    --sidebar-muted: 215 18% 74%;
-    --sidebar-border: 222 14% 18%;
-    --sidebar-hover-bg: 222 18% 14%;
-    --sidebar-hover-fg: 210 25% 96%;
-    --sidebar-active-bg: 222 18% 18%;
+    --sidebar-bg: 150 29% 7%;
+    --sidebar-fg: 129 16% 92%;
+    --sidebar-muted: 141 10% 58%;
+    --sidebar-border: 142 26% 16%;
+    --sidebar-hover-bg: 72 64% 52%;
+    --sidebar-hover-fg: 150 29% 7%;
+    --sidebar-active-bg: 72 64% 52%;
     --sidebar-active-fg: 0 0% 100%;
-    --sidebar-icon: 215 18% 78%;
-    --sidebar-ring: 180 80% 44%; /* cyan reads well on dark */
+    --sidebar-icon: 141 10% 46%;
+    --sidebar-ring: 72 64% 52%;
 
     /* Back-compat shadcn/ui sidebar tokens */
     --sidebar-background: var(--sidebar-bg);
     --sidebar-foreground: var(--sidebar-fg);
-    --sidebar-primary: 210 57% 55%;
-    --sidebar-primary-foreground: 222.2 47.4% 11.2%;
+    --sidebar-primary: 154 69% 55%;
+    --sidebar-primary-foreground: 150 29% 7%;
     --sidebar-accent: var(--sidebar-hover-bg);
     --sidebar-accent-foreground: var(--sidebar-hover-fg);
-    --sidebar-border: var(--sidebar-border);
 
     /* Semantic app tokens */
-    --app-bg: 222 22% 10%;
-    --app-fg: 210 25% 96%;
+    --app-bg: 150 29% 7%;
+    --app-fg: 129 16% 92%;
 
-    --surface-panel: 222 20% 13%;
-    --surface-muted: 222 18% 16%;
-    --surface-elevated: 222 18% 15%;
-    --surface-input: 222 18% 15%;
-    --surface-popover: 222 20% 14%;
+    --surface-panel: 154 28% 10%;
+    --surface-muted: 154 24% 14%;
+    --surface-elevated: 154 24% 12%;
+    --surface-input: 154 24% 12%;
+    --surface-popover: 154 28% 10%;
 
-    --table-row: 222 20% 13%;
-    --table-row-hover: 222 18% 16%;
-    --table-row-active: 222 18% 18%;
+    --table-row: 154 28% 10%;
+    --table-row-hover: 154 24% 14%;
+    --table-row-active: 142 26% 16%;
 
-    --state-active: 222 18% 18%;
+    --state-active: 142 26% 16%;
 
-    --status-success: 158 62% 40%;
+    --status-success: 154 69% 55%;
     --status-success-foreground: 0 0% 100%;
-    --status-warning: 38 92% 56%;
-    --status-warning-foreground: 20 14% 6%;
-    --status-danger: 16 100% 58%;
+    --status-warning: 40 82% 50%;
+    --status-warning-foreground: 36 86% 18%;
+    --status-danger: 9 76% 57%;
     --status-danger-foreground: 0 0% 100%;
-    --status-accent: 84 64% 56%;
-    --status-accent-foreground: 222 22% 10%;
+    --status-accent: 72 64% 52%;
+    --status-accent-foreground: 150 29% 7%;
 
     /* Keep dashboard + pacing vars explicit in dark mode for chart parity */
-    --dashboard-surface: #dee5f4;
-    --dashboard-card: #ffffff;
-    --dashboard-card-hover: #fafbfc;
-    --dashboard-border: #e2e8f0;
-    --dashboard-border-hover: #cbd5e1;
+    --dashboard-surface: #0c1611;
+    --dashboard-card: #12201a;
+    --dashboard-card-hover: #172a22;
+    --dashboard-border: #1f3527;
+    --dashboard-border-hover: #294633;
+    --dashboard-card-inner: #1f3527;
 
-    --pacing-ahead: #10b981;
-    --pacing-ahead-bg: rgba(16, 185, 129, 0.1);
-    --pacing-on-track: #0ea5e9;
-    --pacing-on-track-bg: rgba(14, 165, 233, 0.1);
-    --pacing-behind: #f59e0b;
-    --pacing-behind-bg: rgba(245, 158, 11, 0.1);
-    --pacing-critical: #ef4444;
-    --pacing-critical-bg: rgba(239, 68, 68, 0.1);
+    --pacing-ahead: #3ddc97;
+    --pacing-ahead-bg: rgba(0, 142, 94, 0.12);
+    --pacing-on-track: #4f8fcb;
+    --pacing-on-track-bg: rgba(79, 143, 203, 0.14);
+    --pacing-behind: #e8a317;
+    --pacing-behind-bg: rgba(232, 163, 23, 0.16);
+    --pacing-critical: #e5573e;
+    --pacing-critical-bg: rgba(229, 87, 62, 0.13);
+
+    --status-ahead-fg: #3ddc97;
+    --status-on-track-fg: #9fc3e6;
+    --status-behind-fg: #f1c15d;
+    --status-critical-fg: #ef907f;
+
+    --text-secondary: #e6ede7;
+    --text-tertiary: #6b8273;
+    --fill-track: #1f3527;
+    --row-hover: #172a22;
+    --canvas: #0c1611;
   }
 }
 
