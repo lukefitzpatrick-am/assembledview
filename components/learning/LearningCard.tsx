@@ -1,5 +1,6 @@
 "use client"
 
+import type { KeyboardEvent } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -13,13 +14,23 @@ type Props = {
 
 export function LearningCard({ term, onClick, highlight }: Props) {
   const groupLabel = term.group ?? "Other / Uncategorised";
+  const openTerm = () => onClick?.(term);
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    openTerm();
+  };
 
   return (
     <Card
-      onClick={() => onClick?.(term)}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onClick={openTerm}
+      onKeyDown={handleKeyDown}
       className={cn(
-        "cursor-pointer transition hover:shadow-lg border-border/80",
-        highlight && "ring-2 ring-brand"
+        "rounded-card border-border/80 shadow-e1 transition hover:shadow-e2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+        onClick && "cursor-pointer",
+        highlight && "ring-2 ring-primary"
       )}
     >
       <CardHeader className="space-y-2 pb-3">
@@ -41,9 +52,9 @@ export function LearningCard({ term, onClick, highlight }: Props) {
           {term.plainEnglish ?? term.definition}
         </p>
         {term.level && (
-          <span className="inline-block text-[10px] uppercase tracking-wide rounded px-1.5 py-0.5 bg-muted text-muted-foreground">
+          <Badge variant="outline" size="sm" className="border-border bg-muted text-muted-foreground uppercase tracking-wide">
             {term.level}
-          </span>
+          </Badge>
         )}
       </CardContent>
     </Card>

@@ -15,9 +15,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import {
-  SlideOver,
-} from "@/components/ui/SlideOver";
+import { SlideOver } from "@/components/ui/SlideOver";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -149,15 +147,15 @@ export default function LearningSectionPage({ params }: PageProps) {
 
   return (
     <div className="flex flex-col h-full bg-background text-foreground">
-      <div className="sticky top-0 z-30 border-b bg-background/90 backdrop-blur">
+      <div className="sticky top-0 z-30 border-b border-border bg-background/90 backdrop-blur">
         <div className="px-4 py-3 md:px-6 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <p className="text-xs font-semibold uppercase text-brand tracking-wide">Knowledge Hub</p>
+              <p className="text-xs font-semibold uppercase text-primary tracking-wide">Knowledge Hub</p>
               <h1 className="text-xl font-semibold">Definitions, Acronyms, Formulas</h1>
             </div>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <BadgeCheck className="h-4 w-4 text-brand" />
+              <BadgeCheck className="h-4 w-4 text-primary" />
               <span>Fuzzy search with Fuse.js</span>
             </div>
           </div>
@@ -196,7 +194,7 @@ export default function LearningSectionPage({ params }: PageProps) {
                   <Button variant="outline" size="sm" className="gap-2">
                     <Filter className="h-4 w-4" />
                     Groups
-                    {badgeCount > 0 && <Badge variant="secondary">{badgeCount}</Badge>}
+                    {badgeCount > 0 && <Badge variant="secondary"><span className="num">{badgeCount}</span></Badge>}
                     <ChevronDown className="h-4 w-4" />
                   </Button>
                 </PopoverTrigger>
@@ -274,7 +272,7 @@ export default function LearningSectionPage({ params }: PageProps) {
         <div className="mb-4 flex flex-wrap gap-1">
           <button
             onClick={() => setActiveLetter(null)}
-            className={cn("px-2 py-0.5 text-xs rounded hover:bg-muted", !activeLetter && "bg-primary text-primary-foreground")}
+            className={cn("rounded-pill px-2 py-0.5 text-xs hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2", !activeLetter && "bg-primary text-primary-foreground")}
           >
             All
           </button>
@@ -282,7 +280,7 @@ export default function LearningSectionPage({ params }: PageProps) {
             <button
               key={letter}
               onClick={() => setActiveLetter(letter)}
-              className={cn("px-2 py-0.5 text-xs rounded hover:bg-muted", activeLetter === letter && "bg-primary text-primary-foreground")}
+              className={cn("rounded-pill px-2 py-0.5 text-xs hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2", activeLetter === letter && "bg-primary text-primary-foreground")}
             >
               {letter}
             </button>
@@ -332,7 +330,7 @@ export default function LearningSectionPage({ params }: PageProps) {
 
               <div className="space-y-3">
                 <div>
-                  <p className="text-xs font-semibold uppercase text-brand tracking-wide mb-1">In plain English</p>
+                  <p className="text-xs font-semibold uppercase text-primary tracking-wide mb-1">In plain English</p>
                   <p className="text-sm text-muted-foreground whitespace-pre-wrap">
                     {activeTerm.plainEnglish ?? activeTerm.definition}
                   </p>
@@ -344,13 +342,13 @@ export default function LearningSectionPage({ params }: PageProps) {
                   </div>
                 )}
                 {activeTerm.example && (
-                  <div className="rounded-md bg-muted/60 px-3 py-2">
+                  <div className="rounded-card bg-muted/60 px-3 py-2">
                     <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide mb-1">Example</p>
                     <p className="text-sm text-foreground/80 whitespace-pre-wrap">{activeTerm.example}</p>
                   </div>
                 )}
                 {activeTerm.formula_or_notes && (
-                  <p className="text-sm text-foreground/80 bg-muted/60 rounded-md px-3 py-2 whitespace-pre-wrap">
+                  <p className="rounded-card bg-muted/60 px-3 py-2 text-sm text-foreground/80 whitespace-pre-wrap">
                     {activeTerm.formula_or_notes}
                   </p>
                 )}
@@ -376,7 +374,7 @@ export default function LearningSectionPage({ params }: PageProps) {
               </div>
 
               {activeTerm.type === "formula" && (
-                <div className="rounded-lg border bg-card p-4 space-y-4">
+                <div className="rounded-card border border-border bg-card p-4 shadow-e1 space-y-4">
                   <div>
                     <p className="text-sm font-semibold">Calculator</p>
                     <p className="text-xs text-muted-foreground">
@@ -405,7 +403,7 @@ export default function LearningSectionPage({ params }: PageProps) {
                     {relatedTerms.map((related) => (
                       <button
                         key={related.id}
-                        className="text-left rounded-md border px-3 py-2 hover:bg-muted transition"
+                        className="text-left rounded-card border border-border px-3 py-2 transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                         onClick={() => handleCardClick(related)}
                       >
                         <p className="font-medium">{related.term}</p>
