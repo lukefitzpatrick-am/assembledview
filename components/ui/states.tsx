@@ -85,7 +85,7 @@ export function ErrorState({
     <div
       role="alert"
       className={cn(
-        "rounded-card border border-[var(--status-critical-fg)]/20 bg-pacing-critical-bg px-5 py-4 text-status-critical-fg",
+        "rounded-card border border-pacing-critical-bg bg-pacing-critical-bg px-5 py-4 text-status-critical-fg",
         className,
       )}
       {...props}
