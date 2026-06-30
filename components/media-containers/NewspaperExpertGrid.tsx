@@ -68,8 +68,13 @@ import {
   handleExpertGridInputKeyDown,
 } from "@/lib/mediaplan/expertGridKeyboardNav"
 import {
+  expertRowCostSplit,
+  expertRowNetMedia,
+  expertRowNetMediaTooltip,
+  expertRowQuantitySum,
+} from "@/lib/mediaplan/expertRowCost"
+import {
   deriveNewspaperExpertRowScheduleYmdFromRow,
-  expertRowRawCost,
 } from "@/lib/mediaplan/expertChannelMappings"
 import {
   buildWeeklyGanttColumnsFromCampaign,
@@ -91,7 +96,6 @@ import {
   WEEK_SCROLLER_EDGE as NEWSPAPER_EXPERT_WEEK_SCROLLER_EDGE,
   WEEK_CELL_VISUAL_CLASSES as NEWSPAPER_WEEK_CELL_VISUAL_CLASSES,
   expertGridParseNum as parseNum,
-  expertRowFeeSplit,
   weekKeysInSpanInclusive,
   findMergedSpanForWeek,
   weekCellIsPopulated,
@@ -146,20 +150,6 @@ const newspaperExpertTotalsRowBgStyle = {
 
 const DEBUG_NEWSPAPER_MERGE = false
 
-function sumWeeklyQuantities(
-  weeklyValues: ExpertWeeklyValues,
-  weekKeys: string[]
-): number {
-  return weekKeys.reduce((s, k) => s + parseNum(weeklyValues[k]), 0)
-}
-
-function sumMergedQuantities(row: NewspaperExpertScheduleRow): number {
-  return (row.mergedWeekSpans ?? []).reduce(
-    (s, sp) => s + (Number.isFinite(sp.totalQty) ? sp.totalQty : 0),
-    0
-  )
-}
-
 /**
  * Parse clipboard text that may contain tab-separated values (Excel/Sheets)
  * into a row/column matrix.
@@ -212,38 +202,6 @@ function normalizeNewspaperNetworkPaste(raw: string, networkNames: string[]): st
   return fz?.matched ?? v
 }
 
-function rowGrossCost(row: NewspaperExpertScheduleRow, weekKeys: string[]): number {
-  const rate = parseNum(row.unitRate)
-  const qty =
-    sumWeeklyQuantities(row.weeklyValues, weekKeys) + sumMergedQuantities(row)
-  return expertRowRawCost(row.buyType, rate, qty)
-}
-
-function rowNetMedia(
-  row: NewspaperExpertScheduleRow,
-  weekKeys: string[],
-  feePct: number
-): number {
-  const raw = rowGrossCost(row, weekKeys)
-  return expertRowFeeSplit(
-    raw,
-    !!row.budgetIncludesFees,
-    feePct,
-    !!row.clientPaysForMedia
-  ).net
-}
-
-function rowNetMediaTooltip(
-  row: NewspaperExpertScheduleRow,
-  qtySum: number
-): string {
-  const bt = String(row.buyType || "").toLowerCase()
-  const rate = parseNum(row.unitRate)
-  if (bt === "bonus") return "Bonus: net media = 0"
-  if (bt === "cpm")
-    return `CPM: (Σ qty / 1000) × rate (${qtySum} / 1000 × ${rate})`
-  return `Σ qty × rate (${qtySum} × ${rate})`
-}
 
 export function createEmptyNewspaperExpertRow(
   id: string,
@@ -1922,15 +1880,9 @@ export function NewspaperExpertGrid({
     for (const k of weekKeys) perWeek[k] = 0
 
     for (const row of normalizedRows) {
-      const raw = rowGrossCost(row, weekKeys)
-      const split = expertRowFeeSplit(
-        raw,
-        !!row.budgetIncludesFees,
-        feenewspapers,
-        !!row.clientPaysForMedia
-      )
-      sumNet += split.net
-      sumFee += split.fee
+      const { net, fee } = expertRowCostSplit(row, weekKeys, feenewspapers)
+      sumNet += net
+      sumFee += fee
       for (const k of weekKeys) {
         const q = parseNum(row.weeklyValues[k])
         perWeek[k] += q
@@ -2134,11 +2086,9 @@ export function NewspaperExpertGrid({
                   </thead>
                   <tbody>
                     {normalizedRows.map((row, rowIndex) => {
-                      const net = rowNetMedia(row, weekKeys, feenewspapers)
-                      const qtySum =
-                        sumWeeklyQuantities(row.weeklyValues, weekKeys) +
-                        sumMergedQuantities(row)
-                      const netMediaTooltip = rowNetMediaTooltip(row, qtySum)
+                      const net = expertRowNetMedia(row, weekKeys, feenewspapers)
+                      const qtySum = expertRowQuantitySum(row, weekKeys)
+                      const netMediaTooltip = expertRowNetMediaTooltip(row, qtySum)
                       const stripe =
                         rowIndex % 2 === 1 ? "bg-muted/10" : ""
                       const stripeStyle =
