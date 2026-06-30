@@ -27,6 +27,7 @@ import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { appendBurst, duplicateBurst, removeBurst, newBurstReactKey, stampBurstReactKeys } from "@/lib/mediaplan/burstOperations"
 import { serializeBurstsJson } from "@/lib/mediaplan/serializeBurstsJson"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
+import { assignStableLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import {
   coerceBuyTypeWithDevWarn,
   computeDeliverableFromMedia,
@@ -766,8 +767,13 @@ const form = useForm<MagazinesFormValues>({
   // Transform form data to API schema format
   useEffect(() => {
     const formLineItems = form.getValues('magazineslineItems') || [];
+    const stableMagazineItems = assignStableLineItemNumbers<any>(
+      formLineItems,
+      mbaNumber,
+      MEDIA_TYPE_ID_CODES.magazines,
+    )
     
-    const transformedLineItems = formLineItems.map((lineItem, index) => {
+    const transformedLineItems = stableMagazineItems.map((lineItem, index) => {
       // Calculate totalMedia from raw budget amounts (for display in MBA section)
       let totalMedia = 0;
       lineItem.bursts.forEach((burst) => {
