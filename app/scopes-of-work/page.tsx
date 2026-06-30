@@ -106,10 +106,10 @@ function getUsedPercentage(scope: ScopeOfWork): number {
 
 // Define the project statuses
 const PROJECT_STATUSES = [
+  "In-Progress",
   "Draft",
   "Submitted",
   "Approved",
-  "In-Progress",
   "Completed",
   "Cancelled"
 ]
@@ -301,7 +301,7 @@ export default function ScopesOfWorkPage() {
                                     return (
                                       <TableRow
                                         key={scope.id}
-                                        className="border-b border-border transition-colors hover:bg-table-row-hover"
+                                        className="interactive-row border-border"
                                       >
                                         <TableCell className="font-medium">{scope.project_name}</TableCell>
                                         <TableCell className="num">{formatDate(scope.scope_date)}</TableCell>
@@ -332,7 +332,6 @@ export default function ScopesOfWorkPage() {
                                           <Button
                                             variant="outline"
                                             size="sm"
-                                            className="transition-colors hover:bg-table-row-hover"
                                             onClick={() => router.push(`/scopes-of-work/${scope.id}/edit`)}
                                           >
                                             Edit
