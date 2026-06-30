@@ -4,7 +4,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { LearningTerm } from "@/src/lib/learning/types";
-import { getGroupColor } from "./categoryColors";
 
 type Props = {
   term: LearningTerm;
@@ -14,7 +13,6 @@ type Props = {
 
 export function LearningCard({ term, onClick, highlight }: Props) {
   const groupLabel = term.group ?? "Other / Uncategorised";
-  const groupColor = getGroupColor(term.group);
 
   return (
     <Card
@@ -29,12 +27,7 @@ export function LearningCard({ term, onClick, highlight }: Props) {
           <CardTitle className="text-lg font-semibold text-foreground">{term.term}</CardTitle>
           <Badge
             variant="outline"
-            className="border border-transparent shadow-sm"
-            style={{
-              backgroundColor: groupColor.backgroundColor,
-              color: groupColor.textColor,
-              borderColor: groupColor.borderColor,
-            }}
+            className="border-border bg-surface-muted text-text-secondary"
           >
             {groupLabel}
           </Badge>

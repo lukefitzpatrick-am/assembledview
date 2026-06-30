@@ -5,7 +5,6 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FormulaCalculator } from "@/components/learning/FormulaCalculator";
-import { getGroupColor } from "@/components/learning/categoryColors";
 import termsData from "@/src/data/learning/terms.json";
 import { LearningTerm } from "@/src/lib/learning/types";
 import { Calculator, Search } from "lucide-react";
@@ -58,9 +57,7 @@ export default function CalculatorsPage() {
 
       <div className="px-4 md:px-6 py-4">
         <div className="grid gap-4 lg:grid-cols-2">
-          {filtered.map((t) => {
-            const color = getGroupColor(t.group);
-            return (
+          {filtered.map((t) => (
               <Card key={t.id}>
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between gap-2">
@@ -70,12 +67,7 @@ export default function CalculatorsPage() {
                     </CardTitle>
                     <Badge
                       variant="outline"
-                      className="border border-transparent shadow-sm"
-                      style={{
-                        backgroundColor: color.backgroundColor,
-                        color: color.textColor,
-                        borderColor: color.borderColor,
-                      }}
+                      className="border-border bg-surface-muted text-text-secondary"
                     >
                       {t.group ?? "Other / Uncategorised"}
                     </Badge>
@@ -88,8 +80,7 @@ export default function CalculatorsPage() {
                   <FormulaCalculator formula={t.formula!} fallbackText={t.formula_or_notes} />
                 </CardContent>
               </Card>
-            );
-          })}
+          ))}
         </div>
         {!filtered.length && (
           <div className="text-center py-16 text-muted-foreground">

@@ -16,18 +16,13 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet";
+  SlideOver,
+} from "@/components/ui/SlideOver";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { LearningCard } from "@/components/learning/LearningCard";
 import { FormulaCalculator } from "@/components/learning/FormulaCalculator";
-import { getGroupColor, GROUP_COLORS } from "@/components/learning/categoryColors";
 import termsData from "@/src/data/learning/terms.json";
 import { getRelatedTerms } from "@/src/lib/learning/related";
 import { buildFuseIndex, sortResults } from "@/src/lib/learning/search";
@@ -62,9 +57,9 @@ export default function LearningSectionPage({ params }: PageProps) {
   const [activeTermId, setActiveTermId] = useState<string | null>(null);
 
   const groups = useMemo(() => {
-    const unique = new Set<string>(Object.keys(GROUP_COLORS));
+    const unique = new Set<string>();
     terms.forEach((t) => {
-      if (t.group) unique.add(t.group);
+      unique.add(t.group ?? "Other / Uncategorised");
     });
     return Array.from(unique).sort((a, b) => a.localeCompare(b));
   }, []);
@@ -125,7 +120,6 @@ export default function LearningSectionPage({ params }: PageProps) {
 
   const displayedTerms = filteredResults.map((r) => r.item);
   const activeTerm = activeTermId ? terms.find((t) => t.id === activeTermId) : null;
-  const activeGroupColor = getGroupColor(activeTerm?.group);
   const activeGroupLabel = activeTerm?.group ?? "Other / Uncategorised";
 
   const setTab = (value: string) => {
@@ -311,36 +305,30 @@ export default function LearningSectionPage({ params }: PageProps) {
         )}
       </div>
 
-      <Sheet open={Boolean(activeTerm)} onOpenChange={(open) => {
+      <SlideOver open={Boolean(activeTerm)} onOpenChange={(open) => {
         if (!open) {
           setActiveTermId(null);
           router.replace(`/knowledge/${section}`, { scroll: false });
         }
-      }}>
-        <SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto">
+      }} title={activeTerm?.term ?? "Term details"} description={activeGroupLabel} contentClassName="sm:max-w-xl">
           {activeTerm && (
-            <div className="space-y-4 pb-10">
-              <SheetHeader>
-                <SheetTitle className="flex items-center gap-2">
-                  <BookOpen className="h-5 w-5 text-brand" />
+            <div className="space-y-4 overflow-y-auto px-6 py-5 pb-10">
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                  <BookOpen className="h-5 w-5 text-primary" />
                   {activeTerm.term}
-                </SheetTitle>
-                <SheetDescription className="flex flex-wrap items-center gap-2">
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
                   <Badge
                     variant="outline"
-                    className="border border-transparent shadow-sm"
-                    style={{
-                      backgroundColor: activeGroupColor.backgroundColor,
-                      color: activeGroupColor.textColor,
-                      borderColor: activeGroupColor.borderColor,
-                    }}
+                    className="border-border bg-surface-muted text-text-secondary"
                   >
                     {activeGroupLabel}
                   </Badge>
                   {activeTerm.level && <Badge variant="outline">{activeTerm.level}</Badge>}
                   {activeTerm.canonicalTerm && <Badge variant="outline">AKA {activeTerm.canonicalTerm}</Badge>}
-                </SheetDescription>
-              </SheetHeader>
+                </div>
+              </div>
 
               <div className="space-y-3">
                 <div>
@@ -448,8 +436,7 @@ export default function LearningSectionPage({ params }: PageProps) {
               )}
             </div>
           )}
-        </SheetContent>
-      </Sheet>
+      </SlideOver>
     </div>
   );
 }
