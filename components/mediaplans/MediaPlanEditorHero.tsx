@@ -22,22 +22,21 @@ export interface MediaPlanEditorHeroProps {
 
 type BrandStyle = CSSProperties & {
   "--brand-color"?: string
-}
-
-function hexToRgba(hex: string, alpha: number): string {
-  const trimmed = hex.replace("#", "")
-  const expanded = trimmed.length === 3 ? trimmed.split("").map((c) => c + c).join("") : trimmed
-  const r = parseInt(expanded.slice(0, 2), 16)
-  const g = parseInt(expanded.slice(2, 4), 16)
-  const b = parseInt(expanded.slice(4, 6), 16)
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+  "--brand-glass-3"?: string
+  "--brand-glass-8"?: string
+  "--brand-glass-12"?: string
+  "--brand-glass-18"?: string
+  "--brand-glass-30"?: string
+  "--hero-glass-strong"?: string
+  "--hero-glass-mid"?: string
+  "--hero-glass-soft"?: string
 }
 
 export function MediaPlanEditorHero({
   title,
   detail,
   actions,
-  brandColour = "#4f8fcb",
+  brandColour = "hsl(var(--secondary))",
   className,
   Icon: IconProp,
   compact = false,
@@ -45,6 +44,14 @@ export function MediaPlanEditorHero({
   const IconGlyph = IconProp ?? ClipboardList
   const brandStyle: BrandStyle = {
     "--brand-color": brandColour,
+    "--brand-glass-3": "color-mix(in hsl, var(--brand-color) 3%, transparent)",
+    "--brand-glass-8": "color-mix(in hsl, var(--brand-color) 8%, transparent)",
+    "--brand-glass-12": "color-mix(in hsl, var(--brand-color) 12%, transparent)",
+    "--brand-glass-18": "color-mix(in hsl, var(--brand-color) 18%, transparent)",
+    "--brand-glass-30": "color-mix(in hsl, var(--brand-color) 30%, transparent)",
+    "--hero-glass-strong": "hsl(var(--card) / 0.98)",
+    "--hero-glass-mid": "hsl(var(--surface-panel) / 0.95)",
+    "--hero-glass-soft": "hsl(var(--surface-panel) / 0.7)",
   }
 
   return (
@@ -54,12 +61,12 @@ export function MediaPlanEditorHero({
           className="absolute inset-0"
           style={{
             background: `linear-gradient(135deg, 
-              rgba(255,255,255,0.98) 0%, 
-              rgba(255,255,255,0.95) 15%,
-              ${hexToRgba(brandColour, 0.03)} 30%,
-              ${hexToRgba(brandColour, 0.08)} 50%,
-              ${hexToRgba(brandColour, 0.12)} 70%,
-              ${hexToRgba(brandColour, 0.18)} 100%
+              var(--hero-glass-strong) 0%, 
+              var(--hero-glass-mid) 15%,
+              var(--brand-glass-3) 30%,
+              var(--brand-glass-8) 50%,
+              var(--brand-glass-12) 70%,
+              var(--brand-glass-18) 100%
             )`,
           }}
           aria-hidden
@@ -70,8 +77,8 @@ export function MediaPlanEditorHero({
           style={{
             background: `radial-gradient(
               ellipse 80% 100% at 0% 50%,
-              rgba(255,255,255,0.95) 0%,
-              rgba(255,255,255,0.7) 25%,
+              var(--hero-glass-mid) 0%,
+              var(--hero-glass-soft) 25%,
               transparent 60%
             )`,
           }}
@@ -83,8 +90,8 @@ export function MediaPlanEditorHero({
           style={{
             backgroundImage: `repeating-linear-gradient(
               -45deg,
-              ${brandColour} 0px,
-              ${brandColour} 1px,
+              var(--brand-color) 0px,
+              var(--brand-color) 1px,
               transparent 1px,
               transparent 12px
             )`,
@@ -94,7 +101,7 @@ export function MediaPlanEditorHero({
 
         <div
           className="absolute -right-20 -top-20 h-80 w-80 rounded-full opacity-20 blur-3xl"
-          style={{ backgroundColor: brandColour }}
+          style={{ backgroundColor: "var(--brand-color)" }}
           aria-hidden
         />
 
@@ -103,9 +110,9 @@ export function MediaPlanEditorHero({
           style={{
             background: `linear-gradient(90deg, 
               transparent 0%, 
-              ${hexToRgba(brandColour, 0.3)} 20%,
-              ${brandColour} 50%,
-              ${hexToRgba(brandColour, 0.3)} 80%,
+              var(--brand-glass-30) 20%,
+              var(--brand-color) 50%,
+              var(--brand-glass-30) 80%,
               transparent 100%
             )`,
           }}
@@ -135,7 +142,7 @@ export function MediaPlanEditorHero({
               <div className="relative flex shrink-0 items-center gap-4">
                 <div
                   className="absolute -inset-2 rounded-full opacity-20 blur-xl"
-                  style={{ backgroundColor: brandColour }}
+                  style={{ backgroundColor: "var(--brand-color)" }}
                   aria-hidden
                 />
                 <div
@@ -144,14 +151,14 @@ export function MediaPlanEditorHero({
                     compact ? "h-14 w-14" : "h-16 w-16"
                   )}
                   style={{
-                    borderColor: hexToRgba(brandColour, 0.3),
-                    backgroundColor: hexToRgba(brandColour, 0.12),
+                    borderColor: "var(--brand-glass-30)",
+                    backgroundColor: "var(--brand-glass-12)",
                   }}
                   aria-hidden
                 >
                   <IconGlyph
                     className={compact ? "h-6 w-6" : "h-7 w-7"}
-                    style={{ color: brandColour }}
+                    style={{ color: "var(--brand-color)" }}
                     strokeWidth={1.75}
                   />
                 </div>
