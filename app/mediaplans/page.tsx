@@ -19,6 +19,7 @@ import { ListGridToggle } from "@/components/ui/list-grid-toggle"
 import { DashboardCampaignPlanCard, dashboardCampaignGridClassName } from "@/components/dashboard/DashboardEntityCards"
 import { CampaignCardSkeleton } from "@/components/dashboard/skeletons"
 import { Skeleton } from "@/components/ui/skeleton"
+import { formatAUD } from "@/lib/format/money"
 
 const slugifyClientName = (name?: string | null) => {
   if (!name || typeof name !== "string") return ""
@@ -317,16 +318,6 @@ export default function MediaPlansPage() {
     ))
   }
 
-  // Format currency
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-AU', {
-      style: 'currency',
-      currency: 'AUD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount)
-  }
-
   // Format date
   const formatDate = (dateString: string) => {
     try {
@@ -375,10 +366,7 @@ export default function MediaPlansPage() {
                 className="w-72 border-border/50 bg-background/80 pl-10 backdrop-blur-sm"
               />
             </div>
-            <Button
-              className="shadow-sm"
-              onClick={() => router.push("/mediaplans/create")}
-            >
+            <Button onClick={() => router.push("/mediaplans/create")}>
               <PlusCircle className="mr-2 h-4 w-4" />
               Create Media Plan
             </Button>
@@ -476,7 +464,7 @@ export default function MediaPlansPage() {
                                   mp_campaignbudget: plan.mp_campaignbudget,
                                 }}
                                 formatDate={formatDate}
-                                formatCurrency={formatCurrency}
+                                formatCurrency={formatAUD}
                                 mediaTypeTags={getMediaTypeTags(plan)}
                                 showStatus={true}
                                 statusBadgeClassName={getStatusBadgeColor(plan.campaign_status)}
@@ -567,7 +555,7 @@ export default function MediaPlansPage() {
                                   <TableCell className="w-24">{plan.mba_number}</TableCell>
                                   <TableCell className="w-40">{plan.mp_campaignname || plan.campaign_name}</TableCell>
                                   <TableCell className="w-20">{plan.version_number}</TableCell>
-                                  <TableCell className="w-24">{formatCurrency(plan.mp_campaignbudget)}</TableCell>
+                                  <TableCell className="w-24">{formatAUD(plan.mp_campaignbudget)}</TableCell>
                                   <TableCell className="w-24">{formatDate(plan.campaign_start_date)}</TableCell>
                                   <TableCell className="w-24">{formatDate(plan.campaign_end_date)}</TableCell>
                                   <TableCell className="w-48">

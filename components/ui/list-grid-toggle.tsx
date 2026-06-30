@@ -13,6 +13,9 @@ type ListGridToggleProps = {
   label?: string
 }
 
+const toggleItemClassName =
+  "cursor-pointer transition-colors data-[state=on]:bg-accent data-[state=on]:text-accent-foreground data-[state=on]:hover:bg-accent data-[state=on]:hover:text-accent-foreground data-[state=off]:hover:bg-[var(--row-hover)] data-[state=off]:hover:text-foreground"
+
 export function ListGridToggle({ value, onChange, className, label = "Layout" }: ListGridToggleProps) {
   return (
     <div className={cn("flex items-center gap-2", className)}>
@@ -27,10 +30,10 @@ export function ListGridToggle({ value, onChange, className, label = "Layout" }:
         size="sm"
         aria-label="Choose list or grid layout"
       >
-        <ToggleGroupItem value="list" aria-label="List view">
+        <ToggleGroupItem value="list" aria-label="List view" className={toggleItemClassName}>
           <LayoutList className="h-4 w-4" />
         </ToggleGroupItem>
-        <ToggleGroupItem value="grid" aria-label="Grid view">
+        <ToggleGroupItem value="grid" aria-label="Grid view" className={toggleItemClassName}>
           <LayoutGrid className="h-4 w-4" />
         </ToggleGroupItem>
       </ToggleGroup>
