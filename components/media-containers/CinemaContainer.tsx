@@ -58,6 +58,7 @@ import { SingleDatePicker } from "@/components/ui/single-date-picker"
 import { defaultMediaBurstStartDate, defaultMediaBurstEndDate } from "@/lib/date-picker-anchor"
 import MediaContainerTimelineCollapsible from "@/components/media-containers/MediaContainerTimelineCollapsible"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
+import { assignStableLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 
 // Format Dates
 const formatDateString = (d?: Date | string): string => {
@@ -589,8 +590,9 @@ export default function CinemaContainer({
   // Transform form data to API schema format
   useEffect(() => {
     const formLineItems = form.getValues('cinemalineItems') || [];
+    const stableCinemaItems = assignStableLineItemNumbers<any>(formLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.cinema);
     
-    const transformedLineItems = formLineItems.map((lineItem, index) => {
+    const transformedLineItems = stableCinemaItems.map((lineItem, index) => {
       // Calculate totalMedia from raw budget amounts (for display in MBA section)
       let totalMedia = 0;
       lineItem.bursts.forEach((burst) => {
