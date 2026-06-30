@@ -1,6 +1,8 @@
 import { format } from "date-fns";
 import type ExcelJS from "exceljs";
 import { LineItem } from "./generateMediaPlan";
+import type { MediaContainerBestPractice, Publisher } from "@/lib/types/publisher";
+import { isEmptyBestPractice, type BestPractice } from "@/lib/types/bestPractice";
 
 type MediaFlags = Record<string, boolean | undefined>;
 
@@ -38,6 +40,8 @@ type CsvRow = {
 type NamingWorkbookInputs = NamingInputs & {
   advertiser: string;
   version?: string | number;
+  publishers?: Publisher[];
+  containerBestPractice?: MediaContainerBestPractice[];
 };
 
 function normalize(str?: string | number | null): string {
@@ -213,6 +217,84 @@ const MEDIA_SECTION_ORDER: { label: string; key: keyof NamingInputs["items"] }[]
   { label: "Programmatic OOH", key: "progOoh" },
 ];
 
+const SECTION_TO_CONTAINER_KEY: Record<string, string> = {
+  search: "search",
+  socialMedia: "socialmedia",
+  digiAudio: "digiaudio",
+  digiDisplay: "digidisplay",
+  digiVideo: "digivideo",
+  bvod: "bvod",
+  integration: "integration",
+  progDisplay: "progdisplay",
+  progVideo: "progvideo",
+  progBvod: "progbvod",
+  progAudio: "progaudio",
+  progOoh: "progooh",
+};
+
+const norm = (s?: string | null) => String(s ?? "").trim().toLowerCase();
+
+function chosenPublishersFor(list: LineItem[], publishers: Publisher[]): Publisher[] {
+  const byName = new Map(publishers.map((publisher) => [norm(publisher.publisher_name), publisher]));
+  const byId = new Map(publishers.map((publisher) => [norm(publisher.publisherid), publisher]));
+  const seen = new Set<number>();
+  const out: Publisher[] = [];
+
+  for (const item of list) {
+    const cands = [
+      (item as any).platform,
+      (item as any).publisher,
+      item.network,
+      item.site,
+    ].map(norm).filter(Boolean);
+
+    for (const candidate of cands) {
+      const publisher = byName.get(candidate) ?? byId.get(candidate);
+      if (publisher && !seen.has(publisher.id)) {
+        seen.add(publisher.id);
+        out.push(publisher);
+      }
+    }
+  }
+
+  return out.filter((publisher) => !isEmptyBestPractice(publisher.best_practice));
+}
+
+function renderBestPracticeBlock(
+  sheet: ExcelJS.Worksheet,
+  startRow: number,
+  title: string,
+  bp: BestPractice,
+  colSpan: number,
+): number {
+  if (isEmptyBestPractice(bp) || !bp) return startRow;
+
+  let rowIndex = startRow;
+  sheet.mergeCells(rowIndex, 1, rowIndex, colSpan);
+  const titleCell = sheet.getCell(rowIndex, 1);
+  titleCell.value = title;
+  titleCell.font = { bold: true, size: 11, color: { argb: "FFFFFFFF" } };
+  titleCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF305496" } };
+  rowIndex++;
+
+  for (const section of bp.sections) {
+    if ((section.heading?.trim() ?? "") !== "") {
+      const headingCell = sheet.getCell(rowIndex, 1);
+      headingCell.value = section.heading;
+      headingCell.font = { bold: true };
+      rowIndex++;
+    }
+
+    for (const item of section.items ?? []) {
+      if (item.trim() === "") continue;
+      sheet.getCell(rowIndex, 1).value = `• ${item}`;
+      rowIndex++;
+    }
+  }
+
+  return rowIndex + 1;
+}
+
 export async function generateNamingWorkbook(inputs: NamingWorkbookInputs): Promise<ExcelJS.Workbook> {
   const ExcelJS = (await import("exceljs")).default;
   const {
@@ -223,12 +305,12 @@ export async function generateNamingWorkbook(inputs: NamingWorkbookInputs): Prom
     endDate,
     version,
     items,
+    publishers = [],
+    containerBestPractice = [],
   } = inputs;
 
   const workbook = new ExcelJS.Workbook();
-  const sheet = workbook.addWorksheet("Naming Conventions");
-
-  // Header block
+  const widths = [22, 45, 28, 28, 30, 15, 15, 18, 18];
   const headerRows: Array<[string, string]> = [
     ["Advertiser", advertiser || ""],
     ["Campaign Name", campaignName || ""],
@@ -237,30 +319,43 @@ export async function generateNamingWorkbook(inputs: NamingWorkbookInputs): Prom
     ["Version", version !== undefined && version !== null ? String(version) : ""],
   ];
 
-  headerRows.forEach(([label, value], idx) => {
-    const row = idx + 1;
-    sheet.getCell(row, 1).value = label;
-    sheet.getCell(row, 1).font = { bold: true };
-    sheet.getCell(row, 2).value = value;
-  });
-
-  let currentRow = headerRows.length + 2;
-
-  // Column widths
-  const widths = [22, 45, 28, 28, 30, 15, 15, 18, 18];
-  widths.forEach((w, i) => (sheet.getColumn(i + 1).width = w));
-
   MEDIA_SECTION_ORDER.forEach(section => {
     const list = items[section.key] || [];
     if (!list || list.length === 0) return;
 
-    // Section title
-    sheet.mergeCells(currentRow, 1, currentRow, NAMING_HEADERS.length);
-    const titleCell = sheet.getCell(currentRow, 1);
-    titleCell.value = section.label;
-    titleCell.font = { bold: true, size: 12, color: { argb: "FFFFFFFF" } };
-    titleCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF000000" } };
-    currentRow++;
+    const sheet = workbook.addWorksheet(section.label);
+    widths.forEach((w, i) => (sheet.getColumn(i + 1).width = w));
+    let currentRow = 1;
+
+    const containerKey = SECTION_TO_CONTAINER_KEY[section.key];
+    const containerNote =
+      containerBestPractice.find((container) => container.media_container === containerKey && container.is_active)
+        ?.best_practice ?? null;
+    currentRow = renderBestPracticeBlock(
+      sheet,
+      currentRow,
+      `Best Practice - ${section.label}`,
+      containerNote,
+      NAMING_HEADERS.length,
+    );
+
+    for (const publisher of chosenPublishersFor(list, publishers)) {
+      currentRow = renderBestPracticeBlock(
+        sheet,
+        currentRow,
+        `Best Practice - ${publisher.publisher_name}`,
+        publisher.best_practice ?? null,
+        NAMING_HEADERS.length,
+      );
+    }
+
+    headerRows.forEach(([label, value], idx) => {
+      const row = currentRow + idx;
+      sheet.getCell(row, 1).value = label;
+      sheet.getCell(row, 1).font = { bold: true };
+      sheet.getCell(row, 2).value = value;
+    });
+    currentRow += headerRows.length + 2;
 
     // Header row
     NAMING_HEADERS.forEach((h, idx) => {
@@ -337,8 +432,6 @@ export async function generateNamingWorkbook(inputs: NamingWorkbookInputs): Prom
         currentRow++;
       });
     });
-
-    currentRow++; // Spacer between sections
   });
 
   return workbook;

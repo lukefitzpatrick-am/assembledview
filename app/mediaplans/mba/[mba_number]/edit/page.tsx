@@ -167,7 +167,7 @@ import {
   type FeeDriftValidationResult,
 } from "@/lib/billing/validateAgencyFeeMonthTotalDrift"
 import { generateMediaPlan, MediaPlanHeader, LineItem, MediaItems } from '@/lib/generateMediaPlan'
-import type { Publisher } from "@/lib/types/publisher"
+import type { MediaContainerBestPractice, Publisher } from "@/lib/types/publisher"
 // --- KPI domain (Stage 2) ---
 import { KPISection } from "@/components/kpis/KPISection"
 import { createMediaPlanKpiHost } from "@/components/kpis/kpiHost"
@@ -2038,6 +2038,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   ])
 
   const [billingPublishers, setBillingPublishers] = useState<Publisher[]>([])
+  const [containerBestPractice, setContainerBestPractice] = useState<MediaContainerBestPractice[]>([])
   useEffect(() => {
     let cancelled = false
     fetch("/api/publishers")
@@ -2047,6 +2048,21 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       })
       .catch(() => {
         if (!cancelled) setBillingPublishers([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    fetch("/api/media-container-best-practice")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((d) => {
+        if (!cancelled) setContainerBestPractice(Array.isArray(d) ? d : [])
+      })
+      .catch(() => {
+        if (!cancelled) setContainerBestPractice([])
       })
     return () => {
       cancelled = true
@@ -6546,6 +6562,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       startDate: fv.mp_campaigndates_start,
       endDate: fv.mp_campaigndates_end,
       version: String(namingVersion ?? "1"),
+      publishers: billingPublishers,
+      containerBestPractice,
       mediaFlags,
       items: {
         search: searchItems,

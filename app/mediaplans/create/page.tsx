@@ -125,7 +125,7 @@ import type {
   CampaignKPI,
   LineItemForKpiFanout,
 } from "@/lib/kpi/types"
-import type { Publisher } from "@/lib/types/publisher"
+import type { MediaContainerBestPractice, Publisher } from "@/lib/types/publisher"
 import {
   advertisingAssociatesFilteredPlanHasLineItems,
   buildAdvertisingAssociatesMbaDataFromMediaItems,
@@ -690,6 +690,7 @@ export default function CreateMediaPlan() {
   const [clientKPIs, setClientKPIs] = useState<ClientKPI[]>([])
   const [savedCampaignKPIs, setSavedCampaignKPIs] = useState<CampaignKPI[]>([])
   const [kpiPublishers, setKpiPublishers] = useState<Publisher[]>([])
+  const [containerBestPractice, setContainerBestPractice] = useState<MediaContainerBestPractice[]>([])
   const [isKPILoading, setIsKPILoading] = useState(false)
   const [kpiTrigger, setKpiTrigger] = useState(0)
   const kpiRebuildTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -752,6 +753,21 @@ export default function CreateMediaPlan() {
       })
       .catch(() => {
         if (!cancelled) setKpiPublishers([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    fetch("/api/media-container-best-practice")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((d) => {
+        if (!cancelled) setContainerBestPractice(Array.isArray(d) ? d : [])
+      })
+      .catch(() => {
+        if (!cancelled) setContainerBestPractice([])
       })
     return () => {
       cancelled = true
@@ -5247,6 +5263,8 @@ const handleSaveAll = async () => {
       startDate: fv.mp_campaigndates_start,
       endDate: fv.mp_campaigndates_end,
       version,
+      publishers: kpiPublishers,
+      containerBestPractice,
       mediaFlags: fv as unknown as Record<string, boolean>,
       items: {
         search: searchItems,
