@@ -194,7 +194,19 @@
     "category_raw": "Delivery",
     "group": "Buying & Trading",
     "definition": "Spend delivered faster early in flight",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Spending faster early in the flight rather than evenly.",
+    "whyItMatters": "Useful to front-load a launch or time-sensitive moment, but risks exhausting budget before the flight ends. (Google retired 'accelerated delivery' in 2019.)",
+    "practitionerNotes": "Google Ads removed accelerated delivery in October 2019; pacing is now standard.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Search Engine Land - Accelerated delivery removed",
+        "url": "https://searchengineland.com/google-ads-to-remove-accelerated-ad-delivery-option-next-month-320822"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "accrual-finance-31bbb676",
@@ -250,7 +262,18 @@
     "category_raw": "Structure",
     "group": "Planning & Strategy",
     "definition": "Creative delivery unit",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The creative delivery unit - the actual ad shown to a person.",
+    "whyItMatters": "The bottom level of campaign structure; where creative meets the audience.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Meta for Business - Campaign levels",
+        "url": "https://www.facebook.com/business/learn/lessons/understanding-ad-campaign-levels-for-business"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "ad-exchange-platform-5e5c2f89",
@@ -308,7 +331,18 @@
     "category_raw": "Structure",
     "group": "Planning & Strategy",
     "definition": "Grouping of ads and keywords",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A Google Ads container grouping related keywords and the ads that serve against them.",
+    "whyItMatters": "Tight, themed ad groups mean more relevant ads and better Quality Score.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Ads Help - Ad groups",
+        "url": "https://support.google.com/google-ads/answer/6372655"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "ad-pod-placement-a8308758",
@@ -376,7 +410,18 @@
     "category_raw": "Quality Component",
     "group": "Buying & Trading",
     "definition": "Keyword to ad relevance",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A Quality Score component: how closely your ad matches the intent of the keyword.",
+    "whyItMatters": "Tightly themed ad groups and matching copy improve it - and lower your CPCs.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - About Quality Score",
+        "url": "https://support.google.com/google-ads/answer/6167118"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "ad-relevance-diagnostics-reporting-2ac7ca57",
@@ -396,7 +441,18 @@
     "group": "Planning & Strategy",
     "definition": "Audience budget and optimisation container",
     "formula_or_notes": "Meta naming",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The Meta level that holds audience, budget, placement and optimisation settings; sits between campaign and ad.",
+    "whyItMatters": "Where targeting and budget decisions live on Meta - the equivalent of an ad group.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Meta for Business - Ad set level overview",
+        "url": "https://www.facebook.com/business/learn/lessons/ad-set-level-overview"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "ad-set-budget-budgeting-1f062e56",
@@ -405,7 +461,18 @@
     "category_raw": "Budgeting",
     "group": "Planning & Strategy",
     "definition": "Budget set at ad set level",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A budget set at the individual ad set level (rather than pooled at campaign level).",
+    "whyItMatters": "Use it when you need guaranteed spend on specific audiences; the alternative to CBO/campaign-level budgeting.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Meta Business Help - Daily budgets",
+        "url": "https://www.facebook.com/business/help/190490051321426"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "ad-strength-creative-8e8498da",
@@ -555,7 +622,18 @@
     "category_raw": "Account",
     "group": "Buying & Trading",
     "definition": "Client-level DSP entity",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The client-level entity in a DSP/ad platform that holds campaigns and billing.",
+    "whyItMatters": "The top of the hierarchy - where access, billing and brand-level settings live.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "smartclip - Adtech glossary: seats",
+        "url": "https://smartclip.tv/adtech-glossary/seats/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "affiliate-channel-1d9c5dc1",
@@ -634,7 +712,18 @@
     "category_raw": "Planning",
     "group": "Planning & Strategy",
     "definition": "Ongoing campaign without fixed end date",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "An ongoing campaign with no fixed end date, running continuously.",
+    "whyItMatters": "Keeps a brand present for the ~95% of buyers not in-market today; the opposite of a one-off burst.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Thinkbox - Flighting",
+        "url": "https://www.thinkbox.tv/how-to-use-tv/spots/flighting-how-best-to-spread-your-ratings-across-a-campaign"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "amazon-ads-commerce-27937c51",
@@ -783,7 +872,22 @@
     "category_raw": "Delivery",
     "group": "Buying & Trading",
     "definition": "Time based exposure metric",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A time/engagement-based measure of whether (and how long) an ad was actually attended to.",
+    "whyItMatters": "Goes beyond viewability (could it be seen?) to whether it was seen - a fast-growing currency for proving quality of exposure.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "IAB/MRC - Attention measurement",
+        "url": "https://www.iab.com/guidelines/attention/"
+      },
+      {
+        "label": "IAB Australia - Attention landscape report",
+        "url": "https://iabaustralia.com.au/resource/ad-attention-measurement-landscape-report-2022/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "attribution-measurement-d7bc9bbe",
@@ -888,7 +992,19 @@
     "category_raw": "Delivery",
     "group": "Buying & Trading",
     "definition": "Actual delivered ratings",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The ratings/audience actually delivered, versus what was bought.",
+    "whyItMatters": "The basis of post-buy reconciliation - shortfalls trigger makegoods.",
+    "practitionerNotes": "TV ad-ops trade term; no single canonical page.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Capitol Media - Post-buy analysis",
+        "url": "https://capitolmediasolutions.com/blog/campaign-finished-now-post-buy-analysis/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "audience-expansion-audience-3b3087c4",
@@ -956,7 +1072,18 @@
     "category_raw": "Delivery",
     "group": "Buying & Trading",
     "definition": "Platform-selected placements",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Letting the platform choose where ads run across its placements (Meta's Advantage+ placements).",
+    "whyItMatters": "Usually most efficient - the system finds cheap impressions across surfaces; manual control sacrifices that for brand-safety/format reasons.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Meta Business Help - Advantage+ placements",
+        "url": "https://www.facebook.com/business/help/196554084569964"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "average-audience-metric-95c46625",
@@ -1224,7 +1351,18 @@
     "category_raw": "Strategy",
     "group": "Planning & Strategy",
     "definition": "Multiple bid modifiers compounding",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Multiple bid modifiers compounding on top of each other.",
+    "whyItMatters": "Layered device + location + audience adjustments multiply - easy to over- or under-bid by accident if you don't track the stack.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "Google Ads Help - About bid adjustments",
+        "url": "https://support.google.com/google-ads/answer/2732132"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "bid-strategy-mechanics-743fbbad",
@@ -1298,7 +1436,19 @@
     "category_raw": "Delivery",
     "group": "Buying & Trading",
     "definition": "Additional spots provided at no cost",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Extra spots a media owner provides at no cost (added value).",
+    "whyItMatters": "Negotiated value-add that improves effective cost - or compensation for under-delivery.",
+    "practitionerNotes": "TV/media trade term; no single canonical page.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "IAB/4As - Standard terms & conditions (PDF)",
+        "url": "https://www.iab.com/wp-content/uploads/2015/06/IAB_4As_tsandcs_Education_FINAL.pdf"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "bot-traffic-governance-c789d3b1",
@@ -1316,7 +1466,18 @@
     "category_raw": "Strategy",
     "group": "Planning & Strategy",
     "definition": "Protecting branded queries",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Bidding on your own brand terms to protect them (especially from competitors).",
+    "whyItMatters": "Cheap insurance against competitors poaching your branded searches - but watch you're not paying for clicks you'd win organically.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Search Engine Land - Brand search defense",
+        "url": "https://searchengineland.com/branded-search-competitive-ppc-defense-470510"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "brand-lift-measurement-aab528d5",
@@ -1354,7 +1515,18 @@
     "category_raw": "Structure",
     "group": "Planning & Strategy",
     "definition": "Searches containing brand name",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Searches that include your brand name.",
+    "whyItMatters": "High-intent and cheap, but often convert anyway - measure brand vs non-brand separately so brand doesn't flatter performance.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Search Engine Land - Branded search defense",
+        "url": "https://searchengineland.com/branded-search-competitive-ppc-defense-470510"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "brief-planning-9600415b",
@@ -1363,7 +1535,19 @@
     "category_raw": "Planning",
     "group": "Planning & Strategy",
     "definition": "Client requirements document",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The document setting out what a campaign needs to achieve - objective, audience, budget, timing, success measures.",
+    "whyItMatters": "Everything downstream is judged against it. A sharp brief names the business outcome, not just 'awareness'.",
+    "practitionerNotes": "Agency/industry term; no single canonical page.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "MFA - The Media Process guide (PDF)",
+        "url": "https://www.mediafederation.org.au/images/Educational-Guidelines/MFA_2024_TheMFAGuide_Section2_Media_TheProcess.pdf"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "broad-match-match-type-eb48815b",
@@ -1401,7 +1585,18 @@
     "category_raw": "Planning",
     "group": "Planning & Strategy",
     "definition": "Approved spend limit for media or services",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The approved spend limit for media or services.",
+    "whyItMatters": "Sets the boundaries of what's possible; how it's split across channels and time is the planner's core job.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "ThinkTV - First on, last off",
+        "url": "https://thinktv.com.au/facts-and-stats/folo/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "budget-cap-delivery-1cdbcc42",
@@ -1410,7 +1605,18 @@
     "category_raw": "Delivery",
     "group": "Buying & Trading",
     "definition": "Maximum spend allowed",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The maximum spend allowed (daily or lifetime).",
+    "whyItMatters": "The ceiling that paces delivery; set too low and the campaign is delivery-limited.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Meta Business Help - About budgets",
+        "url": "https://www.facebook.com/business/help/214319341922580"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "burst-planning-0115a664",
@@ -1419,7 +1625,18 @@
     "category_raw": "Planning",
     "group": "Planning & Strategy",
     "definition": "High-intensity spend period within a flight",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A short period of high-intensity spend within a flight.",
+    "whyItMatters": "Buys quick cut-through for launches/sales - high reach fast, but impact fades without follow-up.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Thinkbox - Flighting",
+        "url": "https://www.thinkbox.tv/how-to-use-tv/spots/flighting-how-best-to-spread-your-ratings-across-a-campaign"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "bvod-channel-58ae3218",
@@ -1588,7 +1805,18 @@
     "category_raw": "Structure",
     "group": "Planning & Strategy",
     "definition": "Top-level buying container",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The top-level container for a buy - sets the objective, budget and settings for the ad groups/ad sets within it.",
+    "whyItMatters": "The unit you structure everything around; structure shapes how budget and optimisation flow.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Ads Help - Account structure",
+        "url": "https://support.google.com/google-ads/answer/1704396"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "campaign-budget-optimisation-budgeting-ff7eb59d",
@@ -1598,7 +1826,18 @@
     "group": "Planning & Strategy",
     "definition": "Automatic budget allocation",
     "formula_or_notes": "Meta",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Meta automatically distributing one campaign budget across its ad sets to the best-performing ones (now Advantage+ Campaign Budget).",
+    "whyItMatters": "Lets the algorithm move money to what's working instead of fixing it per ad set; the default for most Meta buys.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Meta Business Help - Advantage+ campaign budget (CBO)",
+        "url": "https://www.facebook.com/business/help/153514848493595"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "campaign-level-optimisation-optimisation-c19933e7",
@@ -1607,7 +1846,18 @@
     "category_raw": "Optimisation",
     "group": "Buying & Trading",
     "definition": "Optimising at campaign level",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Making changes/decisions at the campaign level (budget, objective, structure).",
+    "whyItMatters": "Broad levers that affect everything beneath - usually where budget allocation and strategy live.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Account structure",
+        "url": "https://support.google.com/google-ads/answer/1704396"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "cannibalisation-optimisation-6aca7db3",
@@ -1616,7 +1866,19 @@
     "category_raw": "Optimisation",
     "group": "Buying & Trading",
     "definition": "Keywords competing internally",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Keywords (or campaigns) competing against each other for the same query.",
+    "whyItMatters": "You bid against yourself, inflating cost and confusing optimisation - fix with negatives and tighter structure.",
+    "practitionerNotes": "PPC concept; no Google Ads Help page uses this exact label.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "PPC.co - Keyword cannibalisation",
+        "url": "https://ppc.co/blog/keyword-cannibalization"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "capi-tracking-0e67f1b1",
@@ -1684,7 +1946,18 @@
     "group": "Planning & Strategy",
     "definition": "Campaign Budget Optimisation",
     "formula_or_notes": "Meta automation",
-    "type": "acronym"
+    "type": "acronym",
+    "plainEnglish": "Campaign Budget Optimisation - Meta's automatic allocation of a campaign budget across ad sets (renamed Advantage+ Campaign Budget).",
+    "whyItMatters": "Pools budget for the algorithm to optimise across ad sets; you give up per-ad-set control for better overall efficiency.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Meta Business Help - Advantage+ campaign budget (CBO)",
+        "url": "https://www.facebook.com/business/help/153514848493595"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "cdp-tech-a54c3be3",
@@ -1847,7 +2120,18 @@
     "category_raw": "Optimisation",
     "group": "Buying & Trading",
     "definition": "Purchase-driven search behaviour",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A search showing buying intent or research toward a purchase ('best', 'price', 'buy').",
+    "whyItMatters": "Lower-funnel and high-value - the terms most worth bidding aggressively on.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Semrush - Keyword/intent types",
+        "url": "https://www.semrush.com/blog/types-of-keywords-commercial-informational-navigational-transactional/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "commission-finance-73d0f7cc",
@@ -1894,7 +2178,18 @@
     "category_raw": "Planning",
     "group": "Planning & Strategy",
     "definition": "Relative GRP investment",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Your advertising weight relative to competitors (your share of category GRP/spend).",
+    "whyItMatters": "Excess share of voice (SOV above market share) predicts share growth - a core planning benchmark.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "IPA - Excess share of voice (ESOV)",
+        "url": "https://ipa.co.uk/knowledge/ipa-blog/esov-an-excessive-focus-on-the-wrong-thing"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "competitor-search-structure-0ce36378",
@@ -1903,7 +2198,18 @@
     "category_raw": "Structure",
     "group": "Planning & Strategy",
     "definition": "Searches referencing competitors",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Searches that reference a competitor's brand.",
+    "whyItMatters": "A way to put your offer in front of rivals' demand - effective but pricey (low Quality Score) and watch trademark rules.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Search Engine Land - Competitive PPC",
+        "url": "https://searchengineland.com/branded-search-competitive-ppc-defense-470510"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "compliance-ops-d71618ee",
@@ -1930,7 +2236,18 @@
     "category_raw": "Planning",
     "group": "Planning & Strategy",
     "definition": "Content relevance to brand",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Placing ads in content that's relevant to the brand or message.",
+    "whyItMatters": "Boosts attention and brand safety, and is a privacy-resilient targeting approach as cookies fade.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "IAB Australia - Research & resources",
+        "url": "https://iabaustralia.com.au/research-and-resources/research-resources/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "contextual-targeting-targeting-90d2734c",
@@ -2914,7 +3231,18 @@
     "category_raw": "Budgeting",
     "group": "Planning & Strategy",
     "definition": "Spend limit per day",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A spend limit per day (the platform averages spend around it).",
+    "whyItMatters": "Controls daily pace; on Meta/Google actual daily spend can flex above the number, balancing out over time.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Meta Business Help - Daily budgets",
+        "url": "https://www.facebook.com/business/help/190490051321426"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "daily-cap-definition-80ac3c5c",
@@ -2951,7 +3279,18 @@
     "category_raw": "Planning",
     "group": "Planning & Strategy",
     "definition": "Time-of-day segment",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A time-of-day segment used to plan and buy (e.g. breakfast, daytime, prime time).",
+    "whyItMatters": "Audiences and costs vary by daypart; concentrating spend when your audience is watching improves efficiency.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Ad scheduling / dayparting",
+        "url": "https://support.google.com/google-ads/answer/2404244"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "dayparting-targeting-efd76782",
@@ -3029,7 +3368,18 @@
     "category_raw": "Delivery",
     "group": "Buying & Trading",
     "definition": "Ability to spend budget and serve ads",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The system's ability to actually spend the budget and serve the ads.",
+    "whyItMatters": "A plan only works if it delivers - under-delivery means lost reach, restricted delivery often points to a setup or competitiveness problem.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Meta Business Help - Troubleshoot ad delivery",
+        "url": "https://www.facebook.com/business/help/388669258876309"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "delivery-insights-reporting-d096d7c7",
@@ -3161,7 +3511,18 @@
     "category_raw": "Planning",
     "group": "Planning & Strategy",
     "definition": "Reduced incremental reach at scale",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The reduced incremental reach you get as spend keeps rising.",
+    "whyItMatters": "Each extra dollar reaches fewer new people - the signal to add a channel for fresh reach rather than pile on.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "ThinkTV - Launch your campaign",
+        "url": "https://thinktv.com.au/how-to-advertise-on-tv/launch-your-campaign/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "diminishing-returns-economics-26bfdd94",
@@ -3170,7 +3531,18 @@
     "category_raw": "Economics",
     "group": "Buying & Trading",
     "definition": "Reduced marginal gains at scale",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The point where each extra dollar of spend produces less incremental result.",
+    "whyItMatters": "The saturation curve - knowing where a channel saturates is how you decide when to stop adding and diversify.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "Prescient AI - MMM saturation curves",
+        "url": "https://prescientai.com/blog/mmm-saturation-curves"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "direct-path-trading-d2d31fbd",
@@ -3564,7 +3936,19 @@
     "category_raw": "Planning",
     "group": "Planning & Strategy",
     "definition": "Adjusting lengths to 30s equivalent",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Adjusting different ad lengths to a common standard (usually 30-second equivalents) to compare weight.",
+    "whyItMatters": "Lets you compare and total campaigns running mixed lengths on a like-for-like basis.",
+    "practitionerNotes": "TV-planning convention; no single canonical page.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "ThinkTV - What's a TARP",
+        "url": "https://thinktv.com.au/how-tos-resources/whats-a-tarp-and-hows-it-measured/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "equivalised-grps-planning-efbdb923",
@@ -3573,7 +3957,19 @@
     "category_raw": "Planning",
     "group": "Planning & Strategy",
     "definition": "Normalised GRPs to standard length",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "GRPs normalised to a standard ad length (e.g. 30s) so mixed-length campaigns compare fairly.",
+    "whyItMatters": "Without it, a plan of 15s spots looks like it has more 'weight' than it really does versus 30s.",
+    "practitionerNotes": "TV-planning convention; no single canonical page.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "ThinkTV - What's a TARP",
+        "url": "https://thinktv.com.au/how-tos-resources/whats-a-tarp-and-hows-it-measured/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "estimated-reach-delivery-e9a7808b",
@@ -3582,7 +3978,18 @@
     "category_raw": "Delivery",
     "group": "Buying & Trading",
     "definition": "Predicted unique users",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The platform's prediction of how many unique people a setup could reach.",
+    "whyItMatters": "A planning estimate, not a guarantee - useful for sizing, but actual reach depends on delivery and competition.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Meta Business Help - Estimated audience size",
+        "url": "https://www.facebook.com/business/help/1665333080167380"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "etl-tech-86b14b69",
@@ -3609,7 +4016,18 @@
     "category_raw": "Delivery",
     "group": "Buying & Trading",
     "definition": "Spend delivered evenly across time",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Spending the budget evenly across the flight.",
+    "whyItMatters": "The default - steady delivery that lasts the whole period and avoids early burnout.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Meta Business Help - About pacing",
+        "url": "https://www.facebook.com/business/help/1754368491258883"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "event-analytics-80c64b28",
@@ -3726,7 +4144,18 @@
     "category_raw": "Quality Component",
     "group": "Buying & Trading",
     "definition": "Predicted click likelihood",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A Quality Score component: Google's prediction of how likely your ad is to be clicked.",
+    "whyItMatters": "Relevance and compelling copy lift it; a low rating flags ads that aren't resonating.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - About Quality Score",
+        "url": "https://support.google.com/google-ads/answer/6167118"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "exposed-group-measurement-e1a1c729",
@@ -3912,7 +4341,18 @@
     "category_raw": "Planning",
     "group": "Planning & Strategy",
     "definition": "Defined broadcast date range",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A defined date range over which a campaign runs.",
+    "whyItMatters": "The on-air window; flights and gaps shape how reach and memory build over time.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Thinkbox - Flighting",
+        "url": "https://www.thinkbox.tv/how-to-use-tv/spots/flighting-how-best-to-spread-your-ratings-across-a-campaign"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "flighting-planning-a2d1ca4a",
@@ -3921,7 +4361,18 @@
     "category_raw": "Planning",
     "group": "Planning & Strategy",
     "definition": "Scheduling of spend over time",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "How spend is scheduled over time - bursts, continuity (drip), or pulsing.",
+    "whyItMatters": "Concentrate for impact (burst) or sustain presence (continuity); the pattern trades short-term cut-through against staying top-of-mind.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Thinkbox - Flighting",
+        "url": "https://www.thinkbox.tv/how-to-use-tv/spots/flighting-how-best-to-spread-your-ratings-across-a-campaign"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "fraud-governance-fd33b8c8",
@@ -3980,7 +4431,18 @@
     "category_raw": "Delivery",
     "group": "Buying & Trading",
     "definition": "Maximum exposures per user",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A limit on how many times one person sees your ad over a period.",
+    "whyItMatters": "Protects reach and budget from over-exposing the same people; the main control against creative fatigue.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Meta Business Help - Frequency controls",
+        "url": "https://www.facebook.com/business/help/285326585139636"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "frequency-distribution-reporting-082bbd43",
@@ -4008,7 +4470,18 @@
     "category_raw": "Strategy",
     "group": "Planning & Strategy",
     "definition": "Integrated upper mid and lower funnel approach",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "An integrated strategy spanning upper, mid and lower funnel together.",
+    "whyItMatters": "Brands that connect awareness through to conversion outperform those buying stages in isolation.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Think with Google - Full-funnel marketing",
+        "url": "https://business.google.com/us/think/consumer-insights/full-funnel-marketing-strategy/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "ga4-analytics-accd1f23",
@@ -4683,7 +5156,18 @@
     "category_raw": "Optimisation",
     "group": "Buying & Trading",
     "definition": "Research-based search behaviour",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A search aimed at learning or researching ('how to', 'what is').",
+    "whyItMatters": "Upper-funnel - great for content and awareness, weak for direct-response bidding.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Semrush - Keyword/intent types",
+        "url": "https://www.semrush.com/blog/types-of-keywords-commercial-informational-navigational-transactional/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "initiate-checkout-metric-ae97cbc4",
@@ -4777,7 +5261,18 @@
     "category_raw": "Structure",
     "group": "Planning & Strategy",
     "definition": "Search term advertisers bid on",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A word or phrase you bid on so your ad can show for matching searches.",
+    "whyItMatters": "The targeting unit of search; what you bid on (and the match type) decides which queries trigger your ad.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Ads Help - Search terms vs keywords",
+        "url": "https://support.google.com/google-ads/answer/2684537"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "keyword-contextual-targeting-ce7e7d98",
@@ -4795,7 +5290,18 @@
     "category_raw": "Planning",
     "group": "Planning & Strategy",
     "definition": "Extent of category keyword presence",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "How fully your account covers the relevant keywords in a category.",
+    "whyItMatters": "Gaps mean missed demand; over-coverage can waste spend on irrelevant terms.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Keyword Planner",
+        "url": "https://support.google.com/google-ads/answer/7337243"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "keyword-level-optimisation-optimisation-ce4a39e4",
@@ -4804,7 +5310,18 @@
     "category_raw": "Optimisation",
     "group": "Buying & Trading",
     "definition": "Optimising at keyword level",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Tuning at the individual keyword level (bids, match types, negatives, pausing).",
+    "whyItMatters": "Granular control to cut waste and back winners - the day-to-day of search management.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Search terms report",
+        "url": "https://support.google.com/google-ads/answer/2472708"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "keyword-mining-optimisation-cb43c80c",
@@ -4813,7 +5330,18 @@
     "category_raw": "Optimisation",
     "group": "Buying & Trading",
     "definition": "Adding new keywords from SQR",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Finding new keywords to add by reviewing the search-terms report.",
+    "whyItMatters": "Turns real queries into new, relevant keywords - a steady source of incremental, qualified traffic.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Search terms report",
+        "url": "https://support.google.com/google-ads/answer/2472708"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "keyword-overlap-optimisation-00dc2838",
@@ -4822,7 +5350,18 @@
     "category_raw": "Optimisation",
     "group": "Buying & Trading",
     "definition": "Multiple keywords triggering same query",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "When multiple keywords in an account can trigger on the same query.",
+    "whyItMatters": "Causes internal competition and muddled data - manage with negatives and clear structure.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Negative keyword ideas",
+        "url": "https://support.google.com/google-ads/answer/7102466"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "kpi-measurement-b1a84d78",
@@ -4852,7 +5391,18 @@
     "category_raw": "Quality Component",
     "group": "Buying & Trading",
     "definition": "User experience quality score",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A Quality Score component: how useful and relevant your landing page is to the visitor.",
+    "whyItMatters": "Speed, relevance and usability lift it; a poor page drags down Quality Score (and conversions).",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - About Quality Score",
+        "url": "https://support.google.com/google-ads/answer/6167118"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "landing-page-view-metric-284d704a",
@@ -4937,7 +5487,18 @@
     "category_raw": "Optimisation",
     "group": "Buying & Trading",
     "definition": "Insufficient signals for stable learning",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "When an ad set can't get enough optimisation events to ever exit the learning phase.",
+    "whyItMatters": "It never stabilises, so performance stays volatile - usually fix by consolidating, widening, or choosing an earlier-funnel event.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Meta Business Help - About the learning phase",
+        "url": "https://www.facebook.com/business/help/112167992830700"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "learning-phase-optimisation-14e46aba",
@@ -4946,7 +5507,18 @@
     "category_raw": "Optimisation",
     "group": "Buying & Trading",
     "definition": "Initial delivery stabilisation period",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The period after launch/edit when the algorithm gathers data to stabilise delivery.",
+    "whyItMatters": "Performance is unstable and often worse during it - don't judge or edit too soon. Meta needs ~50 optimisation events in 7 days to exit.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Meta Business Help - About the learning phase",
+        "url": "https://www.facebook.com/business/help/112167992830700"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "length-creative-80897445",
@@ -4976,7 +5548,18 @@
     "category_raw": "Budgeting",
     "group": "Planning & Strategy",
     "definition": "Spend limit across campaign duration",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A total spend limit across a campaign's whole schedule (the platform paces it).",
+    "whyItMatters": "Lets the system spend more on high-value days and less on quiet ones - good for scheduled flights.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Meta Business Help - Lifetime budgets",
+        "url": "https://www.facebook.com/business/help/340985466050775"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "lift-measurement-cc3ba71d",
@@ -5026,7 +5609,18 @@
     "category_raw": "Delivery",
     "group": "Buying & Trading",
     "definition": "Restricted delivery due to constraints",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "When an ad set can't spend its budget due to a constraint (narrow audience, low bid, tight cap).",
+    "whyItMatters": "A warning sign - the system is throttled; widen the audience, raise the bid/budget, or loosen the cap.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Meta Business Help - Troubleshoot ad delivery",
+        "url": "https://www.facebook.com/business/help/388669258876309"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "line-item-structure-6a11e5ba",
@@ -5035,7 +5629,18 @@
     "category_raw": "Structure",
     "group": "Planning & Strategy",
     "definition": "Buying rule container",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A buying rule container (in DV360/ad servers) holding budget, bid, targeting and creatives.",
+    "whyItMatters": "The working unit of a programmatic buy - the level you pace, target and optimise.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "DV360 Help - Line items",
+        "url": "https://support.google.com/displayvideo/answer/2891312"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "linear-attribution-attribution-4e2cd9eb",
@@ -5297,7 +5902,18 @@
     "category_raw": "Strategy",
     "group": "Planning & Strategy",
     "definition": "Conversion-focused activity",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Conversion-focused activity at the bottom of the funnel.",
+    "whyItMatters": "Captures existing intent - efficient and measurable, but depends on upper-funnel to keep filling it.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Think with Google - Full-funnel marketing",
+        "url": "https://business.google.com/us/think/consumer-insights/full-funnel-marketing-strategy/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "lowest-cost-bidding-6df0bfc6",
@@ -5382,7 +5998,18 @@
     "category_raw": "Delivery",
     "group": "Buying & Trading",
     "definition": "Replacement inventory for under-delivery",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Replacement inventory a publisher provides when a campaign under-delivers.",
+    "whyItMatters": "The remedy for shortfalls against booked audience/impressions - tracked at post-buy.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "IAB/4As - Standard terms & conditions (PDF)",
+        "url": "https://www.iab.com/wp-content/uploads/2015/06/IAB_4As_tsandcs_Education_FINAL.pdf"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "manual-cpc-bidding-c93b9dd9",
@@ -5411,7 +6038,18 @@
     "category_raw": "Delivery",
     "group": "Buying & Trading",
     "definition": "Advertiser-selected placements",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Choosing specific placements yourself rather than letting the platform decide.",
+    "whyItMatters": "Trades efficiency for control - use when format, context or brand safety demands it.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Meta Business Help - Advantage+ placements",
+        "url": "https://www.facebook.com/business/help/196554084569964"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "margin-finance-bd974ae3",
@@ -5462,7 +6100,18 @@
     "category_raw": "Structure",
     "group": "Planning & Strategy",
     "definition": "Rule defining how keywords match queries",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The rule defining how closely a search must match your keyword to trigger the ad (broad, phrase, exact).",
+    "whyItMatters": "The reach/control dial for search - looser match types reach more but need tighter negatives.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Keyword matching options",
+        "url": "https://support.google.com/google-ads/answer/7478529"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "max-cpc-bidding-ecb911f8",
@@ -5561,7 +6210,18 @@
     "category_raw": "Planning",
     "group": "Planning & Strategy",
     "definition": "Distribution of budget across channels",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "How the budget is split across channels (TV, video, social, search, OOH, etc.).",
+    "whyItMatters": "The biggest strategic lever - the right mix maximises reach and effect; MMM helps optimise it.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "ThinkTV - First on, last off",
+        "url": "https://thinktv.com.au/facts-and-stats/folo/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "media-owner-media-62304216",
@@ -5579,7 +6239,18 @@
     "category_raw": "Planning",
     "group": "Planning & Strategy",
     "definition": "Document outlining channels budgets and deliverables",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The document outlining the channels, budgets, timing and deliverables for a campaign.",
+    "whyItMatters": "The blueprint everyone works from - it turns the strategy into a concrete, costed, scheduled buy.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "ThinkTV - First on, last off",
+        "url": "https://thinktv.com.au/facts-and-stats/folo/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "mer-metric-7b7863df",
@@ -5700,7 +6371,18 @@
     "category_raw": "Strategy",
     "group": "Planning & Strategy",
     "definition": "Consideration-focused activity",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Consideration-focused activity in the middle of the funnel.",
+    "whyItMatters": "Nurtures interest into intent - often the under-invested gap between brand and performance.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Think with Google - Mid-funnel marketing",
+        "url": "https://business.google.com/en-all/think/consumer-insights/mid-funnel-marketing-brand-performance/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "min-cpc-bidding-7751ca07",
@@ -5844,7 +6526,18 @@
     "category_raw": "Optimisation",
     "group": "Buying & Trading",
     "definition": "Brand or destination search",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A search aimed at reaching a specific brand or site.",
+    "whyItMatters": "Often your own brand terms - high conversion, but check you're not paying for clicks you'd win organically.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Semrush - Keyword/intent types",
+        "url": "https://www.semrush.com/blog/types-of-keywords-commercial-informational-navigational-transactional/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "nda-commercial-9bd0a18d",
@@ -5902,7 +6595,18 @@
     "category_raw": "Structure",
     "group": "Planning & Strategy",
     "definition": "Keyword that blocks ad triggering",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A term you add to stop your ad showing for searches containing it.",
+    "whyItMatters": "The main tool for cutting wasted spend on irrelevant queries - especially with broad match.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Ads Help - Negative keywords",
+        "url": "https://support.google.com/google-ads/answer/2453972"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "negative-phrase-match-type-78b6a85b",
@@ -6045,7 +6749,18 @@
     "category_raw": "Structure",
     "group": "Planning & Strategy",
     "definition": "Generic category searches",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Generic, category searches that don't mention your brand.",
+    "whyItMatters": "Where you win new customers - harder and pricier than brand, and the truer test of search performance.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Search Engine Land - Branded search defense",
+        "url": "https://searchengineland.com/branded-search-competitive-ppc-defense-470510"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "non-skippable-video-format-410c0c0c",
@@ -6093,7 +6808,18 @@
     "category_raw": "Optimisation",
     "group": "Buying & Trading",
     "definition": "Primary campaign optimisation goal",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The primary goal a campaign is set up to optimise toward (awareness, traffic, conversions, etc.).",
+    "whyItMatters": "Sets what the algorithm and the metrics are judged on - the objective should mirror the brief.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Meta Business Help - About performance goals",
+        "url": "https://www.facebook.com/business/help/355670007911605"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "off-peak-planning-e6025c36",
@@ -6102,7 +6828,18 @@
     "category_raw": "Planning",
     "group": "Planning & Strategy",
     "definition": "Lower viewing period",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Lower-viewing periods outside peak.",
+    "whyItMatters": "Cheaper inventory that builds frequency and incremental reach efficiently alongside peak.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "ThinkTV - How TV ratings work",
+        "url": "https://thinktv.com.au/how-tos-resources/how-do-tv-ratings-work/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "offline-conversion-tracking-48a346d7",
@@ -6181,7 +6918,18 @@
     "category_raw": "Optimisation",
     "group": "Buying & Trading",
     "definition": "Event the algorithm learns against",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The specific action the algorithm is told to optimise toward (e.g. Purchase, Lead).",
+    "whyItMatters": "Bidding chases this event - choose one with enough volume to learn, or you end up learning-limited.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Meta Business Help - Optimisation events",
+        "url": "https://www.facebook.com/business/help/139628083350822"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "ots-metric-6670bbe4",
@@ -6289,7 +7037,18 @@
     "category_raw": "Delivery",
     "group": "Buying & Trading",
     "definition": "Delivered volume above booked amount",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Delivered volume above the booked amount.",
+    "whyItMatters": "Bonus exposure - but clarify upfront whether you pay for it, especially on guaranteed buys.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "IAB/4As - Standard terms & conditions (PDF)",
+        "url": "https://www.iab.com/wp-content/uploads/2015/06/IAB_4As_tsandcs_Education_FINAL.pdf"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "overlap-rate-metric-0a941db2",
@@ -6338,7 +7097,18 @@
     "category_raw": "Delivery",
     "group": "Buying & Trading",
     "definition": "Rate of spend delivery versus plan",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The rate at which budget is spent over a flight, versus the plan.",
+    "whyItMatters": "Good pacing spends evenly and finishes on budget; poor pacing burns out early or leaves money unspent.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Meta Business Help - About pacing",
+        "url": "https://www.facebook.com/business/help/1754368491258883"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "pacing-control-delivery-67228959",
@@ -6347,7 +7117,18 @@
     "category_raw": "Delivery",
     "group": "Buying & Trading",
     "definition": "Spend regulation logic",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The logic that regulates how fast budget is spent.",
+    "whyItMatters": "Keeps spend smooth and on-plan rather than lumpy; the mechanism behind even vs accelerated delivery.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Meta Business Help - Bid and budget pacing",
+        "url": "https://www.facebook.com/business/help/571961726580148"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "paid-social-channel-bad446eb",
@@ -6436,7 +7217,18 @@
     "category_raw": "Planning",
     "group": "Planning & Strategy",
     "definition": "Highest audience concentration",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The period of highest audience concentration.",
+    "whyItMatters": "Maximum reach per spot but premium pricing - the trade-off at the heart of TV scheduling.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "ThinkTV - How TV ratings work",
+        "url": "https://thinktv.com.au/how-tos-resources/how-do-tv-ratings-work/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "persona-audience-be7a67a5",
@@ -6532,7 +7324,18 @@
     "category_raw": "Delivery",
     "group": "Buying & Trading",
     "definition": "Location where ad appears",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Where an ad appears - a position, feed, page or environment.",
+    "whyItMatters": "Placement shapes attention, viewability and cost; the right placements matter as much as the right audience.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Meta Business Help - Advantage+ placements",
+        "url": "https://www.facebook.com/business/help/196554084569964"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "platform-reporting-reporting-5f87b56a",
@@ -6676,7 +7479,18 @@
     "category_raw": "Delivery",
     "group": "Buying & Trading",
     "definition": "Campaign reporting after completion",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Reporting after a campaign ends that reconciles what was delivered against what was bought.",
+    "whyItMatters": "Where under-delivery, makegoods and audience shortfalls are settled; the close-out of the buy.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Capitol Media - Post-buy analysis",
+        "url": "https://capitolmediasolutions.com/blog/campaign-finished-now-post-buy-analysis/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "pre-bid-blocking-governance-e260253b",
@@ -6813,7 +7627,18 @@
     "category_raw": "Planning",
     "group": "Planning & Strategy",
     "definition": "High viewing period evening",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The evening daypart with the highest TV viewing (and highest cost).",
+    "whyItMatters": "Biggest simultaneous audiences and premium rates - where mass reach is won.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "ThinkTV - How TV ratings work",
+        "url": "https://thinktv.com.au/how-tos-resources/how-do-tv-ratings-work/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "privacy-act-governance-9db07e8b",
@@ -6891,7 +7716,18 @@
     "category_raw": "Planning",
     "group": "Planning & Strategy",
     "definition": "Audience alignment with demo",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "How well a program's audience aligns with your target demographic.",
+    "whyItMatters": "High-affinity programs deliver your audience efficiently - more of the right people per rating point.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "ThinkTV - How TV ratings work",
+        "url": "https://thinktv.com.au/how-tos-resources/how-do-tv-ratings-work/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "program-break-placement-7f7d79ba",
@@ -7092,7 +7928,18 @@
     "category_raw": "Optimisation",
     "group": "Buying & Trading",
     "definition": "Optimising at search term level",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Optimising based on the actual search terms that triggered ads.",
+    "whyItMatters": "The search-terms report reveals reality vs intent - the source of new keywords and negatives.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Search terms report",
+        "url": "https://support.google.com/google-ads/answer/2472708"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "query-matching-mechanics-451a18d6",
@@ -7173,7 +8020,18 @@
     "category_raw": "Planning",
     "group": "Planning & Strategy",
     "definition": "Relationship between spend and reach",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The relationship between spend (or GRPs) and the reach it delivers.",
+    "whyItMatters": "Reach builds fast then flattens - the curve shows the point where extra spend mostly adds frequency, not new people.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "ThinkTV - Launch your campaign",
+        "url": "https://thinktv.com.au/how-to-advertise-on-tv/launch-your-campaign/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "reach-lift-measurement-82e7e8ad",
@@ -7249,7 +8107,19 @@
     "category_raw": "Delivery",
     "group": "Buying & Trading",
     "definition": "Updated delivery projection based on actuals",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "An updated delivery projection based on actual performance to date.",
+    "whyItMatters": "Lets you course-correct mid-flight - spot a shortfall early and add weight or shift budget.",
+    "practitionerNotes": "Ad-ops trade term; no single canonical page.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Capitol Media - Post-buy analysis",
+        "url": "https://capitolmediasolutions.com/blog/campaign-finished-now-post-buy-analysis/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "regional-tam-measurement-c24dba65",
@@ -7327,7 +8197,18 @@
     "category_raw": "Optimisation",
     "group": "Buying & Trading",
     "definition": "Change that restarts learning phase",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A change significant enough to send an ad set back into the learning phase.",
+    "whyItMatters": "Edits to budget, audience, creative or optimisation can reset learning - batch changes to avoid resetting repeatedly.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Meta Business Help - Significant edits & learning phase",
+        "url": "https://www.facebook.com/business/help/316478108955072"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "retail-media-commerce-c8d9f7b2",
@@ -7393,7 +8274,19 @@
     "category_raw": "Planning",
     "group": "Planning & Strategy",
     "definition": "Agency response confirming approach",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The agency's written response confirming its understanding of the brief and proposed approach.",
+    "whyItMatters": "Catches misalignment before money is spent - it's the agency saying 'here's what we heard and how we'll tackle it'.",
+    "practitionerNotes": "Agency/industry term; no single canonical page.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "MFA - The Media Process guide (PDF)",
+        "url": "https://www.mediafederation.org.au/images/Educational-Guidelines/MFA_2024_TheMFAGuide_Section2_Media_TheProcess.pdf"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "rfp-commercial-7603af84",
@@ -7657,7 +8550,19 @@
     "category_raw": "Economics",
     "group": "Buying & Trading",
     "definition": "Impact of spend changes on volume",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "How much search volume/results change when you change spend.",
+    "whyItMatters": "Tells you whether more budget would buy more results, or just bid up the same clicks (low elasticity = saturated).",
+    "practitionerNotes": "Marketing-economics concept; no single canonical page.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "Prescient AI - MMM saturation curves",
+        "url": "https://prescientai.com/blog/mmm-saturation-curves"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "search-campaign-structure-b38c1042",
@@ -7666,7 +8571,18 @@
     "category_raw": "Structure",
     "group": "Planning & Strategy",
     "definition": "Top-level paid search container",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A top-level container for paid search activity.",
+    "whyItMatters": "Where search budget, bidding and settings live; structure it by theme/intent for clean control.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Ads Help - Account structure",
+        "url": "https://support.google.com/google-ads/answer/1704396"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "search-conversion-lag-measurement-9b2d7ae3",
@@ -7695,7 +8611,18 @@
     "category_raw": "Planning",
     "group": "Planning & Strategy",
     "definition": "Missing keyword opportunities",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Relevant keywords/queries you're not bidding on.",
+    "whyItMatters": "Unclaimed demand - often a quick win, or an opening for competitors.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Keyword Planner",
+        "url": "https://support.google.com/google-ads/answer/7337243"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "search-demand-planning-b75f0837",
@@ -7704,7 +8631,18 @@
     "category_raw": "Planning",
     "group": "Planning & Strategy",
     "definition": "Volume of relevant queries",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The volume of relevant search queries for your category/keywords.",
+    "whyItMatters": "Sizes the opportunity in search; rising/falling demand is a leading signal of category interest.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Keyword Planner",
+        "url": "https://support.google.com/google-ads/answer/7337243"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "search-intent-optimisation-3872cd1b",
@@ -7713,7 +8651,19 @@
     "category_raw": "Optimisation",
     "group": "Buying & Trading",
     "definition": "Underlying user motivation",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The underlying goal behind a search query (to learn, to find a site, to compare, to buy).",
+    "whyItMatters": "Matching ad and landing page to intent is what converts; bidding on the wrong-intent terms wastes spend.",
+    "practitionerNotes": "SEO/search concept; no Google canonical page - explainer-sourced.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Yoast - Search intent",
+        "url": "https://yoast.com/search-intent/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "search-lift-measurement-881d2774",
@@ -7781,7 +8731,18 @@
     "category_raw": "Structure",
     "group": "Planning & Strategy",
     "definition": "Actual user query that triggered ad",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The actual query a person typed that triggered your ad (different from the keyword you bid on).",
+    "whyItMatters": "The search terms report shows reality vs intent - the source of new keywords and negatives.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Ads Help - Search terms",
+        "url": "https://support.google.com/google-ads/answer/2684537"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "search-volume-metric-4c31228c",
@@ -7810,7 +8771,18 @@
     "category_raw": "Account",
     "group": "Buying & Trading",
     "definition": "Buyer account within DSP",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A buyer's account/identity within a DSP used to transact.",
+    "whyItMatters": "Deals and inventory access are often tied to a specific seat ID - it identifies who's buying.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "smartclip - Adtech glossary: seats",
+        "url": "https://smartclip.tv/adtech-glossary/seats/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "second-price-auction-mechanics-2f840ad4",
@@ -8160,7 +9132,18 @@
     "category_raw": "Structure",
     "group": "Planning & Strategy",
     "definition": "Top-level campaign container",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A top-level container for paid social activity (Meta, TikTok, etc.).",
+    "whyItMatters": "Holds the objective and budget; ad sets and ads sit beneath it.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Meta for Business - Campaign levels",
+        "url": "https://www.facebook.com/business/learn/lessons/understanding-ad-campaign-levels-for-business"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "soft-floor-mechanics-7e26b02b",
@@ -8216,7 +9199,18 @@
     "category_raw": "Budgeting",
     "group": "Planning & Strategy",
     "definition": "Maximum allowed spend",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A maximum total spend limit across a campaign or account.",
+    "whyItMatters": "A hard guardrail against overspend - useful for fixed budgets and finance peace of mind.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Meta Business Help - Campaign spending limit",
+        "url": "https://www.facebook.com/business/help/481733105308636"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "spo-programmatic-f8be464b",
@@ -8254,7 +9248,19 @@
     "category_raw": "Planning",
     "group": "Planning & Strategy",
     "definition": "Impact by ad duration",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Accounting for the different impact (and cost) of ads of different durations.",
+    "whyItMatters": "A 30s isn't twice a 15s in effect or price - weighting reflects the real value of each length.",
+    "practitionerNotes": "TV-planning convention; no single canonical page.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "ThinkTV - Get creative",
+        "url": "https://thinktv.com.au/how-to-advertise-on-tv/get-creative/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "sqr-reporting-24b0d516",
@@ -8542,7 +9548,18 @@
     "category_raw": "Planning",
     "group": "Planning & Strategy",
     "definition": "Structured experimentation approach",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A structured approach of running experiments, measuring, and applying what works.",
+    "whyItMatters": "Turns opinion into evidence; the discipline behind continuous improvement and incrementality testing.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Think with Google - Test-and-learn culture",
+        "url": "https://business.google.com/us/think/measurement/test-learn-experiment-culture/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "the-trade-desk-channel-1654e2a1",
@@ -8865,7 +9882,18 @@
     "category_raw": "Structure",
     "group": "Planning & Strategy",
     "definition": "Top-level TV buying container",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A top-level container for a television buy.",
+    "whyItMatters": "Where the TV objective, weight (GRPs/TARPs), flight and schedule are organised.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "ThinkTV - Launch your campaign",
+        "url": "https://thinktv.com.au/how-to-advertise-on-tv/launch-your-campaign/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "tv-lift-study-measurement-5a42455f",
@@ -8894,7 +9922,18 @@
     "category_raw": "Planning",
     "group": "Planning & Strategy",
     "definition": "Forecast reach and frequency outcomes",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A model that forecasts reach and frequency outcomes from a TV schedule.",
+    "whyItMatters": "Lets planners predict and optimise reach/frequency before committing budget.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "ThinkTV - Launch your campaign",
+        "url": "https://thinktv.com.au/how-to-advertise-on-tv/launch-your-campaign/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "tv-schedule-structure-4c67744c",
@@ -8903,7 +9942,18 @@
     "category_raw": "Structure",
     "group": "Planning & Strategy",
     "definition": "Planned placements across programs",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The planned placement of spots across programs, channels and times.",
+    "whyItMatters": "The schedule delivers the reach and frequency - good scheduling spreads ratings to build reach, not just frequency.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "ThinkTV - Launch your campaign",
+        "url": "https://thinktv.com.au/how-to-advertise-on-tv/launch-your-campaign/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "tv-weight-planning-778ab8f2",
@@ -8912,7 +9962,18 @@
     "category_raw": "Planning",
     "group": "Planning & Strategy",
     "definition": "GRP intensity per period",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The intensity of a TV campaign in rating points (GRPs/TARPs) per period.",
+    "whyItMatters": "How 'heavy' the campaign is - too light and it won't cut through, too heavy and it wastes frequency.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "ThinkTV - What's a TARP",
+        "url": "https://thinktv.com.au/how-tos-resources/whats-a-tarp-and-hows-it-measured/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "under-delivery-delivery-6004c4c4",
@@ -8921,7 +9982,18 @@
     "category_raw": "Delivery",
     "group": "Buying & Trading",
     "definition": "Delivered volume below booked amount",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Delivered volume below the booked amount.",
+    "whyItMatters": "Triggers makegoods or credits; a key thing to catch at post-buy reconciliation.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "IAB/4As - Standard terms & conditions (PDF)",
+        "url": "https://www.iab.com/wp-content/uploads/2015/06/IAB_4As_tsandcs_Education_FINAL.pdf"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "unduplicated-reach-metric-e0ed3122",
@@ -8970,7 +10042,18 @@
     "category_raw": "Delivery",
     "group": "Buying & Trading",
     "definition": "Deduplicated reach",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The number of distinct people reached, with duplicates removed.",
+    "whyItMatters": "The 'real people' figure behind reach; de-duplication across placements/screens is what makes it meaningful.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Meta Business Help - Estimated audience size",
+        "url": "https://www.facebook.com/business/help/1665333080167380"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "universe-measurement-589cde3a",
@@ -8999,7 +10082,18 @@
     "category_raw": "Strategy",
     "group": "Planning & Strategy",
     "definition": "Awareness-focused activity",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Awareness-focused activity at the top of the funnel.",
+    "whyItMatters": "Builds future demand and reach; measured by reach/brand lift, not last-click sales.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Think with Google - Full-funnel marketing",
+        "url": "https://business.google.com/us/think/consumer-insights/full-funnel-marketing-strategy/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "utm-tracking-4c5ec750",
@@ -9383,7 +10477,18 @@
     "category_raw": "Delivery",
     "group": "Buying & Trading",
     "definition": "Impression meeting viewability rules",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "An impression that met the viewability standard (per MRC: 50% of pixels on screen for 1s+ display, 2s+ video).",
+    "whyItMatters": "The 'had a chance to be seen' impression - the basis of viewable CPM and a key quality check on delivery.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "IAB/MRC - Viewable impression guidelines",
+        "url": "https://www.iab.com/guidelines/mrc-viewable-impression-guidelines/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "virtual-australia-measurement-71d3a685",
