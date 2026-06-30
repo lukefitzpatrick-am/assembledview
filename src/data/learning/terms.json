@@ -6,7 +6,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Audience exposed at least once",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Unique people who saw the ad at least once.",
+    "whyItMatters": "The base reach figure; 'n+' reach lets you plan to an effective-frequency goal (how many people saw it enough to remember).",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "OzTAM - TV terms & definitions",
+        "url": "https://oztam.com.au/termsanddefinitions.aspx"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "15s-creative-a24a33d3",
@@ -24,7 +35,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Audience exposed at least twice",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Unique people who saw the ad at least twice.",
+    "whyItMatters": "A minimum-exposure lens - many planners treat 2+ or 3+ as the point where a message starts to land.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "OzTAM - TV terms & definitions",
+        "url": "https://oztam.com.au/termsanddefinitions.aspx"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "3-reach-metric-5a875bf9",
@@ -33,7 +55,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Audience exposed at least three times",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Unique people who saw the ad at least three times.",
+    "whyItMatters": "A common effective-frequency target - planning to 3+ reach aims for enough repetition to be remembered.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "OzTAM - TV terms & definitions",
+        "url": "https://oztam.com.au/termsanddefinitions.aspx"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "30s-creative-d8b8f526",
@@ -51,7 +84,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Video viewed for at least 3 seconds",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A video viewed for at least 3 seconds - a common 'counts as a view' threshold.",
+    "whyItMatters": "A low bar; useful for reach but weak as a 'watched it' signal.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Meta Business Help - 3-second video plays",
+        "url": "https://www.facebook.com/business/help/743427195703387"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "6s-creative-4c2399a5",
@@ -88,7 +132,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Ads shown in first position",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "How often your ad showed in the very first position.",
+    "whyItMatters": "The strongest position signal - important for brand terms and visibility.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Top and absolute top metrics",
+        "url": "https://support.google.com/google-ads/answer/7501826"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "accelerated-delivery-delivery-cb10e8ac",
@@ -235,7 +290,18 @@
         "unit": ""
       },
       "format": "number"
-    }
+    },
+    "plainEnglish": "The score that decides whether and where your ad shows = bid x quality x context (plus thresholds).",
+    "whyItMatters": "Explains why a higher bid alone doesn't guarantee top position - quality matters too.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - About Ad Rank",
+        "url": "https://support.google.com/google-ads/answer/1722122"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "ad-rank-metric-1389819b",
@@ -274,7 +340,18 @@
         "unit": ""
       },
       "format": "number"
-    }
+    },
+    "plainEnglish": "The score that decides whether and where your ad shows = bid x quality x context (plus thresholds).",
+    "whyItMatters": "Explains why a higher bid alone doesn't guarantee top position - quality matters too.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - About Ad Rank",
+        "url": "https://support.google.com/google-ads/answer/1722122"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "ad-relevance-quality-component-4024635e",
@@ -330,7 +407,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Item added to cart event",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A standard event: an item was added to the cart.",
+    "whyItMatters": "A mid-funnel intent signal in the shared Pixel/GA4 event vocabulary; powers optimisation and retargeting.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Meta for Developers - Meta Pixel",
+        "url": "https://developers.facebook.com/docs/meta-pixel/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "addressable-cpm-metric-1c112f40",
@@ -339,7 +427,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Cost per thousand addressable impressions",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Cost per 1,000 addressable (targeted) impressions.",
+    "whyItMatters": "Addressable inventory costs more than broadcast - the premium buys precision, so judge it on outcomes.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "IAB Australia - Digital Advertising Glossary",
+        "url": "https://iabaustralia.com.au/resource/digital-advertising-glossary-of-terms-july-2019/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "addressable-tv-formula-50d91db1",
@@ -503,7 +602,19 @@
         "unit": "$"
       },
       "format": "currency"
-    }
+    },
+    "plainEnglish": "Average Order Value - average revenue per order.",
+    "whyItMatters": "Lifts ROAS without touching media; rising AOV can make 'expensive' media profitable.",
+    "practitionerNotes": "General ecommerce metric; no ad-industry canonical page.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "IAB Australia - Digital Advertising Glossary",
+        "url": "https://iabaustralia.com.au/resource/digital-advertising-glossary-of-terms-july-2019/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "api-tech-4de0a5b6",
@@ -656,7 +767,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Movement between programs",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The movement of viewers between programs (inheritance, switching, tune-out).",
+    "whyItMatters": "Helps explain why a slot delivers the audience it does - context for placement decisions.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "OzTAM - TV terms & definitions",
+        "url": "https://oztam.com.au/termsanddefinitions.aspx"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "audience-network-placement-a597c1a8",
@@ -693,7 +815,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Mean viewers per program",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The mean number of people viewing across a program or time slot.",
+    "whyItMatters": "The TV trading metric behind ratings - average audience as a share of the population is a rating.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "OzTAM - TV terms & definitions",
+        "url": "https://oztam.com.au/termsanddefinitions.aspx"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "average-frequency-metric-ebe1abcc",
@@ -823,7 +956,18 @@
         "unit": "%"
       },
       "format": "percent"
-    }
+    },
+    "plainEnglish": "Of the eligible auctions, the share you actually bid on.",
+    "whyItMatters": "A programmatic throttling/eligibility signal - are you entering the auctions you could?",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "IAB Australia - Digital Advertising Glossary",
+        "url": "https://iabaustralia.com.au/resource/digital-advertising-glossary-of-terms-july-2019/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "bid-rate-metric-5a0ffd8c",
@@ -854,7 +998,18 @@
         "unit": "%"
       },
       "format": "percent"
-    }
+    },
+    "plainEnglish": "Of the eligible auctions, the share you actually bid on.",
+    "whyItMatters": "A programmatic throttling/eligibility signal - are you entering the auctions you could?",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "IAB Australia - Digital Advertising Glossary",
+        "url": "https://iabaustralia.com.au/resource/digital-advertising-glossary-of-terms-july-2019/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "bid-request-mechanics-259d0882",
@@ -944,7 +1099,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "ROAS across campaigns or channels",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "ROAS across all campaigns/channels together, not per-platform.",
+    "whyItMatters": "The honest top-line - avoids the double-counting you get when each platform claims the same sale.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Target ROAS",
+        "url": "https://support.google.com/google-ads/answer/6268637"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "bonus-spots-delivery-bacd8731",
@@ -1088,7 +1254,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Completed views divided by starts",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Completed views divided by starts for broadcaster VOD video.",
+    "whyItMatters": "Typically very high for BVOD - a key selling point of the channel.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "IAB Australia - Video Ad Completion Rate",
+        "url": "https://www.iabaustralia.com.au/general-content/item/2561-video-ad-completion-rate"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "bvod-cpm-metric-4ac6c890",
@@ -1097,7 +1274,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Cost per thousand BVOD impressions",
-    "type": "acronym"
+    "type": "acronym",
+    "plainEnglish": "Cost per 1,000 BVOD impressions.",
+    "whyItMatters": "BVOD commands a premium CPM vs open-web video - justified by completion and brand-safe content.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "IAB Australia - Digital Advertising Glossary",
+        "url": "https://iabaustralia.com.au/resource/digital-advertising-glossary-of-terms-july-2019/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "bvod-cpv-metric-a404c6cf",
@@ -1106,7 +1294,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Cost per BVOD video view",
-    "type": "acronym"
+    "type": "acronym",
+    "plainEnglish": "Cost per BVOD video view.",
+    "whyItMatters": "Video-view efficiency for broadcaster VOD inventory.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "IAB Australia - Digital Advertising Glossary",
+        "url": "https://iabaustralia.com.au/resource/digital-advertising-glossary-of-terms-july-2019/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "bvod-impression-metric-5fd47584",
@@ -1115,7 +1314,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Digital video ad serving",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A digital video ad served within broadcaster VOD.",
+    "whyItMatters": "The delivery unit behind BVOD CPM/CPV and VOZ BVOD reach.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "IAB Australia - Digital Advertising Glossary",
+        "url": "https://iabaustralia.com.au/resource/digital-advertising-glossary-of-terms-july-2019/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "bvod-reach-metric-a009dc07",
@@ -1124,7 +1334,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Unique viewers reached via BVOD",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Unique viewers reached via broadcaster video on demand.",
+    "whyItMatters": "BVOD is counted as part of Total TV under VOZ, not a separate digital line.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "ThinkTV - Virtual Australia",
+        "url": "https://thinktv.com.au/how-tos-resources/whats-a-tarp-and-hows-it-measured/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "call-extension-creative-55abc12f",
@@ -1387,7 +1608,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Relative advertiser density",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Relative advertiser density on a keyword (low/medium/high).",
+    "whyItMatters": "A competitiveness input from Keyword Planner - higher competition usually means higher CPCs.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Ads Help - Keyword Planner",
+        "url": "https://support.google.com/google-ads/answer/7337243"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "competitive-weight-planning-8356db3f",
@@ -1595,7 +1827,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Cost divided by landing page views",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Cost divided by landing-page views.",
+    "whyItMatters": "A mid-funnel efficiency check between the click and the conversion.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help",
+        "url": "https://support.google.com/google-ads/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "cost-per-point-metric-bb44408f",
@@ -1627,7 +1870,18 @@
         "unit": "$"
       },
       "format": "currency"
-    }
+    },
+    "plainEnglish": "Cost per rating point (CPP) - the cost to buy one rating point of audience.",
+    "whyItMatters": "The standard TV/radio cost-efficiency comparison across stations and dayparts.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "OzTAM - TV terms & definitions",
+        "url": "https://oztam.com.au/termsanddefinitions.aspx"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "cost-per-point-metric-9045f485",
@@ -1659,7 +1913,18 @@
         "unit": "$"
       },
       "format": "currency"
-    }
+    },
+    "plainEnglish": "Cost per rating point (CPP) - the cost to buy one rating point of audience.",
+    "whyItMatters": "The standard TV/radio cost-efficiency comparison across stations and dayparts.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "OzTAM - TV terms & definitions",
+        "url": "https://oztam.com.au/termsanddefinitions.aspx"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "coverage-metric-31cd95c2",
@@ -1668,7 +1933,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Reach within defined universe",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Reach expressed as a % of a defined universe or target.",
+    "whyItMatters": "Used interchangeably with 'reach %' - always check the universe it's measured against.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "OzTAM - TV terms & definitions",
+        "url": "https://oztam.com.au/termsanddefinitions.aspx"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "cpa-metric-524c836c",
@@ -1700,7 +1976,18 @@
         "unit": "$"
       },
       "format": "currency"
-    }
+    },
+    "plainEnglish": "Cost per acquisition (per conversion).",
+    "whyItMatters": "The bottom-line performance cost - match it to the conversion you actually care about.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "IAB Australia - Digital Advertising Glossary",
+        "url": "https://iabaustralia.com.au/resource/digital-advertising-glossary-of-terms-july-2019/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "cpc-metric-be9049b9",
@@ -1732,7 +2019,18 @@
         "unit": "$"
       },
       "format": "currency"
-    }
+    },
+    "plainEnglish": "Cost per click.",
+    "whyItMatters": "The core search/performance cost unit; tie it to conversion rate to judge true value.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "IAB Australia - Digital Advertising Glossary",
+        "url": "https://iabaustralia.com.au/resource/digital-advertising-glossary-of-terms-july-2019/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "cpe-metric-38b396cf",
@@ -1764,7 +2062,18 @@
         "unit": "$"
       },
       "format": "currency"
-    }
+    },
+    "plainEnglish": "Cost per engagement.",
+    "whyItMatters": "A social/content cost unit - useful upper-funnel, but engagement isn't an outcome on its own.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Meta Business Help - Post engagement",
+        "url": "https://www.facebook.com/business/help/735720159834389"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "cpl-metric-a973f5ba",
@@ -1796,7 +2105,18 @@
         "unit": "$"
       },
       "format": "currency"
-    }
+    },
+    "plainEnglish": "Cost per lead.",
+    "whyItMatters": "Lead-gen efficiency - but a cheap lead isn't always a good one, so track lead-to-sale quality too.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "IAB Australia - Digital Advertising Glossary",
+        "url": "https://iabaustralia.com.au/resource/digital-advertising-glossary-of-terms-july-2019/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "cpm-metric-b686bcf2",
@@ -1830,16 +2150,16 @@
       "format": "currency"
     },
     "plainEnglish": "Cost per 1,000 impressions.",
-    "whyItMatters": "The cross-channel cost yardstick — but a cheap CPM can mean low-quality attention, so read it next to viewability and outcomes.",
-    "example": "$15,000 ÷ 2,000,000 impressions × 1,000 = $7.50 CPM.",
+    "whyItMatters": "The standard cross-channel cost yardstick - but a cheap CPM can mean low-quality attention, so read it next to viewability and outcomes.",
+    "example": "$15,000 / 2,000,000 impressions x 1,000 = $7.50 CPM.",
     "level": "foundational",
     "sources": [
       {
-        "label": "Google Ads Help — CPM",
+        "label": "Google Ads Help - CPM",
         "url": "https://support.google.com/google-ads/answer/6310"
       },
       {
-        "label": "IAB Australia — Digital Advertising Glossary",
+        "label": "IAB Australia - Digital Advertising Glossary",
         "url": "https://iabaustralia.com.au/resource/digital-advertising-glossary-of-terms-july-2019/"
       }
     ],
@@ -1876,7 +2196,22 @@
         "unit": "$"
       },
       "format": "currency"
-    }
+    },
+    "plainEnglish": "Cost per rating point.",
+    "whyItMatters": "How TV/radio cost-efficiency is quoted: CPP = Cost / GRPs.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "OzTAM - TV terms & definitions",
+        "url": "https://oztam.com.au/termsanddefinitions.aspx"
+      },
+      {
+        "label": "ThinkTV - What's a TARP",
+        "url": "https://thinktv.com.au/how-tos-resources/whats-a-tarp-and-hows-it-measured/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "cprp-metric-c888d223",
@@ -1908,7 +2243,18 @@
         "unit": "$"
       },
       "format": "currency"
-    }
+    },
+    "plainEnglish": "Cost per target rating point - CPP measured against the target audience.",
+    "whyItMatters": "The 'against target' cost efficiency used in AU TV/radio buying.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "ThinkTV - What's a TARP",
+        "url": "https://thinktv.com.au/how-tos-resources/whats-a-tarp-and-hows-it-measured/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "cpv-metric-24732447",
@@ -1940,7 +2286,18 @@
       },
       "format": "number",
       "inferred": true
-    }
+    },
+    "plainEnglish": "Cost per video view.",
+    "whyItMatters": "Video efficiency - but 'view' thresholds differ by platform, so compare like-for-like.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "IAB Australia - Digital Advertising Glossary",
+        "url": "https://iabaustralia.com.au/resource/digital-advertising-glossary-of-terms-july-2019/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "creative-creative-fc0e8722",
@@ -2021,7 +2378,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Reach across linear and BVOD",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Unique reach across linear TV and BVOD combined.",
+    "whyItMatters": "A VOZ 'Total TV' lens - how AU TV reach is now planned across screens.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "OzTAM - VOZ Total TV",
+        "url": "https://oztam.com.au/services/voz-total-tv/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "cta-creative-98d3ffef",
@@ -2070,7 +2438,18 @@
         "unit": "%"
       },
       "format": "percent"
-    }
+    },
+    "plainEnglish": "Click-through rate - clicks divided by impressions, as a %.",
+    "whyItMatters": "A diagnostic of creative/targeting relevance, not an outcome; inflated by bots and curiosity, so read with conversions.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Ads Help - CTR",
+        "url": "https://support.google.com/google-ads/answer/2615875"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "ctr-formula-metric-dbbfc3ec",
@@ -2119,7 +2498,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Cumulative unique viewers",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The cumulative count of unique viewers/listeners over a period.",
+    "whyItMatters": "Shows how audience builds over time - the basis of reach accumulation.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "OzTAM - TV terms & definitions",
+        "url": "https://oztam.com.au/termsanddefinitions.aspx"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "custom-audience-audience-7a004c68",
@@ -2159,7 +2549,18 @@
         "unit": "%"
       },
       "format": "percent"
-    }
+    },
+    "plainEnglish": "Conversion rate - conversions divided by clicks (or visits), as a %.",
+    "whyItMatters": "Where efficiency is won or lost after the click - landing page and offer quality.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Ads Help - Conversion rate",
+        "url": "https://support.google.com/google-ads/answer/2684489"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "dai-audio-a29a7b80",
@@ -2430,7 +2831,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Audience overlap between placements",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Audience overlap between two placements - people who saw both.",
+    "whyItMatters": "High duplication means you're re-reaching the same people (more frequency, less reach).",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "OzTAM - TV terms & definitions",
+        "url": "https://oztam.com.au/termsanddefinitions.aspx"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "dv360-channel-004a1703",
@@ -2516,7 +2928,18 @@
         "unit": "$"
       },
       "format": "currency"
-    }
+    },
+    "plainEnglish": "Effective CPM - total cost normalised to a per-1,000 basis regardless of how you bought.",
+    "whyItMatters": "Lets you compare a CPC buy and a CPM buy on the same scale.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "IAB Australia - Digital Advertising Glossary",
+        "url": "https://iabaustralia.com.au/resource/digital-advertising-glossary-of-terms-july-2019/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "ecpm-metric-2aafe519",
@@ -2548,7 +2971,18 @@
         "unit": "$"
       },
       "format": "currency"
-    }
+    },
+    "plainEnglish": "Effective CPM - total cost normalised to a per-1,000 basis regardless of how you bought.",
+    "whyItMatters": "Lets you compare a CPC buy and a CPM buy on the same scale.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "IAB Australia - Digital Advertising Glossary",
+        "url": "https://iabaustralia.com.au/resource/digital-advertising-glossary-of-terms-july-2019/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "effective-rate-finance-4f05a959",
@@ -2566,7 +3000,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Reach achieving minimum frequency",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The reach that hit at least the minimum (effective) frequency to actually work.",
+    "whyItMatters": "Raw reach over-counts people who saw it once and forgot; effective reach is the reach that counts.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "OzTAM - TV terms & definitions",
+        "url": "https://oztam.com.au/termsanddefinitions.aspx"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "eligible-impressions-metric-12b9bf95",
@@ -2575,7 +3020,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Total impressions available in auctions",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Total impressions that were available in the auctions you entered.",
+    "whyItMatters": "The denominator behind impression share - your potential ceiling.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Impression share",
+        "url": "https://support.google.com/google-ads/answer/7103314"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "end-card-video-7074b24e",
@@ -2624,7 +3080,18 @@
         "unit": "%"
       },
       "format": "percent"
-    }
+    },
+    "plainEnglish": "Engagements divided by impressions (or reach), as a %.",
+    "whyItMatters": "A relevance signal on social - but 'engagement' definitions vary by platform, so compare like-for-like.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Meta Business Help - Post engagement",
+        "url": "https://www.facebook.com/business/help/735720159834389"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "engagement-rate-metric-96c56fe5",
@@ -2655,7 +3122,18 @@
         "unit": "%"
       },
       "format": "percent"
-    }
+    },
+    "plainEnglish": "Engagements divided by impressions (or reach), as a %.",
+    "whyItMatters": "A relevance signal on social - but 'engagement' definitions vary by platform, so compare like-for-like.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Meta Business Help - Post engagement",
+        "url": "https://www.facebook.com/business/help/735720159834389"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "engagement-rate-ranking-reporting-0bb0a70b",
@@ -2884,7 +3362,18 @@
         "unit": "%"
       },
       "format": "percent"
-    }
+    },
+    "plainEnglish": "Of ad requests, the share filled with an ad.",
+    "whyItMatters": "A supply-side health metric - low fill means inventory isn't being monetised.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "IAB Australia - Digital Advertising Glossary",
+        "url": "https://iabaustralia.com.au/resource/digital-advertising-glossary-of-terms-july-2019/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "fill-rate-metric-3a9f9c7f",
@@ -2915,7 +3404,18 @@
         "unit": "%"
       },
       "format": "percent"
-    }
+    },
+    "plainEnglish": "Of ad requests, the share filled with an ad.",
+    "whyItMatters": "A supply-side health metric - low fill means inventory isn't being monetised.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "IAB Australia - Digital Advertising Glossary",
+        "url": "https://iabaustralia.com.au/resource/digital-advertising-glossary-of-terms-july-2019/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "final-url-tracking-597d6c1f",
@@ -3005,7 +3505,19 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Average exposures per reached viewer",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "On average, how many times each reached person saw the ad.",
+    "whyItMatters": "Too low and the message doesn't land; too high wastes budget. Effective frequency is the sweet spot.",
+    "example": "2,000,000 impressions / 500,000 reach = frequency 4.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "OzTAM - TV terms & definitions",
+        "url": "https://oztam.com.au/termsanddefinitions.aspx"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "frequency-cap-delivery-19e23d12",
@@ -3248,7 +3760,19 @@
         "unit": ""
       },
       "format": "number"
-    }
+    },
+    "plainEnglish": "Gross Rating Points - total rating points bought = Reach % x Frequency.",
+    "whyItMatters": "The headline 'weight' of a TV/radio campaign (duplicated audience).",
+    "example": "Reach 50% x Frequency 4 = 200 GRPs.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "OzTAM - TV terms & definitions",
+        "url": "https://oztam.com.au/termsanddefinitions.aspx"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "gst-commercial-421623a0",
@@ -3341,7 +3865,19 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Views retained past midpoint",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Views retained past the midpoint - did the creative keep attention?",
+    "whyItMatters": "A creative-diagnostic shorthand. Agency-defined, not an official platform metric.",
+    "practitionerNotes": "Built from Meta's standard video milestone fields; no official Meta page.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Meta Business Help - Video metrics (basis)",
+        "url": "https://www.facebook.com/business/help/2146677122218192"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "holdout-measurement-7d735b33",
@@ -3368,7 +3904,19 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Views in first seconds divided by impressions",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Views in the first seconds divided by impressions - did the opening stop the scroll?",
+    "whyItMatters": "A creative-diagnostic shorthand on social. Agency-defined, not an official platform metric - define it consistently internally.",
+    "practitionerNotes": "Typically 3-second video plays / impressions. No official Meta page; built from standard video fields.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Meta Business Help - Video metrics (basis)",
+        "url": "https://www.facebook.com/business/help/2146677122218192"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "household-reach-metric-4a516fd4",
@@ -3377,7 +3925,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Unique households exposed",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Unique households exposed to the ad.",
+    "whyItMatters": "A household-level reach view, used where the household (not the individual) is the buying unit.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "OzTAM - TV terms & definitions",
+        "url": "https://oztam.com.au/termsanddefinitions.aspx"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "iab-industry-7d548e4c",
@@ -3462,7 +4021,18 @@
         "unit": "%"
       },
       "format": "percent"
-    }
+    },
+    "plainEnglish": "The % of available impressions you actually received.",
+    "whyItMatters": "The clearest 'how much headroom is left' signal on search.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Impression share",
+        "url": "https://support.google.com/google-ads/answer/7103314"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "impression-share-metric-ba04de7f",
@@ -3493,7 +4063,18 @@
         "unit": "%"
       },
       "format": "percent"
-    }
+    },
+    "plainEnglish": "The % of available impressions you actually received.",
+    "whyItMatters": "The clearest 'how much headroom is left' signal on search.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Impression share",
+        "url": "https://support.google.com/google-ads/answer/7103314"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "impressions-delivery-9a99bad4",
@@ -3529,7 +4110,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Reach beyond linear TV",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The extra unique reach BVOD adds beyond linear TV.",
+    "whyItMatters": "Quantifies how much new audience streaming brings to a TV plan.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "ThinkTV - Virtual Australia",
+        "url": "https://thinktv.com.au/how-tos-resources/whats-a-tarp-and-hows-it-measured/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "incremental-reach-metric-7dad7dfa",
@@ -3538,7 +4130,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Additional reach beyond base plan",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The extra unique people a new channel or placement adds on top of what you already reach.",
+    "whyItMatters": "The core case for adding a channel - does it reach new people or just re-hit the same ones?",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "OzTAM - TV terms & definitions",
+        "url": "https://oztam.com.au/termsanddefinitions.aspx"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "incrementality-measurement-217d5ca7",
@@ -3574,7 +4177,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Checkout start event",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A standard event: the checkout process was started.",
+    "whyItMatters": "A high-intent funnel step; the gap to Purchase highlights checkout friction.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Meta for Developers - Meta Pixel",
+        "url": "https://developers.facebook.com/docs/meta-pixel/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "interest-targeting-audience-52725b98",
@@ -3709,7 +4323,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Loaded destination page",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The destination page actually loaded after a click.",
+    "whyItMatters": "Stronger than a click (which can bounce before load); the click-to-LPV gap reveals lost traffic.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Meta for Developers - Meta Pixel",
+        "url": "https://developers.facebook.com/docs/meta-pixel/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "last-click-attribution-61476172",
@@ -3854,7 +4479,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "CTR measured on link clicks only",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "CTR counting only link clicks.",
+    "whyItMatters": "Closer to real site traffic than all-click CTR, which includes likes, expands and other interactions.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Meta Business Help - Post engagement",
+        "url": "https://www.facebook.com/business/help/735720159834389"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "linkedin-ads-channel-88fd1fed",
@@ -3953,7 +4589,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Impression share lost due to budget limits",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Impression share you missed because budget ran out.",
+    "whyItMatters": "A direct signal to add budget - you're leaving impressions on the table.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Impression share",
+        "url": "https://support.google.com/google-ads/answer/7103314"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "lost-is-rank-metric-cac4bd0a",
@@ -3962,7 +4609,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Impression share lost due to ad rank",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Impression share you missed because of low Ad Rank.",
+    "whyItMatters": "Says improve bids/quality (not budget) to capture more impressions.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Impression share",
+        "url": "https://support.google.com/google-ads/answer/7103314"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "low-top-of-page-bid-metric-683ae06f",
@@ -4033,7 +4691,19 @@
       },
       "format": "number",
       "inferred": true
-    }
+    },
+    "plainEnglish": "Customer Lifetime Value - the total value a customer is worth over time.",
+    "whyItMatters": "Justifies a higher acquisition cost - if LTV is high, a 'bad' CPA can still be very profitable.",
+    "practitionerNotes": "General business metric; no ad-industry canonical page.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "IAB Australia - Digital Advertising Glossary",
+        "url": "https://iabaustralia.com.au/resource/digital-advertising-glossary-of-terms-july-2019/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "macro-conversion-analytics-a17ad8e1",
@@ -4237,7 +4907,19 @@
         "unit": ""
       },
       "format": "number"
-    }
+    },
+    "plainEnglish": "Marketing Efficiency Ratio - total revenue divided by total marketing spend.",
+    "whyItMatters": "A privacy-proof, whole-business efficiency read that's resilient to attribution gaps.",
+    "practitionerNotes": "General business metric; no IAB/Google/Meta canonical page.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "IAB Australia - Digital Advertising Glossary",
+        "url": "https://iabaustralia.com.au/resource/digital-advertising-glossary-of-terms-july-2019/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "messenger-placement-336f3dc0",
@@ -4520,7 +5202,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Unique audience exposure",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Total unique people exposed, counting each person once.",
+    "whyItMatters": "The de-duplicated headline reach - stops you double-counting someone seen on TV and BVOD.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "OzTAM - TV terms & definitions",
+        "url": "https://oztam.com.au/termsanddefinitions.aspx"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "non-brand-search-structure-8b702e51",
@@ -4629,7 +5322,18 @@
     "group": "Metrics",
     "definition": "Opportunities To See",
     "formula_or_notes": "Estimated exposures",
-    "type": "acronym"
+    "type": "acronym",
+    "plainEnglish": "Opportunities To See - how many chances the average person had to see the ad.",
+    "whyItMatters": "Frequency by another name, common in out-of-home and press planning.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "IAB Australia - Digital Advertising Glossary",
+        "url": "https://iabaustralia.com.au/resource/digital-advertising-glossary-of-terms-july-2019/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "ott-video-7cb677c0",
@@ -4647,7 +5351,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "CTR excluding platform interactions",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "CTR counting only clicks that leave the platform.",
+    "whyItMatters": "The closest social CTR to actual website visits.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Meta Business Help - Post engagement",
+        "url": "https://www.facebook.com/business/help/735720159834389"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "outbrain-channel-655a7b9b",
@@ -4665,7 +5380,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "How often you outrank competitors",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "How often your ad ranked above a specific competitor's (Auction Insights).",
+    "whyItMatters": "Competitive intelligence on the search results page.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "Google Ads Help",
+        "url": "https://support.google.com/google-ads/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "outstream-video-format-4e70cbfb",
@@ -4692,7 +5418,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "How often competitor appears with you",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "How often a competitor's ad appeared in the same auction as yours (Auction Insights).",
+    "whyItMatters": "Shows who you actually compete against on a keyword.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "Google Ads Help",
+        "url": "https://support.google.com/google-ads/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "oztam-measurement-359e18a9",
@@ -4899,7 +5636,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "How often competitor outranks you",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "How often a competitor ranked above you when you both showed (Auction Insights).",
+    "whyItMatters": "A head-to-head position signal against named competitors.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "Google Ads Help",
+        "url": "https://support.google.com/google-ads/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "position-based-attribution-0cdd9020",
@@ -5175,7 +5923,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Completed transaction",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A standard event: a transaction was completed.",
+    "whyItMatters": "The bottom-funnel conversion most performance campaigns optimise to.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Meta for Developers - Meta Pixel",
+        "url": "https://developers.facebook.com/docs/meta-pixel/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "qa-operations-d79d170a",
@@ -5220,7 +5979,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Diagnostic estimate of ad quality",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Google's 1-10 diagnostic of expected CTR, ad relevance and landing-page experience.",
+    "whyItMatters": "A diagnostic, not a KPI - it influences Ad Rank and CPCs, but chase relevance, not the number.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Quality Score",
+        "url": "https://support.google.com/google-ads/answer/6167118"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "query-level-optimisation-optimisation-cf4753fb",
@@ -5265,7 +6035,22 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Percentage of audience watching",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The % of a target audience watching at a given time (one rating = 1% of the target).",
+    "whyItMatters": "The atomic unit of TV/radio trading; ratings sum to GRPs/TARPs.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "OzTAM - TV terms & definitions",
+        "url": "https://oztam.com.au/termsanddefinitions.aspx"
+      },
+      {
+        "label": "ThinkTV - What's a TARP",
+        "url": "https://thinktv.com.au/how-tos-resources/whats-a-tarp-and-hows-it-measured/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "rating-point-metric-24688ac6",
@@ -5290,7 +6075,7 @@
     "level": "foundational",
     "sources": [
       {
-        "label": "OzTAM — TV terms & definitions",
+        "label": "OzTAM - TV terms & definitions",
         "url": "https://oztam.com.au/termsanddefinitions.aspx"
       }
     ],
@@ -5527,7 +6312,19 @@
         "unit": ""
       },
       "format": "number"
-    }
+    },
+    "plainEnglish": "Return on ad spend - revenue divided by ad spend.",
+    "whyItMatters": "Headline performance efficiency, but platform ROAS uses that platform's attribution and over-counts; validate with incrementality.",
+    "example": "$80,000 revenue / $20,000 spend = 4.0x ROAS.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Ads Help - Target ROAS",
+        "url": "https://support.google.com/google-ads/answer/6268637"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "roi-metric-8692c7a3",
@@ -5560,7 +6357,19 @@
         "unit": ""
       },
       "format": "percent"
-    }
+    },
+    "plainEnglish": "Return on investment - profit divided by cost, as a %.",
+    "whyItMatters": "Unlike ROAS it nets out costs/margin. Clients often say 'ROI' but mean ROAS - clarify which.",
+    "practitionerNotes": "General finance metric; no ad-industry canonical definition.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "IAB Australia - Digital Advertising Glossary",
+        "url": "https://iabaustralia.com.au/resource/digital-advertising-glossary-of-terms-july-2019/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "rsa-creative-847cd757",
@@ -5704,7 +6513,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Total lost opportunity",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Total impression share missed across budget and rank reasons.",
+    "whyItMatters": "The combined gap between what you got and what was available.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Impression share",
+        "url": "https://support.google.com/google-ads/answer/7103314"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "search-query-report-reporting-39a96d80",
@@ -5741,7 +6561,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Estimated average query count",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The estimated number of monthly searches for a term.",
+    "whyItMatters": "Demand sizing for keyword planning, from Keyword Planner.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Ads Help - Keyword Planner",
+        "url": "https://support.google.com/google-ads/answer/7337243"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "seat-account-1ffb8472",
@@ -5894,7 +6725,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Audience share for program",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A program's share of everyone watching TV at that moment.",
+    "whyItMatters": "Different from rating (share is of viewers; rating is of the population).",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "OzTAM - TV terms & definitions",
+        "url": "https://oztam.com.au/termsanddefinitions.aspx"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "share-of-voice-metric-e3e6dfff",
@@ -5903,7 +6745,19 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Brand presence versus competitors",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Your advertising presence as a share of the category's total.",
+    "whyItMatters": "Excess share of voice vs market share is a classic growth predictor.",
+    "example": "$200k of a $1m category = 20% SOV.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "IAB Australia - Digital Advertising Glossary",
+        "url": "https://iabaustralia.com.au/resource/digital-advertising-glossary-of-terms-july-2019/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "sitelinks-creative-de3d19d3",
@@ -6291,7 +7145,18 @@
     "group": "Metrics",
     "definition": "15s or full-length video view",
     "formula_or_notes": "Meta definition",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A Meta metric: the video played to completion, or for at least 15 seconds.",
+    "whyItMatters": "A more meaningful 'watched it' signal than a 3-second view for optimisation.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Meta Business Help - About ThruPlay",
+        "url": "https://www.facebook.com/business/help/2051461368219124"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "thumbstop-rate-metric-9d47e28a",
@@ -6300,7 +7165,19 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Users stopping scroll to view video",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Share of users who stopped scrolling to watch the video.",
+    "whyItMatters": "A creative-diagnostic shorthand. Agency-defined, not an official platform metric.",
+    "practitionerNotes": "Often equated with hook rate (3s plays / impressions); no official Meta page.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Meta Business Help - Video metrics (basis)",
+        "url": "https://www.facebook.com/business/help/2146677122218192"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "tiktok-ads-channel-215dee69",
@@ -6372,7 +7249,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Estimated bid for top placement",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The estimated bid needed to show at the top of the search results.",
+    "whyItMatters": "A planning input for what a keyword costs to compete on.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Top of page bid estimate",
+        "url": "https://support.google.com/google-ads/answer/6292661"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "top-of-page-rate-metric-8f871446",
@@ -6381,7 +7269,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Ads shown above organic results",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "How often your ad showed above the organic search results.",
+    "whyItMatters": "A position proxy for search visibility and brand defence.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Top and absolute top metrics",
+        "url": "https://support.google.com/google-ads/answer/7501826"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "tracking-template-tracking-e96762ea",
@@ -6499,7 +7398,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Reach excluding overlap",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Unique people across placements/channels, counting each person once.",
+    "whyItMatters": "The point of de-duplicated currencies like VOZ - cross-channel reach without inflation.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "OzTAM - TV terms & definitions",
+        "url": "https://oztam.com.au/termsanddefinitions.aspx"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "unique-ctr-metric-eb1b633c",
@@ -6508,7 +7418,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "CTR based on unique users",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "CTR based on unique users rather than total clicks.",
+    "whyItMatters": "Removes repeat clickers - a truer read of how many distinct people clicked.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - CTR",
+        "url": "https://support.google.com/google-ads/answer/2615875"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "unique-reach-delivery-a2500089",
@@ -6598,7 +7519,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Revenue attributed to conversions",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Revenue (or assigned worth) attributed to conversions.",
+    "whyItMatters": "The numerator of ROAS - only as good as your conversion-value setup.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Ads Help - About conversion values",
+        "url": "https://support.google.com/google-ads/answer/13064207"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "value-optimisation-bidding-00b85a2f",
@@ -6648,7 +7580,22 @@
         "unit": "$"
       },
       "format": "currency"
-    }
+    },
+    "plainEnglish": "Cost per 1,000 viewable impressions (50% on screen for 1s+, per MRC).",
+    "whyItMatters": "Pays only for impressions that could be seen - a fairer cost than raw CPM.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - viewable CPM",
+        "url": "https://support.google.com/google-ads/answer/3499086"
+      },
+      {
+        "label": "IAB/MRC - Viewable Impression guideline",
+        "url": "https://www.iab.com/wp-content/uploads/2015/06/MRC-Viewable-Ad-Impression-Measurement-Guideline.pdf"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "vcpm-metric-0972049b",
@@ -6680,7 +7627,22 @@
         "unit": "$"
       },
       "format": "currency"
-    }
+    },
+    "plainEnglish": "Cost per 1,000 viewable impressions (50% on screen for 1s+, per MRC).",
+    "whyItMatters": "Pays only for impressions that could be seen - a fairer cost than raw CPM.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - viewable CPM",
+        "url": "https://support.google.com/google-ads/answer/3499086"
+      },
+      {
+        "label": "IAB/MRC - Viewable Impression guideline",
+        "url": "https://www.iab.com/wp-content/uploads/2015/06/MRC-Viewable-Ad-Impression-Measurement-Guideline.pdf"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "verification-governance-d9a5ffb9",
@@ -6707,7 +7669,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Video played to end",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A video played all the way to the end.",
+    "whyItMatters": "The numerator of completion rate; a stronger watch signal than a view.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Meta Business Help - Video metrics",
+        "url": "https://www.facebook.com/business/help/2146677122218192"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "video-completion-rate-metric-e229c65f",
@@ -6716,7 +7689,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Completed views divided by starts",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Completed views divided by video starts, as a %.",
+    "whyItMatters": "The headline video-quality metric; BVOD completion rates run very high, part of BVOD's pitch.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "IAB Australia - Video Ad Completion Rate",
+        "url": "https://www.iabaustralia.com.au/general-content/item/2561-video-ad-completion-rate"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "video-view-metric-d35cf000",
@@ -6725,7 +7709,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Recorded video play",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A counted video play (the threshold varies by platform).",
+    "whyItMatters": "'View' means different things on different platforms - always check the threshold before comparing.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Meta Business Help - Video Views",
+        "url": "https://www.facebook.com/business/help/1635030749917644"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "view-attribution-tracking-b80369b9",
@@ -6743,7 +7738,18 @@
     "category_raw": "Metric",
     "group": "Metrics",
     "definition": "Product or page view event",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A standard event: a product or key page was viewed.",
+    "whyItMatters": "An upper-funnel signal for building retargeting audiences and seeding optimisation.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Meta for Developers - Meta Pixel",
+        "url": "https://developers.facebook.com/docs/meta-pixel/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "view-through-conversion-tracking-5de508d2",
@@ -6828,7 +7834,19 @@
         "unit": "%"
       },
       "format": "percent"
-    }
+    },
+    "plainEnglish": "View-through (completion) rate - the share of video views that played to completion or a set point.",
+    "whyItMatters": "A core video quality signal; 'view' definitions differ by platform, so check what counts before comparing.",
+    "example": "25,000 completed views / 100,000 starts = 25% VTR.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "IAB Australia - Video Ad Completion Rate",
+        "url": "https://www.iabaustralia.com.au/general-content/item/2561-video-ad-completion-rate"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "waterfall-mechanics-dfc10b55",
@@ -6895,7 +7913,18 @@
         "unit": "%"
       },
       "format": "percent"
-    }
+    },
+    "plainEnglish": "Of the auctions you bid in, the share you won.",
+    "whyItMatters": "A programmatic health metric - low win rate points to bid, pacing or eligibility issues.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "IAB Australia - Digital Advertising Glossary",
+        "url": "https://iabaustralia.com.au/resource/digital-advertising-glossary-of-terms-july-2019/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "win-rate-metric-27682d86",
@@ -6926,7 +7955,18 @@
         "unit": "%"
       },
       "format": "percent"
-    }
+    },
+    "plainEnglish": "Of the auctions you bid in, the share you won.",
+    "whyItMatters": "A programmatic health metric - low win rate points to bid, pacing or eligibility issues.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "IAB Australia - Digital Advertising Glossary",
+        "url": "https://iabaustralia.com.au/resource/digital-advertising-glossary-of-terms-july-2019/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "wip-operations-c1845c88",
