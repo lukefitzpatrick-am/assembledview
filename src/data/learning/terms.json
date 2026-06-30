@@ -755,15 +755,6 @@
     "reviewedAt": "2026-06-30"
   },
   {
-    "id": "assets-creative-9fe7a20b",
-    "term": "Assets",
-    "category": "Creative",
-    "category_raw": "Creative",
-    "group": "Creative",
-    "definition": "New naming for extensions",
-    "type": "definition"
-  },
-  {
     "id": "attention-delivery-28a368fc",
     "term": "Attention",
     "category": "Delivery",
@@ -1293,24 +1284,6 @@
     "type": "definition"
   },
   {
-    "id": "broadcast-tv-channel-401602bc",
-    "term": "Broadcast TV",
-    "category": "Channel",
-    "category_raw": "Channel",
-    "group": "Channels & Formats",
-    "definition": "Alias of Linear TV",
-    "type": "definition"
-  },
-  {
-    "id": "broadcaster-video-on-demand-channel-94abbf9b",
-    "term": "Broadcaster Video On Demand",
-    "category": "Channel",
-    "category_raw": "Channel",
-    "group": "Channels & Formats",
-    "definition": "Alias of BVOD",
-    "type": "definition"
-  },
-  {
     "id": "budget-planning-4b0e6ef7",
     "term": "Budget",
     "category": "Planning",
@@ -1476,15 +1449,6 @@
     ],
     "status": "reviewed",
     "reviewedAt": "2026-06-30"
-  },
-  {
-    "id": "call-to-action-creative-addc5d40",
-    "term": "Call to Action",
-    "category": "Creative",
-    "category_raw": "Creative",
-    "group": "Creative",
-    "definition": "User instruction",
-    "type": "definition"
   },
   {
     "id": "callouts-creative-4b7fe334",
@@ -1682,26 +1646,6 @@
       {
         "label": "Google Ads Help - About attribution models",
         "url": "https://support.google.com/google-ads/answer/6259715"
-      }
-    ],
-    "status": "reviewed",
-    "reviewedAt": "2026-06-30"
-  },
-  {
-    "id": "client-side-tracking-tracking-2a551dc5",
-    "term": "Client-side Tracking",
-    "category": "Tracking",
-    "category_raw": "Tracking",
-    "group": "Tracking & Ad Ops",
-    "definition": "Browser based tracking",
-    "type": "definition",
-    "plainEnglish": "Measurement where events fire from the user's browser/app.",
-    "whyItMatters": "Easy to set up but increasingly blocked (ITP, ad blockers, cookie limits) - a big driver of under-counted conversions.",
-    "level": "intermediate",
-    "sources": [
-      {
-        "label": "Google Tag Manager Help - Client vs server-side",
-        "url": "https://support.google.com/tagmanager/answer/13387731"
       }
     ],
     "status": "reviewed",
@@ -3070,12 +3014,12 @@
     "type": "definition"
   },
   {
-    "id": "dki-creative-d5ec9b39",
+    "id": "dki-creative-4112ef65",
     "term": "DKI",
     "category": "Creative",
     "category_raw": "Creative",
     "group": "Creative",
-    "definition": "Alias of DKI",
+    "definition": "Dynamic Keyword Insertion",
     "type": "acronym"
   },
   {
@@ -3834,15 +3778,6 @@
     "definition": "Planning",
     "formula_or_notes": "TV,Managing exposure repetition",
     "type": "definition"
-  },
-  {
-    "id": "fta-tv-channel-8d3c0040",
-    "term": "FTA TV",
-    "category": "Channel",
-    "category_raw": "Channel",
-    "group": "Channels & Formats",
-    "definition": "Alias of Free To Air TV",
-    "type": "acronym"
   },
   {
     "id": "full-funnel-strategy-3011fa4e",
@@ -6039,15 +5974,6 @@
     "type": "definition"
   },
   {
-    "id": "paid-search-channel-ef0e6543",
-    "term": "Paid Search",
-    "category": "Channel",
-    "category_raw": "Channel",
-    "group": "Channels & Formats",
-    "definition": "Alias of SEM",
-    "type": "definition"
-  },
-  {
     "id": "paid-social-channel-bad446eb",
     "term": "Paid Social",
     "category": "Channel",
@@ -7561,26 +7487,6 @@
       {
         "label": "Google Search Central - SEO docs",
         "url": "https://developers.google.com/search/docs"
-      }
-    ],
-    "status": "reviewed",
-    "reviewedAt": "2026-06-30"
-  },
-  {
-    "id": "server-side-tracking-tracking-c75e10d8",
-    "term": "Server-side Tracking",
-    "category": "Tracking",
-    "category_raw": "Tracking",
-    "group": "Tracking & Ad Ops",
-    "definition": "Server based tracking",
-    "type": "definition",
-    "plainEnglish": "Measurement where events are sent from your server rather than the browser.",
-    "whyItMatters": "More reliable and privacy-resilient; the modern answer to signal loss (sGTM, CAPI, server-side GA4).",
-    "level": "advanced",
-    "sources": [
-      {
-        "label": "Google Tag Manager Help - Client vs server-side",
-        "url": "https://support.google.com/tagmanager/answer/13387731"
       }
     ],
     "status": "reviewed",
