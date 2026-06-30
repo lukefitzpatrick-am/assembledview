@@ -56,6 +56,26 @@ export const DEFAULT_CATEGORY_COLOR: CategoryColor = {
   borderColor: "hsl(292 75% 40%)",
 };
 
+export const GROUP_COLORS: Record<string, CategoryColor> = {
+  "Planning & Strategy": { backgroundColor: "hsl(222 68% 54%)", textColor: "#ffffff", borderColor: "hsl(222 68% 42%)" },
+  "Buying & Trading": { backgroundColor: "hsl(28 88% 52%)", textColor: "#ffffff", borderColor: "hsl(28 88% 40%)" },
+  "Channels & Formats": { backgroundColor: "hsl(180 60% 38%)", textColor: "#ffffff", borderColor: "hsl(180 60% 28%)" },
+  "Audiences & Targeting": { backgroundColor: "hsl(325 68% 56%)", textColor: "#ffffff", borderColor: "hsl(325 68% 44%)" },
+  "Creative": { backgroundColor: "hsl(265 68% 60%)", textColor: "#ffffff", borderColor: "hsl(265 68% 48%)" },
+  "Metrics": { backgroundColor: "hsl(150 58% 40%)", textColor: "#ffffff", borderColor: "hsl(150 58% 30%)" },
+  "Measurement & Attribution": { backgroundColor: "hsl(199 80% 43%)", textColor: "#ffffff", borderColor: "hsl(199 80% 32%)" },
+  "Tracking & Ad Ops": { backgroundColor: "hsl(255 45% 58%)", textColor: "#ffffff", borderColor: "hsl(255 45% 46%)" },
+  "Finance & Commercial": { backgroundColor: "hsl(43 80% 45%)", textColor: "#ffffff", borderColor: "hsl(43 80% 34%)" },
+  "Governance & Privacy": { backgroundColor: "hsl(352 68% 52%)", textColor: "#ffffff", borderColor: "hsl(352 68% 40%)" },
+  "Platforms & Tools": { backgroundColor: "hsl(292 70% 52%)", textColor: "#ffffff", borderColor: "hsl(292 70% 40%)" },
+  "Other / Uncategorised": { backgroundColor: "hsl(220 10% 55%)", textColor: "#ffffff", borderColor: "hsl(220 10% 43%)" },
+};
+
+export const getGroupColor = (
+  group: string | undefined,
+  map: Record<string, CategoryColor> = GROUP_COLORS
+): CategoryColor => (group && map[group]) || DEFAULT_CATEGORY_COLOR;
+
 export const normalizeCategory = (category?: string) => (category?.trim() || "General");
 
 export const buildCategoryColorMap = (categories: string[]): Record<string, CategoryColor> => {

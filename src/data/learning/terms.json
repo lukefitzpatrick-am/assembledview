@@ -4,6 +4,7 @@
     "term": "1+ Reach",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Audience exposed at least once",
     "type": "definition"
   },
@@ -12,6 +13,7 @@
     "term": "15s",
     "category": "Creative",
     "category_raw": "Creative",
+    "group": "Creative",
     "definition": "Fifteen second TV ad",
     "type": "definition"
   },
@@ -20,6 +22,7 @@
     "term": "2+ Reach",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Audience exposed at least twice",
     "type": "definition"
   },
@@ -28,6 +31,7 @@
     "term": "3+ Reach",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Audience exposed at least three times",
     "type": "definition"
   },
@@ -36,6 +40,7 @@
     "term": "30s",
     "category": "Creative",
     "category_raw": "Creative",
+    "group": "Creative",
     "definition": "Thirty second TV ad",
     "type": "definition"
   },
@@ -44,6 +49,7 @@
     "term": "3s View",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Video viewed for at least 3 seconds",
     "type": "definition"
   },
@@ -52,6 +58,7 @@
     "term": "6s",
     "category": "Creative",
     "category_raw": "Creative",
+    "group": "Creative",
     "definition": "Six second short format",
     "type": "definition"
   },
@@ -60,6 +67,7 @@
     "term": "A/B Test",
     "category": "Testing",
     "category_raw": "Testing",
+    "group": "Measurement & Attribution",
     "definition": "Comparison of two variants",
     "type": "definition"
   },
@@ -68,6 +76,7 @@
     "term": "ABN",
     "category": "Commercial",
     "category_raw": "Commercial",
+    "group": "Finance & Commercial",
     "definition": "Australian Business Number used for invoicing and contracts",
     "formula_or_notes": "Australian government identifier",
     "type": "acronym"
@@ -77,6 +86,7 @@
     "term": "Absolute Top Rate",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Ads shown in first position",
     "type": "definition"
   },
@@ -85,6 +95,7 @@
     "term": "Accelerated Delivery",
     "category": "Delivery",
     "category_raw": "Delivery",
+    "group": "Buying & Trading",
     "definition": "Spend faster than even pacing",
     "type": "definition"
   },
@@ -93,6 +104,7 @@
     "term": "Accelerated Pacing",
     "category": "Delivery",
     "category_raw": "Delivery",
+    "group": "Buying & Trading",
     "definition": "Spend delivered faster early in flight",
     "type": "definition"
   },
@@ -101,6 +113,7 @@
     "term": "Accrual",
     "category": "Finance",
     "category_raw": "Finance",
+    "group": "Finance & Commercial",
     "definition": "Recognised cost not yet invoiced",
     "type": "definition"
   },
@@ -109,6 +122,7 @@
     "term": "Accrual Adjustment",
     "category": "Finance",
     "category_raw": "Finance",
+    "group": "Finance & Commercial",
     "definition": "Correction to prior accrual estimate",
     "type": "definition"
   },
@@ -117,6 +131,7 @@
     "term": "Accrued Media",
     "category": "Finance",
     "category_raw": "Finance",
+    "group": "Finance & Commercial",
     "definition": "Media delivered but not yet invoiced",
     "type": "definition"
   },
@@ -125,6 +140,7 @@
     "term": "Actual CPC",
     "category": "Bidding",
     "category_raw": "Bidding",
+    "group": "Buying & Trading",
     "definition": "Amount actually paid per click",
     "type": "definition"
   },
@@ -133,6 +149,7 @@
     "term": "Ad",
     "category": "Structure",
     "category_raw": "Structure",
+    "group": "Planning & Strategy",
     "definition": "Creative delivery unit",
     "type": "definition"
   },
@@ -141,6 +158,7 @@
     "term": "Ad Exchange",
     "category": "Platform",
     "category_raw": "Platform",
+    "group": "Platforms & Tools",
     "definition": "Marketplace connecting DSPs and SSPs",
     "type": "definition"
   },
@@ -149,6 +167,7 @@
     "term": "Ad Extensions",
     "category": "Creative",
     "category_raw": "Creative",
+    "group": "Creative",
     "definition": "Additional ad information elements",
     "type": "definition"
   },
@@ -157,6 +176,7 @@
     "term": "Ad Format",
     "category": "Creative",
     "category_raw": "Creative",
+    "group": "Creative",
     "definition": "Display video native specification",
     "type": "definition"
   },
@@ -165,6 +185,7 @@
     "term": "Ad Group",
     "category": "Structure",
     "category_raw": "Structure",
+    "group": "Planning & Strategy",
     "definition": "Grouping of ads and keywords",
     "type": "definition"
   },
@@ -173,6 +194,7 @@
     "term": "Ad Pod",
     "category": "Placement",
     "category_raw": "Placement",
+    "group": "Channels & Formats",
     "definition": "Group of ads within a break",
     "type": "definition"
   },
@@ -181,6 +203,7 @@
     "term": "Ad Rank",
     "category": "Mechanics",
     "category_raw": "Mechanics",
+    "group": "Tracking & Ad Ops",
     "definition": "Value determining ad position",
     "formula_or_notes": "Bid × Quality × Context",
     "type": "formula",
@@ -219,6 +242,7 @@
     "term": "AD RANK",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "",
     "formula_or_notes": ",",
     "type": "formula",
@@ -257,6 +281,7 @@
     "term": "Ad Relevance",
     "category": "Quality Component",
     "category_raw": "Quality Component",
+    "group": "Buying & Trading",
     "definition": "Keyword to ad relevance",
     "type": "definition"
   },
@@ -265,6 +290,7 @@
     "term": "Ad Relevance Diagnostics",
     "category": "Reporting",
     "category_raw": "Reporting",
+    "group": "Measurement & Attribution",
     "definition": "Quality feedback indicators",
     "formula_or_notes": "Meta",
     "type": "definition"
@@ -274,6 +300,7 @@
     "term": "Ad Set",
     "category": "Structure",
     "category_raw": "Structure",
+    "group": "Planning & Strategy",
     "definition": "Audience budget and optimisation container",
     "formula_or_notes": "Meta naming",
     "type": "definition"
@@ -283,6 +310,7 @@
     "term": "Ad Set Budget",
     "category": "Budgeting",
     "category_raw": "Budgeting",
+    "group": "Planning & Strategy",
     "definition": "Budget set at ad set level",
     "type": "definition"
   },
@@ -291,6 +319,7 @@
     "term": "Ad Strength",
     "category": "Creative",
     "category_raw": "Creative",
+    "group": "Creative",
     "definition": "Google diagnostic ad quality indicator",
     "type": "definition"
   },
@@ -299,6 +328,7 @@
     "term": "Add to Cart",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Item added to cart event",
     "type": "definition"
   },
@@ -307,6 +337,7 @@
     "term": "Addressable CPM",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Cost per thousand addressable impressions",
     "type": "definition"
   },
@@ -315,6 +346,7 @@
     "term": "Addressable TV",
     "category": "Formula",
     "category_raw": "Formula",
+    "group": "Other / Uncategorised",
     "definition": "Channel",
     "formula_or_notes": "TV,Household-level targeted TV ads",
     "type": "formula",
@@ -335,6 +367,7 @@
     "term": "Ads.txt",
     "category": "Governance",
     "category_raw": "Governance",
+    "group": "Governance & Privacy",
     "definition": "File authorising sellers of inventory",
     "type": "definition"
   },
@@ -343,6 +376,7 @@
     "term": "Advanced TV",
     "category": "Channel",
     "category_raw": "Channel",
+    "group": "Channels & Formats",
     "definition": "Data-driven TV buying umbrella",
     "type": "definition"
   },
@@ -351,6 +385,7 @@
     "term": "Advantage Plus Audience",
     "category": "Audience",
     "category_raw": "Audience",
+    "group": "Audiences & Targeting",
     "definition": "Automated audience expansion",
     "formula_or_notes": "Meta branding",
     "type": "definition"
@@ -360,6 +395,7 @@
     "term": "Advantage Plus Shopping",
     "category": "Creative",
     "category_raw": "Creative",
+    "group": "Creative",
     "definition": "Automated commerce campaign type",
     "formula_or_notes": "Meta branding",
     "type": "definition"
@@ -369,6 +405,7 @@
     "term": "Advertiser Account",
     "category": "Account",
     "category_raw": "Account",
+    "group": "Buying & Trading",
     "definition": "Client-level DSP entity",
     "type": "definition"
   },
@@ -377,6 +414,7 @@
     "term": "Affiliate",
     "category": "Channel",
     "category_raw": "Channel",
+    "group": "Channels & Formats",
     "definition": "Commission based partnerships",
     "type": "definition"
   },
@@ -385,6 +423,7 @@
     "term": "Agency Fee",
     "category": "Finance",
     "category_raw": "Finance",
+    "group": "Finance & Commercial",
     "definition": "Fixed or time-based service charge",
     "type": "definition"
   },
@@ -393,6 +432,7 @@
     "term": "Aggregated Event Measurement",
     "category": "Tracking",
     "category_raw": "Tracking",
+    "group": "Tracking & Ad Ops",
     "definition": "Privacy-restricted event ranking",
     "formula_or_notes": "Meta framework",
     "type": "definition"
@@ -402,6 +442,7 @@
     "term": "All Conversions",
     "category": "Tracking",
     "category_raw": "Tracking",
+    "group": "Tracking & Ad Ops",
     "definition": "Includes primary and secondary conversions",
     "type": "definition"
   },
@@ -410,6 +451,7 @@
     "term": "Always-on",
     "category": "Planning",
     "category_raw": "Planning",
+    "group": "Planning & Strategy",
     "definition": "Ongoing campaign without fixed end date",
     "type": "definition"
   },
@@ -418,6 +460,7 @@
     "term": "Amazon Ads",
     "category": "Commerce",
     "category_raw": "Commerce",
+    "group": "Finance & Commercial",
     "definition": "Amazon advertising platform",
     "type": "definition"
   },
@@ -426,6 +469,7 @@
     "term": "AOR",
     "category": "Commercial",
     "category_raw": "Commercial",
+    "group": "Finance & Commercial",
     "definition": "Agency of Record appointment",
     "type": "acronym"
   },
@@ -434,6 +478,7 @@
     "term": "AOV",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Average Order Value",
     "formula_or_notes": "Revenue / Orders",
     "type": "formula",
@@ -465,6 +510,7 @@
     "term": "API",
     "category": "Tech",
     "category_raw": "Tech",
+    "group": "Tracking & Ad Ops",
     "definition": "System data interface",
     "type": "acronym"
   },
@@ -473,6 +519,7 @@
     "term": "App-ads.txt",
     "category": "Governance",
     "category_raw": "Governance",
+    "group": "Governance & Privacy",
     "definition": "App equivalent of ads.txt",
     "type": "definition"
   },
@@ -481,6 +528,7 @@
     "term": "Arbitrage",
     "category": "Trading",
     "category_raw": "Trading",
+    "group": "Buying & Trading",
     "definition": "Buying low selling high inventory",
     "type": "definition"
   },
@@ -489,6 +537,7 @@
     "term": "Aspect Ratio",
     "category": "Creative",
     "category_raw": "Creative",
+    "group": "Creative",
     "definition": "Width to height format",
     "type": "definition"
   },
@@ -497,6 +546,7 @@
     "term": "Asset",
     "category": "Creative",
     "category_raw": "Creative",
+    "group": "Creative",
     "definition": "Ad creative file",
     "type": "definition"
   },
@@ -505,6 +555,7 @@
     "term": "Assets",
     "category": "Creative",
     "category_raw": "Creative",
+    "group": "Creative",
     "definition": "New naming for extensions",
     "type": "definition"
   },
@@ -513,6 +564,7 @@
     "term": "Attention",
     "category": "Delivery",
     "category_raw": "Delivery",
+    "group": "Buying & Trading",
     "definition": "Time based exposure metric",
     "type": "definition"
   },
@@ -521,6 +573,7 @@
     "term": "Attribution",
     "category": "Measurement",
     "category_raw": "Measurement",
+    "group": "Measurement & Attribution",
     "definition": "Process of assigning credit to touchpoints",
     "type": "definition"
   },
@@ -529,6 +582,7 @@
     "term": "Attribution Window",
     "category": "Tracking",
     "category_raw": "Tracking",
+    "group": "Tracking & Ad Ops",
     "definition": "Time allowed for conversion credit",
     "type": "definition"
   },
@@ -537,6 +591,7 @@
     "term": "Auction",
     "category": "Mechanics",
     "category_raw": "Mechanics",
+    "group": "Tracking & Ad Ops",
     "definition": "Process determining ad eligibility and position",
     "type": "definition"
   },
@@ -545,6 +600,7 @@
     "term": "Auction Insights",
     "category": "Reporting",
     "category_raw": "Reporting",
+    "group": "Measurement & Attribution",
     "definition": "Competitive auction comparison",
     "type": "definition"
   },
@@ -553,6 +609,7 @@
     "term": "Auction Time Bidding",
     "category": "Mechanics",
     "category_raw": "Mechanics",
+    "group": "Tracking & Ad Ops",
     "definition": "Bids evaluated per query in real time",
     "type": "definition"
   },
@@ -561,6 +618,7 @@
     "term": "Audience",
     "category": "Audience",
     "category_raw": "Audience",
+    "group": "Audiences & Targeting",
     "definition": "Defined viewing demographic",
     "type": "definition"
   },
@@ -569,6 +627,7 @@
     "term": "Audience Bid Adjustment",
     "category": "Bidding",
     "category_raw": "Bidding",
+    "group": "Buying & Trading",
     "definition": "Bid modifier for audiences",
     "type": "definition"
   },
@@ -577,6 +636,7 @@
     "term": "Audience Delivery",
     "category": "Delivery",
     "category_raw": "Delivery",
+    "group": "Buying & Trading",
     "definition": "Actual delivered ratings",
     "type": "definition"
   },
@@ -585,6 +645,7 @@
     "term": "Audience Expansion",
     "category": "Audience",
     "category_raw": "Audience",
+    "group": "Audiences & Targeting",
     "definition": "Algorithmic reach beyond defined audience",
     "type": "definition"
   },
@@ -593,6 +654,7 @@
     "term": "Audience Flow",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Movement between programs",
     "type": "definition"
   },
@@ -601,6 +663,7 @@
     "term": "Audience Network",
     "category": "Placement",
     "category_raw": "Placement",
+    "group": "Channels & Formats",
     "definition": "Off-platform placements",
     "formula_or_notes": "Meta",
     "type": "definition"
@@ -610,6 +673,7 @@
     "term": "Auto-tagging",
     "category": "Tracking",
     "category_raw": "Tracking",
+    "group": "Tracking & Ad Ops",
     "definition": "Automatic URL parameter tagging",
     "type": "definition"
   },
@@ -618,6 +682,7 @@
     "term": "Automatic Placements",
     "category": "Delivery",
     "category_raw": "Delivery",
+    "group": "Buying & Trading",
     "definition": "Platform-selected placements",
     "type": "definition"
   },
@@ -626,6 +691,7 @@
     "term": "Average Audience",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Mean viewers per program",
     "type": "definition"
   },
@@ -634,6 +700,7 @@
     "term": "Average Frequency",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Alias of Frequency",
     "type": "definition"
   },
@@ -642,6 +709,7 @@
     "term": "Avg Monthly Searches",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Alias of Search Volume",
     "type": "definition"
   },
@@ -650,6 +718,7 @@
     "term": "AVOD",
     "category": "Channel",
     "category_raw": "Channel",
+    "group": "Channels & Formats",
     "definition": "Advertising Supported Video On Demand",
     "type": "acronym"
   },
@@ -658,6 +727,7 @@
     "term": "Base Bid",
     "category": "Bidding",
     "category_raw": "Bidding",
+    "group": "Buying & Trading",
     "definition": "Initial bid before modifiers",
     "type": "definition"
   },
@@ -666,6 +736,7 @@
     "term": "Baseline",
     "category": "Measurement",
     "category_raw": "Measurement",
+    "group": "Measurement & Attribution",
     "definition": "Expected result without media",
     "type": "definition"
   },
@@ -674,6 +745,7 @@
     "term": "Behaviour Targeting",
     "category": "Audience",
     "category_raw": "Audience",
+    "group": "Audiences & Targeting",
     "definition": "Behaviour-based targeting",
     "type": "definition"
   },
@@ -682,6 +754,7 @@
     "term": "Bid",
     "category": "Bidding",
     "category_raw": "Bidding",
+    "group": "Buying & Trading",
     "definition": "Amount advertiser is willing to pay",
     "type": "definition"
   },
@@ -690,6 +763,7 @@
     "term": "Bid Adjustment",
     "category": "Bidding",
     "category_raw": "Bidding",
+    "group": "Buying & Trading",
     "definition": "Modifier applied to base bid",
     "type": "definition"
   },
@@ -698,6 +772,7 @@
     "term": "Bid Cap",
     "category": "Bidding",
     "category_raw": "Bidding",
+    "group": "Buying & Trading",
     "definition": "Maximum bid limit",
     "type": "definition"
   },
@@ -706,6 +781,7 @@
     "term": "Bid Floor",
     "category": "Mechanics",
     "category_raw": "Mechanics",
+    "group": "Tracking & Ad Ops",
     "definition": "Minimum acceptable price set by seller",
     "type": "definition"
   },
@@ -714,6 +790,7 @@
     "term": "Bid Multiplier",
     "category": "Bidding",
     "category_raw": "Bidding",
+    "group": "Buying & Trading",
     "definition": "Adjustment applied to base bid",
     "type": "definition"
   },
@@ -722,6 +799,7 @@
     "term": "Bid Rate",
     "category": "Supply",
     "category_raw": "Supply",
+    "group": "Buying & Trading",
     "definition": "Percentage of requests bid on",
     "formula_or_notes": "Bids / Requests * 100",
     "type": "formula",
@@ -752,6 +830,7 @@
     "term": "BID RATE",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "",
     "formula_or_notes": "Bids / Requests * 100,",
     "type": "formula",
@@ -782,6 +861,7 @@
     "term": "Bid Request",
     "category": "Mechanics",
     "category_raw": "Mechanics",
+    "group": "Tracking & Ad Ops",
     "definition": "Impression opportunity sent to DSP",
     "type": "definition"
   },
@@ -790,6 +870,7 @@
     "term": "Bid Response",
     "category": "Mechanics",
     "category_raw": "Mechanics",
+    "group": "Tracking & Ad Ops",
     "definition": "DSP bid returned to exchange",
     "type": "definition"
   },
@@ -798,6 +879,7 @@
     "term": "Bid Shading",
     "category": "Bidding",
     "category_raw": "Bidding",
+    "group": "Buying & Trading",
     "definition": "Lowering bids in first-price auctions",
     "type": "definition"
   },
@@ -806,6 +888,7 @@
     "term": "Bid Stacking",
     "category": "Strategy",
     "category_raw": "Strategy",
+    "group": "Planning & Strategy",
     "definition": "Multiple bid modifiers compounding",
     "type": "definition"
   },
@@ -814,6 +897,7 @@
     "term": "Bid Strategy",
     "category": "Mechanics",
     "category_raw": "Mechanics",
+    "group": "Tracking & Ad Ops",
     "definition": "Rule governing bid behaviour",
     "type": "definition"
   },
@@ -822,6 +906,7 @@
     "term": "BigQuery",
     "category": "Tech",
     "category_raw": "Tech",
+    "group": "Tracking & Ad Ops",
     "definition": "Google data warehouse",
     "type": "definition"
   },
@@ -830,6 +915,7 @@
     "term": "Billing Month",
     "category": "Finance",
     "category_raw": "Finance",
+    "group": "Finance & Commercial",
     "definition": "Month in which spend is recognised",
     "type": "definition"
   },
@@ -838,6 +924,7 @@
     "term": "Billing Schedule",
     "category": "Finance",
     "category_raw": "Finance",
+    "group": "Finance & Commercial",
     "definition": "Planned monthly billing breakdown",
     "type": "definition"
   },
@@ -846,6 +933,7 @@
     "term": "Blacklisting",
     "category": "Governance",
     "category_raw": "Governance",
+    "group": "Governance & Privacy",
     "definition": "Excluded inventory list",
     "type": "definition"
   },
@@ -854,6 +942,7 @@
     "term": "Blended ROAS",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "ROAS across campaigns or channels",
     "type": "definition"
   },
@@ -862,6 +951,7 @@
     "term": "Bonus Spots",
     "category": "Delivery",
     "category_raw": "Delivery",
+    "group": "Buying & Trading",
     "definition": "Additional spots provided at no cost",
     "type": "definition"
   },
@@ -870,6 +960,7 @@
     "term": "Bot Traffic",
     "category": "Governance",
     "category_raw": "Governance",
+    "group": "Governance & Privacy",
     "definition": "Automated non-human traffic",
     "type": "definition"
   },
@@ -878,6 +969,7 @@
     "term": "Brand Defense",
     "category": "Strategy",
     "category_raw": "Strategy",
+    "group": "Planning & Strategy",
     "definition": "Protecting branded queries",
     "type": "definition"
   },
@@ -886,6 +978,7 @@
     "term": "Brand Lift",
     "category": "Measurement",
     "category_raw": "Measurement",
+    "group": "Measurement & Attribution",
     "definition": "Survey-based brand impact study",
     "type": "definition"
   },
@@ -894,6 +987,7 @@
     "term": "Brand Safety",
     "category": "Governance",
     "category_raw": "Governance",
+    "group": "Governance & Privacy",
     "definition": "Controls to avoid unsafe content",
     "type": "definition"
   },
@@ -902,6 +996,7 @@
     "term": "Brand Search",
     "category": "Structure",
     "category_raw": "Structure",
+    "group": "Planning & Strategy",
     "definition": "Searches containing brand name",
     "type": "definition"
   },
@@ -910,6 +1005,7 @@
     "term": "Brief",
     "category": "Planning",
     "category_raw": "Planning",
+    "group": "Planning & Strategy",
     "definition": "Client requirements document",
     "type": "definition"
   },
@@ -918,6 +1014,7 @@
     "term": "Broad Match",
     "category": "Match Type",
     "category_raw": "Match Type",
+    "group": "Buying & Trading",
     "definition": "Triggers on related queries via intent",
     "type": "definition"
   },
@@ -926,6 +1023,7 @@
     "term": "Broad Match Expansion",
     "category": "Mechanics",
     "category_raw": "Mechanics",
+    "group": "Tracking & Ad Ops",
     "definition": "Algorithmic query expansion",
     "type": "definition"
   },
@@ -934,6 +1032,7 @@
     "term": "Broadcast TV",
     "category": "Channel",
     "category_raw": "Channel",
+    "group": "Channels & Formats",
     "definition": "Alias of Linear TV",
     "type": "definition"
   },
@@ -942,6 +1041,7 @@
     "term": "Broadcaster Video On Demand",
     "category": "Channel",
     "category_raw": "Channel",
+    "group": "Channels & Formats",
     "definition": "Alias of BVOD",
     "type": "definition"
   },
@@ -950,6 +1050,7 @@
     "term": "Budget",
     "category": "Planning",
     "category_raw": "Planning",
+    "group": "Planning & Strategy",
     "definition": "Approved spend limit for media or services",
     "type": "definition"
   },
@@ -958,6 +1059,7 @@
     "term": "Budget Cap",
     "category": "Delivery",
     "category_raw": "Delivery",
+    "group": "Buying & Trading",
     "definition": "Maximum spend allowed",
     "type": "definition"
   },
@@ -966,6 +1068,7 @@
     "term": "Burst",
     "category": "Planning",
     "category_raw": "Planning",
+    "group": "Planning & Strategy",
     "definition": "High-intensity spend period within a flight",
     "type": "definition"
   },
@@ -974,6 +1077,7 @@
     "term": "BVOD",
     "category": "Channel",
     "category_raw": "Channel",
+    "group": "Channels & Formats",
     "definition": "Broadcaster Video On Demand in Australia",
     "type": "acronym"
   },
@@ -982,6 +1086,7 @@
     "term": "BVOD Completion Rate",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Completed views divided by starts",
     "type": "definition"
   },
@@ -990,6 +1095,7 @@
     "term": "BVOD CPM",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Cost per thousand BVOD impressions",
     "type": "acronym"
   },
@@ -998,6 +1104,7 @@
     "term": "BVOD CPV",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Cost per BVOD video view",
     "type": "acronym"
   },
@@ -1006,6 +1113,7 @@
     "term": "BVOD Impression",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Digital video ad serving",
     "type": "definition"
   },
@@ -1014,6 +1122,7 @@
     "term": "BVOD Reach",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Unique viewers reached via BVOD",
     "type": "definition"
   },
@@ -1022,6 +1131,7 @@
     "term": "Call Extension",
     "category": "Creative",
     "category_raw": "Creative",
+    "group": "Creative",
     "definition": "Clickable phone number",
     "type": "definition"
   },
@@ -1030,6 +1140,7 @@
     "term": "Call to Action",
     "category": "Creative",
     "category_raw": "Creative",
+    "group": "Creative",
     "definition": "User instruction",
     "type": "definition"
   },
@@ -1038,6 +1149,7 @@
     "term": "Callouts",
     "category": "Creative",
     "category_raw": "Creative",
+    "group": "Creative",
     "definition": "Short benefit statements",
     "type": "definition"
   },
@@ -1046,6 +1158,7 @@
     "term": "Campaign",
     "category": "Structure",
     "category_raw": "Structure",
+    "group": "Planning & Strategy",
     "definition": "Top-level buying container",
     "type": "definition"
   },
@@ -1054,6 +1167,7 @@
     "term": "Campaign Budget Optimisation",
     "category": "Budgeting",
     "category_raw": "Budgeting",
+    "group": "Planning & Strategy",
     "definition": "Automatic budget allocation",
     "formula_or_notes": "Meta",
     "type": "definition"
@@ -1063,6 +1177,7 @@
     "term": "Campaign Level Optimisation",
     "category": "Optimisation",
     "category_raw": "Optimisation",
+    "group": "Buying & Trading",
     "definition": "Optimising at campaign level",
     "type": "definition"
   },
@@ -1071,6 +1186,7 @@
     "term": "Cannibalisation",
     "category": "Optimisation",
     "category_raw": "Optimisation",
+    "group": "Buying & Trading",
     "definition": "Keywords competing internally",
     "type": "definition"
   },
@@ -1079,6 +1195,7 @@
     "term": "CAPI",
     "category": "Tracking",
     "category_raw": "Tracking",
+    "group": "Tracking & Ad Ops",
     "definition": "Meta server side conversions",
     "type": "acronym"
   },
@@ -1087,6 +1204,7 @@
     "term": "Cartology",
     "category": "Retail Media",
     "category_raw": "Retail Media",
+    "group": "Channels & Formats",
     "definition": "Woolworths retail media network (AU)",
     "type": "definition"
   },
@@ -1095,6 +1213,7 @@
     "term": "Catch-up TV",
     "category": "Channel",
     "category_raw": "Channel",
+    "group": "Channels & Formats",
     "definition": "On-demand replay of broadcast content",
     "type": "definition"
   },
@@ -1103,6 +1222,7 @@
     "term": "Category Contextual",
     "category": "Targeting",
     "category_raw": "Targeting",
+    "group": "Audiences & Targeting",
     "definition": "Content category targeting",
     "type": "definition"
   },
@@ -1111,6 +1231,7 @@
     "term": "CBO",
     "category": "Budgeting",
     "category_raw": "Budgeting",
+    "group": "Planning & Strategy",
     "definition": "Campaign Budget Optimisation",
     "formula_or_notes": "Meta automation",
     "type": "acronym"
@@ -1120,6 +1241,7 @@
     "term": "CDP",
     "category": "Tech",
     "category_raw": "Tech",
+    "group": "Tracking & Ad Ops",
     "definition": "Customer Data Platform",
     "type": "acronym"
   },
@@ -1128,6 +1250,7 @@
     "term": "Change Request",
     "category": "Operations",
     "category_raw": "Operations",
+    "group": "Tracking & Ad Ops",
     "definition": "Logged scope or delivery change",
     "type": "definition"
   },
@@ -1136,6 +1259,7 @@
     "term": "Clearing Price",
     "category": "Mechanics",
     "category_raw": "Mechanics",
+    "group": "Tracking & Ad Ops",
     "definition": "Price paid after auction clears",
     "type": "definition"
   },
@@ -1144,6 +1268,7 @@
     "term": "Click",
     "category": "Engagement",
     "category_raw": "Engagement",
+    "group": "Metrics",
     "definition": "User interaction with an ad",
     "type": "definition"
   },
@@ -1152,6 +1277,7 @@
     "term": "Click Attribution",
     "category": "Tracking",
     "category_raw": "Tracking",
+    "group": "Tracking & Ad Ops",
     "definition": "Conversions credited after click",
     "type": "definition"
   },
@@ -1160,6 +1286,7 @@
     "term": "Click Through Conversion",
     "category": "Tracking",
     "category_raw": "Tracking",
+    "group": "Tracking & Ad Ops",
     "definition": "Conversion after ad click",
     "type": "definition"
   },
@@ -1168,6 +1295,7 @@
     "term": "Click Through Rate",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Alias of CTR",
     "type": "definition"
   },
@@ -1176,6 +1304,7 @@
     "term": "Client-side Tracking",
     "category": "Tracking",
     "category_raw": "Tracking",
+    "group": "Tracking & Ad Ops",
     "definition": "Browser based tracking",
     "type": "definition"
   },
@@ -1184,6 +1313,7 @@
     "term": "Client-Side Tracking",
     "category": "Tracking",
     "category_raw": "Tracking",
+    "group": "Tracking & Ad Ops",
     "definition": "Events sent from browser",
     "type": "definition"
   },
@@ -1192,6 +1322,7 @@
     "term": "Close Variant",
     "category": "Match Type",
     "category_raw": "Match Type",
+    "group": "Buying & Trading",
     "definition": "Plural misspelling or reordered terms",
     "type": "definition"
   },
@@ -1200,6 +1331,7 @@
     "term": "CM360",
     "category": "Channel",
     "category_raw": "Channel",
+    "group": "Channels & Formats",
     "definition": "Google Campaign Manager",
     "type": "acronym"
   },
@@ -1208,6 +1340,7 @@
     "term": "CMP",
     "category": "Privacy",
     "category_raw": "Privacy",
+    "group": "Governance & Privacy",
     "definition": "Consent Management Platform",
     "type": "acronym"
   },
@@ -1216,6 +1349,7 @@
     "term": "Coles 360",
     "category": "Retail Media",
     "category_raw": "Retail Media",
+    "group": "Channels & Formats",
     "definition": "Coles retail media network (AU)",
     "type": "definition"
   },
@@ -1224,6 +1358,7 @@
     "term": "Commercial Intent",
     "category": "Optimisation",
     "category_raw": "Optimisation",
+    "group": "Buying & Trading",
     "definition": "Purchase-driven search behaviour",
     "type": "definition"
   },
@@ -1232,6 +1367,7 @@
     "term": "Commission",
     "category": "Finance",
     "category_raw": "Finance",
+    "group": "Finance & Commercial",
     "definition": "Percentage of media spend earned by agency",
     "type": "definition"
   },
@@ -1240,6 +1376,7 @@
     "term": "Companion Banner",
     "category": "Format",
     "category_raw": "Format",
+    "group": "Channels & Formats",
     "definition": "Display unit alongside video",
     "type": "definition"
   },
@@ -1248,6 +1385,7 @@
     "term": "Competition",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Relative advertiser density",
     "type": "definition"
   },
@@ -1256,6 +1394,7 @@
     "term": "Competitive Weight",
     "category": "Planning",
     "category_raw": "Planning",
+    "group": "Planning & Strategy",
     "definition": "Relative GRP investment",
     "type": "definition"
   },
@@ -1264,6 +1403,7 @@
     "term": "Competitor Search",
     "category": "Structure",
     "category_raw": "Structure",
+    "group": "Planning & Strategy",
     "definition": "Searches referencing competitors",
     "type": "definition"
   },
@@ -1272,6 +1412,7 @@
     "term": "Compliance",
     "category": "Ops",
     "category_raw": "Ops",
+    "group": "Tracking & Ad Ops",
     "definition": "Adherence to rules",
     "type": "definition"
   },
@@ -1280,6 +1421,7 @@
     "term": "Consent Mode",
     "category": "Privacy",
     "category_raw": "Privacy",
+    "group": "Governance & Privacy",
     "definition": "Consent-based signal handling",
     "type": "definition"
   },
@@ -1288,6 +1430,7 @@
     "term": "Contextual Alignment",
     "category": "Planning",
     "category_raw": "Planning",
+    "group": "Planning & Strategy",
     "definition": "Content relevance to brand",
     "type": "definition"
   },
@@ -1296,6 +1439,7 @@
     "term": "Contextual Targeting",
     "category": "Targeting",
     "category_raw": "Targeting",
+    "group": "Audiences & Targeting",
     "definition": "Targeting based on content",
     "type": "definition"
   },
@@ -1304,6 +1448,7 @@
     "term": "Control Group",
     "category": "Measurement",
     "category_raw": "Measurement",
+    "group": "Measurement & Attribution",
     "definition": "Unexposed group used in testing",
     "type": "definition"
   },
@@ -1312,6 +1457,7 @@
     "term": "Conversion",
     "category": "Measurement",
     "category_raw": "Measurement",
+    "group": "Measurement & Attribution",
     "definition": "Tracked outcome used for optimisation",
     "type": "definition"
   },
@@ -1320,6 +1466,7 @@
     "term": "Conversion Action",
     "category": "Tracking",
     "category_raw": "Tracking",
+    "group": "Tracking & Ad Ops",
     "definition": "Defined outcome used for optimisation",
     "type": "definition"
   },
@@ -1328,6 +1475,7 @@
     "term": "Conversion Lift",
     "category": "Measurement",
     "category_raw": "Measurement",
+    "group": "Measurement & Attribution",
     "definition": "Incremental conversion measurement",
     "type": "definition"
   },
@@ -1336,6 +1484,7 @@
     "term": "Conversion Rate Ranking",
     "category": "Reporting",
     "category_raw": "Reporting",
+    "group": "Measurement & Attribution",
     "definition": "Conversion comparison ranking",
     "type": "definition"
   },
@@ -1344,6 +1493,7 @@
     "term": "Conversion Window",
     "category": "Tracking",
     "category_raw": "Tracking",
+    "group": "Tracking & Ad Ops",
     "definition": "Time allowed for conversion credit",
     "type": "definition"
   },
@@ -1352,6 +1502,7 @@
     "term": "Cookie Syncing",
     "category": "Identity",
     "category_raw": "Identity",
+    "group": "Audiences & Targeting",
     "definition": "Alias of ID Syncing",
     "type": "definition"
   },
@@ -1360,6 +1511,7 @@
     "term": "Copy",
     "category": "Creative",
     "category_raw": "Creative",
+    "group": "Creative",
     "definition": "Written ad text",
     "type": "definition"
   },
@@ -1368,6 +1520,7 @@
     "term": "Cost Cap",
     "category": "Bidding",
     "category_raw": "Bidding",
+    "group": "Buying & Trading",
     "definition": "Target average cost control",
     "type": "definition"
   },
@@ -1376,6 +1529,7 @@
     "term": "Cost per Lead",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Cost per lead submission",
     "formula_or_notes": "Cost / Leads",
     "type": "formula",
@@ -1407,6 +1561,7 @@
     "term": "COST PER LEAD",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "",
     "formula_or_notes": "Cost / Leads,",
     "type": "formula",
@@ -1438,6 +1593,7 @@
     "term": "Cost per LPV",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Cost divided by landing page views",
     "type": "definition"
   },
@@ -1446,6 +1602,7 @@
     "term": "Cost Per Point",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Cost per rating point",
     "formula_or_notes": "Cost / GRPs",
     "type": "formula",
@@ -1477,6 +1634,7 @@
     "term": "COST PER POINT",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "",
     "formula_or_notes": "Cost / GRPs,",
     "type": "formula",
@@ -1508,6 +1666,7 @@
     "term": "Coverage",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Reach within defined universe",
     "type": "definition"
   },
@@ -1516,6 +1675,7 @@
     "term": "CPA",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Cost Per Acquisition",
     "formula_or_notes": "Cost / Conversions",
     "type": "formula",
@@ -1547,6 +1707,7 @@
     "term": "CPC",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Cost Per Click",
     "formula_or_notes": "Cost / Clicks",
     "type": "formula",
@@ -1578,6 +1739,7 @@
     "term": "CPE",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Cost Per Engagement",
     "formula_or_notes": "Cost / Engagements",
     "type": "formula",
@@ -1609,6 +1771,7 @@
     "term": "CPL",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Cost Per Lead",
     "formula_or_notes": "Cost / Leads",
     "type": "formula",
@@ -1640,6 +1803,7 @@
     "term": "CPM",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Cost Per Thousand Impressions",
     "formula_or_notes": "Cost / Impressions * 1000",
     "type": "formula",
@@ -1664,13 +1828,30 @@
         "unit": "$"
       },
       "format": "currency"
-    }
+    },
+    "plainEnglish": "Cost per 1,000 impressions.",
+    "whyItMatters": "The cross-channel cost yardstick — but a cheap CPM can mean low-quality attention, so read it next to viewability and outcomes.",
+    "example": "$15,000 ÷ 2,000,000 impressions × 1,000 = $7.50 CPM.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Ads Help — CPM",
+        "url": "https://support.google.com/google-ads/answer/6310"
+      },
+      {
+        "label": "IAB Australia — Digital Advertising Glossary",
+        "url": "https://iabaustralia.com.au/resource/digital-advertising-glossary-of-terms-july-2019/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "cpp-metric-b80695d5",
     "term": "CPP",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Cost per rating point",
     "formula_or_notes": "Cost / GRPs",
     "type": "formula",
@@ -1702,6 +1883,7 @@
     "term": "CPRP",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Cost per target rating point",
     "formula_or_notes": "Cost / TRPs",
     "type": "formula",
@@ -1733,6 +1915,7 @@
     "term": "CPV",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Cost Per Video View",
     "formula_or_notes": "Cost / Video Views",
     "type": "formula",
@@ -1764,6 +1947,7 @@
     "term": "Creative",
     "category": "Creative",
     "category_raw": "Creative",
+    "group": "Creative",
     "definition": "Ad asset including copy and visuals",
     "type": "definition"
   },
@@ -1772,6 +1956,7 @@
     "term": "Creative Fatigue",
     "category": "Creative",
     "category_raw": "Creative",
+    "group": "Creative",
     "definition": "Declining performance due to overexposure",
     "type": "definition"
   },
@@ -1780,6 +1965,7 @@
     "term": "Creative Refresh",
     "category": "Creative",
     "category_raw": "Creative",
+    "group": "Creative",
     "definition": "Introducing new assets",
     "type": "definition"
   },
@@ -1788,6 +1974,7 @@
     "term": "Creative Rotation",
     "category": "Creative",
     "category_raw": "Creative",
+    "group": "Creative",
     "definition": "Rules for asset serving",
     "type": "definition"
   },
@@ -1796,6 +1983,7 @@
     "term": "Creative Testing",
     "category": "Creative",
     "category_raw": "Creative",
+    "group": "Creative",
     "definition": "Testing multiple ad variants",
     "type": "definition"
   },
@@ -1804,6 +1992,7 @@
     "term": "Creative Wearout",
     "category": "Creative",
     "category_raw": "Creative",
+    "group": "Creative",
     "definition": "Declining impact from repetition",
     "type": "definition"
   },
@@ -1812,6 +2001,7 @@
     "term": "CRM",
     "category": "Tech",
     "category_raw": "Tech",
+    "group": "Tracking & Ad Ops",
     "definition": "Customer Relationship Management system",
     "type": "acronym"
   },
@@ -1820,6 +2010,7 @@
     "term": "Cross-device",
     "category": "Identity",
     "category_raw": "Identity",
+    "group": "Audiences & Targeting",
     "definition": "User exposure across devices",
     "type": "definition"
   },
@@ -1828,6 +2019,7 @@
     "term": "Cross-Screen Reach",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Reach across linear and BVOD",
     "type": "definition"
   },
@@ -1836,6 +2028,7 @@
     "term": "CTA",
     "category": "Creative",
     "category_raw": "Creative",
+    "group": "Creative",
     "definition": "Call to action button or prompt",
     "type": "acronym"
   },
@@ -1844,6 +2037,7 @@
     "term": "CTA Rate",
     "category": "Creative",
     "category_raw": "Creative",
+    "group": "Creative",
     "definition": "CTA interactions divided by impressions",
     "type": "definition"
   },
@@ -1852,6 +2046,7 @@
     "term": "CTR",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Click Through Rate",
     "formula_or_notes": "Clicks / Impressions * 100",
     "type": "formula",
@@ -1882,6 +2077,7 @@
     "term": "CTR Formula",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "CTR calculation",
     "formula_or_notes": "Clicks / Impressions * 100",
     "type": "formula",
@@ -1912,6 +2108,7 @@
     "term": "CTV",
     "category": "Channel",
     "category_raw": "Channel",
+    "group": "Channels & Formats",
     "definition": "Connected TV delivered via internet",
     "type": "acronym"
   },
@@ -1920,6 +2117,7 @@
     "term": "Cume Audience",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Cumulative unique viewers",
     "type": "definition"
   },
@@ -1928,6 +2126,7 @@
     "term": "Custom Audience",
     "category": "Audience",
     "category_raw": "Audience",
+    "group": "Audiences & Targeting",
     "definition": "First-party defined audience",
     "type": "definition"
   },
@@ -1936,6 +2135,7 @@
     "term": "CVR",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Conversion Rate",
     "formula_or_notes": "Conversions / Clicks * 100",
     "type": "formula",
@@ -1966,6 +2166,7 @@
     "term": "DAI",
     "category": "Audio",
     "category_raw": "Audio",
+    "group": "Channels & Formats",
     "definition": "Dynamic Ad Insertion",
     "type": "acronym"
   },
@@ -1974,6 +2175,7 @@
     "term": "Daily Budget",
     "category": "Budgeting",
     "category_raw": "Budgeting",
+    "group": "Planning & Strategy",
     "definition": "Spend limit per day",
     "type": "definition"
   },
@@ -1982,6 +2184,7 @@
     "term": "Daily Cap",
     "category": "Definition",
     "category_raw": "Definition",
+    "group": "Other / Uncategorised",
     "definition": "Delivery",
     "formula_or_notes": "Programmatic,Daily spend limit",
     "type": "definition"
@@ -1991,6 +2194,7 @@
     "term": "Data Fee",
     "category": "Finance",
     "category_raw": "Finance",
+    "group": "Finance & Commercial",
     "definition": "Cost for audience or data usage",
     "type": "definition"
   },
@@ -1999,6 +2203,7 @@
     "term": "Data Freshness",
     "category": "Reporting",
     "category_raw": "Reporting",
+    "group": "Measurement & Attribution",
     "definition": "Latency of reporting updates",
     "type": "definition"
   },
@@ -2007,6 +2212,7 @@
     "term": "Daypart",
     "category": "Planning",
     "category_raw": "Planning",
+    "group": "Planning & Strategy",
     "definition": "Time-of-day segment",
     "type": "definition"
   },
@@ -2015,6 +2221,7 @@
     "term": "Dayparting",
     "category": "Targeting",
     "category_raw": "Targeting",
+    "group": "Audiences & Targeting",
     "definition": "Time-of-day targeting",
     "type": "definition"
   },
@@ -2023,6 +2230,7 @@
     "term": "De-duplication",
     "category": "Measurement",
     "category_raw": "Measurement",
+    "group": "Measurement & Attribution",
     "definition": "Removing overlap across screens",
     "type": "definition"
   },
@@ -2031,6 +2239,7 @@
     "term": "Deal",
     "category": "Trading",
     "category_raw": "Trading",
+    "group": "Buying & Trading",
     "definition": "Agreed trading terms between buyer and seller",
     "type": "definition"
   },
@@ -2039,6 +2248,7 @@
     "term": "Deal ID",
     "category": "Programmatic",
     "category_raw": "Programmatic",
+    "group": "Buying & Trading",
     "definition": "Identifier used to transact a deal",
     "type": "definition"
   },
@@ -2047,6 +2257,7 @@
     "term": "Delivery",
     "category": "Delivery",
     "category_raw": "Delivery",
+    "group": "Buying & Trading",
     "definition": "Ability to spend budget and serve ads",
     "type": "definition"
   },
@@ -2055,6 +2266,7 @@
     "term": "Delivery Insights",
     "category": "Reporting",
     "category_raw": "Reporting",
+    "group": "Measurement & Attribution",
     "definition": "Explanation for performance behaviour",
     "type": "definition"
   },
@@ -2063,6 +2275,7 @@
     "term": "Demand",
     "category": "Supply",
     "category_raw": "Supply",
+    "group": "Buying & Trading",
     "definition": "Buyer interest in inventory",
     "type": "definition"
   },
@@ -2071,6 +2284,7 @@
     "term": "Demand Side Platform",
     "category": "Platform",
     "category_raw": "Platform",
+    "group": "Platforms & Tools",
     "definition": "Alias of DSP",
     "type": "definition"
   },
@@ -2079,6 +2293,7 @@
     "term": "Demo",
     "category": "Audience",
     "category_raw": "Audience",
+    "group": "Audiences & Targeting",
     "definition": "Demographic group definition",
     "type": "definition"
   },
@@ -2087,6 +2302,7 @@
     "term": "Demographic Targeting",
     "category": "Audience",
     "category_raw": "Audience",
+    "group": "Audiences & Targeting",
     "definition": "Age gender location targeting",
     "type": "definition"
   },
@@ -2095,6 +2311,7 @@
     "term": "Description",
     "category": "Creative",
     "category_raw": "Creative",
+    "group": "Creative",
     "definition": "Supporting ad text",
     "type": "definition"
   },
@@ -2103,6 +2320,7 @@
     "term": "Deterministic ID",
     "category": "Identity",
     "category_raw": "Identity",
+    "group": "Audiences & Targeting",
     "definition": "Logged-in known identifier",
     "type": "definition"
   },
@@ -2111,6 +2329,7 @@
     "term": "Device Bid Adjustment",
     "category": "Bidding",
     "category_raw": "Bidding",
+    "group": "Buying & Trading",
     "definition": "Bid modifier by device",
     "type": "definition"
   },
@@ -2119,6 +2338,7 @@
     "term": "Device Graph",
     "category": "Identity",
     "category_raw": "Identity",
+    "group": "Audiences & Targeting",
     "definition": "Map linking devices to users",
     "type": "definition"
   },
@@ -2127,6 +2347,7 @@
     "term": "Digital Audio",
     "category": "Audio",
     "category_raw": "Audio",
+    "group": "Channels & Formats",
     "definition": "Streamed audio",
     "type": "definition"
   },
@@ -2135,6 +2356,7 @@
     "term": "Diminishing Reach",
     "category": "Planning",
     "category_raw": "Planning",
+    "group": "Planning & Strategy",
     "definition": "Reduced incremental reach at scale",
     "type": "definition"
   },
@@ -2143,6 +2365,7 @@
     "term": "Diminishing Returns",
     "category": "Economics",
     "category_raw": "Economics",
+    "group": "Buying & Trading",
     "definition": "Reduced marginal gains at scale",
     "type": "definition"
   },
@@ -2151,6 +2374,7 @@
     "term": "Direct Path",
     "category": "Trading",
     "category_raw": "Trading",
+    "group": "Buying & Trading",
     "definition": "Single hop supply route",
     "type": "definition"
   },
@@ -2159,6 +2383,7 @@
     "term": "Display",
     "category": "Format",
     "category_raw": "Format",
+    "group": "Channels & Formats",
     "definition": "Standard banner advertising",
     "type": "definition"
   },
@@ -2167,6 +2392,7 @@
     "term": "DKI",
     "category": "Creative",
     "category_raw": "Creative",
+    "group": "Creative",
     "definition": "Alias of DKI",
     "type": "acronym"
   },
@@ -2175,6 +2401,7 @@
     "term": "DOOH",
     "category": "Offline",
     "category_raw": "Offline",
+    "group": "Channels & Formats",
     "definition": "Digital Out of Home",
     "type": "acronym"
   },
@@ -2183,6 +2410,7 @@
     "term": "DoubleVerify",
     "category": "Verification",
     "category_raw": "Verification",
+    "group": "Measurement & Attribution",
     "definition": "Verification and suitability provider",
     "type": "definition"
   },
@@ -2191,6 +2419,7 @@
     "term": "DSP",
     "category": "Programmatic",
     "category_raw": "Programmatic",
+    "group": "Buying & Trading",
     "definition": "Demand Side Platform used to buy ads",
     "type": "acronym"
   },
@@ -2199,6 +2428,7 @@
     "term": "Duplication",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Audience overlap between placements",
     "type": "definition"
   },
@@ -2207,6 +2437,7 @@
     "term": "DV360",
     "category": "Channel",
     "category_raw": "Channel",
+    "group": "Channels & Formats",
     "definition": "Google Display and Video 360",
     "type": "acronym"
   },
@@ -2215,6 +2446,7 @@
     "term": "DWH",
     "category": "Tech",
     "category_raw": "Tech",
+    "group": "Tracking & Ad Ops",
     "definition": "Data Warehouse",
     "type": "acronym"
   },
@@ -2223,6 +2455,7 @@
     "term": "Dynamic Creative",
     "category": "Creative",
     "category_raw": "Creative",
+    "group": "Creative",
     "definition": "Automated asset combinations",
     "type": "definition"
   },
@@ -2231,6 +2464,7 @@
     "term": "Dynamic Floor",
     "category": "Mechanics",
     "category_raw": "Mechanics",
+    "group": "Tracking & Ad Ops",
     "definition": "Floor price adjusted algorithmically",
     "type": "definition"
   },
@@ -2239,6 +2473,7 @@
     "term": "Dynamic Keyword Insertion",
     "category": "Creative",
     "category_raw": "Creative",
+    "group": "Creative",
     "definition": "Keyword insertion into ad copy",
     "type": "definition"
   },
@@ -2247,6 +2482,7 @@
     "term": "eCPC",
     "category": "Bidding",
     "category_raw": "Bidding",
+    "group": "Buying & Trading",
     "definition": "Enhanced CPC automation layer",
     "type": "definition"
   },
@@ -2255,6 +2491,7 @@
     "term": "eCPM",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Effective CPM across buying",
     "formula_or_notes": "(Cost / Impressions) * 1000",
     "type": "formula",
@@ -2286,6 +2523,7 @@
     "term": "ECPM",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "",
     "formula_or_notes": "(Cost / Impressions) * 1000,",
     "type": "formula",
@@ -2317,6 +2555,7 @@
     "term": "Effective Rate",
     "category": "Finance",
     "category_raw": "Finance",
+    "group": "Finance & Commercial",
     "definition": "Blended realised rate after fees and discounts",
     "type": "definition"
   },
@@ -2325,6 +2564,7 @@
     "term": "Effective Reach",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Reach achieving minimum frequency",
     "type": "definition"
   },
@@ -2333,6 +2573,7 @@
     "term": "Eligible Impressions",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Total impressions available in auctions",
     "type": "definition"
   },
@@ -2341,6 +2582,7 @@
     "term": "End Card",
     "category": "Video",
     "category_raw": "Video",
+    "group": "Channels & Formats",
     "definition": "Final video CTA screen",
     "type": "definition"
   },
@@ -2349,6 +2591,7 @@
     "term": "Engagement",
     "category": "Engagement",
     "category_raw": "Engagement",
+    "group": "Metrics",
     "definition": "Interactions beyond impression",
     "type": "definition"
   },
@@ -2357,6 +2600,7 @@
     "term": "Engagement Rate",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Engagements divided by impressions",
     "formula_or_notes": "Engagements / Impressions * 100",
     "type": "formula",
@@ -2387,6 +2631,7 @@
     "term": "ENGAGEMENT RATE",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "",
     "formula_or_notes": "Engagements / Impressions * 100,",
     "type": "formula",
@@ -2417,6 +2662,7 @@
     "term": "Engagement Rate Ranking",
     "category": "Reporting",
     "category_raw": "Reporting",
+    "group": "Measurement & Attribution",
     "definition": "Engagement comparison ranking",
     "type": "definition"
   },
@@ -2425,6 +2671,7 @@
     "term": "Enhanced Conversions",
     "category": "Tracking",
     "category_raw": "Tracking",
+    "group": "Tracking & Ad Ops",
     "definition": "Google hashed data feature",
     "type": "definition"
   },
@@ -2433,6 +2680,7 @@
     "term": "Enhanced CPC",
     "category": "Bidding",
     "category_raw": "Bidding",
+    "group": "Buying & Trading",
     "definition": "Alias of eCPC",
     "type": "definition"
   },
@@ -2441,6 +2689,7 @@
     "term": "Equivalisation",
     "category": "Planning",
     "category_raw": "Planning",
+    "group": "Planning & Strategy",
     "definition": "Adjusting lengths to 30s equivalent",
     "type": "definition"
   },
@@ -2449,6 +2698,7 @@
     "term": "Equivalised GRPs",
     "category": "Planning",
     "category_raw": "Planning",
+    "group": "Planning & Strategy",
     "definition": "Normalised GRPs to standard length",
     "type": "definition"
   },
@@ -2457,6 +2707,7 @@
     "term": "Estimated Reach",
     "category": "Delivery",
     "category_raw": "Delivery",
+    "group": "Buying & Trading",
     "definition": "Predicted unique users",
     "type": "definition"
   },
@@ -2465,6 +2716,7 @@
     "term": "ETL",
     "category": "Tech",
     "category_raw": "Tech",
+    "group": "Tracking & Ad Ops",
     "definition": "Extract Transform Load",
     "type": "acronym"
   },
@@ -2473,6 +2725,7 @@
     "term": "Even Delivery",
     "category": "Delivery",
     "category_raw": "Delivery",
+    "group": "Buying & Trading",
     "definition": "Spend evenly across time",
     "type": "definition"
   },
@@ -2481,6 +2734,7 @@
     "term": "Even Pacing",
     "category": "Delivery",
     "category_raw": "Delivery",
+    "group": "Buying & Trading",
     "definition": "Spend delivered evenly across time",
     "type": "definition"
   },
@@ -2489,6 +2743,7 @@
     "term": "Event",
     "category": "Analytics",
     "category_raw": "Analytics",
+    "group": "Measurement & Attribution",
     "definition": "Recorded user interaction",
     "type": "definition"
   },
@@ -2497,6 +2752,7 @@
     "term": "Event Deduplication",
     "category": "Tracking",
     "category_raw": "Tracking",
+    "group": "Tracking & Ad Ops",
     "definition": "Preventing double counting",
     "type": "definition"
   },
@@ -2505,6 +2761,7 @@
     "term": "Event Priority",
     "category": "Tracking",
     "category_raw": "Tracking",
+    "group": "Tracking & Ad Ops",
     "definition": "Ranking for limited conversion reporting",
     "type": "definition"
   },
@@ -2513,6 +2770,7 @@
     "term": "Ex GST",
     "category": "Commercial",
     "category_raw": "Commercial",
+    "group": "Finance & Commercial",
     "definition": "Price excluding GST",
     "type": "definition"
   },
@@ -2521,6 +2779,7 @@
     "term": "Exact Match",
     "category": "Match Type",
     "category_raw": "Match Type",
+    "group": "Buying & Trading",
     "definition": "Triggers on close variant exact queries",
     "type": "definition"
   },
@@ -2529,6 +2788,7 @@
     "term": "Exclusion",
     "category": "Audience",
     "category_raw": "Audience",
+    "group": "Audiences & Targeting",
     "definition": "Users explicitly excluded",
     "type": "definition"
   },
@@ -2537,6 +2797,7 @@
     "term": "Expanded Text Ad",
     "category": "Creative",
     "category_raw": "Creative",
+    "group": "Creative",
     "definition": "Legacy fixed format ad",
     "type": "definition"
   },
@@ -2545,6 +2806,7 @@
     "term": "Expected CTR",
     "category": "Quality Component",
     "category_raw": "Quality Component",
+    "group": "Buying & Trading",
     "definition": "Predicted click likelihood",
     "type": "definition"
   },
@@ -2553,6 +2815,7 @@
     "term": "Exposed Group",
     "category": "Measurement",
     "category_raw": "Measurement",
+    "group": "Measurement & Attribution",
     "definition": "Audience that received ads",
     "type": "definition"
   },
@@ -2561,6 +2824,7 @@
     "term": "FAST",
     "category": "Channel",
     "category_raw": "Channel",
+    "group": "Channels & Formats",
     "definition": "Free Ad Supported Streaming Television",
     "type": "acronym"
   },
@@ -2569,6 +2833,7 @@
     "term": "Fee",
     "category": "Finance",
     "category_raw": "Finance",
+    "group": "Finance & Commercial",
     "definition": "Fixed or time-based service charge",
     "type": "definition"
   },
@@ -2577,6 +2842,7 @@
     "term": "Fee Stack",
     "category": "Finance",
     "category_raw": "Finance",
+    "group": "Finance & Commercial",
     "definition": "Cumulative technology and platform fees",
     "type": "definition"
   },
@@ -2585,6 +2851,7 @@
     "term": "Feed",
     "category": "Placement",
     "category_raw": "Placement",
+    "group": "Channels & Formats",
     "definition": "Main content feed",
     "type": "definition"
   },
@@ -2593,6 +2860,7 @@
     "term": "Fill Rate",
     "category": "Supply",
     "category_raw": "Supply",
+    "group": "Buying & Trading",
     "definition": "Percentage of inventory sold",
     "formula_or_notes": "Filled Impressions / Available Impressions * 100",
     "type": "formula",
@@ -2623,6 +2891,7 @@
     "term": "FILL RATE",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "",
     "formula_or_notes": "Filled Impressions / Available Impressions * 100,",
     "type": "formula",
@@ -2653,6 +2922,7 @@
     "term": "Final URL",
     "category": "Tracking",
     "category_raw": "Tracking",
+    "group": "Tracking & Ad Ops",
     "definition": "Landing page URL",
     "type": "definition"
   },
@@ -2661,6 +2931,7 @@
     "term": "First Click",
     "category": "Attribution",
     "category_raw": "Attribution",
+    "group": "Measurement & Attribution",
     "definition": "100 percent credit to first interaction",
     "type": "definition"
   },
@@ -2669,6 +2940,7 @@
     "term": "First In Break",
     "category": "Placement",
     "category_raw": "Placement",
+    "group": "Channels & Formats",
     "definition": "First ad position in pod",
     "type": "definition"
   },
@@ -2677,6 +2949,7 @@
     "term": "First Price Auction",
     "category": "Mechanics",
     "category_raw": "Mechanics",
+    "group": "Tracking & Ad Ops",
     "definition": "Winner pays own bid",
     "type": "definition"
   },
@@ -2685,6 +2958,7 @@
     "term": "First-party Data",
     "category": "Data",
     "category_raw": "Data",
+    "group": "Tracking & Ad Ops",
     "definition": "Data collected directly",
     "type": "definition"
   },
@@ -2693,6 +2967,7 @@
     "term": "Flight",
     "category": "Planning",
     "category_raw": "Planning",
+    "group": "Planning & Strategy",
     "definition": "Defined broadcast date range",
     "type": "definition"
   },
@@ -2701,6 +2976,7 @@
     "term": "Flighting",
     "category": "Planning",
     "category_raw": "Planning",
+    "group": "Planning & Strategy",
     "definition": "Scheduling of spend over time",
     "type": "definition"
   },
@@ -2709,6 +2985,7 @@
     "term": "Fraud",
     "category": "Governance",
     "category_raw": "Governance",
+    "group": "Governance & Privacy",
     "definition": "Invalid or deceptive traffic",
     "type": "definition"
   },
@@ -2717,6 +2994,7 @@
     "term": "Free To Air TV",
     "category": "Channel",
     "category_raw": "Channel",
+    "group": "Channels & Formats",
     "definition": "Ad-supported broadcast television",
     "type": "definition"
   },
@@ -2725,6 +3003,7 @@
     "term": "Frequency",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Average exposures per reached viewer",
     "type": "definition"
   },
@@ -2733,6 +3012,7 @@
     "term": "Frequency Cap",
     "category": "Delivery",
     "category_raw": "Delivery",
+    "group": "Buying & Trading",
     "definition": "Maximum exposures per user",
     "type": "definition"
   },
@@ -2741,6 +3021,7 @@
     "term": "Frequency Distribution",
     "category": "Reporting",
     "category_raw": "Reporting",
+    "group": "Measurement & Attribution",
     "definition": "Exposure spread across users",
     "type": "definition"
   },
@@ -2749,6 +3030,7 @@
     "term": "Frequency Optimisation",
     "category": "Definition",
     "category_raw": "Definition",
+    "group": "Other / Uncategorised",
     "definition": "Planning",
     "formula_or_notes": "TV,Managing exposure repetition",
     "type": "definition"
@@ -2758,6 +3040,7 @@
     "term": "FTA TV",
     "category": "Channel",
     "category_raw": "Channel",
+    "group": "Channels & Formats",
     "definition": "Alias of Free To Air TV",
     "type": "acronym"
   },
@@ -2766,6 +3049,7 @@
     "term": "Full Funnel",
     "category": "Strategy",
     "category_raw": "Strategy",
+    "group": "Planning & Strategy",
     "definition": "Integrated upper mid and lower funnel approach",
     "type": "definition"
   },
@@ -2774,6 +3058,7 @@
     "term": "GA4",
     "category": "Analytics",
     "category_raw": "Analytics",
+    "group": "Measurement & Attribution",
     "definition": "Google Analytics 4",
     "type": "acronym"
   },
@@ -2782,6 +3067,7 @@
     "term": "GAM",
     "category": "Publisher",
     "category_raw": "Publisher",
+    "group": "Channels & Formats",
     "definition": "Google Ad Manager",
     "type": "acronym"
   },
@@ -2790,6 +3076,7 @@
     "term": "GCLID",
     "category": "Tracking",
     "category_raw": "Tracking",
+    "group": "Tracking & Ad Ops",
     "definition": "Google Click Identifier",
     "type": "acronym"
   },
@@ -2798,6 +3085,7 @@
     "term": "GEO",
     "category": "Channel",
     "category_raw": "Channel",
+    "group": "Channels & Formats",
     "definition": "Generative Engine Optimisation",
     "type": "acronym"
   },
@@ -2806,6 +3094,7 @@
     "term": "Geo Lift",
     "category": "Measurement",
     "category_raw": "Measurement",
+    "group": "Measurement & Attribution",
     "definition": "Regional test vs control analysis",
     "type": "definition"
   },
@@ -2814,6 +3103,7 @@
     "term": "Geo Targeting",
     "category": "Targeting",
     "category_raw": "Targeting",
+    "group": "Audiences & Targeting",
     "definition": "Location-based targeting",
     "type": "definition"
   },
@@ -2822,6 +3112,7 @@
     "term": "GIVT",
     "category": "Governance",
     "category_raw": "Governance",
+    "group": "Governance & Privacy",
     "definition": "General Invalid Traffic",
     "type": "acronym"
   },
@@ -2830,6 +3121,7 @@
     "term": "Governance",
     "category": "Governance",
     "category_raw": "Governance",
+    "group": "Governance & Privacy",
     "definition": "Decision and control framework",
     "type": "definition"
   },
@@ -2838,6 +3130,7 @@
     "term": "Gross Cost",
     "category": "Finance",
     "category_raw": "Finance",
+    "group": "Finance & Commercial",
     "definition": "Media cost including fees",
     "formula_or_notes": "Definition varies by contract",
     "type": "definition"
@@ -2847,6 +3140,7 @@
     "term": "Gross Margin",
     "category": "Finance",
     "category_raw": "Finance",
+    "group": "Finance & Commercial",
     "definition": "Revenue minus cost of goods",
     "formula_or_notes": "(Revenue - COGS) / Revenue",
     "type": "formula",
@@ -2879,6 +3173,7 @@
     "term": "GROSS MARGIN",
     "category": "Finance",
     "category_raw": "Finance",
+    "group": "Finance & Commercial",
     "definition": "",
     "formula_or_notes": "(Revenue - COGS) / Revenue,",
     "type": "formula",
@@ -2911,6 +3206,7 @@
     "term": "Gross Media Cost",
     "category": "Finance",
     "category_raw": "Finance",
+    "group": "Finance & Commercial",
     "definition": "Cost before tech fees",
     "type": "definition"
   },
@@ -2919,6 +3215,7 @@
     "term": "Gross Rating Points",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Alias of GRP",
     "type": "definition"
   },
@@ -2927,6 +3224,7 @@
     "term": "GRP",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Gross Rating Points",
     "formula_or_notes": "Reach percent × Frequency",
     "type": "formula",
@@ -2957,6 +3255,7 @@
     "term": "GST",
     "category": "Commercial",
     "category_raw": "Commercial",
+    "group": "Finance & Commercial",
     "definition": "Goods and Services Tax in Australia",
     "formula_or_notes": "10% tax",
     "type": "formula",
@@ -2977,6 +3276,7 @@
     "term": "GTM",
     "category": "Tracking",
     "category_raw": "Tracking",
+    "group": "Tracking & Ad Ops",
     "definition": "Google Tag Manager",
     "type": "acronym"
   },
@@ -2985,6 +3285,7 @@
     "term": "Hard Floor",
     "category": "Mechanics",
     "category_raw": "Mechanics",
+    "group": "Tracking & Ad Ops",
     "definition": "Floor that must be met",
     "type": "definition"
   },
@@ -2993,6 +3294,7 @@
     "term": "Hashed Email",
     "category": "Data",
     "category_raw": "Data",
+    "group": "Tracking & Ad Ops",
     "definition": "Encrypted identifier",
     "type": "definition"
   },
@@ -3001,6 +3303,7 @@
     "term": "Header Bidding",
     "category": "Mechanics",
     "category_raw": "Mechanics",
+    "group": "Tracking & Ad Ops",
     "definition": "Parallel auction before ad server",
     "type": "definition"
   },
@@ -3009,6 +3312,7 @@
     "term": "Headline",
     "category": "Creative",
     "category_raw": "Creative",
+    "group": "Creative",
     "definition": "Headline text element",
     "type": "definition"
   },
@@ -3017,6 +3321,7 @@
     "term": "Hidden Margin",
     "category": "Trading",
     "category_raw": "Trading",
+    "group": "Buying & Trading",
     "definition": "Undisclosed intermediary fees",
     "type": "definition"
   },
@@ -3025,6 +3330,7 @@
     "term": "High Top of Page Bid",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Upper bound bid estimate",
     "type": "definition"
   },
@@ -3033,6 +3339,7 @@
     "term": "Hold Rate",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Views retained past midpoint",
     "type": "definition"
   },
@@ -3041,6 +3348,7 @@
     "term": "Holdout",
     "category": "Measurement",
     "category_raw": "Measurement",
+    "group": "Measurement & Attribution",
     "definition": "Audience excluded to measure incrementality",
     "type": "definition"
   },
@@ -3049,6 +3357,7 @@
     "term": "Holdout Test",
     "category": "Measurement",
     "category_raw": "Measurement",
+    "group": "Measurement & Attribution",
     "definition": "Control vs exposed experiment",
     "type": "definition"
   },
@@ -3057,6 +3366,7 @@
     "term": "Hook Rate",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Views in first seconds divided by impressions",
     "type": "definition"
   },
@@ -3065,6 +3375,7 @@
     "term": "Household Reach",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Unique households exposed",
     "type": "definition"
   },
@@ -3073,6 +3384,7 @@
     "term": "IAB",
     "category": "Industry",
     "category_raw": "Industry",
+    "group": "Governance & Privacy",
     "definition": "Interactive Advertising Bureau Australia",
     "type": "acronym"
   },
@@ -3081,6 +3393,7 @@
     "term": "IAB Australia",
     "category": "Industry",
     "category_raw": "Industry",
+    "group": "Governance & Privacy",
     "definition": "Australian industry body",
     "type": "definition"
   },
@@ -3089,6 +3402,7 @@
     "term": "IAS",
     "category": "Verification",
     "category_raw": "Verification",
+    "group": "Measurement & Attribution",
     "definition": "Integral Ad Science verification tool",
     "type": "acronym"
   },
@@ -3097,6 +3411,7 @@
     "term": "ID Syncing",
     "category": "Identity",
     "category_raw": "Identity",
+    "group": "Audiences & Targeting",
     "definition": "Sharing identifiers between platforms",
     "type": "definition"
   },
@@ -3105,6 +3420,7 @@
     "term": "Identity Resolution",
     "category": "Identity",
     "category_raw": "Identity",
+    "group": "Audiences & Targeting",
     "definition": "Matching users across IDs",
     "type": "definition"
   },
@@ -3113,6 +3429,7 @@
     "term": "Impression Optimisation",
     "category": "Bidding",
     "category_raw": "Bidding",
+    "group": "Buying & Trading",
     "definition": "Optimise for impressions",
     "type": "definition"
   },
@@ -3121,6 +3438,7 @@
     "term": "Impression Share",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Percentage of eligible impressions received",
     "formula_or_notes": "Impressions / Eligible Impressions * 100",
     "type": "formula",
@@ -3151,6 +3469,7 @@
     "term": "IMPRESSION SHARE",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "",
     "formula_or_notes": "Impressions / Eligible Impressions * 100,",
     "type": "formula",
@@ -3181,6 +3500,7 @@
     "term": "Impressions",
     "category": "Delivery",
     "category_raw": "Delivery",
+    "group": "Buying & Trading",
     "definition": "Total ad servings",
     "type": "definition"
   },
@@ -3189,6 +3509,7 @@
     "term": "In-Stream",
     "category": "Placement",
     "category_raw": "Placement",
+    "group": "Channels & Formats",
     "definition": "Video mid-roll placement",
     "type": "definition"
   },
@@ -3197,6 +3518,7 @@
     "term": "Inc GST",
     "category": "Commercial",
     "category_raw": "Commercial",
+    "group": "Finance & Commercial",
     "definition": "Price including GST",
     "type": "definition"
   },
@@ -3205,6 +3527,7 @@
     "term": "Incremental BVOD Reach",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Reach beyond linear TV",
     "type": "definition"
   },
@@ -3213,6 +3536,7 @@
     "term": "Incremental Reach",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Additional reach beyond base plan",
     "type": "definition"
   },
@@ -3221,6 +3545,7 @@
     "term": "Incrementality",
     "category": "Measurement",
     "category_raw": "Measurement",
+    "group": "Measurement & Attribution",
     "definition": "Outcomes caused by media not correlation",
     "type": "definition"
   },
@@ -3229,6 +3554,7 @@
     "term": "Influencer",
     "category": "Channel",
     "category_raw": "Channel",
+    "group": "Channels & Formats",
     "definition": "Creator led promotion",
     "type": "definition"
   },
@@ -3237,6 +3563,7 @@
     "term": "Informational Intent",
     "category": "Optimisation",
     "category_raw": "Optimisation",
+    "group": "Buying & Trading",
     "definition": "Research-based search behaviour",
     "type": "definition"
   },
@@ -3245,6 +3572,7 @@
     "term": "Initiate Checkout",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Checkout start event",
     "type": "definition"
   },
@@ -3253,6 +3581,7 @@
     "term": "Interest Targeting",
     "category": "Audience",
     "category_raw": "Audience",
+    "group": "Audiences & Targeting",
     "definition": "Declared interest-based targeting",
     "type": "definition"
   },
@@ -3261,6 +3590,7 @@
     "term": "Inventory",
     "category": "Supply",
     "category_raw": "Supply",
+    "group": "Buying & Trading",
     "definition": "Available ad impressions",
     "type": "definition"
   },
@@ -3269,6 +3599,7 @@
     "term": "Inventory Quality",
     "category": "Governance",
     "category_raw": "Governance",
+    "group": "Governance & Privacy",
     "definition": "Assessment of supply quality",
     "type": "definition"
   },
@@ -3277,6 +3608,7 @@
     "term": "Invoice",
     "category": "Finance",
     "category_raw": "Finance",
+    "group": "Finance & Commercial",
     "definition": "Billing document issued by supplier",
     "type": "definition"
   },
@@ -3285,6 +3617,7 @@
     "term": "IO",
     "category": "Commercial",
     "category_raw": "Commercial",
+    "group": "Finance & Commercial",
     "definition": "Insertion Order used to book media",
     "type": "acronym"
   },
@@ -3293,6 +3626,7 @@
     "term": "IVT",
     "category": "Governance",
     "category_raw": "Governance",
+    "group": "Governance & Privacy",
     "definition": "Invalid traffic classification",
     "type": "acronym"
   },
@@ -3301,6 +3635,7 @@
     "term": "Keyword",
     "category": "Structure",
     "category_raw": "Structure",
+    "group": "Planning & Strategy",
     "definition": "Search term advertisers bid on",
     "type": "definition"
   },
@@ -3309,6 +3644,7 @@
     "term": "Keyword Contextual",
     "category": "Targeting",
     "category_raw": "Targeting",
+    "group": "Audiences & Targeting",
     "definition": "Contextual keyword matching",
     "type": "definition"
   },
@@ -3317,6 +3653,7 @@
     "term": "Keyword Coverage",
     "category": "Planning",
     "category_raw": "Planning",
+    "group": "Planning & Strategy",
     "definition": "Extent of category keyword presence",
     "type": "definition"
   },
@@ -3325,6 +3662,7 @@
     "term": "Keyword Level Optimisation",
     "category": "Optimisation",
     "category_raw": "Optimisation",
+    "group": "Buying & Trading",
     "definition": "Optimising at keyword level",
     "type": "definition"
   },
@@ -3333,6 +3671,7 @@
     "term": "Keyword Mining",
     "category": "Optimisation",
     "category_raw": "Optimisation",
+    "group": "Buying & Trading",
     "definition": "Adding new keywords from SQR",
     "type": "definition"
   },
@@ -3341,6 +3680,7 @@
     "term": "Keyword Overlap",
     "category": "Optimisation",
     "category_raw": "Optimisation",
+    "group": "Buying & Trading",
     "definition": "Multiple keywords triggering same query",
     "type": "definition"
   },
@@ -3349,6 +3689,7 @@
     "term": "KPI",
     "category": "Measurement",
     "category_raw": "Measurement",
+    "group": "Measurement & Attribution",
     "definition": "Key Performance Indicator used to measure success",
     "type": "acronym"
   },
@@ -3357,6 +3698,7 @@
     "term": "Landing Page Experience",
     "category": "Quality Component",
     "category_raw": "Quality Component",
+    "group": "Buying & Trading",
     "definition": "User experience quality score",
     "type": "definition"
   },
@@ -3365,6 +3707,7 @@
     "term": "Landing Page View",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Loaded destination page",
     "type": "definition"
   },
@@ -3373,6 +3716,7 @@
     "term": "Last Click",
     "category": "Attribution",
     "category_raw": "Attribution",
+    "group": "Measurement & Attribution",
     "definition": "100% credit to final click before conversion",
     "type": "definition"
   },
@@ -3381,6 +3725,7 @@
     "term": "Last In Break",
     "category": "Placement",
     "category_raw": "Placement",
+    "group": "Channels & Formats",
     "definition": "Last ad position in pod",
     "type": "definition"
   },
@@ -3389,6 +3734,7 @@
     "term": "Latency",
     "category": "Mechanics",
     "category_raw": "Mechanics",
+    "group": "Tracking & Ad Ops",
     "definition": "Delay in auction processing",
     "type": "definition"
   },
@@ -3397,6 +3743,7 @@
     "term": "Lead Gen Form",
     "category": "Format",
     "category_raw": "Format",
+    "group": "Channels & Formats",
     "definition": "Platform-hosted lead capture",
     "type": "definition"
   },
@@ -3405,6 +3752,7 @@
     "term": "Learning Diagnostics",
     "category": "Reporting",
     "category_raw": "Reporting",
+    "group": "Measurement & Attribution",
     "definition": "Learning phase status insights",
     "type": "definition"
   },
@@ -3413,6 +3761,7 @@
     "term": "Learning Limited",
     "category": "Optimisation",
     "category_raw": "Optimisation",
+    "group": "Buying & Trading",
     "definition": "Insufficient signals for stable learning",
     "type": "definition"
   },
@@ -3421,6 +3770,7 @@
     "term": "Learning Phase",
     "category": "Optimisation",
     "category_raw": "Optimisation",
+    "group": "Buying & Trading",
     "definition": "Initial delivery stabilisation period",
     "type": "definition"
   },
@@ -3429,6 +3779,7 @@
     "term": "Length",
     "category": "Creative",
     "category_raw": "Creative",
+    "group": "Creative",
     "definition": "Duration of TV ad",
     "formula_or_notes": "Common lengths 15 30 seconds",
     "type": "definition"
@@ -3438,6 +3789,7 @@
     "term": "Lifetime Budget",
     "category": "Budgeting",
     "category_raw": "Budgeting",
+    "group": "Planning & Strategy",
     "definition": "Spend limit across campaign duration",
     "type": "definition"
   },
@@ -3446,6 +3798,7 @@
     "term": "Lift",
     "category": "Measurement",
     "category_raw": "Measurement",
+    "group": "Measurement & Attribution",
     "definition": "Difference between exposed and control groups",
     "type": "definition"
   },
@@ -3454,6 +3807,7 @@
     "term": "Lift Study",
     "category": "Measurement",
     "category_raw": "Measurement",
+    "group": "Measurement & Attribution",
     "definition": "Incrementality measurement framework",
     "type": "definition"
   },
@@ -3462,6 +3816,7 @@
     "term": "Limited Delivery",
     "category": "Delivery",
     "category_raw": "Delivery",
+    "group": "Buying & Trading",
     "definition": "Restricted delivery due to constraints",
     "type": "definition"
   },
@@ -3470,6 +3825,7 @@
     "term": "Line Item",
     "category": "Structure",
     "category_raw": "Structure",
+    "group": "Planning & Strategy",
     "definition": "Buying rule container",
     "type": "definition"
   },
@@ -3478,6 +3834,7 @@
     "term": "Linear Attribution",
     "category": "Attribution",
     "category_raw": "Attribution",
+    "group": "Measurement & Attribution",
     "definition": "Equal credit to all touchpoints",
     "type": "definition"
   },
@@ -3486,6 +3843,7 @@
     "term": "Linear TV",
     "category": "Channel",
     "category_raw": "Channel",
+    "group": "Channels & Formats",
     "definition": "Traditional scheduled broadcast television",
     "type": "definition"
   },
@@ -3494,6 +3852,7 @@
     "term": "Link CTR",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "CTR measured on link clicks only",
     "type": "definition"
   },
@@ -3502,6 +3861,7 @@
     "term": "LinkedIn Ads",
     "category": "Channel",
     "category_raw": "Channel",
+    "group": "Channels & Formats",
     "definition": "LinkedIn advertising platform",
     "type": "definition"
   },
@@ -3510,6 +3870,7 @@
     "term": "LinkedIn Lead Gen Form",
     "category": "Format",
     "category_raw": "Format",
+    "group": "Channels & Formats",
     "definition": "Native lead capture form",
     "type": "definition"
   },
@@ -3518,6 +3879,7 @@
     "term": "LinkedIn Message Ads",
     "category": "Format",
     "category_raw": "Format",
+    "group": "Channels & Formats",
     "definition": "Direct message advertising",
     "type": "definition"
   },
@@ -3526,6 +3888,7 @@
     "term": "LinkedIn Sponsored Content",
     "category": "Format",
     "category_raw": "Format",
+    "group": "Channels & Formats",
     "definition": "Native feed advertising",
     "type": "definition"
   },
@@ -3534,6 +3897,7 @@
     "term": "Live TV",
     "category": "Channel",
     "category_raw": "Channel",
+    "group": "Channels & Formats",
     "definition": "Real-time broadcast viewing",
     "type": "definition"
   },
@@ -3542,6 +3906,7 @@
     "term": "Location Bid Adjustment",
     "category": "Bidding",
     "category_raw": "Bidding",
+    "group": "Buying & Trading",
     "definition": "Bid modifier by geography",
     "type": "definition"
   },
@@ -3550,6 +3915,7 @@
     "term": "Location Extension",
     "category": "Creative",
     "category_raw": "Creative",
+    "group": "Creative",
     "definition": "Business address display",
     "type": "definition"
   },
@@ -3558,6 +3924,7 @@
     "term": "Log-level Data",
     "category": "Reporting",
     "category_raw": "Reporting",
+    "group": "Measurement & Attribution",
     "definition": "Impression-level delivery data",
     "type": "definition"
   },
@@ -3566,6 +3933,7 @@
     "term": "Lookalike",
     "category": "Audience",
     "category_raw": "Audience",
+    "group": "Audiences & Targeting",
     "definition": "Modelled similar audience",
     "type": "definition"
   },
@@ -3574,6 +3942,7 @@
     "term": "Lookalike Audience",
     "category": "Audience",
     "category_raw": "Audience",
+    "group": "Audiences & Targeting",
     "definition": "Modelled audience based on seed",
     "type": "definition"
   },
@@ -3582,6 +3951,7 @@
     "term": "Lost IS Budget",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Impression share lost due to budget limits",
     "type": "definition"
   },
@@ -3590,6 +3960,7 @@
     "term": "Lost IS Rank",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Impression share lost due to ad rank",
     "type": "definition"
   },
@@ -3598,6 +3969,7 @@
     "term": "Low Top of Page Bid",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Lower bound bid estimate",
     "type": "definition"
   },
@@ -3606,6 +3978,7 @@
     "term": "Low-quality Inventory",
     "category": "Governance",
     "category_raw": "Governance",
+    "group": "Governance & Privacy",
     "definition": "Alias of MFA",
     "type": "definition"
   },
@@ -3614,6 +3987,7 @@
     "term": "Lower Funnel",
     "category": "Strategy",
     "category_raw": "Strategy",
+    "group": "Planning & Strategy",
     "definition": "Conversion-focused activity",
     "type": "definition"
   },
@@ -3622,6 +3996,7 @@
     "term": "Lowest Cost",
     "category": "Bidding",
     "category_raw": "Bidding",
+    "group": "Buying & Trading",
     "definition": "Optimise for cheapest results",
     "type": "definition"
   },
@@ -3630,6 +4005,7 @@
     "term": "LPV",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Alias of Landing Page View",
     "type": "acronym"
   },
@@ -3638,6 +4014,7 @@
     "term": "LTV",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Customer Lifetime Value",
     "formula_or_notes": "AOV * Frequency * Margin * Lifetime",
     "type": "formula",
@@ -3663,6 +4040,7 @@
     "term": "Macro Conversion",
     "category": "Analytics",
     "category_raw": "Analytics",
+    "group": "Measurement & Attribution",
     "definition": "Primary business outcome",
     "type": "definition"
   },
@@ -3671,6 +4049,7 @@
     "term": "Makegood",
     "category": "Delivery",
     "category_raw": "Delivery",
+    "group": "Buying & Trading",
     "definition": "Replacement inventory for under-delivery",
     "type": "definition"
   },
@@ -3679,6 +4058,7 @@
     "term": "Manual CPC",
     "category": "Bidding",
     "category_raw": "Bidding",
+    "group": "Buying & Trading",
     "definition": "Advertiser sets bids manually",
     "type": "definition"
   },
@@ -3687,6 +4067,7 @@
     "term": "Manual Placements",
     "category": "Delivery",
     "category_raw": "Delivery",
+    "group": "Buying & Trading",
     "definition": "Advertiser-selected placements",
     "type": "definition"
   },
@@ -3695,6 +4076,7 @@
     "term": "Margin",
     "category": "Finance",
     "category_raw": "Finance",
+    "group": "Finance & Commercial",
     "definition": "Agency revenue after costs",
     "formula_or_notes": "(Revenue - Cost) / Revenue",
     "type": "formula",
@@ -3727,6 +4109,7 @@
     "term": "Markup",
     "category": "Finance",
     "category_raw": "Finance",
+    "group": "Finance & Commercial",
     "definition": "Added margin to cost price",
     "type": "definition"
   },
@@ -3735,6 +4118,7 @@
     "term": "Match Type",
     "category": "Structure",
     "category_raw": "Structure",
+    "group": "Planning & Strategy",
     "definition": "Rule defining how keywords match queries",
     "type": "definition"
   },
@@ -3743,6 +4127,7 @@
     "term": "Max CPC",
     "category": "Bidding",
     "category_raw": "Bidding",
+    "group": "Buying & Trading",
     "definition": "Maximum cost per click bid",
     "type": "definition"
   },
@@ -3751,6 +4136,7 @@
     "term": "Maximise Conversion Value",
     "category": "Bidding",
     "category_raw": "Bidding",
+    "group": "Buying & Trading",
     "definition": "Automated value optimisation strategy",
     "type": "definition"
   },
@@ -3759,6 +4145,7 @@
     "term": "Maximise Conversions",
     "category": "Bidding",
     "category_raw": "Bidding",
+    "group": "Buying & Trading",
     "definition": "Automated conversion volume strategy",
     "type": "definition"
   },
@@ -3767,6 +4154,7 @@
     "term": "MBA",
     "category": "Commercial",
     "category_raw": "Commercial",
+    "group": "Finance & Commercial",
     "definition": "Media Booking Authority approving media spend",
     "formula_or_notes": "Client sign-off mechanism",
     "type": "formula",
@@ -3787,6 +4175,7 @@
     "term": "Measurement",
     "category": "Reporting",
     "category_raw": "Reporting",
+    "group": "Measurement & Attribution",
     "definition": "Tracking and reporting of outcomes",
     "type": "definition"
   },
@@ -3795,6 +4184,7 @@
     "term": "Media Mix",
     "category": "Planning",
     "category_raw": "Planning",
+    "group": "Planning & Strategy",
     "definition": "Distribution of budget across channels",
     "type": "definition"
   },
@@ -3803,6 +4193,7 @@
     "term": "Media Owner",
     "category": "Media",
     "category_raw": "Media",
+    "group": "Channels & Formats",
     "definition": "Alternative term for publisher",
     "type": "definition"
   },
@@ -3811,6 +4202,7 @@
     "term": "Media Plan",
     "category": "Planning",
     "category_raw": "Planning",
+    "group": "Planning & Strategy",
     "definition": "Document outlining channels budgets and deliverables",
     "type": "definition"
   },
@@ -3819,6 +4211,7 @@
     "term": "MER",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Marketing Efficiency Ratio",
     "formula_or_notes": "Total Revenue / Total Marketing Spend",
     "type": "formula",
@@ -3851,6 +4244,7 @@
     "term": "Messenger",
     "category": "Placement",
     "category_raw": "Placement",
+    "group": "Channels & Formats",
     "definition": "Ad placement within messages",
     "type": "definition"
   },
@@ -3859,6 +4253,7 @@
     "term": "Meta Ads",
     "category": "Channel",
     "category_raw": "Channel",
+    "group": "Channels & Formats",
     "definition": "Facebook and Instagram advertising platform",
     "type": "definition"
   },
@@ -3867,6 +4262,7 @@
     "term": "Metro TAM",
     "category": "Measurement",
     "category_raw": "Measurement",
+    "group": "Measurement & Attribution",
     "definition": "Metropolitan TV measurement",
     "type": "definition"
   },
@@ -3875,6 +4271,7 @@
     "term": "MFA",
     "category": "Governance",
     "category_raw": "Governance",
+    "group": "Governance & Privacy",
     "definition": "Made for Advertising inventory",
     "type": "acronym"
   },
@@ -3883,6 +4280,7 @@
     "term": "Micro Conversion",
     "category": "Analytics",
     "category_raw": "Analytics",
+    "group": "Measurement & Attribution",
     "definition": "Small intent signal",
     "type": "definition"
   },
@@ -3891,6 +4289,7 @@
     "term": "Mid Funnel",
     "category": "Strategy",
     "category_raw": "Strategy",
+    "group": "Planning & Strategy",
     "definition": "Consideration-focused activity",
     "type": "definition"
   },
@@ -3899,6 +4298,7 @@
     "term": "Min CPC",
     "category": "Bidding",
     "category_raw": "Bidding",
+    "group": "Buying & Trading",
     "definition": "Minimum bid to enter auction",
     "type": "definition"
   },
@@ -3907,6 +4307,7 @@
     "term": "MMM",
     "category": "Measurement",
     "category_raw": "Measurement",
+    "group": "Measurement & Attribution",
     "definition": "Marketing Mix Modelling using econometrics",
     "type": "acronym"
   },
@@ -3915,6 +4316,7 @@
     "term": "Moat",
     "category": "Verification",
     "category_raw": "Verification",
+    "group": "Measurement & Attribution",
     "definition": "Viewability and attention measurement",
     "type": "definition"
   },
@@ -3923,6 +4325,7 @@
     "term": "MOVE",
     "category": "Measurement",
     "category_raw": "Measurement",
+    "group": "Measurement & Attribution",
     "definition": "Australian OOH measurement framework",
     "type": "acronym"
   },
@@ -3931,6 +4334,7 @@
     "term": "MSA",
     "category": "Commercial",
     "category_raw": "Commercial",
+    "group": "Finance & Commercial",
     "definition": "Master Services Agreement governing the relationship",
     "type": "acronym"
   },
@@ -3939,6 +4343,7 @@
     "term": "MTA",
     "category": "Attribution",
     "category_raw": "Attribution",
+    "group": "Measurement & Attribution",
     "definition": "Multi-Touch Attribution",
     "type": "acronym"
   },
@@ -3947,6 +4352,7 @@
     "term": "Multivariate Test",
     "category": "Testing",
     "category_raw": "Testing",
+    "group": "Measurement & Attribution",
     "definition": "Testing multiple variables at once",
     "type": "definition"
   },
@@ -3955,6 +4361,7 @@
     "term": "Native",
     "category": "Channel",
     "category_raw": "Channel",
+    "group": "Channels & Formats",
     "definition": "Content styled advertising",
     "type": "definition"
   },
@@ -3963,6 +4370,7 @@
     "term": "Navigational Intent",
     "category": "Optimisation",
     "category_raw": "Optimisation",
+    "group": "Buying & Trading",
     "definition": "Brand or destination search",
     "type": "definition"
   },
@@ -3971,6 +4379,7 @@
     "term": "NDA",
     "category": "Commercial",
     "category_raw": "Commercial",
+    "group": "Finance & Commercial",
     "definition": "Non-Disclosure Agreement",
     "type": "acronym"
   },
@@ -3979,6 +4388,7 @@
     "term": "Negative Broad",
     "category": "Match Type",
     "category_raw": "Match Type",
+    "group": "Buying & Trading",
     "definition": "Blocks related terms broadly",
     "type": "definition"
   },
@@ -3987,6 +4397,7 @@
     "term": "Negative Exact",
     "category": "Match Type",
     "category_raw": "Match Type",
+    "group": "Buying & Trading",
     "definition": "Blocks exact search term",
     "type": "definition"
   },
@@ -3995,6 +4406,7 @@
     "term": "Negative Keyword",
     "category": "Structure",
     "category_raw": "Structure",
+    "group": "Planning & Strategy",
     "definition": "Keyword that blocks ad triggering",
     "type": "definition"
   },
@@ -4003,6 +4415,7 @@
     "term": "Negative Phrase",
     "category": "Match Type",
     "category_raw": "Match Type",
+    "group": "Buying & Trading",
     "definition": "Blocks phrase-based terms",
     "type": "definition"
   },
@@ -4011,6 +4424,7 @@
     "term": "Negotiated Rate",
     "category": "Media",
     "category_raw": "Media",
+    "group": "Channels & Formats",
     "definition": "Discounted pricing",
     "type": "definition"
   },
@@ -4019,6 +4433,7 @@
     "term": "Net Cost",
     "category": "Finance",
     "category_raw": "Finance",
+    "group": "Finance & Commercial",
     "definition": "Media cost before agency fees",
     "formula_or_notes": "Definition varies by contract",
     "type": "definition"
@@ -4028,6 +4443,7 @@
     "term": "Net Margin",
     "category": "Finance",
     "category_raw": "Finance",
+    "group": "Finance & Commercial",
     "definition": "Profit after all costs",
     "formula_or_notes": "Net Profit / Revenue",
     "type": "formula",
@@ -4060,6 +4476,7 @@
     "term": "NET MARGIN",
     "category": "Finance",
     "category_raw": "Finance",
+    "group": "Finance & Commercial",
     "definition": "",
     "formula_or_notes": "Net Profit / Revenue,",
     "type": "formula",
@@ -4092,6 +4509,7 @@
     "term": "Net Media Cost",
     "category": "Finance",
     "category_raw": "Finance",
+    "group": "Finance & Commercial",
     "definition": "Cost after tech fees",
     "type": "definition"
   },
@@ -4100,6 +4518,7 @@
     "term": "Net Reach",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Unique audience exposure",
     "type": "definition"
   },
@@ -4108,6 +4527,7 @@
     "term": "Non-Brand Search",
     "category": "Structure",
     "category_raw": "Structure",
+    "group": "Planning & Strategy",
     "definition": "Generic category searches",
     "type": "definition"
   },
@@ -4116,6 +4536,7 @@
     "term": "Non-skippable Video",
     "category": "Format",
     "category_raw": "Format",
+    "group": "Channels & Formats",
     "definition": "User must view ad",
     "type": "definition"
   },
@@ -4124,6 +4545,7 @@
     "term": "North Star Metric",
     "category": "Measurement",
     "category_raw": "Measurement",
+    "group": "Measurement & Attribution",
     "definition": "Single metric reflecting business value",
     "type": "definition"
   },
@@ -4132,6 +4554,7 @@
     "term": "OAIC",
     "category": "Governance",
     "category_raw": "Governance",
+    "group": "Governance & Privacy",
     "definition": "Australian privacy regulator",
     "type": "acronym"
   },
@@ -4140,6 +4563,7 @@
     "term": "Objective",
     "category": "Optimisation",
     "category_raw": "Optimisation",
+    "group": "Buying & Trading",
     "definition": "Primary campaign optimisation goal",
     "type": "definition"
   },
@@ -4148,6 +4572,7 @@
     "term": "Off Peak",
     "category": "Planning",
     "category_raw": "Planning",
+    "group": "Planning & Strategy",
     "definition": "Lower viewing period",
     "type": "definition"
   },
@@ -4156,6 +4581,7 @@
     "term": "Offline Conversion",
     "category": "Tracking",
     "category_raw": "Tracking",
+    "group": "Tracking & Ad Ops",
     "definition": "Uploaded offline outcomes",
     "type": "definition"
   },
@@ -4164,6 +4590,7 @@
     "term": "OKR",
     "category": "Measurement",
     "category_raw": "Measurement",
+    "group": "Measurement & Attribution",
     "definition": "Objectives and Key Results framework",
     "type": "acronym"
   },
@@ -4172,6 +4599,7 @@
     "term": "OOH",
     "category": "Offline",
     "category_raw": "Offline",
+    "group": "Channels & Formats",
     "definition": "Out of Home advertising",
     "type": "acronym"
   },
@@ -4180,6 +4608,7 @@
     "term": "Open Auction",
     "category": "Trading",
     "category_raw": "Trading",
+    "group": "Buying & Trading",
     "definition": "Open exchange available to all buyers",
     "type": "definition"
   },
@@ -4188,6 +4617,7 @@
     "term": "Optimisation Event",
     "category": "Optimisation",
     "category_raw": "Optimisation",
+    "group": "Buying & Trading",
     "definition": "Event the algorithm learns against",
     "type": "definition"
   },
@@ -4196,6 +4626,7 @@
     "term": "OTS",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Opportunities To See",
     "formula_or_notes": "Estimated exposures",
     "type": "acronym"
@@ -4205,6 +4636,7 @@
     "term": "OTT",
     "category": "Video",
     "category_raw": "Video",
+    "group": "Channels & Formats",
     "definition": "Over-the-top streamed content",
     "type": "acronym"
   },
@@ -4213,6 +4645,7 @@
     "term": "Outbound CTR",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "CTR excluding platform interactions",
     "type": "definition"
   },
@@ -4221,6 +4654,7 @@
     "term": "Outbrain",
     "category": "Channel",
     "category_raw": "Channel",
+    "group": "Channels & Formats",
     "definition": "Native advertising platform",
     "type": "definition"
   },
@@ -4229,6 +4663,7 @@
     "term": "Outranking Share",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "How often you outrank competitors",
     "type": "definition"
   },
@@ -4237,6 +4672,7 @@
     "term": "Outstream Video",
     "category": "Format",
     "category_raw": "Format",
+    "group": "Channels & Formats",
     "definition": "Video outside player environment",
     "type": "definition"
   },
@@ -4245,6 +4681,7 @@
     "term": "Over-delivery",
     "category": "Delivery",
     "category_raw": "Delivery",
+    "group": "Buying & Trading",
     "definition": "Delivered volume above booked amount",
     "type": "definition"
   },
@@ -4253,6 +4690,7 @@
     "term": "Overlap Rate",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "How often competitor appears with you",
     "type": "definition"
   },
@@ -4261,6 +4699,7 @@
     "term": "OzTAM",
     "category": "Measurement",
     "category_raw": "Measurement",
+    "group": "Measurement & Attribution",
     "definition": "Australian TV audience measurement body",
     "type": "definition"
   },
@@ -4269,6 +4708,7 @@
     "term": "Pacing",
     "category": "Delivery",
     "category_raw": "Delivery",
+    "group": "Buying & Trading",
     "definition": "Rate of spend delivery versus plan",
     "type": "definition"
   },
@@ -4277,6 +4717,7 @@
     "term": "Pacing Control",
     "category": "Delivery",
     "category_raw": "Delivery",
+    "group": "Buying & Trading",
     "definition": "Spend regulation logic",
     "type": "definition"
   },
@@ -4285,6 +4726,7 @@
     "term": "Paid Search",
     "category": "Channel",
     "category_raw": "Channel",
+    "group": "Channels & Formats",
     "definition": "Alias of SEM",
     "type": "definition"
   },
@@ -4293,6 +4735,7 @@
     "term": "Paid Social",
     "category": "Channel",
     "category_raw": "Channel",
+    "group": "Channels & Formats",
     "definition": "Paid advertising across social platforms",
     "type": "definition"
   },
@@ -4301,6 +4744,7 @@
     "term": "Panel",
     "category": "Measurement",
     "category_raw": "Measurement",
+    "group": "Measurement & Attribution",
     "definition": "Sample of households measured",
     "type": "definition"
   },
@@ -4309,6 +4753,7 @@
     "term": "Panel Weighting",
     "category": "Measurement",
     "category_raw": "Measurement",
+    "group": "Measurement & Attribution",
     "definition": "Adjusting sample to population",
     "type": "definition"
   },
@@ -4317,6 +4762,7 @@
     "term": "Pay TV",
     "category": "Channel",
     "category_raw": "Channel",
+    "group": "Channels & Formats",
     "definition": "Subscription-based television",
     "type": "definition"
   },
@@ -4325,6 +4771,7 @@
     "term": "Peak",
     "category": "Planning",
     "category_raw": "Planning",
+    "group": "Planning & Strategy",
     "definition": "Highest audience concentration",
     "type": "definition"
   },
@@ -4333,6 +4780,7 @@
     "term": "Persona",
     "category": "Audience",
     "category_raw": "Audience",
+    "group": "Audiences & Targeting",
     "definition": "Fictional profile for planning",
     "type": "definition"
   },
@@ -4341,6 +4789,7 @@
     "term": "PG",
     "category": "Trading",
     "category_raw": "Trading",
+    "group": "Buying & Trading",
     "definition": "Alias of Programmatic Guaranteed",
     "type": "acronym"
   },
@@ -4349,6 +4798,7 @@
     "term": "Phrase Match",
     "category": "Match Type",
     "category_raw": "Match Type",
+    "group": "Buying & Trading",
     "definition": "Triggers on phrase meaning",
     "type": "definition"
   },
@@ -4357,6 +4807,7 @@
     "term": "Pinterest Ads",
     "category": "Channel",
     "category_raw": "Channel",
+    "group": "Channels & Formats",
     "definition": "Pinterest advertising",
     "type": "definition"
   },
@@ -4365,6 +4816,7 @@
     "term": "Pitch",
     "category": "Commercial",
     "category_raw": "Commercial",
+    "group": "Finance & Commercial",
     "definition": "Competitive agency selection process",
     "type": "definition"
   },
@@ -4373,6 +4825,7 @@
     "term": "Pixel",
     "category": "Tracking",
     "category_raw": "Tracking",
+    "group": "Tracking & Ad Ops",
     "definition": "Tracking tag for conversions and audiences",
     "type": "definition"
   },
@@ -4381,6 +4834,7 @@
     "term": "Placement",
     "category": "Delivery",
     "category_raw": "Delivery",
+    "group": "Buying & Trading",
     "definition": "Location where ad appears",
     "type": "definition"
   },
@@ -4389,6 +4843,7 @@
     "term": "Platform Reporting",
     "category": "Reporting",
     "category_raw": "Reporting",
+    "group": "Measurement & Attribution",
     "definition": "Native platform metrics",
     "type": "definition"
   },
@@ -4397,6 +4852,7 @@
     "term": "Playbook",
     "category": "Ops",
     "category_raw": "Ops",
+    "group": "Tracking & Ad Ops",
     "definition": "Defined best practice guide",
     "type": "definition"
   },
@@ -4405,6 +4861,7 @@
     "term": "PMP",
     "category": "Programmatic",
     "category_raw": "Programmatic",
+    "group": "Buying & Trading",
     "definition": "Private Marketplace deal",
     "type": "acronym"
   },
@@ -4413,6 +4870,7 @@
     "term": "PO",
     "category": "Commercial",
     "category_raw": "Commercial",
+    "group": "Finance & Commercial",
     "definition": "Purchase Order issued by a client",
     "type": "acronym"
   },
@@ -4421,6 +4879,7 @@
     "term": "Podcast",
     "category": "Audio",
     "category_raw": "Audio",
+    "group": "Channels & Formats",
     "definition": "On demand audio content",
     "type": "definition"
   },
@@ -4429,6 +4888,7 @@
     "term": "Portfolio Bid Strategy",
     "category": "Bidding",
     "category_raw": "Bidding",
+    "group": "Buying & Trading",
     "definition": "Bid strategy shared across campaigns",
     "type": "definition"
   },
@@ -4437,6 +4897,7 @@
     "term": "Position Above Rate",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "How often competitor outranks you",
     "type": "definition"
   },
@@ -4445,6 +4906,7 @@
     "term": "Position Based",
     "category": "Attribution",
     "category_raw": "Attribution",
+    "group": "Measurement & Attribution",
     "definition": "More credit to first and last touchpoints",
     "type": "definition"
   },
@@ -4453,6 +4915,7 @@
     "term": "Position in Break",
     "category": "Placement",
     "category_raw": "Placement",
+    "group": "Channels & Formats",
     "definition": "Order of ad within pod",
     "type": "definition"
   },
@@ -4461,6 +4924,7 @@
     "term": "Post-bid Blocking",
     "category": "Governance",
     "category_raw": "Governance",
+    "group": "Governance & Privacy",
     "definition": "Blocking after impression",
     "type": "definition"
   },
@@ -4469,6 +4933,7 @@
     "term": "Post-buy",
     "category": "Delivery",
     "category_raw": "Delivery",
+    "group": "Buying & Trading",
     "definition": "Campaign reporting after completion",
     "type": "definition"
   },
@@ -4477,6 +4942,7 @@
     "term": "Pre-bid Blocking",
     "category": "Governance",
     "category_raw": "Governance",
+    "group": "Governance & Privacy",
     "definition": "Blocking before auction",
     "type": "definition"
   },
@@ -4485,6 +4951,7 @@
     "term": "Prebid",
     "category": "Mechanics",
     "category_raw": "Mechanics",
+    "group": "Tracking & Ad Ops",
     "definition": "Open-source header bidding framework",
     "type": "definition"
   },
@@ -4493,6 +4960,7 @@
     "term": "Preferred Deal",
     "category": "Programmatic",
     "category_raw": "Programmatic",
+    "group": "Buying & Trading",
     "definition": "Fixed price non-guaranteed deal",
     "type": "definition"
   },
@@ -4501,6 +4969,7 @@
     "term": "Price Extension",
     "category": "Creative",
     "category_raw": "Creative",
+    "group": "Creative",
     "definition": "Product or service pricing",
     "type": "definition"
   },
@@ -4509,6 +4978,7 @@
     "term": "Primary Conversion",
     "category": "Measurement",
     "category_raw": "Measurement",
+    "group": "Measurement & Attribution",
     "definition": "Used for bidding decisions",
     "type": "definition"
   },
@@ -4517,6 +4987,7 @@
     "term": "Primary Demo",
     "category": "Audience",
     "category_raw": "Audience",
+    "group": "Audiences & Targeting",
     "definition": "Main buying audience",
     "type": "definition"
   },
@@ -4525,6 +4996,7 @@
     "term": "Primary Metric",
     "category": "Measurement",
     "category_raw": "Measurement",
+    "group": "Measurement & Attribution",
     "definition": "Main decision-making metric",
     "type": "definition"
   },
@@ -4533,6 +5005,7 @@
     "term": "Primary Text",
     "category": "Creative",
     "category_raw": "Creative",
+    "group": "Creative",
     "definition": "Main body copy",
     "type": "definition"
   },
@@ -4541,6 +5014,7 @@
     "term": "Prime Time",
     "category": "Planning",
     "category_raw": "Planning",
+    "group": "Planning & Strategy",
     "definition": "High viewing period evening",
     "type": "definition"
   },
@@ -4549,6 +5023,7 @@
     "term": "Privacy Act",
     "category": "Governance",
     "category_raw": "Governance",
+    "group": "Governance & Privacy",
     "definition": "Australian privacy legislation",
     "type": "definition"
   },
@@ -4557,6 +5032,7 @@
     "term": "Private Marketplace",
     "category": "Trading",
     "category_raw": "Trading",
+    "group": "Buying & Trading",
     "definition": "Alias of PMP",
     "type": "definition"
   },
@@ -4565,6 +5041,7 @@
     "term": "Probabilistic ID",
     "category": "Identity",
     "category_raw": "Identity",
+    "group": "Audiences & Targeting",
     "definition": "Modelled identifier",
     "type": "definition"
   },
@@ -4573,6 +5050,7 @@
     "term": "PROFIT MARGIN",
     "category": "Finance",
     "category_raw": "Finance",
+    "group": "Finance & Commercial",
     "definition": "",
     "formula_or_notes": "(Revenue - Cost) / Revenue,",
     "type": "formula",
@@ -4605,6 +5083,7 @@
     "term": "Program",
     "category": "Context",
     "category_raw": "Context",
+    "group": "Other / Uncategorised",
     "definition": "Specific TV show or content",
     "type": "definition"
   },
@@ -4613,6 +5092,7 @@
     "term": "Program Affinity",
     "category": "Planning",
     "category_raw": "Planning",
+    "group": "Planning & Strategy",
     "definition": "Audience alignment with demo",
     "type": "definition"
   },
@@ -4621,6 +5101,7 @@
     "term": "Program Break",
     "category": "Placement",
     "category_raw": "Placement",
+    "group": "Channels & Formats",
     "definition": "Ad break within programming",
     "type": "definition"
   },
@@ -4629,6 +5110,7 @@
     "term": "Programmatic",
     "category": "Channel",
     "category_raw": "Channel",
+    "group": "Channels & Formats",
     "definition": "Automated buying and selling of digital media",
     "type": "definition"
   },
@@ -4637,6 +5119,7 @@
     "term": "Programmatic Display",
     "category": "Channel",
     "category_raw": "Channel",
+    "group": "Channels & Formats",
     "definition": "Automated display advertising",
     "type": "definition"
   },
@@ -4645,6 +5128,7 @@
     "term": "Programmatic Guaranteed",
     "category": "Programmatic",
     "category_raw": "Programmatic",
+    "group": "Buying & Trading",
     "definition": "Guaranteed impressions at fixed price",
     "type": "definition"
   },
@@ -4653,6 +5137,7 @@
     "term": "Project Fee",
     "category": "Finance",
     "category_raw": "Finance",
+    "group": "Finance & Commercial",
     "definition": "Fixed fee for defined scope",
     "type": "definition"
   },
@@ -4661,6 +5146,7 @@
     "term": "Promotion Extension",
     "category": "Creative",
     "category_raw": "Creative",
+    "group": "Creative",
     "definition": "Sale or offer messaging",
     "type": "definition"
   },
@@ -4669,6 +5155,7 @@
     "term": "Prospecting",
     "category": "Audience",
     "category_raw": "Audience",
+    "group": "Audiences & Targeting",
     "definition": "Targeting new audiences",
     "type": "definition"
   },
@@ -4677,6 +5164,7 @@
     "term": "Publisher",
     "category": "Media",
     "category_raw": "Media",
+    "group": "Channels & Formats",
     "definition": "Inventory owner",
     "type": "definition"
   },
@@ -4685,6 +5173,7 @@
     "term": "Purchase",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Completed transaction",
     "type": "definition"
   },
@@ -4693,6 +5182,7 @@
     "term": "QA",
     "category": "Operations",
     "category_raw": "Operations",
+    "group": "Tracking & Ad Ops",
     "definition": "Quality assurance checks",
     "type": "acronym"
   },
@@ -4701,6 +5191,7 @@
     "term": "QBR",
     "category": "Operations",
     "category_raw": "Operations",
+    "group": "Tracking & Ad Ops",
     "definition": "Quarterly Business Review",
     "type": "acronym"
   },
@@ -4709,6 +5200,7 @@
     "term": "QS",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Alias of Quality Score",
     "type": "acronym"
   },
@@ -4717,6 +5209,7 @@
     "term": "Quality Ranking",
     "category": "Reporting",
     "category_raw": "Reporting",
+    "group": "Measurement & Attribution",
     "definition": "Ad quality vs competitors",
     "type": "definition"
   },
@@ -4725,6 +5218,7 @@
     "term": "Quality Score",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Diagnostic estimate of ad quality",
     "type": "definition"
   },
@@ -4733,6 +5227,7 @@
     "term": "Query Level Optimisation",
     "category": "Optimisation",
     "category_raw": "Optimisation",
+    "group": "Buying & Trading",
     "definition": "Optimising at search term level",
     "type": "definition"
   },
@@ -4741,6 +5236,7 @@
     "term": "Query Matching",
     "category": "Mechanics",
     "category_raw": "Mechanics",
+    "group": "Tracking & Ad Ops",
     "definition": "How keywords match queries",
     "type": "definition"
   },
@@ -4749,6 +5245,7 @@
     "term": "Radio",
     "category": "Audio",
     "category_raw": "Audio",
+    "group": "Channels & Formats",
     "definition": "Broadcast radio",
     "type": "definition"
   },
@@ -4757,6 +5254,7 @@
     "term": "Rate Card",
     "category": "Media",
     "category_raw": "Media",
+    "group": "Channels & Formats",
     "definition": "Published pricing",
     "type": "definition"
   },
@@ -4765,6 +5263,7 @@
     "term": "Rating",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Percentage of audience watching",
     "type": "definition"
   },
@@ -4773,6 +5272,7 @@
     "term": "Rating Point",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Alias of Rating",
     "type": "definition"
   },
@@ -4781,14 +5281,28 @@
     "term": "Reach",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Percentage of target audience exposed",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The number (or %) of unique people who saw your ad at least once.",
+    "whyItMatters": "Reach is people; impressions are views. Reach vs frequency is the central planning trade-off.",
+    "example": "2,000,000 impressions at average frequency 4 = 500,000 reach.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "OzTAM — TV terms & definitions",
+        "url": "https://oztam.com.au/termsanddefinitions.aspx"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "reach-curve-planning-1ac376d1",
     "term": "Reach Curve",
     "category": "Planning",
     "category_raw": "Planning",
+    "group": "Planning & Strategy",
     "definition": "Relationship between spend and reach",
     "type": "definition"
   },
@@ -4797,6 +5311,7 @@
     "term": "Reach Lift",
     "category": "Measurement",
     "category_raw": "Measurement",
+    "group": "Measurement & Attribution",
     "definition": "Incremental reach measurement",
     "type": "definition"
   },
@@ -4805,6 +5320,7 @@
     "term": "Reach Optimisation",
     "category": "Bidding",
     "category_raw": "Bidding",
+    "group": "Buying & Trading",
     "definition": "Optimise for reach delivery",
     "type": "definition"
   },
@@ -4813,6 +5329,7 @@
     "term": "Real Time Bidding",
     "category": "Mechanics",
     "category_raw": "Mechanics",
+    "group": "Tracking & Ad Ops",
     "definition": "Alias of RTB",
     "type": "definition"
   },
@@ -4821,6 +5338,7 @@
     "term": "Reconciliation",
     "category": "Finance",
     "category_raw": "Finance",
+    "group": "Finance & Commercial",
     "definition": "Matching invoices to bookings and delivery",
     "type": "definition"
   },
@@ -4829,6 +5347,7 @@
     "term": "Reels",
     "category": "Placement",
     "category_raw": "Placement",
+    "group": "Channels & Formats",
     "definition": "Short-form vertical video placement",
     "type": "definition"
   },
@@ -4837,6 +5356,7 @@
     "term": "Reforecast",
     "category": "Delivery",
     "category_raw": "Delivery",
+    "group": "Buying & Trading",
     "definition": "Updated delivery projection based on actuals",
     "type": "definition"
   },
@@ -4845,6 +5365,7 @@
     "term": "Regional TAM",
     "category": "Measurement",
     "category_raw": "Measurement",
+    "group": "Measurement & Attribution",
     "definition": "Regional TV measurement",
     "type": "definition"
   },
@@ -4853,6 +5374,7 @@
     "term": "Remarketing",
     "category": "Audience",
     "category_raw": "Audience",
+    "group": "Audiences & Targeting",
     "definition": "Alternative term for retargeting",
     "type": "definition"
   },
@@ -4861,6 +5383,7 @@
     "term": "Reseller",
     "category": "Supply",
     "category_raw": "Supply",
+    "group": "Buying & Trading",
     "definition": "Intermediary authorised to sell inventory",
     "type": "definition"
   },
@@ -4869,6 +5392,7 @@
     "term": "Reservation",
     "category": "Trading",
     "category_raw": "Trading",
+    "group": "Buying & Trading",
     "definition": "Guaranteed booked inventory",
     "type": "definition"
   },
@@ -4877,6 +5401,7 @@
     "term": "Reset Learning",
     "category": "Optimisation",
     "category_raw": "Optimisation",
+    "group": "Buying & Trading",
     "definition": "Change that restarts learning phase",
     "type": "definition"
   },
@@ -4885,6 +5410,7 @@
     "term": "Retail Media",
     "category": "Commerce",
     "category_raw": "Commerce",
+    "group": "Finance & Commercial",
     "definition": "Ads sold by retailers using first-party data",
     "type": "definition"
   },
@@ -4893,6 +5419,7 @@
     "term": "Retainer",
     "category": "Finance",
     "category_raw": "Finance",
+    "group": "Finance & Commercial",
     "definition": "Ongoing monthly service fee",
     "type": "definition"
   },
@@ -4901,6 +5428,7 @@
     "term": "Retargeting",
     "category": "Audience",
     "category_raw": "Audience",
+    "group": "Audiences & Targeting",
     "definition": "Targeting users who previously engaged",
     "type": "definition"
   },
@@ -4909,6 +5437,7 @@
     "term": "Return Path Data",
     "category": "Measurement",
     "category_raw": "Measurement",
+    "group": "Measurement & Attribution",
     "definition": "TV viewing data from devices",
     "type": "definition"
   },
@@ -4917,6 +5446,7 @@
     "term": "Revenue Recognition",
     "category": "Finance",
     "category_raw": "Finance",
+    "group": "Finance & Commercial",
     "definition": "When revenue is recognised for accounting",
     "formula_or_notes": "P&L policy dependent",
     "type": "definition"
@@ -4926,6 +5456,7 @@
     "term": "Reverse Brief",
     "category": "Planning",
     "category_raw": "Planning",
+    "group": "Planning & Strategy",
     "definition": "Agency response confirming approach",
     "type": "definition"
   },
@@ -4934,6 +5465,7 @@
     "term": "RFP",
     "category": "Commercial",
     "category_raw": "Commercial",
+    "group": "Finance & Commercial",
     "definition": "Request for Proposal",
     "type": "acronym"
   },
@@ -4942,6 +5474,7 @@
     "term": "RFQ",
     "category": "Commercial",
     "category_raw": "Commercial",
+    "group": "Finance & Commercial",
     "definition": "Request for Quote",
     "type": "acronym"
   },
@@ -4950,6 +5483,7 @@
     "term": "Risk Register",
     "category": "Governance",
     "category_raw": "Governance",
+    "group": "Governance & Privacy",
     "definition": "Tracked risks and mitigations",
     "type": "definition"
   },
@@ -4958,6 +5492,7 @@
     "term": "Roadmap",
     "category": "Ops",
     "category_raw": "Ops",
+    "group": "Tracking & Ad Ops",
     "definition": "Planned future work",
     "type": "definition"
   },
@@ -4966,6 +5501,7 @@
     "term": "ROAS",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Return on Ad Spend",
     "formula_or_notes": "Revenue / Ad Spend",
     "type": "formula",
@@ -4998,6 +5534,7 @@
     "term": "ROI",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Return on Investment",
     "formula_or_notes": "(Return - Cost) / Cost",
     "type": "formula",
@@ -5030,6 +5567,7 @@
     "term": "RSA",
     "category": "Creative",
     "category_raw": "Creative",
+    "group": "Creative",
     "definition": "Responsive Search Ad format",
     "type": "acronym"
   },
@@ -5038,6 +5576,7 @@
     "term": "RTB",
     "category": "Mechanics",
     "category_raw": "Mechanics",
+    "group": "Tracking & Ad Ops",
     "definition": "Real Time Bidding per impression",
     "type": "acronym"
   },
@@ -5046,6 +5585,7 @@
     "term": "SA360",
     "category": "Channel",
     "category_raw": "Channel",
+    "group": "Channels & Formats",
     "definition": "Search Ads 360",
     "type": "acronym"
   },
@@ -5054,6 +5594,7 @@
     "term": "Safe Area",
     "category": "Creative",
     "category_raw": "Creative",
+    "group": "Creative",
     "definition": "Visible content area",
     "type": "definition"
   },
@@ -5062,6 +5603,7 @@
     "term": "Sales Lift",
     "category": "Measurement",
     "category_raw": "Measurement",
+    "group": "Measurement & Attribution",
     "definition": "Incremental sales measurement study",
     "type": "definition"
   },
@@ -5070,6 +5612,7 @@
     "term": "Search",
     "category": "Channel",
     "category_raw": "Channel",
+    "group": "Channels & Formats",
     "definition": "Paid search advertising",
     "type": "definition"
   },
@@ -5078,6 +5621,7 @@
     "term": "Search Attribution Model",
     "category": "Tracking",
     "category_raw": "Tracking",
+    "group": "Tracking & Ad Ops",
     "definition": "Rule assigning conversion credit",
     "type": "definition"
   },
@@ -5086,6 +5630,7 @@
     "term": "Search Budget Elasticity",
     "category": "Economics",
     "category_raw": "Economics",
+    "group": "Buying & Trading",
     "definition": "Impact of spend changes on volume",
     "type": "definition"
   },
@@ -5094,6 +5639,7 @@
     "term": "Search Campaign",
     "category": "Structure",
     "category_raw": "Structure",
+    "group": "Planning & Strategy",
     "definition": "Top-level paid search container",
     "type": "definition"
   },
@@ -5102,6 +5648,7 @@
     "term": "Search Conversion Lag",
     "category": "Measurement",
     "category_raw": "Measurement",
+    "group": "Measurement & Attribution",
     "definition": "Time between click and conversion",
     "type": "definition"
   },
@@ -5110,6 +5657,7 @@
     "term": "Search Coverage Gap",
     "category": "Planning",
     "category_raw": "Planning",
+    "group": "Planning & Strategy",
     "definition": "Missing keyword opportunities",
     "type": "definition"
   },
@@ -5118,6 +5666,7 @@
     "term": "Search Demand",
     "category": "Planning",
     "category_raw": "Planning",
+    "group": "Planning & Strategy",
     "definition": "Volume of relevant queries",
     "type": "definition"
   },
@@ -5126,6 +5675,7 @@
     "term": "Search Intent",
     "category": "Optimisation",
     "category_raw": "Optimisation",
+    "group": "Buying & Trading",
     "definition": "Underlying user motivation",
     "type": "definition"
   },
@@ -5134,6 +5684,7 @@
     "term": "Search IS",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Alias of Impression Share",
     "type": "definition"
   },
@@ -5142,6 +5693,7 @@
     "term": "Search Lift",
     "category": "Measurement",
     "category_raw": "Measurement",
+    "group": "Measurement & Attribution",
     "definition": "Increase in search after TV exposure",
     "type": "definition"
   },
@@ -5150,6 +5702,7 @@
     "term": "Search Lost Impression Share",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Total lost opportunity",
     "type": "definition"
   },
@@ -5158,6 +5711,7 @@
     "term": "Search Query Report",
     "category": "Reporting",
     "category_raw": "Reporting",
+    "group": "Measurement & Attribution",
     "definition": "List of actual triggering queries",
     "type": "definition"
   },
@@ -5166,6 +5720,7 @@
     "term": "Search Saturation",
     "category": "Definition",
     "category_raw": "Definition",
+    "group": "Other / Uncategorised",
     "definition": "Economics",
     "formula_or_notes": "Search,Point where more spend adds minimal value",
     "type": "definition"
@@ -5175,6 +5730,7 @@
     "term": "Search Term",
     "category": "Structure",
     "category_raw": "Structure",
+    "group": "Planning & Strategy",
     "definition": "Actual user query that triggered ad",
     "type": "definition"
   },
@@ -5183,6 +5739,7 @@
     "term": "Search Volume",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Estimated average query count",
     "type": "definition"
   },
@@ -5191,6 +5748,7 @@
     "term": "Seat",
     "category": "Account",
     "category_raw": "Account",
+    "group": "Buying & Trading",
     "definition": "Buyer account within DSP",
     "type": "definition"
   },
@@ -5199,6 +5757,7 @@
     "term": "Second Price Auction",
     "category": "Mechanics",
     "category_raw": "Mechanics",
+    "group": "Tracking & Ad Ops",
     "definition": "Winner pays next highest bid plus increment",
     "type": "definition"
   },
@@ -5207,6 +5766,7 @@
     "term": "Second-party Data",
     "category": "Data",
     "category_raw": "Data",
+    "group": "Tracking & Ad Ops",
     "definition": "Partner shared data",
     "type": "definition"
   },
@@ -5215,6 +5775,7 @@
     "term": "Secondary Conversion",
     "category": "Measurement",
     "category_raw": "Measurement",
+    "group": "Measurement & Attribution",
     "definition": "Tracked but not optimised towards",
     "type": "definition"
   },
@@ -5223,6 +5784,7 @@
     "term": "Secondary Demo",
     "category": "Audience",
     "category_raw": "Audience",
+    "group": "Audiences & Targeting",
     "definition": "Additional reporting audience",
     "type": "definition"
   },
@@ -5231,6 +5793,7 @@
     "term": "Secondary Metric",
     "category": "Measurement",
     "category_raw": "Measurement",
+    "group": "Measurement & Attribution",
     "definition": "Supporting metric",
     "type": "definition"
   },
@@ -5239,6 +5802,7 @@
     "term": "Seed Audience",
     "category": "Audience",
     "category_raw": "Audience",
+    "group": "Audiences & Targeting",
     "definition": "Source list for modelling",
     "type": "definition"
   },
@@ -5247,6 +5811,7 @@
     "term": "Segment",
     "category": "Audience",
     "category_raw": "Audience",
+    "group": "Audiences & Targeting",
     "definition": "Subset of users",
     "type": "definition"
   },
@@ -5255,6 +5820,7 @@
     "term": "Sellers.json",
     "category": "Governance",
     "category_raw": "Governance",
+    "group": "Governance & Privacy",
     "definition": "Transparency file listing sellers",
     "type": "definition"
   },
@@ -5263,6 +5829,7 @@
     "term": "SEM",
     "category": "Channel",
     "category_raw": "Channel",
+    "group": "Channels & Formats",
     "definition": "Search Engine Marketing paid activity",
     "type": "acronym"
   },
@@ -5271,6 +5838,7 @@
     "term": "Semantic Targeting",
     "category": "Targeting",
     "category_raw": "Targeting",
+    "group": "Audiences & Targeting",
     "definition": "Meaning-based contextual targeting",
     "type": "definition"
   },
@@ -5279,6 +5847,7 @@
     "term": "SEO",
     "category": "Channel",
     "category_raw": "Channel",
+    "group": "Channels & Formats",
     "definition": "Search Engine Optimisation",
     "type": "acronym"
   },
@@ -5287,6 +5856,7 @@
     "term": "Server-side Tracking",
     "category": "Tracking",
     "category_raw": "Tracking",
+    "group": "Tracking & Ad Ops",
     "definition": "Server based tracking",
     "type": "definition"
   },
@@ -5295,6 +5865,7 @@
     "term": "Server-Side Tracking",
     "category": "Tracking",
     "category_raw": "Tracking",
+    "group": "Tracking & Ad Ops",
     "definition": "Events sent via server infrastructure",
     "type": "definition"
   },
@@ -5303,6 +5874,7 @@
     "term": "Set Top Box Data",
     "category": "Measurement",
     "category_raw": "Measurement",
+    "group": "Measurement & Attribution",
     "definition": "Viewing data from STB devices",
     "type": "definition"
   },
@@ -5311,6 +5883,7 @@
     "term": "sGTM",
     "category": "Tracking",
     "category_raw": "Tracking",
+    "group": "Tracking & Ad Ops",
     "definition": "Server Google Tag Manager",
     "type": "definition"
   },
@@ -5319,6 +5892,7 @@
     "term": "Share of Audience",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Audience share for program",
     "type": "definition"
   },
@@ -5327,6 +5901,7 @@
     "term": "Share of Voice",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Brand presence versus competitors",
     "type": "definition"
   },
@@ -5335,6 +5910,7 @@
     "term": "Sitelinks",
     "category": "Creative",
     "category_raw": "Creative",
+    "group": "Creative",
     "definition": "Additional page links",
     "type": "definition"
   },
@@ -5343,6 +5919,7 @@
     "term": "SIVT",
     "category": "Governance",
     "category_raw": "Governance",
+    "group": "Governance & Privacy",
     "definition": "Sophisticated Invalid Traffic",
     "type": "acronym"
   },
@@ -5351,6 +5928,7 @@
     "term": "Skippable Video",
     "category": "Format",
     "category_raw": "Format",
+    "group": "Channels & Formats",
     "definition": "User can skip ad",
     "type": "definition"
   },
@@ -5359,6 +5937,7 @@
     "term": "SLA",
     "category": "Commercial",
     "category_raw": "Commercial",
+    "group": "Finance & Commercial",
     "definition": "Service Level Agreement defining response times",
     "type": "acronym"
   },
@@ -5367,6 +5946,7 @@
     "term": "Smart Bidding",
     "category": "Bidding",
     "category_raw": "Bidding",
+    "group": "Buying & Trading",
     "definition": "Automated bidding using machine learning",
     "type": "definition"
   },
@@ -5375,6 +5955,7 @@
     "term": "Snap Ads",
     "category": "Channel",
     "category_raw": "Channel",
+    "group": "Channels & Formats",
     "definition": "Snapchat advertising",
     "type": "definition"
   },
@@ -5383,6 +5964,7 @@
     "term": "Snowflake",
     "category": "Tech",
     "category_raw": "Tech",
+    "group": "Tracking & Ad Ops",
     "definition": "Cloud data warehouse",
     "type": "definition"
   },
@@ -5391,6 +5973,7 @@
     "term": "Social Campaign",
     "category": "Structure",
     "category_raw": "Structure",
+    "group": "Planning & Strategy",
     "definition": "Top-level campaign container",
     "type": "definition"
   },
@@ -5399,6 +5982,7 @@
     "term": "Soft Floor",
     "category": "Mechanics",
     "category_raw": "Mechanics",
+    "group": "Tracking & Ad Ops",
     "definition": "Floor that can be bypassed",
     "type": "definition"
   },
@@ -5407,6 +5991,7 @@
     "term": "SOV",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Alias of Share of Voice",
     "type": "acronym"
   },
@@ -5415,6 +6000,7 @@
     "term": "SOW",
     "category": "Commercial",
     "category_raw": "Commercial",
+    "group": "Finance & Commercial",
     "definition": "Statement of Work defining scope and deliverables",
     "type": "acronym"
   },
@@ -5423,6 +6009,7 @@
     "term": "Spec Sheet",
     "category": "Creative",
     "category_raw": "Creative",
+    "group": "Creative",
     "definition": "Publisher requirements",
     "type": "definition"
   },
@@ -5431,6 +6018,7 @@
     "term": "Spend Cap",
     "category": "Budgeting",
     "category_raw": "Budgeting",
+    "group": "Planning & Strategy",
     "definition": "Maximum allowed spend",
     "type": "definition"
   },
@@ -5439,6 +6027,7 @@
     "term": "SPO",
     "category": "Programmatic",
     "category_raw": "Programmatic",
+    "group": "Buying & Trading",
     "definition": "Supply Path Optimisation",
     "type": "acronym"
   },
@@ -5447,6 +6036,7 @@
     "term": "Spot",
     "category": "Placement",
     "category_raw": "Placement",
+    "group": "Channels & Formats",
     "definition": "Individual TV ad placement",
     "type": "definition"
   },
@@ -5455,6 +6045,7 @@
     "term": "Spot Length Weighting",
     "category": "Planning",
     "category_raw": "Planning",
+    "group": "Planning & Strategy",
     "definition": "Impact by ad duration",
     "type": "definition"
   },
@@ -5463,6 +6054,7 @@
     "term": "SQR",
     "category": "Reporting",
     "category_raw": "Reporting",
+    "group": "Measurement & Attribution",
     "definition": "Alias of Search Query Report",
     "type": "acronym"
   },
@@ -5471,6 +6063,7 @@
     "term": "SSP",
     "category": "Programmatic",
     "category_raw": "Programmatic",
+    "group": "Buying & Trading",
     "definition": "Supply Side Platform used by publishers",
     "type": "acronym"
   },
@@ -5479,6 +6072,7 @@
     "term": "Stories",
     "category": "Placement",
     "category_raw": "Placement",
+    "group": "Channels & Formats",
     "definition": "Full-screen vertical placement",
     "type": "definition"
   },
@@ -5487,6 +6081,7 @@
     "term": "Structured Snippets",
     "category": "Creative",
     "category_raw": "Creative",
+    "group": "Creative",
     "definition": "Predefined category values",
     "type": "definition"
   },
@@ -5495,6 +6090,7 @@
     "term": "Suitability",
     "category": "Governance",
     "category_raw": "Governance",
+    "group": "Governance & Privacy",
     "definition": "Controls for brand-appropriate content",
     "type": "definition"
   },
@@ -5503,6 +6099,7 @@
     "term": "Supply",
     "category": "Supply",
     "category_raw": "Supply",
+    "group": "Buying & Trading",
     "definition": "Total available inventory",
     "type": "definition"
   },
@@ -5511,6 +6108,7 @@
     "term": "Supply Path",
     "category": "Trading",
     "category_raw": "Trading",
+    "group": "Buying & Trading",
     "definition": "Route from buyer to publisher",
     "type": "definition"
   },
@@ -5519,6 +6117,7 @@
     "term": "Supply Path Optimisation",
     "category": "Trading",
     "category_raw": "Trading",
+    "group": "Buying & Trading",
     "definition": "Alias of SPO",
     "type": "definition"
   },
@@ -5527,6 +6126,7 @@
     "term": "Supply Side Platform",
     "category": "Platform",
     "category_raw": "Platform",
+    "group": "Platforms & Tools",
     "definition": "Alias of SSP",
     "type": "definition"
   },
@@ -5535,6 +6135,7 @@
     "term": "Suppression",
     "category": "Audience",
     "category_raw": "Audience",
+    "group": "Audiences & Targeting",
     "definition": "Excluded users",
     "type": "definition"
   },
@@ -5543,6 +6144,7 @@
     "term": "SVOD",
     "category": "Channel",
     "category_raw": "Channel",
+    "group": "Channels & Formats",
     "definition": "Subscription Video On Demand",
     "type": "acronym"
   },
@@ -5551,6 +6153,7 @@
     "term": "T&Cs",
     "category": "Commercial",
     "category_raw": "Commercial",
+    "group": "Finance & Commercial",
     "definition": "Terms and Conditions applying to services",
     "type": "definition"
   },
@@ -5559,6 +6162,7 @@
     "term": "Taboola",
     "category": "Channel",
     "category_raw": "Channel",
+    "group": "Channels & Formats",
     "definition": "Native content discovery platform",
     "type": "definition"
   },
@@ -5567,6 +6171,7 @@
     "term": "Tag",
     "category": "Tracking",
     "category_raw": "Tracking",
+    "group": "Tracking & Ad Ops",
     "definition": "Script used for tracking",
     "type": "definition"
   },
@@ -5575,6 +6180,7 @@
     "term": "Take Rate",
     "category": "Finance",
     "category_raw": "Finance",
+    "group": "Finance & Commercial",
     "definition": "Percentage retained by intermediaries",
     "type": "definition"
   },
@@ -5583,6 +6189,7 @@
     "term": "Target CPA",
     "category": "Bidding",
     "category_raw": "Bidding",
+    "group": "Buying & Trading",
     "definition": "Alias of tCPA",
     "type": "definition"
   },
@@ -5591,6 +6198,7 @@
     "term": "Target Rating Points",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Alias of TRP",
     "type": "definition"
   },
@@ -5599,6 +6207,7 @@
     "term": "Target ROAS",
     "category": "Bidding",
     "category_raw": "Bidding",
+    "group": "Buying & Trading",
     "definition": "Alias of tROAS",
     "type": "definition"
   },
@@ -5607,6 +6216,7 @@
     "term": "tCPA",
     "category": "Bidding",
     "category_raw": "Bidding",
+    "group": "Buying & Trading",
     "definition": "Target cost per acquisition strategy",
     "type": "definition"
   },
@@ -5615,6 +6225,7 @@
     "term": "Teads",
     "category": "Channel",
     "category_raw": "Channel",
+    "group": "Channels & Formats",
     "definition": "Video distribution platform",
     "type": "definition"
   },
@@ -5623,6 +6234,7 @@
     "term": "Technology Fee",
     "category": "Finance",
     "category_raw": "Finance",
+    "group": "Finance & Commercial",
     "definition": "DSP or platform fee",
     "type": "definition"
   },
@@ -5631,6 +6243,7 @@
     "term": "Test and Learn",
     "category": "Planning",
     "category_raw": "Planning",
+    "group": "Planning & Strategy",
     "definition": "Structured experimentation approach",
     "type": "definition"
   },
@@ -5639,6 +6252,7 @@
     "term": "The Trade Desk",
     "category": "Channel",
     "category_raw": "Channel",
+    "group": "Channels & Formats",
     "definition": "Independent DSP",
     "type": "definition"
   },
@@ -5647,6 +6261,7 @@
     "term": "ThinkTV",
     "category": "Industry",
     "category_raw": "Industry",
+    "group": "Governance & Privacy",
     "definition": "Australian TV industry planning body",
     "type": "definition"
   },
@@ -5655,6 +6270,7 @@
     "term": "Third-party Data",
     "category": "Data",
     "category_raw": "Data",
+    "group": "Tracking & Ad Ops",
     "definition": "External aggregated data",
     "type": "definition"
   },
@@ -5663,6 +6279,7 @@
     "term": "Third-party Reporting",
     "category": "Reporting",
     "category_raw": "Reporting",
+    "group": "Measurement & Attribution",
     "definition": "External measurement tools",
     "type": "definition"
   },
@@ -5671,6 +6288,7 @@
     "term": "ThruPlay",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "15s or full-length video view",
     "formula_or_notes": "Meta definition",
     "type": "definition"
@@ -5680,6 +6298,7 @@
     "term": "Thumbstop Rate",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Users stopping scroll to view video",
     "type": "definition"
   },
@@ -5688,6 +6307,7 @@
     "term": "TikTok Ads",
     "category": "Channel",
     "category_raw": "Channel",
+    "group": "Channels & Formats",
     "definition": "TikTok advertising platform",
     "type": "definition"
   },
@@ -5696,6 +6316,7 @@
     "term": "TikTok In-Feed",
     "category": "Format",
     "category_raw": "Format",
+    "group": "Channels & Formats",
     "definition": "Native feed video format",
     "type": "definition"
   },
@@ -5704,6 +6325,7 @@
     "term": "TikTok Spark Ads",
     "category": "Format",
     "category_raw": "Format",
+    "group": "Channels & Formats",
     "definition": "Creator-post amplification format",
     "type": "definition"
   },
@@ -5712,6 +6334,7 @@
     "term": "TikTok TopView",
     "category": "Format",
     "category_raw": "Format",
+    "group": "Channels & Formats",
     "definition": "Premium takeover video format",
     "type": "definition"
   },
@@ -5720,6 +6343,7 @@
     "term": "Time Bid Adjustment",
     "category": "Bidding",
     "category_raw": "Bidding",
+    "group": "Buying & Trading",
     "definition": "Bid modifier by time of day",
     "type": "definition"
   },
@@ -5728,6 +6352,7 @@
     "term": "Time Decay",
     "category": "Attribution",
     "category_raw": "Attribution",
+    "group": "Measurement & Attribution",
     "definition": "More credit to later touchpoints",
     "type": "definition"
   },
@@ -5736,6 +6361,7 @@
     "term": "Timeout",
     "category": "Mechanics",
     "category_raw": "Mechanics",
+    "group": "Tracking & Ad Ops",
     "definition": "Maximum time allowed for bids",
     "type": "definition"
   },
@@ -5744,6 +6370,7 @@
     "term": "Top of Page Bid",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Estimated bid for top placement",
     "type": "definition"
   },
@@ -5752,6 +6379,7 @@
     "term": "Top of Page Rate",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Ads shown above organic results",
     "type": "definition"
   },
@@ -5760,6 +6388,7 @@
     "term": "Tracking Template",
     "category": "Tracking",
     "category_raw": "Tracking",
+    "group": "Tracking & Ad Ops",
     "definition": "URL template for parameters",
     "type": "definition"
   },
@@ -5768,6 +6397,7 @@
     "term": "Trafficking",
     "category": "Operations",
     "category_raw": "Operations",
+    "group": "Tracking & Ad Ops",
     "definition": "Setting up ads and tags in platforms",
     "type": "definition"
   },
@@ -5776,6 +6406,7 @@
     "term": "Transparency",
     "category": "Governance",
     "category_raw": "Governance",
+    "group": "Governance & Privacy",
     "definition": "Clear disclosure of supply and costs",
     "type": "definition"
   },
@@ -5784,6 +6415,7 @@
     "term": "tROAS",
     "category": "Bidding",
     "category_raw": "Bidding",
+    "group": "Buying & Trading",
     "definition": "Target return on ad spend strategy",
     "type": "definition"
   },
@@ -5792,6 +6424,7 @@
     "term": "TRP",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Target Rating Points",
     "formula_or_notes": "GRPs within target audience",
     "type": "acronym"
@@ -5801,6 +6434,7 @@
     "term": "TV Attribution",
     "category": "Measurement",
     "category_raw": "Measurement",
+    "group": "Measurement & Attribution",
     "definition": "Linking exposure to outcomes",
     "type": "definition"
   },
@@ -5809,6 +6443,7 @@
     "term": "TV Campaign",
     "category": "Structure",
     "category_raw": "Structure",
+    "group": "Planning & Strategy",
     "definition": "Top-level TV buying container",
     "type": "definition"
   },
@@ -5817,6 +6452,7 @@
     "term": "TV Lift Study",
     "category": "Measurement",
     "category_raw": "Measurement",
+    "group": "Measurement & Attribution",
     "definition": "Incremental impact measurement",
     "type": "definition"
   },
@@ -5825,6 +6461,7 @@
     "term": "TV Planning Model",
     "category": "Planning",
     "category_raw": "Planning",
+    "group": "Planning & Strategy",
     "definition": "Forecast reach and frequency outcomes",
     "type": "definition"
   },
@@ -5833,6 +6470,7 @@
     "term": "TV Schedule",
     "category": "Structure",
     "category_raw": "Structure",
+    "group": "Planning & Strategy",
     "definition": "Planned placements across programs",
     "type": "definition"
   },
@@ -5841,6 +6479,7 @@
     "term": "TV Weight",
     "category": "Planning",
     "category_raw": "Planning",
+    "group": "Planning & Strategy",
     "definition": "GRP intensity per period",
     "type": "definition"
   },
@@ -5849,6 +6488,7 @@
     "term": "Under-delivery",
     "category": "Delivery",
     "category_raw": "Delivery",
+    "group": "Buying & Trading",
     "definition": "Delivered volume below booked amount",
     "type": "definition"
   },
@@ -5857,6 +6497,7 @@
     "term": "Unduplicated Reach",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Reach excluding overlap",
     "type": "definition"
   },
@@ -5865,6 +6506,7 @@
     "term": "Unique CTR",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "CTR based on unique users",
     "type": "definition"
   },
@@ -5873,6 +6515,7 @@
     "term": "Unique Reach",
     "category": "Delivery",
     "category_raw": "Delivery",
+    "group": "Buying & Trading",
     "definition": "Deduplicated reach",
     "type": "definition"
   },
@@ -5881,6 +6524,7 @@
     "term": "Universe",
     "category": "Measurement",
     "category_raw": "Measurement",
+    "group": "Measurement & Attribution",
     "definition": "Total measurable population",
     "type": "definition"
   },
@@ -5889,6 +6533,7 @@
     "term": "Upper Funnel",
     "category": "Strategy",
     "category_raw": "Strategy",
+    "group": "Planning & Strategy",
     "definition": "Awareness-focused activity",
     "type": "definition"
   },
@@ -5897,6 +6542,7 @@
     "term": "UTM",
     "category": "Tracking",
     "category_raw": "Tracking",
+    "group": "Tracking & Ad Ops",
     "definition": "URL parameters used for attribution",
     "type": "acronym"
   },
@@ -5905,6 +6551,7 @@
     "term": "UTM Campaign",
     "category": "Tracking",
     "category_raw": "Tracking",
+    "group": "Tracking & Ad Ops",
     "definition": "Campaign name identifier",
     "type": "definition"
   },
@@ -5913,6 +6560,7 @@
     "term": "UTM Content",
     "category": "Tracking",
     "category_raw": "Tracking",
+    "group": "Tracking & Ad Ops",
     "definition": "Creative identifier",
     "type": "definition"
   },
@@ -5921,6 +6569,7 @@
     "term": "UTM Medium",
     "category": "Tracking",
     "category_raw": "Tracking",
+    "group": "Tracking & Ad Ops",
     "definition": "Channel type identifier",
     "type": "definition"
   },
@@ -5929,6 +6578,7 @@
     "term": "UTM Source",
     "category": "Tracking",
     "category_raw": "Tracking",
+    "group": "Tracking & Ad Ops",
     "definition": "Traffic source identifier",
     "type": "definition"
   },
@@ -5937,6 +6587,7 @@
     "term": "UTM Term",
     "category": "Tracking",
     "category_raw": "Tracking",
+    "group": "Tracking & Ad Ops",
     "definition": "Keyword identifier",
     "type": "definition"
   },
@@ -5945,6 +6596,7 @@
     "term": "Value",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Revenue attributed to conversions",
     "type": "definition"
   },
@@ -5953,6 +6605,7 @@
     "term": "Value Optimisation",
     "category": "Bidding",
     "category_raw": "Bidding",
+    "group": "Buying & Trading",
     "definition": "Optimise for conversion value",
     "type": "definition"
   },
@@ -5961,6 +6614,7 @@
     "term": "ValueTrack Parameter",
     "category": "Tracking",
     "category_raw": "Tracking",
+    "group": "Tracking & Ad Ops",
     "definition": "Dynamic URL parameter",
     "type": "definition"
   },
@@ -5969,6 +6623,7 @@
     "term": "vCPM",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Viewable CPM",
     "formula_or_notes": "Cost / Viewable Impressions * 1000",
     "type": "formula",
@@ -6000,6 +6655,7 @@
     "term": "VCPM",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "",
     "formula_or_notes": "Cost / Viewable Impressions * 1000,",
     "type": "formula",
@@ -6031,6 +6687,7 @@
     "term": "Verification",
     "category": "Governance",
     "category_raw": "Governance",
+    "group": "Governance & Privacy",
     "definition": "Independent measurement of delivery",
     "type": "definition"
   },
@@ -6039,6 +6696,7 @@
     "term": "Video",
     "category": "Format",
     "category_raw": "Format",
+    "group": "Channels & Formats",
     "definition": "In-stream or out-stream video",
     "type": "definition"
   },
@@ -6047,6 +6705,7 @@
     "term": "Video Completion",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Video played to end",
     "type": "definition"
   },
@@ -6055,6 +6714,7 @@
     "term": "Video Completion Rate",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Completed views divided by starts",
     "type": "definition"
   },
@@ -6063,6 +6723,7 @@
     "term": "Video View",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Recorded video play",
     "type": "definition"
   },
@@ -6071,6 +6732,7 @@
     "term": "View Attribution",
     "category": "Tracking",
     "category_raw": "Tracking",
+    "group": "Tracking & Ad Ops",
     "definition": "Conversions credited after view",
     "type": "definition"
   },
@@ -6079,6 +6741,7 @@
     "term": "View Content",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "Product or page view event",
     "type": "definition"
   },
@@ -6087,6 +6750,7 @@
     "term": "View Through Conversion",
     "category": "Tracking",
     "category_raw": "Tracking",
+    "group": "Tracking & Ad Ops",
     "definition": "Conversion after impression without click",
     "type": "definition"
   },
@@ -6095,6 +6759,7 @@
     "term": "Viewability",
     "category": "Delivery",
     "category_raw": "Delivery",
+    "group": "Buying & Trading",
     "definition": "Percentage of viewable impressions",
     "type": "definition"
   },
@@ -6103,6 +6768,7 @@
     "term": "Viewable Impression",
     "category": "Delivery",
     "category_raw": "Delivery",
+    "group": "Buying & Trading",
     "definition": "Impression meeting viewability rules",
     "type": "definition"
   },
@@ -6111,6 +6777,7 @@
     "term": "Virtual Australia",
     "category": "Measurement",
     "category_raw": "Measurement",
+    "group": "Measurement & Attribution",
     "definition": "Alias of VOZ",
     "type": "definition"
   },
@@ -6119,6 +6786,7 @@
     "term": "Visual",
     "category": "Creative",
     "category_raw": "Creative",
+    "group": "Creative",
     "definition": "Image or video content",
     "type": "definition"
   },
@@ -6127,6 +6795,7 @@
     "term": "VOZ",
     "category": "Measurement",
     "category_raw": "Measurement",
+    "group": "Measurement & Attribution",
     "definition": "Total TV measurement framework Australia",
     "type": "acronym"
   },
@@ -6135,6 +6804,7 @@
     "term": "VTR",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "",
     "formula_or_notes": "Completed Views / Impressions * 100,",
     "type": "formula",
@@ -6165,6 +6835,7 @@
     "term": "Waterfall",
     "category": "Mechanics",
     "category_raw": "Mechanics",
+    "group": "Tracking & Ad Ops",
     "definition": "Sequential auction structure",
     "type": "definition"
   },
@@ -6173,6 +6844,7 @@
     "term": "Web Lift",
     "category": "Measurement",
     "category_raw": "Measurement",
+    "group": "Measurement & Attribution",
     "definition": "Increase in site visits after TV exposure",
     "type": "definition"
   },
@@ -6181,6 +6853,7 @@
     "term": "Webhook",
     "category": "Tech",
     "category_raw": "Tech",
+    "group": "Tracking & Ad Ops",
     "definition": "Event-based data push",
     "type": "definition"
   },
@@ -6189,6 +6862,7 @@
     "term": "Whitelisting",
     "category": "Governance",
     "category_raw": "Governance",
+    "group": "Governance & Privacy",
     "definition": "Approved inventory list",
     "type": "definition"
   },
@@ -6197,6 +6871,7 @@
     "term": "Win Rate",
     "category": "Supply",
     "category_raw": "Supply",
+    "group": "Buying & Trading",
     "definition": "Percentage of auctions won",
     "formula_or_notes": "Wins / Bids * 100",
     "type": "formula",
@@ -6227,6 +6902,7 @@
     "term": "WIN RATE",
     "category": "Metric",
     "category_raw": "Metric",
+    "group": "Metrics",
     "definition": "",
     "formula_or_notes": "Wins / Bids * 100,",
     "type": "formula",
@@ -6257,6 +6933,7 @@
     "term": "WIP",
     "category": "Operations",
     "category_raw": "Operations",
+    "group": "Tracking & Ad Ops",
     "definition": "Work In Progress status meeting",
     "type": "acronym"
   },
@@ -6265,6 +6942,7 @@
     "term": "Yield",
     "category": "Supply",
     "category_raw": "Supply",
+    "group": "Buying & Trading",
     "definition": "Revenue generated per impression",
     "type": "definition"
   },
@@ -6273,6 +6951,7 @@
     "term": "Yield Optimisation",
     "category": "Supply",
     "category_raw": "Supply",
+    "group": "Buying & Trading",
     "definition": "Improving revenue outcomes",
     "type": "definition"
   },
@@ -6281,6 +6960,7 @@
     "term": "YouTube",
     "category": "Channel",
     "category_raw": "Channel",
+    "group": "Channels & Formats",
     "definition": "Video platform bought via Google Ads",
     "type": "definition"
   }

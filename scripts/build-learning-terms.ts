@@ -34,17 +34,83 @@ export type LearningTerm = {
   aliases?: string[];
   category: string;
   category_raw?: string | null;
+  group?: string;
   definition: string;
   formula_or_notes?: string;
   type: LearningType;
   formula?: FormulaDSL;
+  plainEnglish?: string;
+  whyItMatters?: string;
+  example?: string;
+  practitionerNotes?: string;
+  level?: "foundational" | "intermediate" | "advanced";
+  sources?: { label: string; url: string }[];
+  relatedGuides?: string[];
+  reviewedAt?: string;
+  status?: "draft" | "reviewed" | "published";
 };
+
+const CATEGORY_GROUP_MAP: Record<string, string> = {
+  "Planning": "Planning & Strategy",
+  "Strategy": "Planning & Strategy",
+  "Structure": "Planning & Strategy",
+  "Budgeting": "Planning & Strategy",
+  "Bidding": "Buying & Trading",
+  "Trading": "Buying & Trading",
+  "Programmatic": "Buying & Trading",
+  "Match Type": "Buying & Trading",
+  "Supply": "Buying & Trading",
+  "Economics": "Buying & Trading",
+  "Quality Component": "Buying & Trading",
+  "Account": "Buying & Trading",
+  "Delivery": "Buying & Trading",
+  "Optimisation": "Buying & Trading",
+  "Channel": "Channels & Formats",
+  "Format": "Channels & Formats",
+  "Placement": "Channels & Formats",
+  "Video": "Channels & Formats",
+  "Audio": "Channels & Formats",
+  "Offline": "Channels & Formats",
+  "Retail Media": "Channels & Formats",
+  "Media": "Channels & Formats",
+  "Publisher": "Channels & Formats",
+  "Audience": "Audiences & Targeting",
+  "Targeting": "Audiences & Targeting",
+  "Identity": "Audiences & Targeting",
+  "Creative": "Creative",
+  "Metric": "Metrics",
+  "Engagement": "Metrics",
+  "Measurement": "Measurement & Attribution",
+  "Attribution": "Measurement & Attribution",
+  "Analytics": "Measurement & Attribution",
+  "Reporting": "Measurement & Attribution",
+  "Verification": "Measurement & Attribution",
+  "Testing": "Measurement & Attribution",
+  "Tracking": "Tracking & Ad Ops",
+  "Tech": "Tracking & Ad Ops",
+  "Data": "Tracking & Ad Ops",
+  "Mechanics": "Tracking & Ad Ops",
+  "Operations": "Tracking & Ad Ops",
+  "Ops": "Tracking & Ad Ops",
+  "Finance": "Finance & Commercial",
+  "Commercial": "Finance & Commercial",
+  "Commerce": "Finance & Commercial",
+  "Governance": "Governance & Privacy",
+  "Privacy": "Governance & Privacy",
+  "Industry": "Governance & Privacy",
+  "Platform": "Platforms & Tools",
+  "Definition": "Other / Uncategorised",
+  "Formula": "Other / Uncategorised",
+  "Context": "Other / Uncategorised",
+};
+const FALLBACK_GROUP = "Other / Uncategorised";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const RAW_PATH = path.resolve(__dirname, "..", "src", "data", "learning", "terms.raw.csv");
 const OUTPUT_PATH = path.resolve(__dirname, "..", "src", "data", "learning", "terms.json");
+const ENRICHMENT_PATH = path.resolve(__dirname, "..", "src", "data", "learning", "terms.enrichment.json");
 
 const KNOWN_FORMULAS: Record<string, FormulaDSL> = {
   "ad rank": {
@@ -441,6 +507,7 @@ function parseLine(line: string): LearningTerm | null {
   );
   const hasFormula = isKnownFormula || looksLikeFormula(formula_or_notes);
   const normalizedCategory = normalizeCategory(category, term, hasFormula);
+  const group = CATEGORY_GROUP_MAP[normalizedCategory] ?? FALLBACK_GROUP;
   const type: LearningType = hasFormula ? "formula" : isAcronym(term) ? "acronym" : "definition";
 
   const formula =
@@ -463,11 +530,34 @@ function parseLine(line: string): LearningTerm | null {
     aliases: aliases.length ? aliases : undefined,
     category: normalizedCategory,
     category_raw: category || null,
+    group,
     definition,
     formula_or_notes: formula_or_notes || undefined,
     type,
     formula,
   };
+}
+
+type Enrichment = Partial<Pick<LearningTerm,
+  "plainEnglish" | "whyItMatters" | "example" | "practitionerNotes" |
+  "level" | "sources" | "relatedGuides" | "reviewedAt" | "status">> & { term: string };
+
+function loadEnrichment(): Map<string, Enrichment> {
+  const map = new Map<string, Enrichment>();
+  if (!fs.existsSync(ENRICHMENT_PATH)) return map;
+  const parsed = JSON.parse(fs.readFileSync(ENRICHMENT_PATH, "utf8")) as Enrichment[];
+  for (const e of parsed) {
+    if (e && typeof e.term === "string") map.set(e.term.trim().toLowerCase(), e);
+  }
+  return map;
+}
+
+function applyEnrichment(term: LearningTerm, e: Enrichment | undefined): LearningTerm {
+  if (!e) return term;
+  const { term: _ignore, ...fields } = e;
+  // Only copy defined keys; never overwrite the short CSV `definition`.
+  const clean = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined && v !== null));
+  return { ...term, ...clean };
 }
 
 function build() {
@@ -510,12 +600,15 @@ function build() {
   }
 
   const records = Array.from(termMap.values());
-  const sorted = records.sort((a, b) => a.term.localeCompare(b.term));
+  const enrichment = loadEnrichment();
+  const enriched = records.map((r) => applyEnrichment(r, enrichment.get(r.term.toLowerCase())));
+  const sorted = enriched.sort((a, b) => a.term.localeCompare(b.term));
 
   fs.mkdirSync(path.dirname(OUTPUT_PATH), { recursive: true });
   fs.writeFileSync(OUTPUT_PATH, JSON.stringify(sorted, null, 2), "utf8");
 
   console.log(`Wrote ${sorted.length} learning terms to ${OUTPUT_PATH}`);
+  console.log(`Merged enrichment for ${enrichment.size} terms`);
 }
 
 try {

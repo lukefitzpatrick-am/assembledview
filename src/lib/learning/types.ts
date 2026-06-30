@@ -29,10 +29,20 @@ export type LearningTerm = {
   aliases?: string[];
   category: string;
   category_raw?: string | null;
+  group?: string;
   definition: string;
   formula_or_notes?: string;
   type: LearningType;
   formula?: FormulaDSL;
+  plainEnglish?: string;
+  whyItMatters?: string;
+  example?: string;
+  practitionerNotes?: string;
+  level?: "foundational" | "intermediate" | "advanced";
+  sources?: { label: string; url: string }[];
+  relatedGuides?: string[];
+  reviewedAt?: string;
+  status?: "draft" | "reviewed" | "published";
 };
 
 export type SortMode = "relevance" | "alpha" | "recent";
