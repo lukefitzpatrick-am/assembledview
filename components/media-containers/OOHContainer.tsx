@@ -36,6 +36,7 @@ import {
   pickLineItemNumber,
   sortLineItemsByLineItemNumber,
 } from "@/lib/mediaplan/lineItemIds"
+import { assignStableLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import { formatAUD, formatMoney, parseMoneyInput } from "@/lib/format/money"
 import {
   CpcFamilyBurstCalculatedField,
@@ -76,7 +77,6 @@ import {
   serializeOohExpertRowsBaseline,
   serializeOohStandardLineItemsBaseline,
 } from "@/lib/mediaplan/expertModeSwitch"
-import { reassignOohLineItemNumbers } from "@/lib/mediaplan/oohLineItemOrder"
 import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
 import { SingleDatePicker } from "@/components/ui/single-date-picker"
 import { defaultMediaBurstStartDate, defaultMediaBurstEndDate } from "@/lib/date-picker-anchor"
@@ -489,7 +489,7 @@ export default function OohContainer({
       standard,
       prevLineItems as StandardOohFormLineItem[]
     );
-    const reassigned = reassignOohLineItemNumbers(merged, mbaNumber);
+    const reassigned = assignStableLineItemNumbers<any>(merged, mbaNumber, MEDIA_TYPE_ID_CODES.ooh);
     const keyedMerged = stampBurstReactKeys(reassigned);
     form.setValue("lineItems", keyedMerged as any, { shouldDirty: true, shouldValidate: false });
     oohStandardBaselineRef.current = serializeOohStandardLineItemsBaseline(
@@ -538,7 +538,7 @@ export default function OohContainer({
     const nextItems = form.getValues("lineItems") || [];
     form.setValue(
       "lineItems",
-      reassignOohLineItemNumbers(nextItems, mbaNumber) as any,
+      assignStableLineItemNumbers<any>(nextItems, mbaNumber, MEDIA_TYPE_ID_CODES.ooh) as any,
       { shouldDirty: true, shouldValidate: false },
     );
   }, [appendLineItem, form, mbaNumber, toast]);
@@ -554,7 +554,9 @@ export default function OohContainer({
   useStableHydration(
     initialLineItems,
     (items) => {
-      const sortedItems = sortLineItemsByLineItemNumber(items);
+      const sortedItems = sortLineItemsByLineItemNumber(
+        assignStableLineItemNumbers<any>(items, mbaNumber, MEDIA_TYPE_ID_CODES.ooh)
+      );
       const transformedLineItems = sortedItems.map((item: any, index: number) => {
         const lineNumber = pickLineItemNumber(item, index + 1);
         const lineItemId =
@@ -619,7 +621,11 @@ export default function OohContainer({
 
   // Transform form data to API schema format
   useEffect(() => {
-    const formLineItems = form.getValues('lineItems') || [];
+    const formLineItems = assignStableLineItemNumbers<any>(
+      form.getValues('lineItems') || [],
+      mbaNumber,
+      MEDIA_TYPE_ID_CODES.ooh
+    );
     
     const transformedLineItems = formLineItems.map((lineItem, index) => {
       // Calculate totalMedia from raw budget amounts (for display in MBA section)
