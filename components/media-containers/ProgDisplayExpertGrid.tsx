@@ -36,6 +36,10 @@ import {
 } from "@/components/ui/alert-dialog"
 import { fuzzyMatchNetwork } from "@/lib/mediaplan/expertOohFuzzyMatch"
 import {
+  deleteExpertRow,
+  duplicateExpertRow,
+} from "@/lib/mediaplan/expertRowLifecycle"
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -1067,25 +1071,20 @@ export function ProgDisplayExpertGrid({
 
   const duplicateRow = useCallback(
     (rowIndex: number) => {
-      const source = normalizedRows[rowIndex]
-      if (!source) return
-      const id =
-        typeof crypto !== "undefined" && crypto.randomUUID
-          ? crypto.randomUUID()
-          : `progdisplay-expert-${Date.now()}-${rowIndex}`
-      const weeklyValues = { ...source.weeklyValues }
-      const mergedWeekSpans = (source.mergedWeekSpans ?? []).map((s, i) => ({
-        ...s,
-        id:
+      const next = duplicateExpertRow(
+        normalizedRows,
+        rowIndex,
+        () =>
           typeof crypto !== "undefined" && crypto.randomUUID
             ? crypto.randomUUID()
-            : `sp-${Date.now()}-${i}`,
-      }))
-      pushRows([
-        ...normalizedRows.slice(0, rowIndex + 1),
-        { ...source, id, weeklyValues, mergedWeekSpans },
-        ...normalizedRows.slice(rowIndex + 1),
-      ])
+            : `progdisplay-expert-${Date.now()}-${rowIndex}`,
+        (i) =>
+          typeof crypto !== "undefined" && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `sp-${Date.now()}-${i}`
+      )
+      if (!next) return
+      pushRows(next)
       resetTransientWeekUiState()
     },
     [normalizedRows, pushRows, resetTransientWeekUiState]
@@ -1143,8 +1142,9 @@ export function ProgDisplayExpertGrid({
 
   const deleteRow = useCallback(
     (rowIndex: number) => {
-      if (normalizedRows.length <= 1) return
-      pushRows(normalizedRows.filter((_, i) => i !== rowIndex))
+      const next = deleteExpertRow(normalizedRows, rowIndex)
+      if (!next) return
+      pushRows(next)
       resetTransientWeekUiState()
     },
     [normalizedRows, pushRows, resetTransientWeekUiState]
