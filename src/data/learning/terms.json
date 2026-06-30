@@ -304,56 +304,6 @@
     "reviewedAt": "2026-06-30"
   },
   {
-    "id": "ad-rank-metric-1389819b",
-    "term": "AD RANK",
-    "category": "Metric",
-    "category_raw": "Metric",
-    "group": "Metrics",
-    "definition": "",
-    "formula_or_notes": ",",
-    "type": "formula",
-    "formula": {
-      "calculatorId": "ad-rank",
-      "expression": "bid * quality * context",
-      "variables": [
-        {
-          "key": "bid",
-          "label": "Bid",
-          "unit": "$",
-          "required": true
-        },
-        {
-          "key": "quality",
-          "label": "Quality",
-          "unit": "",
-          "required": true
-        },
-        {
-          "key": "context",
-          "label": "Context",
-          "unit": "",
-          "required": true
-        }
-      ],
-      "output": {
-        "label": "Ad Rank",
-        "unit": ""
-      },
-      "format": "number"
-    },
-    "plainEnglish": "The score that decides whether and where your ad shows = bid x quality x context (plus thresholds).",
-    "whyItMatters": "Explains why a higher bid alone doesn't guarantee top position - quality matters too.",
-    "level": "intermediate",
-    "sources": [
-      {
-        "label": "Google Ads Help - About Ad Rank",
-        "url": "https://support.google.com/google-ads/answer/1722122"
-      }
-    ],
-    "status": "reviewed",
-    "reviewedAt": "2026-06-30"
-  },
-  {
     "id": "ad-relevance-quality-component-4024635e",
     "term": "Ad Relevance",
     "category": "Quality Component",
@@ -829,24 +779,6 @@
     "reviewedAt": "2026-06-30"
   },
   {
-    "id": "average-frequency-metric-ebe1abcc",
-    "term": "Average Frequency",
-    "category": "Metric",
-    "category_raw": "Metric",
-    "group": "Metrics",
-    "definition": "Alias of Frequency",
-    "type": "definition"
-  },
-  {
-    "id": "avg-monthly-searches-metric-0bcec822",
-    "term": "Avg Monthly Searches",
-    "category": "Metric",
-    "category_raw": "Metric",
-    "group": "Metrics",
-    "definition": "Alias of Search Volume",
-    "type": "definition"
-  },
-  {
     "id": "avod-channel-77304cec",
     "term": "AVOD",
     "category": "Channel",
@@ -935,48 +867,6 @@
     "group": "Buying & Trading",
     "definition": "Percentage of requests bid on",
     "formula_or_notes": "Bids / Requests * 100",
-    "type": "formula",
-    "formula": {
-      "calculatorId": "bid-rate",
-      "expression": "(bids / requests) * 100",
-      "variables": [
-        {
-          "key": "bids",
-          "label": "Bids",
-          "required": true
-        },
-        {
-          "key": "requests",
-          "label": "Requests",
-          "required": true
-        }
-      ],
-      "output": {
-        "label": "Bid Rate",
-        "unit": "%"
-      },
-      "format": "percent"
-    },
-    "plainEnglish": "Of the eligible auctions, the share you actually bid on.",
-    "whyItMatters": "A programmatic throttling/eligibility signal - are you entering the auctions you could?",
-    "level": "advanced",
-    "sources": [
-      {
-        "label": "IAB Australia - Digital Advertising Glossary",
-        "url": "https://iabaustralia.com.au/resource/digital-advertising-glossary-of-terms-july-2019/"
-      }
-    ],
-    "status": "reviewed",
-    "reviewedAt": "2026-06-30"
-  },
-  {
-    "id": "bid-rate-metric-5a0ffd8c",
-    "term": "BID RATE",
-    "category": "Metric",
-    "category_raw": "Metric",
-    "group": "Metrics",
-    "definition": "",
-    "formula_or_notes": "Bids / Requests * 100,",
     "type": "formula",
     "formula": {
       "calculatorId": "bid-rate",
@@ -1512,15 +1402,6 @@
     "type": "definition"
   },
   {
-    "id": "click-through-rate-metric-a09866e7",
-    "term": "Click Through Rate",
-    "category": "Metric",
-    "category_raw": "Metric",
-    "group": "Metrics",
-    "definition": "Alias of CTR",
-    "type": "definition"
-  },
-  {
     "id": "client-side-tracking-tracking-2a551dc5",
     "term": "Client-side Tracking",
     "category": "Tracking",
@@ -1789,38 +1670,6 @@
     }
   },
   {
-    "id": "cost-per-lead-metric-b74ec736",
-    "term": "COST PER LEAD",
-    "category": "Metric",
-    "category_raw": "Metric",
-    "group": "Metrics",
-    "definition": "",
-    "formula_or_notes": "Cost / Leads,",
-    "type": "formula",
-    "formula": {
-      "calculatorId": "cost-per-lead",
-      "expression": "cost / leads",
-      "variables": [
-        {
-          "key": "cost",
-          "label": "Cost",
-          "unit": "$",
-          "required": true
-        },
-        {
-          "key": "leads",
-          "label": "Leads",
-          "required": true
-        }
-      ],
-      "output": {
-        "label": "CPL",
-        "unit": "$"
-      },
-      "format": "currency"
-    }
-  },
-  {
     "id": "cost-per-lpv-metric-13198059",
     "term": "Cost per LPV",
     "category": "Metric",
@@ -1848,49 +1697,6 @@
     "group": "Metrics",
     "definition": "Cost per rating point",
     "formula_or_notes": "Cost / GRPs",
-    "type": "formula",
-    "formula": {
-      "calculatorId": "cost-per-point",
-      "expression": "cost / grps",
-      "variables": [
-        {
-          "key": "cost",
-          "label": "Cost",
-          "unit": "$",
-          "required": true
-        },
-        {
-          "key": "grps",
-          "label": "GRPs",
-          "required": true
-        }
-      ],
-      "output": {
-        "label": "CPP",
-        "unit": "$"
-      },
-      "format": "currency"
-    },
-    "plainEnglish": "Cost per rating point (CPP) - the cost to buy one rating point of audience.",
-    "whyItMatters": "The standard TV/radio cost-efficiency comparison across stations and dayparts.",
-    "level": "foundational",
-    "sources": [
-      {
-        "label": "OzTAM - TV terms & definitions",
-        "url": "https://oztam.com.au/termsanddefinitions.aspx"
-      }
-    ],
-    "status": "reviewed",
-    "reviewedAt": "2026-06-30"
-  },
-  {
-    "id": "cost-per-point-metric-9045f485",
-    "term": "COST PER POINT",
-    "category": "Metric",
-    "category_raw": "Metric",
-    "group": "Metrics",
-    "definition": "",
-    "formula_or_notes": "Cost / GRPs,",
     "type": "formula",
     "formula": {
       "calculatorId": "cost-per-point",
@@ -2452,37 +2258,6 @@
     "reviewedAt": "2026-06-30"
   },
   {
-    "id": "ctr-formula-metric-dbbfc3ec",
-    "term": "CTR Formula",
-    "category": "Metric",
-    "category_raw": "Metric",
-    "group": "Metrics",
-    "definition": "CTR calculation",
-    "formula_or_notes": "Clicks / Impressions * 100",
-    "type": "formula",
-    "formula": {
-      "expression": "clicks / impressions * 100",
-      "variables": [
-        {
-          "key": "clicks",
-          "label": "Clicks",
-          "required": true
-        },
-        {
-          "key": "impressions",
-          "label": "Impressions",
-          "required": true
-        }
-      ],
-      "output": {
-        "label": "Result",
-        "unit": "%"
-      },
-      "format": "percent",
-      "inferred": true
-    }
-  },
-  {
     "id": "ctv-channel-8e640941",
     "term": "CTV",
     "category": "Channel",
@@ -2942,49 +2717,6 @@
     "reviewedAt": "2026-06-30"
   },
   {
-    "id": "ecpm-metric-2aafe519",
-    "term": "ECPM",
-    "category": "Metric",
-    "category_raw": "Metric",
-    "group": "Metrics",
-    "definition": "",
-    "formula_or_notes": "(Cost / Impressions) * 1000,",
-    "type": "formula",
-    "formula": {
-      "calculatorId": "ecpm",
-      "expression": "(cost / impressions) * 1000",
-      "variables": [
-        {
-          "key": "cost",
-          "label": "Cost",
-          "unit": "$",
-          "required": true
-        },
-        {
-          "key": "impressions",
-          "label": "Impressions",
-          "required": true
-        }
-      ],
-      "output": {
-        "label": "eCPM",
-        "unit": "$"
-      },
-      "format": "currency"
-    },
-    "plainEnglish": "Effective CPM - total cost normalised to a per-1,000 basis regardless of how you bought.",
-    "whyItMatters": "Lets you compare a CPC buy and a CPM buy on the same scale.",
-    "level": "intermediate",
-    "sources": [
-      {
-        "label": "IAB Australia - Digital Advertising Glossary",
-        "url": "https://iabaustralia.com.au/resource/digital-advertising-glossary-of-terms-july-2019/"
-      }
-    ],
-    "status": "reviewed",
-    "reviewedAt": "2026-06-30"
-  },
-  {
     "id": "effective-rate-finance-4f05a959",
     "term": "Effective Rate",
     "category": "Finance",
@@ -3059,48 +2791,6 @@
     "group": "Metrics",
     "definition": "Engagements divided by impressions",
     "formula_or_notes": "Engagements / Impressions * 100",
-    "type": "formula",
-    "formula": {
-      "calculatorId": "engagement-rate",
-      "expression": "(engagements / impressions) * 100",
-      "variables": [
-        {
-          "key": "engagements",
-          "label": "Engagements",
-          "required": true
-        },
-        {
-          "key": "impressions",
-          "label": "Impressions",
-          "required": true
-        }
-      ],
-      "output": {
-        "label": "Engagement Rate",
-        "unit": "%"
-      },
-      "format": "percent"
-    },
-    "plainEnglish": "Engagements divided by impressions (or reach), as a %.",
-    "whyItMatters": "A relevance signal on social - but 'engagement' definitions vary by platform, so compare like-for-like.",
-    "level": "foundational",
-    "sources": [
-      {
-        "label": "Meta Business Help - Post engagement",
-        "url": "https://www.facebook.com/business/help/735720159834389"
-      }
-    ],
-    "status": "reviewed",
-    "reviewedAt": "2026-06-30"
-  },
-  {
-    "id": "engagement-rate-metric-96c56fe5",
-    "term": "ENGAGEMENT RATE",
-    "category": "Metric",
-    "category_raw": "Metric",
-    "group": "Metrics",
-    "definition": "",
-    "formula_or_notes": "Engagements / Impressions * 100,",
     "type": "formula",
     "formula": {
       "calculatorId": "engagement-rate",
@@ -3341,48 +3031,6 @@
     "group": "Buying & Trading",
     "definition": "Percentage of inventory sold",
     "formula_or_notes": "Filled Impressions / Available Impressions * 100",
-    "type": "formula",
-    "formula": {
-      "calculatorId": "fill-rate",
-      "expression": "(filled_impressions / available_impressions) * 100",
-      "variables": [
-        {
-          "key": "filled_impressions",
-          "label": "Filled Impressions",
-          "required": true
-        },
-        {
-          "key": "available_impressions",
-          "label": "Available Impressions",
-          "required": true
-        }
-      ],
-      "output": {
-        "label": "Fill Rate",
-        "unit": "%"
-      },
-      "format": "percent"
-    },
-    "plainEnglish": "Of ad requests, the share filled with an ad.",
-    "whyItMatters": "A supply-side health metric - low fill means inventory isn't being monetised.",
-    "level": "advanced",
-    "sources": [
-      {
-        "label": "IAB Australia - Digital Advertising Glossary",
-        "url": "https://iabaustralia.com.au/resource/digital-advertising-glossary-of-terms-july-2019/"
-      }
-    ],
-    "status": "reviewed",
-    "reviewedAt": "2026-06-30"
-  },
-  {
-    "id": "fill-rate-metric-3a9f9c7f",
-    "term": "FILL RATE",
-    "category": "Metric",
-    "category_raw": "Metric",
-    "group": "Metrics",
-    "definition": "",
-    "formula_or_notes": "Filled Impressions / Available Impressions * 100,",
     "type": "formula",
     "formula": {
       "calculatorId": "fill-rate",
@@ -3723,15 +3371,6 @@
     "type": "definition"
   },
   {
-    "id": "gross-rating-points-metric-f134e165",
-    "term": "Gross Rating Points",
-    "category": "Metric",
-    "category_raw": "Metric",
-    "group": "Metrics",
-    "definition": "Alias of GRP",
-    "type": "definition"
-  },
-  {
     "id": "grp-metric-892ab68a",
     "term": "GRP",
     "category": "Metric",
@@ -4000,48 +3639,6 @@
     "group": "Metrics",
     "definition": "Percentage of eligible impressions received",
     "formula_or_notes": "Impressions / Eligible Impressions * 100",
-    "type": "formula",
-    "formula": {
-      "calculatorId": "impression-share",
-      "expression": "(impressions / eligible_impressions) * 100",
-      "variables": [
-        {
-          "key": "impressions",
-          "label": "Impressions",
-          "required": true
-        },
-        {
-          "key": "eligible_impressions",
-          "label": "Eligible Impressions",
-          "required": true
-        }
-      ],
-      "output": {
-        "label": "Impression Share",
-        "unit": "%"
-      },
-      "format": "percent"
-    },
-    "plainEnglish": "The % of available impressions you actually received.",
-    "whyItMatters": "The clearest 'how much headroom is left' signal on search.",
-    "level": "intermediate",
-    "sources": [
-      {
-        "label": "Google Ads Help - Impression share",
-        "url": "https://support.google.com/google-ads/answer/7103314"
-      }
-    ],
-    "status": "reviewed",
-    "reviewedAt": "2026-06-30"
-  },
-  {
-    "id": "impression-share-metric-ba04de7f",
-    "term": "IMPRESSION SHARE",
-    "category": "Metric",
-    "category_raw": "Metric",
-    "group": "Metrics",
-    "definition": "",
-    "formula_or_notes": "Impressions / Eligible Impressions * 100,",
     "type": "formula",
     "formula": {
       "calculatorId": "impression-share",
@@ -6053,15 +5650,6 @@
     "reviewedAt": "2026-06-30"
   },
   {
-    "id": "rating-point-metric-24688ac6",
-    "term": "Rating Point",
-    "category": "Metric",
-    "category_raw": "Metric",
-    "group": "Metrics",
-    "definition": "Alias of Rating",
-    "type": "definition"
-  },
-  {
     "id": "reach-metric-fe19b838",
     "term": "Reach",
     "category": "Metric",
@@ -6486,15 +6074,6 @@
     "category_raw": "Optimisation",
     "group": "Buying & Trading",
     "definition": "Underlying user motivation",
-    "type": "definition"
-  },
-  {
-    "id": "search-is-metric-f324eac5",
-    "term": "Search IS",
-    "category": "Metric",
-    "category_raw": "Metric",
-    "group": "Metrics",
-    "definition": "Alias of Impression Share",
     "type": "definition"
   },
   {
@@ -7048,15 +6627,6 @@
     "type": "definition"
   },
   {
-    "id": "target-rating-points-metric-a9ff725e",
-    "term": "Target Rating Points",
-    "category": "Metric",
-    "category_raw": "Metric",
-    "group": "Metrics",
-    "definition": "Alias of TRP",
-    "type": "definition"
-  },
-  {
     "id": "target-roas-bidding-b77f1140",
     "term": "Target ROAS",
     "category": "Bidding",
@@ -7598,53 +7168,6 @@
     "reviewedAt": "2026-06-30"
   },
   {
-    "id": "vcpm-metric-0972049b",
-    "term": "VCPM",
-    "category": "Metric",
-    "category_raw": "Metric",
-    "group": "Metrics",
-    "definition": "",
-    "formula_or_notes": "Cost / Viewable Impressions * 1000,",
-    "type": "formula",
-    "formula": {
-      "calculatorId": "vcpm",
-      "expression": "(cost / viewable_impressions) * 1000",
-      "variables": [
-        {
-          "key": "cost",
-          "label": "Cost",
-          "unit": "$",
-          "required": true
-        },
-        {
-          "key": "viewable_impressions",
-          "label": "Viewable Impressions",
-          "required": true
-        }
-      ],
-      "output": {
-        "label": "vCPM",
-        "unit": "$"
-      },
-      "format": "currency"
-    },
-    "plainEnglish": "Cost per 1,000 viewable impressions (50% on screen for 1s+, per MRC).",
-    "whyItMatters": "Pays only for impressions that could be seen - a fairer cost than raw CPM.",
-    "level": "intermediate",
-    "sources": [
-      {
-        "label": "Google Ads Help - viewable CPM",
-        "url": "https://support.google.com/google-ads/answer/3499086"
-      },
-      {
-        "label": "IAB/MRC - Viewable Impression guideline",
-        "url": "https://www.iab.com/wp-content/uploads/2015/06/MRC-Viewable-Ad-Impression-Measurement-Guideline.pdf"
-      }
-    ],
-    "status": "reviewed",
-    "reviewedAt": "2026-06-30"
-  },
-  {
     "id": "verification-governance-d9a5ffb9",
     "term": "Verification",
     "category": "Governance",
@@ -7892,48 +7415,6 @@
     "group": "Buying & Trading",
     "definition": "Percentage of auctions won",
     "formula_or_notes": "Wins / Bids * 100",
-    "type": "formula",
-    "formula": {
-      "calculatorId": "win-rate",
-      "expression": "(wins / bids) * 100",
-      "variables": [
-        {
-          "key": "wins",
-          "label": "Wins",
-          "required": true
-        },
-        {
-          "key": "bids",
-          "label": "Bids",
-          "required": true
-        }
-      ],
-      "output": {
-        "label": "Win Rate",
-        "unit": "%"
-      },
-      "format": "percent"
-    },
-    "plainEnglish": "Of the auctions you bid in, the share you won.",
-    "whyItMatters": "A programmatic health metric - low win rate points to bid, pacing or eligibility issues.",
-    "level": "advanced",
-    "sources": [
-      {
-        "label": "IAB Australia - Digital Advertising Glossary",
-        "url": "https://iabaustralia.com.au/resource/digital-advertising-glossary-of-terms-july-2019/"
-      }
-    ],
-    "status": "reviewed",
-    "reviewedAt": "2026-06-30"
-  },
-  {
-    "id": "win-rate-metric-27682d86",
-    "term": "WIN RATE",
-    "category": "Metric",
-    "category_raw": "Metric",
-    "group": "Metrics",
-    "definition": "",
-    "formula_or_notes": "Wins / Bids * 100,",
     "type": "formula",
     "formula": {
       "calculatorId": "win-rate",

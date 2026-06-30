@@ -22,7 +22,6 @@ Ad Format,Creative,Display video native specification,
 Ad Group,Structure,Grouping of ads and keywords,
 Ad Pod,Placement,Group of ads within a break,
 Ad Rank,Mechanics,Value determining ad position,Bid × Quality × Context
-AD RANK,Metric,,","
 Ad Relevance,Quality Component,Keyword to ad relevance,
 Ad Relevance Diagnostics,Reporting,Quality feedback indicators,Meta
 Ad Set,Structure,Audience budget and optimisation container,Meta naming
@@ -65,8 +64,6 @@ Audience Network,Placement,Off-platform placements,Meta
 Auto-tagging,Tracking,Automatic URL parameter tagging,
 Automatic Placements,Delivery,Platform-selected placements,
 Average Audience,Metric,Mean viewers per program,
-Average Frequency,Metric,Alias of Frequency,
-Avg Monthly Searches,Metric,Alias of Search Volume,
 AVOD,Channel,Advertising Supported Video On Demand,
 Base Bid,Bidding,Initial bid before modifiers,
 Baseline,Measurement,Expected result without media,
@@ -77,7 +74,6 @@ Bid Cap,Bidding,Maximum bid limit,
 Bid Floor,Mechanics,Minimum acceptable price set by seller,
 Bid Multiplier,Bidding,Adjustment applied to base bid,
 Bid Rate,Supply,Percentage of requests bid on,Bids / Requests * 100
-BID RATE,Metric,,"Bids / Requests * 100,"
 Bid Request,Mechanics,Impression opportunity sent to DSP,
 Bid Response,Mechanics,DSP bid returned to exchange,
 Bid Shading,Bidding,Lowering bids in first-price auctions,
@@ -126,7 +122,6 @@ Clearing Price,Mechanics,Price paid after auction clears,
 Click,Engagement,User interaction with an ad,
 Click Attribution,Tracking,Conversions credited after click,
 Click Through Conversion,Tracking,Conversion after ad click,
-Click Through Rate,Metric,Alias of CTR,
 Client-side Tracking,Tracking,Browser based tracking,
 Client-Side Tracking,Tracking,Events sent from browser,
 Close Variant,Match Type,Plural misspelling or reordered terms,
@@ -153,10 +148,8 @@ Cookie Syncing,Identity,Alias of ID Syncing,
 Copy,Creative,Written ad text,
 Cost Cap,Bidding,Target average cost control,
 Cost per Lead,Metric,Cost per lead submission,Cost / Leads
-COST PER LEAD,Metric,,"Cost / Leads,"
 Cost per LPV,Metric,Cost divided by landing page views,
 Cost Per Point,Metric,Cost per rating point,Cost / GRPs
-COST PER POINT,Metric,,"Cost / GRPs,"
 Coverage,Metric,Reach within defined universe,
 CPA,Metric,Cost Per Acquisition,Cost / Conversions
 CPC,Metric,Cost Per Click,Cost / Clicks
@@ -178,7 +171,6 @@ Cross-Screen Reach,Metric,Reach across linear and BVOD,
 CTA,Creative,Call to action button or prompt,
 CTA Rate,Creative,CTA interactions divided by impressions,
 CTR,Metric,Click Through Rate,Clicks / Impressions * 100
-CTR Formula,Metric,CTR calculation,Clicks / Impressions * 100
 CTV,Channel,Connected TV delivered via internet,
 Cume Audience,Metric,Cumulative unique viewers,
 Custom Audience,Audience,First-party defined audience,
@@ -220,14 +212,12 @@ Dynamic Floor,Mechanics,Floor price adjusted algorithmically,
 Dynamic Keyword Insertion,Creative,Keyword insertion into ad copy,
 eCPC,Bidding,Enhanced CPC automation layer,
 eCPM,Metric,Effective CPM across buying,(Cost / Impressions) * 1000
-ECPM,Metric,,"(Cost / Impressions) * 1000,"
 Effective Rate,Finance,Blended realised rate after fees and discounts,
 Effective Reach,Metric,Reach achieving minimum frequency,
 Eligible Impressions,Metric,Total impressions available in auctions,
 End Card,Video,Final video CTA screen,
 Engagement,Engagement,Interactions beyond impression,
 Engagement Rate,Metric,Engagements divided by impressions,Engagements / Impressions * 100
-ENGAGEMENT RATE,Metric,,"Engagements / Impressions * 100,"
 Engagement Rate Ranking,Reporting,Engagement comparison ranking,
 Enhanced Conversions,Tracking,Google hashed data feature,
 Enhanced CPC,Bidding,Alias of eCPC,
@@ -251,7 +241,6 @@ Fee,Finance,Fixed or time-based service charge,
 Fee Stack,Finance,Cumulative technology and platform fees,
 Feed,Placement,Main content feed,
 Fill Rate,Supply,Percentage of inventory sold,Filled Impressions / Available Impressions * 100
-FILL RATE,Metric,,"Filled Impressions / Available Impressions * 100,"
 Final URL,Tracking,Landing page URL,
 First Click,Attribution,100 percent credit to first interaction,
 First In Break,Placement,First ad position in pod,
@@ -279,7 +268,6 @@ Gross Cost,Finance,Media cost including fees,Definition varies by contract
 Gross Margin,Finance,Revenue minus cost of goods,(Revenue - COGS) / Revenue
 GROSS MARGIN,Finance,,"(Revenue - COGS) / Revenue,"
 Gross Media Cost,Finance,Cost before tech fees,
-Gross Rating Points,Metric,Alias of GRP,
 GRP,Metric,Gross Rating Points,Reach percent × Frequency
 GST,Commercial,Goods and Services Tax in Australia,10% tax
 GTM,Tracking,Google Tag Manager,
@@ -301,7 +289,6 @@ ID Syncing,Identity,Sharing identifiers between platforms,
 Identity Resolution,Identity,Matching users across IDs,
 Impression Optimisation,Bidding,Optimise for impressions,
 Impression Share,Metric,Percentage of eligible impressions received,Impressions / Eligible Impressions * 100
-IMPRESSION SHARE,Metric,,"Impressions / Eligible Impressions * 100,"
 Impressions,Delivery,Total ad servings,
 In-Stream,Placement,Video mid-roll placement,
 Inc GST,Commercial,Price including GST,
@@ -482,7 +469,6 @@ Query Matching,Mechanics,How keywords match queries,
 Radio,Audio,Broadcast radio,
 Rate Card,Media,Published pricing,
 Rating,Metric,Percentage of audience watching,
-Rating Point,Metric,Alias of Rating,
 Reach,Metric,Percentage of target audience exposed,
 Reach Curve,Planning,Relationship between spend and reach,
 Reach Lift,Measurement,Incremental reach measurement,
@@ -521,7 +507,6 @@ Search Conversion Lag,Measurement,Time between click and conversion,
 Search Coverage Gap,Planning,Missing keyword opportunities,
 Search Demand,Planning,Volume of relevant queries,
 Search Intent,Optimisation,Underlying user motivation,
-Search IS,Metric,Alias of Impression Share,
 Search Lift,Measurement,Increase in search after TV exposure,
 Search Lost Impression Share,Metric,Total lost opportunity,
 Search Query Report,Reporting,List of actual triggering queries,
@@ -578,7 +563,6 @@ Taboola,Channel,Native content discovery platform,
 Tag,Tracking,Script used for tracking,
 Take Rate,Finance,Percentage retained by intermediaries,
 Target CPA,Bidding,Alias of tCPA,
-Target Rating Points,Metric,Alias of TRP,
 Target ROAS,Bidding,Alias of tROAS,
 tCPA,Bidding,Target cost per acquisition strategy,
 Teads,Channel,Video distribution platform,
@@ -626,7 +610,6 @@ Value,Metric,Revenue attributed to conversions,
 Value Optimisation,Bidding,Optimise for conversion value,
 ValueTrack Parameter,Tracking,Dynamic URL parameter,
 vCPM,Metric,Viewable CPM,Cost / Viewable Impressions * 1000
-VCPM,Metric,,"Cost / Viewable Impressions * 1000,"
 Verification,Governance,Independent measurement of delivery,
 Video,Format,In-stream or out-stream video,
 Video Completion,Metric,Video played to end,
@@ -646,7 +629,6 @@ Web Lift,Measurement,Increase in site visits after TV exposure,
 Webhook,Tech,Event-based data push,
 Whitelisting,Governance,Approved inventory list,
 Win Rate,Supply,Percentage of auctions won,Wins / Bids * 100
-WIN RATE,Metric,,"Wins / Bids * 100,"
 WIP,Operations,Work In Progress status meeting,
 Yield,Supply,Revenue generated per impression,
 Yield Optimisation,Supply,Improving revenue outcomes,
