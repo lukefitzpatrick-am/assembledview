@@ -26,7 +26,18 @@
     "category_raw": "Creative",
     "group": "Creative",
     "definition": "Fifteen second TV ad",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A fifteen-second TV commercial.",
+    "whyItMatters": "A common length - cheaper than a 30s and good for frequency, but less room to build a story.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "ThinkTV - Get creative",
+        "url": "https://thinktv.com.au/how-to-advertise-on-tv/get-creative/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "2-reach-metric-8f9ddd85",
@@ -75,7 +86,18 @@
     "category_raw": "Creative",
     "group": "Creative",
     "definition": "Thirty second TV ad",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A thirty-second TV commercial - the classic TVC length.",
+    "whyItMatters": "Enough time to build a story and emotion; the benchmark length most brand TV is bought and rated against.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "ThinkTV - Get creative",
+        "url": "https://thinktv.com.au/how-to-advertise-on-tv/get-creative/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "3s-view-metric-88d8588d",
@@ -104,7 +126,18 @@
     "category_raw": "Creative",
     "group": "Creative",
     "definition": "Six second short format",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A six-second short-format video ad (e.g. YouTube bumper).",
+    "whyItMatters": "Built for unskippable, mobile, high-frequency reach - one idea, fast.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "ThinkTV - Get creative",
+        "url": "https://thinktv.com.au/how-to-advertise-on-tv/get-creative/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "a-b-test-testing-70a583d9",
@@ -224,7 +257,18 @@
     "category_raw": "Creative",
     "group": "Creative",
     "definition": "Additional ad information elements",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Extra bits added to a search ad - sitelinks, callouts, phone numbers, prices. Now called 'assets' in Google Ads.",
+    "whyItMatters": "Free extra real estate and information that lifts CTR; Google renamed them 'assets' but the function is the same.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Ads Help - About assets (formerly extensions)",
+        "url": "https://support.google.com/google-ads/answer/7332837"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "ad-format-creative-2421d796",
@@ -233,7 +277,18 @@
     "category_raw": "Creative",
     "group": "Creative",
     "definition": "Display video native specification",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The type/shape of an ad - display banner, video, native, etc., with its own spec.",
+    "whyItMatters": "Format shapes what the creative can do and where it runs; matching format to placement and objective is core to planning.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "IAB Australia - Display & mobile ad specs",
+        "url": "https://www.iabaustralia.com.au/guideline/display-mobile-advertising-standards-specifications/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "ad-group-structure-77d83b49",
@@ -348,7 +403,18 @@
     "category_raw": "Creative",
     "group": "Creative",
     "definition": "Google diagnostic ad quality indicator",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Google's diagnostic (Poor to Excellent) of how well a responsive ad follows best practice.",
+    "whyItMatters": "A guide, not a KPI - aim for Good/Excellent via variety and relevance, but don't chase it at the expense of the message.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - About Ad Strength",
+        "url": "https://support.google.com/google-ads/answer/9921843"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "add-to-cart-metric-3d2f341e",
@@ -427,7 +493,18 @@
     "category_raw": "Channel",
     "group": "Channels & Formats",
     "definition": "Data-driven TV buying umbrella",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "An umbrella term for data-driven, addressable TV buying across BVOD, CTV and addressable linear.",
+    "whyItMatters": "The bridge between TV's reach and digital's targeting/measurement - increasingly how premium video is bought.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "IAB Australia - Video/CTV resources",
+        "url": "https://www.iabaustralia.com.au/guideline/resources-for-video-ctv-and-advanced-tv/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "advantage-plus-audience-audience-050d9995",
@@ -447,7 +524,18 @@
     "group": "Creative",
     "definition": "Automated commerce campaign type",
     "formula_or_notes": "Meta branding",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Meta's highly automated shopping/sales campaign type (now branded Advantage+ Sales).",
+    "whyItMatters": "Hands targeting, placement and creative to Meta's automation - strong for e-commerce, with less manual control.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Meta Business Help - Advantage+ Shopping/Sales",
+        "url": "https://www.facebook.com/business/help/1362234537597370"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "advertiser-account-account-8f81ca85",
@@ -465,7 +553,18 @@
     "category_raw": "Channel",
     "group": "Channels & Formats",
     "definition": "Commission based partnerships",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Performance partnerships that pay a commission for sales/leads they drive.",
+    "whyItMatters": "Low-risk, pay-on-result reach via publishers and creators - but watch for last-click over-crediting.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "IAB - Affiliate Industry Handbook",
+        "url": "https://www.iab.com/news/iab-australia-affiliate-industry-handbook/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "agency-fee-finance-229b96e6",
@@ -484,7 +583,18 @@
     "group": "Tracking & Ad Ops",
     "definition": "Privacy-restricted event ranking",
     "formula_or_notes": "Meta framework",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Meta's privacy-safe way to measure web events after Apple's ATT - events are ranked and reported in aggregate.",
+    "whyItMatters": "Limits each domain to 8 prioritised events and removes user-level detail; shapes how iOS conversions are measured on Meta.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "Meta Business Help - Aggregated Event Measurement",
+        "url": "https://www.facebook.com/business/help/721422165168355"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "all-conversions-tracking-798611c4",
@@ -493,7 +603,18 @@
     "category_raw": "Tracking",
     "group": "Tracking & Ad Ops",
     "definition": "Includes primary and secondary conversions",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A column totalling every tracked conversion, including secondary ones not used for bidding.",
+    "whyItMatters": "Useful for the full picture - but don't confuse it with the 'Conversions' column the algorithm optimises to.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Conversion actions",
+        "url": "https://support.google.com/google-ads/answer/6032150"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "always-on-planning-88920606",
@@ -600,7 +721,18 @@
     "category_raw": "Creative",
     "group": "Creative",
     "definition": "Width to height format",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The width-to-height shape of a creative (e.g. 16:9 landscape, 9:16 vertical, 1:1 square).",
+    "whyItMatters": "The wrong ratio gets cropped or letterboxed; vertical (9:16) is essential for mobile/social feeds and Stories/Reels.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "IAB Australia - Display & mobile ad specs",
+        "url": "https://www.iabaustralia.com.au/guideline/display-mobile-advertising-standards-specifications/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "asset-creative-89f271ab",
@@ -609,7 +741,18 @@
     "category_raw": "Creative",
     "group": "Creative",
     "definition": "Ad creative file",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A single creative file - a headline, image, logo, video or description.",
+    "whyItMatters": "Automated formats (Performance Max, Advantage+, RSAs) assemble ads from many assets, so giving strong, varied assets matters more than designing one finished ad.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Ads Help - Performance Max assets",
+        "url": "https://support.google.com/google-ads/answer/10724748"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "assets-creative-9fe7a20b",
@@ -656,7 +799,18 @@
     "category_raw": "Tracking",
     "group": "Tracking & Ad Ops",
     "definition": "Time allowed for conversion credit",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The time after a click or view within which a conversion still gets credited.",
+    "whyItMatters": "Longer windows credit more conversions; comparing campaigns on different windows is apples-to-oranges.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - About conversion windows",
+        "url": "https://support.google.com/google-ads/answer/3123169"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "auction-mechanics-082d402b",
@@ -758,7 +912,18 @@
     "category_raw": "Tracking",
     "group": "Tracking & Ad Ops",
     "definition": "Automatic URL parameter tagging",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Google Ads automatically appends a GCLID to your click URLs so conversions can be tied back.",
+    "whyItMatters": "Cleaner and richer than manual UTMs for Google Ads - the recommended way to connect Ads and Analytics.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Auto-tagging",
+        "url": "https://support.google.com/google-ads/answer/3095550"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "automatic-placements-delivery-5a93c05c",
@@ -796,7 +961,18 @@
     "category_raw": "Channel",
     "group": "Channels & Formats",
     "definition": "Advertising Supported Video On Demand",
-    "type": "acronym"
+    "type": "acronym",
+    "plainEnglish": "Advertising-supported Video On Demand - free streaming paid for by ads.",
+    "whyItMatters": "The ad-funded streaming tier (incl. BVOD and ad tiers of the majors) - where streaming ad inventory lives.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "IAB Australia - Video/CTV resources",
+        "url": "https://www.iabaustralia.com.au/guideline/resources-for-video-ctv-and-advanced-tv/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "base-bid-bidding-6561861a",
@@ -1168,7 +1344,18 @@
     "category_raw": "Channel",
     "group": "Channels & Formats",
     "definition": "Broadcaster Video On Demand in Australia",
-    "type": "acronym"
+    "type": "acronym",
+    "plainEnglish": "Broadcaster Video On Demand - the streaming/catch-up apps of the TV networks (7plus, 9Now, 10 play, etc.).",
+    "whyItMatters": "Premium, brand-safe, high-completion digital video; counted as part of Total TV under VOZ.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "ThinkTV - BVOD consumption",
+        "url": "https://thinktv.com.au/facts-and-stats/bvod-consumption/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "bvod-completion-rate-metric-c7aab7f9",
@@ -1277,7 +1464,18 @@
     "category_raw": "Creative",
     "group": "Creative",
     "definition": "Clickable phone number",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A clickable phone number on a search ad.",
+    "whyItMatters": "Drives calls directly - valuable for service/local businesses.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Ads Help - About assets",
+        "url": "https://support.google.com/google-ads/answer/7332837"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "call-to-action-creative-addc5d40",
@@ -1295,7 +1493,18 @@
     "category_raw": "Creative",
     "group": "Creative",
     "definition": "Short benefit statements",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Short non-clickable benefit phrases under a search ad (e.g. 'Free shipping').",
+    "whyItMatters": "Add selling points without using headline space.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Ads Help - About assets",
+        "url": "https://support.google.com/google-ads/answer/7332837"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "campaign-structure-de9851ee",
@@ -1341,7 +1550,18 @@
     "category_raw": "Tracking",
     "group": "Tracking & Ad Ops",
     "definition": "Meta server side conversions",
-    "type": "acronym"
+    "type": "acronym",
+    "plainEnglish": "Meta's Conversions API - sends conversion events to Meta from your server, not just the browser pixel.",
+    "whyItMatters": "Recovers signal lost to browser restrictions/ad blockers; the durable complement to the Pixel. Deduplicate against pixel events.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "Meta for Developers - Conversions API",
+        "url": "https://developers.facebook.com/docs/marketing-api/conversions-api/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "cartology-retail-media-8df638c1",
@@ -1359,7 +1579,18 @@
     "category_raw": "Channel",
     "group": "Channels & Formats",
     "definition": "On-demand replay of broadcast content",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "On-demand replay of broadcast content after it airs (a core part of BVOD).",
+    "whyItMatters": "Extends a program's audience beyond the live airing; measured within Total TV.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "ThinkTV - BVOD consumption",
+        "url": "https://thinktv.com.au/facts-and-stats/bvod-consumption/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "category-contextual-targeting-fb884278",
@@ -1423,7 +1654,18 @@
     "category_raw": "Tracking",
     "group": "Tracking & Ad Ops",
     "definition": "Conversions credited after click",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Crediting a conversion to a click the user made.",
+    "whyItMatters": "Click-based credit is the default and most trusted; view-based credit needs more scrutiny.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - About attribution models",
+        "url": "https://support.google.com/google-ads/answer/6259715"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "click-through-conversion-tracking-2da1896a",
@@ -1432,7 +1674,18 @@
     "category_raw": "Tracking",
     "group": "Tracking & Ad Ops",
     "definition": "Conversion after ad click",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A conversion that happened after the user clicked the ad.",
+    "whyItMatters": "The 'they clicked then converted' path; the stronger, more defensible conversion signal.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - About attribution models",
+        "url": "https://support.google.com/google-ads/answer/6259715"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "client-side-tracking-tracking-2a551dc5",
@@ -1441,7 +1694,18 @@
     "category_raw": "Tracking",
     "group": "Tracking & Ad Ops",
     "definition": "Browser based tracking",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Measurement where events fire from the user's browser/app.",
+    "whyItMatters": "Easy to set up but increasingly blocked (ITP, ad blockers, cookie limits) - a big driver of under-counted conversions.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Tag Manager Help - Client vs server-side",
+        "url": "https://support.google.com/tagmanager/answer/13387731"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "client-side-tracking-tracking-9d6c9c0c",
@@ -1450,7 +1714,18 @@
     "category_raw": "Tracking",
     "group": "Tracking & Ad Ops",
     "definition": "Events sent from browser",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Measurement where events fire from the user's browser/app.",
+    "whyItMatters": "Easy to set up but increasingly blocked (ITP, ad blockers, cookie limits) - a big driver of under-counted conversions.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Tag Manager Help - Client vs server-side",
+        "url": "https://support.google.com/tagmanager/answer/13387731"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "close-variant-match-type-8e874e6a",
@@ -1468,7 +1743,18 @@
     "category_raw": "Channel",
     "group": "Channels & Formats",
     "definition": "Google Campaign Manager",
-    "type": "acronym"
+    "type": "acronym",
+    "plainEnglish": "Campaign Manager 360 - Google's ad server for trafficking, tracking and measuring campaigns.",
+    "whyItMatters": "The independent counting/serving layer that reconciles delivery across publishers and platforms.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google - Campaign Manager 360",
+        "url": "https://support.google.com/campaignmanager/answer/2709362"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "cmp-privacy-79314dd7",
@@ -1636,7 +1922,18 @@
     "category_raw": "Tracking",
     "group": "Tracking & Ad Ops",
     "definition": "Defined outcome used for optimisation",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A specific outcome you've defined to track (purchase, lead, signup, call).",
+    "whyItMatters": "What you set up and which actions you mark primary directly steers automated bidding.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Conversion actions",
+        "url": "https://support.google.com/google-ads/answer/6032150"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "conversion-lift-measurement-b18ccee5",
@@ -1674,7 +1971,18 @@
     "category_raw": "Tracking",
     "group": "Tracking & Ad Ops",
     "definition": "Time allowed for conversion credit",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The period after an ad interaction during which a conversion counts.",
+    "whyItMatters": "Same idea as the attribution window - set it to your real purchase cycle and keep it consistent across reporting.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - About conversion windows",
+        "url": "https://support.google.com/google-ads/answer/3123169"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "cookie-syncing-identity-a9209750",
@@ -1692,7 +2000,18 @@
     "category_raw": "Creative",
     "group": "Creative",
     "definition": "Written ad text",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The written words in an ad - headlines, body, CTA.",
+    "whyItMatters": "Clear, benefit-led copy does much of the persuading; the message matters as much as the design.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Ads Help - Responsive search ads",
+        "url": "https://support.google.com/google-ads/answer/7684791"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "cost-cap-bidding-ecb0b78b",
@@ -2178,7 +2497,18 @@
     "category_raw": "Creative",
     "group": "Creative",
     "definition": "Ad asset including copy and visuals",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The actual ad - the copy, images, video and audio a person sees or hears.",
+    "whyItMatters": "Creative is the biggest driver of effectiveness - a great plan with weak creative underperforms. It's the message, not just the media.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "ThinkTV - Get creative",
+        "url": "https://thinktv.com.au/how-to-advertise-on-tv/get-creative/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "creative-fatigue-creative-6b646a6c",
@@ -2187,7 +2517,18 @@
     "category_raw": "Creative",
     "group": "Creative",
     "definition": "Declining performance due to overexposure",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Declining performance because the audience has seen the ad too many times.",
+    "whyItMatters": "Rising frequency + falling CTR/CVR is the tell - the cue to refresh creative.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Meta Business Help - Creative fatigue",
+        "url": "https://www.facebook.com/business/help/1346816142327858"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "creative-refresh-creative-44f1d833",
@@ -2196,7 +2537,18 @@
     "category_raw": "Creative",
     "group": "Creative",
     "definition": "Introducing new assets",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Introducing new creative to replace tired ads.",
+    "whyItMatters": "Combats fatigue/wearout - performance decays as the same audience sees the same ad too often.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Meta Business Help - Creative fatigue",
+        "url": "https://www.facebook.com/business/help/1346816142327858"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "creative-rotation-creative-d38d5063",
@@ -2205,7 +2557,18 @@
     "category_raw": "Creative",
     "group": "Creative",
     "definition": "Rules for asset serving",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The rules for how multiple ads in a set are served (evenly, or optimised to the best).",
+    "whyItMatters": "Optimise-for-best learns faster; even rotation gives cleaner read for testing. Pick to match your goal.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Responsive search ads",
+        "url": "https://support.google.com/google-ads/answer/7684791"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "creative-testing-creative-bfda2d28",
@@ -2214,7 +2577,18 @@
     "category_raw": "Creative",
     "group": "Creative",
     "definition": "Testing multiple ad variants",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Running multiple ad variants to see which performs best.",
+    "whyItMatters": "The fastest, cheapest performance lever - creative differences usually beat targeting tweaks. Test one variable at a time.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Meta Business Help - Dynamic creative",
+        "url": "https://www.facebook.com/business/help/372254927063450"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "creative-wearout-creative-5eaaa129",
@@ -2223,7 +2597,18 @@
     "category_raw": "Creative",
     "group": "Creative",
     "definition": "Declining impact from repetition",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The point where an ad's impact falls off from repetition.",
+    "whyItMatters": "Same idea as fatigue - the signal to rotate in fresh creative before efficiency erodes.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Meta Business Help - Creative fatigue",
+        "url": "https://www.facebook.com/business/help/1346816142327858"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "crm-tech-de415cbd",
@@ -2270,7 +2655,18 @@
     "category_raw": "Creative",
     "group": "Creative",
     "definition": "Call to action button or prompt",
-    "type": "acronym"
+    "type": "acronym",
+    "plainEnglish": "Call to action - the button or line telling the user what to do next ('Shop now', 'Learn more').",
+    "whyItMatters": "A clear, single CTA lifts response; vague or competing CTAs cost conversions.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Meta Business Help - Dynamic creative",
+        "url": "https://www.facebook.com/business/help/372254927063450"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "cta-rate-creative-8872e9de",
@@ -2279,7 +2675,18 @@
     "category_raw": "Creative",
     "group": "Creative",
     "definition": "CTA interactions divided by impressions",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "CTA interactions divided by impressions - how often people engage the call to action.",
+    "whyItMatters": "A creative-effectiveness signal for the action prompt; read with downstream conversions.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Meta Business Help - Post engagement",
+        "url": "https://www.facebook.com/business/help/735720159834389"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "ctr-metric-3c0b3730",
@@ -2330,7 +2737,18 @@
     "category_raw": "Channel",
     "group": "Channels & Formats",
     "definition": "Connected TV delivered via internet",
-    "type": "acronym"
+    "type": "acronym",
+    "plainEnglish": "Connected TV - any TV connected to the internet streaming content (smart TVs, streaming sticks, consoles).",
+    "whyItMatters": "Where streaming is watched; the device behind the shift from linear to on-demand viewing.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "IAB Australia - Video/CTV resources",
+        "url": "https://www.iabaustralia.com.au/guideline/resources-for-video-ctv-and-advanced-tv/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "cume-audience-metric-c851c61a",
@@ -2566,7 +2984,18 @@
     "category_raw": "Creative",
     "group": "Creative",
     "definition": "Supporting ad text",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The supporting body text under the headline in an ad.",
+    "whyItMatters": "Adds detail and the case to act; RSAs rotate up to 4.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Ads Help - Responsive search ads",
+        "url": "https://support.google.com/google-ads/answer/7684791"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "deterministic-id-identity-107d49f7",
@@ -2703,7 +3132,18 @@
     "category_raw": "Channel",
     "group": "Channels & Formats",
     "definition": "Google Display and Video 360",
-    "type": "acronym"
+    "type": "acronym",
+    "plainEnglish": "Display & Video 360 - Google's demand-side platform for programmatic buying across the open web and CTV.",
+    "whyItMatters": "Where agencies run programmatic display, video, audio and CTV with deal management and frequency control.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google - DV360 overview",
+        "url": "https://support.google.com/displayvideo/answer/9059464"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "dwh-tech-62db5def",
@@ -2721,7 +3161,18 @@
     "category_raw": "Creative",
     "group": "Creative",
     "definition": "Automated asset combinations",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Automatically mixes and matches creative elements to find the best-performing combinations per person.",
+    "whyItMatters": "Scales testing across audiences without building every variant by hand - the engine behind Advantage+ and PMax creative.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Meta Business Help - Dynamic creative",
+        "url": "https://www.facebook.com/business/help/372254927063450"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "dynamic-floor-mechanics-169f65ee",
@@ -2739,7 +3190,18 @@
     "category_raw": "Creative",
     "group": "Creative",
     "definition": "Keyword insertion into ad copy",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Automatically drops the user's search term into your ad copy.",
+    "whyItMatters": "Boosts relevance and CTR - but needs guardrails or it can produce awkward or off-brand text.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Dynamic Keyword Insertion",
+        "url": "https://support.google.com/google-ads/answer/2454041"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "ecpc-bidding-aedfbda3",
@@ -2918,7 +3380,18 @@
     "category_raw": "Tracking",
     "group": "Tracking & Ad Ops",
     "definition": "Google hashed data feature",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A Google feature that uses hashed first-party data (e.g. email) to recover conversions cookies miss.",
+    "whyItMatters": "Improves measurement accuracy under signal loss while keeping data hashed/privacy-safe.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "Google Ads Help - Enhanced conversions",
+        "url": "https://support.google.com/google-ads/answer/9888656"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "enhanced-cpc-bidding-eb0a2d20",
@@ -2999,7 +3472,18 @@
     "category_raw": "Tracking",
     "group": "Tracking & Ad Ops",
     "definition": "Preventing double counting",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Stopping the same conversion being counted twice when it's sent by both the pixel and the server (CAPI).",
+    "whyItMatters": "Run pixel + CAPI together for resilience, but dedupe on a shared event_id or you double-count.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "Meta for Developers - Deduplicate pixel & server events",
+        "url": "https://developers.facebook.com/docs/marketing-api/conversions-api/deduplicate-pixel-and-server-events/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "event-priority-tracking-ce96c3b3",
@@ -3008,7 +3492,18 @@
     "category_raw": "Tracking",
     "group": "Tracking & Ad Ops",
     "definition": "Ranking for limited conversion reporting",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The ranking that decides which of your 8 allowed Meta events gets reported when a user does several.",
+    "whyItMatters": "Put your most valuable event (e.g. Purchase) top, or AEM may report a lesser action instead.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "Meta Business Help - Event priority",
+        "url": "https://www.facebook.com/business/help/193250612476055"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "ex-gst-commercial-f4f2a8f3",
@@ -3044,7 +3539,19 @@
     "category_raw": "Creative",
     "group": "Creative",
     "definition": "Legacy fixed format ad",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A legacy fixed-format search ad (set headlines and descriptions).",
+    "whyItMatters": "Retired - you can no longer create or edit them; RSAs replaced them. Useful to recognise in old accounts.",
+    "practitionerNotes": "Deprecated by Google in 2022.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - About Expanded Text Ads",
+        "url": "https://support.google.com/google-ads/answer/7056544"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "expected-ctr-quality-component-b47e51d0",
@@ -3082,7 +3589,18 @@
     "category_raw": "Channel",
     "group": "Channels & Formats",
     "definition": "Free Ad Supported Streaming Television",
-    "type": "acronym"
+    "type": "acronym",
+    "plainEnglish": "Free Ad-Supported Streaming Television - free, linear-style streaming channels (e.g. Samsung TV Plus).",
+    "whyItMatters": "A fast-growing, ad-funded streaming format that recreates the channel-surfing experience online.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "IAB Australia - Video/CTV resources",
+        "url": "https://www.iabaustralia.com.au/guideline/resources-for-video-ctv-and-advanced-tv/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "fee-finance-22fe14fa",
@@ -3160,7 +3678,18 @@
     "category_raw": "Tracking",
     "group": "Tracking & Ad Ops",
     "definition": "Landing page URL",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The actual landing page a Google Ads click takes the user to.",
+    "whyItMatters": "Separated from tracking parameters so measurement and destination can be managed independently.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Final URLs & tracking templates",
+        "url": "https://support.google.com/google-ads/answer/6273460"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "first-click-attribution-908f4c06",
@@ -3244,7 +3773,18 @@
     "category_raw": "Channel",
     "group": "Channels & Formats",
     "definition": "Ad-supported broadcast television",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Ad-supported broadcast television that's free to watch (FTA).",
+    "whyItMatters": "The backbone of mass reach in Australia; bought on VOZ ratings.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "ThinkTV - TV",
+        "url": "https://thinktv.com.au/facts-and-stats/bvod-consumption/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "frequency-metric-e2354742",
@@ -3338,7 +3878,18 @@
     "category_raw": "Tracking",
     "group": "Tracking & Ad Ops",
     "definition": "Google Click Identifier",
-    "type": "acronym"
+    "type": "acronym",
+    "plainEnglish": "Google Click Identifier - a unique tag Google adds to a click to track it through to conversion.",
+    "whyItMatters": "The link between a Google Ads click and the conversion it drives; needed for accurate Ads/Analytics attribution and offline imports.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - GCLID",
+        "url": "https://support.google.com/google-ads/answer/9744275"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "geo-channel-31815cac",
@@ -3347,7 +3898,18 @@
     "category_raw": "Channel",
     "group": "Channels & Formats",
     "definition": "Generative Engine Optimisation",
-    "type": "acronym"
+    "type": "acronym",
+    "plainEnglish": "Generative Engine Optimisation - optimising content to be surfaced and cited by AI answer engines.",
+    "whyItMatters": "As people get answers from AI rather than clicking links, being referenced by generative engines is an emerging visibility battleground.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "Princeton - GEO (Generative Engine Optimization)",
+        "url": "https://collaborate.princeton.edu/en/publications/geo-generative-engine-optimization/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "geo-lift-measurement-e34a00fd",
@@ -3552,7 +4114,18 @@
     "category_raw": "Tracking",
     "group": "Tracking & Ad Ops",
     "definition": "Google Tag Manager",
-    "type": "acronym"
+    "type": "acronym",
+    "plainEnglish": "Google Tag Manager - a tool to deploy and manage tags without editing site code each time.",
+    "whyItMatters": "Lets marketers add/change tracking quickly and cleanly; the standard tag-management layer.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Tag Manager Help - Intro",
+        "url": "https://support.google.com/tagmanager/answer/6102821"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "hard-floor-mechanics-2bb706c8",
@@ -3588,7 +4161,18 @@
     "category_raw": "Creative",
     "group": "Creative",
     "definition": "Headline text element",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The most prominent line of ad text - the first thing people read.",
+    "whyItMatters": "Does most of the work in grabbing attention; RSAs use up to 15 to test combinations.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Ads Help - Responsive search ads",
+        "url": "https://support.google.com/google-ads/answer/7684791"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "hidden-margin-trading-a868a23b",
@@ -3900,7 +4484,18 @@
     "category_raw": "Channel",
     "group": "Channels & Formats",
     "definition": "Creator led promotion",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Creator-led promotion where a social personality features a brand to their audience.",
+    "whyItMatters": "Borrows the creator's trust and reach; needs clear disclosure and brief alignment to work.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "IAB - Influencer marketing guide",
+        "url": "https://www.iab.com/insights/influencer-marketing-for-publishers-guide-case-studies/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "informational-intent-optimisation-ed8b74a9",
@@ -4171,7 +4766,18 @@
     "group": "Creative",
     "definition": "Duration of TV ad",
     "formula_or_notes": "Common lengths 15 30 seconds",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The duration of a TV or video ad (e.g. 6s, 15s, 30s, 60s).",
+    "whyItMatters": "Trades cost against storytelling room - and drives the rating weight (a 15s often buys at a discount to a 30s).",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "ThinkTV - Get creative",
+        "url": "https://thinktv.com.au/how-to-advertise-on-tv/get-creative/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "lifetime-budget-budgeting-347ea259",
@@ -4269,7 +4875,18 @@
     "category_raw": "Channel",
     "group": "Channels & Formats",
     "definition": "Traditional scheduled broadcast television",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Traditional scheduled broadcast TV - you watch what's on, when it's on.",
+    "whyItMatters": "Still huge for fast, broad reach; increasingly planned together with BVOD as 'Total TV' via VOZ.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "ThinkTV - BVOD & TV",
+        "url": "https://thinktv.com.au/facts-and-stats/bvod-consumption/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "link-ctr-metric-bcf3d4e1",
@@ -4298,7 +4915,18 @@
     "category_raw": "Channel",
     "group": "Channels & Formats",
     "definition": "LinkedIn advertising platform",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Advertising on LinkedIn - targeted by job title, company, industry and seniority.",
+    "whyItMatters": "The primary B2B social channel; premium CPMs but precise professional targeting.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "LinkedIn Marketing Solutions - Ads",
+        "url": "https://business.linkedin.com/marketing-solutions/ads"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "linkedin-lead-gen-form-format-845747ee",
@@ -4334,7 +4962,18 @@
     "category_raw": "Channel",
     "group": "Channels & Formats",
     "definition": "Real-time broadcast viewing",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Watching a broadcast in real time as it airs.",
+    "whyItMatters": "Drives appointment viewing and big simultaneous audiences (sport, finales) - premium for reach and attention.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "ThinkTV - How TV ratings work",
+        "url": "https://thinktv.com.au/how-tos-resources/how-do-tv-ratings-work/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "location-bid-adjustment-bidding-190de51c",
@@ -4352,7 +4991,18 @@
     "category_raw": "Creative",
     "group": "Creative",
     "definition": "Business address display",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Shows your business address/map pin on a search ad.",
+    "whyItMatters": "Drives foot traffic and signals local relevance.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Ads Help - About assets",
+        "url": "https://support.google.com/google-ads/answer/7332837"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "log-level-data-reporting-25c4b49f",
@@ -4736,7 +5386,18 @@
     "category_raw": "Channel",
     "group": "Channels & Formats",
     "definition": "Facebook and Instagram advertising platform",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Advertising across Facebook and Instagram (and Messenger) via Meta's ad platform.",
+    "whyItMatters": "Massive reach plus first-party data and automation (Advantage+); a core performance and brand channel.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Meta for Business - Ads",
+        "url": "https://www.facebook.com/business/ads"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "metro-tam-measurement-aede917c",
@@ -4896,7 +5557,18 @@
     "category_raw": "Channel",
     "group": "Channels & Formats",
     "definition": "Content styled advertising",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Ads styled to match the look and feel of the content around them.",
+    "whyItMatters": "Less interruptive and higher engagement, but must be clearly labelled as advertising.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "IAB - Native Advertising Playbook 2.0",
+        "url": "https://www.iab.com/insights/iab-native-advertising-playbook-2-0/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "navigational-intent-optimisation-872911c3",
@@ -5139,7 +5811,18 @@
     "category_raw": "Tracking",
     "group": "Tracking & Ad Ops",
     "definition": "Uploaded offline outcomes",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A conversion that happens off-site (a phone sale, an in-store purchase) uploaded back into the platform.",
+    "whyItMatters": "Closes the loop on leads that convert offline, so bidding optimises to real sales not just form-fills.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "Google Ads Help - Offline conversion imports",
+        "url": "https://support.google.com/google-ads/answer/2998031"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "okr-measurement-760e4a54",
@@ -5246,7 +5929,18 @@
     "category_raw": "Channel",
     "group": "Channels & Formats",
     "definition": "Native advertising platform",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A native advertising and content-discovery platform (the 'recommended for you' modules on publisher sites).",
+    "whyItMatters": "Scaled native reach across the open web; good for content distribution and mid-funnel.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Outbrain - Native advertising",
+        "url": "https://www.outbrain.com/native-advertising/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "outranking-share-metric-6932d0a1",
@@ -5360,7 +6054,18 @@
     "category_raw": "Channel",
     "group": "Channels & Formats",
     "definition": "Paid advertising across social platforms",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Paid advertising on social platforms (Meta, TikTok, LinkedIn, etc.).",
+    "whyItMatters": "Scaled reach plus rich targeting and creative formats across the funnel.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Meta for Business - Ads",
+        "url": "https://www.facebook.com/business/ads"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "panel-measurement-75675d1d",
@@ -5409,7 +6114,18 @@
     "category_raw": "Channel",
     "group": "Channels & Formats",
     "definition": "Subscription-based television",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Subscription television (e.g. Foxtel).",
+    "whyItMatters": "Narrower reach than FTA but genre/audience concentration (sport, news, lifestyle).",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "IAB Australia - Video/CTV resources",
+        "url": "https://www.iabaustralia.com.au/guideline/resources-for-video-ctv-and-advanced-tv/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "peak-planning-0c16eb36",
@@ -5454,7 +6170,18 @@
     "category_raw": "Channel",
     "group": "Channels & Formats",
     "definition": "Pinterest advertising",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Advertising on Pinterest - high-intent, discovery-led, visual.",
+    "whyItMatters": "Strong for retail, home, food and planning mindsets; users are often actively shopping for ideas.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Pinterest Business - Advertise",
+        "url": "https://business.pinterest.com/advertise/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "pitch-commercial-03b332a6",
@@ -5472,7 +6199,18 @@
     "category_raw": "Tracking",
     "group": "Tracking & Ad Ops",
     "definition": "Tracking tag for conversions and audiences",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A small piece of tracking code on your site that records actions and builds audiences.",
+    "whyItMatters": "The signal source for conversion tracking and retargeting - but browser-based pixels are weakened by signal loss (pair with server-side/CAPI).",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Meta Business Help - Meta Pixel",
+        "url": "https://www.facebook.com/business/help/742478679120153"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "placement-delivery-b5fafd79",
@@ -5639,7 +6377,18 @@
     "category_raw": "Creative",
     "group": "Creative",
     "definition": "Product or service pricing",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Shows products/services with prices under a search ad.",
+    "whyItMatters": "Sets expectations and pre-qualifies clicks.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Ads Help - About assets",
+        "url": "https://support.google.com/google-ads/answer/7332837"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "primary-conversion-measurement-1aa9499e",
@@ -5698,7 +6447,18 @@
     "category_raw": "Creative",
     "group": "Creative",
     "definition": "Main body copy",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The main body copy of a social ad (the text above the image/video on Meta).",
+    "whyItMatters": "Often truncated - front-load the hook in the first line before the 'See more' cut.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Meta Business Help - Dynamic creative",
+        "url": "https://www.facebook.com/business/help/372254927063450"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "prime-time-planning-6f6f39fa",
@@ -5803,7 +6563,18 @@
     "category_raw": "Channel",
     "group": "Channels & Formats",
     "definition": "Automated buying and selling of digital media",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Automated buying and selling of digital ad inventory through technology (auctions or automated deals).",
+    "whyItMatters": "A buying method, not a channel - display, video, audio, CTV and DOOH can all be bought programmatically.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google - Display & Video 360 overview",
+        "url": "https://support.google.com/displayvideo/answer/9059464"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "programmatic-display-channel-547ac812",
@@ -5812,7 +6583,18 @@
     "category_raw": "Channel",
     "group": "Channels & Formats",
     "definition": "Automated display advertising",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Display (banner) advertising bought programmatically.",
+    "whyItMatters": "Scaled, targeted, cheap reach - but watch viewability and brand safety on the open web.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google - Display & Video 360 overview",
+        "url": "https://support.google.com/displayvideo/answer/9059464"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "programmatic-guaranteed-programmatic-d25243c0",
@@ -5839,7 +6621,18 @@
     "category_raw": "Creative",
     "group": "Creative",
     "definition": "Sale or offer messaging",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Highlights a sale or offer on a search ad.",
+    "whyItMatters": "Surfaces deals at the moment of intent.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Ads Help - About assets",
+        "url": "https://support.google.com/google-ads/answer/7332837"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "prospecting-audience-75dc203d",
@@ -6345,7 +7138,18 @@
     "category_raw": "Creative",
     "group": "Creative",
     "definition": "Responsive Search Ad format",
-    "type": "acronym"
+    "type": "acronym",
+    "plainEnglish": "Responsive Search Ad - you provide many headlines and descriptions and Google assembles the best combination.",
+    "whyItMatters": "The default search ad format. Feed it varied, strong assets; pin sparingly so the system can optimise.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Responsive search ads",
+        "url": "https://support.google.com/google-ads/answer/7684791"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "rtb-mechanics-d32d39a9",
@@ -6363,7 +7167,18 @@
     "category_raw": "Channel",
     "group": "Channels & Formats",
     "definition": "Search Ads 360",
-    "type": "acronym"
+    "type": "acronym",
+    "plainEnglish": "Search Ads 360 - Google's enterprise platform for managing search campaigns across engines.",
+    "whyItMatters": "Cross-engine (Google + Microsoft) search management and bidding for larger accounts.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google - Search Ads 360",
+        "url": "https://support.google.com/sa360/answer/9359572"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "safe-area-creative-d1eea1a1",
@@ -6372,7 +7187,18 @@
     "category_raw": "Creative",
     "group": "Creative",
     "definition": "Visible content area",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The part of a creative guaranteed to stay visible - keep key text and logos inside it.",
+    "whyItMatters": "Platforms crop and overlay UI (captions, buttons) on video; anything outside the safe area can be cut off.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "IAB Australia - Display & mobile ad specs",
+        "url": "https://www.iabaustralia.com.au/guideline/display-mobile-advertising-standards-specifications/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "sales-lift-measurement-72fb00fb",
@@ -6401,7 +7227,18 @@
     "category_raw": "Channel",
     "group": "Channels & Formats",
     "definition": "Paid search advertising",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Paid search advertising - text ads on search results pages.",
+    "whyItMatters": "Intent-driven and measurable; usually the last click before conversion, which is why it over-credits in last-click reporting.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Ads Help - Create a Search campaign",
+        "url": "https://support.google.com/google-ads/answer/9510373"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "search-attribution-model-tracking-2fa4e923",
@@ -6410,7 +7247,18 @@
     "category_raw": "Tracking",
     "group": "Tracking & Ad Ops",
     "definition": "Rule assigning conversion credit",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The rule deciding which clicks in a search path get conversion credit.",
+    "whyItMatters": "Google now offers last-click and data-driven only (the rules-based models were retired) - the choice shifts credit between keywords.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - About attribution models",
+        "url": "https://support.google.com/google-ads/answer/6259715"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "search-budget-elasticity-economics-2b903499",
@@ -6676,7 +7524,18 @@
     "category_raw": "Channel",
     "group": "Channels & Formats",
     "definition": "Search Engine Marketing paid activity",
-    "type": "acronym"
+    "type": "acronym",
+    "plainEnglish": "Search Engine Marketing - paid ads on search results (i.e. paid search).",
+    "whyItMatters": "Captures high-intent demand at the moment of search; the workhorse of lower-funnel performance.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Ads Help - Create a Search campaign",
+        "url": "https://support.google.com/google-ads/answer/9510373"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "semantic-targeting-targeting-3b9a4db2",
@@ -6694,7 +7553,18 @@
     "category_raw": "Channel",
     "group": "Channels & Formats",
     "definition": "Search Engine Optimisation",
-    "type": "acronym"
+    "type": "acronym",
+    "plainEnglish": "Search Engine Optimisation - earning unpaid (organic) visibility in search results.",
+    "whyItMatters": "Not bought media, but it shapes how much you must spend on paid search and how clicks convert.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Search Central - SEO docs",
+        "url": "https://developers.google.com/search/docs"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "server-side-tracking-tracking-c75e10d8",
@@ -6703,7 +7573,18 @@
     "category_raw": "Tracking",
     "group": "Tracking & Ad Ops",
     "definition": "Server based tracking",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Measurement where events are sent from your server rather than the browser.",
+    "whyItMatters": "More reliable and privacy-resilient; the modern answer to signal loss (sGTM, CAPI, server-side GA4).",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "Google Tag Manager Help - Client vs server-side",
+        "url": "https://support.google.com/tagmanager/answer/13387731"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "server-side-tracking-tracking-5e152030",
@@ -6712,7 +7593,18 @@
     "category_raw": "Tracking",
     "group": "Tracking & Ad Ops",
     "definition": "Events sent via server infrastructure",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Measurement where events are sent from your server rather than the browser.",
+    "whyItMatters": "More reliable and privacy-resilient; the modern answer to signal loss (sGTM, CAPI, server-side GA4).",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "Google Tag Manager Help - Client vs server-side",
+        "url": "https://support.google.com/tagmanager/answer/13387731"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "set-top-box-data-measurement-7ff6b6f7",
@@ -6741,7 +7633,18 @@
     "category_raw": "Tracking",
     "group": "Tracking & Ad Ops",
     "definition": "Server Google Tag Manager",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Server-side Google Tag Manager - runs tags on a server you control instead of in the browser.",
+    "whyItMatters": "More durable, privacy-resilient measurement (first-party context, less data sent client-side) as cookies/pixels weaken.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "Google for Developers - Server-side Tag Manager",
+        "url": "https://developers.google.com/tag-platform/tag-manager/server-side"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "share-of-audience-metric-62e2aeda",
@@ -6791,7 +7694,18 @@
     "category_raw": "Creative",
     "group": "Creative",
     "definition": "Additional page links",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Extra clickable links under a search ad pointing to specific pages.",
+    "whyItMatters": "Send people to the most relevant page and take up more of the results space.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Ads Help - About assets",
+        "url": "https://support.google.com/google-ads/answer/7332837"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "sivt-governance-79d15649",
@@ -6836,7 +7750,18 @@
     "category_raw": "Channel",
     "group": "Channels & Formats",
     "definition": "Snapchat advertising",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Advertising on Snapchat - full-screen vertical video and AR formats.",
+    "whyItMatters": "Reaches younger audiences; AR lenses are a distinctive, high-engagement format.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Snapchat for Business - Advertising",
+        "url": "https://forbusiness.snapchat.com/advertising"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "snowflake-tech-66b9142e",
@@ -6890,7 +7815,18 @@
     "category_raw": "Creative",
     "group": "Creative",
     "definition": "Publisher requirements",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A publisher's technical requirements for a creative - sizes, file types, durations, weights.",
+    "whyItMatters": "Build to spec or the ad gets rejected. Specs change, so always work from the current sheet.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "IAB Australia - Display & mobile ad specs",
+        "url": "https://www.iabaustralia.com.au/guideline/display-mobile-advertising-standards-specifications/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "spend-cap-budgeting-726b53dd",
@@ -6962,7 +7898,18 @@
     "category_raw": "Creative",
     "group": "Creative",
     "definition": "Predefined category values",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A header plus a list of values under a search ad (e.g. Brands: A, B, C).",
+    "whyItMatters": "Previews your range/categories before the click.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Ads Help - About assets",
+        "url": "https://support.google.com/google-ads/answer/7332837"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "suitability-governance-eb362586",
@@ -7025,7 +7972,18 @@
     "category_raw": "Channel",
     "group": "Channels & Formats",
     "definition": "Subscription Video On Demand",
-    "type": "acronym"
+    "type": "acronym",
+    "plainEnglish": "Subscription Video On Demand - paid streaming (Netflix, Disney+, etc.).",
+    "whyItMatters": "Historically ad-free, but ad-supported tiers now open premium streaming inventory to advertisers.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "IAB Australia - Video/CTV resources",
+        "url": "https://www.iabaustralia.com.au/guideline/resources-for-video-ctv-and-advanced-tv/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "t-cs-commercial-799d1385",
@@ -7043,7 +8001,18 @@
     "category_raw": "Channel",
     "group": "Channels & Formats",
     "definition": "Native content discovery platform",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A native advertising and content-discovery platform, similar to Outbrain.",
+    "whyItMatters": "Large open-web native footprint for content and performance campaigns.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Taboola",
+        "url": "https://www.taboola.com/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "tag-tracking-0fbdd288",
@@ -7052,7 +8021,18 @@
     "category_raw": "Tracking",
     "group": "Tracking & Ad Ops",
     "definition": "Script used for tracking",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A snippet of script placed on a site/app to collect data or serve/track ads.",
+    "whyItMatters": "The plumbing of measurement; managed centrally via a tag manager to avoid a mess of hard-coded scripts.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Ads Help - The Google tag",
+        "url": "https://support.google.com/google-ads/answer/11994839"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "take-rate-finance-539560d1",
@@ -7097,7 +8077,18 @@
     "category_raw": "Channel",
     "group": "Channels & Formats",
     "definition": "Video distribution platform",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "An omnichannel video/outstream advertising platform across premium publishers.",
+    "whyItMatters": "Scaled outstream video in editorial environments - brand video beyond the walled gardens.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Teads",
+        "url": "https://www.teads.com/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "technology-fee-finance-ef020cc8",
@@ -7124,7 +8115,18 @@
     "category_raw": "Channel",
     "group": "Channels & Formats",
     "definition": "Independent DSP",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A major independent demand-side platform (DSP) for programmatic buying.",
+    "whyItMatters": "The leading non-walled-garden DSP; strong in CTV and the open internet via UID2 identity.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "The Trade Desk - DSP",
+        "url": "https://www.thetradedesk.com/our-demand-side-platform"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "thinktv-industry-c6a68f9b",
@@ -7202,7 +8204,18 @@
     "category_raw": "Channel",
     "group": "Channels & Formats",
     "definition": "TikTok advertising platform",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Advertising on TikTok via TikTok Ads Manager.",
+    "whyItMatters": "Sound-on, creator-led video reach with strong cultural impact; rewards native, entertaining creative.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "TikTok for Business",
+        "url": "https://ads.tiktok.com/business/en"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "tiktok-in-feed-format-f05cae9e",
@@ -7317,7 +8330,18 @@
     "category_raw": "Tracking",
     "group": "Tracking & Ad Ops",
     "definition": "URL template for parameters",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A reusable URL formula in Google Ads that defines tracking parameters separately from the landing page.",
+    "whyItMatters": "Change tracking once at the template level without editing every ad's final URL.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "Google Ads Help - Final URLs & tracking templates",
+        "url": "https://support.google.com/google-ads/answer/6273460"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "trafficking-operations-a4fd156d",
@@ -7526,7 +8550,19 @@
     "category_raw": "Tracking",
     "group": "Tracking & Ad Ops",
     "definition": "URL parameters used for attribution",
-    "type": "acronym"
+    "type": "acronym",
+    "plainEnglish": "Tags added to a URL (source, medium, campaign, etc.) so analytics can attribute the visit.",
+    "whyItMatters": "The manual backbone of campaign tracking in GA4 - consistent UTM conventions make or break reporting.",
+    "example": "?utm_source=meta&utm_medium=paid_social&utm_campaign=winter_sale",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Analytics Help - UTM / URL builder",
+        "url": "https://support.google.com/analytics/answer/10917952"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "utm-campaign-tracking-9201ce57",
@@ -7535,7 +8571,18 @@
     "category_raw": "Tracking",
     "group": "Tracking & Ad Ops",
     "definition": "Campaign name identifier",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The UTM parameter naming the specific campaign (e.g. winter_sale).",
+    "whyItMatters": "Ties visits and conversions back to the campaign that drove them.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Analytics Help - UTM / URL builder",
+        "url": "https://support.google.com/analytics/answer/10917952"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "utm-content-tracking-14c20e63",
@@ -7544,7 +8591,18 @@
     "category_raw": "Tracking",
     "group": "Tracking & Ad Ops",
     "definition": "Creative identifier",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The UTM parameter distinguishing creatives/links (e.g. video_a vs carousel_b).",
+    "whyItMatters": "Lets you compare which creative or link variant drove the traffic.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Analytics Help - UTM / URL builder",
+        "url": "https://support.google.com/analytics/answer/10917952"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "utm-medium-tracking-238fd69d",
@@ -7553,7 +8611,18 @@
     "category_raw": "Tracking",
     "group": "Tracking & Ad Ops",
     "definition": "Channel type identifier",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The UTM parameter naming the channel type (e.g. cpc, paid_social, email).",
+    "whyItMatters": "The 'how' - drives default channel groupings in GA4; inconsistent mediums break those groupings.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Analytics Help - UTM / URL builder",
+        "url": "https://support.google.com/analytics/answer/10917952"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "utm-source-tracking-09c26b3e",
@@ -7562,7 +8631,18 @@
     "category_raw": "Tracking",
     "group": "Tracking & Ad Ops",
     "definition": "Traffic source identifier",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The UTM parameter naming where the traffic came from (e.g. google, meta, newsletter).",
+    "whyItMatters": "The 'who sent them' - keep values standardised or your channel reporting fragments.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Analytics Help - UTM / URL builder",
+        "url": "https://support.google.com/analytics/answer/10917952"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "utm-term-tracking-4e66ccd6",
@@ -7571,7 +8651,18 @@
     "category_raw": "Tracking",
     "group": "Tracking & Ad Ops",
     "definition": "Keyword identifier",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The UTM parameter for the keyword (mostly used in manual paid-search tagging).",
+    "whyItMatters": "Largely superseded by auto-tagging/GCLID for Google search, but still used in some manual setups.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Analytics Help - UTM / URL builder",
+        "url": "https://support.google.com/analytics/answer/10917952"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "value-metric-32eb3ce1",
@@ -7609,7 +8700,18 @@
     "category_raw": "Tracking",
     "group": "Tracking & Ad Ops",
     "definition": "Dynamic URL parameter",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Dynamic placeholders in a Google Ads URL that auto-fill click details (device, network, placement).",
+    "whyItMatters": "Captures rich click context for reporting without manual tagging per ad.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "Google Ads Help - ValueTrack parameters",
+        "url": "https://support.google.com/google-ads/answer/6305348"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "vcpm-metric-e6e39d84",
@@ -7743,7 +8845,18 @@
     "category_raw": "Tracking",
     "group": "Tracking & Ad Ops",
     "definition": "Conversions credited after view",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Crediting a conversion to an ad impression that wasn't clicked.",
+    "whyItMatters": "Values upper-funnel exposure, but inflates easily - treat view-through numbers with caution.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - About view-through conversions",
+        "url": "https://support.google.com/google-ads/answer/16542520"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "view-content-metric-5643d03d",
@@ -7772,7 +8885,18 @@
     "category_raw": "Tracking",
     "group": "Tracking & Ad Ops",
     "definition": "Conversion after impression without click",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A conversion credited to an ad that was seen (an impression) but not clicked.",
+    "whyItMatters": "Captures display/video influence clicks miss - but easy to over-claim, so check the window and weighting.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - About view-through conversions",
+        "url": "https://support.google.com/google-ads/answer/16542520"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "viewability-delivery-65b6200b",
@@ -7808,7 +8932,18 @@
     "category_raw": "Creative",
     "group": "Creative",
     "definition": "Image or video content",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The image or video element of an ad.",
+    "whyItMatters": "The scroll-stopper on social and the emotional carrier on video - usually the single biggest lever on performance.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "IAB Australia - Display & mobile ad specs",
+        "url": "https://www.iabaustralia.com.au/guideline/display-mobile-advertising-standards-specifications/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "voz-measurement-8890cf6d",
@@ -7997,6 +9132,17 @@
     "category_raw": "Channel",
     "group": "Channels & Formats",
     "definition": "Video platform bought via Google Ads",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Video advertising on YouTube, bought through Google Ads / DV360.",
+    "whyItMatters": "Huge video reach across screens (incl. CTV); formats from skippable to bumpers to non-skip.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google - YouTube Ads",
+        "url": "https://business.google.com/us/ad-solutions/youtube-ads/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   }
 ]
