@@ -1620,6 +1620,7 @@ export async function saveTelevisionLineItems(mediaPlanVersionId: number, mbaNum
       // Format bursts data to ensure dates are properly serialized
       // Television has special fields (size, tarps) which will be preserved by extractAndFormatBursts
       const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
+      const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.television, index)
 
       const televisionData = {
         media_plan_version: mediaPlanVersionId,
@@ -1636,10 +1637,10 @@ export async function saveTelevisionLineItems(mediaPlanVersionId: number, mbaNum
         fixed_cost_media: getBooleanField(lineItem, 'fixed_cost_media', 'fixedCostMedia', false),
         client_pays_for_media: getBooleanField(lineItem, 'client_pays_for_media', 'clientPaysForMedia', false),
         budget_includes_fees: getBooleanField(lineItem, 'budget_includes_fees', 'budgetIncludesFees', false),
-        line_item_id: `${mbaNumber}TV${index + 1}`,
+        line_item_id,
         creative: getField(lineItem, 'creative', 'creative', ''),
         bursts_json: formattedBursts,
-        line_item: index + 1,
+        line_item,
       };
 
       return await saveTelevisionData(televisionData);

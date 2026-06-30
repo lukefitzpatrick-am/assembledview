@@ -78,6 +78,7 @@ import {
 } from "@/lib/mediaplan/expertModeSwitch"
 import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
+import { assignStableLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 
 const MEDIA_ACCENT_HEX = getMediaTypeThemeHex("television")
 
@@ -1111,8 +1112,13 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
   // Transform form data to API schema format
   useEffect(() => {
   const formLineItems = form.getValues('televisionlineItems') || [];
+  const stableTvItems = assignStableLineItemNumbers<any>(
+    formLineItems,
+    mbaNumber,
+    MEDIA_TYPE_ID_CODES.television,
+  )
   
-  const transformedLineItems = formLineItems.map((lineItem, index) => {
+  const transformedLineItems = stableTvItems.map((lineItem, index) => {
     // Calculate totalMedia from raw budget amounts (for display in MBA section)
     let totalMedia = 0;
     lineItem.bursts.forEach((burst) => {
