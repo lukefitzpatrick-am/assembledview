@@ -40,6 +40,10 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils"
 import { ChevronDown, Copy, Plus, Trash2 } from "lucide-react"
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
+import {
+  aggregateInvestmentDisplayRows,
+  type InvestmentBurstInput,
+} from "@/lib/billing/prorateInvestmentDisplay"
 import { resolveBillingBurstLineItemId } from "@/lib/billing/resolveBillingBurstLineItemId"
 import type { LineItem } from '@/lib/generateMediaPlan'
 import { formatAUD, formatMoney, parseMoneyInput } from "@/lib/format/money"
@@ -281,96 +285,18 @@ export function getDigiDisplayBursts(
 }
 
 export function calculateInvestmentPerMonth(form, feedigidisplay) {
-  const digidisplaylineItems = form.getValues("digidisplaylineItems") || [];
-  let monthlyInvestment: Record<string, number> = {};
-
-  digidisplaylineItems.forEach((lineItem) => {
-    (lineItem.bursts || []).forEach((burst) => {
-      const startDate = new Date(burst.startDate);
-      const endDate = new Date(burst.endDate);
-      const lineMedia = parseBudgetSafe(burst?.budget);
-      const feePercentage = feedigidisplay || 0;
-
-      // ✅ Corrected total investment calculation
-      const totalInvestment = lineMedia + ((lineMedia / (100 - feePercentage)) * feePercentage);
-      const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-
-      let current = new Date(startDate);
-      while (current <= endDate) {
-        const monthYear = `${current.toLocaleString("default", { month: "long" })} ${current.getFullYear()}`;
-        
-        if (!monthlyInvestment[monthYear]) {
-          monthlyInvestment[monthYear] = 0;
-        }
-
-        // ✅ Count the number of days in the current month
-        const nextMonth = new Date(current.getFullYear(), current.getMonth() + 1, 1);
-
-        const lastDayOfMonth = new Date(nextMonth.getTime() - 1);
-        const daysInThisMonth = Math.min(lastDayOfMonth.getDate(), Math.ceil((endDate.getTime() - current.getTime()) / (1000 * 60 * 60 * 24)) + 1);
-
-        const investmentForThisMonth = (totalInvestment / totalDays) * daysInThisMonth;
-        monthlyInvestment[monthYear] += investmentForThisMonth;
-
-        // Move to the next month
-        current = new Date(current.getFullYear(), current.getMonth() + 1, 1);
-      }
-    });
-  });
-
-  return Object.entries(monthlyInvestment).map(([monthYear, amount]) => ({
-    monthYear,
-    amount: formatMoney(amount, { locale: "en-AU", currency: "AUD" }),
-  }));
+  const items = form.getValues("digidisplaylineItems") || []
+  const bursts: InvestmentBurstInput[] = []
+  items.forEach((lineItem: any) => {
+    (lineItem.bursts || []).forEach((burst: any) => {
+      const lineMedia = parseFloat(String(burst.budget).replace(/[^0-9.]/g, "")) || 0
+      const feePct = feedigidisplay || 0
+      const totalInvestment = lineMedia + ((lineMedia / (100 - feePct)) * feePct)
+      bursts.push({ amount: totalInvestment, start: burst.startDate, end: burst.endDate })
+    })
+  })
+  return aggregateInvestmentDisplayRows(bursts)
 }
-
-export function calculateBurstInvestmentPerMonth(form, feedigidisplay) {
-  const digidisplaylineItems = form.getValues("digidisplaylineItems") || [];
-  let monthlyInvestment: Record<string, number> = {};
-
-  digidisplaylineItems.forEach((lineItem) => {
-    (lineItem.bursts || []).forEach((burst) => {
-      const startDate = new Date(burst.startDate);
-      const endDate = new Date(burst.endDate);
-      const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-      const burstBudget = parseBudgetSafe(burst?.budget);
-      const feePercentage = feedigidisplay || 0;
-      
-      // Calculate total investment including fees
-      const totalInvestment = burstBudget + ((burstBudget / (100 - feePercentage)) * feePercentage);
-
-      let current = new Date(startDate);
-      while (current <= endDate) {
-        const monthYear = `${current.toLocaleString("default", { month: "long" })} ${current.getFullYear()}`;
-
-        // Find the number of days in this month that overlap with the burst
-        const nextMonth = new Date(current.getFullYear(), current.getMonth() + 1, 1);
-        const lastDayOfMonth = new Date(nextMonth.getTime() - 1);
-        const daysInThisMonth = Math.min(
-          Math.ceil((lastDayOfMonth.getTime() - current.getTime()) / (1000 * 60 * 60 * 24)) + 1,
-          Math.ceil((endDate.getTime() - current.getTime()) / (1000 * 60 * 60 * 24)) + 1
-        );
-
-        const monthlyBudget = (totalInvestment / totalDays) * daysInThisMonth;
-
-        if (!monthlyInvestment[monthYear]) {
-          monthlyInvestment[monthYear] = 0;
-        }
-
-        monthlyInvestment[monthYear] += monthlyBudget;
-
-        // Move to the next month
-        current = new Date(current.getFullYear(), current.getMonth() + 1, 1);
-      }
-    });
-  });
-
-  return Object.entries(monthlyInvestment).map(([monthYear, amount]) => ({
-    monthYear,
-    amount: amount.toFixed(2),
-  }));
-}
-
 export default function DigiDisplayContainer({
   clientId,
   feedigidisplay,
