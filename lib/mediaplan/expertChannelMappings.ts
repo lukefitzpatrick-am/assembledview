@@ -196,9 +196,7 @@ function formatBurstBudget(n: number): string {
 
 /**
  * Raw expert-row media cost. Delegates to {@link netMediaFromDeliverables} for buy types
- * in that model; keeps legacy `cpm` = `(qty / 1000) × unitRate` for grids that store full
- * impression counts (Radio/Digital/etc.). OOH expert CPM uses thousand-blocks in the grid;
- * {@link mapOohExpertRowsToStandardLineItems} uses `qty × unitRate` for gross there only.
+ * in that model; `cpm` = `(qty / 1000) × unitRate` for grids that store full impression counts.
  */
 export function expertRowRawCost(
   buyType: string | undefined | null,
@@ -785,10 +783,7 @@ export function mapOohExpertRowsToStandardLineItems(
         buyType,
         "mapOohExpertRowsToStandardLineItems.appendBurst"
       )
-      const grossBudget =
-        String(buyType || "").toLowerCase() === "cpm"
-          ? qty * unitRate
-          : expertRowRawCost(buyType, unitRate, qty)
+      const grossBudget = expertRowRawCost(buyType, unitRate, qty)
       const netForCalc = oohNetBudgetForDeliverables(
         grossBudget,
         budgetIncludesFees,
@@ -815,7 +810,7 @@ export function mapOohExpertRowsToStandardLineItems(
       } else if (btLower === "cpm") {
         calculatedValue = roundDeliverables(
           bt,
-          qty !== 0 ? (netForCalc / qty) * 1000 : 0
+          deliverablesFromBudget(bt, netForCalc, unitRate)
         )
       } else {
         const raw = deliverablesFromBudget(bt, netForCalc, unitRate)

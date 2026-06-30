@@ -1,10 +1,11 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import { buildWeeklyGanttColumnsFromCampaign } from "../../lib/utils/weeklyGanttColumns.js"
-import { roundDeliverables } from "../../lib/mediaplan/deliverableBudget.js"
+import { roundDeliverables, deliverablesFromBudget } from "../../lib/mediaplan/deliverableBudget.js"
 import {
   deriveOohExpertRowScheduleYmd,
   mapOohExpertRowsToStandardLineItems,
+  mapProgOohExpertRowsToStandardLineItems,
   mapRadioExpertRowsToStandardLineItems,
   mapStandardOohLineItemsToExpertRows,
   mapStandardRadioLineItemsToExpertRows,
@@ -90,14 +91,183 @@ test("OOH CPM uses net budget for deliverables when budgetIncludesFees + feePctO
     { budgetIncludesFees: true, feePctOoh: 10 }
   )
 
-  const gross = 10
   const qty = 10
+  const unitRate = 1
+  const gross = (qty / 1000) * unitRate
   // Linear fee-on-gross (same as netFromGross / OOHContainer); not gross/(1+fee/100).
   const net = gross * (1 - 10 / 100)
+  assert.equal(line.bursts[0]!.budget, String(gross))
   assert.equal(
     line.bursts[0]!.calculatedValue,
-    roundDeliverables("cpm", (net / qty) * 1000)
+    roundDeliverables("cpm", deliverablesFromBudget("cpm", net, unitRate))
   )
+})
+
+test("OOH expert CPM gross budget uses (qty/1000) × rate", () => {
+  const campaignStart = new Date(2025, 0, 5)
+  const campaignEnd = new Date(2025, 0, 11)
+  const cols = buildWeeklyGanttColumnsFromCampaign(campaignStart, campaignEnd)
+  const w0 = cols[0]!.weekKey
+  const qty = 500_000
+  const unitRate = 10
+
+  const [line] = mapOohExpertRowsToStandardLineItems(
+    [
+      {
+        id: "cpm-gross",
+        market: "",
+        network: "",
+        format: "",
+        type: "",
+        placement: "",
+        startDate: "",
+        endDate: "",
+        size: "",
+        panels: "",
+        buyingDemo: "",
+        buyType: "cpm",
+        fixedCostMedia: false,
+        clientPaysForMedia: false,
+        budgetIncludesFees: false,
+        unitRate,
+        grossCost: 0,
+        weeklyValues: { [w0]: qty },
+        mergedWeekSpans: [],
+      },
+    ],
+    cols,
+    campaignStart,
+    campaignEnd
+  )
+
+  assert.equal(line.bursts[0]!.budget, "5000")
+})
+
+test("OOH CPM calculatedValue round-trips standard → expert → standard", () => {
+  const campaignStart = new Date(2025, 0, 5)
+  const campaignEnd = new Date(2025, 0, 11)
+  const cols = buildWeeklyGanttColumnsFromCampaign(campaignStart, campaignEnd)
+  const w0 = cols[0]!.weekKey
+  const qty = 500_000
+  const unitRate = 10
+
+  const standard = mapOohExpertRowsToStandardLineItems(
+    [
+      {
+        id: "cpm-rt",
+        market: "",
+        network: "",
+        format: "",
+        type: "",
+        placement: "",
+        startDate: "",
+        endDate: "",
+        size: "",
+        panels: "",
+        buyingDemo: "",
+        buyType: "cpm",
+        fixedCostMedia: false,
+        clientPaysForMedia: false,
+        budgetIncludesFees: false,
+        unitRate,
+        grossCost: 0,
+        weeklyValues: { [w0]: qty },
+        mergedWeekSpans: [],
+      },
+    ],
+    cols,
+    campaignStart,
+    campaignEnd
+  )
+
+  assert.equal(standard[0]!.bursts[0]!.calculatedValue, qty)
+
+  const expert = mapStandardOohLineItemsToExpertRows(
+    standard,
+    cols,
+    campaignStart,
+    campaignEnd
+  )
+  assert.equal(expert[0]!.weeklyValues[w0], qty)
+
+  const roundTrip = mapOohExpertRowsToStandardLineItems(
+    expert,
+    cols,
+    campaignStart,
+    campaignEnd
+  )
+  assert.equal(roundTrip[0]!.bursts[0]!.calculatedValue, qty)
+})
+
+test("OOH and ProgOOH expert CPM gross budget match for same qty and rate", () => {
+  const campaignStart = new Date(2025, 0, 5)
+  const campaignEnd = new Date(2025, 0, 11)
+  const cols = buildWeeklyGanttColumnsFromCampaign(campaignStart, campaignEnd)
+  const w0 = cols[0]!.weekKey
+  const qty = 500_000
+  const unitRate = 10
+
+  const [oohLine] = mapOohExpertRowsToStandardLineItems(
+    [
+      {
+        id: "ooh-parity",
+        market: "",
+        network: "",
+        format: "",
+        type: "",
+        placement: "",
+        startDate: "",
+        endDate: "",
+        size: "",
+        panels: "",
+        buyingDemo: "",
+        buyType: "cpm",
+        fixedCostMedia: false,
+        clientPaysForMedia: false,
+        budgetIncludesFees: false,
+        unitRate,
+        grossCost: 0,
+        weeklyValues: { [w0]: qty },
+        mergedWeekSpans: [],
+      },
+    ],
+    cols,
+    campaignStart,
+    campaignEnd
+  )
+
+  const [progOohLine] = mapProgOohExpertRowsToStandardLineItems(
+    [
+      {
+        id: "prog-parity",
+        startDate: "",
+        endDate: "",
+        platform: "",
+        bidStrategy: "",
+        buyType: "cpm",
+        creativeTargeting: "",
+        creative: "",
+        placement: "",
+        size: "",
+        buyingDemo: "",
+        market: "",
+        fixedCostMedia: false,
+        clientPaysForMedia: false,
+        budgetIncludesFees: false,
+        noadserving: false,
+        unitRate,
+        grossCost: 0,
+        weeklyValues: { [w0]: qty },
+        mergedWeekSpans: [],
+      },
+    ],
+    cols,
+    campaignStart,
+    campaignEnd
+  )
+
+  assert.equal(oohLine.bursts[0]!.budget, progOohLine.bursts[0]!.budget)
+  assert.equal(oohLine.bursts[0]!.budget, "5000")
 })
 
 test("OOH merged week span maps to a single burst from first week through last week", () => {
