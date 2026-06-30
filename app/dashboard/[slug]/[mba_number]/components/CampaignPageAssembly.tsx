@@ -340,7 +340,7 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
     <div className="mx-auto w-full max-w-[1600px] space-y-6 rounded-none bg-surface-muted px-4 pb-24 md:space-y-8 md:rounded-3xl md:px-6 lg:px-8">
       <a
         href="#campaign-main-content"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-background focus:px-3 focus:py-2 focus:text-sm"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:rounded-input focus:bg-background focus:px-3 focus:py-2 focus:text-sm"
       >
         Skip to campaign content
       </a>

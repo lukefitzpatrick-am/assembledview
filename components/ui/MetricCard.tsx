@@ -1,7 +1,9 @@
 "use client"
 
 import { ArrowDownRight, ArrowRight, ArrowUpRight } from "lucide-react"
+import type { ComponentType, SVGProps } from "react"
 
+import { Sparkline } from "@/components/charts/Sparkline"
 import { cn } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
 
@@ -9,11 +11,16 @@ type MetricSize = "sm" | "md" | "lg"
 
 export interface MetricCardProps {
   label: string
-  value: number
+  value: number | string
   trend?: number
   unit?: string
   size?: MetricSize
   accent?: string
+  icon?: ComponentType<SVGProps<SVGSVGElement>>
+  iconClassName?: string
+  iconContainerClassName?: string
+  sparklineData?: number[]
+  sparklineClassName?: string
   loading?: boolean
   className?: string
 }
@@ -43,11 +50,19 @@ export function MetricCard({
   unit,
   size = "md",
   accent = "bg-primary",
+  icon: Icon,
+  iconClassName,
+  iconContainerClassName,
+  sparklineData,
+  sparklineClassName,
   loading = false,
   className,
 }: MetricCardProps) {
   const padding = sizeStyles[size]
-  const valueLabel = `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value)}${unit ?? ""}`
+  const valueLabel =
+    typeof value === "number"
+      ? `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value)}${unit ?? ""}`
+      : `${value}${unit ?? ""}`
 
   if (loading) {
     return (
@@ -76,12 +91,24 @@ export function MetricCard({
     >
       <div className={cn("h-[3px] w-full", accent)} aria-hidden />
       <div className={padding}>
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+        <div className="flex items-start justify-between gap-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+          {Icon ? (
+            <span className={cn("rounded-pill bg-surface-panel p-2", iconContainerClassName)}>
+              <Icon className={cn("h-4 w-4", iconClassName)} aria-hidden />
+            </span>
+          ) : null}
+        </div>
         <p className="num mt-2 text-[28px] font-extrabold leading-none text-foreground">{valueLabel}</p>
         {typeof trend === "number" ? (
           <div className={cn("mt-2 inline-flex items-center gap-1 text-xs font-medium", trendTone(trend))}>
             {trendIcon(trend)}
             {Math.abs(trend).toLocaleString("en-US", { maximumFractionDigits: 1 })}%
+          </div>
+        ) : null}
+        {sparklineData && sparklineData.length > 0 ? (
+          <div className={cn("mt-4", sparklineClassName)}>
+            <Sparkline data={sparklineData} height={32} />
           </div>
         ) : null}
       </div>

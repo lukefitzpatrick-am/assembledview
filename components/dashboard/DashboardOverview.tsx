@@ -9,6 +9,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { MetricCard } from "@/components/ui/MetricCard"
+import { EmptyState, ErrorState } from "@/components/ui/states"
 import { MultiSelectCombobox } from "@/components/ui/multi-select-combobox"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { BarChart3, ChevronDown, FilterX, TrendingUp, ShoppingCart, Users, Search, type LucideIcon } from "lucide-react"
@@ -136,20 +138,12 @@ type DashboardMetricCard = {
   value: string
   icon: LucideIcon
   tooltip: string
-  color: string
-  gradient: string
+  accent: string
   iconBg: string
   iconText: string
+  sparklineTone: string
+  sparklineData: number[]
 }
-
-const PACING_AHEAD_GRADIENT =
-  "from-pacing-ahead via-[color-mix(in_srgb,var(--pacing-ahead)_70%,transparent)] to-[color-mix(in_srgb,var(--pacing-ahead)_40%,transparent)]"
-const PACING_ON_TRACK_GRADIENT =
-  "from-[var(--pacing-on-track)] via-[color-mix(in_srgb,var(--pacing-on-track)_70%,transparent)] to-[color-mix(in_srgb,var(--pacing-on-track)_40%,transparent)]"
-const PACING_BEHIND_GRADIENT =
-  "from-pacing-behind via-[color-mix(in_srgb,var(--pacing-behind)_70%,transparent)] to-[color-mix(in_srgb,var(--pacing-behind)_40%,transparent)]"
-const BRAND_DARK_GRADIENT =
-  "from-brand-dark via-[color-mix(in_srgb,var(--channel-bvod)_70%,transparent)] to-[color-mix(in_srgb,var(--channel-bvod)_40%,transparent)]"
 
 const LIVE_STATUSES = ["booked", "approved", "completed"]
 
@@ -574,31 +568,7 @@ function DashboardPageErrorPanel({
 }) {
   return (
     <div className="container mx-auto px-4 py-8">
-      <Panel variant="error" className="max-w-3xl overflow-hidden border-0 shadow-md">
-        <div className="h-1 bg-gradient-to-r from-destructive via-destructive/70 to-destructive/40" />
-        <PanelHeader>
-          <PanelTitle>{title}</PanelTitle>
-        </PanelHeader>
-        <PanelContent>
-          <div
-            role="alert"
-            className={cn(
-              "flex flex-col gap-3 rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive",
-              "sm:flex-row sm:items-center sm:justify-between"
-            )}
-          >
-            <p className="min-w-0 flex-1">{detail}</p>
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full shrink-0 border-destructive/40 text-destructive hover:bg-destructive/10 sm:w-auto h-8 text-xs"
-              onClick={onRetry}
-            >
-              Retry
-            </Button>
-          </div>
-        </PanelContent>
-      </Panel>
+      <ErrorState className="max-w-3xl" title={title} message={detail} onRetry={onRetry} />
     </div>
   )
 }
@@ -871,7 +841,7 @@ function MobileCollapsibleSection({
         <CollapsibleTrigger asChild>
           <button
             type="button"
-            className="flex w-full items-start gap-2 rounded-md py-1 text-left outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex w-full items-start gap-2 rounded-input py-1 text-left outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
           >
             <ChevronDown
               className={cn(
@@ -934,7 +904,7 @@ function DashboardCollapsiblePanel({
               <CollapsibleTrigger asChild>
                 <button
                   type="button"
-                  className="flex w-full items-start gap-2 rounded-md py-1 text-left outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring sm:items-center"
+                  className="flex w-full items-start gap-2 rounded-input py-1 text-left outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring sm:items-center"
                 >
                   <ChevronDown
                     className={cn(
@@ -968,12 +938,12 @@ function DashboardTablePanelSkeleton({ rows = DASHBOARD_TABLE_SKELETON_ROWS }: {
     <div className="space-y-3" aria-hidden>
       <div className="flex flex-wrap gap-2">
         {Array.from({ length: 6 }).map((_, index) => (
-          <Skeleton key={`table-header-${index}`} className="h-8 w-24 rounded-md" />
+          <Skeleton key={`table-header-${index}`} className="h-8 w-24 rounded-input" />
         ))}
       </div>
       <div className="space-y-2">
         {Array.from({ length: rows }).map((_, index) => (
-          <Skeleton key={`table-row-${index}`} className="h-10 w-full rounded-md" />
+          <Skeleton key={`table-row-${index}`} className="h-10 w-full rounded-input" />
         ))}
       </div>
     </div>
@@ -1082,40 +1052,44 @@ export default function DashboardOverview({
       value: "0",
       icon: BarChart3,
       tooltip: "Campaigns booked/approved/completed running today",
-      color: "bg-[var(--pacing-on-track)]",
-      gradient: PACING_ON_TRACK_GRADIENT,
-      iconBg: "bg-[var(--pacing-on-track-bg)]",
+      accent: "bg-pacing-on-track",
+      iconBg: "bg-pacing-on-track-bg",
       iconText: "text-status-on-track-fg",
+      sparklineTone: "text-pacing-on-track",
+      sparklineData: [0, 0],
     },
     {
       title: "Total Live Scopes of Work",
       value: "0",
       icon: TrendingUp,
       tooltip: "Sum of scopes with status Approved or In-Progress",
-      color: "bg-pacing-ahead",
-      gradient: PACING_AHEAD_GRADIENT,
-      iconBg: "bg-[var(--pacing-ahead-bg)]",
+      accent: "bg-pacing-ahead",
+      iconBg: "bg-pacing-ahead-bg",
       iconText: "text-status-ahead-fg",
+      sparklineTone: "text-pacing-ahead",
+      sparklineData: [0, 0],
     },
     {
       title: "Total Live Clients",
       value: "0",
       icon: Users,
       tooltip: "Sum of unique clients with live activity from campaigns and scopes",
-      color: "bg-brand-dark",
-      gradient: BRAND_DARK_GRADIENT,
-      iconBg: "bg-[color-mix(in_srgb,var(--channel-bvod)_12%,transparent)]",
+      accent: "bg-channel-bvod",
+      iconBg: "bg-surface-panel",
       iconText: "text-channel-bvod",
+      sparklineTone: "text-channel-bvod",
+      sparklineData: [0, 0],
     },
     {
       title: "Total Live Publishers",
       value: "0",
       icon: ShoppingCart,
       tooltip: "Sum of unique publishers with live activity from campaigns",
-      color: "bg-pacing-behind",
-      gradient: PACING_BEHIND_GRADIENT,
-      iconBg: "bg-[var(--pacing-behind-bg)]",
+      accent: "bg-pacing-behind",
+      iconBg: "bg-pacing-behind-bg",
       iconText: "text-status-behind-fg",
+      sparklineTone: "text-pacing-behind",
+      sparklineData: [0, 0],
     },
   ])
 
@@ -1702,40 +1676,44 @@ export default function DashboardOverview({
           value: totalLiveCampaigns.toString(),
           icon: BarChart3,
           tooltip: "Campaigns booked/approved/completed running today",
-          color: "bg-[var(--pacing-on-track)]",
-          gradient: PACING_ON_TRACK_GRADIENT,
-          iconBg: "bg-[var(--pacing-on-track-bg)]",
+          accent: "bg-pacing-on-track",
+          iconBg: "bg-pacing-on-track-bg",
           iconText: "text-status-on-track-fg",
+          sparklineTone: "text-pacing-on-track",
+          sparklineData: [0, totalLiveCampaigns],
         },
         {
           title: "Total Live Scopes of Work",
           value: totalLiveScopes.toString(),
           icon: TrendingUp,
           tooltip: "Sum of scopes with status Approved or In-Progress",
-          color: "bg-pacing-ahead",
-          gradient: PACING_AHEAD_GRADIENT,
-          iconBg: "bg-[var(--pacing-ahead-bg)]",
+          accent: "bg-pacing-ahead",
+          iconBg: "bg-pacing-ahead-bg",
           iconText: "text-status-ahead-fg",
+          sparklineTone: "text-pacing-ahead",
+          sparklineData: [0, totalLiveScopes],
         },
         {
           title: "Total Live Clients",
           value: totalLiveClients.toString(),
           icon: Users,
           tooltip: "Unique clients with live campaigns or scopes",
-          color: "bg-brand-dark",
-          gradient: BRAND_DARK_GRADIENT,
-          iconBg: "bg-[color-mix(in_srgb,var(--channel-bvod)_12%,transparent)]",
+          accent: "bg-channel-bvod",
+          iconBg: "bg-surface-panel",
           iconText: "text-channel-bvod",
+          sparklineTone: "text-channel-bvod",
+          sparklineData: [0, totalLiveClients],
         },
         {
           title: "Total Live Publishers",
           value: totalLivePublishers.toString(),
           icon: ShoppingCart,
           tooltip: "Unique publishers appearing on live campaigns",
-          color: "bg-pacing-behind",
-          gradient: PACING_BEHIND_GRADIENT,
-          iconBg: "bg-[var(--pacing-behind-bg)]",
+          accent: "bg-pacing-behind",
+          iconBg: "bg-pacing-behind-bg",
           iconText: "text-status-behind-fg",
+          sparklineTone: "text-pacing-behind",
+          sparklineData: [0, totalLivePublishers],
         },
       ])
       setDataLastRefreshedAt(new Date())
@@ -2458,48 +2436,48 @@ export default function DashboardOverview({
   }
 
   const getStatusBadgeColor = (status: string) => {
-    if (!status) return "bg-muted text-muted-foreground border-0"
+    if (!status) return "bg-surface-panel text-muted-foreground border-0"
     switch (status.toLowerCase()) {
       case "booked":
-        return "bg-[var(--pacing-on-track-bg)] text-status-on-track-fg border-0"
+        return "bg-pacing-on-track-bg text-status-on-track-fg border-0"
       case "approved":
-        return "bg-[var(--pacing-ahead-bg)] text-status-ahead-fg border-0"
+        return "bg-pacing-ahead-bg text-status-ahead-fg border-0"
       case "planned":
-        return "bg-[var(--pacing-on-track-bg)] text-status-on-track-fg border-0"
+        return "bg-pacing-on-track-bg text-status-on-track-fg border-0"
       case "draft":
-        return "bg-muted text-muted-foreground border-0"
+        return "bg-surface-panel text-muted-foreground border-0"
       case "completed":
-        return "bg-[var(--pacing-ahead-bg)] text-status-ahead-fg border-0"
+        return "bg-pacing-ahead-bg text-status-ahead-fg border-0"
       case "cancelled":
-        return "bg-[var(--pacing-critical-bg)] text-status-critical-fg border-0"
+        return "bg-pacing-critical-bg text-status-critical-fg border-0"
       case "in-progress":
-        return "bg-[var(--pacing-on-track-bg)] text-status-on-track-fg border-0"
+        return "bg-pacing-on-track-bg text-status-on-track-fg border-0"
       default:
-        return "bg-muted text-muted-foreground border-0"
+        return "bg-surface-panel text-muted-foreground border-0"
     }
   }
 
   const getMediaBadgeClassName = (key: string) => {
     switch (key) {
       case "television":
-        return "bg-[var(--pacing-critical-bg)] text-status-critical-fg border-channel-tv"
+        return "bg-pacing-critical-bg text-status-critical-fg border-channel-tv"
       case "bvod":
       case "digivideo":
       case "progvideo":
       case "progbvod":
-        return "bg-[color-mix(in_srgb,var(--channel-bvod)_12%,transparent)] text-channel-bvod border-channel-bvod"
+        return "bg-surface-panel text-channel-bvod border-channel-bvod"
       case "socialmedia":
       case "influencers":
         return "bg-channel-social-bg text-channel-social-fg border-channel-social"
       case "digidisplay":
       case "progdisplay":
-        return "bg-[var(--pacing-behind-bg)] text-status-behind-fg border-channel-progDisplay"
+        return "bg-pacing-behind-bg text-status-behind-fg border-channel-progDisplay"
       case "search":
       case "ooh":
       case "progooh":
-        return "bg-[var(--pacing-ahead-bg)] text-status-ahead-fg border-channel-search"
+        return "bg-pacing-ahead-bg text-status-ahead-fg border-channel-search"
       default:
-        return "bg-muted text-muted-foreground border-border"
+        return "bg-surface-panel text-muted-foreground border-border"
     }
   }
 
@@ -2646,7 +2624,7 @@ export default function DashboardOverview({
                     value={dashboardFilters.campaignSearch}
                     onChange={(e) => setDashboardFilters((f) => ({ ...f, campaignSearch: e.target.value }))}
                     placeholder="Search campaigns..."
-                    className="h-9 pl-10 border-border/50 bg-muted/30 transition-colors focus:bg-background"
+                    className="h-9 border-border bg-surface-panel pl-10 transition-colors focus:bg-background"
                   />
                 </div>
               </div>
@@ -2722,36 +2700,14 @@ export default function DashboardOverview({
       </div>
 
       {fetchError ? (
-        <div>
-          <Panel variant="error" className="w-full max-w-none overflow-hidden border-0 shadow-md">
-            <div className="h-1 bg-gradient-to-r from-destructive via-destructive/70 to-destructive/40" />
-            <PanelHeader className="pb-2">
-              <PanelTitle>{fetchError.title}</PanelTitle>
-            </PanelHeader>
-            <PanelContent>
-              <div
-                role="alert"
-                className={cn(
-                  "flex flex-col gap-3 rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive",
-                  "sm:flex-row sm:items-center sm:justify-between"
-                )}
-              >
-                <p className="min-w-0 flex-1">{fetchError.detail}</p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full shrink-0 border-destructive/40 text-destructive hover:bg-destructive/10 sm:w-auto h-8 text-xs"
-                  onClick={() => {
-                    setFetchError(null)
-                    void fetchData()
-                  }}
-                >
-                  Retry
-                </Button>
-              </div>
-            </PanelContent>
-          </Panel>
-        </div>
+        <ErrorState
+          title={fetchError.title}
+          message={fetchError.detail}
+          onRetry={() => {
+            setFetchError(null)
+            void fetchData()
+          }}
+        />
       ) : null}
 
       {showMetrics && layoutPanels.keyMetrics ? (
@@ -2768,27 +2724,29 @@ export default function DashboardOverview({
           <TooltipProvider delayDuration={200}>
             {dashboardMetrics.map((metric) => (
               <PanelRowCell key={metric.title} span="quarter">
-                <Panel className="h-full overflow-hidden border-0 shadow-md">
-                  <div className={`h-1 bg-gradient-to-r ${metric.gradient}`} />
-                  <PanelContent standalone className="flex h-full flex-col justify-between gap-4 p-5">
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button type="button" className="w-full rounded-md text-left outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring">
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{metric.title}</span>
-                            <span className={`shrink-0 rounded-full p-2 ${metric.iconBg}`}>
-                              <metric.icon className={`h-4 w-4 ${metric.iconText}`} aria-hidden />
-                            </span>
-                          </div>
-                          <span className="mt-3 block text-3xl font-bold tabular-nums tracking-tight">{metric.value}</span>
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>{metric.tooltip}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </PanelContent>
-                </Panel>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      className="h-full w-full rounded-card text-left outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      <MetricCard
+                        label={metric.title}
+                        value={metric.value}
+                        accent={metric.accent}
+                        icon={metric.icon}
+                        iconContainerClassName={metric.iconBg}
+                        iconClassName={metric.iconText}
+                        sparklineData={metric.sparklineData}
+                        sparklineClassName={metric.sparklineTone}
+                        className="h-full"
+                      />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{metric.tooltip}</p>
+                  </TooltipContent>
+                </Tooltip>
               </PanelRowCell>
             ))}
           </TooltipProvider>
@@ -2807,11 +2765,11 @@ export default function DashboardOverview({
           {layoutPanels.liveCampaigns ? (
           <PanelRowCell span="full">
             <Panel className="w-full overflow-hidden border-0 shadow-md">
-              <div className={`h-1 bg-gradient-to-r ${PACING_AHEAD_GRADIENT}`} />
+              <div className="h-1 bg-pacing-ahead" />
               <PanelHeader className="items-center pb-2">
                 <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <PanelTitle className="text-base">Live Campaigns (Booked / Approved / Completed)</PanelTitle>
-                  <Badge variant="secondary" className="w-fit shrink-0 bg-[var(--pacing-ahead-bg)] text-status-ahead-fg border-0 text-xs font-medium tabular-nums">
+                  <Badge variant="ahead" className="num w-fit shrink-0 text-xs font-medium">
                     {liveCampaigns.length} {liveCampaigns.length === 1 ? "Campaign" : "Campaigns"}
                   </Badge>
                 </div>
@@ -2820,7 +2778,11 @@ export default function DashboardOverview({
                 {loading ? (
                   <DashboardPanelBodySkeleton listGridMode={listGridMode} tableRows={5} />
                 ) : liveCampaigns.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-8">No live campaigns</p>
+                  <EmptyState
+                    className="min-h-44"
+                    title="No live campaigns"
+                    message="Booked, approved, or completed campaigns running today will appear here."
+                  />
                 ) : listGridMode === "list" ? (
                   <div className={`overflow-x-auto ${shouldScrollLiveCampaigns ? "max-h-[1008px] overflow-y-auto" : ""}`}>
                     <Table>
@@ -2918,9 +2880,9 @@ export default function DashboardOverview({
               open={openScopesPanel}
               onOpenChange={setOpenScopesPanel}
               panelTitle="Live Scopes of Work"
-              gradientClassName={`bg-gradient-to-r ${PACING_AHEAD_GRADIENT}`}
+              gradientClassName="bg-pacing-ahead"
               badge={
-                <Badge variant="secondary" className="ml-auto w-fit shrink-0 bg-[var(--pacing-ahead-bg)] text-status-ahead-fg border-0 text-xs font-medium tabular-nums">
+                <Badge variant="ahead" className="num ml-auto w-fit shrink-0 text-xs font-medium">
                   {liveScopes.length} {liveScopes.length === 1 ? "Scope" : "Scopes"}
                 </Badge>
               }
@@ -2928,7 +2890,11 @@ export default function DashboardOverview({
                 {loading ? (
                   <DashboardPanelBodySkeleton listGridMode={listGridMode} />
                 ) : liveScopes.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-8">No live scopes of work</p>
+                  <EmptyState
+                    className="min-h-44"
+                    title="No live scopes of work"
+                    message="Approved or in-progress scopes will appear here."
+                  />
                 ) : listGridMode === "list" ? (
                   <div className={`overflow-x-auto ${shouldScrollLiveScopes ? "max-h-[1008px] overflow-y-auto" : ""}`}>
                     <Table>
@@ -2983,9 +2949,9 @@ export default function DashboardOverview({
               open={openDueSoonPanel}
               onOpenChange={setOpenDueSoonPanel}
               panelTitle="Campaigns Starting Soon (Next 10 Days)"
-              gradientClassName={`bg-gradient-to-r ${PACING_ON_TRACK_GRADIENT}`}
+              gradientClassName="bg-pacing-on-track"
               badge={
-                <Badge variant="secondary" className="ml-auto w-fit shrink-0 bg-[var(--pacing-on-track-bg)] text-status-on-track-fg border-0 text-xs font-medium tabular-nums">
+                <Badge variant="on-track" className="num ml-auto w-fit shrink-0 text-xs font-medium">
                   {campaignsDueToStart.length} {campaignsDueToStart.length === 1 ? "Campaign" : "Campaigns"}
                 </Badge>
               }
@@ -2996,7 +2962,11 @@ export default function DashboardOverview({
                     gridCount={DASHBOARD_DUE_SOON_SKELETON_COUNT}
                   />
                 ) : campaignsDueToStart.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-8">No campaigns starting in the next 10 days</p>
+                  <EmptyState
+                    className="min-h-44"
+                    title="No campaigns starting soon"
+                    message="Campaigns starting in the next 10 days will appear here."
+                  />
                 ) : listGridMode === "list" ? (
                   <div className={`overflow-x-auto ${shouldScrollDueSoon ? "max-h-[1008px] overflow-y-auto" : ""}`}>
                     <Table>
@@ -3095,9 +3065,9 @@ export default function DashboardOverview({
               open={openFinishedPanel}
               onOpenChange={setOpenFinishedPanel}
               panelTitle="Campaigns Finished in Past 40 Days"
-              gradientClassName={`bg-gradient-to-r ${PACING_AHEAD_GRADIENT}`}
+              gradientClassName="bg-pacing-ahead"
               badge={
-                <Badge variant="secondary" className="ml-auto w-fit shrink-0 bg-[var(--pacing-ahead-bg)] text-status-ahead-fg border-0 text-xs font-medium tabular-nums">
+                <Badge variant="ahead" className="num ml-auto w-fit shrink-0 text-xs font-medium">
                   {campaignsFinishedRecently.length}{" "}
                   {campaignsFinishedRecently.length === 1 ? "Campaign" : "Campaigns"}
                 </Badge>
@@ -3106,7 +3076,11 @@ export default function DashboardOverview({
                 {loading ? (
                   <DashboardPanelBodySkeleton listGridMode={listGridMode} />
                 ) : campaignsFinishedRecently.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-8">No campaigns finished in the past 40 days</p>
+                  <EmptyState
+                    className="min-h-44"
+                    title="No recently finished campaigns"
+                    message="Campaigns finished in the past 40 days will appear here."
+                  />
                 ) : listGridMode === "list" ? (
                   <div className={`overflow-x-auto ${shouldScrollFinished ? "max-h-[1008px] overflow-y-auto" : ""}`}>
                     <Table>

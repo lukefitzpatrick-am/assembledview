@@ -29,6 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
+import { formatAUD } from "@/lib/format/money"
 import { Loader2, X } from "lucide-react"
 import type { KpiHost } from "./kpiHost"
 
@@ -40,14 +41,13 @@ export interface KPIEditModalProps {
   onPublisherKpiAdded?: () => void | Promise<void>
 }
 
-const audFmt = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" })
 const numAuFmt = new Intl.NumberFormat("en-AU")
 
 const headerCell =
-  "sticky top-0 z-10 bg-background text-[10px] font-semibold uppercase tracking-wider text-muted-foreground h-8 px-2 border-b border-border/40 shadow-[0_1px_0_0_hsl(var(--border))]"
+  "sticky top-0 z-10 h-8 border-b border-border bg-background px-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground shadow-e0"
 
 const inputClass =
-  "w-full text-right bg-transparent border border-border/30 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-primary text-[11px]"
+  "w-full rounded-input border border-border bg-background px-1 py-0.5 text-right text-[11px] focus:outline-none focus:ring-1 focus:ring-ring"
 
 type PublisherKpiMetricFormValues = Record<
   "ctr" | "cpv" | "conversion_rate" | "vtr" | "frequency",
@@ -418,7 +418,7 @@ export function KPIEditModal({
                       <tr>
                         <td
                           colSpan={15}
-                          className="bg-muted/30 px-3 py-1.5 text-left text-xs font-semibold"
+                          className="bg-surface-panel px-3 py-1.5 text-left text-xs font-semibold"
                         >
                           {MEDIA_TYPE_LABELS[mediaType] ?? mediaType} — {entries.length} rows
                         </td>
@@ -456,7 +456,7 @@ export function KPIEditModal({
                               {row.buyType}
                             </td>
                             <td className="border-b border-border/30 px-2 py-1 text-right">
-                              {audFmt.format(row.spend)}
+                              {formatAUD(row.spend)}
                             </td>
                             <td className="border-b border-border/30 px-2 py-1 text-right">
                               {numAuFmt.format(row.deliverables)}
@@ -751,7 +751,7 @@ export function KPIEditModal({
                                         type="text"
                                         value={row.media_type}
                                         readOnly
-                                        className="h-7 w-full rounded border border-border/40 bg-muted/40 px-2 text-[11px]"
+                                        className="h-7 w-full rounded-input border border-border bg-surface-panel px-2 text-[11px]"
                                       />
                                     </div>
                                     <div className="space-y-1">
@@ -762,7 +762,7 @@ export function KPIEditModal({
                                         type="text"
                                         value={row.bid_strategy}
                                         readOnly
-                                        className="h-7 w-full rounded border border-border/40 bg-muted/40 px-2 text-[11px]"
+                                        className="h-7 w-full rounded-input border border-border bg-surface-panel px-2 text-[11px]"
                                       />
                                     </div>
                                     {CLIENT_KPI_METRIC_FIELDS.map((field) => (

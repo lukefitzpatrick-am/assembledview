@@ -382,7 +382,7 @@ export default function CampaignActions({
         className={cn(
           "h-9 rounded-pill px-4 py-2",
           showFloating ? "hidden md:inline-flex" : "inline-flex",
-          "bg-muted text-foreground hover:bg-muted/80 focus-visible:ring-2 focus-visible:ring-ring",
+          "border border-border bg-card text-foreground hover:bg-table-row-hover focus-visible:ring-2 focus-visible:ring-ring",
         )}
       >
         <ActionIcon action="billing" loading={isDownloadingBilling} icon={<Download className="h-4 w-4" />} />

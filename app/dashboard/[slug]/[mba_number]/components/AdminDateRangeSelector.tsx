@@ -172,7 +172,7 @@ export default function AdminDateRangeSelector({
     <div className="inline-flex items-center gap-2 text-sm">
       <span className="text-muted-foreground">Date range:</span>
       <span className={cn("font-medium", isCustom && "text-primary")}>{rangeLabel}</span>
-      {isCustom ? <Badge variant="outline" className="h-5 rounded-full px-2 text-[10px]">Custom</Badge> : null}
+      {isCustom ? <Badge variant="outline" className="h-5 rounded-pill px-2 text-[10px]">Custom</Badge> : null}
       <button type="button" className="text-primary underline-offset-2 hover:underline">
         Change
       </button>
@@ -184,7 +184,7 @@ export default function AdminDateRangeSelector({
       type="button"
       variant="outline"
       size="sm"
-      className="h-9 min-w-[7.5rem] justify-center gap-2 rounded-full border-border/60 bg-background/90 text-xs font-medium shadow-sm backdrop-blur-sm transition-all hover:scale-[1.02] hover:bg-muted"
+      className="h-9 min-w-[7.5rem] justify-center gap-2 rounded-pill border-border bg-background text-xs font-medium shadow-e0 backdrop-blur-sm transition-all hover:scale-[1.02] hover:bg-table-row-hover"
     >
       <CalendarDays className="h-3.5 w-3.5" aria-hidden />
       Change range
@@ -193,8 +193,8 @@ export default function AdminDateRangeSelector({
 
   if (variant === "standalone") {
     return (
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/60 bg-card/60 px-3 py-2 backdrop-blur-sm">
-        <Badge variant="outline" className="rounded-full text-[11px]">
+      <div className="flex flex-wrap items-center gap-2 rounded-card border border-border bg-card px-3 py-2 shadow-e0">
+        <Badge variant="outline" className="rounded-pill text-[11px]">
           Admin
         </Badge>
         <div className="inline-flex items-center gap-1.5 text-xs uppercase tracking-wide text-muted-foreground">
@@ -211,7 +211,7 @@ export default function AdminDateRangeSelector({
           }}
         >
           <PopoverTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 rounded-full px-3">
+            <Button variant="ghost" size="sm" className="h-8 rounded-pill px-3">
               <span className={cn("font-medium", isCustom && "text-primary")}>{rangeLabel}</span>
             </Button>
           </PopoverTrigger>
@@ -225,7 +225,7 @@ export default function AdminDateRangeSelector({
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="h-7 rounded-full text-xs"
+                      className="h-7 rounded-pill text-xs"
                       onClick={() => {
                         if (preset.id === "custom") return
                         applyRange(preset.range)
@@ -254,7 +254,7 @@ export default function AdminDateRangeSelector({
           <Button
             variant="ghost"
             size="sm"
-            className="h-8 rounded-full px-3 text-muted-foreground hover:text-foreground"
+            className="h-8 rounded-pill px-3 text-muted-foreground hover:text-foreground"
             onClick={handleReset}
           >
             <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
@@ -289,7 +289,7 @@ export default function AdminDateRangeSelector({
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="h-7 rounded-full text-xs"
+                    className="h-7 rounded-pill text-xs"
                     onClick={() => {
                       if (preset.id === "custom") return
                       applyRange(preset.range)

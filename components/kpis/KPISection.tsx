@@ -191,7 +191,7 @@ export function KPISection({
                       className="rounded-pill px-1 py-0 text-[10px] font-medium"
                       title={`${missingPublisherCount} line item(s) have no publisher KPI`}
                     >
-                      ⚠ {missingPublisherCount} no pub KPI
+                      {missingPublisherCount} missing publisher KPI
                     </Badge>
                   ) : null}
                 </div>
@@ -213,7 +213,7 @@ export function KPISection({
             )
           })}
           <p className="pt-1 text-center text-[10px] text-muted-foreground">
-            Click to edit →
+            Click to edit
           </p>
         </div>
       )}

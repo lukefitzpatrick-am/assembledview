@@ -55,7 +55,7 @@ const mediaAccentClasses: Record<string, string> = {
 }
 
 function mediaAccentClassName(mediaType: string) {
-  return mediaAccentClasses[normalizeEntityKey(mediaType)] ?? "bg-muted-foreground"
+  return mediaAccentClasses[normalizeEntityKey(mediaType)] ?? "bg-border"
 }
 
 function safeNumber(value: number | undefined) {
@@ -291,7 +291,7 @@ export default function MediaTable({ lineItems }: MediaTableProps) {
                     <TableHead>Bursts</TableHead>
                   </TableRow>
                   <TableRow>
-                    <TableHead colSpan={7} className="bg-muted/20">
+                    <TableHead colSpan={7} className="bg-surface-panel">
                       <div className="text-xs text-muted-foreground">Filter row active: {search ? `"${search}"` : 'none'}</div>
                     </TableHead>
                   </TableRow>

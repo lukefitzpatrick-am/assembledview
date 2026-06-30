@@ -103,32 +103,6 @@ function computeEffectiveDateRange(opts: {
   return { startISO: startClamped, endISO: endClamped }
 }
 
-function normaliseHexColour(input: unknown): string | undefined {
-  if (typeof input !== "string") return undefined
-  const trimmed = input.trim()
-  if (!trimmed) return undefined
-  const raw = trimmed.startsWith("#") ? trimmed.slice(1) : trimmed
-  const hex = raw.toLowerCase()
-
-  if (/^[0-9a-f]{3}$/.test(hex)) {
-    const expanded = hex
-      .split("")
-      .map((char) => `${char}${char}`)
-      .join("")
-    return `#${expanded.toUpperCase()}`
-  }
-
-  if (/^[0-9a-f]{6}$/.test(hex)) {
-    return `#${hex.toUpperCase()}`
-  }
-
-  if (/^[0-9a-f]{8}$/.test(hex)) {
-    return `#${hex.slice(0, 6).toUpperCase()}`
-  }
-
-  return undefined
-}
-
 /**
  * Resolves running media types from campaign data.
  * Supports multiple possible shapes and falls back to inferring from line items.
@@ -742,25 +716,8 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
     },
   })
 
-  const brandCandidates = [
-    campaign?.brand_colour,
-    campaign?.brandColour,
-    campaign?.brand_color,
-    campaign?.brandColor,
-    campaign?.client_brand_colour,
-    campaignData?.client?.brand_colour,
-    campaignData?.client?.brandColour,
-    campaignData?.client_info?.brand_colour,
-    campaignData?.clientInfo?.brand_colour,
-    campaignData?.client_details?.brand_colour,
-    campaignData?.clientDetails?.brand_colour,
-  ]
-  const brandColour = normaliseHexColour(brandCandidates.find(Boolean))
   if (DEBUG_BRAND) {
-    console.log("[Brand Debug] brand colour resolution", {
-      brandCandidates,
-      brandColour,
-    })
+    console.log("[Brand Debug] client brand colour ignored; dashboard uses design-system tokens")
   }
 
   const showDeliverySection =
@@ -784,7 +741,6 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
       endDate={effectiveEndISO ?? endDate}
       campaignStartISO={campaignStartISO}
       campaignEndISO={campaignEndISO}
-      brandColour={brandColour}
       deliverySchedule={deliverySchedule}
       spendByChannel={spendByChannel}
       monthlySpend={monthlySpend}

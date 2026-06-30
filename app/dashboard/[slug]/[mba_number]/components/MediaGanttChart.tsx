@@ -37,7 +37,7 @@ const MIN_BAR_PX = 6
 const MIN_BAR_PCT = 0.22
 const todayMarkerClassName = "border-pacing-on-track"
 const todayMarkerPillClassName =
-  "absolute -top-2 -translate-x-1/2 rounded-pill bg-pacing-on-track px-1.5 py-0.5 text-[10px] font-medium text-secondary-foreground"
+  "absolute -top-2 -translate-x-1/2 rounded-pill bg-pacing-on-track px-1.5 py-0.5 text-[10px] font-medium text-primary-foreground"
 
 const mediaToneClasses: Record<string, { accent: string; bar: string }> = {
   television: {
@@ -66,7 +66,7 @@ const mediaToneClasses: Record<string, { accent: string; bar: string }> = {
   },
   social_media: {
     accent: "bg-channel-social",
-    bar: "bg-channel-social text-secondary-foreground",
+    bar: "bg-channel-social text-primary-foreground",
   },
   prog_display: {
     accent: "bg-channel-progDisplay",
@@ -78,18 +78,18 @@ const mediaToneClasses: Record<string, { accent: string; bar: string }> = {
   },
   search: {
     accent: "bg-channel-search",
-    bar: "bg-channel-search text-status-success-foreground",
+    bar: "bg-channel-search text-primary-foreground",
   },
   ooh: {
     accent: "bg-channel-ooh",
-    bar: "bg-channel-ooh text-status-success-foreground",
+    bar: "bg-channel-ooh text-primary-foreground",
   },
 }
 
 function mediaToneClassName(mediaType: string) {
   return mediaToneClasses[normalizeEntityKey(mediaType)] ?? {
-    accent: "bg-muted-foreground",
-    bar: "bg-muted text-foreground",
+    accent: "bg-border",
+    bar: "bg-surface-panel text-foreground",
   }
 }
 
@@ -261,7 +261,7 @@ const MediaGanttChart = forwardRef<HTMLDivElement, MediaGanttChartProps>(functio
         <div
           ref={ref}
           data-export="media-plan-gantt-root"
-          className="w-full overflow-hidden rounded-xl border border-border/60 bg-background/60"
+          className="w-full overflow-hidden rounded-card border border-border bg-background"
           role="region"
           aria-label={`Campaign media timeline, ${rows.length} rows, ${ariaGranularity}`}
         >
@@ -299,7 +299,7 @@ const MediaGanttChart = forwardRef<HTMLDivElement, MediaGanttChartProps>(functio
                   key={rowIndex}
                   className={cn(
                     "relative flex w-full min-w-0 items-center border-b border-border/40",
-                    rowIndex % 2 === 1 && "bg-muted/[0.05]"
+                    rowIndex % 2 === 1 && "bg-surface-panel"
                   )}
                 >
                   <div className={labelColClass}>
@@ -368,7 +368,7 @@ const MediaGanttChart = forwardRef<HTMLDivElement, MediaGanttChartProps>(functio
       <div
         ref={ref}
         data-export="media-plan-gantt-root"
-        className="overflow-x-auto rounded-xl border border-border/60 bg-background/60"
+        className="overflow-x-auto rounded-card border border-border bg-background"
         role="region"
         aria-label={`Campaign media timeline, ${rows.length} rows, ${ariaGranularity}`}
       >
@@ -410,7 +410,7 @@ const MediaGanttChart = forwardRef<HTMLDivElement, MediaGanttChartProps>(functio
                 key={rowIndex}
                 className={cn(
                   "relative flex min-h-[48px] items-center border-b border-border/40",
-                  rowIndex % 2 === 1 && "bg-muted/[0.05]"
+                  rowIndex % 2 === 1 && "bg-surface-panel"
                 )}
               >
                 <div className={labelColClass} style={{ width: LABEL_WIDTH }}>
