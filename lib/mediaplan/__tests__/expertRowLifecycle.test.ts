@@ -65,7 +65,7 @@ test("duplicateExpertRow inserts a copied row immediately after the source", () 
     ["row-1", "row-2", "row-copy-1", "row-3"]
   )
   assert.notEqual(next[2], rows[1])
-  assert.equal(next[2].sourceLineItemId, "source-2")
+  assert.equal(next[2].sourceLineItemId, undefined)
   assert.equal(next[2].name, "Two")
   assert.notEqual(next[2].weeklyValues, rows[1].weeklyValues)
   assert.deepEqual(next[2].weeklyValues, rows[1].weeklyValues)
@@ -94,7 +94,7 @@ test("duplicateExpertRow creates an empty mergedWeekSpans array when the source 
 
   assert.ok(next)
   assert.deepEqual(next[1].mergedWeekSpans, [])
-  assert.equal(next[1].sourceLineItemId, "source-1")
+  assert.equal(next[1].sourceLineItemId, undefined)
 })
 
 test("deleteExpertRow returns null when one row or fewer would remain", () => {

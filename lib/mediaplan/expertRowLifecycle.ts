@@ -8,6 +8,7 @@ export type ExpertGridLifecycleRow = {
   id: string
   weeklyValues: Record<string, number | "">
   mergedWeekSpans?: Array<{ id: string }>
+  sourceLineItemId?: string
 }
 
 /**
@@ -15,6 +16,7 @@ export type ExpertGridLifecycleRow = {
  * - regenerates the duplicate row id via makeRowId()
  * - shallow-copies weeklyValues (new object, same values)
  * - regenerates every mergedWeekSpans[].id via makeSpanId(index)
+ * - clears sourceLineItemId so duplicates mint a new standard identity
  * - preserves all other row/span fields by shallow spread
  * Returns null when rows[rowIndex] is missing (caller does nothing — no push/reset).
  */
@@ -41,6 +43,7 @@ export function duplicateExpertRow<T extends ExpertGridLifecycleRow>(
     id: makeRowId(),
     weeklyValues,
     mergedWeekSpans,
+    sourceLineItemId: undefined,
   } as T
 
   return [
