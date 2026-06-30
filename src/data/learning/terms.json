@@ -146,7 +146,18 @@
     "category_raw": "Testing",
     "group": "Measurement & Attribution",
     "definition": "Comparison of two variants",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "An experiment comparing two variants (A vs B) to see which performs better.",
+    "whyItMatters": "The cleanest way to prove what works - change one variable, split traffic, measure the difference.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Meta Business Help - About A/B testing",
+        "url": "https://www.facebook.com/business/help/1738164643098669"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "abn-commercial-09c72417",
@@ -327,7 +338,18 @@
     "category_raw": "Platform",
     "group": "Platforms & Tools",
     "definition": "Marketplace connecting DSPs and SSPs",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A digital marketplace that connects buyers (DSPs) and sellers (SSPs) to trade impressions in real time.",
+    "whyItMatters": "The auction venue of programmatic - where bid requests meet bids; the hub of the open exchange.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "IAB UK - Back to basics: programmatic",
+        "url": "https://www.iabuk.com/standards-guidelines/back-basics-guide-programmatic"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "ad-extensions-creative-eec4207f",
@@ -487,7 +509,18 @@
     "group": "Measurement & Attribution",
     "definition": "Quality feedback indicators",
     "formula_or_notes": "Meta",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Meta's quality feedback on an ad - quality, engagement-rate and conversion-rate rankings vs competitors.",
+    "whyItMatters": "Diagnostic, not a KPI - low rankings point to creative/targeting/landing fixes rather than a bid problem.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Meta Business Help - Ad relevance diagnostics",
+        "url": "https://www.facebook.com/business/help/403110480493160"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "ad-set-structure-cea527d1",
@@ -609,7 +642,19 @@
       "format": "number",
       "inferred": true,
       "unmapped": true
-    }
+    },
+    "plainEnglish": "Delivering different TV ads to different households based on data, rather than everyone seeing the same spot.",
+    "whyItMatters": "Brings digital-style targeting to TV (via BVOD/CTV and addressable linear) - reach with relevance.",
+    "practitionerNotes": "Dataset category for this row is an artifact ('Formula') - recategorise to Channels.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "IAB Australia - Video/CTV/Advanced TV resources",
+        "url": "https://www.iabaustralia.com.au/guideline/resources-for-video-ctv-and-advanced-tv/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "ads-txt-governance-9cb43b7b",
@@ -1092,7 +1137,18 @@
     "category_raw": "Reporting",
     "group": "Measurement & Attribution",
     "definition": "Competitive auction comparison",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A Google Ads report comparing your auction performance against competing advertisers.",
+    "whyItMatters": "Competitive intelligence on the SERP - impression share, overlap and position vs rivals.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Auction Insights",
+        "url": "https://support.google.com/google-ads/answer/2579754"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "auction-time-bidding-mechanics-62ab9fa7",
@@ -2238,7 +2294,18 @@
     "category_raw": "Retail Media",
     "group": "Channels & Formats",
     "definition": "Woolworths retail media network (AU)",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Woolworths Group's retail media network (Australia).",
+    "whyItMatters": "Major AU retail media network - reaches shoppers using Woolworths' first-party purchase data with closed-loop sales measurement.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Cartology (Woolworths)",
+        "url": "https://www.cartology.com.au/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "catch-up-tv-channel-c9332794",
@@ -2328,7 +2395,19 @@
     "category_raw": "Operations",
     "group": "Tracking & Ad Ops",
     "definition": "Logged scope or delivery change",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A logged request to change the agreed scope or delivery of work.",
+    "whyItMatters": "Keeps scope creep visible and accountable - changes get costed and approved, not absorbed silently.",
+    "practitionerNotes": "General ops term; defined in-house.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "MFA - Glossary of terms",
+        "url": "https://www.mediafederation.org.au/resources/learning-resources/mfa-digital-foundations-glossary-of-terms"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "clearing-price-mechanics-95ca8326",
@@ -2357,7 +2436,18 @@
     "category_raw": "Engagement",
     "group": "Metrics",
     "definition": "User interaction with an ad",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A user's interaction with an ad by clicking/tapping it.",
+    "whyItMatters": "The base unit of response in digital - but a diagnostic, not an outcome (bots and accidental taps inflate it).",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Ads Help - Clickthrough rate (clicks)",
+        "url": "https://support.google.com/google-ads/answer/2615875"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "click-attribution-tracking-fa10407a",
@@ -2486,7 +2576,18 @@
     "category_raw": "Retail Media",
     "group": "Channels & Formats",
     "definition": "Coles retail media network (AU)",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Coles Group's retail media network (Australia).",
+    "whyItMatters": "The other major AU grocery retail media network - shopper targeting and sales measurement on Coles' first-party data.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Coles 360",
+        "url": "https://www.coles.com.au/coles360"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "commercial-intent-optimisation-88cc07d8",
@@ -2781,7 +2882,18 @@
     "category_raw": "Reporting",
     "group": "Measurement & Attribution",
     "definition": "Conversion comparison ranking",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A Meta diagnostic: your ad's expected conversion rate versus competitors with the same goal.",
+    "whyItMatters": "Points to landing-page/offer issues after the click rather than the ad itself.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Meta Business Help - Ad relevance diagnostics",
+        "url": "https://www.facebook.com/business/help/403110480493160"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "conversion-window-tracking-ff83892b",
@@ -3733,7 +3845,19 @@
     "group": "Other / Uncategorised",
     "definition": "Delivery",
     "formula_or_notes": "Programmatic,Daily spend limit",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A limit on how much can be spent (or delivered) in a single day.",
+    "whyItMatters": "Paces delivery and protects budget; set too low and the campaign becomes delivery-limited.",
+    "practitionerNotes": "Dataset category for this row is an artifact ('Definition') - recategorise to Delivery/Budgeting.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Meta Business Help - About budgets",
+        "url": "https://www.facebook.com/business/help/214319341922580"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "data-fee-finance-797745e2",
@@ -3762,7 +3886,19 @@
     "category_raw": "Reporting",
     "group": "Measurement & Attribution",
     "definition": "Latency of reporting updates",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "How up to date the data in a report is (the lag between an event and it appearing).",
+    "whyItMatters": "Acting on stale data leads to wrong calls; know each platform's reporting lag before optimising.",
+    "practitionerNotes": "General reporting term; defined in-house.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "MFA - Glossary of terms",
+        "url": "https://www.mediafederation.org.au/resources/learning-resources/mfa-digital-foundations-glossary-of-terms"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "daypart-planning-e50a3b96",
@@ -3891,7 +4027,18 @@
     "category_raw": "Reporting",
     "group": "Measurement & Attribution",
     "definition": "Explanation for performance behaviour",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Platform explanations of why an ad set is (or isn't) delivering and performing as it is.",
+    "whyItMatters": "Helps diagnose throttled delivery, auction competitiveness and audience saturation before you start guessing.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Meta Business Help - How ads deliver",
+        "url": "https://www.facebook.com/business/help/1000688343301256"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "demand-supply-02862311",
@@ -4178,7 +4325,18 @@
     "category_raw": "Verification",
     "group": "Measurement & Attribution",
     "definition": "Verification and suitability provider",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "An independent media measurement and verification provider (viewability, fraud, brand safety).",
+    "whyItMatters": "One of the big-three verification vendors used to independently confirm media quality.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "DoubleVerify",
+        "url": "https://doubleverify.com/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "dsp-programmatic-cf2090e9",
@@ -4472,7 +4630,18 @@
     "category_raw": "Engagement",
     "group": "Metrics",
     "definition": "Interactions beyond impression",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Interactions with an ad beyond just an impression - likes, comments, shares, clicks, expands, video plays.",
+    "whyItMatters": "A relevance/attention signal, but definitions vary by platform and engagement isn't the same as a business outcome.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Meta Business Help - Post engagement",
+        "url": "https://www.facebook.com/business/help/735720159834389"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "engagement-rate-metric-ff1cd988",
@@ -4523,7 +4692,18 @@
     "category_raw": "Reporting",
     "group": "Measurement & Attribution",
     "definition": "Engagement comparison ranking",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A Meta diagnostic: your ad's expected engagement rate versus competitors.",
+    "whyItMatters": "Flags whether people interact with the ad - a creative/relevance signal, read alongside quality and conversion ranking.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Meta Business Help - Ad relevance diagnostics",
+        "url": "https://www.facebook.com/business/help/403110480493160"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "enhanced-conversions-tracking-024d92dc",
@@ -4672,7 +4852,18 @@
     "category_raw": "Analytics",
     "group": "Measurement & Attribution",
     "definition": "Recorded user interaction",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A recorded user interaction (page view, click, scroll, purchase) - the building block of GA4.",
+    "whyItMatters": "GA4 measures everything as events; defining the right ones is what makes conversion tracking and reporting work.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Analytics Help - About events",
+        "url": "https://support.google.com/analytics/answer/9322688"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "event-deduplication-tracking-7358b33b",
@@ -5188,7 +5379,18 @@
     "category_raw": "Reporting",
     "group": "Measurement & Attribution",
     "definition": "Exposure spread across users",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "How exposures are spread across the audience - how many saw the ad once, twice, three times, etc.",
+    "whyItMatters": "Average frequency hides extremes; the distribution shows if a few people are over-exposed while many are under-reached.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "MFA - Glossary of terms",
+        "url": "https://www.mediafederation.org.au/resources/learning-resources/mfa-digital-foundations-glossary-of-terms"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "frequency-optimisation-definition-cee0b543",
@@ -5198,7 +5400,19 @@
     "group": "Other / Uncategorised",
     "definition": "Planning",
     "formula_or_notes": "TV,Managing exposure repetition",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Managing exposure so each person sees the ad an effective number of times - not too few, not too many.",
+    "whyItMatters": "Protects reach and budget from over-exposure while ensuring the message lands; the planning side of frequency capping.",
+    "practitionerNotes": "Dataset category for this row is an artifact ('Definition') - recategorise to Planning.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "MFA - Glossary of terms",
+        "url": "https://www.mediafederation.org.au/resources/learning-resources/mfa-digital-foundations-glossary-of-terms"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "full-funnel-strategy-3011fa4e",
@@ -5227,7 +5441,18 @@
     "category_raw": "Analytics",
     "group": "Measurement & Attribution",
     "definition": "Google Analytics 4",
-    "type": "acronym"
+    "type": "acronym",
+    "plainEnglish": "Google Analytics 4 - Google's event-based web/app analytics platform.",
+    "whyItMatters": "The standard for measuring on-site behaviour and conversions; its event model and BigQuery export underpin most reporting.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Analytics Help - GA4",
+        "url": "https://support.google.com/analytics/answer/9744165"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "gam-publisher-ea9c8340",
@@ -5236,7 +5461,18 @@
     "category_raw": "Publisher",
     "group": "Channels & Formats",
     "definition": "Google Ad Manager",
-    "type": "acronym"
+    "type": "acronym",
+    "plainEnglish": "Google Ad Manager - Google's ad server and inventory management platform for publishers.",
+    "whyItMatters": "Where publishers traffic, serve and report on ads across direct and programmatic demand.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ad Manager Help - Advertising with Ad Manager",
+        "url": "https://support.google.com/admanager/answer/6022000"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "gclid-tracking-6d830f0d",
@@ -5843,7 +6079,18 @@
     "category_raw": "Verification",
     "group": "Measurement & Attribution",
     "definition": "Integral Ad Science verification tool",
-    "type": "acronym"
+    "type": "acronym",
+    "plainEnglish": "Integral Ad Science - an independent ad verification and measurement company.",
+    "whyItMatters": "A leading verification vendor for viewability, brand safety/suitability and fraud detection.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Integral Ad Science",
+        "url": "https://integralads.com/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "id-syncing-identity-14b6a4ba",
@@ -6504,7 +6751,18 @@
     "category_raw": "Reporting",
     "group": "Measurement & Attribution",
     "definition": "Learning phase status insights",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Status insights showing whether an ad set is in, out of, or stuck in the learning phase.",
+    "whyItMatters": "Tells you when results are unstable (learning) or won't stabilise (learning limited) so you don't over-react.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Meta Business Help - Learning phase",
+        "url": "https://www.facebook.com/business/help/112167992830700"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "learning-limited-optimisation-732adaed",
@@ -6876,7 +7134,19 @@
     "category_raw": "Reporting",
     "group": "Measurement & Attribution",
     "definition": "Impression-level delivery data",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Raw, impression-by-impression delivery data (rather than aggregated reports).",
+    "whyItMatters": "The granular source for custom analysis, fraud checks and clean-room measurement - powerful but heavy to handle.",
+    "practitionerNotes": "Programmatic term; defined in-house.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "IAB UK - Back to basics: programmatic",
+        "url": "https://www.iabuk.com/standards-guidelines/back-basics-guide-programmatic"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "lookalike-audience-7283f57c",
@@ -7070,7 +7340,19 @@
     "category_raw": "Analytics",
     "group": "Measurement & Attribution",
     "definition": "Primary business outcome",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A primary business outcome (a sale, qualified lead, signup).",
+    "whyItMatters": "The conversions that matter to the bottom line - what campaigns should ultimately be judged and optimised on.",
+    "practitionerNotes": "Analytics concept; defined in-house.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Nielsen Norman Group - Micro-conversions",
+        "url": "https://www.nngroup.com/articles/micro-conversions/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "makegood-delivery-50a327bd",
@@ -7318,7 +7600,18 @@
     "category_raw": "Reporting",
     "group": "Measurement & Attribution",
     "definition": "Tracking and reporting of outcomes",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The tracking and reporting of campaign outcomes against objectives.",
+    "whyItMatters": "What turns activity into learning; the modern stack triangulates attribution, MMM and incrementality.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "IAB Australia - Marketing metrics that matter",
+        "url": "https://www.iabaustralia.com.au/resource/iab-member-qa-series-marketing-metrics-that-matter/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "media-mix-planning-74326dca",
@@ -7347,7 +7640,19 @@
     "category_raw": "Media",
     "group": "Channels & Formats",
     "definition": "Alternative term for publisher",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Another term for a publisher - the company that owns the media/inventory (a TV network, news brand, platform).",
+    "whyItMatters": "The seller you negotiate with; in Australia 'media owner' is the common term for the inventory holder.",
+    "practitionerNotes": "General term; defined in-house.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "MFA - Glossary of terms",
+        "url": "https://www.mediafederation.org.au/resources/learning-resources/mfa-digital-foundations-glossary-of-terms"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "media-plan-planning-47703ef9",
@@ -7502,7 +7807,19 @@
     "category_raw": "Analytics",
     "group": "Measurement & Attribution",
     "definition": "Small intent signal",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A small step that signals intent on the way to a macro conversion (add-to-cart, video view, sign-up start).",
+    "whyItMatters": "Useful optimisation signals and leading indicators - but don't mistake them for the real business outcome.",
+    "practitionerNotes": "Analytics concept; defined in-house.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Nielsen Norman Group - Micro-conversions",
+        "url": "https://www.nngroup.com/articles/micro-conversions/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "mid-funnel-strategy-300ba0fd",
@@ -7575,7 +7892,19 @@
     "category_raw": "Verification",
     "group": "Measurement & Attribution",
     "definition": "Viewability and attention measurement",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A viewability and attention measurement provider (Oracle Moat).",
+    "whyItMatters": "Long a major verification vendor - but note Oracle wound down its advertising business, so check current availability.",
+    "practitionerNotes": "Oracle exited advertising; verify current status.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Oracle Advertising - Measurement",
+        "url": "https://www.oracle.com/advertising/measurement/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "move-measurement-b0337e60",
@@ -7649,7 +7978,18 @@
     "category_raw": "Testing",
     "group": "Measurement & Attribution",
     "definition": "Testing multiple variables at once",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "An experiment testing several variables (and their combinations) at once.",
+    "whyItMatters": "Finds the best combination of elements - but needs lots of traffic, so A/B testing is usually the practical choice.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "Optimizely - Multivariate vs A/B test",
+        "url": "https://www.optimizely.com/optimization-glossary/multivariate-test-vs-ab-test"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "native-channel-944363a7",
@@ -7798,7 +8138,19 @@
     "category_raw": "Media",
     "group": "Channels & Formats",
     "definition": "Discounted pricing",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The discounted price actually agreed, below the rate card.",
+    "whyItMatters": "Where agency buying power shows up - the gap between rate card and negotiated rate is real client value.",
+    "practitionerNotes": "General commercial term; defined in-house.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "MFA - Glossary of terms",
+        "url": "https://www.mediafederation.org.au/resources/learning-resources/mfa-digital-foundations-glossary-of-terms"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "net-cost-finance-954ae38e",
@@ -8632,7 +8984,19 @@
     "category_raw": "Reporting",
     "group": "Measurement & Attribution",
     "definition": "Native platform metrics",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The metrics reported natively by the ad platform itself (Google, Meta, etc.).",
+    "whyItMatters": "Convenient but self-reported - each platform uses its own attribution and tends to over-credit itself; validate with independent measurement.",
+    "practitionerNotes": "General reporting term; defined in-house.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "MFA - Glossary of terms",
+        "url": "https://www.mediafederation.org.au/resources/learning-resources/mfa-digital-foundations-glossary-of-terms"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "playbook-ops-7fb780c8",
@@ -9120,7 +9484,19 @@
     "category_raw": "Context",
     "group": "Other / Uncategorised",
     "definition": "Specific TV show or content",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A specific TV show or piece of content.",
+    "whyItMatters": "The unit TV is planned around - programs deliver audiences, and program affinity/quality drive where spots are placed.",
+    "practitionerNotes": "Dataset category for this row is an artifact ('Context') - recategorise to Channels/Planning.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "ThinkTV - How TV ratings work",
+        "url": "https://thinktv.com.au/how-tos-resources/how-do-tv-ratings-work/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "program-affinity-planning-23689875",
@@ -9291,7 +9667,19 @@
     "category_raw": "Media",
     "group": "Channels & Formats",
     "definition": "Inventory owner",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The owner of the content/site/app where ads run - the seller of the inventory.",
+    "whyItMatters": "The supply side of the market; publisher quality (audience, viewability, brand safety) shapes campaign outcomes.",
+    "practitionerNotes": "General term; defined in-house.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "IAB Tech Lab - ads.txt",
+        "url": "https://iabtechlab.com/ads-txt/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "purchase-metric-6382c828",
@@ -9320,7 +9708,19 @@
     "category_raw": "Operations",
     "group": "Tracking & Ad Ops",
     "definition": "Quality assurance checks",
-    "type": "acronym"
+    "type": "acronym",
+    "plainEnglish": "Quality Assurance - checking work (a plan, a report, a tracking setup) before it goes live.",
+    "whyItMatters": "Catches the errors that quietly cost money or break measurement; the cheapest insurance in media.",
+    "practitionerNotes": "General ops term; defined in-house.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "MFA - Glossary of terms",
+        "url": "https://www.mediafederation.org.au/resources/learning-resources/mfa-digital-foundations-glossary-of-terms"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "qbr-operations-0d1b5776",
@@ -9329,7 +9729,19 @@
     "category_raw": "Operations",
     "group": "Tracking & Ad Ops",
     "definition": "Quarterly Business Review",
-    "type": "acronym"
+    "type": "acronym",
+    "plainEnglish": "Quarterly Business Review - a regular review of performance, learnings and plans with the client.",
+    "whyItMatters": "The cadence that keeps the relationship strategic, not just operational; where results meet next-quarter strategy.",
+    "practitionerNotes": "General ops term; defined in-house.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "MFA - Glossary of terms",
+        "url": "https://www.mediafederation.org.au/resources/learning-resources/mfa-digital-foundations-glossary-of-terms"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "qs-metric-f980b7ec",
@@ -9347,7 +9759,18 @@
     "category_raw": "Reporting",
     "group": "Measurement & Attribution",
     "definition": "Ad quality vs competitors",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A Meta diagnostic: your ad's perceived quality versus ads competing for the same audience.",
+    "whyItMatters": "Low quality ranking often signals weak creative or clickbait - a prompt to improve the ad, not the bid.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Meta Business Help - Quality ranking",
+        "url": "https://www.facebook.com/business/help/303639570334185"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "quality-score-metric-35c62f75",
@@ -9436,7 +9859,19 @@
     "category_raw": "Media",
     "group": "Channels & Formats",
     "definition": "Published pricing",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A media owner's published list prices for its inventory.",
+    "whyItMatters": "The starting point for negotiation, not the price you pay - agencies buy well below rate card via deals and volume.",
+    "practitionerNotes": "General commercial term; defined in-house.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "MFA - Glossary of terms",
+        "url": "https://www.mediafederation.org.au/resources/learning-resources/mfa-digital-foundations-glossary-of-terms"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "rating-metric-f5519a27",
@@ -10320,7 +10755,18 @@
     "category_raw": "Reporting",
     "group": "Measurement & Attribution",
     "definition": "List of actual triggering queries",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The report listing the actual searches that triggered your ads (the search terms report).",
+    "whyItMatters": "Reality vs intent - the source of new keywords and negatives; SQR is the same thing.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Search terms report",
+        "url": "https://support.google.com/google-ads/answer/2472708"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "search-saturation-definition-42254242",
@@ -10330,7 +10776,19 @@
     "group": "Other / Uncategorised",
     "definition": "Economics",
     "formula_or_notes": "Search,Point where more spend adds minimal value",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The point where extra search spend stops buying more results - you've captured the available demand.",
+    "whyItMatters": "Signals when to stop adding budget to search and diversify; the search version of diminishing returns.",
+    "practitionerNotes": "Dataset category for this row is an artifact ('Definition') - recategorise to Economics/Optimisation.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "Prescient AI - MMM saturation curves",
+        "url": "https://prescientai.com/blog/mmm-saturation-curves"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "search-term-structure-39d80c87",
@@ -11460,7 +11918,19 @@
     "category_raw": "Reporting",
     "group": "Measurement & Attribution",
     "definition": "External measurement tools",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Measurement from independent tools (verification, ad servers) rather than the platform itself.",
+    "whyItMatters": "The trust layer - independent numbers you didn't mark yourself, used to validate platform claims.",
+    "practitionerNotes": "General reporting term; defined in-house.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "MFA - Glossary of terms",
+        "url": "https://www.mediafederation.org.au/resources/learning-resources/mfa-digital-foundations-glossary-of-terms"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "thruplay-metric-0ab7618d",
@@ -11712,7 +12182,18 @@
     "category_raw": "Operations",
     "group": "Tracking & Ad Ops",
     "definition": "Setting up ads and tags in platforms",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Setting up ads, tags and targeting in the ad server/platforms so a campaign can go live.",
+    "whyItMatters": "The ad-ops step where measurement is made or broken - a missed pixel or wrong tag quietly corrupts the whole campaign.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ad Manager Help",
+        "url": "https://support.google.com/admanager/answer/6022000"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "transparency-governance-8ac5c08f",
@@ -12644,7 +13125,19 @@
     "category_raw": "Operations",
     "group": "Tracking & Ad Ops",
     "definition": "Work In Progress status meeting",
-    "type": "acronym"
+    "type": "acronym",
+    "plainEnglish": "Work In Progress - a regular (often weekly) status meeting on current work.",
+    "whyItMatters": "Keeps tasks, owners and deadlines visible day-to-day; the operational heartbeat of an account.",
+    "practitionerNotes": "General ops term; defined in-house.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "MFA - Glossary of terms",
+        "url": "https://www.mediafederation.org.au/resources/learning-resources/mfa-digital-foundations-glossary-of-terms"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "yield-supply-3e6238a9",
