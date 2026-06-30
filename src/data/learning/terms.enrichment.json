@@ -4481,5 +4481,303 @@
     "sources": [{ "label": "ThinkTV - About", "url": "https://thinktv.com.au/about-thinktv/" }],
     "status": "reviewed",
     "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Display",
+    "plainEnglish": "Standard banner advertising - image/HTML ads in fixed sizes across websites and apps.",
+    "whyItMatters": "Cheap, scaled reach and a retargeting workhorse - but watch viewability and banner blindness.",
+    "level": "foundational",
+    "sources": [{ "label": "IAB - New Ad Portfolio", "url": "https://www.iab.com/guidelines/iab-new-ad-portfolio/" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Video",
+    "plainEnglish": "Video advertising - in-stream (inside other video) or out-stream (in feeds/articles).",
+    "whyItMatters": "The most engaging format for brand-building; completion and viewability vary hugely by placement.",
+    "level": "foundational",
+    "sources": [{ "label": "IAB Australia - Video advertising standards", "url": "https://www.iabaustralia.com.au/guideline/video-advertising-standards-specifications/" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Skippable Video",
+    "plainEnglish": "A video ad the viewer can skip (usually after 5 seconds).",
+    "whyItMatters": "Lower forced exposure but self-selecting attention; front-load the brand and hook in the first 5 seconds.",
+    "level": "foundational",
+    "sources": [{ "label": "Google Ads Help - Skippable in-stream ads", "url": "https://support.google.com/google-ads/answer/6055025" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Non-skippable Video",
+    "plainEnglish": "A video ad the viewer must watch in full (typically up to 15s).",
+    "whyItMatters": "Guarantees full message delivery and completion - powerful for reach, but make every second count.",
+    "level": "foundational",
+    "sources": [{ "label": "Google Ads Help - Non-skippable in-stream ads", "url": "https://support.google.com/google-ads/answer/11462260" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Outstream Video",
+    "plainEnglish": "Video that plays outside a video player - in articles, feeds or banners.",
+    "whyItMatters": "Scales video reach beyond in-stream inventory; often muted/auto-play, so design for sound-off. Note: 'outstream' is being phased out of the IAB taxonomy.",
+    "practitionerNotes": "IAB reclassified video (in-stream vs accompanying/interstitial/standalone); 'outstream' is deprecated.",
+    "level": "intermediate",
+    "sources": [{ "label": "IAB Australia - Video advertising standards", "url": "https://www.iabaustralia.com.au/guideline/video-advertising-standards-specifications/" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Companion Banner",
+    "plainEnglish": "A display unit shown alongside a video ad.",
+    "whyItMatters": "Adds a persistent, clickable brand presence next to video; defined in the VAST spec.",
+    "level": "intermediate",
+    "sources": [{ "label": "IAB Tech Lab - VAST 4.2 (companion ads)", "url": "https://iabtechlab.com/wp-content/uploads/2019/06/VAST_4.2_final_june26.pdf" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Lead Gen Form",
+    "plainEnglish": "A platform-hosted form that captures leads without leaving the app (pre-filled from the profile).",
+    "whyItMatters": "Low-friction lead capture lifts conversion - but easy submission can mean lower lead quality, so qualify.",
+    "level": "intermediate",
+    "sources": [{ "label": "Meta Business Help - Lead ads", "url": "https://www.facebook.com/business/help/761812391313386" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "LinkedIn Lead Gen Form",
+    "plainEnglish": "LinkedIn's native, pre-filled lead capture form inside the ad.",
+    "whyItMatters": "Captures B2B leads with accurate professional data and minimal friction - a staple of LinkedIn lead gen.",
+    "level": "intermediate",
+    "sources": [{ "label": "LinkedIn - Sponsored Content with Lead Gen Forms", "url": "https://business.linkedin.com/advertise/ads/sponsored-content/lead-gen-ads" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "LinkedIn Sponsored Content",
+    "plainEnglish": "Native ads that appear in the LinkedIn feed (single image, video, carousel, document).",
+    "whyItMatters": "The core LinkedIn format for reaching professionals in-feed with precise targeting.",
+    "level": "foundational",
+    "sources": [{ "label": "LinkedIn - Sponsored Content", "url": "https://business.linkedin.com/advertise/ads/sponsored-content/lead-gen-ads" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "LinkedIn Message Ads",
+    "plainEnglish": "Ads delivered directly to members' LinkedIn inboxes.",
+    "whyItMatters": "High-visibility, personal delivery for B2B - but use sparingly; over-use erodes response.",
+    "level": "intermediate",
+    "sources": [{ "label": "LinkedIn - Message Ads", "url": "https://business.linkedin.com/advertise/ads/sponsored-messaging/message-ads" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "TikTok In-Feed",
+    "plainEnglish": "Native video ads that appear in the TikTok For You feed.",
+    "whyItMatters": "The bread-and-butter TikTok format - rewards native, entertaining, sound-on creative.",
+    "level": "foundational",
+    "sources": [{ "label": "TikTok for Business - Spark Ads / formats", "url": "https://ads.tiktok.com/business/en-US/blog/spark-ads-101-make-tiktoks-into-ads" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "TikTok Spark Ads",
+    "plainEnglish": "Ads that boost real organic posts (your own or a creator's) as ads.",
+    "whyItMatters": "Keeps the authentic, native feel of organic content while adding paid reach - typically outperforms standard ads.",
+    "level": "intermediate",
+    "sources": [{ "label": "TikTok for Business - Spark Ads 101", "url": "https://ads.tiktok.com/business/en-US/blog/spark-ads-101-make-tiktoks-into-ads" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "TikTok TopView",
+    "plainEnglish": "A premium takeover format - a full-screen video shown on app open.",
+    "whyItMatters": "Maximum reach and impact for a launch/moment, at a premium price.",
+    "level": "intermediate",
+    "sources": [{ "label": "TikTok for Business - TopView", "url": "https://ads.tiktok.com/help/article/tiktok-reservation-topview" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Feed",
+    "plainEnglish": "The main scrolling content stream where most social ads appear.",
+    "whyItMatters": "The highest-volume placement - design for the scroll (stop the thumb in the first second).",
+    "level": "foundational",
+    "sources": [{ "label": "Meta Business Help - Ad placements", "url": "https://www.facebook.com/business/help/407108559393196" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Stories",
+    "plainEnglish": "Full-screen vertical placements that disappear after 24 hours (Instagram/Facebook Stories).",
+    "whyItMatters": "Immersive and mobile-first; needs 9:16 creative built for sound-on, fast viewing.",
+    "level": "foundational",
+    "sources": [{ "label": "Meta Business Help - Ad placements", "url": "https://www.facebook.com/business/help/407108559393196" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Reels",
+    "plainEnglish": "Short-form vertical video placement on Instagram/Facebook.",
+    "whyItMatters": "Meta's answer to TikTok - high-reach, entertainment-led; rewards native short video over polished ads.",
+    "level": "foundational",
+    "sources": [{ "label": "Meta Business Help - Ad placements", "url": "https://www.facebook.com/business/help/407108559393196" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Messenger",
+    "plainEnglish": "Ad placements within the Messenger app and inbox.",
+    "whyItMatters": "Reaches people in a messaging context; can drive conversations, but use carefully to avoid feeling intrusive.",
+    "level": "intermediate",
+    "sources": [{ "label": "Meta Business Help - Ad placements", "url": "https://www.facebook.com/business/help/407108559393196" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Audience Network",
+    "plainEnglish": "Meta's placements on third-party apps and sites beyond Facebook/Instagram.",
+    "whyItMatters": "Extends reach off-platform using Meta targeting - but quality/viewability vary, so monitor placement reports.",
+    "level": "intermediate",
+    "sources": [{ "label": "Meta Business Help - Ad placements", "url": "https://www.facebook.com/business/help/407108559393196" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "In-Stream",
+    "plainEnglish": "Video ads that play inside other video content (pre-roll, mid-roll, post-roll).",
+    "whyItMatters": "Premium, high-completion video environment - usually the strongest for attention and brand impact.",
+    "level": "foundational",
+    "sources": [{ "label": "IAB Australia - Video advertising standards", "url": "https://www.iabaustralia.com.au/guideline/video-advertising-standards-specifications/" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Ad Pod",
+    "plainEnglish": "A group of ads shown back-to-back within a single break (like a TV ad break).",
+    "whyItMatters": "Common in CTV/BVOD; position within the pod affects attention and price.",
+    "level": "intermediate",
+    "sources": [{ "label": "Thinkbox - Spot advertising", "url": "https://www.thinkbox.tv/how-to-use-tv/spots/introduction-to-spot-advertising" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Program Break",
+    "plainEnglish": "The advertising break within or between programs.",
+    "whyItMatters": "Where TV spots run; breaks in/around popular programs command premium rates and attention.",
+    "level": "foundational",
+    "sources": [{ "label": "Thinkbox - Spot advertising", "url": "https://www.thinkbox.tv/how-to-use-tv/spots/introduction-to-spot-advertising" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Position in Break",
+    "plainEnglish": "Where an ad sits in the break/pod (first, last, middle).",
+    "whyItMatters": "First and last positions get more attention and cost more - a lever in negotiating premium spots.",
+    "level": "intermediate",
+    "sources": [{ "label": "Thinkbox - Spot advertising", "url": "https://www.thinkbox.tv/how-to-use-tv/spots/introduction-to-spot-advertising" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "First In Break",
+    "plainEnglish": "The first ad position in a break/pod (a premium placement).",
+    "whyItMatters": "Higher attention before viewers disengage - bought at a premium for impact.",
+    "level": "intermediate",
+    "sources": [{ "label": "Thinkbox - Spot advertising", "url": "https://www.thinkbox.tv/how-to-use-tv/spots/introduction-to-spot-advertising" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Last In Break",
+    "plainEnglish": "The last ad position in a break/pod, right before content resumes.",
+    "whyItMatters": "Catches viewers returning to the program - a premium position alongside first-in-break.",
+    "level": "intermediate",
+    "sources": [{ "label": "Thinkbox - Spot advertising", "url": "https://www.thinkbox.tv/how-to-use-tv/spots/introduction-to-spot-advertising" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Spot",
+    "plainEnglish": "An individual TV (or radio) ad placement.",
+    "whyItMatters": "The unit of broadcast buying - spots are planned by program, daypart, length and position to build reach.",
+    "level": "foundational",
+    "sources": [{ "label": "ThinkTV - Why TV", "url": "https://thinktv.com.au/why-tv/" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "OTT",
+    "plainEnglish": "Over-the-top - video/TV content streamed over the internet, bypassing traditional cable/broadcast.",
+    "whyItMatters": "The delivery method behind streaming (often watched on CTV); how premium video reaches cord-cutters.",
+    "level": "intermediate",
+    "sources": [{ "label": "IAB - OTT overview (PDF)", "url": "https://www.iab.com/wp-content/uploads/2017/01/OTT-overview.pdf" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "End Card",
+    "plainEnglish": "The final screen of a video ad carrying the call to action (and often a clickable element).",
+    "whyItMatters": "Where intent is converted - a clear CTA end card lifts the response a video earns.",
+    "level": "foundational",
+    "sources": [{ "label": "Google Ads Help - Video end screens", "url": "https://support.google.com/google-ads/answer/6335680" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Radio",
+    "plainEnglish": "Broadcast radio advertising.",
+    "whyItMatters": "Strong for frequency, local reach and time-of-day targeting; traded on GfK ratings in Australia.",
+    "level": "foundational",
+    "sources": [{ "label": "Commercial Radio & Audio - The audio landscape", "url": "https://cra.au/the-audio-landscape" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Digital Audio",
+    "plainEnglish": "Streamed audio advertising (music streaming, online radio).",
+    "whyItMatters": "Adds targeting and attribution to audio's intimacy; reaches headphone, screenless moments.",
+    "level": "foundational",
+    "sources": [{ "label": "IAB - Audio & podcasting on the media plan", "url": "https://www.iab.com/guidelines/getting-audio-podcasting-on-the-media-plan/" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Podcast",
+    "plainEnglish": "On-demand audio content, often carrying host-read or dynamically inserted ads.",
+    "whyItMatters": "Highly engaged, loyal audiences and trusted host-read endorsements - a fast-growing audio channel.",
+    "level": "foundational",
+    "sources": [{ "label": "IAB - Audio & podcasting on the media plan", "url": "https://www.iab.com/guidelines/getting-audio-podcasting-on-the-media-plan/" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "DAI",
+    "plainEnglish": "Dynamic Ad Insertion - swapping ads into streaming/audio content at playback, per listener.",
+    "whyItMatters": "Brings digital targeting and freshness to podcasts/streaming - ads can be current and relevant, not baked in.",
+    "level": "advanced",
+    "sources": [{ "label": "IAB UK - Dynamic Ad Insertion (DAI)", "url": "https://www.iabuk.com/jargon-buster/dynamic-ad-insertion-dai" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "OOH",
+    "plainEnglish": "Out of Home - advertising in public spaces (billboards, transit, street furniture).",
+    "whyItMatters": "Broadcast-scale reach and brand fame that can't be skipped or blocked; measured by MOVE in Australia.",
+    "level": "foundational",
+    "sources": [{ "label": "Outdoor Media Association - Glossary", "url": "https://oma.org.au/glossary" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "DOOH",
+    "plainEnglish": "Digital Out of Home - digital screens in public spaces, increasingly bought programmatically.",
+    "whyItMatters": "Adds flexibility, dayparting and dynamic creative to OOH; programmatic DOOH is a fast-growing channel.",
+    "level": "intermediate",
+    "sources": [{ "label": "Outdoor Media Association - DOOH", "url": "https://www.oma.org.au/powering-dooh" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   }
 ]
