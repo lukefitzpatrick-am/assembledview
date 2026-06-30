@@ -40,6 +40,7 @@ import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
 import type { LineItem } from '@/lib/generateMediaPlan'
 import { formatAUD, formatMoney, parseMoneyInput } from "@/lib/format/money"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
+import { assignStableLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import {
   getMediaTypeThemeHex,
   mediaTypeAccentTextStyle,
@@ -567,12 +568,17 @@ export default function InfluencersContainer({
   // Transform form data to API schema format
   useEffect(() => {
     const formLineItems = form.getValues('lineItems') || [];
+    const stableInfluencersItems = assignStableLineItemNumbers<any>(
+      formLineItems,
+      mbaNumber,
+      MEDIA_TYPE_ID_CODES.influencers,
+    )
     
-    const transformedLineItems = formLineItems.map((lineItem, index) => {
+    const transformedLineItems = stableInfluencersItems.map((lineItem, index) => {
       const li = lineItem as { lineItemId?: string; line_item_id?: string }
       const lineItemId =
-        li.lineItemId ||
         li.line_item_id ||
+        li.lineItemId ||
         buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.influencers, index + 1);
       // Calculate totalMedia from raw budget amounts (for display in MBA section)
       let totalMedia = 0;
@@ -602,7 +608,7 @@ export default function InfluencersContainer({
         budget_includes_fees: lineItem.budgetIncludesFees || false,
         no_adserving: lineItem.noadserving || false,
         line_item_id: lineItemId,
-        line_item: index + 1,
+        line_item: lineItem.line_item,
         bursts_json: JSON.stringify(serializeBurstsJson({
           bursts: lineItem.bursts || [],
           feePct: feeinfluencers || 0,
