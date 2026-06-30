@@ -1284,7 +1284,9 @@ export function mergeProgBvodStandardFromExpertWithPrevious(
   return generated.map((li, i) => {
     const k = stableStandardLineItemKey(li, i)
     const prev = prevByKey.get(k)
-    if (!prev) return li
+    if (!prev) {
+      return { ...li, line_item: undefined, lineItem: undefined, line_item_id: undefined, lineItemId: undefined }
+    }
     return {
       ...li,
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
