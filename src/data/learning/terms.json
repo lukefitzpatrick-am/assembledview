@@ -636,7 +636,18 @@
     "category_raw": "Measurement",
     "group": "Measurement & Attribution",
     "definition": "Process of assigning credit to touchpoints",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "How credit for a conversion gets shared across the ads a customer saw or clicked.",
+    "whyItMatters": "The model you choose changes who looks like the hero - it's a lens, not the truth. Pair it with incrementality or MMM for causation.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - About attribution models",
+        "url": "https://support.google.com/google-ads/answer/6259715"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "attribution-window-tracking-5a3d8bf0",
@@ -803,7 +814,18 @@
     "category_raw": "Measurement",
     "group": "Measurement & Attribution",
     "definition": "Expected result without media",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The expected result with no media - what would have happened anyway.",
+    "whyItMatters": "Incrementality is everything above baseline; without it you'd credit ads for sales you'd have made regardless.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Think with Google - Experimentation & incrementality",
+        "url": "https://business.google.com/aunz/think/measurement/marketing-experimentation-incrementality-testing/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "behaviour-targeting-audience-44b62fb6",
@@ -1036,7 +1058,18 @@
     "category_raw": "Measurement",
     "group": "Measurement & Attribution",
     "definition": "Survey-based brand impact study",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A survey-based study measuring an ad's impact on awareness, recall or consideration.",
+    "whyItMatters": "How upper-funnel/brand work is measured - it won't show in last-click sales, so brand lift is the right yardstick.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - About Brand Lift",
+        "url": "https://support.google.com/google-ads/answer/9049825"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "brand-safety-governance-5aa13ffc",
@@ -1563,7 +1596,18 @@
     "category_raw": "Measurement",
     "group": "Measurement & Attribution",
     "definition": "Unexposed group used in testing",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The group deliberately not shown the ads, used as the comparison in a test.",
+    "whyItMatters": "The benchmark for causality - exposed-minus-control is the lift the advertising actually caused.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Meta Business Help - About A/B testing",
+        "url": "https://www.facebook.com/business/help/1738164643098669"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "conversion-measurement-fab44791",
@@ -1572,7 +1616,18 @@
     "category_raw": "Measurement",
     "group": "Measurement & Attribution",
     "definition": "Tracked outcome used for optimisation",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A tracked outcome that counts as success - a sale, lead, signup or other key action.",
+    "whyItMatters": "The thing campaigns optimise toward; how you define it (and which conversions count) shapes everything downstream.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Ads Help - About attribution models",
+        "url": "https://support.google.com/google-ads/answer/6259715"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "conversion-action-tracking-277cdd53",
@@ -1590,7 +1645,18 @@
     "category_raw": "Measurement",
     "group": "Measurement & Attribution",
     "definition": "Incremental conversion measurement",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "An experiment measuring the incremental conversions an ad caused (vs a holdout).",
+    "whyItMatters": "Meta's randomised test (treatment vs holdout) - the causal answer to 'did the ads actually drive conversions?'",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Meta Business Help - About Conversion Lift",
+        "url": "https://www.facebook.com/business/help/221353413010930"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "conversion-rate-ranking-reporting-c0840c87",
@@ -2408,7 +2474,18 @@
     "category_raw": "Measurement",
     "group": "Measurement & Attribution",
     "definition": "Removing overlap across screens",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Removing double-counting when the same person is reached across multiple screens or placements.",
+    "whyItMatters": "The whole point of currencies like VOZ - so a person seen on TV and BVOD counts once, giving true reach.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "OzTAM - VOZ Total TV",
+        "url": "https://oztam.com.au/services/voz-total-tv/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "deal-trading-5ce1b432",
@@ -2985,7 +3062,18 @@
     "category_raw": "Measurement",
     "group": "Measurement & Attribution",
     "definition": "Audience that received ads",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The group that did receive the ads in a test.",
+    "whyItMatters": "Compared against the control group to isolate the incremental effect of the advertising.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Meta Business Help - About A/B testing",
+        "url": "https://www.facebook.com/business/help/1738164643098669"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "fast-channel-bc329603",
@@ -3081,7 +3169,19 @@
     "category_raw": "Attribution",
     "group": "Measurement & Attribution",
     "definition": "100 percent credit to first interaction",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Gives 100% of the credit to the first ad the customer interacted with.",
+    "whyItMatters": "Over-credits the opening touch. Note: Google retired first-click in Google Ads/GA4 - only last-click and data-driven remain there.",
+    "practitionerNotes": "Retired in Google Ads and GA4 (rules-based models removed); still seen in some third-party tools.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Deprecated attribution models",
+        "url": "https://support.google.com/google-ads/answer/13427716"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "first-in-break-placement-0295ab70",
@@ -3256,7 +3356,18 @@
     "category_raw": "Measurement",
     "group": "Measurement & Attribution",
     "definition": "Regional test vs control analysis",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A test that turns media on in some regions and holds it out in others to measure causal impact.",
+    "whyItMatters": "Privacy-proof incrementality - no user tracking needed. Netflix and others use geo-holdouts to validate big budget bets.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "Think with Google - Experimentation & incrementality",
+        "url": "https://business.google.com/aunz/think/measurement/marketing-experimentation-incrementality-testing/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "geo-targeting-targeting-8525f881",
@@ -3525,7 +3636,18 @@
     "category_raw": "Measurement",
     "group": "Measurement & Attribution",
     "definition": "Audience excluded to measure incrementality",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "An audience deliberately excluded from seeing the ads, to measure incrementality against.",
+    "whyItMatters": "The control side of a lift test - the difference between holdout and exposed is the causal lift.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Meta Business Help - About Conversion Lift",
+        "url": "https://www.facebook.com/business/help/221353413010930"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "holdout-test-measurement-68edb06a",
@@ -3534,7 +3656,18 @@
     "category_raw": "Measurement",
     "group": "Measurement & Attribution",
     "definition": "Control vs exposed experiment",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "An experiment comparing a control (holdout) group against an exposed group.",
+    "whyItMatters": "The standard design for proving advertising caused an outcome rather than just correlating with it.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Meta Business Help - About Conversion Lift",
+        "url": "https://www.facebook.com/business/help/221353413010930"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "hook-rate-metric-493df60a",
@@ -3747,7 +3880,18 @@
     "category_raw": "Measurement",
     "group": "Measurement & Attribution",
     "definition": "Outcomes caused by media not correlation",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The outcomes that were actually caused by your media - not just correlated with it.",
+    "whyItMatters": "The closest thing to ground truth: what happened with the ads vs a comparable group without them. Cuts through attribution's over-claiming.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Think with Google - Incrementality testing",
+        "url": "https://business.google.com/us/think/measurement/incrementality-testing/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "influencer-channel-3f282b29",
@@ -3902,7 +4046,19 @@
     "category_raw": "Measurement",
     "group": "Measurement & Attribution",
     "definition": "Key Performance Indicator used to measure success",
-    "type": "acronym"
+    "type": "acronym",
+    "plainEnglish": "Key Performance Indicator - a metric chosen to measure success against a goal.",
+    "whyItMatters": "Picking the right KPI per objective is half the battle - the wrong one makes good work look bad and vice versa.",
+    "practitionerNotes": "General business term; no ad-industry canonical definition.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Gartner - KPI definition",
+        "url": "https://www.gartner.com/en/information-technology/glossary/kpi-key-performance-indicator"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "landing-page-experience-quality-component-e1a5da74",
@@ -3940,7 +4096,18 @@
     "category_raw": "Attribution",
     "group": "Measurement & Attribution",
     "definition": "100% credit to final click before conversion",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Gives 100% of the credit to the very last ad clicked before converting.",
+    "whyItMatters": "The default in most platforms; it over-credits the closing channel and undervalues upper-funnel work.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - About attribution models",
+        "url": "https://support.google.com/google-ads/answer/6259715"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "last-in-break-placement-a5b79563",
@@ -4022,7 +4189,19 @@
     "category_raw": "Measurement",
     "group": "Measurement & Attribution",
     "definition": "Difference between exposed and control groups",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The difference in outcomes between an exposed group and a control group.",
+    "whyItMatters": "The measured uplift caused by advertising - the core output of an incrementality test.",
+    "example": "Exposed group converts at 5%, control at 4% = 1 point (25% relative) lift.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Think with Google - Experimentation & incrementality",
+        "url": "https://business.google.com/aunz/think/measurement/marketing-experimentation-incrementality-testing/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "lift-study-measurement-782bf8e2",
@@ -4031,7 +4210,18 @@
     "category_raw": "Measurement",
     "group": "Measurement & Attribution",
     "definition": "Incrementality measurement framework",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "An experiment that measures the incremental impact of advertising.",
+    "whyItMatters": "The framework behind brand, conversion, sales and search lift - exposed vs control, measured causally.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Think with Google - Experimentation & incrementality",
+        "url": "https://business.google.com/aunz/think/measurement/marketing-experimentation-incrementality-testing/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "limited-delivery-delivery-c6e1553c",
@@ -4058,7 +4248,19 @@
     "category_raw": "Attribution",
     "group": "Measurement & Attribution",
     "definition": "Equal credit to all touchpoints",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Splits the credit equally across every touchpoint in the path.",
+    "whyItMatters": "Simple but treats a fleeting impression the same as a decisive click. Retired in Google Ads/GA4.",
+    "practitionerNotes": "Retired in Google Ads and GA4; conceptual only there now.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Deprecated attribution models",
+        "url": "https://support.google.com/google-ads/answer/13427716"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "linear-tv-channel-574a1a40",
@@ -4543,7 +4745,18 @@
     "category_raw": "Measurement",
     "group": "Measurement & Attribution",
     "definition": "Metropolitan TV measurement",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Television audience measurement for Australia's metropolitan markets (OzTAM's metro panel).",
+    "whyItMatters": "The metro half of TV measurement; combined with Regional TAM and BVOD into VOZ Total TV.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "OzTAM - About",
+        "url": "https://oztam.com.au/about/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "mfa-governance-dd66c5cb",
@@ -4588,7 +4801,22 @@
     "category_raw": "Measurement",
     "group": "Measurement & Attribution",
     "definition": "Marketing Mix Modelling using econometrics",
-    "type": "acronym"
+    "type": "acronym",
+    "plainEnglish": "Marketing Mix Modelling - top-down statistical modelling of sales against media spend and other factors.",
+    "whyItMatters": "Privacy-proof and channel-spanning - great for budget allocation. Resurgent because it survives signal loss. Slow and broad-brush.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "Think with Google - Marketing mix modeling",
+        "url": "https://business.google.com/en-all/think/measurement/marketing-mix-modeling-measurement-roi/"
+      },
+      {
+        "label": "IAB Australia - MMM Landscape Report 2025",
+        "url": "https://www.iabaustralia.com.au/resource/market-mix-modelling-landscape-report-2025/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "moat-verification-f4087743",
@@ -4606,7 +4834,22 @@
     "category_raw": "Measurement",
     "group": "Measurement & Attribution",
     "definition": "Australian OOH measurement framework",
-    "type": "acronym"
+    "type": "acronym",
+    "plainEnglish": "Measurement of Outdoor Visibility and Exposure - Australia's out-of-home audience currency.",
+    "whyItMatters": "How OOH reach and frequency are planned and traded here; run under the Outdoor Media Association.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "MOVE (OMA)",
+        "url": "https://moveoutdoor.com.au/"
+      },
+      {
+        "label": "Outdoor Media Association",
+        "url": "https://oma.org.au/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "msa-commercial-f90369f6",
@@ -4624,7 +4867,18 @@
     "category_raw": "Attribution",
     "group": "Measurement & Attribution",
     "definition": "Multi-Touch Attribution",
-    "type": "acronym"
+    "type": "acronym",
+    "plainEnglish": "Multi-Touch Attribution - spreading conversion credit across multiple touchpoints, user by user.",
+    "whyItMatters": "Granular when it works, but increasingly limited by cookie loss and walled gardens. Triangulate with MMM and incrementality.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "Nielsen - A guide to multi-touch attribution",
+        "url": "https://www.nielsen.com/insights/2019/methods-models-a-guide-to-multi-touch-attribution/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "multivariate-test-testing-b953be15",
@@ -4837,7 +5091,19 @@
     "category_raw": "Measurement",
     "group": "Measurement & Attribution",
     "definition": "Single metric reflecting business value",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The single metric that best captures the core value a business delivers.",
+    "whyItMatters": "Aligns teams on one number - but a poorly chosen North Star can drive the wrong behaviour.",
+    "practitionerNotes": "General product/business framework; no ad-industry canonical page.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Amplitude - The North Star Framework",
+        "url": "https://amplitude.com/books/north-star/about-north-star-framework"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "oaic-governance-6bcfc38b",
@@ -4882,7 +5148,19 @@
     "category_raw": "Measurement",
     "group": "Measurement & Attribution",
     "definition": "Objectives and Key Results framework",
-    "type": "acronym"
+    "type": "acronym",
+    "plainEnglish": "Objectives and Key Results - a goal-setting framework pairing an ambition with measurable results.",
+    "whyItMatters": "Keeps campaigns tied to business objectives rather than vanity activity.",
+    "practitionerNotes": "General management framework; no ad-industry canonical page.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google re:Work - Set goals with OKRs",
+        "url": "https://rework.withgoogle.com/intl/en/guides/set-goals-with-okrs"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "ooh-offline-d2c9d090",
@@ -5035,7 +5313,18 @@
     "category_raw": "Measurement",
     "group": "Measurement & Attribution",
     "definition": "Australian TV audience measurement body",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Australia's official TV/video audience measurement body.",
+    "whyItMatters": "Runs the panels and (with Regional TAM) the VOZ Total TV currency - the source of the ratings TV is traded on.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "OzTAM - About",
+        "url": "https://oztam.com.au/about/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "pacing-delivery-0483a4cd",
@@ -5080,7 +5369,18 @@
     "category_raw": "Measurement",
     "group": "Measurement & Attribution",
     "definition": "Sample of households measured",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A recruited sample of households/people whose viewing is measured to represent the whole population.",
+    "whyItMatters": "The backbone of TV/radio measurement - results are projected from the panel up to the population.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "ThinkTV - How do TV ratings work?",
+        "url": "https://thinktv.com.au/how-tos-resources/how-do-tv-ratings-work/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "panel-weighting-measurement-95cf0e71",
@@ -5089,7 +5389,18 @@
     "category_raw": "Measurement",
     "group": "Measurement & Attribution",
     "definition": "Adjusting sample to population",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Adjusting the panel sample so it matches the real population's makeup.",
+    "whyItMatters": "Corrects for over/under-represented groups so projected audiences are accurate.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "ThinkTV - How do TV ratings work?",
+        "url": "https://thinktv.com.au/how-tos-resources/how-do-tv-ratings-work/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "pay-tv-channel-e30b30ed",
@@ -5253,7 +5564,19 @@
     "category_raw": "Attribution",
     "group": "Measurement & Attribution",
     "definition": "More credit to first and last touchpoints",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Gives most credit to the first and last touchpoints, less to those in between.",
+    "whyItMatters": "Also called U-shaped. Retired in Google Ads/GA4; survives in some other analytics tools.",
+    "practitionerNotes": "Retired in Google Ads and GA4.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Deprecated attribution models",
+        "url": "https://support.google.com/google-ads/answer/13427716"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "position-in-break-placement-6be89cc1",
@@ -5325,7 +5648,18 @@
     "category_raw": "Measurement",
     "group": "Measurement & Attribution",
     "definition": "Used for bidding decisions",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The conversion action a campaign actually bids and optimises toward.",
+    "whyItMatters": "Only primary conversions drive automated bidding - secondary ones are tracked but don't steer the algorithm.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - About attribution models",
+        "url": "https://support.google.com/google-ads/answer/6259715"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "primary-demo-audience-21e4b96b",
@@ -5343,7 +5677,19 @@
     "category_raw": "Measurement",
     "group": "Measurement & Attribution",
     "definition": "Main decision-making metric",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The main metric a decision is made on.",
+    "whyItMatters": "Agreeing the primary metric up front stops post-hoc cherry-picking of whichever number looks good.",
+    "practitionerNotes": "General goal-setting vocabulary; no canonical ad-industry page.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google re:Work - Set goals with OKRs",
+        "url": "https://rework.withgoogle.com/intl/en/guides/set-goals-with-okrs"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "primary-text-creative-7413e385",
@@ -5686,7 +6032,18 @@
     "category_raw": "Measurement",
     "group": "Measurement & Attribution",
     "definition": "Incremental reach measurement",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The incremental unique reach a channel or tactic adds beyond the base plan.",
+    "whyItMatters": "Quantifies whether new spend reaches new people or just adds frequency to the same audience.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Think with Google - Experimentation & incrementality",
+        "url": "https://business.google.com/aunz/think/measurement/marketing-experimentation-incrementality-testing/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "reach-optimisation-bidding-db3b8f35",
@@ -5740,7 +6097,18 @@
     "category_raw": "Measurement",
     "group": "Measurement & Attribution",
     "definition": "Regional TV measurement",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Television audience measurement for Australia's regional markets.",
+    "whyItMatters": "The regional counterpart to OzTAM's metro panel; feeds into VOZ Total TV.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Regional TAM",
+        "url": "https://www.regionaltam.com.au/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "remarketing-audience-b50bbb74",
@@ -5812,7 +6180,18 @@
     "category_raw": "Measurement",
     "group": "Measurement & Attribution",
     "definition": "TV viewing data from devices",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "TV viewing data captured from set-top boxes and smart TVs at scale.",
+    "whyItMatters": "Big-data viewing signals that complement panels - more granularity, used increasingly in modern TV measurement.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "OzTAM - About",
+        "url": "https://oztam.com.au/about/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "revenue-recognition-finance-a11ae9d9",
@@ -6002,7 +6381,18 @@
     "category_raw": "Measurement",
     "group": "Measurement & Attribution",
     "definition": "Incremental sales measurement study",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The incremental sales an ad caused, measured exposed vs unexposed (often via retail/panel data).",
+    "whyItMatters": "Ties advertising to actual sales causally - the gold standard for FMCG and retail.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Nielsen - Sales Lift",
+        "url": "https://www.nielsen.com/solutions/marketing-optimization/sales-lift/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "search-channel-7db2302b",
@@ -6047,7 +6437,18 @@
     "category_raw": "Measurement",
     "group": "Measurement & Attribution",
     "definition": "Time between click and conversion",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The time gap between a click and the conversion it leads to.",
+    "whyItMatters": "Long lags mean today's conversions came from earlier clicks - judging a campaign too soon understates it.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - About attribution models",
+        "url": "https://support.google.com/google-ads/answer/6259715"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "search-coverage-gap-planning-4552bd0f",
@@ -6083,7 +6484,18 @@
     "category_raw": "Measurement",
     "group": "Measurement & Attribution",
     "definition": "Increase in search after TV exposure",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The increase in brand/product searches caused by ad exposure (often after TV/video).",
+    "whyItMatters": "A useful proxy for upper-funnel demand creation - shows TV and video driving people to search.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - About Search Lift",
+        "url": "https://support.google.com/google-ads/answer/14715329"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "search-lost-impression-share-metric-6fbb2c6f",
@@ -6187,7 +6599,18 @@
     "category_raw": "Measurement",
     "group": "Measurement & Attribution",
     "definition": "Tracked but not optimised towards",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A conversion tracked for insight but not optimised toward.",
+    "whyItMatters": "Lets you watch supporting actions (e.g. add-to-cart) without distracting the bidding algorithm.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - About attribution models",
+        "url": "https://support.google.com/google-ads/answer/6259715"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "secondary-demo-audience-62450376",
@@ -6205,7 +6628,19 @@
     "category_raw": "Measurement",
     "group": "Measurement & Attribution",
     "definition": "Supporting metric",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A supporting metric watched for context, not the basis of the decision.",
+    "whyItMatters": "Guards against tunnel vision on the primary metric (e.g. watching quality alongside volume).",
+    "practitionerNotes": "General goal-setting vocabulary; no canonical ad-industry page.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google re:Work - Set goals with OKRs",
+        "url": "https://rework.withgoogle.com/intl/en/guides/set-goals-with-okrs"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "seed-audience-audience-f03d1581",
@@ -6286,7 +6721,18 @@
     "category_raw": "Measurement",
     "group": "Measurement & Attribution",
     "definition": "Viewing data from STB devices",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Viewing data collected from cable/satellite/IPTV set-top boxes.",
+    "whyItMatters": "A form of return-path data; large-scale but needs careful handling (which box, who's watching) before it's a currency.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "OzTAM - About",
+        "url": "https://oztam.com.au/about/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "sgtm-tracking-379d4cdb",
@@ -6801,7 +7247,19 @@
     "category_raw": "Attribution",
     "group": "Measurement & Attribution",
     "definition": "More credit to later touchpoints",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Gives more credit to touchpoints closer in time to the conversion.",
+    "whyItMatters": "Favours lower-funnel tactics. Retired in Google Ads/GA4 alongside the other rules-based models.",
+    "practitionerNotes": "Retired in Google Ads and GA4.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Deprecated attribution models",
+        "url": "https://support.google.com/google-ads/answer/13427716"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "timeout-mechanics-7876c6a4",
@@ -6905,7 +7363,18 @@
     "category_raw": "Measurement",
     "group": "Measurement & Attribution",
     "definition": "Linking exposure to outcomes",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Linking TV ad exposure to downstream outcomes like site visits, searches or sales.",
+    "whyItMatters": "Brings TV into the measurement conversation - usually via geo/holdout or spike analysis, not user-level tracking.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "Think with Google - Experimentation & incrementality",
+        "url": "https://business.google.com/aunz/think/measurement/marketing-experimentation-incrementality-testing/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "tv-campaign-structure-5bbcdbf4",
@@ -6923,7 +7392,18 @@
     "category_raw": "Measurement",
     "group": "Measurement & Attribution",
     "definition": "Incremental impact measurement",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "An experiment measuring the incremental impact of TV advertising.",
+    "whyItMatters": "Proves TV's contribution causally - important because TV never shows up well in last-click reporting.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "Think with Google - Experimentation & incrementality",
+        "url": "https://business.google.com/aunz/think/measurement/marketing-experimentation-incrementality-testing/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "tv-planning-model-planning-6e012c22",
@@ -7017,7 +7497,18 @@
     "category_raw": "Measurement",
     "group": "Measurement & Attribution",
     "definition": "Total measurable population",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The total measurable population a survey or currency represents.",
+    "whyItMatters": "The denominator behind reach and ratings - 'reach %' only means something against a defined universe.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "ThinkTV - How do TV ratings work?",
+        "url": "https://thinktv.com.au/how-tos-resources/how-do-tv-ratings-work/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "upper-funnel-strategy-70264d42",
@@ -7326,7 +7817,18 @@
     "category_raw": "Measurement",
     "group": "Measurement & Attribution",
     "definition": "Total TV measurement framework Australia",
-    "type": "acronym"
+    "type": "acronym",
+    "plainEnglish": "Australia's official Total TV measurement and trading currency - broadcast + BVOD, de-duplicated.",
+    "whyItMatters": "Since Dec 2024 it's how TV is bought and evaluated here. If you plan or report TV in Australia, you quote VOZ.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "OzTAM - VOZ Total TV",
+        "url": "https://oztam.com.au/services/voz-total-tv/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "vtr-metric-9441df11",
@@ -7387,7 +7889,19 @@
     "category_raw": "Measurement",
     "group": "Measurement & Attribution",
     "definition": "Increase in site visits after TV exposure",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The increase in site visits caused by ad exposure (often measured after TV bursts).",
+    "whyItMatters": "Connects offline/upper-funnel media to on-site behaviour without relying on last-click.",
+    "practitionerNotes": "Not a standardised named product; measured via geo/holdout or analytics correlation.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Think with Google - Experimentation & incrementality",
+        "url": "https://business.google.com/aunz/think/measurement/marketing-experimentation-incrementality-testing/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "webhook-tech-706ecf67",
