@@ -31,7 +31,7 @@ import { formatBurstLabel } from "@/lib/bursts"
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { serializeBurstsJson } from "@/lib/mediaplan/serializeBurstsJson"
 import { expertApplyClearedAdServingOverride } from "@/lib/mediaplan/adServingOverrideNotice"
-import { appendBurst, removeBurst, newBurstReactKey, stampBurstReactKeys } from "@/lib/mediaplan/burstOperations"
+import { appendBurst, duplicateBurst, removeBurst, newBurstReactKey, stampBurstReactKeys } from "@/lib/mediaplan/burstOperations"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
@@ -857,52 +857,13 @@ export default function ProgVideoContainer({
   }, [form, handleLineItemValueChange, toast, campaignStartDate, campaignEndDate]);
 
   const handleDuplicateBurst = useCallback((lineItemIndex: number) => {
-    const currentBursts = form.getValues(`lineItems.${lineItemIndex}.bursts`) || [];
-
-    if (currentBursts.length === 0) {
-      toast({
-        title: "No burst to duplicate",
-        description: "Add a burst first before duplicating.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (currentBursts.length >= 12) {
-      toast({
-        title: "Maximum bursts reached",
-        description: "Can't add more bursts. Each line item is limited to 12 bursts.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const lastBurst = currentBursts[currentBursts.length - 1];
-
-    let startDate = new Date();
-    if (lastBurst?.endDate) {
-      startDate = new Date(lastBurst.endDate);
-      startDate.setDate(startDate.getDate() + 1);
-    }
-
-    const endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0);
-
-    const duplicatedBurst = {
-      _reactKey: newBurstReactKey(),
-      budget: lastBurst?.budget ?? "",
-      buyAmount: lastBurst?.buyAmount ?? "",
-      startDate,
-      endDate,
-      calculatedValue: lastBurst?.calculatedValue ?? 0,
-      fee: lastBurst?.fee ?? 0,
-    };
-
-    form.setValue(`lineItems.${lineItemIndex}.bursts`, [
-      ...currentBursts,
-      duplicatedBurst,
-    ]);
-
-    handleLineItemValueChange(lineItemIndex);
+    duplicateBurst({
+      form,
+      fieldKey: "lineItems",
+      lineItemIndex,
+      onAfter: handleLineItemValueChange,
+      toast: toast as Parameters<typeof duplicateBurst>[0]["toast"],
+    })
   }, [form, handleLineItemValueChange, toast]);
 
   const handleRemoveBurst = useCallback((lineItemIndex: number, burstIndex: number) => {

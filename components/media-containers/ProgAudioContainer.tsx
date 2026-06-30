@@ -84,6 +84,7 @@ import {
 } from "@/lib/mediaplan/deliverableBudget"
 import {
   appendBurst,
+  duplicateBurst,
   removeBurst,
   newBurstReactKey,
   stampBurstReactKeys,
@@ -831,52 +832,13 @@ export default function ProgAudioContainer({
   }, [form, handleLineItemValueChange, toast, campaignStartDate, campaignEndDate]);
 
   const handleDuplicateBurst = useCallback((lineItemIndex: number) => {
-    const currentBursts = form.getValues(`lineItems.${lineItemIndex}.bursts`) || [];
-
-    if (currentBursts.length === 0) {
-      toast({
-        title: "No burst to duplicate",
-        description: "Add a burst first before duplicating.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (currentBursts.length >= 12) {
-      toast({
-        title: "Maximum bursts reached",
-        description: "Can't add more bursts. Each line item is limited to 12 bursts.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const lastBurst = currentBursts[currentBursts.length - 1];
-
-    let startDate = new Date();
-    if (lastBurst?.endDate) {
-      startDate = new Date(lastBurst.endDate);
-      startDate.setDate(startDate.getDate() + 1);
-    }
-
-    const endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0);
-
-    const duplicatedBurst = {
-      budget: lastBurst?.budget ?? "",
-      buyAmount: lastBurst?.buyAmount ?? "",
-      startDate,
-      endDate,
-      calculatedValue: lastBurst?.calculatedValue ?? 0,
-      fee: lastBurst?.fee ?? 0,
-      _reactKey: newBurstReactKey(),
-    };
-
-    form.setValue(`lineItems.${lineItemIndex}.bursts`, [
-      ...currentBursts,
-      duplicatedBurst,
-    ]);
-
-    handleLineItemValueChange(lineItemIndex);
+    duplicateBurst({
+      form,
+      fieldKey: "lineItems",
+      lineItemIndex,
+      onAfter: handleLineItemValueChange,
+      toast: toast as Parameters<typeof duplicateBurst>[0]["toast"],
+    })
   }, [form, handleLineItemValueChange, toast]);
 
   const handleRemoveBurst = useCallback((lineItemIndex: number, burstIndex: number) => {
