@@ -8,15 +8,15 @@ export interface AccentBarProps extends React.HTMLAttributes<HTMLDivElement> {
 
 /**
  * Multi-segment brand strip used at the bottom of dashboard hero shells.
- * Matches the gradient previously inlined in `PageHeroShell`.
+ * Uses Assembled brand tokens while allowing callers to inject a brand/client colour.
  */
-export function AccentBar({ brandColour = "#4f8fcb", className, style, ...props }: AccentBarProps) {
+export function AccentBar({ brandColour = "hsl(var(--primary))", className, style, ...props }: AccentBarProps) {
   const background = `linear-gradient(90deg,
-    #C5D82D 0%, #C5D82D 20%,
-    #00CED1 20%, #00CED1 40%,
+    hsl(var(--accent)) 0%, hsl(var(--accent)) 20%,
+    var(--channel-social) 20%, var(--channel-social) 40%,
     ${brandColour} 40%, ${brandColour} 60%,
-    #FF69B4 60%, #FF69B4 80%,
-    #FF6600 80%, #FF6600 100%
+    hsl(var(--secondary)) 60%, hsl(var(--secondary)) 80%,
+    var(--channel-bvod) 80%, var(--channel-bvod) 100%
   )`
 
   return (
