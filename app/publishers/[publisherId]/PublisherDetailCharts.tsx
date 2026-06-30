@@ -18,6 +18,7 @@ import {
 import { Panel, PanelContent, PanelDescription, PanelHeader, PanelTitle } from "@/components/layout/Panel"
 import { PanelRow, PanelRowCell } from "@/components/layout/PanelRow"
 import { TableWithExport } from "@/components/ui/table-with-export"
+import { ProgressBar } from "@/components/ui/ProgressBar"
 import {
   FALLBACK_PALETTE,
   getDeterministicColor,
@@ -337,29 +338,44 @@ export function PublisherDetailCharts({
           {analytics.shareByMediaType.map((entry) => {
             const label = MEDIA_TYPE_SLUG_TO_DASHBOARD_LABEL[entry.mediaType] ?? entry.mediaType
             const span = analytics.shareByMediaType.length >= 3 ? "third" : "half"
-            const marketSharePieColors = [brandColour ?? FALLBACK_PALETTE[0], "#e5e7eb"] as string[]
-            const shareDonutData = [
-              { key: publisherName, value: entry.thisPublisherSpend },
-              { key: "Other publishers", value: entry.totalMarketSpend - entry.thisPublisherSpend },
-            ]
-            const shareColourFn = (key: string) =>
-              key === publisherName ? marketSharePieColors[0]! : marketSharePieColors[1]!
+            const sharePercentage =
+              entry.totalMarketSpend > 0 ? (entry.thisPublisherSpend / entry.totalMarketSpend) * 100 : 0
             return (
               <PanelRowCell key={entry.mediaType} span={span}>
                 <BaseChartCard
                   title={label}
                   description={`Share of total ${label} spend this FY`}
                   variant="icon"
-                  icon={PieChartIcon}
-                  className="h-full border-border/40 bg-card shadow-sm"
+                  icon={BarChart3}
+                  className="h-full border-border/40 bg-card shadow-e1"
                 >
-                  <DonutChart
-                    data={shareDonutData}
-                    colourFn={shareColourFn}
-                    valueFormatter={formatCurrencyCompact}
-                    maxSlices={4}
-                    topNBeforeOther={3}
-                  />
+                  <div className="space-y-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-foreground">{publisherName}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">Publisher spend</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="num text-sm font-semibold text-foreground">
+                          {formatCurrencyCompact(entry.thisPublisherSpend)}
+                        </p>
+                        <p className="num mt-1 text-xs text-muted-foreground">
+                          {Math.round(sharePercentage)}%
+                        </p>
+                      </div>
+                    </div>
+                    <ProgressBar
+                      value={entry.thisPublisherSpend}
+                      max={entry.totalMarketSpend}
+                      size="pacing"
+                      color="info"
+                      animated={false}
+                    />
+                    <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                      <span>Total market</span>
+                      <span className="num font-medium">{formatCurrencyCompact(entry.totalMarketSpend)}</span>
+                    </div>
+                  </div>
                 </BaseChartCard>
               </PanelRowCell>
             )

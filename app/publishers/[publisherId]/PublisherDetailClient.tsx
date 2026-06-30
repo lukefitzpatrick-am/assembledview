@@ -13,11 +13,9 @@ import { PublisherKpiSlideOver } from "./PublisherKpiSlideOver"
 import { normalizePublisherRecord } from "@/lib/publisher/normalizePublisher"
 import { publisherApiRecordPath, publisherHubPath } from "@/lib/publisher/publisherHubPath"
 import type { Publisher, PublisherDashboardData } from "@/lib/types/publisher"
-import { cn, hexToRgba } from "@/lib/utils"
+import { cn } from "@/lib/utils"
 
-function isSixDigitHex(s: string): boolean {
-  return /^#[0-9A-Fa-f]{6}$/.test(s)
-}
+const PUBLISHER_HERO_ACCENT = "var(--pacing-on-track)"
 
 function publisherInitials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean)
@@ -60,9 +58,7 @@ export function PublisherDetailClient({ initialPublisher, analytics }: Publisher
     [publisher, router],
   )
 
-  const rawPublisherColour = publisher.publisher_colour?.trim() ?? ""
-  const heroHexAccent = rawPublisherColour && isSixDigitHex(rawPublisherColour) ? rawPublisherColour : null
-  const brandColour = heroHexAccent ?? "#4f8fcb"
+  const brandColour = PUBLISHER_HERO_ACCENT
 
   return (
     <div className="mx-auto w-full max-w-[1800px] space-y-6 px-4 py-6 pb-12 sm:px-6 lg:px-8 lg:py-8 xl:px-12 2xl:px-16">
@@ -79,25 +75,20 @@ export function PublisherDetailClient({ initialPublisher, analytics }: Publisher
           >
             <div className="relative flex items-center gap-4">
               <div
-                className="absolute -inset-2 rounded-full opacity-20 blur-xl"
-                style={{ backgroundColor: brandColour }}
+                className="absolute -inset-2 rounded-pill bg-pacing-on-track-bg blur-xl"
                 aria-hidden
               />
               <div className="relative h-16 w-16 shrink-0">
-                <div
-                  className="flex h-full w-full items-center justify-center overflow-hidden rounded-full border-2 shadow-lg"
-                  style={{ borderColor: hexToRgba(brandColour, 0.3) }}
-                >
+                <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-pill border-2 border-pacing-on-track-bg shadow-e1">
                   <span
-                    className="flex h-full w-full items-center justify-center text-lg font-semibold text-white"
-                    style={{ backgroundColor: brandColour }}
+                    className="flex h-full w-full items-center justify-center bg-pacing-on-track text-lg font-semibold text-primary-foreground"
                     aria-label={`${publisher.publisher_name} initials`}
                   >
                     {publisherInitials(publisher.publisher_name || "")}
                   </span>
                 </div>
                 <span
-                  className="absolute bottom-px right-px h-[10px] w-[10px] rounded-full bg-[#C5D82D] shadow-[0_0_0_2px_rgb(255,255,255)]"
+                  className="absolute bottom-px right-px h-[10px] w-[10px] rounded-pill bg-accent shadow-e0 ring-2 ring-card"
                   aria-hidden
                 />
               </div>
@@ -109,7 +100,7 @@ export function PublisherDetailClient({ initialPublisher, analytics }: Publisher
               </h1>
               <p className="text-sm text-muted-foreground md:text-base">
                 <span className="inline-flex items-center gap-1.5">
-                  <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: brandColour }} aria-hidden />
+                  <span className="h-2 w-2 shrink-0 rounded-pill bg-pacing-on-track" aria-hidden />
                   {publisher.publisherid}
                 </span>
                 <span aria-hidden className="mx-2 text-border">
@@ -166,7 +157,7 @@ export function PublisherDetailClient({ initialPublisher, analytics }: Publisher
 
       <PublisherDetailCharts
         analytics={analytics}
-        brandColour={publisher.publisher_colour?.trim() || undefined}
+        brandColour={brandColour}
         publisherId={publisher.id}
         publisherName={publisher.publisher_name}
       />

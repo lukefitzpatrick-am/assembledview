@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import { ErrorState, LoadingState } from '@/components/ui/states';
 import { User, Mail, Shield, Calendar, Globe } from 'lucide-react';
 import { getUserDisplayName, getUserInitials, getUserRoles } from '@/lib/rbac';
 import { useEffect, useState } from 'react';
@@ -28,20 +29,16 @@ export default function ProfilePage() {
 
   if (!mounted || isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="h-32 w-32 animate-spin rounded-full border-b-2 border-foreground"></div>
+      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+        <LoadingState rows={4} className="w-full max-w-md shadow-e1" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <Card>
-          <CardContent className="p-6">
-            <p className="text-red-600">Error loading profile: {error.message}</p>
-          </CardContent>
-        </Card>
+      <div className="container mx-auto max-w-4xl px-4 py-8">
+        <ErrorState title="Error loading profile" message={error.message} />
       </div>
     );
   }
@@ -56,11 +53,11 @@ export default function ProfilePage() {
   const createdAt = user.updated_at ? new Date(user.updated_at).toLocaleDateString() : 'Unknown';
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
+    <div className="container mx-auto max-w-4xl px-4 py-8">
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">Profile</h1>
+          <h1 className="text-3xl font-bold text-foreground">Profile</h1>
           <Button 
             variant="outline" 
             onClick={() => window.location.href = '/auth/logout'}
@@ -70,7 +67,7 @@ export default function ProfilePage() {
         </div>
 
         {/* Profile Card */}
-        <Card>
+        <Card className="rounded-card border-border bg-card shadow-e1">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <User className="h-5 w-5" />
@@ -82,19 +79,19 @@ export default function ProfilePage() {
             <div className="flex items-center space-x-6">
               <Avatar className="h-24 w-24">
                 <AvatarImage src={user.picture} alt={displayName} />
-                <AvatarFallback className="text-2xl">
+                <AvatarFallback className="bg-pacing-on-track-bg text-2xl text-status-on-track-fg">
                   {initials}
                 </AvatarFallback>
               </Avatar>
               <div className="space-y-2">
-                <h2 className="text-2xl font-semibold">{displayName}</h2>
+                <h2 className="text-2xl font-semibold text-foreground">{displayName}</h2>
                 <div className="flex items-center space-x-2">
-                  <Mail className="h-4 w-4 text-gray-500" />
-                  <span className="text-gray-600">{user.email}</span>
+                  <Mail className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">{user.email}</span>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <Calendar className="h-4 w-4 text-gray-500" />
-                  <span className="text-gray-600">Member since {createdAt}</span>
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">Member since {createdAt}</span>
                 </div>
               </div>
             </div>
@@ -121,7 +118,7 @@ export default function ProfilePage() {
               </div>
 
               {userRoles.length === 0 && (
-                <p className="text-gray-500 text-sm">No roles assigned</p>
+                <p className="text-sm text-muted-foreground">No roles assigned</p>
               )}
             </div>
 
@@ -136,14 +133,14 @@ export default function ProfilePage() {
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                 <div>
-                  <span className="font-medium text-gray-700">Email Verified:</span>
-                  <span className={`ml-2 ${user.email_verified ? 'text-green-600' : 'text-red-600'}`}>
+                  <span className="font-medium text-[var(--text-secondary)]">Email Verified:</span>
+                  <span className={user.email_verified ? 'ml-2 text-status-ahead-fg' : 'ml-2 text-status-critical-fg'}>
                     {user.email_verified ? 'Yes' : 'No'}
                   </span>
                 </div>
                 <div>
-                  <span className="font-medium text-gray-700">User ID:</span>
-                  <span className="ml-2 font-mono text-xs text-gray-600">
+                  <span className="font-medium text-[var(--text-secondary)]">User ID:</span>
+                  <span className="ml-2 font-mono text-xs text-muted-foreground">
                     {user.sub}
                   </span>
                 </div>
@@ -153,7 +150,7 @@ export default function ProfilePage() {
         </Card>
 
         {/* Actions Card */}
-        <Card>
+        <Card className="rounded-card border-border bg-card shadow-e1">
           <CardHeader>
             <CardTitle>Account Actions</CardTitle>
           </CardHeader>

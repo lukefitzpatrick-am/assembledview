@@ -6,12 +6,12 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
 import { Input } from "@/components/ui/input"
+import { ProgressBar } from "@/components/ui/ProgressBar"
+import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states"
 import { format } from "date-fns"
 import { PlusCircle, Search, FileText } from "lucide-react"
 import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
-import { cn } from "@/lib/utils"
 
 // Define the ScopeOfWork interface
 interface ScopeOfWork {
@@ -33,7 +33,75 @@ interface ScopeOfWork {
   assumptions: string;
   exclusions: string;
   cost: any;
+  billing_schedule?: any;
   payment_terms_and_conditions: string;
+}
+
+type StatusTone = {
+  badge: "secondary" | "info" | "success" | "warning" | "danger"
+  bar: "default" | "success" | "warning" | "danger" | "info"
+  accent: string
+}
+
+const STATUS_TONES: Record<string, StatusTone> = {
+  Draft: {
+    badge: "secondary",
+    bar: "default",
+    accent: "bg-muted",
+  },
+  Submitted: {
+    badge: "info",
+    bar: "info",
+    accent: "bg-pacing-on-track",
+  },
+  Approved: {
+    badge: "success",
+    bar: "success",
+    accent: "bg-pacing-ahead",
+  },
+  "In-Progress": {
+    badge: "warning",
+    bar: "warning",
+    accent: "bg-pacing-behind",
+  },
+  Completed: {
+    badge: "success",
+    bar: "success",
+    accent: "bg-pacing-ahead",
+  },
+  Cancelled: {
+    badge: "danger",
+    bar: "danger",
+    accent: "bg-pacing-critical",
+  },
+}
+
+function getStatusTone(status: string): StatusTone {
+  return STATUS_TONES[status] ?? STATUS_TONES.Draft
+}
+
+function sumCostItems(value: unknown): number {
+  let items = value
+  if (typeof items === "string") {
+    try {
+      items = JSON.parse(items)
+    } catch {
+      return 0
+    }
+  }
+  if (!Array.isArray(items)) return 0
+  return items.reduce((sum, item) => {
+    const raw = typeof item === "object" && item !== null ? (item as { cost?: unknown }).cost : 0
+    const amount = typeof raw === "number" ? raw : Number.parseFloat(String(raw ?? "0").replace(/[^0-9.-]/g, ""))
+    return sum + (Number.isFinite(amount) ? amount : 0)
+  }, 0)
+}
+
+function getUsedPercentage(scope: ScopeOfWork): number {
+  const totalCost = sumCostItems(scope.cost)
+  if (totalCost <= 0) return 0
+  const scheduledCost = sumCostItems(scope.billing_schedule)
+  return Math.max(0, Math.min(100, (scheduledCost / totalCost) * 100))
 }
 
 // Define the project statuses
@@ -125,45 +193,6 @@ export default function ScopesOfWorkPage() {
     }
   }
 
-  // Get status badge color
-  const getStatusBadgeColor = (status: string) => {
-    switch (status) {
-      case "Draft":
-        return "bg-gray-500"
-      case "Submitted":
-        return "bg-blue-500"
-      case "Approved":
-        return "bg-green-500"
-      case "In-Progress":
-        return "bg-purple-500"
-      case "Completed":
-        return "bg-teal-500"
-      case "Cancelled":
-        return "bg-red-500"
-      default:
-        return "bg-gray-500"
-    }
-  }
-
-  const getStatusGradient = (status: string) => {
-    switch (status) {
-      case "Draft":
-        return "bg-gradient-to-r from-gray-500 via-gray-400 to-gray-300"
-      case "Submitted":
-        return "bg-gradient-to-r from-blue-500 via-blue-400 to-blue-300"
-      case "Approved":
-        return "bg-gradient-to-r from-green-500 via-green-400 to-green-300"
-      case "In-Progress":
-        return "bg-gradient-to-r from-purple-500 via-purple-400 to-purple-300"
-      case "Completed":
-        return "bg-gradient-to-r from-teal-500 via-teal-400 to-teal-300"
-      case "Cancelled":
-        return "bg-gradient-to-r from-red-500 via-red-400 to-red-300"
-      default:
-        return "bg-gradient-to-r from-gray-500 via-gray-400 to-gray-300"
-    }
-  }
-
   return (
     <div className="w-full min-h-screen">
       <div className="w-full space-y-6 px-4 py-6 md:px-6">
@@ -195,29 +224,25 @@ export default function ScopesOfWorkPage() {
 
         <div className="space-y-4">
               {error && (
-                <div className="bg-destructive/10 border border-destructive/30 text-destructive px-5 py-4 rounded-lg text-sm">
-                  <p>{error}</p>
-                </div>
+                <ErrorState
+                  title="Unable to load scopes"
+                  message={error}
+                />
               )}
 
               {loading ? (
                 <div className="space-y-6">
                   {PROJECT_STATUSES.map((status) => (
-                    <Card key={status} className="w-full border-0 shadow-md overflow-hidden">
-                      <div className="h-1 bg-muted/40" />
+                    <Card key={status} className="w-full overflow-hidden rounded-card border border-border bg-card shadow-e1">
+                      <div className="h-[3px] bg-muted" />
                       <CardHeader className="pb-3 pt-4 px-5">
                         <CardTitle className="flex items-center justify-between">
                           <span className="text-lg font-semibold">{status}</span>
-                          <Skeleton className="h-5 w-16 rounded-full" />
+                          <Badge variant="secondary" size="sm">Loading</Badge>
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="px-5 pb-5">
-                        <div className="space-y-2">
-                          <Skeleton className="h-8 w-full rounded" />
-                          <Skeleton className="h-8 w-[95%] rounded" />
-                          <Skeleton className="h-8 w-[90%] rounded" />
-                          <Skeleton className="h-8 w-[85%] rounded" />
-                        </div>
+                        <LoadingState rows={4} className="border-0 bg-transparent p-0 shadow-none" />
                       </CardContent>
                     </Card>
                   ))}
@@ -226,32 +251,30 @@ export default function ScopesOfWorkPage() {
                 <div className="space-y-6">
                   {PROJECT_STATUSES.map((status) => {
                     const statusScopes = getScopesByStatus(status)
+                    const tone = getStatusTone(status)
                     return (
-                      <Card key={status} className="w-full border-0 shadow-md overflow-hidden">
-                        <div className={cn("h-1", getStatusGradient(status))} />
+                      <Card key={status} className="w-full overflow-hidden rounded-card border border-border bg-card shadow-e1">
+                        <div className={`h-[3px] ${tone.accent}`} />
                         <CardHeader className="pb-3 pt-4 px-5">
                           <CardTitle className="flex items-center justify-between">
                             <span className="text-lg font-semibold">{status}</span>
-                            <Badge
-                              className={cn(
-                                getStatusBadgeColor(status),
-                                "text-white text-xs font-medium"
-                              )}
-                            >
+                            <Badge variant={tone.badge} size="sm" className="num">
                               {statusScopes.length} {statusScopes.length === 1 ? "Scope" : "Scopes"}
                             </Badge>
                           </CardTitle>
                         </CardHeader>
                         <CardContent className="px-5 pb-5">
                           {statusScopes.length === 0 ? (
-                            <p className="text-muted-foreground/70 text-center py-8 text-sm">
-                              No {status.toLowerCase()} scopes of work
-                            </p>
+                            <EmptyState
+                              title={`No ${status.toLowerCase()} scopes`}
+                              message="Scopes matching this status will appear here."
+                              className="min-h-[150px] bg-surface-panel"
+                            />
                           ) : (
                             <div className="overflow-x-auto">
-                              <Table>
-                                <TableHeader>
-                                  <TableRow className="border-b border-border/40">
+                              <Table className="border-separate border-spacing-0">
+                                <TableHeader className="bg-surface-panel">
+                                  <TableRow className="border-b border-border hover:bg-transparent">
                                     <TableHead className="font-semibold text-[11px] uppercase tracking-wider text-muted-foreground">
                                       Project Name
                                     </TableHead>
@@ -265,39 +288,59 @@ export default function ScopesOfWorkPage() {
                                       Project Overview
                                     </TableHead>
                                     <TableHead className="font-semibold text-[11px] uppercase tracking-wider text-muted-foreground text-right">
+                                      Used
+                                    </TableHead>
+                                    <TableHead className="font-semibold text-[11px] uppercase tracking-wider text-muted-foreground text-right">
                                       Actions
                                     </TableHead>
                                   </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                  {statusScopes.map((scope) => (
-                                    <TableRow
-                                      key={scope.id}
-                                      className="border-b border-border/20 hover:bg-muted/30 transition-colors"
-                                    >
-                                      <TableCell className="font-medium">{scope.project_name}</TableCell>
-                                      <TableCell>{formatDate(scope.scope_date)}</TableCell>
-                                      <TableCell>{scope.scope_version || "N/A"}</TableCell>
-                                      <TableCell>
-                                        <div
-                                          className="max-w-lg truncate text-muted-foreground/80"
-                                          title={scope.project_overview}
-                                        >
-                                          {scope.project_overview || "N/A"}
-                                        </div>
-                                      </TableCell>
-                                      <TableCell className="text-right">
-                                        <Button
-                                          variant="outline"
-                                          size="sm"
-                                          className="hover:bg-muted/50 transition-colors"
-                                          onClick={() => router.push(`/scopes-of-work/${scope.id}/edit`)}
-                                        >
-                                          Edit
-                                        </Button>
-                                      </TableCell>
-                                    </TableRow>
-                                  ))}
+                                  {statusScopes.map((scope) => {
+                                    const usedPercentage = getUsedPercentage(scope)
+                                    return (
+                                      <TableRow
+                                        key={scope.id}
+                                        className="border-b border-border transition-colors hover:bg-table-row-hover"
+                                      >
+                                        <TableCell className="font-medium">{scope.project_name}</TableCell>
+                                        <TableCell className="num">{formatDate(scope.scope_date)}</TableCell>
+                                        <TableCell className="num">{scope.scope_version || "N/A"}</TableCell>
+                                        <TableCell>
+                                          <div
+                                            className="max-w-lg truncate text-muted-foreground"
+                                            title={scope.project_overview}
+                                          >
+                                            {scope.project_overview || "N/A"}
+                                          </div>
+                                        </TableCell>
+                                        <TableCell className="min-w-[10rem] text-right">
+                                          <div className="ml-auto max-w-[9rem] space-y-1">
+                                            <ProgressBar
+                                              value={usedPercentage}
+                                              max={100}
+                                              size="sm"
+                                              color={tone.bar}
+                                              animated={false}
+                                            />
+                                            <span className="num text-xs text-muted-foreground">
+                                              {Math.round(usedPercentage)}%
+                                            </span>
+                                          </div>
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="transition-colors hover:bg-table-row-hover"
+                                            onClick={() => router.push(`/scopes-of-work/${scope.id}/edit`)}
+                                          >
+                                            Edit
+                                          </Button>
+                                        </TableCell>
+                                      </TableRow>
+                                    )
+                                  })}
                                 </TableBody>
                               </Table>
                             </div>
@@ -313,8 +356,4 @@ export default function ScopesOfWorkPage() {
     </div>
   )
 }
-
-
-
-
 

@@ -9,7 +9,9 @@ import {
   combineFinanceCampaignLists,
   sumCampaignTotals,
 } from "@/lib/finance/upcomingBillingAggregate"
-import { cn } from "@/lib/utils"
+import { formatAUD } from "@/lib/format/money"
+import { ProgressBar } from "@/components/ui/ProgressBar"
+import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states"
 
 function readNumberField(record: Record<string, unknown> | null, key: string): number {
   if (!record) return 0
@@ -28,14 +30,6 @@ function formatAudCompact(value: number): string {
     currency: "AUD",
     notation: "compact",
     maximumFractionDigits: 1,
-  }).format(value)
-}
-
-function formatAudFull(value: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    maximumFractionDigits: 0,
   }).format(value)
 }
 
@@ -203,47 +197,48 @@ export function UpcomingBillingSection({
           return (
             <article
               key={block.key}
-              className="flex flex-col rounded-xl border border-border/80 bg-muted/30 p-4 shadow-sm"
+              className="flex flex-col rounded-card border border-border bg-card p-4 shadow-e1"
             >
               <p className="text-sm font-semibold text-foreground">{block.label}</p>
               {block.loading || anyLoading ? (
-                <div className="mt-3 space-y-2">
-                  {[1, 2, 3].map((i) => (
-                    <div key={i} className="h-8 animate-pulse rounded-md bg-muted" />
-                  ))}
-                </div>
+                <LoadingState rows={3} className="mt-3 border-0 bg-transparent p-0 shadow-none" />
               ) : block.rows.length === 0 && !block.error ? (
-                <p className="mt-3 text-xs text-muted-foreground">No billing rows for this month.</p>
+                <EmptyState
+                  title="No billing rows"
+                  message="No billing rows for this month."
+                  className="mt-3 min-h-[140px] border-border bg-surface-panel px-4 py-6"
+                />
               ) : (
                 <div className="mt-3 space-y-3">
                   {block.error ? (
-                    <p className="text-xs text-amber-600 dark:text-amber-500">{block.error}</p>
+                    <ErrorState
+                      title="Partial billing data"
+                      message={block.error}
+                      className="px-3 py-3"
+                    />
                   ) : null}
                   {block.rows.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">No line items for this month.</p>
+                    <EmptyState
+                      title="No line items"
+                      message="No line items for this month."
+                      className="min-h-[120px] border-border bg-surface-panel px-4 py-6"
+                    />
                   ) : null}
                   {block.rows.map((row) => {
-                    const widthPct = maxAmt > 0 ? Math.min(100, (row.amount / maxAmt) * 100) : 0
                     return (
                       <div key={`${block.key}-${row.label}`}>
                         <div className="mb-1 flex items-center justify-between gap-2 text-xs">
                           <span className="min-w-0 truncate text-foreground">{row.label}</span>
-                          <span className="shrink-0 text-muted-foreground">{formatAudCompact(row.amount)}</span>
+                          <span className="num shrink-0 text-muted-foreground">{formatAudCompact(row.amount)}</span>
                         </div>
-                        <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-                          <div
-                            className={cn("h-full rounded-full bg-blue-500")}
-                            style={{ width: `${widthPct}%` }}
-                            aria-hidden
-                          />
-                        </div>
+                        <ProgressBar value={row.amount} max={maxAmt} size="sm" color="info" animated={false} />
                       </div>
                     )
                   })}
                   {block.rows.length > 0 ? (
                     <p className="border-t border-border/60 pt-2 text-xs font-medium text-foreground">
                       Total{" "}
-                      <span className="float-right">{formatAudFull(block.rows.reduce((s, r) => s + r.amount, 0))}</span>
+                      <span className="num float-right">{formatAUD(block.rows.reduce((s, r) => s + r.amount, 0))}</span>
                     </p>
                   ) : null}
                 </div>
