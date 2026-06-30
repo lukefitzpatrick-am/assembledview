@@ -592,7 +592,18 @@
     "group": "Audiences & Targeting",
     "definition": "Automated audience expansion",
     "formula_or_notes": "Meta branding",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Meta's AI-driven audience that finds and expands the people most likely to convert (formerly automatic/expanded targeting).",
+    "whyItMatters": "Hands audience-finding to Meta's automation - often outperforms manual targeting, with less control.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Meta Business Help - Advantage+ audience",
+        "url": "https://www.facebook.com/business/help/273363992030035"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "advantage-plus-shopping-creative-ff9a8152",
@@ -963,7 +974,19 @@
     "category_raw": "Audience",
     "group": "Audiences & Targeting",
     "definition": "Defined viewing demographic",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The defined group of people a campaign is trying to reach.",
+    "whyItMatters": "Everything starts here - the audience definition drives channel choice, targeting, creative and how success is measured.",
+    "practitionerNotes": "Generic planning term; defined in-house.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Meta Business Help - Detailed targeting",
+        "url": "https://www.facebook.com/business/help/182371508761821"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "audience-bid-adjustment-bidding-f25938cd",
@@ -1013,7 +1036,18 @@
     "category_raw": "Audience",
     "group": "Audiences & Targeting",
     "definition": "Algorithmic reach beyond defined audience",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Letting the algorithm reach people beyond your defined audience when it predicts they'll perform.",
+    "whyItMatters": "Adds incremental reach/efficiency - but loosens control, so watch where delivery actually goes.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Meta Business Help - Advantage+ audience",
+        "url": "https://www.facebook.com/business/help/273363992030035"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "audience-flow-metric-d925e459",
@@ -1172,7 +1206,18 @@
     "category_raw": "Audience",
     "group": "Audiences & Targeting",
     "definition": "Behaviour-based targeting",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Targeting based on past behaviours (purchases, device use, activities).",
+    "whyItMatters": "Behaviour often predicts intent better than demographics - but signal loss is shrinking what's available.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Meta Business Help - Detailed targeting",
+        "url": "https://www.facebook.com/business/help/182371508761821"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "bid-bidding-4106df03",
@@ -1936,7 +1981,18 @@
     "category_raw": "Targeting",
     "group": "Audiences & Targeting",
     "definition": "Content category targeting",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Contextual targeting by content category (using a standard content taxonomy).",
+    "whyItMatters": "Targets whole topic areas brand-safely using shared category standards (e.g. IAB content taxonomy).",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "IAB Tech Lab - Content Taxonomy",
+        "url": "https://iabtechlab.com/standards/content-taxonomy/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "cbo-budgeting-edff4c40",
@@ -2256,7 +2312,22 @@
     "category_raw": "Targeting",
     "group": "Audiences & Targeting",
     "definition": "Targeting based on content",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Targeting based on the content of the page/environment rather than the individual user.",
+    "whyItMatters": "Privacy-resilient (no personal data) and back in favour as cookies fade; aligns ads with relevant content.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Contextual targeting",
+        "url": "https://support.google.com/google-ads/answer/1726458"
+      },
+      {
+        "label": "IAB Australia - Contextual Targeting Handbook",
+        "url": "https://iabaustralia.com.au/resource/contextual-targeting-handbook-2021/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "control-group-measurement-8c5fe7ea",
@@ -3020,7 +3091,18 @@
     "category_raw": "Identity",
     "group": "Audiences & Targeting",
     "definition": "User exposure across devices",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Recognising and reaching the same person across their phone, laptop, TV and tablet.",
+    "whyItMatters": "People switch screens constantly - cross-device is what keeps reach, frequency capping and attribution coherent.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "The Trade Desk - Cross-device targeting",
+        "url": "https://www.thetradedesk.com/us/our-platform/dsp-demand-side-platform/cross-device-targeting"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "cross-screen-reach-metric-d2c970d1",
@@ -3171,7 +3253,18 @@
     "category_raw": "Audience",
     "group": "Audiences & Targeting",
     "definition": "First-party defined audience",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "An audience built from your own first-party data (customer list, site/app visitors, engagers).",
+    "whyItMatters": "Your most valuable, highest-converting audiences - the base for retargeting and lookalike seeds.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Meta Business Help - Custom audiences",
+        "url": "https://www.facebook.com/business/help/744354708981227"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "cvr-metric-3f39acdf",
@@ -3299,7 +3392,18 @@
     "category_raw": "Targeting",
     "group": "Audiences & Targeting",
     "definition": "Time-of-day targeting",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Targeting specific times of day or days of week (ad scheduling).",
+    "whyItMatters": "Focus budget when your audience converts; quieten it when it doesn't.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Ad scheduling",
+        "url": "https://support.google.com/google-ads/answer/2404244"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "de-duplication-measurement-4ef2b420",
@@ -3426,7 +3530,18 @@
     "category_raw": "Audience",
     "group": "Audiences & Targeting",
     "definition": "Demographic group definition",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A demographic group definition (e.g. People 25-54, Grocery Buyers).",
+    "whyItMatters": "The trading shorthand for the target - TV and reach are bought and reported against a defined demo.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Ads Help - Demographic targeting",
+        "url": "https://support.google.com/google-ads/answer/2580383"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "demographic-targeting-audience-64c03407",
@@ -3435,7 +3550,18 @@
     "category_raw": "Audience",
     "group": "Audiences & Targeting",
     "definition": "Age gender location targeting",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Targeting by attributes like age, gender, location, income or parental status.",
+    "whyItMatters": "Foundational but blunt - broad demos waste reach on the wrong people; combine with intent/interest for precision.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Ads Help - Demographic targeting",
+        "url": "https://support.google.com/google-ads/answer/2580383"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "description-creative-83355815",
@@ -3464,7 +3590,18 @@
     "category_raw": "Identity",
     "group": "Audiences & Targeting",
     "definition": "Logged-in known identifier",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A known, logged-in identifier (e.g. a hashed email) that matches a person with certainty.",
+    "whyItMatters": "The most accurate way to recognise someone across devices - the durable basis of identity as cookies fade.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "LiveRamp - Identity resolution",
+        "url": "https://liveramp.com/blog/what-is-identity-resolution"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "device-bid-adjustment-bidding-6599d949",
@@ -3493,7 +3630,18 @@
     "category_raw": "Identity",
     "group": "Audiences & Targeting",
     "definition": "Map linking devices to users",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A map linking the various devices and identifiers that belong to the same person/household.",
+    "whyItMatters": "What makes cross-device reach, frequency and measurement possible.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "LiveRamp - Identity resolution",
+        "url": "https://liveramp.com/blog/what-is-identity-resolution"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "digital-audio-audio-5427bcab",
@@ -4114,7 +4262,19 @@
     "category_raw": "Audience",
     "group": "Audiences & Targeting",
     "definition": "Users explicitly excluded",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Audiences/users you explicitly tell a campaign not to target.",
+    "whyItMatters": "Stops wasted spend (e.g. excluding existing customers from acquisition). Note: Meta is deprecating detailed-targeting exclusions.",
+    "practitionerNotes": "Meta has been winding back detailed-targeting exclusions.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Meta Business Help - Customer list audiences",
+        "url": "https://www.facebook.com/business/help/341425252616329"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "expanded-text-ad-creative-981cc6ad",
@@ -4568,7 +4728,18 @@
     "category_raw": "Targeting",
     "group": "Audiences & Targeting",
     "definition": "Location-based targeting",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Targeting (or excluding) specific geographic locations.",
+    "whyItMatters": "Concentrates spend where you operate/convert; also the basis of geo-lift incrementality tests.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Ads Help - Location targeting",
+        "url": "https://support.google.com/google-ads/answer/2453995"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "givt-governance-5a903a01",
@@ -4969,7 +5140,18 @@
     "category_raw": "Identity",
     "group": "Audiences & Targeting",
     "definition": "Sharing identifiers between platforms",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Matching and sharing identifiers between platforms so they can recognise the same user.",
+    "whyItMatters": "The plumbing that lets DSPs/SSPs/data partners agree on who's who - degraded by third-party cookie loss.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "LiveRamp Docs - Cookie/ID sync",
+        "url": "https://docs.liveramp.com/identity/en/implementing-liveramp-s-cookie-sync-tag.html"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "identity-resolution-identity-19d61e68",
@@ -4978,7 +5160,18 @@
     "category_raw": "Identity",
     "group": "Audiences & Targeting",
     "definition": "Matching users across IDs",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Matching the many identifiers a person uses (devices, emails, cookies) back to one individual.",
+    "whyItMatters": "The backbone of cross-device targeting, frequency capping and measurement - and harder as signal loss bites.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "LiveRamp - What is identity resolution",
+        "url": "https://liveramp.com/blog/what-is-identity-resolution"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "impression-optimisation-bidding-c592b40f",
@@ -5196,7 +5389,18 @@
     "category_raw": "Audience",
     "group": "Audiences & Targeting",
     "definition": "Declared interest-based targeting",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Targeting people based on declared or inferred interests (e.g. fitness, travel).",
+    "whyItMatters": "Reaches relevant mindsets at scale on social; broad-but-relevant, so pair with strong creative and measurement.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Meta Business Help - Detailed targeting",
+        "url": "https://www.facebook.com/business/help/182371508761821"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "inventory-supply-f6929b92",
@@ -5281,7 +5485,18 @@
     "category_raw": "Targeting",
     "group": "Audiences & Targeting",
     "definition": "Contextual keyword matching",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Contextual targeting that matches ads to pages containing chosen keywords.",
+    "whyItMatters": "A simple, privacy-safe way to put ads next to relevant content - precision depends on the keyword list.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Contextual targeting",
+        "url": "https://support.google.com/google-ads/answer/1726458"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "keyword-coverage-planning-ecd4e328",
@@ -5826,7 +6041,18 @@
     "category_raw": "Audience",
     "group": "Audiences & Targeting",
     "definition": "Modelled similar audience",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A modelled audience resembling a seed list of your existing customers/engagers.",
+    "whyItMatters": "The standard way to find new, similar prospects at scale; a smaller, higher-quality seed usually beats a huge one.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Meta Business Help - Lookalike audiences",
+        "url": "https://www.facebook.com/business/help/164749007013531"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "lookalike-audience-audience-6a5e66bd",
@@ -5835,7 +6061,18 @@
     "category_raw": "Audience",
     "group": "Audiences & Targeting",
     "definition": "Modelled audience based on seed",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A modelled audience of people similar to a source (seed) audience you provide.",
+    "whyItMatters": "Scales prospecting by finding new people who resemble your best customers - quality depends on the seed.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Meta Business Help - Lookalike audiences",
+        "url": "https://www.facebook.com/business/help/164749007013531"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "lost-is-budget-metric-d38c226f",
@@ -7237,7 +7474,19 @@
     "category_raw": "Audience",
     "group": "Audiences & Targeting",
     "definition": "Fictional profile for planning",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A fictional, detailed profile representing a target customer, used to guide planning and creative.",
+    "whyItMatters": "Makes an abstract audience feel real so messaging and channel choices stay human-centred.",
+    "practitionerNotes": "Planning device; defined in-house.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Meta Business Help - Detailed targeting",
+        "url": "https://www.facebook.com/business/help/182371508761821"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "pg-trading-6e69ce1a",
@@ -7577,7 +7826,18 @@
     "category_raw": "Audience",
     "group": "Audiences & Targeting",
     "definition": "Main buying audience",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The main audience a campaign is bought and optimised against.",
+    "whyItMatters": "The number everyone is held to - the demo the plan's reach/frequency goals are set on.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Ads Help - Demographic targeting",
+        "url": "https://support.google.com/google-ads/answer/2580383"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "primary-metric-measurement-10e77603",
@@ -7665,7 +7925,18 @@
     "category_raw": "Identity",
     "group": "Audiences & Targeting",
     "definition": "Modelled identifier",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A modelled, statistical guess that links devices/signals to the same person without a logged-in match.",
+    "whyItMatters": "Scales where deterministic data is missing, but is less accurate - good for reach, weaker for precise measurement.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "LiveRamp - Identity resolution",
+        "url": "https://liveramp.com/blog/what-is-identity-resolution"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "profit-margin-finance-05160979",
@@ -7834,7 +8105,19 @@
     "category_raw": "Audience",
     "group": "Audiences & Targeting",
     "definition": "Targeting new audiences",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Targeting new audiences who haven't engaged with your brand yet.",
+    "whyItMatters": "Where growth comes from - harder and pricier than retargeting, and the truer test of a campaign's ability to create demand.",
+    "practitionerNotes": "Generic term; Google 'audience segments' is the nearest primary.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Ads Help - Audience segments",
+        "url": "https://support.google.com/google-ads/answer/2497941"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "publisher-media-8c8ea831",
@@ -8148,7 +8431,19 @@
     "category_raw": "Audience",
     "group": "Audiences & Targeting",
     "definition": "Alternative term for retargeting",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Google's term for retargeting - re-engaging past visitors with ads.",
+    "whyItMatters": "Same concept as retargeting; Google now frames it under 'your data' segments. Efficient, but it captures demand rather than creating it.",
+    "practitionerNotes": "Google has shifted from 'remarketing' to 'your data' terminology.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Ads Help - Your data / remarketing",
+        "url": "https://support.google.com/google-ads/answer/2453998"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "reseller-supply-8236bcc8",
@@ -8235,7 +8530,18 @@
     "category_raw": "Audience",
     "group": "Audiences & Targeting",
     "definition": "Targeting users who previously engaged",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Showing ads to people who previously engaged with your brand (visited the site, used the app, engaged a post).",
+    "whyItMatters": "High-converting and cheap - but it harvests existing intent, so don't let it take all the credit (last-click trap).",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Ads Help - Your data / remarketing",
+        "url": "https://support.google.com/google-ads/answer/2453998"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "return-path-data-measurement-feec88fb",
@@ -8829,7 +9135,18 @@
     "category_raw": "Audience",
     "group": "Audiences & Targeting",
     "definition": "Additional reporting audience",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "An additional audience tracked for reporting but not the main buying target.",
+    "whyItMatters": "Shows spill/secondary value beyond the primary demo without changing the buy.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Google Ads Help - Demographic targeting",
+        "url": "https://support.google.com/google-ads/answer/2580383"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "secondary-metric-measurement-4f6716af",
@@ -8859,7 +9176,19 @@
     "category_raw": "Audience",
     "group": "Audiences & Targeting",
     "definition": "Source list for modelling",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The source list of people a lookalike/modelled audience is built from.",
+    "whyItMatters": "Quality in, quality out - a clean, high-value seed (e.g. best customers) makes a better lookalike than a broad one.",
+    "practitionerNotes": "Defined within Meta's lookalike documentation.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Meta Business Help - Lookalike audiences",
+        "url": "https://www.facebook.com/business/help/164749007013531"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "segment-audience-1b30908a",
@@ -8868,7 +9197,18 @@
     "category_raw": "Audience",
     "group": "Audiences & Targeting",
     "definition": "Subset of users",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A defined subset of users grouped by a shared attribute or behaviour.",
+    "whyItMatters": "The unit of targeting - good segmentation lets you tailor message and bid to the people most likely to respond.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "Google Ads Help - Audience segments",
+        "url": "https://support.google.com/google-ads/answer/2497941"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "sellers-json-governance-f318b965",
@@ -8906,7 +9246,18 @@
     "category_raw": "Targeting",
     "group": "Audiences & Targeting",
     "definition": "Meaning-based contextual targeting",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Contextual targeting that reads the meaning of content, not just keywords.",
+    "whyItMatters": "Smarter than keyword matching - understands nuance and avoids false matches (e.g. 'crash' in finance vs aviation).",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "IAB Australia - Contextual Targeting Handbook",
+        "url": "https://iabaustralia.com.au/resource/contextual-targeting-handbook-2021/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "seo-channel-5a0596e6",
@@ -9394,7 +9745,18 @@
     "category_raw": "Audience",
     "group": "Audiences & Targeting",
     "definition": "Excluded users",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Using a list to exclude specific people (e.g. current customers, recent buyers) from seeing ads.",
+    "whyItMatters": "Protects budget and experience - don't pay to acquire people you already have, or annoy recent purchasers.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "Meta Business Help - Customer list audiences",
+        "url": "https://www.facebook.com/business/help/341425252616329"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "svod-channel-02791368",
