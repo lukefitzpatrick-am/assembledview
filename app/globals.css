@@ -139,6 +139,7 @@
 
     --channel-tv: #e5573e;
     --channel-bvod: #472477;
+    --channel-bvod-bg: rgba(71, 36, 119, 0.12);
     --channel-social: #49c7eb;
     --channel-social-bg: rgba(73, 199, 235, 0.16);
     --channel-social-fg: #1f7fa0;
@@ -251,6 +252,8 @@
     --status-on-track-fg: #9fc3e6;
     --status-behind-fg: #f1c15d;
     --status-critical-fg: #ef907f;
+
+    --channel-bvod-bg: rgba(71, 36, 119, 0.12);
 
     --text-secondary: #e6ede7;
     --text-tertiary: #6b8273;

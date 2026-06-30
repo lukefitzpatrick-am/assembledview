@@ -72,6 +72,7 @@ const semanticColors = {
   channel: {
     tv: "var(--channel-tv)",
     bvod: "var(--channel-bvod)",
+    "bvod-bg": "var(--channel-bvod-bg)",
     social: "var(--channel-social)",
     "social-bg": "var(--channel-social-bg)",
     "social-fg": "var(--channel-social-fg)",

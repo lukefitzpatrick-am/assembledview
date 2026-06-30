@@ -2465,7 +2465,7 @@ export default function DashboardOverview({
       case "digivideo":
       case "progvideo":
       case "progbvod":
-        return "bg-surface-panel text-channel-bvod border-channel-bvod"
+        return "bg-channel-bvod-bg text-channel-bvod border-channel-bvod"
       case "socialmedia":
       case "influencers":
         return "bg-channel-social-bg text-channel-social-fg border-channel-social"
