@@ -49,7 +49,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
                 )}
               >
                 {isShellVisible && (
-                  <header className="flex h-12 shrink-0 items-center rounded-t-frame border-b border-border bg-card transition-[width,height] ease-linear">
+                  <header className="flex h-[48px] shrink-0 items-center rounded-t-frame border-b border-border bg-card transition-[width,height] ease-linear">
                     <div
                       className={cn(
                         "flex h-full w-full items-center gap-2",
