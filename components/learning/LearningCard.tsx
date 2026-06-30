@@ -4,18 +4,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { LearningTerm } from "@/src/lib/learning/types";
-import { CategoryColor, getCategoryColor, normalizeCategory } from "./categoryColors";
+import { getGroupColor } from "./categoryColors";
 
 type Props = {
   term: LearningTerm;
   onClick?: (term: LearningTerm) => void;
   highlight?: boolean;
-  categoryColors?: Record<string, CategoryColor>;
 };
 
-export function LearningCard({ term, onClick, highlight, categoryColors }: Props) {
-  const categoryKey = normalizeCategory(term.category);
-  const categoryColor = getCategoryColor(categoryKey, categoryColors);
+export function LearningCard({ term, onClick, highlight }: Props) {
+  const groupLabel = term.group ?? "Other / Uncategorised";
+  const groupColor = getGroupColor(term.group);
 
   return (
     <Card
@@ -32,12 +31,12 @@ export function LearningCard({ term, onClick, highlight, categoryColors }: Props
             variant="outline"
             className="border border-transparent shadow-sm"
             style={{
-              backgroundColor: categoryColor.backgroundColor,
-              color: categoryColor.textColor,
-              borderColor: categoryColor.borderColor,
+              backgroundColor: groupColor.backgroundColor,
+              color: groupColor.textColor,
+              borderColor: groupColor.borderColor,
             }}
           >
-            {categoryKey || "General"}
+            {groupLabel}
           </Badge>
         </div>
         {term.canonicalTerm && (

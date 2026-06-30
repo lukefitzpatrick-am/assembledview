@@ -27,7 +27,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { LearningCard } from "@/components/learning/LearningCard";
 import { FormulaCalculator } from "@/components/learning/FormulaCalculator";
-import { buildCategoryColorMap, getCategoryColor, normalizeCategory } from "@/components/learning/categoryColors";
+import { getGroupColor, GROUP_COLORS } from "@/components/learning/categoryColors";
 import termsData from "@/src/data/learning/terms.json";
 import { getRelatedTerms } from "@/src/lib/learning/related";
 import { buildFuseIndex, sortResults } from "@/src/lib/learning/search";
@@ -54,20 +54,18 @@ export default function LearningSectionPage({ params }: PageProps) {
 
   const [query, setQuery] = useState("");
   const [sortMode, setSortMode] = useState<SortMode>("relevance");
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
   const [recentlyViewed, setRecentlyViewed] = useState<string[]>([]);
   const [savedQueries, setSavedQueries] = useState<string[]>([]);
   const [activeTermId, setActiveTermId] = useState<string | null>(null);
 
-  const categories = useMemo(() => {
-    const unique = new Set<string>();
+  const groups = useMemo(() => {
+    const unique = new Set<string>(Object.keys(GROUP_COLORS));
     terms.forEach((t) => {
-      if (t.category) unique.add(t.category);
+      if (t.group) unique.add(t.group);
     });
     return Array.from(unique).sort((a, b) => a.localeCompare(b));
   }, []);
-
-  const categoryColorMap = useMemo(() => buildCategoryColorMap(categories), [categories]);
 
   const fuse = useMemo(() => buildFuseIndex(terms), []);
 
@@ -113,19 +111,18 @@ export default function LearningSectionPage({ params }: PageProps) {
       if (section === "definitions" && item.type !== "definition") return false;
       if (section === "acronyms" && item.type !== "acronym") return false;
       if (section === "formulas" && item.type !== "formula") return false;
-      if (selectedCategories.length) {
-        const lowered = selectedCategories.map((c) => c.toLowerCase());
-        if (!lowered.includes((item.category || "").toLowerCase())) return false;
+      if (selectedGroups.length) {
+        if (!selectedGroups.includes(item.group ?? "Other / Uncategorised")) return false;
       }
       return true;
     });
     return sortResults(filtered, sortMode, recentOrder);
-  }, [searchResults, section, selectedCategories, sortMode, recentOrder]);
+  }, [searchResults, section, selectedGroups, sortMode, recentOrder]);
 
   const displayedTerms = filteredResults.map((r) => r.item);
   const activeTerm = activeTermId ? terms.find((t) => t.id === activeTermId) : null;
-  const activeCategoryColor = getCategoryColor(activeTerm?.category, categoryColorMap);
-  const activeCategoryLabel = normalizeCategory(activeTerm?.category);
+  const activeGroupColor = getGroupColor(activeTerm?.group);
+  const activeGroupLabel = activeTerm?.group ?? "Other / Uncategorised";
 
   const setTab = (value: string) => {
     const next = validSections.includes(value as Section) ? value : "definitions";
@@ -140,7 +137,7 @@ export default function LearningSectionPage({ params }: PageProps) {
 
   const clearFilters = () => {
     setQuery("");
-    setSelectedCategories([]);
+    setSelectedGroups([]);
     setSortMode("relevance");
   };
 
@@ -148,7 +145,7 @@ export default function LearningSectionPage({ params }: PageProps) {
 
   const searchHint = query.trim().length === 0 && savedQueries.length ? savedQueries.slice(0, 3) : [];
 
-  const badgeCount = selectedCategories.length;
+  const badgeCount = selectedGroups.length;
 
   return (
     <div className="flex flex-col h-full bg-background text-foreground">
@@ -198,37 +195,37 @@ export default function LearningSectionPage({ params }: PageProps) {
                 <PopoverTrigger asChild>
                   <Button variant="outline" size="sm" className="gap-2">
                     <Filter className="h-4 w-4" />
-                    Categories
+                    Groups
                     {badgeCount > 0 && <Badge variant="secondary">{badgeCount}</Badge>}
                     <ChevronDown className="h-4 w-4" />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-64 p-3">
-                  <p className="text-xs text-muted-foreground mb-2">Filter by category</p>
+                  <p className="text-xs text-muted-foreground mb-2">Filter by group</p>
                   <ScrollArea className="h-64 pr-2">
                     <div className="space-y-2">
-                      {categories.map((category) => {
-                        const checked = selectedCategories.includes(category);
+                      {groups.map((group) => {
+                        const checked = selectedGroups.includes(group);
                         return (
-                          <label key={category} className="flex items-center gap-2 text-sm">
+                          <label key={group} className="flex items-center gap-2 text-sm">
                             <Checkbox
                               checked={checked}
                               onCheckedChange={(val) => {
                                 if (val) {
-                                  setSelectedCategories((prev) => [...prev, category]);
+                                  setSelectedGroups((prev) => [...prev, group]);
                                 } else {
-                                  setSelectedCategories((prev) => prev.filter((c) => c !== category));
+                                  setSelectedGroups((prev) => prev.filter((g) => g !== group));
                                 }
                               }}
                             />
-                            <span>{category}</span>
+                            <span>{group}</span>
                           </label>
                         );
                       })}
                     </div>
                   </ScrollArea>
-                  <Button variant="ghost" size="sm" className="mt-2" onClick={() => setSelectedCategories([])}>
-                    Clear categories
+                  <Button variant="ghost" size="sm" className="mt-2" onClick={() => setSelectedGroups([])}>
+                    Clear groups
                   </Button>
                 </PopoverContent>
               </Popover>
@@ -269,7 +266,6 @@ export default function LearningSectionPage({ params }: PageProps) {
               key={term.id}
               term={term}
               onClick={handleCardClick}
-              categoryColors={categoryColorMap}
             />
           ))}
         </div>
@@ -300,12 +296,12 @@ export default function LearningSectionPage({ params }: PageProps) {
                     variant="outline"
                     className="border border-transparent shadow-sm"
                     style={{
-                      backgroundColor: activeCategoryColor.backgroundColor,
-                      color: activeCategoryColor.textColor,
-                      borderColor: activeCategoryColor.borderColor,
+                      backgroundColor: activeGroupColor.backgroundColor,
+                      color: activeGroupColor.textColor,
+                      borderColor: activeGroupColor.borderColor,
                     }}
                   >
-                    {activeCategoryLabel}
+                    {activeGroupLabel}
                   </Badge>
                   {activeTerm.canonicalTerm && <Badge variant="outline">AKA {activeTerm.canonicalTerm}</Badge>}
                 </SheetDescription>
