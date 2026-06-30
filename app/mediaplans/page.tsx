@@ -339,19 +339,19 @@ export default function MediaPlansPage() {
   const getStatusBadgeColor = (status: string) => {
     switch (status) {
       case "Draft":
-        return "bg-gray-500"
+        return "bg-surface-muted text-muted-foreground"
       case "Planned":
-        return "bg-blue-500"
+        return "bg-pacing-on-track-bg text-status-on-track-fg"
       case "Approved":
-        return "bg-green-500"
+        return "bg-pacing-ahead-bg text-status-ahead-fg"
       case "Booked":
-        return "bg-purple-500"
+        return "bg-primary text-primary-foreground"
       case "Completed":
-        return "bg-teal-500"
+        return "bg-pacing-ahead-bg text-status-ahead-fg"
       case "Cancelled":
-        return "bg-red-500"
+        return "bg-pacing-critical-bg text-status-critical-fg"
       default:
-        return "bg-gray-500"
+        return "bg-surface-muted text-muted-foreground"
     }
   }
 
@@ -435,12 +435,12 @@ export default function MediaPlansPage() {
                         <div
                           className={cn(
                             "h-2.5 w-2.5 rounded-full",
-                            status === "Booked" && "bg-purple-500",
-                            status === "Approved" && "bg-green-500",
-                            status === "Planned" && "bg-blue-500",
-                            status === "Draft" && "bg-gray-400",
-                            status === "Completed" && "bg-teal-500",
-                            status === "Cancelled" && "bg-red-400",
+                            status === "Booked" && "bg-primary",
+                            status === "Approved" && "bg-pacing-ahead",
+                            status === "Planned" && "bg-pacing-on-track",
+                            status === "Draft" && "bg-muted-foreground",
+                            status === "Completed" && "bg-pacing-ahead",
+                            status === "Cancelled" && "bg-pacing-critical",
                           )}
                         />
                         <span className="text-sm font-semibold">{status}</span>

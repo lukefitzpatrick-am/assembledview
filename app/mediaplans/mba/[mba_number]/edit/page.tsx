@@ -9445,7 +9445,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         }}
       >
         <DialogContent className="overflow-hidden p-0 sm:max-w-lg">
-          <div className="h-1 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-300" />
+          <div className="h-1 bg-gradient-to-r from-pacing-behind via-pacing-behind/70 to-pacing-behind/40" />
           <div className="p-6">
             <DialogHeader className="flex flex-row items-start justify-between space-y-0">
               <div className="space-y-2">
@@ -9983,7 +9983,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                               {Math.abs(agencyFeeMonthTotalDrift) >= 10 ? (
                                 <>
                                   <span className="mx-2">·</span>
-                                  <span className="text-amber-600 dark:text-amber-500">
+                                  <span className="text-status-behind-fg">
                                     Diff: {agencyFeeMonthTotalDrift >= 0 ? "+" : "−"}
                                     {mbaCurrencyFormatter.format(Math.abs(agencyFeeMonthTotalDrift))}
                                   </span>
@@ -10208,9 +10208,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                       </div>
                     )}
                     {billingError.preservedOverrides.length > 0 && (
-                      <div className="rounded border border-amber-400 bg-amber-50 p-3 text-amber-950">
+                      <div className="rounded-card border border-pacing-behind bg-pacing-behind-bg p-3 text-status-behind-fg">
                         <p className="font-semibold">Preserved manual billing (informational)</p>
-                        <p className="mt-1 text-xs text-amber-900/90">
+                        <p className="mt-1 text-xs text-status-behind-fg/90">
                           Billing differs from current bursts or fee auto-calculation — normal if you edited amounts on purpose.
                           Campaign save still allows these unless you fix them.
                         </p>
@@ -10273,7 +10273,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               if (!budgetForWarn || Math.abs(diff) <= 2) return null
 
               return (
-                <div className="bg-yellow-50 border-l-4 border-yellow-500 text-yellow-800 p-4 rounded-md" role="alert">
+                <div className="rounded-card border border-l-4 border-pacing-behind bg-pacing-behind-bg p-4 text-status-behind-fg" role="alert">
                   <p className="font-bold">Budget mismatch (warning)</p>
                   <p className="text-sm">
                     Campaign Budget:{" "}
@@ -10519,8 +10519,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             </div>
           )}
           {hasBillingMismatch && (
-            <div className="flex items-center gap-2 text-center text-sm font-medium text-amber-600 dark:text-amber-500">
-              <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-amber-500" aria-hidden="true" />
+            <div className="flex items-center gap-2 text-center text-sm font-medium text-status-behind-fg">
+              <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-pacing-behind" aria-hidden="true" />
               <span>
                 Billing schedule has differences from line items — open Edit Billing to review or run a full reset
               </span>

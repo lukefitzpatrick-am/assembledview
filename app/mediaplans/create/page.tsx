@@ -6560,7 +6560,7 @@ const handleSaveAll = async () => {
         <div className="text-right">
           <span className="font-bold">Grand Total: {manualBillingTotal}</span>
           {billingError.show && (
-            <div className="mt-2 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+            <div className="mt-2 rounded-card border border-destructive/40 bg-pacing-critical-bg p-3 text-status-critical-fg">
               <p className="font-bold">Line Item Billing Mismatch</p>
               <p className="text-sm mt-1">Each line item media and fee total must match expected values.</p>
               <div className="mt-2 max-h-56 overflow-auto text-sm space-y-1">
@@ -6638,7 +6638,7 @@ const handleSaveAll = async () => {
         if (!budgetForWarn || Math.abs(diff) <= 2) return null
 
         return (
-          <div className="bg-yellow-50 border-l-4 border-yellow-500 text-yellow-800 p-4 rounded-md" role="alert">
+          <div className="rounded-card border border-l-4 border-pacing-behind bg-pacing-behind-bg p-4 text-status-behind-fg" role="alert">
             <p className="font-bold">Budget mismatch (warning)</p>
             <p className="text-sm">
               Campaign Budget: {mbaCurrencyFormatter.format(budgetForWarn)}. Total Investment:{" "}
@@ -7306,7 +7306,7 @@ const handleSaveAll = async () => {
         }}
       >
         <DialogContent className="overflow-hidden p-0 sm:max-w-lg">
-          <div className="h-1 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-300" />
+          <div className="h-1 bg-gradient-to-r from-pacing-behind via-pacing-behind/70 to-pacing-behind/40" />
           <div className="p-6">
             <DialogHeader className="flex flex-row items-start justify-between space-y-0">
               <div className="space-y-2">

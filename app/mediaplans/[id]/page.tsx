@@ -141,19 +141,19 @@ export default function MediaPlanPage({ params }: { params: Promise<{ id: string
   const getStatusBadgeColor = (status: string) => {
     switch (status) {
       case "Draft":
-        return "bg-gray-500"
+        return "bg-surface-muted text-muted-foreground"
       case "Planned":
-        return "bg-blue-500"
+        return "bg-pacing-on-track-bg text-status-on-track-fg"
       case "Approved":
-        return "bg-green-500"
+        return "bg-pacing-ahead-bg text-status-ahead-fg"
       case "Booked":
-        return "bg-purple-500"
+        return "bg-primary text-primary-foreground"
       case "Completed":
-        return "bg-teal-500"
+        return "bg-pacing-ahead-bg text-status-ahead-fg"
       case "Cancelled":
-        return "bg-red-500"
+        return "bg-pacing-critical-bg text-status-critical-fg"
       default:
-        return "bg-gray-500"
+        return "bg-surface-muted text-muted-foreground"
     }
   }
 
@@ -361,7 +361,7 @@ export default function MediaPlanPage({ params }: { params: Promise<{ id: string
         </div>
 
         {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+          <div className="rounded-card border border-destructive/40 bg-pacing-critical-bg px-4 py-3 text-status-critical-fg">
             <p>{error}</p>
           </div>
         )}
