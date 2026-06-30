@@ -15,6 +15,7 @@ import {
   UnifiedTooltip,
   type UnifiedTooltipRechartsProps,
 } from "@/components/charts/UnifiedTooltip"
+import { EmptyState } from "@/components/ui/states"
 import { useClientBrand } from "@/components/client-dashboard/ClientBrandProvider"
 import { formatCurrencyAUD } from "@/lib/format/currency"
 import { getChartPalette } from "@/lib/client-dashboard/theme"
@@ -181,12 +182,12 @@ export function DonutChart({
 
   if (isEmpty) {
     return (
-      <div
-        className="flex items-center justify-center px-4 py-8 text-sm text-muted-foreground"
+      <EmptyState
+        className="border-0 bg-transparent px-4 py-8"
+        title="No data available"
+        message={null}
         style={{ minHeight: height }}
-      >
-        No data available
-      </div>
+      />
     )
   }
 

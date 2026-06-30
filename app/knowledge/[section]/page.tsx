@@ -426,7 +426,7 @@ export default function LearningSectionPage({ params }: PageProps) {
                         rel="noopener noreferrer"
                         className="text-sm text-primary hover:underline"
                       >
-                        {s.label} &#8599;
+                        {s.label} &nearr;
                       </a>
                     ))}
                   </div>

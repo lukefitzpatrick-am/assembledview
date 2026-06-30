@@ -10,6 +10,7 @@ import SpendByCampaignChart from "@/components/charts/domain/SpendByCampaignChar
 import SpendByMediaTypeChart from "@/components/charts/domain/SpendByMediaTypeChart"
 import { SpendingInsightChartShell } from "@/components/dashboard/SpendingInsightChartShell"
 import { Button } from "@/components/ui/button"
+import { EmptyState } from "@/components/ui/states"
 import { formatCurrencyAUD } from "@/lib/format/currency"
 import { getMediaLabel } from "@/lib/charts/registry"
 
@@ -234,9 +235,11 @@ export function SpendingInsightsSection({
               onHiddenKeysChange={setHiddenKeys}
             />
           ) : (
-            <div className="flex h-80 items-center justify-center text-sm text-muted-foreground">
-              No monthly spend data available.
-            </div>
+            <EmptyState
+              className="min-h-80 border-0 bg-transparent"
+              title="No monthly spend data available"
+              message={null}
+            />
           )}
         </SpendingInsightChartShell>
 
@@ -253,9 +256,11 @@ export function SpendingInsightsSection({
             {campaignData.length > 0 ? (
               <SpendByCampaignChart data={campaignData} brandColour={brandColour} embedded height={280} />
             ) : (
-              <div className="flex h-72 items-center justify-center text-sm text-muted-foreground">
-                No campaign spend data available.
-              </div>
+              <EmptyState
+                className="min-h-72 border-0 bg-transparent"
+                title="No campaign spend data available"
+                message={null}
+              />
             )}
           </SpendingInsightChartShell>
 
@@ -271,9 +276,11 @@ export function SpendingInsightsSection({
             {mediaTypeData.length > 0 ? (
               <SpendByMediaTypeChart data={mediaTypeData} brandColour={brandColour} embedded height={280} />
             ) : (
-              <div className="flex h-72 items-center justify-center text-sm text-muted-foreground">
-                No media type spend data available.
-              </div>
+              <EmptyState
+                className="min-h-72 border-0 bg-transparent"
+                title="No media type spend data available"
+                message={null}
+              />
             )}
           </SpendingInsightChartShell>
         </div>

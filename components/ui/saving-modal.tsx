@@ -82,7 +82,7 @@ export function SavingModal({
                 className={cn(
                   "flex items-center gap-3 p-2 rounded-md",
                   item.status === 'error' && "bg-destructive/10",
-                  item.status === 'success' && "bg-green-500/10"
+                  item.status === 'success' && "bg-pacing-ahead-bg"
                 )}
               >
                 <div className="flex-shrink-0 w-5 h-5 flex items-center justify-center">
@@ -90,7 +90,7 @@ export function SavingModal({
                     <LoadingDots size="sm" dotClassName="bg-muted-foreground" aria-label="Saving" />
                   )}
                   {item.status === 'success' && (
-                    <Check className="w-5 h-5 text-green-600" />
+                    <Check className="w-5 h-5 text-status-ahead-fg" />
                   )}
                   {item.status === 'error' && (
                     <X className="w-5 h-5 text-destructive" />

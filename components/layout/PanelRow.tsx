@@ -48,7 +48,7 @@ const spanPresets = {
   full: "col-span-12",
   half: "col-span-12 md:col-span-6",
   third: "col-span-12 md:col-span-4",
-  quarter: "col-span-12 md:col-span-3",
+  quarter: "col-span-6 max-[375px]:col-span-12 md:col-span-3",
   twoThirds: "col-span-12 md:col-span-8",
 } as const
 

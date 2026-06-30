@@ -60,7 +60,7 @@ export function DashboardCampaignPlanCard({
   viewDisabled: boolean
 }) {
   return (
-    <Card className="flex h-full flex-col overflow-hidden border-0 shadow-md hover:shadow-lg transition-shadow duration-200">
+    <Card className="flex h-full flex-col overflow-hidden border-0 shadow-e1 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-e2">
       <div className="h-1 bg-gradient-to-r from-primary via-primary/70 to-primary/40" />
       <CardHeader className="space-y-1 pb-3 pt-4 px-5">
         <CardTitle className="text-base font-semibold leading-snug line-clamp-2">{plan.mp_campaignname}</CardTitle>
@@ -108,7 +108,7 @@ export function DashboardScopeCard({
 }) {
   const overview = scope.project_overview?.trim() ? scope.project_overview : "N/A"
   return (
-    <Card className="flex h-full flex-col overflow-hidden border-0 shadow-md hover:shadow-lg transition-shadow duration-200">
+    <Card className="flex h-full flex-col overflow-hidden border-0 shadow-e1 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-e2">
       <div className="h-1 bg-gradient-to-r from-primary via-primary/70 to-primary/40" />
       <CardHeader className="space-y-1 pb-3 pt-4 px-5">
         <CardTitle className="text-base font-semibold leading-snug line-clamp-2">{scope.project_name}</CardTitle>

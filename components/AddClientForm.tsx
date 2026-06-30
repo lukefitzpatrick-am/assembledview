@@ -12,6 +12,7 @@ import { Combobox } from "@/components/ui/combobox"
 import { SavingModal } from "@/components/ui/saving-modal"
 import { SuccessModal } from "@/components/ui/success-modal"
 import { ErrorModal } from "@/components/ui/error-modal"
+import { DEFAULT_CLIENT_BRAND_COLOUR } from "@/lib/clients/brandColour"
 const formatHexColour = (value: string) => {
   const cleaned = value.replace(/[^0-9a-fA-F]/g, "").slice(0, 6)
   return `#${cleaned}`.toUpperCase().padEnd(7, "0")
@@ -94,7 +95,7 @@ const clientSchema = z.object({
   idshopify: optionalString,
   brand_colour: z
     .string()
-    .regex(/^#?[0-9A-Fa-f]{6}$/, "Brand colour must be a valid 6-digit hex code (e.g. #49C7EB)")
+    .regex(/^#?[0-9A-Fa-f]{6}$/, "Brand colour must be a valid 6-digit hex code.")
     .optional()
     .or(z.literal("")),
 })
@@ -172,7 +173,7 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
       idga4: "",
       idmerchantcentre: "",
       idshopify: "",
-      brand_colour: "#49C7EB",
+      brand_colour: DEFAULT_CLIENT_BRAND_COLOUR,
     },
   })
 
@@ -265,7 +266,7 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>
-                  Client Name <span className="text-red-500">*</span>
+                  Client Name <span className="text-destructive">*</span>
                 </FormLabel>
                 <FormControl>
                   <Input {...field} />
@@ -313,7 +314,7 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>
-                  MBA Identifier <span className="text-red-500">*</span>
+                  MBA Identifier <span className="text-destructive">*</span>
                 </FormLabel>
                 <FormControl>
                   <Input {...field} />
@@ -808,7 +809,7 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
                         field.value?.startsWith("#") ? field.value : `#${field.value}`
                       }
                       onChange={(e) => field.onChange(formatHexColour(e.target.value))}
-                      placeholder="#49C7EB"
+                      placeholder="Brand hex"
                       maxLength={7}
                     />
                   </FormControl>

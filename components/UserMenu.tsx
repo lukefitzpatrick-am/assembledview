@@ -110,7 +110,7 @@ export function UserMenu() {
         <DropdownMenuSeparator />
         
         <DropdownMenuItem asChild>
-          <button onClick={logout} className="flex items-center text-red-600 w-full text-left">
+          <button onClick={logout} className="flex w-full items-center text-left text-destructive">
             <LogOut className="mr-2 h-4 w-4" />
             <span>Sign out</span>
           </button>

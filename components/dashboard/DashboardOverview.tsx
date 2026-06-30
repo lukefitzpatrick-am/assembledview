@@ -2585,7 +2585,7 @@ export default function DashboardOverview({
 
   return (
     <>
-    <div className="flex h-full w-full flex-col gap-6 px-4 pb-10 pt-6 md:px-6">
+    <div className="flex h-full w-full flex-col gap-6 px-4 pb-10 pt-6 max-[375px]:pb-28 md:px-6">
       <MediaPlanEditorHero
         className="mb-1"
         compact
@@ -2728,7 +2728,7 @@ export default function DashboardOverview({
                   <TooltipTrigger asChild>
                     <button
                       type="button"
-                      className="h-full w-full rounded-card text-left outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
+                      className="h-full min-h-11 w-full rounded-card text-left outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       <MetricCard
                         label={metric.title}
@@ -2819,7 +2819,7 @@ export default function DashboardOverview({
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  className="h-7 px-2.5 text-xs"
+                                  className="h-7 px-2.5 text-xs max-[375px]:h-11"
                                   onClick={() =>
                                     router.push(`/mediaplans/mba/${plan.mp_mba_number}/edit?version=${plan.mp_version}`)
                                   }
@@ -2829,7 +2829,7 @@ export default function DashboardOverview({
                                 <Button
                                   variant="secondary"
                                   size="sm"
-                                  className="h-7 px-2.5 text-xs"
+                                  className="h-7 px-2.5 text-xs max-[375px]:h-11"
                                   disabled={!slugifyClientName(plan.mp_clientname)}
                                   onClick={() => {
                                     const slug = slugifyClientName(plan.mp_clientname)
@@ -3005,7 +3005,7 @@ export default function DashboardOverview({
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  className="h-7 px-2.5 text-xs"
+                                  className="h-7 px-2.5 text-xs max-[375px]:h-11"
                                   onClick={() =>
                                     router.push(`/mediaplans/mba/${plan.mp_mba_number}/edit?version=${plan.mp_version}`)
                                   }
@@ -3015,7 +3015,7 @@ export default function DashboardOverview({
                                 <Button
                                   variant="secondary"
                                   size="sm"
-                                  className="h-7 px-2.5 text-xs"
+                                  className="h-7 px-2.5 text-xs max-[375px]:h-11"
                                   disabled={!slugifyClientName(plan.mp_clientname)}
                                   onClick={() => {
                                     const slug = slugifyClientName(plan.mp_clientname)
@@ -3119,7 +3119,7 @@ export default function DashboardOverview({
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  className="h-7 px-2.5 text-xs"
+                                  className="h-7 px-2.5 text-xs max-[375px]:h-11"
                                   onClick={() =>
                                     router.push(`/mediaplans/mba/${plan.mp_mba_number}/edit?version=${plan.mp_version}`)
                                   }
@@ -3129,7 +3129,7 @@ export default function DashboardOverview({
                                 <Button
                                   variant="secondary"
                                   size="sm"
-                                  className="h-7 px-2.5 text-xs"
+                                  className="h-7 px-2.5 text-xs max-[375px]:h-11"
                                   disabled={!slugifyClientName(plan.mp_clientname)}
                                   onClick={() => {
                                     const slug = slugifyClientName(plan.mp_clientname)

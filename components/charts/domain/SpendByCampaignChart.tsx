@@ -4,6 +4,7 @@ import { PieChart as PieChartIcon } from "lucide-react"
 
 import BaseChartCard from "@/components/charts/BaseChartCard"
 import { DonutChart } from "@/components/charts/DonutChart"
+import { EmptyState } from "@/components/ui/states"
 import { getDeterministicColor } from "@/lib/charts/registry"
 
 export interface SpendByCampaignChartProps {
@@ -43,12 +44,12 @@ export default function SpendByCampaignChart({
   if (embedded) {
     if (total <= 0) {
       return (
-        <div
-          className="flex items-center justify-center px-4 py-8 text-sm text-muted-foreground"
+        <EmptyState
+          className="border-0 bg-transparent px-4 py-8"
+          title="No spend data available"
+          message={null}
           style={{ minHeight: height }}
-        >
-          No spend data available
-        </div>
+        />
       )
     }
     return chart

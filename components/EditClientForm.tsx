@@ -14,6 +14,7 @@ import { SuccessModal } from "@/components/ui/success-modal"
 import { Badge } from "@/components/ui/badge"
 import { formatAUD } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
+import { DEFAULT_CLIENT_BRAND_COLOUR } from "@/lib/clients/brandColour"
 
 const optionalString = z.string().optional().or(z.literal(""))
 const clientSchema = z.object({
@@ -84,7 +85,7 @@ const clientSchema = z.object({
   idshopify: optionalString,
   brand_colour: z
     .string()
-    .regex(/^#?[0-9A-Fa-f]{6}$/, "Brand colour must be a valid 6-digit hex code (e.g. #49C7EB)")
+    .regex(/^#?[0-9A-Fa-f]{6}$/, "Brand colour must be a valid 6-digit hex code.")
     .optional()
     .or(z.literal("")),
 })
@@ -118,7 +119,7 @@ export function EditClientForm({ client, onSuccess, layout = "page" }: EditClien
     mbaidentifier: client.mbaidentifier || '',
     payment_days: (client as any).payment_days ?? 30,
     payment_terms: (client as any).payment_terms ?? "",
-    brand_colour: (client as any).brand_colour ?? "#49C7EB",
+    brand_colour: (client as any).brand_colour ?? DEFAULT_CLIENT_BRAND_COLOUR,
     // Convert ABN to string if it comes as a number
     abn: client.abn ? String(client.abn) : '',
     // Convert phone numbers to strings to preserve leading zeros
@@ -223,7 +224,7 @@ export function EditClientForm({ client, onSuccess, layout = "page" }: EditClien
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>
-                    Client Name <span className="text-red-500">*</span>
+                    Client Name <span className="text-destructive">*</span>
                   </FormLabel>
                   <FormControl>
                     <Input {...field} />
@@ -239,7 +240,7 @@ export function EditClientForm({ client, onSuccess, layout = "page" }: EditClien
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>
-                    Client Category <span className="text-red-500">*</span>
+                    Client Category <span className="text-destructive">*</span>
                   </FormLabel>
                   <FormControl>
                     <Input {...field} />
@@ -278,14 +279,14 @@ export function EditClientForm({ client, onSuccess, layout = "page" }: EditClien
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>
-                    MBA Identifier <span className="text-red-500">*</span>
+                    MBA Identifier <span className="text-destructive">*</span>
                   </FormLabel>
                   <div className="flex items-center space-x-2">
                     <FormControl>
                       <Input {...field} />
                     </FormControl>
                     {field.value && (
-                      <Badge className="bg-blue-500 text-white">
+                      <Badge className="bg-pacing-on-track text-primary-foreground">
                         {field.value}
                       </Badge>
                     )}
@@ -396,7 +397,7 @@ export function EditClientForm({ client, onSuccess, layout = "page" }: EditClien
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>
-                    Payment Days <span className="text-red-500">*</span>
+                    Payment Days <span className="text-destructive">*</span>
                   </FormLabel>
                   <FormControl>
                     <Input
@@ -418,7 +419,7 @@ export function EditClientForm({ client, onSuccess, layout = "page" }: EditClien
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>
-                    Payment Terms <span className="text-red-500">*</span>
+                    Payment Terms <span className="text-destructive">*</span>
                   </FormLabel>
                   <FormControl>
                     <Input {...field} placeholder="e.g. Net 30 days" />
@@ -766,7 +767,7 @@ export function EditClientForm({ client, onSuccess, layout = "page" }: EditClien
                       {...field}
                       value={field.value?.startsWith("#") ? field.value : `#${field.value}`}
                       onChange={(e) => field.onChange(formatHexColour(e.target.value))}
-                      placeholder="#49C7EB"
+                      placeholder="Brand hex"
                       maxLength={7}
                     />
                   </FormControl>

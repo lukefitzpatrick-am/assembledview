@@ -127,7 +127,7 @@ export function AddPublisherForm({ onSuccess }: AddPublisherFormProps) {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>
-                  Publisher Name <span className="text-red-500">*</span>
+                  Publisher Name <span className="text-destructive">*</span>
                 </FormLabel>
                 <FormControl>
                   <Input {...field} value={field.value || ""} placeholder="Enter details" />
@@ -143,7 +143,7 @@ export function AddPublisherForm({ onSuccess }: AddPublisherFormProps) {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>
-                  Publisher ID <span className="text-red-500">*</span>
+                  Publisher ID <span className="text-destructive">*</span>
                 </FormLabel>
                 <FormControl>
                   <Input {...field} value={field.value || ""} placeholder="Enter details" />
@@ -205,7 +205,7 @@ export function AddPublisherForm({ onSuccess }: AddPublisherFormProps) {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>
-                  Finance Code <span className="text-red-500">*</span>
+                  Finance Code <span className="text-destructive">*</span>
                 </FormLabel>
                 <FormControl>
                   <Input {...field} value={field.value || ""} placeholder="Enter details" />
@@ -248,7 +248,7 @@ export function AddPublisherForm({ onSuccess }: AddPublisherFormProps) {
                       />
                       <Input
                         className="w-28 font-mono text-xs"
-                        placeholder="#000000"
+                        placeholder="Brand hex"
                         value={stored ?? ""}
                         onChange={(e) => {
                           const v = e.target.value

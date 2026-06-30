@@ -1,0 +1,2 @@
+export const DEFAULT_CLIENT_BRAND_COLOUR = "#49C7EB"
+

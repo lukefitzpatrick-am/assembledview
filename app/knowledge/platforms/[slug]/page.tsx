@@ -66,7 +66,7 @@ export default function PlatformDetailPage({ params }: PageProps) {
                 rel="noopener noreferrer"
                 className="text-sm text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
-                {link.label} &#8599;
+                {link.label} &nearr;
               </a>
             ))}
           </div>

@@ -3,6 +3,7 @@
 import * as React from "react"
 
 import { Skeleton } from "@/components/ui/skeleton"
+import { EmptyState, ErrorState } from "@/components/ui/states"
 import { cn } from "@/lib/utils"
 
 type PanelVariant = "default" | "loading" | "empty" | "error"
@@ -142,20 +143,12 @@ const PanelContent = React.forwardRef<HTMLDivElement, PanelContentProps>(
         (emptyMessage !== undefined ? (
           emptyMessage
         ) : (
-          <p className="py-10 text-center text-sm text-muted-foreground">No data yet.</p>
+          <EmptyState className="border-0 bg-transparent" />
         ))
     } else if (variant === "error") {
       body =
         children ?? (
-          <div
-            role="alert"
-            className={cn(
-              "rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm",
-              "text-destructive"
-            )}
-          >
-            {errorMessage ?? "Something went wrong."}
-          </div>
+          <ErrorState message={errorMessage ?? "Something went wrong."} />
         )
     } else {
       body = children

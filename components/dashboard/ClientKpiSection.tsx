@@ -6,7 +6,7 @@ import { Layers, Loader2, Plus, Save, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Combobox } from "@/components/ui/combobox"
-import { Skeleton } from "@/components/ui/skeleton"
+import { EmptyState, LoadingState } from "@/components/ui/states"
 import { useToast } from "@/components/ui/use-toast"
 import {
   type ClientKpi,
@@ -781,15 +781,13 @@ export function ClientKpiSection({ clientName, urlSlug }: ClientKpiSectionProps)
       </CardHeader>
       <CardContent className="w-full pt-4">
         {loading ? (
-          <div className="flex w-full flex-col gap-4">
-            <Skeleton className="h-44 w-full rounded-xl" />
-            <Skeleton className="h-44 w-full rounded-xl" />
-          </div>
+          <LoadingState rows={4} className="border-0 bg-transparent p-0 shadow-none" />
         ) : showEmpty ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">
-            No KPIs yet. Use <span className="font-medium">Add KPI</span> or{" "}
-            <span className="font-medium">Add all strategies</span> to create rows.
-          </p>
+          <EmptyState
+            className="border-0 bg-transparent"
+            title="No KPIs yet"
+            message="Use Add KPI or Add all strategies to create rows."
+          />
         ) : (
           <div className="flex max-h-[min(70vh,640px)] w-full flex-col gap-4 overflow-y-auto pr-1">
             {sortedSavedRows.map((row) => {

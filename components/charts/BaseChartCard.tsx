@@ -4,6 +4,7 @@ import type { LucideIcon } from "lucide-react"
 import { BarChart3 } from "lucide-react"
 import type { ReactNode } from "react"
 
+import { EmptyState } from "@/components/ui/states"
 import { useClientBrandOptional } from "@/components/client-dashboard/ClientBrandProvider"
 import { cn } from "@/lib/utils"
 
@@ -67,12 +68,12 @@ export default function BaseChartCard({
       </div>
 
       {isEmpty ? (
-        <div
-          className="flex items-center justify-center px-4 py-8 text-sm text-muted-foreground"
+        <EmptyState
+          className="border-0 bg-transparent px-4 py-8"
+          title={emptyMessage}
+          message={null}
           style={{ minHeight }}
-        >
-          {emptyMessage}
-        </div>
+        />
       ) : (
         <div className={cn(contentClassName)}>{children}</div>
       )}

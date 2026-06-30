@@ -7,7 +7,7 @@ import { getPacingWindow } from "@/lib/pacing/pacingWindow"
 import type { PacingRow as CombinedPacingRow } from "@/lib/snowflake/pacing-service"
 import type { SearchPacingResponse } from "@/lib/snowflake/search-pacing-service"
 import type { SocialLineItem } from "@/lib/delivery/social/socialChannelCompute"
-import { Skeleton } from "@/components/ui/skeleton"
+import { ErrorState, LoadingState } from "@/components/ui/states"
 import DeliveryDataProvider from "./DeliveryDataProvider"
 import { DeliveryContainer } from "./DeliveryContainer"
 import { buildProgrammaticDisplaySection } from "./channels/programmaticDisplayAdapter"
@@ -216,13 +216,13 @@ function CampaignDeliveryBody({
   ])
 
   if (loading) {
-    return <Skeleton className="h-[480px] w-full rounded-3xl" />
+    return <LoadingState rows={6} className="min-h-[480px]" />
   }
 
   return (
     <div className="space-y-3">
       {error ? (
-        <div className="rounded-2xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">{error}</div>
+        <ErrorState title="Could not load delivery data" message={error} />
       ) : null}
       <DeliveryContainer channels={channels} onRefresh={() => window.location.reload()} />
     </div>

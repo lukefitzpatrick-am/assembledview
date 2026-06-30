@@ -148,7 +148,7 @@ export function ActualsCumulativeVsTargetChart({
           stroke={actualColor}
           strokeWidth={2.5}
           dot={false}
-          activeDot={{ r: 4, stroke: actualColor, strokeWidth: 1.25, fill: "#fff" }}
+          activeDot={{ r: 4, stroke: actualColor, strokeWidth: 1.25, fill: "hsl(var(--background))" }}
         />
         {showTodayLine ? (
           <ReferenceLine x={refLineISO} {...PACING_TODAY_REFERENCE_LINE_PROPS} />

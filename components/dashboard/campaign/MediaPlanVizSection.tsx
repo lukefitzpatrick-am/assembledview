@@ -6,6 +6,7 @@ import { ResponsiveContainer, AreaChart, Area } from "recharts"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { EmptyState } from "@/components/ui/states"
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/layout/Panel"
 import { normaliseLineItemsByType, type NormalisedLineItem } from "@/lib/mediaplan/normalizeLineItem"
 import { formatCurrencyAUD, formatCurrencyCompact } from "@/lib/format/currency"
@@ -212,7 +213,11 @@ export default function MediaPlanVizSection({
           <PanelTitle className="text-base">Media plan</PanelTitle>
         </PanelHeader>
         <PanelContent>
-          <p className="text-sm text-muted-foreground">No media plan data available.</p>
+          <EmptyState
+            className="border-0 bg-transparent"
+            title="No media plan data available"
+            message="Line items will appear here when this campaign has media plan data."
+          />
         </PanelContent>
       </Panel>
     )

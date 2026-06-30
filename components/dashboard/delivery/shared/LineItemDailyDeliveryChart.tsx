@@ -2,6 +2,7 @@
 
 import { useMemo } from "react"
 import { LineChart } from "@/components/charts/LineChart"
+import { EmptyState } from "@/components/ui/states"
 import { formatCurrencyAUD } from "@/lib/format/currency"
 
 export interface LineItemDailyDeliveryChartProps {
@@ -44,9 +45,11 @@ export function LineItemDailyDeliveryChart({
             {subtitle ? <p className="text-xs text-muted-foreground">{subtitle}</p> : null}
           </div>
         ) : null}
-        <div className="flex h-[200px] items-center justify-center rounded-lg border border-dashed border-border/50 text-xs text-muted-foreground">
-          No daily delivery data available
-        </div>
+        <EmptyState
+          className="min-h-[200px] border-0 bg-transparent"
+          title="No daily delivery data available"
+          message={null}
+        />
       </div>
     )
   }

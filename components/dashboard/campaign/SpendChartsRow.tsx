@@ -1,12 +1,13 @@
 "use client"
 
 import { useMemo } from "react"
-import { ChartNoAxesColumnDecreasing, Layers } from "lucide-react"
+import { Layers } from "lucide-react"
 
 import BaseChartCard from "@/components/charts/BaseChartCard"
 import MediaChannelPieChart from "@/components/charts/domain/MediaChannelPieChart"
 import SpendByPublisherChart from "@/components/charts/domain/SpendByPublisherChart"
 import { StackedColumnChart } from "@/components/charts/StackedColumnChart"
+import { EmptyState } from "@/components/ui/states"
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/layout/Panel"
 import { getMediaLabel } from "@/lib/charts/registry"
 import { formatCurrencyAUD } from "@/lib/format/currency"
@@ -368,12 +369,12 @@ export default function SpendChartsRow({
         <PanelHeader className="p-4">
           <PanelTitle className="text-base">Spend &amp; delivery insights</PanelTitle>
         </PanelHeader>
-        <PanelContent standalone className="flex flex-col items-center justify-center gap-3 p-8 text-center">
-          <span className="rounded-full bg-muted p-3 text-muted-foreground">
-            <ChartNoAxesColumnDecreasing className="h-5 w-5" />
-          </span>
-          <p className="text-sm font-medium text-foreground">No spend data available for this period</p>
-          <p className="text-xs text-muted-foreground">Try adjusting your selected date range and refresh.</p>
+        <PanelContent standalone>
+          <EmptyState
+            className="border-0 bg-transparent"
+            title="No spend data available for this period"
+            message="Try adjusting your selected date range and refresh."
+          />
         </PanelContent>
       </Panel>
     )

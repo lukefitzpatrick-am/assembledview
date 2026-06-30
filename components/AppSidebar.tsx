@@ -125,6 +125,14 @@ export function AppSidebar() {
   }, [userClient]);
 
   const menuItems = isAdmin ? adminMenuItems : clientMenuItems;
+  const bottomNavItems = useMemo(() => {
+    if (isAdmin) {
+      return adminMenuItems.filter((item) =>
+        ["Home", "Campaigns", "Pacing", "Finance", "Create Campaign"].includes(item.title)
+      );
+    }
+    return clientMenuItems;
+  }, [adminMenuItems, clientMenuItems, isAdmin]);
 
   const financeSectionActive = pathname.startsWith("/finance");
   const clientDashboardsSectionActive = /^\/client\/[^/]+/.test(pathname);
@@ -141,8 +149,8 @@ export function AppSidebar() {
 
   if (isLoading) {
     return (
-      <Sidebar className="w-56 h-screen overflow-hidden">
-        <SidebarContent role="navigation" aria-label="Primary navigation">
+      <Sidebar className="h-screen overflow-hidden">
+        <SidebarContent className="overflow-hidden" role="navigation" aria-label="Primary navigation">
           <div className="flex flex-col gap-3 px-4 py-6 text-sm text-sidebar-foreground/80">
             <div aria-hidden className="flex flex-col gap-3">
               <div className="h-6 w-24 animate-pulse rounded-md bg-sidebar-accent" />
@@ -158,8 +166,9 @@ export function AppSidebar() {
   }
 
   return (
-    <Sidebar className="w-56 h-screen overflow-hidden">
-      <SidebarContent role="navigation" aria-label="Primary navigation">
+    <>
+    <Sidebar className="h-screen overflow-hidden">
+      <SidebarContent className="overflow-hidden" role="navigation" aria-label="Primary navigation">
         <div className="flex items-start justify-center py-4">
           <Link
             href="/"
@@ -196,9 +205,9 @@ export function AppSidebar() {
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild isActive={active}>
-                      <Link href={item.href} className="flex items-center">
+                      <Link href={item.href} className="flex min-w-0 items-center whitespace-nowrap">
                         <Icon className="mr-2 h-[17px] w-[17px] shrink-0 stroke-[1.8]" aria-hidden />
-                        <span>{item.title}</span>
+                        <span className="min-w-0 truncate">{item.title}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -211,11 +220,11 @@ export function AppSidebar() {
                     type="button"
                     onClick={() => setIsClientsExpanded(!isClientsExpanded)}
                     isActive={clientDashboardsSectionActive}
-                    className="flex w-full items-center justify-between"
+                    className="flex w-full items-center justify-between gap-2 whitespace-nowrap"
                   >
-                    <div className="flex items-center">
+                    <div className="flex min-w-0 flex-1 items-center">
                       <BarChart3 className="mr-2 h-[17px] w-[17px] shrink-0 stroke-[1.8]" aria-hidden />
-                      <span>Client Dashboards</span>
+                      <span className="min-w-0 truncate">Client Dashboards</span>
                     </div>
                     {isClientsExpanded ? (
                       <ChevronDown className="h-[17px] w-[17px] shrink-0 stroke-[1.8]" aria-hidden />
@@ -224,15 +233,21 @@ export function AppSidebar() {
                     )}
                   </SidebarMenuButton>
                   {isClientsExpanded && (
-                    <SidebarMenuSub>
+                    <SidebarMenuSub className="max-h-[40vh] overflow-y-auto scrollbar-thin">
                       {clientsSortedForNav.map(({ client, label }) => {
                         const slug = client.slug || slugifyClientNameForUrl(label);
                         const href = `/client/${slug}`;
 
                         return (
                           <SidebarMenuSubItem key={client.id}>
-                            <SidebarMenuSubButton asChild isActive={pathMatchesHref(pathname, href, true)}>
-                              <Link href={href}>{label}</Link>
+                            <SidebarMenuSubButton
+                              asChild
+                              isActive={pathMatchesHref(pathname, href, true)}
+                              className="w-full truncate whitespace-nowrap"
+                            >
+                              <Link href={href} title={label}>
+                                {label}
+                              </Link>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
                         );
@@ -247,9 +262,9 @@ export function AppSidebar() {
               {isAdmin && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={pathMatchesHref(pathname, "/admin/users/new")}>
-                    <Link href="/admin/users/new" className="flex items-center">
+                    <Link href="/admin/users/new" className="flex min-w-0 items-center whitespace-nowrap">
                       <UserCircle className="mr-2 h-[17px] w-[17px] shrink-0 stroke-[1.8]" aria-hidden />
-                      <span>Admin User Enrolment</span>
+                      <span className="min-w-0 truncate">Admin User Enrolment</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -265,5 +280,46 @@ export function AppSidebar() {
         </div>
       </SidebarFooter>
     </Sidebar>
+    <nav
+      className="fixed inset-x-0 bottom-0 z-50 hidden border-t border-border bg-sidebar/95 px-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] pt-2 text-sidebar-foreground shadow-e2 backdrop-blur max-[375px]:block"
+      aria-label="Primary navigation"
+    >
+      <ul className="grid grid-cols-5 gap-1">
+        {bottomNavItems.map((item) => {
+          const Icon = item.icon;
+          const exact = "exact" in item && item.exact;
+          const customActive = "isActive" in item && typeof item.isActive === "function" ? item.isActive() : undefined;
+          const active =
+            customActive !== undefined
+              ? customActive
+              : pathMatchesHref(pathname, item.href, exact);
+
+          return (
+            <li key={item.title} className="min-w-0">
+              <Link
+                href={item.href}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "flex min-h-11 min-w-11 flex-col items-center justify-center gap-1 rounded-input px-1 text-[10px] font-medium leading-none outline-none transition-colors focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar",
+                  active
+                    ? "bg-[var(--sidebar-active-tint)] text-sidebar-foreground"
+                    : "text-[hsl(var(--sidebar-muted))] hover:bg-[var(--sidebar-hover-tint)] hover:text-sidebar-foreground"
+                )}
+              >
+                <Icon
+                  className={cn(
+                    "h-[18px] w-[18px] shrink-0 stroke-[1.8]",
+                    active ? "text-[var(--sidebar-active-bar)]" : "text-[hsl(var(--sidebar-icon))]"
+                  )}
+                  aria-hidden
+                />
+                <span className="max-w-full truncate">{item.title === "Create Campaign" ? "Create" : item.title}</span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
+    </>
   );
 }

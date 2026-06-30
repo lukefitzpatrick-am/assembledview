@@ -978,7 +978,7 @@ export default function EditScopePage() {
       </div>
 
       {/* Sticky Footer */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-4 z-50">
+      <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card p-4 shadow-e2">
         <div className="max-w-7xl mx-auto flex justify-end space-x-4">
           <Button
             variant="outline"

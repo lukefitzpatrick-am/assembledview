@@ -21,7 +21,7 @@ export interface Channel {
   B: number; // brand effect score 0-100
   D: number; // direct action effect score 0-100
   cpm: number; // AUD CPM
-  color: string; // hex for bar swatch
+  color: string; // CSS colour token for bar swatch
   aff: Record<SegmentId, number>; // affinity index, 100 = baseline
   ageSkew: { center: number; spread: number };
   genderSkew: { female: number; male: number };

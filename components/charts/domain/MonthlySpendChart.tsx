@@ -5,6 +5,7 @@ import { BarChart3 } from "lucide-react"
 
 import BaseChartCard from "@/components/charts/BaseChartCard"
 import { StackedColumnChart } from "@/components/charts/StackedColumnChart"
+import { EmptyState } from "@/components/ui/states"
 import { getMediaLabel } from "@/lib/charts/registry"
 
 export type MonthlyStackedEntry = {
@@ -100,9 +101,11 @@ export default function MonthlySpendChart({
   if (embedded) {
     if (isEmpty) {
       return (
-        <div className="flex h-80 items-center justify-center text-sm text-muted-foreground">
-          No monthly spend data available
-        </div>
+        <EmptyState
+          className="min-h-80 border-0 bg-transparent"
+          title="No monthly spend data available"
+          message={null}
+        />
       )
     }
     return chart

@@ -247,7 +247,7 @@ export function EditPublisherForm({ publisher, onSuccess }: EditPublisherFormPro
                     />
                     <Input
                       className="w-28 font-mono text-xs"
-                      placeholder="#000000"
+                      placeholder="Brand hex"
                       value={stored ?? ""}
                       onChange={(e) => {
                         const v = e.target.value

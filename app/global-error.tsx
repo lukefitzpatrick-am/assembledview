@@ -16,71 +16,32 @@ export default function GlobalError({
 
   return (
     <html lang="en">
-      <body
-        style={{
-          margin: 0,
-          fontFamily: "system-ui, sans-serif",
-          background: "#f4f4f5",
-          color: "#18181b",
-        }}
-      >
-        <div
-          style={{
-            minHeight: "100vh",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "1.5rem",
-          }}
-        >
-          <div
-            style={{
-              maxWidth: "28rem",
-              width: "100%",
-              background: "#fff",
-              border: "1px solid #e4e4e7",
-              borderRadius: "0.5rem",
-              padding: "1.5rem",
-              textAlign: "center",
-              boxShadow: "0 1px 2px rgba(0, 0, 0, 0.05)",
-            }}
-          >
-            <h1 style={{ fontSize: "1.5rem", fontWeight: 600, margin: "0 0 1rem" }}>
+      <body className="m-0 bg-background font-sans text-foreground">
+        <div className="flex min-h-screen items-center justify-center p-6">
+          <div className="w-full max-w-md rounded-card border border-border bg-card p-6 text-center shadow-e1">
+            <h1 className="mb-4 text-2xl font-semibold">
               Something went wrong
             </h1>
-            <p style={{ color: "#71717a", margin: "0 0 1rem" }}>
+            <p className="mb-4 text-muted-foreground">
               An unexpected error occurred. Please try again.
             </p>
             {error.digest ? (
-              <p style={{ fontSize: "0.75rem", color: "#a1a1aa", margin: "0 0 1rem" }}>
+              <p className="mb-4 text-xs text-muted-foreground">
                 Reference: {error.digest}
               </p>
             ) : null}
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.75rem",
-                alignItems: "center",
-              }}
-            >
+            <div className="flex flex-col items-center gap-3">
               <button
                 type="button"
                 onClick={() => reset()}
-                style={{
-                  padding: "0.5rem 1rem",
-                  background: "#18181b",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: "0.375rem",
-                  cursor: "pointer",
-                  fontSize: "0.875rem",
-                  fontWeight: 500,
-                }}
+                className="inline-flex min-h-11 items-center justify-center rounded-input bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 Try again
               </button>
-              <Link href="/dashboard" style={{ color: "#18181b", fontSize: "0.875rem" }}>
+              <Link
+                href="/dashboard"
+                className="inline-flex min-h-11 items-center justify-center rounded-input px-3 text-sm text-foreground underline-offset-4 transition-colors hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
                 Back to dashboard
               </Link>
             </div>

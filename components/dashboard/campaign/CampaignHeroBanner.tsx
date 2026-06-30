@@ -184,7 +184,7 @@ export default function CampaignHeroBanner({
             type="button"
             variant="outline"
             size="sm"
-            className="h-9 min-w-[7.5rem] justify-center gap-2 rounded-full border-border/60 bg-background/90 text-xs font-medium shadow-sm backdrop-blur-sm transition-all hover:scale-[1.02] hover:bg-muted"
+            className="h-9 min-w-[7.5rem] justify-center gap-2 rounded-full border-border/60 bg-background/90 text-xs font-medium shadow-sm backdrop-blur-sm transition-all hover:scale-[1.02] hover:bg-muted max-[375px]:h-11"
             onClick={onOpenDetails}
           >
             <FileText className="h-3.5 w-3.5" aria-hidden />
@@ -194,7 +194,7 @@ export default function CampaignHeroBanner({
             type="button"
             variant="outline"
             size="sm"
-            className="h-9 min-w-[7.5rem] justify-center gap-2 rounded-full border-border/60 bg-background/90 text-xs font-medium shadow-sm backdrop-blur-sm transition-all hover:scale-[1.02] hover:bg-muted"
+            className="h-9 min-w-[7.5rem] justify-center gap-2 rounded-full border-border/60 bg-background/90 text-xs font-medium shadow-sm backdrop-blur-sm transition-all hover:scale-[1.02] hover:bg-muted max-[375px]:h-11"
             onClick={onDownload}
           >
             <Download className="h-3.5 w-3.5" aria-hidden />
