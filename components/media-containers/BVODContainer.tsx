@@ -28,6 +28,7 @@ import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { serializeBurstsJson } from "@/lib/mediaplan/serializeBurstsJson"
 import { expertApplyClearedAdServingOverride } from "@/lib/mediaplan/adServingOverrideNotice"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
+import { assignStableLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import { resolveBillingBurstLineItemId } from "@/lib/billing/resolveBillingBurstLineItemId"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
@@ -727,6 +728,10 @@ export default function BVODContainer({
           clientPaysForMedia: item.client_pays_for_media ?? false,
           budgetIncludesFees: item.budget_includes_fees ?? false,
           noadserving: item.no_adserving ?? false,
+          line_item: item.line_item ?? item.lineItem,
+          lineItem: item.lineItem ?? item.line_item,
+          line_item_id: item.line_item_id || item.lineItemId,
+          lineItemId: item.line_item_id || item.lineItemId,
           bursts: bursts,
           totalMedia: 0,
           totalDeliverables: 0,
@@ -747,8 +752,9 @@ export default function BVODContainer({
   // Transform form data to API schema format
   useEffect(() => {
     const formLineItems = form.getValues('bvodlineItems') || [];
+    const stableItems = assignStableLineItemNumbers<any>(formLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.bvod);
     
-    const transformedLineItems = formLineItems.map((lineItem, index) => {
+    const transformedLineItems = stableItems.map((lineItem, index) => {
       // Calculate totalMedia from raw budget amounts (for display in MBA section)
       let totalMedia = 0;
       lineItem.bursts.forEach((burst) => {
@@ -782,14 +788,14 @@ export default function BVODContainer({
         client_pays_for_media: lineItem.clientPaysForMedia || false,
         budget_includes_fees: lineItem.budgetIncludesFees || false,
         no_adserving: lineItem.noadserving || false,
-        line_item_id: buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.bvod, index + 1),
+        line_item_id: lineItem.line_item_id,
         bursts_json: JSON.stringify(serializeBurstsJson({
           bursts: lineItem.bursts,
           feePct: feebvod || 0,
           budgetIncludesFees: lineItem.budgetIncludesFees || false,
           clientPaysForMedia: lineItem.clientPaysForMedia || false,
         })),
-        line_item: index + 1,
+        line_item: lineItem.line_item,
         totalMedia: totalMedia,
       };
     });
