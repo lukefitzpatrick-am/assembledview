@@ -2834,25 +2834,25 @@ export function RadioExpertGrid({
                                   "bg-primary/[0.14] dark:bg-primary/12",
                                 !isMergedAnchorCell &&
                                   inStripPasteBand &&
-                                  "bg-emerald-500/[0.13] dark:bg-emerald-500/[0.1]",
+                                  "bg-pacing-ahead-bg",
                                 !isMergedAnchorCell &&
                                   inMergePulseHighlight &&
-                                  "z-[5] bg-fuchsia-500/16 ring-2 ring-inset ring-fuchsia-600/55 dark:bg-fuchsia-500/12 dark:ring-fuchsia-400/50",
+                                  "z-[5] bg-primary/10 ring-2 ring-inset ring-primary/45",
                                 !isMergedAnchorCell &&
                                   multiHighlight &&
                                   !isRangeOutlined &&
                                   "bg-primary/10 ring-1 ring-inset ring-primary/40",
                                 !isMergedAnchorCell &&
                                   isInMultiSelection &&
-                                  "ring-2 ring-blue-500 ring-inset bg-blue-100/50 dark:bg-blue-900/30",
+                                  "ring-2 ring-primary ring-inset bg-primary/10",
                                 !isMergedAnchorCell &&
                                   isInCopiedSelection &&
-                                  "ring-2 ring-dashed ring-green-500 animate-pulse",
+                                  "ring-2 ring-dashed ring-pacing-ahead animate-pulse",
                                 !isMergedAnchorCell &&
                                   mergeReadyOnCell &&
-                                  "radio-expert-week-cell--merge-ready z-[6] bg-amber-500/24 ring-2 ring-inset ring-amber-600/75 shadow-sm dark:bg-amber-500/20 dark:ring-amber-400/70",
+                                  "radio-expert-week-cell--merge-ready z-[6] bg-pacing-behind-bg ring-2 ring-inset ring-pacing-behind shadow-e0",
                                 isDragDropTargetValid &&
-                                  "z-[6] ring-2 ring-inset ring-sky-500/55 bg-sky-500/10 dark:ring-sky-400/55 dark:bg-sky-500/10",
+                                  "z-[6] ring-2 ring-inset ring-pacing-on-track bg-pacing-on-track-bg",
                                 isDragDropTargetCell &&
                                   !isDragDropTargetValid &&
                                   "z-[6] ring-1 ring-inset ring-destructive/55 bg-destructive/8",
@@ -2887,7 +2887,7 @@ export function RadioExpertGrid({
                                   : "h-8 px-0.5 bg-transparent",
                                 !isMergedAnchorCell && "focus-visible:ring-2 focus-visible:ring-offset-0",
                                 mergeReadyOnCell
-                                  ? "focus-visible:ring-amber-600/70 dark:focus-visible:ring-amber-400/70"
+                                  ? "focus-visible:ring-pacing-behind"
                                   : !isMergedAnchorCell &&
                                       "focus-visible:ring-primary/55",
                                 isMergedAnchorCell &&
@@ -2901,7 +2901,7 @@ export function RadioExpertGrid({
                                   "text-foreground font-medium",
                                 weekQtyVisual &&
                                   isMergedAnchorCell &&
-                                  "text-violet-950 dark:text-violet-100"
+                                  "text-foreground"
                               )
                               renderedWeekCells.push(
                                 <td
@@ -3388,7 +3388,7 @@ export function RadioExpertGrid({
                                     {mSpan ? (
                                       <button
                                         type="button"
-                                        className="pointer-events-auto absolute right-1 top-1 z-[60] inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-red-600/70 bg-red-100 text-red-800 shadow-md transition-colors hover:border-red-700 hover:bg-red-600 hover:text-white dark:border-red-400/70 dark:bg-red-500/28 dark:text-red-200 dark:hover:border-red-300 dark:hover:bg-red-500 dark:hover:text-white"
+                                        className="pointer-events-auto absolute right-1 top-1 z-[60] inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-destructive/60 bg-pacing-critical-bg text-status-critical-fg shadow-e1 transition-colors hover:border-destructive hover:bg-destructive hover:text-destructive-foreground"
                                         aria-label="Unmerge weeks"
                                         title="Unmerge weeks"
                                         onMouseDown={(e) => {

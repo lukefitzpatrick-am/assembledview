@@ -1606,7 +1606,7 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
                                                 setIsAddStationDialogOpen(true); //
                                               }}
                                             >
-                                              <PlusCircle className="h-5 w-5 text-blue-500" />
+                                              <PlusCircle className="h-5 w-5 text-primary" />
                                             </Button>
                                            </div>
                                         <FormMessage />
@@ -1762,7 +1762,7 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
                         {form.watch(`televisionlineItems.${lineItemIndex}.bursts`, []).map((burstField, burstIndex) => {
                           const buyType = form.watch(`televisionlineItems.${lineItemIndex}.buyType`);
                           return (
-                            <Card key={(burstField as any)._reactKey ?? `${lineItemIndex}-${burstIndex}`} className="border border-gray-200 bg-muted/30 mx-2">
+                            <Card key={(burstField as any)._reactKey ?? `${lineItemIndex}-${burstIndex}`} className="mx-2 rounded-card border border-border bg-surface-muted shadow-e0">
                               <CardContent className="py-2 px-4">
                                 <div className="flex items-center gap-3">
                                   <div className="w-24 flex-shrink-0">
