@@ -30,6 +30,7 @@ import { appendBurst, removeBurst, newBurstReactKey, stampBurstReactKeys } from 
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
+import { resolveBillingBurstLineItemId } from "@/lib/billing/resolveBillingBurstLineItemId"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
 import { ChevronDown, Copy, Plus, Trash2 } from "lucide-react"
@@ -138,11 +139,12 @@ interface DigiVideoContainerProps {
 
 export function getDigiVideoBursts(
   form: UseFormReturn<DigiVideoFormValues>,
-  feedigivideo: number
+  feedigivideo: number,
+  mbaNumber?: string,
 ): BillingBurst[] {
   const digivideolineItems = form.getValues("digivideolineItems") || []
 
-  return digivideolineItems.flatMap(li =>
+  return digivideolineItems.flatMap((li, liIndex) =>
     li.bursts.map(burst => {
       const rawBudget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0
 
@@ -170,7 +172,13 @@ export function getDigiVideoBursts(
         budgetIncludesFees: li.budgetIncludesFees,
         noAdserving: li.noadserving,
         deliverables: burst.calculatedValue ?? 0,
-        buyType: li.buyType
+        buyType: li.buyType,
+        lineItemId: resolveBillingBurstLineItemId(
+          li,
+          mbaNumber,
+          MEDIA_TYPE_ID_CODES.digitalVideo,
+          liIndex,
+        ),
       }
     })
   )
@@ -1067,7 +1075,7 @@ useEffect(() => {
 
 useEffect(() => {
   // convert each form lineItem into the shape needed for Excel
-  const calculatedBursts = getDigiVideoBursts(form, feedigivideo || 0);
+  const calculatedBursts = getDigiVideoBursts(form, feedigivideo || 0, mbaNumber);
   let burstIndex = 0;
 
   const items: LineItem[] = form.getValues('digivideolineItems').flatMap((lineItem, lineItemIndex) =>
@@ -1120,7 +1128,7 @@ useEffect(() => {
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       const investmentByMonth = calculateInvestmentPerMonth(form, feedigivideo || 0);
-      const bursts = getDigiVideoBursts(form, feedigivideo || 0);
+      const bursts = getDigiVideoBursts(form, feedigivideo || 0, mbaNumber);
       
       const hasInvestmentChanges = JSON.stringify(investmentByMonth) !== JSON.stringify(prevInvestmentRef.current);
       const hasBurstChanges = JSON.stringify(bursts) !== JSON.stringify(prevBurstsRef.current);
@@ -1146,7 +1154,7 @@ useEffect(() => {
     }, 300); // 300ms debounce
 
     return () => clearTimeout(timeoutId);
-  }, [watchedLineItems, feedigivideo, form, onBurstsChange, onInvestmentChange]);
+  }, [watchedLineItems, feedigivideo, form, mbaNumber, onBurstsChange, onInvestmentChange]);
 
   const getBursts = () => {
     const formLineItems = form.getValues("digivideolineItems") || [];
