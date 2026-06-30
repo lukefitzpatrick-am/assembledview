@@ -607,7 +607,18 @@
     "category_raw": "Governance",
     "group": "Governance & Privacy",
     "definition": "File authorising sellers of inventory",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A public file on a publisher's site listing who's authorised to sell its ad inventory.",
+    "whyItMatters": "Stops counterfeit/unauthorised reselling of inventory - a basic anti-fraud check buyers should require.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "IAB Tech Lab - ads.txt",
+        "url": "https://iabtechlab.com/ads-txt/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "advanced-tv-channel-eebc8210",
@@ -894,7 +905,18 @@
     "category_raw": "Governance",
     "group": "Governance & Privacy",
     "definition": "App equivalent of ads.txt",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The app/CTV equivalent of ads.txt - declares authorised sellers for an app's inventory.",
+    "whyItMatters": "Extends the same anti-counterfeit transparency to mobile apps and connected TV.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "IAB Tech Lab - ads.txt / app-ads.txt",
+        "url": "https://iabtechlab.com/ads-txt/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "arbitrage-trading-a91e6947",
@@ -1556,7 +1578,18 @@
     "category_raw": "Governance",
     "group": "Governance & Privacy",
     "definition": "Excluded inventory list",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A list of sites/placements ads are blocked from running on (now usually 'blocklist').",
+    "whyItMatters": "Removes known-bad inventory, but can be blunt and over-block - keep it current and not overly broad.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "IAB Australia - Brand safety & suitability guidance",
+        "url": "https://www.iabaustralia.com.au/guideline/brand-safety-suitability-guidance/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "blended-roas-metric-1b159a7c",
@@ -1606,7 +1639,18 @@
     "category_raw": "Governance",
     "group": "Governance & Privacy",
     "definition": "Automated non-human traffic",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Automated, non-human traffic - some legitimate (search crawlers), much of it invalid/fraudulent.",
+    "whyItMatters": "Inflates metrics and wastes budget if counted as real; filtering it is core to measurement integrity.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "IAB Europe - What is ad fraud (PDF)",
+        "url": "https://iabeurope.eu/wp-content/uploads/2019/11/what-is-ad-fraud-and-how-can-it-be-prevented.pdf"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "brand-defense-strategy-47254a71",
@@ -1655,7 +1699,23 @@
     "category_raw": "Governance",
     "group": "Governance & Privacy",
     "definition": "Controls to avoid unsafe content",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Controls that keep ads away from content that could harm the brand (violence, hate, etc.).",
+    "whyItMatters": "Protects reputation - but over-blocking starves quality publishers of revenue, so balance safety with suitability.",
+    "practitionerNotes": "GARM framework discontinued Aug 2024; pair with IAB Australia guidance.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "WFA/GARM - Brand Safety Floor & Suitability Framework",
+        "url": "https://wfanet.org/knowledge/item/2022/06/17/GARM-Brand-Safety-Floor--Suitability-Framework-3"
+      },
+      {
+        "label": "IAB Australia - Brand safety & suitability guidance",
+        "url": "https://www.iabaustralia.com.au/guideline/brand-safety-suitability-guidance/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "brand-search-structure-a96b9d43",
@@ -2262,7 +2322,18 @@
     "category_raw": "Privacy",
     "group": "Governance & Privacy",
     "definition": "Consent Management Platform",
-    "type": "acronym"
+    "type": "acronym",
+    "plainEnglish": "Consent Management Platform - the tool that collects and stores users' consent for data/cookies.",
+    "whyItMatters": "The compliance layer between privacy law and tracking - it tells platforms whether they're allowed to use someone's data.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "IAB Europe - Transparency & Consent Framework",
+        "url": "https://iabeurope.eu/transparency-consent-framework/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "coles-360-retail-media-7d824eef",
@@ -2399,7 +2470,18 @@
     "category_raw": "Privacy",
     "group": "Governance & Privacy",
     "definition": "Consent-based signal handling",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Google's system for adjusting how tags behave based on a user's consent choices.",
+    "whyItMatters": "Lets measurement continue (often via modelling) while respecting consent - key to privacy-compliant tracking.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "Google - Consent Mode",
+        "url": "https://developers.google.com/tag-platform/security/concepts/consent-mode"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "contextual-alignment-planning-850e97b3",
@@ -4714,7 +4796,18 @@
     "category_raw": "Governance",
     "group": "Governance & Privacy",
     "definition": "Invalid or deceptive traffic",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Invalid or deceptive ad traffic designed to steal budget (fake impressions, clicks, bots).",
+    "whyItMatters": "Directly wastes spend and corrupts data; detection/filtration and clean supply paths are the defence.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "IAB Europe - What is ad fraud (PDF)",
+        "url": "https://iabeurope.eu/wp-content/uploads/2019/11/what-is-ad-fraud-and-how-can-it-be-prevented.pdf"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "free-to-air-tv-channel-bca0f4ac",
@@ -4921,7 +5014,18 @@
     "category_raw": "Governance",
     "group": "Governance & Privacy",
     "definition": "General Invalid Traffic",
-    "type": "acronym"
+    "type": "acronym",
+    "plainEnglish": "General Invalid Traffic - the easy-to-detect invalid traffic (known bots, crawlers, data-centre traffic).",
+    "whyItMatters": "Filtered by standard lists/rules; catching it is table stakes, but it's not the hard part.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "IAB/MRC - Invalid traffic detection guidelines",
+        "url": "https://www.iab.com/guidelines/mrc-invalid-traffic-ivt-detection-and-filtration-guidelines-addendum/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "governance-governance-db038659",
@@ -4930,7 +5034,19 @@
     "category_raw": "Governance",
     "group": "Governance & Privacy",
     "definition": "Decision and control framework",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The framework of decisions, controls and accountability for how media is bought and managed.",
+    "whyItMatters": "Good governance (approvals, brand-safety rules, audits) is what keeps spend controlled, compliant and on-strategy.",
+    "practitionerNotes": "Generic term; defined in-house.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "ANA - Programmatic supply chain transparency",
+        "url": "https://www.ana.net/miccontent/show/id/rr-2023-12-ana-programmatic-media-supply-chain-transparency-study"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "gross-cost-finance-02c9e972",
@@ -5343,7 +5459,18 @@
     "category_raw": "Industry",
     "group": "Governance & Privacy",
     "definition": "Interactive Advertising Bureau Australia",
-    "type": "acronym"
+    "type": "acronym",
+    "plainEnglish": "Interactive Advertising Bureau - the global body setting digital advertising standards and guidelines.",
+    "whyItMatters": "Behind much of the industry's plumbing - ad specs, ads.txt, OpenRTB, viewability and measurement standards.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "IAB - Our story",
+        "url": "https://www.iab.com/our-story/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "iab-australia-industry-16386732",
@@ -5352,7 +5479,18 @@
     "category_raw": "Industry",
     "group": "Governance & Privacy",
     "definition": "Australian industry body",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The Australian peak body for digital advertising - local standards, benchmarks and guidance.",
+    "whyItMatters": "Your local source of truth for AU ad standards, brand safety, retail media and measurement guidance.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "IAB Australia - About",
+        "url": "https://www.iabaustralia.com.au/about-iab/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "ias-verification-d515485d",
@@ -5670,7 +5808,18 @@
     "category_raw": "Governance",
     "group": "Governance & Privacy",
     "definition": "Assessment of supply quality",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "An assessment of how good ad supply is - real audiences, viewable, brand-safe, fraud-free.",
+    "whyItMatters": "Cheap CPMs often mean poor quality; judging inventory on quality (not just price) is what protects outcomes.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "ANA - Made for Advertising findings",
+        "url": "https://www.ana.net/miccontent/show/id/ii-2024-03-mfa-findings"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "invoice-finance-4f53d6ca",
@@ -5719,7 +5868,18 @@
     "category_raw": "Governance",
     "group": "Governance & Privacy",
     "definition": "Invalid traffic classification",
-    "type": "acronym"
+    "type": "acronym",
+    "plainEnglish": "Invalid Traffic - impressions/clicks that aren't genuine human engagement (bots, fraud, errors).",
+    "whyItMatters": "The umbrella for non-human/illegitimate traffic; MRC standards split it into general (GIVT) and sophisticated (SIVT).",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "IAB/MRC - Invalid traffic detection guidelines",
+        "url": "https://www.iab.com/guidelines/mrc-invalid-traffic-ivt-detection-and-filtration-guidelines-addendum/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "keyword-structure-9d7cb587",
@@ -6889,7 +7049,19 @@
     "category_raw": "Governance",
     "group": "Governance & Privacy",
     "definition": "Made for Advertising inventory",
-    "type": "acronym"
+    "type": "acronym",
+    "plainEnglish": "Made for Advertising - low-quality sites built mainly to carry ads, not to serve genuine audiences.",
+    "whyItMatters": "Cheap impressions that look efficient but deliver little real attention or outcome; a major drain on programmatic budgets (per ANA studies).",
+    "practitionerNotes": "Here 'MFA' = Made for Advertising (not Media Federation of Australia).",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "ANA - Made for Advertising findings",
+        "url": "https://www.ana.net/miccontent/show/id/ii-2024-03-mfa-findings"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "micro-conversion-analytics-28489206",
@@ -7404,7 +7576,18 @@
     "category_raw": "Governance",
     "group": "Governance & Privacy",
     "definition": "Australian privacy regulator",
-    "type": "acronym"
+    "type": "acronym",
+    "plainEnglish": "Office of the Australian Information Commissioner - the federal privacy regulator.",
+    "whyItMatters": "Enforces the Privacy Act and the APPs, and its adtech/AI focus directly affects how advertisers handle data.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "OAIC - The Privacy Act",
+        "url": "https://www.oaic.gov.au/privacy/privacy-legislation/the-privacy-act"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "objective-optimisation-0125af74",
@@ -8110,7 +8293,19 @@
     "category_raw": "Governance",
     "group": "Governance & Privacy",
     "definition": "Blocking after impression",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Blocking an ad from rendering after the impression is bought, if it lands somewhere unsafe.",
+    "whyItMatters": "A safety net, but you've already paid - pre-bid blocking is more efficient where available.",
+    "practitionerNotes": "No primary standards page; vendor-defined.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "Delivr - Pre-bid vs post-bid brand safety",
+        "url": "https://www.delivr.ai/resources/pre-bid-vs-post-bid-brand-safety"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "post-buy-delivery-bb728282",
@@ -8139,7 +8334,19 @@
     "category_raw": "Governance",
     "group": "Governance & Privacy",
     "definition": "Blocking before auction",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Stopping an ad from being bought on unsafe inventory before the auction/bid.",
+    "whyItMatters": "Prevents waste - you never pay for the bad impression. The preferred, more cost-effective control.",
+    "practitionerNotes": "No primary standards page; vendor-defined.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "Delivr - Pre-bid vs post-bid brand safety",
+        "url": "https://www.delivr.ai/resources/pre-bid-vs-post-bid-brand-safety"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "prebid-mechanics-30f587de",
@@ -8298,7 +8505,18 @@
     "category_raw": "Governance",
     "group": "Governance & Privacy",
     "definition": "Australian privacy legislation",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Australia's main privacy law (Privacy Act 1988), governing how personal information is handled.",
+    "whyItMatters": "Shapes what data you can collect and use for targeting/measurement; reform is tightening the rules on adtech.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "OAIC - The Privacy Act",
+        "url": "https://www.oaic.gov.au/privacy/privacy-legislation/the-privacy-act"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "private-marketplace-trading-2845a7ee",
@@ -9102,7 +9320,19 @@
     "category_raw": "Governance",
     "group": "Governance & Privacy",
     "definition": "Tracked risks and mitigations",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A tracked list of risks and the actions in place to mitigate them.",
+    "whyItMatters": "Keeps brand-safety, fraud, compliance and delivery risks visible and owned rather than forgotten.",
+    "practitionerNotes": "Generic governance term; defined in-house.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "ANA - Programmatic supply chain transparency",
+        "url": "https://www.ana.net/miccontent/show/id/rr-2023-12-ana-programmatic-media-supply-chain-transparency-study"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "roadmap-ops-8efb52d6",
@@ -9700,7 +9930,18 @@
     "category_raw": "Governance",
     "group": "Governance & Privacy",
     "definition": "Transparency file listing sellers",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "A public file from a platform/exchange disclosing the sellers and intermediaries in the supply chain.",
+    "whyItMatters": "The other half of supply transparency (with ads.txt) - lets buyers see who's really in the path and spot hidden hops.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "IAB Tech Lab - sellers.json",
+        "url": "https://iabtechlab.com/sellers-json/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "sem-channel-3af104b8",
@@ -9890,7 +10131,18 @@
     "category_raw": "Governance",
     "group": "Governance & Privacy",
     "definition": "Sophisticated Invalid Traffic",
-    "type": "acronym"
+    "type": "acronym",
+    "plainEnglish": "Sophisticated Invalid Traffic - deliberately deceptive fraud designed to look human.",
+    "whyItMatters": "The hard, costly kind - needs advanced detection; the reason accredited verification exists.",
+    "level": "advanced",
+    "sources": [
+      {
+        "label": "IAB/MRC - Invalid traffic detection guidelines",
+        "url": "https://www.iab.com/guidelines/mrc-invalid-traffic-ivt-detection-and-filtration-guidelines-addendum/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "skippable-video-format-3e491003",
@@ -10185,7 +10437,18 @@
     "category_raw": "Governance",
     "group": "Governance & Privacy",
     "definition": "Controls for brand-appropriate content",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Tuning where ads run to content that's appropriate for the specific brand (beyond just 'safe').",
+    "whyItMatters": "More nuanced than brand safety - what's unsuitable for one brand is fine for another; avoids blunt blocklists.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "IAB Australia - Brand safety & suitability guidance",
+        "url": "https://www.iabaustralia.com.au/guideline/brand-safety-suitability-guidance/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "supply-supply-9ed07eb6",
@@ -10491,7 +10754,18 @@
     "category_raw": "Industry",
     "group": "Governance & Privacy",
     "definition": "Australian TV industry planning body",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "The Australian TV industry's marketing and research body (the commercial broadcasters).",
+    "whyItMatters": "The go-to source for AU TV/BVOD effectiveness research, planning tools and 'Total TV' (VOZ) education.",
+    "level": "foundational",
+    "sources": [
+      {
+        "label": "ThinkTV - About",
+        "url": "https://thinktv.com.au/about-thinktv/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "third-party-data-data-e3f66e23",
@@ -10726,7 +11000,18 @@
     "category_raw": "Governance",
     "group": "Governance & Privacy",
     "definition": "Clear disclosure of supply and costs",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Clear disclosure of where media runs and what it costs (supply path, fees, intermediaries).",
+    "whyItMatters": "The basis of trust and efficiency - opaque chains hide fraud, hidden fees and wasted spend.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "ANA - Programmatic supply chain transparency",
+        "url": "https://www.ana.net/miccontent/show/id/rr-2023-12-ana-programmatic-media-supply-chain-transparency-study"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "troas-bidding-879b9852",
@@ -11233,7 +11518,18 @@
     "category_raw": "Governance",
     "group": "Governance & Privacy",
     "definition": "Independent measurement of delivery",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "Independent, third-party measurement confirming ads were delivered as expected (viewable, brand-safe, to real humans).",
+    "whyItMatters": "Don't mark your own homework - accredited verification (IAS, DoubleVerify, MOAT) is the trust layer over platform-reported numbers.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "IAB/MRC - Invalid traffic detection guidelines",
+        "url": "https://www.iab.com/guidelines/mrc-invalid-traffic-ivt-detection-and-filtration-guidelines-addendum/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "video-format-d204e12f",
@@ -11531,7 +11827,18 @@
     "category_raw": "Governance",
     "group": "Governance & Privacy",
     "definition": "Approved inventory list",
-    "type": "definition"
+    "type": "definition",
+    "plainEnglish": "An approved list of sites/placements where ads are allowed to run (now usually 'allowlist').",
+    "whyItMatters": "Maximum control and safety, but limits scale - good for premium/brand work, restrictive for performance reach.",
+    "level": "intermediate",
+    "sources": [
+      {
+        "label": "IAB Australia - Brand safety & suitability guidance",
+        "url": "https://www.iabaustralia.com.au/guideline/brand-safety-suitability-guidance/"
+      }
+    ],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   },
   {
     "id": "win-rate-supply-0c2070da",

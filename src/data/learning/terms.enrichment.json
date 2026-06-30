@@ -4232,5 +4232,254 @@
     "sources": [{ "label": "Amazon Ads - Sponsored Products", "url": "https://advertising.amazon.com/solutions/products/sponsored-products" }],
     "status": "reviewed",
     "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Brand Safety",
+    "plainEnglish": "Controls that keep ads away from content that could harm the brand (violence, hate, etc.).",
+    "whyItMatters": "Protects reputation - but over-blocking starves quality publishers of revenue, so balance safety with suitability.",
+    "practitionerNotes": "GARM framework discontinued Aug 2024; pair with IAB Australia guidance.",
+    "level": "intermediate",
+    "sources": [{ "label": "WFA/GARM - Brand Safety Floor & Suitability Framework", "url": "https://wfanet.org/knowledge/item/2022/06/17/GARM-Brand-Safety-Floor--Suitability-Framework-3" }, { "label": "IAB Australia - Brand safety & suitability guidance", "url": "https://www.iabaustralia.com.au/guideline/brand-safety-suitability-guidance/" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Suitability",
+    "plainEnglish": "Tuning where ads run to content that's appropriate for the specific brand (beyond just 'safe').",
+    "whyItMatters": "More nuanced than brand safety - what's unsuitable for one brand is fine for another; avoids blunt blocklists.",
+    "level": "intermediate",
+    "sources": [{ "label": "IAB Australia - Brand safety & suitability guidance", "url": "https://www.iabaustralia.com.au/guideline/brand-safety-suitability-guidance/" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Whitelisting",
+    "plainEnglish": "An approved list of sites/placements where ads are allowed to run (now usually 'allowlist').",
+    "whyItMatters": "Maximum control and safety, but limits scale - good for premium/brand work, restrictive for performance reach.",
+    "level": "intermediate",
+    "sources": [{ "label": "IAB Australia - Brand safety & suitability guidance", "url": "https://www.iabaustralia.com.au/guideline/brand-safety-suitability-guidance/" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Blacklisting",
+    "plainEnglish": "A list of sites/placements ads are blocked from running on (now usually 'blocklist').",
+    "whyItMatters": "Removes known-bad inventory, but can be blunt and over-block - keep it current and not overly broad.",
+    "level": "intermediate",
+    "sources": [{ "label": "IAB Australia - Brand safety & suitability guidance", "url": "https://www.iabaustralia.com.au/guideline/brand-safety-suitability-guidance/" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Pre-bid Blocking",
+    "plainEnglish": "Stopping an ad from being bought on unsafe inventory before the auction/bid.",
+    "whyItMatters": "Prevents waste - you never pay for the bad impression. The preferred, more cost-effective control.",
+    "practitionerNotes": "No primary standards page; vendor-defined.",
+    "level": "advanced",
+    "sources": [{ "label": "Delivr - Pre-bid vs post-bid brand safety", "url": "https://www.delivr.ai/resources/pre-bid-vs-post-bid-brand-safety" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Post-bid Blocking",
+    "plainEnglish": "Blocking an ad from rendering after the impression is bought, if it lands somewhere unsafe.",
+    "whyItMatters": "A safety net, but you've already paid - pre-bid blocking is more efficient where available.",
+    "practitionerNotes": "No primary standards page; vendor-defined.",
+    "level": "advanced",
+    "sources": [{ "label": "Delivr - Pre-bid vs post-bid brand safety", "url": "https://www.delivr.ai/resources/pre-bid-vs-post-bid-brand-safety" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Verification",
+    "plainEnglish": "Independent, third-party measurement confirming ads were delivered as expected (viewable, brand-safe, to real humans).",
+    "whyItMatters": "Don't mark your own homework - accredited verification (IAS, DoubleVerify, MOAT) is the trust layer over platform-reported numbers.",
+    "level": "intermediate",
+    "sources": [{ "label": "IAB/MRC - Invalid traffic detection guidelines", "url": "https://www.iab.com/guidelines/mrc-invalid-traffic-ivt-detection-and-filtration-guidelines-addendum/" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Fraud",
+    "plainEnglish": "Invalid or deceptive ad traffic designed to steal budget (fake impressions, clicks, bots).",
+    "whyItMatters": "Directly wastes spend and corrupts data; detection/filtration and clean supply paths are the defence.",
+    "level": "intermediate",
+    "sources": [{ "label": "IAB Europe - What is ad fraud (PDF)", "url": "https://iabeurope.eu/wp-content/uploads/2019/11/what-is-ad-fraud-and-how-can-it-be-prevented.pdf" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "IVT",
+    "plainEnglish": "Invalid Traffic - impressions/clicks that aren't genuine human engagement (bots, fraud, errors).",
+    "whyItMatters": "The umbrella for non-human/illegitimate traffic; MRC standards split it into general (GIVT) and sophisticated (SIVT).",
+    "level": "intermediate",
+    "sources": [{ "label": "IAB/MRC - Invalid traffic detection guidelines", "url": "https://www.iab.com/guidelines/mrc-invalid-traffic-ivt-detection-and-filtration-guidelines-addendum/" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "GIVT",
+    "plainEnglish": "General Invalid Traffic - the easy-to-detect invalid traffic (known bots, crawlers, data-centre traffic).",
+    "whyItMatters": "Filtered by standard lists/rules; catching it is table stakes, but it's not the hard part.",
+    "level": "advanced",
+    "sources": [{ "label": "IAB/MRC - Invalid traffic detection guidelines", "url": "https://www.iab.com/guidelines/mrc-invalid-traffic-ivt-detection-and-filtration-guidelines-addendum/" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "SIVT",
+    "plainEnglish": "Sophisticated Invalid Traffic - deliberately deceptive fraud designed to look human.",
+    "whyItMatters": "The hard, costly kind - needs advanced detection; the reason accredited verification exists.",
+    "level": "advanced",
+    "sources": [{ "label": "IAB/MRC - Invalid traffic detection guidelines", "url": "https://www.iab.com/guidelines/mrc-invalid-traffic-ivt-detection-and-filtration-guidelines-addendum/" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Bot Traffic",
+    "plainEnglish": "Automated, non-human traffic - some legitimate (search crawlers), much of it invalid/fraudulent.",
+    "whyItMatters": "Inflates metrics and wastes budget if counted as real; filtering it is core to measurement integrity.",
+    "level": "intermediate",
+    "sources": [{ "label": "IAB Europe - What is ad fraud (PDF)", "url": "https://iabeurope.eu/wp-content/uploads/2019/11/what-is-ad-fraud-and-how-can-it-be-prevented.pdf" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "MFA",
+    "plainEnglish": "Made for Advertising - low-quality sites built mainly to carry ads, not to serve genuine audiences.",
+    "whyItMatters": "Cheap impressions that look efficient but deliver little real attention or outcome; a major drain on programmatic budgets (per ANA studies).",
+    "practitionerNotes": "Here 'MFA' = Made for Advertising (not Media Federation of Australia).",
+    "level": "advanced",
+    "sources": [{ "label": "ANA - Made for Advertising findings", "url": "https://www.ana.net/miccontent/show/id/ii-2024-03-mfa-findings" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Inventory Quality",
+    "plainEnglish": "An assessment of how good ad supply is - real audiences, viewable, brand-safe, fraud-free.",
+    "whyItMatters": "Cheap CPMs often mean poor quality; judging inventory on quality (not just price) is what protects outcomes.",
+    "level": "intermediate",
+    "sources": [{ "label": "ANA - Made for Advertising findings", "url": "https://www.ana.net/miccontent/show/id/ii-2024-03-mfa-findings" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Ads.txt",
+    "plainEnglish": "A public file on a publisher's site listing who's authorised to sell its ad inventory.",
+    "whyItMatters": "Stops counterfeit/unauthorised reselling of inventory - a basic anti-fraud check buyers should require.",
+    "level": "intermediate",
+    "sources": [{ "label": "IAB Tech Lab - ads.txt", "url": "https://iabtechlab.com/ads-txt/" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "App-ads.txt",
+    "plainEnglish": "The app/CTV equivalent of ads.txt - declares authorised sellers for an app's inventory.",
+    "whyItMatters": "Extends the same anti-counterfeit transparency to mobile apps and connected TV.",
+    "level": "intermediate",
+    "sources": [{ "label": "IAB Tech Lab - ads.txt / app-ads.txt", "url": "https://iabtechlab.com/ads-txt/" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Sellers.json",
+    "plainEnglish": "A public file from a platform/exchange disclosing the sellers and intermediaries in the supply chain.",
+    "whyItMatters": "The other half of supply transparency (with ads.txt) - lets buyers see who's really in the path and spot hidden hops.",
+    "level": "advanced",
+    "sources": [{ "label": "IAB Tech Lab - sellers.json", "url": "https://iabtechlab.com/sellers-json/" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Transparency",
+    "plainEnglish": "Clear disclosure of where media runs and what it costs (supply path, fees, intermediaries).",
+    "whyItMatters": "The basis of trust and efficiency - opaque chains hide fraud, hidden fees and wasted spend.",
+    "level": "intermediate",
+    "sources": [{ "label": "ANA - Programmatic supply chain transparency", "url": "https://www.ana.net/miccontent/show/id/rr-2023-12-ana-programmatic-media-supply-chain-transparency-study" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Governance",
+    "plainEnglish": "The framework of decisions, controls and accountability for how media is bought and managed.",
+    "whyItMatters": "Good governance (approvals, brand-safety rules, audits) is what keeps spend controlled, compliant and on-strategy.",
+    "practitionerNotes": "Generic term; defined in-house.",
+    "level": "intermediate",
+    "sources": [{ "label": "ANA - Programmatic supply chain transparency", "url": "https://www.ana.net/miccontent/show/id/rr-2023-12-ana-programmatic-media-supply-chain-transparency-study" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Risk Register",
+    "plainEnglish": "A tracked list of risks and the actions in place to mitigate them.",
+    "whyItMatters": "Keeps brand-safety, fraud, compliance and delivery risks visible and owned rather than forgotten.",
+    "practitionerNotes": "Generic governance term; defined in-house.",
+    "level": "intermediate",
+    "sources": [{ "label": "ANA - Programmatic supply chain transparency", "url": "https://www.ana.net/miccontent/show/id/rr-2023-12-ana-programmatic-media-supply-chain-transparency-study" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Privacy Act",
+    "plainEnglish": "Australia's main privacy law (Privacy Act 1988), governing how personal information is handled.",
+    "whyItMatters": "Shapes what data you can collect and use for targeting/measurement; reform is tightening the rules on adtech.",
+    "level": "intermediate",
+    "sources": [{ "label": "OAIC - The Privacy Act", "url": "https://www.oaic.gov.au/privacy/privacy-legislation/the-privacy-act" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "OAIC",
+    "plainEnglish": "Office of the Australian Information Commissioner - the federal privacy regulator.",
+    "whyItMatters": "Enforces the Privacy Act and the APPs, and its adtech/AI focus directly affects how advertisers handle data.",
+    "level": "intermediate",
+    "sources": [{ "label": "OAIC - The Privacy Act", "url": "https://www.oaic.gov.au/privacy/privacy-legislation/the-privacy-act" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "CMP",
+    "plainEnglish": "Consent Management Platform - the tool that collects and stores users' consent for data/cookies.",
+    "whyItMatters": "The compliance layer between privacy law and tracking - it tells platforms whether they're allowed to use someone's data.",
+    "level": "advanced",
+    "sources": [{ "label": "IAB Europe - Transparency & Consent Framework", "url": "https://iabeurope.eu/transparency-consent-framework/" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Consent Mode",
+    "plainEnglish": "Google's system for adjusting how tags behave based on a user's consent choices.",
+    "whyItMatters": "Lets measurement continue (often via modelling) while respecting consent - key to privacy-compliant tracking.",
+    "level": "advanced",
+    "sources": [{ "label": "Google - Consent Mode", "url": "https://developers.google.com/tag-platform/security/concepts/consent-mode" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "IAB",
+    "plainEnglish": "Interactive Advertising Bureau - the global body setting digital advertising standards and guidelines.",
+    "whyItMatters": "Behind much of the industry's plumbing - ad specs, ads.txt, OpenRTB, viewability and measurement standards.",
+    "level": "foundational",
+    "sources": [{ "label": "IAB - Our story", "url": "https://www.iab.com/our-story/" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "IAB Australia",
+    "plainEnglish": "The Australian peak body for digital advertising - local standards, benchmarks and guidance.",
+    "whyItMatters": "Your local source of truth for AU ad standards, brand safety, retail media and measurement guidance.",
+    "level": "foundational",
+    "sources": [{ "label": "IAB Australia - About", "url": "https://www.iabaustralia.com.au/about-iab/" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "ThinkTV",
+    "plainEnglish": "The Australian TV industry's marketing and research body (the commercial broadcasters).",
+    "whyItMatters": "The go-to source for AU TV/BVOD effectiveness research, planning tools and 'Total TV' (VOZ) education.",
+    "level": "foundational",
+    "sources": [{ "label": "ThinkTV - About", "url": "https://thinktv.com.au/about-thinktv/" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   }
 ]
