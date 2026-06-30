@@ -40,7 +40,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
             >
               Skip to content
             </a>
-            <div className="flex min-h-dvh w-full overflow-visible">
+            <div className="flex min-h-dvh w-full overflow-visible bg-[hsl(var(--sidebar-bg))]">
               {isShellVisible && <AppSidebar />}
               <SidebarInset
                 className={cn(
