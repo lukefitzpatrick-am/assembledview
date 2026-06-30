@@ -19,6 +19,10 @@ import { cn } from "@/lib/utils"
 import { formatCurrencyFull } from "@/lib/format/currency"
 import { formatAUD, formatMoney } from "@/lib/format/money"
 import type { BillingBurst } from "@/lib/billing/types"
+import {
+  aggregateInvestmentDisplayRows,
+  type InvestmentBurstInput,
+} from "@/lib/billing/prorateInvestmentDisplay"
 import { formatBurstLabel } from "@/lib/bursts"
 import type { LineItem } from "@/lib/generateMediaPlan"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
@@ -149,34 +153,14 @@ const buildBillingBursts = (lineItems: ProductionFormValues["lineItems"]): Billi
 }
 
 const buildInvestmentByMonth = (bursts: BillingBurst[]) => {
-  const monthly: Record<string, number> = {}
-  bursts.forEach((burst) => {
-    const start = new Date(burst.startDate)
-    const end = new Date(burst.endDate)
-    if (isNaN(start.getTime()) || isNaN(end.getTime())) return
-    const totalDays = Math.max(
-      1,
-      Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
-    )
-    let cursor = new Date(start)
-    while (cursor <= end) {
-      const monthYear = `${cursor.toLocaleString("default", {
-        month: "long",
-      })} ${cursor.getFullYear()}`
-      const nextMonth = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0)
-      const sliceEnd =
-        nextMonth > end ? end : nextMonth
-      const daysInThisMonth =
-        Math.ceil((sliceEnd.getTime() - cursor.getTime()) / (1000 * 60 * 60 * 24)) + 1
-      const share = (burst.mediaAmount || 0) * (daysInThisMonth / totalDays)
-      monthly[monthYear] = (monthly[monthYear] || 0) + share
-      cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1)
-    }
-  })
-  return Object.entries(monthly).map(([monthYear, amount]) => ({
-    monthYear,
-    amount: formatCurrencyFull(amount, { locale: "en-AU", currency: "AUD" }),
+  const inputs: InvestmentBurstInput[] = bursts.map((burst) => ({
+    amount: burst.mediaAmount || 0,
+    start: burst.startDate,
+    end: burst.endDate,
   }))
+  return aggregateInvestmentDisplayRows(inputs, (amount) =>
+    formatCurrencyFull(amount, { locale: "en-AU", currency: "AUD" }),
+  )
 }
 
 /**
