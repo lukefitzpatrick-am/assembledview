@@ -274,13 +274,23 @@ export function mergeDigiDisplayStandardFromExpertWithPrevious(
   return generated.map((li, i) => {
     const k = stableStandardLineItemKey(li, i)
     const prev = prevByKey.get(k)
-    if (!prev) return li
+    if (!prev) {
+      return {
+        ...li,
+        line_item: undefined,
+        lineItem: undefined,
+        line_item_id: undefined,
+        lineItemId: undefined,
+      }
+    }
     return {
       ...li,
       noadserving: prev.noadserving,
       targetingAttribute: prev.targetingAttribute ?? li.targetingAttribute ?? "",
       placement: prev.placement ?? li.placement ?? "",
       size: prev.size ?? li.size ?? "",
+      line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
+      lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
     }
   })
 }

@@ -29,7 +29,7 @@ import {
   pickLineItemNumber,
   sortLineItemsByLineItemNumber,
 } from "@/lib/mediaplan/lineItemIds"
-import { reassignDigiDisplayLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
+import { assignStableLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { appendBurst, duplicateBurst, removeBurst, newBurstReactKey, stampBurstReactKeys } from "@/lib/mediaplan/burstOperations"
 import { serializeBurstsJson } from "@/lib/mediaplan/serializeBurstsJson"
@@ -661,7 +661,11 @@ export default function DigiDisplayContainer({
       standard,
       asStandardDigiDisplayItems(prevLineItems)
     )
-    const reassigned = reassignDigiDisplayLineItemNumbers(merged, mbaNumber)
+    const reassigned = assignStableLineItemNumbers<any>(
+      merged,
+      mbaNumber,
+      MEDIA_TYPE_ID_CODES.digitalDisplay
+    )
     const keyedMerged = stampBurstReactKeys(reassigned)
     const clearedOverride = expertApplyClearedAdServingOverride(
       prevLineItems as any,
@@ -745,7 +749,13 @@ export default function DigiDisplayContainer({
     (items) => {
       console.log("[DigitalDisplayContainer] Loading initialLineItems:", initialLineItems);
       
-      const sortedItems = sortLineItemsByLineItemNumber(items)
+      const sortedItems = sortLineItemsByLineItemNumber(
+        assignStableLineItemNumbers<any>(
+          items,
+          mbaNumber,
+          MEDIA_TYPE_ID_CODES.digitalDisplay
+        )
+      )
       const transformedLineItems = sortedItems.map((item: any, index: number) => {
         const lineNumber = pickLineItemNumber(item, index + 1)
         const lineItemId = resolveDigiDisplayLineItemId(item, lineNumber, mbaNumber)
@@ -833,7 +843,11 @@ export default function DigiDisplayContainer({
 
   // Transform form data to API schema format
   useEffect(() => {
-    const formLineItems = form.getValues('digidisplaylineItems') || [];
+    const formLineItems = assignStableLineItemNumbers<any>(
+      form.getValues('digidisplaylineItems') || [],
+      mbaNumber,
+      MEDIA_TYPE_ID_CODES.digitalDisplay
+    );
     
     const transformedLineItems = formLineItems.map((lineItem, index) => {
       // Calculate totalMedia from raw budget amounts (for display in MBA section)
