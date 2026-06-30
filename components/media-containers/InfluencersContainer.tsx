@@ -28,7 +28,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/componen
 import { useToast } from "@/components/ui/use-toast"
 import { formatBurstLabel } from "@/lib/bursts"
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
-import { appendBurst, removeBurst, newBurstReactKey, stampBurstReactKeys } from "@/lib/mediaplan/burstOperations"
+import { appendBurst, duplicateBurst, removeBurst, newBurstReactKey, stampBurstReactKeys } from "@/lib/mediaplan/burstOperations"
 import { serializeBurstsJson } from "@/lib/mediaplan/serializeBurstsJson"
 import { getPublishersForInfluencers, getClientInfo } from "@/lib/api"
 import { format } from "date-fns"
@@ -775,26 +775,14 @@ export default function InfluencersContainer({
   }, [form, handleLineItemValueChange, toast, campaignStartDate, campaignEndDate]);
   
   const handleDuplicateBurst = useCallback((lineItemIndex: number) => {
-    const currentBursts = form.getValues(`lineItems.${lineItemIndex}.bursts`) || [];
-
-    if (currentBursts.length === 0) {
-      handleAppendBurst(lineItemIndex);
-      return;
-    }
-
-    const lastBurst = currentBursts[currentBursts.length - 1];
-    form.setValue(`lineItems.${lineItemIndex}.bursts`, [
-      ...currentBursts,
-      {
-        ...lastBurst,
-        startDate: lastBurst.startDate ? new Date(lastBurst.startDate) : new Date(),
-        endDate: lastBurst.endDate ? new Date(lastBurst.endDate) : new Date(),
-        _reactKey: newBurstReactKey(),
-      } as InfluencersFormValues["lineItems"][number]["bursts"][number] & { _reactKey: string },
-    ]);
-
-    handleLineItemValueChange(lineItemIndex);
-  }, [form, handleAppendBurst, handleLineItemValueChange]);
+    duplicateBurst({
+      form,
+      fieldKey: "lineItems",
+      lineItemIndex,
+      onAfter: handleLineItemValueChange,
+      toast: toast as Parameters<typeof duplicateBurst>[0]["toast"],
+    })
+  }, [form, handleLineItemValueChange, toast]);
   
   const handleRemoveBurst = useCallback((lineItemIndex: number, burstIndex: number) => {
     removeBurst({
