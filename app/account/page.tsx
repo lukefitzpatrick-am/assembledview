@@ -1,277 +1,501 @@
 "use client"
 
-import { useUser } from '@/components/AuthWrapper';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
-import { 
-  Settings, 
-  Key, 
-  Shield, 
-  User, 
-  Bell, 
-  Database, 
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
+import {
+  AlertTriangle,
+  Bell,
+  CheckCircle2,
+  Database,
   Download,
+  Key,
+  Mail,
+  MoreHorizontal,
+  Plug,
+  Shield,
   Trash2,
-  AlertTriangle
-} from 'lucide-react';
-import { getUserRoles } from '@/lib/rbac';
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+  User,
+  UserPlus,
+  Users,
+} from "lucide-react"
+
+import { useUser } from "@/components/AuthWrapper"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states"
+import { Switch } from "@/components/ui/switch"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { getUserDisplayName, getUserInitials, getUserRoles } from "@/lib/rbac"
+
+const notificationRows = [
+  {
+    key: "campaignAlerts",
+    title: "Campaign alerts",
+    description: "Send pacing, budget, and delivery notifications.",
+  },
+  {
+    key: "weeklyDigest",
+    title: "Weekly digest",
+    description: "Receive a summary of active media-plan changes.",
+  },
+  {
+    key: "securityNotices",
+    title: "Security notices",
+    description: "Notify me about account and sign-in changes.",
+  },
+] as const
+
+const integrationRows = [
+  {
+    name: "Auth0",
+    description: "Authentication, roles, and profile management.",
+    connected: true,
+    initials: "A0",
+  },
+  {
+    name: "Xano",
+    description: "Client, user, and media-plan data sync.",
+    connected: true,
+    initials: "XA",
+  },
+  {
+    name: "SendGrid",
+    description: "Invite and account email delivery.",
+    connected: false,
+    initials: "SG",
+  },
+  {
+    name: "Vercel",
+    description: "Hosting, deployment, and runtime environment.",
+    connected: true,
+    initials: "VC",
+  },
+] as const
+
+type NotificationKey = (typeof notificationRows)[number]["key"]
+type NotificationSettings = Record<NotificationKey, boolean>
 
 export default function AccountPage() {
-  const { user, isLoading, error } = useUser();
-  const router = useRouter();
-  const [mounted, setMounted] = useState(false);
+  const { user, isLoading, error } = useUser()
+  const router = useRouter()
+  const [mounted, setMounted] = useState(false)
+  const [notifications, setNotifications] = useState<NotificationSettings>({
+    campaignAlerts: true,
+    weeklyDigest: true,
+    securityNotices: true,
+  })
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
+    setMounted(true)
+  }, [])
 
   useEffect(() => {
     if (mounted && !isLoading && !user) {
-      router.push('/auth/login?returnTo=/dashboard');
+      router.push("/auth/login?returnTo=/dashboard")
     }
-  }, [mounted, isLoading, user, router]);
+  }, [mounted, isLoading, user, router])
 
   if (!mounted || isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="h-32 w-32 animate-spin rounded-full border-b-2 border-foreground"></div>
+      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+        <LoadingState rows={5} className="w-full max-w-3xl shadow-e1" />
       </div>
-    );
+    )
   }
 
   if (error) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <Card>
-          <CardContent className="p-6">
-            <p className="text-red-600">Error loading account: {error.message}</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
+      <main className="container mx-auto max-w-5xl px-4 py-8">
+        <ErrorState title="Error loading account" message={error.message} />
+      </main>
+    )
   }
 
   if (!user) {
-    return null; // Will redirect to login
+    return null
   }
 
-  const userRoles = getUserRoles(user);
-  const isAdmin = userRoles.includes('admin');
-  const isManager = userRoles.includes('manager');
+  const displayName = getUserDisplayName(user)
+  const initials = getUserInitials(user)
+  const userRoles = getUserRoles(user)
+  const primaryRole = userRoles[0] ?? "No role"
+  const isAdmin = userRoles.includes("admin")
+  const createdAt = user.updated_at ? new Date(user.updated_at).toLocaleDateString() : "Unknown"
 
   const handlePasswordChange = () => {
-    // Redirect to Auth0's password change flow
-    window.open(`${process.env.NEXT_PUBLIC_AUTH0_BASE_URL || 'http://localhost:3000'}/auth/login?screen_hint=signup&returnTo=/dashboard`, '_blank');
-  };
+    window.open(
+      `${process.env.NEXT_PUBLIC_AUTH0_BASE_URL || "http://localhost:3000"}/auth/login?screen_hint=signup&returnTo=/dashboard`,
+      "_blank",
+    )
+  }
 
   const handleProfileEdit = () => {
-    // Redirect to Auth0's profile management
-    window.open('https://auth0.com/docs/manage-users/user-accounts/user-profile', '_blank');
-  };
+    window.open("https://auth0.com/docs/manage-users/user-accounts/user-profile", "_blank")
+  }
 
   const handleExportData = () => {
-    // In a real app, this would trigger a data export
-    alert('Data export feature would be implemented here');
-  };
+    alert("Data export feature would be implemented here")
+  }
 
   const handleDeleteAccount = () => {
-    if (confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
-      // In a real app, this would trigger account deletion
-      alert('Account deletion would be implemented here - requires admin approval');
+    if (confirm("Are you sure you want to delete your account? This action cannot be undone.")) {
+      alert("Account deletion would be implemented here - requires admin approval")
     }
-  };
+  }
+
+  const toggleNotification = (key: NotificationKey) => {
+    setNotifications((prev) => ({ ...prev, [key]: !prev[key] }))
+  }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">Account Settings</h1>
-          <Badge variant="outline" className="capitalize">
-            {userRoles[0] || 'No Role'}
-          </Badge>
+    <main className="bg-background px-4 py-8">
+      <div className="mx-auto flex max-w-6xl flex-col gap-6">
+        <div className="flex flex-col gap-4 rounded-frame border border-border bg-surface-panel p-6 shadow-e1 md:flex-row md:items-end md:justify-between">
+          <div className="space-y-2">
+            <Badge variant="outline" className="w-fit capitalize">
+              {primaryRole}
+            </Badge>
+            <div>
+              <h1 className="text-3xl font-bold text-foreground">Account Settings</h1>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Manage your profile, team access, connected systems, and notification preferences.
+              </p>
+            </div>
+          </div>
+          <Button variant="outline" onClick={() => (window.location.href = "/auth/logout")}>
+            Sign Out
+          </Button>
         </div>
 
-        {/* Security Settings */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Shield className="h-5 w-5" />
-              <span>Security & Authentication</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between p-4 border rounded-lg">
-              <div className="flex items-center space-x-3">
-                <Key className="h-5 w-5 text-muted-foreground" />
-                <div>
-                  <h3 className="font-medium">Password</h3>
-                  <p className="text-sm text-muted-foreground">Update your password</p>
+        <Tabs defaultValue="profile" className="rounded-frame border border-border bg-card p-6 shadow-e1">
+          <TabsList aria-label="Settings sections" className="w-full justify-start overflow-x-auto">
+            <TabsTrigger value="profile">Profile</TabsTrigger>
+            <TabsTrigger value="team">Team</TabsTrigger>
+            <TabsTrigger value="integrations">Integrations</TabsTrigger>
+            <TabsTrigger value="notifications">Notifications</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="profile" className="space-y-6">
+            <Card className="rounded-card border-border bg-card shadow-e0">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-foreground">
+                  <User className="h-5 w-5 text-muted-foreground" aria-hidden />
+                  Personal Information
+                </CardTitle>
+                <CardDescription>Your Auth0 profile details and application permissions.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="flex flex-col gap-5 rounded-card border border-border bg-surface-panel p-4 sm:flex-row sm:items-center">
+                  <Avatar className="h-20 w-20 border border-border">
+                    <AvatarImage src={user.picture} alt={displayName} />
+                    <AvatarFallback className="bg-pacing-on-track-bg text-xl text-status-on-track-fg">
+                      {initials}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0 flex-1">
+                    <h2 className="text-2xl font-semibold text-foreground">{displayName}</h2>
+                    <div className="mt-2 flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground">
+                      <span className="flex items-center gap-2">
+                        <Mail className="h-4 w-4" aria-hidden />
+                        {user.email}
+                      </span>
+                      <span className="flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4" aria-hidden />
+                        Member since <span className="num">{createdAt}</span>
+                      </span>
+                    </div>
+                  </div>
+                  <Button variant="outline" onClick={handleProfileEdit}>
+                    Edit Profile
+                  </Button>
                 </div>
-              </div>
-              <Button variant="outline" onClick={handlePasswordChange}>
-                Change Password
-              </Button>
+
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="rounded-card border border-border bg-surface-panel p-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Email</p>
+                    <p className="mt-2 text-sm font-semibold text-foreground">
+                      {user.email_verified ? "Verified" : "Not verified"}
+                    </p>
+                  </div>
+                  <div className="rounded-card border border-border bg-surface-panel p-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">User ID</p>
+                    <p className="mt-2 truncate font-mono text-xs text-muted-foreground">{user.sub}</p>
+                  </div>
+                  <div className="rounded-card border border-border bg-surface-panel p-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Roles</p>
+                    {userRoles.length > 0 ? (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {userRoles.map((role) => (
+                          <Badge
+                            key={role}
+                            variant={role === "admin" ? "critical" : role === "manager" ? "on-track" : "secondary"}
+                            className="capitalize"
+                          >
+                            {role}
+                          </Badge>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-2 text-sm text-muted-foreground">No roles assigned</p>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="grid gap-6 lg:grid-cols-2">
+              <Card className="rounded-card border-border bg-card shadow-e0">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-foreground">
+                    <Shield className="h-5 w-5 text-muted-foreground" aria-hidden />
+                    Security & Authentication
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex items-center justify-between gap-4 rounded-card border border-border bg-surface-panel p-4">
+                    <div className="flex items-center gap-3">
+                      <Key className="h-5 w-5 text-muted-foreground" aria-hidden />
+                      <div>
+                        <h3 className="font-medium text-foreground">Password</h3>
+                        <p className="text-sm text-muted-foreground">Update your Auth0 password.</p>
+                      </div>
+                    </div>
+                    <Button variant="outline" onClick={handlePasswordChange}>
+                      Change
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="rounded-card border-border bg-card shadow-e0">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-foreground">
+                    <Download className="h-5 w-5 text-muted-foreground" aria-hidden />
+                    Data Management
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex items-center justify-between gap-4 rounded-card border border-border bg-surface-panel p-4">
+                    <div className="flex items-center gap-3">
+                      <Database className="h-5 w-5 text-muted-foreground" aria-hidden />
+                      <div>
+                        <h3 className="font-medium text-foreground">Export Data</h3>
+                        <p className="text-sm text-muted-foreground">Download all your account data.</p>
+                      </div>
+                    </div>
+                    <Button variant="outline" onClick={handleExportData}>
+                      Export
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
 
-            <div className="flex items-center justify-between p-4 border rounded-lg">
-              <div className="flex items-center space-x-3">
-                <User className="h-5 w-5 text-muted-foreground" />
-                <div>
-                  <h3 className="font-medium">Profile Information</h3>
-                  <p className="text-sm text-muted-foreground">Update your name, email, and avatar</p>
+            <Card className="rounded-card border-pacing-critical-bg bg-pacing-critical-bg shadow-e0">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-status-critical-fg">
+                  <AlertTriangle className="h-5 w-5" aria-hidden />
+                  Danger Zone
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col gap-4 rounded-card border border-pacing-critical-bg bg-card p-4 md:flex-row md:items-center md:justify-between">
+                  <div className="flex items-start gap-3">
+                    <Trash2 className="mt-0.5 h-5 w-5 text-status-critical-fg" aria-hidden />
+                    <div>
+                      <h3 className="font-medium text-foreground">Delete Account</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Permanently delete your account and all associated data.
+                      </p>
+                      {isAdmin ? (
+                        <p className="mt-2 text-xs text-status-critical-fg">
+                          Admin accounts cannot be self-deleted. Contact a system administrator.
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                  <Button variant="destructive" onClick={handleDeleteAccount} disabled={isAdmin}>
+                    Delete Account
+                  </Button>
                 </div>
-              </div>
-              <Button variant="outline" onClick={handleProfileEdit}>
-                Edit Profile
-              </Button>
-            </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-            <div className="flex items-center justify-between p-4 border rounded-lg">
-              <div className="flex items-center space-x-3">
-                <Bell className="h-5 w-5 text-muted-foreground" />
+          <TabsContent value="team" className="space-y-6">
+            <Card className="rounded-card border-border bg-card shadow-e0">
+              <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h3 className="font-medium">Email Verification</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Status: {user.email_verified ? 'Verified' : 'Not Verified'}
-                  </p>
+                  <CardTitle className="flex items-center gap-2 text-foreground">
+                    <Users className="h-5 w-5 text-muted-foreground" aria-hidden />
+                    Team Members
+                  </CardTitle>
+                  <CardDescription>People with access through your Auth0 organization and roles.</CardDescription>
                 </div>
-              </div>
-              {!user.email_verified && (
-                <Button variant="outline">
-                  Resend Verification
+                <Button type="button" onClick={() => router.push("/admin/users/new")} disabled={!isAdmin}>
+                  <UserPlus className="mr-2 h-4 w-4" aria-hidden />
+                  Invite member
                 </Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Data Management */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Database className="h-5 w-5" />
-              <span>Data Management</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between p-4 border rounded-lg">
-              <div className="flex items-center space-x-3">
-                <Download className="h-5 w-5 text-muted-foreground" />
-                <div>
-                  <h3 className="font-medium">Export Data</h3>
-                  <p className="text-sm text-muted-foreground">Download all your data</p>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-hidden rounded-card border border-border">
+                  <Table>
+                    <TableHeader className="bg-surface-panel">
+                      <TableRow>
+                        <TableHead>Member</TableHead>
+                        <TableHead>Role</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="w-12">
+                          <span className="sr-only">Actions</span>
+                        </TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      <TableRow>
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <Avatar className="h-9 w-9 border border-border">
+                              <AvatarImage src={user.picture} alt={displayName} />
+                              <AvatarFallback className="bg-pacing-ahead-bg text-status-ahead-fg">
+                                {initials}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <p className="font-medium text-foreground">{displayName}</p>
+                              <p className="text-sm text-muted-foreground">{user.email}</p>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {userRoles.length > 0 ? (
+                            <div className="flex flex-wrap gap-2">
+                              {userRoles.map((role) => (
+                                <Badge
+                                  key={role}
+                                  variant={role === "admin" ? "critical" : role === "manager" ? "on-track" : "secondary"}
+                                  className="capitalize"
+                                >
+                                  {role}
+                                </Badge>
+                              ))}
+                            </div>
+                          ) : (
+                            <Badge variant="outline">Unassigned</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={user.email_verified ? "ahead" : "critical"} dot>
+                            {user.email_verified ? "Active" : "Verify email"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" aria-label="Member actions">
+                                <MoreHorizontal className="h-4 w-4" aria-hidden />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="rounded-card border-border bg-popover shadow-e2">
+                              <DropdownMenuLabel>Member actions</DropdownMenuLabel>
+                              <DropdownMenuItem onClick={handleProfileEdit}>Open profile management</DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => router.push("/admin/users/new")}
+                                disabled={!isAdmin}
+                              >
+                                Invite teammate
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
                 </div>
-              </div>
-              <Button variant="outline" onClick={handleExportData}>
-                Export Data
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Role Information */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Settings className="h-5 w-5" />
-              <span>Role & Permissions</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-3">
-              <h3 className="font-medium">Your Roles</h3>
-              <div className="flex flex-wrap gap-2">
-                {userRoles.map((role) => (
-                  <Badge 
-                    key={role} 
-                    variant={role === 'admin' ? 'destructive' : role === 'manager' ? 'default' : 'secondary'}
-                    className="capitalize"
-                  >
-                    {role}
-                  </Badge>
-                ))}
-              </div>
-              
-              {userRoles.length === 0 && (
-                <p className="text-sm text-muted-foreground">No roles assigned</p>
-              )}
-            </div>
-
-            <Separator />
-
-            <div className="space-y-2">
-              <h3 className="font-medium">Available Features</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
-                <div className="flex items-center space-x-2">
-                  <div className={`w-2 h-2 rounded-full ${isAdmin || isManager ? "bg-success" : "bg-muted"}`} />
-                  <span>Media Plans Management</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <div className={`w-2 h-2 rounded-full ${isAdmin || isManager ? "bg-success" : "bg-muted"}`} />
-                  <span>Client Management</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <div className={`w-2 h-2 rounded-full ${isAdmin || isManager ? "bg-success" : "bg-muted"}`} />
-                  <span>Publisher Management</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <div className={`w-2 h-2 rounded-full ${isAdmin ? "bg-success" : "bg-muted"}`} />
-                  <span>User Management</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <div className={`w-2 h-2 rounded-full ${isAdmin || isManager ? "bg-success" : "bg-muted"}`} />
-                  <span>Financial Reports</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <div className={`w-2 h-2 rounded-full ${isAdmin ? "bg-success" : "bg-muted"}`} />
-                  <span>System Administration</span>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Danger Zone */}
-        <Card className="border-red-200">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2 text-red-600">
-              <AlertTriangle className="h-5 w-5" />
-              <span>Danger Zone</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between p-4 border border-red-200 rounded-lg bg-red-50">
-              <div className="flex items-center space-x-3">
-                <Trash2 className="h-5 w-5 text-red-500" />
-                <div>
-                  <h3 className="font-medium text-red-900">Delete Account</h3>
-                  <p className="text-sm text-red-700">
-                    Permanently delete your account and all associated data
+                {!isAdmin ? (
+                  <p className="mt-3 text-sm text-muted-foreground">
+                    Invite access is available to admin users only.
                   </p>
-                </div>
-              </div>
-              <Button 
-                variant="destructive" 
-                onClick={handleDeleteAccount}
-                disabled={isAdmin} // Prevent admin from deleting their own account
-              >
-                Delete Account
-              </Button>
+                ) : null}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="integrations" className="space-y-6">
+            <div className="grid gap-4 md:grid-cols-2">
+              {integrationRows.map((integration) => (
+                <Card key={integration.name} className="rounded-card border-border bg-card shadow-e0">
+                  <CardContent className="flex h-full flex-col gap-5 p-5">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-11 w-11 items-center justify-center rounded-pill border border-border bg-surface-panel text-sm font-bold text-foreground">
+                          {integration.initials}
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-foreground">{integration.name}</h3>
+                          <p className="text-sm text-muted-foreground">{integration.description}</p>
+                        </div>
+                      </div>
+                      <Plug className="h-5 w-5 text-muted-foreground" aria-hidden />
+                    </div>
+                    <div className="mt-auto flex items-center justify-between rounded-card border border-border bg-surface-panel px-3 py-2">
+                      <span className="text-sm font-medium text-foreground">
+                        {integration.connected ? "Connected" : "Reconnect"}
+                      </span>
+                      <span
+                        className={integration.connected ? "h-2.5 w-2.5 rounded-pill bg-status-success" : "h-2.5 w-2.5 rounded-pill bg-pacing-critical"}
+                        aria-hidden
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
-            
-            {isAdmin && (
-              <p className="text-xs text-red-600">
-                Admin accounts cannot be self-deleted. Contact system administrator.
-              </p>
-            )}
-          </CardContent>
-        </Card>
+          </TabsContent>
+
+          <TabsContent value="notifications" className="space-y-6">
+            <Card className="rounded-card border-border bg-card shadow-e0">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-foreground">
+                  <Bell className="h-5 w-5 text-muted-foreground" aria-hidden />
+                  Notifications
+                </CardTitle>
+                <CardDescription>Switches are local to this page and update immediately.</CardDescription>
+              </CardHeader>
+              <CardContent className="divide-y divide-border rounded-card border border-border bg-surface-panel">
+                {notificationRows.length > 0 ? (
+                  notificationRows.map((row) => (
+                    <div key={row.key} className="flex items-center justify-between gap-4 p-4">
+                      <div>
+                        <h3 className="font-medium text-foreground">{row.title}</h3>
+                        <p className="text-sm text-muted-foreground">{row.description}</p>
+                      </div>
+                      <Switch
+                        checked={notifications[row.key]}
+                        onCheckedChange={() => toggleNotification(row.key)}
+                        aria-label={`Toggle ${row.title}`}
+                      />
+                    </div>
+                  ))
+                ) : (
+                  <EmptyState title="No notification settings" message="Notification preferences will appear here." />
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
-    </div>
-  );
+    </main>
+  )
 }

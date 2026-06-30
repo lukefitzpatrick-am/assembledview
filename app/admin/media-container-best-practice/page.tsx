@@ -6,6 +6,7 @@ import { BestPracticeEditor } from "@/components/best-practice/BestPracticeEdito
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
+import { ErrorState, LoadingState } from "@/components/ui/states"
 import { Switch } from "@/components/ui/switch"
 import {
   EMPTY_BEST_PRACTICE,
@@ -144,18 +145,18 @@ export default function MediaContainerBestPracticePage() {
 
   return (
     <AdminGuard>
-      <main className="mx-auto flex max-w-5xl flex-col gap-6 py-10">
+      <main className="mx-auto flex max-w-5xl flex-col gap-6 bg-background px-4 py-10">
         <div>
-          <h1 className="text-2xl font-semibold">Media-Container Best Practice Notes</h1>
+          <h1 className="text-2xl font-semibold text-foreground">Media-Container Best Practice Notes</h1>
           <p className="text-sm text-muted-foreground">
             Manage the notes that appear above naming-convention workbook tabs for each media container.
           </p>
         </div>
 
         {isLoading ? (
-          <p className="text-sm text-muted-foreground">Loading media-container notes...</p>
+          <LoadingState rows={3} className="shadow-e1" />
         ) : null}
-        {loadError ? <p className="text-sm text-destructive">{loadError}</p> : null}
+        {loadError ? <ErrorState title="Failed to load media-container notes" message={loadError} /> : null}
 
         <div className="grid gap-6">
           {CONTAINERS.map((container) => {
@@ -163,11 +164,11 @@ export default function MediaContainerBestPracticePage() {
             const status = statusByKey[container.key] ?? "idle"
 
             return (
-              <Card key={container.key}>
+              <Card key={container.key} className="rounded-card border-border bg-card shadow-e1">
                 <CardHeader>
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <CardTitle>{container.label}</CardTitle>
+                      <CardTitle className="text-foreground">{container.label}</CardTitle>
                       <CardDescription>{container.key}</CardDescription>
                     </div>
                     <div className="flex items-center gap-2">
@@ -194,10 +195,10 @@ export default function MediaContainerBestPracticePage() {
                       {status === "saving" ? "Saving..." : "Save"}
                     </Button>
                     {status === "saved" ? (
-                      <span className="text-sm text-green-600">Saved</span>
+                      <span className="text-sm font-medium text-status-ahead-fg">Saved</span>
                     ) : null}
                     {status === "error" ? (
-                      <span className="text-sm text-destructive">Save failed</span>
+                      <span className="text-sm font-medium text-status-critical-fg">Save failed</span>
                     ) : null}
                   </div>
                 </CardContent>

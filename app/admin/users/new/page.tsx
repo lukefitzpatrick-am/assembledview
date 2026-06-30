@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Combobox } from "@/components/ui/combobox";
+import { LoadingState } from "@/components/ui/states";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { AdminGuard } from "@/components/guards/AdminGuard";
 import { getClientDisplayName } from "@/lib/clients/slug";
@@ -97,17 +98,17 @@ export default function NewAdminUserPage() {
   };
 
   return (
-    <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Loading...</div>}>
+    <Suspense fallback={<LoadingState rows={4} className="mx-auto mt-10 max-w-xl shadow-e1" />}>
       <AdminGuard>
-      <div className="mx-auto flex max-w-xl flex-col gap-6 py-10">
+      <div className="mx-auto flex max-w-xl flex-col gap-6 bg-background px-4 py-10">
         <div>
-          <h1 className="text-2xl font-semibold">Create Auth0 User</h1>
+          <h1 className="text-2xl font-semibold text-foreground">Create Auth0 User</h1>
           <p className="text-sm text-muted-foreground">
             Creates a user, marks email as verified, generates a password set link, and emails the invite.
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4 rounded-lg border border-border bg-card p-6 shadow-sm">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4 rounded-card border border-border bg-card p-6 shadow-e1">
           <div className="flex flex-col gap-2">
             <Label htmlFor="firstName">First name</Label>
             <Input
@@ -199,17 +200,17 @@ export default function NewAdminUserPage() {
           </Button>
 
           {status === "success" && (
-            <p className="text-sm text-green-600">User created and invite sent.</p>
+            <p className="text-sm font-medium text-status-ahead-fg">User created and invite sent.</p>
           )}
 
           {status === "error" && (
-            <p className="text-sm text-red-600">
+            <p className="text-sm font-medium text-status-critical-fg">
               Failed to create user {error ? `- ${error}` : ""}
             </p>
           )}
         </form>
 
-        <div className="rounded-lg border border-border bg-muted p-4 text-sm text-muted-foreground">
+        <div className="rounded-card border border-border bg-surface-panel p-4 text-sm text-muted-foreground shadow-e0">
           Any user with the admin role can use this tool. The backend uses the Auth0 Management API to create the user, mark the email as verified, generate a password-set ticket (24h), and send the invite via SendGrid (or SMTP fallback).
         </div>
       </div>

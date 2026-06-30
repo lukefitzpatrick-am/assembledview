@@ -53,7 +53,7 @@ export default function ProfilePage() {
   const createdAt = user.updated_at ? new Date(user.updated_at).toLocaleDateString() : 'Unknown';
 
   return (
-    <div className="container mx-auto max-w-4xl px-4 py-8">
+    <div className="container mx-auto max-w-4xl bg-background px-4 py-8">
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -109,7 +109,7 @@ export default function ProfilePage() {
                 {userRoles.map((role) => (
                   <Badge 
                     key={role} 
-                    variant={role === 'admin' ? 'destructive' : role === 'manager' ? 'default' : 'secondary'}
+                    variant={role === 'admin' ? 'critical' : role === 'manager' ? 'on-track' : 'secondary'}
                     className="capitalize"
                   >
                     {role}
