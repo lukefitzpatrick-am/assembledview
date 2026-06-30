@@ -54,8 +54,8 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
-import { Skeleton } from "@/components/ui/skeleton"
 import { LoadingDots } from "@/components/ui/loading-dots"
+import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states"
 
 const money = (n: number) =>
   formatCurrencyFull(n, {
@@ -105,10 +105,10 @@ type ForecastApiResponse = {
   meta: ForecastApiMeta
 }
 
-const STICKY_CLIENT = "sticky left-0 z-20 min-w-[10.5rem] w-[10.5rem] border-r border-border/60 bg-background shadow-[4px_0_12px_-8px_rgba(0,0,0,0.15)]"
+const STICKY_CLIENT = "sticky left-0 z-20 min-w-[10.5rem] w-[10.5rem] border-r border-border bg-background shadow-e0"
 const STICKY_LINE =
-  "sticky left-[10.5rem] z-20 min-w-[13.5rem] w-[13.5rem] max-w-[16rem] border-r border-border/60 bg-background shadow-[4px_0_12px_-8px_rgba(0,0,0,0.15)]"
-const STICKY_HEAD = "bg-muted/95 backdrop-blur-sm"
+  "sticky left-[10.5rem] z-20 min-w-[13.5rem] w-[13.5rem] max-w-[16rem] border-r border-border bg-background shadow-e0"
+const STICKY_HEAD = "bg-surface-panel backdrop-blur-sm"
 
 function emptyMonthlyAmounts(): FinanceForecastMonthlyAmounts {
   const m = {} as FinanceForecastMonthlyAmounts
@@ -457,8 +457,8 @@ export function ForecastTab() {
 
   return (
     <div className="space-y-5 p-4 md:p-6">
-      <Alert className="border-amber-500/45 bg-amber-500/[0.07] dark:bg-amber-950/25">
-        <Info className="h-4 w-4 text-amber-700 dark:text-amber-400" aria-hidden />
+      <Alert className="rounded-card border-pacing-behind-bg bg-pacing-behind-bg text-status-behind-fg">
+        <Info className="h-4 w-4 text-status-behind-fg" aria-hidden />
         <AlertTitle className="text-sm font-semibold text-foreground">Financial year only</AlertTitle>
         <AlertDescription className="text-sm text-muted-foreground">
           Forecast operates on the financial year, not the month range filter above.
@@ -472,7 +472,7 @@ export function ForecastTab() {
         </p>
       </div>
 
-      <Card className="border-border/60 shadow-sm">
+      <Card className="rounded-card border-border shadow-e1">
         <CardHeader className="space-y-1 pb-3">
           <CardTitle className="text-base font-medium">Filters</CardTitle>
         </CardHeader>
@@ -500,7 +500,7 @@ export function ForecastTab() {
                 <div
                   role="tablist"
                   aria-label="Forecast scenario"
-                  className="inline-flex h-9 rounded-lg border border-border/60 bg-muted/40 p-0.5"
+                  className="inline-flex h-9 rounded-input border border-border bg-surface-panel p-0.5"
                 >
                   {(
                     Object.keys(SCENARIO_COPY) as FinanceForecastScenario[]
@@ -511,9 +511,9 @@ export function ForecastTab() {
                       role="tab"
                       aria-selected={scenario === key}
                       className={cn(
-                        "rounded-md px-3 text-sm font-medium transition-colors",
+                        "rounded-input px-3 text-sm font-medium transition-colors",
                         scenario === key
-                          ? "bg-background text-foreground shadow-sm"
+                          ? "bg-card text-foreground shadow-e1"
                           : "text-muted-foreground hover:text-foreground"
                       )}
                       onClick={() => setScenario(key)}
@@ -657,17 +657,16 @@ export function ForecastTab() {
             </Label>
           </div>
 
-          {error && (
-            <Alert variant="destructive">
-              <AlertTitle>{error.message}</AlertTitle>
-              {error.details ? (
-                <AlertDescription className="whitespace-pre-wrap font-mono text-xs">{error.details}</AlertDescription>
-              ) : null}
-            </Alert>
-          )}
+          {error ? (
+            <ErrorState
+              title={error.message}
+              message={error.details ? <span className="whitespace-pre-wrap font-mono text-xs">{error.details}</span> : null}
+              onRetry={() => void loadForecast()}
+            />
+          ) : null}
 
           {snapshotBanner?.kind === "success" ? (
-            <Alert className="border-emerald-500/35 bg-emerald-500/[0.06] dark:bg-emerald-950/20">
+            <Alert className="rounded-card border-pacing-ahead-bg bg-pacing-ahead-bg text-status-ahead-fg">
               <AlertTitle>Snapshot saved</AlertTitle>
               <AlertDescription className="space-y-1 text-sm">
                 <p>
@@ -685,7 +684,7 @@ export function ForecastTab() {
                 </p>
                 <p>
                   <span className="font-medium text-foreground">Line rows:</span>{" "}
-                  {snapshotBanner.line_count.toLocaleString()} (month-normalized)
+                  <span className="num">{snapshotBanner.line_count.toLocaleString()}</span> (month-normalized)
                 </p>
                 {snapshotBanner.persisted ? (
                   <p className="text-muted-foreground">
@@ -699,7 +698,7 @@ export function ForecastTab() {
                     .
                   </p>
                 ) : (
-                  <p className="text-amber-800 dark:text-amber-200/90">
+                  <p className="text-status-behind-fg">
                     Snapshot storage is not configured on the server ({snapshotBanner.reason ?? "no base URL"}). Label
                     and counts reflect what would be saved to Xano.
                   </p>
@@ -709,7 +708,7 @@ export function ForecastTab() {
           ) : null}
 
           {snapshotBanner?.kind === "duplicate" ? (
-            <Alert className="border-amber-500/40 bg-amber-500/[0.06]">
+            <Alert className="rounded-card border-pacing-behind-bg bg-pacing-behind-bg text-status-behind-fg">
               <AlertTitle>Duplicate snapshot</AlertTitle>
               <AlertDescription className="flex flex-col gap-3 text-sm">
                 <p>{snapshotBanner.message}</p>
@@ -734,7 +733,7 @@ export function ForecastTab() {
         </CardContent>
       </Card>
 
-      <Card className="border-border/60 shadow-sm">
+      <Card className="rounded-card border-border shadow-e1">
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">
           <CardTitle className="text-base font-medium">Forecast grid</CardTitle>
           {payload?.meta ? (
@@ -746,39 +745,29 @@ export function ForecastTab() {
         </CardHeader>
         <CardContent className="p-0 sm:p-0">
           {loading ? (
-            <div className="space-y-3 p-4">
-              <div className="flex gap-2">
-                <Skeleton className="h-4 w-32" />
-                <Skeleton className="h-4 w-48" />
-              </div>
-              <div className="overflow-hidden rounded-md border">
-                <div className="flex gap-px bg-border p-px">
-                  {Array.from({ length: 8 }).map((_, i) => (
-                    <Skeleton key={i} className="h-24 flex-1 bg-background" />
-                  ))}
-                </div>
-              </div>
-            </div>
+            <LoadingState rows={5} className="m-4" />
           ) : !payload ? (
-            <div className="px-4 py-16 text-center text-sm text-muted-foreground">
-              Select filters and click <span className="font-medium text-foreground">Load forecast</span> to generate
-              the report.
-            </div>
+            <EmptyState
+              className="m-4"
+              title="Load a forecast"
+              message="Select filters and click Load forecast to generate the report."
+            />
           ) : payload.dataset.client_blocks.length === 0 ? (
-            <div className="px-4 py-16 text-center text-sm text-muted-foreground">
-              No data for this financial year and filters. Try another FY, scenario, or clear the client / search
-              filters.
-            </div>
+            <EmptyState
+              className="m-4"
+              title="No forecast rows"
+              message="No data for this financial year and filters. Try another FY, scenario, or clear the client/search filters."
+            />
           ) : (
             <div className="overflow-x-auto rounded-b-lg border-t border-border/60">
               <table className="w-full min-w-[1100px] border-collapse text-sm">
                 <thead>
-                  <tr className="border-b border-border/80 bg-muted/50">
+                  <tr className="border-b border-border bg-surface-panel">
                     <th
                       className={cn(
                         STICKY_CLIENT,
                         STICKY_HEAD,
-                        "px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                        "px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-wide text-muted-foreground"
                       )}
                     >
                       Client
@@ -787,7 +776,7 @@ export function ForecastTab() {
                       className={cn(
                         STICKY_LINE,
                         STICKY_HEAD,
-                        "px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                        "px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-wide text-muted-foreground"
                       )}
                     >
                       Line
@@ -795,12 +784,12 @@ export function ForecastTab() {
                     {FINANCE_FORECAST_FISCAL_MONTH_ORDER.map((k) => (
                       <th
                         key={k}
-                        className="whitespace-nowrap px-2 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                        className="whitespace-nowrap px-2 py-2.5 text-right text-[11px] font-bold uppercase tracking-wide text-muted-foreground"
                       >
                         {monthColumnLabel(k, payload.dataset.meta.financial_year_start_year)}
                       </th>
                     ))}
-                    <th className="whitespace-nowrap px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-foreground">
+                    <th className="whitespace-nowrap px-3 py-2.5 text-right text-[11px] font-bold uppercase tracking-wide text-foreground">
                       FY total
                     </th>
                   </tr>
@@ -843,14 +832,14 @@ export function ForecastTab() {
               </div>
               <div>
                 <p className="mb-1 font-semibold text-foreground">source</p>
-                <pre className="max-h-[40vh] overflow-auto rounded-md border bg-muted/40 p-3 font-mono">
+                <pre className="max-h-[40vh] overflow-auto rounded-input border border-border bg-surface-panel p-3 font-mono">
                   {JSON.stringify(detailLine.source, null, 2)}
                 </pre>
               </div>
               <div>
                 <p className="mb-1 font-semibold text-foreground">debug</p>
                 {detailLine.debug ? (
-                  <pre className="max-h-[40vh] overflow-auto rounded-md border bg-muted/40 p-3 font-mono">
+                  <pre className="max-h-[40vh] overflow-auto rounded-input border border-border bg-surface-panel p-3 font-mono">
                     {JSON.stringify(detailLine.debug, null, 2)}
                   </pre>
                 ) : (
@@ -877,7 +866,7 @@ function ForecastSummaryAmountCells(props: {
         <td
           key={k}
           className={cn(
-            "whitespace-nowrap px-2 py-1.5 text-right font-mono text-xs tabular-nums text-foreground/90",
+            "num whitespace-nowrap px-2 py-1.5 text-right font-mono text-xs text-foreground/90",
             cellClassName
           )}
         >
@@ -886,7 +875,7 @@ function ForecastSummaryAmountCells(props: {
       ))}
       <td
         className={cn(
-          "whitespace-nowrap px-3 py-1.5 text-right font-mono text-xs font-medium tabular-nums text-foreground",
+          "num whitespace-nowrap px-3 py-1.5 text-right font-mono text-xs font-medium text-foreground",
           cellClassName
         )}
       >
@@ -907,22 +896,22 @@ function PortfolioSummaryRows({ dataset }: { dataset: FinanceForecastDataset }) 
 
   return (
     <>
-      <tr className="border-b border-border/70 bg-sky-500/[0.08] dark:bg-sky-950/25">
+      <tr className="border-b border-border bg-pacing-on-track-bg">
         <td rowSpan={3} className={cn(STICKY_CLIENT, STICKY_HEAD, headLabel, "align-top")}>
           Summary
         </td>
-        <td className={cn(STICKY_LINE, STICKY_HEAD, lineLabel, "border-l-2 border-l-sky-500/55")}>
+        <td className={cn(STICKY_LINE, STICKY_HEAD, lineLabel, "border-l-2 border-l-pacing-on-track")}>
           Subtotal — billing
         </td>
         <ForecastSummaryAmountCells monthly={billing.monthly} fy={billing.fy} />
       </tr>
-      <tr className="border-b border-border/70 bg-violet-500/[0.07] dark:bg-violet-950/20">
-        <td className={cn(STICKY_LINE, STICKY_HEAD, lineLabel, "border-l-2 border-l-violet-500/55")}>
+      <tr className="border-b border-border bg-surface-panel">
+        <td className={cn(STICKY_LINE, STICKY_HEAD, lineLabel, "border-l-2 border-l-channel-bvod")}>
           Subtotal — revenue
         </td>
         <ForecastSummaryAmountCells monthly={revenue.monthly} fy={revenue.fy} />
       </tr>
-      <tr className="border-b-2 border-border bg-muted/70 font-semibold">
+      <tr className="border-b-2 border-border bg-surface-panel font-semibold">
         <td className={cn(STICKY_LINE, STICKY_HEAD, lineLabel)}>Grand total (billing + revenue)</td>
         <ForecastSummaryAmountCells monthly={grand.monthly} fy={grand.fy} />
       </tr>
@@ -936,7 +925,7 @@ function ClientBillingSubtotalRow(props: {
   fy: number
 }) {
   return (
-    <tr className="border-b border-border/50 bg-sky-500/[0.06] font-medium dark:bg-sky-950/20">
+      <tr className="border-b border-border bg-pacing-on-track-bg font-medium">
       <td className={cn(STICKY_CLIENT, "px-3 py-1.5 align-middle text-xs text-muted-foreground")}>
         {props.clientName}
       </td>
@@ -966,13 +955,13 @@ function FragmentBlock(props: {
   const revenueAgg = useMemo(() => sumForecastLines(clientRevenueSubtotalLines(block)), [block])
 
   const clientHeaderRow = (
-    <tr className="border-t-2 border-border bg-muted/30">
+    <tr className="border-t-2 border-border bg-surface-panel">
       <td className={cn(STICKY_CLIENT, "px-2 py-2 align-top")}>
         <button
           type="button"
           aria-expanded={expanded}
           aria-label={expanded ? `Collapse ${block.client_name}` : `Expand ${block.client_name}`}
-          className="flex w-full items-start gap-2 rounded-md px-1 py-0.5 text-left transition-colors hover:bg-muted/50"
+          className="flex w-full items-start gap-2 rounded-input px-1 py-0.5 text-left transition-colors hover:bg-table-row-hover"
           onClick={onToggleClient}
         >
           {expanded ? (
@@ -988,24 +977,24 @@ function FragmentBlock(props: {
           </span>
         </button>
       </td>
-      <td className={cn(STICKY_LINE, "bg-muted/30 py-2")} />
+      <td className={cn(STICKY_LINE, "bg-surface-panel py-2")} />
       {FINANCE_FORECAST_FISCAL_MONTH_ORDER.map((k) => (
-        <td key={k} className="border-b border-border/40 bg-muted/30 py-2" aria-hidden />
+        <td key={k} className="border-b border-border bg-surface-panel py-2" aria-hidden />
       ))}
-      <td className="border-b border-border/40 bg-muted/30 py-2" aria-hidden />
+      <td className="border-b border-border bg-surface-panel py-2" aria-hidden />
     </tr>
   )
 
   if (!expanded) {
     return (
       <>
-        <tr className="border-t-2 border-border bg-muted/30">
+        <tr className="border-t-2 border-border bg-surface-panel">
           <td rowSpan={2} className={cn(STICKY_CLIENT, "px-2 py-2 align-top")}>
             <button
               type="button"
               aria-expanded={false}
               aria-label={`Expand ${block.client_name}`}
-              className="flex w-full items-start gap-2 rounded-md px-1 py-0.5 text-left transition-colors hover:bg-muted/50"
+              className="flex w-full items-start gap-2 rounded-input px-1 py-0.5 text-left transition-colors hover:bg-table-row-hover"
               onClick={onToggleClient}
             >
               <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
@@ -1020,18 +1009,18 @@ function FragmentBlock(props: {
           <td
             className={cn(
               STICKY_LINE,
-              "border-l-2 border-l-sky-500/55 bg-sky-500/[0.05] px-3 py-1.5 text-xs font-semibold text-foreground dark:bg-sky-950/15"
+              "border-l-2 border-l-pacing-on-track bg-pacing-on-track-bg px-3 py-1.5 text-xs font-semibold text-foreground"
             )}
           >
             Subtotal — billing
           </td>
           <ForecastSummaryAmountCells monthly={billingAgg.monthly} fy={billingAgg.fy} />
         </tr>
-        <tr className="bg-violet-500/[0.05] dark:bg-violet-950/15">
+        <tr className="bg-surface-panel">
           <td
             className={cn(
               STICKY_LINE,
-              "border-l-2 border-l-violet-500/55 px-3 py-1.5 text-xs font-semibold text-foreground"
+              "border-l-2 border-l-channel-bvod px-3 py-1.5 text-xs font-semibold text-foreground"
             )}
           >
             Subtotal — revenue
@@ -1080,7 +1069,7 @@ function FragmentGroup(props: {
 
   return (
     <>
-      <tr className={cn("bg-muted/15", isBilling ? "border-l-2 border-l-sky-500/60" : "border-l-2 border-l-violet-500/50")}>
+      <tr className={cn("bg-surface-panel", isBilling ? "border-l-2 border-l-pacing-on-track" : "border-l-2 border-l-channel-bvod")}>
         <td colSpan={colCount} className="px-3 py-1.5 pl-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           {title}
         </td>
@@ -1119,14 +1108,14 @@ function ForecastLineRow(props: {
   return (
     <tr
       className={cn(
-        "border-b border-border/40 transition-colors hover:bg-muted/20",
-        isTotal && "bg-emerald-950/[0.07] font-semibold dark:bg-emerald-950/25"
+        "border-b border-border transition-colors hover:bg-table-row-hover",
+        isTotal && "bg-pacing-ahead-bg font-semibold"
       )}
     >
       <td className={cn(STICKY_CLIENT, "px-3 py-1.5 align-middle text-xs text-foreground")}>{clientName}</td>
       <td className={cn(STICKY_LINE, "px-3 py-1.5 align-middle")}>
         <div className="flex items-start justify-between gap-2">
-          <span className={cn("text-xs leading-snug", isTotal && "text-emerald-900 dark:text-emerald-100")}>
+          <span className={cn("text-xs leading-snug", isTotal && "text-status-ahead-fg")}>
             {lineDescription}
           </span>
           <Button
@@ -1146,8 +1135,8 @@ function ForecastLineRow(props: {
         <td
           key={k}
           className={cn(
-            "whitespace-nowrap px-2 py-1.5 text-right font-mono text-xs tabular-nums text-foreground/90",
-            isTotal && "text-emerald-900 dark:text-emerald-100"
+            "num whitespace-nowrap px-2 py-1.5 text-right font-mono text-xs text-foreground/90",
+            isTotal && "text-status-ahead-fg"
           )}
         >
           {money(line.monthly[k] ?? 0)}
@@ -1155,8 +1144,8 @@ function ForecastLineRow(props: {
       ))}
       <td
         className={cn(
-          "whitespace-nowrap px-3 py-1.5 text-right font-mono text-xs font-medium tabular-nums",
-          isTotal && "text-emerald-900 dark:text-emerald-100"
+          "num whitespace-nowrap px-3 py-1.5 text-right font-mono text-xs font-medium",
+          isTotal && "text-status-ahead-fg"
         )}
       >
         {money(line.fy_total)}

@@ -15,7 +15,7 @@ export function ManualBillingSelectionStatusBar({
 
   return (
     <div
-      className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t bg-muted/40 px-6 py-2 text-sm text-muted-foreground"
+      className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border bg-surface-panel px-6 py-2 text-sm text-muted-foreground"
       role="status"
       aria-live="polite"
     >
@@ -24,7 +24,7 @@ export function ManualBillingSelectionStatusBar({
       </span>
       <span>
         Sum:{" "}
-        <span className="font-medium tabular-nums text-foreground">
+        <span className="num font-medium text-foreground">
           {formatter.format(sum)}
         </span>
       </span>

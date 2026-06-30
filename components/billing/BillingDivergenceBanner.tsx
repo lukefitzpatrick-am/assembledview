@@ -8,7 +8,6 @@ import {
   summarizeBillingDivergence,
   type BillingDivergenceResult,
 } from "@/lib/billing/compareBillingDivergence"
-import { cn } from "@/lib/utils"
 
 type Props = {
   divergence: BillingDivergenceResult | null
@@ -23,15 +22,10 @@ export function BillingDivergenceBanner({ divergence }: Props) {
   const hasDetails = summary.lineMessages.length > 0 || summary.monthMessages.length > 0
 
   return (
-    <Alert
-      className={cn(
-        "mb-4 border-amber-400/80 bg-amber-50 text-amber-950",
-        "dark:border-amber-500/50 dark:bg-amber-950/40 dark:text-amber-100"
-      )}
-    >
-      <AlertTriangle className="text-amber-600 dark:text-amber-400" />
-      <AlertTitle className="text-amber-950 dark:text-amber-50">Manual billing differences</AlertTitle>
-      <AlertDescription className="text-amber-900/90 dark:text-amber-100/90">
+    <Alert className="mb-4 rounded-card border-pacing-behind-bg bg-pacing-behind-bg text-status-behind-fg">
+      <AlertTriangle className="text-status-behind-fg" />
+      <AlertTitle className="text-status-behind-fg">Manual billing differences</AlertTitle>
+      <AlertDescription className="text-status-behind-fg">
         <p>{summary.headline}</p>
         {hasDetails ? (
           <div className="mt-3">
@@ -39,7 +33,7 @@ export function BillingDivergenceBanner({ divergence }: Props) {
               type="button"
               variant="ghost"
               size="sm"
-              className="h-auto px-0 py-0 text-amber-900 hover:bg-transparent hover:text-amber-950 dark:text-amber-100 dark:hover:text-amber-50"
+              className="h-auto px-0 py-0 text-status-behind-fg hover:bg-transparent hover:text-status-behind-fg"
               onClick={() => setExpanded((v) => !v)}
             >
               {expanded ? (

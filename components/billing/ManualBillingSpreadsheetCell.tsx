@@ -49,10 +49,10 @@ export function ManualBillingSpreadsheetCell({
   return (
     <div
       className={cn(
-        "relative rounded-sm",
+        "relative rounded-input",
         focused && "ring-2 ring-inset ring-primary",
         !focused && (selected || copied) && spreadsheetCellOutlineClass(outlineFlags),
-        copied && "bg-amber-500/15",
+        copied && "bg-pacing-behind-bg",
         dropTarget && "ring-2 ring-inset ring-primary/60",
         className
       )}
@@ -70,7 +70,7 @@ export function ManualBillingSpreadsheetCell({
           draggable
           aria-label="Move selection"
           title="Drag to move"
-          className="absolute inset-y-0 left-0 z-10 w-1.5 cursor-move rounded-l-sm bg-primary/70 hover:bg-primary"
+          className="absolute inset-y-0 left-0 z-10 w-1.5 cursor-move rounded-l-input bg-primary/70 hover:bg-primary"
           onPointerDown={(e) => e.stopPropagation()}
           onDragStart={(e) => ctx.onGripDragStart(e)}
           onDragEnd={() => ctx.onGripDragEnd()}
@@ -81,7 +81,7 @@ export function ManualBillingSpreadsheetCell({
           draggable
           aria-label="Fill"
           title="Drag to fill"
-          className="absolute bottom-0 right-0 z-10 h-2 w-2 cursor-crosshair rounded-sm bg-primary"
+          className="absolute bottom-0 right-0 z-10 h-2 w-2 cursor-crosshair rounded-input bg-primary"
           onPointerDown={(e) => e.stopPropagation()}
           onDragStart={(e) => ctx.onFillHandleDragStart(e)}
           onDragEnd={() => ctx.onFillHandleDragEnd()}
@@ -91,7 +91,7 @@ export function ManualBillingSpreadsheetCell({
         <button
           type="button"
           aria-label="Clear cell"
-          className="absolute right-0 top-0 z-10 -translate-y-1/2 translate-x-1/2 rounded-full border bg-background p-0.5 text-muted-foreground shadow-sm hover:text-foreground"
+          className="absolute right-0 top-0 z-10 -translate-y-1/2 translate-x-1/2 rounded-pill border border-border bg-background p-0.5 text-muted-foreground shadow-e1 hover:text-foreground"
           onPointerDown={(e) => {
             e.stopPropagation()
           }}

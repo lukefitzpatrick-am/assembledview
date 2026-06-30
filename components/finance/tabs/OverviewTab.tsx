@@ -18,6 +18,7 @@ import { TreemapShellChart } from "@/components/charts/TreemapShellChart"
 import { StackedColumnChart } from "@/components/charts/StackedColumnChart"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
+import { ErrorState, LoadingState } from "@/components/ui/states"
 import type {
   BillingRecord,
   BillingStatus,
@@ -35,7 +36,7 @@ import {
   fetchFinancePayablesForMonths,
 } from "@/lib/finance/api"
 import { formatMoney } from "@/lib/format/money"
-import { cn, hexToRgba } from "@/lib/utils"
+import { cn } from "@/lib/utils"
 import { useFinanceStore, type FinanceHubTab } from "@/lib/finance/useFinanceStore"
 import { billingMonthsInAustralianFinancialYear } from "@/lib/finance/months"
 import { sumPayableRecordsAgencyExpected } from "@/lib/finance/aggregatePayablesPublisherGroups"
@@ -44,8 +45,8 @@ const RECEIVABLE_TYPES: BillingType[] = ["media", "sow", "retainer"]
 const KPI_RECEIVABLE_STATUSES = new Set<BillingStatus>(["booked", "approved", "invoiced", "paid"])
 const KPI_PAYABLE_STATUSES = new Set<BillingStatus>(["expected", "invoiced", "paid"])
 
-const DEFAULT_HERO_BRAND = "#4f8fcb"
-const chartCardQuiet = "border-0 bg-transparent shadow-none"
+const DEFAULT_HERO_BRAND = "var(--pacing-on-track)"
+const chartCardQuiet = "border-0 bg-transparent shadow-e0"
 
 function isReceivableRecord(r: BillingRecord): boolean {
   return RECEIVABLE_TYPES.includes(r.billing_type)
@@ -544,7 +545,7 @@ export function FinanceOverviewProvider({ children }: { children: ReactNode }) {
   const loading = billingLoading || payablesLoading
 
   const kpiTileClass =
-    "group flex w-full flex-col rounded-xl border border-border/60 bg-background/55 p-4 text-left shadow-sm backdrop-blur-sm transition hover:border-border hover:bg-background/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    "group flex w-full flex-col rounded-card border border-border bg-card p-4 text-left shadow-e1 transition hover:bg-table-row-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 
   const hubRangeMonths = expandMonthRange(filters.monthRange)
   const hubRangeLabel =
@@ -634,25 +635,22 @@ export function FinanceOverviewHero() {
           <div className="flex w-full flex-col gap-6 md:flex-row md:items-center md:gap-8 xl:gap-10">
             <div className="relative flex items-center gap-4">
               <div
-                className="absolute -inset-2 rounded-full opacity-20 blur-xl"
-                style={{ backgroundColor: DEFAULT_HERO_BRAND }}
+                className="absolute -inset-2 rounded-pill bg-pacing-on-track opacity-20 blur-xl"
                 aria-hidden
               />
               <div className="relative h-16 w-16 shrink-0">
                 <div
-                  className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-full border-2 shadow-lg"
-                  style={{ borderColor: hexToRgba(DEFAULT_HERO_BRAND, 0.35) }}
+                  className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-pill border-2 border-pacing-on-track-bg shadow-e2"
                 >
                   <span
-                    className="flex h-full w-full items-center justify-center text-white"
-                    style={{ backgroundColor: DEFAULT_HERO_BRAND }}
+                    className="flex h-full w-full items-center justify-center bg-pacing-on-track text-primary-foreground"
                     aria-hidden
                   >
                     <DollarSign className="h-7 w-7" />
                   </span>
                 </div>
                 <span
-                  className="absolute bottom-px right-px h-[10px] w-[10px] rounded-full bg-[#C5D82D] shadow-[0_0_0_2px_rgb(255,255,255)]"
+                  className="absolute bottom-px right-px h-[10px] w-[10px] rounded-pill bg-accent shadow-e0"
                   aria-hidden
                 />
               </div>
@@ -663,12 +661,12 @@ export function FinanceOverviewHero() {
                 <h2 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl xl:text-4xl">
                   Finance overview
                 </h2>
-                <p className="mt-1 text-sm font-medium text-emerald-600 dark:text-emerald-400 md:text-base">
+                <p className="mt-1 text-sm font-medium text-status-ahead-fg md:text-base">
                   FY{fyDisplayLabel(fyStart)} · Australian financial year
                 </p>
                 <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
                   <span className="inline-flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: DEFAULT_HERO_BRAND }} aria-hidden />
+                    <span className="h-2 w-2 rounded-pill bg-pacing-on-track" aria-hidden />
                     Hub range: {hubRangeLabel}
                   </span>
                 </div>
@@ -692,7 +690,7 @@ export function FinanceOverviewHero() {
                     </span>
                     <Wallet className="h-4 w-4 shrink-0 text-muted-foreground opacity-70 group-hover:opacity-100" />
                   </span>
-                  <span className="mt-2 text-2xl font-bold tabular-nums text-foreground">
+                  <span className="num mt-2 text-2xl font-bold text-foreground">
                     {formatMoney(kpiReceivablesThisMonth)}
                   </span>
                   <span className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
@@ -718,7 +716,7 @@ export function FinanceOverviewHero() {
                     </span>
                     <CalendarRange className="h-4 w-4 shrink-0 text-muted-foreground opacity-70 group-hover:opacity-100" />
                   </span>
-                  <span className="mt-2 text-2xl font-bold tabular-nums text-foreground">
+                  <span className="num mt-2 text-2xl font-bold text-foreground">
                     {formatMoney(kpiReceivablesFytd)}
                   </span>
                   <span className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
@@ -744,7 +742,7 @@ export function FinanceOverviewHero() {
                     </span>
                     <BarChart3 className="h-4 w-4 shrink-0 text-muted-foreground opacity-70 group-hover:opacity-100" />
                   </span>
-                  <span className="mt-2 text-2xl font-bold tabular-nums text-foreground">
+                  <span className="num mt-2 text-2xl font-bold text-foreground">
                     {formatMoney(kpiPayablesThisMonth)}
                   </span>
                   <span className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
@@ -770,7 +768,7 @@ export function FinanceOverviewHero() {
                     </span>
                     <CalendarRange className="h-4 w-4 shrink-0 text-muted-foreground opacity-70 group-hover:opacity-100" />
                   </span>
-                  <span className="mt-2 text-2xl font-bold tabular-nums text-foreground">
+                  <span className="num mt-2 text-2xl font-bold text-foreground">
                     {formatMoney(kpiPayablesFytd)}
                   </span>
                   <span className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
@@ -796,8 +794,8 @@ export function FinanceOverviewHero() {
                   </span>
                   <span
                     className={cn(
-                      "mt-2 text-2xl font-bold tabular-nums",
-                      kpiNetAccrualFytd > 0 && "text-emerald-600 dark:text-emerald-400",
+                      "num mt-2 text-2xl font-bold",
+                      kpiNetAccrualFytd > 0 && "text-status-ahead-fg",
                       kpiNetAccrualFytd < 0 && "text-destructive"
                     )}
                   >
@@ -898,31 +896,27 @@ export function OverviewTab() {
           </p>
         </div>
         {chartsLoading ? (
-          <div className="rounded-xl border border-border/60 bg-muted/20 py-16 text-center text-sm text-muted-foreground">
-            Loading charts…
-          </div>
+          <LoadingState rows={4} />
         ) : loadError ? (
-          <p className="text-sm text-destructive" role="alert">
-            {loadError}
-          </p>
+          <ErrorState title="Could not load finance overview" message={loadError} />
         ) : (
           <div className="flex flex-col gap-4">
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+              <div className="overflow-hidden rounded-card border border-border bg-card shadow-e1">
                 <TreemapShellChart
                   title="Spend via Publisher"
                   description="Media cost only - Current financial year"
                   data={publisherSpendData}
-                  className={cn("rounded-lg", chartCardQuiet)}
+                  className={cn("rounded-card", chartCardQuiet)}
                 />
               </div>
-              <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+              <div className="overflow-hidden rounded-card border border-border bg-card shadow-e1">
                 <TreemapShellChart
                   title="Spend via Client"
                   description="Media cost only - Current financial year"
                   data={clientSpendData}
                   colorByName={dashboardClientTreemapColors}
-                  className={cn("rounded-lg", chartCardQuiet)}
+                  className={cn("rounded-card", chartCardQuiet)}
                 />
               </div>
             </div>
@@ -931,7 +925,7 @@ export function OverviewTab() {
               description="Media cost by client per month (current FY, billing schedule)"
               variant="icon"
               icon={BarChart3}
-              className="overflow-hidden rounded-xl border border-border bg-card shadow-sm"
+              className="overflow-hidden rounded-card border border-border bg-card shadow-e1"
             >
               <StackedColumnChart
                 data={monthlyClientStackedRows}
@@ -945,7 +939,7 @@ export function OverviewTab() {
               description="Media cost by publisher per month (current FY, billing schedule)"
               variant="icon"
               icon={BarChart3}
-              className="overflow-hidden rounded-xl border border-border bg-card shadow-sm"
+              className="overflow-hidden rounded-card border border-border bg-card shadow-e1"
             >
               <StackedColumnChart
                 data={monthlyPublisherStackedRows}
@@ -959,13 +953,13 @@ export function OverviewTab() {
 
       <div>
         <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
-          <AlertTriangle className="h-4 w-4 text-amber-600" />
+          <AlertTriangle className="h-4 w-4 text-status-behind-fg" />
           Needs attention
         </h3>
         {attentionItems.length === 0 ? (
           <p className="text-sm text-muted-foreground">Nothing flagged for the current data.</p>
         ) : (
-          <ScrollArea className="h-[min(360px,50vh)] rounded-md border border-border/60">
+          <ScrollArea className="h-[min(360px,50vh)] rounded-card border border-border">
             <ul className="divide-y divide-border/60 p-2">
               {attentionItems.map((item) => (
                 <li key={item.id}>

@@ -22,7 +22,6 @@ import {
 } from "@/lib/finance/aggregatePayablesPublisherGroups"
 import {
   mediaTypeBadgeClass,
-  publisherAccentColour,
   publisherInitials,
 } from "@/lib/finance/cardHelpers"
 import { fetchFinancePayablesForMonths, type FinanceBillingQuery } from "@/lib/finance/api"
@@ -306,11 +305,11 @@ function PayableInvoiceCard({
   const sortedLines = [...(record.line_items || [])].sort((a, b) => a.sort_order - b.sort_order)
 
   return (
-    <article className="overflow-hidden rounded-md border border-border/60">
-      <div className="flex items-start justify-between gap-3 bg-muted/40 px-3 py-2.5">
+    <article className="overflow-hidden rounded-input border border-border">
+      <div className="flex items-start justify-between gap-3 bg-surface-panel px-3 py-2.5">
         <div className="min-w-0">
           <p className="truncate text-sm font-medium">{record.campaign_name || "—"}</p>
-          <p className="truncate text-[11px] tabular-nums text-muted-foreground">
+          <p className="num truncate text-[11px] text-muted-foreground">
             {(record.client_name || "—") + (record.mba_number ? ` · ${record.mba_number}` : "")}
           </p>
         </div>
@@ -324,7 +323,7 @@ function PayableInvoiceCard({
           >
             {channelLabelBadge}
           </Badge>
-          <p className="text-sm font-semibold tabular-nums">{formatAUD(totalAgency)}</p>
+          <p className="num text-sm font-semibold">{formatAUD(totalAgency)}</p>
         </div>
       </div>
       <div className="px-3 py-1">
@@ -348,7 +347,7 @@ function PayableInvoiceCard({
                   <div className="flex flex-wrap items-center gap-1">
                     <p className="truncate text-xs text-foreground">{primary}</p>
                     {isClientPaid ? (
-                      <Badge className="bg-muted text-muted-foreground text-[10px] font-normal hover:bg-muted">
+                      <Badge variant="outline" className="text-[10px] font-normal text-muted-foreground">
                         Client paid direct
                       </Badge>
                     ) : null}
@@ -357,9 +356,9 @@ function PayableInvoiceCard({
                     {channelLabel}
                   </p>
                 </div>
-                <p className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                <p className="num shrink-0 text-xs text-muted-foreground">
                   {isClientPaid ? (
-                    <span className="line-through tabular-nums">{formatAUD(li.amount)}</span>
+                    <span className="num line-through">{formatAUD(li.amount)}</span>
                   ) : (
                     formatAUD(li.amount)
                   )}
@@ -469,7 +468,7 @@ export default function FinanceHubPayablesSection() {
                     <p className="text-xs text-muted-foreground">
                       {mg.publishers.length} {pubNoun} · {lineItemCount} {lineNoun}
                     </p>
-                    <p className="text-xs font-medium tabular-nums text-foreground">{formatAUD(mg.totalExpected)}</p>
+                    <p className="num text-xs font-medium text-foreground">{formatAUD(mg.totalExpected)}</p>
                   </div>
                 </div>
 
@@ -480,18 +479,13 @@ export default function FinanceHubPayablesSection() {
                       0
                     )
                     const lineN = lineCount === 1 ? "line item" : "line items"
-                    const accent = publisherAccentColour(pub.publisherNumericId)
-
                     return (
                       <Collapsible key={`${mg.monthIso}-${pub.publisherName}`} defaultOpen className="group">
-                        <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-sm">
+                        <div className="overflow-hidden rounded-card border border-border bg-card shadow-e1">
                           <CollapsibleTrigger asChild>
-                            <header className="flex w-full cursor-pointer items-center gap-3 border-b border-border/60 bg-muted/40 px-4 py-3 text-left transition-colors hover:bg-muted/55">
-                              <Avatar className="h-9 w-9 rounded-full border border-border/40 shadow-sm">
-                                <AvatarFallback
-                                  className="text-xs font-semibold text-white"
-                                  style={{ backgroundColor: accent }}
-                                >
+                            <header className="flex w-full cursor-pointer items-center gap-3 border-b border-border bg-surface-panel px-4 py-3 text-left transition-colors hover:bg-table-row-hover">
+                              <Avatar className="h-9 w-9 rounded-pill border border-border shadow-e0">
+                                <AvatarFallback className="bg-primary text-xs font-semibold text-primary-foreground">
                                   {publisherInitials(pub.publisherName)}
                                 </AvatarFallback>
                               </Avatar>
@@ -503,7 +497,7 @@ export default function FinanceHubPayablesSection() {
                               </div>
                               <div className="text-right">
                                 <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Owed</p>
-                                <p className="text-base font-semibold tabular-nums">
+                                <p className="num text-base font-semibold">
                                   {formatAUD(pub.totalExpected)}
                                 </p>
                               </div>

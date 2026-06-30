@@ -1,11 +1,12 @@
 "use client"
 
 import { useCallback, useMemo } from "react"
-import { ChevronDown, Loader2 } from "lucide-react"
+import { ChevronDown } from "lucide-react"
 import { FinanceFilterToolbar } from "@/components/finance/FinanceFilterToolbar"
 import { ReceivablesClientCard } from "@/components/finance/receivables/ReceivablesClientCard"
 import { ReceivablesSummaryStrip } from "@/components/finance/receivables/ReceivablesSummaryStrip"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states"
 import { useFinanceStore } from "@/lib/finance/useFinanceStore"
 import { markBilled } from "@/lib/finance/api"
 import { useReceivablesData, type MonthGroup } from "@/lib/finance/useReceivablesData"
@@ -106,7 +107,7 @@ function ReceivablesMonthSections({
         <section key={mg.monthIso} className="space-y-4">
           <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1 border-b border-border/50 pb-2">
             <p className="text-sm font-medium text-foreground">{mg.monthLabel}</p>
-            <p className="text-xs font-medium tabular-nums text-foreground">{formatAUD(mg.total)}</p>
+            <p className="num text-xs font-medium text-foreground">{formatAUD(mg.total)}</p>
           </div>
           <div className="space-y-4">
             {mg.clients.map((client) => (
@@ -219,7 +220,7 @@ export function ReceivablesPageClient() {
         ) : null}
       </header>
 
-      <div className="rounded-md border border-border/60 bg-card px-3 py-2">
+      <div className="rounded-card border border-border bg-card px-3 py-2 shadow-e1">
         <FinanceFilterToolbar
           receivables={{
             synced,
@@ -240,23 +241,19 @@ export function ReceivablesPageClient() {
 
       <div className="relative mt-4">
         {loading && visibleMonthGroups.length === 0 ? (
-          <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
-            <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
-            Loading receivables…
-          </div>
+          <LoadingState rows={5} />
         ) : loadError && !loading ? (
-          <p className="py-6 text-sm text-destructive" role="alert">
-            {loadError}
-          </p>
+          <ErrorState title="Could not load receivables" message={loadError} onRetry={bumpReceivablesFetch} />
         ) : !loading && awaitingExplicitLoad ? (
-          <p className="py-10 text-sm text-muted-foreground">
-            Use <span className="font-medium text-foreground">Load</span> or{" "}
-            <span className="font-medium text-foreground">Refresh</span> to fetch receivables for the selected filters.
-          </p>
+          <EmptyState
+            title="Load receivables"
+            message="Use Load or Refresh to fetch receivables for the selected filters."
+          />
         ) : !loading && visibleMonthGroups.length === 0 ? (
-          <p className="py-10 text-sm text-muted-foreground">
-            No receivables for the current filters and billing months in view.
-          </p>
+          <EmptyState
+            title="No receivables"
+            message="No receivables for the current filters and billing months in view."
+          />
         ) : (
           <div className="space-y-6 pt-1">
             {unbilledInvoiceCount === 0 && billedInvoiceCount > 0 ? (
@@ -271,7 +268,7 @@ export function ReceivablesPageClient() {
 
             {billedInvoiceCount > 0 ? (
               <Collapsible defaultOpen={false} className="group/billed">
-                <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-lg border border-border/60 bg-muted/30 px-4 py-3 text-left hover:bg-muted/45">
+                <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-card border border-border bg-surface-panel px-4 py-3 text-left hover:bg-table-row-hover">
                   <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]/billed:rotate-180" />
                   <span className="text-sm font-medium">
                     Billed this month · {billedInvoiceCount} {billedInvoiceCount === 1 ? "invoice" : "invoices"} ·{" "}
@@ -288,7 +285,7 @@ export function ReceivablesPageClient() {
               </Collapsible>
             ) : (
               <Collapsible defaultOpen={false} className="group/billed">
-                <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-lg border border-border/60 bg-muted/30 px-4 py-3 text-left hover:bg-muted/45">
+                <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-card border border-border bg-surface-panel px-4 py-3 text-left hover:bg-table-row-hover">
                   <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-data-[state=closed]/billed:-rotate-90" />
                   <span className="text-sm font-medium text-muted-foreground">
                     Billed this month · 0 invoices · {formatAUD(0)}

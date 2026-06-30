@@ -5,7 +5,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import type { ClientGroup } from "@/lib/finance/useReceivablesData"
 import type { BillingRecord } from "@/lib/types/financeBilling"
-import { clientAccentColour, clientInitials } from "@/lib/finance/cardHelpers"
+import { clientInitials } from "@/lib/finance/cardHelpers"
 import { formatAUD } from "@/lib/format/money"
 import { BilledStatusPill } from "./BilledStatusPill"
 import { ReceivablesMediaPlanSection } from "./ReceivablesMediaPlanSection"
@@ -23,15 +23,14 @@ export function ReceivablesClientCard({ client, monthLabel, refetch, onToggleBil
     client.scopeOfWorks.reduce((n, mp) => n + mp.records.length, 0) +
     client.retainers.length
   const invNoun = invCount === 1 ? "invoice" : "invoices"
-  const accent = clientAccentColour(client.clientsId)
 
   return (
     <Collapsible defaultOpen className="group/client">
-      <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-sm">
+      <div className="overflow-hidden rounded-card border border-border bg-card shadow-e1">
         <CollapsibleTrigger asChild>
-          <header className="flex w-full cursor-pointer items-center gap-3 border-b border-border/60 bg-muted/40 px-4 py-3 text-left transition-colors hover:bg-muted/55">
-            <Avatar className="h-9 w-9 rounded-full border border-border/40 shadow-sm">
-              <AvatarFallback className="text-xs font-semibold text-white" style={{ backgroundColor: accent }}>
+          <header className="flex w-full cursor-pointer items-center gap-3 border-b border-border bg-surface-panel px-4 py-3 text-left transition-colors hover:bg-table-row-hover">
+            <Avatar className="h-9 w-9 rounded-pill border border-border shadow-e0">
+              <AvatarFallback className="bg-primary text-xs font-semibold text-primary-foreground">
                 {clientInitials(client.clientName)}
               </AvatarFallback>
             </Avatar>
@@ -43,7 +42,7 @@ export function ReceivablesClientCard({ client, monthLabel, refetch, onToggleBil
             </div>
             <div className="text-right">
               <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Subtotal</p>
-              <p className="text-base font-semibold tabular-nums">{formatAUD(client.total)}</p>
+              <p className="num text-base font-semibold">{formatAUD(client.total)}</p>
             </div>
             <ChevronDown
               className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=closed]/client:-rotate-90"
@@ -79,7 +78,7 @@ export function ReceivablesClientCard({ client, monthLabel, refetch, onToggleBil
                 {client.retainers.map((rec, recIdx) => (
                   <div
                     key={`ret-${client.clientsId}-${rec.id}-${recIdx}`}
-                    className="flex items-center justify-between gap-2 rounded-md border border-border/60 bg-muted/30 px-3 py-2"
+                    className="flex items-center justify-between gap-2 rounded-input border border-border bg-surface-panel px-3 py-2"
                   >
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium">{rec.campaign_name || "Retainer"}</p>
@@ -93,7 +92,7 @@ export function ReceivablesClientCard({ client, monthLabel, refetch, onToggleBil
                         onToggle={(next) => onToggleBilled(rec, next)}
                         disabled={!rec.invoice_key}
                       />
-                      <p className="text-sm font-semibold tabular-nums">{formatAUD(rec.total)}</p>
+                      <p className="num text-sm font-semibold">{formatAUD(rec.total)}</p>
                     </div>
                   </div>
                 ))}

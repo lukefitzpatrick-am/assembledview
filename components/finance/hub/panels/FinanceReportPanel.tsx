@@ -21,6 +21,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Switch } from "@/components/ui/switch"
+import { EmptyState, LoadingState } from "@/components/ui/states"
 import { useToast } from "@/components/ui/use-toast"
 import { formatAUD } from "@/lib/format/money"
 import { buildReportRows } from "@/lib/finance/report/buildReportRows"
@@ -265,7 +266,7 @@ export default function FinanceReportPanel() {
               {original.hasChildren ? (
                 <button
                   type="button"
-                  className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  className="rounded-input p-0.5 text-muted-foreground hover:bg-table-row-hover hover:text-foreground"
                   onClick={() => toggleExpanded(original.id)}
                   aria-label={collapsed ? `Expand ${original.label}` : `Collapse ${original.label}`}
                 >
@@ -288,28 +289,28 @@ export default function FinanceReportPanel() {
         id: "rowCount",
         header: "Rows",
         cell: ({ row }) => (
-          <span className="tabular-nums text-muted-foreground">{row.original.rowCount ?? ""}</span>
+          <span className="num text-muted-foreground">{row.original.rowCount ?? ""}</span>
         ),
       },
       {
         id: "totalBillable",
         header: "Total billable",
         cell: ({ row }) => (
-          <span className="tabular-nums">{formatAUD(row.original.measures.totalBillable)}</span>
+          <span className="num">{formatAUD(row.original.measures.totalBillable)}</span>
         ),
       },
       {
         id: "mediaSpend",
         header: "Media spend",
         cell: ({ row }) => (
-          <span className="tabular-nums">{formatAUD(row.original.measures.mediaSpend)}</span>
+          <span className="num">{formatAUD(row.original.measures.mediaSpend)}</span>
         ),
       },
       {
         id: "agencyFee",
         header: "Agency fee",
         cell: ({ row }) => (
-          <span className="tabular-nums">{formatAUD(row.original.measures.agencyFee)}</span>
+          <span className="num">{formatAUD(row.original.measures.agencyFee)}</span>
         ),
       },
     ],
@@ -340,7 +341,7 @@ export default function FinanceReportPanel() {
                 <Badge
                   key={dimension.key}
                   variant={active ? "info" : "outline"}
-                  className="gap-1.5 rounded-md px-2 py-1"
+                  className="gap-1.5 rounded-input px-2 py-1"
                 >
                   <button
                     type="button"
@@ -354,7 +355,7 @@ export default function FinanceReportPanel() {
                     <>
                       <button
                         type="button"
-                        className="rounded px-1 text-xs hover:bg-background/60 disabled:opacity-40"
+                        className="rounded-input px-1 text-xs hover:bg-table-row-hover disabled:opacity-40"
                         disabled={activeIndex === 0}
                         onClick={() => setGroupBy((order) => moveDimension(order, dimension.key, -1))}
                         aria-label={`Move ${dimension.label} earlier`}
@@ -363,7 +364,7 @@ export default function FinanceReportPanel() {
                       </button>
                       <button
                         type="button"
-                        className="rounded px-1 text-xs hover:bg-background/60 disabled:opacity-40"
+                        className="rounded-input px-1 text-xs hover:bg-table-row-hover disabled:opacity-40"
                         disabled={activeIndex === groupBy.length - 1}
                         onClick={() => setGroupBy((order) => moveDimension(order, dimension.key, 1))}
                         aria-label={`Move ${dimension.label} later`}
@@ -372,7 +373,7 @@ export default function FinanceReportPanel() {
                       </button>
                       <button
                         type="button"
-                        className="rounded p-0.5 hover:bg-background/60"
+                        className="rounded-input p-0.5 hover:bg-table-row-hover"
                         onClick={() => toggleDimension(dimension.key)}
                         aria-label={`Remove ${dimension.label}`}
                       >
@@ -410,20 +411,15 @@ export default function FinanceReportPanel() {
       </div>
 
       {billingLoading ? (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Loading billing rows…
-        </div>
+        <LoadingState rows={4} />
       ) : null}
 
       {!billingLoading && reportRows.length === 0 ? (
-        <div className="rounded-lg border border-border/70 bg-muted/20 p-6 text-sm text-muted-foreground">
-          No report rows for the current filters.
-        </div>
+        <EmptyState title="No report rows" message="No report rows for the current filters." />
       ) : null}
 
       {reportRows.length > 0 ? (
-        <div className="overflow-hidden rounded-lg border border-border/80 bg-card/30 shadow-sm">
+        <div className="overflow-hidden rounded-card border border-border bg-card shadow-e1">
           <Table className="min-w-[760px]">
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (
@@ -432,7 +428,7 @@ export default function FinanceReportPanel() {
                     <TableHead
                       key={header.id}
                       className={cn(
-                        "h-10 bg-muted/40 text-xs uppercase tracking-wide",
+                        "h-10 bg-surface-panel text-[11px] font-bold uppercase tracking-wide",
                         ["totalBillable", "mediaSpend", "agencyFee", "rowCount"].includes(header.column.id) &&
                           "text-right"
                       )}
@@ -450,7 +446,7 @@ export default function FinanceReportPanel() {
                 <TableRow
                   key={row.original.id}
                   className={cn(
-                    row.original.kind === "subtotal" && row.original.depth === 0 && "bg-muted/15",
+                    row.original.kind === "subtotal" && row.original.depth === 0 && "bg-surface-panel",
                     row.original.kind === "detail" && "text-muted-foreground"
                   )}
                 >
@@ -470,17 +466,17 @@ export default function FinanceReportPanel() {
               ))}
             </TableBody>
             <TableFooter>
-              <TableRow className="hover:bg-muted/50">
+              <TableRow className="hover:bg-table-row-hover">
                 <TableCell className="px-3 py-3 font-semibold">Grand total</TableCell>
                 <TableCell />
-                <TableCell className="px-3 py-3 text-right tabular-nums">{subtotalRoot.rowCount}</TableCell>
-                <TableCell className="px-3 py-3 text-right tabular-nums font-semibold">
+                <TableCell className="num px-3 py-3 text-right">{subtotalRoot.rowCount}</TableCell>
+                <TableCell className="num px-3 py-3 text-right font-semibold">
                   {formatAUD(subtotalRoot.measures.totalBillable)}
                 </TableCell>
-                <TableCell className="px-3 py-3 text-right tabular-nums font-semibold">
+                <TableCell className="num px-3 py-3 text-right font-semibold">
                   {formatAUD(subtotalRoot.measures.mediaSpend)}
                 </TableCell>
-                <TableCell className="px-3 py-3 text-right tabular-nums font-semibold">
+                <TableCell className="num px-3 py-3 text-right font-semibold">
                   {formatAUD(subtotalRoot.measures.agencyFee)}
                 </TableCell>
               </TableRow>

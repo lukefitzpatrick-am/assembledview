@@ -19,10 +19,10 @@ export function BilledStatusPill({ billed, className, onToggle, disabled }: Bill
     return (
       <span
         className={cn(
-          "inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+          "inline-flex shrink-0 items-center rounded-pill px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
           isBilled
-            ? "bg-[hsl(var(--status-success))] text-[hsl(var(--status-success-foreground))]"
-            : "bg-[hsl(var(--status-warning)/0.15)] text-amber-800 dark:text-amber-300",
+            ? "bg-pacing-ahead-bg text-status-ahead-fg"
+            : "bg-pacing-behind-bg text-status-behind-fg",
           className
         )}
       >
@@ -49,10 +49,10 @@ export function BilledStatusPill({ billed, className, onToggle, disabled }: Bill
       disabled={busy || disabled === true}
       onClick={handleClick}
       className={cn(
-        "inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+        "inline-flex shrink-0 items-center gap-1 rounded-pill px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
         isBilled
-          ? "bg-[hsl(var(--status-success))] text-[hsl(var(--status-success-foreground))]"
-          : "bg-[hsl(var(--status-warning)/0.15)] text-amber-800 dark:text-amber-300",
+          ? "bg-pacing-ahead-bg text-status-ahead-fg"
+          : "bg-pacing-behind-bg text-status-behind-fg",
         "cursor-pointer transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-60",
         className
       )}

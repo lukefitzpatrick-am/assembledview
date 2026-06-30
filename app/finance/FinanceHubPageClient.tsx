@@ -19,11 +19,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states"
 import { FinanceFilterToolbar } from "@/components/finance/FinanceFilterToolbar"
 import { FinanceOverviewHero, FinanceOverviewProvider } from "@/components/finance/tabs/OverviewTab"
 import { toast } from "@/components/ui/use-toast"
 import type { BillingRecord, FinanceFilters } from "@/lib/types/financeBilling"
-import { clientAccentColour, clientInitials } from "@/lib/finance/cardHelpers"
+import { clientInitials } from "@/lib/finance/cardHelpers"
 import { formatLineItemDescription } from "@/lib/finance/lineItemDescription"
 import { cn } from "@/lib/utils"
 import { formatAUD } from "@/lib/format/money"
@@ -82,9 +83,9 @@ type HubSavedView = {
 
 function HubPanelFallback() {
   return (
-    <div className="animate-pulse rounded-lg border border-border/60 bg-muted/30 p-8">
-      <div className="h-6 w-40 rounded bg-muted" />
-      <div className="mt-4 h-4 w-full max-w-md rounded bg-muted" />
+    <div className="animate-pulse rounded-card border border-border bg-surface-panel p-8 shadow-e1">
+      <div className="h-6 w-40 rounded-input bg-card" />
+      <div className="mt-4 h-4 w-full max-w-md rounded-input bg-card" />
     </div>
   )
 }
@@ -131,14 +132,35 @@ function australianFyStartYearForDate(d: Date): number {
   return m >= 7 ? y : y - 1
 }
 
+function invoiceStatusBadgeProps(status: string): {
+  variant: "ahead" | "on-track" | "critical" | "outline"
+  className?: string
+  label: string
+} {
+  const normalized = status.trim().toLowerCase()
+  if (normalized === "paid") return { variant: "ahead", label: "Paid" }
+  if (normalized === "sent" || normalized === "invoiced") return { variant: "on-track", label: status || "Sent" }
+  if (normalized === "overdue") return { variant: "critical", label: "Overdue" }
+  if (normalized === "draft") return { variant: "outline", className: "text-muted-foreground", label: "Draft" }
+  return { variant: "outline", className: "text-muted-foreground", label: status || "Draft" }
+}
+
 function HubReceivableRecordArticle({ rec }: { rec: BillingRecord }) {
+  const statusBadge = invoiceStatusBadgeProps(rec.status)
+
   return (
-    <article className="overflow-hidden rounded-md border border-border/60">
-      <div className="flex items-start justify-between gap-3 bg-muted/40 px-3 py-2.5">
+    <article className="overflow-hidden rounded-input border border-border">
+      <div className="flex items-start justify-between gap-3 bg-surface-panel px-3 py-2.5">
         <div className="min-w-0">
-          <p className="truncate text-xs font-medium capitalize text-muted-foreground">{rec.status}</p>
+          <Badge
+            variant={statusBadge.variant}
+            size="sm"
+            className={cn("capitalize", statusBadge.className)}
+          >
+            {statusBadge.label}
+          </Badge>
           {rec.invoice_date ? (
-            <p className="mt-0.5 truncate text-[11px] tabular-nums text-muted-foreground">{rec.invoice_date}</p>
+            <p className="num mt-0.5 truncate text-[11px] text-muted-foreground">{rec.invoice_date}</p>
           ) : null}
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1">
@@ -148,7 +170,7 @@ function HubReceivableRecordArticle({ rec }: { rec: BillingRecord }) {
           >
             {receivableRecordSectionLabel(rec.billing_type)}
           </Badge>
-          <p className="text-sm font-semibold tabular-nums">{formatAUD(rec.total)}</p>
+          <p className="num text-sm font-semibold">{formatAUD(rec.total)}</p>
         </div>
       </div>
       <div className="px-3 py-1">
@@ -170,7 +192,7 @@ function HubReceivableRecordArticle({ rec }: { rec: BillingRecord }) {
                       {channelLabel}
                     </p>
                   </div>
-                  <p className="shrink-0 text-xs tabular-nums text-muted-foreground">{formatAUD(li.amount)}</p>
+                  <p className="num shrink-0 text-xs text-muted-foreground">{formatAUD(li.amount)}</p>
                 </div>
               )
             })
@@ -194,20 +216,6 @@ function FinanceHubReceivablesSection({
   loadError: string | null
   bumpReceivablesFetch: () => void
 }) {
-  const emptyCopy = (
-    <p className="py-10 text-sm text-muted-foreground">
-      No receivable billing rows for the current filters and billing months in view.
-    </p>
-  )
-
-  const idleCopy = (
-    <p className="py-10 text-sm text-muted-foreground">
-      Use <span className="font-medium text-foreground">Load</span> or{" "}
-      <span className="font-medium text-foreground">Refresh</span> in the filter bar above to fetch receivables for the
-      current filters.
-    </p>
-  )
-
   return (
     <div className="relative">
       {loading ? (
@@ -217,18 +225,19 @@ function FinanceHubReceivablesSection({
       ) : null}
 
       {loading && visibleMonthGroups.length === 0 ? (
-        <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
-          <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
-          Loading receivables…
-        </div>
+        <LoadingState rows={5} />
       ) : loadError && !loading ? (
-        <p className="py-6 text-sm text-destructive" role="alert">
-          {loadError}
-        </p>
+        <ErrorState title="Could not load receivables" message={loadError} onRetry={bumpReceivablesFetch} />
       ) : !loading && awaitingExplicitLoad ? (
-        idleCopy
+        <EmptyState
+          title="Load receivables"
+          message="Use Load or Refresh in the filter bar above to fetch receivables for the current filters."
+        />
       ) : !loading && visibleMonthGroups.length === 0 ? (
-        emptyCopy
+        <EmptyState
+          title="No receivable billing rows"
+          message="No receivable billing rows for the current filters and billing months in view."
+        />
       ) : (
         <div className="space-y-8 pt-1">
           {visibleMonthGroups.map((mg) => {
@@ -248,7 +257,7 @@ function FinanceHubReceivablesSection({
                     <p className="text-xs text-muted-foreground">
                       {mg.clients.length} {clientNoun} · {invoiceCount} {invoiceNoun}
                     </p>
-                    <p className="text-xs font-medium tabular-nums text-foreground">
+                    <p className="num text-xs font-medium text-foreground">
                       {formatAUD(mg.total)}
                     </p>
                   </div>
@@ -261,18 +270,13 @@ function FinanceHubReceivablesSection({
                       client.scopeOfWorks.reduce((n, mp) => n + mp.records.length, 0) +
                       client.retainers.length
                     const invNoun = invCount === 1 ? "invoice" : "invoices"
-                    const accent = clientAccentColour(client.clientsId)
-
                     return (
                       <Collapsible key={`${mg.monthIso}-${client.clientsId}`} defaultOpen className="group/client">
-                        <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-sm">
+                        <div className="overflow-hidden rounded-card border border-border bg-card shadow-e1">
                           <CollapsibleTrigger asChild>
-                            <header className="flex w-full cursor-pointer items-center gap-3 border-b border-border/60 bg-muted/40 px-4 py-3 text-left transition-colors hover:bg-muted/55">
-                              <Avatar className="h-9 w-9 rounded-full border border-border/40 shadow-sm">
-                                <AvatarFallback
-                                  className="text-xs font-semibold text-white"
-                                  style={{ backgroundColor: accent }}
-                                >
+                            <header className="flex w-full cursor-pointer items-center gap-3 border-b border-border bg-surface-panel px-4 py-3 text-left transition-colors hover:bg-table-row-hover">
+                              <Avatar className="h-9 w-9 rounded-pill border border-border shadow-e0">
+                                <AvatarFallback className="bg-primary text-xs font-semibold text-primary-foreground">
                                   {clientInitials(client.clientName)}
                                 </AvatarFallback>
                               </Avatar>
@@ -286,7 +290,7 @@ function FinanceHubReceivablesSection({
                                 <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
                                   Subtotal
                                 </p>
-                                <p className="text-base font-semibold tabular-nums">
+                                <p className="num text-base font-semibold">
                                   {formatAUD(client.total)}
                                 </p>
                               </div>
@@ -942,7 +946,7 @@ export default function FinanceHubPageClient() {
             </div>
           </div>
 
-          <div className="mt-3 rounded-md border border-border/60 bg-card px-3 py-2">
+          <div className="mt-3 rounded-card border border-border bg-card px-3 py-2 shadow-e1">
             <FinanceFilterToolbar
               receivables={
                 activeTab === "billing"

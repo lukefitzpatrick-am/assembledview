@@ -60,7 +60,7 @@ function MediaTypeRollupRow({ rollup }: { rollup: MediaTypeRollup }) {
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
-      <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-left hover:bg-muted/40">
+      <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 rounded-input px-2 py-2 text-left hover:bg-table-row-hover">
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <ChevronDown
             className={cn(
@@ -71,10 +71,10 @@ function MediaTypeRollupRow({ rollup }: { rollup: MediaTypeRollup }) {
           />
           <span className="truncate text-xs font-medium capitalize text-foreground">{rollup.mediaType}</span>
         </div>
-        <span className="shrink-0 text-xs font-medium tabular-nums">{formatAUD(rollup.total)}</span>
+        <span className="num shrink-0 text-xs font-medium">{formatAUD(rollup.total)}</span>
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <div className="mx-2 mb-2 rounded-md border border-border/50 bg-background px-2">
+        <div className="mx-2 mb-2 rounded-input border border-border bg-background px-2">
           {grouped.map((g) => (
             <ReceivablesLineGroupRow key={g.key} group={g} />
           ))}
@@ -102,7 +102,7 @@ export function ReceivablesMediaPlanSection({
           ) : null}
           <p className="truncate text-sm font-medium">{mp.campaignName}</p>
           {mp.mbaNumber ? (
-            <p className="truncate text-[11px] tabular-nums text-muted-foreground">{mp.mbaNumber}</p>
+          <p className="num truncate text-[11px] text-muted-foreground">{mp.mbaNumber}</p>
           ) : null}
         </div>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
@@ -113,7 +113,7 @@ export function ReceivablesMediaPlanSection({
               onSaved={refetch}
             />
           ) : null}
-          <p className="text-sm font-semibold tabular-nums">{formatAUD(mp.total)}</p>
+          <p className="num text-sm font-semibold">{formatAUD(mp.total)}</p>
         </div>
       </div>
 

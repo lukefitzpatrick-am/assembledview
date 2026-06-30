@@ -307,7 +307,7 @@ export function AccrualTab() {
       cell: ({ row }) => {
         const fa = row.original.finance_accrual
         if (!fa) return "—"
-        return <span className="tabular-nums">{formatAUD(fa.receivable_total)}</span>
+        return <span className="num">{formatAUD(fa.receivable_total)}</span>
       },
     }
 
@@ -319,7 +319,7 @@ export function AccrualTab() {
       cell: ({ row }) => {
         const fa = row.original.finance_accrual
         if (!fa) return "—"
-        return <span className="tabular-nums">{formatAUD(fa.payable_total)}</span>
+        return <span className="num">{formatAUD(fa.payable_total)}</span>
       },
     }
 
@@ -331,7 +331,7 @@ export function AccrualTab() {
       cell: ({ row }) => {
         const fa = row.original.finance_accrual
         if (!fa) return "—"
-        return <span className="tabular-nums">{formatAUD(fa.fees_total)}</span>
+        return <span className="num">{formatAUD(fa.fees_total)}</span>
       },
     }
 
@@ -347,9 +347,9 @@ export function AccrualTab() {
         return (
           <span
             className={cn(
-              "tabular-nums font-medium",
+              "num font-medium",
               v < 0 && "text-destructive",
-              v > 0 && "text-emerald-600 dark:text-emerald-400",
+              v > 0 && "text-status-ahead-fg",
               v === 0 && "text-muted-foreground"
             )}
           >
@@ -389,7 +389,7 @@ export function AccrualTab() {
 
   const getRecordRowClassName = useCallback((record: BillingRecord) => {
     const k = record.finance_accrual?.kind
-    if (k === "client_subtotal" || k === "grand_total") return "font-semibold bg-muted/25"
+    if (k === "client_subtotal" || k === "grand_total") return "bg-surface-panel font-semibold"
     return undefined
   }, [])
 
@@ -468,12 +468,12 @@ export function AccrualTab() {
                       <li className="text-muted-foreground">None</li>
                     ) : (
                       panelRow.contributing_receivables.map((r) => (
-                        <li key={r.id} className="rounded-md border border-border/50 bg-muted/20 p-2">
+                        <li key={r.id} className="rounded-input border border-border bg-surface-panel p-2">
                           <div className="font-medium">
                             {r.billing_type} · {r.mba_number || "—"}
                           </div>
                           <div className="text-muted-foreground">{r.campaign_name || "—"}</div>
-                          <div className="mt-1 tabular-nums">{formatAUD(Number(r.total || 0))}</div>
+                          <div className="num mt-1">{formatAUD(Number(r.total || 0))}</div>
                           <div className="text-xs text-muted-foreground">Status: {r.status}</div>
                         </li>
                       ))
@@ -492,10 +492,10 @@ export function AccrualTab() {
                           0
                         )
                         return (
-                          <li key={r.id} className="rounded-md border border-border/50 bg-muted/20 p-2">
+                          <li key={r.id} className="rounded-input border border-border bg-surface-panel p-2">
                             <div className="font-medium">{r.mba_number || "—"}</div>
                             <div className="text-muted-foreground">{r.campaign_name || "—"}</div>
-                            <div className="mt-1 tabular-nums">{formatAUD(expected)}</div>
+                            <div className="num mt-1">{formatAUD(expected)}</div>
                             <div className="text-xs text-muted-foreground">Status: {r.status}</div>
                           </li>
                         )
