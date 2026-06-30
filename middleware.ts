@@ -4,7 +4,7 @@ import { auth0 } from './lib/auth0';
 import { getUserClientIdentifier, getUserRoles } from './lib/rbac';
 
 const STATIC_PATHS = ['/favicon.ico', '/robots.txt', '/sitemap.xml'];
-const PUBLIC_PATHS = ['/', '/forbidden', '/knowledge'];
+const PUBLIC_PATHS = ['/', '/forbidden'];
 const DEBUG_AUTH_ENABLED = process.env.NEXT_PUBLIC_DEBUG_AUTH === 'true';
 
 const normalizePath = (p: string) => (p !== '/' && p.endsWith('/') ? p.slice(0, -1) : p);

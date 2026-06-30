@@ -52,7 +52,7 @@ export default function LearningSectionPage({ params }: PageProps) {
   const sectionParam = (resolvedParams.section?.toLowerCase() ?? "") as Section;
   const section: Section = validSections.includes(sectionParam) ? sectionParam : "definitions";
 
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(searchParams?.get("q") ?? "");
   const [sortMode, setSortMode] = useState<SortMode>("relevance");
   const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
   const [selectedLevels, setSelectedLevels] = useState<string[]>([]);
