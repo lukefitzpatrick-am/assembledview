@@ -4779,5 +4779,326 @@
     "sources": [{ "label": "Outdoor Media Association - DOOH", "url": "https://www.oma.org.au/powering-dooh" }],
     "status": "reviewed",
     "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Auction",
+    "plainEnglish": "The real-time process that decides which ad wins an impression and what it pays.",
+    "whyItMatters": "Almost all digital media is sold by auction; understanding bid, quality and floors is how you win efficiently.",
+    "level": "intermediate",
+    "sources": [{ "label": "IAB Tech Lab - OpenRTB", "url": "https://iabtechlab.com/standards/openrtb/" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "RTB",
+    "plainEnglish": "Real-Time Bidding - buying each impression individually via a live auction as the page loads.",
+    "whyItMatters": "The engine of programmatic - lets you bid per impression on the people you want, not bulk placements.",
+    "level": "intermediate",
+    "sources": [{ "label": "IAB Tech Lab - OpenRTB", "url": "https://iabtechlab.com/standards/openrtb/" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Bid Request",
+    "plainEnglish": "The message sent to DSPs offering an impression opportunity (with context about the user/page).",
+    "whyItMatters": "The 'do you want this impression, and how much?' prompt that kicks off every RTB auction.",
+    "level": "advanced",
+    "sources": [{ "label": "IAB Tech Lab - OpenRTB", "url": "https://iabtechlab.com/standards/openrtb/" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Bid Response",
+    "plainEnglish": "The DSP's reply to a bid request - its bid (and the ad to serve if it wins).",
+    "whyItMatters": "The buy-side's answer in the auction; all responses compete to win the impression.",
+    "level": "advanced",
+    "sources": [{ "label": "IAB Tech Lab - OpenRTB", "url": "https://iabtechlab.com/standards/openrtb/" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "First Price Auction",
+    "plainEnglish": "An auction where the winner pays exactly what they bid.",
+    "whyItMatters": "Now the programmatic standard - means you can overpay, which is why bid shading exists.",
+    "level": "intermediate",
+    "sources": [{ "label": "Setupad - First vs second price auctions", "url": "https://setupad.com/blog/first-price-vs-second-price-auction/" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Second Price Auction",
+    "plainEnglish": "An auction where the winner pays just above the second-highest bid.",
+    "whyItMatters": "The old standard (still used in places like Google Ads search) - you pay only enough to win, so max bids are safer.",
+    "level": "intermediate",
+    "sources": [{ "label": "Setupad - First vs second price auctions", "url": "https://setupad.com/blog/first-price-vs-second-price-auction/" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Clearing Price",
+    "plainEnglish": "The final price actually paid once the auction resolves.",
+    "whyItMatters": "What you really pay (vs your bid) - in first-price it equals your bid; in second-price it's lower.",
+    "level": "advanced",
+    "sources": [{ "label": "Setupad - First vs second price auctions", "url": "https://setupad.com/blog/first-price-vs-second-price-auction/" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Bid Floor",
+    "plainEnglish": "The minimum price a seller will accept for an impression.",
+    "whyItMatters": "Sets the entry price; bid below it and you can't win. Publishers tune floors to protect yield.",
+    "level": "intermediate",
+    "sources": [{ "label": "Clickio - Price floors in programmatic", "url": "https://blog.clickio.com/price-floors-programmatic-advertising/" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Hard Floor",
+    "plainEnglish": "A price floor that must be met - bids below it are rejected outright.",
+    "whyItMatters": "A firm minimum; protects publisher revenue but can reduce fill if set too high.",
+    "level": "advanced",
+    "sources": [{ "label": "Clickio - Price floors in programmatic", "url": "https://blog.clickio.com/price-floors-programmatic-advertising/" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Soft Floor",
+    "plainEnglish": "A flexible floor that can be bypassed (bids below it may still compete).",
+    "whyItMatters": "Balances yield and fill - lets lower bids in when no higher bid clears the hard floor.",
+    "level": "advanced",
+    "sources": [{ "label": "Clickio - Price floors in programmatic", "url": "https://blog.clickio.com/price-floors-programmatic-advertising/" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Dynamic Floor",
+    "plainEnglish": "A price floor adjusted automatically based on demand and signals.",
+    "whyItMatters": "Optimises publisher yield in real time - and shapes what buyers must pay to win.",
+    "level": "advanced",
+    "sources": [{ "label": "Clickio - Price floors in programmatic", "url": "https://blog.clickio.com/price-floors-programmatic-advertising/" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Header Bidding",
+    "plainEnglish": "A technique where publishers offer inventory to many demand sources simultaneously, before calling the ad server.",
+    "whyItMatters": "Replaced the waterfall - parallel competition raises yield for publishers and gives buyers fairer access.",
+    "level": "advanced",
+    "sources": [{ "label": "Prebid.org - Intro to header bidding", "url": "https://docs.prebid.org/overview/intro-to-header-bidding.html" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Prebid",
+    "plainEnglish": "The open-source framework that standardises header bidding.",
+    "whyItMatters": "The de facto industry plumbing for header bidding - vendor-neutral and widely adopted.",
+    "level": "advanced",
+    "sources": [{ "label": "Prebid.org - Intro", "url": "https://docs.prebid.org/overview/intro.html" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Waterfall",
+    "plainEnglish": "An older, sequential auction where demand sources are offered inventory one after another by priority.",
+    "whyItMatters": "Slower and leaves money on the table vs header bidding's parallel auction - largely superseded.",
+    "level": "advanced",
+    "sources": [{ "label": "Setupad - Header bidding vs waterfall", "url": "https://setupad.com/blog/header-bidding-vs-waterfall/" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Latency",
+    "plainEnglish": "The delay added while auctions and tags run before the ad (and page) finish loading.",
+    "whyItMatters": "Too much latency hurts user experience and can drop bids - a constant trade-off against more demand sources.",
+    "level": "advanced",
+    "sources": [{ "label": "Prebid.org - Timeouts", "url": "https://docs.prebid.org/features/timeouts.html" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Timeout",
+    "plainEnglish": "The maximum time bidders get to respond before the auction proceeds without them.",
+    "whyItMatters": "Caps latency - too short and you lose bids, too long and the page lags. A key header-bidding tuning lever.",
+    "level": "advanced",
+    "sources": [{ "label": "Prebid.org - Timeouts", "url": "https://docs.prebid.org/features/timeouts.html" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Auction Time Bidding",
+    "plainEnglish": "Setting bids individually for each auction in real time, using live signals (Smart Bidding).",
+    "whyItMatters": "Optimises every impression on context a human couldn't bid on manually - the core advantage of automated bidding.",
+    "level": "intermediate",
+    "sources": [{ "label": "Google Ads Help - Smart Bidding", "url": "https://support.google.com/google-ads/answer/7065882" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Bid Strategy",
+    "plainEnglish": "The rule/automation that governs how bids are set toward a goal.",
+    "whyItMatters": "Choosing the right strategy (max conversions, tCPA, tROAS, etc.) for the objective is half of search/social performance.",
+    "level": "intermediate",
+    "sources": [{ "label": "Google Ads Help - Choose a bid strategy", "url": "https://support.google.com/google-ads/answer/2472725" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Broad Match Expansion",
+    "plainEnglish": "When broad match keywords trigger on a wider set of related queries via the algorithm.",
+    "whyItMatters": "Finds new converting queries with Smart Bidding - but without good negatives it can wander into waste.",
+    "level": "intermediate",
+    "sources": [{ "label": "Google Ads Help - Broad match", "url": "https://support.google.com/google-ads/answer/12159290" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Query Matching",
+    "plainEnglish": "How a keyword is matched to the searches that can trigger it (broad, phrase, exact, close variants).",
+    "whyItMatters": "Determines reach vs control on search; the search-terms report shows how matching plays out in reality.",
+    "level": "intermediate",
+    "sources": [{ "label": "Google Ads Help - Keyword matching options", "url": "https://support.google.com/google-ads/answer/7478529" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "First-party Data",
+    "plainEnglish": "Data you collect directly from your own customers/audiences (site, app, CRM, purchases).",
+    "whyItMatters": "The most valuable, consented and durable data - the foundation of targeting and measurement as third-party cookies fade.",
+    "level": "foundational",
+    "sources": [{ "label": "IAB Australia - 1st Party Data Handbook", "url": "https://iabaustralia.com.au/resource/1st-party-data-handbook/" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Second-party Data",
+    "plainEnglish": "Another organisation's first-party data, shared with you directly (e.g. a partner or publisher).",
+    "whyItMatters": "Trusted, consented data you don't have yourself - increasingly traded via clean rooms and partnerships.",
+    "level": "intermediate",
+    "sources": [{ "label": "IAB - Understanding the language of data", "url": "https://www.iab.com/blog/understanding-the-language-of-data/" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Third-party Data",
+    "plainEnglish": "Data aggregated from many sources by an external provider and sold for targeting.",
+    "whyItMatters": "Scaled but lower-accuracy and privacy-pressured - declining fast as cookies and regulation tighten.",
+    "level": "intermediate",
+    "sources": [{ "label": "IAB - Understanding the language of data", "url": "https://www.iab.com/blog/understanding-the-language-of-data/" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Hashed Email",
+    "plainEnglish": "An email address converted into a scrambled, irreversible string used to match people privately.",
+    "whyItMatters": "Lets platforms match audiences on first-party data without exposing the raw email - the basis of durable, privacy-safe IDs.",
+    "level": "advanced",
+    "sources": [{ "label": "LiveRamp - RampID / hashed identity", "url": "https://docs.liveramp.com/identity/en/rampid-identity-resolution.html" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "CDP",
+    "plainEnglish": "Customer Data Platform - software that unifies first-party customer data into a single profile for activation.",
+    "whyItMatters": "The hub that makes first-party data usable for targeting, suppression and measurement across channels.",
+    "level": "advanced",
+    "sources": [{ "label": "CDP Institute - What is a CDP", "url": "https://www.cdpinstitute.org/learning-center/what-is-a-cdp/" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "CRM",
+    "plainEnglish": "Customer Relationship Management - the system holding customer records and interactions (sales, service, marketing).",
+    "whyItMatters": "A core first-party data source - CRM lists power custom audiences, suppression and measurement.",
+    "practitionerNotes": "General business system; defined in-house.",
+    "level": "foundational",
+    "sources": [{ "label": "CDP Institute - What is a CDP (CRM context)", "url": "https://www.cdpinstitute.org/learning-center/what-is-a-cdp/" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "DWH",
+    "plainEnglish": "Data Warehouse - a central store of structured data for analysis and reporting.",
+    "whyItMatters": "Where marketing, sales and finance data are unified for reporting, MMM and a single source of truth.",
+    "level": "intermediate",
+    "sources": [{ "label": "Snowflake - What is a data warehouse", "url": "https://www.snowflake.com/en/fundamentals/data-warehouse/" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "BigQuery",
+    "plainEnglish": "Google Cloud's serverless data warehouse for large-scale analytics.",
+    "whyItMatters": "Common home for GA4/ads data exports and the analysis layer for MMM, attribution and reporting.",
+    "level": "intermediate",
+    "sources": [{ "label": "Google Cloud - BigQuery", "url": "https://cloud.google.com/bigquery" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Snowflake",
+    "plainEnglish": "A cloud data platform/warehouse for storing and analysing data (and sharing it via clean rooms).",
+    "whyItMatters": "Widely used for unifying marketing data and for privacy-safe data collaboration with partners.",
+    "level": "intermediate",
+    "sources": [{ "label": "Snowflake - Key concepts", "url": "https://docs.snowflake.com/en/user-guide/intro-key-concepts" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "ETL",
+    "plainEnglish": "Extract, Transform, Load - the process of moving data from sources into a warehouse, cleaning it on the way.",
+    "whyItMatters": "How raw platform data becomes analysis-ready; reliable ETL is the foundation of trustworthy reporting.",
+    "level": "advanced",
+    "sources": [{ "label": "Snowflake - ETL / ELT", "url": "https://www.snowflake.com/en/fundamentals/understanding-extract-load-transform-elt/" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "API",
+    "plainEnglish": "Application Programming Interface - a defined way for two systems to exchange data automatically.",
+    "whyItMatters": "How ad platforms, analytics and your data stack talk to each other - the basis of automated reporting and integrations.",
+    "practitionerNotes": "General software term; defined in-house.",
+    "level": "intermediate",
+    "sources": [{ "label": "MFA - Glossary of terms", "url": "https://www.mediafederation.org.au/resources/learning-resources/mfa-digital-foundations-glossary-of-terms" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Webhook",
+    "plainEnglish": "An automated message a system sends to another the moment an event happens (a 'push').",
+    "whyItMatters": "Powers real-time data flows - e.g. a conversion firing a server-side event - without constant polling.",
+    "practitionerNotes": "General integration term; defined in-house.",
+    "level": "advanced",
+    "sources": [{ "label": "MFA - Glossary of terms", "url": "https://www.mediafederation.org.au/resources/learning-resources/mfa-digital-foundations-glossary-of-terms" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Compliance",
+    "plainEnglish": "Adhering to the laws, regulations and standards that apply to advertising and data.",
+    "whyItMatters": "Privacy law, ad codes (AANA) and platform policy are non-negotiable; non-compliance risks fines and brand damage.",
+    "practitionerNotes": "General governance term; defined in-house.",
+    "level": "intermediate",
+    "sources": [{ "label": "OAIC - The Privacy Act", "url": "https://www.oaic.gov.au/privacy/privacy-legislation/the-privacy-act" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Playbook",
+    "plainEnglish": "A documented set of best practices and processes for how to do something consistently.",
+    "whyItMatters": "Captures hard-won know-how so quality doesn't depend on who's in the room; the backbone of repeatable delivery.",
+    "practitionerNotes": "General ops term; defined in-house.",
+    "level": "foundational",
+    "sources": [{ "label": "MFA - Glossary of terms", "url": "https://www.mediafederation.org.au/resources/learning-resources/mfa-digital-foundations-glossary-of-terms" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
+  },
+  {
+    "term": "Roadmap",
+    "plainEnglish": "A plan of future work and its sequence/timing.",
+    "whyItMatters": "Aligns the team and client on what's coming and when; turns strategy into a sequenced plan.",
+    "practitionerNotes": "General ops term; defined in-house.",
+    "level": "foundational",
+    "sources": [{ "label": "MFA - Glossary of terms", "url": "https://www.mediafederation.org.au/resources/learning-resources/mfa-digital-foundations-glossary-of-terms" }],
+    "status": "reviewed",
+    "reviewedAt": "2026-06-30"
   }
 ]
