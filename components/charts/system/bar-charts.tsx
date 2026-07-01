@@ -116,7 +116,7 @@ export function BarChart({
               dataKey={s.key}
               name={s.label}
               stackId={stackId}
-              fill={`var(--color-${s.key})`}
+              fill={cfg[s.key]?.color as string}
               radius={
                 layout === 'group'
                   ? (horizontal ? [0, 3, 3, 0] : [3, 3, 0, 0])
@@ -174,8 +174,8 @@ export function ComboChart({ data, xKey, bar, line, className }: ComboProps) {
         <YAxis yAxisId="r" orientation="right" width={40} tickFormatter={lvf} {...axisProps} />
         <ChartTooltip content={<ChartTooltipContent />} />
         <ChartLegend content={<ChartLegendContent />} />
-        <Bar yAxisId="l" dataKey={bar.key} fill={`var(--color-${bar.key})`} radius={[3, 3, 0, 0]} isAnimationActive={false} />
-        <Line yAxisId="r" type="monotone" dataKey={line.key} stroke={`var(--color-${line.key})`}
+        <Bar yAxisId="l" dataKey={bar.key} fill={cfg[bar.key]?.color as string} radius={[3, 3, 0, 0]} isAnimationActive={false} />
+        <Line yAxisId="r" type="monotone" dataKey={line.key} stroke={cfg[line.key]?.color as string}
           strokeWidth={2.4} dot={{ r: 2.6, fill: '#fff', strokeWidth: 1.6 }} isAnimationActive={false} />
       </ComposedChart>
     </ChartContainer>

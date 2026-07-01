@@ -182,9 +182,7 @@ export function SpendingInsightsSection({
       .map((key, i) => ({
         key,
         label: getSeriesLabel(key),
-        ...(monthlyView === "mediaType"
-          ? { color: channelColorFor(key, i) }
-          : {}),
+        color: channelColorFor(key, i) ?? `var(--av-chart-${(i % 8) + 1})`,
       }))
   }, [getSeriesLabel, monthlyView, pivotedMonthly])
 

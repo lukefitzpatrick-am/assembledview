@@ -66,7 +66,7 @@ export function LineChart({
         {series.map((s) => (
           <Line
             key={s.key} type={smooth ? 'monotone' : 'linear'} dataKey={s.key}
-            stroke={`var(--color-${s.key})`} strokeWidth={2}
+            stroke={cfg[s.key]?.color as string} strokeWidth={2}
             dot={dots ? { r: 2.5, fill: '#fff', strokeWidth: 1.5 } : false}
             activeDot={{ r: 4 }} isAnimationActive={false}
           />
@@ -99,8 +99,8 @@ export function AreaChart({
           <Area
             key={s.key} type={smooth ? 'monotone' : 'linear'} dataKey={s.key}
             stackId={stacked ? 'a' : undefined}
-            stroke={`var(--color-${s.key})`} strokeWidth={2}
-            fill={`var(--color-${s.key})`} fillOpacity={stacked ? 0.85 : 0.12}
+            stroke={cfg[s.key]?.color as string} strokeWidth={2}
+            fill={cfg[s.key]?.color as string} fillOpacity={stacked ? 0.85 : 0.12}
             isAnimationActive={false}
           />
         ))}
@@ -124,7 +124,7 @@ export function StepChart({ data, xKey, series, valueFormat = 'compact', classNa
         <ChartTooltip content={<ChartTooltipContent formatter={(v) => vf(Number(v))} />} />
         {series.map((s) => (
           <Line key={s.key} type="stepAfter" dataKey={s.key}
-            stroke={`var(--color-${s.key})`} strokeWidth={2} dot={false} isAnimationActive={false} />
+            stroke={cfg[s.key]?.color as string} strokeWidth={2} dot={false} isAnimationActive={false} />
         ))}
       </RLineChart>
     </ChartContainer>

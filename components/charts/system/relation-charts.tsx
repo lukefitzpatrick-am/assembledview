@@ -61,8 +61,8 @@ export function RadarChart({
         <ChartTooltip content={<ChartTooltipContent />} />
         {series.length > 1 && <ChartLegend content={<ChartLegendContent />} />}
         {series.map((s) => (
-          <Radar key={s.key} dataKey={s.key} stroke={`var(--color-${s.key})`} strokeWidth={2}
-            fill={`var(--color-${s.key})`} fillOpacity={0.16} isAnimationActive={false} />
+          <Radar key={s.key} dataKey={s.key} stroke={cfg[s.key]?.color as string} strokeWidth={2}
+            fill={cfg[s.key]?.color as string} fillOpacity={0.16} isAnimationActive={false} />
         ))}
       </RRadarChart>
     </ChartContainer>
@@ -83,7 +83,7 @@ export function SlopeChart({
         <YAxis hide />
         <ChartTooltip content={<ChartTooltipContent />} />
         {data.map((d) => (
-          <Line key={d.label} dataKey={d.label} stroke={`var(--color-${d.label})`} strokeWidth={2.2}
+          <Line key={d.label} dataKey={d.label} stroke={cfg[d.label]?.color as string} strokeWidth={2.2}
             dot={{ r: 3 }} isAnimationActive={false}>
             <LabelList dataKey={d.label} position="right" fontSize={10} fill={NEUTRAL.label}
               formatter={(v: number, _e: any, idx: number) => (idx === 1 ? d.label : '')} />
