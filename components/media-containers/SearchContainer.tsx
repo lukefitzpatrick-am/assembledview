@@ -34,7 +34,7 @@ import { serializeBurstsJson } from "@/lib/mediaplan/serializeBurstsJson"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
-import { assignStableLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
+import { assignStableLineItemNumbers, reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
 import { ChevronDown, Copy, Plus, Trash2 } from "lucide-react"
@@ -250,6 +250,7 @@ export default function SearchContainer({
   const [expertSegmentAttention, setExpertSegmentAttention] = useState(true)
   const searchStandardBaselineRef = useRef("")
   const searchExpertRowsBaselineRef = useRef("")
+  const reorderedRef = useRef(false)
   const searchExpertModalOpenRef = useRef(false)
   searchExpertModalOpenRef.current = searchExpertModalOpen
 
@@ -425,7 +426,11 @@ export default function SearchContainer({
       standard,
       prevLineItems as StandardSearchFormLineItem[]
     )
-    const keyedMerged = stampBurstReactKeys(merged)
+    const orderedForApply = reorderedRef.current
+      ? reassignLineItemNumbers(merged, mbaNumber, MEDIA_TYPE_ID_CODES.search)
+      : merged
+    reorderedRef.current = false
+    const keyedMerged = stampBurstReactKeys(orderedForApply)
     form.setValue("lineItems", keyedMerged as any, {
       shouldDirty: true,
       shouldValidate: false,
@@ -1811,6 +1816,9 @@ useEffect(() => {
                 rows={expertSearchRows}
                 onRowsChange={handleExpertSearchRowsChange}
                 publishers={publishers}
+                onReorder={() => {
+                  reorderedRef.current = true;
+                }}
               />
             </div>
           </ComboboxModalProvider>
