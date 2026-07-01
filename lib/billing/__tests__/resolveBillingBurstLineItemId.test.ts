@@ -26,7 +26,7 @@ test("uses stored line item id before recomputing a burst join key", () => {
   )
 })
 
-test("recomputes burst join key with the same identity inputs when no stored id exists", () => {
+test("recomputes burst join key positionally when no stored id exists", () => {
   assert.equal(
     resolveBillingBurstLineItemId(
       { line_item: 7 },
@@ -34,7 +34,7 @@ test("recomputes burst join key with the same identity inputs when no stored id 
       MEDIA_TYPE_ID_CODES.digitalDisplay,
       0,
     ),
-    "MBA123DD7",
+    "MBA123DD1",
   )
 
   assert.equal(

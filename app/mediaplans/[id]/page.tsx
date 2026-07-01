@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { format } from "date-fns"
 import { ArrowLeft, Download, FileText } from "lucide-react"
+import { formatAUD } from "@/lib/format/money"
 
 // Define the MediaPlan interface
 interface MediaPlan {
@@ -90,16 +91,6 @@ export default function MediaPlanPage({ params }: { params: Promise<{ id: string
 
     fetchMediaPlan()
   }, [id])
-
-  // Format currency
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-AU', {
-      style: 'currency',
-      currency: 'AUD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount)
-  }
 
   // Format date
   const formatDate = (dateString: string) => {
@@ -400,7 +391,7 @@ export default function MediaPlanPage({ params }: { params: Promise<{ id: string
                       <p><span className="font-medium">Campaign Name:</span> {mediaPlan.mp_campaignname}</p>
                       <p><span className="font-medium">Start Date:</span> {formatDate(mediaPlan.mp_campaigndates_start)}</p>
                       <p><span className="font-medium">End Date:</span> {formatDate(mediaPlan.mp_campaigndates_end)}</p>
-                      <p><span className="font-medium">Budget:</span> {formatCurrency(mediaPlan.mp_campaignbudget)}</p>
+                      <p><span className="font-medium">Budget:</span> {formatAUD(mediaPlan.mp_campaignbudget)}</p>
                     </div>
                   </div>
                 </div>

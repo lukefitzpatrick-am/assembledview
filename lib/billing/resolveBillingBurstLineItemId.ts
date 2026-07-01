@@ -1,4 +1,4 @@
-import { buildLineItemIdentity, MEDIA_TYPE_ID_CODES } from "@/lib/mediaplan/lineItemIds"
+import { buildLineItemId, MEDIA_TYPE_ID_CODES } from "@/lib/mediaplan/lineItemIds"
 
 type MediaTypeIdCode = (typeof MEDIA_TYPE_ID_CODES)[keyof typeof MEDIA_TYPE_ID_CODES]
 
@@ -12,5 +12,5 @@ export function resolveBillingBurstLineItemId(
   const stored = String(item.line_item_id ?? item.lineItemId ?? "").trim()
   if (stored) return stored
 
-  return buildLineItemIdentity(lineItem, mbaNumber, mediaTypeCode, lineItemIndex).line_item_id
+  return buildLineItemId(mbaNumber, mediaTypeCode, lineItemIndex + 1)
 }

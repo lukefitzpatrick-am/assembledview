@@ -18,7 +18,7 @@ import type {
   FinanceForecastVarianceMonthLineRow,
   FinanceForecastVarianceReport,
 } from "@/lib/types/financeForecastVariance"
-import { formatCurrencyFull } from "@/lib/format/currency"
+import { formatAUD } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -43,14 +43,7 @@ import {
 } from "@/components/ui/table"
 
 const moneyFmt = (n: number | null) =>
-  n === null || Number.isNaN(n)
-    ? "—"
-    : formatCurrencyFull(n, {
-        locale: "en-AU",
-        currency: "AUD",
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      })
+  n === null || Number.isNaN(n) ? "—" : formatAUD(n)
 
 function monthColumnLabel(key: FinanceForecastMonthKey, fyStart: number): string {
   const calMonth: Record<FinanceForecastMonthKey, number> = {
@@ -79,8 +72,8 @@ function defaultFyStartYear(): number {
 }
 
 function deltaToneClass(delta: number): string {
-  if (delta > 0) return "text-emerald-600 dark:text-emerald-400"
-  if (delta < 0) return "text-rose-600 dark:text-rose-400"
+  if (delta > 0) return "text-status-ahead-fg"
+  if (delta < 0) return "text-status-critical-fg"
   return "text-muted-foreground"
 }
 

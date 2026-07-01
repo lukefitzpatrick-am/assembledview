@@ -9,7 +9,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     const body = await req.json()
     const currentUser = await getCurrentUser(req)
     const response = await axios.put(
-      `${xanoUrl("edit_media_container_best_practice", "XANO_PUBLISHERS_BASE_URL")}/${encodeURIComponent(id)}`,
+      `${xanoUrl("media_container_best_practice", "XANO_PUBLISHERS_BASE_URL")}/${encodeURIComponent(id)}`,
       {
         ...body,
         _name: currentUser?.email ?? currentUser?.name ?? null,

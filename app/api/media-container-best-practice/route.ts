@@ -6,7 +6,7 @@ import { getCurrentUser } from "@/lib/auth/getCurrentUser"
 export async function GET() {
   try {
     const response = await axios.get(
-      xanoUrl("get_media_container_best_practice", "XANO_PUBLISHERS_BASE_URL"),
+      xanoUrl("media_container_best_practice", "XANO_PUBLISHERS_BASE_URL"),
     )
     return NextResponse.json(response.data)
   } catch (error) {
@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     const body = await req.json()
     const currentUser = await getCurrentUser(req)
     const response = await axios.post(
-      xanoUrl("post_media_container_best_practice", "XANO_PUBLISHERS_BASE_URL"),
+      xanoUrl("media_container_best_practice", "XANO_PUBLISHERS_BASE_URL"),
       {
         ...body,
         _name: currentUser?.email ?? currentUser?.name ?? null,

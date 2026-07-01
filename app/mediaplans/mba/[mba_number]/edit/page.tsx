@@ -38,7 +38,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { formatMoney } from "@/lib/format/money"
+import { formatAUD, formatMoney } from "@/lib/format/money"
 import {
   appendPartialApprovalToBillingSchedule,
   billingMonthsHaveDetailedLineItems,
@@ -7394,9 +7394,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
     const enabledMedia = nextEnabledMedia ?? partialMBAMediaEnabled
 
-    const fmt = (n: number) =>
-      formatMoney(n, { locale: "en-US", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 })
-
     const { values, lineItemsByMedia, metadata } = recomputePartialMbaFromSelections({
       deliveryMonthsForBaseline: deliveryMonthsRaw,
       deliveryMonthsForLineItems: deliveryMonthsWithLineItems,
@@ -7405,7 +7402,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       mediaKeys,
       enabledMedia,
       mediaLabelByKey,
-      formatCurrency: fmt,
+      formatCurrency: formatAUD,
     })
 
     setPartialMBAValues(values)
@@ -7556,11 +7553,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       setPartialApprovalMetadata({
         ...partialApprovalMetadata,
         totals: {
-          grossMedia: formatMoney(grossMedia, { locale: "en-US", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-          assembledFee: formatMoney(assembledFee, { locale: "en-US", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-          adServing: formatMoney(adServing, { locale: "en-US", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-          production: formatMoney(production, { locale: "en-US", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-          totalInvestment: formatMoney(newTotalInvestment, { locale: "en-US", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+          grossMedia: formatAUD(grossMedia),
+          assembledFee: formatAUD(assembledFee),
+          adServing: formatAUD(adServing),
+          production: formatAUD(production),
+          totalInvestment: formatAUD(newTotalInvestment),
         },
         updatedAt: new Date().toISOString(),
       })

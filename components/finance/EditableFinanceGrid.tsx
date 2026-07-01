@@ -7,7 +7,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from "react"
@@ -23,7 +22,6 @@ import { useVirtualizer } from "@tanstack/react-virtual"
 import { format, parse, parseISO } from "date-fns"
 import { cn } from "@/lib/utils"
 import { formatMoney } from "@/lib/format/money"
-import { rgbaFromHex } from "@/lib/mediaplan/mediaTypeAccents"
 import type { BillingRecord, BillingStatus } from "@/lib/types/financeBilling"
 import { publisherLabelForFinanceGrouping } from "@/lib/finance/aggregatePayablesPublisherGroups"
 import { useFinanceStore } from "@/lib/finance/useFinanceStore"
@@ -34,14 +32,8 @@ import { Input } from "@/components/ui/input"
 import { SingleDatePicker } from "@/components/ui/single-date-picker"
 import { useToast } from "@/components/ui/use-toast"
 
-const FINANCE_GRID_INFO_HEX = "#4ac7eb"
-
-const financeGridHeaderCellStyle = {
-  backgroundColor: rgbaFromHex(FINANCE_GRID_INFO_HEX, 0.08),
-}
-
 const HEADER_TH_CLASS = cn(
-  "sticky top-0 z-[21] border-b border-r px-1.5 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground shadow-[0_1px_0_0_hsl(var(--border))] backdrop-blur-sm"
+  "sticky top-0 z-[21] border-b border-r bg-channel-social-bg px-1.5 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground shadow-[0_1px_0_0_hsl(var(--border))] backdrop-blur-sm"
 )
 
 const BODY_TD_CLASS =
@@ -720,10 +712,9 @@ export function EditableFinanceGrid({
       record: BillingRecord
       showDraft: boolean
       stripeClass: string
-      stripeStyle: CSSProperties | undefined
     }
   ) => {
-    const { flatIndex, colIndex, record, showDraft, stripeClass, stripeStyle } = ctx
+    const { flatIndex, colIndex, record, showDraft, stripeClass } = ctx
     const field = columnField(cell.column)
     const editable = editableFields.includes(field)
     const meta = (cell.column.columnDef.meta as { finance?: FinanceColumnMeta } | undefined)?.finance
@@ -942,7 +933,6 @@ export function EditableFinanceGrid({
       <td
         key={cell.id}
         className={cn(BODY_TD_CLASS, stripeClass, "relative")}
-        style={stripeStyle}
         data-field={field}
       >
         {showDraftBadgeHere && showDraft ? (
@@ -977,7 +967,6 @@ export function EditableFinanceGrid({
                     <th
                       key={header.id}
                       className={HEADER_TH_CLASS}
-                      style={financeGridHeaderCellStyle}
                     >
                       {header.isPlaceholder
                         ? null
@@ -1041,11 +1030,7 @@ export function EditableFinanceGrid({
 
                 const flatIndex = vi.index
                 const showDraft = isRowDraft(record)
-                const stripeClass = flatIndex % 2 === 1 ? "bg-muted/10" : ""
-                const stripeStyle =
-                  flatIndex % 2 === 0
-                    ? { backgroundColor: rgbaFromHex(FINANCE_GRID_INFO_HEX, 0.03) }
-                    : undefined
+                const stripeClass = flatIndex % 2 === 1 ? "bg-muted/10" : "bg-channel-social-bg/50"
 
                 return (
                   <tr
@@ -1073,7 +1058,6 @@ export function EditableFinanceGrid({
                         record,
                         showDraft,
                         stripeClass,
-                        stripeStyle,
                       })
                     )}
                   </tr>

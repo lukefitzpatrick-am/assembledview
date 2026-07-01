@@ -18,6 +18,8 @@ const DEFAULT_MAX_FRACTION = 2
 
 /** Used for buy amounts, rates, and average rates (higher precision). */
 const RATE_MAX_FRACTION = 4
+const AUD_LOCALE = "en-AU"
+const AUD_CURRENCY = "AUD"
 
 const formatterCache = new Map<string, Intl.NumberFormat>()
 
@@ -88,6 +90,34 @@ export function parseMoneyInput(value: MoneyInput): number | null {
 
   const parsed = Number.parseFloat(cleaned)
   return Number.isFinite(parsed) ? parsed : null
+}
+
+/**
+ * Formats an AUD currency value with exactly 2 decimal places.
+ * - If the value is null/empty/invalid, returns "$0.00".
+ */
+export function formatAUD(value: MoneyInput): string {
+  const parsed = parseMoneyInput(value) ?? 0
+  return getNumberFormat({
+    locale: AUD_LOCALE,
+    currency: AUD_CURRENCY,
+    minimumFractionDigits: DEFAULT_MIN_FRACTION,
+    maximumFractionDigits: DEFAULT_MAX_FRACTION,
+  }).format(parsed)
+}
+
+/**
+ * Formats an AUD buy amount with min 2 / max 4 decimal places.
+ * - If the value is null/empty/invalid, returns "$0.00".
+ */
+export function formatBuyAmount(value: MoneyInput): string {
+  const parsed = parseMoneyInput(value) ?? 0
+  return getNumberFormat({
+    locale: AUD_LOCALE,
+    currency: AUD_CURRENCY,
+    minimumFractionDigits: DEFAULT_MIN_FRACTION,
+    maximumFractionDigits: RATE_MAX_FRACTION,
+  }).format(parsed)
 }
 
 /**

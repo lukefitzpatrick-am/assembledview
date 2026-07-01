@@ -1,6 +1,6 @@
 import "server-only"
 
-import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
+import { fetchAllXanoPagesWithCompleteness } from "@/lib/api/xanoPagination"
 import { xanoUrl } from "@/lib/api/xano"
 import { MEDIA_PLAN_TABLES, type XanoMediaPlanTable } from "@/lib/xano/mediaPlanTables"
 
@@ -20,6 +20,11 @@ export interface XanoLineItem {
   xano_row_id: number
   /** Unix milliseconds (normalized from Xano `created_at`). */
   xano_created_at: number
+}
+
+export interface FetchAllXanoLineItemsResult {
+  items: XanoLineItem[]
+  complete: boolean
 }
 
 function parseBurstsJson(raw: unknown): unknown[] {
@@ -86,29 +91,37 @@ function mapRowToLineItem(row: Record<string, unknown>, table: XanoMediaPlanTabl
   }
 }
 
-async function fetchAllFromTable(table: XanoMediaPlanTable): Promise<XanoLineItem[]> {
+async function fetchAllFromTable(table: XanoMediaPlanTable): Promise<FetchAllXanoLineItemsResult> {
   const baseUrl = xanoUrl(table.table_name, MEDIA_PLANS_BASE_KEYS)
   const label = `LINE_ITEMS:${table.table_name}`
-  const raw = await fetchAllXanoPages(baseUrl, {}, label, PAGE_SIZE, MAX_PAGES)
+  const { items: raw, complete } = await fetchAllXanoPagesWithCompleteness(
+    baseUrl,
+    {},
+    label,
+    PAGE_SIZE,
+    MAX_PAGES
+  )
   const out: XanoLineItem[] = []
   for (const row of raw) {
     if (!row || typeof row !== "object") continue
     const mapped = mapRowToLineItem(row as Record<string, unknown>, table)
     if (mapped) out.push(mapped)
   }
-  return out
+  return { items: out, complete }
 }
 
 /**
  * Fetch every line item from all configured `media_plan_*` tables (paginated).
  * Caller syncs to Snowflake; consumers filter (e.g. `FIXED_COST_MEDIA`).
  */
-export async function fetchAllXanoLineItems(): Promise<XanoLineItem[]> {
+export async function fetchAllXanoLineItems(): Promise<FetchAllXanoLineItemsResult> {
   const all: XanoLineItem[] = []
+  let complete = true
   for (const table of MEDIA_PLAN_TABLES) {
-    const items = await fetchAllFromTable(table)
+    const { items, complete: tableComplete } = await fetchAllFromTable(table)
     all.push(...items)
+    if (!tableComplete) complete = false
     console.log(`[fetchAllXanoLineItems] ${table.table_name}: ${items.length} rows`)
   }
-  return all
+  return { items: all, complete }
 }

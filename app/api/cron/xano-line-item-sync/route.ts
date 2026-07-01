@@ -19,10 +19,10 @@ export async function GET(request: Request) {
   console.log(`[xano-sync] Started at ${startedAt.toISOString()}`)
 
   try {
-    const items = await fetchAllXanoLineItems()
-    console.log(`[xano-sync] Fetched ${items.length} line items from Xano`)
+    const { items, complete } = await fetchAllXanoLineItems()
+    console.log(`[xano-sync] Fetched ${items.length} line items from Xano (complete=${complete})`)
 
-    const result = await syncLineItemsToSnowflake(items)
+    const result = await syncLineItemsToSnowflake(items, complete)
 
     const completedAt = new Date()
     const durationMs = completedAt.getTime() - startedAt.getTime()
@@ -44,6 +44,7 @@ export async function GET(request: Request) {
       failed: result.failed,
       batches: result.batches,
       duplicates_collapsed: result.duplicates_collapsed,
+      fetch_complete: complete,
       sample_errors: result.errors.slice(0, 5),
     })
   } catch (err) {

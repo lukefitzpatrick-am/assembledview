@@ -4,15 +4,21 @@ import axios from "axios"
  * Fetch all pages from a Xano endpoint using either page/page_size or offset/limit.
  * Sends both styles of pagination params to maximize compatibility.
  */
-export async function fetchAllXanoPages(
+export interface FetchAllXanoPagesResult<T = any> {
+  items: T[]
+  complete: boolean
+}
+
+export async function fetchAllXanoPagesWithCompleteness(
   baseUrl: string,
   baseParams: Record<string, string | number | boolean | null | undefined> = {},
   label = "xano",
   pageSize = 200,
   maxPages = 50
-): Promise<any[]> {
+): Promise<FetchAllXanoPagesResult<any>> {
   const results: any[] = []
   const seenKeys = new Set<string>()
+  let complete = true
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Accept: "application/json",
@@ -113,9 +119,27 @@ export async function fetchAllXanoPages(
         status || "",
         error?.message || error
       )
+      complete = false
       break
     }
   }
 
-  return results
+  return { items: results, complete }
+}
+
+export async function fetchAllXanoPages(
+  baseUrl: string,
+  baseParams: Record<string, string | number | boolean | null | undefined> = {},
+  label = "xano",
+  pageSize = 200,
+  maxPages = 50
+): Promise<any[]> {
+  const result = await fetchAllXanoPagesWithCompleteness(
+    baseUrl,
+    baseParams,
+    label,
+    pageSize,
+    maxPages
+  )
+  return result.items
 }

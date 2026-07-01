@@ -16,8 +16,10 @@ const fuseOptions: IFuseOptions<LearningTerm> = {
   keys: [
     { name: "term", weight: 0.5 },
     { name: "definition", weight: 0.3 },
+    { name: "plainEnglish", weight: 0.25 },
     { name: "category", weight: 0.15 },
     { name: "aliases", weight: 0.1 },
+    { name: "whyItMatters", weight: 0.1 },
     { name: "formula_or_notes", weight: 0.2 },
   ],
 };
