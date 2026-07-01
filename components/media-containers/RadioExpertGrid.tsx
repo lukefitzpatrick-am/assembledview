@@ -112,6 +112,7 @@ import {
   buildDayColumnsForWeek,
   collapseDailyToWeekly,
   expandWeekToDaily,
+  resizeSpanWeeks,
   weekDayKeys,
   weekHasDailyValues,
   weekIsUniform,
@@ -1207,6 +1208,226 @@ export function RadioExpertGrid({
     [dayKeysByWeekKey, expandedWeekKeys, pushRows]
   )
 
+  /**
+   * Feature 6 — week-grained span-edge resize. Growth is clamped at the first
+   * obstruction (sibling span, populated week cell, or day-detailed week), so
+   * resizing never absorbs or destroys values; the burst total is unchanged.
+   */
+  type SpanEdgeResizeDrag = {
+    rowIndex: number
+    spanId: string
+    edge: "start" | "end"
+    originClientX: number
+    minDelta: number
+    maxDelta: number
+    deltaWeeks: number
+    clientX: number
+    clientY: number
+  }
+  const [spanEdgeResize, setSpanEdgeResize] =
+    useState<SpanEdgeResizeDrag | null>(null)
+  const spanEdgeResizeRef = useRef(spanEdgeResize)
+  spanEdgeResizeRef.current = spanEdgeResize
+
+  /** Rendered width of one week column (day sub-columns when expanded). */
+  const widthForWeekKey = useCallback(
+    (k: string): number => {
+      if (expandedWeekKeys.has(k)) {
+        return (
+          Math.max(1, (dayColumnsByWeekKey[k] ?? []).length) * DAY_COL_WIDTH_PX
+        )
+      }
+      return weekColumnWidths[k] ?? RADIO_EXPERT_WEEK_COL_WIDTH_PX
+    },
+    [expandedWeekKeys, dayColumnsByWeekKey, weekColumnWidths]
+  )
+
+  /** Horizontal drag distance → whole weeks crossed (variable column widths). */
+  const deltaWeeksFromPx = useCallback(
+    (edgeIdx: number, dx: number): number => {
+      let remaining = Math.abs(dx)
+      let steps = 0
+      if (dx > 0) {
+        for (let i = edgeIdx + 1; i < weekKeys.length; i += 1) {
+          const w = widthForWeekKey(weekKeys[i]!)
+          if (remaining < w / 2) break
+          remaining -= w
+          steps += 1
+        }
+        return steps
+      }
+      for (let i = edgeIdx; i >= 0; i -= 1) {
+        const w = widthForWeekKey(weekKeys[i]!)
+        if (remaining < w / 2) break
+        remaining -= w
+        steps += 1
+      }
+      return -steps
+    },
+    [weekKeys, widthForWeekKey]
+  )
+
+  const beginSpanEdgeResize = useCallback(
+    (
+      rowIndex: number,
+      spanId: string,
+      edge: "start" | "end",
+      clientX: number,
+      clientY: number
+    ) => {
+      const row = normalizedRowsRef.current[rowIndex]
+      if (!row) return
+      const span = (row.mergedWeekSpans ?? []).find((s) => s.id === spanId)
+      if (!span) return
+      const si = weekKeys.indexOf(span.startWeekKey)
+      const ei = weekKeys.indexOf(span.endWeekKey)
+      if (si < 0 || ei < 0) return
+
+      const occupied = new Set<string>()
+      for (const s of row.mergedWeekSpans ?? []) {
+        if (s.id === spanId) continue
+        for (const k of weekKeysInSpanInclusive(
+          weekKeys,
+          s.startWeekKey,
+          s.endWeekKey
+        )) {
+          occupied.add(k)
+        }
+      }
+      const weekBlocked = (k: string): boolean => {
+        if (occupied.has(k)) return true
+        const v = row.weeklyValues[k]
+        if (v !== "" && v !== undefined && v !== null) return true
+        const dk = [...(dayKeysByWeekKey[k] ?? [])]
+        if (row.dailyValues && weekHasDailyValues(row.dailyValues, dk)) {
+          return true
+        }
+        return false
+      }
+
+      let minDelta: number
+      let maxDelta: number
+      if (edge === "end") {
+        minDelta = si - ei
+        let g = 0
+        for (let i = ei + 1; i < weekKeys.length; i += 1) {
+          if (weekBlocked(weekKeys[i]!)) break
+          g += 1
+        }
+        maxDelta = g
+      } else {
+        let g = 0
+        for (let i = si - 1; i >= 0; i -= 1) {
+          if (weekBlocked(weekKeys[i]!)) break
+          g += 1
+        }
+        minDelta = -g
+        maxDelta = ei - si
+      }
+
+      setSpanEdgeResize({
+        rowIndex,
+        spanId,
+        edge,
+        originClientX: clientX,
+        minDelta,
+        maxDelta,
+        deltaWeeks: 0,
+        clientX,
+        clientY,
+      })
+    },
+    [dayKeysByWeekKey, weekKeys]
+  )
+
+  const applySpanEdgeResize = useCallback(() => {
+    const drag = spanEdgeResizeRef.current
+    setSpanEdgeResize(null)
+    if (!drag || drag.deltaWeeks === 0) return
+    const rowsNow = normalizedRowsRef.current
+    const row = rowsNow[drag.rowIndex]
+    if (!row) return
+    const span = (row.mergedWeekSpans ?? []).find((s) => s.id === drag.spanId)
+    if (!span) return
+    const resized = resizeSpanWeeks(
+      weekKeys,
+      span.startWeekKey,
+      span.endWeekKey,
+      drag.edge,
+      drag.deltaWeeks
+    )
+    if (!resized) return
+    const mergedWeekSpans = (row.mergedWeekSpans ?? []).map((s) =>
+      s.id === drag.spanId
+        ? {
+            ...s,
+            startWeekKey: resized.startWeekKey,
+            endWeekKey: resized.endWeekKey,
+          }
+        : s
+    )
+    // Belt-and-braces: covered weeks stay empty (growth already clamps to
+    // empty weeks; shrink releases weeks as empty).
+    const weeklyValues = { ...row.weeklyValues }
+    for (const k of weekKeysInSpanInclusive(
+      weekKeys,
+      resized.startWeekKey,
+      resized.endWeekKey
+    )) {
+      weeklyValues[k] = ""
+    }
+    pushRows(
+      rowsNow.map((r, i) =>
+        i === drag.rowIndex ? { ...r, weeklyValues, mergedWeekSpans } : r
+      )
+    )
+  }, [pushRows, weekKeys])
+
+  const spanEdgeResizeActive = spanEdgeResize !== null
+  useEffect(() => {
+    if (!spanEdgeResizeActive) return
+    const onMove = (e: PointerEvent) => {
+      setSpanEdgeResize((prev) => {
+        if (!prev) return prev
+        const row = normalizedRowsRef.current[prev.rowIndex]
+        const span = row?.mergedWeekSpans?.find((s) => s.id === prev.spanId)
+        if (!row || !span) return prev
+        const si = weekKeys.indexOf(span.startWeekKey)
+        const ei = weekKeys.indexOf(span.endWeekKey)
+        const edgeIdx = prev.edge === "end" ? ei : si
+        if (edgeIdx < 0) return prev
+        const raw = deltaWeeksFromPx(edgeIdx, e.clientX - prev.originClientX)
+        const deltaWeeks = Math.min(
+          prev.maxDelta,
+          Math.max(prev.minDelta, raw)
+        )
+        const next = {
+          ...prev,
+          deltaWeeks,
+          clientX: e.clientX,
+          clientY: e.clientY,
+        }
+        // Keep the ref in lock-step so pointerup never applies a stale delta.
+        spanEdgeResizeRef.current = next
+        return next
+      })
+    }
+    const onUp = () => {
+      applySpanEdgeResize()
+    }
+    window.addEventListener("pointermove", onMove)
+    window.addEventListener("pointerup", onUp)
+    return () => {
+      window.removeEventListener("pointermove", onMove)
+      window.removeEventListener("pointerup", onUp)
+    }
+  }, [
+    spanEdgeResizeActive,
+    applySpanEdgeResize,
+    deltaWeeksFromPx,
+    weekKeys,
+  ])
+
   const unmergeWeekSpan = useCallback(
     (rowIndex: number, spanId: string) => {
       const row = normalizedRows[rowIndex]
@@ -2213,6 +2434,20 @@ export function RadioExpertGrid({
   return (
     <TooltipProvider delayDuration={300}>
       <Card className="relative overflow-hidden border-0 shadow-md">
+        {spanEdgeResize ? (
+          <div
+            className="pointer-events-none fixed z-[100] rounded-md border border-border bg-background px-2 py-1 text-xs tabular-nums shadow-md"
+            style={{
+              left: spanEdgeResize.clientX + 12,
+              top: spanEdgeResize.clientY - 28,
+            }}
+          >
+            {spanEdgeResize.deltaWeeks > 0
+              ? `+${spanEdgeResize.deltaWeeks}`
+              : spanEdgeResize.deltaWeeks}{" "}
+            wk
+          </div>
+        ) : null}
         <div className="flex min-w-0 flex-row">
           <div
             className="w-1 shrink-0 self-stretch"
@@ -3228,7 +3463,12 @@ export function RadioExpertGrid({
                                 isFocusVisible &&
                                   !isMergedAnchorCell &&
                                   !mergeReadyOnCell &&
-                                  "z-[6] ring-2 ring-primary ring-offset-1 ring-offset-background shadow-md"
+                                  "z-[6] ring-2 ring-primary ring-offset-1 ring-offset-background shadow-md",
+                                // Live feedback while a span edge is dragged.
+                                spanEdgeResize !== null &&
+                                  mSpan !== null &&
+                                  spanEdgeResize.spanId === mSpan.id &&
+                                  "z-[7] ring-2 ring-primary ring-inset"
                               )
                               const mergedAnchorWrapperClassName = cn(
                                 !isMergedAnchorCell &&
@@ -3758,6 +3998,50 @@ export function RadioExpertGrid({
                                         )
                                       }
                                     />
+                                    {isMergedAnchorCell && mSpan ? (
+                                      <>
+                                        <div
+                                          role="separator"
+                                          aria-label="Resize merged burst from its start week"
+                                          title="Drag to resize burst (start edge)"
+                                          className="absolute inset-y-0 left-0 z-[55] w-1.5 cursor-ew-resize transition-colors hover:bg-primary/50"
+                                          onPointerDown={(e) => {
+                                            e.preventDefault()
+                                            e.stopPropagation()
+                                            beginSpanEdgeResize(
+                                              rowIndex,
+                                              mSpan.id,
+                                              "start",
+                                              e.clientX,
+                                              e.clientY
+                                            )
+                                          }}
+                                          onMouseDown={(e) => e.stopPropagation()}
+                                          onClick={(e) => e.stopPropagation()}
+                                          onDoubleClick={(e) => e.stopPropagation()}
+                                        />
+                                        <div
+                                          role="separator"
+                                          aria-label="Resize merged burst from its end week"
+                                          title="Drag to resize burst (end edge)"
+                                          className="absolute inset-y-0 right-0 z-[55] w-1.5 cursor-ew-resize transition-colors hover:bg-primary/50"
+                                          onPointerDown={(e) => {
+                                            e.preventDefault()
+                                            e.stopPropagation()
+                                            beginSpanEdgeResize(
+                                              rowIndex,
+                                              mSpan.id,
+                                              "end",
+                                              e.clientX,
+                                              e.clientY
+                                            )
+                                          }}
+                                          onMouseDown={(e) => e.stopPropagation()}
+                                          onClick={(e) => e.stopPropagation()}
+                                          onDoubleClick={(e) => e.stopPropagation()}
+                                        />
+                                      </>
+                                    ) : null}
                                     {mSpan ? (
                                       <button
                                         type="button"
