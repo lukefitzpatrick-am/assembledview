@@ -34,6 +34,7 @@ import type {
   SocialMediaExpertScheduleRow,
   OohExpertScheduleRow,
   RadioExpertScheduleRow,
+  CinemaExpertScheduleRow,
   TelevisionExpertScheduleRow,
   NewspaperExpertScheduleRow,
   MagazinesExpertScheduleRow,
@@ -129,11 +130,45 @@ export type StandardRadioLineItemInput = Partial<StandardRadioFormLineItem> & {
   bursts_json?: string | object
 }
 
+/** Cinema `cinemalineItems` entry shape used by CinemaContainer. Radio minus platform/creative*. */
+export interface StandardCinemaFormLineItem {
+  network: string
+  station: string
+  buyType: string
+  bidStrategy?: string
+  placement: string
+  format: string
+  duration: string
+  buyingDemo: string
+  market: string
+  fixedCostMedia: boolean
+  clientPaysForMedia: boolean
+  budgetIncludesFees: boolean
+  noadserving: boolean
+  lineItemId?: string
+  line_item_id?: string
+  line_item?: number | string
+  lineItem?: number | string
+  bursts: StandardMediaBurst[]
+}
+
+export type StandardCinemaLineItemInput = Partial<StandardCinemaFormLineItem> & {
+  buy_type?: string
+  buying_demo?: string
+  fixed_cost_media?: boolean
+  client_pays_for_media?: boolean
+  budget_includes_fees?: boolean
+  no_adserving?: boolean
+  bursts_json?: string | object
+}
+
 export interface ExpertToStandardBurstOptions {
   /** OOH: fee %; used with budgetIncludesFees for net-media deliverable math (see OOHContainer). */
   feePctOoh?: number
   /** Radio: fee %; used with budgetIncludesFees (see RadioContainer). */
   feePctRadio?: number
+  /** Cinema: fee %; used with budgetIncludesFees (see CinemaContainer). */
+  feePctCinema?: number
   /** Television: fee %; used with budgetIncludesFees (see TelevisionContainer). */
   feePctTelevision?: number
   /** BVOD: fee %; used with budgetIncludesFees (see BVODContainer). */
@@ -448,6 +483,43 @@ export function deriveRadioExpertRowScheduleYmdFromRow(
     campaignStartDate,
     campaignEndDate
   )
+  return { startDate: ymd(start), endDate: ymd(end) }
+}
+
+/**
+ * Line-level schedule bounds from weekly cells plus merged multi-week spans (cinema expert row).
+ */
+export function deriveCinemaExpertRowScheduleYmdFromRow(
+  row: CinemaExpertScheduleRow,
+  weekColumns: WeeklyGanttWeekColumn[],
+  campaignStartDate: Date,
+  campaignEndDate: Date
+): { startDate: string; endDate: string } {
+  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
+  const weekKeyOrder = weekColumns.map((c) => c.weekKey)
+  let firstCol: WeeklyGanttWeekColumn | null = null
+  let lastCol: WeeklyGanttWeekColumn | null = null
+  const touch = (col: WeeklyGanttWeekColumn) => {
+    if (!firstCol) firstCol = col
+    lastCol = col
+  }
+  for (const col of weekColumns) {
+    const v = row.weeklyValues[col.weekKey]
+    if (weekCellIsActive(v)) touch(col)
+  }
+  for (const span of row.mergedWeekSpans ?? []) {
+    if (!Number.isFinite(span.totalQty) || span.totalQty === 0) continue
+    const keys = weekKeysInSpanInclusive(weekKeyOrder, span.startWeekKey, span.endWeekKey)
+    for (const k of keys) {
+      const col = weekColumns.find((c) => c.weekKey === k)
+      if (col) touch(col)
+    }
+  }
+  if (!firstCol || !lastCol) {
+    return { startDate: ymd(campaignStartDate), endDate: ymd(campaignEndDate) }
+  }
+  const { start } = burstWindowForWeekColumn(firstCol, campaignStartDate, campaignEndDate)
+  const { end } = burstWindowForWeekColumn(lastCol, campaignStartDate, campaignEndDate)
   return { startDate: ymd(start), endDate: ymd(end) }
 }
 
@@ -1315,6 +1387,251 @@ export function mapStandardRadioLineItemsToExpertRows(
       ),
       // Standard `buyAmount` is unit rate (same value as expert `unitRate`).
       unitRate: deriveRadioStandardUnitRateFromBursts(bursts),
+      grossCost: sumGrossBursts(bursts),
+      weeklyValues,
+    }
+  })
+}
+
+function normalizeCinemaBursts(item: StandardCinemaLineItemInput): StandardMediaBurst[] {
+  return normalizeOohBursts(item as any)
+}
+
+/** Cinema standard bursts store unit rate in buyAmount. */
+function deriveCinemaStandardUnitRateFromBursts(bursts: StandardMediaBurst[]): number {
+  for (const b of bursts) {
+    const r = parseNum(b.buyAmount)
+    if (r > 0) return r
+  }
+  return 0
+}
+
+function addCinemaWeeklyDelta(
+  weeklyValues: Record<string, number | "">,
+  key: string,
+  add: number
+) {
+  const prev = weeklyValues[key]
+  const prevNum = prev === "" ? 0 : typeof prev === "number" ? prev : parseNum(prev)
+  weeklyValues[key] = prevNum + add
+}
+
+/** Splits standard burst deliverables across Gantt weeks; earliest weeks absorb remainders. */
+function distributeCinemaStandardDeliverablesToWeeks(
+  buyType: string,
+  total: number,
+  overlapKeys: string[],
+  weeklyValues: Record<string, number | "">
+): void {
+  const bt = String(buyType || "").toLowerCase() as BuyType
+  if (overlapKeys.length === 0 || !Number.isFinite(total)) return
+  if (bt === "fixed_cost") {
+    addCinemaWeeklyDelta(weeklyValues, overlapKeys[0]!, 1)
+    return
+  }
+  const t = Math.round(total)
+  const n = overlapKeys.length
+  const base = Math.floor(t / n)
+  const remainder = t - base * n
+  for (let i = 0; i < n; i++) {
+    const v = i < remainder ? base + 1 : base
+    addCinemaWeeklyDelta(weeklyValues, overlapKeys[i]!, v)
+  }
+}
+
+function emptyCinemaLineItem(
+  row: CinemaExpertScheduleRow,
+  campaignStartDate: Date,
+  campaignEndDate: Date,
+  lineNo: number,
+  budgetIncludesFees: boolean
+): StandardCinemaFormLineItem {
+  const id = deriveExpertSourceLineItemId(row, lineNo)
+  return {
+    network: row.network,
+    station: row.station,
+    buyType: row.buyType,
+    bidStrategy: "",
+    placement: row.placement,
+    format: row.format,
+    duration: row.duration,
+    buyingDemo: row.buyingDemo,
+    market: row.market,
+    fixedCostMedia: Boolean(row.fixedCostMedia),
+    clientPaysForMedia: Boolean(row.clientPaysForMedia),
+    budgetIncludesFees: Boolean(row.budgetIncludesFees ?? budgetIncludesFees),
+    noadserving: false,
+    lineItemId: id,
+    line_item_id: id,
+    line_item: lineNo,
+    lineItem: lineNo,
+    bursts: [
+      {
+        budget: "",
+        buyAmount: "",
+        startDate: startOfDay(clampDateToCampaignRange(campaignStartDate, campaignStartDate, campaignEndDate)),
+        endDate: startOfDay(clampDateToCampaignRange(campaignEndDate, campaignStartDate, campaignEndDate)),
+        calculatedValue: 0,
+      },
+    ],
+  }
+}
+
+/**
+ * One expert row → one standard Cinema line item.
+ */
+export function mapCinemaExpertRowsToStandardLineItems(
+  rows: CinemaExpertScheduleRow[],
+  weekColumns: WeeklyGanttWeekColumn[],
+  campaignStartDate: Date,
+  campaignEndDate: Date,
+  options?: ExpertToStandardBurstOptions
+): StandardCinemaFormLineItem[] {
+  const feePct = options?.feePctCinema ?? 0
+  return rows.map((row, idx) => {
+    const lineNo = idx + 1
+    const unitRate = parseNum(row.unitRate)
+    const buyType = row.buyType
+    const id = deriveExpertSourceLineItemId(row, lineNo)
+    const budgetIncludesFees = Boolean(
+      row.budgetIncludesFees ?? options?.budgetIncludesFees ?? false
+    )
+    const bursts: StandardMediaBurst[] = []
+    const weekKeyOrder = weekColumns.map((c) => c.weekKey)
+    const coveredByMerged = new Set<string>()
+    for (const span of row.mergedWeekSpans ?? []) {
+      for (const k of weekKeysInSpanInclusive(weekKeyOrder, span.startWeekKey, span.endWeekKey)) {
+        coveredByMerged.add(k)
+      }
+    }
+    const bt = String(buyType || "").toLowerCase() as BuyType
+    const isInclusionBuyType = bt === "bonus" || bt === "package_inclusions"
+    for (const span of row.mergedWeekSpans ?? []) {
+      const qty = span.totalQty
+      if (!Number.isFinite(qty) || qty === 0) continue
+      const startCol = weekColumns.find((c) => c.weekKey === span.startWeekKey)
+      const endCol = weekColumns.find((c) => c.weekKey === span.endWeekKey)
+      if (!startCol || !endCol) continue
+      const { start } = burstWindowForWeekColumn(startCol, campaignStartDate, campaignEndDate)
+      const { end } = burstWindowForWeekColumn(endCol, campaignStartDate, campaignEndDate)
+      const netMedia = netMediaFromDeliverables(bt, qty, unitRate)
+      const grossBudget = grossFromNet(netMedia, budgetIncludesFees, feePct)
+      const calculatedValue = roundDeliverables(bt, qty)
+      const buyAmountStr = isInclusionBuyType ? "0" : formatRate(unitRate)
+      bursts.push({
+        budget: formatBurstBudget(grossBudget),
+        buyAmount: buyAmountStr,
+        startDate: start,
+        endDate: end,
+        calculatedValue,
+      })
+    }
+    for (const col of weekColumns) {
+      if (coveredByMerged.has(col.weekKey)) continue
+      const cell = row.weeklyValues[col.weekKey]
+      if (cell === "" || cell === undefined) continue
+      const qty = typeof cell === "number" ? cell : parseNum(cell)
+      if (!Number.isFinite(qty)) continue
+      const netMedia = netMediaFromDeliverables(bt, qty, unitRate)
+      const grossBudget = grossFromNet(netMedia, budgetIncludesFees, feePct)
+      const calculatedValue = roundDeliverables(bt, qty)
+      const buyAmountStr = isInclusionBuyType ? "0" : formatRate(unitRate)
+      const { start, end } = burstWindowForWeekColumn(col, campaignStartDate, campaignEndDate)
+      bursts.push({
+        budget: formatBurstBudget(grossBudget),
+        buyAmount: buyAmountStr,
+        startDate: start,
+        endDate: end,
+        calculatedValue,
+      })
+    }
+    if (bursts.length === 0) {
+      return emptyCinemaLineItem(row, campaignStartDate, campaignEndDate, lineNo, budgetIncludesFees)
+    }
+    return {
+      network: row.network,
+      station: row.station,
+      buyType,
+      bidStrategy: "",
+      placement: row.placement,
+      format: row.format,
+      duration: row.duration,
+      buyingDemo: row.buyingDemo,
+      market: row.market,
+      fixedCostMedia: Boolean(row.fixedCostMedia),
+      clientPaysForMedia: Boolean(row.clientPaysForMedia),
+      budgetIncludesFees,
+      noadserving: false,
+      lineItemId: id,
+      line_item_id: id,
+      line_item: lineNo,
+      lineItem: lineNo,
+      bursts,
+    }
+  })
+}
+
+/**
+ * One standard Cinema line item → one expert row.
+ */
+export function mapStandardCinemaLineItemsToExpertRows(
+  lineItems: StandardCinemaLineItemInput[],
+  weekColumns: WeeklyGanttWeekColumn[],
+  campaignStartDate: Date,
+  campaignEndDate: Date
+): CinemaExpertScheduleRow[] {
+  return lineItems.map((item, index) => {
+    const bursts = normalizeCinemaBursts(item)
+    const buyType = String(item.buyType ?? item.buy_type ?? "")
+    const weeklyValues: Record<string, number | ""> = {}
+    for (const col of weekColumns) {
+      weeklyValues[col.weekKey] = ""
+    }
+    for (const b of bursts) {
+      const sd = b.startDate
+      const ed = b.endDate ?? b.startDate
+      if (!sd || Number.isNaN(sd.getTime())) continue
+      const totalDeliverablesRaw = b.calculatedValue
+      let totalDeliverables =
+        typeof totalDeliverablesRaw === "number" && Number.isFinite(totalDeliverablesRaw)
+          ? totalDeliverablesRaw
+          : parseNum(totalDeliverablesRaw)
+      if (!Number.isFinite(totalDeliverables)) continue
+      if (buyType === "fixed_cost") {
+        totalDeliverables = 1
+      }
+      if (totalDeliverables === 0 && buyType !== "bonus") continue
+      const overlapKeys = radioWeekKeysOverlappingBurstWindow(
+        weekColumns, campaignStartDate, campaignEndDate, sd, ed
+      )
+      distributeCinemaStandardDeliverablesToWeeks(buyType, totalDeliverables, overlapKeys, weeklyValues)
+    }
+    const firstBurst = bursts.find((b) => b.startDate && !Number.isNaN(b.startDate.getTime()))
+    const lastBurst = [...bursts].reverse().find((b) => b.endDate && !Number.isNaN(b.endDate.getTime()))
+    const id = String(
+      item.line_item_id ?? item.lineItemId ?? item.line_item ?? item.lineItem ?? index + 1
+    )
+    const _reactKey =
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `cinema-expert-import-${Date.now()}-${index}`
+    return {
+      id: _reactKey,
+      sourceLineItemId: id,
+      startDate: firstBurst ? formatYmd(firstBurst.startDate) : formatYmd(campaignStartDate),
+      endDate: lastBurst ? formatYmd(lastBurst.endDate) : formatYmd(campaignEndDate),
+      network: String(item.network ?? ""),
+      station: String(item.station ?? ""),
+      market: String(item.market ?? ""),
+      placement: String(item.placement ?? ""),
+      duration: String(item.duration ?? ""),
+      format: String(item.format ?? ""),
+      buyingDemo: String(item.buyingDemo ?? item.buying_demo ?? ""),
+      buyType,
+      fixedCostMedia: Boolean(item.fixed_cost_media ?? item.fixedCostMedia),
+      clientPaysForMedia: Boolean(item.client_pays_for_media ?? item.clientPaysForMedia),
+      budgetIncludesFees: Boolean(item.budget_includes_fees ?? item.budgetIncludesFees),
+      unitRate: deriveCinemaStandardUnitRateFromBursts(bursts),
       grossCost: sumGrossBursts(bursts),
       weeklyValues,
     }

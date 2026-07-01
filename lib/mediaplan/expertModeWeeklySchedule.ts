@@ -80,6 +80,32 @@ export interface RadioExpertScheduleRow {
   mergedWeekSpans?: RadioExpertMergedWeekSpan[]
 }
 
+/** Same shape as {@link OohExpertMergedWeekSpan}; used for cinema expert weekly merges. */
+export type CinemaExpertMergedWeekSpan = OohExpertMergedWeekSpan
+
+export interface CinemaExpertScheduleRow {
+  id: string
+  /** Original standard line_item_id captured at import so apply-time merge matches by stable id. */
+  sourceLineItemId?: string
+  startDate: string
+  endDate: string
+  network: string
+  station: string
+  market: string
+  placement: string
+  duration: string
+  format: string
+  buyingDemo: string
+  buyType: string
+  fixedCostMedia: boolean
+  clientPaysForMedia: boolean
+  budgetIncludesFees: boolean
+  unitRate: number | string
+  grossCost: number | string
+  weeklyValues: ExpertWeeklyValues
+  mergedWeekSpans?: CinemaExpertMergedWeekSpan[]
+}
+
 /** Same shape as {@link OohExpertMergedWeekSpan}; used for television expert weekly merges. */
 export type TelevisionExpertMergedWeekSpan = OohExpertMergedWeekSpan
 

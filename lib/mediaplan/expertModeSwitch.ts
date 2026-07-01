@@ -9,6 +9,7 @@ import type {
   SocialMediaExpertScheduleRow,
   OohExpertScheduleRow,
   RadioExpertScheduleRow,
+  CinemaExpertScheduleRow,
   TelevisionExpertScheduleRow,
   NewspaperExpertScheduleRow,
   MagazinesExpertScheduleRow,
@@ -29,6 +30,7 @@ import type {
   StandardDigiVideoFormLineItem,
   StandardOohFormLineItem,
   StandardRadioFormLineItem,
+  StandardCinemaFormLineItem,
   StandardTelevisionFormLineItem,
   StandardNewspaperFormLineItem,
   StandardMagazineFormLineItem,
@@ -153,6 +155,32 @@ export function mergeRadioStandardFromExpertWithPrevious(
       platform: prev.platform ?? "",
       creativeTargeting: prev.creativeTargeting ?? "",
       creative: prev.creative ?? "",
+      line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
+      lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
+    }
+  })
+}
+
+export function mergeCinemaStandardFromExpertWithPrevious(
+  generated: StandardCinemaFormLineItem[],
+  previous: StandardCinemaFormLineItem[]
+): StandardCinemaFormLineItem[] {
+  const prevByKey = new Map<string, StandardCinemaFormLineItem>()
+  for (let i = 0; i < previous.length; i++) {
+    const p = previous[i]!
+    prevByKey.set(stableStandardLineItemKey(p, i), p)
+  }
+  return generated.map((li, i) => {
+    const k = stableStandardLineItemKey(li, i)
+    const prev = prevByKey.get(k)
+    if (!prev) return li
+    return {
+      ...li,
+      fixedCostMedia: prev.fixedCostMedia,
+      clientPaysForMedia: prev.clientPaysForMedia,
+      // Keep expert-derived budgetIncludesFees on li.
+      noadserving: prev.noadserving,
+      bidStrategy: prev.bidStrategy ?? "",
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
     }
@@ -539,6 +567,41 @@ export function serializeRadioStandardLineItemsBaseline(
   )
 }
 
+export function serializeCinemaStandardLineItemsBaseline(
+  items: StandardCinemaFormLineItem[] | undefined
+): string {
+  const list = items ?? []
+  return JSON.stringify(
+    list.map((li) => ({
+      network: li.network,
+      station: li.station,
+      buyType: li.buyType,
+      bidStrategy: li.bidStrategy,
+      placement: li.placement,
+      format: li.format,
+      duration: li.duration,
+      buyingDemo: li.buyingDemo,
+      market: li.market,
+      fixedCostMedia: li.fixedCostMedia,
+      clientPaysForMedia: li.clientPaysForMedia,
+      budgetIncludesFees: li.budgetIncludesFees,
+      noadserving: li.noadserving,
+      lineItemId: li.lineItemId,
+      line_item_id: li.line_item_id,
+      line_item: li.line_item,
+      lineItem: li.lineItem,
+      bursts: (li.bursts ?? []).map((b) => ({
+        budget: b.budget,
+        buyAmount: b.buyAmount,
+        startDate: isoDate(b.startDate),
+        endDate: isoDate(b.endDate),
+        calculatedValue: b.calculatedValue,
+        fee: b.fee,
+      })),
+    }))
+  )
+}
+
 export function serializeOohExpertRowsBaseline(rows: OohExpertScheduleRow[]): string {
   return JSON.stringify(
     rows.map((r) => ({
@@ -566,6 +629,31 @@ export function serializeOohExpertRowsBaseline(rows: OohExpertScheduleRow[]): st
 }
 
 export function serializeRadioExpertRowsBaseline(rows: RadioExpertScheduleRow[]): string {
+  return JSON.stringify(
+    rows.map((r) => ({
+      id: r.id,
+      startDate: r.startDate,
+      endDate: r.endDate,
+      network: r.network,
+      station: r.station,
+      market: r.market,
+      placement: r.placement,
+      duration: r.duration,
+      format: r.format,
+      buyingDemo: r.buyingDemo,
+      buyType: r.buyType,
+      fixedCostMedia: r.fixedCostMedia,
+      clientPaysForMedia: r.clientPaysForMedia,
+      budgetIncludesFees: r.budgetIncludesFees,
+      unitRate: r.unitRate,
+      grossCost: r.grossCost,
+      weeklyValues: r.weeklyValues,
+      mergedWeekSpans: r.mergedWeekSpans,
+    }))
+  )
+}
+
+export function serializeCinemaExpertRowsBaseline(rows: CinemaExpertScheduleRow[]): string {
   return JSON.stringify(
     rows.map((r) => ({
       id: r.id,
