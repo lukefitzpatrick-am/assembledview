@@ -44,7 +44,7 @@ import {
 import type { LineItem } from '@/lib/generateMediaPlan'
 import { formatAUD, formatMoney, parseMoneyInput } from "@/lib/format/money"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
-import { assignStableLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
+import { assignStableLineItemNumbers, reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import {
   getSocialBurstCalculatedColumnLabel,
   SocialLineBurstCalculatedField,
@@ -238,6 +238,7 @@ export default function SocialMediaContainer({
   const [expertSegmentAttention, setExpertSegmentAttention] = useState(true)
   const socialStandardBaselineRef = useRef("")
   const socialExpertRowsBaselineRef = useRef("")
+  const reorderedRef = useRef(false)
   const socialExpertModalOpenRef = useRef(false)
   socialExpertModalOpenRef.current = socialExpertModalOpen
 
@@ -407,7 +408,11 @@ export default function SocialMediaContainer({
       standard,
       prevLineItems as StandardSocialMediaFormLineItem[]
     )
-    const keyedMerged = stampBurstReactKeys(merged);
+    const orderedForApply = reorderedRef.current
+      ? reassignLineItemNumbers(merged, mbaNumber, MEDIA_TYPE_ID_CODES.socialMedia)
+      : merged
+    reorderedRef.current = false
+    const keyedMerged = stampBurstReactKeys(orderedForApply);
     form.setValue("lineItems", keyedMerged as any, {
       shouldDirty: true,
       shouldValidate: false,
@@ -1844,6 +1849,9 @@ const getBursts = () => {
                 rows={expertSocialRows}
                 onRowsChange={handleExpertSocialRowsChange}
                 publishers={publishers}
+                onReorder={() => {
+                  reorderedRef.current = true;
+                }}
               />
             </div>
           </ComboboxModalProvider>
