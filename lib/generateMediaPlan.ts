@@ -722,12 +722,19 @@ export async function generateMediaPlan(
     'Market', 'Publisher', '', 'Description', '', 'Start Date', 'End Date', '', 'Amount', '', '', '', 'Media'
   ];
 
+  type DrawSectionResult = {
+    dataSectionStartRow: number;
+    rowByItemIndex: number[];
+    subtotalCount: number;
+    sectionEndRow: number;
+  };
+
   function drawSection(
     title: string,
     items: GroupedItem[],
     startRow: number,
     sectionType: 'Biddable' | 'Television' | 'Press' | 'Radio' | 'Cinema' | 'OOH' | 'Production'
-  ): number {
+  ): DrawSectionResult {
     let r = startRow;
     const sectionHasItems = items.length > 0;
   
@@ -793,10 +800,13 @@ export async function generateMediaPlan(
     r++;
 
     const dataSectionStartRow = r;
+    const rowByItemIndex: number[] = [];
+    let subtotalCount = 0;
   
     // --- Data Row Rendering ---
     if (sectionHasItems) {
       items.forEach(it => {
+        rowByItemIndex.push(r);
         // FIX: Declared dataRowValues with `let` to be populated in the if/else blocks.
         let dataRowValues: any[];
         let averageRate = 0;
@@ -1055,7 +1065,7 @@ export async function generateMediaPlan(
       sheet.getCell(rIdx, sectionEndCol).border = { ...sheet.getCell(rIdx, sectionEndCol).border, right: { style: 'thin', color: { argb: 'FF000000' } } };
     }
   
-    return dataSectionStartRow;
+    return { dataSectionStartRow, rowByItemIndex, subtotalCount, sectionEndRow };
   }
 
   let currentRow = 9;
@@ -1065,12 +1075,12 @@ export async function generateMediaPlan(
   const groupedTelevision: GroupedItem[] = groupLineItems(groupedTelevisionRaw, "Television"); // Group them
 
   if (groupedTelevision.length > 0) { // Only proceed if there are search items to display
-      const televisionDataStartActualRow = drawSection('Television', groupedTelevision, currentRow, 'Television'); // Draw the section
+      const { rowByItemIndex, sectionEndRow } = drawSection('Television', groupedTelevision, currentRow, 'Television'); // Draw the section
       
       const firstSundayUTC = new Date(Date.UTC(firstSunday.getFullYear(), firstSunday.getMonth(), firstSunday.getDate())); //
 
       groupedTelevision.forEach((it, idx) => {
-        const itemRow = televisionDataStartActualRow + idx; // Data rows start at televisionDataStartActualRow
+        const itemRow = rowByItemIndex[idx]; // Data rows start at televisionDataStartActualRow
         const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime()); //
         
         sortedBursts.forEach(b => {
@@ -1094,7 +1104,7 @@ export async function generateMediaPlan(
       });
 
 
-      currentRow += (groupedTelevision.length + 5);
+      currentRow = sectionEndRow + 1;
   }
 
   // --- Radio ---
@@ -1102,12 +1112,12 @@ export async function generateMediaPlan(
   const groupedRadio: GroupedItem[] = groupLineItems(groupedRadioRaw, "Radio"); // Group them
 
   if (groupedRadio.length > 0) { // Only proceed if there are radio items to display
-      const radioDataStartActualRow = drawSection('Radio', groupedRadio, currentRow, 'Radio'); // Draw the section
+      const { rowByItemIndex, sectionEndRow } = drawSection('Radio', groupedRadio, currentRow, 'Radio'); // Draw the section
       
       const firstSundayUTC = new Date(Date.UTC(firstSunday.getFullYear(), firstSunday.getMonth(), firstSunday.getDate())); //
 
       groupedRadio.forEach((it, idx) => {
-        const itemRow = radioDataStartActualRow + idx; // Data rows start at radioDataStartActualRow
+        const itemRow = rowByItemIndex[idx]; // Data rows start at radioDataStartActualRow
         const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime()); //
         
         sortedBursts.forEach(b => {
@@ -1130,7 +1140,7 @@ export async function generateMediaPlan(
         });
       });
 
-      currentRow += (groupedRadio.length + 5);
+      currentRow = sectionEndRow + 1;
   }
 
   // --- Newspaper ---
@@ -1138,12 +1148,12 @@ export async function generateMediaPlan(
   const groupedNewspaper: GroupedItem[] = groupLineItems(groupedNewspaperRaw, "Newspapers"); // Group them
 
   if (groupedNewspaper.length > 0) { // Only proceed if there are search items to display
-      const newspaperDataStartActualRow = drawSection('Newspaper', groupedNewspaper, currentRow, 'Press'); // Draw the section
+      const { rowByItemIndex, sectionEndRow } = drawSection('Newspaper', groupedNewspaper, currentRow, 'Press'); // Draw the section
       
       const firstSundayUTC = new Date(Date.UTC(firstSunday.getFullYear(), firstSunday.getMonth(), firstSunday.getDate())); //
 
       groupedNewspaper.forEach((it, idx) => {
-        const itemRow = newspaperDataStartActualRow + idx; // Data rows start at newspaperDataStartActualRow
+        const itemRow = rowByItemIndex[idx]; // Data rows start at newspaperDataStartActualRow
         const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime()); //
         
         sortedBursts.forEach(b => {
@@ -1167,7 +1177,7 @@ export async function generateMediaPlan(
       });
 
 
-      currentRow += (groupedNewspaper.length + 5);
+      currentRow = sectionEndRow + 1;
   }
 
   // --- Magazines ---
@@ -1175,12 +1185,12 @@ export async function generateMediaPlan(
   const groupedMagazines: GroupedItem[] = groupLineItems(groupedMagazinesRaw, "Magazines"); // Group them
 
   if (groupedMagazines.length > 0) { // Only proceed if there are search items to display
-      const magazinesDataStartActualRow = drawSection('Magazines', groupedMagazines, currentRow, 'Press'); // Draw the section
+      const { rowByItemIndex, sectionEndRow } = drawSection('Magazines', groupedMagazines, currentRow, 'Press'); // Draw the section
       
       const firstSundayUTC = new Date(Date.UTC(firstSunday.getFullYear(), firstSunday.getMonth(), firstSunday.getDate())); //
 
       groupedMagazines.forEach((it, idx) => {
-        const itemRow = magazinesDataStartActualRow + idx; // Data rows start at magazinesDataStartActualRow
+        const itemRow = rowByItemIndex[idx]; // Data rows start at magazinesDataStartActualRow
         const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime()); //
         
         sortedBursts.forEach(b => {
@@ -1204,7 +1214,7 @@ export async function generateMediaPlan(
       });
 
 
-      currentRow += (groupedMagazines.length + 5);
+      currentRow = sectionEndRow + 1;
   }
 
   // --- OOH ---
@@ -1212,12 +1222,12 @@ export async function generateMediaPlan(
   const groupedOoh: GroupedItem[] = groupLineItems(groupedOohRaw, "OOH"); // Group them
 
   if (groupedOoh.length > 0) { // Only proceed if there are OOH items to display
-      const oohDataStartActualRow = drawSection('OOH', groupedOoh, currentRow, 'OOH'); // Draw the section
+      const { rowByItemIndex, sectionEndRow } = drawSection('OOH', groupedOoh, currentRow, 'OOH'); // Draw the section
       
       const firstSundayUTC = new Date(Date.UTC(firstSunday.getFullYear(), firstSunday.getMonth(), firstSunday.getDate())); //
 
       groupedOoh.forEach((it, idx) => {
-        const itemRow = oohDataStartActualRow + idx; // Data rows start at oohDataStartActualRow
+        const itemRow = rowByItemIndex[idx]; // Data rows start at oohDataStartActualRow
         const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime()); //
         
         sortedBursts.forEach(b => {
@@ -1240,7 +1250,7 @@ export async function generateMediaPlan(
         });
       });
 
-      currentRow += (groupedOoh.length + 5);
+      currentRow = sectionEndRow + 1;
   }
 
   // --- Cinema ---
@@ -1248,12 +1258,12 @@ export async function generateMediaPlan(
   const groupedCinema: GroupedItem[] = groupLineItems(groupedCinemaRaw, "Cinema"); // Group them
 
   if (groupedCinema.length > 0) { // Only proceed if there are cinema items to display
-      const cinemaDataStartActualRow = drawSection('Cinema', groupedCinema, currentRow, 'Cinema'); // Draw the section
+      const { rowByItemIndex, sectionEndRow } = drawSection('Cinema', groupedCinema, currentRow, 'Cinema'); // Draw the section
       
       const firstSundayUTC = new Date(Date.UTC(firstSunday.getFullYear(), firstSunday.getMonth(), firstSunday.getDate())); //
 
       groupedCinema.forEach((it, idx) => {
-        const itemRow = cinemaDataStartActualRow + idx; // Data rows start at cinemaDataStartActualRow
+        const itemRow = rowByItemIndex[idx]; // Data rows start at cinemaDataStartActualRow
         const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime()); //
         
         sortedBursts.forEach(b => {
@@ -1276,7 +1286,7 @@ export async function generateMediaPlan(
         });
       });
 
-      currentRow += (groupedCinema.length + 5);
+      currentRow = sectionEndRow + 1;
   }
 
   // --- Digital Display ---
@@ -1284,12 +1294,12 @@ export async function generateMediaPlan(
   const groupedDigiDisplay: GroupedItem[] = groupLineItems(groupedDigiDisplayRaw, "Digital Display"); // Group them
 
   if (groupedDigiDisplay.length > 0) { // Only proceed if there are Digital Display items to display
-      const digiDisplayDataStartActualRow = drawSection('Digital Display', groupedDigiDisplay, currentRow, 'Biddable'); // Draw the section
+      const { rowByItemIndex, sectionEndRow } = drawSection('Digital Display', groupedDigiDisplay, currentRow, 'Biddable'); // Draw the section
       
       const firstSundayUTC = new Date(Date.UTC(firstSunday.getFullYear(), firstSunday.getMonth(), firstSunday.getDate())); //
 
       groupedDigiDisplay.forEach((it, idx) => {
-        const itemRow = digiDisplayDataStartActualRow + idx; // Data rows start at digiDisplayDataStartActualRow
+        const itemRow = rowByItemIndex[idx]; // Data rows start at digiDisplayDataStartActualRow
         const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime()); //
         
         sortedBursts.forEach(b => {
@@ -1312,7 +1322,7 @@ export async function generateMediaPlan(
         });
       });
 
-      currentRow += (groupedDigiDisplay.length + 5);
+      currentRow = sectionEndRow + 1;
   }
 
   // --- Digital Audio ---
@@ -1320,12 +1330,12 @@ export async function generateMediaPlan(
   const groupedDigiAudio: GroupedItem[] = groupLineItems(groupedDigiAudioRaw, "Digital Audio"); // Group them
 
   if (groupedDigiAudio.length > 0) { // Only proceed if there are Digital Audio items to display
-      const digiAudioDataStartActualRow = drawSection('Digital Audio', groupedDigiAudio, currentRow, 'Biddable'); // Draw the section
+      const { rowByItemIndex, sectionEndRow } = drawSection('Digital Audio', groupedDigiAudio, currentRow, 'Biddable'); // Draw the section
       
       const firstSundayUTC = new Date(Date.UTC(firstSunday.getFullYear(), firstSunday.getMonth(), firstSunday.getDate())); //
 
       groupedDigiAudio.forEach((it, idx) => {
-        const itemRow = digiAudioDataStartActualRow + idx; // Data rows start at digiAudioDataStartActualRow
+        const itemRow = rowByItemIndex[idx]; // Data rows start at digiAudioDataStartActualRow
         const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime()); //
         
         sortedBursts.forEach(b => {
@@ -1348,7 +1358,7 @@ export async function generateMediaPlan(
         });
       });
 
-      currentRow += (groupedDigiAudio.length + 5);
+      currentRow = sectionEndRow + 1;
   }
 
   // --- Digital Video ---
@@ -1356,12 +1366,12 @@ export async function generateMediaPlan(
   const groupedDigiVideo: GroupedItem[] = groupLineItems(groupedDigiVideoRaw, "Digital Video"); // Group them
 
   if (groupedDigiVideo.length > 0) { // Only proceed if there are Digital Video items to display
-      const digiVideoDataStartActualRow = drawSection('Digital Video', groupedDigiVideo, currentRow, 'Biddable'); // Draw the section
+      const { rowByItemIndex, sectionEndRow } = drawSection('Digital Video', groupedDigiVideo, currentRow, 'Biddable'); // Draw the section
       
       const firstSundayUTC = new Date(Date.UTC(firstSunday.getFullYear(), firstSunday.getMonth(), firstSunday.getDate())); //
 
       groupedDigiVideo.forEach((it, idx) => {
-        const itemRow = digiVideoDataStartActualRow + idx; // Data rows start at digiVideoDataStartActualRow
+        const itemRow = rowByItemIndex[idx]; // Data rows start at digiVideoDataStartActualRow
         const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime()); //
         
         sortedBursts.forEach(b => {
@@ -1384,7 +1394,7 @@ export async function generateMediaPlan(
         });
       });
 
-      currentRow += (groupedDigiVideo.length + 5);
+      currentRow = sectionEndRow + 1;
   }
 
   // --- BVOD ---
@@ -1392,12 +1402,12 @@ export async function generateMediaPlan(
   const groupedBvod: GroupedItem[] = groupLineItems(groupedBvodRaw, "BVOD"); // Group them
 
   if (groupedBvod.length > 0) { // Only proceed if there are BVOD items to display
-      const bvodDataStartActualRow = drawSection('BVOD', groupedBvod, currentRow, 'Biddable'); // Draw the section
+      const { rowByItemIndex, sectionEndRow } = drawSection('BVOD', groupedBvod, currentRow, 'Biddable'); // Draw the section
       
       const firstSundayUTC = new Date(Date.UTC(firstSunday.getFullYear(), firstSunday.getMonth(), firstSunday.getDate())); //
 
       groupedBvod.forEach((it, idx) => {
-        const itemRow = bvodDataStartActualRow + idx; // Data rows start at bvodDataStartActualRow
+        const itemRow = rowByItemIndex[idx]; // Data rows start at bvodDataStartActualRow
         const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime()); //
         
         sortedBursts.forEach(b => {
@@ -1420,7 +1430,7 @@ export async function generateMediaPlan(
         });
       });
 
-      currentRow += (groupedBvod.length + 5);
+      currentRow = sectionEndRow + 1;
   }
 
   // --- SEARCH ---
@@ -1428,12 +1438,12 @@ export async function generateMediaPlan(
   const groupedSearch: GroupedItem[] = groupLineItems(groupedSearchRaw, "Search"); // Group them
 
   if (groupedSearch.length > 0) { // Only proceed if there are search items to display
-      const searchDataStartActualRow = drawSection('Search', groupedSearch, currentRow, 'Biddable'); // Draw the section
+      const { rowByItemIndex, sectionEndRow } = drawSection('Search', groupedSearch, currentRow, 'Biddable'); // Draw the section
       
       const firstSundayUTC = new Date(Date.UTC(firstSunday.getFullYear(), firstSunday.getMonth(), firstSunday.getDate())); //
 
       groupedSearch.forEach((it, idx) => {
-        const itemRow = searchDataStartActualRow + idx; // Data rows start at searchDataStartActualRow
+        const itemRow = rowByItemIndex[idx]; // Data rows start at searchDataStartActualRow
         const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime()); //
         
         sortedBursts.forEach(b => {
@@ -1456,7 +1466,7 @@ export async function generateMediaPlan(
         });
       });
 
-      currentRow += (groupedSearch.length + 5);
+      currentRow = sectionEndRow + 1;
   }
 
   // --- SOCIAL MEDIA ---
@@ -1464,12 +1474,12 @@ export async function generateMediaPlan(
   const groupedSocialMedia: GroupedItem[] = groupLineItems(groupedSocialMediaRaw, "Social Media"); // Group them
 
   if (groupedSocialMedia.length > 0) { // Only proceed if there are search items to display
-      const socialMediaDataStartActualRow = drawSection('Social Media', groupedSocialMedia, currentRow, 'Biddable'); // Draw the section
+      const { rowByItemIndex, sectionEndRow } = drawSection('Social Media', groupedSocialMedia, currentRow, 'Biddable'); // Draw the section
       
       const firstSundayUTC = new Date(Date.UTC(firstSunday.getFullYear(), firstSunday.getMonth(), firstSunday.getDate())); //
 
       groupedSocialMedia.forEach((it, idx) => {
-        const itemRow = socialMediaDataStartActualRow + idx; // Data rows start at socialMediaDataStartActualRow
+        const itemRow = rowByItemIndex[idx]; // Data rows start at socialMediaDataStartActualRow
         const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime()); //
         
         sortedBursts.forEach(b => {
@@ -1492,7 +1502,7 @@ export async function generateMediaPlan(
         });
       });
 
-      currentRow += (groupedSocialMedia.length + 5);
+      currentRow = sectionEndRow + 1;
   }
 
   // --- Programmatic Display ---
@@ -1500,12 +1510,12 @@ export async function generateMediaPlan(
   const groupedProgDisplay: GroupedItem[] = groupLineItems(groupedProgDisplayRaw, "Programmatic Display"); // Group them
 
   if (groupedProgDisplay.length > 0) { // Only proceed if there are search items to display
-      const progDisplayDataStartActualRow = drawSection('Programmatic Display', groupedProgDisplay, currentRow, 'Biddable'); // Draw the section
+      const { rowByItemIndex, sectionEndRow } = drawSection('Programmatic Display', groupedProgDisplay, currentRow, 'Biddable'); // Draw the section
       
       const firstSundayUTC = new Date(Date.UTC(firstSunday.getFullYear(), firstSunday.getMonth(), firstSunday.getDate())); //
 
       groupedProgDisplay.forEach((it, idx) => {
-        const itemRow = progDisplayDataStartActualRow + idx; // Data rows start at progDisplayDataStartActualRow
+        const itemRow = rowByItemIndex[idx]; // Data rows start at progDisplayDataStartActualRow
         const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime()); //
         
         sortedBursts.forEach(b => {
@@ -1529,7 +1539,7 @@ export async function generateMediaPlan(
       });
 
 
-      currentRow += (groupedProgDisplay.length + 5);
+      currentRow = sectionEndRow + 1;
   }
 
   // --- Programmatic Video ---
@@ -1537,12 +1547,12 @@ export async function generateMediaPlan(
   const groupedProgVideo: GroupedItem[] = groupLineItems(groupedProgVideoRaw, "Programmatic Video"); // Group them
 
   if (groupedProgVideo.length > 0) { // Only proceed if there are search items to display
-      const progVideoDataStartActualRow = drawSection('Programmatic Video', groupedProgVideo, currentRow, 'Biddable'); // Draw the section
+      const { rowByItemIndex, sectionEndRow } = drawSection('Programmatic Video', groupedProgVideo, currentRow, 'Biddable'); // Draw the section
       
       const firstSundayUTC = new Date(Date.UTC(firstSunday.getFullYear(), firstSunday.getMonth(), firstSunday.getDate())); //
 
       groupedProgVideo.forEach((it, idx) => {
-        const itemRow = progVideoDataStartActualRow + idx; // Data rows start at progVideoDataStartActualRow
+        const itemRow = rowByItemIndex[idx]; // Data rows start at progVideoDataStartActualRow
         const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime()); //
         
         sortedBursts.forEach(b => {
@@ -1566,7 +1576,7 @@ export async function generateMediaPlan(
       });
 
 
-      currentRow += (groupedProgVideo.length + 5);
+      currentRow = sectionEndRow + 1;
   }
 
   // --- Programmatic BVOD ---
@@ -1574,12 +1584,12 @@ export async function generateMediaPlan(
   const groupedProgBVOD: GroupedItem[] = groupLineItems(groupedProgBVODRaw, "Programmatic BVOD"); // Group them
 
   if (groupedProgBVOD.length > 0) { // Only proceed if there are search items to display
-      const progBVODDataStartActualRow = drawSection('Programmatic BVOD', groupedProgBVOD, currentRow, 'Biddable'); // Draw the section
+      const { rowByItemIndex, sectionEndRow } = drawSection('Programmatic BVOD', groupedProgBVOD, currentRow, 'Biddable'); // Draw the section
       
       const firstSundayUTC = new Date(Date.UTC(firstSunday.getFullYear(), firstSunday.getMonth(), firstSunday.getDate())); //
 
       groupedProgBVOD.forEach((it, idx) => {
-        const itemRow = progBVODDataStartActualRow + idx; // Data rows start at progBVODDataStartActualRow
+        const itemRow = rowByItemIndex[idx]; // Data rows start at progBVODDataStartActualRow
         const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime()); //
         
         sortedBursts.forEach(b => {
@@ -1603,7 +1613,7 @@ export async function generateMediaPlan(
       });
 
 
-      currentRow += (groupedProgBVOD.length + 5);
+      currentRow = sectionEndRow + 1;
   }
 
   // --- Programmatic Audio ---
@@ -1611,12 +1621,12 @@ export async function generateMediaPlan(
   const groupedProgAudio: GroupedItem[] = groupLineItems(groupedProgAudioRaw, "Programmatic Audio"); // Group them
 
   if (groupedProgAudio.length > 0) { // Only proceed if there are search items to display
-      const progAudioDataStartActualRow = drawSection('Programmatic Audio', groupedProgAudio, currentRow, 'Biddable'); // Draw the section
+      const { rowByItemIndex, sectionEndRow } = drawSection('Programmatic Audio', groupedProgAudio, currentRow, 'Biddable'); // Draw the section
       
       const firstSundayUTC = new Date(Date.UTC(firstSunday.getFullYear(), firstSunday.getMonth(), firstSunday.getDate())); //
 
       groupedProgAudio.forEach((it, idx) => {
-        const itemRow = progAudioDataStartActualRow + idx; // Data rows start at progAudioDataStartActualRow
+        const itemRow = rowByItemIndex[idx]; // Data rows start at progAudioDataStartActualRow
         const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime()); //
         
         sortedBursts.forEach(b => {
@@ -1640,7 +1650,7 @@ export async function generateMediaPlan(
       });
 
 
-      currentRow += (groupedProgAudio.length + 5);
+      currentRow = sectionEndRow + 1;
   }
 
   // --- Programmatic OOH ---
@@ -1648,12 +1658,12 @@ export async function generateMediaPlan(
   const groupedProgOoh: GroupedItem[] = groupLineItems(groupedProgOohRaw, "Programmatic OOH"); // Group them
 
   if (groupedProgOoh.length > 0) { // Only proceed if there are search items to display
-      const progOohDataStartActualRow = drawSection('Programmatic OOH', groupedProgOoh, currentRow, 'Biddable'); // Draw the section
+      const { rowByItemIndex, sectionEndRow } = drawSection('Programmatic OOH', groupedProgOoh, currentRow, 'Biddable'); // Draw the section
       
       const firstSundayUTC = new Date(Date.UTC(firstSunday.getFullYear(), firstSunday.getMonth(), firstSunday.getDate())); //
 
       groupedProgOoh.forEach((it, idx) => {
-        const itemRow = progOohDataStartActualRow + idx; // Data rows start at progOohDataStartActualRow
+        const itemRow = rowByItemIndex[idx]; // Data rows start at progOohDataStartActualRow
         const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime()); //
         
         sortedBursts.forEach(b => {
@@ -1677,7 +1687,7 @@ export async function generateMediaPlan(
       });
 
 
-      currentRow += (groupedProgOoh.length + 5);
+      currentRow = sectionEndRow + 1;
   }
 
   // --- Integration ---
@@ -1685,12 +1695,12 @@ export async function generateMediaPlan(
   const groupedIntegration: GroupedItem[] = groupLineItems(groupedIntegrationRaw, "Integration");
 
   if (groupedIntegration.length > 0) {
-      const integrationDataStartActualRow = drawSection('Integration', groupedIntegration, currentRow, 'Biddable');
+      const { rowByItemIndex, sectionEndRow } = drawSection('Integration', groupedIntegration, currentRow, 'Biddable');
 
       const firstSundayUTC = new Date(Date.UTC(firstSunday.getFullYear(), firstSunday.getMonth(), firstSunday.getDate()));
 
       groupedIntegration.forEach((it, idx) => {
-        const itemRow = integrationDataStartActualRow + idx;
+        const itemRow = rowByItemIndex[idx];
         const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime());
 
         sortedBursts.forEach(b => {
@@ -1709,7 +1719,7 @@ export async function generateMediaPlan(
         });
       });
 
-      currentRow += (groupedIntegration.length + 5);
+      currentRow = sectionEndRow + 1;
   }
 
   // --- Influencers ---
@@ -1717,12 +1727,12 @@ export async function generateMediaPlan(
   const groupedInfluencers: GroupedItem[] = groupLineItems(groupedInfluencersRaw, "Influencers");
 
   if (groupedInfluencers.length > 0) {
-      const influencersDataStartActualRow = drawSection('Influencers', groupedInfluencers, currentRow, 'Biddable');
+      const { rowByItemIndex, sectionEndRow } = drawSection('Influencers', groupedInfluencers, currentRow, 'Biddable');
 
       const firstSundayUTC = new Date(Date.UTC(firstSunday.getFullYear(), firstSunday.getMonth(), firstSunday.getDate()));
 
       groupedInfluencers.forEach((it, idx) => {
-        const itemRow = influencersDataStartActualRow + idx;
+        const itemRow = rowByItemIndex[idx];
         const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime());
 
         sortedBursts.forEach(b => {
@@ -1741,7 +1751,7 @@ export async function generateMediaPlan(
         });
       });
 
-      currentRow += (groupedInfluencers.length + 5);
+      currentRow = sectionEndRow + 1;
   }
 
   // --- Production ---
@@ -1749,12 +1759,12 @@ export async function generateMediaPlan(
   const groupedProduction: GroupedItem[] = groupLineItems(groupedProductionRaw, "Production");
 
   if (groupedProduction.length > 0) {
-      const productionDataStartActualRow = drawSection('Production', groupedProduction, currentRow, 'Production');
+      const { rowByItemIndex, sectionEndRow } = drawSection('Production', groupedProduction, currentRow, 'Production');
 
       const firstSundayUTC = new Date(Date.UTC(firstSunday.getFullYear(), firstSunday.getMonth(), firstSunday.getDate()));
 
       groupedProduction.forEach((it, idx) => {
-        const itemRow = productionDataStartActualRow + idx;
+        const itemRow = rowByItemIndex[idx];
         const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime());
 
         sortedBursts.forEach(b => {
@@ -1773,7 +1783,7 @@ export async function generateMediaPlan(
         });
       });
 
-      currentRow += (groupedProduction.length + 5);
+      currentRow = sectionEndRow + 1;
   }
 
   // --- Grand Total Row by Month (before MBA table) ---
