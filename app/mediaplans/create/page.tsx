@@ -7577,11 +7577,10 @@ const handleSaveAll = async () => {
 
       <div
         ref={stickyBarRef}
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card shadow-e2"
+        className="pointer-events-none fixed inset-x-0 bottom-0 z-40 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2"
       >
-        <div className="mx-auto grid w-full max-w-[1920px] grid-cols-1 gap-3 px-4 py-3 sm:px-5 md:px-6 xl:grid-cols-[220px_minmax(0,1fr)] xl:gap-6 xl:px-8 2xl:px-10">
-          <div className="hidden xl:block" aria-hidden="true" />
-          <div className="flex min-w-0 flex-col gap-2">
+        <div className="mx-auto flex w-full max-w-[1920px] justify-center px-4 sm:px-5 md:px-6 xl:px-8 2xl:px-10">
+          <div className="pointer-events-auto flex min-w-0 max-w-full flex-col gap-2 rounded-frame border border-border/60 bg-card/85 px-3 py-2.5 shadow-e2 backdrop-blur-md sm:px-4">
             {dateWarning.hasViolation ? (
               <div className="rounded-card border border-pacing-critical bg-pacing-critical-bg px-3 py-2 text-xs font-medium text-status-critical-fg">
                 {dateWarning.offendingCount === 1
@@ -7602,7 +7601,7 @@ const handleSaveAll = async () => {
                 isVersionSaving
               }
               ariaStatus=""
-              className="max-w-full"
+              className="max-w-full flex-wrap justify-center"
             >
               <Button
                 type="button"
