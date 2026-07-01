@@ -2408,8 +2408,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const watchedCampaignStatus = useWatch({ control: form.control, name: 'mp_campaignstatus' })
   const watchedClientName = useWatch({ control: form.control, name: 'mp_clientname' })
   const budgetRemaining = useMemo(
-    () => (Number(campaignBudget) || 0) - grossMediaTotal,
-    [campaignBudget, grossMediaTotal]
+    () => (Number(campaignBudget) || 0) - totalInvestment,
+    [campaignBudget, totalInvestment]
   )
 
   /** Single source of truth for media toggles — avoids batch useWatch + render-time form.watch feedback loops. */
