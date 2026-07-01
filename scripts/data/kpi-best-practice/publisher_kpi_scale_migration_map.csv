@@ -1,0 +1,1120 @@
+publisher,media_type,bid_strategy,metric,old_value_percent,new_value_decimal
+dav360,progDisplay,clicks,ctr,0.13,0.0013
+dav360,progDisplay,conversions,ctr,0.09,0.0009
+dav360,progDisplay,conversions,conversion_rate,0.81,0.0081
+dav360,progDisplay,reach,ctr,0.07,0.0007
+dav360,progDisplay,viewability,ctr,0.07,0.0007
+dav360,progVideo,completed_views,ctr,0.42,0.0042
+dav360,progVideo,completed_views,vtr,76.0,0.76
+dav360,progVideo,reach,ctr,0.42,0.0042
+dav360,progVideo,reach,vtr,71.2,0.712
+dav360,progVideo,target_cpa,ctr,0.42,0.0042
+dav360,progVideo,target_cpa,conversion_rate,0.45,0.0045
+dav360,progVideo,viewability,ctr,0.42,0.0042
+dav360,progVideo,viewability,vtr,71.2,0.712
+dav360,progBvod,completed_views,vtr,92.1,0.921
+dav360,progBvod,reach,vtr,90.2,0.902
+dav360,progBvod,target_cpa,vtr,90.2,0.902
+dav360,progBvod,viewability,vtr,90.2,0.902
+dav360,progAudio,clicks,ctr,0.26,0.0026
+dav360,progAudio,completed_listens,vtr,86.5,0.865
+dav360,progAudio,reach,vtr,86.5,0.865
+googad,search,manual_cpc,ctr,4.16,0.0416
+googad,search,manual_cpc,conversion_rate,4.5,0.045
+googad,search,maximize_conversions,ctr,4.16,0.0416
+googad,search,maximize_conversions,conversion_rate,5.28,0.0528
+googad,search,target_cpa,ctr,4.16,0.0416
+googad,search,target_cpa,conversion_rate,6.0,0.06
+googad,search,target_roas,ctr,4.16,0.0416
+googad,search,target_roas,conversion_rate,5.4,0.054
+meta,socialMedia,manual_cpc,ctr,1.43,0.0143
+meta,socialMedia,completed_views,vtr,16.5,0.165
+meta,socialMedia,conversion_value,conversion_rate,1.92,0.0192
+meta,socialMedia,landing_page_views,ctr,1.43,0.0143
+meta,socialMedia,landing_page_views,conversion_rate,1.92,0.0192
+meta,socialMedia,leads,conversion_rate,3.0,0.03
+meta,socialMedia,maximize_conversions,conversion_rate,1.92,0.0192
+quantd,progDisplay,clicks,ctr,0.13,0.0013
+quantd,progDisplay,conversions,ctr,0.09,0.0009
+quantd,progDisplay,conversions,conversion_rate,0.81,0.0081
+quantd,progDisplay,reach,ctr,0.07,0.0007
+quantd,progDisplay,viewability,ctr,0.07,0.0007
+quantd,progVideo,completed_views,ctr,0.42,0.0042
+quantd,progVideo,completed_views,vtr,76.0,0.76
+quantd,progVideo,reach,ctr,0.42,0.0042
+quantd,progVideo,reach,vtr,71.2,0.712
+quantd,progVideo,target_cpa,ctr,0.42,0.0042
+quantd,progVideo,target_cpa,conversion_rate,0.45,0.0045
+quantd,progVideo,viewability,ctr,0.42,0.0042
+quantd,progVideo,viewability,vtr,71.2,0.712
+quantd,progBvod,completed_views,vtr,92.1,0.921
+quantd,progBvod,reach,vtr,90.2,0.902
+quantd,progBvod,target_cpa,vtr,90.2,0.902
+quantd,progBvod,viewability,vtr,90.2,0.902
+quantd,progAudio,clicks,ctr,0.26,0.0026
+quantd,progAudio,completed_listens,vtr,86.5,0.865
+quantd,progAudio,reach,vtr,86.5,0.865
+bing,search,manual_cpc,ctr,4.16,0.0416
+bing,search,manual_cpc,conversion_rate,4.5,0.045
+bing,search,maximize_conversions,ctr,4.16,0.0416
+bing,search,maximize_conversions,conversion_rate,5.28,0.0528
+bing,search,target_cpa,ctr,4.16,0.0416
+bing,search,target_cpa,conversion_rate,6.0,0.06
+bing,search,target_roas,ctr,4.16,0.0416
+bing,search,target_roas,conversion_rate,5.4,0.054
+tikt,socialMedia,manual_cpc,ctr,1.43,0.0143
+tikt,socialMedia,completed_views,vtr,16.5,0.165
+tikt,socialMedia,conversion_value,conversion_rate,1.92,0.0192
+tikt,socialMedia,landing_page_views,ctr,1.43,0.0143
+tikt,socialMedia,landing_page_views,conversion_rate,1.92,0.0192
+tikt,socialMedia,leads,conversion_rate,3.0,0.03
+tikt,socialMedia,maximize_conversions,conversion_rate,1.92,0.0192
+tikt,influencers,fixed_cost,ctr,1.3,0.013
+tikt,influencers,fixed_cost,vtr,33.0,0.33
+tikt,influencers,cpm,vtr,33.0,0.33
+tikt,influencers,cpv,vtr,33.0,0.33
+chatg,search,manual_cpc,ctr,2.72,0.0272
+chatg,search,manual_cpc,conversion_rate,3.38,0.0338
+chatg,search,maximize_conversions,ctr,2.72,0.0272
+chatg,search,maximize_conversions,conversion_rate,3.96,0.0396
+chatg,search,target_cpa,ctr,2.72,0.0272
+chatg,search,target_cpa,conversion_rate,4.5,0.045
+chatg,search,target_roas,ctr,2.72,0.0272
+chatg,search,target_roas,conversion_rate,4.05,0.0405
+chatg,socialMedia,manual_cpc,ctr,0.94,0.0094
+chatg,socialMedia,completed_views,vtr,14.2,0.142
+chatg,socialMedia,conversion_value,conversion_rate,1.44,0.0144
+chatg,socialMedia,landing_page_views,ctr,0.94,0.0094
+chatg,socialMedia,landing_page_views,conversion_rate,1.44,0.0144
+chatg,socialMedia,leads,conversion_rate,2.25,0.0225
+chatg,socialMedia,maximize_conversions,conversion_rate,1.44,0.0144
+sbs,digitalDisplay,bonus,ctr,0.13,0.0013
+sbs,digitalDisplay,bonus,conversion_rate,0.84,0.0084
+sbs,digitalDisplay,package_inclusions,ctr,0.13,0.0013
+sbs,digitalDisplay,package_inclusions,conversion_rate,0.84,0.0084
+sbs,digitalDisplay,cpc,ctr,0.13,0.0013
+sbs,digitalDisplay,cpc,conversion_rate,0.84,0.0084
+sbs,digitalDisplay,cpm,ctr,0.13,0.0013
+sbs,digitalDisplay,cpm,conversion_rate,0.84,0.0084
+sbs,digitalDisplay,cpv,ctr,0.13,0.0013
+sbs,digitalDisplay,cpv,conversion_rate,0.84,0.0084
+sbs,digitalDisplay,fixed_cost,ctr,0.13,0.0013
+sbs,digitalDisplay,fixed_cost,conversion_rate,0.84,0.0084
+sbs,digitalAudio,bonus,ctr,0.29,0.0029
+sbs,digitalAudio,bonus,vtr,98.0,0.98
+sbs,digitalAudio,package_inclusions,ctr,0.29,0.0029
+sbs,digitalAudio,package_inclusions,vtr,98.0,0.98
+sbs,digitalAudio,cpc,ctr,0.29,0.0029
+sbs,digitalAudio,cpc,vtr,98.0,0.98
+sbs,digitalAudio,cpm,ctr,0.29,0.0029
+sbs,digitalAudio,cpm,vtr,98.0,0.98
+sbs,digitalAudio,cpv,ctr,0.29,0.0029
+sbs,digitalAudio,cpv,vtr,98.0,0.98
+sbs,digitalAudio,fixed_cost,ctr,0.29,0.0029
+sbs,digitalAudio,fixed_cost,vtr,98.0,0.98
+sbs,bvod,bonus,ctr,0.13,0.0013
+sbs,bvod,bonus,vtr,98.0,0.98
+sbs,bvod,package_inclusions,ctr,0.13,0.0013
+sbs,bvod,package_inclusions,vtr,98.0,0.98
+sbs,bvod,cpc,ctr,0.13,0.0013
+sbs,bvod,cpc,vtr,98.0,0.98
+sbs,bvod,cpm,ctr,0.13,0.0013
+sbs,bvod,cpm,vtr,98.0,0.98
+sbs,bvod,cpv,ctr,0.13,0.0013
+sbs,bvod,cpv,vtr,98.0,0.98
+sbs,bvod,fixed_cost,ctr,0.13,0.0013
+sbs,bvod,fixed_cost,vtr,98.0,0.98
+nine,digitalDisplay,bonus,ctr,0.13,0.0013
+nine,digitalDisplay,bonus,conversion_rate,0.84,0.0084
+nine,digitalDisplay,package_inclusions,ctr,0.13,0.0013
+nine,digitalDisplay,package_inclusions,conversion_rate,0.84,0.0084
+nine,digitalDisplay,cpc,ctr,0.13,0.0013
+nine,digitalDisplay,cpc,conversion_rate,0.84,0.0084
+nine,digitalDisplay,cpm,ctr,0.13,0.0013
+nine,digitalDisplay,cpm,conversion_rate,0.84,0.0084
+nine,digitalDisplay,cpv,ctr,0.13,0.0013
+nine,digitalDisplay,cpv,conversion_rate,0.84,0.0084
+nine,digitalDisplay,fixed_cost,ctr,0.13,0.0013
+nine,digitalDisplay,fixed_cost,conversion_rate,0.84,0.0084
+nine,digitalAudio,bonus,ctr,0.29,0.0029
+nine,digitalAudio,bonus,vtr,98.0,0.98
+nine,digitalAudio,package_inclusions,ctr,0.29,0.0029
+nine,digitalAudio,package_inclusions,vtr,98.0,0.98
+nine,digitalAudio,cpc,ctr,0.29,0.0029
+nine,digitalAudio,cpc,vtr,98.0,0.98
+nine,digitalAudio,cpm,ctr,0.29,0.0029
+nine,digitalAudio,cpm,vtr,98.0,0.98
+nine,digitalAudio,cpv,ctr,0.29,0.0029
+nine,digitalAudio,cpv,vtr,98.0,0.98
+nine,digitalAudio,fixed_cost,ctr,0.29,0.0029
+nine,digitalAudio,fixed_cost,vtr,98.0,0.98
+nine,digitalVideo,bonus,ctr,0.65,0.0065
+nine,digitalVideo,bonus,vtr,82.5,0.825
+nine,digitalVideo,package_inclusions,ctr,0.65,0.0065
+nine,digitalVideo,package_inclusions,vtr,82.5,0.825
+nine,digitalVideo,cpc,ctr,0.65,0.0065
+nine,digitalVideo,cpc,vtr,82.5,0.825
+nine,digitalVideo,cpm,ctr,0.65,0.0065
+nine,digitalVideo,cpm,vtr,82.5,0.825
+nine,digitalVideo,cpv,ctr,0.65,0.0065
+nine,digitalVideo,cpv,vtr,82.5,0.825
+nine,digitalVideo,fixed_cost,ctr,0.65,0.0065
+nine,digitalVideo,fixed_cost,vtr,82.5,0.825
+nine,bvod,bonus,ctr,0.13,0.0013
+nine,bvod,bonus,vtr,98.0,0.98
+nine,bvod,package_inclusions,ctr,0.13,0.0013
+nine,bvod,package_inclusions,vtr,98.0,0.98
+nine,bvod,cpc,ctr,0.13,0.0013
+nine,bvod,cpc,vtr,98.0,0.98
+nine,bvod,cpm,ctr,0.13,0.0013
+nine,bvod,cpm,vtr,98.0,0.98
+nine,bvod,cpv,ctr,0.13,0.0013
+nine,bvod,cpv,vtr,98.0,0.98
+nine,bvod,fixed_cost,ctr,0.13,0.0013
+nine,bvod,fixed_cost,vtr,98.0,0.98
+nine,socialMedia,manual_cpc,ctr,1.43,0.0143
+nine,socialMedia,completed_views,vtr,16.5,0.165
+nine,socialMedia,conversion_value,conversion_rate,1.92,0.0192
+nine,socialMedia,landing_page_views,ctr,1.43,0.0143
+nine,socialMedia,landing_page_views,conversion_rate,1.92,0.0192
+nine,socialMedia,leads,conversion_rate,3.0,0.03
+nine,socialMedia,maximize_conversions,conversion_rate,1.92,0.0192
+sca,digitalAudio,bonus,ctr,0.29,0.0029
+sca,digitalAudio,bonus,vtr,98.0,0.98
+sca,digitalAudio,package_inclusions,ctr,0.29,0.0029
+sca,digitalAudio,package_inclusions,vtr,98.0,0.98
+sca,digitalAudio,cpc,ctr,0.29,0.0029
+sca,digitalAudio,cpc,vtr,98.0,0.98
+sca,digitalAudio,cpm,ctr,0.29,0.0029
+sca,digitalAudio,cpm,vtr,98.0,0.98
+sca,digitalAudio,cpv,ctr,0.29,0.0029
+sca,digitalAudio,cpv,vtr,98.0,0.98
+sca,digitalAudio,fixed_cost,ctr,0.29,0.0029
+sca,digitalAudio,fixed_cost,vtr,98.0,0.98
+test1,digitalDisplay,bonus,ctr,0.1,0.001
+test1,digitalDisplay,bonus,conversion_rate,0.7,0.007
+test1,digitalDisplay,package_inclusions,ctr,0.1,0.001
+test1,digitalDisplay,package_inclusions,conversion_rate,0.7,0.007
+test1,digitalDisplay,cpc,ctr,0.1,0.001
+test1,digitalDisplay,cpc,conversion_rate,0.7,0.007
+test1,digitalDisplay,cpm,ctr,0.1,0.001
+test1,digitalDisplay,cpm,conversion_rate,0.7,0.007
+test1,digitalDisplay,cpv,ctr,0.1,0.001
+test1,digitalDisplay,cpv,conversion_rate,0.7,0.007
+test1,digitalDisplay,fixed_cost,ctr,0.1,0.001
+test1,digitalDisplay,fixed_cost,conversion_rate,0.7,0.007
+test1,digitalAudio,bonus,ctr,0.22,0.0022
+test1,digitalAudio,bonus,vtr,91.0,0.91
+test1,digitalAudio,package_inclusions,ctr,0.22,0.0022
+test1,digitalAudio,package_inclusions,vtr,91.0,0.91
+test1,digitalAudio,cpc,ctr,0.22,0.0022
+test1,digitalAudio,cpc,vtr,91.0,0.91
+test1,digitalAudio,cpm,ctr,0.22,0.0022
+test1,digitalAudio,cpm,vtr,91.0,0.91
+test1,digitalAudio,cpv,ctr,0.22,0.0022
+test1,digitalAudio,cpv,vtr,91.0,0.91
+test1,digitalAudio,fixed_cost,ctr,0.22,0.0022
+test1,digitalAudio,fixed_cost,vtr,91.0,0.91
+test1,digitalVideo,bonus,ctr,0.5,0.005
+test1,digitalVideo,bonus,vtr,75.0,0.75
+test1,digitalVideo,package_inclusions,ctr,0.5,0.005
+test1,digitalVideo,package_inclusions,vtr,75.0,0.75
+test1,digitalVideo,cpc,ctr,0.5,0.005
+test1,digitalVideo,cpc,vtr,75.0,0.75
+test1,digitalVideo,cpm,ctr,0.5,0.005
+test1,digitalVideo,cpm,vtr,75.0,0.75
+test1,digitalVideo,cpv,ctr,0.5,0.005
+test1,digitalVideo,cpv,vtr,75.0,0.75
+test1,digitalVideo,fixed_cost,ctr,0.5,0.005
+test1,digitalVideo,fixed_cost,vtr,75.0,0.75
+test1,bvod,bonus,ctr,0.1,0.001
+test1,bvod,bonus,vtr,95.0,0.95
+test1,bvod,package_inclusions,ctr,0.1,0.001
+test1,bvod,package_inclusions,vtr,95.0,0.95
+test1,bvod,cpc,ctr,0.1,0.001
+test1,bvod,cpc,vtr,95.0,0.95
+test1,bvod,cpm,ctr,0.1,0.001
+test1,bvod,cpm,vtr,95.0,0.95
+test1,bvod,cpv,ctr,0.1,0.001
+test1,bvod,cpv,vtr,95.0,0.95
+test1,bvod,fixed_cost,ctr,0.1,0.001
+test1,bvod,fixed_cost,vtr,95.0,0.95
+test1,search,manual_cpc,ctr,3.2,0.032
+test1,search,manual_cpc,conversion_rate,3.75,0.0375
+test1,search,maximize_conversions,ctr,3.2,0.032
+test1,search,maximize_conversions,conversion_rate,4.4,0.044
+test1,search,target_cpa,ctr,3.2,0.032
+test1,search,target_cpa,conversion_rate,5.0,0.05
+test1,search,target_roas,ctr,3.2,0.032
+test1,search,target_roas,conversion_rate,4.5,0.045
+test1,socialMedia,manual_cpc,ctr,1.1,0.011
+test1,socialMedia,completed_views,vtr,15.0,0.15
+test1,socialMedia,conversion_value,conversion_rate,1.6,0.016
+test1,socialMedia,landing_page_views,ctr,1.1,0.011
+test1,socialMedia,landing_page_views,conversion_rate,1.6,0.016
+test1,socialMedia,leads,conversion_rate,2.5,0.025
+test1,socialMedia,maximize_conversions,conversion_rate,1.6,0.016
+test1,progDisplay,clicks,ctr,0.15,0.0015
+test1,progDisplay,conversions,ctr,0.1,0.001
+test1,progDisplay,conversions,conversion_rate,0.9,0.009
+test1,progDisplay,reach,ctr,0.08,0.0008
+test1,progDisplay,viewability,ctr,0.08,0.0008
+test1,progVideo,completed_views,ctr,0.5,0.005
+test1,progVideo,completed_views,vtr,80.0,0.8
+test1,progVideo,reach,ctr,0.5,0.005
+test1,progVideo,reach,vtr,75.0,0.75
+test1,progVideo,target_cpa,ctr,0.5,0.005
+test1,progVideo,target_cpa,conversion_rate,0.5,0.005
+test1,progVideo,viewability,ctr,0.5,0.005
+test1,progVideo,viewability,vtr,75.0,0.75
+test1,progBvod,completed_views,vtr,97.0,0.97
+test1,progBvod,reach,vtr,95.0,0.95
+test1,progBvod,target_cpa,vtr,95.0,0.95
+test1,progBvod,viewability,vtr,95.0,0.95
+test1,progAudio,clicks,ctr,0.3,0.003
+test1,progAudio,completed_listens,vtr,91.0,0.91
+test1,progAudio,reach,vtr,91.0,0.91
+test1,influencers,fixed_cost,ctr,1.0,0.01
+test1,influencers,fixed_cost,vtr,30.0,0.3
+test1,influencers,cpm,vtr,30.0,0.3
+test1,influencers,cpv,vtr,30.0,0.3
+tabool,progDisplay,clicks,ctr,0.13,0.0013
+tabool,progDisplay,conversions,ctr,0.09,0.0009
+tabool,progDisplay,conversions,conversion_rate,0.81,0.0081
+tabool,progDisplay,reach,ctr,0.07,0.0007
+tabool,progDisplay,viewability,ctr,0.07,0.0007
+TVDV3,progVideo,completed_views,ctr,0.65,0.0065
+TVDV3,progVideo,completed_views,vtr,88.0,0.88
+TVDV3,progVideo,reach,ctr,0.65,0.0065
+TVDV3,progVideo,reach,vtr,82.5,0.825
+TVDV3,progVideo,target_cpa,ctr,0.65,0.0065
+TVDV3,progVideo,target_cpa,conversion_rate,0.6,0.006
+TVDV3,progVideo,viewability,ctr,0.65,0.0065
+TVDV3,progVideo,viewability,vtr,82.5,0.825
+hemagn,digitalDisplay,bonus,ctr,0.09,0.0009
+hemagn,digitalDisplay,bonus,conversion_rate,0.63,0.0063
+hemagn,digitalDisplay,package_inclusions,ctr,0.09,0.0009
+hemagn,digitalDisplay,package_inclusions,conversion_rate,0.63,0.0063
+hemagn,digitalDisplay,cpc,ctr,0.09,0.0009
+hemagn,digitalDisplay,cpc,conversion_rate,0.63,0.0063
+hemagn,digitalDisplay,cpm,ctr,0.09,0.0009
+hemagn,digitalDisplay,cpm,conversion_rate,0.63,0.0063
+hemagn,digitalDisplay,cpv,ctr,0.09,0.0009
+hemagn,digitalDisplay,cpv,conversion_rate,0.63,0.0063
+hemagn,digitalDisplay,fixed_cost,ctr,0.09,0.0009
+hemagn,digitalDisplay,fixed_cost,conversion_rate,0.63,0.0063
+hemagn,progDisplay,clicks,ctr,0.13,0.0013
+hemagn,progDisplay,conversions,ctr,0.09,0.0009
+hemagn,progDisplay,conversions,conversion_rate,0.81,0.0081
+hemagn,progDisplay,reach,ctr,0.07,0.0007
+hemagn,progDisplay,viewability,ctr,0.07,0.0007
+TVNZ,digitalDisplay,bonus,ctr,0.1,0.001
+TVNZ,digitalDisplay,bonus,conversion_rate,0.7,0.007
+TVNZ,digitalDisplay,package_inclusions,ctr,0.1,0.001
+TVNZ,digitalDisplay,package_inclusions,conversion_rate,0.7,0.007
+TVNZ,digitalDisplay,cpc,ctr,0.1,0.001
+TVNZ,digitalDisplay,cpc,conversion_rate,0.7,0.007
+TVNZ,digitalDisplay,cpm,ctr,0.1,0.001
+TVNZ,digitalDisplay,cpm,conversion_rate,0.7,0.007
+TVNZ,digitalDisplay,cpv,ctr,0.1,0.001
+TVNZ,digitalDisplay,cpv,conversion_rate,0.7,0.007
+TVNZ,digitalDisplay,fixed_cost,ctr,0.1,0.001
+TVNZ,digitalDisplay,fixed_cost,conversion_rate,0.7,0.007
+TVNZ,digitalVideo,bonus,ctr,0.5,0.005
+TVNZ,digitalVideo,bonus,vtr,75.0,0.75
+TVNZ,digitalVideo,package_inclusions,ctr,0.5,0.005
+TVNZ,digitalVideo,package_inclusions,vtr,75.0,0.75
+TVNZ,digitalVideo,cpc,ctr,0.5,0.005
+TVNZ,digitalVideo,cpc,vtr,75.0,0.75
+TVNZ,digitalVideo,cpm,ctr,0.5,0.005
+TVNZ,digitalVideo,cpm,vtr,75.0,0.75
+TVNZ,digitalVideo,cpv,ctr,0.5,0.005
+TVNZ,digitalVideo,cpv,vtr,75.0,0.75
+TVNZ,digitalVideo,fixed_cost,ctr,0.5,0.005
+TVNZ,digitalVideo,fixed_cost,vtr,75.0,0.75
+TVNZ,bvod,bonus,ctr,0.1,0.001
+TVNZ,bvod,bonus,vtr,95.0,0.95
+TVNZ,bvod,package_inclusions,ctr,0.1,0.001
+TVNZ,bvod,package_inclusions,vtr,95.0,0.95
+TVNZ,bvod,cpc,ctr,0.1,0.001
+TVNZ,bvod,cpc,vtr,95.0,0.95
+TVNZ,bvod,cpm,ctr,0.1,0.001
+TVNZ,bvod,cpm,vtr,95.0,0.95
+TVNZ,bvod,cpv,ctr,0.1,0.001
+TVNZ,bvod,cpv,vtr,95.0,0.95
+TVNZ,bvod,fixed_cost,ctr,0.1,0.001
+TVNZ,bvod,fixed_cost,vtr,95.0,0.95
+leba,bvod,bonus,ctr,0.1,0.001
+leba,bvod,bonus,vtr,95.0,0.95
+leba,bvod,package_inclusions,ctr,0.1,0.001
+leba,bvod,package_inclusions,vtr,95.0,0.95
+leba,bvod,cpc,ctr,0.1,0.001
+leba,bvod,cpc,vtr,95.0,0.95
+leba,bvod,cpm,ctr,0.1,0.001
+leba,bvod,cpm,vtr,95.0,0.95
+leba,bvod,cpv,ctr,0.1,0.001
+leba,bvod,cpv,vtr,95.0,0.95
+leba,bvod,fixed_cost,ctr,0.1,0.001
+leba,bvod,fixed_cost,vtr,95.0,0.95
+SEN,digitalAudio,bonus,ctr,0.29,0.0029
+SEN,digitalAudio,bonus,vtr,98.0,0.98
+SEN,digitalAudio,package_inclusions,ctr,0.29,0.0029
+SEN,digitalAudio,package_inclusions,vtr,98.0,0.98
+SEN,digitalAudio,cpc,ctr,0.29,0.0029
+SEN,digitalAudio,cpc,vtr,98.0,0.98
+SEN,digitalAudio,cpm,ctr,0.29,0.0029
+SEN,digitalAudio,cpm,vtr,98.0,0.98
+SEN,digitalAudio,cpv,ctr,0.29,0.0029
+SEN,digitalAudio,cpv,vtr,98.0,0.98
+SEN,digitalAudio,fixed_cost,ctr,0.29,0.0029
+SEN,digitalAudio,fixed_cost,vtr,98.0,0.98
+Nova,digitalAudio,bonus,ctr,0.29,0.0029
+Nova,digitalAudio,bonus,vtr,98.0,0.98
+Nova,digitalAudio,package_inclusions,ctr,0.29,0.0029
+Nova,digitalAudio,package_inclusions,vtr,98.0,0.98
+Nova,digitalAudio,cpc,ctr,0.29,0.0029
+Nova,digitalAudio,cpc,vtr,98.0,0.98
+Nova,digitalAudio,cpm,ctr,0.29,0.0029
+Nova,digitalAudio,cpm,vtr,98.0,0.98
+Nova,digitalAudio,cpv,ctr,0.29,0.0029
+Nova,digitalAudio,cpv,vtr,98.0,0.98
+Nova,digitalAudio,fixed_cost,ctr,0.29,0.0029
+Nova,digitalAudio,fixed_cost,vtr,98.0,0.98
+Nova,progAudio,clicks,ctr,0.39,0.0039
+Nova,progAudio,completed_listens,vtr,98.0,0.98
+Nova,progAudio,reach,vtr,98.0,0.98
+link,digitalDisplay,bonus,ctr,0.1,0.001
+link,digitalDisplay,bonus,conversion_rate,0.7,0.007
+link,digitalDisplay,package_inclusions,ctr,0.1,0.001
+link,digitalDisplay,package_inclusions,conversion_rate,0.7,0.007
+link,digitalDisplay,cpc,ctr,0.1,0.001
+link,digitalDisplay,cpc,conversion_rate,0.7,0.007
+link,digitalDisplay,cpm,ctr,0.1,0.001
+link,digitalDisplay,cpm,conversion_rate,0.7,0.007
+link,digitalDisplay,cpv,ctr,0.1,0.001
+link,digitalDisplay,cpv,conversion_rate,0.7,0.007
+link,digitalDisplay,fixed_cost,ctr,0.1,0.001
+link,digitalDisplay,fixed_cost,conversion_rate,0.7,0.007
+link,progDisplay,clicks,ctr,0.15,0.0015
+link,progDisplay,conversions,ctr,0.1,0.001
+link,progDisplay,conversions,conversion_rate,0.9,0.009
+link,progDisplay,reach,ctr,0.08,0.0008
+link,progDisplay,viewability,ctr,0.08,0.0008
+apart,digitalDisplay,bonus,ctr,0.13,0.0013
+apart,digitalDisplay,bonus,conversion_rate,0.84,0.0084
+apart,digitalDisplay,package_inclusions,ctr,0.13,0.0013
+apart,digitalDisplay,package_inclusions,conversion_rate,0.84,0.0084
+apart,digitalDisplay,cpc,ctr,0.13,0.0013
+apart,digitalDisplay,cpc,conversion_rate,0.84,0.0084
+apart,digitalDisplay,cpm,ctr,0.13,0.0013
+apart,digitalDisplay,cpm,conversion_rate,0.84,0.0084
+apart,digitalDisplay,cpv,ctr,0.13,0.0013
+apart,digitalDisplay,cpv,conversion_rate,0.84,0.0084
+apart,digitalDisplay,fixed_cost,ctr,0.13,0.0013
+apart,digitalDisplay,fixed_cost,conversion_rate,0.84,0.0084
+apart,search,manual_cpc,ctr,4.16,0.0416
+apart,search,manual_cpc,conversion_rate,4.5,0.045
+apart,search,maximize_conversions,ctr,4.16,0.0416
+apart,search,maximize_conversions,conversion_rate,5.28,0.0528
+apart,search,target_cpa,ctr,4.16,0.0416
+apart,search,target_cpa,conversion_rate,6.0,0.06
+apart,search,target_roas,ctr,4.16,0.0416
+apart,search,target_roas,conversion_rate,5.4,0.054
+apart,socialMedia,manual_cpc,ctr,1.43,0.0143
+apart,socialMedia,completed_views,vtr,16.5,0.165
+apart,socialMedia,conversion_value,conversion_rate,1.92,0.0192
+apart,socialMedia,landing_page_views,ctr,1.43,0.0143
+apart,socialMedia,landing_page_views,conversion_rate,1.92,0.0192
+apart,socialMedia,leads,conversion_rate,3.0,0.03
+apart,socialMedia,maximize_conversions,conversion_rate,1.92,0.0192
+apart,progDisplay,clicks,ctr,0.2,0.002
+apart,progDisplay,conversions,ctr,0.13,0.0013
+apart,progDisplay,conversions,conversion_rate,1.08,0.0108
+apart,progDisplay,reach,ctr,0.1,0.001
+apart,progDisplay,viewability,ctr,0.1,0.001
+apart,progVideo,completed_views,ctr,0.65,0.0065
+apart,progVideo,completed_views,vtr,88.0,0.88
+apart,progVideo,reach,ctr,0.65,0.0065
+apart,progVideo,reach,vtr,82.5,0.825
+apart,progVideo,target_cpa,ctr,0.65,0.0065
+apart,progVideo,target_cpa,conversion_rate,0.6,0.006
+apart,progVideo,viewability,ctr,0.65,0.0065
+apart,progVideo,viewability,vtr,82.5,0.825
+apart,progBvod,completed_views,vtr,98.0,0.98
+apart,progBvod,reach,vtr,98.0,0.98
+apart,progBvod,target_cpa,vtr,98.0,0.98
+apart,progBvod,viewability,vtr,98.0,0.98
+reales,digitalDisplay,bonus,ctr,0.13,0.0013
+reales,digitalDisplay,bonus,conversion_rate,0.84,0.0084
+reales,digitalDisplay,package_inclusions,ctr,0.13,0.0013
+reales,digitalDisplay,package_inclusions,conversion_rate,0.84,0.0084
+reales,digitalDisplay,cpc,ctr,0.13,0.0013
+reales,digitalDisplay,cpc,conversion_rate,0.84,0.0084
+reales,digitalDisplay,cpm,ctr,0.13,0.0013
+reales,digitalDisplay,cpm,conversion_rate,0.84,0.0084
+reales,digitalDisplay,cpv,ctr,0.13,0.0013
+reales,digitalDisplay,cpv,conversion_rate,0.84,0.0084
+reales,digitalDisplay,fixed_cost,ctr,0.13,0.0013
+reales,digitalDisplay,fixed_cost,conversion_rate,0.84,0.0084
+reales,digitalVideo,bonus,ctr,0.65,0.0065
+reales,digitalVideo,bonus,vtr,82.5,0.825
+reales,digitalVideo,package_inclusions,ctr,0.65,0.0065
+reales,digitalVideo,package_inclusions,vtr,82.5,0.825
+reales,digitalVideo,cpc,ctr,0.65,0.0065
+reales,digitalVideo,cpc,vtr,82.5,0.825
+reales,digitalVideo,cpm,ctr,0.65,0.0065
+reales,digitalVideo,cpm,vtr,82.5,0.825
+reales,digitalVideo,cpv,ctr,0.65,0.0065
+reales,digitalVideo,cpv,vtr,82.5,0.825
+reales,digitalVideo,fixed_cost,ctr,0.65,0.0065
+reales,digitalVideo,fixed_cost,vtr,82.5,0.825
+reales,socialMedia,manual_cpc,ctr,1.43,0.0143
+reales,socialMedia,completed_views,vtr,16.5,0.165
+reales,socialMedia,conversion_value,conversion_rate,1.92,0.0192
+reales,socialMedia,landing_page_views,ctr,1.43,0.0143
+reales,socialMedia,landing_page_views,conversion_rate,1.92,0.0192
+reales,socialMedia,leads,conversion_rate,3.0,0.03
+reales,socialMedia,maximize_conversions,conversion_rate,1.92,0.0192
+reales,progDisplay,clicks,ctr,0.2,0.002
+reales,progDisplay,conversions,ctr,0.13,0.0013
+reales,progDisplay,conversions,conversion_rate,1.08,0.0108
+reales,progDisplay,reach,ctr,0.1,0.001
+reales,progDisplay,viewability,ctr,0.1,0.001
+reales,progVideo,completed_views,ctr,0.65,0.0065
+reales,progVideo,completed_views,vtr,88.0,0.88
+reales,progVideo,reach,ctr,0.65,0.0065
+reales,progVideo,reach,vtr,82.5,0.825
+reales,progVideo,target_cpa,ctr,0.65,0.0065
+reales,progVideo,target_cpa,conversion_rate,0.6,0.006
+reales,progVideo,viewability,ctr,0.65,0.0065
+reales,progVideo,viewability,vtr,82.5,0.825
+assem,search,manual_cpc,ctr,2.72,0.0272
+assem,search,manual_cpc,conversion_rate,3.38,0.0338
+assem,search,maximize_conversions,ctr,2.72,0.0272
+assem,search,maximize_conversions,conversion_rate,3.96,0.0396
+assem,search,target_cpa,ctr,2.72,0.0272
+assem,search,target_cpa,conversion_rate,4.5,0.045
+assem,search,target_roas,ctr,2.72,0.0272
+assem,search,target_roas,conversion_rate,4.05,0.0405
+assem,socialMedia,manual_cpc,ctr,0.94,0.0094
+assem,socialMedia,completed_views,vtr,14.2,0.142
+assem,socialMedia,conversion_value,conversion_rate,1.44,0.0144
+assem,socialMedia,landing_page_views,ctr,0.94,0.0094
+assem,socialMedia,landing_page_views,conversion_rate,1.44,0.0144
+assem,socialMedia,leads,conversion_rate,2.25,0.0225
+assem,socialMedia,maximize_conversions,conversion_rate,1.44,0.0144
+News Corp,digitalDisplay,bonus,ctr,0.13,0.0013
+News Corp,digitalDisplay,bonus,conversion_rate,0.84,0.0084
+News Corp,digitalDisplay,package_inclusions,ctr,0.13,0.0013
+News Corp,digitalDisplay,package_inclusions,conversion_rate,0.84,0.0084
+News Corp,digitalDisplay,cpc,ctr,0.13,0.0013
+News Corp,digitalDisplay,cpc,conversion_rate,0.84,0.0084
+News Corp,digitalDisplay,cpm,ctr,0.13,0.0013
+News Corp,digitalDisplay,cpm,conversion_rate,0.84,0.0084
+News Corp,digitalDisplay,cpv,ctr,0.13,0.0013
+News Corp,digitalDisplay,cpv,conversion_rate,0.84,0.0084
+News Corp,digitalDisplay,fixed_cost,ctr,0.13,0.0013
+News Corp,digitalDisplay,fixed_cost,conversion_rate,0.84,0.0084
+News Corp,digitalVideo,bonus,ctr,0.65,0.0065
+News Corp,digitalVideo,bonus,vtr,82.5,0.825
+News Corp,digitalVideo,package_inclusions,ctr,0.65,0.0065
+News Corp,digitalVideo,package_inclusions,vtr,82.5,0.825
+News Corp,digitalVideo,cpc,ctr,0.65,0.0065
+News Corp,digitalVideo,cpc,vtr,82.5,0.825
+News Corp,digitalVideo,cpm,ctr,0.65,0.0065
+News Corp,digitalVideo,cpm,vtr,82.5,0.825
+News Corp,digitalVideo,cpv,ctr,0.65,0.0065
+News Corp,digitalVideo,cpv,vtr,82.5,0.825
+News Corp,digitalVideo,fixed_cost,ctr,0.65,0.0065
+News Corp,digitalVideo,fixed_cost,vtr,82.5,0.825
+News Corp,socialMedia,manual_cpc,ctr,1.43,0.0143
+News Corp,socialMedia,completed_views,vtr,16.5,0.165
+News Corp,socialMedia,conversion_value,conversion_rate,1.92,0.0192
+News Corp,socialMedia,landing_page_views,ctr,1.43,0.0143
+News Corp,socialMedia,landing_page_views,conversion_rate,1.92,0.0192
+News Corp,socialMedia,leads,conversion_rate,3.0,0.03
+News Corp,socialMedia,maximize_conversions,conversion_rate,1.92,0.0192
+Farm Machinery Sales,digitalDisplay,bonus,ctr,0.13,0.0013
+Farm Machinery Sales,digitalDisplay,bonus,conversion_rate,0.84,0.0084
+Farm Machinery Sales,digitalDisplay,package_inclusions,ctr,0.13,0.0013
+Farm Machinery Sales,digitalDisplay,package_inclusions,conversion_rate,0.84,0.0084
+Farm Machinery Sales,digitalDisplay,cpc,ctr,0.13,0.0013
+Farm Machinery Sales,digitalDisplay,cpc,conversion_rate,0.84,0.0084
+Farm Machinery Sales,digitalDisplay,cpm,ctr,0.13,0.0013
+Farm Machinery Sales,digitalDisplay,cpm,conversion_rate,0.84,0.0084
+Farm Machinery Sales,digitalDisplay,cpv,ctr,0.13,0.0013
+Farm Machinery Sales,digitalDisplay,cpv,conversion_rate,0.84,0.0084
+Farm Machinery Sales,digitalDisplay,fixed_cost,ctr,0.13,0.0013
+Farm Machinery Sales,digitalDisplay,fixed_cost,conversion_rate,0.84,0.0084
+Farm Machinery Sales,digitalVideo,bonus,ctr,0.65,0.0065
+Farm Machinery Sales,digitalVideo,bonus,vtr,82.5,0.825
+Farm Machinery Sales,digitalVideo,package_inclusions,ctr,0.65,0.0065
+Farm Machinery Sales,digitalVideo,package_inclusions,vtr,82.5,0.825
+Farm Machinery Sales,digitalVideo,cpc,ctr,0.65,0.0065
+Farm Machinery Sales,digitalVideo,cpc,vtr,82.5,0.825
+Farm Machinery Sales,digitalVideo,cpm,ctr,0.65,0.0065
+Farm Machinery Sales,digitalVideo,cpm,vtr,82.5,0.825
+Farm Machinery Sales,digitalVideo,cpv,ctr,0.65,0.0065
+Farm Machinery Sales,digitalVideo,cpv,vtr,82.5,0.825
+Farm Machinery Sales,digitalVideo,fixed_cost,ctr,0.65,0.0065
+Farm Machinery Sales,digitalVideo,fixed_cost,vtr,82.5,0.825
+Network Seven,digitalDisplay,bonus,ctr,0.13,0.0013
+Network Seven,digitalDisplay,bonus,conversion_rate,0.84,0.0084
+Network Seven,digitalDisplay,package_inclusions,ctr,0.13,0.0013
+Network Seven,digitalDisplay,package_inclusions,conversion_rate,0.84,0.0084
+Network Seven,digitalDisplay,cpc,ctr,0.13,0.0013
+Network Seven,digitalDisplay,cpc,conversion_rate,0.84,0.0084
+Network Seven,digitalDisplay,cpm,ctr,0.13,0.0013
+Network Seven,digitalDisplay,cpm,conversion_rate,0.84,0.0084
+Network Seven,digitalDisplay,cpv,ctr,0.13,0.0013
+Network Seven,digitalDisplay,cpv,conversion_rate,0.84,0.0084
+Network Seven,digitalDisplay,fixed_cost,ctr,0.13,0.0013
+Network Seven,digitalDisplay,fixed_cost,conversion_rate,0.84,0.0084
+Network Seven,digitalVideo,bonus,ctr,0.65,0.0065
+Network Seven,digitalVideo,bonus,vtr,82.5,0.825
+Network Seven,digitalVideo,package_inclusions,ctr,0.65,0.0065
+Network Seven,digitalVideo,package_inclusions,vtr,82.5,0.825
+Network Seven,digitalVideo,cpc,ctr,0.65,0.0065
+Network Seven,digitalVideo,cpc,vtr,82.5,0.825
+Network Seven,digitalVideo,cpm,ctr,0.65,0.0065
+Network Seven,digitalVideo,cpm,vtr,82.5,0.825
+Network Seven,digitalVideo,cpv,ctr,0.65,0.0065
+Network Seven,digitalVideo,cpv,vtr,82.5,0.825
+Network Seven,digitalVideo,fixed_cost,ctr,0.65,0.0065
+Network Seven,digitalVideo,fixed_cost,vtr,82.5,0.825
+Network Seven,bvod,bonus,ctr,0.13,0.0013
+Network Seven,bvod,bonus,vtr,98.0,0.98
+Network Seven,bvod,package_inclusions,ctr,0.13,0.0013
+Network Seven,bvod,package_inclusions,vtr,98.0,0.98
+Network Seven,bvod,cpc,ctr,0.13,0.0013
+Network Seven,bvod,cpc,vtr,98.0,0.98
+Network Seven,bvod,cpm,ctr,0.13,0.0013
+Network Seven,bvod,cpm,vtr,98.0,0.98
+Network Seven,bvod,cpv,ctr,0.13,0.0013
+Network Seven,bvod,cpv,vtr,98.0,0.98
+Network Seven,bvod,fixed_cost,ctr,0.13,0.0013
+Network Seven,bvod,fixed_cost,vtr,98.0,0.98
+Network Seven,socialMedia,manual_cpc,ctr,1.43,0.0143
+Network Seven,socialMedia,completed_views,vtr,16.5,0.165
+Network Seven,socialMedia,conversion_value,conversion_rate,1.92,0.0192
+Network Seven,socialMedia,landing_page_views,ctr,1.43,0.0143
+Network Seven,socialMedia,landing_page_views,conversion_rate,1.92,0.0192
+Network Seven,socialMedia,leads,conversion_rate,3.0,0.03
+Network Seven,socialMedia,maximize_conversions,conversion_rate,1.92,0.0192
+foxtel,digitalDisplay,bonus,ctr,0.13,0.0013
+foxtel,digitalDisplay,bonus,conversion_rate,0.84,0.0084
+foxtel,digitalDisplay,package_inclusions,ctr,0.13,0.0013
+foxtel,digitalDisplay,package_inclusions,conversion_rate,0.84,0.0084
+foxtel,digitalDisplay,cpc,ctr,0.13,0.0013
+foxtel,digitalDisplay,cpc,conversion_rate,0.84,0.0084
+foxtel,digitalDisplay,cpm,ctr,0.13,0.0013
+foxtel,digitalDisplay,cpm,conversion_rate,0.84,0.0084
+foxtel,digitalDisplay,cpv,ctr,0.13,0.0013
+foxtel,digitalDisplay,cpv,conversion_rate,0.84,0.0084
+foxtel,digitalDisplay,fixed_cost,ctr,0.13,0.0013
+foxtel,digitalDisplay,fixed_cost,conversion_rate,0.84,0.0084
+foxtel,digitalVideo,bonus,ctr,0.65,0.0065
+foxtel,digitalVideo,bonus,vtr,82.5,0.825
+foxtel,digitalVideo,package_inclusions,ctr,0.65,0.0065
+foxtel,digitalVideo,package_inclusions,vtr,82.5,0.825
+foxtel,digitalVideo,cpc,ctr,0.65,0.0065
+foxtel,digitalVideo,cpc,vtr,82.5,0.825
+foxtel,digitalVideo,cpm,ctr,0.65,0.0065
+foxtel,digitalVideo,cpm,vtr,82.5,0.825
+foxtel,digitalVideo,cpv,ctr,0.65,0.0065
+foxtel,digitalVideo,cpv,vtr,82.5,0.825
+foxtel,digitalVideo,fixed_cost,ctr,0.65,0.0065
+foxtel,digitalVideo,fixed_cost,vtr,82.5,0.825
+foxtel,bvod,bonus,ctr,0.13,0.0013
+foxtel,bvod,bonus,vtr,98.0,0.98
+foxtel,bvod,package_inclusions,ctr,0.13,0.0013
+foxtel,bvod,package_inclusions,vtr,98.0,0.98
+foxtel,bvod,cpc,ctr,0.13,0.0013
+foxtel,bvod,cpc,vtr,98.0,0.98
+foxtel,bvod,cpm,ctr,0.13,0.0013
+foxtel,bvod,cpm,vtr,98.0,0.98
+foxtel,bvod,cpv,ctr,0.13,0.0013
+foxtel,bvod,cpv,vtr,98.0,0.98
+foxtel,bvod,fixed_cost,ctr,0.13,0.0013
+foxtel,bvod,fixed_cost,vtr,98.0,0.98
+Broadsheet,digitalDisplay,bonus,ctr,0.1,0.001
+Broadsheet,digitalDisplay,bonus,conversion_rate,0.7,0.007
+Broadsheet,digitalDisplay,package_inclusions,ctr,0.1,0.001
+Broadsheet,digitalDisplay,package_inclusions,conversion_rate,0.7,0.007
+Broadsheet,digitalDisplay,cpc,ctr,0.1,0.001
+Broadsheet,digitalDisplay,cpc,conversion_rate,0.7,0.007
+Broadsheet,digitalDisplay,cpm,ctr,0.1,0.001
+Broadsheet,digitalDisplay,cpm,conversion_rate,0.7,0.007
+Broadsheet,digitalDisplay,cpv,ctr,0.1,0.001
+Broadsheet,digitalDisplay,cpv,conversion_rate,0.7,0.007
+Broadsheet,digitalDisplay,fixed_cost,ctr,0.1,0.001
+Broadsheet,digitalDisplay,fixed_cost,conversion_rate,0.7,0.007
+Broadsheet,digitalVideo,bonus,ctr,0.5,0.005
+Broadsheet,digitalVideo,bonus,vtr,75.0,0.75
+Broadsheet,digitalVideo,package_inclusions,ctr,0.5,0.005
+Broadsheet,digitalVideo,package_inclusions,vtr,75.0,0.75
+Broadsheet,digitalVideo,cpc,ctr,0.5,0.005
+Broadsheet,digitalVideo,cpc,vtr,75.0,0.75
+Broadsheet,digitalVideo,cpm,ctr,0.5,0.005
+Broadsheet,digitalVideo,cpm,vtr,75.0,0.75
+Broadsheet,digitalVideo,cpv,ctr,0.5,0.005
+Broadsheet,digitalVideo,cpv,vtr,75.0,0.75
+Broadsheet,digitalVideo,fixed_cost,ctr,0.5,0.005
+Broadsheet,digitalVideo,fixed_cost,vtr,75.0,0.75
+spot,digitalAudio,bonus,ctr,0.29,0.0029
+spot,digitalAudio,bonus,vtr,98.0,0.98
+spot,digitalAudio,package_inclusions,ctr,0.29,0.0029
+spot,digitalAudio,package_inclusions,vtr,98.0,0.98
+spot,digitalAudio,cpc,ctr,0.29,0.0029
+spot,digitalAudio,cpc,vtr,98.0,0.98
+spot,digitalAudio,cpm,ctr,0.29,0.0029
+spot,digitalAudio,cpm,vtr,98.0,0.98
+spot,digitalAudio,cpv,ctr,0.29,0.0029
+spot,digitalAudio,cpv,vtr,98.0,0.98
+spot,digitalAudio,fixed_cost,ctr,0.29,0.0029
+spot,digitalAudio,fixed_cost,vtr,98.0,0.98
+spot,progAudio,clicks,ctr,0.39,0.0039
+spot,progAudio,completed_listens,vtr,98.0,0.98
+spot,progAudio,reach,vtr,98.0,0.98
+listnr,digitalAudio,bonus,ctr,0.29,0.0029
+listnr,digitalAudio,bonus,vtr,98.0,0.98
+listnr,digitalAudio,package_inclusions,ctr,0.29,0.0029
+listnr,digitalAudio,package_inclusions,vtr,98.0,0.98
+listnr,digitalAudio,cpc,ctr,0.29,0.0029
+listnr,digitalAudio,cpc,vtr,98.0,0.98
+listnr,digitalAudio,cpm,ctr,0.29,0.0029
+listnr,digitalAudio,cpm,vtr,98.0,0.98
+listnr,digitalAudio,cpv,ctr,0.29,0.0029
+listnr,digitalAudio,cpv,vtr,98.0,0.98
+listnr,digitalAudio,fixed_cost,ctr,0.29,0.0029
+listnr,digitalAudio,fixed_cost,vtr,98.0,0.98
+listnr,progVideo,completed_views,ctr,0.65,0.0065
+listnr,progVideo,completed_views,vtr,88.0,0.88
+listnr,progVideo,reach,ctr,0.65,0.0065
+listnr,progVideo,reach,vtr,82.5,0.825
+listnr,progVideo,target_cpa,ctr,0.65,0.0065
+listnr,progVideo,target_cpa,conversion_rate,0.6,0.006
+listnr,progVideo,viewability,ctr,0.65,0.0065
+listnr,progVideo,viewability,vtr,82.5,0.825
+listnr,progAudio,clicks,ctr,0.39,0.0039
+listnr,progAudio,completed_listens,vtr,98.0,0.98
+listnr,progAudio,reach,vtr,98.0,0.98
+link,socialMedia,manual_cpc,ctr,1.43,0.0143
+link,socialMedia,completed_views,vtr,16.5,0.165
+link,socialMedia,conversion_value,conversion_rate,1.92,0.0192
+link,socialMedia,landing_page_views,ctr,1.43,0.0143
+link,socialMedia,landing_page_views,conversion_rate,1.92,0.0192
+link,socialMedia,leads,conversion_rate,3.0,0.03
+link,socialMedia,maximize_conversions,conversion_rate,1.92,0.0192
+lawye,digitalDisplay,bonus,ctr,0.1,0.001
+lawye,digitalDisplay,bonus,conversion_rate,0.7,0.007
+lawye,digitalDisplay,package_inclusions,ctr,0.1,0.001
+lawye,digitalDisplay,package_inclusions,conversion_rate,0.7,0.007
+lawye,digitalDisplay,cpc,ctr,0.1,0.001
+lawye,digitalDisplay,cpc,conversion_rate,0.7,0.007
+lawye,digitalDisplay,cpm,ctr,0.1,0.001
+lawye,digitalDisplay,cpm,conversion_rate,0.7,0.007
+lawye,digitalDisplay,cpv,ctr,0.1,0.001
+lawye,digitalDisplay,cpv,conversion_rate,0.7,0.007
+lawye,digitalDisplay,fixed_cost,ctr,0.1,0.001
+lawye,digitalDisplay,fixed_cost,conversion_rate,0.7,0.007
+lawye,digitalAudio,bonus,ctr,0.22,0.0022
+lawye,digitalAudio,bonus,vtr,91.0,0.91
+lawye,digitalAudio,package_inclusions,ctr,0.22,0.0022
+lawye,digitalAudio,package_inclusions,vtr,91.0,0.91
+lawye,digitalAudio,cpc,ctr,0.22,0.0022
+lawye,digitalAudio,cpc,vtr,91.0,0.91
+lawye,digitalAudio,cpm,ctr,0.22,0.0022
+lawye,digitalAudio,cpm,vtr,91.0,0.91
+lawye,digitalAudio,cpv,ctr,0.22,0.0022
+lawye,digitalAudio,cpv,vtr,91.0,0.91
+lawye,digitalAudio,fixed_cost,ctr,0.22,0.0022
+lawye,digitalAudio,fixed_cost,vtr,91.0,0.91
+lawye,socialMedia,manual_cpc,ctr,1.1,0.011
+lawye,socialMedia,completed_views,vtr,15.0,0.15
+lawye,socialMedia,conversion_value,conversion_rate,1.6,0.016
+lawye,socialMedia,landing_page_views,ctr,1.1,0.011
+lawye,socialMedia,landing_page_views,conversion_rate,1.6,0.016
+lawye,socialMedia,leads,conversion_rate,2.5,0.025
+lawye,socialMedia,maximize_conversions,conversion_rate,1.6,0.016
+lawye,progDisplay,clicks,ctr,0.15,0.0015
+lawye,progDisplay,conversions,ctr,0.1,0.001
+lawye,progDisplay,conversions,conversion_rate,0.9,0.009
+lawye,progDisplay,reach,ctr,0.08,0.0008
+lawye,progDisplay,viewability,ctr,0.08,0.0008
+DouVer,digitalDisplay,bonus,ctr,0.09,0.0009
+DouVer,digitalDisplay,bonus,conversion_rate,0.63,0.0063
+DouVer,digitalDisplay,package_inclusions,ctr,0.09,0.0009
+DouVer,digitalDisplay,package_inclusions,conversion_rate,0.63,0.0063
+DouVer,digitalDisplay,cpc,ctr,0.09,0.0009
+DouVer,digitalDisplay,cpc,conversion_rate,0.63,0.0063
+DouVer,digitalDisplay,cpm,ctr,0.09,0.0009
+DouVer,digitalDisplay,cpm,conversion_rate,0.63,0.0063
+DouVer,digitalDisplay,cpv,ctr,0.09,0.0009
+DouVer,digitalDisplay,cpv,conversion_rate,0.63,0.0063
+DouVer,digitalDisplay,fixed_cost,ctr,0.09,0.0009
+DouVer,digitalDisplay,fixed_cost,conversion_rate,0.63,0.0063
+DouVer,digitalAudio,bonus,ctr,0.19,0.0019
+DouVer,digitalAudio,bonus,vtr,86.5,0.865
+DouVer,digitalAudio,package_inclusions,ctr,0.19,0.0019
+DouVer,digitalAudio,package_inclusions,vtr,86.5,0.865
+DouVer,digitalAudio,cpc,ctr,0.19,0.0019
+DouVer,digitalAudio,cpc,vtr,86.5,0.865
+DouVer,digitalAudio,cpm,ctr,0.19,0.0019
+DouVer,digitalAudio,cpm,vtr,86.5,0.865
+DouVer,digitalAudio,cpv,ctr,0.19,0.0019
+DouVer,digitalAudio,cpv,vtr,86.5,0.865
+DouVer,digitalAudio,fixed_cost,ctr,0.19,0.0019
+DouVer,digitalAudio,fixed_cost,vtr,86.5,0.865
+DouVer,digitalVideo,bonus,ctr,0.42,0.0042
+DouVer,digitalVideo,bonus,vtr,71.2,0.712
+DouVer,digitalVideo,package_inclusions,ctr,0.42,0.0042
+DouVer,digitalVideo,package_inclusions,vtr,71.2,0.712
+DouVer,digitalVideo,cpc,ctr,0.42,0.0042
+DouVer,digitalVideo,cpc,vtr,71.2,0.712
+DouVer,digitalVideo,cpm,ctr,0.42,0.0042
+DouVer,digitalVideo,cpm,vtr,71.2,0.712
+DouVer,digitalVideo,cpv,ctr,0.42,0.0042
+DouVer,digitalVideo,cpv,vtr,71.2,0.712
+DouVer,digitalVideo,fixed_cost,ctr,0.42,0.0042
+DouVer,digitalVideo,fixed_cost,vtr,71.2,0.712
+DouVer,bvod,bonus,ctr,0.09,0.0009
+DouVer,bvod,bonus,vtr,90.2,0.902
+DouVer,bvod,package_inclusions,ctr,0.09,0.0009
+DouVer,bvod,package_inclusions,vtr,90.2,0.902
+DouVer,bvod,cpc,ctr,0.09,0.0009
+DouVer,bvod,cpc,vtr,90.2,0.902
+DouVer,bvod,cpm,ctr,0.09,0.0009
+DouVer,bvod,cpm,vtr,90.2,0.902
+DouVer,bvod,cpv,ctr,0.09,0.0009
+DouVer,bvod,cpv,vtr,90.2,0.902
+DouVer,bvod,fixed_cost,ctr,0.09,0.0009
+DouVer,bvod,fixed_cost,vtr,90.2,0.902
+DouVer,search,manual_cpc,ctr,2.72,0.0272
+DouVer,search,manual_cpc,conversion_rate,3.38,0.0338
+DouVer,search,maximize_conversions,ctr,2.72,0.0272
+DouVer,search,maximize_conversions,conversion_rate,3.96,0.0396
+DouVer,search,target_cpa,ctr,2.72,0.0272
+DouVer,search,target_cpa,conversion_rate,4.5,0.045
+DouVer,search,target_roas,ctr,2.72,0.0272
+DouVer,search,target_roas,conversion_rate,4.05,0.0405
+DouVer,socialMedia,manual_cpc,ctr,0.94,0.0094
+DouVer,socialMedia,completed_views,vtr,14.2,0.142
+DouVer,socialMedia,conversion_value,conversion_rate,1.44,0.0144
+DouVer,socialMedia,landing_page_views,ctr,0.94,0.0094
+DouVer,socialMedia,landing_page_views,conversion_rate,1.44,0.0144
+DouVer,socialMedia,leads,conversion_rate,2.25,0.0225
+DouVer,socialMedia,maximize_conversions,conversion_rate,1.44,0.0144
+DouVer,progDisplay,clicks,ctr,0.13,0.0013
+DouVer,progDisplay,conversions,ctr,0.09,0.0009
+DouVer,progDisplay,conversions,conversion_rate,0.81,0.0081
+DouVer,progDisplay,reach,ctr,0.07,0.0007
+DouVer,progDisplay,viewability,ctr,0.07,0.0007
+DouVer,progVideo,completed_views,ctr,0.42,0.0042
+DouVer,progVideo,completed_views,vtr,76.0,0.76
+DouVer,progVideo,reach,ctr,0.42,0.0042
+DouVer,progVideo,reach,vtr,71.2,0.712
+DouVer,progVideo,target_cpa,ctr,0.42,0.0042
+DouVer,progVideo,target_cpa,conversion_rate,0.45,0.0045
+DouVer,progVideo,viewability,ctr,0.42,0.0042
+DouVer,progVideo,viewability,vtr,71.2,0.712
+DouVer,progBvod,completed_views,vtr,92.1,0.921
+DouVer,progBvod,reach,vtr,90.2,0.902
+DouVer,progBvod,target_cpa,vtr,90.2,0.902
+DouVer,progBvod,viewability,vtr,90.2,0.902
+DouVer,progAudio,clicks,ctr,0.26,0.0026
+DouVer,progAudio,completed_listens,vtr,86.5,0.865
+DouVer,progAudio,reach,vtr,86.5,0.865
+DouVer,influencers,fixed_cost,ctr,0.85,0.0085
+DouVer,influencers,fixed_cost,vtr,28.5,0.285
+DouVer,influencers,cpm,vtr,28.5,0.285
+DouVer,influencers,cpv,vtr,28.5,0.285
+NZME,digitalDisplay,bonus,ctr,0.13,0.0013
+NZME,digitalDisplay,bonus,conversion_rate,0.84,0.0084
+NZME,digitalDisplay,package_inclusions,ctr,0.13,0.0013
+NZME,digitalDisplay,package_inclusions,conversion_rate,0.84,0.0084
+NZME,digitalDisplay,cpc,ctr,0.13,0.0013
+NZME,digitalDisplay,cpc,conversion_rate,0.84,0.0084
+NZME,digitalDisplay,cpm,ctr,0.13,0.0013
+NZME,digitalDisplay,cpm,conversion_rate,0.84,0.0084
+NZME,digitalDisplay,cpv,ctr,0.13,0.0013
+NZME,digitalDisplay,cpv,conversion_rate,0.84,0.0084
+NZME,digitalDisplay,fixed_cost,ctr,0.13,0.0013
+NZME,digitalDisplay,fixed_cost,conversion_rate,0.84,0.0084
+aremed,digitalDisplay,bonus,ctr,0.13,0.0013
+aremed,digitalDisplay,bonus,conversion_rate,0.84,0.0084
+aremed,digitalDisplay,package_inclusions,ctr,0.13,0.0013
+aremed,digitalDisplay,package_inclusions,conversion_rate,0.84,0.0084
+aremed,digitalDisplay,cpc,ctr,0.13,0.0013
+aremed,digitalDisplay,cpc,conversion_rate,0.84,0.0084
+aremed,digitalDisplay,cpm,ctr,0.13,0.0013
+aremed,digitalDisplay,cpm,conversion_rate,0.84,0.0084
+aremed,digitalDisplay,cpv,ctr,0.13,0.0013
+aremed,digitalDisplay,cpv,conversion_rate,0.84,0.0084
+aremed,digitalDisplay,fixed_cost,ctr,0.13,0.0013
+aremed,digitalDisplay,fixed_cost,conversion_rate,0.84,0.0084
+aremed,digitalVideo,bonus,ctr,0.65,0.0065
+aremed,digitalVideo,bonus,vtr,82.5,0.825
+aremed,digitalVideo,package_inclusions,ctr,0.65,0.0065
+aremed,digitalVideo,package_inclusions,vtr,82.5,0.825
+aremed,digitalVideo,cpc,ctr,0.65,0.0065
+aremed,digitalVideo,cpc,vtr,82.5,0.825
+aremed,digitalVideo,cpm,ctr,0.65,0.0065
+aremed,digitalVideo,cpm,vtr,82.5,0.825
+aremed,digitalVideo,cpv,ctr,0.65,0.0065
+aremed,digitalVideo,cpv,vtr,82.5,0.825
+aremed,digitalVideo,fixed_cost,ctr,0.65,0.0065
+aremed,digitalVideo,fixed_cost,vtr,82.5,0.825
+Pinterest,socialMedia,manual_cpc,ctr,1.43,0.0143
+Pinterest,socialMedia,completed_views,vtr,16.5,0.165
+Pinterest,socialMedia,conversion_value,conversion_rate,1.92,0.0192
+Pinterest,socialMedia,landing_page_views,ctr,1.43,0.0143
+Pinterest,socialMedia,landing_page_views,conversion_rate,1.92,0.0192
+Pinterest,socialMedia,leads,conversion_rate,3.0,0.03
+Pinterest,socialMedia,maximize_conversions,conversion_rate,1.92,0.0192
+Yahoo Mix-In,progDisplay,clicks,ctr,0.13,0.0013
+Yahoo Mix-In,progDisplay,conversions,ctr,0.09,0.0009
+Yahoo Mix-In,progDisplay,conversions,conversion_rate,0.81,0.0081
+Yahoo Mix-In,progDisplay,reach,ctr,0.07,0.0007
+Yahoo Mix-In,progDisplay,viewability,ctr,0.07,0.0007
+Yahoo Mix-In,progVideo,completed_views,ctr,0.42,0.0042
+Yahoo Mix-In,progVideo,completed_views,vtr,76.0,0.76
+Yahoo Mix-In,progVideo,reach,ctr,0.42,0.0042
+Yahoo Mix-In,progVideo,reach,vtr,71.2,0.712
+Yahoo Mix-In,progVideo,target_cpa,ctr,0.42,0.0042
+Yahoo Mix-In,progVideo,target_cpa,conversion_rate,0.45,0.0045
+Yahoo Mix-In,progVideo,viewability,ctr,0.42,0.0042
+Yahoo Mix-In,progVideo,viewability,vtr,71.2,0.712
+UMG Popsta,digitalVideo,bonus,ctr,0.5,0.005
+UMG Popsta,digitalVideo,bonus,vtr,75.0,0.75
+UMG Popsta,digitalVideo,package_inclusions,ctr,0.5,0.005
+UMG Popsta,digitalVideo,package_inclusions,vtr,75.0,0.75
+UMG Popsta,digitalVideo,cpc,ctr,0.5,0.005
+UMG Popsta,digitalVideo,cpc,vtr,75.0,0.75
+UMG Popsta,digitalVideo,cpm,ctr,0.5,0.005
+UMG Popsta,digitalVideo,cpm,vtr,75.0,0.75
+UMG Popsta,digitalVideo,cpv,ctr,0.5,0.005
+UMG Popsta,digitalVideo,cpv,vtr,75.0,0.75
+UMG Popsta,digitalVideo,fixed_cost,ctr,0.5,0.005
+UMG Popsta,digitalVideo,fixed_cost,vtr,75.0,0.75
+chfact,digitalDisplay,bonus,ctr,0.09,0.0009
+chfact,digitalDisplay,bonus,conversion_rate,0.63,0.0063
+chfact,digitalDisplay,package_inclusions,ctr,0.09,0.0009
+chfact,digitalDisplay,package_inclusions,conversion_rate,0.63,0.0063
+chfact,digitalDisplay,cpc,ctr,0.09,0.0009
+chfact,digitalDisplay,cpc,conversion_rate,0.63,0.0063
+chfact,digitalDisplay,cpm,ctr,0.09,0.0009
+chfact,digitalDisplay,cpm,conversion_rate,0.63,0.0063
+chfact,digitalDisplay,cpv,ctr,0.09,0.0009
+chfact,digitalDisplay,cpv,conversion_rate,0.63,0.0063
+chfact,digitalDisplay,fixed_cost,ctr,0.09,0.0009
+chfact,digitalDisplay,fixed_cost,conversion_rate,0.63,0.0063
+chfact,digitalVideo,bonus,ctr,0.42,0.0042
+chfact,digitalVideo,bonus,vtr,71.2,0.712
+chfact,digitalVideo,package_inclusions,ctr,0.42,0.0042
+chfact,digitalVideo,package_inclusions,vtr,71.2,0.712
+chfact,digitalVideo,cpc,ctr,0.42,0.0042
+chfact,digitalVideo,cpc,vtr,71.2,0.712
+chfact,digitalVideo,cpm,ctr,0.42,0.0042
+chfact,digitalVideo,cpm,vtr,71.2,0.712
+chfact,digitalVideo,cpv,ctr,0.42,0.0042
+chfact,digitalVideo,cpv,vtr,71.2,0.712
+chfact,digitalVideo,fixed_cost,ctr,0.42,0.0042
+chfact,digitalVideo,fixed_cost,vtr,71.2,0.712
+chfact,progDisplay,clicks,ctr,0.13,0.0013
+chfact,progDisplay,conversions,ctr,0.09,0.0009
+chfact,progDisplay,conversions,conversion_rate,0.81,0.0081
+chfact,progDisplay,reach,ctr,0.07,0.0007
+chfact,progDisplay,viewability,ctr,0.07,0.0007
+chfact,progVideo,completed_views,ctr,0.42,0.0042
+chfact,progVideo,completed_views,vtr,76.0,0.76
+chfact,progVideo,reach,ctr,0.42,0.0042
+chfact,progVideo,reach,vtr,71.2,0.712
+chfact,progVideo,target_cpa,ctr,0.42,0.0042
+chfact,progVideo,target_cpa,conversion_rate,0.45,0.0045
+chfact,progVideo,viewability,ctr,0.42,0.0042
+chfact,progVideo,viewability,vtr,71.2,0.712
+chfact,progBvod,completed_views,vtr,92.1,0.921
+chfact,progBvod,reach,vtr,90.2,0.902
+chfact,progBvod,target_cpa,vtr,90.2,0.902
+chfact,progBvod,viewability,vtr,90.2,0.902
+Are Media,digitalDisplay,bonus,ctr,0.13,0.0013
+Are Media,digitalDisplay,bonus,conversion_rate,0.84,0.0084
+Are Media,digitalDisplay,package_inclusions,ctr,0.13,0.0013
+Are Media,digitalDisplay,package_inclusions,conversion_rate,0.84,0.0084
+Are Media,digitalDisplay,cpc,ctr,0.13,0.0013
+Are Media,digitalDisplay,cpc,conversion_rate,0.84,0.0084
+Are Media,digitalDisplay,cpm,ctr,0.13,0.0013
+Are Media,digitalDisplay,cpm,conversion_rate,0.84,0.0084
+Are Media,digitalDisplay,cpv,ctr,0.13,0.0013
+Are Media,digitalDisplay,cpv,conversion_rate,0.84,0.0084
+Are Media,digitalDisplay,fixed_cost,ctr,0.13,0.0013
+Are Media,digitalDisplay,fixed_cost,conversion_rate,0.84,0.0084
+Quantcast,digitalDisplay,bonus,ctr,0.09,0.0009
+Quantcast,digitalDisplay,bonus,conversion_rate,0.63,0.0063
+Quantcast,digitalDisplay,package_inclusions,ctr,0.09,0.0009
+Quantcast,digitalDisplay,package_inclusions,conversion_rate,0.63,0.0063
+Quantcast,digitalDisplay,cpc,ctr,0.09,0.0009
+Quantcast,digitalDisplay,cpc,conversion_rate,0.63,0.0063
+Quantcast,digitalDisplay,cpm,ctr,0.09,0.0009
+Quantcast,digitalDisplay,cpm,conversion_rate,0.63,0.0063
+Quantcast,digitalDisplay,cpv,ctr,0.09,0.0009
+Quantcast,digitalDisplay,cpv,conversion_rate,0.63,0.0063
+Quantcast,digitalDisplay,fixed_cost,ctr,0.09,0.0009
+Quantcast,digitalDisplay,fixed_cost,conversion_rate,0.63,0.0063
+Quantcast,digitalVideo,bonus,ctr,0.42,0.0042
+Quantcast,digitalVideo,bonus,vtr,71.2,0.712
+Quantcast,digitalVideo,package_inclusions,ctr,0.42,0.0042
+Quantcast,digitalVideo,package_inclusions,vtr,71.2,0.712
+Quantcast,digitalVideo,cpc,ctr,0.42,0.0042
+Quantcast,digitalVideo,cpc,vtr,71.2,0.712
+Quantcast,digitalVideo,cpm,ctr,0.42,0.0042
+Quantcast,digitalVideo,cpm,vtr,71.2,0.712
+Quantcast,digitalVideo,cpv,ctr,0.42,0.0042
+Quantcast,digitalVideo,cpv,vtr,71.2,0.712
+Quantcast,digitalVideo,fixed_cost,ctr,0.42,0.0042
+Quantcast,digitalVideo,fixed_cost,vtr,71.2,0.712
+Gum Gum,digitalDisplay,bonus,ctr,0.09,0.0009
+Gum Gum,digitalDisplay,bonus,conversion_rate,0.63,0.0063
+Gum Gum,digitalDisplay,package_inclusions,ctr,0.09,0.0009
+Gum Gum,digitalDisplay,package_inclusions,conversion_rate,0.63,0.0063
+Gum Gum,digitalDisplay,cpc,ctr,0.09,0.0009
+Gum Gum,digitalDisplay,cpc,conversion_rate,0.63,0.0063
+Gum Gum,digitalDisplay,cpm,ctr,0.09,0.0009
+Gum Gum,digitalDisplay,cpm,conversion_rate,0.63,0.0063
+Gum Gum,digitalDisplay,cpv,ctr,0.09,0.0009
+Gum Gum,digitalDisplay,cpv,conversion_rate,0.63,0.0063
+Gum Gum,digitalDisplay,fixed_cost,ctr,0.09,0.0009
+Gum Gum,digitalDisplay,fixed_cost,conversion_rate,0.63,0.0063
+Gum Gum,progDisplay,clicks,ctr,0.13,0.0013
+Gum Gum,progDisplay,conversions,ctr,0.09,0.0009
+Gum Gum,progDisplay,conversions,conversion_rate,0.81,0.0081
+Gum Gum,progDisplay,reach,ctr,0.07,0.0007
+Gum Gum,progDisplay,viewability,ctr,0.07,0.0007
+Influencer Management,influencers,fixed_cost,ctr,1.0,0.01
+Influencer Management,influencers,fixed_cost,vtr,30.0,0.3
+Influencer Management,influencers,cpm,vtr,30.0,0.3
+Influencer Management,influencers,cpv,vtr,30.0,0.3
+ARN,digitalDisplay,bonus,ctr,0.13,0.0013
+ARN,digitalDisplay,bonus,conversion_rate,0.84,0.0084
+ARN,digitalDisplay,package_inclusions,ctr,0.13,0.0013
+ARN,digitalDisplay,package_inclusions,conversion_rate,0.84,0.0084
+ARN,digitalDisplay,cpc,ctr,0.13,0.0013
+ARN,digitalDisplay,cpc,conversion_rate,0.84,0.0084
+ARN,digitalDisplay,cpm,ctr,0.13,0.0013
+ARN,digitalDisplay,cpm,conversion_rate,0.84,0.0084
+ARN,digitalDisplay,cpv,ctr,0.13,0.0013
+ARN,digitalDisplay,cpv,conversion_rate,0.84,0.0084
+ARN,digitalDisplay,fixed_cost,ctr,0.13,0.0013
+ARN,digitalDisplay,fixed_cost,conversion_rate,0.84,0.0084
+ARN,digitalAudio,bonus,ctr,0.29,0.0029
+ARN,digitalAudio,bonus,vtr,98.0,0.98
+ARN,digitalAudio,package_inclusions,ctr,0.29,0.0029
+ARN,digitalAudio,package_inclusions,vtr,98.0,0.98
+ARN,digitalAudio,cpc,ctr,0.29,0.0029
+ARN,digitalAudio,cpc,vtr,98.0,0.98
+ARN,digitalAudio,cpm,ctr,0.29,0.0029
+ARN,digitalAudio,cpm,vtr,98.0,0.98
+ARN,digitalAudio,cpv,ctr,0.29,0.0029
+ARN,digitalAudio,cpv,vtr,98.0,0.98
+ARN,digitalAudio,fixed_cost,ctr,0.29,0.0029
+ARN,digitalAudio,fixed_cost,vtr,98.0,0.98
+We Think Media,digitalDisplay,bonus,ctr,0.09,0.0009
+We Think Media,digitalDisplay,bonus,conversion_rate,0.63,0.0063
+We Think Media,digitalDisplay,package_inclusions,ctr,0.09,0.0009
+We Think Media,digitalDisplay,package_inclusions,conversion_rate,0.63,0.0063
+We Think Media,digitalDisplay,cpc,ctr,0.09,0.0009
+We Think Media,digitalDisplay,cpc,conversion_rate,0.63,0.0063
+We Think Media,digitalDisplay,cpm,ctr,0.09,0.0009
+We Think Media,digitalDisplay,cpm,conversion_rate,0.63,0.0063
+We Think Media,digitalDisplay,cpv,ctr,0.09,0.0009
+We Think Media,digitalDisplay,cpv,conversion_rate,0.63,0.0063
+We Think Media,digitalDisplay,fixed_cost,ctr,0.09,0.0009
+We Think Media,digitalDisplay,fixed_cost,conversion_rate,0.63,0.0063
+We Think Media,digitalAudio,bonus,ctr,0.19,0.0019
+We Think Media,digitalAudio,bonus,vtr,86.5,0.865
+We Think Media,digitalAudio,package_inclusions,ctr,0.19,0.0019
+We Think Media,digitalAudio,package_inclusions,vtr,86.5,0.865
+We Think Media,digitalAudio,cpc,ctr,0.19,0.0019
+We Think Media,digitalAudio,cpc,vtr,86.5,0.865
+We Think Media,digitalAudio,cpm,ctr,0.19,0.0019
+We Think Media,digitalAudio,cpm,vtr,86.5,0.865
+We Think Media,digitalAudio,cpv,ctr,0.19,0.0019
+We Think Media,digitalAudio,cpv,vtr,86.5,0.865
+We Think Media,digitalAudio,fixed_cost,ctr,0.19,0.0019
+We Think Media,digitalAudio,fixed_cost,vtr,86.5,0.865
+We Think Media,digitalVideo,bonus,ctr,0.42,0.0042
+We Think Media,digitalVideo,bonus,vtr,71.2,0.712
+We Think Media,digitalVideo,package_inclusions,ctr,0.42,0.0042
+We Think Media,digitalVideo,package_inclusions,vtr,71.2,0.712
+We Think Media,digitalVideo,cpc,ctr,0.42,0.0042
+We Think Media,digitalVideo,cpc,vtr,71.2,0.712
+We Think Media,digitalVideo,cpm,ctr,0.42,0.0042
+We Think Media,digitalVideo,cpm,vtr,71.2,0.712
+We Think Media,digitalVideo,cpv,ctr,0.42,0.0042
+We Think Media,digitalVideo,cpv,vtr,71.2,0.712
+We Think Media,digitalVideo,fixed_cost,ctr,0.42,0.0042
+We Think Media,digitalVideo,fixed_cost,vtr,71.2,0.712
+We Think Media,bvod,bonus,ctr,0.09,0.0009
+We Think Media,bvod,bonus,vtr,90.2,0.902
+We Think Media,bvod,package_inclusions,ctr,0.09,0.0009
+We Think Media,bvod,package_inclusions,vtr,90.2,0.902
+We Think Media,bvod,cpc,ctr,0.09,0.0009
+We Think Media,bvod,cpc,vtr,90.2,0.902
+We Think Media,bvod,cpm,ctr,0.09,0.0009
+We Think Media,bvod,cpm,vtr,90.2,0.902
+We Think Media,bvod,cpv,ctr,0.09,0.0009
+We Think Media,bvod,cpv,vtr,90.2,0.902
+We Think Media,bvod,fixed_cost,ctr,0.09,0.0009
+We Think Media,bvod,fixed_cost,vtr,90.2,0.902
+Nine,digitalDisplay,bonus,ctr,0.13,0.0013
+Nine,digitalDisplay,bonus,conversion_rate,0.84,0.0084
+Nine,digitalDisplay,package_inclusions,ctr,0.13,0.0013
+Nine,digitalDisplay,package_inclusions,conversion_rate,0.84,0.0084
+Nine,digitalDisplay,cpc,ctr,0.13,0.0013
+Nine,digitalDisplay,cpc,conversion_rate,0.84,0.0084
+Nine,digitalDisplay,cpm,ctr,0.13,0.0013
+Nine,digitalDisplay,cpm,conversion_rate,0.84,0.0084
+Nine,digitalDisplay,cpv,ctr,0.13,0.0013
+Nine,digitalDisplay,cpv,conversion_rate,0.84,0.0084
+Nine,digitalDisplay,fixed_cost,ctr,0.13,0.0013
+Nine,digitalDisplay,fixed_cost,conversion_rate,0.84,0.0084
+Nine,digitalVideo,bonus,ctr,0.65,0.0065
+Nine,digitalVideo,bonus,vtr,82.5,0.825
+Nine,digitalVideo,package_inclusions,ctr,0.65,0.0065
+Nine,digitalVideo,package_inclusions,vtr,82.5,0.825
+Nine,digitalVideo,cpc,ctr,0.65,0.0065
+Nine,digitalVideo,cpc,vtr,82.5,0.825
+Nine,digitalVideo,cpm,ctr,0.65,0.0065
+Nine,digitalVideo,cpm,vtr,82.5,0.825
+Nine,digitalVideo,cpv,ctr,0.65,0.0065
+Nine,digitalVideo,cpv,vtr,82.5,0.825
+Nine,digitalVideo,fixed_cost,ctr,0.65,0.0065
+Nine,digitalVideo,fixed_cost,vtr,82.5,0.825
+Yahoo,progVideo,completed_views,ctr,0.42,0.0042
+Yahoo,progVideo,completed_views,vtr,76.0,0.76
+Yahoo,progVideo,reach,ctr,0.42,0.0042
+Yahoo,progVideo,reach,vtr,71.2,0.712
+Yahoo,progVideo,target_cpa,ctr,0.42,0.0042
+Yahoo,progVideo,target_cpa,conversion_rate,0.45,0.0045
+Yahoo,progVideo,viewability,ctr,0.42,0.0042
+Yahoo,progVideo,viewability,vtr,71.2,0.712
+Yahoo,progBvod,completed_views,vtr,92.1,0.921
+Yahoo,progBvod,reach,vtr,90.2,0.902
+Yahoo,progBvod,target_cpa,vtr,90.2,0.902
+Yahoo,progBvod,viewability,vtr,90.2,0.902
+Twitch,progVideo,completed_views,ctr,0.65,0.0065
+Twitch,progVideo,completed_views,vtr,88.0,0.88
+Twitch,progVideo,reach,ctr,0.65,0.0065
+Twitch,progVideo,reach,vtr,82.5,0.825
+Twitch,progVideo,target_cpa,ctr,0.65,0.0065
+Twitch,progVideo,target_cpa,conversion_rate,0.6,0.006
+Twitch,progVideo,viewability,ctr,0.65,0.0065
+Twitch,progVideo,viewability,vtr,82.5,0.825
+Reddit,socialMedia,manual_cpc,ctr,1.43,0.0143
+Reddit,socialMedia,completed_views,vtr,16.5,0.165
+Reddit,socialMedia,conversion_value,conversion_rate,1.92,0.0192
+Reddit,socialMedia,landing_page_views,ctr,1.43,0.0143
+Reddit,socialMedia,landing_page_views,conversion_rate,1.92,0.0192
+Reddit,socialMedia,leads,conversion_rate,3.0,0.03
+Reddit,socialMedia,maximize_conversions,conversion_rate,1.92,0.0192
