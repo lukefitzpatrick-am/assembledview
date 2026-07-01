@@ -34,7 +34,7 @@ import { expertApplyClearedAdServingOverride } from "@/lib/mediaplan/adServingOv
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
-import { assignStableLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
+import { assignStableLineItemNumbers, reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
 import { ChevronDown, Copy, Plus, Trash2 } from "lucide-react"
@@ -337,6 +337,7 @@ export default function ProgDisplayContainer({
     useState(false)
   const [expertSegmentAttention, setExpertSegmentAttention] = useState(true)
   const progdisplayExpertRowsBaselineRef = useRef("")
+  const reorderedRef = useRef(false)
   const progdisplayExpertModalOpenRef = useRef(false)
   progdisplayExpertModalOpenRef.current = progdisplayExpertModalOpen
 
@@ -437,7 +438,11 @@ export default function ProgDisplayContainer({
       standard,
       prevLineItems as StandardProgDisplayFormLineItem[]
     )
-    const keyedMerged = stampBurstReactKeys(merged)
+    const orderedForApply = reorderedRef.current
+      ? reassignLineItemNumbers(merged, mbaNumber, MEDIA_TYPE_ID_CODES.progDisplay)
+      : merged
+    reorderedRef.current = false
+    const keyedMerged = stampBurstReactKeys(orderedForApply)
     const clearedOverride = expertApplyClearedAdServingOverride(
       prevLineItems as any,
       keyedMerged as any
@@ -1841,6 +1846,9 @@ useEffect(() => {
                 rows={expertProgDisplayRows}
                 onRowsChange={handleExpertProgDisplayRowsChange}
                 publishers={publishers}
+                onReorder={() => {
+                  reorderedRef.current = true;
+                }}
               />
             </div>
           </ComboboxModalProvider>
