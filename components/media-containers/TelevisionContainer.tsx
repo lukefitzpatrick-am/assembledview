@@ -82,7 +82,10 @@ import {
 } from "@/lib/mediaplan/expertModeSwitch"
 import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
-import { assignStableLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
+import {
+  assignStableLineItemNumbers,
+  reassignLineItemNumbers,
+} from "@/lib/mediaplan/lineItemOrder"
 
 const MEDIA_ACCENT_HEX = getMediaTypeThemeHex("television")
 
@@ -232,6 +235,7 @@ export default function TelevisionContainer({
   const [expertSegmentAttention, setExpertSegmentAttention] = useState(true)
   const tvStandardBaselineRef = useRef("")
   const tvExpertRowsBaselineRef = useRef("")
+  const reorderedRef = useRef(false)
   const tvExpertModalOpenRef = useRef(false)
   tvExpertModalOpenRef.current = tvExpertModalOpen
 
@@ -508,7 +512,11 @@ export default function TelevisionContainer({
       standard,
       prevLineItems as StandardTelevisionFormLineItem[]
     )
-    const keyedMerged = stampBurstReactKeys(merged);
+    const orderedForApply = reorderedRef.current
+      ? reassignLineItemNumbers(merged, mbaNumber, MEDIA_TYPE_ID_CODES.television)
+      : merged
+    reorderedRef.current = false
+    const keyedMerged = stampBurstReactKeys(orderedForApply);
     form.setValue("televisionlineItems", keyedMerged as any, {
       shouldDirty: true,
       shouldValidate: false,
@@ -2073,6 +2081,9 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
                 onRowsChange={handleExpertTvRowsChange}
                 publishers={publishers}
                 tvStations={tvStations}
+                onReorder={() => {
+                  reorderedRef.current = true;
+                }}
               />
             </div>
           </ComboboxModalProvider>

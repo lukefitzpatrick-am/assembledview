@@ -42,6 +42,7 @@ import {
   deleteExpertRow,
   duplicateExpertRow,
 } from "@/lib/mediaplan/expertRowLifecycle"
+import { reorderExpertRows } from "@/lib/mediaplan/expertGridInteractions"
 import {
   Tooltip,
   TooltipContent,
@@ -49,6 +50,12 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { ExpertGridBillingHeaderLabel } from "@/components/media-containers/ExpertGridBillingHeaderLabel"
+import {
+  EXPERT_REORDER_COL_WIDTH_PX,
+  ExpertGridRowReorderCell,
+  ExpertGridRowReorderHeaderCell,
+} from "@/components/media-containers/ExpertGridRowReorderCell"
+import { useExpertRowReorder } from "@/hooks/useExpertRowReorder"
 import type {
   ExpertWeeklyValues,
   TelevisionExpertMergedWeekSpan,
@@ -304,6 +311,7 @@ export interface TelevisionExpertGridProps {
   publishers?: { publisher_name: string }[]
   /** Station names for station combobox + fuzzy matching (typically filtered by network in standard mode). */
   tvStations?: { station?: string | null; id?: number | string | null }[]
+  onReorder?: () => void
 }
 
 
@@ -333,6 +341,7 @@ interface PendingFuzzyMatch {
   field: FuzzyMatchField
   value: string
   matched: string
+  onReorder?: () => void
 }
 
 type TelevisionRowMergeSpanMeta = Readonly<{
@@ -359,6 +368,7 @@ export function TelevisionExpertGrid({
   onRowsChange,
   publishers = [],
   tvStations = [],
+  onReorder,
 }: TelevisionExpertGridProps) {
   const { toast } = useToast()
   const domGridId = useId().replace(/:/g, "")
@@ -642,6 +652,18 @@ export function TelevisionExpertGrid({
     },
     [onRowsChange, weekColumns, campaignStartDate, campaignEndDate]
   )
+
+  const handleReorder = useCallback(
+    (from: number, to: number) => {
+      const next = reorderExpertRows(normalizedRows, from, to)
+      if (!next) return
+      pushRows(next)
+      onReorder?.()
+    },
+    [normalizedRows, pushRows, onReorder]
+  )
+  const { dragRowIndex, handleProps, rowDropProps, isDropTarget } =
+    useExpertRowReorder(handleReorder)
 
   const resolveWeekDragSource = useCallback(
     (rowIndex: number, weekKey: string): WeekDragSource | null => {
@@ -2083,6 +2105,10 @@ export function TelevisionExpertGrid({
                 <table className="w-max min-w-full border-collapse text-sm">
                   <thead className="[&_tr]:border-b-0">
                     <tr>
+                      <ExpertGridRowReorderHeaderCell
+                        className={stickyThCorner("text-center")}
+                        style={tvExpertHeaderCellBgStyle}
+                      />
                       {descriptorHeadLabels.map((label, i) => (
                         <th
                           key={`h-${i}`}
@@ -2179,10 +2205,19 @@ export function TelevisionExpertGrid({
                           key={row.id}
                           className={cn(
                             stripe,
-                            "transition-colors hover:bg-muted/35 focus-within:bg-muted/35"
+                            "transition-colors hover:bg-muted/35 focus-within:bg-muted/35",
+                            isDropTarget(rowIndex) &&
+                              "bg-primary/10 ring-1 ring-inset ring-primary/40"
                           )}
                           style={stripeStyle}
+                          {...rowDropProps(rowIndex)}
                         >
+                          <ExpertGridRowReorderCell
+                            rowIndex={rowIndex}
+                            handleProps={handleProps(rowIndex)}
+                            isDragging={dragRowIndex === rowIndex}
+                            className={stickyTd(0, "text-center")}
+                          />
                           {showBillingCols ? (
                             <>
                               <td
@@ -3422,6 +3457,15 @@ export function TelevisionExpertGrid({
                       className="border-t-2 border-solid font-medium"
                       style={mediaTypeTotalsRowStyle(MEDIA_ACCENT_HEX)}
                     >
+                      <td
+                        className={stickyTd(0)}
+                        style={{
+                          width: EXPERT_REORDER_COL_WIDTH_PX,
+                          minWidth: EXPERT_REORDER_COL_WIDTH_PX,
+                          maxWidth: EXPERT_REORDER_COL_WIDTH_PX,
+                          ...tvExpertTotalsRowBgStyle,
+                        }}
+                      />
                       <td
                         className={stickyTd(0)}
                         style={{
