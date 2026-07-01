@@ -30,7 +30,7 @@ import { appendBurst, duplicateBurst, removeBurst, newBurstReactKey, stampBurstR
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
-import { assignStableLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
+import { assignStableLineItemNumbers, reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import { resolveBillingBurstLineItemId } from "@/lib/billing/resolveBillingBurstLineItemId"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
@@ -240,6 +240,7 @@ export default function DigiVideoContainer({
   const [expertSegmentAttention, setExpertSegmentAttention] = useState(true)
   const digiVideoStandardBaselineRef = useRef("")
   const digiVideoExpertRowsBaselineRef = useRef("")
+  const reorderedRef = useRef(false)
   const digiVideoExpertModalOpenRef = useRef(false)
   digiVideoExpertModalOpenRef.current = digiVideoExpertModalOpen
 
@@ -494,7 +495,11 @@ export default function DigiVideoContainer({
       standard,
       prevLineItems as StandardDigiVideoFormLineItem[]
     )
-    const keyedMerged = stampBurstReactKeys(merged)
+    const orderedForApply = reorderedRef.current
+      ? reassignLineItemNumbers(merged, mbaNumber, MEDIA_TYPE_ID_CODES.digitalVideo)
+      : merged
+    reorderedRef.current = false
+    const keyedMerged = stampBurstReactKeys(orderedForApply)
     const clearedOverride = expertApplyClearedAdServingOverride(
       prevLineItems as any,
       keyedMerged as any
@@ -1989,6 +1994,9 @@ useEffect(() => {
                 onRowsChange={handleExpertDigiVideoRowsChange}
                 publishers={publishers}
                 digiVideoSites={digivideoSites}
+                onReorder={() => {
+                  reorderedRef.current = true;
+                }}
               />
             </div>
           </ComboboxModalProvider>
