@@ -1,8 +1,8 @@
-import { ActualsCumulativeVsTargetChart } from "@/components/dashboard/delivery/common/ActualsCumulativeVsTargetChart"
+import { DeliveryPacingChart } from "@/components/dashboard/delivery/common/DeliveryPacingChart"
 import type { TargetCurvePoint } from "@/lib/kpi/deliveryTargetCurve"
 import { ProgressCard, type ProgressCardProps } from "./ProgressCard"
 import { KpiBand, type KpiBandProps } from "./KpiBand"
-import { LineItemDailyDeliveryChart } from "./LineItemDailyDeliveryChart"
+import { DeliveryDailyChart } from "@/components/dashboard/delivery/common/DeliveryDailyChart"
 
 type CumulativeChart = {
   kind: "cumulative-vs-target"
@@ -59,7 +59,7 @@ export function LineItemBlock({
       </div>
       <KpiBand {...kpiBand} />
       {chart.kind === "cumulative-vs-target" ? (
-        <ActualsCumulativeVsTargetChart
+        <DeliveryPacingChart
           targetCurve={chart.targetCurve}
           cumulativeActual={chart.cumulativeActual}
           asAtDate={chart.asAtDate}
@@ -67,7 +67,7 @@ export function LineItemBlock({
           brandColour={chart.brandColour}
         />
       ) : (
-        <LineItemDailyDeliveryChart
+        <DeliveryDailyChart
           daily={chart.daily}
           series={chart.series}
           asAtDate={chart.asAtDate}

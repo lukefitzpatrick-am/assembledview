@@ -12,7 +12,7 @@
  */
 import * as React from 'react';
 import { round } from '@/lib/chart-utils';
-import { CHART_PALETTE, CHANNEL_COLORS, SEQUENTIAL, NEUTRAL, fmt } from '@/lib/chart-theme';
+import { CHART_PALETTE, CHANNEL_COLORS, SEQUENTIAL, NEUTRAL, STATUS, fmt } from '@/lib/chart-theme';
 
 const INK = NEUTRAL.ink, MUTED = NEUTRAL.axis, MID = NEUTRAL.label, GRID = NEUTRAL.grid;
 const TAB: React.CSSProperties = { fontVariantNumeric: 'tabular-nums' };
@@ -142,29 +142,82 @@ const smooth = (p: [number, number][]) => {
 };
 const poly = (p: [number, number][]) => p.map((q, i) => (i ? 'L' : 'M') + round(q[0]) + ' ' + round(q[1])).join(' ');
 
+export interface PacingBandChartProps {
+  actual: number[];
+  target?: number[];
+  /** Symmetric band width when `bandLow` / `bandHigh` are omitted. */
+  tolerance?: number;
+  /** Explicit envelope — overrides tolerance-derived band. */
+  bandLow?: number[];
+  bandHigh?: number[];
+  weekLabels?: string[];
+  /** 0-based index for a vertical "today" marker. */
+  todayIndex?: number;
+  ymax?: number;
+  targetColor?: string;
+  actualColor?: string;
+  actualLabel?: string;
+  className?: string;
+}
+
 export function PacingBandChart({
-  actual, target, tolerance = 8, weekLabels, className,
-}: { actual: number[]; target?: number[]; tolerance?: number; weekLabels?: string[]; className?: string }) {
-  const w = 600, hh = 200, x0 = 34, x1 = w - 12, y0 = 14, y1 = hh - 22, ymax = 100, n = actual.length;
-  const sx = (i: number) => x0 + (x1 - x0) * i / (n - 1), sy = (v: number) => y1 + (y0 - y1) * v / ymax;
+  actual,
+  target,
+  tolerance = 8,
+  bandLow,
+  bandHigh,
+  weekLabels,
+  todayIndex,
+  ymax: ymaxProp,
+  targetColor = STATUS.ahead,
+  actualColor = NEUTRAL.ink,
+  actualLabel = 'Actual delivery',
+  className,
+}: PacingBandChartProps) {
+  const w = 600, hh = 200, x0 = 34, x1 = w - 12, y0 = 14, y1 = hh - 22, n = actual.length;
+  if (n < 2) return null;
+
   const mid = target ?? Array.from({ length: n }, (_, i) => (i / (n - 1)) * 100);
-  const up = mid.map((v) => Math.min(100, v + tolerance)), lo = mid.map((v) => Math.max(0, v - tolerance));
+  const up = bandHigh ?? mid.map((v) => Math.min(100, v + tolerance));
+  const lo = bandLow ?? mid.map((v) => Math.max(0, v - tolerance));
+  const ymax = ymaxProp ?? Math.max(100, ...up, ...actual, ...mid);
+
+  const sx = (i: number) => x0 + (x1 - x0) * i / (n - 1);
+  const sy = (v: number) => y1 + (y0 - y1) * v / ymax;
+  const yTick = (v: number) => (ymax <= 100 ? `${Math.round(v)}%` : fmt.compact(v));
+
   const els: React.ReactNode[] = [];
-  for (let k = 0; k <= 4; k++) { const v = ymax * k / 4, yy = y1 + (y0 - y1) * v / ymax; els.push(<line key={`g${k}`} x1={x0} x2={x1} y1={round(yy)} y2={round(yy)} stroke={GRID} strokeWidth={1} />); els.push(<text key={`gl${k}`} x={x0 - 6} y={round(yy) + 3} textAnchor="end" fontSize={9} fill={MUTED} style={TAB}>{Math.round(v)}%</text>); }
+  for (let k = 0; k <= 4; k++) {
+    const v = ymax * k / 4;
+    const yy = sy(v);
+    els.push(<line key={`g${k}`} x1={x0} x2={x1} y1={round(yy)} y2={round(yy)} stroke={GRID} strokeWidth={1} />);
+    els.push(<text key={`gl${k}`} x={x0 - 6} y={round(yy) + 3} textAnchor="end" fontSize={9} fill={MUTED} style={TAB}>{yTick(v)}</text>);
+  }
+
   const upPts = up.map((v, i) => [sx(i), sy(v)] as [number, number]);
   const loPts = lo.map((v, i) => [sx(i), sy(v)] as [number, number]).reverse();
-  els.push(<path key="band" d={poly(upPts) + ' L' + poly(loPts).slice(1) + ' Z'} fill="#008E5E" fillOpacity={0.1} />);
-  els.push(<path key="mid" d={poly(mid.map((v, i) => [sx(i), sy(v)]))} fill="none" stroke="#008E5E" strokeWidth={1.5} strokeDasharray="4 3" strokeOpacity={0.55} />);
-  els.push(<path key="act" d={smooth(actual.map((v, i) => [sx(i), sy(v)]))} fill="none" stroke={INK} strokeWidth={2.4} strokeLinecap="round" />);
-  els.push(<circle key="ld" cx={round(sx(n - 1))} cy={round(sy(actual[n - 1]))} r={3.5} fill={INK} />);
+  els.push(<path key="band" d={poly(upPts) + ' L' + poly(loPts).slice(1) + ' Z'} fill={targetColor} fillOpacity={0.1} />);
+  els.push(<path key="mid" d={poly(mid.map((v, i) => [sx(i), sy(v)]))} fill="none" stroke={targetColor} strokeWidth={1.5} strokeDasharray="4 3" strokeOpacity={0.55} />);
+  els.push(<path key="act" d={smooth(actual.map((v, i) => [sx(i), sy(v)]))} fill="none" stroke={actualColor} strokeWidth={2.4} strokeLinecap="round" />);
+  els.push(<circle key="ld" cx={round(sx(n - 1))} cy={round(sy(actual[n - 1]))} r={3.5} fill={actualColor} />);
+
+  if (todayIndex != null && todayIndex >= 0 && todayIndex < n) {
+    const tx = sx(todayIndex);
+    els.push(<line key="today" x1={round(tx)} x2={round(tx)} y1={y0 - 4} y2={y1} stroke={INK} strokeWidth={1.5} strokeDasharray="3 3" strokeOpacity={0.65} />);
+    els.push(<rect key="today-badge" x={round(tx - 19)} y={y0 - 16} width={38} height={14} rx={7} fill={INK} />);
+    els.push(<text key="today-label" x={round(tx)} y={y0 - 6} textAnchor="middle" fontSize={8.5} fontWeight={700} fill="var(--av-surface)">TODAY</text>);
+  }
+
   (weekLabels ?? []).forEach((lb, i) => lb && els.push(<text key={`x${i}`} x={round(sx(i))} y={hh - 7} textAnchor="middle" fontSize={9} fill={MUTED}>{lb}</text>));
+
   const ly = 10;
-  els.push(<rect key="k1" x={x0} y={ly - 7} width={14} height={8} rx={2} fill="#008E5E" fillOpacity={0.18} />);
+  els.push(<rect key="k1" x={x0} y={ly - 7} width={14} height={8} rx={2} fill={targetColor} fillOpacity={0.18} />);
   els.push(<text key="k1t" x={x0 + 18} y={ly} fontSize={9} fill={MID}>Expected range</text>);
-  els.push(<line key="k2" x1={x0 + 114} x2={x0 + 130} y1={ly - 3} y2={ly - 3} stroke="#008E5E" strokeWidth={1.5} strokeDasharray="4 3" />);
+  els.push(<line key="k2" x1={x0 + 114} x2={x0 + 130} y1={ly - 3} y2={ly - 3} stroke={targetColor} strokeWidth={1.5} strokeDasharray="4 3" />);
   els.push(<text key="k2t" x={x0 + 134} y={ly} fontSize={9} fill={MID}>Target</text>);
-  els.push(<line key="k3" x1={x0 + 172} x2={x0 + 188} y1={ly - 3} y2={ly - 3} stroke={INK} strokeWidth={2.4} />);
-  els.push(<text key="k3t" x={x0 + 192} y={ly} fontSize={9} fill={MID}>Actual delivery</text>);
+  els.push(<line key="k3" x1={x0 + 172} x2={x0 + 188} y1={ly - 3} y2={ly - 3} stroke={actualColor} strokeWidth={2.4} />);
+  els.push(<text key="k3t" x={x0 + 192} y={ly} fontSize={9} fill={MID}>{actualLabel}</text>);
+
   return <div className={className}><svg viewBox={`0 0 ${w} ${hh}`} width="100%" style={{ display: 'block' }}>{els}</svg></div>;
 }
 

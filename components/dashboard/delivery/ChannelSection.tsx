@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button"
 import { ProgressCard } from "./shared/ProgressCard"
 import { KpiBand } from "./shared/KpiBand"
 import { LineItemBlock } from "./shared/LineItemBlock"
-import { LineItemDailyDeliveryChart } from "./shared/LineItemDailyDeliveryChart"
+import { DeliveryDailyChart } from "./common/DeliveryDailyChart"
 import { getChannelIcon } from "./channels/getChannelIcon"
 import type { ChannelSectionData } from "./channels/types"
 
@@ -119,7 +119,7 @@ export function ChannelSection({ data, defaultOpen = false, onRefresh }: Channel
 
           <KpiBand {...data.aggregate.kpiBand} />
 
-          <LineItemDailyDeliveryChart
+          <DeliveryDailyChart
             daily={data.aggregate.chart.daily}
             series={data.aggregate.chart.series}
             asAtDate={data.aggregate.chart.asAtDate}

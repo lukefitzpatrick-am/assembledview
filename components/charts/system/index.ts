@@ -45,6 +45,7 @@ export {
   MediaGanttChart, BurstGrid, MatrixHeatmap, PacingBandChart, BoxPlotChart,
   type GanttRow, type GanttBurst, type MediaGanttProps,
   type BurstRow, type BurstCell, type BoxStat,
+  type PacingBandChartProps,
 } from './domain-charts';
 
 // Chart chrome — shell, toolbar, legend, export
