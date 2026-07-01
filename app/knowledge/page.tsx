@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { BookOpen, Calculator, Compass, FolderOpen, Globe, Layers, Link2, Search } from "lucide-react";
+import { accent, type AccentKey } from "@/src/lib/learning/accents";
 
 export default function KnowledgeHubHome() {
   const router = useRouter();
@@ -62,13 +63,13 @@ export default function KnowledgeHubHome() {
         <div className="space-y-3">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Explore the hub</h2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <ExploreCard href="/knowledge/definitions" icon={BookOpen} title="Glossary" desc={<><span className="num">634</span> terms — definitions, acronyms & formulas.</>} live />
-            <ExploreCard href="/knowledge/calculators" icon={Calculator} title="Calculators" desc="Live media-math calculators on every formula." live />
-            <ExploreCard href="/knowledge/guides" icon={Compass} title="Guides" desc="Best-practice across planning, measurement & channels." live />
-            <ExploreCard href="/knowledge/platforms" icon={Layers} title="Platforms" desc="Google, Meta, TikTok & programmatic skills." live />
-            <ExploreCard href="/knowledge/resources" icon={Globe} title="Resource Hub" desc="Platform certs, AU currencies, standards & industry news." live />
-            <ExploreCard href="/knowledge/utm-builder" icon={Link2} title="UTM Builder" desc="Tag campaign URLs for clean GA4 attribution." live />
-            <ExploreCard icon={FolderOpen} title="Internal docs" desc="Assembled Media playbooks, processes & templates." />
+            <ExploreCard href="/knowledge/definitions" icon={BookOpen} tone="green" title="Glossary" desc={<><span className="num">609</span> terms — definitions, acronyms & formulas.</>} live />
+            <ExploreCard href="/knowledge/calculators" icon={Calculator} tone="blue" title="Calculators" desc="Live media-math calculators on every formula." live />
+            <ExploreCard href="/knowledge/guides" icon={Compass} tone="amber" title="Guides" desc="Best-practice across planning, measurement & channels." live />
+            <ExploreCard href="/knowledge/platforms" icon={Layers} tone="purple" title="Platforms" desc="Google, Meta, TikTok & programmatic skills." live />
+            <ExploreCard href="/knowledge/resources" icon={Globe} tone="coral" title="Resource Hub" desc="Platform certs, AU currencies, standards & news." live />
+            <ExploreCard href="/knowledge/utm-builder" icon={Link2} tone="magenta" title="UTM Builder" desc="Tag campaign URLs for clean GA4 attribution." live />
+            <ExploreCard icon={FolderOpen} tone="neutral" title="Internal docs" desc="Assembled Media playbooks, processes & templates." />
           </div>
         </div>
       </div>
@@ -99,19 +100,28 @@ function ExploreCard({
   icon: Icon,
   title,
   desc,
+  tone,
   live,
 }: {
   href?: string;
   icon: ComponentType<{ className?: string }>;
   title: string;
   desc: ReactNode;
+  tone: AccentKey;
   live?: boolean;
 }) {
+  const a = accent(tone);
   const inner = (
-    <Card className={cn("h-full rounded-card shadow-e1 transition", href ? "cursor-pointer hover:shadow-e2" : "opacity-70")}>
+    <Card
+      className={cn(
+        "relative h-full overflow-hidden rounded-card shadow-e1 transition-all duration-150",
+        href ? "cursor-pointer hover:-translate-y-0.5 hover:shadow-e2" : "opacity-70"
+      )}
+    >
+      <div className={cn("absolute inset-x-0 top-0 h-[3px]", a.bar)} />
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
-          <div className="w-9 h-9 rounded-card bg-surface-muted text-primary grid place-items-center">
+          <div className={cn("grid h-9 w-9 place-items-center rounded-card", a.chip)}>
             <Icon className="h-5 w-5" />
           </div>
           {!live && <Badge variant="secondary">Soon</Badge>}
@@ -123,5 +133,11 @@ function ExploreCard({
       </CardContent>
     </Card>
   );
-  return href ? <Link href={href} className="block h-full rounded-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">{inner}</Link> : inner;
+  return href ? (
+    <Link href={href} className="block h-full rounded-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+      {inner}
+    </Link>
+  ) : (
+    inner
+  );
 }
