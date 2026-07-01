@@ -36,6 +36,9 @@ const KPI_MEDIA_TINTS: Record<string, string> = {
   influencers: 'FFF2CCDC', production: 'FFD8CEC9',
 }
 
+// Excel export section fills (ARGB) — section totals use FFBDDC52 inline as totalFill
+const SUBTOTAL_FILL = 'FFF2F2F2'; // very light grey; nudge to 'FFE9E9E9' if too subtle
+
 export interface MediaPlanHeader {
   logoBase64: string;
   logoWidth: number;
@@ -815,12 +818,16 @@ export async function generateMediaPlan(
     const subtotalEnabled = SUBTOTAL_SECTION_TYPES.has(sectionType);
     const subtotalKeyFn = subtotalEnabled ? SUBTOTAL_KEY_BY_SECTION[sectionType] : undefined;
 
+    const subtotalFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: SUBTOTAL_FILL } };
     const emitSubtotalRow = (runSum: number) => {
+      for (let colNum = 2; colNum <= 14; colNum++) {
+        style(sheet.getCell(r, colNum), { fill: subtotalFill });
+      }
       for (let cIdx = firstDateCol; cIdx <= lastDateCol; cIdx++) {
         sheet.getCell(r, cIdx).border = lightDashedBorder;
       }
-      style(sheet.getCell(r, 13), { value: 'Subtotal ', fontSize: 15, align: 'right' });
-      style(sheet.getCell(r, 14), { value: runSum, numFmt: '$#,##0.00', align: 'right', fontSize: 15 });
+      style(sheet.getCell(r, 13), { value: 'Subtotal ', fontSize: 15, align: 'right', bold: true, fill: subtotalFill });
+      style(sheet.getCell(r, 14), { value: runSum, numFmt: '$#,##0.00', align: 'right', fontSize: 15, bold: true, fill: subtotalFill });
       r++;
       subtotalCount++;
     };
