@@ -19,7 +19,7 @@ import { Copy, GitMerge, Grid3x3, Plus, Trash2, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
+import { Combobox, type ComboboxOption } from "@/components/media-containers/ExpertGridCombobox"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
