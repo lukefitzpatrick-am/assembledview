@@ -114,7 +114,7 @@ const DONUT_CSV_COLUMNS = [
   { header: "Percentage", accessor: "Percentage" as const },
 ]
 
-const CHART_HEIGHT = "min-h-[320px] w-full"
+const CHART_HEIGHT = "aspect-auto h-[280px] w-full"
 
 export function SpendingInsightsSection({
   monthlyData,
@@ -182,10 +182,9 @@ export function SpendingInsightsSection({
       .map((key, i) => ({
         key,
         label: getSeriesLabel(key),
-        color:
-          monthlyView === "mediaType"
-            ? channelColorFor(key, i)
-            : getDeterministicColor(key),
+        ...(monthlyView === "mediaType"
+          ? { color: channelColorFor(key, i) }
+          : {}),
       }))
   }, [getSeriesLabel, monthlyView, pivotedMonthly])
 
@@ -208,10 +207,10 @@ export function SpendingInsightsSection({
 
   const monthlyLegendItems = useMemo(
     () =>
-      monthlySeries.map((s) => ({
+      monthlySeries.map((s, i) => ({
         key: s.key,
         label: s.label,
-        color: s.color ?? channelColorFor(s.key),
+        color: s.color ?? `var(--av-chart-${(i % 8) + 1})`,
       })),
     [monthlySeries],
   )

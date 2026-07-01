@@ -183,6 +183,7 @@ export function TreemapChart({
             <ChartTooltipContent
               nameKey="name"
               formatter={(v) => vf(Number(v))}
+              className="text-[var(--av-ink)] [&_.text-muted-foreground]:text-[var(--av-axis)] [&_.text-foreground]:text-[var(--av-ink)]"
             />
           }
         />

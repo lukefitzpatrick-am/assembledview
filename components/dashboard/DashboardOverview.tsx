@@ -3213,7 +3213,7 @@ export default function DashboardOverview({
                   <TreemapChart
                     data={publisherTreemapData}
                     valueFormat="dollars"
-                    className="min-h-[280px] w-full"
+                    className="aspect-auto h-[280px] w-full"
                     onNodeClick={(name) => {
                       const row = publisherSpendData.find((d) => d.name === name)
                       const value = row?.value ?? 0
@@ -3246,7 +3246,7 @@ export default function DashboardOverview({
                   <TreemapChart
                     data={clientTreemapData}
                     valueFormat="dollars"
-                    className="min-h-[280px] w-full"
+                    className="aspect-auto h-[280px] w-full"
                     onNodeClick={(name) => {
                       const row = clientSpendData.find((d) => d.name === name)
                       const value = row?.value ?? 0
@@ -3309,7 +3309,7 @@ export default function DashboardOverview({
                     xKey="month"
                     series={monthlyClientStackedSeries}
                     valueFormat="dollars"
-                    className="min-h-[300px] w-full"
+                    className="aspect-auto h-[280px] w-full"
                     legendVerticalAlign="bottom"
                     onSeriesClick={({ seriesKey, category, source }) => {
                       if (source === "legend") {
@@ -3372,7 +3372,7 @@ export default function DashboardOverview({
                     xKey="month"
                     series={monthlyPublisherStackedSeries}
                     valueFormat="dollars"
-                    className="min-h-[300px] w-full"
+                    className="aspect-auto h-[280px] w-full"
                     legendVerticalAlign="bottom"
                     onSeriesClick={({ seriesKey, category, source }) => {
                       if (source === "legend") {
