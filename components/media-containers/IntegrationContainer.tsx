@@ -44,7 +44,7 @@ import {
 import type { LineItem } from '@/lib/generateMediaPlan'
 import { formatAUD, formatMoney, parseMoneyInput } from "@/lib/format/money"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
-import { assignStableLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
+import { assignStableLineItemNumbers, reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import {
   getMediaTypeThemeHex,
   mediaTypeAccentTextStyle,
@@ -328,6 +328,7 @@ export default function IntegrationContainer({
     useState(false)
   const [expertSegmentAttention, setExpertSegmentAttention] = useState(true)
   const integrationExpertRowsBaselineRef = useRef("")
+  const reorderedRef = useRef(false)
   const integrationExpertModalOpenRef = useRef(false)
   integrationExpertModalOpenRef.current = integrationExpertModalOpen
 
@@ -426,7 +427,11 @@ export default function IntegrationContainer({
       standard,
       prevLineItems as StandardIntegrationFormLineItem[]
     )
-    const keyedMerged = stampBurstReactKeys(merged);
+    const orderedForApply = reorderedRef.current
+      ? reassignLineItemNumbers(merged, mbaNumber, MEDIA_TYPE_ID_CODES.integration)
+      : merged
+    reorderedRef.current = false
+    const keyedMerged = stampBurstReactKeys(orderedForApply);
     form.setValue("lineItems", keyedMerged as IntegrationFormValues["lineItems"], {
       shouldDirty: true,
       shouldValidate: false,
@@ -1894,6 +1899,9 @@ useEffect(() => {
                 rows={expertIntegrationRows}
                 onRowsChange={handleExpertIntegrationRowsChange}
                 publishers={publishers}
+                onReorder={() => {
+                  reorderedRef.current = true;
+                }}
               />
             </div>
           </ComboboxModalProvider>

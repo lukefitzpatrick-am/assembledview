@@ -39,6 +39,7 @@ import {
   deleteExpertRow,
   duplicateExpertRow,
 } from "@/lib/mediaplan/expertRowLifecycle"
+import { reorderExpertRows } from "@/lib/mediaplan/expertGridInteractions"
 import {
   Tooltip,
   TooltipContent,
@@ -46,6 +47,12 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { ExpertGridBillingHeaderLabel } from "@/components/media-containers/ExpertGridBillingHeaderLabel"
+import {
+  EXPERT_REORDER_COL_WIDTH_PX,
+  ExpertGridRowReorderCell,
+  ExpertGridRowReorderHeaderCell,
+} from "@/components/media-containers/ExpertGridRowReorderCell"
+import { useExpertRowReorder } from "@/hooks/useExpertRowReorder"
 import type {
   ExpertWeeklyValues,
   IntegrationExpertMergedWeekSpan,
@@ -317,6 +324,7 @@ export interface IntegrationExpertGridProps {
   onRowsChange: (rows: IntegrationExpertScheduleRow[]) => void
   /** Platform names (integration publishers API) for platform combobox + fuzzy matching */
   publishers?: { publisher_name: string }[]
+  onReorder?: () => void
 }
 
 
@@ -371,6 +379,7 @@ export function IntegrationExpertGrid({
   rows,
   onRowsChange,
   publishers = [],
+  onReorder,
 }: IntegrationExpertGridProps) {
   const { toast } = useToast()
   const domGridId = useId().replace(/:/g, "")
@@ -637,6 +646,18 @@ export function IntegrationExpertGrid({
     },
     [onRowsChange, weekColumns, campaignStartDate, campaignEndDate]
   )
+
+  const handleReorder = useCallback(
+    (from: number, to: number) => {
+      const next = reorderExpertRows(normalizedRows, from, to)
+      if (!next) return
+      pushRows(next)
+      onReorder?.()
+    },
+    [normalizedRows, pushRows, onReorder]
+  )
+  const { dragRowIndex, handleProps, rowDropProps, isDropTarget } =
+    useExpertRowReorder(handleReorder)
 
   const resolveWeekDragSource = useCallback(
     (rowIndex: number, weekKey: string): WeekDragSource | null => {
@@ -2064,6 +2085,10 @@ export function IntegrationExpertGrid({
                 <table className="w-max min-w-full border-collapse text-sm">
                   <thead className="[&_tr]:border-b-0">
                     <tr>
+                      <ExpertGridRowReorderHeaderCell
+                        className={stickyThCorner("text-center")}
+                        style={integrationExpertHeaderCellBgStyle}
+                      />
                       {descriptorHeadLabels.map((label, i) => (
                         <th
                           key={`h-${i}`}
@@ -3390,6 +3415,15 @@ export function IntegrationExpertGrid({
                       className="border-t-2 border-solid font-medium"
                       style={mediaTypeTotalsRowStyle(MEDIA_ACCENT_HEX)}
                     >
+                      <td
+                        className={stickyTd(0)}
+                        style={{
+                          width: EXPERT_REORDER_COL_WIDTH_PX,
+                          minWidth: EXPERT_REORDER_COL_WIDTH_PX,
+                          maxWidth: EXPERT_REORDER_COL_WIDTH_PX,
+                          ...integrationExpertTotalsRowBgStyle,
+                        }}
+                      />
                       <td
                         className={stickyTd(0)}
                         style={{
