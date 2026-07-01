@@ -63,7 +63,21 @@ import { SingleDatePicker } from "@/components/ui/single-date-picker"
 import { defaultMediaBurstStartDate, defaultMediaBurstEndDate } from "@/lib/date-picker-anchor"
 import MediaContainerTimelineCollapsible from "@/components/media-containers/MediaContainerTimelineCollapsible"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
-import { assignStableLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
+import { assignStableLineItemNumbers, reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
+import { ComboboxModalProvider } from "@/components/ui/combobox"
+import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
+import { CinemaExpertGrid, createEmptyCinemaExpertRow } from "@/components/media-containers/CinemaExpertGrid"
+import type { CinemaExpertScheduleRow } from "@/lib/mediaplan/expertModeWeeklySchedule"
+import {
+  mapStandardCinemaLineItemsToExpertRows,
+  mapCinemaExpertRowsToStandardLineItems,
+  type StandardCinemaFormLineItem,
+} from "@/lib/mediaplan/expertChannelMappings"
+import {
+  mergeCinemaStandardFromExpertWithPrevious,
+  serializeCinemaExpertRowsBaseline,
+  serializeCinemaStandardLineItemsBaseline,
+} from "@/lib/mediaplan/expertModeSwitch"
 
 // Format Dates
 const formatDateString = (d?: Date | string): string => {
@@ -358,6 +372,114 @@ export default function CinemaContainer({
       return next;
     });
   }, []);
+
+  // --- Expert mode ---
+  const [expertCinemaRows, setExpertCinemaRows] = useState<CinemaExpertScheduleRow[]>([])
+  const [cinemaExpertModalOpen, setCinemaExpertModalOpen] = useState(false)
+  const [cinemaExpertExitConfirmOpen, setCinemaExpertExitConfirmOpen] = useState(false)
+  const cinemaStandardBaselineRef = useRef("")
+  const cinemaExpertRowsBaselineRef = useRef("")
+  const reorderedRef = useRef(false)
+  const cinemaExpertWeekColumns = useMemo(
+    () => buildWeeklyGanttColumnsFromCampaign(campaignStartDate, campaignEndDate),
+    [campaignStartDate, campaignEndDate]
+  )
+
+  const collapseAllLineItems = useCallback(() => {
+    const items = form.getValues("cinemalineItems") || []
+    setCollapsedLineItems(new Set(items.map((_, i) => i)))
+  }, [form])
+
+  const handleExpertCinemaRowsChange = useCallback((rows: CinemaExpertScheduleRow[]) => {
+    setExpertCinemaRows(rows)
+  }, [])
+
+  const openCinemaExpertModal = useCallback(() => {
+    const mapped = mapStandardCinemaLineItemsToExpertRows(
+      (form.getValues("cinemalineItems") || []) as StandardCinemaFormLineItem[],
+      cinemaExpertWeekColumns,
+      campaignStartDate,
+      campaignEndDate
+    )
+    const weekKeys = cinemaExpertWeekColumns.map((c) => c.weekKey)
+    const rows: CinemaExpertScheduleRow[] =
+      mapped.length > 0
+        ? mapped
+        : [
+            createEmptyCinemaExpertRow(
+              typeof crypto !== "undefined" && crypto.randomUUID
+                ? crypto.randomUUID()
+                : `cinema-expert-${Date.now()}`,
+              campaignStartDate,
+              campaignEndDate,
+              weekKeys
+            ),
+          ]
+    cinemaExpertRowsBaselineRef.current = serializeCinemaExpertRowsBaseline(rows)
+    setExpertCinemaRows(rows)
+    setCinemaExpertExitConfirmOpen(false)
+    setCinemaExpertModalOpen(true)
+  }, [campaignStartDate, campaignEndDate, form, cinemaExpertWeekColumns])
+
+  const handleCinemaExpertModalOpenChange = useCallback(
+    (open: boolean) => {
+      if (open) {
+        setCinemaExpertModalOpen(true)
+        return
+      }
+      const dirty =
+        serializeCinemaExpertRowsBaseline(expertCinemaRows) !== cinemaExpertRowsBaselineRef.current
+      if (!dirty) {
+        collapseAllLineItems()
+        setCinemaExpertModalOpen(false)
+        return
+      }
+      setCinemaExpertExitConfirmOpen(true)
+    },
+    [collapseAllLineItems, expertCinemaRows]
+  )
+
+  const handleCinemaExpertApply = useCallback(() => {
+    const prevLineItems = form.getValues("cinemalineItems") || []
+    const standard = mapCinemaExpertRowsToStandardLineItems(
+      expertCinemaRows,
+      cinemaExpertWeekColumns,
+      campaignStartDate,
+      campaignEndDate,
+      {
+        feePctCinema: feecinema,
+        budgetIncludesFees: Boolean(prevLineItems[0]?.budgetIncludesFees),
+      }
+    )
+    const merged = mergeCinemaStandardFromExpertWithPrevious(
+      standard,
+      prevLineItems as StandardCinemaFormLineItem[]
+    )
+    const orderedForApply = reorderedRef.current
+      ? reassignLineItemNumbers(merged, mbaNumber, MEDIA_TYPE_ID_CODES.cinema)
+      : merged
+    reorderedRef.current = false
+    const keyedMerged = stampBurstReactKeys(orderedForApply)
+    form.setValue("cinemalineItems", keyedMerged as any, {
+      shouldDirty: true,
+      shouldValidate: false,
+    })
+    cinemaStandardBaselineRef.current = serializeCinemaStandardLineItemsBaseline(
+      form.getValues("cinemalineItems") as StandardCinemaFormLineItem[]
+    )
+    setCinemaExpertExitConfirmOpen(false)
+    collapseAllLineItems()
+    setCinemaExpertModalOpen(false)
+  }, [
+    campaignStartDate,
+    campaignEndDate,
+    expertCinemaRows,
+    feecinema,
+    form,
+    mbaNumber,
+    cinemaExpertWeekColumns,
+    collapseAllLineItems,
+  ])
 
   const removeLineItem = useCallback(
     (i: number) => {
@@ -1014,12 +1136,43 @@ useEffect(() => {
         <Card className="overflow-hidden border-0 shadow-md">
           <div className="h-1 bg-gradient-to-r from-primary via-primary/70 to-primary/40" />
           <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base font-semibold tracking-tight">Cinema</CardTitle>
-              <span className="text-xs text-muted-foreground tabular-nums">
-                {overallTotals.lineItemTotals.length} line item
-                {overallTotals.lineItemTotals.length !== 1 ? "s" : ""}
-              </span>
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <CardTitle className="text-base font-semibold tracking-tight">Cinema</CardTitle>
+                <div
+                  role="group"
+                  aria-label="Cinema entry mode"
+                  className="inline-flex shrink-0 rounded-lg border border-border bg-muted/50 p-0.5"
+                >
+                  <button
+                    type="button"
+                    onClick={() => { if (cinemaExpertModalOpen) handleCinemaExpertModalOpenChange(false) }}
+                    className={cn(
+                      "rounded-md px-3 py-1 text-xs font-medium transition-colors",
+                      !cinemaExpertModalOpen ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    Standard
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { if (!cinemaExpertModalOpen) openCinemaExpertModal() }}
+                    className={cn(
+                      "rounded-md px-3 py-1 text-xs font-medium transition-colors",
+                      cinemaExpertModalOpen ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    Expert
+                  </button>
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">Card-based entry</p>
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  {overallTotals.lineItemTotals.length} line item
+                  {overallTotals.lineItemTotals.length !== 1 ? "s" : ""}
+                </span>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-0">
@@ -1790,6 +1943,56 @@ useEffect(() => {
             <Button type="button" onClick={handleAddNewStation} disabled={isLoading}>
               {isLoading ? "Adding..." : "Add Station"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={cinemaExpertModalOpen} onOpenChange={handleCinemaExpertModalOpenChange}>
+        <DialogContent className="max-w-[95vw] w-[95vw] max-h-[95vh] h-[95vh] flex flex-col p-4 gap-0 overflow-hidden">
+          <DialogHeader className="flex-shrink-0 pb-2">
+            <DialogTitle>Cinema Expert Mode</DialogTitle>
+          </DialogHeader>
+          <ComboboxModalProvider>
+            <div className="flex-1 min-h-0 overflow-auto">
+              <CinemaExpertGrid
+                campaignStartDate={campaignStartDate}
+                campaignEndDate={campaignEndDate}
+                feecinema={feecinema}
+                rows={expertCinemaRows}
+                onRowsChange={handleExpertCinemaRowsChange}
+                publishers={publishers}
+                cinemaStations={cinemaStations}
+                onReorder={() => { reorderedRef.current = true }}
+              />
+            </div>
+          </ComboboxModalProvider>
+          <DialogFooter className="flex-shrink-0 border-t pt-3 mt-2">
+            <Button type="button" onClick={handleCinemaExpertApply}>Apply</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={cinemaExpertExitConfirmOpen} onOpenChange={setCinemaExpertExitConfirmOpen}>
+        <DialogContent className="sm:max-w-[440px]">
+          <DialogHeader>
+            <DialogTitle>Discard expert changes?</DialogTitle>
+            <DialogDescription>
+              You have unsaved changes in the expert schedule. Apply to update your line items, or discard to keep your previous line items.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setCinemaExpertExitConfirmOpen(false)
+                collapseAllLineItems()
+                setCinemaExpertModalOpen(false)
+              }}
+            >
+              Discard
+            </Button>
+            <Button type="button" onClick={handleCinemaExpertApply}>Apply changes</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
