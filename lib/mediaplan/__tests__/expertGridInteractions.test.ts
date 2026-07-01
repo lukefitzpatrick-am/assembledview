@@ -1,7 +1,12 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-import { reorderExpertRows } from "../expertGridInteractions.js"
+import {
+  mergedSpanWidthPx,
+  reorderExpertRows,
+  weekColStyle,
+} from "../expertGridInteractions.js"
+import { WEEK_COL_WIDTH_PX } from "../expertGridShared.js"
 
 test("reorderExpertRows moves a row down", () => {
   const rows = ["a", "b", "c", "d"]
@@ -34,4 +39,32 @@ test("reorderExpertRows preserves other elements and does not mutate input", () 
   assert.notEqual(next, rows)
   assert.deepEqual(rows, [{ id: 1 }, { id: 2 }, { id: 3 }])
   assert.deepEqual(next, [{ id: 2 }, { id: 3 }, { id: 1 }])
+})
+
+test("weekColStyle returns default 112 when no override", () => {
+  const style = weekColStyle("2025-W01")
+  assert.equal(style.width, WEEK_COL_WIDTH_PX)
+  assert.equal(style.minWidth, WEEK_COL_WIDTH_PX)
+  assert.equal(style.maxWidth, WEEK_COL_WIDTH_PX)
+  assert.equal(style.boxSizing, "border-box")
+})
+
+test("weekColStyle returns override when present", () => {
+  const style = weekColStyle("2025-W01", { "2025-W01": 200 })
+  assert.equal(style.width, 200)
+  assert.equal(style.minWidth, 200)
+  assert.equal(style.maxWidth, 200)
+})
+
+test("mergedSpanWidthPx sums per-week widths with mixed overrides", () => {
+  const weekKeys = ["2025-W01", "2025-W02", "2025-W03", "2025-W04"]
+  const widths = { "2025-W02": 150, "2025-W03": 80 }
+  const total = mergedSpanWidthPx(weekKeys, "2025-W01", "2025-W03", widths)
+  assert.equal(total, WEEK_COL_WIDTH_PX + 150 + 80)
+})
+
+test("mergedSpanWidthPx equals 112 × spanLen when no overrides", () => {
+  const weekKeys = ["2025-W01", "2025-W02", "2025-W03", "2025-W04"]
+  const total = mergedSpanWidthPx(weekKeys, "2025-W01", "2025-W03")
+  assert.equal(total, WEEK_COL_WIDTH_PX * 3)
 })
