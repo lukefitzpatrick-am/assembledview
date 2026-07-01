@@ -27,6 +27,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { SingleDatePicker } from "@/components/ui/single-date-picker"
 import { ChevronsUpDown, Check, Download, FileText, Loader2, X } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useSidebar } from "@/components/ui/sidebar"
 import { CampaignExportsSection } from "@/components/dashboard/CampaignExportsSection"
 import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
 import { sortByLabel } from "@/lib/utils/sort"
@@ -398,6 +399,7 @@ export default function CreateMediaPlan() {
   //general and client info
   const router = useRouter()
   const pathname = usePathname()
+  const { setOpen: setSidebarOpen, isMobile: isSidebarMobile } = useSidebar()
   const [clients, setClients] = useState<Client[]>([])
   const [reportId, setReportId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -1186,6 +1188,16 @@ export default function CreateMediaPlan() {
     [mediaTypes, watchedMediaTypesMap]
   )
 
+  const selectedChannels = useMemo(
+    () =>
+      mediaTypes
+        .filter((medium) => medium.name !== "mp_fixedfee")
+        .filter((medium) => watchedMediaTypesMap[medium.name]),
+    [mediaTypes, watchedMediaTypesMap]
+  )
+
+  const [activeMediaChannel, setActiveMediaChannel] = useState<string | null>(null)
+
   const activeStepIndex = createCampaignSteps.findIndex((step) => step.id === activeStep)
 
   const scrollToMediaSection = useCallback((mediaName: string) => {
@@ -1199,13 +1211,24 @@ export default function CreateMediaPlan() {
   }, [])
 
   useEffect(() => {
+    if (!isSidebarMobile) {
+      setSidebarOpen(false)
+    }
+  }, [isSidebarMobile, setSidebarOpen])
+
+  useEffect(() => {
     if (typeof IntersectionObserver === "undefined") return
 
     const stepElements = createCampaignSteps
       .map((step) => document.getElementById(step.id))
       .filter((node): node is HTMLElement => Boolean(node))
 
-    if (stepElements.length === 0) return
+    const mediaElements = selectedChannels
+      .map((medium) => document.getElementById(`media-section-${medium.name}`))
+      .filter((node): node is HTMLElement => Boolean(node))
+
+    const observedElements = [...stepElements, ...mediaElements]
+    if (observedElements.length === 0) return
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -1213,9 +1236,17 @@ export default function CreateMediaPlan() {
           .filter((entry) => entry.isIntersecting)
           .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)
 
-        if (visible[0]?.target.id) {
-          setActiveStep(visible[0].target.id as CreateCampaignStepId)
+        const topTarget = visible[0]?.target
+        if (!topTarget?.id) return
+
+        if (topTarget.id.startsWith("media-section-")) {
+          setActiveStep("channel-allocation")
+          setActiveMediaChannel(topTarget.id.replace("media-section-", ""))
+          return
         }
+
+        setActiveMediaChannel(null)
+        setActiveStep(topTarget.id as CreateCampaignStepId)
       },
       {
         root: null,
@@ -1224,9 +1255,9 @@ export default function CreateMediaPlan() {
       }
     )
 
-    stepElements.forEach((node) => observer.observe(node))
+    observedElements.forEach((node) => observer.observe(node))
     return () => observer.disconnect()
-  }, [])
+  }, [selectedChannels])
 
   /** Billing schedule preview: column visibility from calculated totals (not formatted strings). */
   const billingSchedulePreviewColumns = useMemo(() => {
@@ -5729,7 +5760,7 @@ const handleSaveAll = async () => {
           }
         />
         <div className="grid w-full grid-cols-1 items-start gap-5 overflow-visible xl:grid-cols-[220px_minmax(0,1fr)] xl:gap-6">
-          <aside className="xl:sticky xl:top-0 xl:min-h-screen xl:self-start xl:py-4">
+          <aside className="xl:sticky xl:top-4 xl:z-10 xl:self-start">
             <div className="space-y-3">
               <nav className="rounded-frame border border-border bg-card p-2.5 shadow-e1" aria-label="Create campaign progress">
                 <ol className="space-y-1">
@@ -5763,6 +5794,30 @@ const handleSaveAll = async () => {
                           </span>
                           <span className="font-medium">{step.label}</span>
                         </button>
+                        {step.id === "channel-allocation" && selectedChannels.length > 0 ? (
+                          <ul className="ml-3 mt-1 space-y-0.5 border-l border-border/60 pl-2.5">
+                            {selectedChannels.map((channel) => {
+                              const isChannelActive = activeMediaChannel === channel.name
+                              return (
+                                <li key={channel.name}>
+                                  <button
+                                    type="button"
+                                    onClick={() => scrollToMediaSection(channel.name)}
+                                    className={cn(
+                                      "flex w-full rounded-input px-2 py-1.5 text-left text-[11px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                                      isChannelActive
+                                        ? "bg-table-row-hover font-medium text-foreground"
+                                        : "text-muted-foreground hover:bg-table-row-hover hover:text-foreground"
+                                    )}
+                                    aria-current={isChannelActive ? "true" : undefined}
+                                  >
+                                    {channel.label}
+                                  </button>
+                                </li>
+                              )
+                            })}
+                          </ul>
+                        ) : null}
                       </li>
                     )
                   })}
@@ -6120,7 +6175,7 @@ const handleSaveAll = async () => {
                 <div className="border-b border-border bg-[var(--fill-track)] px-6 pb-3 pt-5">
                   <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Media channels</h3>
                 </div>
-                <div className="grid min-h-0 w-full grid-cols-1 content-start gap-2 px-6 py-4 md:grid-cols-2 xl:grid-cols-3">
+                <div className="grid min-h-0 w-full grid-cols-2 content-start gap-2 px-6 py-4 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
                 {mediaTypes.filter(medium => medium.name !== "mp_fixedfee").map((medium) => {
                   const switchId = `media-type-${medium.name}`
                   const accentColor = getMediaTypeAccentColor(medium.name)
@@ -6143,9 +6198,6 @@ const handleSaveAll = async () => {
                               const next = Boolean(checked)
                               if (next === Boolean(field.value)) return
                               field.onChange(next)
-                              if (next) {
-                                scrollToMediaSection(medium.name)
-                              }
                             }}
                             onBlur={field.onBlur}
                             disabled={field.disabled}
