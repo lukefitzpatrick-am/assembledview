@@ -82,6 +82,7 @@ import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColu
 import {
   coerceBuyTypeWithDevWarn,
   computeDeliverableFromMedia,
+  computeLoadedDeliverables,
 } from "@/lib/mediaplan/deliverableBudget"
 
 const AD_SERVING_OVERRIDE_BURST_GRID =
@@ -592,7 +593,12 @@ export default function DigiVideoContainer({
           buyAmount: burst.buyAmount || "",
           startDate: burst.startDate ? new Date(burst.startDate) : new Date(),
           endDate: burst.endDate ? new Date(burst.endDate) : new Date(),
-          calculatedValue: burst.calculatedValue ?? 0,
+          calculatedValue: computeLoadedDeliverables(
+            item.buy_type || item.buyType || "",
+            burst,
+            Boolean(item.budget_includes_fees || item.budgetIncludesFees),
+            feedigivideo ?? 0,
+          ),
           fee: burst.fee ?? 0,
           adServingRatePct: burst.adServingRatePct,
           adServingImpressions: burst.adServingImpressions,
