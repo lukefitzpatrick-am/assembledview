@@ -28,7 +28,7 @@ import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { serializeBurstsJson } from "@/lib/mediaplan/serializeBurstsJson"
 import { expertApplyClearedAdServingOverride } from "@/lib/mediaplan/adServingOverrideNotice"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
-import { assignStableLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
+import { assignStableLineItemNumbers, reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import { resolveBillingBurstLineItemId } from "@/lib/billing/resolveBillingBurstLineItemId"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
@@ -247,6 +247,7 @@ export default function BVODContainer({
   const [expertSegmentAttention, setExpertSegmentAttention] = useState(true)
   const bvodStandardBaselineRef = useRef("")
   const bvodExpertRowsBaselineRef = useRef("")
+  const reorderedRef = useRef(false)
   const bvodExpertModalOpenRef = useRef(false)
   bvodExpertModalOpenRef.current = bvodExpertModalOpen
 
@@ -497,7 +498,11 @@ export default function BVODContainer({
       standard,
       prevLineItems as StandardBvodFormLineItem[]
     )
-    const keyedMerged = stampBurstReactKeys(merged)
+    const orderedForApply = reorderedRef.current
+      ? reassignLineItemNumbers(merged, mbaNumber, MEDIA_TYPE_ID_CODES.bvod)
+      : merged
+    reorderedRef.current = false
+    const keyedMerged = stampBurstReactKeys(orderedForApply)
     const clearedOverride = expertApplyClearedAdServingOverride(
       prevLineItems as any,
       keyedMerged as any
@@ -2110,6 +2115,9 @@ useEffect(() => {
                 onRowsChange={handleExpertBvodRowsChange}
                 publishers={publishers}
                 bvodSites={bvodSites}
+                onReorder={() => {
+                  reorderedRef.current = true;
+                }}
               />
             </div>
           </ComboboxModalProvider>

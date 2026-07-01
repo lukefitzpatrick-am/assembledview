@@ -42,6 +42,7 @@ import {
   deleteExpertRow,
   duplicateExpertRow,
 } from "@/lib/mediaplan/expertRowLifecycle"
+import { reorderExpertRows } from "@/lib/mediaplan/expertGridInteractions"
 import {
   Tooltip,
   TooltipContent,
@@ -49,6 +50,12 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { ExpertGridBillingHeaderLabel } from "@/components/media-containers/ExpertGridBillingHeaderLabel"
+import {
+  EXPERT_REORDER_COL_WIDTH_PX,
+  ExpertGridRowReorderCell,
+  ExpertGridRowReorderHeaderCell,
+} from "@/components/media-containers/ExpertGridRowReorderCell"
+import { useExpertRowReorder } from "@/hooks/useExpertRowReorder"
 import type {
   ExpertWeeklyValues,
   BvodExpertMergedWeekSpan,
@@ -308,6 +315,7 @@ export interface BVODExpertGridProps {
     site?: string | null
     id?: number | string | null
   }[]
+  onReorder?: () => void
 }
 
 
@@ -363,6 +371,7 @@ export function BVODExpertGrid({
   onRowsChange,
   publishers = [],
   bvodSites = [],
+  onReorder,
 }: BVODExpertGridProps) {
   const { toast } = useToast()
   const domGridId = useId().replace(/:/g, "")
@@ -663,6 +672,18 @@ export function BVODExpertGrid({
     },
     [onRowsChange, weekColumns, campaignStartDate, campaignEndDate]
   )
+
+  const handleReorder = useCallback(
+    (from: number, to: number) => {
+      const next = reorderExpertRows(normalizedRows, from, to)
+      if (!next) return
+      pushRows(next)
+      onReorder?.()
+    },
+    [normalizedRows, pushRows, onReorder]
+  )
+  const { dragRowIndex, handleProps, rowDropProps, isDropTarget } =
+    useExpertRowReorder(handleReorder)
 
   const resolveWeekDragSource = useCallback(
     (rowIndex: number, weekKey: string): WeekDragSource | null => {
@@ -2094,6 +2115,10 @@ export function BVODExpertGrid({
                 <table className="w-max min-w-full border-collapse text-sm">
                   <thead className="[&_tr]:border-b-0">
                     <tr>
+                      <ExpertGridRowReorderHeaderCell
+                        className={stickyThCorner("text-center")}
+                        style={bvodExpertHeaderCellBgStyle}
+                      />
                       {descriptorHeadLabels.map((label, i) => (
                         <th
                           key={`h-${i}`}
@@ -2188,10 +2213,19 @@ export function BVODExpertGrid({
                           key={row.id}
                           className={cn(
                             stripe,
-                            "transition-colors hover:bg-muted/35 focus-within:bg-muted/35"
+                            "transition-colors hover:bg-muted/35 focus-within:bg-muted/35",
+                            isDropTarget(rowIndex) &&
+                              "bg-primary/10 ring-1 ring-inset ring-primary/40"
                           )}
                           style={stripeStyle}
+                          {...rowDropProps(rowIndex)}
                         >
+                          <ExpertGridRowReorderCell
+                            rowIndex={rowIndex}
+                            handleProps={handleProps(rowIndex)}
+                            isDragging={dragRowIndex === rowIndex}
+                            className={stickyTd(0, "text-center")}
+                          />
                           {showBillingCols ? (
                             <>
                               <td
@@ -3386,6 +3420,15 @@ export function BVODExpertGrid({
                       className="border-t-2 border-solid font-medium"
                       style={mediaTypeTotalsRowStyle(MEDIA_ACCENT_HEX)}
                     >
+                      <td
+                        className={stickyTd(0)}
+                        style={{
+                          width: EXPERT_REORDER_COL_WIDTH_PX,
+                          minWidth: EXPERT_REORDER_COL_WIDTH_PX,
+                          maxWidth: EXPERT_REORDER_COL_WIDTH_PX,
+                          ...bvodExpertTotalsRowBgStyle,
+                        }}
+                      />
                       <td
                         className={stickyTd(0)}
                         style={{
