@@ -45,7 +45,7 @@ import {
   deleteExpertRow,
   duplicateExpertRow,
 } from "@/lib/mediaplan/expertRowLifecycle"
-import { reorderExpertRows } from "@/lib/mediaplan/expertGridInteractions"
+import { reorderExpertRows, weekColStyle, mergedSpanWidthPx } from "@/lib/mediaplan/expertGridInteractions"
 import {
   Tooltip,
   TooltipContent,
@@ -58,7 +58,9 @@ import {
   ExpertGridRowReorderCell,
   ExpertGridRowReorderHeaderCell,
 } from "@/components/media-containers/ExpertGridRowReorderCell"
+import { ExpertGridWeekResizeHandle } from "@/components/media-containers/ExpertGridWeekResizeHandle"
 import { useExpertRowReorder } from "@/hooks/useExpertRowReorder"
+import { useExpertWeekColumnWidths } from "@/hooks/useExpertWeekColumnWidths"
 import type {
   ExpertWeeklyValues,
   OohExpertMergedWeekSpan,
@@ -105,7 +107,6 @@ import {
 import {
   WEEK_GRID_COL_OFFSET,
   WEEK_COL_WIDTH_PX as OOH_EXPERT_WEEK_COL_WIDTH_PX,
-  expertWeekColLayoutStyle as oohExpertWeekColLayoutStyle,
   WEEK_SCROLLER_EDGE as OOH_EXPERT_WEEK_SCROLLER_EDGE,
   WEEK_CELL_VISUAL_CLASSES as OOH_WEEK_CELL_VISUAL_CLASSES,
   expertGridParseNum as parseNum,
@@ -649,6 +650,7 @@ export function OohExpertGrid({
   )
   const { dragRowIndex, handleProps, rowDropProps, isDropTarget } =
     useExpertRowReorder(handleReorder)
+  const { weekColumnWidths, setWeekColumnWidth } = useExpertWeekColumnWidths()
 
   const resolveWeekDragSource = useCallback(
     (rowIndex: number, weekKey: string): WeekDragSource | null => {
@@ -2129,9 +2131,9 @@ export function OohExpertGrid({
                       {weekColumns.map((col) => (
                         <th
                           key={col.weekKey}
-                          className={stickyThWeek}
+                          className={cn(stickyThWeek, "relative")}
                           style={{
-                            ...oohExpertWeekColLayoutStyle,
+                            ...weekColStyle(col.weekKey, weekColumnWidths),
                             ...oohExpertHeaderCellBgStyle,
                           }}
                           title={col.labelFull}
@@ -2151,6 +2153,11 @@ export function OohExpertGrid({
                               {col.labelFull}
                             </TooltipContent>
                           </Tooltip>
+                          <ExpertGridWeekResizeHandle
+                            weekKey={col.weekKey}
+                            currentWidth={weekColumnWidths[col.weekKey] ?? OOH_EXPERT_WEEK_COL_WIDTH_PX}
+                            onResize={setWeekColumnWidth}
+                          />
                         </th>
                       ))}
                     </tr>
@@ -2859,21 +2866,27 @@ export function OohExpertGrid({
                                   isMergedAnchorCell &&
                                   "text-foreground"
                               )
+                              const mergedAnchorWidthPx = mSpan
+                                ? mergedSpanWidthPx(
+                                    weekKeys,
+                                    mSpan.startWeekKey,
+                                    mSpan.endWeekKey,
+                                    weekColumnWidths,
+                                  )
+                                : null
                               renderedWeekCells.push(
                                 <td
                                   key={`${row.id}-${col.weekKey}`}
                                   colSpan={spanLen}
                                   style={
-                                    isMergedAnchorCell
+                                    isMergedAnchorCell && mergedAnchorWidthPx != null
                                       ? {
-                                          width: OOH_EXPERT_WEEK_COL_WIDTH_PX * spanLen,
-                                          minWidth:
-                                            OOH_EXPERT_WEEK_COL_WIDTH_PX * spanLen,
-                                          maxWidth:
-                                            OOH_EXPERT_WEEK_COL_WIDTH_PX * spanLen,
+                                          width: mergedAnchorWidthPx,
+                                          minWidth: mergedAnchorWidthPx,
+                                          maxWidth: mergedAnchorWidthPx,
                                           boxSizing: "border-box",
                                         }
-                                      : oohExpertWeekColLayoutStyle
+                                      : weekColStyle(col.weekKey, weekColumnWidths)
                                   }
                                   className={tdClassName}
                                   title={
@@ -3471,7 +3484,7 @@ export function OohExpertGrid({
                         <td
                           key={`t-${col.weekKey}`}
                           style={{
-                            ...oohExpertWeekColLayoutStyle,
+                            ...weekColStyle(col.weekKey, weekColumnWidths),
                             ...oohExpertTotalsRowBgStyle,
                           }}
                           className="h-8 border-b border-r px-0.5 text-center text-xs tabular-nums align-middle"

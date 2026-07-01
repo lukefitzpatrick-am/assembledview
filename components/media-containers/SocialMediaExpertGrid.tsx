@@ -34,7 +34,7 @@ import {
   deleteExpertRow,
   duplicateExpertRow,
 } from "@/lib/mediaplan/expertRowLifecycle"
-import { reorderExpertRows } from "@/lib/mediaplan/expertGridInteractions"
+import { reorderExpertRows, weekColStyle, mergedSpanWidthPx } from "@/lib/mediaplan/expertGridInteractions"
 import {
   Tooltip,
   TooltipContent,
@@ -47,7 +47,9 @@ import {
   ExpertGridRowReorderCell,
   ExpertGridRowReorderHeaderCell,
 } from "@/components/media-containers/ExpertGridRowReorderCell"
+import { ExpertGridWeekResizeHandle } from "@/components/media-containers/ExpertGridWeekResizeHandle"
 import { useExpertRowReorder } from "@/hooks/useExpertRowReorder"
+import { useExpertWeekColumnWidths } from "@/hooks/useExpertWeekColumnWidths"
 import type {
   ExpertWeeklyValues,
   SocialMediaExpertMergedWeekSpan,
@@ -91,7 +93,6 @@ import {
 import {
   WEEK_GRID_COL_OFFSET,
   WEEK_COL_WIDTH_PX as SOCIALMEDIA_EXPERT_WEEK_COL_WIDTH_PX,
-  expertWeekColLayoutStyle as socialMediaExpertWeekColLayoutStyle,
   WEEK_SCROLLER_EDGE as SOCIALMEDIA_EXPERT_WEEK_SCROLLER_EDGE,
   WEEK_CELL_VISUAL_CLASSES as SOCIALMEDIA_WEEK_CELL_VISUAL_CLASSES,
   expertGridParseNum as parseNum,
@@ -643,6 +644,7 @@ export function SocialMediaExpertGrid({
   )
   const { dragRowIndex, handleProps, rowDropProps, isDropTarget } =
     useExpertRowReorder(handleReorder)
+  const { weekColumnWidths, setWeekColumnWidth } = useExpertWeekColumnWidths()
 
   const resolveWeekDragSource = useCallback(
     (rowIndex: number, weekKey: string): WeekDragSource | null => {
@@ -2102,9 +2104,9 @@ export function SocialMediaExpertGrid({
                       {weekColumns.map((col) => (
                         <th
                           key={col.weekKey}
-                          className={stickyThWeek}
+                          className={cn(stickyThWeek, "relative")}
                           style={{
-                            ...socialMediaExpertWeekColLayoutStyle,
+                            ...weekColStyle(col.weekKey, weekColumnWidths),
                             ...socialMediaExpertHeaderCellBgStyle,
                           }}
                           title={col.labelFull}
@@ -2124,6 +2126,11 @@ export function SocialMediaExpertGrid({
                               {col.labelFull}
                             </TooltipContent>
                           </Tooltip>
+                          <ExpertGridWeekResizeHandle
+                            weekKey={col.weekKey}
+                            currentWidth={weekColumnWidths[col.weekKey] ?? SOCIALMEDIA_EXPERT_WEEK_COL_WIDTH_PX}
+                            onResize={setWeekColumnWidth}
+                          />
                         </th>
                       ))}
                     </tr>
@@ -2813,21 +2820,27 @@ export function SocialMediaExpertGrid({
                                   isMergedAnchorCell &&
                                   "text-foreground"
                               )
+                              const mergedAnchorWidthPx = mSpan
+                                ? mergedSpanWidthPx(
+                                    weekKeys,
+                                    mSpan.startWeekKey,
+                                    mSpan.endWeekKey,
+                                    weekColumnWidths,
+                                  )
+                                : null
                               renderedWeekCells.push(
                                 <td
                                   key={`${row.id}-${col.weekKey}`}
                                   colSpan={spanLen}
                                   style={
-                                    isMergedAnchorCell
+                                    isMergedAnchorCell && mergedAnchorWidthPx != null
                                       ? {
-                                          width: SOCIALMEDIA_EXPERT_WEEK_COL_WIDTH_PX * spanLen,
-                                          minWidth:
-                                            SOCIALMEDIA_EXPERT_WEEK_COL_WIDTH_PX * spanLen,
-                                          maxWidth:
-                                            SOCIALMEDIA_EXPERT_WEEK_COL_WIDTH_PX * spanLen,
+                                          width: mergedAnchorWidthPx,
+                                          minWidth: mergedAnchorWidthPx,
+                                          maxWidth: mergedAnchorWidthPx,
                                           boxSizing: "border-box",
                                         }
-                                      : socialMediaExpertWeekColLayoutStyle
+                                      : weekColStyle(col.weekKey, weekColumnWidths)
                                   }
                                   className={tdClassName}
                                   title={
@@ -3432,7 +3445,7 @@ export function SocialMediaExpertGrid({
                         <td
                           key={`t-${col.weekKey}`}
                           style={{
-                            ...socialMediaExpertWeekColLayoutStyle,
+                            ...weekColStyle(col.weekKey, weekColumnWidths),
                             ...socialMediaExpertTotalsRowBgStyle,
                           }}
                           className="h-8 border-b border-r px-0.5 text-center text-xs tabular-nums align-middle"

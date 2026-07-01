@@ -39,7 +39,7 @@ import {
   deleteExpertRow,
   duplicateExpertRow,
 } from "@/lib/mediaplan/expertRowLifecycle"
-import { reorderExpertRows } from "@/lib/mediaplan/expertGridInteractions"
+import { reorderExpertRows, weekColStyle, mergedSpanWidthPx } from "@/lib/mediaplan/expertGridInteractions"
 import {
   Tooltip,
   TooltipContent,
@@ -52,7 +52,9 @@ import {
   ExpertGridRowReorderCell,
   ExpertGridRowReorderHeaderCell,
 } from "@/components/media-containers/ExpertGridRowReorderCell"
+import { ExpertGridWeekResizeHandle } from "@/components/media-containers/ExpertGridWeekResizeHandle"
 import { useExpertRowReorder } from "@/hooks/useExpertRowReorder"
+import { useExpertWeekColumnWidths } from "@/hooks/useExpertWeekColumnWidths"
 import type {
   ExpertWeeklyValues,
   IntegrationExpertMergedWeekSpan,
@@ -98,7 +100,6 @@ import {
 import {
   WEEK_GRID_COL_OFFSET,
   WEEK_COL_WIDTH_PX as INTEGRATION_EXPERT_WEEK_COL_WIDTH_PX,
-  expertWeekColLayoutStyle as integrationExpertWeekColLayoutStyle,
   WEEK_SCROLLER_EDGE as INTEGRATION_EXPERT_WEEK_SCROLLER_EDGE,
   WEEK_CELL_VISUAL_CLASSES as INTEGRATION_WEEK_CELL_VISUAL_CLASSES,
   expertGridParseNum as parseNum,
@@ -658,6 +659,7 @@ export function IntegrationExpertGrid({
   )
   const { dragRowIndex, handleProps, rowDropProps, isDropTarget } =
     useExpertRowReorder(handleReorder)
+  const { weekColumnWidths, setWeekColumnWidth } = useExpertWeekColumnWidths()
 
   const resolveWeekDragSource = useCallback(
     (rowIndex: number, weekKey: string): WeekDragSource | null => {
@@ -2119,9 +2121,9 @@ export function IntegrationExpertGrid({
                       {weekColumns.map((col) => (
                         <th
                           key={col.weekKey}
-                          className={stickyThWeek}
+                          className={cn(stickyThWeek, "relative")}
                           style={{
-                            ...integrationExpertWeekColLayoutStyle,
+                            ...weekColStyle(col.weekKey, weekColumnWidths),
                             ...integrationExpertHeaderCellBgStyle,
                           }}
                           title={col.labelFull}
@@ -2141,6 +2143,11 @@ export function IntegrationExpertGrid({
                               {col.labelFull}
                             </TooltipContent>
                           </Tooltip>
+                          <ExpertGridWeekResizeHandle
+                            weekKey={col.weekKey}
+                            currentWidth={weekColumnWidths[col.weekKey] ?? INTEGRATION_EXPERT_WEEK_COL_WIDTH_PX}
+                            onResize={setWeekColumnWidth}
+                          />
                         </th>
                       ))}
                     </tr>
@@ -2876,21 +2883,27 @@ export function IntegrationExpertGrid({
                                   isMergedAnchorCell &&
                                   "text-foreground"
                               )
+                              const mergedAnchorWidthPx = mSpan
+                                ? mergedSpanWidthPx(
+                                    weekKeys,
+                                    mSpan.startWeekKey,
+                                    mSpan.endWeekKey,
+                                    weekColumnWidths,
+                                  )
+                                : null
                               renderedWeekCells.push(
                                 <td
                                   key={`${row.id}-${col.weekKey}`}
                                   colSpan={spanLen}
                                   style={
-                                    isMergedAnchorCell
+                                    isMergedAnchorCell && mergedAnchorWidthPx != null
                                       ? {
-                                          width: INTEGRATION_EXPERT_WEEK_COL_WIDTH_PX * spanLen,
-                                          minWidth:
-                                            INTEGRATION_EXPERT_WEEK_COL_WIDTH_PX * spanLen,
-                                          maxWidth:
-                                            INTEGRATION_EXPERT_WEEK_COL_WIDTH_PX * spanLen,
+                                          width: mergedAnchorWidthPx,
+                                          minWidth: mergedAnchorWidthPx,
+                                          maxWidth: mergedAnchorWidthPx,
                                           boxSizing: "border-box",
                                         }
-                                      : integrationExpertWeekColLayoutStyle
+                                      : weekColStyle(col.weekKey, weekColumnWidths)
                                   }
                                   className={tdClassName}
                                   title={
@@ -3488,7 +3501,7 @@ export function IntegrationExpertGrid({
                         <td
                           key={`t-${col.weekKey}`}
                           style={{
-                            ...integrationExpertWeekColLayoutStyle,
+                            ...weekColStyle(col.weekKey, weekColumnWidths),
                             ...integrationExpertTotalsRowBgStyle,
                           }}
                           className="h-8 border-b border-r px-0.5 text-center text-xs tabular-nums align-middle"

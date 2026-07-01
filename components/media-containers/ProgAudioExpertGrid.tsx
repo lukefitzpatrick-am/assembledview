@@ -39,7 +39,7 @@ import {
   deleteExpertRow,
   duplicateExpertRow,
 } from "@/lib/mediaplan/expertRowLifecycle"
-import { reorderExpertRows } from "@/lib/mediaplan/expertGridInteractions"
+import { reorderExpertRows, weekColStyle, mergedSpanWidthPx } from "@/lib/mediaplan/expertGridInteractions"
 import {
   Tooltip,
   TooltipContent,
@@ -52,7 +52,9 @@ import {
   ExpertGridRowReorderCell,
   ExpertGridRowReorderHeaderCell,
 } from "@/components/media-containers/ExpertGridRowReorderCell"
+import { ExpertGridWeekResizeHandle } from "@/components/media-containers/ExpertGridWeekResizeHandle"
 import { useExpertRowReorder } from "@/hooks/useExpertRowReorder"
+import { useExpertWeekColumnWidths } from "@/hooks/useExpertWeekColumnWidths"
 import type {
   ExpertWeeklyValues,
   ProgExpertMergedWeekSpan,
@@ -97,7 +99,6 @@ import {
 import {
   WEEK_GRID_COL_OFFSET,
   WEEK_COL_WIDTH_PX as PROGAUDIO_EXPERT_WEEK_COL_WIDTH_PX,
-  expertWeekColLayoutStyle as progAudioExpertWeekColLayoutStyle,
   WEEK_SCROLLER_EDGE as PROGAUDIO_EXPERT_WEEK_SCROLLER_EDGE,
   WEEK_CELL_VISUAL_CLASSES as PROGAUDIO_WEEK_CELL_VISUAL_CLASSES,
   expertGridParseNum as parseNum,
@@ -648,6 +649,7 @@ export function ProgAudioExpertGrid({
   )
   const { dragRowIndex, handleProps, rowDropProps, isDropTarget } =
     useExpertRowReorder(handleReorder)
+  const { weekColumnWidths, setWeekColumnWidth } = useExpertWeekColumnWidths()
 
   const resolveWeekDragSource = useCallback(
     (rowIndex: number, weekKey: string): WeekDragSource | null => {
@@ -2113,9 +2115,9 @@ export function ProgAudioExpertGrid({
                       {weekColumns.map((col) => (
                         <th
                           key={col.weekKey}
-                          className={stickyThWeek}
+                          className={cn(stickyThWeek, "relative")}
                           style={{
-                            ...progAudioExpertWeekColLayoutStyle,
+                            ...weekColStyle(col.weekKey, weekColumnWidths),
                             ...progAudioExpertHeaderCellBgStyle,
                           }}
                           title={col.labelFull}
@@ -2135,6 +2137,11 @@ export function ProgAudioExpertGrid({
                               {col.labelFull}
                             </TooltipContent>
                           </Tooltip>
+                          <ExpertGridWeekResizeHandle
+                            weekKey={col.weekKey}
+                            currentWidth={weekColumnWidths[col.weekKey] ?? PROGAUDIO_EXPERT_WEEK_COL_WIDTH_PX}
+                            onResize={setWeekColumnWidth}
+                          />
                         </th>
                       ))}
                     </tr>
@@ -2850,21 +2857,27 @@ export function ProgAudioExpertGrid({
                                   isMergedAnchorCell &&
                                   "text-foreground"
                               )
+                              const mergedAnchorWidthPx = mSpan
+                                ? mergedSpanWidthPx(
+                                    weekKeys,
+                                    mSpan.startWeekKey,
+                                    mSpan.endWeekKey,
+                                    weekColumnWidths,
+                                  )
+                                : null
                               renderedWeekCells.push(
                                 <td
                                   key={`${row.id}-${col.weekKey}`}
                                   colSpan={spanLen}
                                   style={
-                                    isMergedAnchorCell
+                                    isMergedAnchorCell && mergedAnchorWidthPx != null
                                       ? {
-                                          width: PROGAUDIO_EXPERT_WEEK_COL_WIDTH_PX * spanLen,
-                                          minWidth:
-                                            PROGAUDIO_EXPERT_WEEK_COL_WIDTH_PX * spanLen,
-                                          maxWidth:
-                                            PROGAUDIO_EXPERT_WEEK_COL_WIDTH_PX * spanLen,
+                                          width: mergedAnchorWidthPx,
+                                          minWidth: mergedAnchorWidthPx,
+                                          maxWidth: mergedAnchorWidthPx,
                                           boxSizing: "border-box",
                                         }
-                                      : progAudioExpertWeekColLayoutStyle
+                                      : weekColStyle(col.weekKey, weekColumnWidths)
                                   }
                                   className={tdClassName}
                                   title={
@@ -3462,7 +3475,7 @@ export function ProgAudioExpertGrid({
                         <td
                           key={`t-${col.weekKey}`}
                           style={{
-                            ...progAudioExpertWeekColLayoutStyle,
+                            ...weekColStyle(col.weekKey, weekColumnWidths),
                             ...progAudioExpertTotalsRowBgStyle,
                           }}
                           className="h-8 border-b border-r px-0.5 text-center text-xs tabular-nums align-middle"

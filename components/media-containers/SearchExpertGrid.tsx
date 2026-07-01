@@ -39,7 +39,7 @@ import {
   deleteExpertRow,
   duplicateExpertRow,
 } from "@/lib/mediaplan/expertRowLifecycle"
-import { reorderExpertRows } from "@/lib/mediaplan/expertGridInteractions"
+import { reorderExpertRows, weekColStyle, mergedSpanWidthPx } from "@/lib/mediaplan/expertGridInteractions"
 import {
   Tooltip,
   TooltipContent,
@@ -52,7 +52,9 @@ import {
   ExpertGridRowReorderCell,
   ExpertGridRowReorderHeaderCell,
 } from "@/components/media-containers/ExpertGridRowReorderCell"
+import { ExpertGridWeekResizeHandle } from "@/components/media-containers/ExpertGridWeekResizeHandle"
 import { useExpertRowReorder } from "@/hooks/useExpertRowReorder"
+import { useExpertWeekColumnWidths } from "@/hooks/useExpertWeekColumnWidths"
 import type {
   ExpertWeeklyValues,
   SearchExpertMergedWeekSpan,
@@ -98,7 +100,6 @@ import {
 import {
   WEEK_GRID_COL_OFFSET,
   WEEK_COL_WIDTH_PX as SEARCH_EXPERT_WEEK_COL_WIDTH_PX,
-  expertWeekColLayoutStyle as searchExpertWeekColLayoutStyle,
   WEEK_SCROLLER_EDGE as SEARCH_EXPERT_WEEK_SCROLLER_EDGE,
   WEEK_CELL_VISUAL_CLASSES as SEARCH_WEEK_CELL_VISUAL_CLASSES,
   expertGridParseNum as parseNum,
@@ -653,6 +654,7 @@ export function SearchExpertGrid({
   )
   const { dragRowIndex, handleProps, rowDropProps, isDropTarget } =
     useExpertRowReorder(handleReorder)
+  const { weekColumnWidths, setWeekColumnWidth } = useExpertWeekColumnWidths()
 
   const resolveWeekDragSource = useCallback(
     (rowIndex: number, weekKey: string): WeekDragSource | null => {
@@ -2122,9 +2124,9 @@ export function SearchExpertGrid({
                       {weekColumns.map((col) => (
                         <th
                           key={col.weekKey}
-                          className={stickyThWeek}
+                          className={cn(stickyThWeek, "relative")}
                           style={{
-                            ...searchExpertWeekColLayoutStyle,
+                            ...weekColStyle(col.weekKey, weekColumnWidths),
                             ...searchExpertHeaderCellBgStyle,
                           }}
                           title={col.labelFull}
@@ -2144,6 +2146,11 @@ export function SearchExpertGrid({
                               {col.labelFull}
                             </TooltipContent>
                           </Tooltip>
+                          <ExpertGridWeekResizeHandle
+                            weekKey={col.weekKey}
+                            currentWidth={weekColumnWidths[col.weekKey] ?? SEARCH_EXPERT_WEEK_COL_WIDTH_PX}
+                            onResize={setWeekColumnWidth}
+                          />
                         </th>
                       ))}
                     </tr>
@@ -2833,21 +2840,27 @@ export function SearchExpertGrid({
                                   isMergedAnchorCell &&
                                   "text-foreground"
                               )
+                              const mergedAnchorWidthPx = mSpan
+                                ? mergedSpanWidthPx(
+                                    weekKeys,
+                                    mSpan.startWeekKey,
+                                    mSpan.endWeekKey,
+                                    weekColumnWidths,
+                                  )
+                                : null
                               renderedWeekCells.push(
                                 <td
                                   key={`${row.id}-${col.weekKey}`}
                                   colSpan={spanLen}
                                   style={
-                                    isMergedAnchorCell
+                                    isMergedAnchorCell && mergedAnchorWidthPx != null
                                       ? {
-                                          width: SEARCH_EXPERT_WEEK_COL_WIDTH_PX * spanLen,
-                                          minWidth:
-                                            SEARCH_EXPERT_WEEK_COL_WIDTH_PX * spanLen,
-                                          maxWidth:
-                                            SEARCH_EXPERT_WEEK_COL_WIDTH_PX * spanLen,
+                                          width: mergedAnchorWidthPx,
+                                          minWidth: mergedAnchorWidthPx,
+                                          maxWidth: mergedAnchorWidthPx,
                                           boxSizing: "border-box",
                                         }
-                                      : searchExpertWeekColLayoutStyle
+                                      : weekColStyle(col.weekKey, weekColumnWidths)
                                   }
                                   className={tdClassName}
                                   title={
@@ -3445,7 +3458,7 @@ export function SearchExpertGrid({
                         <td
                           key={`t-${col.weekKey}`}
                           style={{
-                            ...searchExpertWeekColLayoutStyle,
+                            ...weekColStyle(col.weekKey, weekColumnWidths),
                             ...searchExpertTotalsRowBgStyle,
                           }}
                           className="h-8 border-b border-r px-0.5 text-center text-xs tabular-nums align-middle"
