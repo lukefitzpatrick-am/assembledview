@@ -722,6 +722,15 @@ export async function generateMediaPlan(
     'Market', 'Publisher', '', 'Description', '', 'Start Date', 'End Date', '', 'Amount', '', '', '', 'Media'
   ];
 
+  const SUBTOTAL_SECTION_TYPES = new Set<string>(['OOH']);
+  const SUBTOTAL_KEY_BY_SECTION: Record<string, (it: GroupedItem) => string> = {
+    OOH:        (it) => `${it.network ?? ''} ${it.oohFormat ?? ''}`,
+    Press:      (it) => `${it.network ?? ''} ${it.title ?? ''}`,
+    Television: (it) => `${it.network ?? ''} ${it.station ?? ''}`,
+    Radio:      (it) => `${it.network ?? ''} ${it.station ?? ''}`,
+    Cinema:     (it) => `${it.network ?? ''} ${it.station ?? ''}`,
+  };
+
   type DrawSectionResult = {
     dataSectionStartRow: number;
     rowByItemIndex: number[];
@@ -802,10 +811,35 @@ export async function generateMediaPlan(
     const dataSectionStartRow = r;
     const rowByItemIndex: number[] = [];
     let subtotalCount = 0;
+
+    const subtotalEnabled = SUBTOTAL_SECTION_TYPES.has(sectionType);
+    const subtotalKeyFn = subtotalEnabled ? SUBTOTAL_KEY_BY_SECTION[sectionType] : undefined;
+
+    const emitSubtotalRow = (runSum: number) => {
+      for (let cIdx = firstDateCol; cIdx <= lastDateCol; cIdx++) {
+        sheet.getCell(r, cIdx).border = lightDashedBorder;
+      }
+      style(sheet.getCell(r, 13), { value: 'Subtotal ', fontSize: 15, align: 'right' });
+      style(sheet.getCell(r, 14), { value: runSum, numFmt: '$#,##0.00', align: 'right', fontSize: 15 });
+      r++;
+      subtotalCount++;
+    };
   
     // --- Data Row Rendering ---
     if (sectionHasItems) {
-      items.forEach(it => {
+      let prevSubtotalKey: string | null = null;
+      let runSum = 0;
+
+      for (const it of items) {
+        if (subtotalKeyFn) {
+          const key = subtotalKeyFn(it);
+          if (prevSubtotalKey !== null && key !== prevSubtotalKey) {
+            emitSubtotalRow(runSum);
+            runSum = 0;
+          }
+          prevSubtotalKey = key;
+        }
+
         rowByItemIndex.push(r);
         // FIX: Declared dataRowValues with `let` to be populated in the if/else blocks.
         let dataRowValues: any[];
@@ -982,8 +1016,15 @@ export async function generateMediaPlan(
         for (let cIdx = firstDateCol; cIdx <= lastDateCol; cIdx++) {
           sheet.getCell(r, cIdx).border = lightDashedBorder;
         }
+        if (subtotalKeyFn) {
+          runSum += it.grossMedia;
+        }
         r++;
-      });
+      }
+
+      if (subtotalKeyFn && prevSubtotalKey !== null) {
+        emitSubtotalRow(runSum);
+      }
     } else {
       // This logic for empty sections remains correct.
       for (let cIdx = firstDateCol; cIdx <= lastDateCol; cIdx++) {
