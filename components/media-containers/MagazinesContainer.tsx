@@ -27,7 +27,7 @@ import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { appendBurst, duplicateBurst, removeBurst, newBurstReactKey, stampBurstReactKeys } from "@/lib/mediaplan/burstOperations"
 import { serializeBurstsJson } from "@/lib/mediaplan/serializeBurstsJson"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
-import { assignStableLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
+import { assignStableLineItemNumbers, reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import {
   coerceBuyTypeWithDevWarn,
   computeDeliverableFromMedia,
@@ -464,6 +464,7 @@ const form = useForm<MagazinesFormValues>({
     useState(false)
   const [expertSegmentAttention, setExpertSegmentAttention] = useState(true)
   const magazinesExpertRowsBaselineRef = useRef("")
+  const reorderedRef = useRef(false)
   const magazinesExpertModalOpenRef = useRef(false)
   magazinesExpertModalOpenRef.current = magazinesExpertModalOpen
 
@@ -564,7 +565,11 @@ const form = useForm<MagazinesFormValues>({
       standard,
       prevLineItems as StandardMagazineFormLineItem[]
     )
-    const keyedMerged = stampBurstReactKeys(merged)
+    const orderedForApply = reorderedRef.current
+      ? reassignLineItemNumbers(merged, mbaNumber, MEDIA_TYPE_ID_CODES.magazines)
+      : merged
+    reorderedRef.current = false
+    const keyedMerged = stampBurstReactKeys(orderedForApply)
     form.setValue("magazineslineItems", keyedMerged as MagazinesFormValues["magazineslineItems"], {
       shouldDirty: true,
       shouldValidate: false,
@@ -2082,6 +2087,9 @@ useEffect(() => {
                 onRowsChange={handleExpertMagazinesRowsChange}
                 publishers={publishers}
                 magazines={magazines}
+                onReorder={() => {
+                  reorderedRef.current = true;
+                }}
               />
             </div>
           </ComboboxModalProvider>
