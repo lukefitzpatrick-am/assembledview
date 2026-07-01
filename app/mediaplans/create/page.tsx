@@ -28,9 +28,8 @@ import { SingleDatePicker } from "@/components/ui/single-date-picker"
 import { ChevronsUpDown, Check, Download, FileText, Loader2, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { formatMoney } from "@/lib/format/money"
-import { useSidebar } from "@/components/ui/sidebar"
 import { CampaignExportsSection } from "@/components/dashboard/CampaignExportsSection"
-import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
+import { PlanWizardShell } from "@/components/mediaplans/PlanWizardShell"
 import { sortByLabel } from "@/lib/utils/sort"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose, DialogDescription } from "@/components/ui/dialog"
@@ -400,8 +399,6 @@ export default function CreateMediaPlan() {
   //general and client info
   const router = useRouter()
   const pathname = usePathname()
-  const { setOpen: setSidebarOpen, isMobile: isSidebarMobile } = useSidebar()
-  const didCollapseSidebar = useRef(false)
   const [clients, setClients] = useState<Client[]>([])
   const [reportId, setReportId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -428,34 +425,6 @@ export default function CreateMediaPlan() {
     if (!navigationHydratedRef.current) return;
     setHasUnsavedChanges(true);
   }, []);
-  const stickyBarRef = useRef<HTMLDivElement | null>(null);
-  const [stickyBarHeight, setStickyBarHeight] = useState(0);
-
-  useEffect(() => {
-    const element = stickyBarRef.current;
-    if (!element) return;
-
-    const updateStickyBarHeight = () => {
-      setStickyBarHeight(element.getBoundingClientRect().height || 0);
-    };
-
-    updateStickyBarHeight();
-
-    if (typeof ResizeObserver === "undefined") {
-      window.addEventListener("resize", updateStickyBarHeight);
-      return () => window.removeEventListener("resize", updateStickyBarHeight);
-    }
-
-    const observer = new ResizeObserver(updateStickyBarHeight);
-    observer.observe(element);
-    window.addEventListener("resize", updateStickyBarHeight);
-
-    return () => {
-      observer.disconnect();
-      window.removeEventListener("resize", updateStickyBarHeight);
-    };
-  }, []);
-
   // Media type display names mapping
   const mediaTypeDisplayNames: Record<string, string> = {
     mp_television: 'Television',
@@ -1162,7 +1131,6 @@ export default function CreateMediaPlan() {
   const watchedClientName = useWatch({ control: form.control, name: "mp_client_name" })
   const watchedCampaignName = useWatch({ control: form.control, name: "mp_campaignname" })
   const watchedCampaignBudget = useWatch({ control: form.control, name: "mp_campaignbudget" })
-  const [activeStep, setActiveStep] = useState<CreateCampaignStepId>(createCampaignSteps[0].id)
   const currencyFormatter = new Intl.NumberFormat("en-AU", {
     style: "currency",
     currency: "AUD",
@@ -1196,70 +1164,6 @@ export default function CreateMediaPlan() {
         .filter((medium) => watchedMediaTypesMap[medium.name]),
     [mediaTypes, watchedMediaTypesMap]
   )
-
-  const [activeMediaChannel, setActiveMediaChannel] = useState<string | null>(null)
-
-  const activeStepIndex = createCampaignSteps.findIndex((step) => step.id === activeStep)
-
-  const scrollToMediaSection = useCallback((mediaName: string) => {
-    if (typeof window === "undefined") return;
-
-    window.setTimeout(() => {
-      document
-        .getElementById(`media-section-${mediaName}`)
-        ?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 0);
-  }, [])
-
-  useEffect(() => {
-    if (!didCollapseSidebar.current && !isSidebarMobile) {
-      setSidebarOpen(false)
-      didCollapseSidebar.current = true
-    }
-  }, [isSidebarMobile, setSidebarOpen])
-
-  useEffect(() => {
-    if (typeof IntersectionObserver === "undefined") return
-
-    const stepElements = createCampaignSteps
-      .map((step) => document.getElementById(step.id))
-      .filter((node): node is HTMLElement => Boolean(node))
-
-    const mediaElements = selectedChannels
-      .map((medium) => document.getElementById(`media-section-${medium.name}`))
-      .filter((node): node is HTMLElement => Boolean(node))
-
-    const observedElements = [...stepElements, ...mediaElements]
-    if (observedElements.length === 0) return
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)
-
-        const topTarget = visible[0]?.target
-        if (!topTarget?.id) return
-
-        if (topTarget.id.startsWith("media-section-")) {
-          setActiveStep("channel-allocation")
-          setActiveMediaChannel(topTarget.id.replace("media-section-", ""))
-          return
-        }
-
-        setActiveMediaChannel(null)
-        setActiveStep(topTarget.id as CreateCampaignStepId)
-      },
-      {
-        root: null,
-        rootMargin: "-18px 0px -62% 0px",
-        threshold: [0.2, 0.45, 0.7],
-      }
-    )
-
-    observedElements.forEach((node) => observer.observe(node))
-    return () => observer.disconnect()
-  }, [selectedChannels])
 
   /** Billing schedule preview: column visibility from calculated totals (not formatted strings). */
   const billingSchedulePreviewColumns = useMemo(() => {
@@ -5754,140 +5658,181 @@ const handleSaveAll = async () => {
       });
     }
   }, [getPageContext]);
+
+  const wizardRailSubItems = useMemo(
+    () =>
+      selectedChannels.length > 0
+        ? {
+            parentStepId: "channel-allocation" as const,
+            items: selectedChannels.map((channel) => ({
+              id: channel.name,
+              label: channel.label,
+              scrollTargetId: `media-section-${channel.name}`,
+            })),
+          }
+        : undefined,
+    [selectedChannels]
+  )
+
+  const wizardSummary = useMemo(
+    () => ({
+      title: watchedCampaignName || "Untitled campaign",
+      client: watchedClientName || "No client selected",
+      budget: currencyFormatter.format(Number(watchedCampaignBudget) || 0),
+      channels: selectedMediaCount,
+      status: "Draft",
+      budgetRemaining: formatMoney(budgetRemaining),
+    }),
+    [
+      watchedCampaignName,
+      watchedClientName,
+      watchedCampaignBudget,
+      selectedMediaCount,
+      budgetRemaining,
+      currencyFormatter,
+    ]
+  )
+
+  const isWizardSaving = isLoading || isPlanSaving || isVersionSaving
+
+  const wizardBottomBar = (
+    <>
+      {dateWarning.hasViolation ? (
+        <div className="rounded-card border border-pacing-critical bg-pacing-critical-bg px-3 py-2 text-xs font-medium text-status-critical-fg">
+          {dateWarning.offendingCount === 1
+            ? "1 line item has flight dates outside the campaign window"
+            : `${dateWarning.offendingCount} line items have flight dates outside the campaign window`}
+        </div>
+      ) : null}
+      <CampaignExportsSection
+        variant="embedded"
+        mbaNumber={mbaNumber?.trim() ? String(mbaNumber) : "—"}
+        lineItemCount={builderLineItemCount}
+        isBusy={
+          isDownloading ||
+          isDownloadingAa ||
+          isNamingDownloading ||
+          isLoading ||
+          isPlanSaving ||
+          isVersionSaving
+        }
+        ariaStatus=""
+        className="max-w-full flex-wrap justify-center"
+      >
+        <Button
+          type="button"
+          onClick={handleGenerateMBA}
+          disabled={isLoading}
+          className="h-9 shrink-0 rounded-pill bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+          <span className="ml-2">{isLoading ? "Generating..." : "Generate MBA"}</span>
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={handleSaveAll}
+          disabled={isWizardSaving}
+          className="h-9 shrink-0 rounded-pill border-border px-4 py-2 focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {isWizardSaving ? "Saving..." : "Save draft"}
+        </Button>
+        <Button
+          type="button"
+          onClick={handleDownloadMediaPlan}
+          disabled={
+            isDownloading ||
+            isDownloadingAa ||
+            isNamingDownloading ||
+            isWizardSaving
+          }
+          className="h-9 shrink-0 rounded-pill bg-accent px-4 py-2 text-foreground hover:bg-accent/90 focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+          <span className="ml-2">{isDownloading ? "Creating Media Plan..." : "Media Plan"}</span>
+        </Button>
+        <Button
+          type="button"
+          onClick={handleDownloadAdvertisingAssociatesMediaPlan}
+          disabled={
+            !hasAdvertisingAssociatesBilling ||
+            isDownloading ||
+            isDownloadingAa ||
+            isNamingDownloading ||
+            isWizardSaving
+          }
+          className={cn(
+            "h-9 shrink-0 rounded-pill bg-brand-dark px-4 py-2 text-primary-foreground hover:bg-brand-dark/90 focus-visible:ring-2 focus-visible:ring-ring",
+            !hasAdvertisingAssociatesBilling && "opacity-50"
+          )}
+        >
+          {isDownloadingAa ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+          <span className="ml-2">{isDownloadingAa ? "Creating AA Plan..." : "Media Plan (AA)"}</span>
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={handleDownloadNamingConventions}
+          disabled={
+            isDownloading ||
+            isDownloadingAa ||
+            isNamingDownloading ||
+            isWizardSaving
+          }
+          className="h-9 shrink-0 rounded-pill border-border px-4 py-2 focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {isNamingDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+          <span className="ml-2">{isNamingDownloading ? "Generating Names..." : "Naming Conventions"}</span>
+        </Button>
+        <Button
+          type="button"
+          onClick={handleSaveAndDownloadAll}
+          disabled={isLoading || isDownloading || isDownloadingAa || isWizardSaving}
+          className="h-9 shrink-0 rounded-pill bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {isLoading || isDownloading || isDownloadingAa || isWizardSaving ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <FileText className="h-4 w-4" />
+          )}
+          <span className="ml-2">
+            {isLoading || isDownloading || isDownloadingAa || isWizardSaving
+              ? "Processing..."
+              : "Save & Download"}
+          </span>
+        </Button>
+      </CampaignExportsSection>
+    </>
+  )
   
   return (
-    <div className="w-full min-h-screen overflow-visible pb-[env(safe-area-inset-bottom)]">
-      <div className="mx-auto w-full max-w-[1920px] space-y-6 overflow-visible px-4 pb-24 pt-0 sm:px-5 md:px-6 xl:px-8 2xl:px-10">
-        <MediaPlanEditorHero
-          className="mb-2"
-          title="Create a Campaign"
-          detail={
-            <p>Set up campaign details, select media types, and configure line items.</p>
-          }
-          actions={
-            <Button
-              variant="ghost"
-              size="sm"
-              type="button"
-              className="text-xs"
-              onClick={handleCopyPageContext}
-            >
-              Copy Context
-            </Button>
-          }
-        />
-        <div className="grid w-full grid-cols-1 items-start gap-5 overflow-visible xl:grid-cols-[220px_minmax(0,1fr)] xl:gap-6">
-          <aside className="scrollbar-thin flex flex-col gap-4 xl:sticky xl:top-4 xl:z-10 xl:max-h-[calc(100svh-5rem)] xl:self-start xl:overflow-y-auto xl:overscroll-contain">
-              <nav className="rounded-frame border border-border bg-card p-2.5 shadow-e1" aria-label="Create campaign progress">
-                <ol className="space-y-1">
-                  {createCampaignSteps.map((step, index) => {
-                    const isCurrent = step.id === activeStep
-                    const isPassed = index < activeStepIndex
-
-                    return (
-                      <li key={step.id}>
-                        <button
-                          type="button"
-                          onClick={() => document.getElementById(step.id)?.scrollIntoView({ behavior: "smooth", block: "start" })}
-                          className={cn(
-                            "group flex w-full items-center gap-2.5 rounded-card px-2.5 py-2 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                            isCurrent ? "bg-table-row-hover text-foreground shadow-e0" : "text-muted-foreground hover:bg-table-row-hover hover:text-foreground"
-                          )}
-                          aria-current={isCurrent ? "step" : undefined}
-                        >
-                          <span
-                            className={cn(
-                              "flex h-6 w-6 shrink-0 items-center justify-center rounded-pill border text-[10px] font-semibold num",
-                              isPassed
-                                ? "border-primary bg-primary text-primary-foreground"
-                                : isCurrent
-                                  ? "border-primary text-primary"
-                                  : "border-border bg-[var(--fill-track)] text-muted-foreground"
-                            )}
-                            aria-hidden="true"
-                          >
-                            {isPassed ? <Check className="h-3.5 w-3.5" /> : step.eyebrow}
-                          </span>
-                          <span className="font-medium">{step.label}</span>
-                        </button>
-                        {step.id === "channel-allocation" && selectedChannels.length > 0 ? (
-                          <ul className="ml-3 mt-1 space-y-0.5 border-l border-border/60 pl-2.5">
-                            {selectedChannels.map((channel) => {
-                              const isChannelActive = activeMediaChannel === channel.name
-                              return (
-                                <li key={channel.name}>
-                                  <button
-                                    type="button"
-                                    onClick={() => scrollToMediaSection(channel.name)}
-                                    className={cn(
-                                      "flex w-full rounded-input px-2 py-1.5 text-left text-[11px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                                      isChannelActive
-                                        ? "bg-table-row-hover font-medium text-foreground"
-                                        : "text-muted-foreground hover:bg-table-row-hover hover:text-foreground"
-                                    )}
-                                    aria-current={isChannelActive ? "true" : undefined}
-                                  >
-                                    {channel.label}
-                                  </button>
-                                </li>
-                              )
-                            })}
-                          </ul>
-                        ) : null}
-                      </li>
-                    )
-                  })}
-                </ol>
-              </nav>
-
-              <div className="rounded-frame border border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar-bg))] p-3 text-[hsl(var(--sidebar-foreground))] shadow-e1">
-                <div className="space-y-1">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--sidebar-foreground)/0.65)]">Draft Summary</p>
-                  <h2 className="text-sm font-semibold leading-tight">{watchedCampaignName || "Untitled campaign"}</h2>
-                  <p className="text-xs text-[hsl(var(--sidebar-foreground)/0.72)]">{watchedClientName || "No client selected"}</p>
-                </div>
-                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                  <div>
-                    <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--sidebar-foreground)/0.55)]">Budget</p>
-                    <p className="num font-semibold">{currencyFormatter.format(Number(watchedCampaignBudget) || 0)}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--sidebar-foreground)/0.55)]">Channels</p>
-                    <p className="num font-semibold">{selectedMediaCount}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--sidebar-foreground)/0.55)]">Budget remaining</p>
-                    <p className="num font-semibold">{formatMoney(budgetRemaining)}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--sidebar-foreground)/0.55)]">Status</p>
-                    <p className="font-semibold">Draft</p>
-                  </div>
-                </div>
-                <div className="mt-4 flex flex-col gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="w-full rounded-pill"
-                    onClick={handleSaveAll}
-                    disabled={isLoading || isPlanSaving || isVersionSaving}
-                  >
-                    {isLoading || isPlanSaving || isVersionSaving ? "Saving..." : "Save"}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="w-full rounded-pill border-primary bg-primary/10 text-primary hover:bg-primary/25 hover:text-primary"
-                    onClick={handleExit}
-                  >
-                    Exit
-                  </Button>
-                </div>
-              </div>
-          </aside>
-
-          <div className="min-w-0 space-y-6 overflow-visible">
+    <>
+      <PlanWizardShell
+        title="Create a Campaign"
+        subtitle={<p>Set up campaign details, select media types, and configure line items.</p>}
+        heroActions={
+          <Button
+            variant="ghost"
+            size="sm"
+            type="button"
+            className="text-xs"
+            onClick={handleCopyPageContext}
+          >
+            Copy Context
+          </Button>
+        }
+        steps={createCampaignSteps.map((step) => ({
+          id: step.id,
+          label: step.label,
+          sub: step.eyebrow,
+        }))}
+        railSubItems={wizardRailSubItems}
+        summary={wizardSummary}
+        onSave={handleSaveAll}
+        onExit={handleExit}
+        isSaving={isWizardSaving}
+        bottomBar={wizardBottomBar}
+      >
           <Form {...form}>
           <form className="space-y-6">
             <section id="campaign-setup" data-create-step className="scroll-mt-[18px] rounded-frame border border-border bg-card p-4 shadow-e1 sm:p-5">
@@ -7568,134 +7513,7 @@ const handleSaveAll = async () => {
             </section>
           </form>
           </Form>
-        </div>
-      </div>
-
-      <div
-        aria-hidden="true"
-        style={{ height: stickyBarHeight ? stickyBarHeight + 24 : 144 }}
-      />
-
-      <div
-        ref={stickyBarRef}
-        className="pointer-events-none fixed inset-x-0 bottom-0 z-40 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2"
-      >
-        <div className="mx-auto flex w-full max-w-[1920px] justify-center px-4 sm:px-5 md:px-6 xl:px-8 2xl:px-10">
-          <div className="pointer-events-auto flex min-w-0 max-w-full flex-col gap-2 rounded-frame border border-border/60 bg-card/85 px-3 py-2.5 shadow-e2 backdrop-blur-md sm:px-4">
-            {dateWarning.hasViolation ? (
-              <div className="rounded-card border border-pacing-critical bg-pacing-critical-bg px-3 py-2 text-xs font-medium text-status-critical-fg">
-                {dateWarning.offendingCount === 1
-                  ? "1 line item has flight dates outside the campaign window"
-                  : `${dateWarning.offendingCount} line items have flight dates outside the campaign window`}
-              </div>
-            ) : null}
-            <CampaignExportsSection
-              variant="embedded"
-              mbaNumber={mbaNumber?.trim() ? String(mbaNumber) : "—"}
-              lineItemCount={builderLineItemCount}
-              isBusy={
-                isDownloading ||
-                isDownloadingAa ||
-                isNamingDownloading ||
-                isLoading ||
-                isPlanSaving ||
-                isVersionSaving
-              }
-              ariaStatus=""
-              className="max-w-full flex-wrap justify-center"
-            >
-              <Button
-                type="button"
-                onClick={handleGenerateMBA}
-                disabled={isLoading}
-                className="h-9 shrink-0 rounded-pill bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-                <span className="ml-2">{isLoading ? "Generating..." : "Generate MBA"}</span>
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleSaveAll}
-                disabled={isLoading || isPlanSaving || isVersionSaving}
-                className="h-9 shrink-0 rounded-pill border-border px-4 py-2 focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                {isLoading || isPlanSaving || isVersionSaving ? "Saving..." : "Save draft"}
-              </Button>
-              <Button
-                type="button"
-                onClick={handleDownloadMediaPlan}
-                disabled={
-                  isDownloading ||
-                  isDownloadingAa ||
-                  isNamingDownloading ||
-                  isLoading ||
-                  isPlanSaving ||
-                  isVersionSaving
-                }
-                className="h-9 shrink-0 rounded-pill bg-accent px-4 py-2 text-foreground hover:bg-accent/90 focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                <span className="ml-2">{isDownloading ? "Creating Media Plan..." : "Media Plan"}</span>
-              </Button>
-              <Button
-                type="button"
-                onClick={handleDownloadAdvertisingAssociatesMediaPlan}
-                disabled={
-                  !hasAdvertisingAssociatesBilling ||
-                  isDownloading ||
-                  isDownloadingAa ||
-                  isNamingDownloading ||
-                  isLoading ||
-                  isPlanSaving ||
-                  isVersionSaving
-                }
-                className={cn(
-                  "h-9 shrink-0 rounded-pill bg-brand-dark px-4 py-2 text-primary-foreground hover:bg-brand-dark/90 focus-visible:ring-2 focus-visible:ring-ring",
-                  !hasAdvertisingAssociatesBilling && "opacity-50"
-                )}
-              >
-                {isDownloadingAa ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                <span className="ml-2">{isDownloadingAa ? "Creating AA Plan..." : "Media Plan (AA)"}</span>
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleDownloadNamingConventions}
-                disabled={
-                  isDownloading ||
-                  isDownloadingAa ||
-                  isNamingDownloading ||
-                  isLoading ||
-                  isPlanSaving ||
-                  isVersionSaving
-                }
-                className="h-9 shrink-0 rounded-pill border-border px-4 py-2 focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                {isNamingDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                <span className="ml-2">{isNamingDownloading ? "Generating Names..." : "Naming Conventions"}</span>
-              </Button>
-              <Button
-                type="button"
-                onClick={handleSaveAndDownloadAll}
-                disabled={isLoading || isDownloading || isDownloadingAa || isPlanSaving || isVersionSaving}
-                className="h-9 shrink-0 rounded-pill bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                {isLoading || isDownloading || isDownloadingAa || isPlanSaving || isVersionSaving ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <FileText className="h-4 w-4" />
-                )}
-                <span className="ml-2">
-                  {isLoading || isDownloading || isDownloadingAa || isPlanSaving || isVersionSaving
-                    ? "Processing..."
-                    : "Save & Download"}
-                </span>
-              </Button>
-            </CampaignExportsSection>
-          </div>
-        </div>
-      </div>
+      </PlanWizardShell>
 
       <Dialog
         open={isUnsavedPromptOpen}
@@ -7751,8 +7569,6 @@ const handleSaveAll = async () => {
           </div>
         </DialogContent>
       </Dialog>
-
-      </div>
-    </div>
+    </>
   )
 }
