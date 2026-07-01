@@ -192,6 +192,7 @@ import { checkLineItemDatesOutsideCampaign } from "@/lib/utils/mediaPlanValidati
 import { normaliseStatus } from "@/lib/mediaplan/campaignStatusGuard"
 import { clearVersionChildren, clearVersionKpis } from "@/lib/mediaplan/clearVersionChildren"
 import { MEDIA_TYPE_ID_CODES } from "@/lib/mediaplan/lineItemIds"
+import { MEDIA_TYPE_COLORS } from "@/lib/media/mediaTypes"
 import { reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 
 const CAMPAIGN_STATUS_OPTIONS = [
@@ -1453,6 +1454,15 @@ const mediaKeyMap: { [key: string]: string } = {
   mp_influencers: 'influencers',
   mp_production: 'production',
 };
+
+const argbToCssHex = (argb?: string) => {
+  const value = argb?.trim()
+  if (!value || value.length !== 8) return undefined
+  return `#${value.slice(2)}`
+}
+
+const getMediaTypeAccentColor = (mediaName: string) =>
+  argbToCssHex(MEDIA_TYPE_COLORS[mediaKeyMap[mediaName]])
 
 function setIfChanged<T>(setter: Dispatch<SetStateAction<T>>, next: T): boolean {
   let didChange = false
@@ -8974,18 +8984,24 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             </section>
 
             <section id="channel-allocation" className="scroll-mt-[18px] space-y-6">
-          <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm">
-            <div className="border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
+          <div className="rounded-card border border-border bg-surface-panel shadow-e0">
+            <div className="border-b border-border bg-[var(--fill-track)] px-6 pb-3 pt-5">
               <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Media Types</h3>
             </div>
-            <div className="grid min-h-0 w-full flex-1 grid-cols-1 content-start gap-x-3 gap-y-1.5 px-6 py-4 md:grid-cols-2">
-              {mediaTypes.map(({ name, label }) => {
-                const switchId = `media-type-${name}`
+            <div className="grid min-h-0 w-full grid-cols-2 content-start gap-2 px-6 py-4 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+              {mediaTypes.filter((medium) => medium.name !== "mp_fixedfee").map((medium) => {
+                const switchId = `media-type-${medium.name}`
+                const accentColor = getMediaTypeAccentColor(medium.name)
                 return (
-                  <div key={name} className="flex items-center gap-3 py-0.5">
+                  <div key={medium.name} className="flex items-center gap-3 rounded-card border border-border bg-card px-3 py-2 shadow-e0">
+                    <span
+                      className="h-8 w-1.5 shrink-0 rounded-pill"
+                      style={accentColor ? { backgroundColor: accentColor } : undefined}
+                      aria-hidden="true"
+                    />
                     <Controller
                       control={form.control}
-                      name={name as FormFieldName}
+                      name={medium.name as FormFieldName}
                       render={({ field }) => (
                         <Switch
                           id={switchId}
@@ -9006,13 +9022,226 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                       htmlFor={switchId}
                       className="font-normal leading-snug min-w-0 flex-1 cursor-pointer"
                     >
-                      {label}
+                      {medium.label}
                     </Label>
                   </div>
                 )
               })}
             </div>
           </div>
+
+            <section id="mba-billing" className="scroll-mt-[18px]">
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 xl:gap-7 2xl:gap-8 xl:items-stretch">
+            {/* MBA Details Section */}
+            <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm">
+              <div className="flex items-center justify-between border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
+                <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">MBA Details</h3>
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  {isPartialMBA ? (
+                    <>
+                      <Button variant="outline" size="sm" type="button" className="shrink-0" onClick={handlePartialMBAOpen}>
+                        Edit partial MBA
+                      </Button>
+                      <Button variant="outline" size="sm" type="button" className="shrink-0" onClick={() => setIsPartialMBA(false)}>
+                        Reset to Auto
+                      </Button>
+                    </>
+                  ) : (
+                    <Button variant="outline" size="sm" type="button" className="shrink-0" onClick={handlePartialMBAOpen}>
+                      Partial MBA
+                    </Button>
+                  )}
+                </div>
+              </div>
+              <div className="space-y-3 px-6 py-4">
+                {(() => {
+                  const deliveryMbaTotals = getDeliveryMbaTotals();
+                  const deliveryInvestmentExGst =
+                    deliveryMbaTotals.grossMedia +
+                    deliveryMbaTotals.assembledFee +
+                    deliveryMbaTotals.adServing +
+                    deliveryMbaTotals.production;
+                  return (
+                    <>
+                      {mediaTypes
+                        .filter((medium) => medium.name !== "mp_production")
+                        .filter((medium) => mediaFlagMap[medium.name as MediaTypeKey])
+                        .map((medium) => {
+                          const mediaKey = mediaKeyMap[medium.name];
+                          const total = isPartialMBA
+                            ? partialMBAValues.mediaTotals[mediaKey] || 0
+                            : deliveryMbaTotals.mediaCostsByKey[mediaKey] ?? 0;
+                          return (
+                            <div key={medium.name} className="flex items-center justify-between py-1">
+                              <span className="text-sm text-muted-foreground">{medium.label}</span>
+                              <span className="text-sm font-medium tabular-nums">
+                                {mbaCurrencyFormatter.format(total)}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      <div className="border-t border-border/40" />
+                      <div className="flex items-center justify-between py-1">
+                        <span className="text-sm font-semibold">Gross Media</span>
+                        <span className="text-sm font-semibold tabular-nums">
+                          {mbaCurrencyFormatter.format(
+                            isPartialMBA ? partialMBAValues.grossMedia : deliveryMbaTotals.grossMedia
+                          )}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between py-1">
+                        <span className="text-sm font-semibold">Assembled Fee</span>
+                        <span className="text-sm font-semibold tabular-nums">
+                          {mbaCurrencyFormatter.format(
+                            isPartialMBA ? partialMBAValues.assembledFee : deliveryMbaTotals.assembledFee
+                          )}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between py-1">
+                        <span className="text-sm font-semibold">Ad Serving & Tech</span>
+                        <span className="text-sm font-semibold tabular-nums">
+                          {mbaCurrencyFormatter.format(
+                            isPartialMBA ? partialMBAValues.adServing : deliveryMbaTotals.adServing
+                          )}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between py-1">
+                        <span className="text-sm font-semibold">Production</span>
+                        <span className="text-sm font-semibold tabular-nums">
+                          {mbaCurrencyFormatter.format(
+                            isPartialMBA ? partialMBAValues.production : deliveryMbaTotals.production
+                          )}
+                        </span>
+                      </div>
+                      <div className="border-t-2 border-primary/20 pt-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-bold">Total Investment (ex GST)</span>
+                          <span className="text-sm font-bold tabular-nums text-primary">
+                            {mbaCurrencyFormatter.format(
+                              isPartialMBA
+                                ? partialMBAValues.grossMedia +
+                                    partialMBAValues.assembledFee +
+                                    partialMBAValues.adServing +
+                                    partialMBAValues.production
+                                : deliveryInvestmentExGst
+                            )}
+                          </span>
+                        </div>
+                      </div>
+                      {isPartialMBA && partialApprovalMetadata?.note ? (
+                        <div className="mt-3 rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
+                          <div className="mb-1 font-semibold text-foreground">Partial approval changes</div>
+                          <div>{partialApprovalMetadata.note}</div>
+                        </div>
+                      ) : null}
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
+
+            {/* Billing Schedule Section — summary grid; detail/line edits are in Manual Billing. New months/media/lines merge in via append-only logic without full reset. */}
+            <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
+                <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Billing Schedule</h3>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="shrink-0"
+                    disabled={workingBillingMonths.length === 0}
+                    onClick={handleDownloadBillingScheduleExcel}
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    Download Excel
+                  </Button>
+                  <Button onClick={handleManualBillingOpen} type="button" className="shrink-0">
+                    Edit Billing
+                  </Button>
+                </div>
+              </div>
+              <div className="min-w-0 flex-1 overflow-x-auto px-6 py-4">
+              <Table className="min-w-[40rem]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Month</TableHead>
+                    <TableHead align="right">Media</TableHead>
+                    <TableHead align="right">Fees</TableHead>
+                    <TableHead align="right">Ad Serving</TableHead>
+                    <TableHead align="right">Production</TableHead>
+                    <TableHead align="right">Total</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {workingBillingMonths.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center text-muted-foreground">
+                        No billing schedule available. Select campaign dates to generate.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    workingBillingMonths.map(m => (
+                      <TableRow key={m.monthYear}>
+                        <TableCell>{m.monthYear}</TableCell>
+                        <TableCell align="right">{m.mediaTotal}</TableCell>
+                        <TableCell align="right">{m.feeTotal}</TableCell>
+                        <TableCell align="right">{m.adservingTechFees}</TableCell>
+                        <TableCell align="right">{m.production || "$0.00"}</TableCell>
+                        <TableCell align="right" className="font-semibold">{m.totalAmount}</TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                  {workingBillingMonths.length > 0 && (
+                    <TableRow className="font-bold">
+                      <TableCell>Grand Total</TableCell>
+                      <TableCell align="right">
+                        {new Intl.NumberFormat("en-AU", { style:"currency", currency:"AUD", minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                          .format(workingBillingMonths.reduce((acc, m) => acc + parseFloat(m.mediaTotal.replace(/[^0-9.-]/g,"")), 0))}
+                      </TableCell>
+                      <TableCell align="right">
+                        {new Intl.NumberFormat("en-AU", { style:"currency", currency:"AUD", minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                          .format(workingBillingMonths.reduce((acc, m) => acc + parseFloat(m.feeTotal.replace(/[^0-9.-]/g,"")), 0))}
+                      </TableCell>
+                      <TableCell align="right">
+                        {new Intl.NumberFormat("en-AU", { style:"currency", currency:"AUD", minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                          .format(workingBillingMonths.reduce((acc, m) => acc + parseFloat(m.adservingTechFees.replace(/[^0-9.-]/g,"")), 0))}
+                      </TableCell>
+                      <TableCell align="right">
+                        {new Intl.NumberFormat("en-AU", { style:"currency", currency:"AUD", minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                          .format(workingBillingMonths.reduce((acc, m) => acc + parseFloat((m.production || "$0").replace(/[^0-9.-]/g,"")), 0))}
+                      </TableCell>
+                      <TableCell align="right" className="font-semibold">{billingTotalDisplayFromWorking}</TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+              </div>
+            </div>
+
+              <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm">
+                <div className="border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
+                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">KPIs</h3>
+                </div>
+                <div className="px-4 py-3 overflow-x-auto">
+                  <KPISection
+                    host={createMediaPlanKpiHost({
+                      rows: kpiRows,
+                      setRows: setKpiRows,
+                      onResetSavedLayer: handleKPIReset,
+                    })}
+                    isLoading={isKPILoading}
+                    publishers={billingPublishers}
+                    onPublisherKpiAdded={async () => {
+                      const data = await getPublisherKPIs()
+                      setPublisherKPIs(data)
+                      setKpiTrigger((t) => t + 1)
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+            </section>
+
             <div className="relative pb-2 pt-8">
               <div className="absolute inset-x-0 top-4 h-px bg-border/50" />
               <h3 className="relative inline-block bg-background pr-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
@@ -9410,218 +9639,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                   </div>
                 );
               })}
-            </div>
-            </section>
-
-            <section id="mba-billing" className="scroll-mt-[18px]">
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 xl:gap-7 2xl:gap-8 xl:items-stretch">
-            {/* MBA Details Section */}
-            <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm">
-              <div className="flex items-center justify-between border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
-                <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">MBA Details</h3>
-                <div className="flex flex-wrap items-center justify-end gap-2">
-                  {isPartialMBA ? (
-                    <>
-                      <Button variant="outline" size="sm" type="button" className="shrink-0" onClick={handlePartialMBAOpen}>
-                        Edit partial MBA
-                      </Button>
-                      <Button variant="outline" size="sm" type="button" className="shrink-0" onClick={() => setIsPartialMBA(false)}>
-                        Reset to Auto
-                      </Button>
-                    </>
-                  ) : (
-                    <Button variant="outline" size="sm" type="button" className="shrink-0" onClick={handlePartialMBAOpen}>
-                      Partial MBA
-                    </Button>
-                  )}
-                </div>
-              </div>
-              <div className="space-y-3 px-6 py-4">
-                {(() => {
-                  const deliveryMbaTotals = getDeliveryMbaTotals();
-                  const deliveryInvestmentExGst =
-                    deliveryMbaTotals.grossMedia +
-                    deliveryMbaTotals.assembledFee +
-                    deliveryMbaTotals.adServing +
-                    deliveryMbaTotals.production;
-                  return (
-                    <>
-                      {mediaTypes
-                        .filter((medium) => medium.name !== "mp_production")
-                        .filter((medium) => mediaFlagMap[medium.name as MediaTypeKey])
-                        .map((medium) => {
-                          const mediaKey = mediaKeyMap[medium.name];
-                          const total = isPartialMBA
-                            ? partialMBAValues.mediaTotals[mediaKey] || 0
-                            : deliveryMbaTotals.mediaCostsByKey[mediaKey] ?? 0;
-                          return (
-                            <div key={medium.name} className="flex items-center justify-between py-1">
-                              <span className="text-sm text-muted-foreground">{medium.label}</span>
-                              <span className="text-sm font-medium tabular-nums">
-                                {mbaCurrencyFormatter.format(total)}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      <div className="border-t border-border/40" />
-                      <div className="flex items-center justify-between py-1">
-                        <span className="text-sm font-semibold">Gross Media</span>
-                        <span className="text-sm font-semibold tabular-nums">
-                          {mbaCurrencyFormatter.format(
-                            isPartialMBA ? partialMBAValues.grossMedia : deliveryMbaTotals.grossMedia
-                          )}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between py-1">
-                        <span className="text-sm font-semibold">Assembled Fee</span>
-                        <span className="text-sm font-semibold tabular-nums">
-                          {mbaCurrencyFormatter.format(
-                            isPartialMBA ? partialMBAValues.assembledFee : deliveryMbaTotals.assembledFee
-                          )}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between py-1">
-                        <span className="text-sm font-semibold">Ad Serving & Tech</span>
-                        <span className="text-sm font-semibold tabular-nums">
-                          {mbaCurrencyFormatter.format(
-                            isPartialMBA ? partialMBAValues.adServing : deliveryMbaTotals.adServing
-                          )}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between py-1">
-                        <span className="text-sm font-semibold">Production</span>
-                        <span className="text-sm font-semibold tabular-nums">
-                          {mbaCurrencyFormatter.format(
-                            isPartialMBA ? partialMBAValues.production : deliveryMbaTotals.production
-                          )}
-                        </span>
-                      </div>
-                      <div className="border-t-2 border-primary/20 pt-3">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-bold">Total Investment (ex GST)</span>
-                          <span className="text-sm font-bold tabular-nums text-primary">
-                            {mbaCurrencyFormatter.format(
-                              isPartialMBA
-                                ? partialMBAValues.grossMedia +
-                                    partialMBAValues.assembledFee +
-                                    partialMBAValues.adServing +
-                                    partialMBAValues.production
-                                : deliveryInvestmentExGst
-                            )}
-                          </span>
-                        </div>
-                      </div>
-                      {isPartialMBA && partialApprovalMetadata?.note ? (
-                        <div className="mt-3 rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
-                          <div className="mb-1 font-semibold text-foreground">Partial approval changes</div>
-                          <div>{partialApprovalMetadata.note}</div>
-                        </div>
-                      ) : null}
-                    </>
-                  );
-                })()}
-              </div>
-            </div>
-
-            {/* Billing Schedule Section — summary grid; detail/line edits are in Manual Billing. New months/media/lines merge in via append-only logic without full reset. */}
-            <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm">
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
-                <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Billing Schedule</h3>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="shrink-0"
-                    disabled={workingBillingMonths.length === 0}
-                    onClick={handleDownloadBillingScheduleExcel}
-                  >
-                    <Download className="mr-2 h-4 w-4" />
-                    Download Excel
-                  </Button>
-                  <Button onClick={handleManualBillingOpen} type="button" className="shrink-0">
-                    Edit Billing
-                  </Button>
-                </div>
-              </div>
-              <div className="min-w-0 flex-1 overflow-x-auto px-6 py-4">
-              <Table className="min-w-[40rem]">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Month</TableHead>
-                    <TableHead align="right">Media</TableHead>
-                    <TableHead align="right">Fees</TableHead>
-                    <TableHead align="right">Ad Serving</TableHead>
-                    <TableHead align="right">Production</TableHead>
-                    <TableHead align="right">Total</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {workingBillingMonths.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center text-muted-foreground">
-                        No billing schedule available. Select campaign dates to generate.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    workingBillingMonths.map(m => (
-                      <TableRow key={m.monthYear}>
-                        <TableCell>{m.monthYear}</TableCell>
-                        <TableCell align="right">{m.mediaTotal}</TableCell>
-                        <TableCell align="right">{m.feeTotal}</TableCell>
-                        <TableCell align="right">{m.adservingTechFees}</TableCell>
-                        <TableCell align="right">{m.production || "$0.00"}</TableCell>
-                        <TableCell align="right" className="font-semibold">{m.totalAmount}</TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                  {workingBillingMonths.length > 0 && (
-                    <TableRow className="font-bold">
-                      <TableCell>Grand Total</TableCell>
-                      <TableCell align="right">
-                        {new Intl.NumberFormat("en-AU", { style:"currency", currency:"AUD", minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                          .format(workingBillingMonths.reduce((acc, m) => acc + parseFloat(m.mediaTotal.replace(/[^0-9.-]/g,"")), 0))}
-                      </TableCell>
-                      <TableCell align="right">
-                        {new Intl.NumberFormat("en-AU", { style:"currency", currency:"AUD", minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                          .format(workingBillingMonths.reduce((acc, m) => acc + parseFloat(m.feeTotal.replace(/[^0-9.-]/g,"")), 0))}
-                      </TableCell>
-                      <TableCell align="right">
-                        {new Intl.NumberFormat("en-AU", { style:"currency", currency:"AUD", minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                          .format(workingBillingMonths.reduce((acc, m) => acc + parseFloat(m.adservingTechFees.replace(/[^0-9.-]/g,"")), 0))}
-                      </TableCell>
-                      <TableCell align="right">
-                        {new Intl.NumberFormat("en-AU", { style:"currency", currency:"AUD", minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                          .format(workingBillingMonths.reduce((acc, m) => acc + parseFloat((m.production || "$0").replace(/[^0-9.-]/g,"")), 0))}
-                      </TableCell>
-                      <TableCell align="right" className="font-semibold">{billingTotalDisplayFromWorking}</TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-              </div>
-            </div>
-
-              <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm">
-                <div className="border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
-                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">KPIs</h3>
-                </div>
-                <div className="px-4 py-3 overflow-x-auto">
-                  <KPISection
-                    host={createMediaPlanKpiHost({
-                      rows: kpiRows,
-                      setRows: setKpiRows,
-                      onResetSavedLayer: handleKPIReset,
-                    })}
-                    isLoading={isKPILoading}
-                    publishers={billingPublishers}
-                    onPublisherKpiAdded={async () => {
-                      const data = await getPublisherKPIs()
-                      setPublisherKPIs(data)
-                      setKpiTrigger((t) => t + 1)
-                    }}
-                  />
-                </div>
-              </div>
             </div>
             </section>
 
