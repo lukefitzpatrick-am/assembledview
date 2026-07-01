@@ -15,7 +15,16 @@ import {
   parse as parseDateFns,
   startOfDay,
 } from "date-fns"
-import { Copy, GitMerge, Grid3x3, Plus, Trash2, X } from "lucide-react"
+import {
+  ChevronsLeftRight,
+  ChevronsRightLeft,
+  Copy,
+  GitMerge,
+  Grid3x3,
+  Plus,
+  Trash2,
+  X,
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -100,9 +109,14 @@ import {
   rgbaFromHex,
 } from "@/lib/mediaplan/mediaTypeAccents"
 import {
+  buildDayColumnsForWeek,
   collapseDailyToWeekly,
+  expandWeekToDaily,
   weekDayKeys,
   weekHasDailyValues,
+  weekIsUniform,
+  type DayColumn,
+  type ExpertDailyValues,
 } from "@/lib/mediaplan/expertDayModel"
 
 
@@ -232,6 +246,9 @@ function normalizeRadioStationPaste(raw: string, stationNames: string[]): string
 }
 
 /** Row gross / raw cost from expert Σ qty × unit rate (see `lib/mediaplan/deliverableBudget`). */
+
+/** Fixed pixel width of one expanded day sub-column. */
+const DAY_COL_WIDTH_PX = 44
 
 /**
  * Invariant enforcement (single chokepoint, applied on every pushRows): a
@@ -472,6 +489,22 @@ export function RadioExpertGrid({
     }
     return out
   }, [weekColumns, campaignStartDate, campaignEndDate])
+  /** Full day-column descriptors per week (labels + dates for expanded render). */
+  const dayColumnsByWeekKey = useMemo<Record<string, readonly DayColumn[]>>(() => {
+    const out: Record<string, readonly DayColumn[]> = {}
+    for (const col of weekColumns) {
+      out[col.weekKey] = buildDayColumnsForWeek(
+        col,
+        campaignStartDate,
+        campaignEndDate
+      )
+    }
+    return out
+  }, [weekColumns, campaignStartDate, campaignEndDate])
+  /** Session-only view state: weeks currently expanded into day sub-columns. */
+  const [expandedWeekKeys, setExpandedWeekKeys] = useState<Set<string>>(
+    () => new Set()
+  )
 
   const [weekStripSelection, setWeekStripSelection] = useState<{
     rowIndex: number
@@ -1086,6 +1119,92 @@ export function RadioExpertGrid({
       )
     },
     [normalizedRows, pushRows, weekKeys]
+  )
+
+  /**
+   * Edit one day cell of an expanded week. First edit on a week without day
+   * detail materialises the week's even split (Rule 3) into `dailyValues` and
+   * blanks the week cell; the invariant chokepoint in pushRows keeps the two
+   * representations from ever coexisting.
+   */
+  const updateDailyCell = useCallback(
+    (rowIndex: number, weekKey: string, dayKey: string, raw: string) => {
+      const row = normalizedRows[rowIndex]
+      if (!row) return
+      // Merged weeks are edited via their anchor cell, never day cells.
+      if (findMergedSpanForWeek(row, weekKey, weekKeys)) return
+      const dayKeys = [...(dayKeysByWeekKey[weekKey] ?? [])]
+      if (dayKeys.length === 0) return
+
+      const nextDaily: ExpertDailyValues = { ...(row.dailyValues ?? {}) }
+      const hasDetail =
+        !!row.dailyValues && weekHasDailyValues(row.dailyValues, dayKeys)
+      if (!hasDetail) {
+        const split = expandWeekToDaily(
+          row.weeklyValues[weekKey] ?? "",
+          dayKeys
+        )
+        for (const k of dayKeys) nextDaily[k] = split[k] ?? 0
+      }
+
+      const cleaned = raw.replace(/[^\d.-]/g, "")
+      if (cleaned === "" || cleaned === "-") {
+        nextDaily[dayKey] = ""
+      } else {
+        const n = Number.parseFloat(cleaned)
+        if (!Number.isFinite(n)) return
+        nextDaily[dayKey] = n
+      }
+
+      const weeklyValues = { ...row.weeklyValues, [weekKey]: "" as const }
+      pushRows(
+        normalizedRows.map((r, i) =>
+          i === rowIndex ? { ...r, weeklyValues, dailyValues: nextDaily } : r
+        )
+      )
+    },
+    [dayKeysByWeekKey, normalizedRows, pushRows, weekKeys]
+  )
+
+  /**
+   * Expand/collapse a week column into day sub-columns (session-only view
+   * state). Collapsing tidies data per Rule 1: any row whose day detail for
+   * this week is uniform folds back to a single week-level value.
+   */
+  const toggleWeekExpanded = useCallback(
+    (weekKey: string) => {
+      const collapsing = expandedWeekKeys.has(weekKey)
+      setExpandedWeekKeys((prev) => {
+        const next = new Set(prev)
+        if (next.has(weekKey)) next.delete(weekKey)
+        else next.add(weekKey)
+        return next
+      })
+      if (!collapsing) return
+
+      const dayKeys = [...(dayKeysByWeekKey[weekKey] ?? [])]
+      if (dayKeys.length === 0) return
+      const rowsNow = normalizedRowsRef.current
+      let mutated = false
+      const folded = rowsNow.map((r) => {
+        if (!r.dailyValues || !weekHasDailyValues(r.dailyValues, dayKeys)) {
+          return r
+        }
+        if (!weekIsUniform(r.dailyValues, dayKeys)) return r
+        const sum = collapseDailyToWeekly(r.dailyValues, dayKeys)
+        const nextDaily = { ...r.dailyValues }
+        for (const k of dayKeys) delete nextDaily[k]
+        mutated = true
+        const weeklyValues = { ...r.weeklyValues, [weekKey]: sum }
+        if (Object.keys(nextDaily).length === 0) {
+          const { dailyValues: _omit, ...rest } = r
+          return { ...rest, weeklyValues }
+        }
+        return { ...r, weeklyValues, dailyValues: nextDaily }
+      })
+      if (mutated) pushRows(folded)
+    },
+    [dayKeysByWeekKey, expandedWeekKeys, pushRows]
   )
 
   const unmergeWeekSpan = useCallback(
@@ -2223,38 +2342,102 @@ export function RadioExpertGrid({
                           )}
                         </th>
                       ))}
-                      {weekColumns.map((col) => (
-                        <th
-                          key={col.weekKey}
-                          className={cn(stickyThWeek, "relative")}
-                          style={{
-                            ...weekColStyle(col.weekKey, weekColumnWidths),
-                            ...radioExpertHeaderCellBgStyle,
-                          }}
-                          title={col.labelFull}
-                        >
-                          <Tooltip>
-                            <TooltipTrigger asChild>
+                      {weekColumns.map((col) => {
+                        const dayCols = expandedWeekKeys.has(col.weekKey)
+                          ? dayColumnsByWeekKey[col.weekKey] ?? []
+                          : []
+                        if (dayCols.length > 0) {
+                          // Expanded week — one narrow header per campaign day.
+                          return dayCols.map((dayCol, di) => (
+                            <th
+                              key={`${col.weekKey}-${dayCol.dayKey}`}
+                              className={cn(stickyThWeek, "relative")}
+                              style={{
+                                width: DAY_COL_WIDTH_PX,
+                                minWidth: DAY_COL_WIDTH_PX,
+                                maxWidth: DAY_COL_WIDTH_PX,
+                                boxSizing: "border-box",
+                                ...radioExpertHeaderCellBgStyle,
+                              }}
+                              title={`${col.labelFull} — ${dayCol.dayKey}`}
+                            >
                               <span className="flex min-h-[3rem] w-full cursor-default items-center justify-center px-0.5 py-1">
-                                <span className="text-[11px] font-semibold uppercase leading-snug tracking-wider text-foreground tabular-nums">
-                                  {col.labelShort}
+                                <span className="text-[10px] font-semibold uppercase leading-snug tracking-wide text-muted-foreground tabular-nums">
+                                  {dayCol.labelShort}
                                 </span>
                               </span>
-                            </TooltipTrigger>
-                            <TooltipContent
-                              side="bottom"
-                              className="max-w-xs text-xs"
+                              {di === 0 ? (
+                                <button
+                                  type="button"
+                                  aria-label={`Collapse ${col.labelShort} back to one week column`}
+                                  title={`Collapse ${col.labelShort} back to one week column`}
+                                  className="absolute left-0 top-0 z-[5] flex h-4 w-4 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                                  onMouseDown={(e) => {
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                  }}
+                                  onClick={(e) => {
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                    toggleWeekExpanded(col.weekKey)
+                                  }}
+                                >
+                                  <ChevronsRightLeft className="h-3 w-3" />
+                                </button>
+                              ) : null}
+                            </th>
+                          ))
+                        }
+                        return (
+                          <th
+                            key={col.weekKey}
+                            className={cn(stickyThWeek, "relative")}
+                            style={{
+                              ...weekColStyle(col.weekKey, weekColumnWidths),
+                              ...radioExpertHeaderCellBgStyle,
+                            }}
+                            title={col.labelFull}
+                          >
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="flex min-h-[3rem] w-full cursor-default items-center justify-center px-0.5 py-1">
+                                  <span className="text-[11px] font-semibold uppercase leading-snug tracking-wider text-foreground tabular-nums">
+                                    {col.labelShort}
+                                  </span>
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent
+                                side="bottom"
+                                className="max-w-xs text-xs"
+                              >
+                                {col.labelFull}
+                              </TooltipContent>
+                            </Tooltip>
+                            <button
+                              type="button"
+                              aria-label={`Expand ${col.labelShort} into day columns`}
+                              title={`Expand ${col.labelShort} into day columns`}
+                              className="absolute left-0 top-0 z-[5] flex h-4 w-4 items-center justify-center rounded-sm text-muted-foreground/60 transition-colors hover:bg-muted hover:text-foreground"
+                              onMouseDown={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                              }}
+                              onClick={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                toggleWeekExpanded(col.weekKey)
+                              }}
                             >
-                              {col.labelFull}
-                            </TooltipContent>
-                          </Tooltip>
-                          <ExpertGridWeekResizeHandle
-                            weekKey={col.weekKey}
-                            currentWidth={weekColumnWidths[col.weekKey] ?? RADIO_EXPERT_WEEK_COL_WIDTH_PX}
-                            onResize={setWeekColumnWidth}
-                          />
-                        </th>
-                      ))}
+                              <ChevronsLeftRight className="h-3 w-3" />
+                            </button>
+                            <ExpertGridWeekResizeHandle
+                              weekKey={col.weekKey}
+                              currentWidth={weekColumnWidths[col.weekKey] ?? RADIO_EXPERT_WEEK_COL_WIDTH_PX}
+                              onResize={setWeekColumnWidth}
+                            />
+                          </th>
+                        )
+                      })}
                     </tr>
                   </thead>
                   <tbody>
@@ -2784,6 +2967,83 @@ export function RadioExpertGrid({
                                 ? [...spanMeta.weekKeysIncluded]
                                 : [col.weekKey]
                               const spanLen = Math.max(1, spanMeta?.spanLength ?? 1)
+                              // Column units: an expanded week occupies one
+                              // column per campaign day; collapsed weeks one.
+                              const spanUnits = spanKeys.reduce(
+                                (s, k) =>
+                                  s +
+                                  (expandedWeekKeys.has(k)
+                                    ? Math.max(
+                                        1,
+                                        (dayColumnsByWeekKey[k] ?? []).length
+                                      )
+                                    : 1),
+                                0
+                              )
+                              if (!mSpan && expandedWeekKeys.has(col.weekKey)) {
+                                const dayCols =
+                                  dayColumnsByWeekKey[col.weekKey] ?? []
+                                if (dayCols.length > 0) {
+                                  const dk = [
+                                    ...(dayKeysByWeekKey[col.weekKey] ?? []),
+                                  ]
+                                  const hasDetail =
+                                    !!row.dailyValues &&
+                                    weekHasDailyValues(row.dailyValues, dk)
+                                  const split = hasDetail
+                                    ? null
+                                    : expandWeekToDaily(
+                                        row.weeklyValues[col.weekKey] ?? "",
+                                        dk
+                                      )
+                                  for (const dayCol of dayCols) {
+                                    const rawV = hasDetail
+                                      ? row.dailyValues?.[dayCol.dayKey] ?? ""
+                                      : split?.[dayCol.dayKey] ?? ""
+                                    const displayV =
+                                      rawV === "" || rawV === 0
+                                        ? ""
+                                        : String(rawV)
+                                    renderedWeekCells.push(
+                                      <td
+                                        key={`${row.id}-${dayCol.dayKey}`}
+                                        className="border-b border-r p-0 align-middle bg-primary/[0.04]"
+                                        style={{
+                                          width: DAY_COL_WIDTH_PX,
+                                          minWidth: DAY_COL_WIDTH_PX,
+                                          maxWidth: DAY_COL_WIDTH_PX,
+                                          boxSizing: "border-box",
+                                        }}
+                                        title={
+                                          hasDetail
+                                            ? `Day value — ${dayCol.dayKey}`
+                                            : "Derived from the week's even split — editing saves day-level detail"
+                                        }
+                                      >
+                                        <Input
+                                          className={cn(
+                                            "box-border h-8 w-full min-w-0 max-w-full rounded-none border-0 bg-transparent px-0.5 text-center text-[11px] tabular-nums shadow-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-primary/55 focus-visible:ring-offset-0",
+                                            hasDetail
+                                              ? "text-foreground font-medium"
+                                              : "italic text-muted-foreground"
+                                          )}
+                                          inputMode="decimal"
+                                          value={displayV}
+                                          onChange={(e) =>
+                                            updateDailyCell(
+                                              rowIndex,
+                                              col.weekKey,
+                                              dayCol.dayKey,
+                                              e.target.value
+                                            )
+                                          }
+                                        />
+                                      </td>
+                                    )
+                                  }
+                                  continue
+                                }
+                              }
                               const dayKeysForWeek =
                                 dayKeysByWeekKey[col.weekKey] ?? []
                               const hasDayDetail =
@@ -3003,18 +3263,23 @@ export function RadioExpertGrid({
                                   isMergedAnchorCell &&
                                   "text-foreground"
                               )
-                              const mergedAnchorWidthPx = mSpan
-                                ? mergedSpanWidthPx(
-                                    weekKeys,
-                                    mSpan.startWeekKey,
-                                    mSpan.endWeekKey,
-                                    weekColumnWidths,
-                                  )
-                                : null
+                              // Pixel width only applies while every covered
+                              // week is collapsed; expanded weeks are sized by
+                              // their day sub-columns via colSpan.
+                              const mergedAnchorWidthPx =
+                                mSpan &&
+                                !spanKeys.some((k) => expandedWeekKeys.has(k))
+                                  ? mergedSpanWidthPx(
+                                      weekKeys,
+                                      mSpan.startWeekKey,
+                                      mSpan.endWeekKey,
+                                      weekColumnWidths,
+                                    )
+                                  : null
                               renderedWeekCells.push(
                                 <td
                                   key={`${row.id}-${col.weekKey}`}
-                                  colSpan={spanLen}
+                                  colSpan={spanUnits}
                                   style={
                                     isMergedAnchorCell && mergedAnchorWidthPx != null
                                       ? {
@@ -3619,25 +3884,40 @@ export function RadioExpertGrid({
                               })}
                         </div>
                       </td>
-                      {weekColumns.map((col) => (
-                        <td
-                          key={`t-${col.weekKey}`}
-                          style={{
-                            ...weekColStyle(col.weekKey, weekColumnWidths),
-                            ...radioExpertTotalsRowBgStyle,
-                          }}
-                          className="h-8 border-b border-r px-0.5 text-center text-xs tabular-nums align-middle"
-                        >
-                          <div className="flex h-full items-center justify-center">
-                            {containerTotals.perWeek[col.weekKey] === 0
-                              ? "—"
-                              : containerTotals.perWeek[col.weekKey].toLocaleString(
-                                  undefined,
-                                  { maximumFractionDigits: 2 }
-                                )}
-                          </div>
-                        </td>
-                      ))}
+                      {weekColumns.map((col) => {
+                        const units = expandedWeekKeys.has(col.weekKey)
+                          ? Math.max(
+                              1,
+                              (dayColumnsByWeekKey[col.weekKey] ?? []).length
+                            )
+                          : 1
+                        return (
+                          <td
+                            key={`t-${col.weekKey}`}
+                            colSpan={units}
+                            style={{
+                              ...(units === 1
+                                ? weekColStyle(col.weekKey, weekColumnWidths)
+                                : {
+                                    width: units * DAY_COL_WIDTH_PX,
+                                    minWidth: units * DAY_COL_WIDTH_PX,
+                                    boxSizing: "border-box",
+                                  }),
+                              ...radioExpertTotalsRowBgStyle,
+                            }}
+                            className="h-8 border-b border-r px-0.5 text-center text-xs tabular-nums align-middle"
+                          >
+                            <div className="flex h-full items-center justify-center">
+                              {containerTotals.perWeek[col.weekKey] === 0
+                                ? "—"
+                                : containerTotals.perWeek[col.weekKey].toLocaleString(
+                                    undefined,
+                                    { maximumFractionDigits: 2 }
+                                  )}
+                            </div>
+                          </td>
+                        )
+                      })}
                     </tr>
                   </tbody>
                 </table>
