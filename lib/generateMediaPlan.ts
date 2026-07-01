@@ -1,5 +1,6 @@
 import type ExcelJS from 'exceljs';
 import { prorateAcrossMonths } from '@/lib/billing/prorateAcrossMonths';
+import { OOH_FORMAT_LABEL_BY_VALUE } from '@/lib/mediaplan/expertOohFuzzyMatch';
 
 const KPI_MEDIA_LABELS: Record<string, string> = {
   television: 'Television', radio: 'Radio', newspaper: 'Newspaper',
@@ -899,7 +900,7 @@ export async function generateMediaPlan(
           dataRowValues = [
             it.market,
             it.network || '',
-            it.oohFormat || '',
+            (it.oohFormat && OOH_FORMAT_LABEL_BY_VALUE[it.oohFormat]) || it.oohFormat || '',
             it.placement || '',
             it.oohType || '',
             it.groupStartDate ? parseDateStringYYYYMMDD(it.groupStartDate) : null,
