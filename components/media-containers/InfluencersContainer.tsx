@@ -44,7 +44,7 @@ import {
 import type { LineItem } from '@/lib/generateMediaPlan'
 import { formatAUD, formatMoney, parseMoneyInput } from "@/lib/format/money"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
-import { assignStableLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
+import { assignStableLineItemNumbers, reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import {
   getMediaTypeThemeHex,
   mediaTypeAccentTextStyle,
@@ -318,6 +318,7 @@ export default function InfluencersContainer({
     useState(false)
   const [expertSegmentAttention, setExpertSegmentAttention] = useState(true)
   const influencersExpertRowsBaselineRef = useRef("")
+  const reorderedRef = useRef(false)
   const influencersExpertModalOpenRef = useRef(false)
   influencersExpertModalOpenRef.current = influencersExpertModalOpen
 
@@ -416,7 +417,11 @@ export default function InfluencersContainer({
       standard,
       prevLineItems as StandardInfluencersFormLineItem[]
     )
-    const keyedMerged = stampBurstReactKeys(merged)
+    const orderedForApply = reorderedRef.current
+      ? reassignLineItemNumbers(merged, mbaNumber, MEDIA_TYPE_ID_CODES.influencers)
+      : merged
+    reorderedRef.current = false
+    const keyedMerged = stampBurstReactKeys(orderedForApply)
     form.setValue("lineItems", keyedMerged as InfluencersFormValues["lineItems"], {
       shouldDirty: true,
       shouldValidate: false,
@@ -1770,6 +1775,9 @@ const getBursts = () => {
                 rows={expertInfluencersRows}
                 onRowsChange={handleExpertInfluencersRowsChange}
                 publishers={publishers}
+                onReorder={() => {
+                  reorderedRef.current = true;
+                }}
               />
             </div>
           </ComboboxModalProvider>
