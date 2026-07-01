@@ -121,7 +121,6 @@ import {
   compareBillingDivergence,
   type BillingDivergenceResult,
 } from "@/lib/billing/compareBillingDivergence"
-import { BillingDivergenceBanner } from "@/components/billing/BillingDivergenceBanner"
 import { BillingDivergenceModal } from "@/components/billing/BillingDivergenceModal"
 import { computeAdServingCost } from "@/lib/billing/computeAdServingCost"
 import { computeBillingAndDeliveryMonths } from "@/lib/billing/computeSchedule"
@@ -8925,9 +8924,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             </div>
 
             {/* Billing Schedule Section — summary grid; detail/line edits are in Manual Billing. New months/media/lines merge in via append-only logic without full reset. */}
-            {FF_BILLING_DIVERGENCE_ENABLED ? (
-              <BillingDivergenceBanner divergence={billingDivergence} />
-            ) : null}
             <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
                 <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Billing Schedule</h3>
