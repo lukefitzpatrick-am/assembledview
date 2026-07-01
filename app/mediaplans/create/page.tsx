@@ -2764,6 +2764,7 @@ export default function CreateMediaPlan() {
       const fvExport = form.getValues()
       mbaData = {
         gross_media: mediaTypes
+          .filter((medium) => medium.name !== "mp_production")
           .filter((medium) => Boolean(fvExport[medium.name as keyof MediaPlanFormValues]))
           .map((medium) => ({
             media_type: medium.label,
