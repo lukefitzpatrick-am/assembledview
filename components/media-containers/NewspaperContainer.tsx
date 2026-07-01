@@ -83,7 +83,7 @@ import {
 } from "@/lib/mediaplan/expertModeSwitch"
 import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
-import { assignStableLineItemNumbers, normalizeLineItemsForSave } from "@/lib/mediaplan/lineItemOrder"
+import { assignStableLineItemNumbers, normalizeLineItemsForSave, reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import {
   coerceBuyTypeWithDevWarn,
   computeDeliverableFromMedia,
@@ -466,6 +466,7 @@ const handleAddNewNewspaperAdSize = async () => {
     useState(false)
   const [expertSegmentAttention, setExpertSegmentAttention] = useState(true)
   const newspaperExpertRowsBaselineRef = useRef("")
+  const reorderedRef = useRef(false)
   const newspaperExpertModalOpenRef = useRef(false)
   newspaperExpertModalOpenRef.current = newspaperExpertModalOpen
 
@@ -566,7 +567,11 @@ const handleAddNewNewspaperAdSize = async () => {
       standard,
       prevLineItems as StandardNewspaperFormLineItem[]
     )
-    const keyedMerged = stampBurstReactKeys(merged)
+    const orderedForApply = reorderedRef.current
+      ? reassignLineItemNumbers(merged, mbaNumber, MEDIA_TYPE_ID_CODES.newspaper)
+      : merged
+    reorderedRef.current = false
+    const keyedMerged = stampBurstReactKeys(orderedForApply)
     form.setValue("newspaperlineItems", keyedMerged as NewspapersFormValues["newspaperlineItems"], {
       shouldDirty: true,
       shouldValidate: false,
@@ -2072,6 +2077,9 @@ useEffect(() => {
                 onRowsChange={handleExpertNewspaperRowsChange}
                 publishers={publishers}
                 newspapers={newspapers}
+                onReorder={() => {
+                  reorderedRef.current = true;
+                }}
               />
             </div>
           </ComboboxModalProvider>
