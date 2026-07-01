@@ -72,6 +72,7 @@ import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColu
 import {
   coerceBuyTypeWithDevWarn,
   computeDeliverableFromMedia,
+  computeLoadedDeliverables,
 } from "@/lib/mediaplan/deliverableBudget"
 import {
   CpcFamilyBurstCalculatedField,
@@ -476,6 +477,12 @@ export default function InfluencersContainer({
           buyAmount: burst.buyAmount || "",
           startDate: burst.startDate ? new Date(burst.startDate) : new Date(),
           endDate: burst.endDate ? new Date(burst.endDate) : new Date(),
+          calculatedValue: computeLoadedDeliverables(
+            item.buy_type || item.buyType || "",
+            burst,
+            Boolean(item.budget_includes_fees || item.budgetIncludesFees),
+            feeinfluencers ?? 0,
+          ),
         })) : [{
           budget: "",
           buyAmount: "",
