@@ -90,9 +90,8 @@ export function BarChart({
         barCategoryGap={layout === 'group' ? '22%' : '32%'}
       >
         <CartesianGrid vertical={false} horizontal={!horizontal} />
-        {horizontal ? <><XAxis type="number" tickFormatter={vf} {...axisProps} />
-          <YAxis dataKey={xKey} type="category" width={84} {...axisProps} /></>
-          : <>{cat}{num}</>}
+        {horizontal ? <XAxis type="number" tickFormatter={vf} {...axisProps} /> : cat}
+        {horizontal ? <YAxis dataKey={xKey} type="category" width={84} {...axisProps} /> : num}
         <ChartTooltip content={<ChartTooltipContent formatter={(v) => vf(Number(v))} />} />
         {filterLegend ? (
           <Legend
@@ -116,7 +115,7 @@ export function BarChart({
               dataKey={s.key}
               name={s.label}
               stackId={stackId}
-              fill={cfg[s.key]?.color as string}
+              fill={(cfg[s.key]?.color as string) ?? `var(--av-chart-${(i % 8) + 1})`}
               radius={
                 layout === 'group'
                   ? (horizontal ? [0, 3, 3, 0] : [3, 3, 0, 0])
