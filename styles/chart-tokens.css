@@ -1,0 +1,53 @@
+/* ============================================================
+   AssembledView — chart design tokens
+   Import once (e.g. in app/globals.css):  @import "./chart-tokens.css";
+   These power both the shadcn ChartContainer (--chart-N) and our
+   custom-SVG charts (--av-chart-*).
+   ============================================================ */
+
+:root {
+  /* Categorical — maps to shadcn --chart-1..8 */
+  --chart-1: 162 100% 28%;  /* #008E5E green  (HSL, shadcn convention) */
+  --chart-2: 210 53% 55%;   /* #4F8FCB blue   */
+  --chart-3: 38 82% 50%;    /* #E8A317 amber  */
+  --chart-4: 267 53% 30%;   /* #472477 purple */
+  --chart-5: 181 81% 43%;   /* #15C7C9 teal   */
+  --chart-6: 9 76% 57%;     /* #E5573E coral  */
+  --chart-7: 74 64% 52%;    /* #B5D337 lime   */
+  --chart-8: 194 79% 60%;   /* #49C7EB sky    */
+
+  /* Hex mirrors — convenient for custom SVG / inline styles */
+  --av-chart-1: #008E5E;
+  --av-chart-2: #4F8FCB;
+  --av-chart-3: #E8A317;
+  --av-chart-4: #472477;
+  --av-chart-5: #15C7C9;
+  --av-chart-6: #E5573E;
+  --av-chart-7: #B5D337;
+  --av-chart-8: #49C7EB;
+
+  /* Status */
+  --av-status-ahead:    #008E5E;
+  --av-status-ontrack:  #4F8FCB;
+  --av-status-behind:   #E8A317;
+  --av-status-critical: #E5573E;
+
+  /* Chart neutrals — light */
+  --av-grid:        #eef1ea;
+  --av-axis:        #9aa79e;
+  --av-label:       #6b7a70;
+  --av-ink:         #0F1D13;
+  --av-surface:     #ffffff;
+  --av-subsurface:  #fcfdfb;
+  --av-cursor:      #cfd6cd;
+}
+
+.dark {
+  --av-grid:        #1f2a22;
+  --av-axis:        #7c8a80;
+  --av-label:       #9fb0a4;
+  --av-ink:         #e6ede7;
+  --av-surface:     #11201a;
+  --av-subsurface:  #0d1813;
+  --av-cursor:      #2c3a31;
+}
