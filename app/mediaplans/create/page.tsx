@@ -5777,7 +5777,7 @@ const handleSaveAll = async () => {
           }
         />
         <div className="grid w-full grid-cols-1 items-start gap-5 overflow-visible xl:grid-cols-[220px_minmax(0,1fr)] xl:gap-6">
-          <aside className="flex flex-col gap-4 xl:sticky xl:top-4 xl:self-start xl:z-10 xl:max-h-[calc(100vh-2rem)] xl:overflow-y-auto">
+          <aside className="scrollbar-thin flex flex-col gap-4 xl:sticky xl:top-4 xl:z-10 xl:max-h-[calc(100svh-5rem)] xl:self-start xl:overflow-y-auto xl:overscroll-contain">
               <nav className="rounded-frame border border-border bg-card p-2.5 shadow-e1" aria-label="Create campaign progress">
                 <ol className="space-y-1">
                   {createCampaignSteps.map((step, index) => {
