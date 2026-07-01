@@ -30,7 +30,7 @@ import { appendBurst, duplicateBurst, removeBurst, newBurstReactKey, stampBurstR
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
-import { assignStableLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
+import { assignStableLineItemNumbers, reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import { resolveBillingBurstLineItemId } from "@/lib/billing/resolveBillingBurstLineItemId"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
@@ -244,6 +244,7 @@ export default function DigiAudioContainer({
   const [expertSegmentAttention, setExpertSegmentAttention] = useState(true)
   const digiAudioStandardBaselineRef = useRef("")
   const digiAudioExpertRowsBaselineRef = useRef("")
+  const reorderedRef = useRef(false)
   const digiAudioExpertModalOpenRef = useRef(false)
   digiAudioExpertModalOpenRef.current = digiAudioExpertModalOpen
 
@@ -496,7 +497,11 @@ export default function DigiAudioContainer({
       standard,
       prevLineItems as StandardDigiAudioFormLineItem[]
     )
-    const keyedMerged = stampBurstReactKeys(merged)
+    const orderedForApply = reorderedRef.current
+      ? reassignLineItemNumbers(merged, mbaNumber, MEDIA_TYPE_ID_CODES.digitalAudio)
+      : merged
+    reorderedRef.current = false
+    const keyedMerged = stampBurstReactKeys(orderedForApply)
     const clearedOverride = expertApplyClearedAdServingOverride(
       prevLineItems as any,
       keyedMerged as any
@@ -1969,6 +1974,9 @@ useEffect(() => {
                 onRowsChange={handleExpertDigiAudioRowsChange}
                 publishers={publishers}
                 digiAudioSites={audioSites}
+                onReorder={() => {
+                  reorderedRef.current = true;
+                }}
               />
             </div>
           </ComboboxModalProvider>
