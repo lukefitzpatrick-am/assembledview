@@ -6,7 +6,15 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { guides } from "@/src/data/learning/guides";
+import { accent, type AccentKey } from "@/src/lib/learning/accents";
+import { cn } from "@/lib/utils";
 import { Compass, Search } from "lucide-react";
+
+const GROUP_TONE: Record<string, AccentKey> = {
+  "Foundations": "green",
+  "Measurement & attribution": "purple",
+  "Australian essentials": "amber",
+};
 
 const COLLECTIONS = [
   { id: "2026", label: "2026 shifts" },
@@ -85,35 +93,40 @@ export default function GuidesPage() {
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {filtered
                 .filter((guide) => guide.group === group)
-                .map((guide) => (
-                  <Link
-                    key={guide.slug}
-                    href={`/knowledge/guides/${guide.slug}`}
-                    className="block h-full rounded-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                  >
-                    <Card className="h-full cursor-pointer rounded-card shadow-e1 transition hover:shadow-e2">
-                      <CardHeader className="pb-2">
-                        <div className="flex items-center gap-2">
-                          <Compass className="h-4 w-4 text-primary" />
-                          {guide.level ? (
-                            <Badge variant="outline" className="bg-surface-muted text-text-secondary border-border">
-                              {guide.level}
-                            </Badge>
-                          ) : null}
-                          {(guide.collections ?? []).map((collectionId) => (
-                            <Badge key={collectionId} variant="secondary">
-                              {collectionId === "au" ? "AU" : "2026"}
-                            </Badge>
-                          ))}
-                        </div>
-                        <CardTitle className="text-base pt-2">{guide.title}</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="text-sm text-muted-foreground">{guide.summary}</p>
-                      </CardContent>
-                    </Card>
-                  </Link>
-                ))}
+                .map((guide) => {
+                  const a = accent(GROUP_TONE[group] ?? "neutral");
+                  return (
+                    <Link
+                      key={guide.slug}
+                      href={`/knowledge/guides/${guide.slug}`}
+                      className="block h-full rounded-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    >
+                      <Card className={cn("h-full cursor-pointer rounded-card border-l-2 bg-card shadow-e1 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-e2", a.border)}>
+                        <CardHeader className="pb-2">
+                          <div className="flex items-center gap-2">
+                            <span className={cn("grid h-7 w-7 place-items-center rounded-card", a.chip)}>
+                              <Compass className="h-4 w-4" />
+                            </span>
+                            {guide.level ? (
+                              <Badge variant="outline" className="bg-surface-muted text-text-secondary border-border">
+                                {guide.level}
+                              </Badge>
+                            ) : null}
+                            {(guide.collections ?? []).map((collectionId) => (
+                              <Badge key={collectionId} variant="secondary">
+                                {collectionId === "au" ? "AU" : "2026"}
+                              </Badge>
+                            ))}
+                          </div>
+                          <CardTitle className="text-base pt-2">{guide.title}</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <p className="text-sm text-muted-foreground">{guide.summary}</p>
+                        </CardContent>
+                      </Card>
+                    </Link>
+                  );
+                })}
             </div>
           </div>
         ))}
