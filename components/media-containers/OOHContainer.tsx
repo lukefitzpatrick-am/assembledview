@@ -40,7 +40,10 @@ import {
   pickLineItemNumber,
   sortLineItemsByLineItemNumber,
 } from "@/lib/mediaplan/lineItemIds"
-import { assignStableLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
+import {
+  assignStableLineItemNumbers,
+  reassignOohLineItemNumbers,
+} from "@/lib/mediaplan/lineItemOrder"
 import { formatAUD, formatMoney, parseMoneyInput } from "@/lib/format/money"
 import {
   CpcFamilyBurstCalculatedField,
@@ -234,6 +237,7 @@ export default function OohContainer({
   /** Brief visual cue on Expert segment so users notice the toggle on first paint. */
   const [expertSegmentAttention, setExpertSegmentAttention] = useState(true);
   const oohExpertModalOpenRef = useRef(false);
+  const reorderedRef = useRef(false);
   const oohStandardBaselineRef = useRef<string>("");
   const oohExpertRowsBaselineRef = useRef<string>("");
   oohExpertModalOpenRef.current = oohExpertModalOpen;
@@ -415,7 +419,10 @@ export default function OohContainer({
       standard,
       prevLineItems as StandardOohFormLineItem[]
     );
-    const reassigned = assignStableLineItemNumbers<any>(merged, mbaNumber, MEDIA_TYPE_ID_CODES.ooh);
+    const reassigned = reorderedRef.current
+      ? reassignOohLineItemNumbers(merged, mbaNumber)
+      : assignStableLineItemNumbers<any>(merged, mbaNumber, MEDIA_TYPE_ID_CODES.ooh);
+    reorderedRef.current = false;
     const keyedMerged = stampBurstReactKeys(reassigned);
     form.setValue("lineItems", keyedMerged as any, { shouldDirty: true, shouldValidate: false });
     oohStandardBaselineRef.current = serializeOohStandardLineItemsBaseline(
@@ -1855,6 +1862,9 @@ useEffect(() => {
                 feeooh={feeooh}
                 rows={expertOohRows}
                 onRowsChange={handleExpertOohRowsChange}
+                onReorder={() => {
+                  reorderedRef.current = true;
+                }}
                 publishers={publishers}
               />
             </div>

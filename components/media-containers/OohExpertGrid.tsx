@@ -309,6 +309,8 @@ export interface OohExpertGridProps {
   onRowsChange: (rows: OohExpertScheduleRow[]) => void
   /** Publisher names for network fuzzy matching */
   publishers?: { publisher_name: string }[]
+  /** Fired after a drag reorder mutates row order (parent may track for apply-time renumbering). */
+  onReorder?: () => void
 }
 
 
@@ -363,6 +365,7 @@ export function OohExpertGrid({
   rows,
   onRowsChange,
   publishers = [],
+  onReorder,
 }: OohExpertGridProps) {
   const { toast } = useToast()
   const domGridId = useId().replace(/:/g, "")
@@ -648,8 +651,9 @@ export function OohExpertGrid({
       const [moved] = next.splice(fromIndex, 1)
       next.splice(toIndex, 0, moved)
       pushRows(next)
+      onReorder?.()
     },
-    [pushRows]
+    [pushRows, onReorder]
   )
 
   const resolveWeekDragSource = useCallback(
