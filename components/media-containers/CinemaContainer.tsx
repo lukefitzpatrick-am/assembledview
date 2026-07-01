@@ -39,6 +39,7 @@ import { formatAUD, formatMoney, parseMoneyInput } from "@/lib/format/money"
 import {
   coerceBuyTypeWithDevWarn,
   computeDeliverableFromMedia,
+  computeLoadedDeliverables,
   roundDeliverables,
 } from "@/lib/mediaplan/deliverableBudget"
 import {
@@ -494,7 +495,12 @@ export default function CinemaContainer({
             buyAmount: burst.buyAmount || "",
             startDate: burst.startDate ? new Date(burst.startDate) : new Date(),
             endDate: burst.endDate ? new Date(burst.endDate) : new Date(),
-            calculatedValue: cinemaBurstDeliverables(burst, buyType, item.budget_includes_fees || false),
+            calculatedValue: computeLoadedDeliverables(
+              item.buy_type || item.buyType || "",
+              burst,
+              Boolean(item.budget_includes_fees || item.budgetIncludesFees),
+              feecinema ?? 0,
+            ),
             fee: burst.fee ?? 0,
           })) : [{
             budget: "",
