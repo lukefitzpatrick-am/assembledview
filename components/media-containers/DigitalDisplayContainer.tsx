@@ -87,6 +87,7 @@ import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColu
 import {
   coerceBuyTypeWithDevWarn,
   computeDeliverableFromMedia,
+  computeLoadedDeliverables,
 } from "@/lib/mediaplan/deliverableBudget"
 
 const AD_SERVING_OVERRIDE_BURST_GRID =
@@ -722,7 +723,12 @@ export default function DigiDisplayContainer({
           buyAmount: burst.buyAmount != null ? String(burst.buyAmount) : "",
           startDate: burst.startDate ? new Date(burst.startDate) : defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
           endDate: burst.endDate ? new Date(burst.endDate) : defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
-          calculatedValue: typeof burst.calculatedValue === "number" ? burst.calculatedValue : (parseBudgetSafe(burst.calculatedValue) || 0),
+          calculatedValue: computeLoadedDeliverables(
+            item.buy_type || item.buyType || "",
+            burst,
+            Boolean(item.budget_includes_fees || item.budgetIncludesFees),
+            feedigidisplay ?? 0,
+          ),
           adServingRatePct: burst.adServingRatePct,
           adServingImpressions: burst.adServingImpressions,
         })) : [{
