@@ -1791,14 +1791,14 @@ function applyDeterministicIdForUpdate<T extends { mba_number?: string }>(
  * Handles both lineItem.bursts (array) and lineItem.bursts_json (string) cases.
  * Formats all burst fields with proper names and handles date serialization.
  */
-function parseBurstMoney(value: any): number {
+export function parseBurstMoney(value: any): number {
   if (typeof value === "number") return Number.isFinite(value) ? value : 0;
   if (typeof value !== "string") return 0;
   const parsed = Number.parseFloat(value.replace(/[^0-9.-]+/g, ""));
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function deriveFeePctFromSerializedBursts(
+export function deriveFeePctFromSerializedBursts(
   bursts: any[],
   budgetIncludesFees: boolean
 ): number {
@@ -1816,7 +1816,7 @@ function deriveFeePctFromSerializedBursts(
   return (feeAmount * 100) / (rawBudget + feeAmount);
 }
 
-function normalizeFeePct(value: any): number | undefined {
+export function normalizeFeePct(value: any): number | undefined {
   if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
   if (typeof value === "string" && value.trim()) {
     const parsed = Number.parseFloat(value);
@@ -1825,7 +1825,7 @@ function normalizeFeePct(value: any): number | undefined {
   return undefined;
 }
 
-function extractAndFormatBursts(lineItem: any, feePct?: number): any[] {
+export function extractAndFormatBursts(lineItem: any, feePct?: number): any[] {
   let bursts: any[] = [];
 
   // First, try to get bursts from lineItem.bursts (array) - matches radio schema
