@@ -704,6 +704,7 @@ export function serializeTelevisionExpertRowsBaseline(
       unitRate: r.unitRate,
       grossCost: r.grossCost,
       weeklyValues: r.weeklyValues,
+      dailyValues: r.dailyValues,
       mergedWeekSpans: r.mergedWeekSpans,
     }))
   )
@@ -834,6 +835,7 @@ export function serializeDigiVideoExpertRowsBaseline(
       unitRate: r.unitRate,
       grossCost: r.grossCost,
       weeklyValues: r.weeklyValues,
+      dailyValues: r.dailyValues,
       mergedWeekSpans: r.mergedWeekSpans,
     }))
   )
@@ -898,6 +900,7 @@ export function serializeDigiDisplayExpertRowsBaseline(
       unitRate: r.unitRate,
       grossCost: r.grossCost,
       weeklyValues: r.weeklyValues,
+      dailyValues: r.dailyValues,
       mergedWeekSpans: r.mergedWeekSpans,
     }))
   )
@@ -1023,6 +1026,7 @@ export function serializeSocialMediaExpertRowsBaseline(
       unitRate: r.unitRate,
       grossCost: r.grossCost,
       weeklyValues: r.weeklyValues,
+      dailyValues: r.dailyValues,
       mergedWeekSpans: r.mergedWeekSpans,
     }))
   )
@@ -1082,6 +1086,7 @@ export function serializeSearchExpertRowsBaseline(
       unitRate: r.unitRate,
       grossCost: r.grossCost,
       weeklyValues: r.weeklyValues,
+      dailyValues: r.dailyValues,
       mergedWeekSpans: r.mergedWeekSpans,
     }))
   )
@@ -1147,6 +1152,7 @@ export function serializeInfluencersExpertRowsBaseline(
       unitRate: r.unitRate,
       grossCost: r.grossCost,
       weeklyValues: r.weeklyValues,
+      dailyValues: r.dailyValues,
       mergedWeekSpans: r.mergedWeekSpans,
     }))
   )
@@ -1212,6 +1218,7 @@ export function serializeIntegrationExpertRowsBaseline(
       unitRate: r.unitRate,
       grossCost: r.grossCost,
       weeklyValues: r.weeklyValues,
+      dailyValues: r.dailyValues,
       mergedWeekSpans: r.mergedWeekSpans,
     }))
   )
@@ -1275,6 +1282,7 @@ export function serializeNewspaperExpertRowsBaseline(
       unitRate: r.unitRate,
       grossCost: r.grossCost,
       weeklyValues: r.weeklyValues,
+      dailyValues: r.dailyValues,
       mergedWeekSpans: r.mergedWeekSpans,
     }))
   )
@@ -1336,6 +1344,7 @@ export function serializeMagazinesExpertRowsBaseline(
       unitRate: r.unitRate,
       grossCost: r.grossCost,
       weeklyValues: r.weeklyValues,
+      dailyValues: r.dailyValues,
       mergedWeekSpans: r.mergedWeekSpans,
     }))
   )
@@ -1525,6 +1534,7 @@ export function serializeProgAudioExpertRowsBaseline(
     rows.map((r) => ({
       ...r,
       weeklyValues: r.weeklyValues,
+      dailyValues: r.dailyValues,
       mergedWeekSpans: r.mergedWeekSpans,
     }))
   )
@@ -1563,6 +1573,7 @@ export function serializeProgBvodExpertRowsBaseline(
     rows.map((r) => ({
       ...r,
       weeklyValues: r.weeklyValues,
+      dailyValues: r.dailyValues,
       mergedWeekSpans: r.mergedWeekSpans,
     }))
   )
@@ -1605,6 +1616,7 @@ export function serializeProgDisplayExpertRowsBaseline(
     rows.map((r) => ({
       ...r,
       weeklyValues: r.weeklyValues,
+      dailyValues: r.dailyValues,
       mergedWeekSpans: r.mergedWeekSpans,
     }))
   )
@@ -1647,6 +1659,7 @@ export function serializeProgVideoExpertRowsBaseline(
     rows.map((r) => ({
       ...r,
       weeklyValues: r.weeklyValues,
+      dailyValues: r.dailyValues,
       mergedWeekSpans: r.mergedWeekSpans,
     }))
   )
@@ -1691,6 +1704,7 @@ export function serializeProgOohExpertRowsBaseline(
     rows.map((r) => ({
       ...r,
       weeklyValues: r.weeklyValues,
+      dailyValues: r.dailyValues,
       mergedWeekSpans: r.mergedWeekSpans,
     }))
   )

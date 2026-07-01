@@ -144,6 +144,8 @@ export interface TelevisionExpertScheduleRow {
   unitRate: number | string
   grossCost: number
   weeklyValues: ExpertWeeklyValues
+  /** Opportunistic day-level detail. A week is day-detailed iff any of its day keys appear here. */
+  dailyValues?: ExpertDailyValues
   mergedWeekSpans: TelevisionExpertMergedWeekSpan[]
 }
 
@@ -214,6 +216,8 @@ export interface DigiVideoExpertScheduleRow {
   unitRate: number | string
   grossCost: number | string
   weeklyValues: ExpertWeeklyValues
+  /** Opportunistic day-level detail. A week is day-detailed iff any of its day keys appear here. */
+  dailyValues?: ExpertDailyValues
   mergedWeekSpans?: DigiVideoExpertMergedWeekSpan[]
 }
 
@@ -246,6 +250,8 @@ export interface DigitalDisplayExpertScheduleRow {
   unitRate: number | string
   grossCost: number | string
   weeklyValues: ExpertWeeklyValues
+  /** Opportunistic day-level detail. A week is day-detailed iff any of its day keys appear here. */
+  dailyValues?: ExpertDailyValues
   mergedWeekSpans?: DigitalDisplayExpertMergedWeekSpan[]
 }
 
@@ -306,6 +312,8 @@ export interface SocialMediaExpertScheduleRow {
   unitRate: number | string
   grossCost: number | string
   weeklyValues: ExpertWeeklyValues
+  /** Opportunistic day-level detail. A week is day-detailed iff any of its day keys appear here. */
+  dailyValues?: ExpertDailyValues
   mergedWeekSpans?: SocialMediaExpertMergedWeekSpan[]
 }
 
@@ -337,6 +345,8 @@ export interface SearchExpertScheduleRow {
   unitRate: number | string
   grossCost: number | string
   weeklyValues: ExpertWeeklyValues
+  /** Opportunistic day-level detail. A week is day-detailed iff any of its day keys appear here. */
+  dailyValues?: ExpertDailyValues
   mergedWeekSpans?: SearchExpertMergedWeekSpan[]
 }
 
@@ -365,6 +375,8 @@ export interface InfluencersExpertScheduleRow {
   unitRate: number | string
   grossCost: number | string
   weeklyValues: ExpertWeeklyValues
+  /** Opportunistic day-level detail. A week is day-detailed iff any of its day keys appear here. */
+  dailyValues?: ExpertDailyValues
   mergedWeekSpans?: InfluencersExpertMergedWeekSpan[]
 }
 
@@ -393,6 +405,8 @@ export interface IntegrationExpertScheduleRow {
   unitRate: number | string
   grossCost: number | string
   weeklyValues: ExpertWeeklyValues
+  /** Opportunistic day-level detail. A week is day-detailed iff any of its day keys appear here. */
+  dailyValues?: ExpertDailyValues
   mergedWeekSpans?: IntegrationExpertMergedWeekSpan[]
 }
 
@@ -426,6 +440,8 @@ export interface NewspaperExpertScheduleRow {
   unitRate: number | string
   grossCost: number | string
   weeklyValues: ExpertWeeklyValues
+  /** Opportunistic day-level detail. A week is day-detailed iff any of its day keys appear here. */
+  dailyValues?: ExpertDailyValues
   mergedWeekSpans?: NewspaperExpertMergedWeekSpan[]
 }
 
@@ -458,6 +474,8 @@ export interface MagazinesExpertScheduleRow {
   unitRate: number | string
   grossCost: number | string
   weeklyValues: ExpertWeeklyValues
+  /** Opportunistic day-level detail. A week is day-detailed iff any of its day keys appear here. */
+  dailyValues?: ExpertDailyValues
   mergedWeekSpans?: MagazinesExpertMergedWeekSpan[]
 }
 
@@ -490,6 +508,8 @@ export interface ProgAudioExpertScheduleRow {
   unitRate: number | string
   grossCost: number | string
   weeklyValues: ExpertWeeklyValues
+  /** Opportunistic day-level detail. A week is day-detailed iff any of its day keys appear here. */
+  dailyValues?: ExpertDailyValues
   mergedWeekSpans?: ProgExpertMergedWeekSpan[]
 }
 
@@ -519,6 +539,8 @@ export interface ProgBvodExpertScheduleRow {
   unitRate: number | string
   grossCost: number | string
   weeklyValues: ExpertWeeklyValues
+  /** Opportunistic day-level detail. A week is day-detailed iff any of its day keys appear here. */
+  dailyValues?: ExpertDailyValues
   mergedWeekSpans?: ProgExpertMergedWeekSpan[]
 }
 
@@ -548,6 +570,8 @@ export interface ProgDisplayExpertScheduleRow {
   unitRate: number | string
   grossCost: number | string
   weeklyValues: ExpertWeeklyValues
+  /** Opportunistic day-level detail. A week is day-detailed iff any of its day keys appear here. */
+  dailyValues?: ExpertDailyValues
   mergedWeekSpans?: ProgExpertMergedWeekSpan[]
 }
 
@@ -579,6 +603,8 @@ export interface ProgVideoExpertScheduleRow {
   unitRate: number | string
   grossCost: number | string
   weeklyValues: ExpertWeeklyValues
+  /** Opportunistic day-level detail. A week is day-detailed iff any of its day keys appear here. */
+  dailyValues?: ExpertDailyValues
   mergedWeekSpans?: ProgExpertMergedWeekSpan[]
 }
 
@@ -610,5 +636,7 @@ export interface ProgOohExpertScheduleRow {
   unitRate: number | string
   grossCost: number | string
   weeklyValues: ExpertWeeklyValues
+  /** Opportunistic day-level detail. A week is day-detailed iff any of its day keys appear here. */
+  dailyValues?: ExpertDailyValues
   mergedWeekSpans?: ProgExpertMergedWeekSpan[]
 }

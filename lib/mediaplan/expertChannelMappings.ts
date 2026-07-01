@@ -1946,19 +1946,16 @@ export function mapTvExpertRowsToStandardLineItems(
     const pushBurst = (
       qty: number,
       startCol: WeeklyGanttWeekColumn,
-      endCol: WeeklyGanttWeekColumn
+      endCol: WeeklyGanttWeekColumn,
+      dayOverride?: { start: Date; end: Date }
     ) => {
       if (!Number.isFinite(qty) || qty === 0) return
-      const { start } = burstWindowForWeekColumn(
-        startCol,
-        campaignStartDate,
-        campaignEndDate
-      )
-      const { end } = burstWindowForWeekColumn(
-        endCol,
-        campaignStartDate,
-        campaignEndDate
-      )
+      const start = dayOverride
+        ? dayOverride.start
+        : burstWindowForWeekColumn(startCol, campaignStartDate, campaignEndDate).start
+      const end = dayOverride
+        ? dayOverride.end
+        : burstWindowForWeekColumn(endCol, campaignStartDate, campaignEndDate).end
       const bt = coerceBuyTypeWithDevWarn(
         buyType,
         "mapTvExpertRowsToStandardLineItems.pushBurst"
@@ -1999,10 +1996,20 @@ export function mapTvExpertRowsToStandardLineItems(
 
     for (const col of weekColumns) {
       if (coveredByMerged.has(col.weekKey)) continue
+      const emitKeys = weekDayKeys(col, campaignStartDate, campaignEndDate)
+      if (row.dailyValues && weekHasDailyValues(row.dailyValues, emitKeys)) {
+        const dayCols = buildDayColumnsForWeek(col, campaignStartDate, campaignEndDate)
+        for (const db of emitDayBurstsForWeek(dayCols, row.dailyValues)) {
+          pushBurst(db.qty, col, col, { start: db.startDate, end: db.endDate })
+        }
+        continue
+      }
       const cell = row.weeklyValues[col.weekKey]
       if (cell === "" || cell === undefined) continue
+
       const qty = typeof cell === "number" ? cell : parseNum(cell)
       if (!Number.isFinite(qty)) continue
+
       pushBurst(qty, col, col)
     }
 
@@ -2059,6 +2066,7 @@ export function mapStandardTvLineItemsToExpertRows(
       weeklyValues[col.weekKey] = ""
     }
 
+    const dailyValues: ExpertDailyValues = {}
     for (const b of bursts) {
       const sd = b.startDate
       const ed = b.endDate ?? b.startDate
@@ -2085,6 +2093,22 @@ export function mapStandardTvLineItemsToExpertRows(
         sd,
         ed
       )
+      if (overlapKeys.length === 1) {
+        const week = weekColumns.find((c) => c.weekKey === overlapKeys[0])
+        const dayKeys = week
+          ? coveredDayKeysIfDayDetail(sd, ed, week, campaignStartDate, campaignEndDate)
+          : null
+        if (week && dayKeys && dayKeys.length > 0) {
+          const split = expandWeekToDaily(totalDeliverables, dayKeys)
+          for (const k of dayKeys) {
+            const prev = dailyValues[k]
+            const prevNum = prev === "" || prev === undefined ? 0 : Number(prev)
+            const addNum = split[k] === "" || split[k] === undefined ? 0 : Number(split[k])
+            dailyValues[k] = prevNum + addNum
+          }
+          continue
+        }
+      }
       distributeBurstDeliverablesToExpertWeeks(
         bt,
         totalDeliverables,
@@ -2148,6 +2172,7 @@ export function mapStandardTvLineItemsToExpertRows(
       unitRate: deriveTvStandardUnitRateFromBursts(bursts),
       grossCost: sumGrossBursts(bursts),
       weeklyValues,
+      ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
       mergedWeekSpans: [],
     }
   })
@@ -2764,18 +2789,19 @@ export function mapDigiVideoExpertRowsToStandardLineItems(
       }
     }
 
-    const pushBurst = (qty: number, startCol: WeeklyGanttWeekColumn, endCol: WeeklyGanttWeekColumn) => {
+    const pushBurst = (
+      qty: number,
+      startCol: WeeklyGanttWeekColumn,
+      endCol: WeeklyGanttWeekColumn,
+      dayOverride?: { start: Date; end: Date }
+    ) => {
       if (!Number.isFinite(qty) || qty === 0) return
-      const { start } = burstWindowForWeekColumn(
-        startCol,
-        campaignStartDate,
-        campaignEndDate
-      )
-      const { end } = burstWindowForWeekColumn(
-        endCol,
-        campaignStartDate,
-        campaignEndDate
-      )
+      const start = dayOverride
+        ? dayOverride.start
+        : burstWindowForWeekColumn(startCol, campaignStartDate, campaignEndDate).start
+      const end = dayOverride
+        ? dayOverride.end
+        : burstWindowForWeekColumn(endCol, campaignStartDate, campaignEndDate).end
       const grossBudget = expertRowRawCost(buyType, unitRate, qty)
       const rawBudget = grossBudget
       const netForCalc = oohNetBudgetForDeliverables(
@@ -2820,6 +2846,14 @@ export function mapDigiVideoExpertRowsToStandardLineItems(
 
     for (const col of weekColumns) {
       if (coveredByMerged.has(col.weekKey)) continue
+      const emitKeys = weekDayKeys(col, campaignStartDate, campaignEndDate)
+      if (row.dailyValues && weekHasDailyValues(row.dailyValues, emitKeys)) {
+        const dayCols = buildDayColumnsForWeek(col, campaignStartDate, campaignEndDate)
+        for (const db of emitDayBurstsForWeek(dayCols, row.dailyValues)) {
+          pushBurst(db.qty, col, col, { start: db.startDate, end: db.endDate })
+        }
+        continue
+      }
       const cell = row.weeklyValues[col.weekKey]
       if (cell === "" || cell === undefined) continue
 
@@ -2888,6 +2922,7 @@ export function mapStandardDigiVideoLineItemsToExpertRows(
     }[] = []
     let mergeIdx = 0
 
+    const dailyValues: ExpertDailyValues = {}
     for (const b of bursts) {
       const sd = b.startDate
       const ed = b.endDate ?? b.startDate
@@ -2910,6 +2945,20 @@ export function mapStandardDigiVideoLineItemsToExpertRows(
       }
 
       if (startKey === endKey) {
+        const dWeek = weekColumns.find((c) => c.weekKey === startKey)
+        const dKeys = dWeek
+          ? coveredDayKeysIfDayDetail(sd, ed, dWeek, campaignStartDate, campaignEndDate)
+          : null
+        if (dWeek && dKeys && dKeys.length > 0) {
+          const split = expandWeekToDaily(cellQty, dKeys)
+          for (const k of dKeys) {
+            const prevD = dailyValues[k]
+            const prevDNum = prevD === "" || prevD === undefined ? 0 : Number(prevD)
+            const addD = split[k] === "" || split[k] === undefined ? 0 : Number(split[k])
+            dailyValues[k] = prevDNum + addD
+          }
+          continue
+        }
         const prev = weeklyValues[startKey]
         const prevNum =
           prev === "" ? 0 : typeof prev === "number" ? prev : parseNum(prev)
@@ -2975,6 +3024,7 @@ export function mapStandardDigiVideoLineItemsToExpertRows(
       unitRate: deriveUnitRateFromBursts(bursts),
       grossCost: sumGrossBursts(bursts),
       weeklyValues,
+      ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
       mergedWeekSpans:
         mergedWeekSpans.length > 0 ? mergedWeekSpans : [],
     }
@@ -3156,18 +3206,19 @@ export function mapDigitalDisplayExpertRowsToStandardLineItems(
       }
     }
 
-    const pushBurst = (qty: number, startCol: WeeklyGanttWeekColumn, endCol: WeeklyGanttWeekColumn) => {
+    const pushBurst = (
+      qty: number,
+      startCol: WeeklyGanttWeekColumn,
+      endCol: WeeklyGanttWeekColumn,
+      dayOverride?: { start: Date; end: Date }
+    ) => {
       if (!Number.isFinite(qty) || qty === 0) return
-      const { start } = burstWindowForWeekColumn(
-        startCol,
-        campaignStartDate,
-        campaignEndDate
-      )
-      const { end } = burstWindowForWeekColumn(
-        endCol,
-        campaignStartDate,
-        campaignEndDate
-      )
+      const start = dayOverride
+        ? dayOverride.start
+        : burstWindowForWeekColumn(startCol, campaignStartDate, campaignEndDate).start
+      const end = dayOverride
+        ? dayOverride.end
+        : burstWindowForWeekColumn(endCol, campaignStartDate, campaignEndDate).end
       const grossBudget = expertRowRawCost(buyType, unitRate, qty)
       const rawBudget = grossBudget
       const netForCalc = oohNetBudgetForDeliverables(
@@ -3212,6 +3263,14 @@ export function mapDigitalDisplayExpertRowsToStandardLineItems(
 
     for (const col of weekColumns) {
       if (coveredByMerged.has(col.weekKey)) continue
+      const emitKeys = weekDayKeys(col, campaignStartDate, campaignEndDate)
+      if (row.dailyValues && weekHasDailyValues(row.dailyValues, emitKeys)) {
+        const dayCols = buildDayColumnsForWeek(col, campaignStartDate, campaignEndDate)
+        for (const db of emitDayBurstsForWeek(dayCols, row.dailyValues)) {
+          pushBurst(db.qty, col, col, { start: db.startDate, end: db.endDate })
+        }
+        continue
+      }
       const cell = row.weeklyValues[col.weekKey]
       if (cell === "" || cell === undefined) continue
 
@@ -3279,6 +3338,7 @@ export function mapStandardDigiDisplayLineItemsToExpertRows(
     }[] = []
     let mergeIdx = 0
 
+    const dailyValues: ExpertDailyValues = {}
     for (const b of bursts) {
       const sd = b.startDate
       const ed = b.endDate ?? b.startDate
@@ -3301,6 +3361,20 @@ export function mapStandardDigiDisplayLineItemsToExpertRows(
       }
 
       if (startKey === endKey) {
+        const dWeek = weekColumns.find((c) => c.weekKey === startKey)
+        const dKeys = dWeek
+          ? coveredDayKeysIfDayDetail(sd, ed, dWeek, campaignStartDate, campaignEndDate)
+          : null
+        if (dWeek && dKeys && dKeys.length > 0) {
+          const split = expandWeekToDaily(cellQty, dKeys)
+          for (const k of dKeys) {
+            const prevD = dailyValues[k]
+            const prevDNum = prevD === "" || prevD === undefined ? 0 : Number(prevD)
+            const addD = split[k] === "" || split[k] === undefined ? 0 : Number(split[k])
+            dailyValues[k] = prevDNum + addD
+          }
+          continue
+        }
         const prev = weeklyValues[startKey]
         const prevNum =
           prev === "" ? 0 : typeof prev === "number" ? prev : parseNum(prev)
@@ -3363,6 +3437,7 @@ export function mapStandardDigiDisplayLineItemsToExpertRows(
       unitRate: deriveUnitRateFromBursts(bursts),
       grossCost: sumGrossBursts(bursts),
       weeklyValues,
+      ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
       mergedWeekSpans:
         mergedWeekSpans.length > 0 ? mergedWeekSpans : [],
     }
@@ -3955,18 +4030,19 @@ export function mapSocialMediaExpertRowsToStandardLineItems(
       }
     }
 
-    const pushBurst = (qty: number, startCol: WeeklyGanttWeekColumn, endCol: WeeklyGanttWeekColumn) => {
+    const pushBurst = (
+      qty: number,
+      startCol: WeeklyGanttWeekColumn,
+      endCol: WeeklyGanttWeekColumn,
+      dayOverride?: { start: Date; end: Date }
+    ) => {
       if (!Number.isFinite(qty) || qty === 0) return
-      const { start } = burstWindowForWeekColumn(
-        startCol,
-        campaignStartDate,
-        campaignEndDate
-      )
-      const { end } = burstWindowForWeekColumn(
-        endCol,
-        campaignStartDate,
-        campaignEndDate
-      )
+      const start = dayOverride
+        ? dayOverride.start
+        : burstWindowForWeekColumn(startCol, campaignStartDate, campaignEndDate).start
+      const end = dayOverride
+        ? dayOverride.end
+        : burstWindowForWeekColumn(endCol, campaignStartDate, campaignEndDate).end
       const grossBudget = expertRowRawCost(buyType, unitRate, qty)
       const rawBudget = grossBudget
       const netForCalc = radioNetBudgetForDeliverables(
@@ -4011,6 +4087,14 @@ export function mapSocialMediaExpertRowsToStandardLineItems(
 
     for (const col of weekColumns) {
       if (coveredByMerged.has(col.weekKey)) continue
+      const emitKeys = weekDayKeys(col, campaignStartDate, campaignEndDate)
+      if (row.dailyValues && weekHasDailyValues(row.dailyValues, emitKeys)) {
+        const dayCols = buildDayColumnsForWeek(col, campaignStartDate, campaignEndDate)
+        for (const db of emitDayBurstsForWeek(dayCols, row.dailyValues)) {
+          pushBurst(db.qty, col, col, { start: db.startDate, end: db.endDate })
+        }
+        continue
+      }
       const cell = row.weeklyValues[col.weekKey]
       if (cell === "" || cell === undefined) continue
 
@@ -4074,6 +4158,7 @@ export function mapStandardSocialMediaLineItemsToExpertRows(
     }[] = []
     let mergeIdx = 0
 
+    const dailyValues: ExpertDailyValues = {}
     for (const b of bursts) {
       const sd = b.startDate
       const ed = b.endDate ?? b.startDate
@@ -4096,6 +4181,20 @@ export function mapStandardSocialMediaLineItemsToExpertRows(
       }
 
       if (startKey === endKey) {
+        const dWeek = weekColumns.find((c) => c.weekKey === startKey)
+        const dKeys = dWeek
+          ? coveredDayKeysIfDayDetail(sd, ed, dWeek, campaignStartDate, campaignEndDate)
+          : null
+        if (dWeek && dKeys && dKeys.length > 0) {
+          const split = expandWeekToDaily(cellQty, dKeys)
+          for (const k of dKeys) {
+            const prevD = dailyValues[k]
+            const prevDNum = prevD === "" || prevD === undefined ? 0 : Number(prevD)
+            const addD = split[k] === "" || split[k] === undefined ? 0 : Number(split[k])
+            dailyValues[k] = prevDNum + addD
+          }
+          continue
+        }
         const prev = weeklyValues[startKey]
         const prevNum =
           prev === "" ? 0 : typeof prev === "number" ? prev : parseNum(prev)
@@ -4152,6 +4251,7 @@ export function mapStandardSocialMediaLineItemsToExpertRows(
       unitRate: deriveUnitRateFromBursts(bursts),
       grossCost: sumGrossBursts(bursts),
       weeklyValues,
+      ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
       mergedWeekSpans:
         mergedWeekSpans.length > 0 ? mergedWeekSpans : [],
     }
@@ -4321,18 +4421,19 @@ export function mapSearchExpertRowsToStandardLineItems(
       }
     }
 
-    const pushBurst = (qty: number, startCol: WeeklyGanttWeekColumn, endCol: WeeklyGanttWeekColumn) => {
+    const pushBurst = (
+      qty: number,
+      startCol: WeeklyGanttWeekColumn,
+      endCol: WeeklyGanttWeekColumn,
+      dayOverride?: { start: Date; end: Date }
+    ) => {
       if (!Number.isFinite(qty) || qty === 0) return
-      const { start } = burstWindowForWeekColumn(
-        startCol,
-        campaignStartDate,
-        campaignEndDate
-      )
-      const { end } = burstWindowForWeekColumn(
-        endCol,
-        campaignStartDate,
-        campaignEndDate
-      )
+      const start = dayOverride
+        ? dayOverride.start
+        : burstWindowForWeekColumn(startCol, campaignStartDate, campaignEndDate).start
+      const end = dayOverride
+        ? dayOverride.end
+        : burstWindowForWeekColumn(endCol, campaignStartDate, campaignEndDate).end
       const grossBudget = expertRowRawCost(buyType, unitRate, qty)
       const rawBudget = grossBudget
       const netForCalc = radioNetBudgetForDeliverables(
@@ -4377,6 +4478,14 @@ export function mapSearchExpertRowsToStandardLineItems(
 
     for (const col of weekColumns) {
       if (coveredByMerged.has(col.weekKey)) continue
+      const emitKeys = weekDayKeys(col, campaignStartDate, campaignEndDate)
+      if (row.dailyValues && weekHasDailyValues(row.dailyValues, emitKeys)) {
+        const dayCols = buildDayColumnsForWeek(col, campaignStartDate, campaignEndDate)
+        for (const db of emitDayBurstsForWeek(dayCols, row.dailyValues)) {
+          pushBurst(db.qty, col, col, { start: db.startDate, end: db.endDate })
+        }
+        continue
+      }
       const cell = row.weeklyValues[col.weekKey]
       if (cell === "" || cell === undefined) continue
 
@@ -4440,6 +4549,7 @@ export function mapStandardSearchLineItemsToExpertRows(
     }[] = []
     let mergeIdx = 0
 
+    const dailyValues: ExpertDailyValues = {}
     for (const b of bursts) {
       const sd = b.startDate
       const ed = b.endDate ?? b.startDate
@@ -4462,6 +4572,20 @@ export function mapStandardSearchLineItemsToExpertRows(
       }
 
       if (startKey === endKey) {
+        const dWeek = weekColumns.find((c) => c.weekKey === startKey)
+        const dKeys = dWeek
+          ? coveredDayKeysIfDayDetail(sd, ed, dWeek, campaignStartDate, campaignEndDate)
+          : null
+        if (dWeek && dKeys && dKeys.length > 0) {
+          const split = expandWeekToDaily(cellQty, dKeys)
+          for (const k of dKeys) {
+            const prevD = dailyValues[k]
+            const prevDNum = prevD === "" || prevD === undefined ? 0 : Number(prevD)
+            const addD = split[k] === "" || split[k] === undefined ? 0 : Number(split[k])
+            dailyValues[k] = prevDNum + addD
+          }
+          continue
+        }
         const prev = weeklyValues[startKey]
         const prevNum =
           prev === "" ? 0 : typeof prev === "number" ? prev : parseNum(prev)
@@ -4523,6 +4647,7 @@ export function mapStandardSearchLineItemsToExpertRows(
       unitRate: deriveUnitRateFromBursts(bursts),
       grossCost: sumGrossBursts(bursts),
       weeklyValues,
+      ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
       mergedWeekSpans:
         mergedWeekSpans.length > 0 ? mergedWeekSpans : [],
     }
@@ -4697,18 +4822,19 @@ export function mapInfluencersExpertRowsToStandardLineItems(
       }
     }
 
-    const pushBurst = (qty: number, startCol: WeeklyGanttWeekColumn, endCol: WeeklyGanttWeekColumn) => {
+    const pushBurst = (
+      qty: number,
+      startCol: WeeklyGanttWeekColumn,
+      endCol: WeeklyGanttWeekColumn,
+      dayOverride?: { start: Date; end: Date }
+    ) => {
       if (!Number.isFinite(qty) || qty === 0) return
-      const { start } = burstWindowForWeekColumn(
-        startCol,
-        campaignStartDate,
-        campaignEndDate
-      )
-      const { end } = burstWindowForWeekColumn(
-        endCol,
-        campaignStartDate,
-        campaignEndDate
-      )
+      const start = dayOverride
+        ? dayOverride.start
+        : burstWindowForWeekColumn(startCol, campaignStartDate, campaignEndDate).start
+      const end = dayOverride
+        ? dayOverride.end
+        : burstWindowForWeekColumn(endCol, campaignStartDate, campaignEndDate).end
       const grossBudget = expertRowRawCost(buyType, unitRate, qty)
       const rawBudget = grossBudget
       const netForCalc = radioNetBudgetForDeliverables(
@@ -4753,6 +4879,14 @@ export function mapInfluencersExpertRowsToStandardLineItems(
 
     for (const col of weekColumns) {
       if (coveredByMerged.has(col.weekKey)) continue
+      const emitKeys = weekDayKeys(col, campaignStartDate, campaignEndDate)
+      if (row.dailyValues && weekHasDailyValues(row.dailyValues, emitKeys)) {
+        const dayCols = buildDayColumnsForWeek(col, campaignStartDate, campaignEndDate)
+        for (const db of emitDayBurstsForWeek(dayCols, row.dailyValues)) {
+          pushBurst(db.qty, col, col, { start: db.startDate, end: db.endDate })
+        }
+        continue
+      }
       const cell = row.weeklyValues[col.weekKey]
       if (cell === "" || cell === undefined) continue
 
@@ -4819,6 +4953,7 @@ export function mapStandardInfluencersLineItemsToExpertRows(
     }[] = []
     let mergeIdx = 0
 
+    const dailyValues: ExpertDailyValues = {}
     for (const b of bursts) {
       const sd = b.startDate
       const ed = b.endDate ?? b.startDate
@@ -4841,6 +4976,20 @@ export function mapStandardInfluencersLineItemsToExpertRows(
       }
 
       if (startKey === endKey) {
+        const dWeek = weekColumns.find((c) => c.weekKey === startKey)
+        const dKeys = dWeek
+          ? coveredDayKeysIfDayDetail(sd, ed, dWeek, campaignStartDate, campaignEndDate)
+          : null
+        if (dWeek && dKeys && dKeys.length > 0) {
+          const split = expandWeekToDaily(cellQty, dKeys)
+          for (const k of dKeys) {
+            const prevD = dailyValues[k]
+            const prevDNum = prevD === "" || prevD === undefined ? 0 : Number(prevD)
+            const addD = split[k] === "" || split[k] === undefined ? 0 : Number(split[k])
+            dailyValues[k] = prevDNum + addD
+          }
+          continue
+        }
         const prev = weeklyValues[startKey]
         const prevNum =
           prev === "" ? 0 : typeof prev === "number" ? prev : parseNum(prev)
@@ -4902,6 +5051,7 @@ export function mapStandardInfluencersLineItemsToExpertRows(
       unitRate: deriveUnitRateFromBursts(bursts),
       grossCost: sumGrossBursts(bursts),
       weeklyValues,
+      ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
       mergedWeekSpans:
         mergedWeekSpans.length > 0 ? mergedWeekSpans : [],
     }
@@ -5076,18 +5226,19 @@ export function mapIntegrationExpertRowsToStandardLineItems(
       }
     }
 
-    const pushBurst = (qty: number, startCol: WeeklyGanttWeekColumn, endCol: WeeklyGanttWeekColumn) => {
+    const pushBurst = (
+      qty: number,
+      startCol: WeeklyGanttWeekColumn,
+      endCol: WeeklyGanttWeekColumn,
+      dayOverride?: { start: Date; end: Date }
+    ) => {
       if (!Number.isFinite(qty) || qty === 0) return
-      const { start } = burstWindowForWeekColumn(
-        startCol,
-        campaignStartDate,
-        campaignEndDate
-      )
-      const { end } = burstWindowForWeekColumn(
-        endCol,
-        campaignStartDate,
-        campaignEndDate
-      )
+      const start = dayOverride
+        ? dayOverride.start
+        : burstWindowForWeekColumn(startCol, campaignStartDate, campaignEndDate).start
+      const end = dayOverride
+        ? dayOverride.end
+        : burstWindowForWeekColumn(endCol, campaignStartDate, campaignEndDate).end
       const grossBudget = expertRowRawCost(buyType, unitRate, qty)
       const rawBudget = grossBudget
       const netForCalc = radioNetBudgetForDeliverables(
@@ -5132,6 +5283,14 @@ export function mapIntegrationExpertRowsToStandardLineItems(
 
     for (const col of weekColumns) {
       if (coveredByMerged.has(col.weekKey)) continue
+      const emitKeys = weekDayKeys(col, campaignStartDate, campaignEndDate)
+      if (row.dailyValues && weekHasDailyValues(row.dailyValues, emitKeys)) {
+        const dayCols = buildDayColumnsForWeek(col, campaignStartDate, campaignEndDate)
+        for (const db of emitDayBurstsForWeek(dayCols, row.dailyValues)) {
+          pushBurst(db.qty, col, col, { start: db.startDate, end: db.endDate })
+        }
+        continue
+      }
       const cell = row.weeklyValues[col.weekKey]
       if (cell === "" || cell === undefined) continue
 
@@ -5198,6 +5357,7 @@ export function mapStandardIntegrationLineItemsToExpertRows(
     }[] = []
     let mergeIdx = 0
 
+    const dailyValues: ExpertDailyValues = {}
     for (const b of bursts) {
       const sd = b.startDate
       const ed = b.endDate ?? b.startDate
@@ -5220,6 +5380,20 @@ export function mapStandardIntegrationLineItemsToExpertRows(
       }
 
       if (startKey === endKey) {
+        const dWeek = weekColumns.find((c) => c.weekKey === startKey)
+        const dKeys = dWeek
+          ? coveredDayKeysIfDayDetail(sd, ed, dWeek, campaignStartDate, campaignEndDate)
+          : null
+        if (dWeek && dKeys && dKeys.length > 0) {
+          const split = expandWeekToDaily(cellQty, dKeys)
+          for (const k of dKeys) {
+            const prevD = dailyValues[k]
+            const prevDNum = prevD === "" || prevD === undefined ? 0 : Number(prevD)
+            const addD = split[k] === "" || split[k] === undefined ? 0 : Number(split[k])
+            dailyValues[k] = prevDNum + addD
+          }
+          continue
+        }
         const prev = weeklyValues[startKey]
         const prevNum =
           prev === "" ? 0 : typeof prev === "number" ? prev : parseNum(prev)
@@ -5281,6 +5455,7 @@ export function mapStandardIntegrationLineItemsToExpertRows(
       unitRate: deriveUnitRateFromBursts(bursts),
       grossCost: sumGrossBursts(bursts),
       weeklyValues,
+      ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
       mergedWeekSpans:
         mergedWeekSpans.length > 0 ? mergedWeekSpans : [],
     }
@@ -5397,18 +5572,19 @@ export function mapNewspaperExpertRowsToStandardLineItems(
       }
     }
 
-    const pushBurst = (qty: number, startCol: WeeklyGanttWeekColumn, endCol: WeeklyGanttWeekColumn) => {
+    const pushBurst = (
+      qty: number,
+      startCol: WeeklyGanttWeekColumn,
+      endCol: WeeklyGanttWeekColumn,
+      dayOverride?: { start: Date; end: Date }
+    ) => {
       if (!Number.isFinite(qty) || qty === 0) return
-      const { start } = burstWindowForWeekColumn(
-        startCol,
-        campaignStartDate,
-        campaignEndDate
-      )
-      const { end } = burstWindowForWeekColumn(
-        endCol,
-        campaignStartDate,
-        campaignEndDate
-      )
+      const start = dayOverride
+        ? dayOverride.start
+        : burstWindowForWeekColumn(startCol, campaignStartDate, campaignEndDate).start
+      const end = dayOverride
+        ? dayOverride.end
+        : burstWindowForWeekColumn(endCol, campaignStartDate, campaignEndDate).end
       const grossBudget = expertRowRawCost(buyType, unitRate, qty)
       const rawBudget = grossBudget
       const netForCalc = radioNetBudgetForDeliverables(
@@ -5453,6 +5629,14 @@ export function mapNewspaperExpertRowsToStandardLineItems(
 
     for (const col of weekColumns) {
       if (coveredByMerged.has(col.weekKey)) continue
+      const emitKeys = weekDayKeys(col, campaignStartDate, campaignEndDate)
+      if (row.dailyValues && weekHasDailyValues(row.dailyValues, emitKeys)) {
+        const dayCols = buildDayColumnsForWeek(col, campaignStartDate, campaignEndDate)
+        for (const db of emitDayBurstsForWeek(dayCols, row.dailyValues)) {
+          pushBurst(db.qty, col, col, { start: db.startDate, end: db.endDate })
+        }
+        continue
+      }
       const cell = row.weeklyValues[col.weekKey]
       if (cell === "" || cell === undefined) continue
 
@@ -5518,6 +5702,7 @@ export function mapStandardNewspaperLineItemsToExpertRows(
     }[] = []
     let mergeIdx = 0
 
+    const dailyValues: ExpertDailyValues = {}
     for (const b of bursts) {
       const sd = b.startDate
       const ed = b.endDate ?? b.startDate
@@ -5541,6 +5726,20 @@ export function mapStandardNewspaperLineItemsToExpertRows(
       }
 
       if (startKey === endKey) {
+        const dWeek = weekColumns.find((c) => c.weekKey === startKey)
+        const dKeys = dWeek
+          ? coveredDayKeysIfDayDetail(sd, ed, dWeek, campaignStartDate, campaignEndDate)
+          : null
+        if (dWeek && dKeys && dKeys.length > 0) {
+          const split = expandWeekToDaily(cellQty, dKeys)
+          for (const k of dKeys) {
+            const prevD = dailyValues[k]
+            const prevDNum = prevD === "" || prevD === undefined ? 0 : Number(prevD)
+            const addD = split[k] === "" || split[k] === undefined ? 0 : Number(split[k])
+            dailyValues[k] = prevDNum + addD
+          }
+          continue
+        }
         const prev = weeklyValues[startKey]
         const prevNum =
           prev === "" ? 0 : typeof prev === "number" ? prev : parseNum(prev)
@@ -5602,6 +5801,7 @@ export function mapStandardNewspaperLineItemsToExpertRows(
       unitRate: deriveUnitRateFromBursts(bursts),
       grossCost: sumGrossBursts(bursts),
       weeklyValues,
+      ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
       mergedWeekSpans:
         mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
     }
@@ -5730,18 +5930,19 @@ export function mapMagazineExpertRowsToStandardLineItems(
       }
     }
 
-    const pushBurst = (qty: number, startCol: WeeklyGanttWeekColumn, endCol: WeeklyGanttWeekColumn) => {
+    const pushBurst = (
+      qty: number,
+      startCol: WeeklyGanttWeekColumn,
+      endCol: WeeklyGanttWeekColumn,
+      dayOverride?: { start: Date; end: Date }
+    ) => {
       if (!Number.isFinite(qty) || qty === 0) return
-      const { start } = burstWindowForWeekColumn(
-        startCol,
-        campaignStartDate,
-        campaignEndDate
-      )
-      const { end } = burstWindowForWeekColumn(
-        endCol,
-        campaignStartDate,
-        campaignEndDate
-      )
+      const start = dayOverride
+        ? dayOverride.start
+        : burstWindowForWeekColumn(startCol, campaignStartDate, campaignEndDate).start
+      const end = dayOverride
+        ? dayOverride.end
+        : burstWindowForWeekColumn(endCol, campaignStartDate, campaignEndDate).end
       const grossBudget = expertRowRawCost(buyType, unitRate, qty)
       const rawBudget = grossBudget
       const netForCalc = radioNetBudgetForDeliverables(
@@ -5786,6 +5987,14 @@ export function mapMagazineExpertRowsToStandardLineItems(
 
     for (const col of weekColumns) {
       if (coveredByMerged.has(col.weekKey)) continue
+      const emitKeys = weekDayKeys(col, campaignStartDate, campaignEndDate)
+      if (row.dailyValues && weekHasDailyValues(row.dailyValues, emitKeys)) {
+        const dayCols = buildDayColumnsForWeek(col, campaignStartDate, campaignEndDate)
+        for (const db of emitDayBurstsForWeek(dayCols, row.dailyValues)) {
+          pushBurst(db.qty, col, col, { start: db.startDate, end: db.endDate })
+        }
+        continue
+      }
       const cell = row.weeklyValues[col.weekKey]
       if (cell === "" || cell === undefined) continue
 
@@ -5850,6 +6059,7 @@ export function mapStandardMagazineLineItemsToExpertRows(
     }[] = []
     let mergeIdx = 0
 
+    const dailyValues: ExpertDailyValues = {}
     for (const b of bursts) {
       const sd = b.startDate
       const ed = b.endDate ?? b.startDate
@@ -5873,6 +6083,20 @@ export function mapStandardMagazineLineItemsToExpertRows(
       }
 
       if (startKey === endKey) {
+        const dWeek = weekColumns.find((c) => c.weekKey === startKey)
+        const dKeys = dWeek
+          ? coveredDayKeysIfDayDetail(sd, ed, dWeek, campaignStartDate, campaignEndDate)
+          : null
+        if (dWeek && dKeys && dKeys.length > 0) {
+          const split = expandWeekToDaily(cellQty, dKeys)
+          for (const k of dKeys) {
+            const prevD = dailyValues[k]
+            const prevDNum = prevD === "" || prevD === undefined ? 0 : Number(prevD)
+            const addD = split[k] === "" || split[k] === undefined ? 0 : Number(split[k])
+            dailyValues[k] = prevDNum + addD
+          }
+          continue
+        }
         const prev = weeklyValues[startKey]
         const prevNum =
           prev === "" ? 0 : typeof prev === "number" ? prev : parseNum(prev)
@@ -5933,6 +6157,7 @@ export function mapStandardMagazineLineItemsToExpertRows(
       unitRate: deriveUnitRateFromBursts(bursts),
       grossCost: sumGrossBursts(bursts),
       weeklyValues,
+      ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
       mergedWeekSpans:
         mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
     }
@@ -5945,6 +6170,7 @@ export function mapStandardMagazineLineItemsToExpertRows(
 export function deriveProgExpertRowScheduleYmdFromRow(
   row: {
     weeklyValues: ExpertWeeklyValues
+    dailyValues?: ExpertDailyValues
     mergedWeekSpans?: readonly ProgExpertMergedWeekSpan[]
   },
   weekColumns: WeeklyGanttWeekColumn[],
@@ -6004,6 +6230,7 @@ function buildBurstsFromProgExpertLikeRow(
     unitRate: number | string
     budgetIncludesFees: boolean
     weeklyValues: ExpertWeeklyValues
+    dailyValues?: ExpertDailyValues
     mergedWeekSpans?: readonly ProgExpertMergedWeekSpan[]
   },
   weekColumns: WeeklyGanttWeekColumn[],
@@ -6028,21 +6255,18 @@ function buildBurstsFromProgExpertLikeRow(
   }
 
   const pushBurst = (
-    qty: number,
-    startCol: WeeklyGanttWeekColumn,
-    endCol: WeeklyGanttWeekColumn
-  ) => {
-    if (!Number.isFinite(qty) || qty === 0) return
-    const { start } = burstWindowForWeekColumn(
-      startCol,
-      campaignStartDate,
-      campaignEndDate
-    )
-    const { end } = burstWindowForWeekColumn(
-      endCol,
-      campaignStartDate,
-      campaignEndDate
-    )
+      qty: number,
+      startCol: WeeklyGanttWeekColumn,
+      endCol: WeeklyGanttWeekColumn,
+      dayOverride?: { start: Date; end: Date }
+    ) => {
+      if (!Number.isFinite(qty) || qty === 0) return
+      const start = dayOverride
+        ? dayOverride.start
+        : burstWindowForWeekColumn(startCol, campaignStartDate, campaignEndDate).start
+      const end = dayOverride
+        ? dayOverride.end
+        : burstWindowForWeekColumn(endCol, campaignStartDate, campaignEndDate).end
     const grossBudget = expertRowRawCost(buyType, unitRate, qty)
     const rawBudget = grossBudget
     const netForCalc = oohNetBudgetForDeliverables(
@@ -6086,15 +6310,23 @@ function buildBurstsFromProgExpertLikeRow(
   }
 
   for (const col of weekColumns) {
-    if (coveredByMerged.has(col.weekKey)) continue
-    const cell = row.weeklyValues[col.weekKey]
-    if (cell === "" || cell === undefined) continue
+      if (coveredByMerged.has(col.weekKey)) continue
+      const emitKeys = weekDayKeys(col, campaignStartDate, campaignEndDate)
+      if (row.dailyValues && weekHasDailyValues(row.dailyValues, emitKeys)) {
+        const dayCols = buildDayColumnsForWeek(col, campaignStartDate, campaignEndDate)
+        for (const db of emitDayBurstsForWeek(dayCols, row.dailyValues)) {
+          pushBurst(db.qty, col, col, { start: db.startDate, end: db.endDate })
+        }
+        continue
+      }
+      const cell = row.weeklyValues[col.weekKey]
+      if (cell === "" || cell === undefined) continue
 
-    const qty = typeof cell === "number" ? cell : parseNum(cell)
-    if (!Number.isFinite(qty)) continue
+      const qty = typeof cell === "number" ? cell : parseNum(cell)
+      if (!Number.isFinite(qty)) continue
 
-    pushBurst(qty, col, col)
-  }
+      pushBurst(qty, col, col)
+    }
 
   return bursts
 }
@@ -6103,9 +6335,12 @@ function progAccumulateWeeklyFromBursts(
   bursts: StandardMediaBurst[],
   buyType: string,
   weekColumns: WeeklyGanttWeekColumn[],
+  campaignStartDate: Date,
+  campaignEndDate: Date,
   index: number
 ): {
   weeklyValues: Record<string, number | "">
+  dailyValues: ExpertDailyValues
   mergedWeekSpans: {
     id: string
     startWeekKey: string
@@ -6126,6 +6361,7 @@ function progAccumulateWeeklyFromBursts(
   }[] = []
   let mergeIdx = 0
 
+  const dailyValues: ExpertDailyValues = {}
   for (const b of bursts) {
     const sd = b.startDate
     const ed = b.endDate ?? b.startDate
@@ -6149,6 +6385,20 @@ function progAccumulateWeeklyFromBursts(
     }
 
     if (startKey === endKey) {
+        const dWeek = weekColumns.find((c) => c.weekKey === startKey)
+        const dKeys = dWeek
+          ? coveredDayKeysIfDayDetail(sd, ed, dWeek, campaignStartDate, campaignEndDate)
+          : null
+        if (dWeek && dKeys && dKeys.length > 0) {
+          const split = expandWeekToDaily(cellQty, dKeys)
+          for (const k of dKeys) {
+            const prevD = dailyValues[k]
+            const prevDNum = prevD === "" || prevD === undefined ? 0 : Number(prevD)
+            const addD = split[k] === "" || split[k] === undefined ? 0 : Number(split[k])
+            dailyValues[k] = prevDNum + addD
+          }
+          continue
+        }
       const prev = weeklyValues[startKey]
       const prevNum =
         prev === "" ? 0 : typeof prev === "number" ? prev : parseNum(prev)
@@ -6163,7 +6413,7 @@ function progAccumulateWeeklyFromBursts(
     }
   }
 
-  return { weeklyValues, mergedWeekSpans }
+  return { weeklyValues, dailyValues, mergedWeekSpans }
 }
 
 /** Prog Audio `lineItems` shape (see {@link ProgAudioContainer}). */
@@ -6309,10 +6559,12 @@ export function mapStandardProgAudioLineItemsToExpertRows(
   return lineItems.map((item, index) => {
     const bursts = normalizeProgAudioBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
-    const { weeklyValues, mergedWeekSpans } = progAccumulateWeeklyFromBursts(
+    const { weeklyValues, dailyValues, mergedWeekSpans } = progAccumulateWeeklyFromBursts(
       bursts,
       buyType,
       weekColumns,
+      campaignStartDate,
+      campaignEndDate,
       index
     )
 
@@ -6358,6 +6610,7 @@ export function mapStandardProgAudioLineItemsToExpertRows(
       unitRate: deriveUnitRateFromBursts(bursts),
       grossCost: sumGrossBursts(bursts),
       weeklyValues,
+      ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
       mergedWeekSpans:
         mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
     }
@@ -6495,10 +6748,12 @@ export function mapStandardProgBvodLineItemsToExpertRows(
   return lineItems.map((item, index) => {
     const bursts = normalizeProgBvodBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
-    const { weeklyValues, mergedWeekSpans } = progAccumulateWeeklyFromBursts(
+    const { weeklyValues, dailyValues, mergedWeekSpans } = progAccumulateWeeklyFromBursts(
       bursts,
       buyType,
       weekColumns,
+      campaignStartDate,
+      campaignEndDate,
       index
     )
     const firstBurst = bursts.find(
@@ -6542,6 +6797,7 @@ export function mapStandardProgBvodLineItemsToExpertRows(
       unitRate: deriveUnitRateFromBursts(bursts),
       grossCost: sumGrossBursts(bursts),
       weeklyValues,
+      ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
       mergedWeekSpans:
         mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
     }
@@ -6691,10 +6947,12 @@ export function mapStandardProgDisplayLineItemsToExpertRows(
   return lineItems.map((item, index) => {
     const bursts = normalizeProgDisplayBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
-    const { weeklyValues, mergedWeekSpans } = progAccumulateWeeklyFromBursts(
+    const { weeklyValues, dailyValues, mergedWeekSpans } = progAccumulateWeeklyFromBursts(
       bursts,
       buyType,
       weekColumns,
+      campaignStartDate,
+      campaignEndDate,
       index
     )
     const firstBurst = bursts.find(
@@ -6738,6 +6996,7 @@ export function mapStandardProgDisplayLineItemsToExpertRows(
       unitRate: deriveUnitRateFromBursts(bursts),
       grossCost: sumGrossBursts(bursts),
       weeklyValues,
+      ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
       mergedWeekSpans:
         mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
     }
@@ -6887,10 +7146,12 @@ export function mapStandardProgVideoLineItemsToExpertRows(
   return lineItems.map((item, index) => {
     const bursts = normalizeProgVideoBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
-    const { weeklyValues, mergedWeekSpans } = progAccumulateWeeklyFromBursts(
+    const { weeklyValues, dailyValues, mergedWeekSpans } = progAccumulateWeeklyFromBursts(
       bursts,
       buyType,
       weekColumns,
+      campaignStartDate,
+      campaignEndDate,
       index
     )
     const firstBurst = bursts.find(
@@ -6936,6 +7197,7 @@ export function mapStandardProgVideoLineItemsToExpertRows(
       unitRate: deriveUnitRateFromBursts(bursts),
       grossCost: sumGrossBursts(bursts),
       weeklyValues,
+      ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
       mergedWeekSpans:
         mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
     }
@@ -7091,10 +7353,12 @@ export function mapStandardProgOohLineItemsToExpertRows(
   return lineItems.map((item, index) => {
     const bursts = normalizeProgOohBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
-    const { weeklyValues, mergedWeekSpans } = progAccumulateWeeklyFromBursts(
+    const { weeklyValues, dailyValues, mergedWeekSpans } = progAccumulateWeeklyFromBursts(
       bursts,
       buyType,
       weekColumns,
+      campaignStartDate,
+      campaignEndDate,
       index
     )
     const firstBurst = bursts.find(
@@ -7140,6 +7404,7 @@ export function mapStandardProgOohLineItemsToExpertRows(
       unitRate: deriveUnitRateFromBursts(bursts),
       grossCost: sumGrossBursts(bursts),
       weeklyValues,
+      ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
       mergedWeekSpans:
         mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
     }
