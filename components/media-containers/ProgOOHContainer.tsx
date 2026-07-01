@@ -44,7 +44,7 @@ import {
 } from "@/lib/billing/prorateInvestmentDisplay"
 import type { LineItem } from '@/lib/generateMediaPlan'
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
-import { assignStableLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
+import { assignStableLineItemNumbers, reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import { resolveBillingBurstLineItemId } from "@/lib/billing/resolveBillingBurstLineItemId"
 import { formatAUD, formatMoney, parseMoneyInput } from "@/lib/format/money"
 import {
@@ -333,6 +333,7 @@ export default function ProgOOHContainer({
     useState(false)
   const [expertSegmentAttention, setExpertSegmentAttention] = useState(true)
   const progoohExpertRowsBaselineRef = useRef("")
+  const reorderedRef = useRef(false)
   const progoohExpertModalOpenRef = useRef(false)
   progoohExpertModalOpenRef.current = progoohExpertModalOpen
 
@@ -433,7 +434,11 @@ export default function ProgOOHContainer({
       standard,
       prevLineItems as StandardProgOohFormLineItem[]
     )
-    const keyedMerged = stampBurstReactKeys(merged)
+    const orderedForApply = reorderedRef.current
+      ? reassignLineItemNumbers(merged, mbaNumber, MEDIA_TYPE_ID_CODES.progOOH)
+      : merged
+    reorderedRef.current = false
+    const keyedMerged = stampBurstReactKeys(orderedForApply)
     const clearedOverride = expertApplyClearedAdServingOverride(
       prevLineItems as any,
       keyedMerged as any
@@ -1845,6 +1850,9 @@ useEffect(() => {
                 rows={expertProgOohRows}
                 onRowsChange={handleExpertProgOohRowsChange}
                 publishers={publishers}
+                onReorder={() => {
+                  reorderedRef.current = true;
+                }}
               />
             </div>
           </ComboboxModalProvider>
