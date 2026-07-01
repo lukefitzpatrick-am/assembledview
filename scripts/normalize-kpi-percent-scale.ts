@@ -273,7 +273,8 @@ function nearNew(stored: number, newVal: number): boolean {
 }
 
 function storedNumeric(row: PublisherKpi, metric: KpiMetricField): number | null {
-  const raw = row[metric]
+  // Typed as number, but Xano payloads can deliver strings/empties at runtime.
+  const raw = row[metric] as number | string | null | undefined
   if (raw === null || raw === undefined || raw === "") return null
   const n = typeof raw === "number" ? raw : Number(String(raw).trim())
   return Number.isFinite(n) ? n : null
