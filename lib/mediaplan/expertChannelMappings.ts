@@ -3590,8 +3590,33 @@ export function mapDigitalAudioExpertRowsToStandardLineItems(
       pushBurst(span.totalQty, startCol, endCol)
     }
 
+    const bt = coerceBuyTypeWithDevWarn(
+      buyType,
+      "mapDigitalAudioExpertRowsToStandardLineItems"
+    )
+    const btLower = String(bt || "").toLowerCase()
+    const isInclusionBuyType =
+      btLower === "bonus" || btLower === "package_inclusions"
+
     for (const col of weekColumns) {
       if (coveredByMerged.has(col.weekKey)) continue
+      const dKeys = weekDayKeys(col, campaignStartDate, campaignEndDate)
+      if (row.dailyValues && weekHasDailyValues(row.dailyValues, dKeys)) {
+        const dayCols = buildDayColumnsForWeek(col, campaignStartDate, campaignEndDate)
+        for (const db of emitDayBurstsForWeek(dayCols, row.dailyValues)) {
+          const netMedia = netMediaFromDeliverables(bt, db.qty, unitRate)
+          const grossBudget = grossFromNet(netMedia, budgetIncludesFees, feePct)
+          const buyAmountStr = isInclusionBuyType ? "0" : formatRate(unitRate)
+          bursts.push({
+            budget: formatBurstBudget(grossBudget),
+            buyAmount: buyAmountStr,
+            startDate: db.startDate,
+            endDate: db.endDate,
+            calculatedValue: roundDeliverables(bt, db.qty),
+          })
+        }
+        continue
+      }
       const cell = row.weeklyValues[col.weekKey]
       if (cell === "" || cell === undefined) continue
 
@@ -3654,6 +3679,7 @@ export function mapStandardDigiAudioLineItemsToExpertRows(
       weeklyValues[col.weekKey] = ""
     }
 
+    const dailyValues: ExpertDailyValues = {}
     for (const b of bursts) {
       const sd = b.startDate
       const ed = b.endDate ?? b.startDate
@@ -3680,6 +3706,23 @@ export function mapStandardDigiAudioLineItemsToExpertRows(
         sd,
         ed
       )
+      // Day-detail: burst confined to a sub-window of a single interior week.
+      if (overlapKeys.length === 1) {
+        const week = weekColumns.find((c) => c.weekKey === overlapKeys[0])
+        const dayKeys = week
+          ? coveredDayKeysIfDayDetail(sd, ed, week, campaignStartDate, campaignEndDate)
+          : null
+        if (week && dayKeys && dayKeys.length > 0) {
+          const split = expandWeekToDaily(totalDeliverables, dayKeys)
+          for (const k of dayKeys) {
+            const prev = dailyValues[k]
+            const prevNum = prev === "" || prev === undefined ? 0 : Number(prev)
+            const addNum = split[k] === "" || split[k] === undefined ? 0 : Number(split[k])
+            dailyValues[k] = prevNum + addNum
+          }
+          continue
+        }
+      }
       distributeBurstDeliverablesToExpertWeeks(
         bt,
         totalDeliverables,
@@ -3740,6 +3783,7 @@ export function mapStandardDigiAudioLineItemsToExpertRows(
       unitRate: deriveRadioStandardUnitRateFromBursts(bursts),
       grossCost: sumGrossBursts(bursts),
       weeklyValues,
+      ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
       mergedWeekSpans: [],
     }
   })
