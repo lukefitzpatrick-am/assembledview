@@ -8990,7 +8990,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Media Types</h3>
             </div>
             <div className="grid min-h-0 w-full grid-cols-2 content-start gap-2 px-6 py-4 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-              {mediaTypes.filter((medium) => medium.name !== "mp_fixedfee").map((medium) => {
+              {mediaTypes.map((medium) => {
                 const switchId = `media-type-${medium.name}`
                 const accentColor = getMediaTypeAccentColor(medium.name)
                 return (
