@@ -15,7 +15,7 @@ import {
   parse as parseDateFns,
   startOfDay,
 } from "date-fns"
-import { Copy, GitMerge, Grid3x3, GripVertical, Plus, Trash2, X } from "lucide-react"
+import { Copy, GitMerge, Grid3x3, Plus, Trash2, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -45,6 +45,7 @@ import {
   deleteExpertRow,
   duplicateExpertRow,
 } from "@/lib/mediaplan/expertRowLifecycle"
+import { reorderExpertRows } from "@/lib/mediaplan/expertGridInteractions"
 import {
   Tooltip,
   TooltipContent,
@@ -52,6 +53,12 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { ExpertGridBillingHeaderLabel } from "@/components/media-containers/ExpertGridBillingHeaderLabel"
+import {
+  EXPERT_REORDER_COL_WIDTH_PX,
+  ExpertGridRowReorderCell,
+  ExpertGridRowReorderHeaderCell,
+} from "@/components/media-containers/ExpertGridRowReorderCell"
+import { useExpertRowReorder } from "@/hooks/useExpertRowReorder"
 import type {
   ExpertWeeklyValues,
   OohExpertMergedWeekSpan,
@@ -281,8 +288,6 @@ const OOH_DESCRIPTOR_TAIL: readonly (keyof OohExpertScheduleRow)[] = [
   "unitRate",
 ]
 
-const OOH_EXPERT_REORDER_COL_WIDTH_PX = 44
-
 function cumulativeLeftOffsets(widths: readonly number[]): number[] {
   const out: number[] = []
   let acc = 0
@@ -376,8 +381,6 @@ export function OohExpertGrid({
   focusedCellRef.current = focusedCell
 
   const [rowCountInput, setRowCountInput] = useState<string>("1")
-  const [dragRowIndex, setDragRowIndex] = useState<number | null>(null)
-  const [dropRowIndex, setDropRowIndex] = useState<number | null>(null)
   const [pendingFuzzyMatch, setPendingFuzzyMatch] =
     useState<PendingFuzzyMatch | null>(null)
   const fuzzyMatchAutoApplyRef = useRef(false)
@@ -635,26 +638,17 @@ export function OohExpertGrid({
     [onRowsChange, weekColumns, campaignStartDate, campaignEndDate]
   )
 
-  const reorderRows = useCallback(
-    (fromIndex: number, toIndex: number) => {
-      if (fromIndex === toIndex) return
-      const current = normalizedRowsRef.current
-      if (
-        fromIndex < 0 ||
-        toIndex < 0 ||
-        fromIndex >= current.length ||
-        toIndex >= current.length
-      ) {
-        return
-      }
-      const next = [...current]
-      const [moved] = next.splice(fromIndex, 1)
-      next.splice(toIndex, 0, moved)
+  const handleReorder = useCallback(
+    (from: number, to: number) => {
+      const next = reorderExpertRows(normalizedRowsRef.current, from, to)
+      if (!next) return
       pushRows(next)
       onReorder?.()
     },
     [pushRows, onReorder]
   )
+  const { dragRowIndex, handleProps, rowDropProps, isDropTarget } =
+    useExpertRowReorder(handleReorder)
 
   const resolveWeekDragSource = useCallback(
     (rowIndex: number, weekKey: string): WeekDragSource | null => {
@@ -2101,21 +2095,10 @@ export function OohExpertGrid({
                 <table className="w-max min-w-full border-collapse text-sm">
                   <thead className="[&_tr]:border-b-0">
                     <tr>
-                      <th
-                        className={cn(
-                          stickyThCorner("text-center"),
-                          "w-11 min-w-[44px] max-w-[44px]"
-                        )}
-                        style={{
-                          width: OOH_EXPERT_REORDER_COL_WIDTH_PX,
-                          minWidth: OOH_EXPERT_REORDER_COL_WIDTH_PX,
-                          maxWidth: OOH_EXPERT_REORDER_COL_WIDTH_PX,
-                          ...oohExpertHeaderCellBgStyle,
-                        }}
-                        title="Drag rows to reorder line item numbers"
-                      >
-                        #
-                      </th>
+                      <ExpertGridRowReorderHeaderCell
+                        className={stickyThCorner("text-center")}
+                        style={oohExpertHeaderCellBgStyle}
+                      />
                       {descriptorHeadLabels.map((label, i) => (
                         <th
                           key={`h-${i}`}
@@ -2206,78 +2189,23 @@ export function OohExpertGrid({
                       const cClient = colIndexOf("clientPaysForMedia")
                       const cBif = colIndexOf("budgetIncludesFees")
 
-                      const isDropTarget =
-                        dropRowIndex === rowIndex &&
-                        dragRowIndex !== null &&
-                        dragRowIndex !== rowIndex
-
                       return (
                         <tr
                           key={row.id}
                           className={cn(
                             stripe,
                             "transition-colors hover:bg-muted/35 focus-within:bg-muted/35",
-                            isDropTarget && "bg-primary/10 ring-1 ring-inset ring-primary/40"
+                            isDropTarget(rowIndex) && "bg-primary/10 ring-1 ring-inset ring-primary/40"
                           )}
                           style={stripeStyle}
-                          onDragOver={(e) => {
-                            if (dragRowIndex === null) return
-                            e.preventDefault()
-                            e.dataTransfer.dropEffect = "move"
-                            setDropRowIndex(rowIndex)
-                          }}
-                          onDragLeave={() => {
-                            if (dropRowIndex === rowIndex) setDropRowIndex(null)
-                          }}
-                          onDrop={(e) => {
-                            e.preventDefault()
-                            if (dragRowIndex !== null) {
-                              reorderRows(dragRowIndex, rowIndex)
-                            }
-                            setDragRowIndex(null)
-                            setDropRowIndex(null)
-                          }}
+                          {...rowDropProps(rowIndex)}
                         >
-                          <td
-                            className={cn(
-                              stickyTd(0, "text-center"),
-                              "w-11 min-w-[44px] max-w-[44px]"
-                            )}
-                            style={{
-                              width: OOH_EXPERT_REORDER_COL_WIDTH_PX,
-                              minWidth: OOH_EXPERT_REORDER_COL_WIDTH_PX,
-                              maxWidth: OOH_EXPERT_REORDER_COL_WIDTH_PX,
-                            }}
-                          >
-                            <div
-                              draggable
-                              role="button"
-                              tabIndex={0}
-                              title="Drag to reorder this line item"
-                              aria-label={`Reorder line item ${rowIndex + 1}`}
-                              className={cn(
-                                "mx-auto flex h-8 w-full cursor-grab select-none items-center justify-center gap-0.5 rounded-sm text-muted-foreground active:cursor-grabbing",
-                                dragRowIndex === rowIndex && "opacity-50"
-                              )}
-                              onDragStart={(e) => {
-                                e.dataTransfer.effectAllowed = "move"
-                                e.dataTransfer.setData(
-                                  "text/plain",
-                                  String(rowIndex)
-                                )
-                                setDragRowIndex(rowIndex)
-                              }}
-                              onDragEnd={() => {
-                                setDragRowIndex(null)
-                                setDropRowIndex(null)
-                              }}
-                            >
-                              <GripVertical className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                              <span className="text-[11px] font-medium tabular-nums text-foreground">
-                                {rowIndex + 1}
-                              </span>
-                            </div>
-                          </td>
+                          <ExpertGridRowReorderCell
+                            rowIndex={rowIndex}
+                            handleProps={handleProps(rowIndex)}
+                            isDragging={dragRowIndex === rowIndex}
+                            className={stickyTd(0, "text-center")}
+                          />
                           {showBillingCols ? (
                             <>
                               <td
@@ -3473,9 +3401,9 @@ export function OohExpertGrid({
                       <td
                         className={stickyTd(0)}
                         style={{
-                          width: OOH_EXPERT_REORDER_COL_WIDTH_PX,
-                          minWidth: OOH_EXPERT_REORDER_COL_WIDTH_PX,
-                          maxWidth: OOH_EXPERT_REORDER_COL_WIDTH_PX,
+                          width: EXPERT_REORDER_COL_WIDTH_PX,
+                          minWidth: EXPERT_REORDER_COL_WIDTH_PX,
+                          maxWidth: EXPERT_REORDER_COL_WIDTH_PX,
                           ...oohExpertTotalsRowBgStyle,
                         }}
                       />
