@@ -27,6 +27,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { SingleDatePicker } from "@/components/ui/single-date-picker"
 import { ChevronsUpDown, Check, Download, FileText, Loader2, X } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { formatMoney } from "@/lib/format/money"
 import { useSidebar } from "@/components/ui/sidebar"
 import { CampaignExportsSection } from "@/components/dashboard/CampaignExportsSection"
 import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
@@ -1160,7 +1161,6 @@ export default function CreateMediaPlan() {
   const watchedClientName = useWatch({ control: form.control, name: "mp_client_name" })
   const watchedCampaignName = useWatch({ control: form.control, name: "mp_campaignname" })
   const watchedCampaignBudget = useWatch({ control: form.control, name: "mp_campaignbudget" })
-  const watchedFixedFee = useWatch({ control: form.control, name: "mp_fixedfee" })
   const [activeStep, setActiveStep] = useState<CreateCampaignStepId>(createCampaignSteps[0].id)
   const currencyFormatter = new Intl.NumberFormat("en-AU", {
     style: "currency",
@@ -1554,6 +1554,16 @@ export default function CreateMediaPlan() {
     magazineTotal,
     oohTotal,
   ])
+
+  const grossMediaAllocated = useMemo(
+    () => calculateGrossMediaTotal(),
+    [calculateGrossMediaTotal]
+  )
+
+  const budgetRemaining = useMemo(
+    () => (Number(watchedCampaignBudget) || 0) - grossMediaAllocated,
+    [watchedCampaignBudget, grossMediaAllocated]
+  )
 
   const getDeliveryMbaTotals = useCallback(() => {
     const source =
@@ -4287,7 +4297,7 @@ export default function CreateMediaPlan() {
   const [isVersionSaving, setIsVersionSaving] = useState<boolean>(false)
   const [mediaPlanVersionId, setMediaPlanVersionId] = useState<number | null>(null)
   const shouldBlockNavigation = hasUnsavedChanges && !isPlanSaving && !isVersionSaving && !isLoading
-  const { isOpen: isUnsavedPromptOpen, confirmNavigation, stayOnPage } = useUnsavedChangesPrompt(shouldBlockNavigation)
+  const { isOpen: isUnsavedPromptOpen, confirmNavigation, stayOnPage, requestNavigation } = useUnsavedChangesPrompt(shouldBlockNavigation)
   const isSavingInProgress = isPlanSaving || isVersionSaving;
   const hasSaveErrors = saveStatus.some(item => item.status === 'error');
   const shouldShowSaveModal = isSaveModalOpen && (isSavingInProgress || hasSaveErrors || saveStatus.length > 0);
@@ -5344,6 +5354,10 @@ const handleSaveAll = async () => {
   }
 };
 
+  const handleExit = useCallback(() => {
+    requestNavigation("/mediaplans")
+  }, [requestNavigation])
+
   const clientNameToSlug = useCallback((clientName: string): string => {
     return clientName
       .toLowerCase()
@@ -5840,13 +5854,33 @@ const handleSaveAll = async () => {
                     <p className="num font-semibold">{selectedMediaCount}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--sidebar-foreground)/0.55)]">Fee model</p>
-                    <p className="font-semibold">{watchedFixedFee ? "Fixed" : "Commission"}</p>
+                    <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--sidebar-foreground)/0.55)]">Budget remaining</p>
+                    <p className="num font-semibold">{formatMoney(budgetRemaining)}</p>
                   </div>
                   <div>
                     <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--sidebar-foreground)/0.55)]">Status</p>
                     <p className="font-semibold">Draft</p>
                   </div>
+                </div>
+                <div className="mt-4 flex flex-col gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="w-full rounded-pill"
+                    onClick={handleSaveAll}
+                    disabled={isLoading || isPlanSaving || isVersionSaving}
+                  >
+                    {isLoading || isPlanSaving || isVersionSaving ? "Saving..." : "Save"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full rounded-pill border-[hsl(var(--sidebar-border))] text-[hsl(var(--sidebar-foreground))] hover:bg-[hsl(var(--sidebar-accent))]"
+                    onClick={handleExit}
+                  >
+                    Exit
+                  </Button>
                 </div>
               </div>
             </div>
@@ -5875,7 +5909,7 @@ const handleSaveAll = async () => {
 
                   return (
                     <FormItem>
-                      <FormLabel className="text-sm font-medium text-muted-foreground">Client Name</FormLabel>
+                      <FormLabel className="text-sm font-medium text-text-secondary">Client Name</FormLabel>
                       <FormControl>
                         <Popover open={isClientPopoverOpen} onOpenChange={setIsClientPopoverOpen}>
                           <PopoverTrigger asChild>
@@ -5945,7 +5979,7 @@ const handleSaveAll = async () => {
                 name={"mp_campaignname" as keyof MediaPlanFormValues}
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-sm font-medium text-muted-foreground">Campaign Name</FormLabel>
+                    <FormLabel className="text-sm font-medium text-text-secondary">Campaign Name</FormLabel>
                     <FormControl>
                       <Input {...field} value={String(field.value)} />
                     </FormControl>
@@ -5959,7 +5993,7 @@ const handleSaveAll = async () => {
                 name={"mp_brand" as keyof MediaPlanFormValues}
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-sm font-medium text-muted-foreground">Brand</FormLabel>
+                    <FormLabel className="text-sm font-medium text-text-secondary">Brand</FormLabel>
                     <FormControl>
                       <Input {...field} value={String(field.value)} />
                     </FormControl>
@@ -5973,7 +6007,7 @@ const handleSaveAll = async () => {
                 name={"mp_campaignstatus" as keyof MediaPlanFormValues}
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-sm font-medium text-muted-foreground">Campaign Status</FormLabel>
+                    <FormLabel className="text-sm font-medium text-text-secondary">Campaign Status</FormLabel>
                     <FormControl>
                       <Combobox
                         value={String(field.value ?? "")}
@@ -5981,12 +6015,12 @@ const handleSaveAll = async () => {
                         placeholder="Select campaign status"
                         searchPlaceholder="Search statuses..."
                         options={[
-                          { value: "approved", label: "Approved" },
-                          { value: "booked", label: "Booked" },
-                          { value: "cancelled", label: "Cancelled" },
-                          { value: "completed", label: "Completed" },
                           { value: "draft", label: "Draft" },
                           { value: "planned", label: "Planned" },
+                          { value: "approved", label: "Approved" },
+                          { value: "booked", label: "Booked" },
+                          { value: "completed", label: "Completed" },
+                          { value: "cancelled", label: "Cancelled" },
                         ]}
                       />
                     </FormControl>
@@ -6000,7 +6034,7 @@ const handleSaveAll = async () => {
                 name="mp_clientcontact"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-sm font-medium text-muted-foreground">Client Contact</FormLabel>
+                    <FormLabel className="text-sm font-medium text-text-secondary">Client Contact</FormLabel>
                     <FormControl>
                       <Input {...field} />
                     </FormControl>
@@ -6014,7 +6048,7 @@ const handleSaveAll = async () => {
                 name="mp_ponumber"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-sm font-medium text-muted-foreground">PO Number</FormLabel>
+                    <FormLabel className="text-sm font-medium text-text-secondary">PO Number</FormLabel>
                     <FormControl>
                       <Input {...field} />
                     </FormControl>
@@ -6028,7 +6062,7 @@ const handleSaveAll = async () => {
                 name="mp_campaigndates_start"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-sm font-medium text-muted-foreground">Campaign Start Date</FormLabel>
+                    <FormLabel className="text-sm font-medium text-text-secondary">Campaign Start Date</FormLabel>
                     <FormControl>
                       <SingleDatePicker
                         ref={field.ref}
@@ -6054,7 +6088,7 @@ const handleSaveAll = async () => {
                 name="mp_campaigndates_end"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-sm font-medium text-muted-foreground">Campaign End Date</FormLabel>
+                    <FormLabel className="text-sm font-medium text-text-secondary">Campaign End Date</FormLabel>
                     <FormControl>
                       <SingleDatePicker
                         ref={field.ref}
@@ -6080,7 +6114,7 @@ const handleSaveAll = async () => {
                 name="mp_campaignbudget"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-sm font-medium text-muted-foreground">Campaign Budget</FormLabel>
+                    <FormLabel className="text-sm font-medium text-text-secondary">Campaign Budget</FormLabel>
                     <FormControl>
                       <Input
                         type="text"
@@ -6109,7 +6143,7 @@ const handleSaveAll = async () => {
                 name="mbaidentifier"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-sm font-medium text-muted-foreground">MBA Identifier</FormLabel>
+                    <FormLabel className="text-sm font-medium text-text-secondary">MBA Identifier</FormLabel>
                     <div
                       className={cn(
                         "flex h-10 w-full items-center rounded-md border border-border/40 bg-muted/30 px-3 py-2 text-sm text-foreground",
@@ -6130,7 +6164,7 @@ const handleSaveAll = async () => {
                 name="mba_number"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-sm font-medium text-muted-foreground">MBA Number</FormLabel>
+                    <FormLabel className="text-sm font-medium text-text-secondary">MBA Number</FormLabel>
                     <div
                       className={cn(
                         "flex h-10 w-full items-center rounded-md border border-border/40 bg-muted/30 px-3 py-2 text-sm text-foreground",
@@ -6151,7 +6185,7 @@ const handleSaveAll = async () => {
                 name="mp_plannumber"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-sm font-medium text-muted-foreground">Media Plan Version</FormLabel>
+                    <FormLabel className="text-sm font-medium text-text-secondary">Media Plan Version</FormLabel>
                     <div className="flex h-10 w-full items-center rounded-md border border-border/40 bg-muted/30 px-3 py-2 text-sm text-foreground">
                       <span className="truncate">1</span>
                     </div>

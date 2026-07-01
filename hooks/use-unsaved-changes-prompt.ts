@@ -5,6 +5,7 @@ type UnsavedPrompt = {
   isOpen: boolean
   confirmNavigation: () => void
   stayOnPage: () => void
+  requestNavigation: (href: string) => void
 }
 
 const HISTORY_BACK = "__history-back"
@@ -42,6 +43,18 @@ export function useUnsavedChangesPrompt(enabled: boolean): UnsavedPrompt {
       router.push(target)
     }
   }, [resetPrompt, router])
+
+  const requestNavigation = useCallback(
+    (href: string) => {
+      if (!enabled) {
+        router.push(href)
+        return
+      }
+      pendingHrefRef.current = href
+      setIsOpen(true)
+    },
+    [enabled, router]
+  )
 
   // Intercept in-app anchor clicks
   useEffect(() => {
@@ -106,5 +119,5 @@ export function useUnsavedChangesPrompt(enabled: boolean): UnsavedPrompt {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload)
   }, [enabled])
 
-  return { isOpen, confirmNavigation, stayOnPage }
+  return { isOpen, confirmNavigation, stayOnPage, requestNavigation }
 }
