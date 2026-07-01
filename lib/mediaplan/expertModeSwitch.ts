@@ -623,6 +623,7 @@ export function serializeOohExpertRowsBaseline(rows: OohExpertScheduleRow[]): st
       unitRate: r.unitRate,
       grossCost: r.grossCost,
       weeklyValues: r.weeklyValues,
+      dailyValues: r.dailyValues,
       mergedWeekSpans: r.mergedWeekSpans,
     }))
   )

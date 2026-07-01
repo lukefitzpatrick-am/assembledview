@@ -47,6 +47,8 @@ export interface OohExpertScheduleRow {
   unitRate: number | string
   grossCost: number | string
   weeklyValues: ExpertWeeklyValues
+  /** Opportunistic day-level detail. A week is day-detailed iff any of its day keys appear here. */
+  dailyValues?: ExpertDailyValues
   mergedWeekSpans?: OohExpertMergedWeekSpan[]
 }
 
