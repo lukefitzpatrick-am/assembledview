@@ -5776,7 +5776,7 @@ const handleSaveAll = async () => {
           }
         />
         <div className="grid w-full grid-cols-1 items-start gap-5 overflow-visible xl:grid-cols-[220px_minmax(0,1fr)] xl:gap-6">
-          <aside className="flex flex-col gap-3 xl:sticky xl:top-4 xl:z-10 xl:h-[calc(100vh-2rem)] xl:self-start xl:gap-4">
+          <aside className="flex flex-col gap-4 xl:sticky xl:top-4 xl:self-start xl:z-10">
               <nav className="rounded-frame border border-border bg-card p-2.5 shadow-e1" aria-label="Create campaign progress">
                 <ol className="space-y-1">
                   {createCampaignSteps.map((step, index) => {
@@ -5839,7 +5839,6 @@ const handleSaveAll = async () => {
                 </ol>
               </nav>
 
-              <div className="xl:mt-auto">
               <div className="rounded-frame border border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar-bg))] p-3 text-[hsl(var(--sidebar-foreground))] shadow-e1">
                 <div className="space-y-1">
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--sidebar-foreground)/0.65)]">Draft Summary</p>
@@ -5884,7 +5883,6 @@ const handleSaveAll = async () => {
                     Exit
                   </Button>
                 </div>
-              </div>
               </div>
           </aside>
 
