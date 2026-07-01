@@ -1695,7 +1695,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       (digitalVideoTotal ?? 0) +
       (bvodTotal ?? 0) +
       (integrationTotal ?? 0) +
-      (productionTotal ?? 0) +
       (progDisplayTotal ?? 0) +
       (progVideoTotal ?? 0) +
       (progBvodTotal ?? 0) +
@@ -1716,7 +1715,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       digitalVideoTotal,
       bvodTotal,
       integrationTotal,
-      productionTotal,
       progDisplayTotal,
       progVideoTotal,
       progBvodTotal,
@@ -6424,6 +6422,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           })
           .filter((item): item is { media_type: string; gross_amount: number } => item !== null)
       : mediaTypes
+          .filter(medium => medium.name !== "mp_production")
           .filter(medium => Boolean(fv[medium.name as keyof MediaPlanFormValues]))
           .map(medium => ({
             media_type: medium.label,
