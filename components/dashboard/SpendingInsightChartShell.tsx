@@ -2,7 +2,7 @@
 
 import { type ReactNode, type RefObject } from "react"
 
-import { ChartShell } from "@/components/charts/ChartShell"
+import { BaseChartCard, ChartExportToolbar } from "@/components/charts/system"
 import { useChartExport } from "@/hooks/useChartExport"
 import { useToast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
@@ -63,15 +63,18 @@ export function SpendingInsightChartShell<T>({
   }
 
   return (
-    <ChartShell
+    <BaseChartCard
       title={title}
-      description={description}
+      subtitle={description}
       className={cn("rounded-xl border-border shadow-none", className)}
-      chartAreaRef={chartAreaRef}
-      chartAreaClassName={chartAreaClassName}
-      onExportCsv={csvRows?.length && csvColumns?.length ? handleExportCsv : undefined}
+      bodyRef={chartAreaRef}
+      toolbar={
+        csvRows?.length && csvColumns?.length ? (
+          <ChartExportToolbar onCsv={handleExportCsv} />
+        ) : undefined
+      }
     >
-      {children}
-    </ChartShell>
+      <div className={chartAreaClassName}>{children}</div>
+    </BaseChartCard>
   )
 }

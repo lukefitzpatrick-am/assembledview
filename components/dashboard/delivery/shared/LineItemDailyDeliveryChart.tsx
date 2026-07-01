@@ -1,9 +1,8 @@
 "use client"
 
 import { useMemo } from "react"
-import { LineChart } from "@/components/charts/LineChart"
+import { LineChart } from "@/components/charts/system"
 import { EmptyState } from "@/components/ui/states"
-import { formatCurrencyAUD } from "@/lib/format/currency"
 
 export interface LineItemDailyDeliveryChartProps {
   daily: Array<Record<string, string | number>>
@@ -17,13 +16,6 @@ export interface LineItemDailyDeliveryChartProps {
   subtitle?: string
 }
 
-function formatChartDateLabel(iso: string): string {
-  if (!iso) return ""
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return iso
-  return new Intl.DateTimeFormat("en-AU", { day: "2-digit", month: "short" }).format(d)
-}
-
 export function LineItemDailyDeliveryChart({
   daily,
   series,
@@ -33,8 +25,6 @@ export function LineItemDailyDeliveryChart({
   title,
   subtitle,
 }: LineItemDailyDeliveryChartProps) {
-  // Note: today reference line and brand colour are not yet plumbed
-  // through LineChart. Leaving the props in place for future extension.
   const data = useMemo(() => daily, [daily])
   if (data.length === 0 || series.length === 0) {
     return (
@@ -54,6 +44,8 @@ export function LineItemDailyDeliveryChart({
     )
   }
 
+  const chartSeries = series.map((s) => ({ key: s.key, label: s.label }))
+
   return (
     <div className="rounded-xl border border-border/60 bg-card p-4">
       {title || subtitle ? (
@@ -62,16 +54,18 @@ export function LineItemDailyDeliveryChart({
           {subtitle ? <p className="text-xs text-muted-foreground">{subtitle}</p> : null}
         </div>
       ) : null}
-      <LineChart
-        data={data}
-        xKey="date"
-        series={series}
-        height={height}
-        smooth={false}
-        showDots={false}
-        xTickFormatter={formatChartDateLabel}
-        valueFormatter={formatCurrencyAUD}
-      />
+      <div style={{ minHeight: height }}>
+        <LineChart
+          data={data}
+          xKey="date"
+          series={chartSeries}
+          valueFormat="dollars"
+          smooth={false}
+          dots={false}
+          showLegend={series.length > 1}
+          className="h-full w-full"
+        />
+      </div>
     </div>
   )
 }

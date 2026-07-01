@@ -10,7 +10,7 @@ import {
 import { SpendingInsightChartShell } from "@/components/dashboard/SpendingInsightChartShell"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/states"
-import { buildDonutSlices } from "@/lib/charts/donutSlices"
+import { buildDonutSlices } from "@/lib/charts-app/donutSlices"
 import { getDeterministicColor, getMediaLabel } from "@/lib/charts/registry"
 import { channelColorFor, fmt } from "@/lib/chart-theme"
 import { formatCurrencyAUD } from "@/lib/format/currency"

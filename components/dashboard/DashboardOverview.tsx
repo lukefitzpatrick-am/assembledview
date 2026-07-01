@@ -22,17 +22,25 @@ import {
   dashboardCampaignGridClassName,
 } from "@/components/dashboard/DashboardEntityCards"
 import { format } from "date-fns"
-import { TreemapShellChart } from "@/components/charts/TreemapShellChart"
-import { ChartExportToolbar } from "@/components/charts/ChartExportToolbar"
-import BaseChartCard from "@/components/charts/BaseChartCard"
-import { StackedColumnChart } from "@/components/charts/StackedColumnChart"
+import {
+  BaseChartCard,
+  ChartExportToolbar,
+  StackedBarChart,
+  TreemapChart,
+  exportPng,
+} from "@/components/charts/system"
+import { reshapeSpendTreemap } from "@/components/dashboard/dashboardChartReshape"
 import { useToast } from "@/components/ui/use-toast"
 import { useChartExport } from "@/hooks/useChartExport"
 import {
   buildStackedColumnCsvRows,
   STACKED_COLUMN_CSV_COLUMNS,
 } from "@/lib/charts/stackedColumnExport"
-import type { ChartDatumClickPayload } from "@/components/charts/chartDatumClick"
+import {
+  finalizeChartDatumClickPayload,
+  type ChartDatumClickPayload,
+  type ChartStackedColumnRow,
+} from "@/components/charts/chartDatumClick"
 import { usePathname, useRouter } from "next/navigation"
 import { AuthPageLoading } from "@/components/AuthLoadingState"
 import { cn } from "@/lib/utils"
@@ -1448,7 +1456,7 @@ export default function DashboardOverview({
   }, [appliedSavedViewId, savedViews, dashboardFilters])
 
   const handleSpendPublisherPieClick = useCallback((payload: ChartDatumClickPayload) => {
-    if (payload.chart !== "pie") return
+    if (payload.chart !== "pie" && payload.chart !== "treemap") return
     const name = payload.name?.trim()
     if (!name) return
     const params = new URLSearchParams()
@@ -1457,7 +1465,7 @@ export default function DashboardOverview({
   }, [router])
 
   const handleSpendClientPieClick = useCallback((payload: ChartDatumClickPayload) => {
-    if (payload.chart !== "pie") return
+    if (payload.chart !== "pie" && payload.chart !== "treemap") return
     const name = payload.name?.trim()
     if (!name) return
     const key = normalizeClientFilterValue(name)
@@ -2261,8 +2269,14 @@ export default function DashboardOverview({
     }
     return Array.from(keys)
       .sort()
-      .map((key) => ({ key, label: key }))
-  }, [monthlyClientStackedRows])
+      .map((key, i) => ({
+        key,
+        label: key,
+        color:
+          dashboardMonthlyClientSeriesColors[key] ??
+          `var(--av-chart-${(i % 8) + 1})`,
+      }))
+  }, [monthlyClientStackedRows, dashboardMonthlyClientSeriesColors])
 
   const monthlyPublisherStackedRows = useMemo(
     () =>
@@ -2288,8 +2302,22 @@ export default function DashboardOverview({
     }
     return Array.from(keys)
       .sort()
-      .map((key) => ({ key, label: key }))
+      .map((key, i) => ({
+        key,
+        label: key,
+        color: `var(--av-chart-${(i % 8) + 1})`,
+      }))
   }, [monthlyPublisherStackedRows])
+
+  const publisherTreemapData = useMemo(
+    () => reshapeSpendTreemap(publisherSpendData),
+    [publisherSpendData],
+  )
+
+  const clientTreemapData = useMemo(
+    () => reshapeSpendTreemap(clientSpendData, dashboardClientTreemapColors),
+    [clientSpendData, dashboardClientTreemapColors],
+  )
 
   const monthlyClientChartRef = useRef<HTMLDivElement>(null)
   const monthlyPublisherChartRef = useRef<HTMLDivElement>(null)
@@ -3177,27 +3205,66 @@ export default function DashboardOverview({
           <PanelRowCell>
             <Panel className="overflow-hidden border-0 shadow-md">
               <PanelContent standalone className="p-0">
-                <TreemapShellChart
+                <BaseChartCard
                   title="Spend via Publisher"
-                  description="Media cost only - Current financial year"
-                  data={publisherSpendData}
-                  onDatumClick={handleSpendPublisherPieClick}
-                  className={cn("rounded-lg", chartCardQuiet)}
-                />
+                  subtitle="Media cost only - Current financial year"
+                  className={cn("rounded-lg border-0 shadow-none", chartCardQuiet)}
+                >
+                  <TreemapChart
+                    data={publisherTreemapData}
+                    valueFormat="dollars"
+                    className="min-h-[280px] w-full"
+                    onNodeClick={(name) => {
+                      const row = publisherSpendData.find((d) => d.name === name)
+                      const value = row?.value ?? 0
+                      const percentage = row?.percentage ?? 0
+                      handleSpendPublisherPieClick(
+                        finalizeChartDatumClickPayload({
+                          chart: "treemap",
+                          source: "cell",
+                          name,
+                          value,
+                          percentage,
+                          index: Math.max(0, publisherSpendData.findIndex((d) => d.name === name)),
+                          datum: { name, value, percentage },
+                        }),
+                      )
+                    }}
+                  />
+                </BaseChartCard>
               </PanelContent>
             </Panel>
           </PanelRowCell>
           <PanelRowCell>
             <Panel className="overflow-hidden border-0 shadow-md">
               <PanelContent standalone className="p-0">
-                <TreemapShellChart
+                <BaseChartCard
                   title="Spend via Client"
-                  description="Media cost only - Current financial year"
-                  data={clientSpendData}
-                  colorByName={dashboardClientTreemapColors}
-                  onDatumClick={handleSpendClientPieClick}
-                  className={cn("rounded-lg", chartCardQuiet)}
-                />
+                  subtitle="Media cost only - Current financial year"
+                  className={cn("rounded-lg border-0 shadow-none", chartCardQuiet)}
+                >
+                  <TreemapChart
+                    data={clientTreemapData}
+                    valueFormat="dollars"
+                    className="min-h-[280px] w-full"
+                    onNodeClick={(name) => {
+                      const row = clientSpendData.find((d) => d.name === name)
+                      const value = row?.value ?? 0
+                      const percentage = row?.percentage ?? 0
+                      handleSpendClientPieClick(
+                        finalizeChartDatumClickPayload({
+                          chart: "treemap",
+                          source: "cell",
+                          name,
+                          value,
+                          percentage,
+                          index: Math.max(0, clientSpendData.findIndex((d) => d.name === name)),
+                          datum: { name, value, percentage },
+                        }),
+                      )
+                    }}
+                  />
+                </BaseChartCard>
               </PanelContent>
             </Panel>
           </PanelRowCell>
@@ -3225,29 +3292,61 @@ export default function DashboardOverview({
               <PanelContent standalone className="p-0">
                 <BaseChartCard
                   title="Monthly Spend by Client"
-                  description="Media cost by client per month (current FY, billing schedule)"
-                  variant="icon"
-                  icon={BarChart3}
-                  className={cn("rounded-lg", chartCardQuiet)}
+                  subtitle="Media cost by client per month (current FY, billing schedule)"
+                  className={cn("rounded-lg border-0 shadow-none", chartCardQuiet)}
+                  bodyRef={monthlyClientChartRef}
                   toolbar={
                     <ChartExportToolbar
-                      title="Monthly Spend by Client"
-                      chartAreaRef={monthlyClientChartRef}
-                      onExportCsv={handleExportMonthlyClientCsv}
+                      onCsv={handleExportMonthlyClientCsv}
+                      onPng={() =>
+                        void exportPng(monthlyClientChartRef.current, "monthly-spend-by-client.png")
+                      }
                     />
                   }
                 >
-                  <div ref={monthlyClientChartRef}>
-                    <StackedColumnChart
-                      data={monthlyClientStackedRows}
-                      xKey="month"
-                      series={monthlyClientStackedSeries}
-                      seriesColorByKey={dashboardMonthlyClientSeriesColors}
-                      onDatumClick={handleMonthlyClientChartClick}
-                      filterViaLegend
-                      legendVerticalAlign="bottom"
-                    />
-                  </div>
+                  <StackedBarChart
+                    data={monthlyClientStackedRows}
+                    xKey="month"
+                    series={monthlyClientStackedSeries}
+                    valueFormat="dollars"
+                    className="min-h-[300px] w-full"
+                    legendVerticalAlign="bottom"
+                    onSeriesClick={({ seriesKey, category, source }) => {
+                      if (source === "legend") {
+                        const sum = monthlyClientStackedRows.reduce(
+                          (s, row) => s + Math.max(0, Number(row[seriesKey]) || 0),
+                          0,
+                        )
+                        handleMonthlyClientChartClick(
+                          finalizeChartDatumClickPayload({
+                            chart: "stackedColumn",
+                            source: "legend",
+                            name: seriesKey,
+                            value: sum,
+                            category: "",
+                            index: Math.max(0, monthlyClientStackedSeries.findIndex((s) => s.key === seriesKey)),
+                            datum: null,
+                          }),
+                        )
+                        return
+                      }
+                      const row = monthlyClientStackedRows.find((r) => r.month === category) as
+                        | ChartStackedColumnRow
+                        | undefined
+                      if (!row || typeof category !== "string") return
+                      handleMonthlyClientChartClick(
+                        finalizeChartDatumClickPayload({
+                          chart: "stackedColumn",
+                          source: "bar",
+                          name: seriesKey,
+                          value: Number(row[seriesKey]) || 0,
+                          category,
+                          index: Math.max(0, monthlyClientStackedSeries.findIndex((s) => s.key === seriesKey)),
+                          datum: row,
+                        }),
+                      )
+                    }}
+                  />
                 </BaseChartCard>
               </PanelContent>
             </Panel>
@@ -3256,28 +3355,67 @@ export default function DashboardOverview({
               <PanelContent standalone className="p-0">
                 <BaseChartCard
                   title="Monthly Spend by Publisher"
-                  description="Media cost by publisher per month (current FY, billing schedule)"
-                  variant="icon"
-                  icon={BarChart3}
-                  className={cn("rounded-lg", chartCardQuiet)}
+                  subtitle="Media cost by publisher per month (current FY, billing schedule)"
+                  className={cn("rounded-lg border-0 shadow-none", chartCardQuiet)}
+                  bodyRef={monthlyPublisherChartRef}
                   toolbar={
                     <ChartExportToolbar
-                      title="Monthly Spend by Publisher"
-                      chartAreaRef={monthlyPublisherChartRef}
-                      onExportCsv={handleExportMonthlyPublisherCsv}
+                      onCsv={handleExportMonthlyPublisherCsv}
+                      onPng={() =>
+                        void exportPng(monthlyPublisherChartRef.current, "monthly-spend-by-publisher.png")
+                      }
                     />
                   }
                 >
-                  <div ref={monthlyPublisherChartRef}>
-                    <StackedColumnChart
-                      data={monthlyPublisherStackedRows}
-                      xKey="month"
-                      series={monthlyPublisherStackedSeries}
-                      onDatumClick={handleMonthlyPublisherChartClick}
-                      filterViaLegend
-                      legendVerticalAlign="bottom"
-                    />
-                  </div>
+                  <StackedBarChart
+                    data={monthlyPublisherStackedRows}
+                    xKey="month"
+                    series={monthlyPublisherStackedSeries}
+                    valueFormat="dollars"
+                    className="min-h-[300px] w-full"
+                    legendVerticalAlign="bottom"
+                    onSeriesClick={({ seriesKey, category, source }) => {
+                      if (source === "legend") {
+                        const sum = monthlyPublisherStackedRows.reduce(
+                          (s, row) => s + Math.max(0, Number(row[seriesKey]) || 0),
+                          0,
+                        )
+                        handleMonthlyPublisherChartClick(
+                          finalizeChartDatumClickPayload({
+                            chart: "stackedColumn",
+                            source: "legend",
+                            name: seriesKey,
+                            value: sum,
+                            category: "",
+                            index: Math.max(
+                              0,
+                              monthlyPublisherStackedSeries.findIndex((s) => s.key === seriesKey),
+                            ),
+                            datum: null,
+                          }),
+                        )
+                        return
+                      }
+                      const row = monthlyPublisherStackedRows.find((r) => r.month === category) as
+                        | ChartStackedColumnRow
+                        | undefined
+                      if (!row || typeof category !== "string") return
+                      handleMonthlyPublisherChartClick(
+                        finalizeChartDatumClickPayload({
+                          chart: "stackedColumn",
+                          source: "bar",
+                          name: seriesKey,
+                          value: Number(row[seriesKey]) || 0,
+                          category,
+                          index: Math.max(
+                            0,
+                            monthlyPublisherStackedSeries.findIndex((s) => s.key === seriesKey),
+                          ),
+                          datum: row,
+                        }),
+                      )
+                    }}
+                  />
                 </BaseChartCard>
               </PanelContent>
             </Panel>

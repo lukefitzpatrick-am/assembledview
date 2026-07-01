@@ -7,7 +7,7 @@
  */
 import * as React from 'react';
 import {
-  BarChart as RBarChart, Bar, ComposedChart, Line, LabelList,
+  BarChart as RBarChart, Bar, ComposedChart, Line, LabelList, Legend,
   CartesianGrid, XAxis, YAxis, Cell,
 } from 'recharts';
 import {
@@ -15,9 +15,16 @@ import {
   type ChartConfig,
 } from '@/components/ui/chart';
 import { fmt, NEUTRAL } from '@/lib/chart-theme';
+import { ChartFilterLegend } from './chart-shell';
 
 type Datum = Record<string, number | string>;
 type Series = { key: string; label: string; color?: string };
+
+export type SeriesClickPayload = {
+  seriesKey: string;
+  category?: string;
+  source: 'bar' | 'legend';
+};
 
 const axisProps = { tickLine: false, axisLine: false, tick: { fontSize: 11, fill: NEUTRAL.axis } } as const;
 const vfMap = {
@@ -41,30 +48,45 @@ export interface BarProps {
   horizontal?: boolean;
   showLegend?: boolean;
   className?: string;
+  /** Legend click filters (dashboard) instead of hiding series. */
+  onSeriesClick?: (payload: SeriesClickPayload) => void;
+  legendVerticalAlign?: 'top' | 'bottom';
 }
+
+type BarSegClick = { payload?: Datum; value?: number | [number, number] };
 
 /** Vertical/horizontal bars, grouped / stacked / 100%-stacked. */
 export function BarChart({
   data, xKey, series, valueFormat = 'compact', layout = 'group', horizontal = false, showLegend, className,
+  onSeriesClick, legendVerticalAlign = 'top',
 }: BarProps) {
   const cfg = withConfig(series);
   const vf = vfMap[valueFormat];
   const stackId = layout === 'group' ? undefined : 'a';
+  const filterLegend = onSeriesClick && (showLegend ?? series.length > 1);
+  const bottomMargin = filterLegend && legendVerticalAlign === 'bottom' ? 56 : 4;
+  const xAxisHeight = !horizontal && data.length > 8 ? 52 : 28;
   const cat = (
     <XAxis dataKey={xKey} type={horizontal ? 'category' : 'category'} {...axisProps}
-      {...(horizontal ? { width: 80 } : {})} />
+      {...(horizontal ? { width: 80 } : {})}
+      {...(!horizontal && data.length > 8 ? { angle: -25, textAnchor: 'end' as const, height: xAxisHeight, interval: 0 } : {})} />
   );
   const num = (
     <YAxis tickFormatter={layout === 'expand' ? (v) => fmt.percent(v) : vf}
       width={horizontal ? undefined : 44} {...axisProps} />
   );
+  const legendItems = series.map((s, i) => ({
+    key: s.key,
+    label: s.label,
+    color: s.color ?? `var(--av-chart-${(i % 8) + 1})`,
+  }));
   return (
     <ChartContainer config={cfg} className={className}>
       <RBarChart
         data={data}
         layout={horizontal ? 'vertical' : 'horizontal'}
         stackOffset={layout === 'expand' ? 'expand' : undefined}
-        margin={{ top: 8, right: 14, left: 4, bottom: 4 }}
+        margin={{ top: 8, right: 14, left: 4, bottom: bottomMargin }}
         barCategoryGap={layout === 'group' ? '22%' : '32%'}
       >
         <CartesianGrid vertical={false} horizontal={!horizontal} />
@@ -72,13 +94,55 @@ export function BarChart({
           <YAxis dataKey={xKey} type="category" width={84} {...axisProps} /></>
           : <>{cat}{num}</>}
         <ChartTooltip content={<ChartTooltipContent formatter={(v) => vf(Number(v))} />} />
-        {(showLegend ?? series.length > 1) && <ChartLegend content={<ChartLegendContent />} />}
-        {series.map((s) => (
-          <Bar key={s.key} dataKey={s.key} stackId={stackId}
-            fill={`var(--color-${s.key})`}
-            radius={layout === 'group' ? (horizontal ? [0, 3, 3, 0] : [3, 3, 0, 0]) : 0}
-            isAnimationActive={false} />
-        ))}
+        {filterLegend ? (
+          <Legend
+            verticalAlign={legendVerticalAlign}
+            align="center"
+            content={() => (
+              <ChartFilterLegend
+                items={legendItems}
+                onSelect={(key) => onSeriesClick!({ seriesKey: key, source: 'legend' })}
+              />
+            )}
+          />
+        ) : (showLegend ?? series.length > 1) ? (
+          <ChartLegend content={<ChartLegendContent />} />
+        ) : null}
+        {series.map((s, i) => {
+          const isTop = layout === 'stack' && i === series.length - 1;
+          return (
+            <Bar
+              key={s.key}
+              dataKey={s.key}
+              name={s.label}
+              stackId={stackId}
+              fill={`var(--color-${s.key})`}
+              radius={
+                layout === 'group'
+                  ? (horizontal ? [0, 3, 3, 0] : [3, 3, 0, 0])
+                  : isTop
+                    ? [3, 3, 0, 0]
+                    : [0, 0, 0, 0]
+              }
+              cursor={onSeriesClick ? 'pointer' : 'default'}
+              isAnimationActive={false}
+              onClick={
+                onSeriesClick
+                  ? (barProps: BarSegClick) => {
+                      const row = barProps.payload;
+                      const catRaw = row?.[xKey];
+                      if (!row || typeof catRaw !== 'string') return;
+                      onSeriesClick({
+                        seriesKey: s.key,
+                        category: catRaw,
+                        source: 'bar',
+                      });
+                    }
+                  : undefined
+              }
+            />
+          );
+        })}
       </RBarChart>
     </ChartContainer>
   );

@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils"
-import { Sparkline } from "@/components/charts/Sparkline"
+import { Sparkline } from "@/components/charts/system"
+import { reshapeSparkline } from "@/components/dashboard/dashboardChartReshape"
 import { StatusPill } from "./StatusPill"
 import { VarianceRibbon } from "./VarianceRibbon"
 import { statusBg, type DeliveryStatus } from "./statusColours"
@@ -84,7 +85,13 @@ export function ProgressCard({
       </div>
       {sparkline && sparkline.length > 0 ? (
         <div className="mt-2 h-8 w-full">
-          <Sparkline data={sparkline} height={32} />
+          <Sparkline
+            data={reshapeSparkline(sparkline)}
+            dataKey="value"
+            color="var(--primary)"
+            width={120}
+            height={32}
+          />
         </div>
       ) : null}
       <VarianceRibbon variance={variance} label={varianceLabel} className="mt-2" />

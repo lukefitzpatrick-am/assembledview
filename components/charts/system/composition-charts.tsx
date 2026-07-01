@@ -82,28 +82,110 @@ export function RadialBarsChart({ data, className }: { data: Slice[]; className?
   );
 }
 
-/** Treemap — nested spend by channel; area = budget. */
-export function TreemapChart({ data, className }: { data: Slice[]; className?: string }) {
-  const rows = data.map((s, i) => ({ name: s.label, size: s.value, fill: colorAt(i, s.color) }));
-  const Node = (p: any) => {
+export interface TreemapProps {
+  data: Slice[];
+  className?: string;
+  colorByName?: Record<string, string>;
+  onNodeClick?: (name: string) => void;
+  valueFormat?: 'dollars' | 'number' | 'compact';
+}
+
+/** Treemap — spend by category; area = value. */
+export function TreemapChart({
+  data,
+  className,
+  colorByName,
+  onNodeClick,
+  valueFormat = 'dollars',
+}: TreemapProps) {
+  const vf =
+    valueFormat === 'dollars'
+      ? fmt.currencyCompact
+      : valueFormat === 'number'
+        ? fmt.number
+        : fmt.compact;
+  const rows = data.map((s, i) => ({
+    name: s.label,
+    size: s.value,
+    fill: colorByName?.[s.label] ?? colorAt(i, s.color),
+  }));
+  const TreemapNode = (p: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    name?: string;
+    size?: number;
+    fill?: string;
+  }) => {
     const { x, y, width, height, name, size, fill } = p;
     if (width <= 0 || height <= 0) return null;
+    const rx = Math.round(x);
+    const ry = Math.round(y);
+    const rw = Math.max(0, Math.round(width));
+    const rh = Math.max(0, Math.round(height));
+    const minSide = Math.min(rw, rh);
+    const showLabel = minSide >= 44;
     return (
-      <g>
-        <rect x={x + 1} y={y + 1} width={width - 2} height={height - 2} rx={4} fill={fill} />
-        {width > 54 && height > 28 && (
+      <g
+        style={{ cursor: onNodeClick ? 'pointer' : undefined }}
+        onClick={() => name && onNodeClick?.(name)}
+      >
+        <rect
+          x={rx + 1}
+          y={ry + 1}
+          width={rw - 2}
+          height={rh - 2}
+          rx={4}
+          fill={fill}
+          stroke="var(--av-surface)"
+          strokeWidth={2}
+        />
+        {minSide >= 28 && rw > 4 && rh > 4 ? (
           <>
-            <text x={x + 8} y={y + 18} fontSize={11} fontWeight={700} fill="#fff">{name}</text>
-            <text x={x + 8} y={y + 33} fontSize={11} fill="rgba(255,255,255,.85)" className="tabular-nums">{size}%</text>
+            {showLabel ? (
+              <>
+                <text x={rx + 8} y={ry + 18} fontSize={11} fontWeight={700} fill="var(--av-surface)">
+                  {name}
+                </text>
+                <text
+                  x={rx + 8}
+                  y={ry + 33}
+                  fontSize={11}
+                  fill="var(--av-surface)"
+                  className="tabular-nums"
+                  opacity={0.9}
+                >
+                  {vf(Number(size) || 0)}
+                </text>
+              </>
+            ) : (
+              <text x={rx + 8} y={ry + 18} fontSize={10} fontWeight={700} fill="var(--av-surface)">
+                {name}
+              </text>
+            )}
           </>
-        )}
+        ) : null}
       </g>
     );
   };
   return (
     <ChartContainer config={cfgFrom(data)} className={className}>
-      <Treemap data={rows} dataKey="size" stroke="transparent" content={<Node />} isAnimationActive={false}>
-        <ChartTooltip content={<ChartTooltipContent nameKey="name" />} />
+      <Treemap
+        data={rows}
+        dataKey="size"
+        stroke="transparent"
+        content={TreemapNode as unknown as React.ReactElement}
+        isAnimationActive={false}
+      >
+        <ChartTooltip
+          content={
+            <ChartTooltipContent
+              nameKey="name"
+              formatter={(v) => vf(Number(v))}
+            />
+          }
+        />
       </Treemap>
     </ChartContainer>
   );

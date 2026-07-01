@@ -3,7 +3,8 @@
 import { ArrowDownRight, ArrowRight, ArrowUpRight } from "lucide-react"
 import type { ComponentType, SVGProps } from "react"
 
-import { Sparkline } from "@/components/charts/Sparkline"
+import { Sparkline } from "@/components/charts/system"
+import { reshapeSparkline } from "@/components/dashboard/dashboardChartReshape"
 import { cn } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
 
@@ -108,7 +109,13 @@ export function MetricCard({
         ) : null}
         {sparklineData && sparklineData.length > 0 ? (
           <div className={cn("mt-4", sparklineClassName)}>
-            <Sparkline data={sparklineData} height={32} />
+            <Sparkline
+              data={reshapeSparkline(sparklineData)}
+              dataKey="value"
+              color="var(--primary)"
+              width={120}
+              height={32}
+            />
           </div>
         ) : null}
       </div>

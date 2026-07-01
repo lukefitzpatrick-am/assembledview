@@ -106,6 +106,43 @@ export function ToggleableLegend({ items, hidden, onToggle }: ToggleableLegendPr
   );
 }
 
+/** Clickable legend — filters dashboard views instead of toggling visibility. */
+export function ChartFilterLegend({
+  items,
+  onSelect,
+}: {
+  items: LegendItem[];
+  onSelect: (key: string) => void;
+}) {
+  return (
+    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      {items.map((it) => (
+        <button
+          key={it.key}
+          type="button"
+          onClick={() => onSelect(it.key)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '4px 10px',
+            borderRadius: 99,
+            border: '1px solid var(--av-grid)',
+            background: 'var(--av-surface)',
+            fontSize: 11,
+            fontWeight: 600,
+            color: 'var(--av-label)',
+            cursor: 'pointer',
+          }}
+        >
+          <span style={{ width: 9, height: 9, borderRadius: 2, background: it.color }} />
+          {it.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /** Controlled hidden-series state for ToggleableLegend. */
 export function useLegendToggle(initial: string[] = []) {
   const [hidden, setHidden] = React.useState<Set<string>>(new Set(initial));

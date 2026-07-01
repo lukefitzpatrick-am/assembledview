@@ -6,8 +6,8 @@ import {
   BaseChartCard,
   DonutChart,
   HorizontalBarChart,
+  StackedBarChart,
 } from "@/components/charts/system"
-import { StackedColumnChart } from "@/components/charts/StackedColumnChart"
 import { EmptyState } from "@/components/ui/states"
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/layout/Panel"
 import { getMediaLabel } from "@/lib/charts/registry"
@@ -35,8 +35,6 @@ type SpendChartsRowProps = {
   /** Prorated planned spend to date (matches campaign summary when monthly data exists) */
   campaignSpendToDate?: number
 }
-
-const CHART_PLOT_HEIGHT = 300
 
 const UNKNOWN_PUBLISHER = "Unknown"
 const OTHER_BUCKET = "Other"
@@ -558,12 +556,12 @@ export default function SpendChartsRow({
         title="Monthly spend by channel"
         subtitle={`Stacked gross media by month · As at ${asAtDate}`}
       >
-        <StackedColumnChart
+        <StackedBarChart
           data={pivotedMonthly}
           xKey="month"
           series={monthlySeries}
-          seriesColorByKey={Object.fromEntries(monthlySeries.map((s) => [s.key, s.color!]))}
-          height={CHART_PLOT_HEIGHT}
+          valueFormat="dollars"
+          className="min-h-[300px] w-full"
         />
       </BaseChartCard>
     </section>

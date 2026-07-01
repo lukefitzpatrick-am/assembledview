@@ -3,9 +3,12 @@
 import { useMemo } from "react"
 import { BarChart3, PieChart as PieChartIcon } from "lucide-react"
 
-import BaseChartCard from "@/components/charts/BaseChartCard"
-import { DonutChart } from "@/components/charts/DonutChart"
-import { StackedColumnChart } from "@/components/charts/StackedColumnChart"
+import {
+  BaseChartCard,
+  DonutChart,
+  StackedBarChart,
+} from "@/components/charts/system"
+import { buildDonutSlices } from "@/lib/charts-app/donutSlices"
 import type { PublisherDashboardData } from "@/lib/types/publisher"
 import {
   Table,
@@ -19,16 +22,17 @@ import { Panel, PanelContent, PanelDescription, PanelHeader, PanelTitle } from "
 import { PanelRow, PanelRowCell } from "@/components/layout/PanelRow"
 import { TableWithExport } from "@/components/ui/table-with-export"
 import { ProgressBar } from "@/components/ui/ProgressBar"
+import { EmptyState } from "@/components/ui/states"
 import {
   FALLBACK_PALETTE,
   getDeterministicColor,
   getMediaColor,
   getMediaLabel,
 } from "@/lib/charts/registry"
+import { channelColorFor, fmt } from "@/lib/chart-theme"
 import { normalizeCampaignMediaTypeKey } from "@/lib/publisher/mediaTypeBadges"
 import { MEDIA_TYPE_SLUG_TO_DASHBOARD_LABEL } from "@/lib/publisher/scheduleLabels"
 import { MediaChannelTag, mediaChannelTagRowClassName } from "@/components/dashboard/MediaChannelTag"
-import { formatCurrencyCompact } from "@/lib/format/currency"
 
 interface PublisherDetailChartsProps {
   analytics: PublisherDashboardData
@@ -83,7 +87,11 @@ export function PublisherDetailCharts({
     }
     return Array.from(keys)
       .sort()
-      .map((key) => ({ key, label: getMediaLabel(key) }))
+      .map((key, i) => ({
+        key,
+        label: getMediaLabel(key),
+        color: channelColorFor(key, i),
+      }))
   }, [stackedData])
 
   const totalPositiveStacked = useMemo(
@@ -99,16 +107,23 @@ export function PublisherDetailCharts({
 
   const totalsSpend = analytics.campaigns.reduce((s, c) => s + c.publisherSpendFy, 0)
 
-  const pieDataByClient = analytics.spendByClient.map((c) => ({
-    name: c.clientName,
-    value: c.amount,
-    percentage: c.percentage,
-  }))
-
-  const clientDonutData = useMemo(
-    () => pieDataByClient.map((c) => ({ key: c.name, value: c.value })),
-    [pieDataByClient],
-  )
+  const clientDonutSlices = useMemo(() => {
+    const { slices, total } = buildDonutSlices(
+      analytics.spendByClient.map((c) => ({ key: c.clientName, value: c.amount })),
+      12,
+      11,
+    )
+    return {
+      total,
+      data: slices.map((slice, i) => ({
+        label: slice.label,
+        value: slice.value,
+        color: chartColourOverride?.length
+          ? chartColourOverride[i % chartColourOverride.length]!
+          : getDeterministicColor(slice.key),
+      })),
+    }
+  }, [analytics.spendByClient, chartColourOverride])
 
   const pieDataByMediaType = useMemo(() => {
     const byType: Record<string, number> = {}
@@ -117,29 +132,30 @@ export function PublisherDetailCharts({
         byType[mediaType] = (byType[mediaType] || 0) + amount
       }
     }
-    const total = Object.values(byType).reduce((a, b) => a + b, 0)
     return Object.entries(byType)
       .filter(([, amount]) => amount > 0)
-      .map(([name, value]) => ({
-        name,
-        value,
-        percentage: total > 0 ? (value / total) * 100 : 0,
-      }))
+      .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value)
   }, [analytics.monthlySpend])
 
-  const mediaTypeDonutData = useMemo(
-    () => pieDataByMediaType.map((d) => ({ key: d.name, value: d.value })),
-    [pieDataByMediaType],
-  )
+  const mediaTypeDonut = useMemo(() => {
+    const { slices, total } = buildDonutSlices(
+      pieDataByMediaType.map((d) => ({ key: d.name, value: d.value })),
+      12,
+      11,
+      getMediaLabel,
+    )
+    return {
+      total,
+      data: slices.map((slice, i) => ({
+        label: getMediaLabel(slice.key),
+        value: slice.value,
+        color: channelColorFor(slice.key, i),
+      })),
+    }
+  }, [pieDataByMediaType])
 
   const showMediaTypePie = pieDataByMediaType.length >= 2
-
-  const clientColourFn = useMemo(() => {
-    const palette = chartColourOverride
-    return (key: string, index: number) =>
-      palette?.length ? palette[index % palette.length]! : getDeterministicColor(key)
-  }, [chartColourOverride])
 
   const csvData: CampaignCsvRow[] = useMemo(() => {
     const rows: CampaignCsvRow[] = analytics.campaigns.map((row) => ({
@@ -274,18 +290,28 @@ export function PublisherDetailCharts({
         <PanelRowCell span={showMediaTypePie ? "third" : "half"}>
           <BaseChartCard
             title="Monthly spend by media type"
-            description="Australian financial year, this publisher only"
-            variant="icon"
-            icon={BarChart3}
+            subtitle="Australian financial year, this publisher only"
             className="h-full border-border/40 bg-card shadow-sm"
-            isEmpty={stackedData.length === 0 || totalPositiveStacked <= 0}
-            emptyMessage="No monthly spend data for this period"
           >
-            <StackedColumnChart data={stackedData} xKey="month" series={series} />
+            {stackedData.length === 0 || totalPositiveStacked <= 0 ? (
+              <EmptyState
+                className="min-h-[240px] border-0 bg-transparent"
+                title="No monthly spend data for this period"
+                message={null}
+              />
+            ) : (
+              <StackedBarChart
+                data={stackedData}
+                xKey="month"
+                series={series}
+                valueFormat="dollars"
+                className="min-h-[280px] w-full"
+              />
+            )}
           </BaseChartCard>
         </PanelRowCell>
         <PanelRowCell span={showMediaTypePie ? "third" : "half"}>
-          {pieDataByClient.length === 0 ? (
+          {clientDonutSlices.data.length === 0 ? (
             <Panel className="h-full border-border/40 bg-card shadow-sm">
               <PanelHeader className="border-b border-border/40 bg-muted/10 px-6 py-4">
                 <PanelTitle>Spend by client</PanelTitle>
@@ -295,17 +321,15 @@ export function PublisherDetailCharts({
           ) : (
             <BaseChartCard
               title="Spend by client"
-              description={"Share of this publisher's FY spend by client"}
-              variant="icon"
-              icon={PieChartIcon}
+              subtitle={"Share of this publisher's FY spend by client"}
               className="h-full border-border/40 bg-card shadow-sm"
             >
               <DonutChart
-                data={clientDonutData}
-                colourFn={clientColourFn}
-                valueFormatter={formatCurrencyCompact}
-                maxSlices={12}
-                topNBeforeOther={11}
+                data={clientDonutSlices.data}
+                centerValue={fmt.currencyCompact(clientDonutSlices.total)}
+                centerLabel="Total"
+                valueFormat="dollars"
+                className="min-h-[280px] w-full"
               />
             </BaseChartCard>
           )}
@@ -314,16 +338,15 @@ export function PublisherDetailCharts({
           <PanelRowCell span="third">
             <BaseChartCard
               title="Spend by media type"
-              description="FY totals split across media types with spend for this publisher"
-              variant="icon"
-              icon={PieChartIcon}
+              subtitle="FY totals split across media types with spend for this publisher"
               className="h-full border-border/40 bg-card shadow-sm"
             >
               <DonutChart
-                data={mediaTypeDonutData}
-                colourFn={(key) => getMediaColor(key)}
-                labelFn={(key) => getMediaLabel(key)}
-                valueFormatter={formatCurrencyCompact}
+                data={mediaTypeDonut.data}
+                centerValue={fmt.currencyCompact(mediaTypeDonut.total)}
+                centerLabel="Total"
+                valueFormat="dollars"
+                className="min-h-[280px] w-full"
               />
             </BaseChartCard>
           </PanelRowCell>
@@ -344,9 +367,7 @@ export function PublisherDetailCharts({
               <PanelRowCell key={entry.mediaType} span={span}>
                 <BaseChartCard
                   title={label}
-                  description={`Share of total ${label} spend this FY`}
-                  variant="icon"
-                  icon={BarChart3}
+                  subtitle={`Share of total ${label} spend this FY`}
                   className="h-full border-border/40 bg-card shadow-e1"
                 >
                   <div className="space-y-4">
@@ -357,7 +378,7 @@ export function PublisherDetailCharts({
                       </div>
                       <div className="text-right">
                         <p className="num text-sm font-semibold text-foreground">
-                          {formatCurrencyCompact(entry.thisPublisherSpend)}
+                          {fmt.currencyCompact(entry.thisPublisherSpend)}
                         </p>
                         <p className="num mt-1 text-xs text-muted-foreground">
                           {Math.round(sharePercentage)}%
@@ -373,7 +394,7 @@ export function PublisherDetailCharts({
                     />
                     <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
                       <span>Total market</span>
-                      <span className="num font-medium">{formatCurrencyCompact(entry.totalMarketSpend)}</span>
+                      <span className="num font-medium">{fmt.currencyCompact(entry.totalMarketSpend)}</span>
                     </div>
                   </div>
                 </BaseChartCard>

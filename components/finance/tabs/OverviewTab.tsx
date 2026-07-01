@@ -13,9 +13,12 @@ import { format } from "date-fns"
 import { AlertTriangle, ArrowRight, BarChart3, CalendarRange, DollarSign, Scale, Wallet } from "lucide-react"
 import { differenceInCalendarDays, parseISO } from "date-fns"
 import { PageHeroShell } from "@/components/dashboard/PageHeroShell"
-import BaseChartCard from "@/components/charts/BaseChartCard"
-import { TreemapShellChart } from "@/components/charts/TreemapShellChart"
-import { StackedColumnChart } from "@/components/charts/StackedColumnChart"
+import {
+  BaseChartCard,
+  StackedBarChart,
+  TreemapChart,
+} from "@/components/charts/system"
+import { reshapeSpendTreemap } from "@/components/dashboard/dashboardChartReshape"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
 import { ErrorState, LoadingState } from "@/components/ui/states"
@@ -881,8 +884,33 @@ export function OverviewTab() {
     }
     return Array.from(keys)
       .sort()
-      .map((key) => ({ key, label: key }))
+      .map((key, i) => ({
+        key,
+        label: key,
+        color: `var(--av-chart-${(i % 8) + 1})`,
+      }))
   }, [monthlyPublisherStackedRows])
+
+  const monthlyClientStackedSeriesColored = useMemo(
+    () =>
+      monthlyClientStackedSeries.map((s, i) => ({
+        ...s,
+        color:
+          dashboardMonthlyClientSeriesColors[s.key] ??
+          `var(--av-chart-${(i % 8) + 1})`,
+      })),
+    [monthlyClientStackedSeries, dashboardMonthlyClientSeriesColors],
+  )
+
+  const publisherTreemapData = useMemo(
+    () => reshapeSpendTreemap(publisherSpendData),
+    [publisherSpendData],
+  )
+
+  const clientTreemapData = useMemo(
+    () => reshapeSpendTreemap(clientSpendData, dashboardClientTreemapColors),
+    [clientSpendData, dashboardClientTreemapColors],
+  )
 
   return (
     <div className="space-y-10">
@@ -903,48 +931,56 @@ export function OverviewTab() {
           <div className="flex flex-col gap-4">
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <div className="overflow-hidden rounded-card border border-border bg-card shadow-e1">
-                <TreemapShellChart
+                <BaseChartCard
                   title="Spend via Publisher"
-                  description="Media cost only - Current financial year"
-                  data={publisherSpendData}
-                  className={cn("rounded-card", chartCardQuiet)}
-                />
+                  subtitle="Media cost only - Current financial year"
+                  className={cn("rounded-card border-0 shadow-none", chartCardQuiet)}
+                >
+                  <TreemapChart
+                    data={publisherTreemapData}
+                    valueFormat="dollars"
+                    className="min-h-[280px] w-full"
+                  />
+                </BaseChartCard>
               </div>
               <div className="overflow-hidden rounded-card border border-border bg-card shadow-e1">
-                <TreemapShellChart
+                <BaseChartCard
                   title="Spend via Client"
-                  description="Media cost only - Current financial year"
-                  data={clientSpendData}
-                  colorByName={dashboardClientTreemapColors}
-                  className={cn("rounded-card", chartCardQuiet)}
-                />
+                  subtitle="Media cost only - Current financial year"
+                  className={cn("rounded-card border-0 shadow-none", chartCardQuiet)}
+                >
+                  <TreemapChart
+                    data={clientTreemapData}
+                    valueFormat="dollars"
+                    className="min-h-[280px] w-full"
+                  />
+                </BaseChartCard>
               </div>
             </div>
             <BaseChartCard
               title="Monthly Spend by Client"
-              description="Media cost by client per month (current FY, billing schedule)"
-              variant="icon"
-              icon={BarChart3}
+              subtitle="Media cost by client per month (current FY, billing schedule)"
               className="overflow-hidden rounded-card border border-border bg-card shadow-e1"
             >
-              <StackedColumnChart
+              <StackedBarChart
                 data={monthlyClientStackedRows}
                 xKey="month"
-                series={monthlyClientStackedSeries}
-                seriesColorByKey={dashboardMonthlyClientSeriesColors}
+                series={monthlyClientStackedSeriesColored}
+                valueFormat="dollars"
+                className="min-h-[300px] w-full"
               />
             </BaseChartCard>
             <BaseChartCard
               title="Monthly Spend by Publisher"
-              description="Media cost by publisher per month (current FY, billing schedule)"
-              variant="icon"
-              icon={BarChart3}
+              subtitle="Media cost by publisher per month (current FY, billing schedule)"
               className="overflow-hidden rounded-card border border-border bg-card shadow-e1"
             >
-              <StackedColumnChart
+              <StackedBarChart
                 data={monthlyPublisherStackedRows}
                 xKey="month"
                 series={monthlyPublisherStackedSeries}
+                valueFormat="dollars"
+                className="min-h-[300px] w-full"
               />
             </BaseChartCard>
           </div>

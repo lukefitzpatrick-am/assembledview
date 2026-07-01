@@ -13,13 +13,13 @@ export {
 export {
   BarChart, HorizontalBarChart, GroupedBarChart, StackedBarChart,
   PercentStackedBarChart, ComboChart, Histogram,
-  type BarProps, type ComboProps,
+  type BarProps, type ComboProps, type SeriesClickPayload,
 } from './bar-charts';
 
 // Composition
 export {
   DonutChart, GaugeChart, RadialBarsChart, TreemapChart, FunnelChart,
-  type DonutProps,
+  type DonutProps, type TreemapProps,
 } from './composition-charts';
 
 // Distribution & relationship
@@ -50,7 +50,7 @@ export {
 
 // Chart chrome — shell, toolbar, legend, export
 export {
-  BaseChartCard, ChartExportToolbar, ToggleableLegend, useLegendToggle,
+  BaseChartCard, ChartExportToolbar, ToggleableLegend, ChartFilterLegend, useLegendToggle,
   exportCsv, exportPng,
   type BaseChartCardProps, type ChartExportToolbarProps, type LegendItem, type ToggleableLegendProps,
 } from './chart-shell';
