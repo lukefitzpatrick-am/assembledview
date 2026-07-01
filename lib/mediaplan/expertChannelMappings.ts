@@ -1131,18 +1131,15 @@ function formatYmd(d: Date): string {
   return format(startOfDay(d), "yyyy-MM-dd")
 }
 
-function deriveUnitRateFromBursts(
-  bursts: StandardMediaBurst[],
-  buyType?: string
-): number {
+/**
+ * Standard bursts store unit rate in `buyAmount` (same contract as
+ * Radio/Cinema/BVOD; see each container's handleValueChange and
+ * {@link computeLoadedDeliverables}).
+ */
+function deriveUnitRateFromBursts(bursts: StandardMediaBurst[]): number {
   for (const b of bursts) {
-    if (buyType === "panels") {
-      const rate = parseNum(b.buyAmount)
-      if (rate > 0) return rate
-    }
-    const gross = parseNum(b.budget)
-    const qty = parseNum(b.buyAmount)
-    if (qty > 0 && gross > 0) return gross / qty
+    const rate = parseNum(b.buyAmount)
+    if (rate > 0) return rate
   }
   return 0
 }
@@ -2818,9 +2815,9 @@ export function mapDigiVideoExpertRowsToStandardLineItems(
       const usesManualDeliverable =
         isInclusionBuyType ||
         isFixedDeliverableBuyType
-      const buyAmountStr = formatBurstBudget(qty)
+      const buyAmountStr = formatRate(unitRate)
       const bonusVal = usesManualDeliverable ? qty : undefined
-      const buyAmtNum = usesManualDeliverable ? 0 : qty
+      const buyAmtNum = usesManualDeliverable ? 0 : unitRate
       const calculatedValue = bvodCalculatedDeliverables(
         buyType,
         netForCalc,
@@ -2931,17 +2928,20 @@ export function mapStandardDigiVideoLineItemsToExpertRows(
       const endKey = weekKeyFromDate(ed)
       if (!(startKey in weeklyValues)) continue
 
-      const qtyRaw = parseNum(b.buyAmount)
+      // Standard bursts store unit rate in `buyAmount`; weekly cells hold
+      // deliverables, so qty comes from the persisted `calculatedValue`.
       const buyTypeLower = buyType.toLowerCase()
-      let cellQty = qtyRaw
-      if (buyTypeLower === "bonus") {
-        cellQty =
-          typeof b.calculatedValue === "number" ? b.calculatedValue : 0
-      } else if (
+      const cellQtyRaw = b.calculatedValue
+      let cellQty =
+        typeof cellQtyRaw === "number" && Number.isFinite(cellQtyRaw)
+          ? cellQtyRaw
+          : parseNum(cellQtyRaw)
+      if (!Number.isFinite(cellQty)) cellQty = 0
+      if (
         buyTypeLower === "fixed_cost" ||
         buyTypeLower === "package_inclusions"
       ) {
-        cellQty = qtyRaw > 0 ? qtyRaw : 1
+        cellQty = cellQty > 0 ? cellQty : 1
       }
 
       if (startKey === endKey) {
@@ -3235,9 +3235,9 @@ export function mapDigitalDisplayExpertRowsToStandardLineItems(
       const usesManualDeliverable =
         isInclusionBuyType ||
         isFixedDeliverableBuyType
-      const buyAmountStr = formatBurstBudget(qty)
+      const buyAmountStr = formatRate(unitRate)
       const bonusVal = usesManualDeliverable ? qty : undefined
-      const buyAmtNum = usesManualDeliverable ? 0 : qty
+      const buyAmtNum = usesManualDeliverable ? 0 : unitRate
       const calculatedValue = bvodCalculatedDeliverables(
         buyType,
         netForCalc,
@@ -3347,17 +3347,20 @@ export function mapStandardDigiDisplayLineItemsToExpertRows(
       const endKey = weekKeyFromDate(ed)
       if (!(startKey in weeklyValues)) continue
 
-      const qtyRaw = parseNum(b.buyAmount)
+      // Standard bursts store unit rate in `buyAmount`; weekly cells hold
+      // deliverables, so qty comes from the persisted `calculatedValue`.
       const buyTypeLower = buyType.toLowerCase()
-      let cellQty = qtyRaw
-      if (buyTypeLower === "bonus") {
-        cellQty =
-          typeof b.calculatedValue === "number" ? b.calculatedValue : 0
-      } else if (
+      const cellQtyRaw = b.calculatedValue
+      let cellQty =
+        typeof cellQtyRaw === "number" && Number.isFinite(cellQtyRaw)
+          ? cellQtyRaw
+          : parseNum(cellQtyRaw)
+      if (!Number.isFinite(cellQty)) cellQty = 0
+      if (
         buyTypeLower === "fixed_cost" ||
         buyTypeLower === "package_inclusions"
       ) {
-        cellQty = qtyRaw > 0 ? qtyRaw : 1
+        cellQty = cellQty > 0 ? cellQty : 1
       }
 
       if (startKey === endKey) {
@@ -4059,9 +4062,9 @@ export function mapSocialMediaExpertRowsToStandardLineItems(
       const usesManualDeliverable =
         isInclusionBuyType ||
         isFixedDeliverableBuyType
-      const buyAmountStr = formatBurstBudget(qty)
+      const buyAmountStr = formatRate(unitRate)
       const bonusVal = usesManualDeliverable ? qty : undefined
-      const buyAmtNum = usesManualDeliverable ? 0 : qty
+      const buyAmtNum = usesManualDeliverable ? 0 : unitRate
       const calculatedValue = bvodCalculatedDeliverables(
         buyType,
         netForCalc,
@@ -4167,17 +4170,20 @@ export function mapStandardSocialMediaLineItemsToExpertRows(
       const endKey = weekKeyFromDate(ed)
       if (!(startKey in weeklyValues)) continue
 
-      const qtyRaw = parseNum(b.buyAmount)
+      // Standard bursts store unit rate in `buyAmount`; weekly cells hold
+      // deliverables, so qty comes from the persisted `calculatedValue`.
       const buyTypeLower = buyType.toLowerCase()
-      let cellQty = qtyRaw
-      if (buyTypeLower === "bonus") {
-        cellQty =
-          typeof b.calculatedValue === "number" ? b.calculatedValue : 0
-      } else if (
+      const cellQtyRaw = b.calculatedValue
+      let cellQty =
+        typeof cellQtyRaw === "number" && Number.isFinite(cellQtyRaw)
+          ? cellQtyRaw
+          : parseNum(cellQtyRaw)
+      if (!Number.isFinite(cellQty)) cellQty = 0
+      if (
         buyTypeLower === "fixed_cost" ||
         buyTypeLower === "package_inclusions"
       ) {
-        cellQty = qtyRaw > 0 ? qtyRaw : 1
+        cellQty = cellQty > 0 ? cellQty : 1
       }
 
       if (startKey === endKey) {
@@ -4450,9 +4456,9 @@ export function mapSearchExpertRowsToStandardLineItems(
       const usesManualDeliverable =
         isInclusionBuyType ||
         isFixedDeliverableBuyType
-      const buyAmountStr = formatBurstBudget(qty)
+      const buyAmountStr = formatRate(unitRate)
       const bonusVal = usesManualDeliverable ? qty : undefined
-      const buyAmtNum = usesManualDeliverable ? 0 : qty
+      const buyAmtNum = usesManualDeliverable ? 0 : unitRate
       const calculatedValue = bvodCalculatedDeliverables(
         buyType,
         netForCalc,
@@ -4558,17 +4564,20 @@ export function mapStandardSearchLineItemsToExpertRows(
       const endKey = weekKeyFromDate(ed)
       if (!(startKey in weeklyValues)) continue
 
-      const qtyRaw = parseNum(b.buyAmount)
+      // Standard bursts store unit rate in `buyAmount`; weekly cells hold
+      // deliverables, so qty comes from the persisted `calculatedValue`.
       const buyTypeLower = buyType.toLowerCase()
-      let cellQty = qtyRaw
-      if (buyTypeLower === "bonus") {
-        cellQty =
-          typeof b.calculatedValue === "number" ? b.calculatedValue : 0
-      } else if (
+      const cellQtyRaw = b.calculatedValue
+      let cellQty =
+        typeof cellQtyRaw === "number" && Number.isFinite(cellQtyRaw)
+          ? cellQtyRaw
+          : parseNum(cellQtyRaw)
+      if (!Number.isFinite(cellQty)) cellQty = 0
+      if (
         buyTypeLower === "fixed_cost" ||
         buyTypeLower === "package_inclusions"
       ) {
-        cellQty = qtyRaw > 0 ? qtyRaw : 1
+        cellQty = cellQty > 0 ? cellQty : 1
       }
 
       if (startKey === endKey) {
@@ -4851,9 +4860,9 @@ export function mapInfluencersExpertRowsToStandardLineItems(
       const usesManualDeliverable =
         isInclusionBuyType ||
         isFixedDeliverableBuyType
-      const buyAmountStr = formatBurstBudget(qty)
+      const buyAmountStr = formatRate(unitRate)
       const bonusVal = usesManualDeliverable ? qty : undefined
-      const buyAmtNum = usesManualDeliverable ? 0 : qty
+      const buyAmtNum = usesManualDeliverable ? 0 : unitRate
       const calculatedValue = bvodCalculatedDeliverables(
         buyType,
         netForCalc,
@@ -4962,17 +4971,20 @@ export function mapStandardInfluencersLineItemsToExpertRows(
       const endKey = weekKeyFromDate(ed)
       if (!(startKey in weeklyValues)) continue
 
-      const qtyRaw = parseNum(b.buyAmount)
+      // Standard bursts store unit rate in `buyAmount`; weekly cells hold
+      // deliverables, so qty comes from the persisted `calculatedValue`.
       const buyTypeLower = buyType.toLowerCase()
-      let cellQty = qtyRaw
-      if (buyTypeLower === "bonus") {
-        cellQty =
-          typeof b.calculatedValue === "number" ? b.calculatedValue : 0
-      } else if (
+      const cellQtyRaw = b.calculatedValue
+      let cellQty =
+        typeof cellQtyRaw === "number" && Number.isFinite(cellQtyRaw)
+          ? cellQtyRaw
+          : parseNum(cellQtyRaw)
+      if (!Number.isFinite(cellQty)) cellQty = 0
+      if (
         buyTypeLower === "fixed_cost" ||
         buyTypeLower === "package_inclusions"
       ) {
-        cellQty = qtyRaw > 0 ? qtyRaw : 1
+        cellQty = cellQty > 0 ? cellQty : 1
       }
 
       if (startKey === endKey) {
@@ -5255,9 +5267,9 @@ export function mapIntegrationExpertRowsToStandardLineItems(
       const usesManualDeliverable =
         isInclusionBuyType ||
         isFixedDeliverableBuyType
-      const buyAmountStr = formatBurstBudget(qty)
+      const buyAmountStr = formatRate(unitRate)
       const bonusVal = usesManualDeliverable ? qty : undefined
-      const buyAmtNum = usesManualDeliverable ? 0 : qty
+      const buyAmtNum = usesManualDeliverable ? 0 : unitRate
       const calculatedValue = bvodCalculatedDeliverables(
         buyType,
         netForCalc,
@@ -5366,17 +5378,20 @@ export function mapStandardIntegrationLineItemsToExpertRows(
       const endKey = weekKeyFromDate(ed)
       if (!(startKey in weeklyValues)) continue
 
-      const qtyRaw = parseNum(b.buyAmount)
+      // Standard bursts store unit rate in `buyAmount`; weekly cells hold
+      // deliverables, so qty comes from the persisted `calculatedValue`.
       const buyTypeLower = buyType.toLowerCase()
-      let cellQty = qtyRaw
-      if (buyTypeLower === "bonus") {
-        cellQty =
-          typeof b.calculatedValue === "number" ? b.calculatedValue : 0
-      } else if (
+      const cellQtyRaw = b.calculatedValue
+      let cellQty =
+        typeof cellQtyRaw === "number" && Number.isFinite(cellQtyRaw)
+          ? cellQtyRaw
+          : parseNum(cellQtyRaw)
+      if (!Number.isFinite(cellQty)) cellQty = 0
+      if (
         buyTypeLower === "fixed_cost" ||
         buyTypeLower === "package_inclusions"
       ) {
-        cellQty = qtyRaw > 0 ? qtyRaw : 1
+        cellQty = cellQty > 0 ? cellQty : 1
       }
 
       if (startKey === endKey) {
@@ -5592,7 +5607,7 @@ export function mapNewspaperExpertRowsToStandardLineItems(
         budgetIncludesFees,
         feePct
       )
-      const buyAmountStr = formatBurstBudget(qty)
+      const buyAmountStr = formatRate(unitRate)
       const buyTypeLower = buyType.toLowerCase()
       const isInclusionBuyType =
         buyTypeLower === "bonus" ||
@@ -5603,7 +5618,7 @@ export function mapNewspaperExpertRowsToStandardLineItems(
         isInclusionBuyType ||
         isFixedDeliverableBuyType
       const bonusVal = usesManualDeliverable ? qty : undefined
-      const buyAmtNum = usesManualDeliverable ? 0 : qty
+      const buyAmtNum = usesManualDeliverable ? 0 : unitRate
       const calculatedValue = newspaperCalculatedDeliverables(
         buyType,
         netForCalc,
@@ -5711,18 +5726,21 @@ export function mapStandardNewspaperLineItemsToExpertRows(
       const endKey = weekKeyFromDate(ed)
       if (!(startKey in weeklyValues)) continue
 
-      const qtyRaw = parseNum(b.buyAmount)
+      // Standard bursts store unit rate in `buyAmount`; weekly cells hold
+      // deliverables, so qty comes from the persisted `calculatedValue`.
       const buyTypeLower = buyType.toLowerCase()
-      let cellQty = qtyRaw
-      if (buyTypeLower === "bonus") {
-        cellQty =
-          typeof b.calculatedValue === "number" ? b.calculatedValue : 0
-      } else if (
+      const cellQtyRaw = b.calculatedValue
+      let cellQty =
+        typeof cellQtyRaw === "number" && Number.isFinite(cellQtyRaw)
+          ? cellQtyRaw
+          : parseNum(cellQtyRaw)
+      if (!Number.isFinite(cellQty)) cellQty = 0
+      if (
         buyTypeLower === "fixed_cost" ||
         buyTypeLower === "package" ||
         buyTypeLower === "package_inclusions"
       ) {
-        cellQty = qtyRaw > 0 ? qtyRaw : 1
+        cellQty = cellQty > 0 ? cellQty : 1
       }
 
       if (startKey === endKey) {
@@ -5950,7 +5968,7 @@ export function mapMagazineExpertRowsToStandardLineItems(
         budgetIncludesFees,
         feePct
       )
-      const buyAmountStr = formatBurstBudget(qty)
+      const buyAmountStr = formatRate(unitRate)
       const buyTypeLower = buyType.toLowerCase()
       const isInclusionBuyType =
         buyTypeLower === "bonus" ||
@@ -5961,7 +5979,7 @@ export function mapMagazineExpertRowsToStandardLineItems(
         isInclusionBuyType ||
         isFixedDeliverableBuyType
       const bonusVal = usesManualDeliverable ? qty : undefined
-      const buyAmtNum = usesManualDeliverable ? 0 : qty
+      const buyAmtNum = usesManualDeliverable ? 0 : unitRate
       const calculatedValue = magazineCalculatedDeliverables(
         buyType,
         netForCalc,
@@ -6068,18 +6086,21 @@ export function mapStandardMagazineLineItemsToExpertRows(
       const endKey = weekKeyFromDate(ed)
       if (!(startKey in weeklyValues)) continue
 
-      const qtyRaw = parseNum(b.buyAmount)
+      // Standard bursts store unit rate in `buyAmount`; weekly cells hold
+      // deliverables, so qty comes from the persisted `calculatedValue`.
       const buyTypeLower = buyType.toLowerCase()
-      let cellQty = qtyRaw
-      if (buyTypeLower === "bonus") {
-        cellQty =
-          typeof b.calculatedValue === "number" ? b.calculatedValue : 0
-      } else if (
+      const cellQtyRaw = b.calculatedValue
+      let cellQty =
+        typeof cellQtyRaw === "number" && Number.isFinite(cellQtyRaw)
+          ? cellQtyRaw
+          : parseNum(cellQtyRaw)
+      if (!Number.isFinite(cellQty)) cellQty = 0
+      if (
         buyTypeLower === "fixed_cost" ||
         buyTypeLower === "package" ||
         buyTypeLower === "package_inclusions"
       ) {
-        cellQty = qtyRaw > 0 ? qtyRaw : 1
+        cellQty = cellQty > 0 ? cellQty : 1
       }
 
       if (startKey === endKey) {
@@ -6274,7 +6295,7 @@ function buildBurstsFromProgExpertLikeRow(
       budgetIncludesFees,
       feePct
     )
-    const buyAmountStr = formatBurstBudget(qty)
+    const buyAmountStr = formatRate(unitRate)
     const buyTypeLower = buyType.toLowerCase()
     const isInclusionBuyType =
       buyTypeLower === "bonus" ||
@@ -6285,7 +6306,7 @@ function buildBurstsFromProgExpertLikeRow(
       isInclusionBuyType ||
       isFixedDeliverableBuyType
     const bonusVal = usesManualDeliverable ? qty : undefined
-    const buyAmtNum = usesManualDeliverable ? 0 : qty
+    const buyAmtNum = usesManualDeliverable ? 0 : unitRate
     const calculatedValue = bvodCalculatedDeliverables(
       buyType,
       netForCalc,
@@ -6370,18 +6391,21 @@ function progAccumulateWeeklyFromBursts(
     const endKey = weekKeyFromDate(ed)
     if (!(startKey in weeklyValues)) continue
 
-    const qtyRaw = parseNum(b.buyAmount)
+    // Standard bursts store unit rate in `buyAmount`; weekly cells hold
+    // deliverables, so qty comes from the persisted `calculatedValue`.
     const buyTypeLower = buyType.toLowerCase()
-    let cellQty = qtyRaw
-    if (buyTypeLower === "bonus") {
-      cellQty =
-        typeof b.calculatedValue === "number" ? b.calculatedValue : 0
-    } else if (
+    const cellQtyRaw = b.calculatedValue
+    let cellQty =
+      typeof cellQtyRaw === "number" && Number.isFinite(cellQtyRaw)
+        ? cellQtyRaw
+        : parseNum(cellQtyRaw)
+    if (!Number.isFinite(cellQty)) cellQty = 0
+    if (
       buyTypeLower === "fixed_cost" ||
       buyTypeLower === "package" ||
       buyTypeLower === "package_inclusions"
     ) {
-      cellQty = qtyRaw > 0 ? qtyRaw : 1
+      cellQty = cellQty > 0 ? cellQty : 1
     }
 
     if (startKey === endKey) {
