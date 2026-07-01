@@ -722,7 +722,7 @@ export async function generateMediaPlan(
     'Market', 'Publisher', '', 'Description', '', 'Start Date', 'End Date', '', 'Amount', '', '', '', 'Media'
   ];
 
-  const SUBTOTAL_SECTION_TYPES = new Set<string>(['OOH', 'Press', 'Television', 'Radio']);
+  const SUBTOTAL_SECTION_TYPES = new Set<string>(['OOH', 'Press', 'Television', 'Radio', 'Cinema']);
   const SUBTOTAL_KEY_BY_SECTION: Record<string, (it: GroupedItem) => string> = {
     OOH:        (it) => `${it.network ?? ''} ${it.oohFormat ?? ''}`,
     Press:      (it) => `${it.network ?? ''} ${it.title ?? ''}`,
