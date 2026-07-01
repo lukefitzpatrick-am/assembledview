@@ -102,6 +102,11 @@ import {
   mediaTypeTotalsRowStyle,
   rgbaFromHex,
 } from "@/lib/mediaplan/mediaTypeAccents"
+import {
+  collapseDailyToWeekly,
+  weekDayKeys,
+  weekHasDailyValues,
+} from "@/lib/mediaplan/expertDayModel"
 
 
 import {
@@ -230,6 +235,55 @@ function normalizeCinemaStationPaste(raw: string, stationNames: string[]): strin
 }
 
 /** Row gross / raw cost from expert Σ qty × unit rate (see `lib/mediaplan/deliverableBudget`). */
+
+/**
+ * Invariant enforcement (single chokepoint, applied on every pushRows): a
+ * week-level value wins over day-level detail. If a week's cell is non-empty
+ * or the week is covered by a merged span, that week's day keys are dropped
+ * from `dailyValues`. Rows without conflicts are returned unchanged so
+ * untouched plans stay byte-identical through save baselines.
+ */
+function clearConflictingDayDetail(
+  row: CinemaExpertScheduleRow,
+  dayKeysByWeekKey: Readonly<Record<string, readonly string[]>>,
+  weekKeys: readonly string[]
+): CinemaExpertScheduleRow {
+  const daily = row.dailyValues
+  if (!daily || Object.keys(daily).length === 0) return row
+  const spanCovered = new Set<string>()
+  for (const span of row.mergedWeekSpans ?? []) {
+    for (const k of weekKeysInSpanInclusive(
+      weekKeys,
+      span.startWeekKey,
+      span.endWeekKey
+    )) {
+      spanCovered.add(k)
+    }
+  }
+  let changed = false
+  const nextDaily = { ...daily }
+  for (const weekKey of weekKeys) {
+    const dayKeys = dayKeysByWeekKey[weekKey] ?? []
+    if (!dayKeys.some((k) => nextDaily[k] !== undefined)) continue
+    const cell = row.weeklyValues[weekKey]
+    const weekLevelWins =
+      spanCovered.has(weekKey) ||
+      (cell !== "" && cell !== undefined && cell !== null)
+    if (!weekLevelWins) continue
+    for (const k of dayKeys) {
+      if (nextDaily[k] !== undefined) {
+        delete nextDaily[k]
+        changed = true
+      }
+    }
+  }
+  if (!changed) return row
+  if (Object.keys(nextDaily).length === 0) {
+    const { dailyValues: _omit, ...rest } = row
+    return rest as CinemaExpertScheduleRow
+  }
+  return { ...row, dailyValues: nextDaily }
+}
 
 export function createEmptyCinemaExpertRow(
   id: string,
@@ -413,6 +467,14 @@ export function CinemaExpertGrid({
     [campaignStartDate, campaignEndDate]
   )
   const weekKeys = useMemo(() => weekColumns.map((c) => c.weekKey), [weekColumns])
+  /** Campaign-clamped day keys per week column (for day-level detail). */
+  const dayKeysByWeekKey = useMemo<Record<string, readonly string[]>>(() => {
+    const out: Record<string, readonly string[]> = {}
+    for (const col of weekColumns) {
+      out[col.weekKey] = weekDayKeys(col, campaignStartDate, campaignEndDate)
+    }
+    return out
+  }, [weekColumns, campaignStartDate, campaignEndDate])
 
   const [weekStripSelection, setWeekStripSelection] = useState<{
     rowIndex: number
@@ -642,18 +704,29 @@ export function CinemaExpertGrid({
 
   const pushRows = useCallback(
     (next: CinemaExpertScheduleRow[]) => {
-      const withDates = next.map((r) => ({
-        ...r,
-        ...deriveCinemaExpertRowScheduleYmdFromRow(
-          r,
-          weekColumns,
-          campaignStartDate,
-          campaignEndDate
-        ),
-      }))
+      const withDates = next.map((r) => {
+        // Week-level writes win over day detail (single invariant chokepoint).
+        const cleared = clearConflictingDayDetail(r, dayKeysByWeekKey, weekKeys)
+        return {
+          ...cleared,
+          ...deriveCinemaExpertRowScheduleYmdFromRow(
+            cleared,
+            weekColumns,
+            campaignStartDate,
+            campaignEndDate
+          ),
+        }
+      })
       onRowsChange(withDates)
     },
-    [onRowsChange, weekColumns, campaignStartDate, campaignEndDate]
+    [
+      onRowsChange,
+      weekColumns,
+      campaignStartDate,
+      campaignEndDate,
+      dayKeysByWeekKey,
+      weekKeys,
+    ]
   )
 
   const handleReorder = useCallback(
@@ -1346,6 +1419,13 @@ export function CinemaExpertGrid({
     let sum = 0
     for (const k of sorted) {
       sum += parseNum(row.weeklyValues[k])
+      // Fold day-level detail into the merged total; pushRows drops the
+      // now-covered day keys via clearConflictingDayDetail.
+      for (const dk of dayKeysByWeekKey[k] ?? []) {
+        const dv = row.dailyValues?.[dk]
+        if (dv === "" || dv === undefined) continue
+        sum += parseNum(dv)
+      }
     }
     const newId =
       typeof crypto !== "undefined" && crypto.randomUUID
@@ -1381,7 +1461,7 @@ export function CinemaExpertGrid({
       title: "Weeks merged",
       description: `Merged ${sorted.length} weeks into one burst. Edit the value or click the red ✕ to unmerge.`,
     })
-  }, [pushRows, resetTransientWeekUiState, rowMergeMaps, toast, weekKeys])
+  }, [dayKeysByWeekKey, pushRows, resetTransientWeekUiState, rowMergeMaps, toast, weekKeys])
 
   const mergeWeeksReady =
     mergeTarget !== null &&
@@ -1962,6 +2042,18 @@ export function CinemaExpertGrid({
         perWeek[k] += q
         sumQty += q
       }
+      // Day-detailed weeks keep an empty week cell; their qty lives in dailyValues.
+      if (row.dailyValues) {
+        for (const k of weekKeys) {
+          for (const dk of dayKeysByWeekKey[k] ?? []) {
+            const dv = row.dailyValues[dk]
+            if (dv === "" || dv === undefined) continue
+            const q = parseNum(dv)
+            perWeek[k] += q
+            sumQty += q
+          }
+        }
+      }
       for (const span of row.mergedWeekSpans ?? []) {
         const q = span.totalQty
         if (!Number.isFinite(q) || q === 0) continue
@@ -1975,7 +2067,7 @@ export function CinemaExpertGrid({
     const totalWithFee = sumNet + sumFee
 
     return { sumNet, sumQty, perWeek, fee: sumFee, totalWithFee }
-  }, [feecinema, normalizedRows, weekKeys])
+  }, [dayKeysByWeekKey, feecinema, normalizedRows, weekKeys])
 
   const descriptorHeadLabels = useMemo(() => {
     const core = [
@@ -2695,7 +2787,29 @@ export function CinemaExpertGrid({
                                 ? [...spanMeta.weekKeysIncluded]
                                 : [col.weekKey]
                               const spanLen = Math.max(1, spanMeta?.spanLength ?? 1)
-                              const display = weeklyCellDisplayValue(cell, mSpan)
+                              const dayKeysForWeek =
+                                dayKeysByWeekKey[col.weekKey] ?? []
+                              const hasDayDetail =
+                                !mSpan &&
+                                !!row.dailyValues &&
+                                weekHasDailyValues(
+                                  row.dailyValues,
+                                  [...dayKeysForWeek]
+                                )
+                              const daySum = hasDayDetail
+                                ? collapseDailyToWeekly(
+                                    row.dailyValues!,
+                                    [...dayKeysForWeek]
+                                  )
+                                : ""
+                              const displayBase = weeklyCellDisplayValue(cell, mSpan)
+                              // Day-detailed weeks show their day-sum in the
+                              // collapsed cell; a week-level edit replaces the
+                              // day detail (enforced in pushRows).
+                              const display =
+                                hasDayDetail && displayBase === "" && daySum !== ""
+                                  ? String(daySum)
+                                  : displayBase
                               const colIndex =
                                 cinemaDescriptorKeys.length +
                                 WEEK_GRID_COL_OFFSET +
@@ -2707,14 +2821,16 @@ export function CinemaExpertGrid({
                               )
                               const weekQtyVisual = mSpan
                                 ? Number.isFinite(mSpan.totalQty) && mSpan.totalQty !== 0
-                                : (() => {
-                                    const v = row.weeklyValues[col.weekKey]
-                                    if (v === "" || v === undefined || v === null)
-                                      return false
-                                    return (
-                                      Number.isFinite(parseNum(v)) && parseNum(v) !== 0
-                                    )
-                                  })()
+                                : hasDayDetail
+                                  ? daySum !== "" && daySum !== 0
+                                  : (() => {
+                                      const v = row.weeklyValues[col.weekKey]
+                                      if (v === "" || v === undefined || v === null)
+                                        return false
+                                      return (
+                                        Number.isFinite(parseNum(v)) && parseNum(v) !== 0
+                                      )
+                                    })()
                               const mergeReadyOnCell = spanKeys.some(
                                 (key) =>
                                   mergeTarget !== null &&
@@ -2770,7 +2886,7 @@ export function CinemaExpertGrid({
                                 focusedCell?.rowIndex === rowIndex &&
                                 focusedCell.columnKey === col.weekKey
                               const isSingleDraggableCell =
-                                !isMergedAnchorCell && weekQtyVisual
+                                !isMergedAnchorCell && weekQtyVisual && !hasDayDetail
                               const isMergedDraggableCell = isMergedAnchorCell
                               const isDraggableWeekCell =
                                 (isSingleDraggableCell || isMergedDraggableCell) &&
@@ -2916,11 +3032,13 @@ export function CinemaExpertGrid({
                                   title={
                                     isMergedAnchorCell
                                       ? "Drag to move merged burst"
-                                      : isSingleDraggableCell
-                                        ? "Drag to move deliverable"
-                                        : weekDragSource
-                                          ? "Merged interior — drop on anchor or empty week"
-                                          : undefined
+                                      : hasDayDetail
+                                        ? "Day-level detail (sum shown) — typing a value replaces it with a uniform week"
+                                        : isSingleDraggableCell
+                                          ? "Drag to move deliverable"
+                                          : weekDragSource
+                                            ? "Merged interior — drop on anchor or empty week"
+                                            : undefined
                                   }
                                   onMouseEnter={(e) => {
                                     if (!isSelecting) return
