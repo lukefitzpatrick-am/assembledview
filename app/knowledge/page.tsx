@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { BookOpen, Calculator, Compass, FolderOpen, Layers, Search } from "lucide-react";
+import { BookOpen, Calculator, Compass, FolderOpen, Globe, Layers, Search } from "lucide-react";
 
 export default function KnowledgeHubHome() {
   const router = useRouter();
@@ -66,6 +66,7 @@ export default function KnowledgeHubHome() {
             <ExploreCard href="/knowledge/calculators" icon={Calculator} title="Calculators" desc="Live media-math calculators on every formula." live />
             <ExploreCard href="/knowledge/guides" icon={Compass} title="Guides" desc="Best-practice across planning, measurement & channels." live />
             <ExploreCard href="/knowledge/platforms" icon={Layers} title="Platforms" desc="Google, Meta, TikTok & programmatic skills." live />
+            <ExploreCard href="/knowledge/resources" icon={Globe} title="Resource Hub" desc="Platform certs, AU currencies, standards & industry news." live />
             <ExploreCard icon={FolderOpen} title="Internal docs" desc="Assembled Media playbooks, processes & templates." />
           </div>
         </div>
