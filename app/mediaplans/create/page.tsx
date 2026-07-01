@@ -25,14 +25,15 @@ import { Combobox } from "@/components/ui/combobox"
 import { MultiSelectCombobox, type MultiSelectOption } from "@/components/ui/multi-select-combobox"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { SingleDatePicker } from "@/components/ui/single-date-picker"
-import { ChevronsUpDown, Check, Download, FileText, Loader2, X } from "lucide-react"
+import { ChevronsUpDown, Check, Download, FileText, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { formatMoney } from "@/lib/format/money"
 import { CampaignExportsSection } from "@/components/dashboard/CampaignExportsSection"
 import { PlanWizardShell } from "@/components/mediaplans/PlanWizardShell"
 import { sortByLabel } from "@/lib/utils/sort"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose, DialogDescription } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
+import { UnsavedChangesDialog } from "@/components/mediaplans/UnsavedChangesDialog"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { toast } from "@/components/ui/use-toast"
 import { usePathname, useRouter } from "next/navigation"
@@ -7515,60 +7516,13 @@ const handleSaveAll = async () => {
           </Form>
       </PlanWizardShell>
 
-      <Dialog
+      <UnsavedChangesDialog
         open={isUnsavedPromptOpen}
-        onOpenChange={(open) => {
-          if (!open) {
-            stayOnPage();
-          }
-        }}
-      >
-        <DialogContent className="overflow-hidden p-0 sm:max-w-lg">
-          <div className="h-1 bg-gradient-to-r from-pacing-behind via-pacing-behind/70 to-pacing-behind/40" />
-          <div className="p-6">
-            <DialogHeader className="flex flex-row items-start justify-between space-y-0">
-              <div className="space-y-2">
-                <DialogTitle>Leave without saving?</DialogTitle>
-                <DialogDescription>
-                  You have unsaved changes. Save your campaign before leaving or continue without saving.
-                </DialogDescription>
-              </div>
-              <DialogClose asChild>
-                <button
-                  type="button"
-                  onClick={stayOnPage}
-                  className="ml-2 rounded-md border p-1 text-sm hover:bg-muted"
-                  aria-label="Close"
-                >
-                  <X className="h-4 w-4" aria-hidden="true" />
-                </button>
-              </DialogClose>
-            </DialogHeader>
-            <p className="mt-3 text-sm text-muted-foreground">
-              Leaving now will discard any unsaved edits to this media plan.
-            </p>
-            <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:justify-end sm:space-x-2">
-              <Button variant="outline" className="w-full sm:w-auto" onClick={stayOnPage}>
-                No, stay on page
-              </Button>
-              <Button
-                variant="secondary"
-                className="w-full sm:w-auto"
-                onClick={async () => {
-                  stayOnPage();
-                  await handleSaveAll();
-                }}
-                disabled={isLoading || isPlanSaving || isVersionSaving}
-              >
-                {isLoading || isPlanSaving || isVersionSaving ? "Saving..." : "Save campaign"}
-              </Button>
-              <Button variant="destructive" className="w-full sm:w-auto" onClick={confirmNavigation}>
-                Yes, leave without saving
-              </Button>
-            </DialogFooter>
-          </div>
-        </DialogContent>
-      </Dialog>
+        onStay={stayOnPage}
+        onSave={handleSaveAll}
+        onLeave={confirmNavigation}
+        isSaving={isLoading || isPlanSaving || isVersionSaving}
+      />
     </>
   )
 }
