@@ -1,12 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-process.env.XANO_PUBLISHERS_BASE_URL ??= "http://localhost/test"
-process.env.XANO_CLIENTS_BASE_URL ??= "http://localhost/test"
-process.env.XANO_MEDIA_DETAILS_BASE_URL ??= "http://localhost/test"
-process.env.XANO_MEDIA_PLANS_BASE_URL ??= "http://localhost/test"
-
-const { extractAndFormatBursts } = await import("@/lib/api")
+import { extractAndFormatBursts } from "@/lib/mediaplan/formatBurstsForPersist"
 
 /** Matches Xano-bound JSON: undefined keys are omitted by JSON.stringify. */
 function assertPersistedBursts(actual: unknown[], expected: readonly unknown[]) {
