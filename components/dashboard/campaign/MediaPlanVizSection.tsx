@@ -2,16 +2,29 @@
 
 import { useCallback, useMemo, useRef, useState } from "react"
 import { BarChart3, CalendarRange, Download, Rows3 } from "lucide-react"
-import { ResponsiveContainer, AreaChart, Area } from "recharts"
 
+import {
+  BaseChartCard,
+  DonutChart,
+  HorizontalBarChart,
+  Sparkline,
+  StackedBarChart,
+} from "@/components/charts/system"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/states"
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/layout/Panel"
-import { normaliseLineItemsByType, type NormalisedLineItem } from "@/lib/mediaplan/normalizeLineItem"
-import { formatCurrencyAUD, formatCurrencyCompact } from "@/lib/format/currency"
+import {
+  reshapeAllocationOverTime,
+  reshapeChannelSpendBars,
+  reshapeChannelSparkline,
+  reshapeMediaMixDonut,
+  reshapeMediaPlanChannelSummary,
+} from "@/components/dashboard/campaign/mediaPlanChartReshape"
+import { fmt, channelColorFor } from "@/lib/chart-theme"
+import { formatCurrencyAUD } from "@/lib/format/currency"
+import { normaliseLineItemsByType } from "@/lib/mediaplan/normalizeLineItem"
 import { cn } from "@/lib/utils"
-import { getMediaColor } from "@/lib/charts/registry"
 import MediaGanttChart from "@/app/dashboard/[slug]/[mba_number]/components/MediaGanttChart"
 import MediaTable from "@/app/dashboard/[slug]/[mba_number]/components/MediaTable"
 
@@ -25,38 +38,7 @@ export type MediaPlanVizSectionProps = {
   onViewChange?: (view: string) => void
 }
 
-const MEDIA_ORDER = [
-  "television",
-  "bvod",
-  "digitalVideo",
-  "digitalDisplay",
-  "digitalAudio",
-  "progVideo",
-  "progDisplay",
-  "progBvod",
-  "progAudio",
-  "progOoh",
-  "socialMedia",
-  "search",
-  "radio",
-  "ooh",
-  "cinema",
-  "newspaper",
-  "magazines",
-  "integration",
-  "influencers",
-  "production",
-]
-
-function formatMediaTypeLabel(key: string) {
-  return key
-    .replace(/([a-z])([A-Z])/g, "$1 $2")
-    .replace(/_/g, " ")
-    .split(" ")
-    .filter(Boolean)
-    .map((w) => w[0]?.toUpperCase() + w.slice(1))
-    .join(" ")
-}
+const CHART_PLOT_HEIGHT = "min-h-[280px] w-full"
 
 function sanitizeFilenameBase(parts: (string | undefined)[]): string {
   const raw = parts.filter(Boolean).join("-")
@@ -136,33 +118,20 @@ export default function MediaPlanVizSection({
     [normalised]
   )
 
-  const mediaSummary = useMemo(() => {
-    const rows = Object.entries(normalised).map(([mediaType, items]) => {
-      const typed = (items || []) as NormalisedLineItem[]
-      const totalBudget = typed.reduce(
-        (sum, item) => sum + item.bursts.reduce((burstSum, burst) => burstSum + (burst.deliverablesAmount || burst.budget || 0), 0),
-        0
-      )
-      const starts = typed.flatMap((item) => item.bursts.map((burst) => burst.startDate)).filter(Boolean)
-      const ends = typed.flatMap((item) => item.bursts.map((burst) => burst.endDate)).filter(Boolean)
-      const sparkline = typed
-        .flatMap((item) => item.bursts.map((burst) => Number(burst.deliverablesAmount || burst.budget || 0)))
-        .slice(0, 12)
-      return {
-        mediaType,
-        label: formatMediaTypeLabel(mediaType),
-        totalBudget,
-        lineItemCount: typed.length,
-        rangeStart: starts.length ? starts.sort()[0] : undefined,
-        rangeEnd: ends.length ? ends.sort()[ends.length - 1] : undefined,
-        sparkline: sparkline.length ? sparkline : [0],
-      }
-    })
-    const orderMap = new Map(MEDIA_ORDER.map((key, idx) => [key.toLowerCase(), idx]))
-    return rows
-      .filter((row) => row.lineItemCount > 0)
-      .sort((a, b) => (orderMap.get(a.mediaType.toLowerCase()) ?? 999) - (orderMap.get(b.mediaType.toLowerCase()) ?? 999))
-  }, [normalised])
+  const mediaSummary = useMemo(() => reshapeMediaPlanChannelSummary(normalised), [normalised])
+
+  const mediaMixDonut = useMemo(() => reshapeMediaMixDonut(mediaSummary), [mediaSummary])
+  const channelSpendBars = useMemo(() => reshapeChannelSpendBars(mediaSummary), [mediaSummary])
+  const mediaMixTotal = useMemo(() => mediaMixDonut.reduce((sum, row) => sum + row.value, 0), [mediaMixDonut])
+
+  const { data: allocationData, series: allocationSeries } = useMemo(
+    () => reshapeAllocationOverTime(normalised),
+    [normalised],
+  )
+  const hasAllocationData = useMemo(
+    () => allocationData.some((row) => allocationSeries.some((s) => Number(row[s.key]) > 0)),
+    [allocationData, allocationSeries],
+  )
 
   const hasData = lineItemCount > 0
   const changeView = (next: "timeline" | "table" | "summary") => {
@@ -321,35 +290,100 @@ export default function MediaPlanVizSection({
         ) : null}
 
         {view === "summary" ? (
-          <div ref={summaryRef} className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {mediaSummary.map((row) => (
-              <article key={row.mediaType} className="space-y-2 rounded-xl border border-border/60 bg-background/70 p-4">
-                <div className="flex items-start justify-between gap-2">
-                  <h4 className="text-sm font-semibold text-foreground">{row.label}</h4>
-                  <Badge variant="secondary" className="rounded-full text-[11px]">
-                    {row.lineItemCount} items
-                  </Badge>
-                </div>
-                <p className="text-xl font-semibold text-foreground">{formatCurrencyAUD(row.totalBudget)}</p>
-                <p className="text-xs text-muted-foreground">
-                  {row.rangeStart || "—"} - {row.rangeEnd || "—"}
-                </p>
-                <div className="h-14 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={row.sparkline.map((value, idx) => ({ idx, value }))} margin={{ top: 2, right: 2, left: 2, bottom: 2 }}>
-                      <Area
-                        type="monotone"
-                        dataKey="value"
-                        stroke={getMediaColor(row.mediaType)}
-                        fill={getMediaColor(row.mediaType)}
-                        fillOpacity={0.22}
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-                <p className="text-xs text-muted-foreground">Total budget: {formatCurrencyCompact(row.totalBudget)}</p>
-              </article>
-            ))}
+          <div ref={summaryRef} className="space-y-4">
+            <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
+              <BaseChartCard
+                title="Media mix"
+                subtitle={`Total: ${fmt.currencyCompact(mediaMixTotal)}`}
+              >
+                {mediaMixTotal > 0 ? (
+                  <DonutChart
+                    data={mediaMixDonut}
+                    centerValue={fmt.currencyCompact(mediaMixTotal)}
+                    centerLabel="Total"
+                    valueFormat="dollars"
+                    className={CHART_PLOT_HEIGHT}
+                  />
+                ) : (
+                  <EmptyState
+                    className={`${CHART_PLOT_HEIGHT} border-0 bg-transparent`}
+                    title="No channel spend"
+                    message={null}
+                  />
+                )}
+              </BaseChartCard>
+
+              <BaseChartCard title="Spend by channel" subtitle="Gross media by type">
+                {channelSpendBars.length > 0 ? (
+                  <HorizontalBarChart
+                    data={channelSpendBars}
+                    xKey="cat"
+                    series={[{ key: "value", label: "Spend" }]}
+                    valueFormat="dollars"
+                    className={CHART_PLOT_HEIGHT}
+                  />
+                ) : (
+                  <EmptyState
+                    className={`${CHART_PLOT_HEIGHT} border-0 bg-transparent`}
+                    title="No channel spend"
+                    message={null}
+                  />
+                )}
+              </BaseChartCard>
+            </div>
+
+            <BaseChartCard
+              title="Allocation over time"
+              subtitle="Prorated monthly gross media by channel"
+            >
+              {hasAllocationData ? (
+                <StackedBarChart
+                  data={allocationData}
+                  xKey="period"
+                  series={allocationSeries}
+                  valueFormat="dollars"
+                  className="min-h-[320px] w-full"
+                />
+              ) : (
+                <EmptyState
+                  className="min-h-[320px] border-0 bg-transparent"
+                  title="No timed allocation data"
+                  message={null}
+                />
+              )}
+            </BaseChartCard>
+
+            <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {mediaSummary.map((row, i) => (
+                <article
+                  key={row.mediaType}
+                  className="space-y-2 rounded-xl border border-border/60 bg-background/70 p-4"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <h4 className="text-sm font-semibold text-foreground">{row.label}</h4>
+                    <Badge variant="secondary" className="rounded-full text-[11px]">
+                      {row.lineItemCount} items
+                    </Badge>
+                  </div>
+                  <p className="num text-xl font-semibold text-foreground">
+                    {formatCurrencyAUD(row.totalBudget)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {row.rangeStart || "—"} - {row.rangeEnd || "—"}
+                  </p>
+                  <Sparkline
+                    data={reshapeChannelSparkline(row.sparkline)}
+                    dataKey="value"
+                    color={channelColorFor(row.mediaType, i)}
+                    width={280}
+                    height={56}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Total budget: {fmt.currencyCompact(row.totalBudget)}
+                  </p>
+                </article>
+              ))}
+            </div>
           </div>
         ) : null}
       </PanelContent>
