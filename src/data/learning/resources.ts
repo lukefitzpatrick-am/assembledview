@@ -6,6 +6,8 @@
 // All URLs verified as resolving official/canonical pages on 2026-07-02.
 // Rule: never add a link we haven't confirmed. When a source moves, fix it here.
 
+import type { AccentKey } from "@/src/lib/learning/accents";
+
 export type ResourceItem = {
   label: string;
   url: string;
@@ -22,6 +24,8 @@ export type ResourceGroup = {
   title: string;
   /** Short intro shown under the group heading. */
   blurb: string;
+  /** Accent colour key from src/lib/learning/accents.ts. */
+  accent: AccentKey;
   items: ResourceItem[];
 };
 
@@ -31,6 +35,7 @@ export const resourceGroups: ResourceGroup[] = [
   {
     id: "platform-training",
     title: "Platform training & certification",
+    accent: "green",
     blurb:
       "Free, official courses and certifications. Start here when you pick up a new platform - every one is worth completing end-to-end.",
     items: [
@@ -49,6 +54,7 @@ export const resourceGroups: ResourceGroup[] = [
   {
     id: "platform-help",
     title: "Platform help & product docs",
+    accent: "blue",
     blurb:
       "The source of truth for how a platform actually works - specs, setup and troubleshooting. Defer to these over any blog post.",
     items: [
@@ -65,6 +71,7 @@ export const resourceGroups: ResourceGroup[] = [
   {
     id: "au-measurement",
     title: "Australian measurement & currencies",
+    accent: "purple",
     blurb:
       "The official audience currencies you plan and trade against in-market. Know what each measures before you quote a number.",
     items: [
@@ -81,6 +88,7 @@ export const resourceGroups: ResourceGroup[] = [
   {
     id: "au-bodies",
     title: "Australian industry bodies",
+    accent: "amber",
     blurb:
       "Peak bodies for standards, effectiveness research and the self-regulation codes we work inside.",
     items: [
@@ -99,6 +107,7 @@ export const resourceGroups: ResourceGroup[] = [
   {
     id: "global-standards",
     title: "Global standards & governance",
+    accent: "coral",
     blurb:
       "Who sets the specs, accreditation and brand-safety rules the whole ecosystem runs on.",
     items: [
@@ -114,6 +123,7 @@ export const resourceGroups: ResourceGroup[] = [
   {
     id: "effectiveness",
     title: "Effectiveness & marketing science",
+    accent: "magenta",
     blurb:
       "The evidence base for why media works - use these to defend a plan, not just build it.",
     items: [
@@ -126,6 +136,7 @@ export const resourceGroups: ResourceGroup[] = [
   {
     id: "news",
     title: "Industry news & publications",
+    accent: "neutral",
     blurb:
       "Stay current. Skim the AU trades weekly and the global adtech titles for what's changing under the hood.",
     items: [
@@ -146,6 +157,7 @@ export const resourceGroups: ResourceGroup[] = [
   {
     id: "tools",
     title: "Tools & reference",
+    accent: "lime",
     blurb:
       "Handy utilities you'll reach for often. (Our own UTM Builder lives in the Knowledge Hub under Tools.)",
     items: [
