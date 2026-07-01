@@ -1,16 +1,19 @@
 "use client"
 
 import { useMemo } from "react"
-import { Layers } from "lucide-react"
 
-import BaseChartCard from "@/components/charts/BaseChartCard"
-import MediaChannelPieChart from "@/components/charts/domain/MediaChannelPieChart"
-import SpendByPublisherChart from "@/components/charts/domain/SpendByPublisherChart"
+import {
+  BaseChartCard,
+  DonutChart,
+  HorizontalBarChart,
+} from "@/components/charts/system"
 import { StackedColumnChart } from "@/components/charts/StackedColumnChart"
 import { EmptyState } from "@/components/ui/states"
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/layout/Panel"
 import { getMediaLabel } from "@/lib/charts/registry"
+import { channelColorFor, fmt as chartFmt } from "@/lib/chart-theme"
 import { formatCurrencyAUD } from "@/lib/format/currency"
+import { normaliseLineItemsByType, type NormalisedLineItem } from "@/lib/mediaplan/normalizeLineItem"
 
 type ChannelSpend = {
   mediaType: string
@@ -28,12 +31,32 @@ type SpendChartsRowProps = {
   deliverySchedule?: any[]
   brandColour?: string
   /** Line items by media type — used for spend-by-publisher chart */
-  lineItemsMap?: Record<string, any[]>
+  lineItemsMap?: Record<string, NormalisedLineItem[] | any[]>
   /** Prorated planned spend to date (matches campaign summary when monthly data exists) */
   campaignSpendToDate?: number
 }
 
 const CHART_PLOT_HEIGHT = 300
+
+const UNKNOWN_PUBLISHER = "Unknown"
+const OTHER_BUCKET = "Other"
+const MAX_PUBLISHERS = 10
+const TOP_N_BEFORE_OTHER = 9
+
+function burstGross(burst: { budget?: number; deliverablesAmount?: number }): number {
+  const fromDeliverables =
+    typeof burst.deliverablesAmount === "number" && Number.isFinite(burst.deliverablesAmount)
+      ? burst.deliverablesAmount
+      : 0
+  const fromBudget = typeof burst.budget === "number" && Number.isFinite(burst.budget) ? burst.budget : 0
+  return fromDeliverables > 0 ? fromDeliverables : fromBudget
+}
+
+function publisherLabelForTick(raw: string): string {
+  if (raw === UNKNOWN_PUBLISHER) return UNKNOWN_PUBLISHER
+  if (raw === OTHER_BUCKET) return OTHER_BUCKET
+  return getMediaLabel(raw)
+}
 
 const parseAmount = (value: any): number => {
   if (value === null || value === undefined) return 0
@@ -360,8 +383,80 @@ export default function SpendChartsRow({
         }
       }
     }
-    return orderedKeys.map((key) => ({ key, label: getMediaLabel(key) }))
+    return orderedKeys.map((key, i) => ({
+      key,
+      label: getMediaLabel(key),
+      color: channelColorFor(key, i),
+    }))
   }, [monthlySpendStackedInput])
+
+  const mediaChannelDonutData = useMemo(
+    () =>
+      mediaChannelPieData
+        .filter((d) => d.amount > 0)
+        .map((d, i) => ({
+          label: getMediaLabel(d.mediaType),
+          value: d.amount,
+          color: channelColorFor(d.mediaType, i),
+        })),
+    [mediaChannelPieData],
+  )
+
+  const mediaChannelTotal = useMemo(
+    () => mediaChannelDonutData.reduce((s, r) => s + r.value, 0),
+    [mediaChannelDonutData],
+  )
+
+  const normalisedLineItems = useMemo(
+    () => normaliseLineItemsByType(lineItemsMap || {}),
+    [lineItemsMap],
+  )
+
+  const { publisherBarData, publisherTotal } = useMemo(() => {
+    const totals = new Map<string, number>()
+
+    Object.values(normalisedLineItems).forEach((items) => {
+      if (!Array.isArray(items)) return
+      items.forEach((item) => {
+        const raw =
+          item.publisher || item.platform || item.network || item.site || item.station
+        const name =
+          raw != null && String(raw).trim().length > 0 ? String(raw).trim() : UNKNOWN_PUBLISHER
+
+        item.bursts?.forEach((burst) => {
+          const gross = burstGross(burst)
+          if (gross > 0) {
+            totals.set(name, (totals.get(name) ?? 0) + gross)
+          }
+        })
+      })
+    })
+
+    const rows = Array.from(totals.entries()).map(([publisher, amount]) => ({
+      publisher,
+      amount,
+    }))
+    rows.sort((a, b) => b.amount - a.amount)
+
+    let finalRows: typeof rows
+    if (rows.length <= MAX_PUBLISHERS) {
+      finalRows = rows
+    } else {
+      const top = rows.slice(0, TOP_N_BEFORE_OTHER)
+      const restSum = rows.slice(TOP_N_BEFORE_OTHER).reduce((s, r) => s + r.amount, 0)
+      finalRows = [...top, { publisher: OTHER_BUCKET, amount: restSum }]
+    }
+
+    const sumTotal = finalRows.reduce((s, r) => s + r.amount, 0)
+    const barData = [...finalRows]
+      .sort((a, b) => a.amount - b.amount)
+      .map((r) => ({
+        cat: publisherLabelForTick(r.publisher),
+        value: r.amount,
+      }))
+
+    return { publisherBarData: barData, publisherTotal: sumTotal }
+  }, [normalisedLineItems])
 
   if (!channelData.length && !monthlyData.length) {
     return (
@@ -416,20 +511,58 @@ export default function SpendChartsRow({
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:items-stretch">
-        <MediaChannelPieChart data={mediaChannelPieData} />
-        <SpendByPublisherChart lineItems={lineItemsMap} chartHeight={CHART_PLOT_HEIGHT} />
+        <BaseChartCard
+          title="Spend by Media Type"
+          subtitle={`Total: ${chartFmt.currencyCompact(mediaChannelTotal)}`}
+        >
+          {mediaChannelTotal > 0 ? (
+            <DonutChart
+              data={mediaChannelDonutData}
+              centerValue={chartFmt.currencyCompact(mediaChannelTotal)}
+              centerLabel="Total"
+              valueFormat="dollars"
+              className="min-h-[300px] w-full"
+            />
+          ) : (
+            <EmptyState
+              className="min-h-[300px] border-0 bg-transparent"
+              title="No spend data available"
+              message={null}
+            />
+          )}
+        </BaseChartCard>
+
+        <BaseChartCard
+          title="Spend by Publisher"
+          subtitle="Top publishers by gross media investment"
+        >
+          {publisherBarData.length > 0 && publisherTotal > 0 ? (
+            <HorizontalBarChart
+              data={publisherBarData}
+              xKey="cat"
+              series={[{ key: "value", label: "Spend" }]}
+              valueFormat="dollars"
+              className="min-h-[300px] w-full"
+            />
+          ) : (
+            <EmptyState
+              className="min-h-[300px] border-0 bg-transparent"
+              title="No publisher spend from line items"
+              message={null}
+            />
+          )}
+        </BaseChartCard>
       </div>
 
       <BaseChartCard
         title="Monthly spend by channel"
-        description={`Stacked gross media by month · As at ${asAtDate}`}
-        variant="icon"
-        icon={Layers}
+        subtitle={`Stacked gross media by month · As at ${asAtDate}`}
       >
         <StackedColumnChart
           data={pivotedMonthly}
           xKey="month"
           series={monthlySeries}
+          seriesColorByKey={Object.fromEntries(monthlySeries.map((s) => [s.key, s.color!]))}
           height={CHART_PLOT_HEIGHT}
         />
       </BaseChartCard>

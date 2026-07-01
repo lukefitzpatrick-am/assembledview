@@ -2,17 +2,18 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 
-import { buildDonutSlices } from "@/components/charts/DonutChart"
-import MonthlySpendChart, {
-  type MonthlyStackedEntry,
-} from "@/components/charts/domain/MonthlySpendChart"
-import SpendByCampaignChart from "@/components/charts/domain/SpendByCampaignChart"
-import SpendByMediaTypeChart from "@/components/charts/domain/SpendByMediaTypeChart"
+import {
+  DonutChart,
+  StackedBarChart,
+  ToggleableLegend,
+} from "@/components/charts/system"
 import { SpendingInsightChartShell } from "@/components/dashboard/SpendingInsightChartShell"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/states"
+import { buildDonutSlices } from "@/lib/charts/donutSlices"
+import { getDeterministicColor, getMediaLabel } from "@/lib/charts/registry"
+import { channelColorFor, fmt } from "@/lib/chart-theme"
 import { formatCurrencyAUD } from "@/lib/format/currency"
-import { getMediaLabel } from "@/lib/charts/registry"
 
 export type MonthlySpendData = {
   month: string
@@ -43,6 +44,16 @@ export type SpendByMediaTypeData = {
   percentage: number
 }
 
+type MonthlyStackedEntry = {
+  month: string
+  data: Array<{
+    key?: string
+    mediaType?: string
+    campaignName?: string
+    amount: number
+  }>
+}
+
 type MonthlyView = "mediaType" | "campaign"
 
 interface SpendingInsightsSectionProps {
@@ -51,6 +62,10 @@ interface SpendingInsightsSectionProps {
   campaignData: SpendByCampaignData[]
   mediaTypeData: SpendByMediaTypeData[]
   brandColour?: string
+}
+
+function resolveEntryKey(item: MonthlyStackedEntry["data"][number]): string {
+  return item.key ?? item.mediaType ?? item.campaignName ?? "Unspecified"
 }
 
 function toMediaStacked(data: MonthlySpendData[]): MonthlyStackedEntry[] {
@@ -75,7 +90,7 @@ function buildMonthlyCsvRows(
   const rows: Array<{ Month: string; Category: string; Amount: string }> = []
   for (const month of data) {
     for (const item of month.data) {
-      const key = item.key ?? item.mediaType ?? item.campaignName ?? "Unspecified"
+      const key = resolveEntryKey(item)
       if (hiddenKeys.has(key) || item.amount <= 0) continue
       rows.push({
         Month: month.month,
@@ -99,12 +114,14 @@ const DONUT_CSV_COLUMNS = [
   { header: "Percentage", accessor: "Percentage" as const },
 ]
 
+const CHART_HEIGHT = "min-h-[320px] w-full"
+
 export function SpendingInsightsSection({
   monthlyData,
   monthlySpendByCampaign,
   campaignData,
   mediaTypeData,
-  brandColour,
+  brandColour: _brandColour,
 }: SpendingInsightsSectionProps) {
   const [monthlyView, setMonthlyView] = useState<MonthlyView>("mediaType")
   const [hiddenKeys, setHiddenKeys] = useState<Set<string>>(() => new Set())
@@ -137,6 +154,68 @@ export function SpendingInsightsSection({
     [activeMonthlyStacked, hiddenKeys, getSeriesLabel],
   )
 
+  const pivotedMonthly = useMemo(
+    () =>
+      activeMonthlyStacked.map((month) => ({
+        month: month.month,
+        ...month.data.reduce(
+          (acc, item) => {
+            const key = resolveEntryKey(item)
+            acc[key] = (acc[key] || 0) + item.amount
+            return acc
+          },
+          {} as Record<string, number>,
+        ),
+      })),
+    [activeMonthlyStacked],
+  )
+
+  const monthlySeries = useMemo(() => {
+    const keys = new Set<string>()
+    for (const row of pivotedMonthly) {
+      for (const k of Object.keys(row)) {
+        if (k !== "month") keys.add(k)
+      }
+    }
+    return Array.from(keys)
+      .sort()
+      .map((key, i) => ({
+        key,
+        label: getSeriesLabel(key),
+        color:
+          monthlyView === "mediaType"
+            ? channelColorFor(key, i)
+            : getDeterministicColor(key),
+      }))
+  }, [getSeriesLabel, monthlyView, pivotedMonthly])
+
+  const visibleMonthlySeries = useMemo(
+    () => monthlySeries.filter((s) => !hiddenKeys.has(s.key)),
+    [hiddenKeys, monthlySeries],
+  )
+
+  const monthlyBarData = useMemo(
+    () =>
+      pivotedMonthly.map((row) => {
+        const next: Record<string, number | string> = { month: row.month }
+        for (const s of visibleMonthlySeries) {
+          next[s.key] = Number(row[s.key]) || 0
+        }
+        return next
+      }),
+    [pivotedMonthly, visibleMonthlySeries],
+  )
+
+  const monthlyLegendItems = useMemo(
+    () =>
+      monthlySeries.map((s) => ({
+        key: s.key,
+        label: s.label,
+        color: s.color ?? channelColorFor(s.key),
+      })),
+    [monthlySeries],
+  )
+
   const campaignDonutMapped = useMemo(
     () =>
       (campaignData ?? []).map((item) => ({
@@ -155,20 +234,40 @@ export function SpendingInsightsSection({
     [mediaTypeData],
   )
 
-  const campaignDonutSlices = useMemo(
-    () => buildDonutSlices(campaignDonutMapped, 8, 7).slices,
+  const { slices: campaignDonutSlices, total: campaignTotal } = useMemo(
+    () => buildDonutSlices(campaignDonutMapped, 8, 7),
     [campaignDonutMapped],
   )
 
-  const mediaDonutSlices = useMemo(
-    () => buildDonutSlices(mediaDonutMapped, 8, 7).slices,
+  const { slices: mediaDonutSlices, total: mediaTotal } = useMemo(
+    () => buildDonutSlices(mediaDonutMapped, 8, 7, getMediaLabel),
     [mediaDonutMapped],
+  )
+
+  const campaignDonutData = useMemo(
+    () =>
+      campaignDonutSlices.map((slice) => ({
+        label: slice.label,
+        value: slice.value,
+        color: getDeterministicColor(slice.key),
+      })),
+    [campaignDonutSlices],
+  )
+
+  const mediaDonutData = useMemo(
+    () =>
+      mediaDonutSlices.map((slice, i) => ({
+        label: getMediaLabel(slice.key),
+        value: slice.value,
+        color: channelColorFor(slice.key, i),
+      })),
+    [mediaDonutSlices],
   )
 
   const campaignCsvRows = useMemo(
     () =>
       campaignDonutSlices.map((slice) => ({
-        Name: slice.key,
+        Name: slice.label,
         Value: formatCurrencyAUD(slice.value),
         Percentage: `${slice.percentage.toFixed(1)}%`,
       })),
@@ -188,6 +287,15 @@ export function SpendingInsightsSection({
   const hasMonthlyData = activeMonthlyStacked.some((m) =>
     m.data.some((d) => d.amount > 0),
   )
+
+  const toggleLegendKey = (key: string) => {
+    setHiddenKeys((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
 
   return (
     <section className="w-full space-y-4 lg:space-y-6 xl:space-y-8">
@@ -224,16 +332,20 @@ export function SpendingInsightsSection({
           }
         >
           {hasMonthlyData ? (
-            <MonthlySpendChart
-              data={activeMonthlyStacked}
-              brandColour={brandColour}
-              embedded
-              chartHeight={320}
-              getSeriesLabel={getSeriesLabel}
-              legendVerticalAlign="bottom"
-              hiddenKeys={hiddenKeys}
-              onHiddenKeysChange={setHiddenKeys}
-            />
+            <div className="space-y-3">
+              <ToggleableLegend
+                items={monthlyLegendItems}
+                hidden={hiddenKeys}
+                onToggle={toggleLegendKey}
+              />
+              <StackedBarChart
+                data={monthlyBarData}
+                xKey="month"
+                series={visibleMonthlySeries}
+                valueFormat="dollars"
+                className={CHART_HEIGHT}
+              />
+            </div>
           ) : (
             <EmptyState
               className="min-h-80 border-0 bg-transparent"
@@ -253,8 +365,14 @@ export function SpendingInsightsSection({
             csvColumns={DONUT_CSV_COLUMNS}
             csvFilename="spend-by-campaign"
           >
-            {campaignData.length > 0 ? (
-              <SpendByCampaignChart data={campaignData} brandColour={brandColour} embedded height={280} />
+            {campaignData.length > 0 && campaignTotal > 0 ? (
+              <DonutChart
+                data={campaignDonutData}
+                centerValue={fmt.currencyCompact(campaignTotal)}
+                centerLabel="Total"
+                valueFormat="dollars"
+                className="min-h-[280px] w-full"
+              />
             ) : (
               <EmptyState
                 className="min-h-72 border-0 bg-transparent"
@@ -273,8 +391,14 @@ export function SpendingInsightsSection({
             csvColumns={DONUT_CSV_COLUMNS}
             csvFilename="spend-by-media-type"
           >
-            {mediaTypeData.length > 0 ? (
-              <SpendByMediaTypeChart data={mediaTypeData} brandColour={brandColour} embedded height={280} />
+            {mediaTypeData.length > 0 && mediaTotal > 0 ? (
+              <DonutChart
+                data={mediaDonutData}
+                centerValue={fmt.currencyCompact(mediaTotal)}
+                centerLabel="Total"
+                valueFormat="dollars"
+                className="min-h-[280px] w-full"
+              />
             ) : (
               <EmptyState
                 className="min-h-72 border-0 bg-transparent"

@@ -115,6 +115,43 @@ export const TABULAR: React.CSSProperties = {
 export const CHART_FONT =
   "'Rethink Sans', ui-sans-serif, system-ui, sans-serif";
 
+const CHANNEL_COLOR_ALIASES: Record<string, keyof typeof CHANNEL_COLORS> = {
+  television: 'television',
+  tv: 'television',
+  bvod: 'bvod',
+  progbvod: 'bvod',
+  prog_bvod: 'bvod',
+  social: 'social',
+  socialmedia: 'social',
+  social_media: 'social',
+  search: 'search',
+  ooh: 'ooh',
+  progooh: 'ooh',
+  prog_ooh: 'ooh',
+  display: 'display',
+  digidisplay: 'display',
+  digital_display: 'display',
+  programmatic: 'programmatic',
+  progdisplay: 'programmatic',
+  prog_display: 'programmatic',
+  progvideo: 'programmatic',
+  prog_video: 'programmatic',
+  progaudio: 'programmatic',
+  prog_audio: 'programmatic',
+  audio: 'audio',
+  digiaudio: 'audio',
+  digital_audio: 'audio',
+  radio: 'audio',
+};
+
+/** Fixed channel hue when the key maps to CHANNEL_COLORS; otherwise palette by index. */
+export function channelColorFor(key: string, index = 0): string {
+  const n = key.toLowerCase().replace(/[\s-]+/g, '_');
+  const mapped = CHANNEL_COLOR_ALIASES[n] ?? (n in CHANNEL_COLORS ? (n as keyof typeof CHANNEL_COLORS) : undefined);
+  if (mapped) return CHANNEL_COLORS[mapped];
+  return seriesColor(index);
+}
+
 // ─────────────────────────────────────────────────────────────
 // shadcn ChartConfig helper — build a config object from a series map
 // so <ChartContainer> injects the right --color-<key> vars + legend labels.
