@@ -12,7 +12,7 @@ import {
 import { format } from "date-fns"
 import { AlertTriangle, ArrowRight, BarChart3, CalendarRange, DollarSign, Scale, Wallet } from "lucide-react"
 import { differenceInCalendarDays, parseISO } from "date-fns"
-import { PageHeroShell } from "@/components/dashboard/PageHeroShell"
+import { PAGE_HERO_PADDING, PageHeroShell, PageHeroTitleBlock } from "@/components/dashboard/PageHeroShell"
 import {
   BaseChartCard,
   StackedBarChart,
@@ -634,46 +634,42 @@ export function FinanceOverviewHero() {
   return (
     <div className="mb-2">
       <PageHeroShell brandColour={DEFAULT_HERO_BRAND}>
-        <div className="relative z-10 pt-6 pr-6 pb-6 pl-14 md:pt-8 md:pr-8 md:pb-8 md:pl-14 lg:pt-8 lg:pr-8 lg:pb-8 lg:pl-14 xl:pt-10 xl:pr-10 xl:pb-10 xl:pl-14">
-          <div className="flex w-full flex-col gap-6 md:flex-row md:items-center md:gap-8 xl:gap-10">
-            <div className="relative flex items-center gap-4">
-              <div
-                className="absolute -inset-2 rounded-pill bg-pacing-on-track opacity-20 blur-xl"
+        <div className={cn("relative z-10", PAGE_HERO_PADDING)}>
+          <div className="flex w-full flex-col gap-5 md:flex-row md:items-start md:gap-8">
+            <div className="relative h-14 w-14 shrink-0">
+              <div className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-pill border border-border shadow-e1">
+                <span
+                  className="flex h-full w-full items-center justify-center bg-pacing-on-track text-primary-foreground"
+                  aria-hidden
+                >
+                  <DollarSign className="h-6 w-6" />
+                </span>
+              </div>
+              <span
+                className="absolute bottom-px right-px h-[10px] w-[10px] rounded-pill bg-accent shadow-e0"
                 aria-hidden
               />
-              <div className="relative h-16 w-16 shrink-0">
-                <div
-                  className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-pill border-2 border-pacing-on-track-bg shadow-e2"
-                >
-                  <span
-                    className="flex h-full w-full items-center justify-center bg-pacing-on-track text-primary-foreground"
-                    aria-hidden
-                  >
-                    <DollarSign className="h-7 w-7" />
-                  </span>
-                </div>
-                <span
-                  className="absolute bottom-px right-px h-[10px] w-[10px] rounded-pill bg-accent shadow-e0"
-                  aria-hidden
-                />
-              </div>
             </div>
 
             <div className="flex min-w-0 flex-1 flex-col gap-4">
-              <div>
-                <h2 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl xl:text-4xl">
-                  Finance overview
-                </h2>
-                <p className="mt-1 text-sm font-medium text-status-ahead-fg md:text-base">
-                  FY{fyDisplayLabel(fyStart)} · Australian financial year
-                </p>
-                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-pill bg-pacing-on-track" aria-hidden />
-                    Hub range: {hubRangeLabel}
-                  </span>
-                </div>
-              </div>
+              <PageHeroTitleBlock
+                title="Finance overview"
+                titleAs="h2"
+                brandColour={DEFAULT_HERO_BRAND}
+                detail={
+                  <>
+                    <p className="font-medium text-status-ahead-fg">
+                      FY{fyDisplayLabel(fyStart)} · Australian financial year
+                    </p>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="h-2 w-2 rounded-pill bg-pacing-on-track" aria-hidden />
+                        Hub range: {hubRangeLabel}
+                      </span>
+                    </div>
+                  </>
+                }
+              />
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
                 <button

@@ -4,20 +4,21 @@ import { Skeleton } from "@/components/ui/skeleton"
 
 export function HeroBannerSkeleton() {
   return (
-    <div className="rounded-2xl border border-border/50 bg-card p-6 md:p-8">
-      <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-center gap-4">
-          <Skeleton className="h-16 w-16 rounded-full" />
+    <div className="relative overflow-hidden rounded-frame border border-border bg-background p-6 md:p-7">
+      <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
+        <div className="flex items-start gap-4">
+          <Skeleton className="h-14 w-14 shrink-0 rounded-pill" />
           <div className="space-y-2">
             <Skeleton className="h-7 w-56" />
-            <Skeleton className="h-4 w-72" />
-            <Skeleton className="h-4 w-64" />
+            <Skeleton className="h-1 w-[60px] rounded-pill" />
+            <Skeleton className="h-3.5 w-72 max-w-[380px]" />
+            <Skeleton className="h-3.5 w-64 max-w-[380px]" />
           </div>
         </div>
         <div className="flex gap-2">
-          <Skeleton className="h-11 w-11 rounded-full" />
-          <Skeleton className="h-11 w-11 rounded-full" />
-          <Skeleton className="h-11 w-11 rounded-full" />
+          <Skeleton className="h-10 w-10 rounded-pill" />
+          <Skeleton className="h-10 w-10 rounded-pill" />
+          <Skeleton className="h-10 w-10 rounded-pill" />
         </div>
       </div>
     </div>

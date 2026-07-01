@@ -4,6 +4,7 @@ import type { ReactNode } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
+import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
 import { PacingFilterToolbar } from "@/components/pacing/PacingFilterToolbar"
 
 const baseTabs = [
@@ -31,13 +32,10 @@ export function PacingShell({ children, isAdmin = false }: PacingShellProps) {
         <PacingFilterToolbar />
       </div>
 
-      {/* Page hero */}
-      <header className="space-y-0.5">
-        <h1 className="text-2xl font-semibold tracking-tight">Pacing</h1>
-        <p className="text-sm text-muted-foreground">
-          Portfolio pacing across all clients in your scope.
-        </p>
-      </header>
+      <MediaPlanEditorHero
+        title="Pacing"
+        detail={<p>Portfolio pacing across all clients in your scope.</p>}
+      />
 
       {/* Top tabs */}
       <nav

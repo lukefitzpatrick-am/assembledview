@@ -3,11 +3,13 @@
 import { format, isValid, parseISO } from "date-fns"
 import { Download, FileText } from "lucide-react"
 
-import { AccentBar } from "@/components/ui/accent-bar"
-import { AnimatedDotField } from "@/components/ui/animated-dot-field"
+import {
+  PAGE_HERO_PADDING,
+  PageHeroShell,
+  PageHeroTitleBlock,
+} from "@/components/dashboard/PageHeroShell"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { WaveRibbon } from "@/components/ui/wave-ribbon"
 import { formatCurrencyAUD } from "@/lib/format/currency"
 import { cn } from "@/lib/utils"
 import AdminDateRangeSelector from "@/app/dashboard/[slug]/[mba_number]/components/AdminDateRangeSelector"
@@ -59,10 +61,6 @@ function resolveStatusKind(status: string): StatusKind {
   return "default"
 }
 
-function colorMix(color: string, percentage: number): string {
-  return `color-mix(in srgb, ${color} ${percentage}%, transparent)`
-}
-
 function StatusBadge({ status }: { status: string }) {
   const kind = resolveStatusKind(status)
   const label = status.trim() || "—"
@@ -104,76 +102,41 @@ export default function CampaignHeroBanner({
   campaignStart,
   campaignEnd,
 }: CampaignHeroBannerProps) {
-  const subtitle = campaign.brand
-    ? `${campaign.clientName} • ${campaign.brand}`
-    : campaign.clientName
-
+  const subtitle = campaign.brand ? `${campaign.clientName} • ${campaign.brand}` : campaign.clientName
   const budget = Number(campaign.budget ?? 0) || 0
 
-  const washGradient = `linear-gradient(125deg, hsl(var(--background)) 0%, color-mix(in srgb, hsl(var(--background)) 97%, transparent) 35%, ${colorMix(brandColour, 10)} 55%, ${colorMix(brandColour, 20)} 100%)`
+  const detail = (
+    <>
+      <p>{subtitle}</p>
+      <div className="flex flex-wrap items-center gap-2 pt-0.5">
+        <span className="inline-flex items-center rounded-input border border-border bg-muted/35 px-2 py-0.5 font-mono text-xs font-medium tabular-nums text-muted-foreground">
+          {campaign.mbaNumber}
+        </span>
+        <StatusBadge status={campaign.status} />
+      </div>
+      <p>{formatHeroDateRange(campaign.startDate, campaign.endDate)}</p>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2 w-2 shrink-0 rounded-pill" style={{ backgroundColor: brandColour }} aria-hidden />
+          Budget: {formatCurrencyAUD(budget)}
+        </span>
+        <span aria-hidden className="text-border">
+          •
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2 w-2 shrink-0 rounded-pill bg-muted-foreground/70" aria-hidden />
+          Days remaining: {Math.max(0, Math.round(daysRemaining))}
+        </span>
+      </div>
+    </>
+  )
 
   return (
-    <section
-      className={cn(
-        "relative min-h-[160px] w-full overflow-hidden rounded-2xl border border-border/50",
-        "animate-in fade-in-0 duration-500",
-      )}
-    >
-      <div className="absolute inset-0 z-0 bg-background" aria-hidden />
-      <div
-        className="absolute inset-0 z-0 dark:hidden"
-        style={{ backgroundImage: washGradient }}
-        aria-hidden
-      />
-      <div
-        className="absolute inset-0 z-0 hidden dark:block"
-        style={{
-          backgroundImage: `linear-gradient(125deg, hsl(var(--background)) 0%, color-mix(in srgb, hsl(var(--background)) 97%, transparent) 35%, ${colorMix(brandColour, 12)} 55%, ${colorMix(brandColour, 22)} 100%)`,
-        }}
-        aria-hidden
-      />
+    <PageHeroShell brandColour={brandColour} className={cn("animate-in fade-in-0 duration-500")}>
+      <div className={cn("relative z-10 flex min-h-[140px] flex-col md:flex-row md:items-start md:justify-between", PAGE_HERO_PADDING, "pr-28 sm:pr-32 md:pr-40 lg:pr-44")}>
+        <PageHeroTitleBlock title={campaign.campaignName} detail={detail} brandColour={brandColour} />
 
-      <WaveRibbon brandColour={brandColour} />
-      <AnimatedDotField />
-
-      <AccentBar brandColour={brandColour} className="absolute bottom-0 left-0 right-0 z-[2]" />
-
-      <div className="relative z-10 min-h-[160px] pb-5 pl-6 pr-28 pt-6 sm:pr-32 md:pl-10 md:pr-40 lg:pr-44">
-        <div className="min-w-0 space-y-2">
-            <h1 className="text-2xl font-extrabold tracking-[-0.03em] text-foreground">
-              {campaign.campaignName}
-            </h1>
-            <p className="text-sm text-muted-foreground">{subtitle}</p>
-
-            <div className="flex flex-wrap items-center gap-2 pt-0.5">
-              <span className="inline-flex items-center rounded-md border border-border/60 bg-muted/35 px-2 py-0.5 font-mono text-xs font-medium tabular-nums text-muted-foreground">
-                {campaign.mbaNumber}
-              </span>
-              <StatusBadge status={campaign.status} />
-            </div>
-
-            <p className="text-sm text-muted-foreground">{formatHeroDateRange(campaign.startDate, campaign.endDate)}</p>
-
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-              <span className="inline-flex items-center gap-1.5">
-                <span
-                  className="h-2 w-2 shrink-0 rounded-full"
-                  style={{ backgroundColor: brandColour }}
-                  aria-hidden
-                />
-                Budget: {formatCurrencyAUD(budget)}
-              </span>
-              <span aria-hidden className="text-border">
-                •
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="h-2 w-2 shrink-0 rounded-full bg-muted-foreground/70" aria-hidden />
-                Days remaining: {Math.max(0, Math.round(daysRemaining))}
-              </span>
-            </div>
-        </div>
-
-        <div className="absolute right-3 top-1/2 z-20 flex -translate-y-1/2 flex-col gap-2 sm:right-4 md:right-6">
+        <div className="absolute right-6 top-1/2 z-20 flex -translate-y-1/2 flex-col gap-2 md:right-7">
           <AdminDateRangeSelector
             campaignStart={campaignStart}
             campaignEnd={campaignEnd}
@@ -184,7 +147,7 @@ export default function CampaignHeroBanner({
             type="button"
             variant="outline"
             size="sm"
-            className="h-9 min-w-[7.5rem] justify-center gap-2 rounded-full border-border/60 bg-background/90 text-xs font-medium shadow-sm backdrop-blur-sm transition-all hover:scale-[1.02] hover:bg-muted max-[375px]:h-11"
+            className="h-9 min-w-[7.5rem] justify-center gap-2 rounded-pill border-border bg-card text-xs font-medium shadow-e0 transition-all hover:bg-muted max-[375px]:h-11"
             onClick={onOpenDetails}
           >
             <FileText className="h-3.5 w-3.5" aria-hidden />
@@ -194,7 +157,7 @@ export default function CampaignHeroBanner({
             type="button"
             variant="outline"
             size="sm"
-            className="h-9 min-w-[7.5rem] justify-center gap-2 rounded-full border-border/60 bg-background/90 text-xs font-medium shadow-sm backdrop-blur-sm transition-all hover:scale-[1.02] hover:bg-muted max-[375px]:h-11"
+            className="h-9 min-w-[7.5rem] justify-center gap-2 rounded-pill border-border bg-card text-xs font-medium shadow-e0 transition-all hover:bg-muted max-[375px]:h-11"
             onClick={onDownload}
           >
             <Download className="h-3.5 w-3.5" aria-hidden />
@@ -202,7 +165,6 @@ export default function CampaignHeroBanner({
           </Button>
         </div>
       </div>
-
-    </section>
+    </PageHeroShell>
   )
 }

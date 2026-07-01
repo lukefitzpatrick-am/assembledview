@@ -1,14 +1,9 @@
 import * as React from "react"
 
+import { BRAND_MARK_COLOURS } from "@/lib/brand/brandMarkColours"
 import { cn } from "@/lib/utils"
 
-const BRAND_DOT_COLOURS = {
-  lime: "hsl(var(--accent))",
-  teal: "var(--channel-social)",
-  green: "hsl(var(--primary))",
-  blue: "hsl(var(--secondary))",
-  purple: "var(--channel-bvod)",
-} as const
+const BRAND_DOT_COLOURS = BRAND_MARK_COLOURS
 
 /** Positions from the right edge; vertical field for hero height (same pulse as `CornerDotCluster`). */
 const DOTS: Array<{

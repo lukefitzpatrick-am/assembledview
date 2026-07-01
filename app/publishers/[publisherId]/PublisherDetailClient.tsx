@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { BarChart3, FileText } from "lucide-react"
-import { PageHeroShell } from "@/components/dashboard/PageHeroShell"
+import { PAGE_HERO_PADDING, PageHeroShell, PageHeroTitleBlock } from "@/components/dashboard/PageHeroShell"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { PublisherDetailCharts } from "./PublisherDetailCharts"
@@ -63,64 +63,54 @@ export function PublisherDetailClient({ initialPublisher, analytics }: Publisher
   return (
     <div className="mx-auto w-full max-w-[1800px] space-y-6 px-4 py-6 pb-12 sm:px-6 lg:px-8 lg:py-8 xl:px-12 2xl:px-16">
       <PageHeroShell brandColour={brandColour}>
-        <div className="relative z-10 pt-6 pr-6 pb-6 pl-14 md:pt-8 md:pr-8 md:pb-8 md:pl-14 lg:pt-8 lg:pr-8 lg:pb-8 lg:pl-14 xl:pt-10 xl:pr-10 xl:pb-10 xl:pl-14">
+        <div className={cn("relative z-10", PAGE_HERO_PADDING, "pr-14 sm:pr-16 md:pr-20")}>
           <Button variant="ghost" size="sm" asChild className="-ml-2 mb-4 h-auto p-0 text-xs text-muted-foreground hover:bg-transparent hover:text-foreground">
             <Link href="/publishers">← Back to publishers</Link>
           </Button>
-          <div
-            className={cn(
-              "flex w-full flex-col gap-6 md:flex-row md:items-center md:gap-8 xl:gap-10",
-              "pr-14 sm:pr-16 md:pr-20"
-            )}
-          >
-            <div className="relative flex items-center gap-4">
-              <div
-                className="absolute -inset-2 rounded-pill bg-pacing-on-track-bg blur-xl"
+          <div className="flex w-full flex-col gap-5 sm:flex-row sm:items-start sm:gap-5">
+            <div className="relative h-14 w-14 shrink-0">
+              <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-pill border border-border shadow-e1">
+                <span
+                  className="flex h-full w-full items-center justify-center bg-pacing-on-track text-base font-semibold text-primary-foreground"
+                  aria-label={`${publisher.publisher_name} initials`}
+                >
+                  {publisherInitials(publisher.publisher_name || "")}
+                </span>
+              </div>
+              <span
+                className="absolute bottom-px right-px h-[10px] w-[10px] rounded-pill bg-accent shadow-e0 ring-2 ring-card"
                 aria-hidden
               />
-              <div className="relative h-16 w-16 shrink-0">
-                <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-pill border-2 border-pacing-on-track-bg shadow-e1">
-                  <span
-                    className="flex h-full w-full items-center justify-center bg-pacing-on-track text-lg font-semibold text-primary-foreground"
-                    aria-label={`${publisher.publisher_name} initials`}
-                  >
-                    {publisherInitials(publisher.publisher_name || "")}
-                  </span>
-                </div>
-                <span
-                  className="absolute bottom-px right-px h-[10px] w-[10px] rounded-pill bg-accent shadow-e0 ring-2 ring-card"
-                  aria-hidden
-                />
-              </div>
             </div>
 
-            <div className="flex min-w-0 flex-1 flex-col gap-2 xl:max-w-none">
-              <h1 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl xl:text-4xl">
-                {publisher.publisher_name}
-              </h1>
-              <p className="text-sm text-muted-foreground md:text-base">
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="h-2 w-2 shrink-0 rounded-pill bg-pacing-on-track" aria-hidden />
-                  {publisher.publisherid}
-                </span>
-                <span aria-hidden className="mx-2 text-border">
-                  •
-                </span>
-                <span>{publisher.publishertype?.replace("_", " ")}</span>
-                <span aria-hidden className="mx-2 text-border">
-                  •
-                </span>
-                <span>{publisher.billingagency}</span>
-                <span aria-hidden className="mx-2 text-border">
-                  •
-                </span>
-                <span>Finance {publisher.financecode}</span>
-              </p>
-            </div>
+            <PageHeroTitleBlock
+              title={publisher.publisher_name}
+              brandColour={brandColour}
+              detail={
+                <p>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="h-2 w-2 shrink-0 rounded-pill bg-pacing-on-track" aria-hidden />
+                    {publisher.publisherid}
+                  </span>
+                  <span aria-hidden className="mx-2 text-border">
+                    •
+                  </span>
+                  <span>{publisher.publishertype?.replace("_", " ")}</span>
+                  <span aria-hidden className="mx-2 text-border">
+                    •
+                  </span>
+                  <span>{publisher.billingagency}</span>
+                  <span aria-hidden className="mx-2 text-border">
+                    •
+                  </span>
+                  <span>Finance {publisher.financecode}</span>
+                </p>
+              }
+            />
           </div>
         </div>
 
-        <div className="absolute right-3 top-1/2 z-20 -translate-y-1/2 sm:right-4 md:right-6 lg:right-8 xl:right-10">
+        <div className="absolute right-6 top-1/2 z-20 -translate-y-1/2 md:right-7">
           <TooltipProvider delayDuration={100}>
             <div className="flex flex-col gap-2">
               <Tooltip>
@@ -129,7 +119,7 @@ export function PublisherDetailClient({ initialPublisher, analytics }: Publisher
                     type="button"
                     onClick={() => setDetailsOpen(true)}
                     aria-label="Publisher details"
-                    className="flex h-10 w-10 items-center justify-center rounded-full border border-border/50 bg-background/90 text-muted-foreground shadow-sm backdrop-blur-sm transition-all hover:scale-105 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    className="interactive flex h-10 w-10 items-center justify-center rounded-pill border border-border bg-card text-muted-foreground shadow-e0 transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   >
                     <FileText className="h-4 w-4" />
                   </button>
@@ -143,7 +133,7 @@ export function PublisherDetailClient({ initialPublisher, analytics }: Publisher
                     type="button"
                     onClick={() => setKpisOpen(true)}
                     aria-label="KPIs and targets"
-                    className="flex h-10 w-10 items-center justify-center rounded-full border border-border/50 bg-background/90 text-muted-foreground shadow-sm backdrop-blur-sm transition-all hover:scale-105 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    className="interactive flex h-10 w-10 items-center justify-center rounded-pill border border-border bg-card text-muted-foreground shadow-e0 transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   >
                     <BarChart3 className="h-4 w-4" />
                   </button>
