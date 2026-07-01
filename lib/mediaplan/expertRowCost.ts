@@ -1,4 +1,5 @@
 import { expertRowRawCost } from "@/lib/mediaplan/expertChannelMappings"
+import type { ExpertDailyValues } from "@/lib/mediaplan/expertDayModel"
 import {
   expertGridParseNum,
   expertRowFeeSplit,
@@ -9,12 +10,18 @@ export type ExpertRowCostFields = {
   buyType?: string | null
   unitRate?: string | number | null
   weeklyValues: ExpertWeeklyValues
+  /**
+   * Opportunistic day-level detail. Invariant: a day-detailed week's weekly
+   * cell is "" (empty), so summing all day values alongside weekly cells
+   * never double-counts.
+   */
+  dailyValues?: ExpertDailyValues
   mergedWeekSpans?: ReadonlyArray<{ totalQty?: number }>
   budgetIncludesFees?: boolean
   clientPaysForMedia?: boolean
 }
 
-/** Σ weekly + merged quantity. */
+/** Σ weekly + day-detail + merged quantity. */
 export function expertRowQuantitySum(
   row: ExpertRowCostFields,
   weekKeys: readonly string[]
@@ -23,11 +30,17 @@ export function expertRowQuantitySum(
     (s, k) => s + expertGridParseNum(row.weeklyValues[k]),
     0
   )
+  const daily = row.dailyValues
+    ? Object.values(row.dailyValues).reduce<number>(
+        (s, v) => s + expertGridParseNum(v),
+        0
+      )
+    : 0
   const merged = (row.mergedWeekSpans ?? []).reduce(
     (s, sp) => s + (Number.isFinite(sp.totalQty) ? (sp.totalQty as number) : 0),
     0
   )
-  return weekly + merged
+  return weekly + daily + merged
 }
 
 /** Gross media $ before fee split. */
