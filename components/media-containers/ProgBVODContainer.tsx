@@ -43,7 +43,7 @@ import {
 } from "@/lib/billing/prorateInvestmentDisplay"
 import type { LineItem } from '@/lib/generateMediaPlan'
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
-import { assignStableLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
+import { assignStableLineItemNumbers, reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import { resolveBillingBurstLineItemId } from "@/lib/billing/resolveBillingBurstLineItemId"
 import { formatAUD, formatMoney, parseMoneyInput } from "@/lib/format/money"
 import {
@@ -333,6 +333,7 @@ export default function ProgBVODContainer({
     useState(false)
   const [expertSegmentAttention, setExpertSegmentAttention] = useState(true)
   const progbvodExpertRowsBaselineRef = useRef("")
+  const reorderedRef = useRef(false)
   const progbvodExpertModalOpenRef = useRef(false)
   progbvodExpertModalOpenRef.current = progbvodExpertModalOpen
 
@@ -433,7 +434,11 @@ export default function ProgBVODContainer({
       standard,
       prevLineItems as StandardProgBvodFormLineItem[]
     )
-    const keyedMerged = stampBurstReactKeys(merged)
+    const orderedForApply = reorderedRef.current
+      ? reassignLineItemNumbers(merged, mbaNumber, MEDIA_TYPE_ID_CODES.progBVOD)
+      : merged
+    reorderedRef.current = false
+    const keyedMerged = stampBurstReactKeys(orderedForApply)
     const clearedOverride = expertApplyClearedAdServingOverride(
       prevLineItems as any,
       keyedMerged as any
@@ -1821,6 +1826,9 @@ useEffect(() => {
                 rows={expertProgBvodRows}
                 onRowsChange={handleExpertProgBvodRowsChange}
                 publishers={publishers}
+                onReorder={() => {
+                  reorderedRef.current = true;
+                }}
               />
             </div>
           </ComboboxModalProvider>
