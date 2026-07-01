@@ -29,7 +29,7 @@ import {
   pickLineItemNumber,
   sortLineItemsByLineItemNumber,
 } from "@/lib/mediaplan/lineItemIds"
-import { assignStableLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
+import { assignStableLineItemNumbers, reassignDigiDisplayLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { appendBurst, duplicateBurst, removeBurst, newBurstReactKey, stampBurstReactKeys } from "@/lib/mediaplan/burstOperations"
 import { serializeBurstsJson } from "@/lib/mediaplan/serializeBurstsJson"
@@ -335,6 +335,7 @@ export default function DigiDisplayContainer({
   const [expertSegmentAttention, setExpertSegmentAttention] = useState(true)
   const digiDisplayStandardBaselineRef = useRef("")
   const digiDisplayExpertRowsBaselineRef = useRef("")
+  const reorderedRef = useRef(false)
   const digiDisplayExpertModalOpenRef = useRef(false)
   digiDisplayExpertModalOpenRef.current = digiDisplayExpertModalOpen
 
@@ -588,11 +589,14 @@ export default function DigiDisplayContainer({
       standard,
       asStandardDigiDisplayItems(prevLineItems)
     )
-    const reassigned = assignStableLineItemNumbers<any>(
-      merged,
-      mbaNumber,
-      MEDIA_TYPE_ID_CODES.digitalDisplay
-    )
+    const reassigned = reorderedRef.current
+      ? reassignDigiDisplayLineItemNumbers(merged, mbaNumber)
+      : assignStableLineItemNumbers<any>(
+          merged,
+          mbaNumber,
+          MEDIA_TYPE_ID_CODES.digitalDisplay
+        )
+    reorderedRef.current = false
     const keyedMerged = stampBurstReactKeys(reassigned)
     const clearedOverride = expertApplyClearedAdServingOverride(
       prevLineItems as any,
@@ -2171,6 +2175,9 @@ useEffect(() => {
                 onRowsChange={handleExpertDigiDisplayRowsChange}
                 publishers={publishers}
                 digiDisplaySites={digidisplaySites}
+                onReorder={() => {
+                  reorderedRef.current = true;
+                }}
               />
             </div>
           </ComboboxModalProvider>
