@@ -18,7 +18,16 @@ import {
   parse as parseDateFns,
   startOfDay,
 } from "date-fns"
-import { Copy, GitMerge, Grid3x3, Plus, Trash2, X } from "lucide-react"
+import {
+  ChevronsLeftRight,
+  ChevronsRightLeft,
+  Copy,
+  GitMerge,
+  Grid3x3,
+  Plus,
+  Trash2,
+  X,
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -103,9 +112,15 @@ import {
   rgbaFromHex,
 } from "@/lib/mediaplan/mediaTypeAccents"
 import {
+  buildDayColumnsForWeek,
   collapseDailyToWeekly,
+  expandWeekToDaily,
+  resizeSpanWeeks,
   weekDayKeys,
   weekHasDailyValues,
+  weekIsUniform,
+  type DayColumn,
+  type ExpertDailyValues,
 } from "@/lib/mediaplan/expertDayModel"
 
 
@@ -235,6 +250,9 @@ function normalizeCinemaStationPaste(raw: string, stationNames: string[]): strin
 }
 
 /** Row gross / raw cost from expert Σ qty × unit rate (see `lib/mediaplan/deliverableBudget`). */
+
+/** Fixed pixel width of one expanded day sub-column. */
+const DAY_COL_WIDTH_PX = 44
 
 /**
  * Invariant enforcement (single chokepoint, applied on every pushRows): a
@@ -475,6 +493,22 @@ export function CinemaExpertGrid({
     }
     return out
   }, [weekColumns, campaignStartDate, campaignEndDate])
+  /** Full day-column descriptors per week (labels + dates for expanded render). */
+  const dayColumnsByWeekKey = useMemo<Record<string, readonly DayColumn[]>>(() => {
+    const out: Record<string, readonly DayColumn[]> = {}
+    for (const col of weekColumns) {
+      out[col.weekKey] = buildDayColumnsForWeek(
+        col,
+        campaignStartDate,
+        campaignEndDate
+      )
+    }
+    return out
+  }, [weekColumns, campaignStartDate, campaignEndDate])
+  /** Session-only view state: weeks currently expanded into day sub-columns. */
+  const [expandedWeekKeys, setExpandedWeekKeys] = useState<Set<string>>(
+    () => new Set()
+  )
 
   const [weekStripSelection, setWeekStripSelection] = useState<{
     rowIndex: number
@@ -1090,6 +1124,312 @@ export function CinemaExpertGrid({
     },
     [normalizedRows, pushRows, weekKeys]
   )
+
+  /**
+   * Edit one day cell of an expanded week. First edit on a week without day
+   * detail materialises the week's even split (Rule 3) into `dailyValues` and
+   * blanks the week cell; the invariant chokepoint in pushRows keeps the two
+   * representations from ever coexisting.
+   */
+  const updateDailyCell = useCallback(
+    (rowIndex: number, weekKey: string, dayKey: string, raw: string) => {
+      const row = normalizedRows[rowIndex]
+      if (!row) return
+      // Merged weeks are edited via their anchor cell, never day cells.
+      if (findMergedSpanForWeek(row, weekKey, weekKeys)) return
+      const dayKeys = [...(dayKeysByWeekKey[weekKey] ?? [])]
+      if (dayKeys.length === 0) return
+
+      const nextDaily: ExpertDailyValues = { ...(row.dailyValues ?? {}) }
+      const hasDetail =
+        !!row.dailyValues && weekHasDailyValues(row.dailyValues, dayKeys)
+      if (!hasDetail) {
+        const split = expandWeekToDaily(
+          row.weeklyValues[weekKey] ?? "",
+          dayKeys
+        )
+        for (const k of dayKeys) nextDaily[k] = split[k] ?? 0
+      }
+
+      const cleaned = raw.replace(/[^\d.-]/g, "")
+      if (cleaned === "" || cleaned === "-") {
+        nextDaily[dayKey] = ""
+      } else {
+        const n = Number.parseFloat(cleaned)
+        if (!Number.isFinite(n)) return
+        nextDaily[dayKey] = n
+      }
+
+      const weeklyValues = { ...row.weeklyValues, [weekKey]: "" as const }
+      pushRows(
+        normalizedRows.map((r, i) =>
+          i === rowIndex ? { ...r, weeklyValues, dailyValues: nextDaily } : r
+        )
+      )
+    },
+    [dayKeysByWeekKey, normalizedRows, pushRows, weekKeys]
+  )
+
+  /**
+   * Expand/collapse a week column into day sub-columns (session-only view
+   * state). Collapsing tidies data per Rule 1: any row whose day detail for
+   * this week is uniform folds back to a single week-level value.
+   */
+  const toggleWeekExpanded = useCallback(
+    (weekKey: string) => {
+      const collapsing = expandedWeekKeys.has(weekKey)
+      setExpandedWeekKeys((prev) => {
+        const next = new Set(prev)
+        if (next.has(weekKey)) next.delete(weekKey)
+        else next.add(weekKey)
+        return next
+      })
+      if (!collapsing) return
+
+      const dayKeys = [...(dayKeysByWeekKey[weekKey] ?? [])]
+      if (dayKeys.length === 0) return
+      const rowsNow = normalizedRowsRef.current
+      let mutated = false
+      const folded = rowsNow.map((r) => {
+        if (!r.dailyValues || !weekHasDailyValues(r.dailyValues, dayKeys)) {
+          return r
+        }
+        if (!weekIsUniform(r.dailyValues, dayKeys)) return r
+        const sum = collapseDailyToWeekly(r.dailyValues, dayKeys)
+        const nextDaily = { ...r.dailyValues }
+        for (const k of dayKeys) delete nextDaily[k]
+        mutated = true
+        const weeklyValues = { ...r.weeklyValues, [weekKey]: sum }
+        if (Object.keys(nextDaily).length === 0) {
+          const { dailyValues: _omit, ...rest } = r
+          return { ...rest, weeklyValues }
+        }
+        return { ...r, weeklyValues, dailyValues: nextDaily }
+      })
+      if (mutated) pushRows(folded)
+    },
+    [dayKeysByWeekKey, expandedWeekKeys, pushRows]
+  )
+
+  /**
+   * Feature 6 — week-grained span-edge resize. Growth is clamped at the first
+   * obstruction (sibling span, populated week cell, or day-detailed week), so
+   * resizing never absorbs or destroys values; the burst total is unchanged.
+   */
+  type SpanEdgeResizeDrag = {
+    rowIndex: number
+    spanId: string
+    edge: "start" | "end"
+    originClientX: number
+    minDelta: number
+    maxDelta: number
+    deltaWeeks: number
+    clientX: number
+    clientY: number
+  }
+  const [spanEdgeResize, setSpanEdgeResize] =
+    useState<SpanEdgeResizeDrag | null>(null)
+  const spanEdgeResizeRef = useRef(spanEdgeResize)
+  spanEdgeResizeRef.current = spanEdgeResize
+
+  /** Rendered width of one week column (day sub-columns when expanded). */
+  const widthForWeekKey = useCallback(
+    (k: string): number => {
+      if (expandedWeekKeys.has(k)) {
+        return (
+          Math.max(1, (dayColumnsByWeekKey[k] ?? []).length) * DAY_COL_WIDTH_PX
+        )
+      }
+      return weekColumnWidths[k] ?? CINEMA_EXPERT_WEEK_COL_WIDTH_PX
+    },
+    [expandedWeekKeys, dayColumnsByWeekKey, weekColumnWidths]
+  )
+
+  /** Horizontal drag distance → whole weeks crossed (variable column widths). */
+  const deltaWeeksFromPx = useCallback(
+    (edgeIdx: number, dx: number): number => {
+      let remaining = Math.abs(dx)
+      let steps = 0
+      if (dx > 0) {
+        for (let i = edgeIdx + 1; i < weekKeys.length; i += 1) {
+          const w = widthForWeekKey(weekKeys[i]!)
+          if (remaining < w / 2) break
+          remaining -= w
+          steps += 1
+        }
+        return steps
+      }
+      for (let i = edgeIdx; i >= 0; i -= 1) {
+        const w = widthForWeekKey(weekKeys[i]!)
+        if (remaining < w / 2) break
+        remaining -= w
+        steps += 1
+      }
+      return -steps
+    },
+    [weekKeys, widthForWeekKey]
+  )
+
+  const beginSpanEdgeResize = useCallback(
+    (
+      rowIndex: number,
+      spanId: string,
+      edge: "start" | "end",
+      clientX: number,
+      clientY: number
+    ) => {
+      const row = normalizedRowsRef.current[rowIndex]
+      if (!row) return
+      const span = (row.mergedWeekSpans ?? []).find((s) => s.id === spanId)
+      if (!span) return
+      const si = weekKeys.indexOf(span.startWeekKey)
+      const ei = weekKeys.indexOf(span.endWeekKey)
+      if (si < 0 || ei < 0) return
+
+      const occupied = new Set<string>()
+      for (const s of row.mergedWeekSpans ?? []) {
+        if (s.id === spanId) continue
+        for (const k of weekKeysInSpanInclusive(
+          weekKeys,
+          s.startWeekKey,
+          s.endWeekKey
+        )) {
+          occupied.add(k)
+        }
+      }
+      const weekBlocked = (k: string): boolean => {
+        if (occupied.has(k)) return true
+        const v = row.weeklyValues[k]
+        if (v !== "" && v !== undefined && v !== null) return true
+        const dk = [...(dayKeysByWeekKey[k] ?? [])]
+        if (row.dailyValues && weekHasDailyValues(row.dailyValues, dk)) {
+          return true
+        }
+        return false
+      }
+
+      let minDelta: number
+      let maxDelta: number
+      if (edge === "end") {
+        minDelta = si - ei
+        let g = 0
+        for (let i = ei + 1; i < weekKeys.length; i += 1) {
+          if (weekBlocked(weekKeys[i]!)) break
+          g += 1
+        }
+        maxDelta = g
+      } else {
+        let g = 0
+        for (let i = si - 1; i >= 0; i -= 1) {
+          if (weekBlocked(weekKeys[i]!)) break
+          g += 1
+        }
+        minDelta = -g
+        maxDelta = ei - si
+      }
+
+      setSpanEdgeResize({
+        rowIndex,
+        spanId,
+        edge,
+        originClientX: clientX,
+        minDelta,
+        maxDelta,
+        deltaWeeks: 0,
+        clientX,
+        clientY,
+      })
+    },
+    [dayKeysByWeekKey, weekKeys]
+  )
+
+  const applySpanEdgeResize = useCallback(() => {
+    const drag = spanEdgeResizeRef.current
+    setSpanEdgeResize(null)
+    if (!drag || drag.deltaWeeks === 0) return
+    const rowsNow = normalizedRowsRef.current
+    const row = rowsNow[drag.rowIndex]
+    if (!row) return
+    const span = (row.mergedWeekSpans ?? []).find((s) => s.id === drag.spanId)
+    if (!span) return
+    const resized = resizeSpanWeeks(
+      weekKeys,
+      span.startWeekKey,
+      span.endWeekKey,
+      drag.edge,
+      drag.deltaWeeks
+    )
+    if (!resized) return
+    const mergedWeekSpans = (row.mergedWeekSpans ?? []).map((s) =>
+      s.id === drag.spanId
+        ? {
+            ...s,
+            startWeekKey: resized.startWeekKey,
+            endWeekKey: resized.endWeekKey,
+          }
+        : s
+    )
+    // Belt-and-braces: covered weeks stay empty (growth already clamps to
+    // empty weeks; shrink releases weeks as empty).
+    const weeklyValues = { ...row.weeklyValues }
+    for (const k of weekKeysInSpanInclusive(
+      weekKeys,
+      resized.startWeekKey,
+      resized.endWeekKey
+    )) {
+      weeklyValues[k] = ""
+    }
+    pushRows(
+      rowsNow.map((r, i) =>
+        i === drag.rowIndex ? { ...r, weeklyValues, mergedWeekSpans } : r
+      )
+    )
+  }, [pushRows, weekKeys])
+
+  const spanEdgeResizeActive = spanEdgeResize !== null
+  useEffect(() => {
+    if (!spanEdgeResizeActive) return
+    const onMove = (e: PointerEvent) => {
+      setSpanEdgeResize((prev) => {
+        if (!prev) return prev
+        const row = normalizedRowsRef.current[prev.rowIndex]
+        const span = row?.mergedWeekSpans?.find((s) => s.id === prev.spanId)
+        if (!row || !span) return prev
+        const si = weekKeys.indexOf(span.startWeekKey)
+        const ei = weekKeys.indexOf(span.endWeekKey)
+        const edgeIdx = prev.edge === "end" ? ei : si
+        if (edgeIdx < 0) return prev
+        const raw = deltaWeeksFromPx(edgeIdx, e.clientX - prev.originClientX)
+        const deltaWeeks = Math.min(
+          prev.maxDelta,
+          Math.max(prev.minDelta, raw)
+        )
+        const next = {
+          ...prev,
+          deltaWeeks,
+          clientX: e.clientX,
+          clientY: e.clientY,
+        }
+        // Keep the ref in lock-step so pointerup never applies a stale delta.
+        spanEdgeResizeRef.current = next
+        return next
+      })
+    }
+    const onUp = () => {
+      applySpanEdgeResize()
+    }
+    window.addEventListener("pointermove", onMove)
+    window.addEventListener("pointerup", onUp)
+    return () => {
+      window.removeEventListener("pointermove", onMove)
+      window.removeEventListener("pointerup", onUp)
+    }
+  }, [
+    spanEdgeResizeActive,
+    applySpanEdgeResize,
+    deltaWeeksFromPx,
+    weekKeys,
+  ])
 
   const unmergeWeekSpan = useCallback(
     (rowIndex: number, spanId: string) => {
@@ -2097,6 +2437,20 @@ export function CinemaExpertGrid({
   return (
     <TooltipProvider delayDuration={300}>
       <Card className="relative overflow-hidden border-0 shadow-md">
+        {spanEdgeResize ? (
+          <div
+            className="pointer-events-none fixed z-[100] rounded-md border border-border bg-background px-2 py-1 text-xs tabular-nums shadow-md"
+            style={{
+              left: spanEdgeResize.clientX + 12,
+              top: spanEdgeResize.clientY - 28,
+            }}
+          >
+            {spanEdgeResize.deltaWeeks > 0
+              ? `+${spanEdgeResize.deltaWeeks}`
+              : spanEdgeResize.deltaWeeks}{" "}
+            wk
+          </div>
+        ) : null}
         <div className="flex min-w-0 flex-row">
           <div
             className="w-1 shrink-0 self-stretch"
@@ -2226,38 +2580,102 @@ export function CinemaExpertGrid({
                           )}
                         </th>
                       ))}
-                      {weekColumns.map((col) => (
-                        <th
-                          key={col.weekKey}
-                          className={cn(stickyThWeek, "relative")}
-                          style={{
-                            ...weekColStyle(col.weekKey, weekColumnWidths),
-                            ...cinemaExpertHeaderCellBgStyle,
-                          }}
-                          title={col.labelFull}
-                        >
-                          <Tooltip>
-                            <TooltipTrigger asChild>
+                      {weekColumns.map((col) => {
+                        const dayCols = expandedWeekKeys.has(col.weekKey)
+                          ? dayColumnsByWeekKey[col.weekKey] ?? []
+                          : []
+                        if (dayCols.length > 0) {
+                          // Expanded week — one narrow header per campaign day.
+                          return dayCols.map((dayCol, di) => (
+                            <th
+                              key={`${col.weekKey}-${dayCol.dayKey}`}
+                              className={cn(stickyThWeek, "relative")}
+                              style={{
+                                width: DAY_COL_WIDTH_PX,
+                                minWidth: DAY_COL_WIDTH_PX,
+                                maxWidth: DAY_COL_WIDTH_PX,
+                                boxSizing: "border-box",
+                                ...cinemaExpertHeaderCellBgStyle,
+                              }}
+                              title={`${col.labelFull} — ${dayCol.dayKey}`}
+                            >
                               <span className="flex min-h-[3rem] w-full cursor-default items-center justify-center px-0.5 py-1">
-                                <span className="text-[11px] font-semibold uppercase leading-snug tracking-wider text-foreground tabular-nums">
-                                  {col.labelShort}
+                                <span className="text-[10px] font-semibold uppercase leading-snug tracking-wide text-muted-foreground tabular-nums">
+                                  {dayCol.labelShort}
                                 </span>
                               </span>
-                            </TooltipTrigger>
-                            <TooltipContent
-                              side="bottom"
-                              className="max-w-xs text-xs"
+                              {di === 0 ? (
+                                <button
+                                  type="button"
+                                  aria-label={`Collapse ${col.labelShort} back to one week column`}
+                                  title={`Collapse ${col.labelShort} back to one week column`}
+                                  className="absolute left-0 top-0 z-[5] flex h-4 w-4 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                                  onMouseDown={(e) => {
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                  }}
+                                  onClick={(e) => {
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                    toggleWeekExpanded(col.weekKey)
+                                  }}
+                                >
+                                  <ChevronsRightLeft className="h-3 w-3" />
+                                </button>
+                              ) : null}
+                            </th>
+                          ))
+                        }
+                        return (
+                          <th
+                            key={col.weekKey}
+                            className={cn(stickyThWeek, "relative")}
+                            style={{
+                              ...weekColStyle(col.weekKey, weekColumnWidths),
+                              ...cinemaExpertHeaderCellBgStyle,
+                            }}
+                            title={col.labelFull}
+                          >
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="flex min-h-[3rem] w-full cursor-default items-center justify-center px-0.5 py-1">
+                                  <span className="text-[11px] font-semibold uppercase leading-snug tracking-wider text-foreground tabular-nums">
+                                    {col.labelShort}
+                                  </span>
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent
+                                side="bottom"
+                                className="max-w-xs text-xs"
+                              >
+                                {col.labelFull}
+                              </TooltipContent>
+                            </Tooltip>
+                            <button
+                              type="button"
+                              aria-label={`Expand ${col.labelShort} into day columns`}
+                              title={`Expand ${col.labelShort} into day columns`}
+                              className="absolute left-0 top-0 z-[5] flex h-4 w-4 items-center justify-center rounded-sm text-muted-foreground/60 transition-colors hover:bg-muted hover:text-foreground"
+                              onMouseDown={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                              }}
+                              onClick={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                toggleWeekExpanded(col.weekKey)
+                              }}
                             >
-                              {col.labelFull}
-                            </TooltipContent>
-                          </Tooltip>
-                          <ExpertGridWeekResizeHandle
-                            weekKey={col.weekKey}
-                            currentWidth={weekColumnWidths[col.weekKey] ?? CINEMA_EXPERT_WEEK_COL_WIDTH_PX}
-                            onResize={setWeekColumnWidth}
-                          />
-                        </th>
-                      ))}
+                              <ChevronsLeftRight className="h-3 w-3" />
+                            </button>
+                            <ExpertGridWeekResizeHandle
+                              weekKey={col.weekKey}
+                              currentWidth={weekColumnWidths[col.weekKey] ?? CINEMA_EXPERT_WEEK_COL_WIDTH_PX}
+                              onResize={setWeekColumnWidth}
+                            />
+                          </th>
+                        )
+                      })}
                     </tr>
                   </thead>
                   <tbody>
@@ -2787,6 +3205,83 @@ export function CinemaExpertGrid({
                                 ? [...spanMeta.weekKeysIncluded]
                                 : [col.weekKey]
                               const spanLen = Math.max(1, spanMeta?.spanLength ?? 1)
+                              // Column units: an expanded week occupies one
+                              // column per campaign day; collapsed weeks one.
+                              const spanUnits = spanKeys.reduce(
+                                (s, k) =>
+                                  s +
+                                  (expandedWeekKeys.has(k)
+                                    ? Math.max(
+                                        1,
+                                        (dayColumnsByWeekKey[k] ?? []).length
+                                      )
+                                    : 1),
+                                0
+                              )
+                              if (!mSpan && expandedWeekKeys.has(col.weekKey)) {
+                                const dayCols =
+                                  dayColumnsByWeekKey[col.weekKey] ?? []
+                                if (dayCols.length > 0) {
+                                  const dk = [
+                                    ...(dayKeysByWeekKey[col.weekKey] ?? []),
+                                  ]
+                                  const hasDetail =
+                                    !!row.dailyValues &&
+                                    weekHasDailyValues(row.dailyValues, dk)
+                                  const split = hasDetail
+                                    ? null
+                                    : expandWeekToDaily(
+                                        row.weeklyValues[col.weekKey] ?? "",
+                                        dk
+                                      )
+                                  for (const dayCol of dayCols) {
+                                    const rawV = hasDetail
+                                      ? row.dailyValues?.[dayCol.dayKey] ?? ""
+                                      : split?.[dayCol.dayKey] ?? ""
+                                    const displayV =
+                                      rawV === "" || rawV === 0
+                                        ? ""
+                                        : String(rawV)
+                                    renderedWeekCells.push(
+                                      <td
+                                        key={`${row.id}-${dayCol.dayKey}`}
+                                        className="border-b border-r p-0 align-middle bg-primary/[0.04]"
+                                        style={{
+                                          width: DAY_COL_WIDTH_PX,
+                                          minWidth: DAY_COL_WIDTH_PX,
+                                          maxWidth: DAY_COL_WIDTH_PX,
+                                          boxSizing: "border-box",
+                                        }}
+                                        title={
+                                          hasDetail
+                                            ? `Day value — ${dayCol.dayKey}`
+                                            : "Derived from the week's even split — editing saves day-level detail"
+                                        }
+                                      >
+                                        <Input
+                                          className={cn(
+                                            "box-border h-8 w-full min-w-0 max-w-full rounded-none border-0 bg-transparent px-0.5 text-center text-[11px] tabular-nums shadow-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-primary/55 focus-visible:ring-offset-0",
+                                            hasDetail
+                                              ? "text-foreground font-medium"
+                                              : "italic text-muted-foreground"
+                                          )}
+                                          inputMode="decimal"
+                                          value={displayV}
+                                          onChange={(e) =>
+                                            updateDailyCell(
+                                              rowIndex,
+                                              col.weekKey,
+                                              dayCol.dayKey,
+                                              e.target.value
+                                            )
+                                          }
+                                        />
+                                      </td>
+                                    )
+                                  }
+                                  continue
+                                }
+                              }
                               const dayKeysForWeek =
                                 dayKeysByWeekKey[col.weekKey] ?? []
                               const hasDayDetail =
@@ -2971,7 +3466,12 @@ export function CinemaExpertGrid({
                                 isFocusVisible &&
                                   !isMergedAnchorCell &&
                                   !mergeReadyOnCell &&
-                                  "z-[6] ring-2 ring-primary ring-offset-1 ring-offset-background shadow-md"
+                                  "z-[6] ring-2 ring-primary ring-offset-1 ring-offset-background shadow-md",
+                                // Live feedback while a span edge is dragged.
+                                spanEdgeResize !== null &&
+                                  mSpan !== null &&
+                                  spanEdgeResize.spanId === mSpan.id &&
+                                  "z-[7] ring-2 ring-primary ring-inset"
                               )
                               const mergedAnchorWrapperClassName = cn(
                                 !isMergedAnchorCell &&
@@ -3006,18 +3506,23 @@ export function CinemaExpertGrid({
                                   isMergedAnchorCell &&
                                   "text-foreground"
                               )
-                              const mergedAnchorWidthPx = mSpan
-                                ? mergedSpanWidthPx(
-                                    weekKeys,
-                                    mSpan.startWeekKey,
-                                    mSpan.endWeekKey,
-                                    weekColumnWidths,
-                                  )
-                                : null
+                              // Pixel width only applies while every covered
+                              // week is collapsed; expanded weeks are sized by
+                              // their day sub-columns via colSpan.
+                              const mergedAnchorWidthPx =
+                                mSpan &&
+                                !spanKeys.some((k) => expandedWeekKeys.has(k))
+                                  ? mergedSpanWidthPx(
+                                      weekKeys,
+                                      mSpan.startWeekKey,
+                                      mSpan.endWeekKey,
+                                      weekColumnWidths,
+                                    )
+                                  : null
                               renderedWeekCells.push(
                                 <td
                                   key={`${row.id}-${col.weekKey}`}
-                                  colSpan={spanLen}
+                                  colSpan={spanUnits}
                                   style={
                                     isMergedAnchorCell && mergedAnchorWidthPx != null
                                       ? {
@@ -3496,6 +4001,50 @@ export function CinemaExpertGrid({
                                         )
                                       }
                                     />
+                                    {isMergedAnchorCell && mSpan ? (
+                                      <>
+                                        <div
+                                          role="separator"
+                                          aria-label="Resize merged burst from its start week"
+                                          title="Drag to resize burst (start edge)"
+                                          className="absolute inset-y-0 left-0 z-[55] w-1.5 cursor-ew-resize transition-colors hover:bg-primary/50"
+                                          onPointerDown={(e) => {
+                                            e.preventDefault()
+                                            e.stopPropagation()
+                                            beginSpanEdgeResize(
+                                              rowIndex,
+                                              mSpan.id,
+                                              "start",
+                                              e.clientX,
+                                              e.clientY
+                                            )
+                                          }}
+                                          onMouseDown={(e) => e.stopPropagation()}
+                                          onClick={(e) => e.stopPropagation()}
+                                          onDoubleClick={(e) => e.stopPropagation()}
+                                        />
+                                        <div
+                                          role="separator"
+                                          aria-label="Resize merged burst from its end week"
+                                          title="Drag to resize burst (end edge)"
+                                          className="absolute inset-y-0 right-0 z-[55] w-1.5 cursor-ew-resize transition-colors hover:bg-primary/50"
+                                          onPointerDown={(e) => {
+                                            e.preventDefault()
+                                            e.stopPropagation()
+                                            beginSpanEdgeResize(
+                                              rowIndex,
+                                              mSpan.id,
+                                              "end",
+                                              e.clientX,
+                                              e.clientY
+                                            )
+                                          }}
+                                          onMouseDown={(e) => e.stopPropagation()}
+                                          onClick={(e) => e.stopPropagation()}
+                                          onDoubleClick={(e) => e.stopPropagation()}
+                                        />
+                                      </>
+                                    ) : null}
                                     {mSpan ? (
                                       <button
                                         type="button"
@@ -3622,25 +4171,40 @@ export function CinemaExpertGrid({
                               })}
                         </div>
                       </td>
-                      {weekColumns.map((col) => (
-                        <td
-                          key={`t-${col.weekKey}`}
-                          style={{
-                            ...weekColStyle(col.weekKey, weekColumnWidths),
-                            ...cinemaExpertTotalsRowBgStyle,
-                          }}
-                          className="h-8 border-b border-r px-0.5 text-center text-xs tabular-nums align-middle"
-                        >
-                          <div className="flex h-full items-center justify-center">
-                            {containerTotals.perWeek[col.weekKey] === 0
-                              ? "—"
-                              : containerTotals.perWeek[col.weekKey].toLocaleString(
-                                  undefined,
-                                  { maximumFractionDigits: 2 }
-                                )}
-                          </div>
-                        </td>
-                      ))}
+                      {weekColumns.map((col) => {
+                        const units = expandedWeekKeys.has(col.weekKey)
+                          ? Math.max(
+                              1,
+                              (dayColumnsByWeekKey[col.weekKey] ?? []).length
+                            )
+                          : 1
+                        return (
+                          <td
+                            key={`t-${col.weekKey}`}
+                            colSpan={units}
+                            style={{
+                              ...(units === 1
+                                ? weekColStyle(col.weekKey, weekColumnWidths)
+                                : {
+                                    width: units * DAY_COL_WIDTH_PX,
+                                    minWidth: units * DAY_COL_WIDTH_PX,
+                                    boxSizing: "border-box",
+                                  }),
+                              ...cinemaExpertTotalsRowBgStyle,
+                            }}
+                            className="h-8 border-b border-r px-0.5 text-center text-xs tabular-nums align-middle"
+                          >
+                            <div className="flex h-full items-center justify-center">
+                              {containerTotals.perWeek[col.weekKey] === 0
+                                ? "—"
+                                : containerTotals.perWeek[col.weekKey].toLocaleString(
+                                    undefined,
+                                    { maximumFractionDigits: 2 }
+                                  )}
+                            </div>
+                          </td>
+                        )
+                      })}
                     </tr>
                   </tbody>
                 </table>
