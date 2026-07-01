@@ -401,6 +401,7 @@ export default function CreateMediaPlan() {
   const router = useRouter()
   const pathname = usePathname()
   const { setOpen: setSidebarOpen, isMobile: isSidebarMobile } = useSidebar()
+  const didCollapseSidebar = useRef(false)
   const [clients, setClients] = useState<Client[]>([])
   const [reportId, setReportId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -1211,8 +1212,9 @@ export default function CreateMediaPlan() {
   }, [])
 
   useEffect(() => {
-    if (!isSidebarMobile) {
+    if (!didCollapseSidebar.current && !isSidebarMobile) {
       setSidebarOpen(false)
+      didCollapseSidebar.current = true
     }
   }, [isSidebarMobile, setSidebarOpen])
 
@@ -5774,8 +5776,7 @@ const handleSaveAll = async () => {
           }
         />
         <div className="grid w-full grid-cols-1 items-start gap-5 overflow-visible xl:grid-cols-[220px_minmax(0,1fr)] xl:gap-6">
-          <aside className="xl:sticky xl:top-4 xl:z-10 xl:self-start">
-            <div className="space-y-3">
+          <aside className="flex flex-col gap-3 xl:sticky xl:top-4 xl:z-10 xl:h-[calc(100vh-2rem)] xl:self-start xl:gap-4">
               <nav className="rounded-frame border border-border bg-card p-2.5 shadow-e1" aria-label="Create campaign progress">
                 <ol className="space-y-1">
                   {createCampaignSteps.map((step, index) => {
@@ -5838,6 +5839,7 @@ const handleSaveAll = async () => {
                 </ol>
               </nav>
 
+              <div className="xl:mt-auto">
               <div className="rounded-frame border border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar-bg))] p-3 text-[hsl(var(--sidebar-foreground))] shadow-e1">
                 <div className="space-y-1">
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--sidebar-foreground)/0.65)]">Draft Summary</p>
@@ -5876,14 +5878,14 @@ const handleSaveAll = async () => {
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="w-full rounded-pill border-[hsl(var(--sidebar-border))] text-[hsl(var(--sidebar-foreground))] hover:bg-[hsl(var(--sidebar-accent))]"
+                    className="w-full rounded-pill border-primary bg-primary/10 text-primary hover:bg-primary/25 hover:text-primary"
                     onClick={handleExit}
                   >
                     Exit
                   </Button>
                 </div>
               </div>
-            </div>
+              </div>
           </aside>
 
           <div className="min-w-0 space-y-6 overflow-visible">
