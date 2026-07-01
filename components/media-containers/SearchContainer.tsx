@@ -85,6 +85,7 @@ import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColu
 import {
   coerceBuyTypeWithDevWarn,
   computeDeliverableFromMedia,
+  computeLoadedDeliverables,
 } from "@/lib/mediaplan/deliverableBudget"
 
 const MEDIA_ACCENT_HEX_SEARCH = getMediaTypeThemeHex("search")
@@ -527,7 +528,12 @@ export default function SearchContainer({
           buyAmount: burst.buyAmount || "",
           startDate: burst.startDate ? new Date(burst.startDate) : defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
           endDate: burst.endDate ? new Date(burst.endDate) : defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
-          calculatedValue: burst.calculatedValue || 0,
+          calculatedValue: computeLoadedDeliverables(
+            item.buy_type || item.buyType || "",
+            burst,
+            Boolean(item.budget_includes_fees || item.budgetIncludesFees),
+            feesearch ?? 0,
+          ),
           fee: burst.fee || 0,
         })) : [{
           _reactKey: newBurstReactKey(),
