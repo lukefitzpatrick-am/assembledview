@@ -674,6 +674,7 @@ export function serializeCinemaExpertRowsBaseline(rows: CinemaExpertScheduleRow[
       unitRate: r.unitRate,
       grossCost: r.grossCost,
       weeklyValues: r.weeklyValues,
+      dailyValues: r.dailyValues,
       mergedWeekSpans: r.mergedWeekSpans,
     }))
   )
