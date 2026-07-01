@@ -45,7 +45,10 @@ import {
 } from "@/lib/billing/prorateInvestmentDisplay"
 import type { LineItem } from '@/lib/generateMediaPlan'
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
-import { assignStableLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
+import {
+  assignStableLineItemNumbers,
+  reassignLineItemNumbers,
+} from "@/lib/mediaplan/lineItemOrder"
 import { formatAUD, formatMoney, parseMoneyInput } from "@/lib/format/money"
 import {
   CpcFamilyBurstCalculatedField,
@@ -235,6 +238,7 @@ export default function RadioContainer({
   const radioExpertModalOpenRef = useRef(false);
   const radioStandardBaselineRef = useRef<string>("");
   const radioExpertRowsBaselineRef = useRef<string>("");
+  const reorderedRef = useRef(false);
   radioExpertModalOpenRef.current = radioExpertModalOpen;
 
   const radioExpertWeekColumns = useMemo(
@@ -488,7 +492,11 @@ export default function RadioContainer({
       }
     );
     const merged = mergeRadioStandardFromExpertWithPrevious(standard, prevLineItems);
-    const keyedMerged = stampBurstReactKeys(merged);
+    const orderedForApply = reorderedRef.current
+      ? reassignLineItemNumbers(merged, mbaNumber, MEDIA_TYPE_ID_CODES.radio)
+      : merged;
+    reorderedRef.current = false;
+    const keyedMerged = stampBurstReactKeys(orderedForApply);
     form.setValue("radiolineItems", keyedMerged as any, {
       shouldDirty: true,
       shouldValidate: false,
@@ -507,6 +515,7 @@ export default function RadioContainer({
     feeradio,
     form,
     radioExpertWeekColumns,
+    mbaNumber,
   ]);
 
   const handleDuplicateLineItem = useCallback((lineItemIndex: number) => {
@@ -2138,6 +2147,9 @@ useEffect(() => {
                 onRowsChange={handleExpertRadioRowsChange}
                 publishers={publishers}
                 radioStations={radioStations}
+                onReorder={() => {
+                  reorderedRef.current = true;
+                }}
               />
             </div>
           </ComboboxModalProvider>
