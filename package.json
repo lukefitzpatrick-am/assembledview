@@ -11,6 +11,7 @@
     "test:client-dashboard": "tsx --test lib/client-dashboard/__tests__/theme.test.ts",
     "build:learning": "node --loader ts-node/esm scripts/build-learning-terms.ts",
     "test:solver": "tsx --test tests/learning/solver.test.ts",
+    "test:utm": "tsx --test tests/learning/utm.test.ts",
     "test:weekly-gantt": "node --loader ts-node/esm tests/lib/weeklyGanttColumns.test.ts",
     "test:expert-mappings": "tsx --test tests/lib/expertChannelMappings.test.ts",
     "test:expert-paste": "node --loader ts-node/esm tests/lib/expertGridPaste.test.ts",
