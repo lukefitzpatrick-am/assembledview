@@ -87,6 +87,27 @@ export function collapseDailyToWeekly(daily: ExpertDailyValues, dayKeys: DayKey[
   return dayKeys.reduce((s, k) => s + num(daily[k]), 0)
 }
 
+/**
+ * If a burst window is confined to a strict subset of a week's campaign-days (day-detail),
+ * return the covered day keys; else null (treat as a whole-week burst).
+ * Returns null for ≤1-day weeks and for bursts covering the full campaign-clamped week.
+ */
+export function coveredDayKeysIfDayDetail(
+  burstStart: Date,
+  burstEnd: Date,
+  week: WeeklyGanttWeekColumn,
+  campaignStartDate: Date,
+  campaignEndDate: Date
+): DayKey[] | null {
+  const dayCols = buildDayColumnsForWeek(week, campaignStartDate, campaignEndDate)
+  if (dayCols.length <= 1) return null
+  const bs = startOfDay(burstStart).getTime()
+  const be = startOfDay(burstEnd).getTime()
+  const covered = dayCols.filter((dc) => dc.date.getTime() >= bs && dc.date.getTime() <= be)
+  if (covered.length === 0 || covered.length === dayCols.length) return null
+  return covered.map((dc) => dc.dayKey)
+}
+
 /** Rule 2: burst windows for a day-detailed week — one per contiguous equal-valued run; gaps break runs. */
 export function emitDayBurstsForWeek(
   dayColumns: DayColumn[],

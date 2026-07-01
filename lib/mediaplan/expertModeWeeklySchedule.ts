@@ -1,3 +1,5 @@
+import type { ExpertDailyValues } from "@/lib/mediaplan/expertDayModel"
+
 /**
  * Week column key from {@link buildWeeklyGanttColumnsFromCampaign} (local Sunday, yyyy-MM-dd).
  * Also used as keys in per-week schedule cells.
@@ -77,6 +79,8 @@ export interface RadioExpertScheduleRow {
   unitRate: number | string
   grossCost: number | string
   weeklyValues: ExpertWeeklyValues
+  /** Opportunistic day-level detail. A week is day-detailed iff any of its day keys appear here. */
+  dailyValues?: ExpertDailyValues
   mergedWeekSpans?: RadioExpertMergedWeekSpan[]
 }
 
