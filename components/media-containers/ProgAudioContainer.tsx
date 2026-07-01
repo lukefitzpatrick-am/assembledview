@@ -86,6 +86,7 @@ import { getMediaTypeThemeHex, rgbaFromHex } from "@/lib/mediaplan/mediaTypeAcce
 import {
   coerceBuyTypeWithDevWarn,
   computeDeliverableFromMedia,
+  computeLoadedDeliverables,
 } from "@/lib/mediaplan/deliverableBudget"
 import {
   appendBurst,
@@ -529,7 +530,12 @@ export default function ProgAudioContainer({
           buyAmount: burst.buyAmount || "",
           startDate: burst.startDate ? new Date(burst.startDate) : new Date(),
           endDate: burst.endDate ? new Date(burst.endDate) : new Date(),
-          calculatedValue: burst.calculatedValue ?? 0,
+          calculatedValue: computeLoadedDeliverables(
+            item.buy_type || item.buyType || "",
+            burst,
+            Boolean(item.budget_includes_fees || item.budgetIncludesFees),
+            feeprogaudio ?? 0,
+          ),
           fee: burst.fee ?? 0,
           adServingRatePct: burst.adServingRatePct,
           adServingImpressions: burst.adServingImpressions,
