@@ -1,0 +1,2736 @@
+{
+  "mode": "apply",
+  "scopeSource": "media_plan_master.campaign_status via isLiveCampaignStatus (booked|approved) — lib/types/mediaPlanMaster.ts:22-28",
+  "generatedAt": "2026-07-01T22:23:42.250Z",
+  "filters": {
+    "onlyMba": null,
+    "client": null,
+    "ids": null
+  },
+  "inScopePlans": [
+    {
+      "mp_client_name": "BIC",
+      "mba_number": "BICAU001",
+      "version_number": 14,
+      "campaign_status": "booked",
+      "rowCount": 0
+    },
+    {
+      "mp_client_name": "BIC",
+      "mba_number": "BICAU003",
+      "version_number": 9,
+      "campaign_status": "approved",
+      "rowCount": 2
+    },
+    {
+      "mp_client_name": "BIC",
+      "mba_number": "BICAU004",
+      "version_number": 1,
+      "campaign_status": "approved",
+      "rowCount": 0
+    },
+    {
+      "mp_client_name": "Boss Engineering",
+      "mba_number": "BOSS001",
+      "version_number": 17,
+      "campaign_status": "booked",
+      "rowCount": 31
+    },
+    {
+      "mp_client_name": "Boss Engineering",
+      "mba_number": "BOSS002",
+      "version_number": 12,
+      "campaign_status": "booked",
+      "rowCount": 19
+    },
+    {
+      "mp_client_name": "Bowel Cancer Australia",
+      "mba_number": "bowel001",
+      "version_number": 7,
+      "campaign_status": "approved",
+      "rowCount": 0
+    },
+    {
+      "mp_client_name": "Candela",
+      "mba_number": "candel001",
+      "version_number": 23,
+      "campaign_status": "approved",
+      "rowCount": 2
+    },
+    {
+      "mp_client_name": "Challenger",
+      "mba_number": "CHALLEN001",
+      "version_number": 8,
+      "campaign_status": "booked",
+      "rowCount": 0
+    },
+    {
+      "mp_client_name": "Challenger",
+      "mba_number": "CHALLEN002",
+      "version_number": 10,
+      "campaign_status": "approved",
+      "rowCount": 0
+    },
+    {
+      "mp_client_name": "Curatif",
+      "mba_number": "curatif002",
+      "version_number": 13,
+      "campaign_status": "approved",
+      "rowCount": 9
+    },
+    {
+      "mp_client_name": "Golf Australia",
+      "mba_number": "golf001",
+      "version_number": 16,
+      "campaign_status": "booked",
+      "rowCount": 0
+    },
+    {
+      "mp_client_name": "Golf Australia",
+      "mba_number": "golf002",
+      "version_number": 28,
+      "campaign_status": "approved",
+      "rowCount": 3
+    },
+    {
+      "mp_client_name": "Golf Australia",
+      "mba_number": "golf003",
+      "version_number": 8,
+      "campaign_status": "booked",
+      "rowCount": 3
+    },
+    {
+      "mp_client_name": "Golf Australia",
+      "mba_number": "golf004",
+      "version_number": 7,
+      "campaign_status": "booked",
+      "rowCount": 3
+    },
+    {
+      "mp_client_name": "Golf Australia",
+      "mba_number": "golf005",
+      "version_number": 9,
+      "campaign_status": "booked",
+      "rowCount": 3
+    },
+    {
+      "mp_client_name": "Golf Australia",
+      "mba_number": "golf006",
+      "version_number": 11,
+      "campaign_status": "approved",
+      "rowCount": 0
+    },
+    {
+      "mp_client_name": "Golf Australia",
+      "mba_number": "golf007",
+      "version_number": 2,
+      "campaign_status": "booked",
+      "rowCount": 0
+    },
+    {
+      "mp_client_name": "Golf Australia",
+      "mba_number": "golf008",
+      "version_number": 5,
+      "campaign_status": "booked",
+      "rowCount": 11
+    },
+    {
+      "mp_client_name": "Golf Australia",
+      "mba_number": "golf009",
+      "version_number": 15,
+      "campaign_status": "booked",
+      "rowCount": 0
+    },
+    {
+      "mp_client_name": "Golf Australia",
+      "mba_number": "golf010",
+      "version_number": 3,
+      "campaign_status": "approved",
+      "rowCount": 0
+    },
+    {
+      "mp_client_name": "Golf Australia",
+      "mba_number": "golf012",
+      "version_number": 4,
+      "campaign_status": "approved",
+      "rowCount": 1
+    },
+    {
+      "mp_client_name": "Hema",
+      "mba_number": "hema001",
+      "version_number": 7,
+      "campaign_status": "approved",
+      "rowCount": 16
+    },
+    {
+      "mp_client_name": "Hema",
+      "mba_number": "hema003",
+      "version_number": 20,
+      "campaign_status": "approved",
+      "rowCount": 2
+    },
+    {
+      "mp_client_name": "Hema",
+      "mba_number": "hema004",
+      "version_number": 7,
+      "campaign_status": "booked",
+      "rowCount": 2
+    },
+    {
+      "mp_client_name": "Jayco",
+      "mba_number": "jayco001",
+      "version_number": 7,
+      "campaign_status": "booked",
+      "rowCount": 2
+    },
+    {
+      "mp_client_name": "Jayco",
+      "mba_number": "jayco003",
+      "version_number": 5,
+      "campaign_status": "booked",
+      "rowCount": 0
+    },
+    {
+      "mp_client_name": "Jayco",
+      "mba_number": "jayco005",
+      "version_number": 5,
+      "campaign_status": "booked",
+      "rowCount": 0
+    },
+    {
+      "mp_client_name": "Jayco",
+      "mba_number": "jayco006",
+      "version_number": 2,
+      "campaign_status": "booked",
+      "rowCount": 0
+    },
+    {
+      "mp_client_name": "Jayco",
+      "mba_number": "jayco007",
+      "version_number": 1,
+      "campaign_status": "booked",
+      "rowCount": 0
+    },
+    {
+      "mp_client_name": "Jayco",
+      "mba_number": "jayco008",
+      "version_number": 1,
+      "campaign_status": "booked",
+      "rowCount": 0
+    },
+    {
+      "mp_client_name": "Jayco",
+      "mba_number": "jayco009",
+      "version_number": 1,
+      "campaign_status": "booked",
+      "rowCount": 0
+    },
+    {
+      "mp_client_name": "Jayco",
+      "mba_number": "jayco010",
+      "version_number": 1,
+      "campaign_status": "booked",
+      "rowCount": 0
+    },
+    {
+      "mp_client_name": "Jayco",
+      "mba_number": "jayco011",
+      "version_number": 1,
+      "campaign_status": "booked",
+      "rowCount": 0
+    },
+    {
+      "mp_client_name": "Jayco",
+      "mba_number": "jayco012",
+      "version_number": 6,
+      "campaign_status": "approved",
+      "rowCount": 2
+    },
+    {
+      "mp_client_name": "Jayco",
+      "mba_number": "jayco013",
+      "version_number": 6,
+      "campaign_status": "booked",
+      "rowCount": 2
+    },
+    {
+      "mp_client_name": "Jayco",
+      "mba_number": "jayco014",
+      "version_number": 2,
+      "campaign_status": "approved",
+      "rowCount": 2
+    },
+    {
+      "mp_client_name": "Jayco",
+      "mba_number": "jayco016",
+      "version_number": 4,
+      "campaign_status": "booked",
+      "rowCount": 2
+    },
+    {
+      "mp_client_name": "LDS Property",
+      "mba_number": "buxton004",
+      "version_number": 5,
+      "campaign_status": "booked",
+      "rowCount": 8
+    },
+    {
+      "mp_client_name": "Legal Super",
+      "mba_number": "legal001",
+      "version_number": 8,
+      "campaign_status": "booked",
+      "rowCount": 0
+    },
+    {
+      "mp_client_name": "legalsuper",
+      "mba_number": "legal002",
+      "version_number": 3,
+      "campaign_status": "booked",
+      "rowCount": 0
+    },
+    {
+      "mp_client_name": "legalsuper",
+      "mba_number": "legal003",
+      "version_number": 11,
+      "campaign_status": "booked",
+      "rowCount": 0
+    },
+    {
+      "mp_client_name": "Lets Go Motorhomes",
+      "mba_number": "letsgo001",
+      "version_number": 3,
+      "campaign_status": "booked",
+      "rowCount": 0
+    },
+    {
+      "mp_client_name": "Lets Go Motorhomes",
+      "mba_number": "letsgo002",
+      "version_number": 3,
+      "campaign_status": "approved",
+      "rowCount": 0
+    },
+    {
+      "mp_client_name": "Lets Go Motorhomes",
+      "mba_number": "letsgo003",
+      "version_number": 1,
+      "campaign_status": "booked",
+      "rowCount": 0
+    },
+    {
+      "mp_client_name": "Lets Go Motorhomes",
+      "mba_number": "letsgo004",
+      "version_number": 1,
+      "campaign_status": "booked",
+      "rowCount": 0
+    },
+    {
+      "mp_client_name": "Lets Go Motorhomes",
+      "mba_number": "letsgo005",
+      "version_number": 3,
+      "campaign_status": "approved",
+      "rowCount": 1
+    },
+    {
+      "mp_client_name": "Lets Go Motorhomes",
+      "mba_number": "letsgo006",
+      "version_number": 4,
+      "campaign_status": "booked",
+      "rowCount": 2
+    },
+    {
+      "mp_client_name": "Local Shed Solutions",
+      "mba_number": "LOCSHED001",
+      "version_number": 2,
+      "campaign_status": "approved",
+      "rowCount": 0
+    },
+    {
+      "mp_client_name": "M1 Traffic",
+      "mba_number": "M1TRAF001",
+      "version_number": 6,
+      "campaign_status": "approved",
+      "rowCount": 0
+    },
+    {
+      "mp_client_name": "Mitchelton Winery",
+      "mba_number": "001001",
+      "version_number": 7,
+      "campaign_status": "booked",
+      "rowCount": 0
+    },
+    {
+      "mp_client_name": "MyHab",
+      "mba_number": "myhab001",
+      "version_number": 3,
+      "campaign_status": "approved",
+      "rowCount": 0
+    },
+    {
+      "mp_client_name": "Noel Jones Real Estate",
+      "mba_number": "noelj001",
+      "version_number": 3,
+      "campaign_status": "approved",
+      "rowCount": 0
+    },
+    {
+      "mp_client_name": "Paul Hartmann Pty Ltd",
+      "mba_number": "hartm001",
+      "version_number": 19,
+      "campaign_status": "booked",
+      "rowCount": 17
+    },
+    {
+      "mp_client_name": "Paul Hartmann Pty Ltd",
+      "mba_number": "hartm002",
+      "version_number": 7,
+      "campaign_status": "booked",
+      "rowCount": 0
+    },
+    {
+      "mp_client_name": "Paul Hartmann Pty Ltd",
+      "mba_number": "hartm003",
+      "version_number": 1,
+      "campaign_status": "booked",
+      "rowCount": 0
+    },
+    {
+      "mp_client_name": "Paul Hartmann Pty Ltd",
+      "mba_number": "hartm004",
+      "version_number": 1,
+      "campaign_status": "approved",
+      "rowCount": 0
+    },
+    {
+      "mp_client_name": "Paul Hartmann Pty Ltd",
+      "mba_number": "hartm006",
+      "version_number": 3,
+      "campaign_status": "approved",
+      "rowCount": 0
+    },
+    {
+      "mp_client_name": "Paul Hartmann Pty Ltd",
+      "mba_number": "hartm011",
+      "version_number": 5,
+      "campaign_status": "booked",
+      "rowCount": 0
+    },
+    {
+      "mp_client_name": "Paul Hartmann Pty Ltd",
+      "mba_number": "hartm012",
+      "version_number": 1,
+      "campaign_status": "booked",
+      "rowCount": 1
+    },
+    {
+      "mp_client_name": "Paul Hartmann Pty Ltd",
+      "mba_number": "hartm013",
+      "version_number": 3,
+      "campaign_status": "approved",
+      "rowCount": 0
+    },
+    {
+      "mp_client_name": "Paul Hartmann Pty Ltd",
+      "mba_number": "hartm014",
+      "version_number": 1,
+      "campaign_status": "approved",
+      "rowCount": 1
+    },
+    {
+      "mp_client_name": "Penfolds",
+      "mba_number": "PENFOLD001",
+      "version_number": 16,
+      "campaign_status": "booked",
+      "rowCount": 0
+    },
+    {
+      "mp_client_name": "Penfolds",
+      "mba_number": "PENFOLD002",
+      "version_number": 14,
+      "campaign_status": "approved",
+      "rowCount": 0
+    },
+    {
+      "mp_client_name": "Penfolds",
+      "mba_number": "PENFOLD003",
+      "version_number": 8,
+      "campaign_status": "booked",
+      "rowCount": 0
+    },
+    {
+      "mp_client_name": "Penfolds",
+      "mba_number": "PENFOLD013",
+      "version_number": 12,
+      "campaign_status": "booked",
+      "rowCount": 19
+    },
+    {
+      "mp_client_name": "Penfolds",
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "campaign_status": "approved",
+      "rowCount": 58
+    },
+    {
+      "mp_client_name": "PGA Australia",
+      "mba_number": "PGAAUS001",
+      "version_number": 4,
+      "campaign_status": "approved",
+      "rowCount": 0
+    },
+    {
+      "mp_client_name": "PGA Australia",
+      "mba_number": "PGAAUS002",
+      "version_number": 4,
+      "campaign_status": "booked",
+      "rowCount": 0
+    },
+    {
+      "mp_client_name": "PGA Australia",
+      "mba_number": "PGAAUS003",
+      "version_number": 12,
+      "campaign_status": "approved",
+      "rowCount": 15
+    },
+    {
+      "mp_client_name": "PGA Australia",
+      "mba_number": "PGAAUS006",
+      "version_number": 10,
+      "campaign_status": "approved",
+      "rowCount": 0
+    },
+    {
+      "mp_client_name": "PGA Australia",
+      "mba_number": "PGAAUS008",
+      "version_number": 11,
+      "campaign_status": "approved",
+      "rowCount": 1
+    },
+    {
+      "mp_client_name": "PGA Australia",
+      "mba_number": "PGAAUS014",
+      "version_number": 5,
+      "campaign_status": "approved",
+      "rowCount": 2
+    },
+    {
+      "mp_client_name": "PGA Australia",
+      "mba_number": "PGAAUS015",
+      "version_number": 11,
+      "campaign_status": "approved",
+      "rowCount": 6
+    },
+    {
+      "mp_client_name": "Qatar Airways",
+      "mba_number": "QATAR001",
+      "version_number": 1,
+      "campaign_status": "booked",
+      "rowCount": 0
+    },
+    {
+      "mp_client_name": "Sport Travel and Hospitality Australia Pty Ltd",
+      "mba_number": "sthaus001",
+      "version_number": 6,
+      "campaign_status": "approved",
+      "rowCount": 0
+    },
+    {
+      "mp_client_name": "Veil Brighton",
+      "mba_number": "buxton001",
+      "version_number": 13,
+      "campaign_status": "booked",
+      "rowCount": 9
+    },
+    {
+      "mp_client_name": "Windsor Pavilion",
+      "mba_number": "buxton002",
+      "version_number": 2,
+      "campaign_status": "booked",
+      "rowCount": 0
+    }
+  ],
+  "totals": {
+    "campaignRowsFetched": 3817,
+    "campaignRowsInScope": 257,
+    "rowsMatched": 121,
+    "rowsPatched": 75,
+    "metricPatches": {
+      "ctr": 23,
+      "conversion_rate": 45,
+      "vtr": 7,
+      "frequency": 39
+    },
+    "noMatch": 132,
+    "ambiguous": 4,
+    "percentScaleSkips": 0,
+    "benchmarkEmptySkips": 193,
+    "campaignNonZeroSkips": 177,
+    "errors": 0
+  },
+  "stagedPatches": [
+    {
+      "id": 416,
+      "mba_number": "jayco012",
+      "version_number": 6,
+      "mp_client_name": "Jayco",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "leads",
+      "patch": {
+        "conversion_rate": 0.03
+      }
+    },
+    {
+      "id": 417,
+      "mba_number": "jayco012",
+      "version_number": 6,
+      "mp_client_name": "Jayco",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "leads",
+      "patch": {
+        "conversion_rate": 0.03
+      }
+    },
+    {
+      "id": 55,
+      "mba_number": "buxton004",
+      "version_number": 5,
+      "mp_client_name": "LDS Property",
+      "publisher": "apartments.com.au",
+      "media_type": "digiDisplay",
+      "bid_strategy": "fixed_cost",
+      "patch": {
+        "ctr": 0.0013,
+        "conversion_rate": 0.0084,
+        "frequency": 4
+      }
+    },
+    {
+      "id": 56,
+      "mba_number": "buxton004",
+      "version_number": 5,
+      "mp_client_name": "LDS Property",
+      "publisher": "apartments.com.au",
+      "media_type": "digiDisplay",
+      "bid_strategy": "bonus",
+      "patch": {
+        "ctr": 0.0013,
+        "conversion_rate": 0.0084,
+        "frequency": 4
+      }
+    },
+    {
+      "id": 61,
+      "mba_number": "buxton004",
+      "version_number": 5,
+      "mp_client_name": "LDS Property",
+      "publisher": "realestate.com.au",
+      "media_type": "digiDisplay",
+      "bid_strategy": "fixed_cost",
+      "patch": {
+        "ctr": 0.0013,
+        "conversion_rate": 0.0084,
+        "frequency": 4
+      }
+    },
+    {
+      "id": 57,
+      "mba_number": "buxton004",
+      "version_number": 5,
+      "mp_client_name": "LDS Property",
+      "publisher": "apartments.com.au",
+      "media_type": "digiDisplay",
+      "bid_strategy": "bonus",
+      "patch": {
+        "ctr": 0.0013,
+        "conversion_rate": 0.0084,
+        "frequency": 4
+      }
+    },
+    {
+      "id": 91,
+      "mba_number": "golf003",
+      "version_number": 8,
+      "mp_client_name": "Golf Australia",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "maximize_conversions",
+      "patch": {
+        "conversion_rate": 0.0192
+      }
+    },
+    {
+      "id": 54,
+      "mba_number": "buxton004",
+      "version_number": 5,
+      "mp_client_name": "LDS Property",
+      "publisher": "assembled media",
+      "media_type": "socialMedia",
+      "bid_strategy": "leads",
+      "patch": {
+        "conversion_rate": 0.0225
+      }
+    },
+    {
+      "id": 60,
+      "mba_number": "buxton004",
+      "version_number": 5,
+      "mp_client_name": "LDS Property",
+      "publisher": "apartments.com.au",
+      "media_type": "digiDisplay",
+      "bid_strategy": "fixed_cost",
+      "patch": {
+        "ctr": 0.0013,
+        "conversion_rate": 0.0084,
+        "frequency": 4
+      }
+    },
+    {
+      "id": 88,
+      "mba_number": "golf004",
+      "version_number": 7,
+      "mp_client_name": "Golf Australia",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "maximize_conversions",
+      "patch": {
+        "conversion_rate": 0.0192
+      }
+    },
+    {
+      "id": 92,
+      "mba_number": "golf003",
+      "version_number": 8,
+      "mp_client_name": "Golf Australia",
+      "publisher": "tiktok",
+      "media_type": "socialMedia",
+      "bid_strategy": "completed_views",
+      "patch": {
+        "vtr": 0.165
+      }
+    },
+    {
+      "id": 94,
+      "mba_number": "hema004",
+      "version_number": 7,
+      "mp_client_name": "Hema",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "maximize_conversions",
+      "patch": {
+        "conversion_rate": 0.0192
+      }
+    },
+    {
+      "id": 95,
+      "mba_number": "golf005",
+      "version_number": 9,
+      "mp_client_name": "Golf Australia",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "reach",
+      "patch": {
+        "frequency": 2
+      }
+    },
+    {
+      "id": 96,
+      "mba_number": "golf005",
+      "version_number": 9,
+      "mp_client_name": "Golf Australia",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "manual_cpc",
+      "patch": {
+        "ctr": 0.0143
+      }
+    },
+    {
+      "id": 97,
+      "mba_number": "golf005",
+      "version_number": 9,
+      "mp_client_name": "Golf Australia",
+      "publisher": "tiktok",
+      "media_type": "socialMedia",
+      "bid_strategy": "completed_views",
+      "patch": {
+        "vtr": 0.165
+      }
+    },
+    {
+      "id": 200,
+      "mba_number": "curatif002",
+      "version_number": 13,
+      "mp_client_name": "Curatif",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "maximize_conversions",
+      "patch": {
+        "conversion_rate": 0.0192
+      }
+    },
+    {
+      "id": 201,
+      "mba_number": "curatif002",
+      "version_number": 13,
+      "mp_client_name": "Curatif",
+      "publisher": "tiktok",
+      "media_type": "socialMedia",
+      "bid_strategy": "maximize_conversions",
+      "patch": {
+        "conversion_rate": 0.0192
+      }
+    },
+    {
+      "id": 202,
+      "mba_number": "curatif002",
+      "version_number": 13,
+      "mp_client_name": "Curatif",
+      "publisher": "tiktok",
+      "media_type": "socialMedia",
+      "bid_strategy": "maximize_conversions",
+      "patch": {
+        "conversion_rate": 0.0192
+      }
+    },
+    {
+      "id": 203,
+      "mba_number": "curatif002",
+      "version_number": 13,
+      "mp_client_name": "Curatif",
+      "publisher": "tiktok",
+      "media_type": "socialMedia",
+      "bid_strategy": "maximize_conversions",
+      "patch": {
+        "conversion_rate": 0.0192
+      }
+    },
+    {
+      "id": 204,
+      "mba_number": "curatif002",
+      "version_number": 13,
+      "mp_client_name": "Curatif",
+      "publisher": "tiktok",
+      "media_type": "socialMedia",
+      "bid_strategy": "maximize_conversions",
+      "patch": {
+        "conversion_rate": 0.0192
+      }
+    },
+    {
+      "id": 339,
+      "mba_number": "buxton001",
+      "version_number": 13,
+      "mp_client_name": "Veil Brighton",
+      "publisher": "apartments.com.au",
+      "media_type": "digiDisplay",
+      "bid_strategy": "fixed_cost",
+      "patch": {
+        "ctr": 0.0013,
+        "conversion_rate": 0.0084,
+        "frequency": 4
+      }
+    },
+    {
+      "id": 283,
+      "mba_number": "PENFOLD013",
+      "version_number": 12,
+      "mp_client_name": "Penfolds",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "landing_page_views",
+      "patch": {
+        "ctr": 0.0143,
+        "conversion_rate": 0.0192
+      }
+    },
+    {
+      "id": 338,
+      "mba_number": "buxton001",
+      "version_number": 13,
+      "mp_client_name": "Veil Brighton",
+      "publisher": "assembled media",
+      "media_type": "socialMedia",
+      "bid_strategy": "leads",
+      "patch": {
+        "conversion_rate": 0.0225
+      }
+    },
+    {
+      "id": 343,
+      "mba_number": "buxton001",
+      "version_number": 13,
+      "mp_client_name": "Veil Brighton",
+      "publisher": "apartments.com.au",
+      "media_type": "digiDisplay",
+      "bid_strategy": "bonus",
+      "patch": {
+        "ctr": 0.0013,
+        "conversion_rate": 0.0084,
+        "frequency": 4
+      }
+    },
+    {
+      "id": 284,
+      "mba_number": "PENFOLD013",
+      "version_number": 12,
+      "mp_client_name": "Penfolds",
+      "publisher": "double verify",
+      "media_type": "socialMedia",
+      "bid_strategy": "landing_page_views",
+      "patch": {
+        "ctr": 0.0094,
+        "conversion_rate": 0.0144
+      }
+    },
+    {
+      "id": 285,
+      "mba_number": "PENFOLD013",
+      "version_number": 12,
+      "mp_client_name": "Penfolds",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "landing_page_views",
+      "patch": {
+        "ctr": 0.0143,
+        "conversion_rate": 0.0192
+      }
+    },
+    {
+      "id": 345,
+      "mba_number": "buxton001",
+      "version_number": 13,
+      "mp_client_name": "Veil Brighton",
+      "publisher": "apartments.com.au",
+      "media_type": "digiDisplay",
+      "bid_strategy": "fixed_cost",
+      "patch": {
+        "ctr": 0.0013,
+        "conversion_rate": 0.0084,
+        "frequency": 4
+      }
+    },
+    {
+      "id": 341,
+      "mba_number": "buxton001",
+      "version_number": 13,
+      "mp_client_name": "Veil Brighton",
+      "publisher": "apartments.com.au",
+      "media_type": "digiDisplay",
+      "bid_strategy": "bonus",
+      "patch": {
+        "ctr": 0.0013,
+        "conversion_rate": 0.0084,
+        "frequency": 4
+      }
+    },
+    {
+      "id": 346,
+      "mba_number": "buxton001",
+      "version_number": 13,
+      "mp_client_name": "Veil Brighton",
+      "publisher": "realestate.com.au",
+      "media_type": "digiDisplay",
+      "bid_strategy": "fixed_cost",
+      "patch": {
+        "ctr": 0.0013,
+        "conversion_rate": 0.0084,
+        "frequency": 4
+      }
+    },
+    {
+      "id": 273,
+      "mba_number": "hartm012",
+      "version_number": 1,
+      "mp_client_name": "Paul Hartmann Pty Ltd",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "maximize_conversions",
+      "patch": {
+        "conversion_rate": 0.0192
+      }
+    },
+    {
+      "id": 342,
+      "mba_number": "buxton001",
+      "version_number": 13,
+      "mp_client_name": "Veil Brighton",
+      "publisher": "apartments.com.au",
+      "media_type": "digiDisplay",
+      "bid_strategy": "bonus",
+      "patch": {
+        "ctr": 0.0013,
+        "conversion_rate": 0.0084,
+        "frequency": 4
+      }
+    },
+    {
+      "id": 798,
+      "mba_number": "curatif002",
+      "version_number": 13,
+      "mp_client_name": "Curatif",
+      "publisher": "Bing - AM",
+      "media_type": "search",
+      "bid_strategy": "maximize_conversions",
+      "patch": {
+        "vtr": 0.83,
+        "frequency": 1
+      }
+    },
+    {
+      "id": 799,
+      "mba_number": "curatif002",
+      "version_number": 13,
+      "mp_client_name": "Curatif",
+      "publisher": "Google Ads - AM",
+      "media_type": "search",
+      "bid_strategy": "maximize_conversions",
+      "patch": {
+        "conversion_rate": 0.05,
+        "vtr": 0.87,
+        "frequency": 1
+      }
+    },
+    {
+      "id": 2247,
+      "mba_number": "golf012",
+      "version_number": 4,
+      "mp_client_name": "Golf Australia",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "reach",
+      "patch": {
+        "frequency": 2
+      }
+    },
+    {
+      "id": 2258,
+      "mba_number": "jayco001",
+      "version_number": 7,
+      "mp_client_name": "Jayco",
+      "publisher": "google ads - am",
+      "media_type": "search",
+      "bid_strategy": "target_cpa",
+      "patch": {
+        "vtr": 0.87,
+        "frequency": 1
+      }
+    },
+    {
+      "id": 2259,
+      "mba_number": "jayco001",
+      "version_number": 7,
+      "mp_client_name": "Jayco",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "leads",
+      "patch": {
+        "conversion_rate": 0.03
+      }
+    },
+    {
+      "id": 2257,
+      "mba_number": "jayco014",
+      "version_number": 2,
+      "mp_client_name": "Jayco",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "leads",
+      "patch": {
+        "conversion_rate": 0.03
+      }
+    },
+    {
+      "id": 2192,
+      "mba_number": "letsgo005",
+      "version_number": 3,
+      "mp_client_name": "Lets Go Motorhomes",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "maximize_conversions",
+      "patch": {
+        "conversion_rate": 0.0192
+      }
+    },
+    {
+      "id": 2195,
+      "mba_number": "candel001",
+      "version_number": 23,
+      "mp_client_name": "Candela",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "leads",
+      "patch": {
+        "conversion_rate": 0.03
+      }
+    },
+    {
+      "id": 2158,
+      "mba_number": "BOSS001",
+      "version_number": 17,
+      "mp_client_name": "Boss Engineering",
+      "publisher": "farm machinery sales",
+      "media_type": "digiDisplay",
+      "bid_strategy": "fixed_cost",
+      "patch": {
+        "ctr": 0.0013,
+        "conversion_rate": 0.0084,
+        "frequency": 4
+      }
+    },
+    {
+      "id": 2159,
+      "mba_number": "BOSS001",
+      "version_number": 17,
+      "mp_client_name": "Boss Engineering",
+      "publisher": "farm machinery sales",
+      "media_type": "digiDisplay",
+      "bid_strategy": "fixed_cost",
+      "patch": {
+        "ctr": 0.0013,
+        "conversion_rate": 0.0084,
+        "frequency": 4
+      }
+    },
+    {
+      "id": 2232,
+      "mba_number": "hartm001",
+      "version_number": 19,
+      "mp_client_name": "Paul Hartmann Pty Ltd",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "maximize_conversions",
+      "patch": {
+        "conversion_rate": 0.0192
+      }
+    },
+    {
+      "id": 2231,
+      "mba_number": "hartm001",
+      "version_number": 19,
+      "mp_client_name": "Paul Hartmann Pty Ltd",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "maximize_conversions",
+      "patch": {
+        "conversion_rate": 0.0192
+      }
+    },
+    {
+      "id": 2230,
+      "mba_number": "hartm001",
+      "version_number": 19,
+      "mp_client_name": "Paul Hartmann Pty Ltd",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "maximize_conversions",
+      "patch": {
+        "conversion_rate": 0.0192
+      }
+    },
+    {
+      "id": 3249,
+      "mba_number": "PGAAUS014",
+      "version_number": 5,
+      "mp_client_name": "PGA Australia",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "leads",
+      "patch": {
+        "conversion_rate": 0.03
+      }
+    },
+    {
+      "id": 3251,
+      "mba_number": "golf002",
+      "version_number": 28,
+      "mp_client_name": "Golf Australia",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "maximize_conversions",
+      "patch": {
+        "conversion_rate": 0.0192
+      }
+    },
+    {
+      "id": 3252,
+      "mba_number": "golf002",
+      "version_number": 28,
+      "mp_client_name": "Golf Australia",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "landing_page_views",
+      "patch": {
+        "ctr": 0.0143,
+        "conversion_rate": 0.0192
+      }
+    },
+    {
+      "id": 3333,
+      "mba_number": "PGAAUS003",
+      "version_number": 12,
+      "mp_client_name": "PGA Australia",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "reach",
+      "patch": {
+        "frequency": 2
+      }
+    },
+    {
+      "id": 3336,
+      "mba_number": "PGAAUS003",
+      "version_number": 12,
+      "mp_client_name": "PGA Australia",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "reach",
+      "patch": {
+        "frequency": 2
+      }
+    },
+    {
+      "id": 3285,
+      "mba_number": "golf008",
+      "version_number": 5,
+      "mp_client_name": "Golf Australia",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "reach",
+      "patch": {
+        "frequency": 2
+      }
+    },
+    {
+      "id": 3287,
+      "mba_number": "golf008",
+      "version_number": 5,
+      "mp_client_name": "Golf Australia",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "reach",
+      "patch": {
+        "frequency": 2
+      }
+    },
+    {
+      "id": 3316,
+      "mba_number": "letsgo006",
+      "version_number": 4,
+      "mp_client_name": "Lets Go Motorhomes",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "maximize_conversions",
+      "patch": {
+        "conversion_rate": 0.0192
+      }
+    },
+    {
+      "id": 3286,
+      "mba_number": "golf008",
+      "version_number": 5,
+      "mp_client_name": "Golf Australia",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "reach",
+      "patch": {
+        "frequency": 2
+      }
+    },
+    {
+      "id": 3288,
+      "mba_number": "golf008",
+      "version_number": 5,
+      "mp_client_name": "Golf Australia",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "reach",
+      "patch": {
+        "frequency": 2
+      }
+    },
+    {
+      "id": 3292,
+      "mba_number": "golf008",
+      "version_number": 5,
+      "mp_client_name": "Golf Australia",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "reach",
+      "patch": {
+        "frequency": 2
+      }
+    },
+    {
+      "id": 3295,
+      "mba_number": "golf008",
+      "version_number": 5,
+      "mp_client_name": "Golf Australia",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "reach",
+      "patch": {
+        "frequency": 2
+      }
+    },
+    {
+      "id": 3318,
+      "mba_number": "jayco016",
+      "version_number": 4,
+      "mp_client_name": "Jayco",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "leads",
+      "patch": {
+        "conversion_rate": 0.03
+      }
+    },
+    {
+      "id": 3331,
+      "mba_number": "PGAAUS003",
+      "version_number": 12,
+      "mp_client_name": "PGA Australia",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "reach",
+      "patch": {
+        "frequency": 2
+      }
+    },
+    {
+      "id": 3337,
+      "mba_number": "PGAAUS003",
+      "version_number": 12,
+      "mp_client_name": "PGA Australia",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "reach",
+      "patch": {
+        "frequency": 2
+      }
+    },
+    {
+      "id": 3293,
+      "mba_number": "golf008",
+      "version_number": 5,
+      "mp_client_name": "Golf Australia",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "reach",
+      "patch": {
+        "frequency": 2
+      }
+    },
+    {
+      "id": 3294,
+      "mba_number": "golf008",
+      "version_number": 5,
+      "mp_client_name": "Golf Australia",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "reach",
+      "patch": {
+        "frequency": 2
+      }
+    },
+    {
+      "id": 3298,
+      "mba_number": "BICAU003",
+      "version_number": 9,
+      "mp_client_name": "BIC",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "reach",
+      "patch": {
+        "frequency": 2
+      }
+    },
+    {
+      "id": 3299,
+      "mba_number": "BICAU003",
+      "version_number": 9,
+      "mp_client_name": "BIC",
+      "publisher": "tiktok",
+      "media_type": "socialMedia",
+      "bid_strategy": "reach",
+      "patch": {
+        "frequency": 2
+      }
+    },
+    {
+      "id": 3314,
+      "mba_number": "PGAAUS008",
+      "version_number": 11,
+      "mp_client_name": "PGA Australia",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "maximize_conversions",
+      "patch": {
+        "conversion_rate": 0.0192
+      }
+    },
+    {
+      "id": 3332,
+      "mba_number": "PGAAUS003",
+      "version_number": 12,
+      "mp_client_name": "PGA Australia",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "reach",
+      "patch": {
+        "frequency": 2
+      }
+    },
+    {
+      "id": 3334,
+      "mba_number": "PGAAUS003",
+      "version_number": 12,
+      "mp_client_name": "PGA Australia",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "reach",
+      "patch": {
+        "frequency": 2
+      }
+    },
+    {
+      "id": 3335,
+      "mba_number": "PGAAUS003",
+      "version_number": 12,
+      "mp_client_name": "PGA Australia",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "reach",
+      "patch": {
+        "frequency": 2
+      }
+    },
+    {
+      "id": 3345,
+      "mba_number": "PGAAUS003",
+      "version_number": 12,
+      "mp_client_name": "PGA Australia",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "reach",
+      "patch": {
+        "frequency": 2
+      }
+    },
+    {
+      "id": 3571,
+      "mba_number": "hartm014",
+      "version_number": 1,
+      "mp_client_name": "Paul Hartmann Pty Ltd",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "maximize_conversions",
+      "patch": {
+        "conversion_rate": 0.0192
+      }
+    },
+    {
+      "id": 3541,
+      "mba_number": "hema003",
+      "version_number": 20,
+      "mp_client_name": "Hema",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "maximize_conversions",
+      "patch": {
+        "conversion_rate": 0.0192
+      }
+    },
+    {
+      "id": 3746,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "mp_client_name": "Penfolds",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "manual_cpc",
+      "patch": {
+        "ctr": 0.0143
+      }
+    },
+    {
+      "id": 3747,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "mp_client_name": "Penfolds",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "manual_cpc",
+      "patch": {
+        "ctr": 0.0143
+      }
+    },
+    {
+      "id": 3750,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "mp_client_name": "Penfolds",
+      "publisher": "yahoo",
+      "media_type": "progVideo",
+      "bid_strategy": "reach",
+      "patch": {
+        "ctr": 0.0042,
+        "vtr": 0.712,
+        "frequency": 3
+      }
+    },
+    {
+      "id": 3748,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "mp_client_name": "Penfolds",
+      "publisher": "gum gum",
+      "media_type": "progDisplay",
+      "bid_strategy": "reach",
+      "patch": {
+        "ctr": 0.0007,
+        "frequency": 3
+      }
+    },
+    {
+      "id": 3749,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "mp_client_name": "Penfolds",
+      "publisher": "yahoo",
+      "media_type": "progVideo",
+      "bid_strategy": "reach",
+      "patch": {
+        "ctr": 0.0042,
+        "vtr": 0.712,
+        "frequency": 3
+      }
+    }
+  ],
+  "skips": [
+    {
+      "id": 59,
+      "mba_number": "buxton004",
+      "version_number": 5,
+      "reason": "ambiguous_publisher_match",
+      "publisher": "apartments.com.au",
+      "media_type": "digiDisplay",
+      "bid_strategy": "cpm"
+    },
+    {
+      "id": 89,
+      "mba_number": "golf004",
+      "version_number": 7,
+      "reason": "no_publisher_match",
+      "publisher": "linkyby",
+      "media_type": "progDisplay",
+      "bid_strategy": "reach"
+    },
+    {
+      "id": 58,
+      "mba_number": "buxton004",
+      "version_number": 5,
+      "reason": "no_publisher_match",
+      "publisher": "meta",
+      "media_type": "digiDisplay",
+      "bid_strategy": "bonus"
+    },
+    {
+      "id": 344,
+      "mba_number": "buxton001",
+      "version_number": 13,
+      "reason": "ambiguous_publisher_match",
+      "publisher": "apartments.com.au",
+      "media_type": "digiDisplay",
+      "bid_strategy": "cpm"
+    },
+    {
+      "id": 287,
+      "mba_number": "PENFOLD013",
+      "version_number": 12,
+      "reason": "no_publisher_match",
+      "publisher": "vogue living",
+      "media_type": "digiDisplay",
+      "bid_strategy": "fixed_cost"
+    },
+    {
+      "id": 290,
+      "mba_number": "PENFOLD013",
+      "version_number": 12,
+      "reason": "no_publisher_match",
+      "publisher": "news corp",
+      "media_type": "magazines",
+      "bid_strategy": "fixed_cost"
+    },
+    {
+      "id": 295,
+      "mba_number": "PENFOLD013",
+      "version_number": 12,
+      "reason": "no_publisher_match",
+      "publisher": "cartology",
+      "media_type": "ooh",
+      "bid_strategy": "panels"
+    },
+    {
+      "id": 288,
+      "mba_number": "PENFOLD013",
+      "version_number": 12,
+      "reason": "no_publisher_match",
+      "publisher": "whitelist",
+      "media_type": "digiDisplay",
+      "bid_strategy": "cpm"
+    },
+    {
+      "id": 292,
+      "mba_number": "PENFOLD013",
+      "version_number": 12,
+      "reason": "no_publisher_match",
+      "publisher": "cartology",
+      "media_type": "ooh",
+      "bid_strategy": "panels"
+    },
+    {
+      "id": 297,
+      "mba_number": "PENFOLD013",
+      "version_number": 12,
+      "reason": "no_publisher_match",
+      "publisher": "cartology",
+      "media_type": "ooh",
+      "bid_strategy": "panels"
+    },
+    {
+      "id": 301,
+      "mba_number": "PENFOLD013",
+      "version_number": 12,
+      "reason": "no_publisher_match",
+      "publisher": "production",
+      "media_type": "production",
+      "bid_strategy": "production"
+    },
+    {
+      "id": 289,
+      "mba_number": "PENFOLD013",
+      "version_number": 12,
+      "reason": "no_publisher_match",
+      "publisher": "whitelist",
+      "media_type": "digiDisplay",
+      "bid_strategy": "bonus"
+    },
+    {
+      "id": 293,
+      "mba_number": "PENFOLD013",
+      "version_number": 12,
+      "reason": "no_publisher_match",
+      "publisher": "cartology",
+      "media_type": "ooh",
+      "bid_strategy": "panels"
+    },
+    {
+      "id": 298,
+      "mba_number": "PENFOLD013",
+      "version_number": 12,
+      "reason": "no_publisher_match",
+      "publisher": "cartology",
+      "media_type": "ooh",
+      "bid_strategy": "panels"
+    },
+    {
+      "id": 340,
+      "mba_number": "buxton001",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "meta",
+      "media_type": "digiDisplay",
+      "bid_strategy": "bonus"
+    },
+    {
+      "id": 291,
+      "mba_number": "PENFOLD013",
+      "version_number": 12,
+      "reason": "no_publisher_match",
+      "publisher": "cartology",
+      "media_type": "ooh",
+      "bid_strategy": "panels"
+    },
+    {
+      "id": 296,
+      "mba_number": "PENFOLD013",
+      "version_number": 12,
+      "reason": "no_publisher_match",
+      "publisher": "cartology",
+      "media_type": "ooh",
+      "bid_strategy": "panels"
+    },
+    {
+      "id": 300,
+      "mba_number": "PENFOLD013",
+      "version_number": 12,
+      "reason": "no_publisher_match",
+      "publisher": "cartology",
+      "media_type": "ooh",
+      "bid_strategy": "panels"
+    },
+    {
+      "id": 294,
+      "mba_number": "PENFOLD013",
+      "version_number": 12,
+      "reason": "no_publisher_match",
+      "publisher": "cartology",
+      "media_type": "ooh",
+      "bid_strategy": "panels"
+    },
+    {
+      "id": 299,
+      "mba_number": "PENFOLD013",
+      "version_number": 12,
+      "reason": "no_publisher_match",
+      "publisher": "cartology",
+      "media_type": "ooh",
+      "bid_strategy": "panels"
+    },
+    {
+      "id": 2196,
+      "mba_number": "candel001",
+      "version_number": 23,
+      "reason": "no_publisher_match",
+      "publisher": "unknown",
+      "media_type": "production",
+      "bid_strategy": "fixed_cost"
+    },
+    {
+      "id": 2040,
+      "mba_number": "BOSS002",
+      "version_number": 12,
+      "reason": "ambiguous_publisher_match",
+      "publisher": "farm machinery sales",
+      "media_type": "digiDisplay",
+      "bid_strategy": "cpm"
+    },
+    {
+      "id": 2041,
+      "mba_number": "BOSS002",
+      "version_number": 12,
+      "reason": "no_publisher_match",
+      "publisher": "sports entertainment network",
+      "media_type": "radio",
+      "bid_strategy": "spots"
+    },
+    {
+      "id": 2042,
+      "mba_number": "BOSS002",
+      "version_number": 12,
+      "reason": "no_publisher_match",
+      "publisher": "sports entertainment network",
+      "media_type": "radio",
+      "bid_strategy": "spots"
+    },
+    {
+      "id": 2043,
+      "mba_number": "BOSS002",
+      "version_number": 12,
+      "reason": "no_publisher_match",
+      "publisher": "sports entertainment network",
+      "media_type": "radio",
+      "bid_strategy": "spots"
+    },
+    {
+      "id": 2044,
+      "mba_number": "BOSS002",
+      "version_number": 12,
+      "reason": "no_publisher_match",
+      "publisher": "sports entertainment network",
+      "media_type": "radio",
+      "bid_strategy": "spots"
+    },
+    {
+      "id": 2045,
+      "mba_number": "BOSS002",
+      "version_number": 12,
+      "reason": "no_publisher_match",
+      "publisher": "sports entertainment network",
+      "media_type": "radio",
+      "bid_strategy": "spots"
+    },
+    {
+      "id": 2046,
+      "mba_number": "BOSS002",
+      "version_number": 12,
+      "reason": "no_publisher_match",
+      "publisher": "sports entertainment network",
+      "media_type": "radio",
+      "bid_strategy": "spots"
+    },
+    {
+      "id": 2047,
+      "mba_number": "BOSS002",
+      "version_number": 12,
+      "reason": "no_publisher_match",
+      "publisher": "sports entertainment network",
+      "media_type": "radio",
+      "bid_strategy": "spots"
+    },
+    {
+      "id": 2048,
+      "mba_number": "BOSS002",
+      "version_number": 12,
+      "reason": "no_publisher_match",
+      "publisher": "sports entertainment network",
+      "media_type": "radio",
+      "bid_strategy": "spots"
+    },
+    {
+      "id": 2049,
+      "mba_number": "BOSS002",
+      "version_number": 12,
+      "reason": "no_publisher_match",
+      "publisher": "sports entertainment network",
+      "media_type": "radio",
+      "bid_strategy": "spots"
+    },
+    {
+      "id": 2050,
+      "mba_number": "BOSS002",
+      "version_number": 12,
+      "reason": "no_publisher_match",
+      "publisher": "sports entertainment network",
+      "media_type": "radio",
+      "bid_strategy": "spots"
+    },
+    {
+      "id": 2051,
+      "mba_number": "BOSS002",
+      "version_number": 12,
+      "reason": "no_publisher_match",
+      "publisher": "sports entertainment network",
+      "media_type": "radio",
+      "bid_strategy": "spots"
+    },
+    {
+      "id": 2052,
+      "mba_number": "BOSS002",
+      "version_number": 12,
+      "reason": "no_publisher_match",
+      "publisher": "southern cross austereo",
+      "media_type": "radio",
+      "bid_strategy": "spots"
+    },
+    {
+      "id": 2053,
+      "mba_number": "BOSS002",
+      "version_number": 12,
+      "reason": "no_publisher_match",
+      "publisher": "southern cross austereo",
+      "media_type": "radio",
+      "bid_strategy": "spots"
+    },
+    {
+      "id": 2054,
+      "mba_number": "BOSS002",
+      "version_number": 12,
+      "reason": "no_publisher_match",
+      "publisher": "australian community media",
+      "media_type": "newspaper",
+      "bid_strategy": "insertions"
+    },
+    {
+      "id": 2055,
+      "mba_number": "BOSS002",
+      "version_number": 12,
+      "reason": "no_publisher_match",
+      "publisher": "australian community media",
+      "media_type": "newspaper",
+      "bid_strategy": "insertions"
+    },
+    {
+      "id": 2157,
+      "mba_number": "BOSS001",
+      "version_number": 17,
+      "reason": "ambiguous_publisher_match",
+      "publisher": "farm machinery sales",
+      "media_type": "digiDisplay",
+      "bid_strategy": "cpm"
+    },
+    {
+      "id": 2160,
+      "mba_number": "BOSS001",
+      "version_number": 17,
+      "reason": "no_publisher_match",
+      "publisher": "seven",
+      "media_type": "television",
+      "bid_strategy": "spots"
+    },
+    {
+      "id": 2161,
+      "mba_number": "BOSS001",
+      "version_number": 17,
+      "reason": "no_publisher_match",
+      "publisher": "southern cross austereo",
+      "media_type": "radio",
+      "bid_strategy": "spots"
+    },
+    {
+      "id": 2162,
+      "mba_number": "BOSS001",
+      "version_number": 17,
+      "reason": "no_publisher_match",
+      "publisher": "southern cross austereo",
+      "media_type": "radio",
+      "bid_strategy": "spots"
+    },
+    {
+      "id": 2163,
+      "mba_number": "BOSS001",
+      "version_number": 17,
+      "reason": "no_publisher_match",
+      "publisher": "southern cross austereo",
+      "media_type": "radio",
+      "bid_strategy": "spots"
+    },
+    {
+      "id": 2164,
+      "mba_number": "BOSS001",
+      "version_number": 17,
+      "reason": "no_publisher_match",
+      "publisher": "southern cross austereo",
+      "media_type": "radio",
+      "bid_strategy": "bonus"
+    },
+    {
+      "id": 2165,
+      "mba_number": "BOSS001",
+      "version_number": 17,
+      "reason": "no_publisher_match",
+      "publisher": "southern cross austereo",
+      "media_type": "radio",
+      "bid_strategy": "spots"
+    },
+    {
+      "id": 2166,
+      "mba_number": "BOSS001",
+      "version_number": 17,
+      "reason": "no_publisher_match",
+      "publisher": "southern cross austereo",
+      "media_type": "radio",
+      "bid_strategy": "spots"
+    },
+    {
+      "id": 2167,
+      "mba_number": "BOSS001",
+      "version_number": 17,
+      "reason": "no_publisher_match",
+      "publisher": "southern cross austereo",
+      "media_type": "radio",
+      "bid_strategy": "spots"
+    },
+    {
+      "id": 2168,
+      "mba_number": "BOSS001",
+      "version_number": 17,
+      "reason": "no_publisher_match",
+      "publisher": "sports entertainment network",
+      "media_type": "radio",
+      "bid_strategy": "spots"
+    },
+    {
+      "id": 2169,
+      "mba_number": "BOSS001",
+      "version_number": 17,
+      "reason": "no_publisher_match",
+      "publisher": "sports entertainment network",
+      "media_type": "radio",
+      "bid_strategy": "spots"
+    },
+    {
+      "id": 2170,
+      "mba_number": "BOSS001",
+      "version_number": 17,
+      "reason": "no_publisher_match",
+      "publisher": "sports entertainment network",
+      "media_type": "radio",
+      "bid_strategy": "spots"
+    },
+    {
+      "id": 2177,
+      "mba_number": "BOSS001",
+      "version_number": 17,
+      "reason": "no_publisher_match",
+      "publisher": "sports entertainment network",
+      "media_type": "radio",
+      "bid_strategy": "spots"
+    },
+    {
+      "id": 2181,
+      "mba_number": "BOSS001",
+      "version_number": 17,
+      "reason": "no_publisher_match",
+      "publisher": "australian community media",
+      "media_type": "newspaper",
+      "bid_strategy": "insertions"
+    },
+    {
+      "id": 2171,
+      "mba_number": "BOSS001",
+      "version_number": 17,
+      "reason": "no_publisher_match",
+      "publisher": "sports entertainment network",
+      "media_type": "radio",
+      "bid_strategy": "spots"
+    },
+    {
+      "id": 2174,
+      "mba_number": "BOSS001",
+      "version_number": 17,
+      "reason": "no_publisher_match",
+      "publisher": "sports entertainment network",
+      "media_type": "radio",
+      "bid_strategy": "spots"
+    },
+    {
+      "id": 2178,
+      "mba_number": "BOSS001",
+      "version_number": 17,
+      "reason": "no_publisher_match",
+      "publisher": "sports entertainment network",
+      "media_type": "radio",
+      "bid_strategy": "spots"
+    },
+    {
+      "id": 2182,
+      "mba_number": "BOSS001",
+      "version_number": 17,
+      "reason": "no_publisher_match",
+      "publisher": "australian community media",
+      "media_type": "newspaper",
+      "bid_strategy": "insertions"
+    },
+    {
+      "id": 2172,
+      "mba_number": "BOSS001",
+      "version_number": 17,
+      "reason": "no_publisher_match",
+      "publisher": "sports entertainment network",
+      "media_type": "radio",
+      "bid_strategy": "spots"
+    },
+    {
+      "id": 2173,
+      "mba_number": "BOSS001",
+      "version_number": 17,
+      "reason": "no_publisher_match",
+      "publisher": "sports entertainment network",
+      "media_type": "radio",
+      "bid_strategy": "spots"
+    },
+    {
+      "id": 2176,
+      "mba_number": "BOSS001",
+      "version_number": 17,
+      "reason": "no_publisher_match",
+      "publisher": "sports entertainment network",
+      "media_type": "radio",
+      "bid_strategy": "spots"
+    },
+    {
+      "id": 2180,
+      "mba_number": "BOSS001",
+      "version_number": 17,
+      "reason": "no_publisher_match",
+      "publisher": "news corp",
+      "media_type": "newspaper",
+      "bid_strategy": "insertions"
+    },
+    {
+      "id": 2184,
+      "mba_number": "BOSS001",
+      "version_number": 17,
+      "reason": "no_publisher_match",
+      "publisher": "news corp",
+      "media_type": "newspaper",
+      "bid_strategy": "insertions"
+    },
+    {
+      "id": 2175,
+      "mba_number": "BOSS001",
+      "version_number": 17,
+      "reason": "no_publisher_match",
+      "publisher": "sports entertainment network",
+      "media_type": "radio",
+      "bid_strategy": "spots"
+    },
+    {
+      "id": 2179,
+      "mba_number": "BOSS001",
+      "version_number": 17,
+      "reason": "no_publisher_match",
+      "publisher": "sports entertainment network",
+      "media_type": "radio",
+      "bid_strategy": "package"
+    },
+    {
+      "id": 2183,
+      "mba_number": "BOSS001",
+      "version_number": 17,
+      "reason": "no_publisher_match",
+      "publisher": "australian community media",
+      "media_type": "newspaper",
+      "bid_strategy": "insertions"
+    },
+    {
+      "id": 3263,
+      "mba_number": "hema001",
+      "version_number": 7,
+      "reason": "no_publisher_match",
+      "publisher": "caravan world",
+      "media_type": "digiDisplay",
+      "bid_strategy": "cpm"
+    },
+    {
+      "id": 3267,
+      "mba_number": "hema001",
+      "version_number": 7,
+      "reason": "no_publisher_match",
+      "publisher": "run of network",
+      "media_type": "digiDisplay",
+      "bid_strategy": "cpm"
+    },
+    {
+      "id": 3264,
+      "mba_number": "hema001",
+      "version_number": 7,
+      "reason": "no_publisher_match",
+      "publisher": "caravan world, trade rvs, onlyvans",
+      "media_type": "digiDisplay",
+      "bid_strategy": "cpm"
+    },
+    {
+      "id": 3260,
+      "mba_number": "hema001",
+      "version_number": 7,
+      "reason": "no_publisher_match",
+      "publisher": "run of network",
+      "media_type": "digiDisplay",
+      "bid_strategy": "cpm"
+    },
+    {
+      "id": 3261,
+      "mba_number": "hema001",
+      "version_number": 7,
+      "reason": "no_publisher_match",
+      "publisher": "run of network",
+      "media_type": "digiDisplay",
+      "bid_strategy": "cpm"
+    },
+    {
+      "id": 3262,
+      "mba_number": "hema001",
+      "version_number": 7,
+      "reason": "no_publisher_match",
+      "publisher": "run of network",
+      "media_type": "digiDisplay",
+      "bid_strategy": "cpm"
+    },
+    {
+      "id": 3266,
+      "mba_number": "hema001",
+      "version_number": 7,
+      "reason": "no_publisher_match",
+      "publisher": "caravan world",
+      "media_type": "digiDisplay",
+      "bid_strategy": "cpm"
+    },
+    {
+      "id": 3265,
+      "mba_number": "hema001",
+      "version_number": 7,
+      "reason": "no_publisher_match",
+      "publisher": "run of network",
+      "media_type": "digiDisplay",
+      "bid_strategy": "cpm"
+    },
+    {
+      "id": 3268,
+      "mba_number": "hema001",
+      "version_number": 7,
+      "reason": "no_publisher_match",
+      "publisher": "caravan world",
+      "media_type": "digiDisplay",
+      "bid_strategy": "cpm"
+    },
+    {
+      "id": 3269,
+      "mba_number": "hema001",
+      "version_number": 7,
+      "reason": "no_publisher_match",
+      "publisher": "run of network",
+      "media_type": "digiDisplay",
+      "bid_strategy": "cpm"
+    },
+    {
+      "id": 3339,
+      "mba_number": "PGAAUS003",
+      "version_number": 12,
+      "reason": "no_publisher_match",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "wpga champs broadcast"
+    },
+    {
+      "id": 3343,
+      "mba_number": "PGAAUS003",
+      "version_number": 12,
+      "reason": "no_publisher_match",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "isps handa jac marketing - broadcast"
+    },
+    {
+      "id": 3291,
+      "mba_number": "golf008",
+      "version_number": 5,
+      "reason": "no_publisher_match",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "australian women's classic"
+    },
+    {
+      "id": 3342,
+      "mba_number": "PGAAUS003",
+      "version_number": 12,
+      "reason": "no_publisher_match",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "isps handa jac marketing - march"
+    },
+    {
+      "id": 3344,
+      "mba_number": "PGAAUS003",
+      "version_number": 12,
+      "reason": "no_publisher_match",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "heritage classic"
+    },
+    {
+      "id": 3340,
+      "mba_number": "PGAAUS003",
+      "version_number": 12,
+      "reason": "no_publisher_match",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "nz open"
+    },
+    {
+      "id": 3289,
+      "mba_number": "golf008",
+      "version_number": 5,
+      "reason": "no_publisher_match",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "mygolf schools funding applications open"
+    },
+    {
+      "id": 3290,
+      "mba_number": "golf008",
+      "version_number": 5,
+      "reason": "no_publisher_match",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "womens ao"
+    },
+    {
+      "id": 3338,
+      "mba_number": "PGAAUS003",
+      "version_number": 12,
+      "reason": "no_publisher_match",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "isps handa jac marketing"
+    },
+    {
+      "id": 3341,
+      "mba_number": "PGAAUS003",
+      "version_number": 12,
+      "reason": "no_publisher_match",
+      "publisher": "meta",
+      "media_type": "socialMedia",
+      "bid_strategy": "nsw women's open"
+    },
+    {
+      "id": 3751,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "nine",
+      "media_type": "newspaper",
+      "bid_strategy": "fixed_cost"
+    },
+    {
+      "id": 3755,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "cartology",
+      "media_type": "ooh",
+      "bid_strategy": "package"
+    },
+    {
+      "id": 3758,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "ooh! media",
+      "media_type": "ooh",
+      "bid_strategy": "package"
+    },
+    {
+      "id": 3761,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "vicinity",
+      "media_type": "ooh",
+      "bid_strategy": "package"
+    },
+    {
+      "id": 3765,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "jcdecaux",
+      "media_type": "ooh",
+      "bid_strategy": "panels"
+    },
+    {
+      "id": 3768,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "jcdecaux",
+      "media_type": "ooh",
+      "bid_strategy": "panels"
+    },
+    {
+      "id": 3759,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "ooh! media",
+      "media_type": "ooh",
+      "bid_strategy": "package"
+    },
+    {
+      "id": 3762,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "vicinity",
+      "media_type": "ooh",
+      "bid_strategy": "package_inclusions"
+    },
+    {
+      "id": 3773,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "jcdecaux",
+      "media_type": "ooh",
+      "bid_strategy": "panels"
+    },
+    {
+      "id": 3780,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "jcdecaux",
+      "media_type": "ooh",
+      "bid_strategy": "panels"
+    },
+    {
+      "id": 3784,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "jcdecaux",
+      "media_type": "ooh",
+      "bid_strategy": "panels"
+    },
+    {
+      "id": 3788,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "revolution 360",
+      "media_type": "ooh",
+      "bid_strategy": "panels"
+    },
+    {
+      "id": 3792,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "revolution 360",
+      "media_type": "ooh",
+      "bid_strategy": "panels"
+    },
+    {
+      "id": 3796,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "revolution 360",
+      "media_type": "ooh",
+      "bid_strategy": "panels"
+    },
+    {
+      "id": 3753,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "cartology",
+      "media_type": "ooh",
+      "bid_strategy": "package"
+    },
+    {
+      "id": 3757,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "jolt",
+      "media_type": "ooh",
+      "bid_strategy": "panels"
+    },
+    {
+      "id": 3760,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "ooh! media",
+      "media_type": "ooh",
+      "bid_strategy": "package"
+    },
+    {
+      "id": 3763,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "jcdecaux",
+      "media_type": "ooh",
+      "bid_strategy": "panels"
+    },
+    {
+      "id": 3767,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "jcdecaux",
+      "media_type": "ooh",
+      "bid_strategy": "panels"
+    },
+    {
+      "id": 3770,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "jcdecaux",
+      "media_type": "ooh",
+      "bid_strategy": "panels"
+    },
+    {
+      "id": 3774,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "jcdecaux",
+      "media_type": "ooh",
+      "bid_strategy": "panels"
+    },
+    {
+      "id": 3777,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "jcdecaux",
+      "media_type": "ooh",
+      "bid_strategy": "panels"
+    },
+    {
+      "id": 3781,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "jcdecaux",
+      "media_type": "ooh",
+      "bid_strategy": "panels"
+    },
+    {
+      "id": 3785,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "motto",
+      "media_type": "ooh",
+      "bid_strategy": "fixed_cost"
+    },
+    {
+      "id": 3789,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "revolution 360",
+      "media_type": "ooh",
+      "bid_strategy": "panels"
+    },
+    {
+      "id": 3793,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "revolution 360",
+      "media_type": "ooh",
+      "bid_strategy": "bonus"
+    },
+    {
+      "id": 3797,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "revolution 360",
+      "media_type": "ooh",
+      "bid_strategy": "bonus"
+    },
+    {
+      "id": 3801,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "unknown",
+      "media_type": "production",
+      "bid_strategy": "fixed_cost"
+    },
+    {
+      "id": 3752,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "nine",
+      "media_type": "newspaper",
+      "bid_strategy": "bonus"
+    },
+    {
+      "id": 3754,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "cartology",
+      "media_type": "ooh",
+      "bid_strategy": "bonus"
+    },
+    {
+      "id": 3756,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "jolt",
+      "media_type": "ooh",
+      "bid_strategy": "panels"
+    },
+    {
+      "id": 3764,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "jcdecaux",
+      "media_type": "ooh",
+      "bid_strategy": "panels"
+    },
+    {
+      "id": 3766,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "jcdecaux",
+      "media_type": "ooh",
+      "bid_strategy": "panels"
+    },
+    {
+      "id": 3769,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "jcdecaux",
+      "media_type": "ooh",
+      "bid_strategy": "panels"
+    },
+    {
+      "id": 3771,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "jcdecaux",
+      "media_type": "ooh",
+      "bid_strategy": "panels"
+    },
+    {
+      "id": 3772,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "jcdecaux",
+      "media_type": "ooh",
+      "bid_strategy": "panels"
+    },
+    {
+      "id": 3776,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "jcdecaux",
+      "media_type": "ooh",
+      "bid_strategy": "bonus"
+    },
+    {
+      "id": 3779,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "jcdecaux",
+      "media_type": "ooh",
+      "bid_strategy": "panels"
+    },
+    {
+      "id": 3783,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "jcdecaux",
+      "media_type": "ooh",
+      "bid_strategy": "panels"
+    },
+    {
+      "id": 3787,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "revolution 360",
+      "media_type": "ooh",
+      "bid_strategy": "panels"
+    },
+    {
+      "id": 3775,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "jcdecaux",
+      "media_type": "ooh",
+      "bid_strategy": "panels"
+    },
+    {
+      "id": 3778,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "jcdecaux",
+      "media_type": "ooh",
+      "bid_strategy": "panels"
+    },
+    {
+      "id": 3782,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "jcdecaux",
+      "media_type": "ooh",
+      "bid_strategy": "panels"
+    },
+    {
+      "id": 3786,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "revolution 360",
+      "media_type": "ooh",
+      "bid_strategy": "panels"
+    },
+    {
+      "id": 3790,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "revolution 360",
+      "media_type": "ooh",
+      "bid_strategy": "bonus"
+    },
+    {
+      "id": 3794,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "revolution 360",
+      "media_type": "ooh",
+      "bid_strategy": "bonus"
+    },
+    {
+      "id": 3798,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "unknown",
+      "media_type": "production",
+      "bid_strategy": "fixed_cost"
+    },
+    {
+      "id": 3802,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "unknown",
+      "media_type": "production",
+      "bid_strategy": "fixed_cost"
+    },
+    {
+      "id": 3791,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "revolution 360",
+      "media_type": "ooh",
+      "bid_strategy": "panels"
+    },
+    {
+      "id": 3795,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "revolution 360",
+      "media_type": "ooh",
+      "bid_strategy": "panels"
+    },
+    {
+      "id": 3799,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "unknown",
+      "media_type": "production",
+      "bid_strategy": "fixed_cost"
+    },
+    {
+      "id": 3800,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "unknown",
+      "media_type": "production",
+      "bid_strategy": "fixed_cost"
+    },
+    {
+      "id": 3803,
+      "mba_number": "PENFOLD020",
+      "version_number": 13,
+      "reason": "no_publisher_match",
+      "publisher": "unknown",
+      "media_type": "production",
+      "bid_strategy": "fixed_cost"
+    }
+  ]
+}

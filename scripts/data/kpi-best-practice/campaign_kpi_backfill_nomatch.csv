@@ -1,0 +1,133 @@
+id,mba,version,publisher,media_type,bid_strategy,reason
+89,golf004,7,linkyby,progDisplay,reach,no_publisher_match
+58,buxton004,5,meta,digiDisplay,bonus,no_publisher_match
+287,PENFOLD013,12,vogue living,digiDisplay,fixed_cost,no_publisher_match
+290,PENFOLD013,12,news corp,magazines,fixed_cost,no_publisher_match
+295,PENFOLD013,12,cartology,ooh,panels,no_publisher_match
+288,PENFOLD013,12,whitelist,digiDisplay,cpm,no_publisher_match
+292,PENFOLD013,12,cartology,ooh,panels,no_publisher_match
+297,PENFOLD013,12,cartology,ooh,panels,no_publisher_match
+301,PENFOLD013,12,production,production,production,no_publisher_match
+289,PENFOLD013,12,whitelist,digiDisplay,bonus,no_publisher_match
+293,PENFOLD013,12,cartology,ooh,panels,no_publisher_match
+298,PENFOLD013,12,cartology,ooh,panels,no_publisher_match
+340,buxton001,13,meta,digiDisplay,bonus,no_publisher_match
+291,PENFOLD013,12,cartology,ooh,panels,no_publisher_match
+296,PENFOLD013,12,cartology,ooh,panels,no_publisher_match
+300,PENFOLD013,12,cartology,ooh,panels,no_publisher_match
+294,PENFOLD013,12,cartology,ooh,panels,no_publisher_match
+299,PENFOLD013,12,cartology,ooh,panels,no_publisher_match
+2196,candel001,23,unknown,production,fixed_cost,no_publisher_match
+2041,BOSS002,12,sports entertainment network,radio,spots,no_publisher_match
+2042,BOSS002,12,sports entertainment network,radio,spots,no_publisher_match
+2043,BOSS002,12,sports entertainment network,radio,spots,no_publisher_match
+2044,BOSS002,12,sports entertainment network,radio,spots,no_publisher_match
+2045,BOSS002,12,sports entertainment network,radio,spots,no_publisher_match
+2046,BOSS002,12,sports entertainment network,radio,spots,no_publisher_match
+2047,BOSS002,12,sports entertainment network,radio,spots,no_publisher_match
+2048,BOSS002,12,sports entertainment network,radio,spots,no_publisher_match
+2049,BOSS002,12,sports entertainment network,radio,spots,no_publisher_match
+2050,BOSS002,12,sports entertainment network,radio,spots,no_publisher_match
+2051,BOSS002,12,sports entertainment network,radio,spots,no_publisher_match
+2052,BOSS002,12,southern cross austereo,radio,spots,no_publisher_match
+2053,BOSS002,12,southern cross austereo,radio,spots,no_publisher_match
+2054,BOSS002,12,australian community media,newspaper,insertions,no_publisher_match
+2055,BOSS002,12,australian community media,newspaper,insertions,no_publisher_match
+2160,BOSS001,17,seven,television,spots,no_publisher_match
+2161,BOSS001,17,southern cross austereo,radio,spots,no_publisher_match
+2162,BOSS001,17,southern cross austereo,radio,spots,no_publisher_match
+2163,BOSS001,17,southern cross austereo,radio,spots,no_publisher_match
+2164,BOSS001,17,southern cross austereo,radio,bonus,no_publisher_match
+2165,BOSS001,17,southern cross austereo,radio,spots,no_publisher_match
+2166,BOSS001,17,southern cross austereo,radio,spots,no_publisher_match
+2167,BOSS001,17,southern cross austereo,radio,spots,no_publisher_match
+2168,BOSS001,17,sports entertainment network,radio,spots,no_publisher_match
+2169,BOSS001,17,sports entertainment network,radio,spots,no_publisher_match
+2170,BOSS001,17,sports entertainment network,radio,spots,no_publisher_match
+2177,BOSS001,17,sports entertainment network,radio,spots,no_publisher_match
+2181,BOSS001,17,australian community media,newspaper,insertions,no_publisher_match
+2171,BOSS001,17,sports entertainment network,radio,spots,no_publisher_match
+2174,BOSS001,17,sports entertainment network,radio,spots,no_publisher_match
+2178,BOSS001,17,sports entertainment network,radio,spots,no_publisher_match
+2182,BOSS001,17,australian community media,newspaper,insertions,no_publisher_match
+2172,BOSS001,17,sports entertainment network,radio,spots,no_publisher_match
+2173,BOSS001,17,sports entertainment network,radio,spots,no_publisher_match
+2176,BOSS001,17,sports entertainment network,radio,spots,no_publisher_match
+2180,BOSS001,17,news corp,newspaper,insertions,no_publisher_match
+2184,BOSS001,17,news corp,newspaper,insertions,no_publisher_match
+2175,BOSS001,17,sports entertainment network,radio,spots,no_publisher_match
+2179,BOSS001,17,sports entertainment network,radio,package,no_publisher_match
+2183,BOSS001,17,australian community media,newspaper,insertions,no_publisher_match
+3263,hema001,7,caravan world,digiDisplay,cpm,no_publisher_match
+3267,hema001,7,run of network,digiDisplay,cpm,no_publisher_match
+3264,hema001,7,"caravan world, trade rvs, onlyvans",digiDisplay,cpm,no_publisher_match
+3260,hema001,7,run of network,digiDisplay,cpm,no_publisher_match
+3261,hema001,7,run of network,digiDisplay,cpm,no_publisher_match
+3262,hema001,7,run of network,digiDisplay,cpm,no_publisher_match
+3266,hema001,7,caravan world,digiDisplay,cpm,no_publisher_match
+3265,hema001,7,run of network,digiDisplay,cpm,no_publisher_match
+3268,hema001,7,caravan world,digiDisplay,cpm,no_publisher_match
+3269,hema001,7,run of network,digiDisplay,cpm,no_publisher_match
+3339,PGAAUS003,12,meta,socialMedia,wpga champs broadcast,no_publisher_match
+3343,PGAAUS003,12,meta,socialMedia,isps handa jac marketing - broadcast,no_publisher_match
+3291,golf008,5,meta,socialMedia,australian women's classic,no_publisher_match
+3342,PGAAUS003,12,meta,socialMedia,isps handa jac marketing - march,no_publisher_match
+3344,PGAAUS003,12,meta,socialMedia,heritage classic,no_publisher_match
+3340,PGAAUS003,12,meta,socialMedia,nz open,no_publisher_match
+3289,golf008,5,meta,socialMedia,mygolf schools funding applications open,no_publisher_match
+3290,golf008,5,meta,socialMedia,womens ao,no_publisher_match
+3338,PGAAUS003,12,meta,socialMedia,isps handa jac marketing,no_publisher_match
+3341,PGAAUS003,12,meta,socialMedia,nsw women's open,no_publisher_match
+3751,PENFOLD020,13,nine,newspaper,fixed_cost,no_publisher_match
+3755,PENFOLD020,13,cartology,ooh,package,no_publisher_match
+3758,PENFOLD020,13,ooh! media,ooh,package,no_publisher_match
+3761,PENFOLD020,13,vicinity,ooh,package,no_publisher_match
+3765,PENFOLD020,13,jcdecaux,ooh,panels,no_publisher_match
+3768,PENFOLD020,13,jcdecaux,ooh,panels,no_publisher_match
+3759,PENFOLD020,13,ooh! media,ooh,package,no_publisher_match
+3762,PENFOLD020,13,vicinity,ooh,package_inclusions,no_publisher_match
+3773,PENFOLD020,13,jcdecaux,ooh,panels,no_publisher_match
+3780,PENFOLD020,13,jcdecaux,ooh,panels,no_publisher_match
+3784,PENFOLD020,13,jcdecaux,ooh,panels,no_publisher_match
+3788,PENFOLD020,13,revolution 360,ooh,panels,no_publisher_match
+3792,PENFOLD020,13,revolution 360,ooh,panels,no_publisher_match
+3796,PENFOLD020,13,revolution 360,ooh,panels,no_publisher_match
+3753,PENFOLD020,13,cartology,ooh,package,no_publisher_match
+3757,PENFOLD020,13,jolt,ooh,panels,no_publisher_match
+3760,PENFOLD020,13,ooh! media,ooh,package,no_publisher_match
+3763,PENFOLD020,13,jcdecaux,ooh,panels,no_publisher_match
+3767,PENFOLD020,13,jcdecaux,ooh,panels,no_publisher_match
+3770,PENFOLD020,13,jcdecaux,ooh,panels,no_publisher_match
+3774,PENFOLD020,13,jcdecaux,ooh,panels,no_publisher_match
+3777,PENFOLD020,13,jcdecaux,ooh,panels,no_publisher_match
+3781,PENFOLD020,13,jcdecaux,ooh,panels,no_publisher_match
+3785,PENFOLD020,13,motto,ooh,fixed_cost,no_publisher_match
+3789,PENFOLD020,13,revolution 360,ooh,panels,no_publisher_match
+3793,PENFOLD020,13,revolution 360,ooh,bonus,no_publisher_match
+3797,PENFOLD020,13,revolution 360,ooh,bonus,no_publisher_match
+3801,PENFOLD020,13,unknown,production,fixed_cost,no_publisher_match
+3752,PENFOLD020,13,nine,newspaper,bonus,no_publisher_match
+3754,PENFOLD020,13,cartology,ooh,bonus,no_publisher_match
+3756,PENFOLD020,13,jolt,ooh,panels,no_publisher_match
+3764,PENFOLD020,13,jcdecaux,ooh,panels,no_publisher_match
+3766,PENFOLD020,13,jcdecaux,ooh,panels,no_publisher_match
+3769,PENFOLD020,13,jcdecaux,ooh,panels,no_publisher_match
+3771,PENFOLD020,13,jcdecaux,ooh,panels,no_publisher_match
+3772,PENFOLD020,13,jcdecaux,ooh,panels,no_publisher_match
+3776,PENFOLD020,13,jcdecaux,ooh,bonus,no_publisher_match
+3779,PENFOLD020,13,jcdecaux,ooh,panels,no_publisher_match
+3783,PENFOLD020,13,jcdecaux,ooh,panels,no_publisher_match
+3787,PENFOLD020,13,revolution 360,ooh,panels,no_publisher_match
+3775,PENFOLD020,13,jcdecaux,ooh,panels,no_publisher_match
+3778,PENFOLD020,13,jcdecaux,ooh,panels,no_publisher_match
+3782,PENFOLD020,13,jcdecaux,ooh,panels,no_publisher_match
+3786,PENFOLD020,13,revolution 360,ooh,panels,no_publisher_match
+3790,PENFOLD020,13,revolution 360,ooh,bonus,no_publisher_match
+3794,PENFOLD020,13,revolution 360,ooh,bonus,no_publisher_match
+3798,PENFOLD020,13,unknown,production,fixed_cost,no_publisher_match
+3802,PENFOLD020,13,unknown,production,fixed_cost,no_publisher_match
+3791,PENFOLD020,13,revolution 360,ooh,panels,no_publisher_match
+3795,PENFOLD020,13,revolution 360,ooh,panels,no_publisher_match
+3799,PENFOLD020,13,unknown,production,fixed_cost,no_publisher_match
+3800,PENFOLD020,13,unknown,production,fixed_cost,no_publisher_match
+3803,PENFOLD020,13,unknown,production,fixed_cost,no_publisher_match
