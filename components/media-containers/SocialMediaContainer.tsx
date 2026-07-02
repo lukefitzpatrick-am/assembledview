@@ -31,6 +31,7 @@ import { formatBurstLabel } from "@/lib/bursts"
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { appendBurst, duplicateBurst, removeBurst, newBurstReactKey, stampBurstReactKeys } from "@/lib/mediaplan/burstOperations"
 import { serializeBurstsJson } from "@/lib/mediaplan/serializeBurstsJson"
+import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -65,6 +66,7 @@ import {
 import { SingleDatePicker } from "@/components/ui/single-date-picker"
 import { defaultMediaBurstStartDate, defaultMediaBurstEndDate } from "@/lib/date-picker-anchor"
 import MediaContainerTimelineCollapsible from "@/components/media-containers/MediaContainerTimelineCollapsible"
+import MediaContainerSummarySection from "@/components/media-containers/MediaContainerSummarySection"
 import {
   getMediaTypeThemeHex,
   mediaTypeSummaryStripeStyle,
@@ -544,31 +546,7 @@ export default function SocialMediaContainer({
           bursts_json_type: typeof item.bursts_json,
         });
 
-        // Safely parse bursts_json
-        let parsedBursts: any[] = [];
-        if (item.bursts_json) {
-          try {
-            if (typeof item.bursts_json === 'string') {
-              const trimmed = item.bursts_json.trim();
-              if (trimmed) {
-                parsedBursts = JSON.parse(trimmed);
-              }
-            } else if (Array.isArray(item.bursts_json)) {
-              parsedBursts = item.bursts_json;
-            } else if (typeof item.bursts_json === 'object') {
-              // If it's an object, try to convert to array
-              parsedBursts = [item.bursts_json];
-            }
-          } catch (parseError) {
-            console.error(`[SocialMediaContainer] Error parsing bursts_json for item ${index}:`, parseError, item.bursts_json);
-            parsedBursts = [];
-          }
-        }
-
-        // Ensure parsedBursts is an array
-        if (!Array.isArray(parsedBursts)) {
-          parsedBursts = [];
-        }
+        const parsedBursts = resolveLineItemBursts(item);
 
         const bursts = parsedBursts.length > 0 ? parsedBursts.map((burst: any) => {
           // Calculate calculatedValue based on buyType, budget, and buyAmount
@@ -719,27 +697,36 @@ export default function SocialMediaContainer({
       let lineFee = 0;
       let lineDeliverables = 0;
       let lineCost = 0;
+      const summaryBursts: InvestmentBurstInput[] = [];
 
       lineItem.bursts.forEach((burst) => {
         const budget = parseFloat((burst.budget || "").toString().replace(/[^0-9.]/g, "")) || 0;
+        let burstMedia = 0;
+        let burstFee = 0;
         // Always calculate media for display purposes (ignore clientPaysForMedia)
         if (lineItem.budgetIncludesFees) {
           // Budget is gross, split into media and fee
           // Media = Budget * ((100 - Fee) / 100)
           // Fees = Budget * (Fee / 100)
-          lineMedia += (budget * (100 - (feesocial || 0))) / 100;
-          lineFee += (budget * (feesocial || 0)) / 100;
+          burstMedia = (budget * (100 - (feesocial || 0))) / 100;
+          burstFee = (budget * (feesocial || 0)) / 100;
         } else {
           // Budget is net media, fee calculated on top
           // Media = Budget (unchanged)
           // Fees = Budget * (Fee / (100 - Fee))
-          lineMedia += budget;
-          const fee = feesocial ? (budget * feesocial) / (100 - feesocial) : 0;
-          lineFee += fee;
+          burstMedia = budget;
+          burstFee = feesocial ? (budget * feesocial) / (100 - feesocial) : 0;
         }
+        lineMedia += burstMedia;
+        lineFee += burstFee;
         lineDeliverables += parseFloat(
           (burst.calculatedValue ?? "0").toString()
         ) || 0;
+        summaryBursts.push({
+          amount: burstMedia + burstFee,
+          start: burst.startDate,
+          end: burst.endDate,
+        });
       });
 
       lineCost = lineMedia + lineFee;
@@ -754,6 +741,13 @@ export default function SocialMediaContainer({
         media: lineMedia,
         fee: lineFee,
         totalCost: lineCost,
+        buyType: lineItem.buyType || "",
+        dimensions: {
+          Platform: lineItem.platform || "",
+          "Bid Strategy": lineItem.bidStrategy || "",
+          "Buy Type": lineItem.buyType || "",
+        },
+        bursts: summaryBursts,
       };
     });
 
@@ -1165,52 +1159,16 @@ const getBursts = () => {
             </div>
           </CardHeader>
           <CardContent className="space-y-0">
-            {overallTotals.lineItemTotals.map((item) => (
-              <div
-                key={item.index}
-                className="flex items-center justify-between py-2.5 border-b border-border/40 last:border-b-0"
-              >
-                <span className="text-sm font-medium text-muted-foreground">Line {item.index}</span>
-                <div className="flex items-center gap-6 text-sm tabular-nums">
-                  <div className="text-right">
-                    <span className="text-[11px] text-muted-foreground block">
-                      {getDeliverablesLabel(form.getValues(`lineItems.${item.index - 1}.buyType`))}
-                    </span>
-                    <span>{item.deliverables.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[11px] text-muted-foreground block">Media</span>
-                    <span>{formatAUD(item.media)}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[11px] text-muted-foreground block">Fee</span>
-                    <span>{formatAUD(item.fee)}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[11px] text-muted-foreground block">Total</span>
-                    <span className="font-semibold">{formatAUD(item.totalCost)}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-
-            <div className="flex items-center justify-between pt-3 mt-1 border-t-2 border-primary/20">
-              <span className="text-sm font-semibold">Total</span>
-              <div className="flex items-center gap-6 text-sm font-semibold tabular-nums">
-                <div className="text-right">
-                  <span className="text-[11px] text-muted-foreground font-normal block">Media</span>
-                  <span>{formatAUD(overallTotals.overallMedia)}</span>
-                </div>
-                <div className="text-right">
-                  <span className="text-[11px] text-muted-foreground font-normal block">Fee ({feesocial}%)</span>
-                  <span>{formatAUD(overallTotals.overallFee)}</span>
-                </div>
-                <div className="text-right">
-                  <span className="text-[11px] text-muted-foreground font-normal block">Total</span>
-                  <span className="text-primary">{formatAUD(overallTotals.overallCost)}</span>
-                </div>
-              </div>
-            </div>
+            <MediaContainerSummarySection
+              lines={overallTotals.lineItemTotals}
+              overallMedia={overallTotals.overallMedia}
+              overallFee={overallTotals.overallFee}
+              overallCost={overallTotals.overallCost}
+              feeLabel={`Fee (${feesocial}%)`}
+              accentHex={MEDIA_ACCENT_HEX_SOCIAL}
+              dimensions={["Platform", "Bid Strategy", "Buy Type"]}
+              deliverablesLabelFor={getDeliverablesLabel}
+            />
             <MediaContainerTimelineCollapsible
               mediaTypeKey="socialMedia"
               lineItems={watchedLineItems}

@@ -26,6 +26,7 @@ import { formatBurstLabel } from "@/lib/bursts"
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { appendBurst, duplicateBurst, removeBurst, newBurstReactKey, stampBurstReactKeys } from "@/lib/mediaplan/burstOperations"
 import { serializeBurstsJson } from "@/lib/mediaplan/serializeBurstsJson"
+import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
 import { assignStableLineItemNumbers, reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import {
@@ -65,6 +66,7 @@ import {
 import { SingleDatePicker } from "@/components/ui/single-date-picker"
 import { defaultMediaBurstStartDate, defaultMediaBurstEndDate } from "@/lib/date-picker-anchor"
 import MediaContainerTimelineCollapsible from "@/components/media-containers/MediaContainerTimelineCollapsible"
+import MediaContainerSummarySection from "@/components/media-containers/MediaContainerSummarySection"
 import {
   MagazinesExpertGrid,
   createEmptyMagazinesExpertRow,
@@ -642,6 +644,9 @@ const form = useForm<MagazinesFormValues>({
         const lineNumber = item.line_item ?? item.lineItem ?? index + 1;
         const lineItemId = item.line_item_id || item.lineItemId || createLineItemId(lineNumber);
 
+        const parsedBursts = resolveLineItemBursts(item);
+
+
         return {
           network: item.network || item.publisher || "",
           title: item.title || item.publication || "",
@@ -659,7 +664,7 @@ const form = useForm<MagazinesFormValues>({
           line_item_id: lineItemId,
           line_item: item.line_item ?? item.lineItem ?? index + 1,
           lineItem: item.lineItem ?? item.line_item ?? index + 1,
-          bursts: item.bursts_json ? (typeof item.bursts_json === 'string' ? JSON.parse(item.bursts_json) : item.bursts_json).map((burst: any) => ({
+          bursts: parsedBursts.length > 0 ? parsedBursts.map((burst: any) => ({
             budget: burst.budget || "",
             buyAmount: burst.buyAmount || "",
             startDate: burst.startDate ? new Date(burst.startDate) : new Date(),
@@ -765,35 +770,51 @@ const form = useForm<MagazinesFormValues>({
       let lineDeliverables = 0;
       let lineFee = 0;
       let lineCost = 0;
-    
+      const summaryBursts: InvestmentBurstInput[] = [];
+
       lineItem.bursts.forEach((burst) => {
         const budget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0;
+        let burstMedia = 0;
+        let burstFee = 0;
         // Always calculate media for display purposes (ignore clientPaysForMedia)
         if (lineItem.budgetIncludesFees) {
           const pct = feemagazines || 0;
-          lineMedia += (budget * (100 - pct)) / 100;
-          lineFee += (budget * pct) / 100;
+          burstMedia = (budget * (100 - pct)) / 100;
+          burstFee = (budget * pct) / 100;
         } else {
           // Budget is net media, fee calculated on top
-          lineMedia += budget;
-          const fee = feemagazines ? (budget / (100 - feemagazines)) * feemagazines : 0;
-          lineFee += fee;
+          burstMedia = budget;
+          burstFee = feemagazines ? (budget / (100 - feemagazines)) * feemagazines : 0;
         }
+        lineMedia += burstMedia;
+        lineFee += burstFee;
         lineDeliverables += burst.calculatedValue || 0;
+        summaryBursts.push({
+          amount: burstMedia + burstFee,
+          start: burst.startDate,
+          end: burst.endDate,
+        });
       });
-    
+
       lineCost = lineMedia + lineFee;
-    
+
       overallMedia += lineMedia;
       overallFee += lineFee;
       overallCost += lineCost;
-    
+
       return {
         index: index + 1,
         deliverables: lineDeliverables,
         media: lineMedia,
         fee: lineFee,
         totalCost: lineCost,
+        buyType: lineItem.buyType || "",
+        dimensions: {
+          Network: lineItem.network || "",
+          Title: lineItem.title || "",
+          "Buy Type": lineItem.buyType || "",
+        },
+        bursts: summaryBursts,
       };
     });
     
@@ -1300,57 +1321,16 @@ useEffect(() => {
             </div>
           </CardHeader>
           <CardContent className="space-y-0">
-            {overallTotals.lineItemTotals.map((item) => (
-              <div
-                key={item.index}
-                className="flex items-center justify-between py-2.5 border-b border-border/40 last:border-b-0"
-              >
-                <span className="text-sm font-medium text-muted-foreground">Line {item.index}</span>
-                <div className="flex items-center gap-6 text-sm tabular-nums">
-                  <div className="text-right">
-                    <span className="text-[11px] text-muted-foreground block">
-                      {getDeliverablesLabel(form.getValues(`magazineslineItems.${item.index - 1}.buyType`))}
-                    </span>
-                    <span>{item.deliverables.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[11px] text-muted-foreground block">Media</span>
-                    <span>{formatAUD(item.media)}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[11px] text-muted-foreground block">Fee</span>
-                    <span>{formatAUD(item.fee)}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[11px] text-muted-foreground block">Total</span>
-                    <span className="font-semibold">{formatAUD(item.totalCost)}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-
-            <div
-              className="flex items-center justify-between border-t-2 border-solid pt-3 mt-1"
-              style={mediaTypeTotalsRowStyle(MEDIA_ACCENT_HEX)}
-            >
-              <span className="text-sm font-semibold">Total</span>
-              <div className="flex items-center gap-6 text-sm font-semibold tabular-nums">
-                <div className="text-right">
-                  <span className="text-[11px] text-muted-foreground font-normal block">Media</span>
-                  <span>{formatAUD(overallTotals.overallMedia)}</span>
-                </div>
-                <div className="text-right">
-                  <span className="text-[11px] text-muted-foreground font-normal block">Fee ({feemagazines}%)</span>
-                  <span>{formatAUD(overallTotals.overallFee)}</span>
-                </div>
-                <div className="text-right">
-                  <span className="text-[11px] text-muted-foreground font-normal block">Total</span>
-                  <span style={mediaTypeAccentTextStyle(MEDIA_ACCENT_HEX)}>
-                    {formatAUD(overallTotals.overallCost)}
-                  </span>
-                </div>
-              </div>
-            </div>
+            <MediaContainerSummarySection
+              lines={overallTotals.lineItemTotals}
+              overallMedia={overallTotals.overallMedia}
+              overallFee={overallTotals.overallFee}
+              overallCost={overallTotals.overallCost}
+              feeLabel={`Fee (${feemagazines}%)`}
+              accentHex={MEDIA_ACCENT_HEX}
+              dimensions={["Network", "Title", "Buy Type"]}
+              deliverablesLabelFor={getDeliverablesLabel}
+            />
             <MediaContainerTimelineCollapsible
               mediaTypeKey="magazines"
               lineItems={watchedLineItems}

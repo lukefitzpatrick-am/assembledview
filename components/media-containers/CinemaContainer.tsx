@@ -22,6 +22,7 @@ import { formatBurstLabel } from "@/lib/bursts"
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { appendBurst, duplicateBurst, removeBurst, newBurstReactKey, stampBurstReactKeys } from "@/lib/mediaplan/burstOperations"
 import { serializeBurstsJson } from "@/lib/mediaplan/serializeBurstsJson"
+import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -62,6 +63,8 @@ import {
 import { SingleDatePicker } from "@/components/ui/single-date-picker"
 import { defaultMediaBurstStartDate, defaultMediaBurstEndDate } from "@/lib/date-picker-anchor"
 import MediaContainerTimelineCollapsible from "@/components/media-containers/MediaContainerTimelineCollapsible"
+import MediaContainerSummarySection from "@/components/media-containers/MediaContainerSummarySection"
+import { getMediaTypeThemeHex } from "@/lib/mediaplan/mediaTypeAccents"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
 import { assignStableLineItemNumbers, reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import { ComboboxModalProvider } from "@/components/ui/combobox"
@@ -78,6 +81,8 @@ import {
   serializeCinemaExpertRowsBaseline,
   serializeCinemaStandardLineItemsBaseline,
 } from "@/lib/mediaplan/expertModeSwitch"
+
+const MEDIA_ACCENT_HEX = getMediaTypeThemeHex("cinema")
 
 // Format Dates
 const formatDateString = (d?: Date | string): string => {
@@ -593,6 +598,7 @@ export default function CinemaContainer({
         const lineItemId =
           item.line_item_id || item.lineItemId || createLineItemId(lineNum);
         const buyType = item.buy_type || item.buyType || "";
+        const parsedBursts = resolveLineItemBursts(item);
 
         return {
           market: item.market || "",
@@ -612,7 +618,7 @@ export default function CinemaContainer({
           line_item_id: lineItemId,
           line_item: item.line_item ?? item.lineItem ?? index + 1,
           lineItem: item.lineItem ?? item.line_item ?? index + 1,
-          bursts: item.bursts ? (typeof item.bursts === 'string' ? JSON.parse(item.bursts) : item.bursts).map((burst: any) => ({
+          bursts: parsedBursts.length > 0 ? parsedBursts.map((burst: any) => ({
             budget: burst.budget || "",
             buyAmount: burst.buyAmount || "",
             startDate: burst.startDate ? new Date(burst.startDate) : new Date(),
@@ -713,35 +719,52 @@ export default function CinemaContainer({
       let lineDeliverables = 0;
       let lineFee = 0;
       let lineCost = 0;
-    
+      const summaryBursts: InvestmentBurstInput[] = [];
+
       lineItem.bursts.forEach((burst) => {
         const budget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0;
+        let burstMedia = 0;
+        let burstFee = 0;
         // Always calculate media for display purposes (ignore clientPaysForMedia)
         if (lineItem.budgetIncludesFees) {
           const pct = feecinema || 0;
-          lineMedia += (budget * (100 - pct)) / 100;
-          lineFee += (budget * pct) / 100;
+          burstMedia = (budget * (100 - pct)) / 100;
+          burstFee = (budget * pct) / 100;
         } else {
           // Budget is net media, fee calculated on top
-          lineMedia += budget;
-          const fee = feecinema ? (budget / (100 - feecinema)) * feecinema : 0;
-          lineFee += fee;
+          burstMedia = budget;
+          burstFee = feecinema ? (budget / (100 - feecinema)) * feecinema : 0;
         }
+        lineMedia += burstMedia;
+        lineFee += burstFee;
         lineDeliverables += cinemaBurstDeliverables(burst, lineItem.buyType, lineItem.budgetIncludesFees);
+        summaryBursts.push({
+          amount: burstMedia + burstFee,
+          start: burst.startDate,
+          end: burst.endDate,
+        });
       });
-    
+
       lineCost = lineMedia + lineFee;
-    
+
       overallMedia += lineMedia;
       overallFee += lineFee;
       overallCost += lineCost;
-    
+
       return {
         index: index + 1,
         deliverables: lineDeliverables,
         media: lineMedia,
         fee: lineFee,
         totalCost: lineCost,
+        buyType: lineItem.buyType || "",
+        dimensions: {
+          Network: lineItem.network || "",
+          Station: lineItem.station || "",
+          Placement: lineItem.placement || "",
+          "Buy Type": lineItem.buyType || "",
+        },
+        bursts: summaryBursts,
       };
     });
     
@@ -1176,52 +1199,16 @@ useEffect(() => {
             </div>
           </CardHeader>
           <CardContent className="space-y-0">
-            {overallTotals.lineItemTotals.map((item) => (
-              <div
-                key={item.index}
-                className="flex items-center justify-between py-2.5 border-b border-border/40 last:border-b-0"
-              >
-                <span className="text-sm font-medium text-muted-foreground">Line {item.index}</span>
-                <div className="flex items-center gap-6 text-sm tabular-nums">
-                  <div className="text-right">
-                    <span className="text-[11px] text-muted-foreground block">
-                      {getDeliverablesLabel(form.getValues(`cinemalineItems.${item.index - 1}.buyType`))}
-                    </span>
-                    <span>{item.deliverables.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[11px] text-muted-foreground block">Media</span>
-                    <span>{formatAUD(item.media)}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[11px] text-muted-foreground block">Fee</span>
-                    <span>{formatAUD(item.fee)}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[11px] text-muted-foreground block">Total</span>
-                    <span className="font-semibold">{formatAUD(item.totalCost)}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-
-            <div className="flex items-center justify-between pt-3 mt-1 border-t-2 border-primary/20">
-              <span className="text-sm font-semibold">Total</span>
-              <div className="flex items-center gap-6 text-sm font-semibold tabular-nums">
-                <div className="text-right">
-                  <span className="text-[11px] text-muted-foreground font-normal block">Media</span>
-                  <span>{formatAUD(overallTotals.overallMedia)}</span>
-                </div>
-                <div className="text-right">
-                  <span className="text-[11px] text-muted-foreground font-normal block">Fee ({feecinema}%)</span>
-                  <span>{formatAUD(overallTotals.overallFee)}</span>
-                </div>
-                <div className="text-right">
-                  <span className="text-[11px] text-muted-foreground font-normal block">Total</span>
-                  <span className="text-primary">{formatAUD(overallTotals.overallCost)}</span>
-                </div>
-              </div>
-            </div>
+            <MediaContainerSummarySection
+              lines={overallTotals.lineItemTotals}
+              overallMedia={overallTotals.overallMedia}
+              overallFee={overallTotals.overallFee}
+              overallCost={overallTotals.overallCost}
+              feeLabel={`Fee (${feecinema}%)`}
+              accentHex={MEDIA_ACCENT_HEX}
+              dimensions={["Network", "Station", "Placement", "Buy Type"]}
+              deliverablesLabelFor={getDeliverablesLabel}
+            />
             <MediaContainerTimelineCollapsible
               mediaTypeKey="cinema"
               lineItems={watchedLineItems}

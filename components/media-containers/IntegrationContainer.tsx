@@ -31,6 +31,7 @@ import { formatBurstLabel } from "@/lib/bursts"
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { appendBurst, duplicateBurst, removeBurst, newBurstReactKey, stampBurstReactKeys } from "@/lib/mediaplan/burstOperations"
 import { serializeBurstsJson } from "@/lib/mediaplan/serializeBurstsJson"
+import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -94,6 +95,7 @@ import {
 import { SingleDatePicker } from "@/components/ui/single-date-picker"
 import { defaultMediaBurstStartDate, defaultMediaBurstEndDate } from "@/lib/date-picker-anchor"
 import MediaContainerTimelineCollapsible from "@/components/media-containers/MediaContainerTimelineCollapsible"
+import MediaContainerSummarySection from "@/components/media-containers/MediaContainerSummarySection"
 
 const MEDIA_ACCENT_HEX = getMediaTypeThemeHex("integration")
 
@@ -516,45 +518,7 @@ export default function IntegrationContainer({
       lastProcessedLineItemsRef.current = lineItemsKey;
 
       const transformedLineItems = dedupedInitialLineItems.map((item: any, index: number) => {
-        let parsedBursts: any[] = [];
-
-        if (item.bursts) {
-          try {
-            if (Array.isArray(item.bursts)) {
-              parsedBursts = item.bursts;
-            } else if (typeof item.bursts === 'string') {
-              const trimmed = item.bursts.trim();
-              if (trimmed) {
-                parsedBursts = JSON.parse(trimmed);
-              }
-            } else if (typeof item.bursts === 'object') {
-              parsedBursts = [item.bursts];
-            }
-          } catch (parseError) {
-            console.error(`[IntegrationContainer] Error parsing bursts for item ${index}:`, parseError, item.bursts);
-            parsedBursts = [];
-          }
-        } else if (item.bursts_json) {
-          try {
-            if (typeof item.bursts_json === 'string') {
-              const trimmed = item.bursts_json.trim();
-              if (trimmed) {
-                parsedBursts = JSON.parse(trimmed);
-              }
-            } else if (Array.isArray(item.bursts_json)) {
-              parsedBursts = item.bursts_json;
-            } else if (typeof item.bursts_json === 'object') {
-              parsedBursts = [item.bursts_json];
-            }
-          } catch (parseError) {
-            console.error(`[IntegrationContainer] Error parsing bursts_json for item ${index}:`, parseError, item.bursts_json);
-            parsedBursts = [];
-          }
-        }
-
-        if (!Array.isArray(parsedBursts)) {
-          parsedBursts = [];
-        }
+        const parsedBursts = resolveLineItemBursts(item);
 
         const budgetIncludesFees = Boolean(item.budget_includes_fees || item.budgetIncludesFees);
         const buyType = item.buy_type || item.buyType || "";
@@ -684,39 +648,55 @@ export default function IntegrationContainer({
       let lineDeliverables = 0;
       let lineFee = 0;
       let lineCost = 0;
-    
+      const summaryBursts: InvestmentBurstInput[] = [];
+
       lineItem.bursts.forEach((burst) => {
         const budget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0;
+        let burstMedia = 0;
+        let burstFee = 0;
         // Always calculate media for display purposes (ignore clientPaysForMedia)
         if (lineItem.budgetIncludesFees) {
           // Budget is gross, split into media and fee
           // Media = Budget * ((100 - Fee) / 100)
           // Fees = Budget * (Fee / 100)
-          lineMedia += (budget * (100 - (feeintegration || 0))) / 100;
-          lineFee += (budget * (feeintegration || 0)) / 100;
+          burstMedia = (budget * (100 - (feeintegration || 0))) / 100;
+          burstFee = (budget * (feeintegration || 0)) / 100;
         } else {
           // Budget is net media, fee calculated on top
           // Media = Budget (unchanged)
           // Fees = Budget * (Fee / (100 - Fee))
-          lineMedia += budget;
-          const fee = feeintegration ? (budget * feeintegration) / (100 - feeintegration) : 0;
-          lineFee += fee;
+          burstMedia = budget;
+          burstFee = feeintegration ? (budget * feeintegration) / (100 - feeintegration) : 0;
         }
+        lineMedia += burstMedia;
+        lineFee += burstFee;
         lineDeliverables += burst.calculatedValue || 0;
+        summaryBursts.push({
+          amount: burstMedia + burstFee,
+          start: burst.startDate,
+          end: burst.endDate,
+        });
       });
-    
+
       lineCost = lineMedia + lineFee;
-    
+
       overallMedia += lineMedia;
       overallFee += lineFee;
       overallCost += lineCost;
-    
+
       return {
         index: index + 1,
         deliverables: lineDeliverables,
         media: lineMedia,
         fee: lineFee,
         totalCost: lineCost,
+        buyType: lineItem.buyType || "",
+        dimensions: {
+          Platform: lineItem.platform || "",
+          "Bid Strategy": lineItem.bidStrategy || "",
+          "Buy Type": lineItem.buyType || "",
+        },
+        bursts: summaryBursts,
       };
     });
     
@@ -1192,55 +1172,16 @@ useEffect(() => {
             </div>
           </CardHeader>
           <CardContent className="space-y-0">
-            {overallTotals.lineItemTotals.map((item) => (
-              <div
-                key={item.index}
-                className="flex items-center justify-between py-2.5 border-b border-border/40 last:border-b-0"
-              >
-                <span className="text-sm font-medium text-muted-foreground">Line {item.index}</span>
-                <div className="flex items-center gap-6 text-sm tabular-nums">
-                  <div className="text-right">
-                    <span className="text-[11px] text-muted-foreground block">
-                      {getDeliverablesLabel(form.watch(`lineItems.${item.index - 1}.buyType`))}
-                    </span>
-                    <span>{item.deliverables.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[11px] text-muted-foreground block">Media</span>
-                    <span>{formatAUD(item.media)}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[11px] text-muted-foreground block">Fee</span>
-                    <span>{formatAUD(item.fee)}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[11px] text-muted-foreground block">Total</span>
-                    <span className="font-semibold">{formatAUD(item.totalCost)}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-
-            <div
-              className="flex items-center justify-between border-t-2 border-solid pt-3 mt-1"
-              style={mediaTypeTotalsRowStyle(MEDIA_ACCENT_HEX)}
-            >
-              <span className="text-sm font-semibold">Total</span>
-              <div className="flex items-center gap-6 text-sm font-semibold tabular-nums">
-                <div className="text-right">
-                  <span className="text-[11px] text-muted-foreground font-normal block">Media</span>
-                  <span>{formatAUD(overallTotals.overallMedia)}</span>
-                </div>
-                <div className="text-right">
-                  <span className="text-[11px] text-muted-foreground font-normal block">Fee ({feeintegration}%)</span>
-                  <span>{formatAUD(overallTotals.overallFee)}</span>
-                </div>
-                <div className="text-right">
-                  <span className="text-[11px] text-muted-foreground font-normal block">Total</span>
-                  <span className="text-primary">{formatAUD(overallTotals.overallCost)}</span>
-                </div>
-              </div>
-            </div>
+            <MediaContainerSummarySection
+              lines={overallTotals.lineItemTotals}
+              overallMedia={overallTotals.overallMedia}
+              overallFee={overallTotals.overallFee}
+              overallCost={overallTotals.overallCost}
+              feeLabel={`Fee (${feeintegration}%)`}
+              accentHex={MEDIA_ACCENT_HEX}
+              dimensions={["Platform", "Bid Strategy", "Buy Type"]}
+              deliverablesLabelFor={getDeliverablesLabel}
+            />
             <MediaContainerTimelineCollapsible
               mediaTypeKey="integration"
               lineItems={watchedLineItems}

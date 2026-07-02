@@ -31,12 +31,47 @@ export function parseBurstArray(value: unknown): any[] {
   if (Array.isArray(value)) return value
   if (typeof value === "string") {
     try {
-      const parsed = JSON.parse(value)
-      return Array.isArray(parsed) ? parsed : []
+      const trimmed = value.trim()
+      if (!trimmed) return []
+      const parsed = JSON.parse(trimmed)
+      if (Array.isArray(parsed)) return parsed
+      if (parsed && typeof parsed === "object") return [parsed]
+      return []
     } catch {
       return []
     }
   }
+  if (typeof value === "object") return [value]
+  return []
+}
+
+/**
+ * Resolve burst rows from a line item whether stored in `bursts` or `bursts_json`,
+ * and whether each field is a JSON string or a native array/object.
+ * Matches {@link extractAndFormatBursts} input precedence (bursts array first).
+ */
+export function resolveLineItemBursts(lineItem: any): any[] {
+  if (Array.isArray(lineItem?.bursts)) {
+    return lineItem.bursts
+  }
+  if (lineItem?.bursts && typeof lineItem.bursts === "object") {
+    return [lineItem.bursts]
+  }
+  if (typeof lineItem?.bursts === "string") {
+    const fromBursts = parseBurstArray(lineItem.bursts)
+    if (fromBursts.length > 0) return fromBursts
+  }
+
+  if (lineItem?.bursts_json) {
+    if (Array.isArray(lineItem.bursts_json)) return lineItem.bursts_json
+    if (typeof lineItem.bursts_json === "string") {
+      return parseBurstArray(lineItem.bursts_json)
+    }
+    if (typeof lineItem.bursts_json === "object") {
+      return [lineItem.bursts_json]
+    }
+  }
+
   return []
 }
 

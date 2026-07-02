@@ -30,6 +30,7 @@ import { formatBurstLabel } from "@/lib/bursts"
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { appendBurst, duplicateBurst, removeBurst, newBurstReactKey, stampBurstReactKeys } from "@/lib/mediaplan/burstOperations"
 import { serializeBurstsJson } from "@/lib/mediaplan/serializeBurstsJson"
+import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
 import { getPublishersForInfluencers, getClientInfo } from "@/lib/api"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
@@ -94,6 +95,7 @@ import {
 import { SingleDatePicker } from "@/components/ui/single-date-picker"
 import { defaultMediaBurstStartDate, defaultMediaBurstEndDate } from "@/lib/date-picker-anchor"
 import MediaContainerTimelineCollapsible from "@/components/media-containers/MediaContainerTimelineCollapsible"
+import MediaContainerSummarySection from "@/components/media-containers/MediaContainerSummarySection"
 
 const MEDIA_ACCENT_HEX = getMediaTypeThemeHex("influencers")
 
@@ -452,7 +454,9 @@ export default function InfluencersContainer({
   useStableHydration(
     initialLineItems,
     (items) => {
-      const transformedLineItems = items.map((item: any, idx: number) => ({
+      const transformedLineItems = items.map((item: any, idx: number) => {
+        const parsedBursts = resolveLineItemBursts(item);
+        return {
         platform: item.platform || "",
         objective: item.objective || "",
         campaign: item.campaign || "",
@@ -477,7 +481,7 @@ export default function InfluencersContainer({
           buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.influencers, idx + 1),
         line_item: item.line_item ?? item.lineItem ?? idx + 1,
         lineItem: item.lineItem ?? item.line_item ?? idx + 1,
-        bursts: item.bursts_json ? (typeof item.bursts_json === 'string' ? JSON.parse(item.bursts_json) : item.bursts_json).map((burst: any) => ({
+        bursts: parsedBursts.length > 0 ? parsedBursts.map((burst: any) => ({
           budget: burst.budget || "",
           buyAmount: burst.buyAmount || "",
           startDate: burst.startDate ? new Date(burst.startDate) : new Date(),
@@ -494,7 +498,8 @@ export default function InfluencersContainer({
           startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
           endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
         }],
-      }));
+      };
+      });
 
       form.reset({
         lineItems: stampBurstReactKeys(transformedLineItems),
@@ -574,21 +579,30 @@ export default function InfluencersContainer({
       let lineFee = 0;
       let lineDeliverables = 0;
       let lineCost = 0;
+      const summaryBursts: InvestmentBurstInput[] = [];
 
       lineItem.bursts.forEach((burst) => {
         const budget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0;
+        let burstMedia = 0;
+        let burstFee = 0;
         // Always calculate media for display purposes (ignore clientPaysForMedia)
         if (lineItem.budgetIncludesFees) {
           const pct = feeinfluencers || 0;
-          lineMedia += (budget * (100 - pct)) / 100;
-          lineFee += (budget * pct) / 100;
+          burstMedia = (budget * (100 - pct)) / 100;
+          burstFee = (budget * pct) / 100;
         } else {
           // Budget is net media, fee calculated on top
-          lineMedia += budget;
-          const fee = feeinfluencers ? (budget / (100 - feeinfluencers)) * feeinfluencers : 0;
-          lineFee += fee;
+          burstMedia = budget;
+          burstFee = feeinfluencers ? (budget / (100 - feeinfluencers)) * feeinfluencers : 0;
         }
+        lineMedia += burstMedia;
+        lineFee += burstFee;
         lineDeliverables += burst.calculatedValue || 0;
+        summaryBursts.push({
+          amount: burstMedia + burstFee,
+          start: burst.startDate,
+          end: burst.endDate,
+        });
       });
 
       lineCost = lineMedia + lineFee;
@@ -603,6 +617,13 @@ export default function InfluencersContainer({
         media: lineMedia,
         fee: lineFee,
         totalCost: lineCost,
+        buyType: lineItem.buyType || "",
+        dimensions: {
+          Platform: lineItem.platform || "",
+          "Bid Strategy": lineItem.bidStrategy || "",
+          "Buy Type": lineItem.buyType || "",
+        },
+        bursts: summaryBursts,
       };
     });
 
@@ -1067,57 +1088,16 @@ const getBursts = () => {
             </div>
           </CardHeader>
           <CardContent className="space-y-0">
-            {overallTotals.lineItemTotals.map((item) => (
-              <div
-                key={item.index}
-                className="flex items-center justify-between py-2.5 border-b border-border/40 last:border-b-0"
-              >
-                <span className="text-sm font-medium text-muted-foreground">Line {item.index}</span>
-                <div className="flex items-center gap-6 text-sm tabular-nums">
-                  <div className="text-right">
-                    <span className="text-[11px] text-muted-foreground block">
-                      {getDeliverablesLabel(form.watch(`lineItems.${item.index - 1}.buyType`))}
-                    </span>
-                    <span>{item.deliverables.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[11px] text-muted-foreground block">Media</span>
-                    <span>{formatAUD(item.media)}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[11px] text-muted-foreground block">Fee</span>
-                    <span>{formatAUD(item.fee)}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[11px] text-muted-foreground block">Total</span>
-                    <span className="font-semibold">{formatAUD(item.totalCost)}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-
-            <div
-              className="flex items-center justify-between border-t-2 border-solid pt-3 mt-1"
-              style={mediaTypeTotalsRowStyle(MEDIA_ACCENT_HEX)}
-            >
-              <span className="text-sm font-semibold">Total</span>
-              <div className="flex items-center gap-6 text-sm font-semibold tabular-nums">
-                <div className="text-right">
-                  <span className="text-[11px] text-muted-foreground font-normal block">Media</span>
-                  <span>{formatAUD(overallTotals.overallMedia)}</span>
-                </div>
-                <div className="text-right">
-                  <span className="text-[11px] text-muted-foreground font-normal block">Fee ({feeinfluencers}%)</span>
-                  <span>{formatAUD(overallTotals.overallFee)}</span>
-                </div>
-                <div className="text-right">
-                  <span className="text-[11px] text-muted-foreground font-normal block">Total</span>
-                  <span style={mediaTypeAccentTextStyle(MEDIA_ACCENT_HEX)}>
-                    {formatAUD(overallTotals.overallCost)}
-                  </span>
-                </div>
-              </div>
-            </div>
+            <MediaContainerSummarySection
+              lines={overallTotals.lineItemTotals}
+              overallMedia={overallTotals.overallMedia}
+              overallFee={overallTotals.overallFee}
+              overallCost={overallTotals.overallCost}
+              feeLabel={`Fee (${feeinfluencers}%)`}
+              accentHex={MEDIA_ACCENT_HEX}
+              dimensions={["Platform", "Bid Strategy", "Buy Type"]}
+              deliverablesLabelFor={getDeliverablesLabel}
+            />
             <MediaContainerTimelineCollapsible
               mediaTypeKey="influencers"
               lineItems={watchedLineItems}

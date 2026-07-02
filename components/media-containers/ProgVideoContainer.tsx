@@ -30,6 +30,7 @@ import { getPublishersForProgVideo } from "@/lib/api"
 import { formatBurstLabel } from "@/lib/bursts"
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { serializeBurstsJson } from "@/lib/mediaplan/serializeBurstsJson"
+import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
 import { expertApplyClearedAdServingOverride } from "@/lib/mediaplan/adServingOverrideNotice"
 import { appendBurst, duplicateBurst, removeBurst, newBurstReactKey, stampBurstReactKeys } from "@/lib/mediaplan/burstOperations"
 import { format } from "date-fns"
@@ -67,6 +68,7 @@ import {
 import { SingleDatePicker } from "@/components/ui/single-date-picker"
 import { defaultMediaBurstStartDate, defaultMediaBurstEndDate } from "@/lib/date-picker-anchor"
 import MediaContainerTimelineCollapsible from "@/components/media-containers/MediaContainerTimelineCollapsible"
+import MediaContainerSummarySection from "@/components/media-containers/MediaContainerSummarySection"
 import {
   ProgVideoExpertGrid,
   createEmptyProgVideoExpertRow,
@@ -512,6 +514,7 @@ export default function ProgVideoContainer({
       const transformedLineItems = items.map((item: any) => {
         const normalizedPlatform = item.platform || item.publisher || "";
         const normalizedSite = item.site || item.publisher || normalizedPlatform;
+        const parsedBursts = resolveLineItemBursts(item);
 
         return {
           platform: normalizedPlatform,
@@ -533,11 +536,8 @@ export default function ProgVideoContainer({
           lineItem: item.lineItem ?? item.line_item,
           line_item_id: item.line_item_id || item.lineItemId,
           lineItemId: item.line_item_id || item.lineItemId,
-          bursts: item.bursts_json
-            ? (typeof item.bursts_json === "string"
-                ? JSON.parse(item.bursts_json)
-                : item.bursts_json
-              ).map((burst: any) => ({
+          bursts: parsedBursts.length > 0
+            ? parsedBursts.map((burst: any) => ({
                 budget: burst.budget || "",
                 buyAmount: burst.buyAmount || "",
                 startDate: burst.startDate ? new Date(burst.startDate) : new Date(),
@@ -648,35 +648,52 @@ export default function ProgVideoContainer({
       let lineDeliverables = 0;
       let lineFee = 0;
       let lineCost = 0;
-    
+      const summaryBursts: InvestmentBurstInput[] = [];
+
       lineItem.bursts.forEach((burst) => {
         const budget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0;
+        let burstMedia = 0;
+        let burstFee = 0;
         // Always calculate media for display purposes (ignore clientPaysForMedia)
         if (lineItem.budgetIncludesFees) {
           const pct = feeprogvideo || 0;
-          lineMedia += (budget * (100 - pct)) / 100;
-          lineFee += (budget * pct) / 100;
+          burstMedia = (budget * (100 - pct)) / 100;
+          burstFee = (budget * pct) / 100;
         } else {
           // Budget is net media, fee calculated on top
-          lineMedia += budget;
-          const fee = feeprogvideo ? (budget / (100 - feeprogvideo)) * feeprogvideo : 0;
-          lineFee += fee;
+          burstMedia = budget;
+          burstFee = feeprogvideo ? (budget / (100 - feeprogvideo)) * feeprogvideo : 0;
         }
+        lineMedia += burstMedia;
+        lineFee += burstFee;
         lineDeliverables += burst.calculatedValue || 0;
+        summaryBursts.push({
+          amount: burstMedia + burstFee,
+          start: burst.startDate,
+          end: burst.endDate,
+        });
       });
-    
+
       lineCost = lineMedia + lineFee;
-    
+
       overallMedia += lineMedia;
       overallFee += lineFee;
       overallCost += lineCost;
-    
+
       return {
         index: index + 1,
         deliverables: lineDeliverables,
         media: lineMedia,
         fee: lineFee,
         totalCost: lineCost,
+        buyType: lineItem.buyType || "",
+        dimensions: {
+          Platform: lineItem.platform || "",
+          Placement: lineItem.placement || "",
+          "Bid Strategy": lineItem.bidStrategy || "",
+          "Buy Type": lineItem.buyType || "",
+        },
+        bursts: summaryBursts,
       };
     });
     
@@ -1093,52 +1110,16 @@ useEffect(() => {
             </div>
           </CardHeader>
           <CardContent className="space-y-0">
-            {overallTotals.lineItemTotals.map((item) => (
-              <div
-                key={item.index}
-                className="flex items-center justify-between py-2.5 border-b border-border/40 last:border-b-0"
-              >
-                <span className="text-sm font-medium text-muted-foreground">Line {item.index}</span>
-                <div className="flex items-center gap-6 text-sm tabular-nums">
-                  <div className="text-right">
-                    <span className="text-[11px] text-muted-foreground block">
-                      {getDeliverablesLabel(form.getValues(`lineItems.${item.index - 1}.buyType`))}
-                    </span>
-                    <span>{item.deliverables.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[11px] text-muted-foreground block">Media</span>
-                    <span>{formatAUD(item.media)}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[11px] text-muted-foreground block">Fee</span>
-                    <span>{formatAUD(item.fee)}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[11px] text-muted-foreground block">Total</span>
-                    <span className="font-semibold">{formatAUD(item.totalCost)}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-
-            <div className="flex items-center justify-between pt-3 mt-1 border-t-2 border-primary/20">
-              <span className="text-sm font-semibold">Total</span>
-              <div className="flex items-center gap-6 text-sm font-semibold tabular-nums">
-                <div className="text-right">
-                  <span className="text-[11px] text-muted-foreground font-normal block">Media</span>
-                  <span>{formatAUD(overallTotals.overallMedia)}</span>
-                </div>
-                <div className="text-right">
-                  <span className="text-[11px] text-muted-foreground font-normal block">Fee ({feeprogvideo}%)</span>
-                  <span>{formatAUD(overallTotals.overallFee)}</span>
-                </div>
-                <div className="text-right">
-                  <span className="text-[11px] text-muted-foreground font-normal block">Total</span>
-                  <span className="text-primary">{formatAUD(overallTotals.overallCost)}</span>
-                </div>
-              </div>
-            </div>
+            <MediaContainerSummarySection
+              lines={overallTotals.lineItemTotals}
+              overallMedia={overallTotals.overallMedia}
+              overallFee={overallTotals.overallFee}
+              overallCost={overallTotals.overallCost}
+              feeLabel={`Fee (${feeprogvideo}%)`}
+              accentHex={PROG_VIDEO_MEDIA_HEX}
+              dimensions={["Platform", "Placement", "Bid Strategy", "Buy Type"]}
+              deliverablesLabelFor={getDeliverablesLabel}
+            />
             <MediaContainerTimelineCollapsible
               mediaTypeKey="progVideo"
               lineItems={watchedLineItems}

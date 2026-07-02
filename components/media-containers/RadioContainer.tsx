@@ -32,6 +32,7 @@ import { formatBurstLabel } from "@/lib/bursts"
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { appendBurst, duplicateBurst, removeBurst, newBurstReactKey, stampBurstReactKeys } from "@/lib/mediaplan/burstOperations"
 import { serializeBurstsJson } from "@/lib/mediaplan/serializeBurstsJson"
+import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { useStableHydration } from "@/hooks/useStableHydration"
@@ -95,6 +96,7 @@ import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColu
 import { SingleDatePicker } from "@/components/ui/single-date-picker"
 import { defaultMediaBurstStartDate, defaultMediaBurstEndDate } from "@/lib/date-picker-anchor"
 import MediaContainerTimelineCollapsible from "@/components/media-containers/MediaContainerTimelineCollapsible"
+import MediaContainerSummarySection from "@/components/media-containers/MediaContainerSummarySection"
 
 // Format Dates
 const formatDateString = (d?: Date | string): string => {
@@ -635,49 +637,7 @@ export default function RadioContainer({
           bursts_json_type: typeof item.bursts_json,
         });
 
-        // Safely parse bursts - check 'bursts' first (matches database schema), then fallback to 'bursts_json' for backward compatibility
-        let parsedBursts: any[] = [];
-        
-        // First, try to get bursts from item.bursts (matches database schema)
-        if (item.bursts) {
-          try {
-            if (Array.isArray(item.bursts)) {
-              parsedBursts = item.bursts;
-            } else if (typeof item.bursts === 'string') {
-              const trimmed = item.bursts.trim();
-              if (trimmed) {
-                parsedBursts = JSON.parse(trimmed);
-              }
-            } else if (typeof item.bursts === 'object') {
-              parsedBursts = [item.bursts];
-            }
-          } catch (parseError) {
-            console.error(`[RadioContainer] Error parsing bursts for item ${index}:`, parseError, item.bursts);
-            parsedBursts = [];
-          }
-        }
-        // Fallback to bursts_json for backward compatibility
-        else if (item.bursts_json) {
-          try {
-            if (typeof item.bursts_json === 'string') {
-              const trimmed = item.bursts_json.trim();
-              if (trimmed) {
-                parsedBursts = JSON.parse(trimmed);
-              }
-            } else if (Array.isArray(item.bursts_json)) {
-              parsedBursts = item.bursts_json;
-            } else if (typeof item.bursts_json === 'object') {
-              parsedBursts = [item.bursts_json];
-            }
-          } catch (parseError) {
-            console.error(`[RadioContainer] Error parsing bursts_json for item ${index}:`, parseError, item.bursts_json);
-            parsedBursts = [];
-          }
-        }
-
-        if (!Array.isArray(parsedBursts)) {
-          parsedBursts = [];
-        }
+        const parsedBursts = resolveLineItemBursts(item);
 
         const bursts = parsedBursts.length > 0 ? parsedBursts.map((burst: any) => ({
           budget: burst.budget || "",
@@ -828,39 +788,56 @@ export default function RadioContainer({
       let lineDeliverables = 0;
       let lineFee = 0;
       let lineCost = 0;
-    
+      const summaryBursts: InvestmentBurstInput[] = [];
+
       lineItem.bursts.forEach((burst) => {
         const budget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0;
+        let burstMedia = 0;
+        let burstFee = 0;
         // Always calculate media for display purposes (ignore clientPaysForMedia)
         if (lineItem.budgetIncludesFees) {
           // Budget is gross, split into media and fee
           // Media = Budget * ((100 - Fee) / 100)
           // Fees = Budget * (Fee / 100)
-          lineMedia += (budget * (100 - (feeradio || 0))) / 100;
-          lineFee += (budget * (feeradio || 0)) / 100;
+          burstMedia = (budget * (100 - (feeradio || 0))) / 100;
+          burstFee = (budget * (feeradio || 0)) / 100;
         } else {
           // Budget is net media, fee calculated on top
           // Media = Budget (unchanged)
           // Fees = Budget * (Fee / (100 - Fee))
-          lineMedia += budget;
-          const fee = feeradio ? (budget * feeradio) / (100 - feeradio) : 0;
-          lineFee += fee;
+          burstMedia = budget;
+          burstFee = feeradio ? (budget * feeradio) / (100 - feeradio) : 0;
         }
+        lineMedia += burstMedia;
+        lineFee += burstFee;
         lineDeliverables += burst.calculatedValue || 0;
+        summaryBursts.push({
+          amount: burstMedia + burstFee,
+          start: burst.startDate,
+          end: burst.endDate,
+        });
       });
-    
+
       lineCost = lineMedia + lineFee;
-    
+
       overallMedia += lineMedia;
       overallFee += lineFee;
       overallCost += lineCost;
-    
+
       return {
         index: index + 1,
         deliverables: lineDeliverables,
         media: lineMedia,
         fee: lineFee,
         totalCost: lineCost,
+        buyType: lineItem.buyType || "",
+        dimensions: {
+          Network: lineItem.network || "",
+          Station: lineItem.station || "",
+          "Bid Strategy": lineItem.bidStrategy || "",
+          "Buy Type": lineItem.buyType || "",
+        },
+        bursts: summaryBursts,
       };
     });
     
@@ -1352,52 +1329,16 @@ useEffect(() => {
             </div>
           </CardHeader>
           <CardContent className="space-y-0">
-            {overallTotals.lineItemTotals.map((item) => (
-              <div
-                key={item.index}
-                className="flex items-center justify-between py-2.5 border-b border-border/40 last:border-b-0"
-              >
-                <span className="text-sm font-medium text-muted-foreground">Line {item.index}</span>
-                <div className="flex items-center gap-6 text-sm tabular-nums">
-                  <div className="text-right">
-                    <span className="text-[11px] text-muted-foreground block">
-                      {getDeliverablesLabel(form.getValues(`radiolineItems.${item.index - 1}.buyType`))}
-                    </span>
-                    <span>{item.deliverables.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[11px] text-muted-foreground block">Media</span>
-                    <span>{formatAUD(item.media)}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[11px] text-muted-foreground block">Fee</span>
-                    <span>{formatAUD(item.fee)}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[11px] text-muted-foreground block">Total</span>
-                    <span className="font-semibold">{formatAUD(item.totalCost)}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-
-            <div className="flex items-center justify-between pt-3 mt-1 border-t-2 border-primary/20">
-              <span className="text-sm font-semibold">Total</span>
-              <div className="flex items-center gap-6 text-sm font-semibold tabular-nums">
-                <div className="text-right">
-                  <span className="text-[11px] text-muted-foreground font-normal block">Media</span>
-                  <span>{formatAUD(overallTotals.overallMedia)}</span>
-                </div>
-                <div className="text-right">
-                  <span className="text-[11px] text-muted-foreground font-normal block">Fee ({feeradio}%)</span>
-                  <span>{formatAUD(overallTotals.overallFee)}</span>
-                </div>
-                <div className="text-right">
-                  <span className="text-[11px] text-muted-foreground font-normal block">Total</span>
-                  <span className="text-primary">{formatAUD(overallTotals.overallCost)}</span>
-                </div>
-              </div>
-            </div>
+            <MediaContainerSummarySection
+              lines={overallTotals.lineItemTotals}
+              overallMedia={overallTotals.overallMedia}
+              overallFee={overallTotals.overallFee}
+              overallCost={overallTotals.overallCost}
+              feeLabel={`Fee (${feeradio}%)`}
+              accentHex={MEDIA_ACCENT_HEX}
+              dimensions={["Network", "Station", "Bid Strategy", "Buy Type"]}
+              deliverablesLabelFor={getDeliverablesLabel}
+            />
             <MediaContainerTimelineCollapsible
               mediaTypeKey="radio"
               lineItems={watchedLineItems}

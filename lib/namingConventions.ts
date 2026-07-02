@@ -1,6 +1,7 @@
 import { format } from "date-fns";
 import type ExcelJS from "exceljs";
 import { LineItem } from "./generateMediaPlan";
+import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts";
 import type { MediaContainerBestPractice, Publisher } from "@/lib/types/publisher";
 import { isEmptyBestPractice, type BestPractice } from "@/lib/types/bestPractice";
 
@@ -367,8 +368,9 @@ export async function generateNamingWorkbook(inputs: NamingWorkbookInputs): Prom
     currentRow++;
 
     list.forEach((item, idx) => {
-      const bursts = Array.isArray((item as any).bursts) && (item as any).bursts.length > 0
-        ? (item as any).bursts as any[]
+      const resolvedBursts = resolveLineItemBursts(item)
+      const bursts = resolvedBursts.length > 0
+        ? resolvedBursts
         : [{
             startDate: item.startDate,
             endDate: item.endDate,

@@ -2,6 +2,7 @@ import { getScheduleHeaders } from "@/lib/billing/scheduleHeaders"
 import { prorateAcrossMonths } from "@/lib/billing/prorateAcrossMonths"
 import type { BillingBurst, BillingLineItem, BillingMonth } from "@/lib/billing/types"
 import { resolveLineDimensions } from "@/lib/finance/resolveLineDimensions"
+import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
 
 export type SeedBurstSource = {
   startDate: Date | string
@@ -34,16 +35,7 @@ export function feeAmountsMatch(stored: number | undefined, derived: number): bo
 }
 
 export function parseLineItemBursts(lineItem: any): any[] {
-  if (typeof lineItem?.bursts_json === "string") {
-    try {
-      return JSON.parse(lineItem.bursts_json)
-    } catch {
-      return []
-    }
-  }
-  if (Array.isArray(lineItem?.bursts_json)) return lineItem.bursts_json
-  if (Array.isArray(lineItem?.bursts)) return lineItem.bursts
-  return []
+  return resolveLineItemBursts(lineItem)
 }
 
 function lineClientPaysForMedia(

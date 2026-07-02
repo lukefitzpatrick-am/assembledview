@@ -21,6 +21,7 @@ import {
   type MoneyFormatOptions,
 } from "@/lib/format/money"
 import { weekKeysInSpanInclusive } from "./expertGridShared"
+import { resolveLineItemBursts } from "./deriveBursts"
 import {
   coveredDayKeysIfDayDetail,
   expandWeekToDaily,
@@ -658,14 +659,7 @@ function parseBurstDate(v: Date | string | undefined): Date | null {
  * falls back to the raw `budget` field.
  */
 function normalizeOohBursts(item: StandardOohLineItemInput): StandardMediaBurst[] {
-  const raw =
-    item.bursts ??
-    (item.bursts_json
-      ? typeof item.bursts_json === "string"
-        ? JSON.parse(item.bursts_json)
-        : item.bursts_json
-      : []) ??
-    []
+  const raw = resolveLineItemBursts(item)
   if (!Array.isArray(raw)) return []
   const out: StandardMediaBurst[] = []
   for (const b of raw) {
@@ -3964,7 +3958,7 @@ function emptySocialMediaLineItem(
   lineNo: number,
   budgetIncludesFees: boolean
 ): StandardSocialMediaFormLineItem {
-  const id = row.id || String(lineNo)
+  const id = deriveExpertSourceLineItemId(row, lineNo)
   return {
     platform: row.platform,
     bidStrategy: row.bidStrategy,
@@ -4015,7 +4009,7 @@ export function mapSocialMediaExpertRowsToStandardLineItems(
     const lineNo = idx + 1
     const unitRate = parseNum(row.unitRate)
     const buyType = row.buyType
-    const id = row.id || String(lineNo)
+    const id = deriveExpertSourceLineItemId(row, lineNo)
     const budgetIncludesFees = Boolean(
       row.budgetIncludesFees ?? options?.budgetIncludesFees ?? false
     )
@@ -4229,9 +4223,14 @@ export function mapStandardSocialMediaLineItemsToExpertRows(
         item.lineItem ??
         index + 1
     )
+    const _reactKey =
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `socialmedia-expert-import-${Date.now()}-${index}`
 
     return {
-      id,
+      id: _reactKey,
+      sourceLineItemId: id,
       startDate: firstBurst
         ? formatYmd(firstBurst.startDate)
         : formatYmd(campaignStartDate),
@@ -4764,7 +4763,7 @@ function emptyInfluencersLineItem(
   lineNo: number,
   budgetIncludesFees: boolean
 ): StandardInfluencersFormLineItem {
-  const id = row.id || String(lineNo)
+  const id = deriveExpertSourceLineItemId(row, lineNo)
   return {
     platform: row.platform,
     objective: row.objective,
@@ -4813,7 +4812,7 @@ export function mapInfluencersExpertRowsToStandardLineItems(
     const lineNo = idx + 1
     const unitRate = parseNum(row.unitRate)
     const buyType = row.buyType
-    const id = row.id || String(lineNo)
+    const id = deriveExpertSourceLineItemId(row, lineNo)
     const budgetIncludesFees = Boolean(
       row.budgetIncludesFees ?? options?.budgetIncludesFees ?? false
     )
@@ -5030,9 +5029,14 @@ export function mapStandardInfluencersLineItemsToExpertRows(
         item.lineItem ??
         index + 1
     )
+    const _reactKey =
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `influencers-expert-import-${Date.now()}-${index}`
 
     return {
-      id,
+      id: _reactKey,
+      sourceLineItemId: id,
       startDate: firstBurst
         ? formatYmd(firstBurst.startDate)
         : formatYmd(campaignStartDate),
@@ -5171,7 +5175,7 @@ function emptyIntegrationLineItem(
   lineNo: number,
   budgetIncludesFees: boolean
 ): StandardIntegrationFormLineItem {
-  const id = row.id || String(lineNo)
+  const id = deriveExpertSourceLineItemId(row, lineNo)
   return {
     platform: row.platform,
     objective: row.objective,
@@ -5220,7 +5224,7 @@ export function mapIntegrationExpertRowsToStandardLineItems(
     const lineNo = idx + 1
     const unitRate = parseNum(row.unitRate)
     const buyType = row.buyType
-    const id = row.id || String(lineNo)
+    const id = deriveExpertSourceLineItemId(row, lineNo)
     const budgetIncludesFees = Boolean(
       row.budgetIncludesFees ?? options?.budgetIncludesFees ?? false
     )
@@ -5437,9 +5441,14 @@ export function mapStandardIntegrationLineItemsToExpertRows(
         item.lineItem ??
         index + 1
     )
+    const _reactKey =
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `integration-expert-import-${Date.now()}-${index}`
 
     return {
-      id,
+      id: _reactKey,
+      sourceLineItemId: id,
       startDate: firstBurst
         ? formatYmd(firstBurst.startDate)
         : formatYmd(campaignStartDate),

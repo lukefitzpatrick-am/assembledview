@@ -2,6 +2,7 @@ import { getScheduleHeaders } from "@/lib/billing/scheduleHeaders"
 import { prorateAcrossMonths } from "@/lib/billing/prorateAcrossMonths"
 import type { BillingLineItem, BillingMonth } from "@/lib/billing/types"
 import { resolveLineDimensions } from "@/lib/finance/resolveLineDimensions"
+import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
 
 /**
  * Build per-month media amounts for each container line item (billing or delivery mode).
@@ -30,18 +31,7 @@ export function generateBillingLineItems(
       monthlyAmounts[key] = 0
     })
 
-    let bursts: any[] = []
-    if (typeof lineItem.bursts_json === "string") {
-      try {
-        bursts = JSON.parse(lineItem.bursts_json)
-      } catch {
-        bursts = []
-      }
-    } else if (Array.isArray(lineItem.bursts_json)) {
-      bursts = lineItem.bursts_json
-    } else if (Array.isArray(lineItem.bursts)) {
-      bursts = lineItem.bursts
-    }
+    const bursts = resolveLineItemBursts(lineItem)
 
     const inferredLineItemFeePct = (() => {
       const budgetIncludesFees = Boolean(

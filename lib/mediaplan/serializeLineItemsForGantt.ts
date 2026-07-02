@@ -1,5 +1,7 @@
 import { format } from "date-fns"
 
+import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
+
 function toIsoDateOnly(value: unknown): string {
   if (value == null || value === "") return ""
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
@@ -47,14 +49,11 @@ export function serializeLineItemsForGantt(
   return lineItems.map((item) => {
     if (item == null || typeof item !== "object") return item
     const raw = item as Record<string, unknown>
-    const burstsRaw = raw.bursts ?? raw.bursts_json
-    const bursts = Array.isArray(burstsRaw)
-      ? burstsRaw.map((b) =>
-          b != null && typeof b === "object"
-            ? mapBurstForGantt(b as Record<string, unknown>, mediaTypeKey)
-            : b
-        )
-      : burstsRaw
+    const bursts = resolveLineItemBursts(raw).map((b) =>
+      b != null && typeof b === "object"
+        ? mapBurstForGantt(b as Record<string, unknown>, mediaTypeKey)
+        : b
+    )
 
     return {
       ...raw,
