@@ -126,7 +126,7 @@ test("mergeRadioStandardFromExpertWithPrevious matches by line_item_id", () => {
   assert.equal(m.line_item, 99)
 })
 
-test("mergeRadioStandardFromExpertWithPrevious clears identity for unmatched generated rows", () => {
+test("mergeRadioStandardFromExpertWithPrevious keeps identity for unmatched generated rows", () => {
   const generated: StandardRadioFormLineItem[] = [
     {
       network: "N",
@@ -155,8 +155,8 @@ test("mergeRadioStandardFromExpertWithPrevious clears identity for unmatched gen
 
   const [m] = mergeRadioStandardFromExpertWithPrevious(generated, [])
 
-  assert.equal(m.line_item, undefined)
-  assert.equal(m.lineItem, undefined)
-  assert.equal(m.line_item_id, undefined)
-  assert.equal(m.lineItemId, undefined)
+  assert.equal(m.line_item, 1)
+  assert.equal(m.lineItem, 1)
+  assert.equal(m.line_item_id, "new-row")
+  assert.equal(m.lineItemId, "new-row")
 })

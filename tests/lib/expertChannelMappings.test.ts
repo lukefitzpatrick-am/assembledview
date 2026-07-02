@@ -343,8 +343,9 @@ test("Standard OOH burst spanning two week columns splits deliverables across we
   )
 
   assert.equal(row.mergedWeekSpans, undefined)
-  assert.equal(row.weeklyValues[w0], 2.5)
-  assert.equal(row.weeklyValues[w1], 2.5)
+  // Integer split with remainder to earliest weeks (5 deliverables / 2 weeks → 3 + 2).
+  assert.equal(row.weeklyValues[w0], 3)
+  assert.equal(row.weeklyValues[w1], 2)
 })
 
 test("Radio spots round-trip preserves id and weekly cell qty", () => {
@@ -382,12 +383,13 @@ test("Radio spots round-trip preserves id and weekly cell qty", () => {
   )
 
   const back = mapStandardRadioLineItemsToExpertRows(standard, cols, campaignStart, campaignEnd)
-  assert.equal(back[0]!.id, "RAD-42")
+  assert.notEqual(back[0]!.id, "RAD-42")
+  assert.equal(back[0]!.sourceLineItemId, "RAD-42")
   assert.equal(back[0]!.weeklyValues[w0], 4)
   assert.equal(back[0]!.unitRate, 50)
 })
 
-test("Standard OOH → expert maps burst buyAmount into week column by burst startDate", () => {
+test("Standard OOH → expert maps panels deliverables to day-detail for sub-week burst", () => {
   const campaignStart = new Date(2024, 9, 23)
   const campaignEnd = new Date(2024, 9, 29)
   const cols = buildWeeklyGanttColumnsFromCampaign(campaignStart, campaignEnd)
@@ -421,8 +423,16 @@ test("Standard OOH → expert maps burst buyAmount into week column by burst sta
     campaignEnd
   )
 
-  assert.equal(row.id, "L1")
-  assert.equal(row.weeklyValues[w0], 3)
+  assert.notEqual(row.id, "L1")
+  assert.equal(row.sourceLineItemId, "L1")
+  assert.equal(row.weeklyValues[w0], "")
+  assert.equal(row.unitRate, 3)
+  assert.ok(row.dailyValues)
+  const dailyTotal = Object.values(row.dailyValues!).reduce<number>(
+    (sum, v) => sum + (v === "" || v === undefined ? 0 : Number(v)),
+    0
+  )
+  assert.equal(dailyTotal, 3)
   assert.equal(row.grossCost, 300)
 })
 
