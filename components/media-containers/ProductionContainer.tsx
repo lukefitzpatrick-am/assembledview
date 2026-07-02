@@ -3,7 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useForm, useFieldArray, UseFormReturn, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import * as z from "zod"
+import {
+  productionFormSchema,
+  type ProductionBurstValues,
+  type ProductionFormValues,
+} from "@/lib/mediaplan/schemas"
 import { format } from "date-fns"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -66,28 +70,6 @@ import { assignStableLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import { formatProductionBurstForPersist } from "@/lib/mediaplan/resolveProductionBurstBudget"
 
 const MEDIA_ACCENT_HEX = getMediaTypeThemeHex("production")
-
-const burstSchema = z.object({
-  cost: z.number().min(0, "Cost is required"),
-  amount: z.number().min(0, "Amount is required"),
-  startDate: z.date(),
-  endDate: z.date(),
-})
-
-const lineItemSchema = z.object({
-  mediaType: z.string().min(1, "Production type is required"),
-  publisher: z.string().optional(),
-  description: z.string().optional(),
-  market: z.string().optional(),
-  bursts: z.array(burstSchema).min(1, "At least one burst is required"),
-  lineItemId: z.string().optional(),
-})
-
-const formSchema = z.object({
-  lineItems: z.array(lineItemSchema).min(1, "At least one line item is required"),
-})
-
-type ProductionFormValues = z.infer<typeof formSchema>
 
 // Normalize to a date-only value (local midnight) to avoid TZ off-by-one.
 const toDateOnly = (d?: Date | string | null): Date | null => {
@@ -225,7 +207,7 @@ export default function ProductionContainer({
   const mediaTypeOptions = useMemo(() => buildMediaTypeOptions(mediaTypes), [mediaTypes])
   const [openMediaIndex, setOpenMediaIndex] = useState<number | null>(null)
 
-  const makeDefaultBurst = useCallback((): z.infer<typeof burstSchema> & { _reactKey: string } => {
+  const makeDefaultBurst = useCallback((): ProductionBurstValues & { _reactKey: string } => {
     const startRaw = defaultMediaBurstStartDate(campaignStartDate, campaignEndDate)
     const startDate = toDateOnly(startRaw) || startRaw
     const endRaw = defaultMediaBurstEndDate(campaignStartDate, campaignEndDate)
@@ -261,7 +243,7 @@ export default function ProductionContainer({
   }, [onMediaLineItemsChange])
 
   const form = useForm<ProductionFormValues>({
-    resolver: zodResolver(formSchema),
+    resolver: zodResolver(productionFormSchema),
     defaultValues: {
       lineItems: [
         {

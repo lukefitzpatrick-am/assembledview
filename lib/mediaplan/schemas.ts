@@ -6,7 +6,10 @@
  * declaring them inline.
  *
  * Design (locked Stage 3):
- *   - `baseBurstSchema`               — shared by 18/19 channels
+ *   - `baseBurstSchema`               — shared by 18 fee-bearing channels
+ *   - `productionBurstSchema`         — Production's unit-economics variant
+ *     (`cost`/`amount: z.number()` rather than `budget`/`buyAmount: z.string()`;
+ *     line item uses mediaType/publisher/description instead of platform/buyType)
  *   - `televisionBurstSchema`         — Television's extended burst (size, tarps,
  *                                       custom error messages, plus a .refine()
  *                                       guarding endDate >= startDate)
@@ -16,10 +19,8 @@
  *     exactly as they were declared inline in each Container, so no validation
  *     behaviour changes.
  *
- * Excluded from centralisation:
- *   - ProductionContainer — burst uses `cost`/`amount: z.number()` rather than
- *     `budget`/`buyAmount: z.string()`, and the line item shape is unrelated
- *     (mediaType/publisher/description). Production keeps its own inline schemas.
+ * Production is centralised here with its intentional burst/line-item variant;
+ * read paths bridge to standard keys via `resolveProductionBurstBudget`.
  */
 
 import * as z from "zod"
@@ -118,6 +119,17 @@ export const progBvodBurstSchema = baseBurstSchema
 export const progAudioBurstSchema = baseBurstSchema
 export const progOOHBurstSchema = baseBurstSchema
 // televisionBurstSchema is exported above (refined variant).
+
+/**
+ * Production burst — unit cost × quantity (numbers), not budget/buyAmount strings.
+ * Dual-write to standard keys happens at persist time; hydration stays on cost/amount.
+ */
+export const productionBurstSchema = z.object({
+  cost: z.number().min(0, "Cost is required"),
+  amount: z.number().min(0, "Amount is required"),
+  startDate: z.date(),
+  endDate: z.date(),
+})
 
 // ============================================================================
 // Line item schemas
@@ -662,3 +674,21 @@ export const progOOHFormSchema = z.object({
   overallDeliverables: z.number().optional(),
 })
 export type ProgOOHFormValues = z.infer<typeof progOOHFormSchema>
+
+// --- Production --------------------------------------------------------------
+
+export const productionLineItemSchema = z.object({
+  mediaType: z.string().min(1, "Production type is required"),
+  publisher: z.string().optional(),
+  description: z.string().optional(),
+  market: z.string().optional(),
+  bursts: z.array(productionBurstSchema).min(1, "At least one burst is required"),
+  lineItemId: z.string().optional(),
+})
+
+export const productionFormSchema = z.object({
+  lineItems: z.array(productionLineItemSchema).min(1, "At least one line item is required"),
+})
+
+export type ProductionFormValues = z.infer<typeof productionFormSchema>
+export type ProductionBurstValues = z.infer<typeof productionBurstSchema>
