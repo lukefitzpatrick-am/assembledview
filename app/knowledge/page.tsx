@@ -34,15 +34,17 @@ export default function KnowledgeHubHome() {
             Definitions, calculators and best-practice — written so a client and a brand-new planner both get what
             they need, with every entry sourced.
           </p>
-          <form onSubmit={submitSearch} className="relative max-w-xl pt-1">
-            <Search className="absolute left-3 top-[18px] h-4 w-4 text-muted-foreground" />
-            <Input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search the glossary — CPM, reach, attribution…"
-              className="pl-9 pr-20 bg-background focus-visible:ring-ring"
-            />
-            <Button type="submit" size="sm" className="absolute right-1.5 top-1/2 translate-y-[2px]">
+          <form onSubmit={submitSearch} className="flex max-w-xl gap-2 pt-1">
+            <div className="relative min-w-0 flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search the glossary — CPM, reach, attribution…"
+                className="rounded-input bg-background pl-9 focus-visible:ring-ring"
+              />
+            </div>
+            <Button type="submit" className="shrink-0">
               Search
             </Button>
           </form>

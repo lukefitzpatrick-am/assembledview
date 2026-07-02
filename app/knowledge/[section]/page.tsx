@@ -159,36 +159,28 @@ export default function LearningSectionPage({ params }: PageProps) {
               <span>Fuzzy search with Fuse.js</span>
             </div>
           </div>
-          <div className="flex flex-col gap-3 md:flex-row md:items-center">
-            <div className="relative flex-1 min-w-[240px]">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search terms, definitions, formulas"
-                className="pl-9 pr-24"
-              />
-              {query && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground"
-                  onClick={() => setQuery("")}
-                >
-                  Clear
-                </Button>
-              )}
-              {searchHint.length > 0 && (
-                <div className="flex gap-2 mt-2 flex-wrap">
-                  {searchHint.map((hint) => (
-                    <Button key={hint} variant="secondary" size="sm" onClick={() => setQuery(hint)}>
-                      {hint}
-                    </Button>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
+          <div className="space-y-2">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+              <div className="relative min-w-[240px] flex-1 lg:max-w-md">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search terms, definitions, formulas"
+                  className="rounded-input pl-9 pr-20"
+                />
+                {query && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground"
+                    onClick={() => setQuery("")}
+                  >
+                    Clear
+                  </Button>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant="outline" size="sm" className="gap-2">
@@ -256,7 +248,17 @@ export default function LearningSectionPage({ params }: PageProps) {
                 <X className="h-4 w-4 mr-1" />
                 Reset
               </Button>
+              </div>
             </div>
+            {searchHint.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {searchHint.map((hint) => (
+                  <Button key={hint} variant="secondary" size="sm" onClick={() => setQuery(hint)}>
+                    {hint}
+                  </Button>
+                ))}
+              </div>
+            )}
           </div>
           <Tabs value={section} onValueChange={setTab}>
             <TabsList>

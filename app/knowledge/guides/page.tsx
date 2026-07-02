@@ -55,12 +55,12 @@ export default function GuidesPage() {
           </div>
           <div className="flex flex-col gap-3 md:flex-row md:items-center">
             <div className="relative max-w-md flex-1">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Search guides"
-                className="pl-9 rounded-input focus-visible:ring-ring"
+                className="rounded-input pl-9 focus-visible:ring-ring"
               />
             </div>
             <div className="flex items-center gap-2">
