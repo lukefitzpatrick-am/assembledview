@@ -8,22 +8,30 @@ import { serializeSpreadsheetCellKey } from "@/lib/spreadsheet/cellKey"
 import { spreadsheetCellDomId } from "@/lib/spreadsheet/cellKey"
 import type { SpreadsheetCellKey } from "@/lib/spreadsheet/types"
 import { cn } from "@/lib/utils"
+import type { BillingCellAdjustmentKind } from "@/lib/billing/billingLineAdjustmentIndicators"
+import {
+  DIVERGENT_BILLING_CELL_TOOLTIP,
+  MANUAL_BILLING_ADJUSTMENT_TOOLTIP,
+} from "@/lib/billing/billingLineAdjustmentIndicators"
 
 import {
   spreadsheetCellOutlineClass,
   useManualBillingSpreadsheetCell,
 } from "@/components/billing/manualBillingSpreadsheetContext"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 type ManualBillingSpreadsheetCellProps = Readonly<{
   cellKey: SpreadsheetCellKey
   children: ReactNode
   className?: string
+  adjustmentKind?: BillingCellAdjustmentKind | null
 }>
 
 export function ManualBillingSpreadsheetCell({
   cellKey,
   children,
   className,
+  adjustmentKind = null,
 }: ManualBillingSpreadsheetCellProps) {
   const ctx = useManualBillingSpreadsheetCell()
   const serialized = serializeSpreadsheetCellKey(cellKey)
@@ -46,13 +54,21 @@ export function ManualBillingSpreadsheetCell({
   const dropTarget = ctx.isDropTarget(rowIndex, colIndex)
   const fillHandle = ctx.showFillHandle(rowIndex, colIndex)
 
-  return (
+  const tooltipLabel =
+    adjustmentKind === "manual"
+      ? MANUAL_BILLING_ADJUSTMENT_TOOLTIP
+      : adjustmentKind === "divergent"
+        ? DIVERGENT_BILLING_CELL_TOOLTIP
+        : null
+
+  const cell = (
     <div
       className={cn(
         "relative rounded-input",
+        adjustmentKind === "manual" && "bg-pacing-behind-bg",
         focused && "ring-2 ring-inset ring-primary",
         !focused && (selected || copied) && spreadsheetCellOutlineClass(outlineFlags),
-        copied && "bg-pacing-behind-bg",
+        copied && adjustmentKind !== "manual" && "bg-pacing-behind-bg",
         dropTarget && "ring-2 ring-inset ring-primary/60",
         className
       )}
@@ -105,6 +121,15 @@ export function ManualBillingSpreadsheetCell({
         </button>
       ) : null}
     </div>
+  )
+
+  if (!tooltipLabel) return cell
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{cell}</TooltipTrigger>
+      <TooltipContent>{tooltipLabel}</TooltipContent>
+    </Tooltip>
   )
 }
 

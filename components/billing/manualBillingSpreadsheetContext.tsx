@@ -9,8 +9,15 @@ import {
   type ReactNode,
 } from "react"
 
+import { ManualBillingAdjustmentLegend } from "@/components/billing/ManualBillingAdjustmentLegend"
 import { buildManualBillingSpreadsheetRegistry } from "@/lib/billing/buildManualBillingSpreadsheetRegistry"
 import type { ManualBillingMediaSection } from "@/lib/billing/buildManualBillingSpreadsheetRegistry"
+import {
+  buildBillingLineAdjustmentMaps,
+  getBillingCellAdjustmentKind,
+  type BillingCellAdjustmentKind,
+  type BillingLineAdjustmentMaps,
+} from "@/lib/billing/billingLineAdjustmentIndicators"
 import { parseBillingAmountRaw } from "@/lib/billing/parseBillingAmount"
 import type { BillingMonth } from "@/lib/billing/types"
 import { serializeSpreadsheetCellKey, spreadsheetCellDomId } from "@/lib/spreadsheet/cellKey"
@@ -24,6 +31,7 @@ import { cn } from "@/lib/utils"
 
 import { ManualBillingSelectionStatusBar } from "@/components/billing/ManualBillingSelectionStatusBar"
 import { toast } from "@/components/ui/use-toast"
+import { TooltipProvider } from "@/components/ui/tooltip"
 
 export type ManualBillingSpreadsheetCallbacks = Readonly<{
   getLineItemAmount: (mediaKey: string, lineItemId: string, monthYear: string) => number
@@ -40,6 +48,8 @@ type ProviderProps = Readonly<{
   /** Rendered below the selection status bar (e.g. modal Cancel / Save footer). */
   footer?: ReactNode
   months: BillingMonth[]
+  /** Burst-derived reference for divergent-cell highlighting (optional). */
+  autoReferenceMonths?: BillingMonth[]
   expandedAccordionValues: string[]
   mediaSections: ManualBillingMediaSection[]
   formatter: Intl.NumberFormat
@@ -87,6 +97,10 @@ type CellContextValue = Readonly<{
   showFillHandle: (rowIndex: number, colIndex: number) => boolean
   onFillHandleDragStart: (e: React.DragEvent) => void
   onFillHandleDragEnd: () => void
+  getLineItemCellAdjustmentKind: (
+    lineItemId: string,
+    monthYear: string
+  ) => BillingCellAdjustmentKind | null
 }>
 
 const SpreadsheetCellContext = createContext<CellContextValue | null>(null)
@@ -103,6 +117,7 @@ export function ManualBillingSpreadsheetProvider({
   children,
   footer,
   months,
+  autoReferenceMonths,
   expandedAccordionValues,
   mediaSections,
   formatter,
@@ -111,6 +126,11 @@ export function ManualBillingSpreadsheetProvider({
   callbacks,
   onPasteLayout,
 }: ProviderProps) {
+  const adjustmentMaps = useMemo<BillingLineAdjustmentMaps>(
+    () => buildBillingLineAdjustmentMaps(months, autoReferenceMonths),
+    [months, autoReferenceMonths]
+  )
+
   const registry = useMemo(
     () =>
       buildManualBillingSpreadsheetRegistry({
@@ -248,6 +268,8 @@ export function ManualBillingSpreadsheetProvider({
       showFillHandle: dragMove.showFillHandle,
       onFillHandleDragStart: dragMove.onFillHandleDragStart,
       onFillHandleDragEnd: dragMove.onFillHandleDragEnd,
+      getLineItemCellAdjustmentKind: (lineItemId, monthYear) =>
+        getBillingCellAdjustmentKind(adjustmentMaps, lineItemId, monthYear),
       onInputKeyDown: (serializedKey, rowIndex, colIndex, e) => {
         if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") {
           e.preventDefault()
@@ -263,31 +285,38 @@ export function ManualBillingSpreadsheetProvider({
         })
       },
     }),
-    [keyToCoords, registry, selection, getNumericValue, valueCallbacks, dragMove]
+    [adjustmentMaps, keyToCoords, registry, selection, getNumericValue, valueCallbacks, dragMove]
   )
 
   return (
-    <SpreadsheetCellContext.Provider value={cellCtx}>
-      <div
-        className="flex min-h-0 flex-1 flex-col"
-        onKeyDownCapture={clipboard.handleGridKeyDownCapture}
-        onPasteCapture={clipboard.handlePasteCapture}
-        onCopyCapture={(e) => {
-          void clipboard.copySelection()
-          e.preventDefault()
-        }}
-      >
-        <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
-        {selection.statusBar ? (
-          <ManualBillingSelectionStatusBar
-            count={selection.statusBar.count}
-            sum={selection.statusBar.sum}
-            formatter={formatter}
-          />
-        ) : null}
-        {footer ?? null}
-      </div>
-    </SpreadsheetCellContext.Provider>
+    <TooltipProvider delayDuration={200}>
+      <SpreadsheetCellContext.Provider value={cellCtx}>
+        <div
+          className="flex min-h-0 flex-1 flex-col"
+          onKeyDownCapture={clipboard.handleGridKeyDownCapture}
+          onPasteCapture={clipboard.handlePasteCapture}
+          onCopyCapture={(e) => {
+            void clipboard.copySelection()
+            e.preventDefault()
+          }}
+        >
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <div className="border-b border-border px-6 py-2">
+              <ManualBillingAdjustmentLegend />
+            </div>
+            {children}
+          </div>
+          {selection.statusBar ? (
+            <ManualBillingSelectionStatusBar
+              count={selection.statusBar.count}
+              sum={selection.statusBar.sum}
+              formatter={formatter}
+            />
+          ) : null}
+          {footer ?? null}
+        </div>
+      </SpreadsheetCellContext.Provider>
+    </TooltipProvider>
   )
 }
 

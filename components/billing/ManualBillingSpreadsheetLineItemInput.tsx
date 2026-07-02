@@ -5,6 +5,7 @@ import { ManualBillingSpreadsheetCell } from "@/components/billing/ManualBilling
 import { useManualBillingSpreadsheetCell } from "@/components/billing/manualBillingSpreadsheetContext"
 import { serializeSpreadsheetCellKey, spreadsheetCellDomId } from "@/lib/spreadsheet/cellKey"
 import type { SpreadsheetCellKey } from "@/lib/spreadsheet/types"
+import { cn } from "@/lib/utils"
 
 type Props = Readonly<{
   cellKey: SpreadsheetCellKey
@@ -26,11 +27,18 @@ export function ManualBillingSpreadsheetLineItemInput({
   const ctx = useManualBillingSpreadsheetCell()
   const serialized = serializeSpreadsheetCellKey(cellKey)
   const coords = ctx.getCellCoords(serialized)
+  const adjustmentKind =
+    cellKey.rowKind === "lineItem"
+      ? ctx.getLineItemCellAdjustmentKind(cellKey.rowId, cellKey.monthYear)
+      : null
 
   const input = (
     <EditableLineItemMonthInput
       id={coords ? spreadsheetCellDomId(serialized) : undefined}
-      className={className}
+      className={cn(
+        className,
+        adjustmentKind === "divergent" && "underline decoration-dashed decoration-muted-foreground underline-offset-4"
+      )}
       amount={amount}
       formatter={formatter}
       onAmountChange={onAmountChange}
@@ -51,7 +59,11 @@ export function ManualBillingSpreadsheetLineItemInput({
   if (!coords) return input
 
   return (
-    <ManualBillingSpreadsheetCell cellKey={cellKey} className="inline-block">
+    <ManualBillingSpreadsheetCell
+      cellKey={cellKey}
+      className="inline-block"
+      adjustmentKind={adjustmentKind}
+    >
       {input}
     </ManualBillingSpreadsheetCell>
   )

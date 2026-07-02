@@ -4522,6 +4522,14 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   // Keep ref always current — assigned during render so timeouts / handlers never read a stale `attachLineItemsToMonths`.
   attachLineItemsToMonthsRef.current = attachLineItemsToMonths
 
+  const manualBillingAutoReferenceMonths = useMemo(() => {
+    if (autoReferenceBillingMonths.length === 0) return undefined
+    return attachLineItemsToMonths(
+      deepCloneBillingMonthsState(autoReferenceBillingMonths),
+      "billing"
+    )
+  }, [autoReferenceBillingMonths, attachLineItemsToMonths])
+
   /**
    * Full billing reset — **Edit Billing modal only** (confirmed in dialog). Refreshes auto ref, then replaces
    * **workingBillingMonths** from `autoReferenceBillingMonths` + attached line items. Does not update `savedBillingMonths`
@@ -9829,6 +9837,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
             <ManualBillingSpreadsheetProvider
               months={manualBillingMonths}
+              autoReferenceMonths={manualBillingAutoReferenceMonths}
               expandedAccordionValues={manualBillingAccordionExpanded}
               mediaSections={manualBillingMediaSections}
               formatter={mbaCurrencyFormatter}

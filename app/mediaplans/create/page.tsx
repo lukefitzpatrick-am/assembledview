@@ -6440,6 +6440,7 @@ const handleSaveAll = async () => {
 
       <ManualBillingSpreadsheetProvider
         months={manualBillingMonths}
+        autoReferenceMonths={autoBillingMonths.length > 0 ? autoBillingMonths : undefined}
         expandedAccordionValues={manualBillingAccordionExpanded}
         mediaSections={manualBillingMediaSections}
         formatter={mbaCurrencyFormatter}
