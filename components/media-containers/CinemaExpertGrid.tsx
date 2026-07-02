@@ -415,15 +415,19 @@ export function CinemaExpertGrid({
   const fuzzyMatchAutoApplyRef = useRef(false)
   const fuzzyCorrectionMapRef = useRef<Record<string, string>>({})
   const networkNames = useMemo(
-    () => publishers.map((p) => p.publisher_name),
+    () => Array.from(new Set(publishers.map((p) => p.publisher_name).filter(Boolean))),
     [publishers]
   )
 
   const stationNames = useMemo(
     () =>
-      cinemaStations
-        .map((s) => String(s.station ?? "").trim())
-        .filter((n) => n.length > 0),
+      Array.from(
+        new Set(
+          cinemaStations
+            .map((s) => String(s.station ?? "").trim())
+            .filter((n) => n.length > 0),
+        ),
+      ),
     [cinemaStations]
   )
 
