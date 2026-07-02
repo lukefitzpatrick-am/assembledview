@@ -612,8 +612,18 @@ export function deriveOohExpertRowScheduleYmdFromRow(
   row: OohExpertScheduleRow,
   weekColumns: WeeklyGanttWeekColumn[],
   campaignStartDate: Date,
-  campaignEndDate: Date
+  campaignEndDate: Date,
+  dayKeysByWeekKey?: Readonly<Record<string, readonly string[]>>
 ): { startDate: string; endDate: string } {
+  if (dayKeysByWeekKey) {
+    return deriveExpertRowScheduleYmdFromRow(
+      row,
+      weekColumns,
+      campaignStartDate,
+      campaignEndDate,
+      dayKeysByWeekKey
+    )
+  }
   const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weekKeyOrder = weekColumns.map((c) => c.weekKey)
   let firstCol: WeeklyGanttWeekColumn | null = null
@@ -771,8 +781,18 @@ export function deriveNewspaperExpertRowScheduleYmdFromRow(
   row: NewspaperExpertScheduleRow,
   weekColumns: WeeklyGanttWeekColumn[],
   campaignStartDate: Date,
-  campaignEndDate: Date
+  campaignEndDate: Date,
+  dayKeysByWeekKey?: Readonly<Record<string, readonly string[]>>
 ): { startDate: string; endDate: string } {
+  if (dayKeysByWeekKey) {
+    return deriveExpertRowScheduleYmdFromRow(
+      row,
+      weekColumns,
+      campaignStartDate,
+      campaignEndDate,
+      dayKeysByWeekKey
+    )
+  }
   const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weekKeyOrder = weekColumns.map((c) => c.weekKey)
   let firstCol: WeeklyGanttWeekColumn | null = null
@@ -827,8 +847,18 @@ export function deriveMagazineExpertRowScheduleYmdFromRow(
   row: MagazinesExpertScheduleRow,
   weekColumns: WeeklyGanttWeekColumn[],
   campaignStartDate: Date,
-  campaignEndDate: Date
+  campaignEndDate: Date,
+  dayKeysByWeekKey?: Readonly<Record<string, readonly string[]>>
 ): { startDate: string; endDate: string } {
+  if (dayKeysByWeekKey) {
+    return deriveExpertRowScheduleYmdFromRow(
+      row,
+      weekColumns,
+      campaignStartDate,
+      campaignEndDate,
+      dayKeysByWeekKey
+    )
+  }
   const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weekKeyOrder = weekColumns.map((c) => c.weekKey)
   let firstCol: WeeklyGanttWeekColumn | null = null
@@ -2463,8 +2493,18 @@ export function deriveTelevisionExpertRowScheduleYmdFromRow(
   row: TelevisionExpertScheduleRow,
   weekColumns: WeeklyGanttWeekColumn[],
   campaignStartDate: Date,
-  campaignEndDate: Date
+  campaignEndDate: Date,
+  dayKeysByWeekKey?: Readonly<Record<string, readonly string[]>>
 ): { startDate: string; endDate: string } {
+  if (dayKeysByWeekKey) {
+    return deriveExpertRowScheduleYmdFromRow(
+      row,
+      weekColumns,
+      campaignStartDate,
+      campaignEndDate,
+      dayKeysByWeekKey
+    )
+  }
   const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weekKeyOrder = weekColumns.map((c) => c.weekKey)
   let firstCol: WeeklyGanttWeekColumn | null = null
@@ -2889,8 +2929,18 @@ export function deriveBvodExpertRowScheduleYmdFromRow(
   row: BvodExpertScheduleRow,
   weekColumns: WeeklyGanttWeekColumn[],
   campaignStartDate: Date,
-  campaignEndDate: Date
+  campaignEndDate: Date,
+  dayKeysByWeekKey?: Readonly<Record<string, readonly string[]>>
 ): { startDate: string; endDate: string } {
+  if (dayKeysByWeekKey) {
+    return deriveExpertRowScheduleYmdFromRow(
+      row,
+      weekColumns,
+      campaignStartDate,
+      campaignEndDate,
+      dayKeysByWeekKey
+    )
+  }
   const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weekKeyOrder = weekColumns.map((c) => c.weekKey)
   let firstCol: WeeklyGanttWeekColumn | null = null
@@ -3307,8 +3357,18 @@ export function deriveDigiVideoExpertRowScheduleYmdFromRow(
   row: DigiVideoExpertScheduleRow,
   weekColumns: WeeklyGanttWeekColumn[],
   campaignStartDate: Date,
-  campaignEndDate: Date
+  campaignEndDate: Date,
+  dayKeysByWeekKey?: Readonly<Record<string, readonly string[]>>
 ): { startDate: string; endDate: string } {
+  if (dayKeysByWeekKey) {
+    return deriveExpertRowScheduleYmdFromRow(
+      row,
+      weekColumns,
+      campaignStartDate,
+      campaignEndDate,
+      dayKeysByWeekKey
+    )
+  }
   const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weekKeyOrder = weekColumns.map((c) => c.weekKey)
   let firstCol: WeeklyGanttWeekColumn | null = null
@@ -3738,8 +3798,18 @@ export function deriveDigitalDisplayExpertRowScheduleYmdFromRow(
   row: DigitalDisplayExpertScheduleRow,
   weekColumns: WeeklyGanttWeekColumn[],
   campaignStartDate: Date,
-  campaignEndDate: Date
+  campaignEndDate: Date,
+  dayKeysByWeekKey?: Readonly<Record<string, readonly string[]>>
 ): { startDate: string; endDate: string } {
+  if (dayKeysByWeekKey) {
+    return deriveExpertRowScheduleYmdFromRow(
+      row,
+      weekColumns,
+      campaignStartDate,
+      campaignEndDate,
+      dayKeysByWeekKey
+    )
+  }
   const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weekKeyOrder = weekColumns.map((c) => c.weekKey)
   let firstCol: WeeklyGanttWeekColumn | null = null
@@ -4161,8 +4231,18 @@ export function deriveDigitalAudioExpertRowScheduleYmdFromRow(
   row: DigitalAudioExpertScheduleRow,
   weekColumns: WeeklyGanttWeekColumn[],
   campaignStartDate: Date,
-  campaignEndDate: Date
+  campaignEndDate: Date,
+  dayKeysByWeekKey?: Readonly<Record<string, readonly string[]>>
 ): { startDate: string; endDate: string } {
+  if (dayKeysByWeekKey) {
+    return deriveExpertRowScheduleYmdFromRow(
+      row,
+      weekColumns,
+      campaignStartDate,
+      campaignEndDate,
+      dayKeysByWeekKey
+    )
+  }
   const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weekKeyOrder = weekColumns.map((c) => c.weekKey)
   let firstCol: WeeklyGanttWeekColumn | null = null
@@ -4579,8 +4659,18 @@ export function deriveSocialMediaExpertRowScheduleYmdFromRow(
   row: SocialMediaExpertScheduleRow,
   weekColumns: WeeklyGanttWeekColumn[],
   campaignStartDate: Date,
-  campaignEndDate: Date
+  campaignEndDate: Date,
+  dayKeysByWeekKey?: Readonly<Record<string, readonly string[]>>
 ): { startDate: string; endDate: string } {
+  if (dayKeysByWeekKey) {
+    return deriveExpertRowScheduleYmdFromRow(
+      row,
+      weekColumns,
+      campaignStartDate,
+      campaignEndDate,
+      dayKeysByWeekKey
+    )
+  }
   const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weekKeyOrder = weekColumns.map((c) => c.weekKey)
   let firstCol: WeeklyGanttWeekColumn | null = null
@@ -4988,8 +5078,18 @@ export function deriveSearchExpertRowScheduleYmdFromRow(
   row: SearchExpertScheduleRow,
   weekColumns: WeeklyGanttWeekColumn[],
   campaignStartDate: Date,
-  campaignEndDate: Date
+  campaignEndDate: Date,
+  dayKeysByWeekKey?: Readonly<Record<string, readonly string[]>>
 ): { startDate: string; endDate: string } {
+  if (dayKeysByWeekKey) {
+    return deriveExpertRowScheduleYmdFromRow(
+      row,
+      weekColumns,
+      campaignStartDate,
+      campaignEndDate,
+      dayKeysByWeekKey
+    )
+  }
   const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weekKeyOrder = weekColumns.map((c) => c.weekKey)
   let firstCol: WeeklyGanttWeekColumn | null = null
@@ -5402,8 +5502,18 @@ export function deriveInfluencersExpertRowScheduleYmdFromRow(
   row: InfluencersExpertScheduleRow,
   weekColumns: WeeklyGanttWeekColumn[],
   campaignStartDate: Date,
-  campaignEndDate: Date
+  campaignEndDate: Date,
+  dayKeysByWeekKey?: Readonly<Record<string, readonly string[]>>
 ): { startDate: string; endDate: string } {
+  if (dayKeysByWeekKey) {
+    return deriveExpertRowScheduleYmdFromRow(
+      row,
+      weekColumns,
+      campaignStartDate,
+      campaignEndDate,
+      dayKeysByWeekKey
+    )
+  }
   const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weekKeyOrder = weekColumns.map((c) => c.weekKey)
   let firstCol: WeeklyGanttWeekColumn | null = null
@@ -5823,8 +5933,18 @@ export function deriveIntegrationExpertRowScheduleYmdFromRow(
   row: IntegrationExpertScheduleRow,
   weekColumns: WeeklyGanttWeekColumn[],
   campaignStartDate: Date,
-  campaignEndDate: Date
+  campaignEndDate: Date,
+  dayKeysByWeekKey?: Readonly<Record<string, readonly string[]>>
 ): { startDate: string; endDate: string } {
+  if (dayKeysByWeekKey) {
+    return deriveExpertRowScheduleYmdFromRow(
+      row,
+      weekColumns,
+      campaignStartDate,
+      campaignEndDate,
+      dayKeysByWeekKey
+    )
+  }
   const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weekKeyOrder = weekColumns.map((c) => c.weekKey)
   let firstCol: WeeklyGanttWeekColumn | null = null
@@ -6936,8 +7056,18 @@ export function deriveProgExpertRowScheduleYmdFromRow(
   },
   weekColumns: WeeklyGanttWeekColumn[],
   campaignStartDate: Date,
-  campaignEndDate: Date
+  campaignEndDate: Date,
+  dayKeysByWeekKey?: Readonly<Record<string, readonly string[]>>
 ): { startDate: string; endDate: string } {
+  if (dayKeysByWeekKey) {
+    return deriveExpertRowScheduleYmdFromRow(
+      row,
+      weekColumns,
+      campaignStartDate,
+      campaignEndDate,
+      dayKeysByWeekKey
+    )
+  }
   const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weekKeyOrder = weekColumns.map((c) => c.weekKey)
   let firstCol: WeeklyGanttWeekColumn | null = null
