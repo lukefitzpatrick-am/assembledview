@@ -2714,10 +2714,19 @@ export function ProgBvodExpertGrid({
                           key={row.id}
                           className={cn(
                             stripe,
-                            "transition-colors hover:bg-muted/35 focus-within:bg-muted/35"
+                            "transition-colors hover:bg-muted/35 focus-within:bg-muted/35",
+                            isDropTarget(rowIndex) &&
+                              "bg-primary/10 ring-1 ring-inset ring-primary/40"
                           )}
                           style={stripeStyle}
+                          {...rowDropProps(rowIndex)}
                         >
+                          <ExpertGridRowReorderCell
+                            rowIndex={rowIndex}
+                            handleProps={handleProps(rowIndex)}
+                            isDragging={dragRowIndex === rowIndex}
+                            className={stickyTd(0, "text-center")}
+                          />
                               {showBillingCols ? (
                                 <>
                               <td
