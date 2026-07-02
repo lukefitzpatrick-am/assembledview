@@ -48,6 +48,8 @@ export interface BarProps {
   horizontal?: boolean;
   showLegend?: boolean;
   className?: string;
+  /** Fixed plot height (px); overrides ChartContainer aspect-video sizing. */
+  plotHeight?: number;
   /** Legend click filters (dashboard) instead of hiding series. */
   onSeriesClick?: (payload: SeriesClickPayload) => void;
   legendVerticalAlign?: 'top' | 'bottom';
@@ -58,7 +60,7 @@ type BarSegClick = { payload?: Datum; value?: number | [number, number] };
 /** Vertical/horizontal bars, grouped / stacked / 100%-stacked. */
 export function BarChart({
   data, xKey, series, valueFormat = 'compact', layout = 'group', horizontal = false, showLegend, className,
-  onSeriesClick, legendVerticalAlign = 'top',
+  plotHeight, onSeriesClick, legendVerticalAlign = 'top',
 }: BarProps) {
   const cfg = withConfig(series);
   const vf = vfMap[valueFormat];
@@ -81,7 +83,7 @@ export function BarChart({
     color: s.color ?? `var(--av-chart-${(i % 8) + 1})`,
   }));
   return (
-    <ChartContainer config={cfg} className={className}>
+    <ChartContainer config={cfg} className={className} plotHeight={plotHeight}>
       <RBarChart
         data={data}
         layout={horizontal ? 'vertical' : 'horizontal'}

@@ -20,12 +20,17 @@ const CHART_RECHARTS_DOT_STROKE = "#fff" as const
  */
 export const CHART_CHANNEL_FALLBACK_FILL = "#4f46e5" as const
 
+/** Fixed plot height for client dashboard spend / insight charts (avoids aspect-video viewport stretch). */
+export const DASHBOARD_CHART_PLOT_HEIGHT = 400
+
 /** `ChartContainer` Recharts surface / grid / dot attribute hooks (single source for #ccc / #fff). */
-export function chartContainerRechartsClassNames(extra?: string) {
+export function chartContainerRechartsClassNames(extra?: string, plotHeight?: number) {
   const grid = CHART_RECHARTS_GRID_STROKE
   const dot = CHART_RECHARTS_DOT_STROKE
+  const sizing = plotHeight != null ? "aspect-auto" : "aspect-video"
   return cn(
-    "flex aspect-video justify-center text-xs",
+    "flex justify-center text-xs",
+    sizing,
     `[&_.recharts-cartesian-axis-tick_text]:fill-muted-foreground`,
     `[&_.recharts-cartesian-grid_line[stroke='${grid}']]:stroke-border/50`,
     "[&_.recharts-curve.recharts-tooltip-cursor]:stroke-border",
