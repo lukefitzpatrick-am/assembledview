@@ -1,8 +1,9 @@
 import assert from "node:assert/strict"
 import { beforeEach, mock, test } from "node:test"
 import type { XanoLineItem } from "../../xano/fetchAllLineItems.js"
+import { mockModuleSkip, supportsMockModule } from "../../test/mockModuleHarness.js"
 
-await mock.module("server-only", {})
+const skip = mockModuleSkip()
 
 type QueryCall = {
   sql: string
@@ -29,13 +30,17 @@ const querySnowflakeMock = mock.fn(async (sql: string, binds: unknown[] = [], op
   return []
 })
 
-await mock.module("@/lib/snowflake/client", {
-  namedExports: {
-    querySnowflake: querySnowflakeMock,
-  },
-})
+let syncLineItemsToSnowflake: typeof import("../syncXanoLineItems.js").syncLineItemsToSnowflake
 
-const { syncLineItemsToSnowflake } = await import("../syncXanoLineItems.js")
+if (supportsMockModule()) {
+  await mock.module!("server-only", {})
+  await mock.module!("@/lib/snowflake/client", {
+    namedExports: {
+      querySnowflake: querySnowflakeMock,
+    },
+  })
+  ;({ syncLineItemsToSnowflake } = await import("../syncXanoLineItems.js"))
+}
 
 function lineItem(overrides: Partial<XanoLineItem> = {}): XanoLineItem {
   return {
@@ -54,6 +59,7 @@ function lineItem(overrides: Partial<XanoLineItem> = {}): XanoLineItem {
 }
 
 beforeEach(() => {
+  if (!supportsMockModule()) return
   orphanCount = 0
   queryCalls.length = 0
   logLines.length = 0
@@ -71,7 +77,7 @@ beforeEach(() => {
   mock.method(console, "warn", () => {})
 })
 
-test("active complete prune deletes orphans and merges staged rows when under threshold", async () => {
+test("active complete prune deletes orphans and merges staged rows when under threshold", { skip }, async () => {
   process.env.SNAPSHOT_PRUNE_MODE = "active"
   process.env.SNAPSHOT_PRUNE_MAX = "5"
   orphanCount = 2
@@ -104,7 +110,7 @@ test("active complete prune deletes orphans and merges staged rows when under th
   assert.ok(logLines.some((line) => line.includes("orphans deleted=2") && line.includes("rows merged=2")))
 })
 
-test("active complete prune aborts delete over threshold and still runs merge", async () => {
+test("active complete prune aborts delete over threshold and still runs merge", { skip }, async () => {
   process.env.SNAPSHOT_PRUNE_MODE = "active"
   process.env.SNAPSHOT_PRUNE_MAX = "5"
   orphanCount = 6
@@ -122,7 +128,7 @@ test("active complete prune aborts delete over threshold and still runs merge", 
   )
 })
 
-test("active incomplete prune skips delete and runs merge only", async () => {
+test("active incomplete prune skips delete and runs merge only", { skip }, async () => {
   process.env.SNAPSHOT_PRUNE_MODE = "active"
   orphanCount = 2
 
@@ -135,7 +141,7 @@ test("active incomplete prune skips delete and runs merge only", async () => {
   assert.ok(logLines.some((line) => line.includes("prune skipped: incomplete fetch")))
 })
 
-test("dryrun remains log-only after merge", async () => {
+test("dryrun remains log-only after merge", { skip }, async () => {
   process.env.SNAPSHOT_PRUNE_MODE = "dryrun"
   orphanCount = 3
 

@@ -1,6 +1,9 @@
 import assert from "node:assert/strict"
 import { beforeEach, mock, test } from "node:test"
 import type { CampaignKPI, CampaignKpiInput } from "../types.js"
+import { mockModuleSkip, supportsMockModule } from "../../test/mockModuleHarness.js"
+
+const skip = mockModuleSkip()
 
 process.env.XANO_CLIENTS_BASE_URL = "https://xano.test"
 
@@ -22,11 +25,14 @@ function fakeAxios() {
 }
 Object.assign(fakeAxios, { create: () => fakeAxios() })
 
-await mock.module("axios", {
-  defaultExport: fakeAxios,
-})
+let syncCampaignKpis: typeof import("../campaignKpi.js").syncCampaignKpis
 
-const { syncCampaignKpis } = await import("../campaignKpi.js")
+if (supportsMockModule()) {
+  await mock.module!("axios", {
+    defaultExport: fakeAxios,
+  })
+  ;({ syncCampaignKpis } = await import("../campaignKpi.js"))
+}
 
 function kpiInput(over: Partial<CampaignKpiInput> = {}): CampaignKpiInput {
   return {
@@ -75,6 +81,7 @@ let storedExisting: CampaignKPI[] = []
 const writeOrder: Array<"GET" | "POST" | "PATCH"> = []
 
 beforeEach(() => {
+  if (!supportsMockModule()) return
   storedExisting = []
   writeOrder.length = 0
   mockGet.mock.resetCalls()
@@ -114,7 +121,7 @@ beforeEach(() => {
   })
 })
 
-test("empty input returns empty output without fetches", async () => {
+test("empty input returns empty output without fetches", { skip }, async () => {
   const result = await syncCampaignKpis([])
   assert.deepEqual(result, [])
   assert.equal(mockGet.mock.callCount(), 0)
@@ -122,7 +129,7 @@ test("empty input returns empty output without fetches", async () => {
   assert.equal(mockPatch.mock.callCount(), 0)
 })
 
-test("all-new rows POST when lookup is empty", async () => {
+test("all-new rows POST when lookup is empty", { skip }, async () => {
   const inputs = [kpiInput({ line_item_id: "LI-A" }), kpiInput({ line_item_id: "LI-B" })]
   const result = await syncCampaignKpis(inputs)
   assert.equal(result.length, 2)
@@ -133,7 +140,7 @@ test("all-new rows POST when lookup is empty", async () => {
   assert.equal(result[1]?.line_item_id, "LI-B")
 })
 
-test("all-existing rows PATCH when natural keys match", async () => {
+test("all-existing rows PATCH when natural keys match", { skip }, async () => {
   storedExisting = [
     existingRow(10, "LI-A"),
     existingRow(11, "LI-B"),
@@ -151,7 +158,7 @@ test("all-existing rows PATCH when natural keys match", async () => {
   assert.equal(result[1]?.ctr, 0.08)
 })
 
-test("mixed batch: existing rows PATCH, new rows POST", async () => {
+test("mixed batch: existing rows PATCH, new rows POST", { skip }, async () => {
   storedExisting = [existingRow(20, "LI-OLD")]
   const inputs = [
     kpiInput({ line_item_id: "LI-OLD", ctr: 0.09 }),
@@ -165,7 +172,7 @@ test("mixed batch: existing rows PATCH, new rows POST", async () => {
   assert.equal(result[1]?.line_item_id, "LI-NEW")
 })
 
-test("legacy empty line_item_id in Xano is ignored; input POSTs new row", async () => {
+test("legacy empty line_item_id in Xano is ignored; input POSTs new row", { skip }, async () => {
   storedExisting = [
     existingRow(30, "", {
       publisher: "Google",
@@ -184,7 +191,7 @@ test("legacy empty line_item_id in Xano is ignored; input POSTs new row", async 
   assert.equal(legacy?.ctr, 0.02)
 })
 
-test("empty line_item_id in input is skipped with warning", async () => {
+test("empty line_item_id in input is skipped with warning", { skip }, async () => {
   const warnings: unknown[][] = []
   const originalWarn = console.warn
   console.warn = (...args: unknown[]) => {
@@ -205,7 +212,7 @@ test("empty line_item_id in input is skipped with warning", async () => {
   }
 })
 
-test("fetchCampaignKpis runs once per (mba_number, version_number) pair", async () => {
+test("fetchCampaignKpis runs once per (mba_number, version_number) pair", { skip }, async () => {
   storedExisting = [existingRow(40, "LI-1")]
   const inputs = [
     kpiInput({ line_item_id: "LI-1", ctr: 0.04 }),
@@ -215,7 +222,7 @@ test("fetchCampaignKpis runs once per (mba_number, version_number) pair", async 
   assert.equal(mockGet.mock.callCount(), 1)
 })
 
-test("sequential ordering follows input order", async () => {
+test("sequential ordering follows input order", { skip }, async () => {
   storedExisting = [
     existingRow(50, "LI-1"),
     existingRow(51, "LI-2"),

@@ -22,7 +22,7 @@ test("reassignOohLineItemNumbers sets sequential MBA OH ids from array order", (
   assert.equal(out[1].line_item_id, "MBA1OH2")
 })
 
-test("mergeOohStandardFromExpertWithPrevious keeps expert row order line numbers", () => {
+test("mergeOohStandardFromExpertWithPrevious preserves expert row order and previous line numbers", () => {
   const campaignStart = new Date(2025, 0, 5)
   const campaignEnd = new Date(2025, 0, 11)
   const cols = buildWeeklyGanttColumnsFromCampaign(campaignStart, campaignEnd)
@@ -118,7 +118,11 @@ test("mergeOohStandardFromExpertWithPrevious keeps expert row order line numbers
   ]
 
   const merged = mergeOohStandardFromExpertWithPrevious(generated, previous)
-  assert.equal(merged[0].line_item, 1)
+  // Expert row order is preserved in the merged array.
+  assert.equal(merged[0].network, "second")
+  assert.equal(merged[1].network, "first")
+  // Merge matches by line_item_id and restores previous line numbers (not positional 1..n).
+  assert.equal(merged[0].line_item, 5)
   assert.equal(merged[1].line_item, 2)
   assert.equal(merged[0].noAdserving, true)
   assert.equal(merged[1].noAdserving, false)
