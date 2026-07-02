@@ -28,6 +28,7 @@ import { SingleDatePicker } from "@/components/ui/single-date-picker"
 import { ChevronsUpDown, Check, Download, FileText, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { formatMoney } from "@/lib/format/money"
+import { MoneyInput } from "@/components/ui/MoneyInput"
 import { CampaignExportsSection } from "@/components/dashboard/CampaignExportsSection"
 import { PlanWizardShell } from "@/components/mediaplans/PlanWizardShell"
 import { sortByLabel } from "@/lib/utils/sort"
@@ -6066,21 +6067,13 @@ const handleSaveAll = async () => {
                   <FormItem>
                     <FormLabel className="text-sm font-medium text-text-secondary">Campaign Budget</FormLabel>
                     <FormControl>
-                      <Input
-                        type="text"
-                        {...field}
-                        onChange={(e) => {
-                          const value = e.target.value.replace(/[^0-9.]/g, "")
-                          field.onChange(value ? Number(value) : 0)
-                        }}
-                        onBlur={(e) => {
-                          const value = e.target.value.replace(/[^0-9.]/g, "")
-                          const formattedValue = new Intl.NumberFormat("en-AU", {
-                            style: "currency",
-                            currency: "AUD",
-                          }).format(Number(value) || 0)
-                          e.target.value = formattedValue
-                        }}
+                      <MoneyInput
+                        ref={field.ref}
+                        name={field.name}
+                        onBlur={field.onBlur}
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 max-[375px]:min-h-11 md:text-sm"
+                        value={field.value}
+                        onChange={(v) => field.onChange(v ?? 0)}
                       />
                     </FormControl>
                     <FormMessage />
