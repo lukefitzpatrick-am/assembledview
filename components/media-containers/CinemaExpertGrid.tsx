@@ -122,6 +122,14 @@ import {
   type DayColumn,
   type ExpertDailyValues,
 } from "@/lib/mediaplan/expertDayModel"
+import {
+  budgetCellDisplay,
+  clearConflictingDayDetail,
+  DAY_COL_WIDTH_PX,
+  qtyFromBudgetInput,
+  rowSupportsBudgetEntry,
+  type GridEntryMode,
+} from "@/lib/mediaplan/expertGridDayEntry"
 
 
 import {
@@ -250,58 +258,6 @@ function normalizeCinemaStationPaste(raw: string, stationNames: string[]): strin
 }
 
 /** Row gross / raw cost from expert Σ qty × unit rate (see `lib/mediaplan/deliverableBudget`). */
-
-/** Fixed pixel width of one expanded day sub-column. */
-const DAY_COL_WIDTH_PX = 44
-
-/**
- * Invariant enforcement (single chokepoint, applied on every pushRows): a
- * week-level value wins over day-level detail. If a week's cell is non-empty
- * or the week is covered by a merged span, that week's day keys are dropped
- * from `dailyValues`. Rows without conflicts are returned unchanged so
- * untouched plans stay byte-identical through save baselines.
- */
-function clearConflictingDayDetail(
-  row: CinemaExpertScheduleRow,
-  dayKeysByWeekKey: Readonly<Record<string, readonly string[]>>,
-  weekKeys: readonly string[]
-): CinemaExpertScheduleRow {
-  const daily = row.dailyValues
-  if (!daily || Object.keys(daily).length === 0) return row
-  const spanCovered = new Set<string>()
-  for (const span of row.mergedWeekSpans ?? []) {
-    for (const k of weekKeysInSpanInclusive(
-      weekKeys,
-      span.startWeekKey,
-      span.endWeekKey
-    )) {
-      spanCovered.add(k)
-    }
-  }
-  let changed = false
-  const nextDaily = { ...daily }
-  for (const weekKey of weekKeys) {
-    const dayKeys = dayKeysByWeekKey[weekKey] ?? []
-    if (!dayKeys.some((k) => nextDaily[k] !== undefined)) continue
-    const cell = row.weeklyValues[weekKey]
-    const weekLevelWins =
-      spanCovered.has(weekKey) ||
-      (cell !== "" && cell !== undefined && cell !== null)
-    if (!weekLevelWins) continue
-    for (const k of dayKeys) {
-      if (nextDaily[k] !== undefined) {
-        delete nextDaily[k]
-        changed = true
-      }
-    }
-  }
-  if (!changed) return row
-  if (Object.keys(nextDaily).length === 0) {
-    const { dailyValues: _omit, ...rest } = row
-    return rest as CinemaExpertScheduleRow
-  }
-  return { ...row, dailyValues: nextDaily }
-}
 
 export function createEmptyCinemaExpertRow(
   id: string,
@@ -509,6 +465,17 @@ export function CinemaExpertGrid({
   const [expandedWeekKeys, setExpandedWeekKeys] = useState<Set<string>>(
     () => new Set()
   )
+  /**
+   * Session-only entry mode. Cells always STORE deliverables; budget mode
+   * converts typed $ to qty via the row's unit rate and displays derived cost.
+   */
+  const [entryMode, setEntryMode] = useState<GridEntryMode>("deliverables")
+  /** Raw text buffer for the budget-mode cell being typed in (decimal-friendly). */
+  const [budgetDraft, setBudgetDraft] = useState<{
+    rowIndex: number
+    cellKey: string
+    text: string
+  } | null>(null)
 
   const [weekStripSelection, setWeekStripSelection] = useState<{
     rowIndex: number
@@ -1869,6 +1836,18 @@ export function CinemaExpertGrid({
     (matrix: string[][]) => {
       if (!matrix || matrix.length === 0) return
 
+      // Paste is deliverables-only: silently interpreting clipboard numbers
+      // as $ (or as qty while the grid displays $) would corrupt data.
+      if (entryMode === "budget") {
+        toast({
+          variant: "destructive",
+          title: "Paste is deliverables-only",
+          description:
+            "Switch entry mode to Deliverables to paste, or type $ amounts directly into cells.",
+        })
+        return
+      }
+
       const fc = focusedCellRef.current
       if (!fc) {
         toast({
@@ -2092,6 +2071,7 @@ export function CinemaExpertGrid({
       }
     },
     [
+      entryMode,
       normalizedRows,
       networkNames,
       stationNames,
@@ -2463,6 +2443,38 @@ export function CinemaExpertGrid({
             Cinema — Expert Schedule
           </CardTitle>
           <div className="flex flex-wrap items-center gap-3">
+            <div
+              className="flex items-center gap-0.5 rounded-md border border-border/60 p-0.5"
+              role="group"
+              aria-label="Cell entry mode"
+            >
+              <Button
+                type="button"
+                size="sm"
+                variant={entryMode === "deliverables" ? "secondary" : "ghost"}
+                className="h-7 px-2 text-xs"
+                title="Cells accept deliverable quantities (spots, impressions, clicks …)"
+                onClick={() => {
+                  setEntryMode("deliverables")
+                  setBudgetDraft(null)
+                }}
+              >
+                Deliverables
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={entryMode === "budget" ? "secondary" : "ghost"}
+                className="h-7 px-2 text-xs"
+                title="Cells accept $ amounts, converted to deliverables via the row's unit rate. Values are always stored as deliverables."
+                onClick={() => {
+                  setEntryMode("budget")
+                  setBudgetDraft(null)
+                }}
+              >
+                $ Budget
+              </Button>
+            </div>
             <div className="flex items-center gap-2">
               <Label htmlFor="cinema-expert-row-count" className="text-sm whitespace-nowrap">
                 Rows:
@@ -2682,6 +2694,11 @@ export function CinemaExpertGrid({
                     {normalizedRows.map((row, rowIndex) => {
                       const net = expertRowNetMedia(row, weekKeys, feecinema)
                       const qtySum = expertRowQuantitySum(row, weekKeys)
+                      const rowUnitRate = parseNum(row.unitRate)
+                      const rowBudgetEntryOk = rowSupportsBudgetEntry(
+                        row.buyType,
+                        rowUnitRate
+                      )
                       const netMediaTooltip = expertRowNetMediaTooltip(row, qtySum)
                       const stripe =
                         rowIndex % 2 === 1 ? "bg-muted/10" : ""
@@ -3238,10 +3255,22 @@ export function CinemaExpertGrid({
                                     const rawV = hasDetail
                                       ? row.dailyValues?.[dayCol.dayKey] ?? ""
                                       : split?.[dayCol.dayKey] ?? ""
-                                    const displayV =
+                                    const qtyDisplayV =
                                       rawV === "" || rawV === 0
                                         ? ""
                                         : String(rawV)
+                                    const displayV =
+                                      entryMode === "budget" && rowBudgetEntryOk
+                                        ? budgetDraft &&
+                                          budgetDraft.rowIndex === rowIndex &&
+                                          budgetDraft.cellKey === dayCol.dayKey
+                                          ? budgetDraft.text
+                                          : budgetCellDisplay(
+                                              row.buyType,
+                                              rowUnitRate,
+                                              rawV === "" ? 0 : rawV
+                                            )
+                                        : qtyDisplayV
                                     renderedWeekCells.push(
                                       <td
                                         key={`${row.id}-${dayCol.dayKey}`}
@@ -3267,14 +3296,70 @@ export function CinemaExpertGrid({
                                           )}
                                           inputMode="decimal"
                                           value={displayV}
-                                          onChange={(e) =>
+                                          disabled={
+                                            entryMode === "budget" &&
+                                            !rowBudgetEntryOk
+                                          }
+                                          onChange={(e) => {
+                                            if (entryMode === "budget") {
+                                              if (!rowBudgetEntryOk) return
+                                              const text = e.target.value
+                                              setBudgetDraft({
+                                                rowIndex,
+                                                cellKey: dayCol.dayKey,
+                                                text,
+                                              })
+                                              const cleaned = text.replace(
+                                                /[^\d.-]/g,
+                                                ""
+                                              )
+                                              if (
+                                                cleaned === "" ||
+                                                cleaned === "-"
+                                              ) {
+                                                updateDailyCell(
+                                                  rowIndex,
+                                                  col.weekKey,
+                                                  dayCol.dayKey,
+                                                  ""
+                                                )
+                                                return
+                                              }
+                                              const budget =
+                                                Number.parseFloat(cleaned)
+                                              if (!Number.isFinite(budget)) {
+                                                return
+                                              }
+                                              updateDailyCell(
+                                                rowIndex,
+                                                col.weekKey,
+                                                dayCol.dayKey,
+                                                String(
+                                                  qtyFromBudgetInput(
+                                                    row.buyType,
+                                                    rowUnitRate,
+                                                    budget
+                                                  )
+                                                )
+                                              )
+                                              return
+                                            }
                                             updateDailyCell(
                                               rowIndex,
                                               col.weekKey,
                                               dayCol.dayKey,
                                               e.target.value
                                             )
-                                          }
+                                          }}
+                                          onBlur={() => {
+                                            setBudgetDraft((prev) =>
+                                              prev &&
+                                              prev.rowIndex === rowIndex &&
+                                              prev.cellKey === dayCol.dayKey
+                                                ? null
+                                                : prev
+                                            )
+                                          }}
                                         />
                                       </td>
                                     )
@@ -3305,6 +3390,33 @@ export function CinemaExpertGrid({
                                 hasDayDetail && displayBase === "" && daySum !== ""
                                   ? String(daySum)
                                   : displayBase
+                              // Budget mode: show derived qty × rate (or the
+                              // in-flight typing buffer); qty stays the model.
+                              const cellQtyNum = mSpan
+                                ? Number.isFinite(mSpan.totalQty)
+                                  ? mSpan.totalQty
+                                  : 0
+                                : hasDayDetail
+                                  ? daySum === ""
+                                    ? 0
+                                    : daySum
+                                  : parseNum(cell)
+                              // Blocked rows (no rate / bonus) keep showing
+                              // their qty read-only rather than a blank cell.
+                              const inputDisplay =
+                                entryMode === "budget" && rowBudgetEntryOk
+                                  ? budgetDraft &&
+                                    budgetDraft.rowIndex === rowIndex &&
+                                    budgetDraft.cellKey === col.weekKey
+                                    ? budgetDraft.text
+                                    : budgetCellDisplay(
+                                        row.buyType,
+                                        rowUnitRate,
+                                        cellQtyNum
+                                      )
+                                  : display
+                              const budgetEntryBlocked =
+                                entryMode === "budget" && !rowBudgetEntryOk
                               const colIndex =
                                 cinemaDescriptorKeys.length +
                                 WEEK_GRID_COL_OFFSET +
@@ -3741,7 +3853,8 @@ export function CinemaExpertGrid({
                                           "bg-transparent shadow-none ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                                       )}
                                       inputMode="decimal"
-                                      value={display}
+                                      value={inputDisplay}
+                                      disabled={budgetEntryBlocked}
                                       draggable={isDraggableWeekCell}
                                       onDragStart={(e) => {
                                         // resolveWeekDragSource returns the "merged" variant when called on a
@@ -3993,13 +4106,58 @@ export function CinemaExpertGrid({
                                         e
                                       )
                                     }}
-                                      onChange={(e) =>
+                                      onChange={(e) => {
+                                        if (entryMode === "budget") {
+                                          if (!rowBudgetEntryOk) return
+                                          const text = e.target.value
+                                          setBudgetDraft({
+                                            rowIndex,
+                                            cellKey: col.weekKey,
+                                            text,
+                                          })
+                                          const cleaned = text.replace(
+                                            /[^\d.-]/g,
+                                            ""
+                                          )
+                                          if (cleaned === "" || cleaned === "-") {
+                                            updateWeeklyCell(
+                                              rowIndex,
+                                              col.weekKey,
+                                              ""
+                                            )
+                                            return
+                                          }
+                                          const budget =
+                                            Number.parseFloat(cleaned)
+                                          if (!Number.isFinite(budget)) return
+                                          updateWeeklyCell(
+                                            rowIndex,
+                                            col.weekKey,
+                                            String(
+                                              qtyFromBudgetInput(
+                                                row.buyType,
+                                                rowUnitRate,
+                                                budget
+                                              )
+                                            )
+                                          )
+                                          return
+                                        }
                                         updateWeeklyCell(
                                           rowIndex,
                                           col.weekKey,
                                           e.target.value
                                         )
-                                      }
+                                      }}
+                                      onBlur={() => {
+                                        setBudgetDraft((prev) =>
+                                          prev &&
+                                          prev.rowIndex === rowIndex &&
+                                          prev.cellKey === col.weekKey
+                                            ? null
+                                            : prev
+                                        )
+                                      }}
                                     />
                                     {isMergedAnchorCell && mSpan ? (
                                       <>
