@@ -93,10 +93,13 @@
   },
   "overrides": {
     "@google-cloud/storage": {
-      "fast-xml-parser": "5.5.7"
+      "fast-xml-parser": "5.9.3"
     },
     "snowflake-sdk": {
-      "fast-xml-parser": "5.5.7"
+      "fast-xml-parser": "5.9.3"
+    },
+    "tsx": {
+      "esbuild": "0.28.1"
     },
     "@tootallnate/once": "3.0.1"
   },
