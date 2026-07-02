@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import { buildWeeklyGanttColumnsFromCampaign } from "../../lib/utils/weeklyGanttColumns.js"
-import { roundDeliverables, deliverablesFromBudget } from "../../lib/mediaplan/deliverableBudget.js"
+import { roundDeliverables, deliverablesFromBudget, netMediaFromDeliverables } from "../../lib/mediaplan/deliverableBudget.js"
 import {
   deriveOohExpertRowScheduleYmd,
   mapOohExpertRowsToStandardLineItems,
@@ -101,6 +101,12 @@ test("OOH CPM uses net budget for deliverables when budgetIncludesFees + feePctO
     line.bursts[0]!.calculatedValue,
     roundDeliverables("cpm", deliverablesFromBudget("cpm", net, unitRate))
   )
+})
+
+test("production buy type uses linear qty × rate (same branch as spots)", () => {
+  assert.equal(netMediaFromDeliverables("production", 10, 500), 5000)
+  assert.equal(deliverablesFromBudget("production", 5000, 500), 10)
+  assert.equal(roundDeliverables("production", 10.4), 10)
 })
 
 test("OOH expert CPM gross budget uses (qty/1000) × rate", () => {

@@ -17,7 +17,8 @@ export type BuyType =
   | "weekly_rate"
   | "monthly_rate"
   | "package_inclusions"
-  | "bonus";
+  | "bonus"
+  | "production";
 
 const BUY_TYPE_RUNTIME_SET = new Set<string>([
   "package",
@@ -39,6 +40,7 @@ const BUY_TYPE_RUNTIME_SET = new Set<string>([
   "monthly_rate",
   "package_inclusions",
   "bonus",
+  "production",
 ]);
 
 /** Warn once per unknown buy type string in development (containers should extend {@link BuyType}). */
@@ -99,6 +101,7 @@ export function deliverablesFromBudget(
   switch (buyType) {
     case "package":
     case "spots":
+    case "production":
     case "cpt":
     case "cpp":
     case "panels":
@@ -248,6 +251,7 @@ export function netMediaFromDeliverables(
   switch (buyType) {
     case "package":
     case "spots":
+    case "production":
     case "cpt":
     case "cpp":
     case "panels":
