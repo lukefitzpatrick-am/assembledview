@@ -15,7 +15,16 @@ import {
   parse as parseDateFns,
   startOfDay,
 } from "date-fns"
-import { Copy, GitMerge, Grid3x3, Plus, Trash2, X } from "lucide-react"
+import {
+  ChevronsLeftRight,
+  ChevronsRightLeft,
+  Copy,
+  GitMerge,
+  Grid3x3,
+  Plus,
+  Trash2,
+  X,
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -96,6 +105,25 @@ import {
   mediaTypeTotalsRowStyle,
   rgbaFromHex,
 } from "@/lib/mediaplan/mediaTypeAccents"
+import {
+  buildDayColumnsForWeek,
+  collapseDailyToWeekly,
+  expandWeekToDaily,
+  resizeSpanWeeks,
+  weekDayKeys,
+  weekHasDailyValues,
+  weekIsUniform,
+  type DayColumn,
+  type ExpertDailyValues,
+} from "@/lib/mediaplan/expertDayModel"
+import {
+  budgetCellDisplay,
+  clearConflictingDayDetail,
+  DAY_COL_WIDTH_PX,
+  qtyFromBudgetInput,
+  rowSupportsBudgetEntry,
+  type GridEntryMode,
+} from "@/lib/mediaplan/expertGridDayEntry"
 
 
 import {
@@ -377,6 +405,41 @@ export function MagazinesExpertGrid({
     [campaignStartDate, campaignEndDate]
   )
   const weekKeys = useMemo(() => weekColumns.map((c) => c.weekKey), [weekColumns])
+  /** Campaign-clamped day keys per week column (for day-level detail). */
+  const dayKeysByWeekKey = useMemo<Record<string, readonly string[]>>(() => {
+    const out: Record<string, readonly string[]> = {}
+    for (const col of weekColumns) {
+      out[col.weekKey] = weekDayKeys(col, campaignStartDate, campaignEndDate)
+    }
+    return out
+  }, [weekColumns, campaignStartDate, campaignEndDate])
+  /** Full day-column descriptors per week (labels + dates for expanded render). */
+  const dayColumnsByWeekKey = useMemo<Record<string, readonly DayColumn[]>>(() => {
+    const out: Record<string, readonly DayColumn[]> = {}
+    for (const col of weekColumns) {
+      out[col.weekKey] = buildDayColumnsForWeek(
+        col,
+        campaignStartDate,
+        campaignEndDate
+      )
+    }
+    return out
+  }, [weekColumns, campaignStartDate, campaignEndDate])
+  /** Session-only view state: weeks currently expanded into day sub-columns. */
+  const [expandedWeekKeys, setExpandedWeekKeys] = useState<Set<string>>(
+    () => new Set()
+  )
+  /**
+   * Session-only entry mode. Cells always STORE deliverables; budget mode
+   * converts typed $ to qty via the row's unit rate and displays derived cost.
+   */
+  const [entryMode, setEntryMode] = useState<GridEntryMode>("deliverables")
+  /** Raw text buffer for the budget-mode cell being typed in (decimal-friendly). */
+  const [budgetDraft, setBudgetDraft] = useState<{
+    rowIndex: number
+    cellKey: string
+    text: string
+  } | null>(null)
 
   const [weekStripSelection, setWeekStripSelection] = useState<{
     rowIndex: number
@@ -605,18 +668,29 @@ export function MagazinesExpertGrid({
 
   const pushRows = useCallback(
     (next: MagazinesExpertScheduleRow[]) => {
-      const withDates = next.map((r) => ({
-        ...r,
-        ...deriveMagazineExpertRowScheduleYmdFromRow(
-          r,
-          weekColumns,
-          campaignStartDate,
-          campaignEndDate
-        ),
-      }))
+      const withDates = next.map((r) => {
+        // Week-level writes win over day detail (single invariant chokepoint).
+        const cleared = clearConflictingDayDetail(r, dayKeysByWeekKey, weekKeys)
+        return {
+          ...cleared,
+          ...deriveMagazineExpertRowScheduleYmdFromRow(
+            cleared,
+            weekColumns,
+            campaignStartDate,
+            campaignEndDate
+          ),
+        }
+      })
       onRowsChange(withDates)
     },
-    [onRowsChange, weekColumns, campaignStartDate, campaignEndDate]
+    [
+      onRowsChange,
+      weekColumns,
+      campaignStartDate,
+      campaignEndDate,
+      dayKeysByWeekKey,
+      weekKeys,
+    ]
   )
 
   const handleReorder = useCallback(
@@ -979,6 +1053,312 @@ export function MagazinesExpertGrid({
     [normalizedRows, pushRows, weekKeys]
   )
 
+  /**
+   * Edit one day cell of an expanded week. First edit on a week without day
+   * detail materialises the week's even split (Rule 3) into `dailyValues` and
+   * blanks the week cell; the invariant chokepoint in pushRows keeps the two
+   * representations from ever coexisting.
+   */
+  const updateDailyCell = useCallback(
+    (rowIndex: number, weekKey: string, dayKey: string, raw: string) => {
+      const row = normalizedRows[rowIndex]
+      if (!row) return
+      // Merged weeks are edited via their anchor cell, never day cells.
+      if (findMergedSpanForWeek(row, weekKey, weekKeys)) return
+      const dayKeys = [...(dayKeysByWeekKey[weekKey] ?? [])]
+      if (dayKeys.length === 0) return
+
+      const nextDaily: ExpertDailyValues = { ...(row.dailyValues ?? {}) }
+      const hasDetail =
+        !!row.dailyValues && weekHasDailyValues(row.dailyValues, dayKeys)
+      if (!hasDetail) {
+        const split = expandWeekToDaily(
+          row.weeklyValues[weekKey] ?? "",
+          dayKeys
+        )
+        for (const k of dayKeys) nextDaily[k] = split[k] ?? 0
+      }
+
+      const cleaned = raw.replace(/[^\d.-]/g, "")
+      if (cleaned === "" || cleaned === "-") {
+        nextDaily[dayKey] = ""
+      } else {
+        const n = Number.parseFloat(cleaned)
+        if (!Number.isFinite(n)) return
+        nextDaily[dayKey] = n
+      }
+
+      const weeklyValues = { ...row.weeklyValues, [weekKey]: "" as const }
+      pushRows(
+        normalizedRows.map((r, i) =>
+          i === rowIndex ? { ...r, weeklyValues, dailyValues: nextDaily } : r
+        )
+      )
+    },
+    [dayKeysByWeekKey, normalizedRows, pushRows, weekKeys]
+  )
+
+  /**
+   * Expand/collapse a week column into day sub-columns (session-only view
+   * state). Collapsing tidies data per Rule 1: any row whose day detail for
+   * this week is uniform folds back to a single week-level value.
+   */
+  const toggleWeekExpanded = useCallback(
+    (weekKey: string) => {
+      const collapsing = expandedWeekKeys.has(weekKey)
+      setExpandedWeekKeys((prev) => {
+        const next = new Set(prev)
+        if (next.has(weekKey)) next.delete(weekKey)
+        else next.add(weekKey)
+        return next
+      })
+      if (!collapsing) return
+
+      const dayKeys = [...(dayKeysByWeekKey[weekKey] ?? [])]
+      if (dayKeys.length === 0) return
+      const rowsNow = normalizedRowsRef.current
+      let mutated = false
+      const folded = rowsNow.map((r) => {
+        if (!r.dailyValues || !weekHasDailyValues(r.dailyValues, dayKeys)) {
+          return r
+        }
+        if (!weekIsUniform(r.dailyValues, dayKeys)) return r
+        const sum = collapseDailyToWeekly(r.dailyValues, dayKeys)
+        const nextDaily = { ...r.dailyValues }
+        for (const k of dayKeys) delete nextDaily[k]
+        mutated = true
+        const weeklyValues = { ...r.weeklyValues, [weekKey]: sum }
+        if (Object.keys(nextDaily).length === 0) {
+          const { dailyValues: _omit, ...rest } = r
+          return { ...rest, weeklyValues }
+        }
+        return { ...r, weeklyValues, dailyValues: nextDaily }
+      })
+      if (mutated) pushRows(folded)
+    },
+    [dayKeysByWeekKey, expandedWeekKeys, pushRows]
+  )
+
+  /**
+   * Feature 6 — week-grained span-edge resize. Growth is clamped at the first
+   * obstruction (sibling span, populated week cell, or day-detailed week), so
+   * resizing never absorbs or destroys values; the burst total is unchanged.
+   */
+  type SpanEdgeResizeDrag = {
+    rowIndex: number
+    spanId: string
+    edge: "start" | "end"
+    originClientX: number
+    minDelta: number
+    maxDelta: number
+    deltaWeeks: number
+    clientX: number
+    clientY: number
+  }
+  const [spanEdgeResize, setSpanEdgeResize] =
+    useState<SpanEdgeResizeDrag | null>(null)
+  const spanEdgeResizeRef = useRef(spanEdgeResize)
+  spanEdgeResizeRef.current = spanEdgeResize
+
+  /** Rendered width of one week column (day sub-columns when expanded). */
+  const widthForWeekKey = useCallback(
+    (k: string): number => {
+      if (expandedWeekKeys.has(k)) {
+        return (
+          Math.max(1, (dayColumnsByWeekKey[k] ?? []).length) * DAY_COL_WIDTH_PX
+        )
+      }
+      return weekColumnWidths[k] ?? MAGAZINES_EXPERT_WEEK_COL_WIDTH_PX
+    },
+    [expandedWeekKeys, dayColumnsByWeekKey, weekColumnWidths]
+  )
+
+  /** Horizontal drag distance → whole weeks crossed (variable column widths). */
+  const deltaWeeksFromPx = useCallback(
+    (edgeIdx: number, dx: number): number => {
+      let remaining = Math.abs(dx)
+      let steps = 0
+      if (dx > 0) {
+        for (let i = edgeIdx + 1; i < weekKeys.length; i += 1) {
+          const w = widthForWeekKey(weekKeys[i]!)
+          if (remaining < w / 2) break
+          remaining -= w
+          steps += 1
+        }
+        return steps
+      }
+      for (let i = edgeIdx; i >= 0; i -= 1) {
+        const w = widthForWeekKey(weekKeys[i]!)
+        if (remaining < w / 2) break
+        remaining -= w
+        steps += 1
+      }
+      return -steps
+    },
+    [weekKeys, widthForWeekKey]
+  )
+
+  const beginSpanEdgeResize = useCallback(
+    (
+      rowIndex: number,
+      spanId: string,
+      edge: "start" | "end",
+      clientX: number,
+      clientY: number
+    ) => {
+      const row = normalizedRowsRef.current[rowIndex]
+      if (!row) return
+      const span = (row.mergedWeekSpans ?? []).find((s) => s.id === spanId)
+      if (!span) return
+      const si = weekKeys.indexOf(span.startWeekKey)
+      const ei = weekKeys.indexOf(span.endWeekKey)
+      if (si < 0 || ei < 0) return
+
+      const occupied = new Set<string>()
+      for (const s of row.mergedWeekSpans ?? []) {
+        if (s.id === spanId) continue
+        for (const k of weekKeysInSpanInclusive(
+          weekKeys,
+          s.startWeekKey,
+          s.endWeekKey
+        )) {
+          occupied.add(k)
+        }
+      }
+      const weekBlocked = (k: string): boolean => {
+        if (occupied.has(k)) return true
+        const v = row.weeklyValues[k]
+        if (v !== "" && v !== undefined && v !== null) return true
+        const dk = [...(dayKeysByWeekKey[k] ?? [])]
+        if (row.dailyValues && weekHasDailyValues(row.dailyValues, dk)) {
+          return true
+        }
+        return false
+      }
+
+      let minDelta: number
+      let maxDelta: number
+      if (edge === "end") {
+        minDelta = si - ei
+        let g = 0
+        for (let i = ei + 1; i < weekKeys.length; i += 1) {
+          if (weekBlocked(weekKeys[i]!)) break
+          g += 1
+        }
+        maxDelta = g
+      } else {
+        let g = 0
+        for (let i = si - 1; i >= 0; i -= 1) {
+          if (weekBlocked(weekKeys[i]!)) break
+          g += 1
+        }
+        minDelta = -g
+        maxDelta = ei - si
+      }
+
+      setSpanEdgeResize({
+        rowIndex,
+        spanId,
+        edge,
+        originClientX: clientX,
+        minDelta,
+        maxDelta,
+        deltaWeeks: 0,
+        clientX,
+        clientY,
+      })
+    },
+    [dayKeysByWeekKey, weekKeys]
+  )
+
+  const applySpanEdgeResize = useCallback(() => {
+    const drag = spanEdgeResizeRef.current
+    setSpanEdgeResize(null)
+    if (!drag || drag.deltaWeeks === 0) return
+    const rowsNow = normalizedRowsRef.current
+    const row = rowsNow[drag.rowIndex]
+    if (!row) return
+    const span = (row.mergedWeekSpans ?? []).find((s) => s.id === drag.spanId)
+    if (!span) return
+    const resized = resizeSpanWeeks(
+      weekKeys,
+      span.startWeekKey,
+      span.endWeekKey,
+      drag.edge,
+      drag.deltaWeeks
+    )
+    if (!resized) return
+    const mergedWeekSpans = (row.mergedWeekSpans ?? []).map((s) =>
+      s.id === drag.spanId
+        ? {
+            ...s,
+            startWeekKey: resized.startWeekKey,
+            endWeekKey: resized.endWeekKey,
+          }
+        : s
+    )
+    // Belt-and-braces: covered weeks stay empty (growth already clamps to
+    // empty weeks; shrink releases weeks as empty).
+    const weeklyValues = { ...row.weeklyValues }
+    for (const k of weekKeysInSpanInclusive(
+      weekKeys,
+      resized.startWeekKey,
+      resized.endWeekKey
+    )) {
+      weeklyValues[k] = ""
+    }
+    pushRows(
+      rowsNow.map((r, i) =>
+        i === drag.rowIndex ? { ...r, weeklyValues, mergedWeekSpans } : r
+      )
+    )
+  }, [pushRows, weekKeys])
+
+  const spanEdgeResizeActive = spanEdgeResize !== null
+  useEffect(() => {
+    if (!spanEdgeResizeActive) return
+    const onMove = (e: PointerEvent) => {
+      setSpanEdgeResize((prev) => {
+        if (!prev) return prev
+        const row = normalizedRowsRef.current[prev.rowIndex]
+        const span = row?.mergedWeekSpans?.find((s) => s.id === prev.spanId)
+        if (!row || !span) return prev
+        const si = weekKeys.indexOf(span.startWeekKey)
+        const ei = weekKeys.indexOf(span.endWeekKey)
+        const edgeIdx = prev.edge === "end" ? ei : si
+        if (edgeIdx < 0) return prev
+        const raw = deltaWeeksFromPx(edgeIdx, e.clientX - prev.originClientX)
+        const deltaWeeks = Math.min(
+          prev.maxDelta,
+          Math.max(prev.minDelta, raw)
+        )
+        const next = {
+          ...prev,
+          deltaWeeks,
+          clientX: e.clientX,
+          clientY: e.clientY,
+        }
+        // Keep the ref in lock-step so pointerup never applies a stale delta.
+        spanEdgeResizeRef.current = next
+        return next
+      })
+    }
+    const onUp = () => {
+      applySpanEdgeResize()
+    }
+    window.addEventListener("pointermove", onMove)
+    window.addEventListener("pointerup", onUp)
+    return () => {
+      window.removeEventListener("pointermove", onMove)
+      window.removeEventListener("pointerup", onUp)
+    }
+  }, [
+    spanEdgeResizeActive,
+    applySpanEdgeResize,
+    deltaWeeksFromPx,
+    weekKeys,
+  ])
+
   const unmergeWeekSpan = useCallback(
     (rowIndex: number, spanId: string) => {
       const row = normalizedRows[rowIndex]
@@ -1307,6 +1687,13 @@ export function MagazinesExpertGrid({
     let sum = 0
     for (const k of sorted) {
       sum += parseNum(row.weeklyValues[k])
+      // Fold day-level detail into the merged total; pushRows drops the
+      // now-covered day keys via clearConflictingDayDetail.
+      for (const dk of dayKeysByWeekKey[k] ?? []) {
+        const dv = row.dailyValues?.[dk]
+        if (dv === "" || dv === undefined) continue
+        sum += parseNum(dv)
+      }
     }
     const newId =
       typeof crypto !== "undefined" && crypto.randomUUID
@@ -1342,7 +1729,7 @@ export function MagazinesExpertGrid({
       title: "Weeks merged",
       description: `Merged ${sorted.length} weeks into one burst. Edit the value or click the red ✕ to unmerge.`,
     })
-  }, [pushRows, resetTransientWeekUiState, rowMergeMaps, toast, weekKeys])
+  }, [dayKeysByWeekKey, pushRows, resetTransientWeekUiState, rowMergeMaps, toast, weekKeys])
 
   const mergeWeeksReady =
     mergeTarget !== null &&
@@ -1409,6 +1796,18 @@ export function MagazinesExpertGrid({
   const pasteMatrixIntoGrid = useCallback(
     (matrix: string[][]) => {
       if (!matrix || matrix.length === 0) return
+
+      // Paste is deliverables-only: silently interpreting clipboard numbers
+      // as $ (or as qty while the grid displays $) would corrupt data.
+      if (entryMode === "budget") {
+        toast({
+          variant: "destructive",
+          title: "Paste is deliverables-only",
+          description:
+            "Switch entry mode to Deliverables to paste, or type $ amounts directly into cells.",
+        })
+        return
+      }
 
       const fc = focusedCellRef.current
       if (!fc) {
@@ -1621,6 +2020,7 @@ export function MagazinesExpertGrid({
       }
     },
     [
+      entryMode,
       normalizedRows,
       networkNames,
       magazinesDescriptorKeys,
@@ -1910,6 +2310,18 @@ export function MagazinesExpertGrid({
         perWeek[k] += q
         sumQty += q
       }
+      // Day-detailed weeks keep an empty week cell; their qty lives in dailyValues.
+      if (row.dailyValues) {
+        for (const k of weekKeys) {
+          for (const dk of dayKeysByWeekKey[k] ?? []) {
+            const dv = row.dailyValues[dk]
+            if (dv === "" || dv === undefined) continue
+            const q = parseNum(dv)
+            perWeek[k] += q
+            sumQty += q
+          }
+        }
+      }
       for (const span of row.mergedWeekSpans ?? []) {
         const q = span.totalQty
         if (!Number.isFinite(q) || q === 0) continue
@@ -1923,7 +2335,7 @@ export function MagazinesExpertGrid({
     const totalWithFee = sumNet + sumFee
 
     return { sumNet, sumQty, perWeek, fee: sumFee, totalWithFee }
-  }, [feemagazines, normalizedRows, weekKeys])
+  }, [dayKeysByWeekKey, feemagazines, normalizedRows, weekKeys])
 
   const descriptorHeadLabels = useMemo(() => {
     const core = [
@@ -1953,6 +2365,20 @@ export function MagazinesExpertGrid({
   return (
     <TooltipProvider delayDuration={300}>
       <Card className="relative overflow-hidden border-0 shadow-md">
+        {spanEdgeResize ? (
+          <div
+            className="pointer-events-none fixed z-[100] rounded-md border border-border bg-background px-2 py-1 text-xs tabular-nums shadow-md"
+            style={{
+              left: spanEdgeResize.clientX + 12,
+              top: spanEdgeResize.clientY - 28,
+            }}
+          >
+            {spanEdgeResize.deltaWeeks > 0
+              ? `+${spanEdgeResize.deltaWeeks}`
+              : spanEdgeResize.deltaWeeks}{" "}
+            wk
+          </div>
+        ) : null}
         <div className="flex min-w-0 flex-row">
           <div
             className="w-1 shrink-0 self-stretch"
@@ -1965,6 +2391,38 @@ export function MagazinesExpertGrid({
             Magazines Media — Expert Schedule
           </CardTitle>
           <div className="flex flex-wrap items-center gap-3">
+            <div
+              className="flex items-center gap-0.5 rounded-md border border-border/60 p-0.5"
+              role="group"
+              aria-label="Cell entry mode"
+            >
+              <Button
+                type="button"
+                size="sm"
+                variant={entryMode === "deliverables" ? "secondary" : "ghost"}
+                className="h-7 px-2 text-xs"
+                title="Cells accept deliverable quantities (spots, impressions, clicks …)"
+                onClick={() => {
+                  setEntryMode("deliverables")
+                  setBudgetDraft(null)
+                }}
+              >
+                Deliverables
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={entryMode === "budget" ? "secondary" : "ghost"}
+                className="h-7 px-2 text-xs"
+                title="Cells accept $ amounts, converted to deliverables via the row's unit rate. Values are always stored as deliverables."
+                onClick={() => {
+                  setEntryMode("budget")
+                  setBudgetDraft(null)
+                }}
+              >
+                $ Budget
+              </Button>
+            </div>
             <div className="flex items-center gap-2">
               <Label htmlFor="magazines-expert-row-count" className="text-sm whitespace-nowrap">
                 Rows:
@@ -2081,44 +2539,113 @@ export function MagazinesExpertGrid({
                           )}
                         </th>
                       ))}
-                      {weekColumns.map((col) => (
-                        <th
-                          key={col.weekKey}
-                          className={cn(stickyThWeek, "relative")}
-                          style={{
-                            ...weekColStyle(col.weekKey, weekColumnWidths),
-                            ...magazinesExpertHeaderCellBgStyle,
-                          }}
-                          title={col.labelFull}
-                        >
-                          <Tooltip>
-                            <TooltipTrigger asChild>
+                      {weekColumns.map((col) => {
+                        const dayCols = expandedWeekKeys.has(col.weekKey)
+                          ? dayColumnsByWeekKey[col.weekKey] ?? []
+                          : []
+                        if (dayCols.length > 0) {
+                          // Expanded week — one narrow header per campaign day.
+                          return dayCols.map((dayCol, di) => (
+                            <th
+                              key={`${col.weekKey}-${dayCol.dayKey}`}
+                              className={cn(stickyThWeek, "relative")}
+                              style={{
+                                width: DAY_COL_WIDTH_PX,
+                                minWidth: DAY_COL_WIDTH_PX,
+                                maxWidth: DAY_COL_WIDTH_PX,
+                                boxSizing: "border-box",
+                                ...magazinesExpertHeaderCellBgStyle,
+                              }}
+                              title={`${col.labelFull} — ${dayCol.dayKey}`}
+                            >
                               <span className="flex min-h-[3rem] w-full cursor-default items-center justify-center px-0.5 py-1">
-                                <span className="text-[11px] font-semibold uppercase leading-snug tracking-wider text-foreground tabular-nums">
-                                  {col.labelShort}
+                                <span className="text-[10px] font-semibold uppercase leading-snug tracking-wide text-muted-foreground tabular-nums">
+                                  {dayCol.labelShort}
                                 </span>
                               </span>
-                            </TooltipTrigger>
-                            <TooltipContent
-                              side="bottom"
-                              className="max-w-xs text-xs"
+                              {di === 0 ? (
+                                <button
+                                  type="button"
+                                  aria-label={`Collapse ${col.labelShort} back to one week column`}
+                                  title={`Collapse ${col.labelShort} back to one week column`}
+                                  className="absolute left-0 top-0 z-[5] flex h-4 w-4 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                                  onMouseDown={(e) => {
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                  }}
+                                  onClick={(e) => {
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                    toggleWeekExpanded(col.weekKey)
+                                  }}
+                                >
+                                  <ChevronsRightLeft className="h-3 w-3" />
+                                </button>
+                              ) : null}
+                            </th>
+                          ))
+                        }
+                        return (
+                          <th
+                            key={col.weekKey}
+                            className={cn(stickyThWeek, "relative")}
+                            style={{
+                              ...weekColStyle(col.weekKey, weekColumnWidths),
+                              ...magazinesExpertHeaderCellBgStyle,
+                            }}
+                            title={col.labelFull}
+                          >
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="flex min-h-[3rem] w-full cursor-default items-center justify-center px-0.5 py-1">
+                                  <span className="text-[11px] font-semibold uppercase leading-snug tracking-wider text-foreground tabular-nums">
+                                    {col.labelShort}
+                                  </span>
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent
+                                side="bottom"
+                                className="max-w-xs text-xs"
+                              >
+                                {col.labelFull}
+                              </TooltipContent>
+                            </Tooltip>
+                            <button
+                              type="button"
+                              aria-label={`Expand ${col.labelShort} into day columns`}
+                              title={`Expand ${col.labelShort} into day columns`}
+                              className="absolute left-0 top-0 z-[5] flex h-4 w-4 items-center justify-center rounded-sm text-muted-foreground/60 transition-colors hover:bg-muted hover:text-foreground"
+                              onMouseDown={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                              }}
+                              onClick={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                toggleWeekExpanded(col.weekKey)
+                              }}
                             >
-                              {col.labelFull}
-                            </TooltipContent>
-                          </Tooltip>
-                          <ExpertGridWeekResizeHandle
-                            weekKey={col.weekKey}
-                            currentWidth={weekColumnWidths[col.weekKey] ?? MAGAZINES_EXPERT_WEEK_COL_WIDTH_PX}
-                            onResize={setWeekColumnWidth}
-                          />
-                        </th>
-                      ))}
+                              <ChevronsLeftRight className="h-3 w-3" />
+                            </button>
+                            <ExpertGridWeekResizeHandle
+                              weekKey={col.weekKey}
+                              currentWidth={weekColumnWidths[col.weekKey] ?? MAGAZINES_EXPERT_WEEK_COL_WIDTH_PX}
+                              onResize={setWeekColumnWidth}
+                            />
+                          </th>
+                        )
+                      })}
                     </tr>
                   </thead>
                   <tbody>
                     {normalizedRows.map((row, rowIndex) => {
                       const net = expertRowNetMedia(row, weekKeys, feemagazines)
                       const qtySum = expertRowQuantitySum(row, weekKeys)
+                      const rowUnitRate = parseNum(row.unitRate)
+                      const rowBudgetEntryOk = rowSupportsBudgetEntry(
+                        row.buyType,
+                        rowUnitRate
+                      )
                       const netMediaTooltip = expertRowNetMediaTooltip(row, qtySum)
                       const stripe =
                         rowIndex % 2 === 1 ? "bg-muted/10" : ""
@@ -2640,7 +3167,201 @@ export function MagazinesExpertGrid({
                                 ? [...spanMeta.weekKeysIncluded]
                                 : [col.weekKey]
                               const spanLen = Math.max(1, spanMeta?.spanLength ?? 1)
-                              const display = weeklyCellDisplayValue(cell, mSpan)
+                              // Column units: an expanded week occupies one
+                              // column per campaign day; collapsed weeks one.
+                              const spanUnits = spanKeys.reduce(
+                                (s, k) =>
+                                  s +
+                                  (expandedWeekKeys.has(k)
+                                    ? Math.max(
+                                        1,
+                                        (dayColumnsByWeekKey[k] ?? []).length
+                                      )
+                                    : 1),
+                                0
+                              )
+                              if (!mSpan && expandedWeekKeys.has(col.weekKey)) {
+                                const dayCols =
+                                  dayColumnsByWeekKey[col.weekKey] ?? []
+                                if (dayCols.length > 0) {
+                                  const dk = [
+                                    ...(dayKeysByWeekKey[col.weekKey] ?? []),
+                                  ]
+                                  const hasDetail =
+                                    !!row.dailyValues &&
+                                    weekHasDailyValues(row.dailyValues, dk)
+                                  const split = hasDetail
+                                    ? null
+                                    : expandWeekToDaily(
+                                        row.weeklyValues[col.weekKey] ?? "",
+                                        dk
+                                      )
+                                  for (const dayCol of dayCols) {
+                                    const rawV = hasDetail
+                                      ? row.dailyValues?.[dayCol.dayKey] ?? ""
+                                      : split?.[dayCol.dayKey] ?? ""
+                                    const qtyDisplayV =
+                                      rawV === "" || rawV === 0
+                                        ? ""
+                                        : String(rawV)
+                                    const displayV =
+                                      entryMode === "budget" && rowBudgetEntryOk
+                                        ? budgetDraft &&
+                                          budgetDraft.rowIndex === rowIndex &&
+                                          budgetDraft.cellKey === dayCol.dayKey
+                                          ? budgetDraft.text
+                                          : budgetCellDisplay(
+                                              row.buyType,
+                                              rowUnitRate,
+                                              rawV === "" ? 0 : rawV
+                                            )
+                                        : qtyDisplayV
+                                    renderedWeekCells.push(
+                                      <td
+                                        key={`${row.id}-${dayCol.dayKey}`}
+                                        className="border-b border-r p-0 align-middle bg-primary/[0.04]"
+                                        style={{
+                                          width: DAY_COL_WIDTH_PX,
+                                          minWidth: DAY_COL_WIDTH_PX,
+                                          maxWidth: DAY_COL_WIDTH_PX,
+                                          boxSizing: "border-box",
+                                        }}
+                                        title={
+                                          hasDetail
+                                            ? `Day value — ${dayCol.dayKey}`
+                                            : "Derived from the week's even split — editing saves day-level detail"
+                                        }
+                                      >
+                                        <Input
+                                          className={cn(
+                                            "box-border h-8 w-full min-w-0 max-w-full rounded-none border-0 bg-transparent px-0.5 text-center text-[11px] tabular-nums shadow-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-primary/55 focus-visible:ring-offset-0",
+                                            hasDetail
+                                              ? "text-foreground font-medium"
+                                              : "italic text-muted-foreground"
+                                          )}
+                                          inputMode="decimal"
+                                          value={displayV}
+                                          disabled={
+                                            entryMode === "budget" &&
+                                            !rowBudgetEntryOk
+                                          }
+                                          onChange={(e) => {
+                                            if (entryMode === "budget") {
+                                              if (!rowBudgetEntryOk) return
+                                              const text = e.target.value
+                                              setBudgetDraft({
+                                                rowIndex,
+                                                cellKey: dayCol.dayKey,
+                                                text,
+                                              })
+                                              const cleaned = text.replace(
+                                                /[^\d.-]/g,
+                                                ""
+                                              )
+                                              if (
+                                                cleaned === "" ||
+                                                cleaned === "-"
+                                              ) {
+                                                updateDailyCell(
+                                                  rowIndex,
+                                                  col.weekKey,
+                                                  dayCol.dayKey,
+                                                  ""
+                                                )
+                                                return
+                                              }
+                                              const budget =
+                                                Number.parseFloat(cleaned)
+                                              if (!Number.isFinite(budget)) {
+                                                return
+                                              }
+                                              updateDailyCell(
+                                                rowIndex,
+                                                col.weekKey,
+                                                dayCol.dayKey,
+                                                String(
+                                                  qtyFromBudgetInput(
+                                                    row.buyType,
+                                                    rowUnitRate,
+                                                    budget
+                                                  )
+                                                )
+                                              )
+                                              return
+                                            }
+                                            updateDailyCell(
+                                              rowIndex,
+                                              col.weekKey,
+                                              dayCol.dayKey,
+                                              e.target.value
+                                            )
+                                          }}
+                                          onBlur={() => {
+                                            setBudgetDraft((prev) =>
+                                              prev &&
+                                              prev.rowIndex === rowIndex &&
+                                              prev.cellKey === dayCol.dayKey
+                                                ? null
+                                                : prev
+                                            )
+                                          }}
+                                        />
+                                      </td>
+                                    )
+                                  }
+                                  continue
+                                }
+                              }
+                              const dayKeysForWeek =
+                                dayKeysByWeekKey[col.weekKey] ?? []
+                              const hasDayDetail =
+                                !mSpan &&
+                                !!row.dailyValues &&
+                                weekHasDailyValues(
+                                  row.dailyValues,
+                                  [...dayKeysForWeek]
+                                )
+                              const daySum = hasDayDetail
+                                ? collapseDailyToWeekly(
+                                    row.dailyValues!,
+                                    [...dayKeysForWeek]
+                                  )
+                                : ""
+                              const displayBase = weeklyCellDisplayValue(cell, mSpan)
+                              // Day-detailed weeks show their day-sum in the
+                              // collapsed cell; a week-level edit replaces the
+                              // day detail (enforced in pushRows).
+                              const display =
+                                hasDayDetail && displayBase === "" && daySum !== ""
+                                  ? String(daySum)
+                                  : displayBase
+                              // Budget mode: show derived qty × rate (or the
+                              // in-flight typing buffer); qty stays the model.
+                              const cellQtyNum = mSpan
+                                ? Number.isFinite(mSpan.totalQty)
+                                  ? mSpan.totalQty
+                                  : 0
+                                : hasDayDetail
+                                  ? daySum === ""
+                                    ? 0
+                                    : daySum
+                                  : parseNum(cell)
+                              // Blocked rows (no rate / bonus) keep showing
+                              // their qty read-only rather than a blank cell.
+                              const inputDisplay =
+                                entryMode === "budget" && rowBudgetEntryOk
+                                  ? budgetDraft &&
+                                    budgetDraft.rowIndex === rowIndex &&
+                                    budgetDraft.cellKey === col.weekKey
+                                    ? budgetDraft.text
+                                    : budgetCellDisplay(
+                                        row.buyType,
+                                        rowUnitRate,
+                                        cellQtyNum
+                                      )
+                                  : display
+                              const budgetEntryBlocked =
+                                entryMode === "budget" && !rowBudgetEntryOk
                               const colIndex =
                                 magazinesDescriptorKeys.length +
                                 WEEK_GRID_COL_OFFSET +
@@ -2652,14 +3373,16 @@ export function MagazinesExpertGrid({
                               )
                               const weekQtyVisual = mSpan
                                 ? Number.isFinite(mSpan.totalQty) && mSpan.totalQty !== 0
-                                : (() => {
-                                    const v = row.weeklyValues[col.weekKey]
-                                    if (v === "" || v === undefined || v === null)
-                                      return false
-                                    return (
-                                      Number.isFinite(parseNum(v)) && parseNum(v) !== 0
-                                    )
-                                  })()
+                                : hasDayDetail
+                                  ? daySum !== "" && daySum !== 0
+                                  : (() => {
+                                      const v = row.weeklyValues[col.weekKey]
+                                      if (v === "" || v === undefined || v === null)
+                                        return false
+                                      return (
+                                        Number.isFinite(parseNum(v)) && parseNum(v) !== 0
+                                      )
+                                    })()
                               const mergeReadyOnCell = spanKeys.some(
                                 (key) =>
                                   mergeTarget !== null &&
@@ -2715,7 +3438,7 @@ export function MagazinesExpertGrid({
                                 focusedCell?.rowIndex === rowIndex &&
                                 focusedCell.columnKey === col.weekKey
                               const isSingleDraggableCell =
-                                !isMergedAnchorCell && weekQtyVisual
+                                !isMergedAnchorCell && weekQtyVisual && !hasDayDetail
                               const isMergedDraggableCell = isMergedAnchorCell
                               const isDraggableWeekCell =
                                 (isSingleDraggableCell || isMergedDraggableCell) &&
@@ -2800,7 +3523,12 @@ export function MagazinesExpertGrid({
                                 isFocusVisible &&
                                   !isMergedAnchorCell &&
                                   !mergeReadyOnCell &&
-                                  "z-[6] ring-2 ring-primary ring-offset-1 ring-offset-background shadow-md"
+                                  "z-[6] ring-2 ring-primary ring-offset-1 ring-offset-background shadow-md",
+                                // Live feedback while a span edge is dragged.
+                                spanEdgeResize !== null &&
+                                  mSpan !== null &&
+                                  spanEdgeResize.spanId === mSpan.id &&
+                                  "z-[7] ring-2 ring-primary ring-inset"
                               )
                               const mergedAnchorWrapperClassName = cn(
                                 !isMergedAnchorCell &&
@@ -2835,18 +3563,23 @@ export function MagazinesExpertGrid({
                                   isMergedAnchorCell &&
                                   "text-foreground"
                               )
-                              const mergedAnchorWidthPx = mSpan
-                                ? mergedSpanWidthPx(
-                                    weekKeys,
-                                    mSpan.startWeekKey,
-                                    mSpan.endWeekKey,
-                                    weekColumnWidths,
-                                  )
-                                : null
+                              // Pixel width only applies while every covered
+                              // week is collapsed; expanded weeks are sized by
+                              // their day sub-columns via colSpan.
+                              const mergedAnchorWidthPx =
+                                mSpan &&
+                                !spanKeys.some((k) => expandedWeekKeys.has(k))
+                                  ? mergedSpanWidthPx(
+                                      weekKeys,
+                                      mSpan.startWeekKey,
+                                      mSpan.endWeekKey,
+                                      weekColumnWidths,
+                                    )
+                                  : null
                               renderedWeekCells.push(
                                 <td
                                   key={`${row.id}-${col.weekKey}`}
-                                  colSpan={spanLen}
+                                  colSpan={spanUnits}
                                   style={
                                     isMergedAnchorCell && mergedAnchorWidthPx != null
                                       ? {
@@ -2861,11 +3594,13 @@ export function MagazinesExpertGrid({
                                   title={
                                     isMergedAnchorCell
                                       ? "Drag to move merged burst"
-                                      : isSingleDraggableCell
-                                        ? "Drag to move deliverable"
-                                        : weekDragSource
-                                          ? "Merged interior — drop on anchor or empty week"
-                                          : undefined
+                                      : hasDayDetail
+                                        ? "Day-level detail (sum shown) — typing a value replaces it with a uniform week"
+                                        : isSingleDraggableCell
+                                          ? "Drag to move deliverable"
+                                          : weekDragSource
+                                            ? "Merged interior — drop on anchor or empty week"
+                                            : undefined
                                   }
                                   onMouseEnter={(e) => {
                                     if (!isSelecting) return
@@ -3063,7 +3798,8 @@ export function MagazinesExpertGrid({
                                           "bg-transparent shadow-none ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                                       )}
                                       inputMode="decimal"
-                                      value={display}
+                                      value={inputDisplay}
+                                      disabled={budgetEntryBlocked}
                                       draggable={isDraggableWeekCell}
                                       onDragStart={(e) => {
                                         // resolveWeekDragSource returns the "merged" variant when called on a
@@ -3315,14 +4051,103 @@ export function MagazinesExpertGrid({
                                         e
                                       )
                                     }}
-                                      onChange={(e) =>
+                                      onChange={(e) => {
+                                        if (entryMode === "budget") {
+                                          if (!rowBudgetEntryOk) return
+                                          const text = e.target.value
+                                          setBudgetDraft({
+                                            rowIndex,
+                                            cellKey: col.weekKey,
+                                            text,
+                                          })
+                                          const cleaned = text.replace(
+                                            /[^\d.-]/g,
+                                            ""
+                                          )
+                                          if (cleaned === "" || cleaned === "-") {
+                                            updateWeeklyCell(
+                                              rowIndex,
+                                              col.weekKey,
+                                              ""
+                                            )
+                                            return
+                                          }
+                                          const budget =
+                                            Number.parseFloat(cleaned)
+                                          if (!Number.isFinite(budget)) return
+                                          updateWeeklyCell(
+                                            rowIndex,
+                                            col.weekKey,
+                                            String(
+                                              qtyFromBudgetInput(
+                                                row.buyType,
+                                                rowUnitRate,
+                                                budget
+                                              )
+                                            )
+                                          )
+                                          return
+                                        }
                                         updateWeeklyCell(
                                           rowIndex,
                                           col.weekKey,
                                           e.target.value
                                         )
-                                      }
+                                      }}
+                                      onBlur={() => {
+                                        setBudgetDraft((prev) =>
+                                          prev &&
+                                          prev.rowIndex === rowIndex &&
+                                          prev.cellKey === col.weekKey
+                                            ? null
+                                            : prev
+                                        )
+                                      }}
                                     />
+                                    {isMergedAnchorCell && mSpan ? (
+                                      <>
+                                        <div
+                                          role="separator"
+                                          aria-label="Resize merged burst from its start week"
+                                          title="Drag to resize burst (start edge)"
+                                          className="absolute inset-y-0 left-0 z-[55] w-1.5 cursor-ew-resize transition-colors hover:bg-primary/50"
+                                          onPointerDown={(e) => {
+                                            e.preventDefault()
+                                            e.stopPropagation()
+                                            beginSpanEdgeResize(
+                                              rowIndex,
+                                              mSpan.id,
+                                              "start",
+                                              e.clientX,
+                                              e.clientY
+                                            )
+                                          }}
+                                          onMouseDown={(e) => e.stopPropagation()}
+                                          onClick={(e) => e.stopPropagation()}
+                                          onDoubleClick={(e) => e.stopPropagation()}
+                                        />
+                                        <div
+                                          role="separator"
+                                          aria-label="Resize merged burst from its end week"
+                                          title="Drag to resize burst (end edge)"
+                                          className="absolute inset-y-0 right-0 z-[55] w-1.5 cursor-ew-resize transition-colors hover:bg-primary/50"
+                                          onPointerDown={(e) => {
+                                            e.preventDefault()
+                                            e.stopPropagation()
+                                            beginSpanEdgeResize(
+                                              rowIndex,
+                                              mSpan.id,
+                                              "end",
+                                              e.clientX,
+                                              e.clientY
+                                            )
+                                          }}
+                                          onMouseDown={(e) => e.stopPropagation()}
+                                          onClick={(e) => e.stopPropagation()}
+                                          onDoubleClick={(e) => e.stopPropagation()}
+                                        />
+                                      </>
+                                    ) : null}
                                     {mSpan ? (
                                       <button
                                         type="button"
@@ -3449,25 +4274,40 @@ export function MagazinesExpertGrid({
                               })}
                         </div>
                       </td>
-                      {weekColumns.map((col) => (
-                        <td
-                          key={`t-${col.weekKey}`}
-                          style={{
-                            ...weekColStyle(col.weekKey, weekColumnWidths),
-                            ...magazinesExpertTotalsRowBgStyle,
-                          }}
-                          className="h-8 border-b border-r px-0.5 text-center text-xs tabular-nums align-middle"
-                        >
-                          <div className="flex h-full items-center justify-center">
-                            {containerTotals.perWeek[col.weekKey] === 0
-                              ? "—"
-                              : containerTotals.perWeek[col.weekKey].toLocaleString(
-                                  undefined,
-                                  { maximumFractionDigits: 2 }
-                                )}
-                          </div>
-                        </td>
-                      ))}
+                      {weekColumns.map((col) => {
+                        const units = expandedWeekKeys.has(col.weekKey)
+                          ? Math.max(
+                              1,
+                              (dayColumnsByWeekKey[col.weekKey] ?? []).length
+                            )
+                          : 1
+                        return (
+                          <td
+                            key={`t-${col.weekKey}`}
+                            colSpan={units}
+                            style={{
+                              ...(units === 1
+                                ? weekColStyle(col.weekKey, weekColumnWidths)
+                                : {
+                                    width: units * DAY_COL_WIDTH_PX,
+                                    minWidth: units * DAY_COL_WIDTH_PX,
+                                    boxSizing: "border-box",
+                                  }),
+                              ...magazinesExpertTotalsRowBgStyle,
+                            }}
+                            className="h-8 border-b border-r px-0.5 text-center text-xs tabular-nums align-middle"
+                          >
+                            <div className="flex h-full items-center justify-center">
+                              {containerTotals.perWeek[col.weekKey] === 0
+                                ? "—"
+                                : containerTotals.perWeek[col.weekKey].toLocaleString(
+                                    undefined,
+                                    { maximumFractionDigits: 2 }
+                                  )}
+                            </div>
+                          </td>
+                        )
+                      })}
                     </tr>
                   </tbody>
                 </table>
