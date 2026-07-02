@@ -10,7 +10,7 @@ const MONTHS = [
 ]
 
 /** "January 2026" … keys spanning [start,end] inclusive, chronological (English, to match prorateAcrossMonths' parser). */
-function monthKeysForRange(start: Date, end: Date): string[] {
+export function monthKeysForRange(start: Date, end: Date): string[] {
   const keys: string[] = []
   let cur = new Date(start.getFullYear(), start.getMonth(), 1)
   const last = new Date(end.getFullYear(), end.getMonth(), 1)
@@ -21,7 +21,7 @@ function monthKeysForRange(start: Date, end: Date): string[] {
   return keys
 }
 
-function monthKeyToDate(key: string): Date {
+export function monthKeyToDate(key: string): Date {
   const m = key.match(/^([A-Za-z]+)\s+(\d{4})$/)
   if (!m) return new Date(0)
   return new Date(Number(m[2]), MONTHS.indexOf(m[1]), 1)
