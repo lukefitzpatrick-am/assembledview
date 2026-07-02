@@ -2487,6 +2487,7 @@ export function IntegrationExpertGrid({
               Add row
             </Button>
             <Button
+              type="button"
               variant="ghost"
               size="sm"
               className="text-xs text-muted-foreground"

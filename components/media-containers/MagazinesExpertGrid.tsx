@@ -150,11 +150,11 @@ import {
   buildWeeklyPasteTargetsAnchorOnly,
   mapClipboardMatrixToWeeklyTargets,
   applyWeeklyPasteMatrixToSelection,
-  weekRangeOutlineFlags as radioWeekRangeOutlineFlags,
-  weekOutlineEdgeClasses as radioWeekOutlineEdgeClasses,
+  weekRangeOutlineFlags,
+  weekOutlineEdgeClasses,
   mergeReadyOutlineFlags as oohMergeReadyOutlineFlags,
   mergeReadyOutlineEdgeClasses as oohMergeReadyOutlineEdgeClasses,
-  weekCellInMergePulseHighlight as radioWeekCellInMergePulseHighlight,
+  weekCellInMergePulseHighlight,
   mergeKeysFromRect as oohMergeKeysFromRect,
   normalizeWeekMergeSelection as normalizeMagazinesWeekMergeSelection,
   weekPlainClickPreservesWeekAreaSelection,
@@ -3395,7 +3395,7 @@ export function MagazinesExpertGrid({
                                 weekStripSelection.rowIndex === rowIndex
                                   ? weekStripSelection.rowIndex
                                   : null
-                              const rangeOutline = radioWeekRangeOutlineFlags(
+                              const rangeOutline = weekRangeOutlineFlags(
                                 rowIndex,
                                 wi,
                                 weekRectSelection,
@@ -3419,7 +3419,7 @@ export function MagazinesExpertGrid({
                               )
                               const inMergePulseHighlight = spanKeys.some(
                                 (key) =>
-                                  radioWeekCellInMergePulseHighlight(
+                                  weekCellInMergePulseHighlight(
                                     rowIndex,
                                     key,
                                     mergeSpanHighlightPulse,
@@ -3516,7 +3516,7 @@ export function MagazinesExpertGrid({
                                 isDragDropTargetCell &&
                                   !isDragDropTargetValid &&
                                   "cursor-not-allowed",
-                                radioWeekOutlineEdgeClasses(rangeOutline),
+                                weekOutlineEdgeClasses(rangeOutline),
                                 !isMergedAnchorCell &&
                                   oohMergeReadyOutlineEdgeClasses(mergeReadyOutline),
                                 // Focus wins visual priority.
