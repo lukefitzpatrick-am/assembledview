@@ -3109,7 +3109,8 @@ export async function saveRadioLineItems(mediaPlanVersionId: number, mbaNumber: 
         budget_includes_fees: getBooleanField(lineItem, 'budget_includes_fees', 'budgetIncludesFees', false),
         no_adserving: getBooleanField(lineItem, 'no_adserving', 'noadserving', false),
         line_item_id: idMeta.line_item_id,
-        bursts: formattedBursts, // Use 'bursts' to match database schema
+        bursts: formattedBursts,
+        bursts_json: formattedBursts,
         line_item: idMeta.line_item,
       };
 
@@ -3164,7 +3165,7 @@ export async function saveMagazinesLineItems(mediaPlanVersionId: number, mbaNumb
         budget_includes_fees: getBooleanField(lineItem, 'budget_includes_fees', 'budgetIncludesFees', false),
         no_adserving: getBooleanField(lineItem, 'no_adserving', 'noadserving', false),
         line_item_id,
-        bursts_json: JSON.stringify(formattedBursts),
+        bursts_json: formattedBursts,
         line_item,
       };
 
@@ -3220,7 +3221,7 @@ export async function saveOOHLineItems(mediaPlanVersionId: number, mbaNumber: st
         budget_includes_fees: getBooleanField(lineItem, 'budget_includes_fees', 'budgetIncludesFees', false),
         no_adserving: getBooleanField(lineItem, 'no_adserving', 'noadserving', false),
         line_item_id,
-        bursts_json: JSON.stringify(formattedBursts),
+        bursts_json: formattedBursts,
         line_item,
       };
 
@@ -3275,7 +3276,8 @@ export async function saveCinemaLineItems(mediaPlanVersionId: number, mbaNumber:
         station: getField(lineItem, 'station', 'station', ''),
         placement: getField(lineItem, 'placement', 'placement', ''),
         duration: getField(lineItem, 'duration', 'duration', ''),
-        bursts: JSON.stringify(formattedBursts),
+        bursts: formattedBursts,
+        bursts_json: formattedBursts,
         bid_strategy: getField(lineItem, 'bid_strategy', 'bidStrategy', ''),
       };
 
@@ -3330,7 +3332,7 @@ export async function saveDigitalDisplayLineItems(mediaPlanVersionId: number, mb
         budget_includes_fees: getBooleanField(lineItem, 'budget_includes_fees', 'budgetIncludesFees', false),
         no_adserving: getBooleanField(lineItem, 'no_adserving', 'noadserving', false),
         line_item_id,
-        bursts_json: JSON.stringify(formattedBursts),
+        bursts_json: formattedBursts,
         line_item,
       };
 
@@ -3385,7 +3387,7 @@ export async function saveDigitalAudioLineItems(mediaPlanVersionId: number, mbaN
         budget_includes_fees: getBooleanField(lineItem, 'budget_includes_fees', 'budgetIncludesFees', false),
         no_adserving: getBooleanField(lineItem, 'no_adserving', 'noadserving', false),
         line_item_id,
-        bursts_json: JSON.stringify(formattedBursts),
+        bursts_json: formattedBursts,
         line_item,
       };
 
@@ -3442,7 +3444,7 @@ export async function saveDigitalVideoLineItems(mediaPlanVersionId: number, mbaN
         budget_includes_fees: getBooleanField(lineItem, 'budget_includes_fees', 'budgetIncludesFees', false),
         no_adserving: getBooleanField(lineItem, 'no_adserving', 'noadserving', false),
         line_item_id,
-        bursts_json: JSON.stringify(formattedBursts),
+        bursts_json: formattedBursts,
         line_item,
       };
 
@@ -3499,7 +3501,7 @@ export async function saveBVODLineItems(mediaPlanVersionId: number, mbaNumber: s
         budget_includes_fees: getBooleanField(lineItem, 'budget_includes_fees', 'budgetIncludesFees', false),
         no_adserving: getBooleanField(lineItem, 'no_adserving', 'noadserving', false),
         line_item_id,
-        bursts_json: JSON.stringify(formattedBursts),
+        bursts_json: formattedBursts,
         line_item,
       };
 
@@ -3564,7 +3566,7 @@ export async function saveIntegrationLineItems(mediaPlanVersionId: number, mbaNu
         budget_includes_fees: getBooleanField(lineItem, 'budget_includes_fees', 'budgetIncludesFees', false),
         no_adserving: getBooleanField(lineItem, 'no_adserving', 'noadserving', false),
         line_item_id,
-        bursts_json: JSON.stringify(formattedBursts),
+        bursts_json: formattedBursts,
         line_item,
       };
 
@@ -3624,7 +3626,7 @@ export async function saveSearchLineItems(mediaPlanVersionId: number, mbaNumber:
         budget_includes_fees: getBooleanField(lineItem, 'budget_includes_fees', 'budgetIncludesFees', false),
         no_adserving: getBooleanField(lineItem, 'no_adserving', 'noadserving', false),
         line_item_id,
-        bursts_json: JSON.stringify(formattedBursts),
+        bursts_json: formattedBursts,
         line_item,
       };
 
@@ -3680,7 +3682,7 @@ export async function saveProgDisplayLineItems(mediaPlanVersionId: number, mbaNu
         budget_includes_fees: getBooleanField(lineItem, 'budget_includes_fees', 'budgetIncludesFees', false),
         no_adserving: getBooleanField(lineItem, 'no_adserving', 'noadserving', false),
         line_item_id,
-        bursts_json: JSON.stringify(formattedBursts),
+        bursts_json: formattedBursts,
         line_item,
       };
 
@@ -3736,7 +3738,7 @@ export async function saveProgVideoLineItems(mediaPlanVersionId: number, mbaNumb
         budget_includes_fees: getBooleanField(lineItem, 'budget_includes_fees', 'budgetIncludesFees', false),
         no_adserving: getBooleanField(lineItem, 'no_adserving', 'noadserving', false),
         line_item_id,
-        bursts_json: JSON.stringify(formattedBursts),
+        bursts_json: formattedBursts,
         line_item,
       };
 
@@ -3797,7 +3799,7 @@ export async function saveProgBVODLineItems(mediaPlanVersionId: number, mbaNumbe
         budget_includes_fees: getBooleanField(lineItem, 'budget_includes_fees', 'budgetIncludesFees', false),
         no_adserving: getBooleanField(lineItem, 'no_adserving', 'noadserving', false),
         line_item_id,
-        bursts_json: JSON.stringify(formattedBursts),
+        bursts_json: formattedBursts,
         line_item,
       };
 
@@ -3852,7 +3854,7 @@ export async function saveProgAudioLineItems(mediaPlanVersionId: number, mbaNumb
         budget_includes_fees: getBooleanField(lineItem, 'budget_includes_fees', 'budgetIncludesFees', false),
         no_adserving: getBooleanField(lineItem, 'no_adserving', 'noadserving', false),
         line_item_id,
-        bursts_json: JSON.stringify(formattedBursts),
+        bursts_json: formattedBursts,
         line_item,
       };
 
@@ -3908,7 +3910,7 @@ export async function saveProgOOHLineItems(mediaPlanVersionId: number, mbaNumber
         budget_includes_fees: getBooleanField(lineItem, 'budget_includes_fees', 'budgetIncludesFees', false),
         no_adserving: getBooleanField(lineItem, 'no_adserving', 'noadserving', false),
         line_item_id,
-        bursts_json: JSON.stringify(formattedBursts),
+        bursts_json: formattedBursts,
         line_item,
       };
 
@@ -3963,7 +3965,7 @@ export async function saveInfluencersLineItems(mediaPlanVersionId: number, mbaNu
         budget_includes_fees: getBooleanField(lineItem, 'budget_includes_fees', 'budgetIncludesFees', false),
         no_adserving: getBooleanField(lineItem, 'no_adserving', 'noadserving', false),
         line_item_id,
-        bursts_json: JSON.stringify(formattedBursts),
+        bursts_json: formattedBursts,
         line_item,
       };
 
