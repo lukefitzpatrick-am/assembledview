@@ -151,6 +151,28 @@ const GOLDEN = {
   ],
 } as const
 
+test("spots line calculatedValue persists through extractAndFormatBursts (Symptom 1)", () => {
+  const result = extractAndFormatBursts(
+    {
+      bursts: [
+        {
+          budget: "25000",
+          buyAmount: "50",
+          startDate: "2026-01-05",
+          endDate: "2026-01-11",
+          calculatedValue: 500,
+        },
+      ],
+      buy_type: "spots",
+      budget_includes_fees: false,
+      client_pays_for_media: false,
+    },
+    0,
+  )
+  assert.equal(result.length, 1)
+  assert.equal(result[0].calculatedValue, 500)
+})
+
 test("bursts array input (Radio-style): _reactKey dropped, mediaAmount/feeAmount added", () => {
   const result = extractAndFormatBursts(
     {
