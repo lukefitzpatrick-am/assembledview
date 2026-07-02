@@ -31,6 +31,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Combobox, type ComboboxOption } from "@/components/media-containers/ExpertGridCombobox"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
+import { SingleDatePicker } from "@/components/ui/single-date-picker"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/use-toast"
 import {
@@ -176,6 +177,7 @@ import {
 import {
   deltaDaysFromPx,
   resizeSpanEdgeByDays,
+  setExpertRowEdgeDate,
   spanEdgeDayDeltaBounds,
   spanEdgeYmd,
   spanPartialCoveragePlan,
@@ -336,6 +338,12 @@ function formatYmdDisplay(ymd: string): string {
   const d = new Date(`${ymd.trim()}T12:00:00`)
   if (Number.isNaN(d.getTime())) return "—"
   return format(d, "dd/MM/yy")
+}
+
+function parseRowYmd(ymd: string): Date | null {
+  if (!ymd?.trim()) return null
+  const d = startOfDay(new Date(`${ymd.trim()}T12:00:00`))
+  return Number.isNaN(d.getTime()) ? null : d
 }
 
 export interface RadioExpertGridProps {
@@ -724,7 +732,8 @@ export function RadioExpertGrid({
             cleared,
             weekColumns,
             campaignStartDate,
-            campaignEndDate
+            campaignEndDate,
+            dayKeysByWeekKey
           ),
         }
       })
@@ -737,6 +746,53 @@ export function RadioExpertGrid({
       campaignEndDate,
       dayKeysByWeekKey,
       weekKeys,
+    ]
+  )
+
+  const handleRowEdgeDatePick = useCallback(
+    (rowIndex: number, edge: "start" | "end", picked: Date | undefined) => {
+      if (!picked) return
+      const ymd = format(startOfDay(picked), "yyyy-MM-dd")
+      const row = normalizedRowsRef.current[rowIndex]
+      if (!row) return
+      const result = setExpertRowEdgeDate(
+        row,
+        edge,
+        ymd,
+        weekColumns,
+        campaignStartDate,
+        campaignEndDate,
+        dayKeysByWeekKey
+      )
+      if ("error" in result) {
+        toast({
+          variant: "destructive",
+          title: "Cannot update date",
+          description: result.error,
+        })
+        return
+      }
+      pushRows(
+        normalizedRowsRef.current.map((r, i) => {
+          if (i !== rowIndex) return r
+          return {
+            ...r,
+            weeklyValues: { ...result.weeklyValues },
+            dailyValues: result.dailyValues,
+            mergedWeekSpans: result.mergedWeekSpans
+              ? [...result.mergedWeekSpans]
+              : r.mergedWeekSpans,
+          }
+        })
+      )
+    },
+    [
+      campaignEndDate,
+      campaignStartDate,
+      dayKeysByWeekKey,
+      pushRows,
+      toast,
+      weekColumns,
     ]
   )
 
@@ -3012,30 +3068,56 @@ export function RadioExpertGrid({
                             className={stickyTd(cStart)}
                             style={stickyStyleBody(cStart)}
                           >
-                            <Input
+                            <SingleDatePicker
                               id={expertGridCellId(
                                 domGridId,
                                 rowIndex,
                                 cStart
                               )}
-                              readOnly
-                              tabIndex={-1}
+                              value={parseRowYmd(row.startDate)}
+                              onChange={(d) =>
+                                handleRowEdgeDatePick(rowIndex, "start", d)
+                              }
+                              calendarContext="media-burst"
+                              mediaBurstRole="start"
+                              campaignStartDate={campaignStartDate}
+                              campaignEndDate={campaignEndDate}
+                              dateFormat="dd/MM/yy"
+                              align="start"
+                              iconClassName="ml-1 h-3 w-3 shrink-0 opacity-50"
+                              className="h-8 w-full cursor-pointer border-0 bg-transparent px-0 text-[11px] font-normal tabular-nums text-muted-foreground shadow-none hover:bg-transparent focus-visible:ring-1"
+                              placeholder={
+                                <span className="tabular-nums">
+                                  {formatYmdDisplay(row.startDate)}
+                                </span>
+                              }
                               title={row.startDate}
-                              className="h-8 cursor-default border-0 bg-transparent px-0 text-[11px] tabular-nums text-muted-foreground shadow-none focus-visible:ring-0"
-                              value={formatYmdDisplay(row.startDate)}
                             />
                           </td>
                           <td
                             className={stickyTd(cEnd)}
                             style={stickyStyleBody(cEnd)}
                           >
-                            <Input
+                            <SingleDatePicker
                               id={expertGridCellId(domGridId, rowIndex, cEnd)}
-                              readOnly
-                              tabIndex={-1}
+                              value={parseRowYmd(row.endDate)}
+                              onChange={(d) =>
+                                handleRowEdgeDatePick(rowIndex, "end", d)
+                              }
+                              calendarContext="media-burst"
+                              mediaBurstRole="end"
+                              campaignStartDate={campaignStartDate}
+                              campaignEndDate={campaignEndDate}
+                              dateFormat="dd/MM/yy"
+                              align="start"
+                              iconClassName="ml-1 h-3 w-3 shrink-0 opacity-50"
+                              className="h-8 w-full cursor-pointer border-0 bg-transparent px-0 text-[11px] font-normal tabular-nums text-muted-foreground shadow-none hover:bg-transparent focus-visible:ring-1"
+                              placeholder={
+                                <span className="tabular-nums">
+                                  {formatYmdDisplay(row.endDate)}
+                                </span>
+                              }
                               title={row.endDate}
-                              className="h-8 cursor-default border-0 bg-transparent px-0 text-[11px] tabular-nums text-muted-foreground shadow-none focus-visible:ring-0"
-                              value={formatYmdDisplay(row.endDate)}
                             />
                           </td>
                           <td

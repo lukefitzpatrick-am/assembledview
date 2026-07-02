@@ -1,13 +1,16 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
+import { format } from "date-fns"
 import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
 import { weekDayKeys } from "@/lib/mediaplan/expertDayModel"
-import { DAY_COL_WIDTH_PX } from "@/lib/mediaplan/expertGridDayEntry"
+import { clearConflictingDayDetail, DAY_COL_WIDTH_PX } from "@/lib/mediaplan/expertGridDayEntry"
 import { WEEK_COL_WIDTH_PX } from "@/lib/mediaplan/expertGridShared"
 import {
   deltaDaysFromPx,
+  deriveExpertRowScheduleYmdFromRow,
   effectiveSpanYmdBounds,
   resizeSpanEdgeByDays,
+  setExpertRowEdgeDate,
   spanEdgeDayDeltaBounds,
   spanPartialCoveragePlan,
   weekKeyForYmd,
@@ -162,4 +165,206 @@ test("spanPartialCoveragePlan splits leading, anchor, trailing in expanded edge 
   const coveredStart = startDays.filter((d) => d >= span.startYmd).length
   const coveredEnd = endDays.filter((d) => d <= span.endYmd).length
   assert.equal(plan!.anchorColUnits, coveredStart + coveredEnd)
+})
+
+function pushRowLike(
+  row: Parameters<typeof setExpertRowEdgeDate>[0],
+  edge: "start" | "end",
+  ymd: string
+) {
+  const result = setExpertRowEdgeDate(
+    row,
+    edge,
+    ymd,
+    cols,
+    CS,
+    CE,
+    dayKeysByWeekKey
+  )
+  assert.ok(!("error" in result))
+  const cleared = clearConflictingDayDetail(
+    result,
+    dayKeysByWeekKey,
+    weekKeys
+  )
+  return deriveExpertRowScheduleYmdFromRow(
+    cleared,
+    cols,
+    CS,
+    CE,
+    dayKeysByWeekKey
+  )
+}
+
+test("setExpertRowEdgeDate moves span start and derived date matches pick", () => {
+  const row = {
+    weeklyValues: Object.fromEntries(weekKeys.map((k) => [k, ""])) as Record<
+      string,
+      number | ""
+    >,
+    mergedWeekSpans: [
+      {
+        id: "s1",
+        startWeekKey: weekKeys[1]!,
+        endWeekKey: weekKeys[2]!,
+        totalQty: 100,
+        startYmd: span.startYmd,
+        endYmd: span.endYmd,
+      },
+    ],
+  }
+  const picked = dayKeysByWeekKey[weekKeys[1]!]![0]!
+  const result = setExpertRowEdgeDate(
+    row,
+    "start",
+    picked,
+    cols,
+    CS,
+    CE,
+    dayKeysByWeekKey
+  )
+  assert.ok(!("error" in result))
+  const spanOut = result.mergedWeekSpans![0]!
+  assert.equal(spanOut.startYmd, picked)
+  assert.equal(spanOut.totalQty, 100)
+  const derived = pushRowLike(row, "start", picked)
+  assert.equal(derived.startDate, picked)
+})
+
+test("setExpertRowEdgeDate converts week cell to span with mid-week trim", () => {
+  const wk = weekKeys[2]!
+  const days = dayKeysByWeekKey[wk]!
+  const row = {
+    weeklyValues: Object.fromEntries(
+      weekKeys.map((k) => [k, k === wk ? 42 : ""])
+    ) as Record<string, number | "">,
+  }
+  const pickedStart = days[1]!
+  const result = setExpertRowEdgeDate(
+    row,
+    "start",
+    pickedStart,
+    cols,
+    CS,
+    CE,
+    dayKeysByWeekKey
+  )
+  assert.ok(!("error" in result))
+  assert.equal(result.weeklyValues[wk], "")
+  const spanOut = result.mergedWeekSpans![0]!
+  assert.equal(spanOut.startWeekKey, wk)
+  assert.equal(spanOut.endWeekKey, wk)
+  assert.equal(spanOut.startYmd, pickedStart)
+  assert.equal(spanOut.endYmd, days[days.length - 1])
+  assert.equal(spanOut.totalQty, 42)
+  const derived = deriveExpertRowScheduleYmdFromRow(
+    clearConflictingDayDetail(result, dayKeysByWeekKey, weekKeys),
+    cols,
+    CS,
+    CE,
+    dayKeysByWeekKey
+  )
+  assert.equal(derived.startDate, pickedStart)
+})
+
+test("setExpertRowEdgeDate extends week cell start into earlier empty weeks", () => {
+  const wk = weekKeys[2]!
+  const earlier = weekKeys[0]!
+  const row = {
+    weeklyValues: Object.fromEntries(
+      weekKeys.map((k) => [k, k === wk ? 10 : ""])
+    ) as Record<string, number | "">,
+  }
+  const picked = dayKeysByWeekKey[earlier]![0]!
+  const result = setExpertRowEdgeDate(
+    row,
+    "start",
+    picked,
+    cols,
+    CS,
+    CE,
+    dayKeysByWeekKey
+  )
+  assert.ok(!("error" in result))
+  const spanOut = result.mergedWeekSpans![0]!
+  assert.equal(spanOut.startWeekKey, earlier)
+  assert.equal(spanOut.endWeekKey, wk)
+  assert.equal(spanOut.startYmd, picked)
+  assert.equal(result.weeklyValues[wk], "")
+})
+
+test("setExpertRowEdgeDate clamps to campaign start", () => {
+  const wk = weekKeys[2]!
+  const row = {
+    weeklyValues: Object.fromEntries(
+      weekKeys.map((k) => [k, k === wk ? 12 : ""])
+    ) as Record<string, number | "">,
+  }
+  const result = setExpertRowEdgeDate(
+    row,
+    "start",
+    "2020-01-01",
+    cols,
+    CS,
+    CE,
+    dayKeysByWeekKey
+  )
+  assert.ok(!("error" in result))
+  const spanOut = result.mergedWeekSpans![0]!
+  assert.equal(spanOut.startYmd, format(CS, "yyyy-MM-dd"))
+})
+
+test("setExpertRowEdgeDate end cannot cross row start (min 1 day)", () => {
+  const wk = weekKeys[1]!
+  const days = dayKeysByWeekKey[wk]!
+  const row = {
+    weeklyValues: Object.fromEntries(
+      weekKeys.map((k) => [k, k === wk ? 6 : ""])
+    ) as Record<string, number | "">,
+  }
+  const result = setExpertRowEdgeDate(
+    row,
+    "end",
+    days[0]!,
+    cols,
+    CS,
+    CE,
+    dayKeysByWeekKey
+  )
+  assert.ok(!("error" in result))
+  const spanOut = result.mergedWeekSpans![0]!
+  assert.equal(spanOut.startYmd, spanOut.endYmd)
+})
+
+test("setExpertRowEdgeDate refuses empty row", () => {
+  const row = {
+    weeklyValues: Object.fromEntries(weekKeys.map((k) => [k, ""])) as Record<
+      string,
+      number | ""
+    >,
+  }
+  const result = setExpertRowEdgeDate(
+    row,
+    "start",
+    dayKeysByWeekKey[weekKeys[0]!]![0]!,
+    cols,
+    CS,
+    CE,
+    dayKeysByWeekKey
+  )
+  assert.ok("error" in result)
+  assert.equal(result.error, "schedule a quantity first")
+})
+
+test("setExpertRowEdgeDate end pick matches derived end date", () => {
+  const wk = weekKeys[2]!
+  const days = dayKeysByWeekKey[wk]!
+  const row = {
+    weeklyValues: Object.fromEntries(
+      weekKeys.map((k) => [k, k === wk ? 15 : ""])
+    ) as Record<string, number | "">,
+  }
+  const pickedEnd = days[days.length - 2]!
+  const derived = pushRowLike(row, "end", pickedEnd)
+  assert.equal(derived.endDate, pickedEnd)
 })

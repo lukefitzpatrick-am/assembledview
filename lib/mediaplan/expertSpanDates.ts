@@ -3,8 +3,16 @@ import {
   clampDateToCampaignRange,
   type WeeklyGanttWeekColumn,
 } from "@/lib/utils/weeklyGanttColumns"
+import {
+  collapseDailyToWeekly,
+  weekHasDailyValues,
+  type ExpertDailyValues,
+} from "@/lib/mediaplan/expertDayModel"
 import { weekKeysInSpanInclusive } from "@/lib/mediaplan/expertGridShared"
-import type { OohExpertMergedWeekSpan } from "@/lib/mediaplan/expertModeWeeklySchedule"
+import type {
+  ExpertWeeklyValues,
+  OohExpertMergedWeekSpan,
+} from "@/lib/mediaplan/expertModeWeeklySchedule"
 
 /** Span fields that may carry exact burst-window overrides (ISO yyyy-MM-dd). */
 export type ExpertSpanDateOverrides = Readonly<{
@@ -570,5 +578,517 @@ export function spanPartialCoveragePlan(
     leadingDayKeys,
     anchorColUnits: Math.max(1, anchorColUnits),
     trailingDayKeys,
+  }
+}
+
+export type ExpertRowScheduleFields = Readonly<{
+  weeklyValues: ExpertWeeklyValues
+  dailyValues?: ExpertDailyValues
+  mergedWeekSpans?: ReadonlyArray<
+    ExpertSpanWithWeekRange & { id: string; totalQty: number }
+  >
+}>
+
+export type ExpertRowScheduledElement =
+  | {
+      kind: "span"
+      spanId: string
+      span: ExpertSpanWithWeekRange & { id: string; totalQty: number }
+      startYmd: string
+      endYmd: string
+    }
+  | {
+      kind: "weekCell"
+      weekKey: string
+      qty: number
+      startYmd: string
+      endYmd: string
+    }
+  | {
+      kind: "dayDetail"
+      weekKey: string
+      qty: number
+      startYmd: string
+      endYmd: string
+    }
+
+function weekCellQty(v: number | "" | undefined | null): number {
+  if (v === "" || v === undefined || v === null) return 0
+  const n = typeof v === "number" ? v : Number(v)
+  return Number.isFinite(n) ? n : 0
+}
+
+function weekCellIsScheduled(v: number | "" | undefined | null): boolean {
+  return weekCellQty(v) !== 0
+}
+
+function spanWeeksCovered(
+  row: ExpertRowScheduleFields,
+  weekKeys: readonly string[]
+): Set<string> {
+  const covered = new Set<string>()
+  for (const span of row.mergedWeekSpans ?? []) {
+    if (!Number.isFinite(span.totalQty) || span.totalQty === 0) continue
+    for (const k of weekKeysInSpanInclusive(
+      weekKeys,
+      span.startWeekKey,
+      span.endWeekKey
+    )) {
+      covered.add(k)
+    }
+  }
+  return covered
+}
+
+function activeDayKeysInWeek(
+  daily: ExpertDailyValues | undefined,
+  dayKeys: readonly string[]
+): string[] {
+  if (!daily) return []
+  return dayKeys.filter((k) => {
+    const v = daily[k]
+    if (v === "" || v === undefined) return false
+    const n = typeof v === "number" ? v : Number(v)
+    return Number.isFinite(n) && n !== 0
+  })
+}
+
+/** Enumerate scheduled spans, week cells, and day-detailed weeks on a row. */
+export function enumerateExpertRowScheduledElements(
+  row: ExpertRowScheduleFields,
+  weekColumns: readonly WeeklyGanttWeekColumn[],
+  campaignStartDate: Date,
+  campaignEndDate: Date,
+  dayKeysByWeekKey: Readonly<Record<string, readonly string[]>>
+): ExpertRowScheduledElement[] {
+  const weekKeys = weekColumns.map((c) => c.weekKey)
+  const covered = spanWeeksCovered(row, weekKeys)
+  const out: ExpertRowScheduledElement[] = []
+
+  for (const span of row.mergedWeekSpans ?? []) {
+    if (!Number.isFinite(span.totalQty) || span.totalQty === 0) continue
+    const bounds = effectiveSpanYmdBounds(
+      span,
+      weekColumns,
+      campaignStartDate,
+      campaignEndDate
+    )
+    if (!bounds) continue
+    out.push({
+      kind: "span",
+      spanId: span.id,
+      span,
+      startYmd: bounds.startYmd,
+      endYmd: bounds.endYmd,
+    })
+  }
+
+  for (const col of weekColumns) {
+    if (covered.has(col.weekKey)) continue
+    const dayKeys = [...(dayKeysByWeekKey[col.weekKey] ?? [])]
+    const daily = row.dailyValues
+    if (daily && weekHasDailyValues(daily, dayKeys)) {
+      const active = activeDayKeysInWeek(daily, dayKeys)
+      if (active.length === 0) continue
+      const qty = collapseDailyToWeekly(daily, dayKeys)
+      const qtyNum = qty === "" ? 0 : typeof qty === "number" ? qty : Number(qty)
+      if (!Number.isFinite(qtyNum) || qtyNum === 0) continue
+      out.push({
+        kind: "dayDetail",
+        weekKey: col.weekKey,
+        qty: qtyNum,
+        startYmd: active[0]!,
+        endYmd: active[active.length - 1]!,
+      })
+      continue
+    }
+    if (weekCellIsScheduled(row.weeklyValues[col.weekKey])) {
+      const { start, end } = burstWindowForWeekColumn(
+        col,
+        campaignStartDate,
+        campaignEndDate
+      )
+      out.push({
+        kind: "weekCell",
+        weekKey: col.weekKey,
+        qty: weekCellQty(row.weeklyValues[col.weekKey]),
+        startYmd: formatYmd(start),
+        endYmd: formatYmd(end),
+      })
+    }
+  }
+
+  return out
+}
+
+export function rowHasScheduledQuantities(
+  row: ExpertRowScheduleFields,
+  weekColumns: readonly WeeklyGanttWeekColumn[],
+  campaignStartDate: Date,
+  campaignEndDate: Date,
+  dayKeysByWeekKey: Readonly<Record<string, readonly string[]>>
+): boolean {
+  return (
+    enumerateExpertRowScheduledElements(
+      row,
+      weekColumns,
+      campaignStartDate,
+      campaignEndDate,
+      dayKeysByWeekKey
+    ).length > 0
+  )
+}
+
+function identifyRowEdgeElement(
+  elements: readonly ExpertRowScheduledElement[],
+  edge: "start" | "end"
+): ExpertRowScheduledElement | null {
+  if (elements.length === 0) return null
+  if (edge === "start") {
+    return elements.reduce((best, el) =>
+      el.startYmd < best.startYmd ||
+      (el.startYmd === best.startYmd && el.endYmd < best.endYmd)
+        ? el
+        : best
+    )
+  }
+  return elements.reduce((best, el) =>
+    el.endYmd > best.endYmd ||
+    (el.endYmd === best.endYmd && el.startYmd > best.startYmd)
+      ? el
+      : best
+  )
+}
+
+/**
+ * Line-level schedule bounds from spans (with YMD overrides), week cells, and
+ * day-detailed weeks.
+ */
+export function deriveExpertRowScheduleYmdFromRow(
+  row: ExpertRowScheduleFields,
+  weekColumns: readonly WeeklyGanttWeekColumn[],
+  campaignStartDate: Date,
+  campaignEndDate: Date,
+  dayKeysByWeekKey: Readonly<Record<string, readonly string[]>>
+): { startDate: string; endDate: string } {
+  const elements = enumerateExpertRowScheduledElements(
+    row,
+    weekColumns,
+    campaignStartDate,
+    campaignEndDate,
+    dayKeysByWeekKey
+  )
+  if (elements.length === 0) {
+    return {
+      startDate: formatYmd(campaignStartDate),
+      endDate: formatYmd(campaignEndDate),
+    }
+  }
+  let startDate = elements[0]!.startYmd
+  let endDate = elements[0]!.endYmd
+  for (const el of elements) {
+    if (el.startYmd < startDate) startDate = el.startYmd
+    if (el.endYmd > endDate) endDate = el.endYmd
+  }
+  return { startDate, endDate }
+}
+
+function buildWeekBlockedPredicate(
+  row: ExpertRowScheduleFields,
+  weekKeys: readonly string[],
+  dayKeysByWeekKey: Readonly<Record<string, readonly string[]>>,
+  excludeSpanId?: string
+): (weekKey: string) => boolean {
+  const occupied = new Set<string>()
+  for (const span of row.mergedWeekSpans ?? []) {
+    if (excludeSpanId && span.id === excludeSpanId) continue
+    for (const k of weekKeysInSpanInclusive(
+      weekKeys,
+      span.startWeekKey,
+      span.endWeekKey
+    )) {
+      occupied.add(k)
+    }
+  }
+  return (weekKey: string): boolean => {
+    if (occupied.has(weekKey)) return true
+    const v = row.weeklyValues[weekKey]
+    if (weekCellIsScheduled(v)) return true
+    const dk = [...(dayKeysByWeekKey[weekKey] ?? [])]
+    if (row.dailyValues && weekHasDailyValues(row.dailyValues, dk)) return true
+    return false
+  }
+}
+
+function clampYmdToCampaign(
+  ymd: string,
+  campaignStartDate: Date,
+  campaignEndDate: Date
+): string {
+  const campaignStartYmd = formatYmd(campaignStartDate)
+  const campaignEndYmd = formatYmd(campaignEndDate)
+  if (ymd < campaignStartYmd) return campaignStartYmd
+  if (ymd > campaignEndYmd) return campaignEndYmd
+  return ymd
+}
+
+function clampEdgeTargetYmd(
+  targetYmd: string,
+  edge: "start" | "end",
+  rowBounds: { startDate: string; endDate: string },
+  element: ExpertRowScheduledElement,
+  weekColumns: readonly WeeklyGanttWeekColumn[],
+  campaignStartDate: Date,
+  campaignEndDate: Date,
+  dayKeysByWeekKey: Readonly<Record<string, readonly string[]>>,
+  weekBlocked: (weekKey: string) => boolean
+): string {
+  let ymd = clampYmdToCampaign(targetYmd, campaignStartDate, campaignEndDate)
+
+  if (edge === "start") {
+    if (ymd > rowBounds.endDate) ymd = rowBounds.endDate
+    if (element.kind === "span") {
+      const bounds = spanEdgeDayDeltaBounds(
+        element.span,
+        "start",
+        weekColumns,
+        campaignStartDate,
+        campaignEndDate,
+        dayKeysByWeekKey,
+        weekBlocked
+      )
+      if (bounds) {
+        const edgeYmd = element.startYmd
+        const minYmd = addDaysYmd(edgeYmd, bounds.minDelta)
+        const maxYmd = addDaysYmd(edgeYmd, bounds.maxDelta)
+        if (minYmd && ymd < minYmd) ymd = minYmd
+        if (maxYmd && ymd > maxYmd) ymd = maxYmd
+      }
+    } else {
+      const far = element.endYmd
+      if (ymd > far) ymd = far
+      let cursor = element.startYmd
+      while (ymd < cursor) {
+        const prev = addDaysYmd(cursor, -1)
+        if (!prev) break
+        if (prev < formatYmd(campaignStartDate)) break
+        const wk = weekKeyForYmd(prev, dayKeysByWeekKey)
+        if (wk !== null && weekBlocked(wk) && wk !== element.weekKey) break
+        cursor = prev
+      }
+      if (ymd < cursor) ymd = cursor
+    }
+    return ymd
+  }
+
+  if (ymd < rowBounds.startDate) ymd = rowBounds.startDate
+  if (element.kind === "span") {
+    const bounds = spanEdgeDayDeltaBounds(
+      element.span,
+      "end",
+      weekColumns,
+      campaignStartDate,
+      campaignEndDate,
+      dayKeysByWeekKey,
+      weekBlocked
+    )
+    if (bounds) {
+      const edgeYmd = element.endYmd
+      const minYmd = addDaysYmd(edgeYmd, bounds.minDelta)
+      const maxYmd = addDaysYmd(edgeYmd, bounds.maxDelta)
+      if (minYmd && ymd < minYmd) ymd = minYmd
+      if (maxYmd && ymd > maxYmd) ymd = maxYmd
+    }
+  } else {
+    const near = element.startYmd
+    if (ymd < near) ymd = near
+    let cursor = element.endYmd
+    while (ymd > cursor) {
+      const next = addDaysYmd(cursor, 1)
+      if (!next) break
+      if (next > formatYmd(campaignEndDate)) break
+      const wk = weekKeyForYmd(next, dayKeysByWeekKey)
+      if (wk !== null && weekBlocked(wk) && wk !== element.weekKey) break
+      cursor = next
+    }
+    if (ymd > cursor) ymd = cursor
+  }
+  return ymd
+}
+
+function newExpertSpanId(): string {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+    return crypto.randomUUID()
+  }
+  return `edge-span-${Date.now()}`
+}
+
+export type SetExpertRowEdgeDateResult =
+  | ExpertRowScheduleFields
+  | { error: string }
+
+/**
+ * Move a row's start or end schedule edge to an exact calendar day.
+ * Adjusts the edge span in place or converts a week/day cell into a span.
+ */
+export function setExpertRowEdgeDate<R extends ExpertRowScheduleFields>(
+  row: R,
+  edge: "start" | "end",
+  ymd: string,
+  weekColumns: readonly WeeklyGanttWeekColumn[],
+  campaignStartDate: Date,
+  campaignEndDate: Date,
+  dayKeysByWeekKey: Readonly<Record<string, readonly string[]>>
+): SetExpertRowEdgeDateResult {
+  const weekKeys = weekColumns.map((c) => c.weekKey)
+  if (!parseYmd(ymd)) return { error: "Invalid date" }
+
+  if (
+    !rowHasScheduledQuantities(
+      row,
+      weekColumns,
+      campaignStartDate,
+      campaignEndDate,
+      dayKeysByWeekKey
+    )
+  ) {
+    return { error: "schedule a quantity first" }
+  }
+
+  const elements = enumerateExpertRowScheduledElements(
+    row,
+    weekColumns,
+    campaignStartDate,
+    campaignEndDate,
+    dayKeysByWeekKey
+  )
+  const element = identifyRowEdgeElement(elements, edge)
+  if (!element) return { error: "schedule a quantity first" }
+
+  const rowBounds = deriveExpertRowScheduleYmdFromRow(
+    row,
+    weekColumns,
+    campaignStartDate,
+    campaignEndDate,
+    dayKeysByWeekKey
+  )
+  const weekBlocked = buildWeekBlockedPredicate(
+    row,
+    weekKeys,
+    dayKeysByWeekKey,
+    element.kind === "span" ? element.spanId : undefined
+  )
+  const clampedYmd = clampEdgeTargetYmd(
+    ymd,
+    edge,
+    rowBounds,
+    element,
+    weekColumns,
+    campaignStartDate,
+    campaignEndDate,
+    dayKeysByWeekKey,
+    weekBlocked
+  )
+
+  if (element.kind === "span") {
+    const edgeYmd = edge === "start" ? element.startYmd : element.endYmd
+    const deltaDays = differenceInCalendarDays(
+      parseYmd(clampedYmd)!,
+      parseYmd(edgeYmd)!
+    )
+    if (deltaDays === 0) return row
+
+    const deltaBounds = spanEdgeDayDeltaBounds(
+      element.span,
+      edge,
+      weekColumns,
+      campaignStartDate,
+      campaignEndDate,
+      dayKeysByWeekKey,
+      weekBlocked
+    )
+    if (!deltaBounds) return row
+
+    const resized = resizeSpanEdgeByDays(
+      element.span,
+      edge,
+      deltaDays,
+      weekColumns,
+      campaignStartDate,
+      campaignEndDate,
+      dayKeysByWeekKey,
+      deltaBounds
+    )
+    if (!resized) return row
+
+    const mergedWeekSpans = (row.mergedWeekSpans ?? []).map((s) =>
+      s.id === element.spanId
+        ? {
+            ...s,
+            startWeekKey: resized.startWeekKey,
+            endWeekKey: resized.endWeekKey,
+            startYmd: resized.startYmd,
+            endYmd: resized.endYmd,
+          }
+        : s
+    )
+    const weeklyValues = { ...row.weeklyValues }
+    for (const k of weekKeysInSpanInclusive(
+      weekKeys,
+      resized.startWeekKey,
+      resized.endWeekKey
+    )) {
+      weeklyValues[k] = ""
+    }
+    return { ...row, weeklyValues, mergedWeekSpans }
+  }
+
+  const nearBound = element.startYmd
+  const farBound = element.endYmd
+  const startYmd = edge === "start" ? clampedYmd : nearBound
+  const endYmd = edge === "end" ? clampedYmd : farBound
+  if (startYmd > endYmd) return row
+
+  const startWeekKey = weekKeyForYmd(startYmd, dayKeysByWeekKey)
+  const endWeekKey = weekKeyForYmd(endYmd, dayKeysByWeekKey)
+  if (!startWeekKey || !endWeekKey) return row
+
+  const newSpan: ExpertSpanWithWeekRange & { id: string; totalQty: number } = {
+    id: newExpertSpanId(),
+    startWeekKey,
+    endWeekKey,
+    totalQty: element.qty,
+    startYmd,
+    endYmd,
+  }
+
+  const weeklyValues = { ...row.weeklyValues, [element.weekKey]: "" }
+  let dailyValues = row.dailyValues
+  const dayKeys = dayKeysByWeekKey[element.weekKey] ?? []
+  if (dailyValues && dayKeys.length > 0) {
+    const nextDaily = { ...dailyValues }
+    let changed = false
+    for (const dk of dayKeys) {
+      if (nextDaily[dk] !== undefined) {
+        delete nextDaily[dk]
+        changed = true
+      }
+    }
+    if (changed) {
+      dailyValues =
+        Object.keys(nextDaily).length > 0 ? nextDaily : undefined
+    }
+  }
+
+  for (const k of weekKeysInSpanInclusive(weekKeys, startWeekKey, endWeekKey)) {
+    weeklyValues[k] = ""
+  }
+
+  const mergedWeekSpans = [...(row.mergedWeekSpans ?? []), newSpan]
+  return {
+    ...row,
+    weeklyValues,
+    dailyValues,
+    mergedWeekSpans,
   }
 }
