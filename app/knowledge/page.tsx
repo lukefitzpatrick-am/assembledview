@@ -25,19 +25,21 @@ export default function KnowledgeHubHome() {
 
   return (
     <div className="flex flex-col h-full bg-background text-foreground overflow-y-auto">
-      <div className="mx-auto w-full max-w-6xl px-4 md:px-6 py-8">
-        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start">
+      <div className="w-full max-w-none px-4 py-8 md:px-6">
+        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_400px] lg:items-start">
           <div className="min-w-0 space-y-10">
             {/* Hero */}
             <div className="space-y-3 rounded-card border border-border bg-card p-6 shadow-e1">
-              <p className="text-xs font-semibold uppercase text-primary tracking-wide">Assembled Media · Knowledge Hub</p>
-              <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">
-                Everything you need to plan, buy, measure and explain media
-              </h1>
-              <p className="text-muted-foreground max-w-2xl">
-                Definitions, calculators and best-practice — written so a client and a brand-new planner both get what
-                they need, with every entry sourced.
-              </p>
+              <div className="max-w-3xl space-y-3">
+                <p className="text-xs font-semibold uppercase text-primary tracking-wide">Assembled Media · Knowledge Hub</p>
+                <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">
+                  Everything you need to plan, buy, measure and explain media
+                </h1>
+                <p className="text-muted-foreground">
+                  Definitions, calculators and best-practice — written so a client and a brand-new planner both get what
+                  they need, with every entry sourced.
+                </p>
+              </div>
               <form onSubmit={submitSearch} className="flex max-w-xl gap-2 pt-1">
                 <div className="relative min-w-0 flex-1">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -68,7 +70,7 @@ export default function KnowledgeHubHome() {
             {/* Explore */}
             <div className="space-y-3">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Explore the hub</h2>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 <ExploreCard href="/knowledge/definitions" icon={BookOpen} tone="green" title="Glossary" desc={<><span className="num">609</span> terms — definitions, acronyms & formulas.</>} live />
                 <ExploreCard href="/knowledge/calculators" icon={Calculator} tone="blue" title="Calculators" desc="Live media-math calculators on every formula." live />
                 <ExploreCard href="/knowledge/guides" icon={Compass} tone="amber" title="Guides" desc="Best-practice across planning, measurement & channels." live />
