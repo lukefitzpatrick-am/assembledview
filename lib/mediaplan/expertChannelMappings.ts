@@ -1875,8 +1875,18 @@ export function deriveProductionExpertRowScheduleYmdFromRow(
   row: ProductionExpertScheduleRow,
   weekColumns: WeeklyGanttWeekColumn[],
   campaignStartDate: Date,
-  campaignEndDate: Date
+  campaignEndDate: Date,
+  dayKeysByWeekKey?: Readonly<Record<string, readonly string[]>>
 ): { startDate: string; endDate: string } {
+  if (dayKeysByWeekKey) {
+    return deriveExpertRowScheduleYmdFromRow(
+      row,
+      weekColumns,
+      campaignStartDate,
+      campaignEndDate,
+      dayKeysByWeekKey
+    )
+  }
   const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weekKeyOrder = weekColumns.map((c) => c.weekKey)
   let firstCol: WeeklyGanttWeekColumn | null = null
