@@ -903,13 +903,7 @@ export default function CreateMediaPlan() {
       const fv = form.getValues()
       if (!fv.mp_client_name) return
 
-      if (
-        searchItems.length === 0 &&
-        socialMediaItems.length === 0 &&
-        televisionItems.length === 0 &&
-        progDisplayItems.length === 0
-      ) {
-        // No line items yet — clear KPI rows
+      if (builderLineItemCount === 0) {
         setKpiRows([])
         return
       }
@@ -1011,6 +1005,7 @@ export default function CreateMediaPlan() {
     savedCampaignKPIs,
     kpiPublishers,
     kpiTrigger,
+    builderLineItemCount,
     form,
   ])
 
