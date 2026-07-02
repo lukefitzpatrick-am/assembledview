@@ -7,9 +7,12 @@ import {
   mapOohExpertRowsToStandardLineItems,
   mapProgOohExpertRowsToStandardLineItems,
   mapRadioExpertRowsToStandardLineItems,
+  mapNewspaperExpertRowsToStandardLineItems,
   mapStandardOohLineItemsToExpertRows,
   mapStandardRadioLineItemsToExpertRows,
+  mapStandardNewspaperLineItemsToExpertRows,
 } from "../../lib/mediaplan/expertChannelMappings.js"
+import { format } from "date-fns"
 
 test("OOH expert row produces one line item and one burst per filled week; budget = qty * unitRate", () => {
   const campaignStart = new Date(2024, 9, 23)
@@ -320,12 +323,14 @@ test("OOH merged week span maps to a single burst from first week through last w
   assert.equal(line.bursts[0]!.calculatedValue, 5)
 })
 
-test("Standard OOH burst spanning two week columns splits deliverables across week columns", () => {
+test("Standard OOH multi-week burst imports as one merged span with exact dates", () => {
   const campaignStart = new Date(2024, 9, 23)
   const campaignEnd = new Date(2024, 9, 29)
   const cols = buildWeeklyGanttColumnsFromCampaign(campaignStart, campaignEnd)
   const w0 = cols[0]!.weekKey
   const w1 = cols[1]!.weekKey
+  const burstStart = new Date(2024, 9, 23)
+  const burstEnd = new Date(2024, 9, 29)
 
   const [row] = mapStandardOohLineItemsToExpertRows(
     [
@@ -336,8 +341,8 @@ test("Standard OOH burst spanning two week columns splits deliverables across we
           {
             budget: "250",
             buyAmount: "50",
-            startDate: new Date(2024, 9, 23),
-            endDate: new Date(2024, 9, 29),
+            startDate: burstStart,
+            endDate: burstEnd,
             calculatedValue: 5,
           },
         ],
@@ -348,10 +353,173 @@ test("Standard OOH burst spanning two week columns splits deliverables across we
     campaignEnd
   )
 
-  assert.equal(row.mergedWeekSpans, undefined)
-  // Integer split with remainder to earliest weeks (5 deliverables / 2 weeks → 3 + 2).
-  assert.equal(row.weeklyValues[w0], 3)
-  assert.equal(row.weeklyValues[w1], 2)
+  assert.equal(row.mergedWeekSpans?.length, 1)
+  const span = row.mergedWeekSpans![0]!
+  assert.equal(span.startWeekKey, w0)
+  assert.equal(span.endWeekKey, w1)
+  assert.equal(span.totalQty, 5)
+  assert.equal(span.startYmd, format(burstStart, "yyyy-MM-dd"))
+  assert.equal(span.endYmd, format(burstEnd, "yyyy-MM-dd"))
+  assert.equal(row.weeklyValues[w0], "")
+  assert.equal(row.weeklyValues[w1], "")
+
+  const [line] = mapOohExpertRowsToStandardLineItems(
+    [row],
+    cols,
+    campaignStart,
+    campaignEnd
+  )
+  assert.equal(line.bursts.length, 1)
+  assert.equal(format(line.bursts[0]!.startDate, "yyyy-MM-dd"), span.startYmd)
+  assert.equal(format(line.bursts[0]!.endDate, "yyyy-MM-dd"), span.endYmd)
+  assert.equal(line.bursts[0]!.calculatedValue, 5)
+})
+
+test("Radio multi-week ragged burst imports as one span and exports with original dates", () => {
+  const campaignStart = new Date(2026, 5, 28)
+  const campaignEnd = new Date(2026, 6, 31)
+  const cols = buildWeeklyGanttColumnsFromCampaign(campaignStart, campaignEnd)
+  const w0 = cols.find((c) => c.weekKey === "2026-07-05")!.weekKey
+  const w1 = cols.find((c) => c.weekKey === "2026-07-12")!.weekKey
+  const burstStart = new Date(2026, 6, 8)
+  const burstEnd = new Date(2026, 6, 18)
+
+  const standardIn = mapRadioExpertRowsToStandardLineItems(
+    [
+      {
+        id: "RAD-mw",
+        startDate: format(burstStart, "yyyy-MM-dd"),
+        endDate: format(burstEnd, "yyyy-MM-dd"),
+        network: "N",
+        station: "S",
+        market: "MEL",
+        placement: "AM",
+        duration: "30s",
+        format: "Spot",
+        buyingDemo: "All",
+        buyType: "spots",
+        fixedCostMedia: false,
+        clientPaysForMedia: false,
+        budgetIncludesFees: false,
+        unitRate: 40,
+        grossCost: 0,
+        weeklyValues: { [w0]: "", [w1]: "" },
+        mergedWeekSpans: [
+          {
+            id: "s1",
+            startWeekKey: w0,
+            endWeekKey: w1,
+            totalQty: 12,
+            startYmd: format(burstStart, "yyyy-MM-dd"),
+            endYmd: format(burstEnd, "yyyy-MM-dd"),
+          },
+        ],
+      },
+    ],
+    cols,
+    campaignStart,
+    campaignEnd
+  )
+
+  assert.equal(standardIn[0]!.bursts.length, 1)
+  assert.equal(
+    format(standardIn[0]!.bursts[0]!.startDate, "yyyy-MM-dd"),
+    "2026-07-08"
+  )
+  assert.equal(
+    format(standardIn[0]!.bursts[0]!.endDate, "yyyy-MM-dd"),
+    "2026-07-18"
+  )
+
+  const expert = mapStandardRadioLineItemsToExpertRows(
+    standardIn,
+    cols,
+    campaignStart,
+    campaignEnd
+  )
+  assert.equal(expert[0]!.mergedWeekSpans?.length, 1)
+  assert.equal(expert[0]!.mergedWeekSpans![0]!.totalQty, 12)
+  assert.equal(expert[0]!.mergedWeekSpans![0]!.startYmd, "2026-07-08")
+  assert.equal(expert[0]!.mergedWeekSpans![0]!.endYmd, "2026-07-18")
+
+  const roundTrip = mapRadioExpertRowsToStandardLineItems(
+    expert,
+    cols,
+    campaignStart,
+    campaignEnd
+  )
+  assert.equal(roundTrip[0]!.bursts.length, 1)
+  assert.equal(
+    format(roundTrip[0]!.bursts[0]!.startDate, "yyyy-MM-dd"),
+    "2026-07-08"
+  )
+  assert.equal(
+    format(roundTrip[0]!.bursts[0]!.endDate, "yyyy-MM-dd"),
+    "2026-07-18"
+  )
+  assert.equal(roundTrip[0]!.bursts[0]!.calculatedValue, 12)
+})
+
+test("Newspaper legacy three single-week bursts round-trip unchanged", () => {
+  const campaignStart = new Date(2025, 0, 5)
+  const campaignEnd = new Date(2025, 0, 25)
+  const cols = buildWeeklyGanttColumnsFromCampaign(campaignStart, campaignEnd)
+  const w0 = cols[0]!.weekKey
+  const w1 = cols[1]!.weekKey
+  const w2 = cols[2]!.weekKey
+
+  const standardInput = [
+    {
+      line_item_id: "NP-1",
+      buy_type: "insertions",
+      bursts: [
+        {
+          budget: "100",
+          buyAmount: "10",
+          startDate: cols[0]!.weekStart,
+          endDate: cols[0]!.weekEnd,
+          calculatedValue: 2,
+        },
+        {
+          budget: "100",
+          buyAmount: "10",
+          startDate: cols[1]!.weekStart,
+          endDate: cols[1]!.weekEnd,
+          calculatedValue: 3,
+        },
+        {
+          budget: "100",
+          buyAmount: "10",
+          startDate: cols[2]!.weekStart,
+          endDate: cols[2]!.weekEnd,
+          calculatedValue: 4,
+        },
+      ],
+    },
+  ]
+
+  const expert = mapStandardNewspaperLineItemsToExpertRows(
+    standardInput,
+    cols,
+    campaignStart,
+    campaignEnd
+  )
+  assert.equal(expert[0]!.weeklyValues[w0], 2)
+  assert.equal(expert[0]!.weeklyValues[w1], 3)
+  assert.equal(expert[0]!.weeklyValues[w2], 4)
+  assert.equal(expert[0]!.mergedWeekSpans, undefined)
+
+  const roundTrip = mapNewspaperExpertRowsToStandardLineItems(
+    expert,
+    cols,
+    campaignStart,
+    campaignEnd
+  )
+  assert.equal(roundTrip[0]!.bursts.length, 3)
+  assert.deepEqual(
+    roundTrip[0]!.bursts.map((b) => b.calculatedValue),
+    [2, 3, 4]
+  )
 })
 
 test("Radio spots round-trip preserves id and weekly cell qty", () => {

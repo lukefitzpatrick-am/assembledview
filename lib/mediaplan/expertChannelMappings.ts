@@ -24,6 +24,13 @@ import {
 } from "@/lib/format/money"
 import { weekKeysInSpanInclusive } from "./expertGridShared"
 import {
+  burstDatesForExpertSpan,
+  burstWindowForWeekColumn,
+  burstYmdOverridesForImport,
+  tryImportMultiWeekBurstAsMergedSpan,
+  type ExpertSpanDateOverrides,
+} from "@/lib/mediaplan/expertSpanDates"
+import {
   coveredDayKeysIfDayDetail,
   expandWeekToDaily,
   weekDayKeys,
@@ -44,6 +51,7 @@ import type {
   SearchExpertScheduleRow,
   SocialMediaExpertScheduleRow,
   OohExpertScheduleRow,
+  OohExpertMergedWeekSpan,
   RadioExpertScheduleRow,
   ProductionExpertScheduleRow,
   CinemaExpertScheduleRow,
@@ -418,14 +426,138 @@ function weekKeyFromDate(d: Date): ExpertWeekColumnKey {
   return format(getSundayOnOrBefore(startOfDay(d)), "yyyy-MM-dd")
 }
 
-function burstWindowForWeekColumn(
-  col: WeeklyGanttWeekColumn,
+type DistributableBurstImportCtx = {
+  weeklyValues: Record<string, number | "">
+  dailyValues: ExpertDailyValues
+  mergedWeekSpans: OohExpertMergedWeekSpan[]
+  mergeIdx: number
+  rowIndex: number
+}
+
+/**
+ * Radio-family import: single-week → cell or day-detail; multi-week → merged span
+ * with exact dates when no occupancy conflict, else distribute into cells.
+ */
+function accumulateDistributableBurstForExpertImport(
+  ctx: DistributableBurstImportCtx,
+  params: {
+    sd: Date
+    ed: Date
+    totalDeliverables: number
+    buyType: string
+    bt: BuyType
+    weekColumns: WeeklyGanttWeekColumn[]
+    campaignStartDate: Date
+    campaignEndDate: Date
+    distribute: (total: number, overlapKeys: string[]) => void
+  }
+): void {
+  const {
+    sd,
+    ed,
+    totalDeliverables,
+    weekColumns,
+    campaignStartDate,
+    campaignEndDate,
+    distribute,
+  } = params
+
+  const overlapKeys = radioWeekKeysOverlappingBurstWindow(
+    weekColumns,
+    campaignStartDate,
+    campaignEndDate,
+    sd,
+    ed
+  )
+
+  if (overlapKeys.length === 1) {
+    const week = weekColumns.find((c) => c.weekKey === overlapKeys[0])
+    const dayKeys = week
+      ? coveredDayKeysIfDayDetail(sd, ed, week, campaignStartDate, campaignEndDate)
+      : null
+    if (week && dayKeys && dayKeys.length > 0) {
+      const split = expandWeekToDaily(totalDeliverables, dayKeys)
+      for (const k of dayKeys) {
+        const prev = ctx.dailyValues[k]
+        const prevNum = prev === "" || prev === undefined ? 0 : Number(prev)
+        const addNum = split[k] === "" || split[k] === undefined ? 0 : Number(split[k])
+        ctx.dailyValues[k] = prevNum + addNum
+      }
+      return
+    }
+  }
+
+  if (overlapKeys.length > 1) {
+    const imported = tryImportMultiWeekBurstAsMergedSpan({
+      burstStart: sd,
+      burstEnd: ed,
+      totalQty: totalDeliverables,
+      weekColumns,
+      campaignStartDate,
+      campaignEndDate,
+      overlapKeys,
+      existingSpans: ctx.mergedWeekSpans,
+      rowIndex: ctx.rowIndex,
+      mergeIdx: ctx.mergeIdx,
+    })
+    if (imported) {
+      ctx.mergedWeekSpans.push(imported.span)
+      ctx.mergeIdx = imported.nextMergeIdx
+      return
+    }
+  }
+
+  distribute(totalDeliverables, overlapKeys)
+}
+
+/** Resolve export burst dates: day override > span overrides > week window. */
+function resolveBurstExportDates(
+  startCol: WeeklyGanttWeekColumn,
+  endCol: WeeklyGanttWeekColumn,
   campaignStartDate: Date,
-  campaignEndDate: Date
+  campaignEndDate: Date,
+  options?: {
+    spanDates?: ExpertSpanDateOverrides
+    dayOverride?: { start: Date; end: Date }
+  }
 ): { start: Date; end: Date } {
-  const start = clampDateToCampaignRange(col.weekStart, campaignStartDate, campaignEndDate)
-  const end = clampDateToCampaignRange(col.weekEnd, campaignStartDate, campaignEndDate)
-  return { start: startOfDay(start), end: startOfDay(end) }
+  if (options?.dayOverride) return options.dayOverride
+  if (options?.spanDates) {
+    return burstDatesForExpertSpan(
+      options.spanDates,
+      startCol,
+      endCol,
+      campaignStartDate,
+      campaignEndDate
+    )
+  }
+  return {
+    start: burstWindowForWeekColumn(
+      startCol,
+      campaignStartDate,
+      campaignEndDate
+    ).start,
+    end: burstWindowForWeekColumn(
+      endCol,
+      campaignStartDate,
+      campaignEndDate
+    ).end,
+  }
+}
+
+type PushBurstDateInput =
+  | { start: Date; end: Date }
+  | { spanDates: ExpertSpanDateOverrides }
+
+function parsePushBurstDateInput(
+  input: PushBurstDateInput | undefined
+): {
+  spanDates?: ExpertSpanDateOverrides
+  dayOverride?: { start: Date; end: Date }
+} {
+  if (!input) return {}
+  if ("start" in input) return { dayOverride: input }
+  return { spanDates: input.spanDates }
 }
 
 function weekCellIsActive(v: number | "" | undefined | null): boolean {
@@ -936,19 +1068,30 @@ export function mapOohExpertRowsToStandardLineItems(
     const appendOohBurstFromExpertQty = (
       qty: number,
       startCol: WeeklyGanttWeekColumn,
-      endCol: WeeklyGanttWeekColumn
+      endCol: WeeklyGanttWeekColumn,
+      spanDates?: ExpertSpanDateOverrides
     ) => {
       if (!Number.isFinite(qty) || qty === 0) return
-      const { start } = burstWindowForWeekColumn(
-        startCol,
-        campaignStartDate,
-        campaignEndDate
-      )
-      const { end } = burstWindowForWeekColumn(
-        endCol,
-        campaignStartDate,
-        campaignEndDate
-      )
+      const { start, end } = spanDates
+        ? burstDatesForExpertSpan(
+            spanDates,
+            startCol,
+            endCol,
+            campaignStartDate,
+            campaignEndDate
+          )
+        : {
+            start: burstWindowForWeekColumn(
+              startCol,
+              campaignStartDate,
+              campaignEndDate
+            ).start,
+            end: burstWindowForWeekColumn(
+              endCol,
+              campaignStartDate,
+              campaignEndDate
+            ).end,
+          }
       const bt = coerceBuyTypeWithDevWarn(
         buyType,
         "mapOohExpertRowsToStandardLineItems.appendBurst"
@@ -1002,7 +1145,7 @@ export function mapOohExpertRowsToStandardLineItems(
       const startCol = weekColumns.find((c) => c.weekKey === span.startWeekKey)
       const endCol = weekColumns.find((c) => c.weekKey === span.endWeekKey)
       if (!startCol || !endCol) continue
-      appendOohBurstFromExpertQty(qty, startCol, endCol)
+      appendOohBurstFromExpertQty(qty, startCol, endCol, span)
     }
 
     const bt = String(buyType || "").toLowerCase() as BuyType
@@ -1111,12 +1254,9 @@ export function mapRadioExpertRowsToStandardLineItems(
       const endCol = weekColumns.find((c) => c.weekKey === span.endWeekKey)
       if (!startCol || !endCol) continue
 
-      const { start } = burstWindowForWeekColumn(
+      const { start, end } = burstDatesForExpertSpan(
+        span,
         startCol,
-        campaignStartDate,
-        campaignEndDate
-      )
-      const { end } = burstWindowForWeekColumn(
         endCol,
         campaignStartDate,
         campaignEndDate
@@ -1352,6 +1492,16 @@ export function mapStandardOohLineItemsToExpertRows(
     }
 
     const dailyValues: ExpertDailyValues = {}
+    const mergedWeekSpans: OohExpertMergedWeekSpan[] = []
+    let mergeIdx = 0
+    const importCtx: DistributableBurstImportCtx = {
+      weeklyValues,
+      dailyValues,
+      mergedWeekSpans,
+      mergeIdx,
+      rowIndex: index,
+    }
+
     for (const b of bursts) {
       const sd = b.startDate
       const ed = b.endDate ?? b.startDate
@@ -1369,36 +1519,25 @@ export function mapStandardOohLineItemsToExpertRows(
       }
       if (totalDeliverables === 0 && buyType.toLowerCase() !== "bonus") continue
 
-      const overlapKeys = radioWeekKeysOverlappingBurstWindow(
+      importCtx.mergeIdx = mergeIdx
+      accumulateDistributableBurstForExpertImport(importCtx, {
+        sd,
+        ed,
+        totalDeliverables,
+        buyType,
+        bt,
         weekColumns,
         campaignStartDate,
         campaignEndDate,
-        sd,
-        ed
-      )
-      // Day-detail: burst confined to a sub-window of a single interior week.
-      if (overlapKeys.length === 1) {
-        const week = weekColumns.find((c) => c.weekKey === overlapKeys[0])
-        const dayKeys = week
-          ? coveredDayKeysIfDayDetail(sd, ed, week, campaignStartDate, campaignEndDate)
-          : null
-        if (week && dayKeys && dayKeys.length > 0) {
-          const split = expandWeekToDaily(totalDeliverables, dayKeys)
-          for (const k of dayKeys) {
-            const prev = dailyValues[k]
-            const prevNum = prev === "" || prev === undefined ? 0 : Number(prev)
-            const addNum = split[k] === "" || split[k] === undefined ? 0 : Number(split[k])
-            dailyValues[k] = prevNum + addNum
-          }
-          continue
-        }
-      }
-      distributeBurstDeliverablesToExpertWeeks(
-        bt,
-        totalDeliverables,
-        overlapKeys,
-        weeklyValues
-      )
+        distribute: (total, overlapKeys) =>
+          distributeBurstDeliverablesToExpertWeeks(
+            bt,
+            total,
+            overlapKeys,
+            weeklyValues
+          ),
+      })
+      mergeIdx = importCtx.mergeIdx
     }
 
     const firstBurst = bursts.find((b) => b.startDate && !Number.isNaN(b.startDate.getTime()))
@@ -1439,7 +1578,8 @@ export function mapStandardOohLineItemsToExpertRows(
       grossCost: sumGrossBursts(bursts),
       weeklyValues,
       ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
-      mergedWeekSpans: undefined,
+      mergedWeekSpans:
+        mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
     }
   })
 }
@@ -1467,6 +1607,16 @@ export function mapStandardRadioLineItemsToExpertRows(
     }
 
     const dailyValues: ExpertDailyValues = {}
+    const mergedWeekSpans: OohExpertMergedWeekSpan[] = []
+    let mergeIdx = 0
+    const importCtx: DistributableBurstImportCtx = {
+      weeklyValues,
+      dailyValues,
+      mergedWeekSpans,
+      mergeIdx,
+      rowIndex: index,
+    }
+
     for (const b of bursts) {
       const sd = b.startDate
       const ed = b.endDate ?? b.startDate
@@ -1484,36 +1634,29 @@ export function mapStandardRadioLineItemsToExpertRows(
       }
       if (totalDeliverables === 0 && buyType !== "bonus") continue
 
-      const overlapKeys = radioWeekKeysOverlappingBurstWindow(
+      const bt = coerceBuyTypeWithDevWarn(
+        buyType,
+        "mapStandardRadioLineItemsToExpertRows"
+      )
+      importCtx.mergeIdx = mergeIdx
+      accumulateDistributableBurstForExpertImport(importCtx, {
+        sd,
+        ed,
+        totalDeliverables,
+        buyType,
+        bt,
         weekColumns,
         campaignStartDate,
         campaignEndDate,
-        sd,
-        ed
-      )
-      // Day-detail: burst confined to a sub-window of a single interior week.
-      if (overlapKeys.length === 1) {
-        const week = weekColumns.find((c) => c.weekKey === overlapKeys[0])
-        const dayKeys = week
-          ? coveredDayKeysIfDayDetail(sd, ed, week, campaignStartDate, campaignEndDate)
-          : null
-        if (week && dayKeys && dayKeys.length > 0) {
-          const split = expandWeekToDaily(totalDeliverables, dayKeys)
-          for (const k of dayKeys) {
-            const prev = dailyValues[k]
-            const prevNum = prev === "" || prev === undefined ? 0 : Number(prev)
-            const addNum = split[k] === "" || split[k] === undefined ? 0 : Number(split[k])
-            dailyValues[k] = prevNum + addNum
-          }
-          continue
-        }
-      }
-      distributeRadioStandardDeliverablesToWeeks(
-        buyType,
-        totalDeliverables,
-        overlapKeys,
-        weeklyValues
-      )
+        distribute: (total, overlapKeys) =>
+          distributeRadioStandardDeliverablesToWeeks(
+            buyType,
+            total,
+            overlapKeys,
+            weeklyValues
+          ),
+      })
+      mergeIdx = importCtx.mergeIdx
     }
 
     const firstBurst = bursts.find(
@@ -1564,6 +1707,8 @@ export function mapStandardRadioLineItemsToExpertRows(
       grossCost: sumGrossBursts(bursts),
       weeklyValues,
       ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
+      mergedWeekSpans:
+        mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
     }
   })
 }
@@ -1769,18 +1914,16 @@ export function mapProductionExpertRowsToStandardLineItems(
     const pushBurst = (
       qty: number,
       startCol: WeeklyGanttWeekColumn,
-      endCol: WeeklyGanttWeekColumn
+      endCol: WeeklyGanttWeekColumn,
+      dateInput?: PushBurstDateInput
     ) => {
       if (!Number.isFinite(qty) || qty === 0) return
-      const { start } = burstWindowForWeekColumn(
+      const { start, end } = resolveBurstExportDates(
         startCol,
-        campaignStartDate,
-        campaignEndDate
-      )
-      const { end } = burstWindowForWeekColumn(
         endCol,
         campaignStartDate,
-        campaignEndDate
+        campaignEndDate,
+        parsePushBurstDateInput(dateInput)
       )
       bursts.push({
         cost: unitRate,
@@ -1797,7 +1940,9 @@ export function mapProductionExpertRowsToStandardLineItems(
       const startCol = weekColumns.find((c) => c.weekKey === span.startWeekKey)
       const endCol = weekColumns.find((c) => c.weekKey === span.endWeekKey)
       if (!startCol || !endCol) continue
-      pushBurst(span.totalQty, startCol, endCol)
+      pushBurst(span.totalQty, startCol, endCol, {
+        spanDates: span,
+      })
     }
 
     for (const col of weekColumns) {
@@ -2069,8 +2214,13 @@ export function mapCinemaExpertRowsToStandardLineItems(
       const startCol = weekColumns.find((c) => c.weekKey === span.startWeekKey)
       const endCol = weekColumns.find((c) => c.weekKey === span.endWeekKey)
       if (!startCol || !endCol) continue
-      const { start } = burstWindowForWeekColumn(startCol, campaignStartDate, campaignEndDate)
-      const { end } = burstWindowForWeekColumn(endCol, campaignStartDate, campaignEndDate)
+      const { start, end } = burstDatesForExpertSpan(
+        span,
+        startCol,
+        endCol,
+        campaignStartDate,
+        campaignEndDate
+      )
       const netMedia = netMediaFromDeliverables(bt, qty, unitRate)
       const grossBudget = grossFromNet(netMedia, budgetIncludesFees, feePct)
       const calculatedValue = roundDeliverables(bt, qty)
@@ -2162,6 +2312,15 @@ export function mapStandardCinemaLineItemsToExpertRows(
       weeklyValues[col.weekKey] = ""
     }
     const dailyValues: ExpertDailyValues = {}
+    const mergedWeekSpans: OohExpertMergedWeekSpan[] = []
+    let mergeIdx = 0
+    const importCtx: DistributableBurstImportCtx = {
+      weeklyValues,
+      dailyValues,
+      mergedWeekSpans,
+      mergeIdx,
+      rowIndex: index,
+    }
     for (const b of bursts) {
       const sd = b.startDate
       const ed = b.endDate ?? b.startDate
@@ -2176,27 +2335,29 @@ export function mapStandardCinemaLineItemsToExpertRows(
         totalDeliverables = 1
       }
       if (totalDeliverables === 0 && buyType !== "bonus") continue
-      const overlapKeys = radioWeekKeysOverlappingBurstWindow(
-        weekColumns, campaignStartDate, campaignEndDate, sd, ed
+      const bt = coerceBuyTypeWithDevWarn(
+        buyType,
+        "mapStandardCinemaLineItemsToExpertRows"
       )
-      // Day-detail: burst confined to a sub-window of a single interior week.
-      if (overlapKeys.length === 1) {
-        const week = weekColumns.find((c) => c.weekKey === overlapKeys[0])
-        const dayKeys = week
-          ? coveredDayKeysIfDayDetail(sd, ed, week, campaignStartDate, campaignEndDate)
-          : null
-        if (week && dayKeys && dayKeys.length > 0) {
-          const split = expandWeekToDaily(totalDeliverables, dayKeys)
-          for (const k of dayKeys) {
-            const prev = dailyValues[k]
-            const prevNum = prev === "" || prev === undefined ? 0 : Number(prev)
-            const addNum = split[k] === "" || split[k] === undefined ? 0 : Number(split[k])
-            dailyValues[k] = prevNum + addNum
-          }
-          continue
-        }
-      }
-      distributeCinemaStandardDeliverablesToWeeks(buyType, totalDeliverables, overlapKeys, weeklyValues)
+      importCtx.mergeIdx = mergeIdx
+      accumulateDistributableBurstForExpertImport(importCtx, {
+        sd,
+        ed,
+        totalDeliverables,
+        buyType,
+        bt,
+        weekColumns,
+        campaignStartDate,
+        campaignEndDate,
+        distribute: (total, overlapKeys) =>
+          distributeCinemaStandardDeliverablesToWeeks(
+            buyType,
+            total,
+            overlapKeys,
+            weeklyValues
+          ),
+      })
+      mergeIdx = importCtx.mergeIdx
     }
     const firstBurst = bursts.find((b) => b.startDate && !Number.isNaN(b.startDate.getTime()))
     const lastBurst = [...bursts].reverse().find((b) => b.endDate && !Number.isNaN(b.endDate.getTime()))
@@ -2227,6 +2388,8 @@ export function mapStandardCinemaLineItemsToExpertRows(
       grossCost: sumGrossBursts(bursts),
       weeklyValues,
       ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
+      mergedWeekSpans:
+        mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
     }
   })
 }
@@ -2419,15 +2582,16 @@ export function mapTvExpertRowsToStandardLineItems(
       qty: number,
       startCol: WeeklyGanttWeekColumn,
       endCol: WeeklyGanttWeekColumn,
-      dayOverride?: { start: Date; end: Date }
+      dateInput?: PushBurstDateInput
     ) => {
       if (!Number.isFinite(qty) || qty === 0) return
-      const start = dayOverride
-        ? dayOverride.start
-        : burstWindowForWeekColumn(startCol, campaignStartDate, campaignEndDate).start
-      const end = dayOverride
-        ? dayOverride.end
-        : burstWindowForWeekColumn(endCol, campaignStartDate, campaignEndDate).end
+      const { start, end } = resolveBurstExportDates(
+        startCol,
+        endCol,
+        campaignStartDate,
+        campaignEndDate,
+        parsePushBurstDateInput(dateInput)
+      )
       const bt = coerceBuyTypeWithDevWarn(
         buyType,
         "mapTvExpertRowsToStandardLineItems.pushBurst"
@@ -2539,6 +2703,15 @@ export function mapStandardTvLineItemsToExpertRows(
     }
 
     const dailyValues: ExpertDailyValues = {}
+    const mergedWeekSpans: OohExpertMergedWeekSpan[] = []
+    let mergeIdx = 0
+    const importCtx: DistributableBurstImportCtx = {
+      weeklyValues,
+      dailyValues,
+      mergedWeekSpans,
+      mergeIdx,
+      rowIndex: index,
+    }
     for (const b of bursts) {
       const sd = b.startDate
       const ed = b.endDate ?? b.startDate
@@ -2558,35 +2731,25 @@ export function mapStandardTvLineItemsToExpertRows(
       }
       if (totalDeliverables === 0 && btLower !== "bonus") continue
 
-      const overlapKeys = radioWeekKeysOverlappingBurstWindow(
+      importCtx.mergeIdx = mergeIdx
+      accumulateDistributableBurstForExpertImport(importCtx, {
+        sd,
+        ed,
+        totalDeliverables,
+        buyType,
+        bt,
         weekColumns,
         campaignStartDate,
         campaignEndDate,
-        sd,
-        ed
-      )
-      if (overlapKeys.length === 1) {
-        const week = weekColumns.find((c) => c.weekKey === overlapKeys[0])
-        const dayKeys = week
-          ? coveredDayKeysIfDayDetail(sd, ed, week, campaignStartDate, campaignEndDate)
-          : null
-        if (week && dayKeys && dayKeys.length > 0) {
-          const split = expandWeekToDaily(totalDeliverables, dayKeys)
-          for (const k of dayKeys) {
-            const prev = dailyValues[k]
-            const prevNum = prev === "" || prev === undefined ? 0 : Number(prev)
-            const addNum = split[k] === "" || split[k] === undefined ? 0 : Number(split[k])
-            dailyValues[k] = prevNum + addNum
-          }
-          continue
-        }
-      }
-      distributeBurstDeliverablesToExpertWeeks(
-        bt,
-        totalDeliverables,
-        overlapKeys,
-        weeklyValues
-      )
+        distribute: (total, overlapKeys) =>
+          distributeBurstDeliverablesToExpertWeeks(
+            bt,
+            total,
+            overlapKeys,
+            weeklyValues
+          ),
+      })
+      mergeIdx = importCtx.mergeIdx
     }
 
     const firstBurst = bursts.find(
@@ -2645,7 +2808,7 @@ export function mapStandardTvLineItemsToExpertRows(
       grossCost: sumGrossBursts(bursts),
       weeklyValues,
       ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
-      mergedWeekSpans: [],
+      mergedWeekSpans,
     }
   })
 }
@@ -2841,17 +3004,19 @@ export function mapBvodExpertRowsToStandardLineItems(
       }
     }
 
-    const pushBurst = (qty: number, startCol: WeeklyGanttWeekColumn, endCol: WeeklyGanttWeekColumn) => {
+    const pushBurst = (
+      qty: number,
+      startCol: WeeklyGanttWeekColumn,
+      endCol: WeeklyGanttWeekColumn,
+      dateInput?: PushBurstDateInput
+    ) => {
       if (!Number.isFinite(qty) || qty === 0) return
-      const { start } = burstWindowForWeekColumn(
+      const { start, end } = resolveBurstExportDates(
         startCol,
-        campaignStartDate,
-        campaignEndDate
-      )
-      const { end } = burstWindowForWeekColumn(
         endCol,
         campaignStartDate,
-        campaignEndDate
+        campaignEndDate,
+        parsePushBurstDateInput(dateInput)
       )
       const bt = coerceBuyTypeWithDevWarn(
         buyType,
@@ -2886,7 +3051,9 @@ export function mapBvodExpertRowsToStandardLineItems(
       const startCol = weekColumns.find((c) => c.weekKey === span.startWeekKey)
       const endCol = weekColumns.find((c) => c.weekKey === span.endWeekKey)
       if (!startCol || !endCol) continue
-      pushBurst(span.totalQty, startCol, endCol)
+      pushBurst(span.totalQty, startCol, endCol, {
+        spanDates: span,
+      })
     }
 
     const bt = coerceBuyTypeWithDevWarn(
@@ -2978,6 +3145,15 @@ export function mapStandardBvodLineItemsToExpertRows(
     }
 
     const dailyValues: ExpertDailyValues = {}
+    const mergedWeekSpans: OohExpertMergedWeekSpan[] = []
+    let mergeIdx = 0
+    const importCtx: DistributableBurstImportCtx = {
+      weeklyValues,
+      dailyValues,
+      mergedWeekSpans,
+      mergeIdx,
+      rowIndex: index,
+    }
     for (const b of bursts) {
       const sd = b.startDate
       const ed = b.endDate ?? b.startDate
@@ -2997,36 +3173,25 @@ export function mapStandardBvodLineItemsToExpertRows(
       }
       if (totalDeliverables === 0 && buyTypeLower !== "bonus") continue
 
-      const overlapKeys = radioWeekKeysOverlappingBurstWindow(
+      importCtx.mergeIdx = mergeIdx
+      accumulateDistributableBurstForExpertImport(importCtx, {
+        sd,
+        ed,
+        totalDeliverables,
+        buyType,
+        bt,
         weekColumns,
         campaignStartDate,
         campaignEndDate,
-        sd,
-        ed
-      )
-      // Day-detail: burst confined to a sub-window of a single interior week.
-      if (overlapKeys.length === 1) {
-        const week = weekColumns.find((c) => c.weekKey === overlapKeys[0])
-        const dayKeys = week
-          ? coveredDayKeysIfDayDetail(sd, ed, week, campaignStartDate, campaignEndDate)
-          : null
-        if (week && dayKeys && dayKeys.length > 0) {
-          const split = expandWeekToDaily(totalDeliverables, dayKeys)
-          for (const k of dayKeys) {
-            const prev = dailyValues[k]
-            const prevNum = prev === "" || prev === undefined ? 0 : Number(prev)
-            const addNum = split[k] === "" || split[k] === undefined ? 0 : Number(split[k])
-            dailyValues[k] = prevNum + addNum
-          }
-          continue
-        }
-      }
-      distributeBurstDeliverablesToExpertWeeks(
-        bt,
-        totalDeliverables,
-        overlapKeys,
-        weeklyValues
-      )
+        distribute: (total, overlapKeys) =>
+          distributeBurstDeliverablesToExpertWeeks(
+            bt,
+            total,
+            overlapKeys,
+            weeklyValues
+          ),
+      })
+      mergeIdx = importCtx.mergeIdx
     }
 
     const firstBurst = bursts.find(
@@ -3079,7 +3244,7 @@ export function mapStandardBvodLineItemsToExpertRows(
       grossCost: sumGrossBursts(bursts),
       weeklyValues,
       ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
-      mergedWeekSpans: [],
+      mergedWeekSpans,
     }
   })
 }
@@ -3265,15 +3430,16 @@ export function mapDigiVideoExpertRowsToStandardLineItems(
       qty: number,
       startCol: WeeklyGanttWeekColumn,
       endCol: WeeklyGanttWeekColumn,
-      dayOverride?: { start: Date; end: Date }
+      dateInput?: PushBurstDateInput
     ) => {
       if (!Number.isFinite(qty) || qty === 0) return
-      const start = dayOverride
-        ? dayOverride.start
-        : burstWindowForWeekColumn(startCol, campaignStartDate, campaignEndDate).start
-      const end = dayOverride
-        ? dayOverride.end
-        : burstWindowForWeekColumn(endCol, campaignStartDate, campaignEndDate).end
+      const { start, end } = resolveBurstExportDates(
+        startCol,
+        endCol,
+        campaignStartDate,
+        campaignEndDate,
+        parsePushBurstDateInput(dateInput)
+      )
       const grossBudget = expertRowRawCost(buyType, unitRate, qty)
       const rawBudget = grossBudget
       const netForCalc = oohNetBudgetForDeliverables(
@@ -3313,7 +3479,9 @@ export function mapDigiVideoExpertRowsToStandardLineItems(
       const startCol = weekColumns.find((c) => c.weekKey === span.startWeekKey)
       const endCol = weekColumns.find((c) => c.weekKey === span.endWeekKey)
       if (!startCol || !endCol) continue
-      pushBurst(span.totalQty, startCol, endCol)
+      pushBurst(span.totalQty, startCol, endCol, {
+        spanDates: span,
+      })
     }
 
     for (const col of weekColumns) {
@@ -3444,6 +3612,12 @@ export function mapStandardDigiVideoLineItemsToExpertRows(
           startWeekKey: startKey,
           endWeekKey: endKey,
           totalQty: cellQty,
+          ...burstYmdOverridesForImport(
+            sd,
+            ed,
+            campaignStartDate,
+            campaignEndDate
+          ),
         })
       }
     }
@@ -3685,15 +3859,16 @@ export function mapDigitalDisplayExpertRowsToStandardLineItems(
       qty: number,
       startCol: WeeklyGanttWeekColumn,
       endCol: WeeklyGanttWeekColumn,
-      dayOverride?: { start: Date; end: Date }
+      dateInput?: PushBurstDateInput
     ) => {
       if (!Number.isFinite(qty) || qty === 0) return
-      const start = dayOverride
-        ? dayOverride.start
-        : burstWindowForWeekColumn(startCol, campaignStartDate, campaignEndDate).start
-      const end = dayOverride
-        ? dayOverride.end
-        : burstWindowForWeekColumn(endCol, campaignStartDate, campaignEndDate).end
+      const { start, end } = resolveBurstExportDates(
+        startCol,
+        endCol,
+        campaignStartDate,
+        campaignEndDate,
+        parsePushBurstDateInput(dateInput)
+      )
       const grossBudget = expertRowRawCost(buyType, unitRate, qty)
       const rawBudget = grossBudget
       const netForCalc = oohNetBudgetForDeliverables(
@@ -3733,7 +3908,9 @@ export function mapDigitalDisplayExpertRowsToStandardLineItems(
       const startCol = weekColumns.find((c) => c.weekKey === span.startWeekKey)
       const endCol = weekColumns.find((c) => c.weekKey === span.endWeekKey)
       if (!startCol || !endCol) continue
-      pushBurst(span.totalQty, startCol, endCol)
+      pushBurst(span.totalQty, startCol, endCol, {
+        spanDates: span,
+      })
     }
 
     for (const col of weekColumns) {
@@ -3863,6 +4040,12 @@ export function mapStandardDigiDisplayLineItemsToExpertRows(
           startWeekKey: startKey,
           endWeekKey: endKey,
           totalQty: cellQty,
+          ...burstYmdOverridesForImport(
+            sd,
+            ed,
+            campaignStartDate,
+            campaignEndDate
+          ),
         })
       }
     }
@@ -4095,17 +4278,19 @@ export function mapDigitalAudioExpertRowsToStandardLineItems(
       }
     }
 
-    const pushBurst = (qty: number, startCol: WeeklyGanttWeekColumn, endCol: WeeklyGanttWeekColumn) => {
+    const pushBurst = (
+      qty: number,
+      startCol: WeeklyGanttWeekColumn,
+      endCol: WeeklyGanttWeekColumn,
+      dateInput?: PushBurstDateInput
+    ) => {
       if (!Number.isFinite(qty) || qty === 0) return
-      const { start } = burstWindowForWeekColumn(
+      const { start, end } = resolveBurstExportDates(
         startCol,
-        campaignStartDate,
-        campaignEndDate
-      )
-      const { end } = burstWindowForWeekColumn(
         endCol,
         campaignStartDate,
-        campaignEndDate
+        campaignEndDate,
+        parsePushBurstDateInput(dateInput)
       )
       const bt = coerceBuyTypeWithDevWarn(
         buyType,
@@ -4140,7 +4325,9 @@ export function mapDigitalAudioExpertRowsToStandardLineItems(
       const startCol = weekColumns.find((c) => c.weekKey === span.startWeekKey)
       const endCol = weekColumns.find((c) => c.weekKey === span.endWeekKey)
       if (!startCol || !endCol) continue
-      pushBurst(span.totalQty, startCol, endCol)
+      pushBurst(span.totalQty, startCol, endCol, {
+        spanDates: span,
+      })
     }
 
     const bt = coerceBuyTypeWithDevWarn(
@@ -4233,6 +4420,15 @@ export function mapStandardDigiAudioLineItemsToExpertRows(
     }
 
     const dailyValues: ExpertDailyValues = {}
+    const mergedWeekSpans: OohExpertMergedWeekSpan[] = []
+    let mergeIdx = 0
+    const importCtx: DistributableBurstImportCtx = {
+      weeklyValues,
+      dailyValues,
+      mergedWeekSpans,
+      mergeIdx,
+      rowIndex: index,
+    }
     for (const b of bursts) {
       const sd = b.startDate
       const ed = b.endDate ?? b.startDate
@@ -4252,36 +4448,25 @@ export function mapStandardDigiAudioLineItemsToExpertRows(
       }
       if (totalDeliverables === 0 && btLower !== "bonus") continue
 
-      const overlapKeys = radioWeekKeysOverlappingBurstWindow(
+      importCtx.mergeIdx = mergeIdx
+      accumulateDistributableBurstForExpertImport(importCtx, {
+        sd,
+        ed,
+        totalDeliverables,
+        buyType,
+        bt,
         weekColumns,
         campaignStartDate,
         campaignEndDate,
-        sd,
-        ed
-      )
-      // Day-detail: burst confined to a sub-window of a single interior week.
-      if (overlapKeys.length === 1) {
-        const week = weekColumns.find((c) => c.weekKey === overlapKeys[0])
-        const dayKeys = week
-          ? coveredDayKeysIfDayDetail(sd, ed, week, campaignStartDate, campaignEndDate)
-          : null
-        if (week && dayKeys && dayKeys.length > 0) {
-          const split = expandWeekToDaily(totalDeliverables, dayKeys)
-          for (const k of dayKeys) {
-            const prev = dailyValues[k]
-            const prevNum = prev === "" || prev === undefined ? 0 : Number(prev)
-            const addNum = split[k] === "" || split[k] === undefined ? 0 : Number(split[k])
-            dailyValues[k] = prevNum + addNum
-          }
-          continue
-        }
-      }
-      distributeBurstDeliverablesToExpertWeeks(
-        bt,
-        totalDeliverables,
-        overlapKeys,
-        weeklyValues
-      )
+        distribute: (total, overlapKeys) =>
+          distributeBurstDeliverablesToExpertWeeks(
+            bt,
+            total,
+            overlapKeys,
+            weeklyValues
+          ),
+      })
+      mergeIdx = importCtx.mergeIdx
     }
 
     const firstBurst = bursts.find(
@@ -4337,7 +4522,7 @@ export function mapStandardDigiAudioLineItemsToExpertRows(
       grossCost: sumGrossBursts(bursts),
       weeklyValues,
       ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
-      mergedWeekSpans: [],
+      mergedWeekSpans,
     }
   })
 }
@@ -4512,15 +4697,16 @@ export function mapSocialMediaExpertRowsToStandardLineItems(
       qty: number,
       startCol: WeeklyGanttWeekColumn,
       endCol: WeeklyGanttWeekColumn,
-      dayOverride?: { start: Date; end: Date }
+      dateInput?: PushBurstDateInput
     ) => {
       if (!Number.isFinite(qty) || qty === 0) return
-      const start = dayOverride
-        ? dayOverride.start
-        : burstWindowForWeekColumn(startCol, campaignStartDate, campaignEndDate).start
-      const end = dayOverride
-        ? dayOverride.end
-        : burstWindowForWeekColumn(endCol, campaignStartDate, campaignEndDate).end
+      const { start, end } = resolveBurstExportDates(
+        startCol,
+        endCol,
+        campaignStartDate,
+        campaignEndDate,
+        parsePushBurstDateInput(dateInput)
+      )
       const grossBudget = expertRowRawCost(buyType, unitRate, qty)
       const rawBudget = grossBudget
       const netForCalc = radioNetBudgetForDeliverables(
@@ -4560,7 +4746,9 @@ export function mapSocialMediaExpertRowsToStandardLineItems(
       const startCol = weekColumns.find((c) => c.weekKey === span.startWeekKey)
       const endCol = weekColumns.find((c) => c.weekKey === span.endWeekKey)
       if (!startCol || !endCol) continue
-      pushBurst(span.totalQty, startCol, endCol)
+      pushBurst(span.totalQty, startCol, endCol, {
+        spanDates: span,
+      })
     }
 
     for (const col of weekColumns) {
@@ -4686,6 +4874,12 @@ export function mapStandardSocialMediaLineItemsToExpertRows(
           startWeekKey: startKey,
           endWeekKey: endKey,
           totalQty: cellQty,
+          ...burstYmdOverridesForImport(
+            sd,
+            ed,
+            campaignStartDate,
+            campaignEndDate
+          ),
         })
       }
     }
@@ -4911,15 +5105,16 @@ export function mapSearchExpertRowsToStandardLineItems(
       qty: number,
       startCol: WeeklyGanttWeekColumn,
       endCol: WeeklyGanttWeekColumn,
-      dayOverride?: { start: Date; end: Date }
+      dateInput?: PushBurstDateInput
     ) => {
       if (!Number.isFinite(qty) || qty === 0) return
-      const start = dayOverride
-        ? dayOverride.start
-        : burstWindowForWeekColumn(startCol, campaignStartDate, campaignEndDate).start
-      const end = dayOverride
-        ? dayOverride.end
-        : burstWindowForWeekColumn(endCol, campaignStartDate, campaignEndDate).end
+      const { start, end } = resolveBurstExportDates(
+        startCol,
+        endCol,
+        campaignStartDate,
+        campaignEndDate,
+        parsePushBurstDateInput(dateInput)
+      )
       const grossBudget = expertRowRawCost(buyType, unitRate, qty)
       const rawBudget = grossBudget
       const netForCalc = radioNetBudgetForDeliverables(
@@ -4959,7 +5154,9 @@ export function mapSearchExpertRowsToStandardLineItems(
       const startCol = weekColumns.find((c) => c.weekKey === span.startWeekKey)
       const endCol = weekColumns.find((c) => c.weekKey === span.endWeekKey)
       if (!startCol || !endCol) continue
-      pushBurst(span.totalQty, startCol, endCol)
+      pushBurst(span.totalQty, startCol, endCol, {
+        spanDates: span,
+      })
     }
 
     for (const col of weekColumns) {
@@ -5085,6 +5282,12 @@ export function mapStandardSearchLineItemsToExpertRows(
           startWeekKey: startKey,
           endWeekKey: endKey,
           totalQty: cellQty,
+          ...burstYmdOverridesForImport(
+            sd,
+            ed,
+            campaignStartDate,
+            campaignEndDate
+          ),
         })
       }
     }
@@ -5315,15 +5518,16 @@ export function mapInfluencersExpertRowsToStandardLineItems(
       qty: number,
       startCol: WeeklyGanttWeekColumn,
       endCol: WeeklyGanttWeekColumn,
-      dayOverride?: { start: Date; end: Date }
+      dateInput?: PushBurstDateInput
     ) => {
       if (!Number.isFinite(qty) || qty === 0) return
-      const start = dayOverride
-        ? dayOverride.start
-        : burstWindowForWeekColumn(startCol, campaignStartDate, campaignEndDate).start
-      const end = dayOverride
-        ? dayOverride.end
-        : burstWindowForWeekColumn(endCol, campaignStartDate, campaignEndDate).end
+      const { start, end } = resolveBurstExportDates(
+        startCol,
+        endCol,
+        campaignStartDate,
+        campaignEndDate,
+        parsePushBurstDateInput(dateInput)
+      )
       const grossBudget = expertRowRawCost(buyType, unitRate, qty)
       const rawBudget = grossBudget
       const netForCalc = radioNetBudgetForDeliverables(
@@ -5363,7 +5567,9 @@ export function mapInfluencersExpertRowsToStandardLineItems(
       const startCol = weekColumns.find((c) => c.weekKey === span.startWeekKey)
       const endCol = weekColumns.find((c) => c.weekKey === span.endWeekKey)
       if (!startCol || !endCol) continue
-      pushBurst(span.totalQty, startCol, endCol)
+      pushBurst(span.totalQty, startCol, endCol, {
+        spanDates: span,
+      })
     }
 
     for (const col of weekColumns) {
@@ -5492,6 +5698,12 @@ export function mapStandardInfluencersLineItemsToExpertRows(
           startWeekKey: startKey,
           endWeekKey: endKey,
           totalQty: cellQty,
+          ...burstYmdOverridesForImport(
+            sd,
+            ed,
+            campaignStartDate,
+            campaignEndDate
+          ),
         })
       }
     }
@@ -5727,15 +5939,16 @@ export function mapIntegrationExpertRowsToStandardLineItems(
       qty: number,
       startCol: WeeklyGanttWeekColumn,
       endCol: WeeklyGanttWeekColumn,
-      dayOverride?: { start: Date; end: Date }
+      dateInput?: PushBurstDateInput
     ) => {
       if (!Number.isFinite(qty) || qty === 0) return
-      const start = dayOverride
-        ? dayOverride.start
-        : burstWindowForWeekColumn(startCol, campaignStartDate, campaignEndDate).start
-      const end = dayOverride
-        ? dayOverride.end
-        : burstWindowForWeekColumn(endCol, campaignStartDate, campaignEndDate).end
+      const { start, end } = resolveBurstExportDates(
+        startCol,
+        endCol,
+        campaignStartDate,
+        campaignEndDate,
+        parsePushBurstDateInput(dateInput)
+      )
       const grossBudget = expertRowRawCost(buyType, unitRate, qty)
       const rawBudget = grossBudget
       const netForCalc = radioNetBudgetForDeliverables(
@@ -5775,7 +5988,9 @@ export function mapIntegrationExpertRowsToStandardLineItems(
       const startCol = weekColumns.find((c) => c.weekKey === span.startWeekKey)
       const endCol = weekColumns.find((c) => c.weekKey === span.endWeekKey)
       if (!startCol || !endCol) continue
-      pushBurst(span.totalQty, startCol, endCol)
+      pushBurst(span.totalQty, startCol, endCol, {
+        spanDates: span,
+      })
     }
 
     for (const col of weekColumns) {
@@ -5904,6 +6119,12 @@ export function mapStandardIntegrationLineItemsToExpertRows(
           startWeekKey: startKey,
           endWeekKey: endKey,
           totalQty: cellQty,
+          ...burstYmdOverridesForImport(
+            sd,
+            ed,
+            campaignStartDate,
+            campaignEndDate
+          ),
         })
       }
     }
@@ -6081,15 +6302,16 @@ export function mapNewspaperExpertRowsToStandardLineItems(
       qty: number,
       startCol: WeeklyGanttWeekColumn,
       endCol: WeeklyGanttWeekColumn,
-      dayOverride?: { start: Date; end: Date }
+      dateInput?: PushBurstDateInput
     ) => {
       if (!Number.isFinite(qty) || qty === 0) return
-      const start = dayOverride
-        ? dayOverride.start
-        : burstWindowForWeekColumn(startCol, campaignStartDate, campaignEndDate).start
-      const end = dayOverride
-        ? dayOverride.end
-        : burstWindowForWeekColumn(endCol, campaignStartDate, campaignEndDate).end
+      const { start, end } = resolveBurstExportDates(
+        startCol,
+        endCol,
+        campaignStartDate,
+        campaignEndDate,
+        parsePushBurstDateInput(dateInput)
+      )
       const grossBudget = expertRowRawCost(buyType, unitRate, qty)
       const rawBudget = grossBudget
       const netForCalc = radioNetBudgetForDeliverables(
@@ -6129,7 +6351,9 @@ export function mapNewspaperExpertRowsToStandardLineItems(
       const startCol = weekColumns.find((c) => c.weekKey === span.startWeekKey)
       const endCol = weekColumns.find((c) => c.weekKey === span.endWeekKey)
       if (!startCol || !endCol) continue
-      pushBurst(span.totalQty, startCol, endCol)
+      pushBurst(span.totalQty, startCol, endCol, {
+        spanDates: span,
+      })
     }
 
     for (const col of weekColumns) {
@@ -6258,6 +6482,12 @@ export function mapStandardNewspaperLineItemsToExpertRows(
           startWeekKey: startKey,
           endWeekKey: endKey,
           totalQty: cellQty,
+          ...burstYmdOverridesForImport(
+            sd,
+            ed,
+            campaignStartDate,
+            campaignEndDate
+          ),
         })
       }
     }
@@ -6442,15 +6672,16 @@ export function mapMagazineExpertRowsToStandardLineItems(
       qty: number,
       startCol: WeeklyGanttWeekColumn,
       endCol: WeeklyGanttWeekColumn,
-      dayOverride?: { start: Date; end: Date }
+      dateInput?: PushBurstDateInput
     ) => {
       if (!Number.isFinite(qty) || qty === 0) return
-      const start = dayOverride
-        ? dayOverride.start
-        : burstWindowForWeekColumn(startCol, campaignStartDate, campaignEndDate).start
-      const end = dayOverride
-        ? dayOverride.end
-        : burstWindowForWeekColumn(endCol, campaignStartDate, campaignEndDate).end
+      const { start, end } = resolveBurstExportDates(
+        startCol,
+        endCol,
+        campaignStartDate,
+        campaignEndDate,
+        parsePushBurstDateInput(dateInput)
+      )
       const grossBudget = expertRowRawCost(buyType, unitRate, qty)
       const rawBudget = grossBudget
       const netForCalc = radioNetBudgetForDeliverables(
@@ -6490,7 +6721,9 @@ export function mapMagazineExpertRowsToStandardLineItems(
       const startCol = weekColumns.find((c) => c.weekKey === span.startWeekKey)
       const endCol = weekColumns.find((c) => c.weekKey === span.endWeekKey)
       if (!startCol || !endCol) continue
-      pushBurst(span.totalQty, startCol, endCol)
+      pushBurst(span.totalQty, startCol, endCol, {
+        spanDates: span,
+      })
     }
 
     for (const col of weekColumns) {
@@ -6618,6 +6851,12 @@ export function mapStandardMagazineLineItemsToExpertRows(
           startWeekKey: startKey,
           endWeekKey: endKey,
           totalQty: cellQty,
+          ...burstYmdOverridesForImport(
+            sd,
+            ed,
+            campaignStartDate,
+            campaignEndDate
+          ),
         })
       }
     }
@@ -6769,15 +7008,16 @@ function buildBurstsFromProgExpertLikeRow(
       qty: number,
       startCol: WeeklyGanttWeekColumn,
       endCol: WeeklyGanttWeekColumn,
-      dayOverride?: { start: Date; end: Date }
+      dateInput?: PushBurstDateInput
     ) => {
       if (!Number.isFinite(qty) || qty === 0) return
-      const start = dayOverride
-        ? dayOverride.start
-        : burstWindowForWeekColumn(startCol, campaignStartDate, campaignEndDate).start
-      const end = dayOverride
-        ? dayOverride.end
-        : burstWindowForWeekColumn(endCol, campaignStartDate, campaignEndDate).end
+      const { start, end } = resolveBurstExportDates(
+        startCol,
+        endCol,
+        campaignStartDate,
+        campaignEndDate,
+        parsePushBurstDateInput(dateInput)
+      )
     const grossBudget = expertRowRawCost(buyType, unitRate, qty)
     const rawBudget = grossBudget
     const netForCalc = oohNetBudgetForDeliverables(
@@ -6817,7 +7057,7 @@ function buildBurstsFromProgExpertLikeRow(
     const startCol = weekColumns.find((c) => c.weekKey === span.startWeekKey)
     const endCol = weekColumns.find((c) => c.weekKey === span.endWeekKey)
     if (!startCol || !endCol) continue
-    pushBurst(span.totalQty, startCol, endCol)
+    pushBurst(span.totalQty, startCol, endCol, { spanDates: span })
   }
 
   for (const col of weekColumns) {
@@ -6923,6 +7163,12 @@ function progAccumulateWeeklyFromBursts(
         startWeekKey: startKey,
         endWeekKey: endKey,
         totalQty: cellQty,
+        ...burstYmdOverridesForImport(
+          sd,
+          ed,
+          campaignStartDate,
+          campaignEndDate
+        ),
       })
     }
   }

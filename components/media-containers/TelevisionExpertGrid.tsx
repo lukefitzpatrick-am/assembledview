@@ -164,6 +164,7 @@ import {
   deriveMergeEligibility as deriveTelevisionMergeEligibility,
   weekCellExportText,
   mergedWeekSpansAfterCutRect,
+  clearSpanDateOverridesOnWeekRangeChange,
   resolveWeeklyExportSelection,
   buildWeeklyExportTsv,
   applyWeeklyCutToRows,
@@ -1331,11 +1332,11 @@ export function TelevisionExpertGrid({
     if (!resized) return
     const mergedWeekSpans = (row.mergedWeekSpans ?? []).map((s) =>
       s.id === drag.spanId
-        ? {
-            ...s,
-            startWeekKey: resized.startWeekKey,
-            endWeekKey: resized.endWeekKey,
-          }
+        ? clearSpanDateOverridesOnWeekRangeChange(
+            s,
+            resized.startWeekKey,
+            resized.endWeekKey
+          )
         : s
     )
     // Belt-and-braces: covered weeks stay empty (growth already clamps to
@@ -3845,12 +3846,16 @@ export function TelevisionExpertGrid({
                                     }
                                     targetRow.mergedWeekSpans = [
                                       ...(targetRow.mergedWeekSpans ?? []),
-                                      {
-                                        id: drag.spanId,
-                                        startWeekKey: newStartWeekKey,
-                                        endWeekKey: newEndWeekKey,
-                                        totalQty: drag.totalQty,
-                                      },
+                                      clearSpanDateOverridesOnWeekRangeChange(
+                                        {
+                                          id: drag.spanId,
+                                          startWeekKey: newStartWeekKey,
+                                          endWeekKey: newEndWeekKey,
+                                          totalQty: drag.totalQty,
+                                        },
+                                        newStartWeekKey,
+                                        newEndWeekKey
+                                      ),
                                     ]
                                     pushRows(nextRows)
                                     clearWeekDragUiState()

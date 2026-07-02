@@ -90,7 +90,11 @@ export type ExpertGridMergeSpan = Readonly<{
   startWeekKey: string
   endWeekKey: string
   totalQty: number
+  startYmd?: string
+  endYmd?: string
 }>
+
+export { clearSpanDateOverridesOnWeekRangeChange } from "@/lib/mediaplan/expertSpanDates"
 
 export type ExpertGridRowWithWeekly = Readonly<{
   weeklyValues: ExpertWeeklyValues

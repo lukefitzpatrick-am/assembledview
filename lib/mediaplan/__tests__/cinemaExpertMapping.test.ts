@@ -30,7 +30,12 @@ test("cinema round-trip preserves identity, deliverables, and unit rate", () => 
   const expert = mapStandardCinemaLineItemsToExpertRows(std, cols, START, END)
   assert.equal(expert.length, 1)
   assert.equal(expert[0]!.sourceLineItemId, "abc")
-  assert.equal(sumWeekly(expert[0]!.weeklyValues), 10)   // 10 spots distributed across weeks
+  const spanQty = (expert[0]!.mergedWeekSpans ?? []).reduce(
+    (s, sp) => s + sp.totalQty,
+    0
+  )
+  assert.equal(spanQty + sumWeekly(expert[0]!.weeklyValues), 10)
+  assert.equal(expert[0]!.mergedWeekSpans?.length, 1)
   assert.equal(Number(expert[0]!.unitRate), 500)
 
   const back = mapCinemaExpertRowsToStandardLineItems(expert, cols, START, END, { feePctCinema: 0 })

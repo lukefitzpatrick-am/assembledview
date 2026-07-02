@@ -17,6 +17,12 @@ export interface OohExpertMergedWeekSpan {
   startWeekKey: string
   endWeekKey: string
   totalQty: number
+  /**
+   * Optional exact burst-window dates (ISO yyyy-MM-dd). When set, export uses
+   * these instead of Sun–Sat week-column bounds. Absent → week-window behaviour.
+   */
+  startYmd?: string
+  endYmd?: string
 }
 
 export interface OohExpertScheduleRow {
