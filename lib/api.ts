@@ -9,6 +9,7 @@ import {
   sortLineItemsByLineItemNumber,
 } from "@/lib/mediaplan/lineItemIds"
 import { extractAndFormatBursts } from "@/lib/mediaplan/formatBurstsForPersist"
+import { formatProductionBurstForPersist } from "@/lib/mediaplan/resolveProductionBurstBudget"
 import { getBooleanField } from "@/lib/util/getBooleanField"
 
 const isBrowser = typeof window !== "undefined"
@@ -2799,14 +2800,16 @@ export async function saveProductionLineItems(
         }]
       }
 
-      return (bursts || []).map((burst: any) => ({
-        cost: coerceNumber(burst.cost ?? burst.budget ?? burst.mediaValue),
-        amount: coerceNumber(burst.amount ?? burst.deliverables ?? burst.buyAmount),
-        startDate: toDateString(burst.startDate || burst.start_date),
-        endDate: toDateString(burst.endDate || burst.end_date),
-        description: burst.description ?? lineItem.description ?? "",
-        market: burst.market ?? lineItem.market ?? "",
-      }))
+      return (bursts || []).map((burst: any) =>
+        formatProductionBurstForPersist(
+          {
+            ...burst,
+            startDate: toDateString(burst.startDate || burst.start_date),
+            endDate: toDateString(burst.endDate || burst.end_date),
+          },
+          lineItem
+        )
+      )
     }
 
     const pickField = (lineItem: any, candidates: string[], defaultValue = "") => {

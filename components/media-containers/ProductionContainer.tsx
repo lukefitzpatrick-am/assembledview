@@ -63,6 +63,7 @@ import {
 } from "@/lib/mediaplan/mediaTypeAccents"
 import { buildLineItemId, MEDIA_TYPE_ID_CODES } from "@/lib/mediaplan/lineItemIds"
 import { assignStableLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
+import { formatProductionBurstForPersist } from "@/lib/mediaplan/resolveProductionBurstBudget"
 
 const MEDIA_ACCENT_HEX = getMediaTypeThemeHex("production")
 
@@ -398,12 +399,17 @@ export default function ProductionContainer({
       market: lineItem.market || "",
       description: lineItem.description || "",
       line_item_id: lineItem.line_item_id,
-      bursts: (lineItem.bursts || []).map((burst) => ({
-        cost: Number(burst.cost) || 0,
-        amount: Number(burst.amount) || 0,
-        startDate: formatDateString(burst.startDate),
-        endDate: formatDateString(burst.endDate),
-      })),
+      bursts: (lineItem.bursts || []).map((burst) =>
+        formatProductionBurstForPersist(
+          {
+            cost: Number(burst.cost) || 0,
+            amount: Number(burst.amount) || 0,
+            startDate: formatDateString(burst.startDate),
+            endDate: formatDateString(burst.endDate),
+          },
+          lineItem
+        )
+      ),
       line_item: lineItem.line_item,
     }))
   }, [watchedLineItems, mbaNumber])
