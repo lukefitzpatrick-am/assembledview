@@ -60,6 +60,18 @@ import MediaContainerTimelineCollapsible from "@/components/media-containers/Med
 import MediaContainerSummarySection from "@/components/media-containers/MediaContainerSummarySection"
 import { TelevisionBurstTarpsField } from "@/components/media-containers/burst-calculated-fields"
 import {
+  BurstDateRangeColumn,
+  BurstFieldGrid,
+  BurstFieldLabel,
+  BurstLabel,
+  BurstReadonlyMetric,
+  BurstRowActions,
+  BurstRowCard,
+  BurstRowInner,
+  BurstSection,
+} from "@/components/media-containers/BurstRowLayout"
+import { MP_BURST_INPUT } from "@/lib/mediaplan/burstSectionLayout"
+import {
   getMediaTypeThemeHex,
   mediaTypeAccentTextStyle,
   mediaTypeLineItemBadgeStyle,
@@ -1638,36 +1650,32 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
                         </CardContent>
                       </div>
 
-                      {/* Bursts Section */}
-                      <div className="space-y-4">
+                      <BurstSection>
                         {form.watch(`televisionlineItems.${lineItemIndex}.bursts`, []).map((burstField, burstIndex) => {
                           const buyType = form.watch(`televisionlineItems.${lineItemIndex}.buyType`);
                           return (
-                            <Card key={(burstField as any)._reactKey ?? `${lineItemIndex}-${burstIndex}`} className="mx-2 rounded-card border border-border bg-surface-muted shadow-e0">
-                              <CardContent className="py-2 px-4">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-24 flex-shrink-0">
-                                    <h4 className="text-sm font-medium">
-                                      {formatBurstLabel(
-                                        burstIndex + 1,
-                                        form.watch(`televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.startDate`),
-                                        form.watch(`televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.endDate`)
-                                      )}
-                                    </h4>
-                                  </div>
-                                  
-                                  <div className="grid grid-cols-7 gap-3 items-center flex-grow">
+                            <BurstRowCard key={(burstField as any)._reactKey ?? `${lineItemIndex}-${burstIndex}`}>
+                              <BurstRowInner>
+                                <BurstLabel>
+                                  {formatBurstLabel(
+                                    burstIndex + 1,
+                                    form.watch(`televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.startDate`),
+                                    form.watch(`televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.endDate`)
+                                  )}
+                                </BurstLabel>
+
+                                  <BurstFieldGrid>
                                     <FormField
                                       control={form.control}
                                       name={`televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.budget`}
                                       render={({ field }) => (
                                         <FormItem>
-                                          <FormLabel className="text-xs">Budget</FormLabel>
+                                          <BurstFieldLabel>Budget</BurstFieldLabel>
                                           <FormControl>
                                             <Input
                                               {...field}
                                               type="text"
-                                              className="w-full min-w-[9rem] h-10 text-sm"
+                                              className={MP_BURST_INPUT}
                                               value={buyType === "bonus" ? "0" : field.value}
                                               disabled={buyType === "bonus"}
                                               onChange={(e) => {
@@ -1696,12 +1704,12 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
                                       name={`televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount`}
                                       render={({ field }) => (
                                         <FormItem>
-                                          <FormLabel className="text-xs">Buy Amount</FormLabel>
+                                          <BurstFieldLabel>Buy Amount</BurstFieldLabel>
                                           <FormControl>
                                             <Input
                                               {...field}
                                               type="text"
-                                              className="w-full min-w-[9rem] h-10 text-sm"
+                                              className={MP_BURST_INPUT}
                                               value={buyType === "bonus" ? "0" : field.value}
                                               disabled={buyType === "bonus"}
                                               onChange={(e) => {
@@ -1725,13 +1733,13 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
                                       )}
                                     />
 
-                                    <div className="grid grid-cols-2 gap-2 col-span-2">
+                                    <BurstDateRangeColumn>
                                       <FormField
                                         control={form.control}
                                         name={`televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.startDate`}
                                         render={({ field }) => (
                                           <FormItem>
-                                            <FormLabel className="text-xs">Start Date</FormLabel>
+                                            <BurstFieldLabel>Start Date</BurstFieldLabel>
                                             <Popover>
                                               <PopoverTrigger asChild>
                                                 <FormControl>
@@ -1769,7 +1777,7 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
                                         name={`televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.endDate`}
                                         render={({ field }) => (
                                           <FormItem>
-                                            <FormLabel className="text-xs">End Date</FormLabel>
+                                            <BurstFieldLabel>End Date</BurstFieldLabel>
                                             <Popover>
                                               <PopoverTrigger asChild>
                                                 <FormControl>
@@ -1801,7 +1809,7 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
                                           </FormItem>
                                         )}
                                       />
-                                    </div>
+                                    </BurstDateRangeColumn>
 
                                     <FormField
                                       control={form.control}
@@ -1817,71 +1825,34 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
                                       )}
                                     />
 
-                                    <div className="space-y-1">
-                                      <FormLabel className="text-xs leading-tight">Media</FormLabel>
-                                      <Input
-                                        type="text"
-                                        className="w-full h-10 text-sm"
-                                        value={formatMoney(
-                                          form.getValues(`televisionlineItems.${lineItemIndex}.budgetIncludesFees`)
-                                            ? (parseFloat(form.getValues(`televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (100 - (feetelevision || 0))
-                                            : parseFloat(form.getValues(`televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0")
-                                        , { locale: "en-AU", currency: "AUD" })}
-                                        readOnly
-                                      />
-                                    </div>
-                                    <div className="space-y-1">
-                                      <FormLabel className="text-xs leading-tight">Fee ({feetelevision}%)</FormLabel>
-                                      <Input
-                                        type="text"
-                                        className="w-full h-10 text-sm"
-                                        value={formatMoney(
-                                          form.getValues(`televisionlineItems.${lineItemIndex}.budgetIncludesFees`)
-                                            ? (parseFloat(form.getValues(`televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (feetelevision || 0)
-                                            : (parseFloat(form.getValues(`televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / (100 - (feetelevision || 0))) * (feetelevision || 0)
-                                        , { locale: "en-AU", currency: "AUD" })}
-                                        readOnly
-                                      />
-                                    </div>
-                                  </div>
-                                  
-                                  <div className="flex items-end gap-2 self-end pb-1">
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      size="sm"
-                                      className="h-10 text-sm px-3"
-                                      onClick={() => handleAppendBurst(lineItemIndex)}
-                                    >
-                                      <Plus className="h-4 w-4 mr-1" />
-                                      Add
-                                    </Button>
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      size="sm"
-                                      className="h-10 text-sm px-3"
-                                      onClick={() => handleDuplicateBurst(lineItemIndex)}
-                                    >
-                                      <Copy className="h-4 w-4 mr-1" />
-                                      Duplicate
-                                    </Button>
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      size="sm"
-                                      className="h-10 text-sm px-3"
-                                      onClick={() => handleRemoveBurst(lineItemIndex, burstIndex)}
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  </div>
-                                </div>
-                              </CardContent>
-                            </Card>
+                                    <BurstReadonlyMetric
+                                      label="Media"
+                                      value={formatMoney(
+                                        form.getValues(`televisionlineItems.${lineItemIndex}.budgetIncludesFees`)
+                                          ? (parseFloat(form.getValues(`televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (100 - (feetelevision || 0))
+                                          : parseFloat(form.getValues(`televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0")
+                                      , { locale: "en-AU", currency: "AUD" })}
+                                    />
+                                    <BurstReadonlyMetric
+                                      label={`Fee (${feetelevision}%)`}
+                                      value={formatMoney(
+                                        form.getValues(`televisionlineItems.${lineItemIndex}.budgetIncludesFees`)
+                                          ? (parseFloat(form.getValues(`televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (feetelevision || 0)
+                                          : (parseFloat(form.getValues(`televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / (100 - (feetelevision || 0))) * (feetelevision || 0)
+                                      , { locale: "en-AU", currency: "AUD" })}
+                                    />
+                                  </BurstFieldGrid>
+
+                                  <BurstRowActions
+                                    onAdd={() => handleAppendBurst(lineItemIndex)}
+                                    onDuplicate={() => handleDuplicateBurst(lineItemIndex)}
+                                    onRemove={() => handleRemoveBurst(lineItemIndex, burstIndex)}
+                                  />
+                              </BurstRowInner>
+                            </BurstRowCard>
                           );
                         })}
-                      </div>
+                      </BurstSection>
                       </>
                       )}
 

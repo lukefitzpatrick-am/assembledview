@@ -56,18 +56,17 @@ import {
   getCpcFamilyBurstCalculatedColumnLabel,
 } from "@/components/media-containers/burst-calculated-fields"
 import {
-  MP_BURST_ACTION_COLUMN,
-  MP_BURST_CARD,
-  MP_BURST_CARD_CONTENT,
-  MP_BURST_GRID_7,
-  MP_BURST_HEADER_INNER,
-  MP_BURST_HEADER_ROW,
-  MP_BURST_HEADER_SHELL,
-  MP_BURST_LABEL_HEADING,
-  MP_BURST_LABEL_COLUMN,
-  MP_BURST_ROW_SHELL,
-  MP_BURST_SECTION_OUTER,
-} from "@/lib/mediaplan/burstSectionLayout"
+  BurstDateRangeColumn,
+  BurstFieldGrid,
+  BurstFieldLabel,
+  BurstLabel,
+  BurstReadonlyMetric,
+  BurstRowActions,
+  BurstRowCard,
+  BurstRowInner,
+  BurstSection,
+} from "@/components/media-containers/BurstRowLayout"
+import { MP_BURST_GRID_7, MP_BURST_INPUT } from "@/lib/mediaplan/burstSectionLayout"
 import {
   getMediaTypeThemeHex,
   mediaTypeSummaryStripeStyle,
@@ -1700,63 +1699,33 @@ useEffect(() => {
                         </CardContent>
                       </div>
 
-                      <div className={MP_BURST_SECTION_OUTER}>
-                        <div className={MP_BURST_HEADER_SHELL}>
-                          <div className={MP_BURST_HEADER_INNER}>
-                            <div className={MP_BURST_LABEL_COLUMN} aria-hidden />
-                            <div className={MP_BURST_HEADER_ROW}>
-                              <div
-                                className={`${MP_BURST_GRID_7} text-[11px] font-semibold uppercase tracking-wider text-muted-foreground`}
-                              >
-                                <span>Budget</span>
-                                <span>Buy Amount</span>
-                                <div className="col-span-2 grid grid-cols-2 gap-2">
-                                  <span>Start Date</span>
-                                  <span>End Date</span>
-                                </div>
-                                <span>
-                                  {getCpcFamilyBurstCalculatedColumnLabel(
-                                    "radio",
-                                    form.watch(`radiolineItems.${lineItemIndex}.buyType`) || ""
-                                  )}
-                                </span>
-                                <span>Media</span>
-                                <span>{`Fee (${feeradio}%)`}</span>
-                              </div>
-                              <div className={MP_BURST_ACTION_COLUMN}>
-                                <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Actions</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
+                      <BurstSection>
                         {form.watch(`radiolineItems.${lineItemIndex}.bursts`, []).map((burstField, burstIndex) => {
                           const buyType = form.watch(`radiolineItems.${lineItemIndex}.buyType`);
                           return (
-                            <Card key={(burstField as any)._reactKey ?? `${lineItemIndex}-${burstIndex}`} className={MP_BURST_CARD}>
-                              <CardContent className={MP_BURST_CARD_CONTENT}>
-                                <div className={MP_BURST_ROW_SHELL}>
-                                  <div className={MP_BURST_LABEL_COLUMN}>
-                                    <h4 className={MP_BURST_LABEL_HEADING}>
-                                      {formatBurstLabel(
-                                        burstIndex + 1,
-                                        form.watch(`radiolineItems.${lineItemIndex}.bursts.${burstIndex}.startDate`),
-                                        form.watch(`radiolineItems.${lineItemIndex}.bursts.${burstIndex}.endDate`)
-                                      )}
-                                    </h4>
-                                  </div>
-                                  
-                                  <div className={MP_BURST_GRID_7}>
+                            <BurstRowCard key={(burstField as any)._reactKey ?? `${lineItemIndex}-${burstIndex}`}>
+                              <BurstRowInner>
+                                <BurstLabel>
+                                  {formatBurstLabel(
+                                    burstIndex + 1,
+                                    form.watch(`radiolineItems.${lineItemIndex}.bursts.${burstIndex}.startDate`),
+                                    form.watch(`radiolineItems.${lineItemIndex}.bursts.${burstIndex}.endDate`)
+                                  )}
+                                </BurstLabel>
+
+                                  <BurstFieldGrid>
                                     {/* Burst `budget` = gross (fee-inclusive when the line-item flag is on). */}
                                     <FormField
                                       control={form.control}
                                       name={`radiolineItems.${lineItemIndex}.bursts.${burstIndex}.budget`}
                                       render={({ field }) => (
 <FormItem>
+  <BurstFieldLabel>Budget</BurstFieldLabel>
   <FormControl>
                                             <Input
                                               {...field}
                                               type="text"
-                                              className="w-full min-w-[9rem] h-10 text-sm"
+                                              className={MP_BURST_INPUT}
                                               value={buyType === "bonus" || buyType === "package_inclusions" ? "0" : field.value}
                                               disabled={buyType === "bonus" || buyType === "package_inclusions"}
                                               onChange={(e) => {
@@ -1786,11 +1755,12 @@ useEffect(() => {
                                       name={`radiolineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount`}
                                       render={({ field }) => (
 <FormItem>
+  <BurstFieldLabel>Buy Amount</BurstFieldLabel>
   <FormControl>
                                             <Input
                                               {...field}
                                               type="text"
-                                              className="w-full min-w-[9rem] h-10 text-sm"
+                                              className={MP_BURST_INPUT}
                                               value={buyType === "bonus" || buyType === "package_inclusions" ? "0" : field.value}
                                               disabled={buyType === "bonus" || buyType === "package_inclusions"}
                                               onChange={(e) => {
@@ -1814,12 +1784,13 @@ useEffect(() => {
                                       )}
                                     />
 
-                                    <div className="grid grid-cols-2 gap-2 col-span-2">
+                                    <BurstDateRangeColumn>
                                       <FormField
                                         control={form.control}
                                         name={`radiolineItems.${lineItemIndex}.bursts.${burstIndex}.startDate`}
                                         render={({ field }) => (
 <FormItem>
+  <BurstFieldLabel>Start Date</BurstFieldLabel>
   <FormControl>
                                               <SingleDatePicker
                                                 ref={field.ref}
@@ -1845,6 +1816,7 @@ useEffect(() => {
                                         name={`radiolineItems.${lineItemIndex}.bursts.${burstIndex}.endDate`}
                                         render={({ field }) => (
 <FormItem>
+  <BurstFieldLabel>End Date</BurstFieldLabel>
   <FormControl>
                                               <SingleDatePicker
                                                 ref={field.ref}
@@ -1864,85 +1836,63 @@ useEffect(() => {
                                           </FormItem>
                                         )}
                                       />
-                                    </div>
+                                    </BurstDateRangeColumn>
 
                                     <FormField
                                       control={form.control}
                                       name={`radiolineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`}
                                       render={({ field }) => (
-                                        <CpcFamilyBurstCalculatedField
-                                          form={form}
-                                          itemsKey="radiolineItems"
-                                          lineItemIndex={lineItemIndex}
-                                          burstIndex={burstIndex}
-                                          field={field}
-                                          feePct={feeradio || 0}
-                                          netMedia={netMediaPctOfGross}
-                                          variant="radio"
-                                        />
+                                        <div className="space-y-1">
+                                          <BurstFieldLabel>
+                                            {getCpcFamilyBurstCalculatedColumnLabel(
+                                              "radio",
+                                              form.watch(`radiolineItems.${lineItemIndex}.buyType`) || ""
+                                            )}
+                                          </BurstFieldLabel>
+                                          <CpcFamilyBurstCalculatedField
+                                            form={form}
+                                            itemsKey="radiolineItems"
+                                            lineItemIndex={lineItemIndex}
+                                            burstIndex={burstIndex}
+                                            field={field}
+                                            feePct={feeradio || 0}
+                                            netMedia={netMediaPctOfGross}
+                                            variant="radio"
+                                          />
+                                        </div>
                                       )}
                                     />
 
-                                    <Input
-                                        type="text"
-                                        className="w-full h-10 text-sm bg-muted/30 border-border/40 text-muted-foreground"
-                                        value={formatMoney(
-                                          form.getValues(`radiolineItems.${lineItemIndex}.budgetIncludesFees`)
-                                            ? (parseFloat(form.getValues(`radiolineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (100 - (feeradio || 0))
-                                            : parseFloat(form.getValues(`radiolineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0")
-                                        , { locale: "en-AU", currency: "AUD" })}
-                                        readOnly
-                                      />
-                                    <Input
-                                        type="text"
-                                        className="w-full h-10 text-sm bg-muted/30 border-border/40 text-muted-foreground"
-                                        value={formatMoney(
-                                          form.getValues(`radiolineItems.${lineItemIndex}.budgetIncludesFees`)
-                                            ? (parseFloat(form.getValues(`radiolineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (feeradio || 0)
-                                            : (parseFloat(form.getValues(`radiolineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / (100 - (feeradio || 0))) * (feeradio || 0)
-                                        , { locale: "en-AU", currency: "AUD" })}
-                                        readOnly
-                                      />
-                                  </div>
-                                  
-                                  <div className={MP_BURST_ACTION_COLUMN}>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-8 w-8"
-                                      onClick={() => handleAppendBurst(lineItemIndex)}
-                                      title="Add burst"
-                                    >
-                                      <Plus className="h-4 w-4" />
-                                    </Button>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-8 w-8"
-                                      onClick={() => handleDuplicateBurst(lineItemIndex)}
-                                      title="Duplicate burst"
-                                    >
-                                      <Copy className="h-3.5 w-3.5" />
-                                    </Button>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-8 w-8 text-destructive/70 hover:text-destructive hover:bg-destructive/10"
-                                      onClick={() => handleRemoveBurst(lineItemIndex, burstIndex)}
-                                      title="Remove burst"
-                                    >
-                                      <Trash2 className="h-3.5 w-3.5" />
-                                    </Button>
-                                  </div>
-                                </div>
-                              </CardContent>
-                            </Card>
+                                    <BurstReadonlyMetric
+                                      label="Media"
+                                      muted
+                                      value={formatMoney(
+                                        form.getValues(`radiolineItems.${lineItemIndex}.budgetIncludesFees`)
+                                          ? (parseFloat(form.getValues(`radiolineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (100 - (feeradio || 0))
+                                          : parseFloat(form.getValues(`radiolineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0")
+                                      , { locale: "en-AU", currency: "AUD" })}
+                                    />
+                                    <BurstReadonlyMetric
+                                      label={`Fee (${feeradio}%)`}
+                                      muted
+                                      value={formatMoney(
+                                        form.getValues(`radiolineItems.${lineItemIndex}.budgetIncludesFees`)
+                                          ? (parseFloat(form.getValues(`radiolineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (feeradio || 0)
+                                          : (parseFloat(form.getValues(`radiolineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / (100 - (feeradio || 0))) * (feeradio || 0)
+                                      , { locale: "en-AU", currency: "AUD" })}
+                                    />
+                                  </BurstFieldGrid>
+
+                                  <BurstRowActions
+                                    onAdd={() => handleAppendBurst(lineItemIndex)}
+                                    onDuplicate={() => handleDuplicateBurst(lineItemIndex)}
+                                    onRemove={() => handleRemoveBurst(lineItemIndex, burstIndex)}
+                                  />
+                              </BurstRowInner>
+                            </BurstRowCard>
                           );
                         })}
-                      </div>
+                      </BurstSection>
                       </>
                       )}
 

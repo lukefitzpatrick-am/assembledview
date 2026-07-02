@@ -53,17 +53,20 @@ import {
   getCpcFamilyBurstCalculatedColumnLabel,
 } from "@/components/media-containers/burst-calculated-fields"
 import {
-  MP_BURST_ACTION_COLUMN,
-  MP_BURST_CARD,
-  MP_BURST_CARD_CONTENT,
+  BurstDateRangeColumn,
+  BurstFieldGrid,
+  BurstFieldLabel,
+  BurstLabel,
+  BurstReadonlyMetric,
+  BurstRowActions,
+  BurstRowCard,
+  BurstRowInner,
+  BurstSection,
+} from "@/components/media-containers/BurstRowLayout"
+import {
   MP_BURST_GRID_7,
-  MP_BURST_HEADER_INNER,
-  MP_BURST_HEADER_ROW,
-  MP_BURST_HEADER_SHELL,
-  MP_BURST_LABEL_HEADING,
-  MP_BURST_LABEL_COLUMN,
-  MP_BURST_ROW_SHELL,
-  MP_BURST_SECTION_OUTER,
+  MP_BURST_GRID_8,
+  MP_BURST_INPUT,
 } from "@/lib/mediaplan/burstSectionLayout"
 import { SingleDatePicker } from "@/components/ui/single-date-picker"
 import { defaultMediaBurstStartDate, defaultMediaBurstEndDate } from "@/lib/date-picker-anchor"
@@ -92,8 +95,6 @@ import {
   computeLoadedDeliverables,
 } from "@/lib/mediaplan/deliverableBudget"
 
-const AD_SERVING_OVERRIDE_BURST_GRID =
-  "grid grid-cols-8 gap-3 items-end flex-1 min-w-0"
 
 const shouldShowAdServingOverrideInput = (buyType?: string) =>
   buyType === "cpc" || buyType === "cpv" || buyType === "fixed_cost"
@@ -1736,66 +1737,34 @@ useEffect(() => {
                         </CardContent>
                       </div>
 
-                      <div className={MP_BURST_SECTION_OUTER}>
-                        <div className={MP_BURST_HEADER_SHELL}>
-                          <div className={MP_BURST_HEADER_INNER}>
-                            <div className={MP_BURST_LABEL_COLUMN} aria-hidden />
-                            <div className={MP_BURST_HEADER_ROW}>
-                              <div
-                                className={`${shouldShowAdServingOverrideInput(form.watch(`digidisplaylineItems.${lineItemIndex}.buyType`)) ? AD_SERVING_OVERRIDE_BURST_GRID : MP_BURST_GRID_7} text-[11px] font-semibold uppercase tracking-wider text-muted-foreground`}
-                              >
-                                <span>Budget</span>
-                                <span>Buy Amount</span>
-                                <div className="col-span-2 grid grid-cols-2 gap-2">
-                                  <span>Start Date</span>
-                                  <span>End Date</span>
-                                </div>
-                                <span>
-                                  {getCpcFamilyBurstCalculatedColumnLabel(
-                                    "cpcCpvCpm",
-                                    form.watch(`digidisplaylineItems.${lineItemIndex}.buyType`) || ""
-                                  )}
-                                </span>
-                                {shouldShowAdServingOverrideInput(form.watch(`digidisplaylineItems.${lineItemIndex}.buyType`)) && (
-                                  <span>Ad serving</span>
-                                )}
-                                <span>Media</span>
-                                <span>{`Fee (${feedigidisplay}%)`}</span>
-                              </div>
-                              <div className={MP_BURST_ACTION_COLUMN}>
-                                <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Actions</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
+                      <BurstSection>
                         {form.watch(`digidisplaylineItems.${lineItemIndex}.bursts`, []).map((burstField, burstIndex) => {
                           const buyType = form.watch(`digidisplaylineItems.${lineItemIndex}.buyType`);
                           const showAdServingOverrideInput = shouldShowAdServingOverrideInput(buyType);
+                          const burstGridClass = showAdServingOverrideInput ? MP_BURST_GRID_8 : MP_BURST_GRID_7;
                           return (
-                            <Card key={(burstField as any)._reactKey ?? `${lineItemIndex}-${burstIndex}`} className={MP_BURST_CARD}>
-                              <CardContent className={MP_BURST_CARD_CONTENT}>
-                                <div className={MP_BURST_ROW_SHELL}>
-                                  <div className={MP_BURST_LABEL_COLUMN}>
-                                    <h4 className={MP_BURST_LABEL_HEADING}>
-                                      {formatBurstLabel(
-                                        burstIndex + 1,
-                                        form.watch(`digidisplaylineItems.${lineItemIndex}.bursts.${burstIndex}.startDate`),
-                                        form.watch(`digidisplaylineItems.${lineItemIndex}.bursts.${burstIndex}.endDate`)
-                                      )}
-                                    </h4>
-                                  </div>
-                                  
-                                  <div className={showAdServingOverrideInput ? AD_SERVING_OVERRIDE_BURST_GRID : MP_BURST_GRID_7}>
+                            <BurstRowCard key={(burstField as any)._reactKey ?? `${lineItemIndex}-${burstIndex}`}>
+                              <BurstRowInner>
+                                <BurstLabel>
+                                  {formatBurstLabel(
+                                    burstIndex + 1,
+                                    form.watch(`digidisplaylineItems.${lineItemIndex}.bursts.${burstIndex}.startDate`),
+                                    form.watch(`digidisplaylineItems.${lineItemIndex}.bursts.${burstIndex}.endDate`)
+                                  )}
+                                </BurstLabel>
+
+                                  <BurstFieldGrid className={burstGridClass}>
                                     <FormField
                                       control={form.control}
                                       name={`digidisplaylineItems.${lineItemIndex}.bursts.${burstIndex}.budget`}
                                       render={({ field }) => (
 <FormItem>
+  <BurstFieldLabel>Budget</BurstFieldLabel>
   <FormControl>
                                             <Input
                                               {...field}
                                               type="text"
-                                              className="w-full min-w-[9rem] h-10 text-sm"
+                                              className={MP_BURST_INPUT}
                                               value={buyType === "bonus" || buyType === "package_inclusions" ? "0" : field.value}
                                               disabled={buyType === "bonus" || buyType === "package_inclusions"}
                                               onChange={(e) => {
@@ -1824,11 +1793,12 @@ useEffect(() => {
                                       name={`digidisplaylineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount`}
                                       render={({ field }) => (
 <FormItem>
+  <BurstFieldLabel>Buy Amount</BurstFieldLabel>
   <FormControl>
                                             <Input
                                               {...field}
                                               type="text"
-                                              className="w-full min-w-[9rem] h-10 text-sm"
+                                              className={MP_BURST_INPUT}
                                               value={buyType === "bonus" || buyType === "package_inclusions" ? "0" : field.value}
                                               disabled={buyType === "bonus" || buyType === "package_inclusions"}
                                               onChange={(e) => {
@@ -1852,12 +1822,13 @@ useEffect(() => {
                                       )}
                                     />
 
-                                    <div className="grid grid-cols-2 gap-2 col-span-2">
+                                    <BurstDateRangeColumn>
                                       <FormField
                                         control={form.control}
                                         name={`digidisplaylineItems.${lineItemIndex}.bursts.${burstIndex}.startDate`}
                                         render={({ field }) => (
 <FormItem>
+  <BurstFieldLabel>Start Date</BurstFieldLabel>
   <FormControl>
                                               <SingleDatePicker
                                                 ref={field.ref}
@@ -1883,6 +1854,7 @@ useEffect(() => {
                                         name={`digidisplaylineItems.${lineItemIndex}.bursts.${burstIndex}.endDate`}
                                         render={({ field }) => (
 <FormItem>
+  <BurstFieldLabel>End Date</BurstFieldLabel>
   <FormControl>
                                               <SingleDatePicker
                                                 ref={field.ref}
@@ -1902,13 +1874,20 @@ useEffect(() => {
                                           </FormItem>
                                         )}
                                       />
-                                    </div>
+                                    </BurstDateRangeColumn>
 
                                     <FormField
                                       control={form.control}
                                       name={`digidisplaylineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`}
                                       render={({ field }) => (
-                                        <CpcFamilyBurstCalculatedField
+                                        <div className="space-y-1">
+                                          <BurstFieldLabel>
+                                            {getCpcFamilyBurstCalculatedColumnLabel(
+                                              "cpcCpvCpm",
+                                              form.watch(`digidisplaylineItems.${lineItemIndex}.buyType`) || ""
+                                            )}
+                                          </BurstFieldLabel>
+                                          <CpcFamilyBurstCalculatedField
                                           form={form}
                                           itemsKey="digidisplaylineItems"
                                           lineItemIndex={lineItemIndex}
@@ -1918,6 +1897,7 @@ useEffect(() => {
                                           netMedia={netMediaForDeliverablesDigiDisplay}
                                           variant="cpcCpvCpm"
                                         />
+                                        </div>
                                       )}
                                     />
 
@@ -1979,66 +1959,36 @@ useEffect(() => {
                                       />
                                     )}
 
-                                    <Input
-                                        type="text"
-                                        className="w-full h-10 text-sm bg-muted/30 border-border/40 text-muted-foreground"
-                                        value={formatMoney(
-                                          form.getValues(`digidisplaylineItems.${lineItemIndex}.budgetIncludesFees`)
-                                            ? (parseFloat(form.getValues(`digidisplaylineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (100 - (feedigidisplay || 0))
-                                            : parseFloat(form.getValues(`digidisplaylineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0")
-                                        , { locale: "en-AU", currency: "AUD" })}
-                                        readOnly
-                                      />
-                                    <Input
-                                        type="text"
-                                        className="w-full h-10 text-sm bg-muted/30 border-border/40 text-muted-foreground"
-                                        value={formatMoney(
-                                          form.getValues(`digidisplaylineItems.${lineItemIndex}.budgetIncludesFees`)
-                                            ? (parseFloat(form.getValues(`digidisplaylineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (feedigidisplay || 0)
-                                            : (parseFloat(form.getValues(`digidisplaylineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / (100 - (feedigidisplay || 0))) * (feedigidisplay || 0)
-                                        , { locale: "en-AU", currency: "AUD" })}
-                                        readOnly
-                                      />
-                                  </div>
-                                  
-                                  <div className={MP_BURST_ACTION_COLUMN}>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-8 w-8"
-                                      onClick={() => handleAppendBurst(lineItemIndex)}
-                                      title="Add burst"
-                                    >
-                                      <Plus className="h-4 w-4" />
-                                    </Button>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-8 w-8"
-                                      onClick={() => handleDuplicateBurst(lineItemIndex)}
-                                      title="Duplicate burst"
-                                    >
-                                      <Copy className="h-3.5 w-3.5" />
-                                    </Button>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-8 w-8 text-destructive/70 hover:text-destructive hover:bg-destructive/10"
-                                      onClick={() => handleRemoveBurst(lineItemIndex, burstIndex)}
-                                      title="Remove burst"
-                                    >
-                                      <Trash2 className="h-3.5 w-3.5" />
-                                    </Button>
-                                  </div>
-                                </div>
-                              </CardContent>
-                            </Card>
+                                    <BurstReadonlyMetric
+                                      label="Media"
+                                      muted
+                                      value={formatMoney(
+                                        form.getValues(`digidisplaylineItems.${lineItemIndex}.budgetIncludesFees`)
+                                          ? (parseFloat(form.getValues(`digidisplaylineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (100 - (feedigidisplay || 0))
+                                          : parseFloat(form.getValues(`digidisplaylineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0")
+                                      , { locale: "en-AU", currency: "AUD" })}
+                                    />
+                                    <BurstReadonlyMetric
+                                      label={`Fee (${feedigidisplay}%)`}
+                                      muted
+                                      value={formatMoney(
+                                        form.getValues(`digidisplaylineItems.${lineItemIndex}.budgetIncludesFees`)
+                                          ? (parseFloat(form.getValues(`digidisplaylineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (feedigidisplay || 0)
+                                          : (parseFloat(form.getValues(`digidisplaylineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / (100 - (feedigidisplay || 0))) * (feedigidisplay || 0)
+                                      , { locale: "en-AU", currency: "AUD" })}
+                                    />
+                                  </BurstFieldGrid>
+
+                                  <BurstRowActions
+                                    onAdd={() => handleAppendBurst(lineItemIndex)}
+                                    onDuplicate={() => handleDuplicateBurst(lineItemIndex)}
+                                    onRemove={() => handleRemoveBurst(lineItemIndex, burstIndex)}
+                                  />
+                              </BurstRowInner>
+                            </BurstRowCard>
                           );
                         })}
-                      </div>
+                      </BurstSection>
                       </>
                       )}
 
