@@ -421,7 +421,7 @@ export function ProgVideoExpertGrid({
   const fuzzyMatchAutoApplyRef = useRef(false)
   const fuzzyCorrectionMapRef = useRef<Record<string, string>>({})
   const platformNames = useMemo(
-    () => publishers.map((p) => p.publisher_name),
+    () => Array.from(new Set(publishers.map((p) => p.publisher_name).filter(Boolean))),
     [publishers]
   )
 
