@@ -1084,16 +1084,8 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
       budget_includes_fees: lineItem.budgetIncludesFees || false,
       line_item_id: lineItemId,
       creative: lineItem.creative || "",
-      bursts_json: JSON.stringify(serializeBurstsJson({
-        bursts: lineItem.bursts,
-        feePct: feetelevision || 0,
-        budgetIncludesFees: lineItem.budgetIncludesFees || false,
-        clientPaysForMedia: lineItem.clientPaysForMedia || false,
-      }).map((serializedBurst, burstIndex) => ({
-        ...serializedBurst,
-        size: lineItem.bursts[burstIndex]?.size || "",
-        tarps: lineItem.bursts[burstIndex]?.tarps || "",
-      }))),
+      bursts: lineItem.bursts,
+      feePct: feetelevision || 0,
       line_item: lineNumber,
       totalMedia: totalMedia,
     };

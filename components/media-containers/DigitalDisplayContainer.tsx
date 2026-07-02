@@ -800,12 +800,8 @@ export default function DigiDisplayContainer({
         budget_includes_fees: lineItem.budgetIncludesFees || false,
         no_adserving: lineItem.noadserving || false,
         line_item_id,
-        bursts_json: JSON.stringify(serializeBurstsJson({
-          bursts: lineItem.bursts,
-          feePct: feedigidisplay || 0,
-          budgetIncludesFees: lineItem.budgetIncludesFees || false,
-          clientPaysForMedia: lineItem.clientPaysForMedia || false,
-        })),
+        bursts: lineItem.bursts,
+        feePct: feedigidisplay || 0,
         line_item: lineNumber,
         totalMedia: totalMedia,
       };

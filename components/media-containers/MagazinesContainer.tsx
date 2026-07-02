@@ -743,12 +743,8 @@ const form = useForm<MagazinesFormValues>({
         client_pays_for_media: lineItem.clientPaysForMedia || false,
         budget_includes_fees: lineItem.budgetIncludesFees || false,
         line_item_id: lineItemId,
-        bursts_json: JSON.stringify(serializeBurstsJson({
-          bursts: lineItem.bursts,
-          feePct: feemagazines || 0,
-          budgetIncludesFees: lineItem.budgetIncludesFees || false,
-          clientPaysForMedia: lineItem.clientPaysForMedia || false,
-        })),
+        bursts: lineItem.bursts,
+        feePct: feemagazines || 0,
         line_item: lineNumber,
         totalMedia: totalMedia,
       };

@@ -621,12 +621,8 @@ export default function IntegrationContainer({
         budget_includes_fees: lineItem.budgetIncludesFees || false,
         no_adserving: lineItem.noAdserving || false,
         line_item_id: lineItem.line_item_id,
-        bursts_json: JSON.stringify(serializeBurstsJson({
-          bursts: lineItem.bursts,
-          feePct: feeintegration || 0,
-          budgetIncludesFees: lineItem.budgetIncludesFees || false,
-          clientPaysForMedia: lineItem.clientPaysForMedia || false,
-        })),
+        bursts: lineItem.bursts,
+        feePct: feeintegration || 0,
         line_item: lineItem.line_item,
         totalMedia: totalMedia,
       };

@@ -553,12 +553,8 @@ export default function InfluencersContainer({
         no_adserving: lineItem.noadserving || false,
         line_item_id: lineItemId,
         line_item: lineItem.line_item,
-        bursts_json: JSON.stringify(serializeBurstsJson({
-          bursts: lineItem.bursts || [],
-          feePct: feeinfluencers || 0,
-          budgetIncludesFees: lineItem.budgetIncludesFees || false,
-          clientPaysForMedia: lineItem.clientPaysForMedia || false,
-        })),
+        bursts: lineItem.bursts || [],
+        feePct: feeinfluencers || 0,
         totalMedia: totalMedia,
       };
     });

@@ -735,14 +735,7 @@ export default function RadioContainer({
         lineItem.line_item_id ||
         createLineItemId(lineNumber);
 
-      // Format bursts for API
-      const formattedBursts = serializeBurstsJson({
-        bursts: lineItem.bursts,
-        feePct: feeradio || 0,
-        budgetIncludesFees: lineItem.budgetIncludesFees || false,
-        clientPaysForMedia: lineItem.clientPaysForMedia || false,
-      });
-
+      // Pass raw bursts; extractAndFormatBursts is the single serialize chokepoint.
       return {
         media_plan_version: 0, // Will be set by parent component
         mba_number: mbaNumber || "",
@@ -765,8 +758,8 @@ export default function RadioContainer({
         budget_includes_fees: lineItem.budgetIncludesFees || false,
         no_adserving: lineItem.noadserving || false,
         line_item_id: lineItemId,
-        bursts: formattedBursts, // Include bursts array for extractAndFormatBursts()
-        bursts_json: JSON.stringify(formattedBursts), // Also include as JSON string for compatibility
+        bursts: lineItem.bursts,
+        feePct: feeradio || 0,
         line_item: lineNumber,
         totalMedia: totalMedia,
       };

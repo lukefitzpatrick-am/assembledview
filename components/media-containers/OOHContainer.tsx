@@ -599,12 +599,8 @@ export default function OohContainer({
         budget_includes_fees: lineItem.budgetIncludesFees || false,
         no_adserving: lineItem.noAdserving || false,
         line_item_id: lineItemId,
-        bursts_json: JSON.stringify(serializeBurstsJson({
-          bursts: lineItem.bursts,
-          feePct: feeooh || 0,
-          budgetIncludesFees: lineItem.budgetIncludesFees || false,
-          clientPaysForMedia: lineItem.clientPaysForMedia || false,
-        })),
+        bursts: lineItem.bursts,
+        feePct: feeooh || 0,
         line_item: lineNumber,
         totalMedia: totalMedia,
       };
