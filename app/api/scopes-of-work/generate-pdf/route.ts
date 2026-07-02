@@ -1,25 +1,65 @@
 import { NextRequest, NextResponse } from "next/server"
 import { generateScopeOfWork } from "@/lib/generateScopeOfWork"
 
-// Helper function to sanitize filename by replacing Unicode characters with ASCII equivalents
+const SMART_DOUBLE_QUOTES = new Set(["\u201C", "\u201D", "\u201E", "\u201F", "\u2033", "\u2036"])
+const SMART_SINGLE_QUOTES = new Set(["\u2018", "\u2019", "\u201A", "\u201B", "\u2032", "\u2035"])
+
+function isAsciiPrintable(code: number): boolean {
+  return code >= 0x20 && code <= 0x7e
+}
+
+function isSafeFilenameChar(code: number, char: string): boolean {
+  if (code >= 0x41 && code <= 0x5a) return true
+  if (code >= 0x61 && code <= 0x7a) return true
+  if (code >= 0x30 && code <= 0x39) return true
+  return char === "." || char === "_" || char === "-"
+}
+
+/** Linear-time filename sanitization (no backtracking regex on user input). */
 function sanitizeFilename(name: string): string {
-  return name
-    // Replace smart quotes and other Unicode quotes
-    .replace(/[\u201C\u201D\u201E\u201F\u2033\u2036]/g, '"') // Smart double quotes
-    .replace(/[\u2018\u2019\u201A\u201B\u2032\u2035]/g, "'") // Smart single quotes
-    // Replace other common Unicode characters
-    .replace(/[\u2013\u2014]/g, '-') // En/em dashes
-    .replace(/\u2026/g, '...') // Ellipsis
-    // Remove any remaining non-ASCII characters and keep only safe characters
-    .replace(/[^\x20-\x7E]/g, '') // Remove any remaining non-ASCII
-    // Replace spaces and other problematic characters with underscores
-    .replace(/[^a-zA-Z0-9._-]/g, '_')
-    // Remove multiple consecutive underscores
-    .replace(/_+/g, '_')
-    // Remove leading/trailing underscores
-    .replace(/^_+|_+$/g, '')
-    // Limit length
-    .substring(0, 100);
+  let mapped = ""
+  for (const char of name) {
+    if (SMART_DOUBLE_QUOTES.has(char)) {
+      mapped += '"'
+      continue
+    }
+    if (SMART_SINGLE_QUOTES.has(char)) {
+      mapped += "'"
+      continue
+    }
+    if (char === "\u2013" || char === "\u2014") {
+      mapped += "-"
+      continue
+    }
+    if (char === "\u2026") {
+      mapped += "..."
+      continue
+    }
+    const code = char.charCodeAt(0)
+    if (!isAsciiPrintable(code)) continue
+    mapped += isSafeFilenameChar(code, char) ? char : "_"
+  }
+
+  let collapsed = ""
+  let prevUnderscore = false
+  for (const char of mapped) {
+    if (char === "_") {
+      if (!prevUnderscore) {
+        collapsed += "_"
+        prevUnderscore = true
+      }
+      continue
+    }
+    collapsed += char
+    prevUnderscore = false
+  }
+
+  let start = 0
+  while (start < collapsed.length && collapsed[start] === "_") start += 1
+  let end = collapsed.length
+  while (end > start && collapsed[end - 1] === "_") end -= 1
+
+  return collapsed.slice(start, end).slice(0, 100)
 }
 
 export async function POST(req: NextRequest) {
