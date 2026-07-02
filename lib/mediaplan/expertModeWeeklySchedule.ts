@@ -661,3 +661,31 @@ export interface ProgOohExpertScheduleRow {
   dailyValues?: ExpertDailyValues
   mergedWeekSpans?: ProgExpertMergedWeekSpan[]
 }
+
+/** Same shape as {@link OohExpertMergedWeekSpan}; used for production expert weekly merges. */
+export type ProductionExpertMergedWeekSpan = OohExpertMergedWeekSpan
+
+export interface ProductionExpertScheduleRow {
+  id: string
+  /**
+   * Original standard line_item_id captured at import time so the apply-time
+   * merge can match generated standard items back to their previous form state
+   * by stable id. Decoupled from `id` (React key) since `id` is a UUID and not
+   * tied to line numbering. Undefined on rows added inside expert mode.
+   */
+  sourceLineItemId?: string
+  /** Line-level schedule bounds (ISO yyyy-MM-dd); derived from weekly Gantt + merges. */
+  startDate: string
+  endDate: string
+  mediaType: string
+  publisher: string
+  description: string
+  market: string
+  buyType: string
+  unitRate: number | string
+  grossCost: number | string
+  weeklyValues: ExpertWeeklyValues
+  /** Opportunistic day-level detail. A week is day-detailed iff any of its day keys appear here. */
+  dailyValues?: ExpertDailyValues
+  mergedWeekSpans?: ProductionExpertMergedWeekSpan[]
+}

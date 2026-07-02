@@ -18,6 +18,7 @@ import type {
   ProgDisplayExpertScheduleRow,
   ProgVideoExpertScheduleRow,
   ProgOohExpertScheduleRow,
+  ProductionExpertScheduleRow,
 } from "./expertModeWeeklySchedule.js"
 import type {
   StandardBvodFormLineItem,
@@ -39,6 +40,7 @@ import type {
   StandardProgDisplayFormLineItem,
   StandardProgVideoFormLineItem,
   StandardProgOohFormLineItem,
+  StandardProductionFormLineItem,
 } from "./expertChannelMappings.js"
 
 function isoDate(d: Date | string | undefined): string {
@@ -155,6 +157,39 @@ export function mergeRadioStandardFromExpertWithPrevious(
       platform: prev.platform ?? "",
       creativeTargeting: prev.creativeTargeting ?? "",
       creative: prev.creative ?? "",
+      line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
+      lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
+    }
+  })
+}
+
+export function mergeProductionStandardFromExpertWithPrevious(
+  generated: StandardProductionFormLineItem[],
+  previous: StandardProductionFormLineItem[]
+): StandardProductionFormLineItem[] {
+  const prevByKey = new Map<string, StandardProductionFormLineItem>()
+  for (let i = 0; i < previous.length; i++) {
+    const p = previous[i]!
+    prevByKey.set(stableStandardLineItemKey(p, i), p)
+  }
+  return generated.map((li, i) => {
+    const k = stableStandardLineItemKey(li, i)
+    const prev = prevByKey.get(k)
+    if (!prev) {
+      return {
+        ...li,
+        line_item: undefined,
+        lineItem: undefined,
+        line_item_id: undefined,
+        lineItemId: undefined,
+      }
+    }
+    return {
+      ...li,
+      mediaType: prev.mediaType ?? li.mediaType,
+      publisher: prev.publisher ?? li.publisher,
+      description: prev.description ?? li.description,
+      market: prev.market ?? li.market,
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
     }
@@ -646,6 +681,28 @@ export function serializeRadioExpertRowsBaseline(rows: RadioExpertScheduleRow[])
       fixedCostMedia: r.fixedCostMedia,
       clientPaysForMedia: r.clientPaysForMedia,
       budgetIncludesFees: r.budgetIncludesFees,
+      unitRate: r.unitRate,
+      grossCost: r.grossCost,
+      weeklyValues: r.weeklyValues,
+      dailyValues: r.dailyValues,
+      mergedWeekSpans: r.mergedWeekSpans,
+    }))
+  )
+}
+
+export function serializeProductionExpertRowsBaseline(
+  rows: ProductionExpertScheduleRow[]
+): string {
+  return JSON.stringify(
+    rows.map((r) => ({
+      id: r.id,
+      startDate: r.startDate,
+      endDate: r.endDate,
+      mediaType: r.mediaType,
+      publisher: r.publisher,
+      description: r.description,
+      market: r.market,
+      buyType: r.buyType,
       unitRate: r.unitRate,
       grossCost: r.grossCost,
       weeklyValues: r.weeklyValues,
