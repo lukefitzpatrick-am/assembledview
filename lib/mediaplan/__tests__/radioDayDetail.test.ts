@@ -42,3 +42,22 @@ test("full-week burst stays weekly (no dailyValues)", () => {
   const rows = mapStandardRadioLineItemsToExpertRows(std, cols, CS, CE)
   assert.equal(rows[0]!.dailyValues === undefined || Object.keys(rows[0]!.dailyValues).length === 0, true)
 })
+
+test("legacy burst without calculatedValue derives deliverables from budget and buyAmount", () => {
+  // budget 25000, rate 50 → 500 spots; full interior week Sun 11 – Sat 17 Jan
+  const std = [
+    line([
+      {
+        budget: "25000",
+        buyAmount: "50",
+        startDate: new Date(2026, 0, 11),
+        endDate: new Date(2026, 0, 17),
+        calculatedValue: 0,
+      },
+    ]),
+  ]
+  const rows = mapStandardRadioLineItemsToExpertRows(std, cols, CS, CE, { feePct: 0 })
+  const wk1 = cols[1]!
+  const weekQty = rows[0]!.weeklyValues[wk1.weekKey]
+  assert.equal(weekQty, 500)
+})

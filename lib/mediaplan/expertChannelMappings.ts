@@ -2,6 +2,7 @@ import { format, startOfDay } from "date-fns"
 import {
   type BuyType,
   coerceBuyTypeWithDevWarn,
+  computeLoadedDeliverables,
   distributeBurstDeliverablesToExpertWeeks,
   deliverablesFromBudget,
   grossFromNet,
@@ -261,6 +262,63 @@ function parseNum(v: number | string | undefined | null): number {
   if (typeof v === "number") return Number.isFinite(v) ? v : 0
   const n = parseFloat(String(v).replace(/[^0-9.-]/g, ""))
   return Number.isFinite(n) ? n : 0
+}
+
+/** Optional fee context for standard → expert import deliverable fallback. */
+export type StandardImportMapperOptions = {
+  feePct?: number
+}
+
+/**
+ * Persisted `calculatedValue` when present; otherwise derive from budget + unit rate
+ * via {@link computeLoadedDeliverables}. Skips fallback when budgetIncludesFees is
+ * true but feePct was not supplied (caller must pass channel fee).
+ */
+export function resolveBurstDeliverablesForStandardImport(
+  burst: StandardMediaBurst,
+  buyType: string,
+  budgetIncludesFees: boolean,
+  feePct?: number
+): number {
+  const btLower = buyType.toLowerCase()
+  const raw = burst.calculatedValue
+  const stored =
+    typeof raw === "number" && Number.isFinite(raw) ? raw : parseNum(raw)
+
+  if (btLower === "bonus") {
+    return Number.isFinite(stored) ? stored : 0
+  }
+
+  if (btLower === "fixed_cost") {
+    return stored > 0 ? stored : 1
+  }
+
+  if (Number.isFinite(stored) && stored > 0) {
+    return stored
+  }
+
+  const rawBudget = parseNum(burst.budget)
+  const buyAmount = parseNum(burst.buyAmount)
+  if (rawBudget <= 0 || buyAmount <= 0) {
+    return 0
+  }
+
+  if (budgetIncludesFees && feePct === undefined) {
+    return 0
+  }
+
+  return computeLoadedDeliverables(
+    buyType,
+    burst as unknown as {
+      budget?: unknown
+      buyAmount?: unknown
+      calculatedValue?: unknown
+      deliverables?: unknown
+      [k: string]: unknown
+    },
+    budgetIncludesFees,
+    feePct ?? 0
+  )
 }
 
 function formatBurstBudget(n: number): string {
@@ -1393,11 +1451,15 @@ export function mapStandardRadioLineItemsToExpertRows(
   lineItems: StandardRadioLineItemInput[],
   weekColumns: WeeklyGanttWeekColumn[],
   campaignStartDate: Date,
-  campaignEndDate: Date
+  campaignEndDate: Date,
+  importOptions?: StandardImportMapperOptions
 ): RadioExpertScheduleRow[] {
   return lineItems.map((item, index) => {
     const bursts = normalizeRadioBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
+    const budgetIncludesFees = Boolean(
+      item.budget_includes_fees ?? item.budgetIncludesFees
+    )
 
     const weeklyValues: Record<string, number | ""> = {}
     for (const col of weekColumns) {
@@ -1410,12 +1472,12 @@ export function mapStandardRadioLineItemsToExpertRows(
       const ed = b.endDate ?? b.startDate
       if (!sd || Number.isNaN(sd.getTime())) continue
 
-      const totalDeliverablesRaw = b.calculatedValue
-      let totalDeliverables =
-        typeof totalDeliverablesRaw === "number" &&
-        Number.isFinite(totalDeliverablesRaw)
-          ? totalDeliverablesRaw
-          : parseNum(totalDeliverablesRaw)
+      let totalDeliverables = resolveBurstDeliverablesForStandardImport(
+        b,
+        buyType,
+        budgetIncludesFees,
+        importOptions?.feePct
+      )
       if (!Number.isFinite(totalDeliverables)) continue
       if (buyType === "fixed_cost") {
         totalDeliverables = 1

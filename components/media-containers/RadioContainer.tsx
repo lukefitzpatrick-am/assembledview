@@ -430,7 +430,8 @@ export default function RadioContainer({
       form.getValues("radiolineItems") || [],
       radioExpertWeekColumns,
       campaignStartDate,
-      campaignEndDate
+      campaignEndDate,
+      { feePct: feeradio ?? 0 }
     );
     const weekKeys = radioExpertWeekColumns.map((c) => c.weekKey);
     const rows: RadioExpertScheduleRow[] =
@@ -450,7 +451,7 @@ export default function RadioContainer({
     setExpertRadioRows(rows);
     setRadioExpertExitConfirmOpen(false);
     setRadioExpertModalOpen(true);
-  }, [campaignStartDate, campaignEndDate, form, radioExpertWeekColumns]);
+  }, [campaignStartDate, campaignEndDate, form, radioExpertWeekColumns, feeradio]);
 
   const dismissRadioExpertExitConfirm = useCallback(() => {
     setRadioExpertExitConfirmOpen(false);
