@@ -175,3 +175,267 @@ test("resolveKPIsForMediaType: BVOD publisher field resolves publisher KPI row",
   assert.equal(row.hasPublisherKpi, true)
   assert.equal(row.vtr, 0.85)
 })
+
+test("groupLineItemsForKPI: digiDisplay publisher maps to publisher key (not site)", () => {
+  const [grouped] = groupLineItemsForKPI(
+    [
+      {
+        line_item_id: "MBA1DD1",
+        publisher: "SBS",
+        platform: "SBS",
+        site: "sbs.com.au",
+        buy_type: "cpm",
+        bid_strategy: "cpm",
+        totalMedia: 5000,
+        bursts: [{ calculatedValue: 50000 }],
+      } as any,
+    ],
+    { mbaNumber: "MBA1", mediaType: "digiDisplay" },
+  )
+
+  const keys = extractKPIKeys(grouped, "digiDisplay")
+  assert.equal(keys.publisher, "sbs")
+  assert.equal(keys.bidStrategy, "cpm")
+})
+
+test("resolveKPIsForMediaType: digiDisplay publisher KPI matches platform publisher", () => {
+  const [row] = resolveKPIsForMediaType({
+    lineItems: [
+      {
+        line_item_id: "MBA1DD1",
+        publisher: "SBS",
+        platform: "SBS",
+        site: "sbs.com.au",
+        buy_type: "cpm",
+        bid_strategy: "cpm",
+        totalMedia: 5000,
+        bursts: [{ calculatedValue: 50000 }],
+      } as any,
+    ],
+    mediaType: "digiDisplay",
+    clientName: "Acme",
+    mbaNumber: "MBA1",
+    versionNumber: 1,
+    campaignName: "Camp",
+    publisherKPIs: [
+      {
+        id: 1,
+        created_at: 0,
+        media_type: "digitalDisplay",
+        publisher: "sbs",
+        bid_strategy: "cpm",
+        ctr: 0.0012,
+        cpv: 0,
+        conversion_rate: 0,
+        vtr: 0,
+        frequency: 0,
+      },
+    ],
+    clientKPIs: [],
+    savedCampaignKPIs: [],
+  })
+
+  assert.equal(row.publisher, "sbs")
+  assert.equal(row.source, "publisher")
+  assert.equal(row.hasPublisherKpi, true)
+  assert.equal(row.calculatedClicks, Math.round(50000 * 0.0012))
+})
+
+test("groupLineItemsForKPI: digiVideo carries bid_strategy for KPI join", () => {
+  const [grouped] = groupLineItemsForKPI(
+    [
+      {
+        line_item_id: "MBA1DV1",
+        publisher: "Nine",
+        platform: "Nine",
+        site: "9Now",
+        bid_strategy: "cpv",
+        buy_type: "cpv",
+        totalMedia: 8000,
+        bursts: [{ calculatedValue: 4000 }],
+      } as any,
+    ],
+    { mbaNumber: "MBA1", mediaType: "digiVideo" },
+  )
+
+  const keys = extractKPIKeys(grouped, "digiVideo")
+  assert.equal(keys.publisher, "nine")
+  assert.equal(keys.bidStrategy, "cpv")
+})
+
+test("resolveKPIsForMediaType: digiVideo CPV buy type uses deliverables as views", () => {
+  const [row] = resolveKPIsForMediaType({
+    lineItems: [
+      {
+        line_item_id: "MBA1DV1",
+        publisher: "Nine",
+        site: "9Now",
+        bid_strategy: "cpv",
+        buy_type: "cpv",
+        totalMedia: 8000,
+        bursts: [{ calculatedValue: 4000 }],
+      } as any,
+    ],
+    mediaType: "digiVideo",
+    clientName: "Acme",
+    mbaNumber: "MBA1",
+    versionNumber: 1,
+    campaignName: "Camp",
+    publisherKPIs: [],
+    clientKPIs: [],
+    savedCampaignKPIs: [],
+  })
+
+  assert.equal(row.calculatedViews, 4000)
+  assert.equal(row.cpv, 2)
+})
+
+test("groupLineItemsForKPI: digiAudio maps publisher from site", () => {
+  const [grouped] = groupLineItemsForKPI(
+    [
+      {
+        line_item_id: "MBA1DA1",
+        publisher: "Spotify",
+        site: "Spotify AU",
+        bid_strategy: "cpm",
+        buy_type: "cpm",
+        totalMedia: 3000,
+        bursts: [{ calculatedValue: 100000 }],
+      } as any,
+    ],
+    { mbaNumber: "MBA1", mediaType: "digiAudio" },
+  )
+
+  const keys = extractKPIKeys(grouped, "digiAudio")
+  assert.equal(keys.publisher, "spotify")
+})
+
+test("resolveKPIsForMediaType: influencers bid_strategy joins publisher KPI", () => {
+  const [row] = resolveKPIsForMediaType({
+    lineItems: [
+      {
+        line_item_id: "MBA1INF1",
+        platform: "TikTok",
+        bid_strategy: "cpm",
+        buy_type: "cpm",
+        totalMedia: 12000,
+        bursts: [{ calculatedValue: 200000 }],
+      } as any,
+    ],
+    mediaType: "influencers",
+    clientName: "Acme",
+    mbaNumber: "MBA1",
+    versionNumber: 1,
+    campaignName: "Camp",
+    publisherKPIs: [
+      {
+        id: 1,
+        created_at: 0,
+        media_type: "influencers",
+        publisher: "TikTok",
+        bid_strategy: "cpm",
+        ctr: 0.02,
+        cpv: 0,
+        conversion_rate: 0,
+        vtr: 0,
+        frequency: 3,
+      },
+    ],
+    clientKPIs: [],
+    savedCampaignKPIs: [],
+  })
+
+  assert.equal(row.source, "publisher")
+  assert.equal(row.hasPublisherKpi, true)
+  assert.equal(row.frequency, 3)
+})
+
+test("resolveKPIsForMediaType: integration platform resolves publisher KPI", () => {
+  const [row] = resolveKPIsForMediaType({
+    lineItems: [
+      {
+        line_item_id: "MBA1INT1",
+        platform: "Pedestrian",
+        bid_strategy: "fixed_cost",
+        buy_type: "fixed_cost",
+        totalMedia: 15000,
+        bursts: [{ calculatedValue: 1 }],
+      } as any,
+    ],
+    mediaType: "integration",
+    clientName: "Acme",
+    mbaNumber: "MBA1",
+    versionNumber: 1,
+    campaignName: "Camp",
+    publisherKPIs: [
+      {
+        id: 1,
+        created_at: 0,
+        media_type: "integration",
+        publisher: "Pedestrian",
+        bid_strategy: "fixed_cost",
+        ctr: 0,
+        cpv: 0,
+        conversion_rate: 0,
+        vtr: 0,
+        frequency: 2.5,
+      },
+    ],
+    clientKPIs: [],
+    savedCampaignKPIs: [],
+  })
+
+  assert.equal(row.publisher, "pedestrian")
+  assert.equal(row.source, "publisher")
+  assert.equal(row.calculatedReach, 0)
+})
+
+test("resolveKPIsForMediaType: search manual_cpc buy type treats deliverables as clicks", () => {
+  const [row] = resolveKPIsForMediaType({
+    lineItems: [
+      {
+        line_item_id: "MBA1SE1",
+        platform: "Google",
+        bid_strategy: "manual_cpc",
+        buy_type: "manual_cpc",
+        totalMedia: 9000,
+        bursts: [{ calculatedValue: 4500 }],
+      } as any,
+    ],
+    mediaType: "search",
+    clientName: "Acme",
+    mbaNumber: "MBA1",
+    versionNumber: 1,
+    campaignName: "Camp",
+    publisherKPIs: [],
+    clientKPIs: [],
+    savedCampaignKPIs: [],
+  })
+
+  assert.equal(row.calculatedClicks, 4500)
+})
+
+test("resolveKPIsForMediaType: progVideo CPV buy type treats deliverables as views", () => {
+  const [row] = resolveKPIsForMediaType({
+    lineItems: [
+      {
+        line_item_id: "MBA1PV1",
+        platform: "DV360",
+        bid_strategy: "completed_views",
+        buy_type: "cpv",
+        totalMedia: 6000,
+        bursts: [{ calculatedValue: 3000 }],
+      } as any,
+    ],
+    mediaType: "progVideo",
+    clientName: "Acme",
+    mbaNumber: "MBA1",
+    versionNumber: 1,
+    campaignName: "Camp",
+    publisherKPIs: [],
+    clientKPIs: [],
+    savedCampaignKPIs: [],
+  })
+
+  assert.equal(row.calculatedViews, 3000)
+})

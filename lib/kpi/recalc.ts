@@ -4,7 +4,7 @@ import type { ResolvedKPIRow } from "./types"
 export function recalcRow(row: ResolvedKPIRow): ResolvedKPIRow {
   const bt = (row.buyType ?? "").toLowerCase()
   const isClick = ["cpc", "cpa", "cpl"].some((t) => bt.includes(t))
-  const isView = ["cpv", "vtr"].some((t) => bt.includes(t))
+  const isView = ["cpv", "cpcv", "vtr"].some((t) => bt.includes(t))
   return {
     ...row,
     calculatedClicks: isClick

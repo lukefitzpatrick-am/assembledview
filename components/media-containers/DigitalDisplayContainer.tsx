@@ -791,6 +791,7 @@ export default function DigiDisplayContainer({
         publisher: lineItem.publisher || lineItem.platform || "",
         site: lineItem.site || "",
         buy_type: lineItem.buyType || "",
+        bid_strategy: lineItem.buyType || "",
         creative_targeting: lineItem.creativeTargeting || "",
         creative: lineItem.creative || "",
         buying_demo: lineItem.buyingDemo || "",

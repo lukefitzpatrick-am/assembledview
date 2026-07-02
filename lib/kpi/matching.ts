@@ -105,7 +105,7 @@ export function extractKPIKeys(
     case "digiDisplay":
     case "digiAudio":
     case "digiVideo":
-      publisher = get("site", "platform", "network")
+      publisher = get("publisher", "platform", "network", "site")
       break
     case "bvod":
       publisher = get("publisher", "platform", "site", "network")

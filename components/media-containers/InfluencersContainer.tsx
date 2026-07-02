@@ -546,6 +546,7 @@ export default function InfluencersContainer({
         objective: lineItem.objective || "",
         campaign: lineItem.campaign || "",
         buy_type: lineItem.buyType || "",
+        bid_strategy: lineItem.bidStrategy || "",
         targeting_attribute: lineItem.targetingAttribute || "",
         fixed_cost_media: lineItem.fixedCostMedia || false,
         client_pays_for_media: lineItem.clientPaysForMedia || false,
