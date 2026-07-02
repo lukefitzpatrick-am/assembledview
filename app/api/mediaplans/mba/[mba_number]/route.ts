@@ -13,6 +13,7 @@ import { writeScheduleDiffEdits } from "@/lib/finance/writeFinanceAuditEdits"
 import { extractBillingMonthStart } from "@/lib/spend/billingScheduleExpectedToDate"
 import { expectedSpendToDateFromDeliveryScheduleMonthly } from "@/lib/spend/monthlyPlanCalendar"
 import { getDraftReturnRejection } from "@/lib/mediaplan/campaignStatusGuard"
+import { invalidMbaNumberResponse, parseMbaNumber } from "@/lib/mediaplan/mbaNumber"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -718,7 +719,9 @@ export async function GET(
 ) {
   try {
     const mediaPlansBaseUrl = getXanoBaseUrl(["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
-    const { mba_number } = await params
+    const { mba_number: rawMbaNumber } = await params
+    const mba_number = parseMbaNumber(rawMbaNumber)
+    if (!mba_number) return invalidMbaNumberResponse()
 
     const access = await checkClientMbaAccess(request, mba_number)
     if (!access.ok) return access.response
@@ -1266,7 +1269,9 @@ export async function PUT(
 ) {
   try {
     const mediaPlansBaseUrl = getXanoBaseUrl(["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
-    const { mba_number } = await params
+    const { mba_number: rawMbaNumber } = await params
+    const mba_number = parseMbaNumber(rawMbaNumber)
+    if (!mba_number) return invalidMbaNumberResponse()
 
     const access = await checkClientMbaAccess(request, mba_number)
     if (!access.ok) return access.response
@@ -1518,7 +1523,9 @@ export async function PATCH(
 ) {
   try {
     const mediaPlansBaseUrl = getXanoBaseUrl(["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
-    const { mba_number } = await params
+    const { mba_number: rawMbaNumber } = await params
+    const mba_number = parseMbaNumber(rawMbaNumber)
+    if (!mba_number) return invalidMbaNumberResponse()
 
     const access = await checkClientMbaAccess(request, mba_number)
     if (!access.ok) return access.response

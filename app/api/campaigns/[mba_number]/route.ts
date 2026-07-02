@@ -4,6 +4,7 @@ import { fetchAllMediaContainerLineItems, MEDIA_CONTAINER_ENDPOINTS } from "@/li
 import { filterLineItemsByPlanNumber } from "@/lib/api/mediaPlanVersionHelper"
 import { normalizeCampaignLineItems } from "@/lib/mediaplan/normalizeCampaignLineItems"
 import { xanoUrl } from "@/lib/api/xano"
+import { invalidMbaNumberResponse, parseMbaNumber } from "@/lib/mediaplan/mbaNumber"
 
 export const dynamic = "force-dynamic"
 
@@ -494,7 +495,9 @@ export async function GET(
   { params }: { params: Promise<{ mba_number: string }> }
 ) {
   try {
-    const { mba_number } = await params
+    const { mba_number: rawMbaNumber } = await params
+    const mba_number = parseMbaNumber(rawMbaNumber)
+    if (!mba_number) return invalidMbaNumberResponse()
     const requestedNormalized = normalize(mba_number)
     const searchParams = new URL(request.url).searchParams
     const requestedVersion = parseVersionNumber(searchParams.get("version"))

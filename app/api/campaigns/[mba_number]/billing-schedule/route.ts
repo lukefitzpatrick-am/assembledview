@@ -3,13 +3,16 @@ import { generateBillingSchedulePDF } from "@/lib/generateBillingSchedulePDF"
 import { format } from 'date-fns'
 import axios from "axios"
 import { xanoUrl } from "@/lib/api/xano"
+import { invalidMbaNumberResponse, parseMbaNumber } from "@/lib/mediaplan/mbaNumber"
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ mba_number: string }> }
 ) {
   try {
-    const { mba_number } = await params
+    const { mba_number: rawMbaNumber } = await params
+    const mba_number = parseMbaNumber(rawMbaNumber)
+    if (!mba_number) return invalidMbaNumberResponse()
 
     // Fetch media plan version data
     const masterQueryUrl = `${xanoUrl("media_plan_master", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${encodeURIComponent(mba_number)}`
