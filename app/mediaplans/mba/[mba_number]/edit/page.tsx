@@ -2280,13 +2280,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       const fv = form.getValues()
       if (!fv.mp_clientname) return
 
-      if (
-        searchItems.length === 0 &&
-        socialMediaItems.length === 0 &&
-        televisionItems.length === 0 &&
-        progDisplayItems.length === 0
-      ) {
-        // No line items yet — clear KPI rows
+      if (editLineItemCount === 0) {
         setKpiRows([])
         return
       }
@@ -2375,6 +2369,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     savedCampaignKPIs,
     billingPublishers,
     kpiTrigger,
+    editLineItemCount,
     mbaNumber,
     selectedVersionNumber,
     form,
