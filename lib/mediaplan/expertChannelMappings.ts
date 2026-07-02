@@ -21,7 +21,6 @@ import {
   type MoneyFormatOptions,
 } from "@/lib/format/money"
 import { weekKeysInSpanInclusive } from "./expertGridShared"
-import { resolveLineItemBursts } from "./deriveBursts"
 import {
   coveredDayKeysIfDayDetail,
   expandWeekToDaily,
@@ -659,7 +658,14 @@ function parseBurstDate(v: Date | string | undefined): Date | null {
  * falls back to the raw `budget` field.
  */
 function normalizeOohBursts(item: StandardOohLineItemInput): StandardMediaBurst[] {
-  const raw = resolveLineItemBursts(item)
+  const raw =
+    item.bursts ??
+    (item.bursts_json
+      ? typeof item.bursts_json === "string"
+        ? JSON.parse(item.bursts_json)
+        : item.bursts_json
+      : []) ??
+    []
   if (!Array.isArray(raw)) return []
   const out: StandardMediaBurst[] = []
   for (const b of raw) {
