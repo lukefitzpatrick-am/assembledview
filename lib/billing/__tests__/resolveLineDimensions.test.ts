@@ -201,6 +201,20 @@ test("resolveLineDimensions applies the locked per-channel report dimensions", (
         format: "Awareness",
       },
     },
+    {
+      mediaType: "production",
+      source: {
+        publisher: "Print Studio",
+        description: "Catalogue shoot",
+        media_type: "Print",
+      },
+      expected: {
+        mediaType: "Production",
+        publisher: "Print Studio",
+        buyType: "production",
+        format: "Catalogue shoot",
+      },
+    },
   ]
 
   for (const c of cases) {

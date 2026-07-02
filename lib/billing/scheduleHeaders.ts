@@ -83,8 +83,8 @@ export function getScheduleHeaders(mediaType: string, lineItem: any): ScheduleHe
     }
     case "production": {
       return {
-        header1: pick(lineItem?.header1, "Production"),
-        header2: pick(lineItem?.header2, "Total"),
+        header1: pick(lineItem?.publisher, lineItem?.network, lineItem?.header1, "Production"),
+        header2: pick(lineItem?.description, lineItem?.creative, lineItem?.header2, "Total"),
       };
     }
     default: {

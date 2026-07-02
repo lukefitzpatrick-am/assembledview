@@ -35,6 +35,7 @@ const MEDIA_TYPE_LABELS: Record<string, string> = {
   programmaticooh: "Programmatic OOH",
   integration: "Integration",
   influencers: "Influencers",
+  production: "Production",
 }
 
 function normalizeMediaType(mediaType: string): string {
@@ -151,6 +152,12 @@ export function resolveLineDimensions(
         publisher: firstNonEmpty(sourceLine, ["platform"]),
         buyType,
         format: firstNonEmpty(sourceLine, ["objective", "campaign"]),
+      })
+    case "production":
+      return withOptionalAxes(canonicalMediaType, {
+        publisher: firstNonEmpty(sourceLine, ["publisher", "network"]),
+        buyType: buyType ?? "production",
+        format: firstNonEmpty(sourceLine, ["description", "creative", "media_type", "mediaType"]),
       })
     default:
       return withOptionalAxes(canonicalMediaType, { buyType })
