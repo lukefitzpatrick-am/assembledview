@@ -66,6 +66,7 @@ import {
   defaultManualBillingAccordionExpanded,
   useManualBillingSpreadsheetCallbacks,
 } from "@/lib/billing/useManualBillingSpreadsheetCallbacks"
+import { mergeInvestmentMonths } from "@/lib/billing/mergeInvestmentMonths"
 import { prepareBillingMonthsForLineItemExport } from "@/lib/billing/prepareBillingMonthsForLineItemExport"
 import {
   buildBillingScheduleExcelBlob,
@@ -628,7 +629,11 @@ export default function CreateMediaPlan() {
 
   //Finance 
 
-  const [investmentPerMonth, setInvestmentPerMonth] = useState([])
+  const [investmentPerMonthByChannel, setInvestmentPerMonthByChannel] = useState<Record<string, any[]>>({})
+  const investmentPerMonth = useMemo(
+    () => mergeInvestmentMonths(investmentPerMonthByChannel),
+    [investmentPerMonthByChannel],
+  )
   const [isManualBilling, setIsManualBilling] = useState(false)
   const [isManualBillingModalOpen, setIsManualBillingModalOpen] = useState(false)
   const [manualBillingAccordionExpanded, setManualBillingAccordionExpanded] = useState<string[]>([])
@@ -2124,10 +2129,13 @@ export default function CreateMediaPlan() {
     if (changed) markUnsavedChanges()
   };
 
-  const handleInvestmentChange = (investmentByMonth) => {
-    markUnsavedChanges();
-    setInvestmentPerMonth(investmentByMonth);
-  };
+  const handleInvestmentChange = useCallback((channel: string, rows: any[]) => {
+    setInvestmentPerMonthByChannel((prev) => {
+      if (JSON.stringify(prev[channel] ?? []) === JSON.stringify(rows)) return prev
+      markUnsavedChanges()
+      return { ...prev, [channel]: rows }
+    })
+  }, [markUnsavedChanges])
 
   // New callback handlers for media line items
   const handleTelevisionMediaLineItemsChange = useCallback((lineItems: any[]) => {
@@ -6999,109 +7007,109 @@ const handleSaveAll = async () => {
                     feesearch, 
                     onTotalMediaChange: handleSearchTotalChange, 
                     onBurstsChange: handleSearchBurstsChange,
-                    onInvestmentChange: handleInvestmentChange
+                    onInvestmentChange: (rows) => handleInvestmentChange("search", rows)
                   }),
                   ...(medium.name === "mp_socialmedia" && { 
                     feesocial, 
                     onTotalMediaChange: handleSocialMediaTotalChange,
                     onBurstsChange: handleSocialMediaBurstsChange,
-                    onInvestmentChange: handleInvestmentChange
+                    onInvestmentChange: (rows) => handleInvestmentChange("socialmedia", rows)
                   }),
                   ...(medium.name === "mp_bvod" && { 
                     feebvod, 
                     onTotalMediaChange: handleBVODTotalChange,
                     onBurstsChange: handleBVODBurstsChange,
-                    onInvestmentChange: handleInvestmentChange
+                    onInvestmentChange: (rows) => handleInvestmentChange("bvod", rows)
                   }),
                   ...(medium.name === "mp_integration" && {
                     feeintegration,
                     onTotalMediaChange: handleIntegrationTotalChange,
                     onBurstsChange: handleIntegrationBurstsChange,
-                    onInvestmentChange: handleInvestmentChange
+                    onInvestmentChange: (rows) => handleInvestmentChange("integration", rows)
                   }),
                   ...(medium.name === "mp_progdisplay" && { 
                     feeprogdisplay, 
                     onTotalMediaChange: handleProgDisplayTotalChange,
                     onBurstsChange: handleProgDisplayBurstsChange,
-                    onInvestmentChange: handleInvestmentChange
+                    onInvestmentChange: (rows) => handleInvestmentChange("progdisplay", rows)
                   }),
                   ...(medium.name === "mp_progvideo" && { 
                     feeprogvideo, 
                     onTotalMediaChange: handleProgVideoTotalChange,
                     onBurstsChange: handleProgVideoBurstsChange,
-                    onInvestmentChange: handleInvestmentChange
+                    onInvestmentChange: (rows) => handleInvestmentChange("progvideo", rows)
                   }),
                   ...(medium.name === "mp_digiaudio" && { 
                     feedigiaudio, 
                     onTotalMediaChange: handleDigiAudioTotalChange,
                     onBurstsChange: handleDigiAudioBurstsChange,
-                    onInvestmentChange: handleInvestmentChange
+                    onInvestmentChange: (rows) => handleInvestmentChange("digiaudio", rows)
                   }),
                   ...(medium.name === "mp_digidisplay" && { 
                     feedigidisplay, 
                     onTotalMediaChange: handleDigiDisplayTotalChange,
                     onBurstsChange: handleDigiDisplayBurstsChange,
-                    onInvestmentChange: handleInvestmentChange
+                    onInvestmentChange: (rows) => handleInvestmentChange("digidisplay", rows)
                   }),
                   ...(medium.name === "mp_digivideo" && { 
                     feedigivideo, 
                     onTotalMediaChange: handleDigiVideoTotalChange,
                     onBurstsChange: handleDigiVideoBurstsChange,
-                    onInvestmentChange: handleInvestmentChange
+                    onInvestmentChange: (rows) => handleInvestmentChange("digivideo", rows)
                   }),
                   ...(medium.name === "mp_progaudio" && { 
                     feeprogaudio, 
                     onTotalMediaChange: handleProgAudioTotalChange,
                     onBurstsChange: handleProgAudioBurstsChange,
-                    onInvestmentChange: handleInvestmentChange
+                    onInvestmentChange: (rows) => handleInvestmentChange("progaudio", rows)
                   }),
                   ...(medium.name === "mp_cinema" && {
                   feecinema,
                   onTotalMediaChange: handleCinemaTotalChange,
                   onBurstsChange: handleCinemaBurstsChange,
-                  onInvestmentChange: handleInvestmentChange,
+                  onInvestmentChange: (rows) => handleInvestmentChange("cinema", rows),
                   }),
                   ...(medium.name === "mp_television" && {
                   feeTelevision,
                   onTotalMediaChange: handleTelevisionTotalChange,
                   onBurstsChange: handleTelevisionBurstsChange,
-                  onInvestmentChange: handleInvestmentChange,
+                  onInvestmentChange: (rows) => handleInvestmentChange("television", rows),
                   }),
                   ...(medium.name === "mp_radio" && {
                   feeRadio,
                   onTotalMediaChange: handleRadioTotalChange,
                   onBurstsChange: handleRadioBurstsChange,
-                  onInvestmentChange: handleInvestmentChange,
+                  onInvestmentChange: (rows) => handleInvestmentChange("radio", rows),
                   }),
                   ...(medium.name === "mp_newspaper" && {
                   feeNewspapers,
                   onTotalMediaChange: handleNewspaperTotalChange,
                   onBurstsChange: handleNewspaperBurstsChange,
-                  onInvestmentChange: handleInvestmentChange,
+                  onInvestmentChange: (rows) => handleInvestmentChange("newspaper", rows),
                   }),
                   ...(medium.name === "mp_magazines" && {
                   feeMagazines,
                   onTotalMediaChange: handleMagazinesTotalChange,
                   onBurstsChange: handleMagazineBurstsChange,
-                  onInvestmentChange: handleInvestmentChange,
+                  onInvestmentChange: (rows) => handleInvestmentChange("magazines", rows),
                   }),
                   ...(medium.name === "mp_ooh" && {
                   feeOoh,
                   onTotalMediaChange: handleOohTotalChange,
                   onBurstsChange: handleOohBurstsChange,
-                  onInvestmentChange: handleInvestmentChange,
+                  onInvestmentChange: (rows) => handleInvestmentChange("ooh", rows),
                   }),
                   ...(medium.name === "mp_production" && {
                   feesearch: feeProduction,
                   onTotalMediaChange: handleProductionTotalChange,
                   onBurstsChange: handleProductionBurstsChange,
-                  onInvestmentChange: handleInvestmentChange,
+                  onInvestmentChange: (rows) => handleInvestmentChange("production", rows),
                   }),
                   ...(medium.name === "mp_influencers" && {
                   feeinfluencers,
                   onTotalMediaChange: handleInfluencersTotalChange,
                   onBurstsChange: handleInfluencersBurstsChange,
-                  onInvestmentChange: handleInvestmentChange,
+                  onInvestmentChange: (rows) => handleInvestmentChange("influencers", rows),
                   }),                
                   
                 };
@@ -7115,7 +7123,7 @@ const handleSaveAll = async () => {
                             feesearch={feesearch || 0}
                             onTotalMediaChange={handleSearchTotalChange}
                             onBurstsChange={handleSearchBurstsChange}
-                            onInvestmentChange={handleInvestmentChange}
+                            onInvestmentChange={(rows) => handleInvestmentChange("search", rows)}
                             onLineItemsChange={handleSearchItemsChange}
                             onMediaLineItemsChange={handleSearchMediaLineItemsChange}
                             campaignStartDate={campaignStart}
@@ -7132,7 +7140,7 @@ const handleSaveAll = async () => {
                             clientId={selectedClientId}
                             onTotalMediaChange={handleProductionTotalChange}
                             onBurstsChange={handleProductionBurstsChange}
-                            onInvestmentChange={handleInvestmentChange}
+                            onInvestmentChange={(rows) => handleInvestmentChange("production", rows)}
                             onLineItemsChange={handleProductionItemsChange}
                             onMediaLineItemsChange={handleProductionMediaLineItemsChange}
                             campaignStartDate={campaignStart}
@@ -7150,7 +7158,7 @@ const handleSaveAll = async () => {
                             feesocial={feesocial || 0}
                             onTotalMediaChange={handleSocialMediaTotalChange}
                             onBurstsChange={handleSocialMediaBurstsChange}
-                            onInvestmentChange={handleInvestmentChange}
+                            onInvestmentChange={(rows) => handleInvestmentChange("socialmedia", rows)}
                             onLineItemsChange={handleSocialMediaItemsChange}
                             onSocialMediaLineItemsChange={handleSocialMediaLineItemsStateChange}
                             onMediaLineItemsChange={handleSocialMediaMediaLineItemsChange}
@@ -7169,7 +7177,7 @@ const handleSaveAll = async () => {
                             feebvod={feebvod || 0}
                             onTotalMediaChange={handleBVODTotalChange}
                             onBurstsChange={handleBVODBurstsChange}
-                            onInvestmentChange={handleInvestmentChange}
+                            onInvestmentChange={(rows) => handleInvestmentChange("bvod", rows)}
                             onLineItemsChange={handleBVODItemsChange}
                             onMediaLineItemsChange={handleBvodMediaLineItemsChange}
                             campaignStartDate={campaignStart}
@@ -7187,7 +7195,7 @@ const handleSaveAll = async () => {
                             feeintegration={feeintegration || 0}
                             onTotalMediaChange={handleIntegrationTotalChange}
                             onBurstsChange={handleIntegrationBurstsChange}
-                            onInvestmentChange={handleInvestmentChange}
+                            onInvestmentChange={(rows) => handleInvestmentChange("integration", rows)}
                             onLineItemsChange={handleIntegrationItemsChange}
                             onMediaLineItemsChange={handleIntegrationMediaLineItemsChange}
                             campaignStartDate={campaignStart}
@@ -7205,7 +7213,7 @@ const handleSaveAll = async () => {
                             feecinema={feecinema || 0}
                             onTotalMediaChange={handleCinemaTotalChange}
                             onBurstsChange={handleCinemaBurstsChange}
-                            onInvestmentChange={handleInvestmentChange}
+                            onInvestmentChange={(rows) => handleInvestmentChange("cinema", rows)}
                             onLineItemsChange={handleCinemaItemsChange}
                             onMediaLineItemsChange={handleCinemaMediaLineItemsChange}
                             campaignStartDate={campaignStart}
@@ -7223,7 +7231,7 @@ const handleSaveAll = async () => {
                             feeprogaudio={feeprogaudio || 0}
                             onTotalMediaChange={handleProgAudioTotalChange}
                             onBurstsChange={handleProgAudioBurstsChange}
-                            onInvestmentChange={handleInvestmentChange}
+                            onInvestmentChange={(rows) => handleInvestmentChange("progaudio", rows)}
                             onLineItemsChange={handleProgAudioItemsChange}
                             onMediaLineItemsChange={handleProgAudioMediaLineItemsChange}
                             campaignStartDate={campaignStart}
@@ -7241,7 +7249,7 @@ const handleSaveAll = async () => {
                             feeprogbvod={feeprogbvod || 0}
                             onTotalMediaChange={handleProgBvodTotalChange}
                             onBurstsChange={handleProgBvodBurstsChange}
-                            onInvestmentChange={handleInvestmentChange}
+                            onInvestmentChange={(rows) => handleInvestmentChange("progbvod", rows)}
                             onLineItemsChange={handleProgBvodItemsChange}
                             onMediaLineItemsChange={handleProgBvodMediaLineItemsChange}
                             campaignStartDate={campaignStart}
@@ -7259,7 +7267,7 @@ const handleSaveAll = async () => {
                             feeprogooh={feeprogooh || 0}
                             onTotalMediaChange={handleProgOohTotalChange}
                             onBurstsChange={handleProgOohBurstsChange}
-                            onInvestmentChange={handleInvestmentChange}
+                            onInvestmentChange={(rows) => handleInvestmentChange("progooh", rows)}
                             onLineItemsChange={setProgOohItems}
                             onMediaLineItemsChange={handleProgOohMediaLineItemsChange}
                             campaignStartDate={campaignStart}
@@ -7278,7 +7286,7 @@ const handleSaveAll = async () => {
                           feedigiaudio={feedigiaudio || 0}
                           onTotalMediaChange={handleDigiAudioTotalChange}
                           onBurstsChange={handleDigiAudioBurstsChange}
-                          onInvestmentChange={handleInvestmentChange}
+                          onInvestmentChange={(rows) => handleInvestmentChange("digiaudio", rows)}
                           onLineItemsChange={setDigiAudioItems}
                           onMediaLineItemsChange={handleDigiAudioMediaLineItemsChange}
                           campaignStartDate={campaignStart}
@@ -7296,7 +7304,7 @@ const handleSaveAll = async () => {
                           feedigidisplay={feedigidisplay || 0}
                           onTotalMediaChange={handleDigiDisplayTotalChange}
                           onBurstsChange={handleDigiDisplayBurstsChange}
-                          onInvestmentChange={handleInvestmentChange}
+                          onInvestmentChange={(rows) => handleInvestmentChange("digidisplay", rows)}
                           onLineItemsChange={setDigiDisplayItems}
                           onMediaLineItemsChange={handleDigiDisplayMediaLineItemsChange}
                           campaignStartDate={campaignStart}
@@ -7314,7 +7322,7 @@ const handleSaveAll = async () => {
                           feedigivideo={feedigivideo || 0}
                           onTotalMediaChange={handleDigiVideoTotalChange}
                           onBurstsChange={handleDigiVideoBurstsChange}
-                          onInvestmentChange={handleInvestmentChange}
+                          onInvestmentChange={(rows) => handleInvestmentChange("digivideo", rows)}
                           onLineItemsChange={setDigiVideoItems}
                           onMediaLineItemsChange={handleDigiVideoMediaLineItemsChange}
                           campaignStartDate={campaignStart}
@@ -7332,7 +7340,7 @@ const handleSaveAll = async () => {
                           feeprogdisplay={feeprogdisplay || 0}
                           onTotalMediaChange={handleProgDisplayTotalChange}
                           onBurstsChange={handleProgDisplayBurstsChange}
-                          onInvestmentChange={handleInvestmentChange}
+                          onInvestmentChange={(rows) => handleInvestmentChange("progdisplay", rows)}
                           onLineItemsChange={setProgDisplayItems}
                           onMediaLineItemsChange={handleProgDisplayMediaLineItemsChange}
                           campaignStartDate={campaignStart}
@@ -7350,7 +7358,7 @@ const handleSaveAll = async () => {
                           feeprogvideo={feeprogvideo || 0}
                           onTotalMediaChange={handleProgVideoTotalChange}
                           onBurstsChange={handleProgVideoBurstsChange}
-                          onInvestmentChange={handleInvestmentChange}
+                          onInvestmentChange={(rows) => handleInvestmentChange("progvideo", rows)}
                           onLineItemsChange={setProgVideoItems}
                           onMediaLineItemsChange={handleProgVideoMediaLineItemsChange}
                           campaignStartDate={campaignStart}
@@ -7368,7 +7376,7 @@ const handleSaveAll = async () => {
                           feetelevision={feeTelevision || 0}
                           onTotalMediaChange={handleTelevisionTotalChange}
                           onBurstsChange={handleTelevisionBurstsChange}
-                          onInvestmentChange={handleInvestmentChange}
+                          onInvestmentChange={(rows) => handleInvestmentChange("television", rows)}
                           onLineItemsChange={setTelevisionItems}
                           onTelevisionLineItemsChange={setTelevisionLineItems}
                           onMediaLineItemsChange={handleTelevisionMediaLineItemsChange}
@@ -7387,7 +7395,7 @@ const handleSaveAll = async () => {
                          feeradio={feeRadio || 0}
                          onTotalMediaChange={handleRadioTotalChange}
                          onBurstsChange={handleRadioBurstsChange}
-                         onInvestmentChange={handleInvestmentChange}
+                         onInvestmentChange={(rows) => handleInvestmentChange("radio", rows)}
                          onLineItemsChange={setRadioItems}
                          onMediaLineItemsChange={handleRadioMediaLineItemsChange}
                          campaignStartDate={campaignStart}
@@ -7405,7 +7413,7 @@ const handleSaveAll = async () => {
                             feenewspapers={feeNewspapers || 0}
                             onTotalMediaChange={handleNewspaperTotalChange}
                             onBurstsChange={handleNewspaperBurstsChange}
-                            onInvestmentChange={handleInvestmentChange}
+                            onInvestmentChange={(rows) => handleInvestmentChange("newspaper", rows)}
                             onLineItemsChange={setNewspaperItems}
                             onNewspaperLineItemsChange={setNewspaperLineItems}
                             onMediaLineItemsChange={handleNewspaperMediaLineItemsChange}
@@ -7424,7 +7432,7 @@ const handleSaveAll = async () => {
                             feemagazines={feeMagazines || 0}
                             onTotalMediaChange={handleMagazinesTotalChange}
                             onBurstsChange={handleMagazineBurstsChange}
-                            onInvestmentChange={handleInvestmentChange}
+                            onInvestmentChange={(rows) => handleInvestmentChange("magazines", rows)}
                             onLineItemsChange={setMagazineItems}
                             onMediaLineItemsChange={handleMagazineMediaLineItemsChange}
                             campaignStartDate={campaignStart}
@@ -7442,7 +7450,7 @@ const handleSaveAll = async () => {
                             feeooh={feeOoh || 0}
                             onTotalMediaChange={handleOohTotalChange}
                             onBurstsChange={handleOohBurstsChange}
-                            onInvestmentChange={handleInvestmentChange}
+                            onInvestmentChange={(rows) => handleInvestmentChange("ooh", rows)}
                             onLineItemsChange={setOohItems}
                             onMediaLineItemsChange={handleOohMediaLineItemsChange}
                             campaignStartDate={campaignStart}
@@ -7460,7 +7468,7 @@ const handleSaveAll = async () => {
                             feeinfluencers={feeinfluencers || 0}
                             onTotalMediaChange={handleInfluencersTotalChange}
                             onBurstsChange={handleInfluencersBurstsChange}
-                            onInvestmentChange={handleInvestmentChange}
+                            onInvestmentChange={(rows) => handleInvestmentChange("influencers", rows)}
                             onLineItemsChange={setInfluencersItems}
                             onMediaLineItemsChange={handleInfluencersMediaLineItemsChange}
                             campaignStartDate={campaignStart}

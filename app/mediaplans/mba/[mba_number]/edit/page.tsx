@@ -126,6 +126,7 @@ import { BillingDivergenceModal } from "@/components/billing/BillingDivergenceMo
 import { computeAdServingCost } from "@/lib/billing/computeAdServingCost"
 import { computeBillingAndDeliveryMonths } from "@/lib/billing/computeSchedule"
 import { buildBillingScheduleJSON } from "@/lib/billing/buildBillingSchedule"
+import { mergeInvestmentMonths } from "@/lib/billing/mergeInvestmentMonths"
 import { prorateAcrossMonths } from "@/lib/billing/prorateAcrossMonths"
 import { prepareBillingMonthsForLineItemExport } from "@/lib/billing/prepareBillingMonthsForLineItemExport"
 import { syncLineItemMonthlyAmountAcrossAllMonthRows } from "@/lib/billing/syncLineItemAmountAcrossMonthRows"
@@ -1737,7 +1738,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const [manualBillingMonths, setManualBillingMonths] = useState<BillingMonth[]>([])
   const [autoReferenceBillingMonths, setAutoReferenceBillingMonths] = useState<BillingMonth[]>([])
   const [burstsData, setBurstsData] = useState<any[]>([])
-  const [investmentPerMonth, setInvestmentPerMonth] = useState<any[]>([])
+  const [investmentPerMonthByChannel, setInvestmentPerMonthByChannel] = useState<Record<string, any[]>>({})
+  const investmentPerMonth = useMemo(
+    () => mergeInvestmentMonths(investmentPerMonthByChannel),
+    [investmentPerMonthByChannel],
+  )
   const [searchBursts, setSearchBursts] = useState<any[]>([])
   const [socialMediaBursts, setSocialMediaBursts] = useState<any[]>([])
   // Burst state variables for all media types (matching create page pattern)
@@ -3605,10 +3610,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     setIfChanged(setInfluencersBursts, bursts)
   }, [])
 
-  const handleInvestmentChange = useCallback((investmentByMonth) => {
-    if (setIfChanged(setInvestmentPerMonth, investmentByMonth)) {
+  const handleInvestmentChange = useCallback((channel: string, rows: any[]) => {
+    setInvestmentPerMonthByChannel((prev) => {
+      if (JSON.stringify(prev[channel] ?? []) === JSON.stringify(rows)) return prev
       markUnsavedChanges()
-    }
+      return { ...prev, [channel]: rows }
+    })
     // Billing rows are not regenerated from investment on the main page — use Edit Billing for any reset/rebuild.
   }, [markUnsavedChanges])
 
@@ -9297,7 +9304,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                           feetelevision={feeTelevision || 0}
                           onTotalMediaChange={handleTelevisionTotalChange}
                           onBurstsChange={handleTelevisionBurstsChange}
-                          onInvestmentChange={handleInvestmentChange}
+                          onInvestmentChange={(rows) => handleInvestmentChange("television", rows)}
                           onLineItemsChange={handleTelevisionItemsChange}
                           onTelevisionLineItemsChange={handleTelevisionMediaLineItemsChange}
                           onMediaLineItemsChange={handleTelevisionMediaLineItemsChange}
@@ -9315,7 +9322,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                           feeradio={feeRadio || 0}
                           onTotalMediaChange={handleRadioTotalChange}
                           onBurstsChange={handleRadioBurstsChange}
-                          onInvestmentChange={handleInvestmentChange}
+                          onInvestmentChange={(rows) => handleInvestmentChange("radio", rows)}
                           onLineItemsChange={handleRadioItemsChange}
                           onMediaLineItemsChange={handleRadioMediaLineItemsChange}
                           campaignStartDate={campaignStartDate}
@@ -9332,7 +9339,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                           feenewspapers={feeNewspapers || 0}
                           onTotalMediaChange={handleNewspaperTotalChange}
                           onBurstsChange={handleNewspaperBurstsChange}
-                          onInvestmentChange={handleInvestmentChange}
+                          onInvestmentChange={(rows) => handleInvestmentChange("newspaper", rows)}
                           onLineItemsChange={handleNewspaperItemsChange}
                           onNewspaperLineItemsChange={() => {}}
                           onMediaLineItemsChange={handleNewspaperMediaLineItemsChange}
@@ -9350,7 +9357,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                           feemagazines={feeMagazines || 0}
                           onTotalMediaChange={handleMagazinesTotalChange}
                           onBurstsChange={handleMagazinesBurstsChange}
-                          onInvestmentChange={handleInvestmentChange}
+                          onInvestmentChange={(rows) => handleInvestmentChange("magazines", rows)}
                           onLineItemsChange={handleMagazinesItemsChange}
                           onMediaLineItemsChange={handleMagazinesMediaLineItemsChange}
                           campaignStartDate={campaignStartDate}
@@ -9367,7 +9374,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                           feeooh={feeOoh || 0}
                           onTotalMediaChange={handleOohTotalChange}
                           onBurstsChange={handleOohBurstsChange}
-                          onInvestmentChange={handleInvestmentChange}
+                          onInvestmentChange={(rows) => handleInvestmentChange("ooh", rows)}
                           onLineItemsChange={handleOohItemsChange}
                           onMediaLineItemsChange={handleOohMediaLineItemsChange}
                           campaignStartDate={campaignStartDate}
@@ -9384,7 +9391,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                           feecinema={feeCinema || 0}
                           onTotalMediaChange={handleCinemaTotalChange}
                           onBurstsChange={handleCinemaBurstsChange}
-                          onInvestmentChange={handleInvestmentChange}
+                          onInvestmentChange={(rows) => handleInvestmentChange("cinema", rows)}
                           onLineItemsChange={handleCinemaItemsChange}
                           onMediaLineItemsChange={handleCinemaMediaLineItemsChange}
                           campaignStartDate={campaignStartDate}
@@ -9401,7 +9408,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                           feedigidisplay={feeDigiDisplay || 0}
                           onTotalMediaChange={handleDigitalDisplayTotalChange}
                           onBurstsChange={handleDigitalDisplayBurstsChange}
-                          onInvestmentChange={handleInvestmentChange}
+                          onInvestmentChange={(rows) => handleInvestmentChange("digidisplay", rows)}
                           onLineItemsChange={handleDigitalDisplayItemsChange}
                           onMediaLineItemsChange={handleDigitalDisplayMediaLineItemsChange}
                           campaignStartDate={campaignStartDate}
@@ -9418,7 +9425,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                           feedigiaudio={feeDigiAudio || 0}
                           onTotalMediaChange={handleDigitalAudioTotalChange}
                           onBurstsChange={handleDigitalAudioBurstsChange}
-                          onInvestmentChange={handleInvestmentChange}
+                          onInvestmentChange={(rows) => handleInvestmentChange("digiaudio", rows)}
                           onLineItemsChange={handleDigitalAudioItemsChange}
                           onMediaLineItemsChange={handleDigitalAudioMediaLineItemsChange}
                           campaignStartDate={campaignStartDate}
@@ -9435,7 +9442,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                           feedigivideo={feeDigiVideo || 0}
                           onTotalMediaChange={handleDigitalVideoTotalChange}
                           onBurstsChange={handleDigitalVideoBurstsChange}
-                          onInvestmentChange={handleInvestmentChange}
+                          onInvestmentChange={(rows) => handleInvestmentChange("digivideo", rows)}
                           onLineItemsChange={handleDigitalVideoItemsChange}
                           onMediaLineItemsChange={handleDigitalVideoMediaLineItemsChange}
                           campaignStartDate={campaignStartDate}
@@ -9452,7 +9459,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                           feebvod={feeBvod || 0}
                           onTotalMediaChange={handleBvodTotalChange}
                           onBurstsChange={handleBvodBurstsChange}
-                          onInvestmentChange={handleInvestmentChange}
+                          onInvestmentChange={(rows) => handleInvestmentChange("bvod", rows)}
                           onLineItemsChange={handleBvodItemsChange}
                           onMediaLineItemsChange={handleBvodMediaLineItemsChange}
                           campaignStartDate={campaignStartDate}
@@ -9469,7 +9476,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                           feeintegration={feeIntegration || 0}
                           onTotalMediaChange={handleIntegrationTotalChange}
                           onBurstsChange={handleIntegrationBurstsChange}
-                          onInvestmentChange={handleInvestmentChange}
+                          onInvestmentChange={(rows) => handleInvestmentChange("integration", rows)}
                           onLineItemsChange={handleIntegrationItemsChange}
                           onMediaLineItemsChange={handleIntegrationMediaLineItemsChange}
                           campaignStartDate={campaignStartDate}
@@ -9486,7 +9493,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                             clientId={selectedClientId}
                             onTotalMediaChange={handleProductionTotalChange}
                             onBurstsChange={handleProductionBurstsChange}
-                            onInvestmentChange={handleInvestmentChange}
+                            onInvestmentChange={(rows) => handleInvestmentChange("production", rows)}
                             onLineItemsChange={handleProductionItemsChange}
                             onMediaLineItemsChange={handleProductionMediaLineItemsChange}
                             campaignStartDate={campaignStartDate}
@@ -9504,7 +9511,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                           feesearch={feesearch || 0}
                           onTotalMediaChange={handleSearchTotalChange}
                           onBurstsChange={handleSearchBurstsChange}
-                          onInvestmentChange={handleInvestmentChange}
+                          onInvestmentChange={(rows) => handleInvestmentChange("search", rows)}
                           onLineItemsChange={handleSearchItemsChange}
                           onMediaLineItemsChange={handleSearchMediaLineItemsChange}
                           campaignStartDate={campaignStartDate}
@@ -9521,7 +9528,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                           feesocial={feesocial || 0}
                           onTotalMediaChange={handleSocialMediaTotalChange}
                           onBurstsChange={handleSocialMediaBurstsChange}
-                          onInvestmentChange={handleInvestmentChange}
+                          onInvestmentChange={(rows) => handleInvestmentChange("socialmedia", rows)}
                           onLineItemsChange={handleSocialMediaItemsChange}
                           onSocialMediaLineItemsChange={() => {}}
                           onMediaLineItemsChange={handleSocialMediaMediaLineItemsChange}
@@ -9539,7 +9546,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                           feeprogdisplay={feeprogdisplay || 0}
                           onTotalMediaChange={handleProgDisplayTotalChange}
                           onBurstsChange={handleProgDisplayBurstsChange}
-                          onInvestmentChange={handleInvestmentChange}
+                          onInvestmentChange={(rows) => handleInvestmentChange("progdisplay", rows)}
                           onLineItemsChange={handleProgDisplayItemsChange}
                           onMediaLineItemsChange={handleProgDisplayMediaLineItemsChange}
                           campaignStartDate={campaignStartDate}
@@ -9556,7 +9563,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                           feeprogvideo={feeprogvideo || 0}
                           onTotalMediaChange={handleProgVideoTotalChange}
                           onBurstsChange={handleProgVideoBurstsChange}
-                          onInvestmentChange={handleInvestmentChange}
+                          onInvestmentChange={(rows) => handleInvestmentChange("progvideo", rows)}
                           onLineItemsChange={handleProgVideoItemsChange}
                           onMediaLineItemsChange={handleProgVideoMediaLineItemsChange}
                           campaignStartDate={campaignStartDate}
@@ -9573,7 +9580,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                           feeprogbvod={feeprogbvod || 0}
                           onTotalMediaChange={handleProgBvodTotalChange}
                           onBurstsChange={handleProgBvodBurstsChange}
-                          onInvestmentChange={handleInvestmentChange}
+                          onInvestmentChange={(rows) => handleInvestmentChange("progbvod", rows)}
                           onLineItemsChange={handleProgBvodItemsChange}
                           onMediaLineItemsChange={handleProgBvodMediaLineItemsChange}
                           campaignStartDate={campaignStartDate}
@@ -9590,7 +9597,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                           feeprogaudio={feeprogaudio || 0}
                           onTotalMediaChange={handleProgAudioTotalChange}
                           onBurstsChange={handleProgAudioBurstsChange}
-                          onInvestmentChange={handleInvestmentChange}
+                          onInvestmentChange={(rows) => handleInvestmentChange("progaudio", rows)}
                           onLineItemsChange={handleProgAudioItemsChange}
                           onMediaLineItemsChange={handleProgAudioMediaLineItemsChange}
                           campaignStartDate={campaignStartDate}
@@ -9607,7 +9614,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                           feeprogooh={feeprogooh || 0}
                           onTotalMediaChange={handleProgOohTotalChange}
                           onBurstsChange={handleProgOohBurstsChange}
-                          onInvestmentChange={handleInvestmentChange}
+                          onInvestmentChange={(rows) => handleInvestmentChange("progooh", rows)}
                           onLineItemsChange={handleProgOohItemsChange}
                           onMediaLineItemsChange={handleProgOohMediaLineItemsChange}
                           campaignStartDate={campaignStartDate}
@@ -9624,7 +9631,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                           feeinfluencers={feeInfluencers ?? feecontentcreator ?? 0}
                           onTotalMediaChange={handleInfluencersTotalChange}
                           onBurstsChange={handleInfluencersBurstsChange}
-                          onInvestmentChange={handleInvestmentChange}
+                          onInvestmentChange={(rows) => handleInvestmentChange("influencers", rows)}
                           onLineItemsChange={handleInfluencersItemsChange}
                           onMediaLineItemsChange={handleInfluencersMediaLineItemsChange}
                           campaignStartDate={campaignStartDate}
