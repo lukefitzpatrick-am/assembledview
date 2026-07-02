@@ -97,14 +97,18 @@ export function extractKPIKeys(
     case "progOoh":
     case "integration":
     case "influencers":
+      publisher = get("platform", "publisher", "site")
+      break
     case "production":
-      publisher = get("platform", "site")
+      publisher = get("publisher", "platform", "media_type", "site")
       break
     case "digiDisplay":
     case "digiAudio":
     case "digiVideo":
-    case "bvod":
       publisher = get("site", "platform", "network")
+      break
+    case "bvod":
+      publisher = get("publisher", "platform", "site", "network")
       break
     case "television":
     case "radio":

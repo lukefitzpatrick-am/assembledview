@@ -4,6 +4,7 @@ import { idCodeForKpiMediaType } from "./fanOut"
 
 export interface GroupedLineItemForKPI {
   lineItemId: string
+  publisher: string
   platform: string
   bidStrategy: string
   buyType: string
@@ -17,6 +18,7 @@ export interface GroupedLineItemForKPI {
   oohFormat: string
   oohType: string
   market: string
+  mediaType: string
   spend: number
   deliverables: number
 }
@@ -28,6 +30,28 @@ export type GroupLineItemsForKPIOptions = {
 
 function syntheticGroupId(item: LineItem): string {
   return `${(item as any).platform ?? ""}_${(item as any).bidStrategy ?? (item as any).bid_strategy ?? ""}_${(item as any).creative ?? ""}_${(item as any).line_item ?? ""}`
+}
+
+function parseDeliverableNumber(value: unknown): number {
+  return (
+    parseFloat(String(value ?? "0").replace(/[^0-9.-]/g, "")) || 0
+  )
+}
+
+/**
+ * Deliverables for KPI grouping. Media-container rows store qty on each burst
+ * (`calculatedValue`); export/Excel rows use a top-level `deliverables` per burst row.
+ */
+export function deliverablesFromLineItem(item: LineItem): number {
+  const bursts = (item as any).bursts
+  if (Array.isArray(bursts) && bursts.length > 0) {
+    return bursts.reduce((sum: number, burst: { calculatedValue?: unknown; deliverables?: unknown }) => {
+      return sum + parseDeliverableNumber(burst?.calculatedValue ?? burst?.deliverables)
+    }, 0)
+  }
+  return parseDeliverableNumber(
+    (item as any).deliverables ?? (item as any).calculatedValue,
+  )
 }
 
 export function groupLineItemsForKPI(
@@ -58,12 +82,7 @@ export function groupLineItemsForKPI(
           "",
         ),
       ) || 0
-    const deliverables =
-      parseFloat(
-        String(
-          (item as any).deliverables ?? (item as any).calculatedValue ?? "0",
-        ).replace(/[^0-9.-]/g, ""),
-      ) || 0
+    const deliverables = deliverablesFromLineItem(item)
 
     if (map.has(id)) {
       const existing = map.get(id)!
@@ -72,6 +91,7 @@ export function groupLineItemsForKPI(
     } else {
       map.set(id, {
         lineItemId: id,
+        publisher: String((item as any).publisher ?? ""),
         platform: String((item as any).platform ?? (item as any).site ?? ""),
         bidStrategy: String((item as any).bidStrategy ?? (item as any).bid_strategy ?? ""),
         buyType: String((item as any).buyType ?? (item as any).buy_type ?? ""),
@@ -90,6 +110,7 @@ export function groupLineItemsForKPI(
         oohFormat: String((item as any).oohFormat ?? ""),
         oohType: String((item as any).oohType ?? ""),
         market: String((item as any).market ?? ""),
+        mediaType: String((item as any).media_type ?? (item as any).mediaType ?? ""),
         spend,
         deliverables,
       })
