@@ -70,7 +70,11 @@ export async function getVersionNumberForMBA(
     // Fallback to the master's version_number if versionData is missing the field
     return String(masterData.version_number);
   } catch (error) {
-    console.error(`Error fetching version number from media_plan_versions for MBA ${mbaNumber}:`, error);
+    console.error(
+      "Error fetching version number from media_plan_versions for MBA",
+      mbaNumber,
+      error
+    );
     throw error;
   }
   
