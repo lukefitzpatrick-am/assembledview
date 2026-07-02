@@ -10,6 +10,7 @@ import {
 } from "@/lib/mediaplan/schemas"
 import { format } from "date-fns"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { MoneyInput } from "@/components/ui/MoneyInput"
 import { NumericInput } from "@/components/ui/NumericInput"
@@ -32,6 +33,15 @@ import type { LineItem } from "@/lib/generateMediaPlan"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { useStableHydration } from "@/hooks/useStableHydration"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { ComboboxModalProvider } from "@/components/ui/combobox"
 import { SingleDatePicker } from "@/components/ui/single-date-picker"
 import {
   defaultMediaBurstStartDate,
@@ -64,10 +74,29 @@ import {
   mediaTypeAccentTextStyle,
   mediaTypeLineItemBadgeStyle,
   mediaTypeSummaryStripeStyle,
+  rgbaFromHex,
 } from "@/lib/mediaplan/mediaTypeAccents"
 import { buildLineItemId, MEDIA_TYPE_ID_CODES } from "@/lib/mediaplan/lineItemIds"
-import { assignStableLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
+import {
+  assignStableLineItemNumbers,
+  reassignLineItemNumbers,
+} from "@/lib/mediaplan/lineItemOrder"
 import { formatProductionBurstForPersist } from "@/lib/mediaplan/resolveProductionBurstBudget"
+import {
+  ProductionExpertGrid,
+  createEmptyProductionExpertRow,
+} from "@/components/media-containers/ProductionExpertGrid"
+import type { ProductionExpertScheduleRow } from "@/lib/mediaplan/expertModeWeeklySchedule"
+import {
+  mapProductionExpertRowsToStandardLineItems,
+  mapStandardProductionLineItemsToExpertRows,
+  type StandardProductionFormLineItem,
+} from "@/lib/mediaplan/expertChannelMappings"
+import {
+  mergeProductionStandardFromExpertWithPrevious,
+  serializeProductionExpertRowsBaseline,
+} from "@/lib/mediaplan/expertModeSwitch"
+import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
 
 const MEDIA_ACCENT_HEX = getMediaTypeThemeHex("production")
 
@@ -207,6 +236,32 @@ export default function ProductionContainer({
   const mediaTypeOptions = useMemo(() => buildMediaTypeOptions(mediaTypes), [mediaTypes])
   const [openMediaIndex, setOpenMediaIndex] = useState<number | null>(null)
 
+  const [expertProductionRows, setExpertProductionRows] = useState<
+    ProductionExpertScheduleRow[]
+  >([])
+  const [productionExpertModalOpen, setProductionExpertModalOpen] = useState(false)
+  const [productionExpertExitConfirmOpen, setProductionExpertExitConfirmOpen] =
+    useState(false)
+  const [expertSegmentAttention, setExpertSegmentAttention] = useState(true)
+  const productionExpertModalOpenRef = useRef(false)
+  const productionExpertRowsBaselineRef = useRef<string>("")
+  const reorderedRef = useRef(false)
+  productionExpertModalOpenRef.current = productionExpertModalOpen
+
+  const productionExpertWeekColumns = useMemo(
+    () => buildWeeklyGanttColumnsFromCampaign(campaignStartDate, campaignEndDate),
+    [campaignStartDate, campaignEndDate]
+  )
+
+  const productionTypeComboboxOptions = useMemo(
+    () =>
+      mediaTypeOptions.map((option) => ({
+        value: option.value,
+        label: option.label,
+      })),
+    [mediaTypeOptions]
+  )
+
   const makeDefaultBurst = useCallback((): ProductionBurstValues & { _reactKey: string } => {
     const startRaw = defaultMediaBurstStartDate(campaignStartDate, campaignEndDate)
     const startDate = toDateOnly(startRaw) || startRaw
@@ -294,6 +349,114 @@ export default function ProductionContainer({
     [removeLineItemBase]
   )
 
+  const collapseAllLineItems = useCallback(() => {
+    const items = form.getValues("lineItems") || []
+    setCollapsedLineItems(new Set(items.map((_, i) => i)))
+  }, [form])
+
+  useEffect(() => {
+    const id = window.setTimeout(() => setExpertSegmentAttention(false), 2800)
+    return () => window.clearTimeout(id)
+  }, [])
+
+  const handleExpertProductionRowsChange = useCallback(
+    (next: ProductionExpertScheduleRow[]) => {
+      setExpertProductionRows(next)
+    },
+    []
+  )
+
+  const openProductionExpertModal = useCallback(() => {
+    const mapped = mapStandardProductionLineItemsToExpertRows(
+      form.getValues("lineItems") || [],
+      productionExpertWeekColumns,
+      campaignStartDate,
+      campaignEndDate
+    )
+    const weekKeys = productionExpertWeekColumns.map((c) => c.weekKey)
+    const rows: ProductionExpertScheduleRow[] =
+      mapped.length > 0
+        ? mapped
+        : [
+            createEmptyProductionExpertRow(
+              typeof crypto !== "undefined" && crypto.randomUUID
+                ? crypto.randomUUID()
+                : `production-expert-${Date.now()}`,
+              campaignStartDate,
+              campaignEndDate,
+              weekKeys
+            ),
+          ]
+    productionExpertRowsBaselineRef.current =
+      serializeProductionExpertRowsBaseline(rows)
+    setExpertProductionRows(rows)
+    setProductionExpertExitConfirmOpen(false)
+    setProductionExpertModalOpen(true)
+  }, [campaignStartDate, campaignEndDate, form, productionExpertWeekColumns])
+
+  const dismissProductionExpertExitConfirm = useCallback(() => {
+    setProductionExpertExitConfirmOpen(false)
+  }, [])
+
+  const confirmProductionExpertExitWithoutSaving = useCallback(() => {
+    setProductionExpertExitConfirmOpen(false)
+    collapseAllLineItems()
+    setProductionExpertModalOpen(false)
+  }, [collapseAllLineItems])
+
+  const handleProductionExpertModalOpenChange = useCallback(
+    (open: boolean) => {
+      if (open) {
+        setProductionExpertModalOpen(true)
+        return
+      }
+      const dirty =
+        serializeProductionExpertRowsBaseline(expertProductionRows) !==
+        productionExpertRowsBaselineRef.current
+      if (!dirty) {
+        collapseAllLineItems()
+        setProductionExpertModalOpen(false)
+        return
+      }
+      setProductionExpertExitConfirmOpen(true)
+    },
+    [collapseAllLineItems, expertProductionRows]
+  )
+
+  const handleProductionExpertApply = useCallback(() => {
+    const prevLineItems = form.getValues("lineItems") || []
+    const standard = mapProductionExpertRowsToStandardLineItems(
+      expertProductionRows,
+      productionExpertWeekColumns,
+      campaignStartDate,
+      campaignEndDate
+    )
+    const merged = mergeProductionStandardFromExpertWithPrevious(
+      standard,
+      prevLineItems as StandardProductionFormLineItem[]
+    )
+    const orderedForApply = reorderedRef.current
+      ? reassignLineItemNumbers(merged, mbaNumber, MEDIA_TYPE_ID_CODES.production)
+      : merged
+    reorderedRef.current = false
+    const keyedMerged = stampBurstReactKeys(orderedForApply)
+    form.setValue("lineItems", keyedMerged as any, {
+      shouldDirty: true,
+      shouldValidate: false,
+    })
+    setProductionExpertExitConfirmOpen(false)
+    collapseAllLineItems()
+    setProductionExpertModalOpen(false)
+  }, [
+    campaignStartDate,
+    campaignEndDate,
+    collapseAllLineItems,
+    expertProductionRows,
+    form,
+    mbaNumber,
+    productionExpertWeekColumns,
+  ])
+
   const watchedLineItems = useWatch({
     control: form.control,
     name: "lineItems",
@@ -355,7 +518,8 @@ export default function ProductionContainer({
       } catch (err) {
         console.warn("[ProductionContainer] Failed to hydrate initial line items", err)
       }
-    }
+    },
+    productionExpertModalOpenRef,
   )
 
   const totals = useMemo(() => {
@@ -467,7 +631,91 @@ export default function ProductionContainer({
       <Card className="overflow-hidden border-0 shadow-md">
         <div className="h-1" style={mediaTypeSummaryStripeStyle(MEDIA_ACCENT_HEX)} />
         <CardHeader className="pb-3">
-          <CardTitle className="text-base font-semibold tracking-tight">Production</CardTitle>
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <CardTitle className="text-base font-semibold tracking-tight">Production</CardTitle>
+                {productionExpertModalOpen ? (
+                  <Badge
+                    variant="outline"
+                    className="border-2 text-[10px] font-semibold uppercase tracking-wider shadow-sm"
+                    style={{
+                      borderColor: rgbaFromHex(MEDIA_ACCENT_HEX, 0.55),
+                      backgroundColor: rgbaFromHex(MEDIA_ACCENT_HEX, 0.14),
+                      color: MEDIA_ACCENT_HEX,
+                    }}
+                  >
+                    Expert schedule open
+                  </Badge>
+                ) : null}
+              </div>
+              <div
+                role="group"
+                aria-label="Production entry mode"
+                className="inline-flex shrink-0 rounded-lg border border-border bg-muted/50 p-0.5"
+              >
+                <button
+                  type="button"
+                  aria-pressed={!productionExpertModalOpen}
+                  className={cn(
+                    "rounded-md px-3 py-1.5 text-xs font-medium transition-all",
+                    !productionExpertModalOpen
+                      ? "text-white shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                  style={
+                    !productionExpertModalOpen
+                      ? { backgroundColor: MEDIA_ACCENT_HEX }
+                      : undefined
+                  }
+                  onClick={() => {
+                    if (productionExpertModalOpen) {
+                      handleProductionExpertModalOpenChange(false)
+                    }
+                  }}
+                >
+                  Standard
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={productionExpertModalOpen}
+                  className={cn(
+                    "rounded-md px-3 py-1.5 text-xs font-medium transition-all",
+                    productionExpertModalOpen
+                      ? "text-white shadow-sm"
+                      : "text-muted-foreground hover:text-foreground",
+                    expertSegmentAttention &&
+                      !productionExpertModalOpen &&
+                      "animate-pulse"
+                  )}
+                  style={{
+                    ...(productionExpertModalOpen
+                      ? { backgroundColor: MEDIA_ACCENT_HEX }
+                      : {}),
+                    ...(expertSegmentAttention && !productionExpertModalOpen
+                      ? {
+                          boxShadow: `0 0 0 2px ${rgbaFromHex(MEDIA_ACCENT_HEX, 0.45)}`,
+                        }
+                      : {}),
+                  }}
+                  onClick={() => {
+                    if (!productionExpertModalOpen) {
+                      openProductionExpertModal()
+                    }
+                  }}
+                >
+                  Expert
+                </button>
+              </div>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-muted-foreground">Card-based entry</p>
+              <span className="text-xs text-muted-foreground tabular-nums sm:text-right">
+                {lineItemFields.length} line item
+                {lineItemFields.length !== 1 ? "s" : ""}
+              </span>
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="space-y-0 pt-0">
           <div className="flex items-center justify-between py-2">
@@ -911,6 +1159,71 @@ export default function ProductionContainer({
           })}
         </div>
       </Form>
+
+      <Dialog open={productionExpertModalOpen} onOpenChange={handleProductionExpertModalOpenChange}>
+        <DialogContent className="max-w-[95vw] w-[95vw] max-h-[95vh] h-[95vh] flex flex-col p-4 gap-0 overflow-hidden">
+          <DialogHeader className="flex-shrink-0 pb-2">
+            <DialogTitle>Production Expert Mode</DialogTitle>
+          </DialogHeader>
+          <ComboboxModalProvider>
+            <div className="flex-1 min-h-0 overflow-auto">
+              <ProductionExpertGrid
+                campaignStartDate={campaignStartDate}
+                campaignEndDate={campaignEndDate}
+                rows={expertProductionRows}
+                onRowsChange={handleExpertProductionRowsChange}
+                productionTypeOptions={productionTypeComboboxOptions}
+                onReorder={() => {
+                  reorderedRef.current = true
+                }}
+              />
+            </div>
+          </ComboboxModalProvider>
+          <DialogFooter className="flex-shrink-0 border-t pt-3 mt-2">
+            <Button type="button" onClick={handleProductionExpertApply}>
+              Apply
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={productionExpertExitConfirmOpen}
+        onOpenChange={(open) => {
+          if (!open) dismissProductionExpertExitConfirm()
+        }}
+      >
+        <DialogContent
+          className="z-[100] sm:max-w-md"
+          onClick={(e) => {
+            if ((e.target as HTMLElement).closest("[data-production-expert-exit-yes]")) {
+              return
+            }
+            dismissProductionExpertExitConfirm()
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>Leave Production Expert Mode?</DialogTitle>
+            <DialogDescription>
+              You have unsaved changes in Expert Mode. Apply saves them to the Production section;
+              leaving now discards those edits.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={dismissProductionExpertExitConfirm}>
+              No, keep editing
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              data-production-expert-exit-yes
+              onClick={confirmProductionExpertExitWithoutSaving}
+            >
+              Yes, leave without saving
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
