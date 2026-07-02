@@ -2635,7 +2635,7 @@ export function BVODExpertGrid({
                                   type="button"
                                   aria-label={`Collapse ${col.labelShort} back to one week column`}
                                   title={`Collapse ${col.labelShort} back to one week column`}
-                                  className="absolute left-0 top-0 z-[5] flex h-4 w-4 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                                  className="absolute left-0 top-0 z-10 flex h-6 w-6 items-center justify-center rounded-sm border border-border/50 bg-background/90 text-muted-foreground shadow-e0 transition-colors hover:bg-muted hover:text-foreground"
                                   onMouseDown={(e) => {
                                     e.preventDefault()
                                     e.stopPropagation()
@@ -2646,7 +2646,7 @@ export function BVODExpertGrid({
                                     toggleWeekExpanded(col.weekKey)
                                   }}
                                 >
-                                  <ChevronsRightLeft className="h-3 w-3" />
+                                  <ChevronsRightLeft className="h-3.5 w-3.5" />
                                 </button>
                               ) : null}
                             </th>
@@ -2664,24 +2664,42 @@ export function BVODExpertGrid({
                           >
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <span className="flex min-h-[3rem] w-full cursor-default items-center justify-center px-0.5 py-1">
+                                <button
+                                  type="button"
+                                  aria-label={`Expand ${col.labelShort} into day columns`}
+                                  title={`Expand ${col.labelShort} into day columns`}
+                                  className="flex min-h-[3rem] w-full cursor-pointer items-center justify-center gap-1 px-5 py-1 text-center transition-colors hover:bg-muted/40"
+                                  onMouseDown={(e) => {
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                  }}
+                                  onClick={(e) => {
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                    toggleWeekExpanded(col.weekKey)
+                                  }}
+                                >
+                                  <ChevronsLeftRight
+                                    className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                                    aria-hidden
+                                  />
                                   <span className="text-[11px] font-semibold uppercase leading-snug tracking-wider text-foreground tabular-nums">
                                     {col.labelShort}
                                   </span>
-                                </span>
+                                </button>
                               </TooltipTrigger>
                               <TooltipContent
                                 side="bottom"
                                 className="max-w-xs text-xs"
                               >
-                                {col.labelFull}
+                                {col.labelFull} — click to expand into days
                               </TooltipContent>
                             </Tooltip>
                             <button
                               type="button"
                               aria-label={`Expand ${col.labelShort} into day columns`}
                               title={`Expand ${col.labelShort} into day columns`}
-                              className="absolute left-0 top-0 z-[5] flex h-4 w-4 items-center justify-center rounded-sm text-muted-foreground/60 transition-colors hover:bg-muted hover:text-foreground"
+                              className="absolute left-0 top-0 z-10 flex h-6 w-6 items-center justify-center rounded-sm border border-border/50 bg-background/90 text-muted-foreground shadow-e0 transition-colors hover:bg-muted hover:text-foreground"
                               onMouseDown={(e) => {
                                 e.preventDefault()
                                 e.stopPropagation()
@@ -2692,7 +2710,7 @@ export function BVODExpertGrid({
                                 toggleWeekExpanded(col.weekKey)
                               }}
                             >
-                              <ChevronsLeftRight className="h-3 w-3" />
+                              <ChevronsLeftRight className="h-3.5 w-3.5" />
                             </button>
                             <ExpertGridWeekResizeHandle
                               weekKey={col.weekKey}
