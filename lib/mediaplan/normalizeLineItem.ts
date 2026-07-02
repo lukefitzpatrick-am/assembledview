@@ -1,3 +1,5 @@
+import { resolveProductionBurstBudget } from "./resolveProductionBurstBudget"
+
 export type NormalisedBurst = {
   startDate: string
   endDate: string
@@ -98,20 +100,14 @@ function parseBursts(raw: any): NormalisedBurst[] {
 
   return burstArray
     .map((burst) => {
-      const budget =
-        toCurrencyNumber(burst?.budget) ??
-        toCurrencyNumber(burst?.deliverablesAmount) ??
-        0
+      const { effectiveBudget, deliverables: resolvedDeliverables } = resolveProductionBurstBudget(burst)
+
+      const budget = effectiveBudget
 
       const deliverablesAmount =
-        toCurrencyNumber(burst?.deliverablesAmount) ??
-        toCurrencyNumber(burst?.budget) ??
-        0
+        toCurrencyNumber(burst?.deliverablesAmount) ?? effectiveBudget
 
-      const deliverables =
-        toCurrencyNumber(burst?.deliverables) ??
-        toCurrencyNumber(burst?.calculatedValue) ??
-        0
+      const deliverables = resolvedDeliverables
 
       const startDate = burst?.startDate || burst?.start_date || ''
       const endDate = burst?.endDate || burst?.end_date || ''

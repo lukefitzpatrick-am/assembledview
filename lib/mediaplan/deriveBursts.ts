@@ -1,4 +1,5 @@
 import { parseDateNativeSafe as parseDateSafe } from "../dates/parseDateNativeSafe"
+import { resolveProductionBurstBudget } from "./resolveProductionBurstBudget"
 
 export type NormalisedBurst = {
   id: string
@@ -95,13 +96,24 @@ export function normaliseBurst(
   const start = startDateValue <= endDateValue ? startDateValue : endDateValue
   const end = endDateValue >= startDateValue ? endDateValue : startDateValue
 
+  const { effectiveBudget, deliverables: productionDeliverables } = resolveProductionBurstBudget(raw)
+
   return {
     id: `${lineItemId}-b${index}`,
     startDate: toIsoDate(start),
     endDate: toIsoDate(end),
-    spend: toNumber(raw?.spend ?? raw?.budget ?? raw?.media_investment ?? raw?.investment),
-    deliverables: toNumber(
-      raw?.deliverables ?? raw?.deliverable ?? raw?.deliverablesAmount ?? raw?.impressions ?? raw?.views ?? raw?.spots
-    ),
+    spend:
+      effectiveBudget ||
+      toNumber(raw?.spend ?? raw?.budget ?? raw?.media_investment ?? raw?.investment),
+    deliverables:
+      productionDeliverables ||
+      toNumber(
+        raw?.deliverables ??
+          raw?.deliverable ??
+          raw?.deliverablesAmount ??
+          raw?.impressions ??
+          raw?.views ??
+          raw?.spots
+      ),
   }
 }

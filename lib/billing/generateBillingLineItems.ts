@@ -3,6 +3,7 @@ import { prorateAcrossMonths } from "@/lib/billing/prorateAcrossMonths"
 import type { BillingLineItem, BillingMonth } from "@/lib/billing/types"
 import { resolveLineDimensions } from "@/lib/finance/resolveLineDimensions"
 import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
+import { resolveProductionBurstBudget } from "@/lib/mediaplan/resolveProductionBurstBudget"
 
 /**
  * Build per-month media amounts for each container line item (billing or delivery mode).
@@ -57,10 +58,7 @@ export function generateBillingLineItems(
     bursts.forEach((burst: any) => {
       const startDate = new Date(burst.startDate)
       const endDate = new Date(burst.endDate)
-      const budget =
-        parseFloat(String(burst.budget ?? "").replace(/[^0-9.-]/g, "")) ||
-        parseFloat(String(burst.buyAmount ?? "").replace(/[^0-9.-]/g, "")) ||
-        0
+      const budget = resolveProductionBurstBudget(burst).effectiveBudget
 
       const feePctRaw =
         (burst.feePercentage ??
