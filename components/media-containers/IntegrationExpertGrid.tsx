@@ -169,6 +169,14 @@ import {
   type WeeklyExportSelection,
   type WeekMergeSelectionNormalized,
 } from "@/lib/mediaplan/expertGridShared"
+import {
+  deltaDaysFromPx,
+  resizeSpanEdgeByDays,
+  spanEdgeDayDeltaBounds,
+  spanEdgeYmd,
+  spanPartialCoveragePlan,
+  type SpanEdgeResizeMode,
+} from "@/lib/mediaplan/expertSpanDates"
 
 type IntegrationWeekRectSelection = ExpertWeekRectSelection
 type IntegrationMultiCellSelection = ExpertMultiCellSelection
@@ -1170,18 +1178,21 @@ export function IntegrationExpertGrid({
   )
 
   /**
-   * Feature 6 — week-grained span-edge resize. Growth is clamped at the first
-   * obstruction (sibling span, populated week cell, or day-detailed week), so
+   * Feature 6 — span-edge resize (week- or day-grained). Growth is clamped at the
+   * first obstruction (sibling span, populated week cell, or day-detailed week), so
    * resizing never absorbs or destroys values; the burst total is unchanged.
    */
   type SpanEdgeResizeDrag = {
     rowIndex: number
     spanId: string
     edge: "start" | "end"
+    mode: SpanEdgeResizeMode
     originClientX: number
     minDelta: number
     maxDelta: number
     deltaWeeks: number
+    deltaDays: number
+    edgeYmd: string | null
     clientX: number
     clientY: number
   }
@@ -1268,7 +1279,36 @@ export function IntegrationExpertGrid({
 
       let minDelta: number
       let maxDelta: number
-      if (edge === "end") {
+      const edgeWeekKey =
+        edge === "start" ? span.startWeekKey : span.endWeekKey
+      const mode: SpanEdgeResizeMode = expandedWeekKeys.has(edgeWeekKey)
+        ? "day"
+        : "week"
+      const edgeYmd =
+        mode === "day"
+          ? spanEdgeYmd(
+              span,
+              edge,
+              weekColumns,
+              campaignStartDate,
+              campaignEndDate
+            )
+          : null
+
+      if (mode === "day" && edgeYmd) {
+        const dayBounds = spanEdgeDayDeltaBounds(
+          span,
+          edge,
+          weekColumns,
+          campaignStartDate,
+          campaignEndDate,
+          dayKeysByWeekKey,
+          weekBlocked
+        )
+        if (!dayBounds) return
+        minDelta = dayBounds.minDelta
+        maxDelta = dayBounds.maxDelta
+      } else if (edge === "end") {
         minDelta = si - ei
         let g = 0
         for (let i = ei + 1; i < weekKeys.length; i += 1) {
@@ -1290,21 +1330,77 @@ export function IntegrationExpertGrid({
         rowIndex,
         spanId,
         edge,
+        mode,
         originClientX: clientX,
         minDelta,
         maxDelta,
         deltaWeeks: 0,
+        deltaDays: 0,
+        edgeYmd,
         clientX,
         clientY,
       })
     },
-    [dayKeysByWeekKey, weekKeys]
+    [
+      campaignEndDate,
+      campaignStartDate,
+      dayKeysByWeekKey,
+      expandedWeekKeys,
+      weekColumns,
+      weekKeys,
+    ]
   )
 
   const applySpanEdgeResize = useCallback(() => {
     const drag = spanEdgeResizeRef.current
     setSpanEdgeResize(null)
-    if (!drag || drag.deltaWeeks === 0) return
+    if (!drag) return
+    if (drag.mode === "day") {
+      if (drag.deltaDays === 0) return
+      const rowsNow = normalizedRowsRef.current
+      const row = rowsNow[drag.rowIndex]
+      if (!row) return
+      const span = (row.mergedWeekSpans ?? []).find((s) => s.id === drag.spanId)
+      if (!span) return
+      const resized = resizeSpanEdgeByDays(
+        span,
+        drag.edge,
+        drag.deltaDays,
+        weekColumns,
+        campaignStartDate,
+        campaignEndDate,
+        dayKeysByWeekKey,
+        { minDelta: drag.minDelta, maxDelta: drag.maxDelta }
+      )
+      if (!resized) return
+      const mergedWeekSpans = (row.mergedWeekSpans ?? []).map((s) =>
+        s.id === drag.spanId
+          ? {
+              ...s,
+              startWeekKey: resized.startWeekKey,
+              endWeekKey: resized.endWeekKey,
+              startYmd: resized.startYmd,
+              endYmd: resized.endYmd,
+            }
+          : s
+      )
+      const weeklyValues = { ...row.weeklyValues }
+      for (const k of weekKeysInSpanInclusive(
+        weekKeys,
+        resized.startWeekKey,
+        resized.endWeekKey
+      )) {
+        weeklyValues[k] = ""
+      }
+      pushRows(
+        rowsNow.map((r, i) =>
+          i === drag.rowIndex ? { ...r, weeklyValues, mergedWeekSpans } : r
+        )
+      )
+      return
+    }
+
+    if (drag.deltaWeeks === 0) return
     const rowsNow = normalizedRowsRef.current
     const row = rowsNow[drag.rowIndex]
     if (!row) return
@@ -1342,7 +1438,14 @@ export function IntegrationExpertGrid({
         i === drag.rowIndex ? { ...r, weeklyValues, mergedWeekSpans } : r
       )
     )
-  }, [pushRows, weekKeys])
+  }, [
+    campaignEndDate,
+    campaignStartDate,
+    dayKeysByWeekKey,
+    pushRows,
+    weekColumns,
+    weekKeys,
+  ])
 
   const spanEdgeResizeActive = spanEdgeResize !== null
   useEffect(() => {
@@ -1357,14 +1460,35 @@ export function IntegrationExpertGrid({
         const ei = weekKeys.indexOf(span.endWeekKey)
         const edgeIdx = prev.edge === "end" ? ei : si
         if (edgeIdx < 0) return prev
-        const raw = deltaWeeksFromPx(edgeIdx, e.clientX - prev.originClientX)
-        const deltaWeeks = Math.min(
-          prev.maxDelta,
-          Math.max(prev.minDelta, raw)
-        )
+        const dx = e.clientX - prev.originClientX
+        const deltaWeeks =
+          prev.mode === "week"
+            ? Math.min(
+                prev.maxDelta,
+                Math.max(prev.minDelta, deltaWeeksFromPx(edgeIdx, dx))
+              )
+            : prev.deltaWeeks
+        const deltaDays =
+          prev.mode === "day" && prev.edgeYmd
+            ? Math.min(
+                prev.maxDelta,
+                Math.max(
+                  prev.minDelta,
+                  deltaDaysFromPx(prev.edgeYmd, dx, {
+                    weekKeys,
+                    expandedWeekKeys,
+                    dayKeysByWeekKey,
+                    weekColumnWidths,
+                    defaultWeekColWidthPx: INTEGRATION_EXPERT_WEEK_COL_WIDTH_PX,
+                    dayColWidthPx: DAY_COL_WIDTH_PX,
+                  })
+                )
+              )
+            : prev.deltaDays
         const next = {
           ...prev,
           deltaWeeks,
+          deltaDays,
           clientX: e.clientX,
           clientY: e.clientY,
         }
@@ -1386,6 +1510,9 @@ export function IntegrationExpertGrid({
     spanEdgeResizeActive,
     applySpanEdgeResize,
     deltaWeeksFromPx,
+    dayKeysByWeekKey,
+    expandedWeekKeys,
+    weekColumnWidths,
     weekKeys,
   ])
 
@@ -2411,10 +2538,21 @@ export function IntegrationExpertGrid({
               top: spanEdgeResize.clientY - 28,
             }}
           >
-            {spanEdgeResize.deltaWeeks > 0
-              ? `+${spanEdgeResize.deltaWeeks}`
-              : spanEdgeResize.deltaWeeks}{" "}
-            wk
+            {spanEdgeResize.mode === "day" ? (
+              <>
+                {spanEdgeResize.deltaDays > 0
+                  ? `+${spanEdgeResize.deltaDays}`
+                  : spanEdgeResize.deltaDays}{" "}
+                d
+              </>
+            ) : (
+              <>
+                {spanEdgeResize.deltaWeeks > 0
+                  ? `+${spanEdgeResize.deltaWeeks}`
+                  : spanEdgeResize.deltaWeeks}{" "}
+                wk
+              </>
+            )}
           </div>
         ) : null}
         <div className="flex min-w-0 flex-row">
@@ -3257,6 +3395,140 @@ export function IntegrationExpertGrid({
                                     : 1),
                                 0
                               )
+                              const partialPlan =
+                                mSpan &&
+                                (expandedWeekKeys.has(mSpan.startWeekKey) ||
+                                  expandedWeekKeys.has(mSpan.endWeekKey))
+                                  ? spanPartialCoveragePlan(
+                                      mSpan,
+                                      weekColumns,
+                                      campaignStartDate,
+                                      campaignEndDate,
+                                      expandedWeekKeys,
+                                      dayKeysByWeekKey
+                                    )
+                                  : null
+                              const anchorColSpan =
+                                partialPlan?.anchorColUnits ?? spanUnits
+
+                              const renderSpanUncoveredDayCell = (
+                                dayKey: string,
+                                weekKey: string
+                              ) => {
+                                const dayCol = (
+                                  dayColumnsByWeekKey[weekKey] ?? []
+                                ).find((d) => d.dayKey === dayKey)
+                                if (!dayCol) return
+                                const dk = [...(dayKeysByWeekKey[weekKey] ?? [])]
+                                const hasDetail =
+                                  !!row.dailyValues &&
+                                  weekHasDailyValues(row.dailyValues, dk)
+                                const rawV = hasDetail
+                                  ? row.dailyValues?.[dayKey] ?? ""
+                                  : ""
+                                const qtyDisplayV =
+                                  rawV === "" || rawV === 0 ? "" : String(rawV)
+                                const displayV =
+                                  entryMode === "budget" && rowBudgetEntryOk
+                                    ? budgetDraft &&
+                                      budgetDraft.rowIndex === rowIndex &&
+                                      budgetDraft.cellKey === dayKey
+                                      ? budgetDraft.text
+                                      : budgetCellDisplay(
+                                          row.buyType,
+                                          rowUnitRate,
+                                          rawV === "" ? 0 : rawV
+                                        )
+                                    : qtyDisplayV
+                                renderedWeekCells.push(
+                                  <td
+                                    key={`${row.id}-${dayKey}-uncovered`}
+                                    className="border-b border-r p-0 align-middle bg-inherit"
+                                    style={{
+                                      width: DAY_COL_WIDTH_PX,
+                                      minWidth: DAY_COL_WIDTH_PX,
+                                      maxWidth: DAY_COL_WIDTH_PX,
+                                      boxSizing: "border-box",
+                                    }}
+                                  >
+                                    <Input
+                                      className="box-border h-8 w-full min-w-0 max-w-full rounded-none border-0 bg-transparent px-0.5 text-center text-[11px] tabular-nums shadow-none"
+                                      inputMode="decimal"
+                                      value={displayV}
+                                      disabled={
+                                        entryMode === "budget" && !rowBudgetEntryOk
+                                      }
+                                      onChange={(e) => {
+                                        if (entryMode === "budget") {
+                                          if (!rowBudgetEntryOk) return
+                                          const text = e.target.value
+                                          setBudgetDraft({
+                                            rowIndex,
+                                            cellKey: dayKey,
+                                            text,
+                                          })
+                                          const cleaned = text.replace(
+                                            /[^\d.-]/g,
+                                            ""
+                                          )
+                                          if (
+                                            cleaned === "" ||
+                                            cleaned === "-"
+                                          ) {
+                                            updateDailyCell(
+                                              rowIndex,
+                                              weekKey,
+                                              dayKey,
+                                              ""
+                                            )
+                                            return
+                                          }
+                                          const budget =
+                                            Number.parseFloat(cleaned)
+                                          if (!Number.isFinite(budget)) return
+                                          updateDailyCell(
+                                            rowIndex,
+                                            weekKey,
+                                            dayKey,
+                                            String(
+                                              qtyFromBudgetInput(
+                                                row.buyType,
+                                                rowUnitRate,
+                                                budget
+                                              )
+                                            )
+                                          )
+                                          return
+                                        }
+                                        updateDailyCell(
+                                          rowIndex,
+                                          weekKey,
+                                          dayKey,
+                                          e.target.value
+                                        )
+                                      }}
+                                      onBlur={() => {
+                                        setBudgetDraft((prev) =>
+                                          prev &&
+                                          prev.rowIndex === rowIndex &&
+                                          prev.cellKey === dayKey
+                                            ? null
+                                            : prev
+                                        )
+                                      }}
+                                    />
+                                  </td>
+                                )
+                              }
+
+                              if (partialPlan) {
+                                for (const leadKey of partialPlan.leadingDayKeys) {
+                                  renderSpanUncoveredDayCell(
+                                    leadKey,
+                                    mSpan!.startWeekKey
+                                  )
+                                }
+                              }
                               if (!mSpan && expandedWeekKeys.has(col.weekKey)) {
                                 const dayCols =
                                   dayColumnsByWeekKey[col.weekKey] ?? []
@@ -3656,7 +3928,7 @@ export function IntegrationExpertGrid({
                               renderedWeekCells.push(
                                 <td
                                   key={`${row.id}-${col.weekKey}`}
-                                  colSpan={spanUnits}
+                                  colSpan={anchorColSpan}
                                   style={
                                     isMergedAnchorCell && mergedAnchorWidthPx != null
                                       ? {
@@ -3670,7 +3942,9 @@ export function IntegrationExpertGrid({
                                   className={tdClassName}
                                   title={
                                     isMergedAnchorCell
-                                      ? "Drag to move merged burst"
+                                      ? partialPlan
+                                        ? `Merged burst ${partialPlan.startYmd} – ${partialPlan.endYmd} — drag to move`
+                                        : "Drag to move merged burst"
                                       : hasDayDetail
                                         ? "Day-level detail (sum shown) — typing a value replaces it with a uniform week"
                                         : isSingleDraggableCell
@@ -4275,6 +4549,14 @@ export function IntegrationExpertGrid({
                                   </div>
                                 </td>
                               )
+                              if (partialPlan) {
+                                for (const trailKey of partialPlan.trailingDayKeys) {
+                                  renderSpanUncoveredDayCell(
+                                    trailKey,
+                                    mSpan!.endWeekKey
+                                  )
+                                }
+                              }
                               wi += spanLen - 1
                             }
                             return renderedWeekCells
