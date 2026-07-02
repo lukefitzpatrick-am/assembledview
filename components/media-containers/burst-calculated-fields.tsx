@@ -237,6 +237,32 @@ export function CpcFamilyBurstCalculatedField<T extends FieldValues>({
     return String(value)
   }, [budgetValue, buyAmountValue, buyType, budgetIncludesFees, feePct, field.value])
 
+  useEffect(() => {
+    const btLower = String(buyType || "").toLowerCase()
+    if (
+      btLower === "bonus" ||
+      btLower === "package_inclusions" ||
+      btLower === "package"
+    ) {
+      return
+    }
+    const calcPath =
+      `${itemsKey}.${lineItemIndex}.bursts.${burstIndex}.calculatedValue` as never
+    const nextNum = parseFloat(String(calculatedValue).replace(/[^0-9.]/g, "")) || 0
+    if (!Number.isFinite(nextNum)) return
+    const curCalc = form.getValues(calcPath)
+    const curNum =
+      typeof curCalc === "number" && Number.isFinite(curCalc)
+        ? curCalc
+        : parseFloat(String(curCalc ?? "0").replace(/[^0-9.]/g, "")) || 0
+    if (Math.abs(curNum - nextNum) > 1e-6) {
+      form.setValue(calcPath, nextNum as never, {
+        shouldValidate: false,
+        shouldDirty: false,
+      })
+    }
+  }, [calculatedValue, lineItemIndex, burstIndex, form, buyType, itemsKey])
+
   const bonusClass =
     bonusInputClassName ?? (variant === "cpcCpvCpm" ? "w-full" : "w-full h-10 text-sm")
 
@@ -472,6 +498,32 @@ export function SocialLineBurstCalculatedField<T extends FieldValues>({
     if (Number.isNaN(value)) return "0"
     return String(value)
   }, [budgetRaw, buyAmountRaw, buyType, budgetIncludesFees, feePct, field.value])
+
+  useEffect(() => {
+    const btLower = String(buyType || "").toLowerCase()
+    if (
+      btLower === "bonus" ||
+      btLower === "package_inclusions" ||
+      btLower === "package"
+    ) {
+      return
+    }
+    const calcPath =
+      `${itemsKey}.${lineItemIndex}.bursts.${burstIndex}.calculatedValue` as never
+    const nextNum = parseFloat(String(calculatedValue).replace(/[^0-9.]/g, "")) || 0
+    if (!Number.isFinite(nextNum)) return
+    const curCalc = form.getValues(calcPath)
+    const curNum =
+      typeof curCalc === "number" && Number.isFinite(curCalc)
+        ? curCalc
+        : parseFloat(String(curCalc ?? "0").replace(/[^0-9.]/g, "")) || 0
+    if (Math.abs(curNum - nextNum) > 1e-6) {
+      form.setValue(calcPath, nextNum as never, {
+        shouldValidate: false,
+        shouldDirty: false,
+      })
+    }
+  }, [calculatedValue, lineItemIndex, burstIndex, form, buyType, itemsKey])
 
   if (buyType === "bonus" || buyType === "package_inclusions") {
     return (
