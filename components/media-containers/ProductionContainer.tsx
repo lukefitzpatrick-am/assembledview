@@ -111,9 +111,9 @@ const toDateOnly = (d?: Date | string | null): Date | null => {
 const formatDateString = (d?: Date | string): string => {
   const dateObj = toDateOnly(d)
   if (!dateObj) return ""
-  const year = dateObj.getUTCFullYear()
-  const month = (dateObj.getUTCMonth() + 1).toString().padStart(2, "0")
-  const day = dateObj.getUTCDate().toString().padStart(2, "0")
+  const year = dateObj.getFullYear()
+  const month = (dateObj.getMonth() + 1).toString().padStart(2, "0")
+  const day = dateObj.getDate().toString().padStart(2, "0")
   return `${year}-${month}-${day}`
 }
 
