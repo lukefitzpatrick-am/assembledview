@@ -104,9 +104,9 @@ export async function GET() {
     
     // Fetch from MediaPlanVersions to get the latest versions with media type flags
     try {
-      // Fetch both media_plan_versions and media_plan_master in parallel
+      // Trimmed endpoint: list-view scalar fields only (no billingSchedule/deliverySchedule); sole consumer is app/mediaplans/page.tsx
       const [versionsResponse, masterResponse] = await Promise.all([
-        axios.get(xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]), {
+        axios.get(xanoUrl("media_plan_versions_trimmed", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]), {
           timeout: XANO_LONG_TIMEOUT_MS,
         }),
         axios.get(xanoUrl("media_plan_master", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]), {
