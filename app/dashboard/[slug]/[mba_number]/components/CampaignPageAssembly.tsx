@@ -6,6 +6,7 @@ import { format } from "date-fns"
 import type { CampaignKPI } from "@/lib/kpi/types"
 import { getCampaignKPIs } from "@/lib/api/kpi"
 import { buildKPITargetsMap, type KPITargetsMap } from "@/lib/kpi/deliveryTargets"
+import { buildLineItemKpiTargetMap } from "@/lib/kpi/lineItemKpiTargets"
 
 import CampaignHeroBanner from "@/components/dashboard/campaign/CampaignHeroBanner"
 import CampaignSummaryRow from "@/components/dashboard/campaign/CampaignSummaryRow"
@@ -285,6 +286,10 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
   }, [mbaNumber, kpiVersionNumber])
 
   const kpiTargets: KPITargetsMap = buildKPITargetsMap(savedCampaignKPIs)
+  const lineItemTargets = useMemo(
+    () => buildLineItemKpiTargetMap(savedCampaignKPIs),
+    [savedCampaignKPIs],
+  )
 
   const heroCampaign = useMemo(
     () => ({
@@ -432,6 +437,8 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
                 filterRange={filterRange}
                 brandColour={brandColour}
                 kpiTargets={kpiTargets}
+                kpiVersionNumber={kpiVersionNumber}
+                lineItemTargets={lineItemTargets}
                 campaignStart={startDate ?? ""}
                 campaignEnd={endDate ?? ""}
                 socialLineItems={filteredSocialItems}

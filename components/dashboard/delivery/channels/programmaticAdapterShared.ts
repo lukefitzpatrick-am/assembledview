@@ -1,8 +1,15 @@
 import { getMediaColor } from "@/lib/charts/registry"
 import type { DateRange } from "@/lib/dashboard/dateFilter"
 import { clipDateRangeToCampaign, parseDateOnly } from "@/lib/dashboard/dateFilter"
-import { kpiTargetKey, type KPITargetsMap } from "@/lib/kpi/deliveryTargets"
+import type { KPITargetsMap } from "@/lib/kpi/deliveryTargets"
 import { normaliseRatioTarget } from "@/lib/kpi/normaliseRatioTarget"
+import {
+  aggregateRateTargetFromLineItems,
+  aggregateRatioTargetFromLineItems,
+  deriveRateTargetFromBursts,
+  getLineItemKpiRow,
+} from "@/lib/kpi/lineItemKpiTargets"
+import type { CampaignKPI } from "@/lib/kpi/types"
 import {
   buildProgrammaticAggregatedMetrics,
   buildProgrammaticCampaignDateRange,
@@ -69,20 +76,147 @@ function fmtPct(x: number): string {
   return `${x.toFixed(2)}%`
 }
 
-function resolveKpiTarget(
-  kpiTargets: KPITargetsMap | undefined,
-  mediaKey: "progdisplay" | "progvideo",
-  publisher: string,
-  bidStrategy: string,
-) {
-  if (!kpiTargets?.size) return undefined
-  return kpiTargets.get(kpiTargetKey(mediaKey, publisher.toLowerCase().trim(), bidStrategy.toLowerCase().trim()))
-}
-
-/** campaign_kpi ratio → 0–100 percentage points (same scale as summarizeDv360Actuals). */
 function ratioTargetPercentPoints(raw: number | null | undefined): number | undefined {
   if (raw == null || raw <= 0) return undefined
   return normaliseRatioTarget(raw) * 100
+}
+
+function burstsForLineItem(lineItem: ProgrammaticLineItem): unknown {
+  return lineItem.bursts_json ?? lineItem.bursts ?? null
+}
+
+function buildProgrammaticKpiTiles(input: {
+  kpis: ReturnType<typeof summarizeDv360Actuals>
+  accentColour: string
+  isVideo: boolean
+  mbaNumber: string
+  kpiVersionNumber: number
+  lineItemTargets: Map<string, CampaignKPI> | undefined
+  activeItems: ProgrammaticLineItem[]
+  lineItem?: ProgrammaticLineItem
+}): KpiTileProps[] {
+  const {
+    kpis,
+    accentColour,
+    isVideo,
+    mbaNumber,
+    kpiVersionNumber,
+    lineItemTargets,
+    activeItems,
+    lineItem,
+  } = input
+
+  const isPerLine = Boolean(lineItem)
+  const kpiRow = lineItem
+    ? getLineItemKpiRow(lineItemTargets, mbaNumber, kpiVersionNumber, lineItem.line_item_id)
+    : undefined
+
+  const ctrRaw = isPerLine
+    ? kpiRow?.ctr
+    : aggregateRatioTargetFromLineItems(activeItems, lineItemTargets, mbaNumber, kpiVersionNumber, "ctr")
+  const vtrRaw = isPerLine
+    ? kpiRow?.vtr
+    : aggregateRatioTargetFromLineItems(activeItems, lineItemTargets, mbaNumber, kpiVersionNumber, "vtr")
+
+  const ctrTarget = ratioTargetPercentPoints(ctrRaw)
+  const vtrTarget = ratioTargetPercentPoints(vtrRaw)
+
+  const cpmExpected = isPerLine
+    ? (() => {
+        const derived = deriveRateTargetFromBursts(burstsForLineItem(lineItem!), String(lineItem!.buy_type ?? ""))
+        return derived?.kind === "cpm" ? derived.value : undefined
+      })()
+    : (aggregateRateTargetFromLineItems(activeItems, "cpm") ?? undefined)
+
+  const cpvExpected = isPerLine
+    ? (() => {
+        const derived = deriveRateTargetFromBursts(burstsForLineItem(lineItem!), String(lineItem!.buy_type ?? ""))
+        return derived?.kind === "cpv" ? derived.value : undefined
+      })()
+    : (aggregateRateTargetFromLineItems(activeItems, "cpv") ?? undefined)
+
+  if (isVideo) {
+    return [
+      {
+        label: "CPM",
+        value: formatCurrency2dp(kpis.cpm),
+        expected: cpmExpected !== undefined ? formatCurrency2dp(cpmExpected) : undefined,
+        status: cpmExpected !== undefined ? compareRateStatus(kpis.cpm, cpmExpected, false) : undefined,
+        progress:
+          cpmExpected !== undefined && cpmExpected > 0
+            ? Math.max(0, Math.min(1, cpmExpected / kpis.cpm))
+            : undefined,
+        accentColour,
+      },
+      {
+        label: "View rate",
+        value: fmtPct(kpis.viewRate),
+        expected: vtrTarget !== undefined ? fmtPct(vtrTarget) : undefined,
+        status:
+          vtrTarget !== undefined ? compareRateStatus(kpis.viewRate, vtrTarget, true) : undefined,
+        progress:
+          vtrTarget !== undefined
+            ? Math.max(0, Math.min(1, kpis.viewRate / vtrTarget))
+            : undefined,
+        accentColour,
+      },
+      {
+        label: "CPV",
+        value: formatCurrency2dp(kpis.cpv),
+        expected: cpvExpected !== undefined ? formatCurrency2dp(cpvExpected) : undefined,
+        status: cpvExpected !== undefined ? compareRateStatus(kpis.cpv, cpvExpected, false) : undefined,
+        progress:
+          cpvExpected !== undefined && cpvExpected > 0
+            ? Math.max(0, Math.min(1, cpvExpected / kpis.cpv))
+            : undefined,
+        accentColour,
+      },
+      {
+        label: "CTR",
+        value: fmtPct(kpis.ctr),
+        expected: ctrTarget !== undefined ? fmtPct(ctrTarget) : undefined,
+        status:
+          ctrTarget !== undefined ? compareRateStatus(kpis.ctr, ctrTarget, true) : undefined,
+        progress:
+          ctrTarget !== undefined ? Math.max(0, Math.min(1, kpis.ctr / ctrTarget)) : undefined,
+        accentColour,
+      },
+    ]
+  }
+
+  return [
+    {
+      label: "CPM",
+      value: formatCurrency2dp(kpis.cpm),
+      expected: cpmExpected !== undefined ? formatCurrency2dp(cpmExpected) : undefined,
+      status: cpmExpected !== undefined ? compareRateStatus(kpis.cpm, cpmExpected, false) : undefined,
+      progress:
+        cpmExpected !== undefined && cpmExpected > 0
+          ? Math.max(0, Math.min(1, cpmExpected / kpis.cpm))
+          : undefined,
+      accentColour,
+    },
+    {
+      label: "CTR",
+      value: fmtPct(kpis.ctr),
+      expected: ctrTarget !== undefined ? fmtPct(ctrTarget) : undefined,
+      status:
+        ctrTarget !== undefined ? compareRateStatus(kpis.ctr, ctrTarget, true) : undefined,
+      progress:
+        ctrTarget !== undefined ? Math.max(0, Math.min(1, kpis.ctr / ctrTarget)) : undefined,
+      accentColour,
+    },
+    {
+      label: "CPC",
+      value: formatCurrency2dp(kpis.cpc),
+      accentColour,
+    },
+    {
+      label: "CPA",
+      value: formatCurrency2dp(kpis.cpa),
+      accentColour,
+    },
+  ]
 }
 
 export function buildProgrammaticChannelSection(input: {
@@ -95,8 +229,11 @@ export function buildProgrammaticChannelSection(input: {
   combinedRows: CombinedPacingRow[]
   campaignStart: string
   campaignEnd: string
+  mbaNumber: string
   filterRange: DateRange
+  kpiVersionNumber: number
   kpiTargets: KPITargetsMap | undefined
+  lineItemTargets: Map<string, CampaignKPI> | undefined
   pacingWindow: {
     asAtISO: string
     campaignStartISO: string
@@ -115,8 +252,11 @@ export function buildProgrammaticChannelSection(input: {
     combinedRows,
     campaignStart,
     campaignEnd,
+    mbaNumber,
     filterRange,
+    kpiVersionNumber,
     kpiTargets,
+    lineItemTargets,
     pacingWindow,
     brandColour,
     lastSyncedAt,
@@ -170,11 +310,8 @@ export function buildProgrammaticChannelSection(input: {
     ),
   )
 
-  const pub = String((normalized[0] as { platform?: string })?.platform ?? "dv360")
-  const bid = String((normalized[0] as { buy_type?: string })?.buy_type ?? "")
-  const tgt = resolveKpiTarget(kpiTargets, mediaCurveKey, pub, bid)
-
   const accentColour = brandColour ?? getMediaColor("programmatic")
+  const isVideoChannel = snowflakeChannel === "programmatic-video"
 
   const aggregateTrack = pacingPctToStatus(aggregatePacing.deliverable?.pacingPct)
 
@@ -217,77 +354,15 @@ export function buildProgrammaticChannelSection(input: {
     sparkline: aggregatePacing.series.map((p) => Number(p.actualDeliverable ?? 0)),
   }
 
-  const ctrTarget = ratioTargetPercentPoints(tgt?.ctr)
-  const vtrTarget = ratioTargetPercentPoints(tgt?.vtr)
-
-  const kpiTilesDisplay: KpiTileProps[] = [
-    {
-      label: "CPM",
-      value: formatCurrency2dp(kpisRollup.cpm),
-      accentColour,
-    },
-    {
-      label: "CTR",
-      value: fmtPct(kpisRollup.ctr),
-      expected: ctrTarget !== undefined ? fmtPct(ctrTarget) : undefined,
-      status:
-        ctrTarget !== undefined ? compareRateStatus(kpisRollup.ctr, ctrTarget, true) : undefined,
-      progress:
-        ctrTarget !== undefined
-          ? Math.max(0, Math.min(1, kpisRollup.ctr / ctrTarget))
-          : undefined,
-      accentColour,
-    },
-    {
-      label: "CPC",
-      value: formatCurrency2dp(kpisRollup.cpc),
-      accentColour,
-    },
-    {
-      label: "CPA",
-      value: formatCurrency2dp(kpisRollup.cpa),
-      accentColour,
-    },
-  ]
-
-  const kpiTilesVideo: KpiTileProps[] = [
-    {
-      label: "CPM",
-      value: formatCurrency2dp(kpisRollup.cpm),
-      accentColour,
-    },
-    {
-      label: "View rate",
-      value: fmtPct(kpisRollup.viewRate),
-      expected: vtrTarget !== undefined ? fmtPct(vtrTarget) : undefined,
-      status:
-        vtrTarget !== undefined
-          ? compareRateStatus(kpisRollup.viewRate, vtrTarget, true)
-          : undefined,
-      progress:
-        vtrTarget !== undefined
-          ? Math.max(0, Math.min(1, kpisRollup.viewRate / vtrTarget))
-          : undefined,
-      accentColour,
-    },
-    {
-      label: "CPV",
-      value: formatCurrency2dp(kpisRollup.cpv),
-      accentColour,
-    },
-    {
-      label: "CTR",
-      value: fmtPct(kpisRollup.ctr),
-      expected: ctrTarget !== undefined ? fmtPct(ctrTarget) : undefined,
-      status:
-        ctrTarget !== undefined ? compareRateStatus(kpisRollup.ctr, ctrTarget, true) : undefined,
-      progress:
-        ctrTarget !== undefined
-          ? Math.max(0, Math.min(1, kpisRollup.ctr / ctrTarget))
-          : undefined,
-      accentColour,
-    },
-  ]
+  const aggregateKpiTiles = buildProgrammaticKpiTiles({
+    kpis: kpisRollup,
+    accentColour,
+    isVideo: isVideoChannel,
+    mbaNumber,
+    kpiVersionNumber,
+    lineItemTargets,
+    activeItems: normalized,
+  })
 
   const accordionItems = metrics.map((m) => {
     const liKpis = summarizeDv360Actuals(
@@ -299,11 +374,6 @@ export function buildProgrammaticChannelSection(input: {
         videoViews: d.videoViews,
       })),
     )
-    const pubLi = String(m.lineItem.platform ?? "dv360")
-    const bidLi = String(m.lineItem.buy_type ?? "")
-    const tgtLi = resolveKpiTarget(kpiTargets, mediaCurveKey, pubLi, bidLi)
-    const ctrTargetLi = ratioTargetPercentPoints(tgtLi?.ctr)
-    const vtrTargetLi = ratioTargetPercentPoints(tgtLi?.vtr)
 
     const spendR =
       m.booked.spend > 0 ? Math.max(0, Math.min(1, m.pacing.spend.actualToDate / m.booked.spend)) : 0
@@ -312,79 +382,16 @@ export function buildProgrammaticChannelSection(input: {
         ? Math.max(0, Math.min(1, m.pacing.deliverable.actualToDate / m.booked.deliverables))
         : 0
 
-    const kpiBandTiles: KpiTileProps[] =
-      snowflakeChannel === "programmatic-video"
-        ? [
-            {
-              label: "CPM",
-              value: formatCurrency2dp(liKpis.cpm),
-              accentColour,
-            },
-            {
-              label: "View rate",
-              value: fmtPct(liKpis.viewRate),
-              expected: vtrTargetLi !== undefined ? fmtPct(vtrTargetLi) : undefined,
-              status:
-                vtrTargetLi !== undefined
-                  ? compareRateStatus(liKpis.viewRate, vtrTargetLi, true)
-                  : undefined,
-              progress:
-                vtrTargetLi !== undefined
-                  ? Math.max(0, Math.min(1, liKpis.viewRate / vtrTargetLi))
-                  : undefined,
-              accentColour,
-            },
-            {
-              label: "CPV",
-              value: formatCurrency2dp(liKpis.cpv),
-              accentColour,
-            },
-            {
-              label: "CTR",
-              value: fmtPct(liKpis.ctr),
-              expected: ctrTargetLi !== undefined ? fmtPct(ctrTargetLi) : undefined,
-              status:
-                ctrTargetLi !== undefined
-                  ? compareRateStatus(liKpis.ctr, ctrTargetLi, true)
-                  : undefined,
-              progress:
-                ctrTargetLi !== undefined
-                  ? Math.max(0, Math.min(1, liKpis.ctr / ctrTargetLi))
-                  : undefined,
-              accentColour,
-            },
-          ]
-        : [
-            {
-              label: "CPM",
-              value: formatCurrency2dp(liKpis.cpm),
-              accentColour,
-            },
-            {
-              label: "CTR",
-              value: fmtPct(liKpis.ctr),
-              expected: ctrTargetLi !== undefined ? fmtPct(ctrTargetLi) : undefined,
-              status:
-                ctrTargetLi !== undefined
-                  ? compareRateStatus(liKpis.ctr, ctrTargetLi, true)
-                  : undefined,
-              progress:
-                ctrTargetLi !== undefined
-                  ? Math.max(0, Math.min(1, liKpis.ctr / ctrTargetLi))
-                  : undefined,
-              accentColour,
-            },
-            {
-              label: "CPC",
-              value: formatCurrency2dp(liKpis.cpc),
-              accentColour,
-            },
-            {
-              label: "CPA",
-              value: formatCurrency2dp(liKpis.cpa),
-              accentColour,
-            },
-          ]
+    const kpiBandTiles = buildProgrammaticKpiTiles({
+      kpis: liKpis,
+      accentColour,
+      isVideo: isVideoChannel,
+      mbaNumber,
+      kpiVersionNumber,
+      lineItemTargets,
+      activeItems: normalized,
+      lineItem: m.lineItem,
+    })
 
     const li = m.lineItem as ProgrammaticLineItem & {
       line_item_name?: string
@@ -463,7 +470,7 @@ export function buildProgrammaticChannelSection(input: {
       kpiBand: {
         title: "Delivery KPIs",
         subtitle: snowflakeChannel === "programmatic-video" ? "Video efficiency & engagement" : "Display efficiency",
-        tiles: snowflakeChannel === "programmatic-video" ? kpiTilesVideo : kpiTilesDisplay,
+        tiles: aggregateKpiTiles,
       },
       chart: {
         daily: aggregateDailyRows(

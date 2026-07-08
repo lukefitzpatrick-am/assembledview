@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import type { KPITargetsMap } from "@/lib/kpi/deliveryTargets"
+import type { CampaignKPI } from "@/lib/kpi/types"
 import type { DateRange } from "@/lib/dashboard/dateFilter"
 import { getPacingWindow } from "@/lib/pacing/pacingWindow"
 import type { PacingRow as CombinedPacingRow } from "@/lib/snowflake/pacing-service"
@@ -60,6 +61,8 @@ export type CampaignDeliverySectionProps = {
   filterRange: DateRange
   brandColour?: string
   kpiTargets: KPITargetsMap
+  kpiVersionNumber: number
+  lineItemTargets: Map<string, CampaignKPI>
   campaignStart: string
   campaignEnd: string
   socialLineItems: SocialLineItem[]
@@ -81,6 +84,8 @@ type DeliveryBodyProps = {
   filterRange: DateRange
   brandColour?: string
   kpiTargets: KPITargetsMap
+  kpiVersionNumber: number
+  lineItemTargets: Map<string, CampaignKPI>
   pacingWindow: ReturnType<typeof getPacingWindow>
   metaItems: SocialLineItem[]
   tiktokItems: SocialLineItem[]
@@ -101,6 +106,8 @@ function CampaignDeliveryBody({
   filterRange,
   brandColour,
   kpiTargets,
+  kpiVersionNumber,
+  lineItemTargets,
   pacingWindow,
   metaItems,
   tiktokItems,
@@ -126,7 +133,9 @@ function CampaignDeliveryBody({
           campaignStart,
           campaignEnd,
           mbaNumber,
+          kpiVersionNumber,
           kpiTargets,
+          lineItemTargets,
           filterRange,
           brandColour,
           lastSyncedAt,
@@ -142,7 +151,9 @@ function CampaignDeliveryBody({
           campaignStart,
           campaignEnd,
           mbaNumber,
+          kpiVersionNumber,
           kpiTargets,
+          lineItemTargets,
           filterRange,
           brandColour,
           lastSyncedAt,
@@ -171,8 +182,11 @@ function CampaignDeliveryBody({
         combinedRows: rows,
         campaignStart,
         campaignEnd,
+        mbaNumber,
         filterRange,
+        kpiVersionNumber,
         kpiTargets,
+        lineItemTargets,
         pacingWindow,
         brandColour,
         lastSyncedAt,
@@ -186,8 +200,11 @@ function CampaignDeliveryBody({
         combinedRows: rows,
         campaignStart,
         campaignEnd,
+        mbaNumber,
         filterRange,
+        kpiVersionNumber,
         kpiTargets,
+        lineItemTargets,
         pacingWindow,
         brandColour,
         lastSyncedAt,
@@ -209,6 +226,8 @@ function CampaignDeliveryBody({
     filterRange,
     brandColour,
     kpiTargets,
+    kpiVersionNumber,
+    lineItemTargets,
     pacingWindow,
     mbaNumber,
     searchLineItems,
@@ -235,6 +254,8 @@ export function CampaignDeliverySection({
   filterRange,
   brandColour,
   kpiTargets,
+  kpiVersionNumber,
+  lineItemTargets,
   campaignStart,
   campaignEnd,
   socialLineItems,
@@ -330,6 +351,8 @@ export function CampaignDeliverySection({
           filterRange={filterRange}
           brandColour={brandColour}
           kpiTargets={kpiTargets}
+          kpiVersionNumber={kpiVersionNumber}
+          lineItemTargets={lineItemTargets}
           pacingWindow={pacingWindow}
           metaItems={metaItems}
           tiktokItems={tiktokItems}
