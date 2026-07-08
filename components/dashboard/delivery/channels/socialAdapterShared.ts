@@ -1,6 +1,7 @@
 import { getMediaColor } from "@/lib/charts/registry"
 import type { PacingRow as CombinedPacingRow } from "@/lib/snowflake/pacing-service"
 import { kpiTargetKey } from "@/lib/kpi/deliveryTargets"
+import { normaliseRatioTarget } from "@/lib/kpi/normaliseRatioTarget"
 import type { KPITargetsMap } from "@/lib/kpi/deliveryTargets"
 import type { DateRange } from "@/lib/dashboard/dateFilter"
 import {
@@ -67,6 +68,12 @@ function resolveKpiTarget(kpiTargets: KPITargetsMap | undefined, publisher: stri
   return kpiTargets.get(kpiTargetKey("socialmedia", publisher.toLowerCase().trim(), bidStrategy.toLowerCase().trim()))
 }
 
+/** campaign_kpi ratio → 0–100 percentage points (same scale as summarizeActuals). */
+function ratioTargetPercentPoints(raw: number | null | undefined): number | undefined {
+  if (raw == null || raw <= 0) return undefined
+  return normaliseRatioTarget(raw) * 100
+}
+
 function buildAggregateKpiTiles(
   kpis: ReturnType<typeof summarizeActuals>,
   kpiTargets: KPITargetsMap | undefined,
@@ -85,16 +92,14 @@ function buildAggregateKpiTiles(
     accentColour,
   })
 
+  const ctrTarget = ratioTargetPercentPoints(tgt?.ctr)
   tiles.push({
     label: "CTR",
     value: fmtPct(kpis.ctr),
-    expected: tgt && tgt.ctr != null && tgt.ctr > 0 ? fmtPct(tgt.ctr) : undefined,
-    status:
-      tgt && tgt.ctr != null && tgt.ctr > 0 ? compareRateStatus(kpis.ctr, tgt.ctr, true) : undefined,
+    expected: ctrTarget !== undefined ? fmtPct(ctrTarget) : undefined,
+    status: ctrTarget !== undefined ? compareRateStatus(kpis.ctr, ctrTarget, true) : undefined,
     progress:
-      tgt && tgt.ctr != null && tgt.ctr > 0
-        ? Math.max(0, Math.min(1, kpis.ctr / tgt.ctr))
-        : undefined,
+      ctrTarget !== undefined ? Math.max(0, Math.min(1, kpis.ctr / ctrTarget)) : undefined,
     accentColour,
   })
 
@@ -104,21 +109,14 @@ function buildAggregateKpiTiles(
     accentColour,
   })
 
+  const cvrTarget = ratioTargetPercentPoints(tgt?.conversion_rate)
   tiles.push({
     label: "CVR",
     value: fmtPct(kpis.cvr),
-    expected:
-      tgt && tgt.conversion_rate != null && tgt.conversion_rate > 0
-        ? fmtPct(tgt.conversion_rate)
-        : undefined,
-    status:
-      tgt && tgt.conversion_rate != null && tgt.conversion_rate > 0
-        ? compareRateStatus(kpis.cvr, tgt.conversion_rate, true)
-        : undefined,
+    expected: cvrTarget !== undefined ? fmtPct(cvrTarget) : undefined,
+    status: cvrTarget !== undefined ? compareRateStatus(kpis.cvr, cvrTarget, true) : undefined,
     progress:
-      tgt && tgt.conversion_rate != null && tgt.conversion_rate > 0
-        ? Math.max(0, Math.min(1, kpis.cvr / tgt.conversion_rate))
-        : undefined,
+      cvrTarget !== undefined ? Math.max(0, Math.min(1, kpis.cvr / cvrTarget)) : undefined,
     accentColour,
   })
 
@@ -129,14 +127,13 @@ function buildAggregateKpiTiles(
   })
 
   if (includeVideoMetrics) {
+    const vtrTarget = ratioTargetPercentPoints(tgt?.vtr)
     tiles.push({
       label: "View rate",
       value: fmtPct(kpis.view_rate),
-      expected: tgt && tgt.vtr != null && tgt.vtr > 0 ? fmtPct(tgt.vtr) : undefined,
+      expected: vtrTarget !== undefined ? fmtPct(vtrTarget) : undefined,
       status:
-        tgt && tgt.vtr != null && tgt.vtr > 0
-          ? compareRateStatus(kpis.view_rate, tgt.vtr, true)
-          : undefined,
+        vtrTarget !== undefined ? compareRateStatus(kpis.view_rate, vtrTarget, true) : undefined,
       accentColour,
     })
     tiles.push({

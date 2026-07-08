@@ -4,7 +4,10 @@ import {
   type RowKpiStatus,
   type SingleKpiStatus,
 } from "@/lib/pacing/kpi/computeKpiStatus";
+import { normaliseRatioTarget } from "@/lib/kpi/normaliseRatioTarget";
 import type { SocialPacingCampaignRow } from "@/lib/pacing/social/types";
+
+export { normaliseRatioTarget };
 
 export type SocialKpiMetric = "ctr" | "conversionRate" | "cpv" | "vtr";
 
@@ -24,15 +27,6 @@ export { copyForRowKpiStatus, type RowKpiStatus };
 /** Social campaign_kpi export uses 0 for unset — treat 0 like null for every metric. */
 function unsetAsNull(value: number | null | undefined): number | null {
   return value === null || value === undefined || value === 0 ? null : value;
-}
-
-/**
- * Ratio targets (ctr, conversionRate, vtr): legacy percentage-point form when >= 1
- * (4.5 means 4.5%, same as formatRatioAsPercent / kpiCellColor). CPV is dollars —
- * do not apply this heuristic to cpv.
- */
-function normaliseRatioTarget(target: number): number {
-  return target >= 1 ? target / 100 : target;
 }
 
 function resolveRatioTarget(raw: number | null | undefined): number | null {

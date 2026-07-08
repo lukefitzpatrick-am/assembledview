@@ -2,6 +2,7 @@ import { getMediaColor } from "@/lib/charts/registry"
 import type { DateRange } from "@/lib/dashboard/dateFilter"
 import { clipDateRangeToCampaign, parseDateOnly } from "@/lib/dashboard/dateFilter"
 import { kpiTargetKey, type KPITargetsMap } from "@/lib/kpi/deliveryTargets"
+import { normaliseRatioTarget } from "@/lib/kpi/normaliseRatioTarget"
 import {
   buildProgrammaticAggregatedMetrics,
   buildProgrammaticCampaignDateRange,
@@ -76,6 +77,12 @@ function resolveKpiTarget(
 ) {
   if (!kpiTargets?.size) return undefined
   return kpiTargets.get(kpiTargetKey(mediaKey, publisher.toLowerCase().trim(), bidStrategy.toLowerCase().trim()))
+}
+
+/** campaign_kpi ratio → 0–100 percentage points (same scale as summarizeDv360Actuals). */
+function ratioTargetPercentPoints(raw: number | null | undefined): number | undefined {
+  if (raw == null || raw <= 0) return undefined
+  return normaliseRatioTarget(raw) * 100
 }
 
 export function buildProgrammaticChannelSection(input: {
@@ -210,6 +217,9 @@ export function buildProgrammaticChannelSection(input: {
     sparkline: aggregatePacing.series.map((p) => Number(p.actualDeliverable ?? 0)),
   }
 
+  const ctrTarget = ratioTargetPercentPoints(tgt?.ctr)
+  const vtrTarget = ratioTargetPercentPoints(tgt?.vtr)
+
   const kpiTilesDisplay: KpiTileProps[] = [
     {
       label: "CPM",
@@ -219,14 +229,12 @@ export function buildProgrammaticChannelSection(input: {
     {
       label: "CTR",
       value: fmtPct(kpisRollup.ctr),
-      expected: tgt && tgt.ctr != null && tgt.ctr > 0 ? fmtPct(tgt.ctr) : undefined,
+      expected: ctrTarget !== undefined ? fmtPct(ctrTarget) : undefined,
       status:
-        tgt && tgt.ctr != null && tgt.ctr > 0
-          ? compareRateStatus(kpisRollup.ctr, tgt.ctr, true)
-          : undefined,
+        ctrTarget !== undefined ? compareRateStatus(kpisRollup.ctr, ctrTarget, true) : undefined,
       progress:
-        tgt && tgt.ctr != null && tgt.ctr > 0
-          ? Math.max(0, Math.min(1, kpisRollup.ctr / tgt.ctr))
+        ctrTarget !== undefined
+          ? Math.max(0, Math.min(1, kpisRollup.ctr / ctrTarget))
           : undefined,
       accentColour,
     },
@@ -251,14 +259,14 @@ export function buildProgrammaticChannelSection(input: {
     {
       label: "View rate",
       value: fmtPct(kpisRollup.viewRate),
-      expected: tgt && tgt.vtr != null && tgt.vtr > 0 ? fmtPct(tgt.vtr) : undefined,
+      expected: vtrTarget !== undefined ? fmtPct(vtrTarget) : undefined,
       status:
-        tgt && tgt.vtr != null && tgt.vtr > 0
-          ? compareRateStatus(kpisRollup.viewRate, tgt.vtr, true)
+        vtrTarget !== undefined
+          ? compareRateStatus(kpisRollup.viewRate, vtrTarget, true)
           : undefined,
       progress:
-        tgt && tgt.vtr != null && tgt.vtr > 0
-          ? Math.max(0, Math.min(1, kpisRollup.viewRate / tgt.vtr))
+        vtrTarget !== undefined
+          ? Math.max(0, Math.min(1, kpisRollup.viewRate / vtrTarget))
           : undefined,
       accentColour,
     },
@@ -270,14 +278,12 @@ export function buildProgrammaticChannelSection(input: {
     {
       label: "CTR",
       value: fmtPct(kpisRollup.ctr),
-      expected: tgt && tgt.ctr != null && tgt.ctr > 0 ? fmtPct(tgt.ctr) : undefined,
+      expected: ctrTarget !== undefined ? fmtPct(ctrTarget) : undefined,
       status:
-        tgt && tgt.ctr != null && tgt.ctr > 0
-          ? compareRateStatus(kpisRollup.ctr, tgt.ctr, true)
-          : undefined,
+        ctrTarget !== undefined ? compareRateStatus(kpisRollup.ctr, ctrTarget, true) : undefined,
       progress:
-        tgt && tgt.ctr != null && tgt.ctr > 0
-          ? Math.max(0, Math.min(1, kpisRollup.ctr / tgt.ctr))
+        ctrTarget !== undefined
+          ? Math.max(0, Math.min(1, kpisRollup.ctr / ctrTarget))
           : undefined,
       accentColour,
     },
@@ -296,6 +302,8 @@ export function buildProgrammaticChannelSection(input: {
     const pubLi = String(m.lineItem.platform ?? "dv360")
     const bidLi = String(m.lineItem.buy_type ?? "")
     const tgtLi = resolveKpiTarget(kpiTargets, mediaCurveKey, pubLi, bidLi)
+    const ctrTargetLi = ratioTargetPercentPoints(tgtLi?.ctr)
+    const vtrTargetLi = ratioTargetPercentPoints(tgtLi?.vtr)
 
     const spendR =
       m.booked.spend > 0 ? Math.max(0, Math.min(1, m.pacing.spend.actualToDate / m.booked.spend)) : 0
@@ -315,14 +323,14 @@ export function buildProgrammaticChannelSection(input: {
             {
               label: "View rate",
               value: fmtPct(liKpis.viewRate),
-              expected: tgtLi && tgtLi.vtr != null && tgtLi.vtr > 0 ? fmtPct(tgtLi.vtr) : undefined,
+              expected: vtrTargetLi !== undefined ? fmtPct(vtrTargetLi) : undefined,
               status:
-                tgtLi && tgtLi.vtr != null && tgtLi.vtr > 0
-                  ? compareRateStatus(liKpis.viewRate, tgtLi.vtr, true)
+                vtrTargetLi !== undefined
+                  ? compareRateStatus(liKpis.viewRate, vtrTargetLi, true)
                   : undefined,
               progress:
-                tgtLi && tgtLi.vtr != null && tgtLi.vtr > 0
-                  ? Math.max(0, Math.min(1, liKpis.viewRate / tgtLi.vtr))
+                vtrTargetLi !== undefined
+                  ? Math.max(0, Math.min(1, liKpis.viewRate / vtrTargetLi))
                   : undefined,
               accentColour,
             },
@@ -334,14 +342,14 @@ export function buildProgrammaticChannelSection(input: {
             {
               label: "CTR",
               value: fmtPct(liKpis.ctr),
-              expected: tgtLi && tgtLi.ctr != null && tgtLi.ctr > 0 ? fmtPct(tgtLi.ctr) : undefined,
+              expected: ctrTargetLi !== undefined ? fmtPct(ctrTargetLi) : undefined,
               status:
-                tgtLi && tgtLi.ctr != null && tgtLi.ctr > 0
-                  ? compareRateStatus(liKpis.ctr, tgtLi.ctr, true)
+                ctrTargetLi !== undefined
+                  ? compareRateStatus(liKpis.ctr, ctrTargetLi, true)
                   : undefined,
               progress:
-                tgtLi && tgtLi.ctr != null && tgtLi.ctr > 0
-                  ? Math.max(0, Math.min(1, liKpis.ctr / tgtLi.ctr))
+                ctrTargetLi !== undefined
+                  ? Math.max(0, Math.min(1, liKpis.ctr / ctrTargetLi))
                   : undefined,
               accentColour,
             },
@@ -355,14 +363,14 @@ export function buildProgrammaticChannelSection(input: {
             {
               label: "CTR",
               value: fmtPct(liKpis.ctr),
-              expected: tgtLi && tgtLi.ctr != null && tgtLi.ctr > 0 ? fmtPct(tgtLi.ctr) : undefined,
+              expected: ctrTargetLi !== undefined ? fmtPct(ctrTargetLi) : undefined,
               status:
-                tgtLi && tgtLi.ctr != null && tgtLi.ctr > 0
-                  ? compareRateStatus(liKpis.ctr, tgtLi.ctr, true)
+                ctrTargetLi !== undefined
+                  ? compareRateStatus(liKpis.ctr, ctrTargetLi, true)
                   : undefined,
               progress:
-                tgtLi && tgtLi.ctr != null && tgtLi.ctr > 0
-                  ? Math.max(0, Math.min(1, liKpis.ctr / tgtLi.ctr))
+                ctrTargetLi !== undefined
+                  ? Math.max(0, Math.min(1, liKpis.ctr / ctrTargetLi))
                   : undefined,
               accentColour,
             },
