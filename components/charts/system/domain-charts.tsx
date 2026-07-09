@@ -67,6 +67,8 @@ export function MediaGanttChart({
   rows, weeks = 24, months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
   weeksPerMonth = 4, todayWeek = null, rowHeight = 56, className,
 }: MediaGanttProps) {
+  const [tip, setTip] = React.useState<{ x: number; y: number; label: string; sub?: string } | null>(null);
+  const hostRef = React.useRef<HTMLDivElement>(null);
   const gutterClipId = `gantt-gutter-clip-${React.useId().replace(/:/g, "")}`;
   const W = 1180, headH = 44, padL = 230, x1 = W - 16;
   const H = headH + rows.length * rowHeight + 8;
@@ -74,6 +76,7 @@ export function MediaGanttChart({
   const wx = (w: number) => padL + weekW * w;
   const els: React.ReactNode[] = [];
   const labelEls: React.ReactNode[] = [];
+  const hitEls: React.ReactNode[] = [];
 
   rows.forEach((_, ri) => {
     if (ri % 2 === 0) els.push(<rect key={`rb${ri}`} x={0} y={round(headH + ri * rowHeight)} width={W} height={rowHeight} fill="var(--av-subsurface)" />);
@@ -107,6 +110,23 @@ export function MediaGanttChart({
       els.push(<rect key={`bf${ri}-${bi}`} x={round(bx + 1)} y={round(by)} width={round(bw)} height={bh} rx={5} fill={color} fillOpacity={(b.intensity ?? 0.85) * 0.92} />);
       if (bw > 48 && b.label) els.push(<text key={`bl${ri}-${bi}`} x={round(bx + 9)} y={round(by + 12.5)} fontSize={10} fontWeight={700} fill="#fff" style={TAB}>{b.label}</text>);
     });
+    hitEls.push(
+      <rect
+        key={`hit${ri}`}
+        x={0}
+        y={y}
+        width={padL}
+        height={rowHeight}
+        fill="transparent"
+        style={{ cursor: 'default' }}
+        onMouseMove={(e) => {
+          const host = hostRef.current?.getBoundingClientRect();
+          if (!host) return;
+          setTip({ x: e.clientX - host.left, y: e.clientY - host.top, label: row.label, sub: row.sub });
+        }}
+        onMouseLeave={() => setTip(null)}
+      />,
+    );
   });
   if (todayWeek != null) {
     els.push(<line key="tl" x1={round(wx(todayWeek))} x2={round(wx(todayWeek))} y1={headH - 12} y2={H - 6} stroke={INK} strokeWidth={1.5} strokeDasharray="3 3" />);
@@ -115,15 +135,28 @@ export function MediaGanttChart({
   }
   return (
     <div className={className}>
-      <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block' }}>
-        <defs>
-          <clipPath id={gutterClipId}>
-            <rect x={0} y={0} width={padL - 10} height={H} />
-          </clipPath>
-        </defs>
-        {els}
-        <g clipPath={`url(#${gutterClipId})`}>{labelEls}</g>
-      </svg>
+      <div ref={hostRef} className="relative">
+        <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block' }}>
+          <defs>
+            <clipPath id={gutterClipId}>
+              <rect x={0} y={0} width={padL - 10} height={H} />
+            </clipPath>
+          </defs>
+          {els}
+          <g clipPath={`url(#${gutterClipId})`}>{labelEls}</g>
+          {hitEls}
+        </svg>
+        {/* Class string mirrors CHART_TOOLTIP_CONTENT_CLASS in components/ui/chart.tsx — sync manually if that changes. */}
+        {tip && (
+          <div
+            className="pointer-events-none absolute z-50 grid min-w-[8rem] items-start gap-1.5 rounded-lg border border-border/50 bg-popover px-2.5 py-1.5 text-xs text-popover-foreground shadow-xl"
+            style={{ left: tip.x + 12, top: tip.y + 12 }}
+          >
+            <div className="font-medium">{tip.label}</div>
+            {tip.sub ? <span className="text-muted-foreground">{tip.sub}</span> : null}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
