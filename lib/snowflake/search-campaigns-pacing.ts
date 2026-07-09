@@ -1,7 +1,5 @@
 import "server-only"
 
-import crypto from "node:crypto"
-import { deleteByPrefix, get as cacheGet, set as cacheSet } from "@/lib/cache/ttlCache"
 import { querySnowflake } from "@/lib/snowflake/query"
 
 /** One ad-group-day row from SEARCH_PACING_FACT at ad-group grain. */
@@ -25,20 +23,9 @@ export type GetSearchCampaignsPacingArgs = {
   endDate: string
 }
 
-const CACHE_TTL_SECONDS = 4 * 60 * 60 // 4h, matches portfolio pacing
-
 function toNumber(value: unknown): number {
   const n = typeof value === "number" ? value : Number(value ?? 0)
   return Number.isFinite(n) ? n : 0
-}
-
-function cacheKey(args: GetSearchCampaignsPacingArgs): string {
-  const sorted = [...args.lineItemIds].map((s) => s.toLowerCase().trim()).sort().join(",")
-  const hash = crypto
-    .createHash("sha256")
-    .update(JSON.stringify({ sorted, startDate: args.startDate, endDate: args.endDate }))
-    .digest("hex")
-  return `searchCampaignsPacing:${hash}`
 }
 
 /**
@@ -57,10 +44,6 @@ export async function getSearchCampaignsPacingData(
 
   const ids = Array.from(new Set(args.lineItemIds.map((s) => s.toLowerCase().trim()))).filter(Boolean)
   if (ids.length === 0) return []
-
-  const key = cacheKey({ ...args, lineItemIds: ids })
-  const cached = cacheGet<SearchCampaignsPacingRawRow[]>(key)
-  if (cached) return cached
 
   const placeholders = ids.map(() => "?").join(", ")
   const sql = `
@@ -108,15 +91,5 @@ export async function getSearchCampaignsPacingData(
     REVENUE: toNumber(r.REVENUE),
   }))
 
-  cacheSet(key, rows, CACHE_TTL_SECONDS)
   return rows
-}
-
-/**
- * Invalidates every cached SEARCH_PACING_FACT query result for the
- * campaigns surface. Cheap, called only when an admin override changes
- * the underlying data and we need next page load to reflect it.
- */
-export function invalidateSearchCampaignsPacingCache(): number {
-  return deleteByPrefix("searchCampaignsPacing:")
 }

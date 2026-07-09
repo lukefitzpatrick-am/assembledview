@@ -1,7 +1,6 @@
 import "server-only";
 
 import { getLiveSearchLineItemIds } from "@/lib/pacing/campaigns/liveSearchLineItems";
-import { invalidateSearchCampaignsPacingCache } from "@/lib/snowflake/search-campaigns-pacing";
 import {
   sessionExecuteRows,
   sessionExecuteVoid,
@@ -136,8 +135,6 @@ export async function assignOrphanLineItem(
     campaignName: args.campaignName ?? null,
     note: args.note ?? null,
   });
-
-  invalidateSearchCampaignsPacingCache();
 
   return {
     rowsAffected: result.rowsAffected,
