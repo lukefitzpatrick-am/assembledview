@@ -168,6 +168,10 @@ export function parsePersistedBillingScheduleToMonths(
                     })
                   )
                 : undefined
+            const billingMode =
+              item.billingMode === "auto" || item.billingMode === "manual"
+                ? item.billingMode
+                : undefined
             return {
               id:
                 rawLiId != null && String(rawLiId).trim() !== ""
@@ -185,6 +189,7 @@ export function parsePersistedBillingScheduleToMonths(
               ...(mediaAmount !== undefined ? { mediaAmount } : {}),
               ...(feeAmount !== undefined ? { feeAmount, feeMonthlyAmounts, totalFeeAmount: feeAmount } : {}),
               ...(item.clientPaysForMedia === true ? { clientPaysForMedia: true } : {}),
+              ...(billingMode ? { billingMode } : {}),
             }
           })
         }
