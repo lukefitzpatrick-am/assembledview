@@ -58,12 +58,20 @@ function parseList(data: unknown): CreativeAsset[] {
 
 export async function listByMba(mbaNumber?: string): Promise<CreativeAsset[]> {
   try {
-    const response = await axios.get(xanoUrl(CREATIVE_ASSET_PATH, "XANO_CLIENTS_BASE_URL"), {
+    const base = xanoUrl(CREATIVE_ASSET_PATH, "XANO_CLIENTS_BASE_URL")
+    const url = mbaNumber
+      ? `${base}?mba_number=${encodeURIComponent(mbaNumber)}`
+      : base
+    const response = await axios.get(url, {
       headers: authHeaders(),
-      params: mbaNumber ? { mba_number: mbaNumber } : undefined,
       timeout: XANO_TIMEOUT_MS,
     })
-    return parseList(response.data)
+    const rows = parseList(response.data)
+    if (!mbaNumber) return rows
+    const normalized = mbaNumber.trim().toLowerCase()
+    return rows.filter(
+      (row) => String(row.mba_number ?? "").trim().toLowerCase() === normalized,
+    )
   } catch (error) {
     mapAxiosError(error, "listByMba")
   }
