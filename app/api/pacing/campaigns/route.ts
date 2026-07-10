@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requirePacingAccess } from "@/lib/pacing/pacingAuth";
 import { resolveClientSlugs } from "@/lib/pacing/scope/resolveClientSlugs";
-import { fetchSearchPacingCampaignRows } from "@/lib/pacing/campaigns/fetchSearchPacingCampaignRows";
+import { getCachedSearchPacingRows } from "@/lib/pacing/campaigns/pacingRowsCache";
 import { getAsOfDate } from "@/lib/pacing/maths";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
       : new Set(await resolveClientSlugs(gate.allowedClientIds));
 
   try {
-    const rows = await fetchSearchPacingCampaignRows({ asOfDate, allowedClientSlugs });
+    const rows = await getCachedSearchPacingRows(asOfDate, allowedClientSlugs);
     return NextResponse.json({ asOfDate, rows });
   } catch (err) {
     console.error("[api/pacing/campaigns] failed", err);

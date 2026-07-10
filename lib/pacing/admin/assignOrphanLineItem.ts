@@ -1,5 +1,7 @@
 import "server-only";
 
+import { revalidateTag } from "next/cache";
+import { PACING_CAMPAIGNS_TAG } from "@/lib/pacing/campaigns/pacingRowsCache";
 import { getLiveSearchLineItemIds } from "@/lib/pacing/campaigns/liveSearchLineItems";
 import {
   sessionExecuteRows,
@@ -135,6 +137,8 @@ export async function assignOrphanLineItem(
     campaignName: args.campaignName ?? null,
     note: args.note ?? null,
   });
+
+  revalidateTag(PACING_CAMPAIGNS_TAG);
 
   return {
     rowsAffected: result.rowsAffected,
