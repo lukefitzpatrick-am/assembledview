@@ -35,7 +35,16 @@ function resolveUploadedByEmail(user: { [key: string]: unknown }): string {
 function parseUploadClientPayload(
   clientPayload: string | null,
 ):
-  | { ok: true; value: { mba_number: string; line_item_id: string; source_table: string } }
+  | {
+      ok: true
+      value: {
+        mba_number: string
+        line_item_id: string
+        source_table: string
+        media_plan_master_id: number
+        file_size_bytes: number
+      }
+    }
   | { ok: false; error: string } {
   if (!clientPayload?.trim()) {
     return { ok: false, error: "clientPayload is required" }
@@ -58,12 +67,30 @@ function parseUploadClientPayload(
     return { ok: false, error: "clientPayload.mba_number is required" }
   }
 
+  const masterIdRaw = raw.media_plan_master_id
+  const mediaPlanMasterId =
+    typeof masterIdRaw === "number"
+      ? masterIdRaw
+      : Number.isFinite(Number(masterIdRaw))
+        ? Number(masterIdRaw)
+        : 0
+
+  const fileSizeRaw = raw.file_size_bytes
+  const fileSizeBytes =
+    typeof fileSizeRaw === "number"
+      ? fileSizeRaw
+      : Number.isFinite(Number(fileSizeRaw))
+        ? Number(fileSizeRaw)
+        : 0
+
   return {
     ok: true,
     value: {
       mba_number: mbaNumber,
       line_item_id: typeof raw.line_item_id === "string" ? raw.line_item_id.trim() : "",
       source_table: typeof raw.source_table === "string" ? raw.source_table.trim() : "",
+      media_plan_master_id: mediaPlanMasterId,
+      file_size_bytes: fileSizeBytes,
     },
   }
 }
@@ -111,7 +138,8 @@ export async function POST(request: NextRequest) {
           throw new Error(parsedPayload.error)
         }
 
-        const { mba_number, line_item_id, source_table } = parsedPayload.value
+        const { mba_number, line_item_id, source_table, media_plan_master_id, file_size_bytes } =
+          parsedPayload.value
         const roles = getUserRoles(session.user)
         if (roles.includes("client")) {
           const access = await checkClientMbaAccess(request, mba_number)
@@ -136,6 +164,8 @@ export async function POST(request: NextRequest) {
             mba_number,
             line_item_id,
             source_table,
+            media_plan_master_id,
+            file_size_bytes,
             email,
             role,
           }),
@@ -153,13 +183,13 @@ export async function POST(request: NextRequest) {
 
         await createIdempotent({
           mba_number: token.mba_number,
-          media_plan_master_id: 0,
+          media_plan_master_id: token.media_plan_master_id ?? 0,
           line_item_id: token.line_item_id,
           source_table: token.source_table,
           asset_name: originalFilename,
           original_filename: originalFilename,
           mime_type: blob.contentType || "application/octet-stream",
-          file_size_bytes: 0,
+          file_size_bytes: token.file_size_bytes ?? 0,
           width_px: 0,
           height_px: 0,
           duration_seconds: 0,

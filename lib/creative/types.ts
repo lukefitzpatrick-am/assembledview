@@ -77,6 +77,8 @@ export type UploadClientPayload = {
   mba_number: string
   line_item_id: string
   source_table: string
+  media_plan_master_id?: number
+  file_size_bytes?: number
 }
 
 export type UploadTokenPayload = UploadClientPayload & {
@@ -121,6 +123,18 @@ export function parseUploadTokenPayload(
       source_table: typeof raw.source_table === "string" ? raw.source_table.trim() : "",
       email: typeof raw.email === "string" ? raw.email.trim() : "",
       role,
+      media_plan_master_id:
+        typeof raw.media_plan_master_id === "number" && Number.isFinite(raw.media_plan_master_id)
+          ? raw.media_plan_master_id
+          : Number.isFinite(Number(raw.media_plan_master_id))
+            ? Number(raw.media_plan_master_id)
+            : undefined,
+      file_size_bytes:
+        typeof raw.file_size_bytes === "number" && Number.isFinite(raw.file_size_bytes)
+          ? raw.file_size_bytes
+          : Number.isFinite(Number(raw.file_size_bytes))
+            ? Number(raw.file_size_bytes)
+            : undefined,
     },
   }
 }
@@ -174,10 +188,8 @@ export function validateCreativeAssetCreateBody(
     }
   }
 
-  const stringFields = [
+  const requiredStringFields = [
     "mba_number",
-    "line_item_id",
-    "source_table",
     "asset_name",
     "original_filename",
     "mime_type",
@@ -185,9 +197,16 @@ export function validateCreativeAssetCreateBody(
     "blob_pathname",
   ] as const
 
-  for (const field of stringFields) {
+  for (const field of requiredStringFields) {
     const err = requireString(raw[field], field)
     if (err) return { ok: false, error: err }
+  }
+
+  if (typeof raw.line_item_id !== "string") {
+    return { ok: false, error: "line_item_id must be a string" }
+  }
+  if (typeof raw.source_table !== "string") {
+    return { ok: false, error: "source_table must be a string" }
   }
 
   const numberFields = [
@@ -345,15 +364,17 @@ export function validateCreativeAssetPatch(
   }
 
   if ("line_item_id" in raw) {
-    const err = requireString(raw.line_item_id, "line_item_id")
-    if (err) return { ok: false, error: err }
-    patch.line_item_id = String(raw.line_item_id).trim()
+    if (typeof raw.line_item_id !== "string") {
+      return { ok: false, error: "line_item_id must be a string" }
+    }
+    patch.line_item_id = raw.line_item_id.trim()
   }
 
   if ("source_table" in raw) {
-    const err = requireString(raw.source_table, "source_table")
-    if (err) return { ok: false, error: err }
-    patch.source_table = String(raw.source_table).trim()
+    if (typeof raw.source_table !== "string") {
+      return { ok: false, error: "source_table must be a string" }
+    }
+    patch.source_table = raw.source_table.trim()
   }
 
   for (const field of ["width_px", "height_px", "duration_seconds"] as const) {

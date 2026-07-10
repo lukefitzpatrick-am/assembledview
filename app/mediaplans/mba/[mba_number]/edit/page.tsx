@@ -13,6 +13,7 @@ import {
   type SetStateAction,
 } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import Link from "next/link"
 import { Controller, useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
@@ -8709,15 +8710,20 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         title="Edit Campaign"
         subtitle={<p>Update campaign settings, media types, and line item details.</p>}
         heroActions={
-          <Button
-            variant="ghost"
-            size="sm"
-            type="button"
-            className="text-xs"
-            onClick={handleCopyPageContext}
-          >
-            Copy Context
-          </Button>
+          <>
+            <Button variant="outline" size="sm" type="button" className="text-xs" asChild>
+              <Link href={`/mediaplans/mba/${encodeURIComponent(mbaNumber)}/creative`}>Creative</Link>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              type="button"
+              className="text-xs"
+              onClick={handleCopyPageContext}
+            >
+              Copy Context
+            </Button>
+          </>
         }
         steps={createCampaignSteps.map((step) => ({
           id: step.id,
