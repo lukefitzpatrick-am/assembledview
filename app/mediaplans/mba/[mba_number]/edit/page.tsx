@@ -7548,12 +7548,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     if (campaignBudget > 0 && Math.abs(diff) > 2) {
       toast({
         title: "Saved with budget mismatch",
-        description: `Total differs from Campaign Budget by ${formatMoney(Math.abs(diff), {
-          locale: "en-US",
-          currency: "USD",
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        })} (${diff > 0 ? "over" : "under"}).`,
+        description: `Total differs from Campaign Budget by ${formatAUD(Math.abs(diff))} (${diff > 0 ? "over" : "under"}).`,
       })
     }
 
@@ -10464,26 +10459,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                   <p className="font-bold">Budget mismatch (warning)</p>
                   <p className="text-sm">
                     Campaign Budget:{" "}
-                    {formatMoney(budgetForWarn, {
-                      locale: "en-US",
-                      currency: "USD",
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
+                    {formatAUD(budgetForWarn)}
                     . Total Investment:{" "}
-                    {formatMoney(totalInvestment, {
-                      locale: "en-US",
-                      currency: "USD",
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
+                    {formatAUD(totalInvestment)}
                     . Difference:{" "}
-                    {formatMoney(Math.abs(diff), {
-                      locale: "en-US",
-                      currency: "USD",
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}{" "}
+                    {formatAUD(Math.abs(diff))}{" "}
                     {diff > 0 ? "over" : "under"}.
                   </p>
                 </div>
@@ -10533,12 +10513,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                         <div className="flex w-full items-center justify-between pr-4">
                           <span className="text-sm font-medium">{medium.label}</span>
                           <span className="text-sm">
-                            {formatMoney(partialMBAValues.mediaTotals[mediaKey] || 0, {
-                              locale: "en-US",
-                              currency: "USD",
-                              minimumFractionDigits: 2,
-                              maximumFractionDigits: 2,
-                            })}
+                            {formatAUD(partialMBAValues.mediaTotals[mediaKey] || 0)}
                           </span>
                         </div>
                       </AccordionTrigger>
@@ -10572,12 +10547,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                                     </span>
                                   </label>
                                   <span className="shrink-0 tabular-nums">
-                                    {formatMoney(item.amount, {
-                                      locale: "en-US",
-                                      currency: "USD",
-                                      minimumFractionDigits: 2,
-                                      maximumFractionDigits: 2,
-                                    })}
+                                    {formatAUD(item.amount)}
                                   </span>
                                 </div>
                               )
@@ -10597,12 +10567,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 <label className="text-sm font-medium">Gross Media Total</label>
                 <Input
                   className="text-right w-48 bg-muted"
-                  value={formatMoney(partialMBAValues.grossMedia, {
-                    locale: "en-US",
-                    currency: "USD",
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
+                  value={formatAUD(partialMBAValues.grossMedia)}
                   readOnly // This field is calculated automatically
                 />
               </div>
@@ -10610,12 +10575,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 <label className="text-sm font-medium">Assembled Fee</label>
                 <Input
                   className="text-right w-48"
-                  value={formatMoney(partialMBAValues.assembledFee, {
-                    locale: "en-US",
-                    currency: "USD",
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
+                  value={formatAUD(partialMBAValues.assembledFee)}
                   onBlur={(e) => handlePartialMBAChange('assembledFee', e.target.value)}
                   onChange={(e) => setPartialMBAValues(p => ({...p, assembledFee: parseFloat(e.target.value.replace(/[^0-9.-]/g, '')) || 0}))}
                 />
@@ -10624,12 +10584,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 <label className="text-sm font-medium">Ad Serving & Tech Fees</label>
                 <Input
                   className="text-right w-48"
-                  value={formatMoney(partialMBAValues.adServing, {
-                    locale: "en-US",
-                    currency: "USD",
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
+                  value={formatAUD(partialMBAValues.adServing)}
                   onBlur={(e) => handlePartialMBAChange('adServing', e.target.value)}
                   onChange={(e) => setPartialMBAValues(p => ({...p, adServing: parseFloat(e.target.value.replace(/[^0-9.-]/g, '')) || 0}))}
                 />
@@ -10638,12 +10593,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 <label className="text-sm font-medium">Production</label>
                 <Input
                   className="text-right w-48"
-                  value={formatMoney(partialMBAValues.production, {
-                    locale: "en-US",
-                    currency: "USD",
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
+                  value={formatAUD(partialMBAValues.production)}
                   onBlur={(e) => handlePartialMBAChange('production', e.target.value)}
                   onChange={(e) => setPartialMBAValues(p => ({...p, production: parseFloat(e.target.value.replace(/[^0-9.-]/g, '')) || 0}))}
                 />
@@ -10651,17 +10601,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               <div className="border-t pt-4 mt-4 flex items-center justify-between">
                 <label className="text-sm font-bold">Total Investment (ex GST)</label>
                 <div className="text-right w-48 font-bold p-2">
-                  {formatMoney(
+                  {formatAUD(
                     partialMBAValues.grossMedia +
                       partialMBAValues.assembledFee +
                       partialMBAValues.adServing +
-                      partialMBAValues.production,
-                    {
-                      locale: "en-US",
-                      currency: "USD",
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    }
+                      partialMBAValues.production
                   )}
                 </div>
               </div>
