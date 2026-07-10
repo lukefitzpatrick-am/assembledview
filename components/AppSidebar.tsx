@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { FileText, Users, Building2, LayoutDashboard, PlusCircle, ChevronDown, ChevronRight, UserCircle, DollarSign, BarChart3, ClipboardList, BookOpen, TrendingUp } from "lucide-react";
+import { FileText, Users, Building2, LayoutDashboard, PlusCircle, ChevronDown, ChevronRight, UserCircle, DollarSign, BarChart3, ClipboardList, BookOpen, TrendingUp, Images } from "lucide-react";
 import { UserMenu } from "@/components/UserMenu";
 import {
   Sidebar,
@@ -85,6 +85,7 @@ export function AppSidebar() {
   const adminMenuItems = useMemo(() => ([
     { title: "Home", icon: LayoutDashboard, href: "/dashboard", exact: true as const },
     { title: "Campaigns", icon: FileText, href: "/mediaplans", exact: false as const, isActive: isCampaignsNavActive },
+    { title: "Creative", icon: Images, href: "/creative" },
     { title: "Scopes of Work", icon: ClipboardList, href: "/scopes-of-work" },
     { title: "Pacing", icon: TrendingUp, href: "/pacing" },
     { title: "Publishers", icon: Building2, href: "/publishers" },
