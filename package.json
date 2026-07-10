@@ -54,6 +54,7 @@
     "@sendgrid/mail": "^8.1.6",
     "@tanstack/react-table": "^8.21.3",
     "@tanstack/react-virtual": "^3.13.23",
+    "@vercel/blob": "^2.6.1",
     "autoprefixer": "^10.4.20",
     "axios": "^1.8.4",
     "class-variance-authority": "^0.7.1",

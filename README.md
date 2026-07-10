@@ -101,6 +101,7 @@ The admin user create/update API expects Auth0 Management credentials and, when 
 Many routes call Xano REST groups. Typical variables (not exhaustive—grep `process.env.XANO_` for the full set):
 
 - `XANO_API_KEY` — Bearer token for secured Xano APIs
+- `BLOB_READ_WRITE_TOKEN` — Vercel Blob read-write token for creative asset storage (private SYD1 store)
 - `XANO_MEDIA_PLANS_BASE_URL` / `XANO_MEDIAPLANS_BASE_URL` — media plan master, versions, line items
 - `XANO_CLIENTS_BASE_URL` — clients, finance helpers, some pacing alerts
 - `XANO_PUBLISHERS_BASE_URL`, `XANO_MEDIA_CONTAINERS_BASE_URL`, `XANO_MEDIA_DETAILS_BASE_URL`
