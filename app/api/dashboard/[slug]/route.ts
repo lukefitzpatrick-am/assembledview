@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { auth0 } from '@/lib/auth0'
+import { getUserRoles, getUserClientSlugs } from '@/lib/rbac'
 import { getClientDashboardData, exportDashboardData } from '@/lib/api/dashboard'
 
 export async function GET(
@@ -7,6 +9,21 @@ export async function GET(
 ) {
   try {
     const { slug } = await params
+
+    const session = await auth0.getSession(request)
+    if (!session?.user) {
+      return NextResponse.json({ error: 'unauthorised' }, { status: 401 })
+    }
+    const roles = getUserRoles(session.user)
+    const tenantSlugs = getUserClientSlugs(session.user)
+    const unscoped = roles.includes('admin') || tenantSlugs.length === 0
+    // Claims are already lowercased by getUserClientSlugs; normalise the URL param too.
+    const slugKey = slug.toLowerCase()
+    if (!unscoped && !tenantSlugs.some((s) => s.toLowerCase() === slugKey)) {
+      console.warn(`[dashboard] tenant mismatch: caller scoped to [${tenantSlugs.join(',')}] requested slug "${slug}"`)
+      return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+    }
+
     const { searchParams } = new URL(request.url)
     const format = searchParams.get('format') as 'csv' | 'json' | null
 
@@ -40,4 +57,3 @@ export async function GET(
     )
   }
 }
-
