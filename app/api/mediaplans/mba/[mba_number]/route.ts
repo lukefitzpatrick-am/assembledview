@@ -1261,12 +1261,16 @@ export async function GET(
 
 // PUT (update) a media plan by MBA number - creates new version for version control
 export async function PUT(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ mba_number: string }> }
 ) {
   try {
     const mediaPlansBaseUrl = getXanoBaseUrl(["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
     const { mba_number } = await params
+
+    const access = await checkClientMbaAccess(request, mba_number)
+    if (!access.ok) return access.response
+
     const data = await request.json()
     
     console.log(`Creating new version for media plan with MBA: ${mba_number}`)
@@ -1509,12 +1513,16 @@ export async function PUT(
 
 // PATCH (update) media plan master by MBA number
 export async function PATCH(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ mba_number: string }> }
 ) {
   try {
     const mediaPlansBaseUrl = getXanoBaseUrl(["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
     const { mba_number } = await params
+
+    const access = await checkClientMbaAccess(request, mba_number)
+    if (!access.ok) return access.response
+
     const data = await request.json()
     
     console.log(`[PATCH] Updating media plan master for MBA: "${mba_number}"`)
