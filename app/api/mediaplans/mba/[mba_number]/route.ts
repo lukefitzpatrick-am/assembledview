@@ -1185,6 +1185,8 @@ export async function GET(
       versions: versionsMetadata.sort((a, b) => (a.version_number || 0) - (b.version_number || 0)),
       latestVersionNumber,
       nextVersionNumber,
+      // After spreads so versionData.id cannot shadow the master's primary key
+      media_plan_master_id: masterData.id,
     }
 
     if (clientBrandColour) {
