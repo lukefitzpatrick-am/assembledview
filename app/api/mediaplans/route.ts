@@ -1,8 +1,9 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import axios from "axios"
 import { toMelbourneDateString } from "@/lib/timezone"
 import { xanoUrl } from "@/lib/api/xano"
 import { findExistingMasterByMbaNumber } from "@/lib/api/mediaPlanMasterLookup"
+import { requireRole } from "@/lib/requireRole"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -11,11 +12,11 @@ export const maxDuration = 60
 const XANO_TIMEOUT_MS = 15_000
 const XANO_LONG_TIMEOUT_MS = 30_000
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
-    // For now, allow access for development
-    // In production, you would validate the Auth0 session here
-    
+    const gate = await requireRole(request, ["admin", "manager"])
+    if ("response" in gate) return gate.response
+
     const data = await request.json()
     const mbaNumberRaw = data.mbanumber ?? data.mba_number ?? ""
     const mbaNumber = typeof mbaNumberRaw === "string" ? mbaNumberRaw.trim() : String(mbaNumberRaw).trim()
@@ -97,11 +98,11 @@ export async function POST(request: Request) {
   }
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    // For now, allow access for development
-    // In production, you would validate the Auth0 session here
-    
+    const gate = await requireRole(request, ["admin", "manager"])
+    if ("response" in gate) return gate.response
+
     // Fetch from MediaPlanVersions to get the latest versions with media type flags
     try {
       // Trimmed endpoint: list-view scalar fields only (no billingSchedule/deliverySchedule); sole consumer is app/mediaplans/page.tsx
