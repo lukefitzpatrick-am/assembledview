@@ -19,6 +19,7 @@ type ClientRow = {
   client_name?: string
   clientname_input?: string
   name?: string
+  idmeta?: string | number | null
 }
 
 type MediaPlanRow = {
@@ -184,6 +185,13 @@ export function CreativeCampaignPicker({ lockedClientName }: CreativeCampaignPic
     [clientCampaigns, mbaNumber],
   )
 
+  const selectedClientMetaPageId = useMemo(() => {
+    if (!clientName) return ""
+    const selected = normalizeClientName(clientName)
+    const row = clients.find((client) => normalizeClientName(getClientDisplayName(client)) === selected)
+    return String(row?.idmeta ?? "").trim()
+  }, [clientName, clients])
+
   const handleClientChange = (next: string) => {
     setClientName(next)
     setMbaNumber("")
@@ -314,7 +322,13 @@ export function CreativeCampaignPicker({ lockedClientName }: CreativeCampaignPic
         </div>
       ) : null}
 
-      {mbaNumber ? <CreativeAssetManager key={mbaNumber} mbaNumber={mbaNumber} /> : null}
+      {mbaNumber ? (
+        <CreativeAssetManager
+          key={mbaNumber}
+          mbaNumber={mbaNumber}
+          metaPageId={selectedClientMetaPageId}
+        />
+      ) : null}
     </div>
   )
 }

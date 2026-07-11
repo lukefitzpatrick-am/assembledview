@@ -10,9 +10,10 @@ import type { SocialAdCopy } from "./types"
 type Props = {
   copy: SocialAdCopy
   asset: CreativeAsset
+  metaPageId?: string
 }
 
-export function InstagramStoryAd({ copy, asset }: Props) {
+export function InstagramStoryAd({ copy, asset, metaPageId }: Props) {
   const brand = copy.brandName.trim() || "Brand"
   const username = brand.replace(/\s+/g, "").toLowerCase() || "brand"
 
@@ -27,7 +28,7 @@ export function InstagramStoryAd({ copy, asset }: Props) {
               <div className="h-full w-2/5 rounded-pill bg-background" />
             </div>
             <div className="flex items-center gap-2">
-              <BrandAvatar name={brand} size="sm" />
+              <BrandAvatar name={brand} size="sm" metaPageId={metaPageId} />
               <p className="truncate text-sm font-semibold lowercase text-background">{username}</p>
               <span className="rounded-input bg-background/20 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-background">
                 Sponsored

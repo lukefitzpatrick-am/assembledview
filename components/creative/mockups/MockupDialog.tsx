@@ -36,6 +36,8 @@ type MockupDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   defaultBrandName: string
+  /** Client Meta page id (`idmeta`) for FB/IG avatars. */
+  metaPageId?: string
 }
 
 function SocialAdForm({
@@ -61,6 +63,8 @@ function SocialAdForm({
           onChange={(event) => patch("brandName", event.target.value)}
           placeholder="Brand"
         />
+        {/* Display name via Graph API requires a page access token — belongs to the
+            platform-push integration backlog. Form field remains the display-name source. */}
       </div>
 
       <div className="space-y-1.5">
@@ -144,6 +148,7 @@ export function MockupDialog({
   open,
   onOpenChange,
   defaultBrandName,
+  metaPageId,
 }: MockupDialogProps) {
   const [templateId, setTemplateId] = useState<MockTemplateId>("facebook-feed")
   const [adCopy, setAdCopy] = useState<SocialAdCopy>(() =>
@@ -219,6 +224,7 @@ export function MockupDialog({
                   }
                   copy={adCopy}
                   asset={asset}
+                  metaPageId={metaPageId}
                 />
               ) : (
                 <WebPageMockTemplates

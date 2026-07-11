@@ -18,12 +18,15 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
+import { getClientDisplayName } from "@/lib/clients/slug"
 import { flattenLineItemOptions, type LineItemOption } from "@/lib/creative/lineItemOptions"
 import type { CreativeAsset } from "@/lib/creative/types"
 
 type CreativeAssetManagerProps = {
   mbaNumber: string
   showPageHeader?: boolean
+  /** Meta page id from the selected client row (standalone picker). */
+  metaPageId?: string
 }
 
 type MediaPlanPayload = {
@@ -35,14 +38,30 @@ type MediaPlanPayload = {
   lineItems?: Record<string, unknown[]>
 }
 
+type ClientRow = {
+  idmeta?: string | number | null
+  mp_client_name?: string
+  client_name?: string
+  clientname_input?: string
+  name?: string
+}
+
 type StatusFilter = "all" | "active" | "archived"
+
+function normalizeClientName(value: string | undefined | null): string {
+  return String(value ?? "").trim().toLowerCase()
+}
 
 async function readError(response: Response, fallback: string): Promise<string> {
   const data = (await response.json().catch(() => null)) as { error?: string } | null
   return data?.error || fallback
 }
 
-export function CreativeAssetManager({ mbaNumber, showPageHeader = false }: CreativeAssetManagerProps) {
+export function CreativeAssetManager({
+  mbaNumber,
+  showPageHeader = false,
+  metaPageId: metaPageIdProp,
+}: CreativeAssetManagerProps) {
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
   const [assets, setAssets] = useState<CreativeAsset[]>([])
@@ -50,6 +69,7 @@ export function CreativeAssetManager({ mbaNumber, showPageHeader = false }: Crea
   const [mediaPlanMasterId, setMediaPlanMasterId] = useState<number | null>(null)
   const [campaignName, setCampaignName] = useState<string>("")
   const [clientName, setClientName] = useState<string>("")
+  const [resolvedMetaPageId, setResolvedMetaPageId] = useState(() => metaPageIdProp?.trim() ?? "")
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("active")
   const [nameFilter, setNameFilter] = useState("")
   const [uploadLineItemKey, setUploadLineItemKey] = useState("none")
@@ -132,6 +152,42 @@ export function CreativeAssetManager({ mbaNumber, showPageHeader = false }: Crea
   useEffect(() => {
     void loadData()
   }, [loadData])
+
+  useEffect(() => {
+    const fromProp = metaPageIdProp?.trim() ?? ""
+    if (fromProp) {
+      setResolvedMetaPageId(fromProp)
+      return
+    }
+
+    if (!clientName || clientName === "Brand") {
+      setResolvedMetaPageId("")
+      return
+    }
+
+    let cancelled = false
+    async function resolveMetaPageId() {
+      try {
+        const response = await fetch("/api/clients")
+        if (!response.ok || cancelled) return
+        const rows = (await response.json()) as unknown
+        if (!Array.isArray(rows) || cancelled) return
+        const selected = normalizeClientName(clientName)
+        const match = (rows as ClientRow[]).find(
+          (row) => normalizeClientName(getClientDisplayName(row)) === selected,
+        )
+        const id = String(match?.idmeta ?? "").trim()
+        if (!cancelled) setResolvedMetaPageId(id)
+      } catch {
+        if (!cancelled) setResolvedMetaPageId("")
+      }
+    }
+
+    void resolveMetaPageId()
+    return () => {
+      cancelled = true
+    }
+  }, [clientName, metaPageIdProp])
 
   const filteredAssets = useMemo(() => {
     const query = nameFilter.trim().toLowerCase()
@@ -339,6 +395,7 @@ export function CreativeAssetManager({ mbaNumber, showPageHeader = false }: Crea
             assets={filteredAssets}
             lineItemOptions={lineItemOptions}
             defaultBrandName={clientName}
+            metaPageId={resolvedMetaPageId}
             onRename={handleRename}
             onLineItemChange={handleLineItemChange}
             onStatusToggle={handleStatusToggle}

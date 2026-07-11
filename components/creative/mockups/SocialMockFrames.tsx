@@ -24,17 +24,19 @@ type SocialMockFramesProps = {
   >
   copy: SocialAdCopy
   asset: CreativeAsset
+  metaPageId?: string
 }
 
-export function SocialMockFrames({ templateId, copy, asset }: SocialMockFramesProps) {
+export function SocialMockFrames({ templateId, copy, asset, metaPageId }: SocialMockFramesProps) {
   switch (templateId) {
     case "facebook-feed":
-      return <FacebookFeedAd copy={copy} asset={asset} />
+      return <FacebookFeedAd copy={copy} asset={asset} metaPageId={metaPageId} />
     case "instagram-feed":
-      return <InstagramFeedAd copy={copy} asset={asset} />
+      return <InstagramFeedAd copy={copy} asset={asset} metaPageId={metaPageId} />
     case "instagram-story":
-      return <InstagramStoryAd copy={copy} asset={asset} />
+      return <InstagramStoryAd copy={copy} asset={asset} metaPageId={metaPageId} />
     case "tiktok":
+      // TikTok uses a different platform identity — keep initials, not Meta page avatars.
       return <TikTokAd copy={copy} asset={asset} />
     default:
       return null

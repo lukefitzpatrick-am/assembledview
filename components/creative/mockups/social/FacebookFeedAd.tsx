@@ -21,9 +21,10 @@ import type { SocialAdCopy } from "./types"
 type Props = {
   copy: SocialAdCopy
   asset: CreativeAsset
+  metaPageId?: string
 }
 
-export function FacebookFeedAd({ copy, asset }: Props) {
+export function FacebookFeedAd({ copy, asset, metaPageId }: Props) {
   const brand = copy.brandName.trim() || "Brand"
   const primary = truncateWithMore(copy.primaryText, 125, "See more")
   const link = formatDisplayLink(copy.displayLink)
@@ -32,7 +33,7 @@ export function FacebookFeedAd({ copy, asset }: Props) {
     <FacebookFeedShell>
       <article className="w-full bg-card">
         <header className="flex items-center gap-3 px-4 py-3">
-          <BrandAvatar name={brand} />
+          <BrandAvatar name={brand} metaPageId={metaPageId} />
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-foreground">{brand}</p>
             <p className="flex items-center gap-1 text-xs text-muted-foreground">

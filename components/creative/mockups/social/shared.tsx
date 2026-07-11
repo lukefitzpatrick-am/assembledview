@@ -1,6 +1,7 @@
 "use client"
 
 import type { ReactNode } from "react"
+import { useEffect, useState } from "react"
 
 import type { CreativeAsset } from "@/lib/creative/types"
 import { cn } from "@/lib/utils"
@@ -55,13 +56,37 @@ export function BrandAvatar({
   name,
   size = "md",
   className,
+  metaPageId,
 }: {
   name: string
   size?: "sm" | "md" | "lg"
   className?: string
+  /** Meta Page ID — public Graph picture URL when set; initials on missing/broken. */
+  metaPageId?: string
 }) {
+  const [imgFailed, setImgFailed] = useState(false)
   const sizeClass =
     size === "sm" ? "h-7 w-7 text-[10px]" : size === "lg" ? "h-11 w-11 text-sm" : "h-9 w-9 text-xs"
+  const pageId = metaPageId?.trim() ?? ""
+  const showImage = pageId.length > 0 && !imgFailed
+
+  useEffect(() => {
+    setImgFailed(false)
+  }, [pageId])
+
+  if (showImage) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element -- public Graph CDN avatar; no next/image remote config needed
+      <img
+        src={`https://graph.facebook.com/${encodeURIComponent(pageId)}/picture?type=large`}
+        alt=""
+        referrerPolicy="no-referrer"
+        className={cn("shrink-0 rounded-full object-cover", sizeClass, className)}
+        onError={() => setImgFailed(true)}
+        aria-hidden
+      />
+    )
+  }
 
   return (
     <div

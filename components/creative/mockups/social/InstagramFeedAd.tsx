@@ -16,9 +16,10 @@ import type { SocialAdCopy } from "./types"
 type Props = {
   copy: SocialAdCopy
   asset: CreativeAsset
+  metaPageId?: string
 }
 
-export function InstagramFeedAd({ copy, asset }: Props) {
+export function InstagramFeedAd({ copy, asset, metaPageId }: Props) {
   const brand = copy.brandName.trim() || "Brand"
   const username = brand.replace(/\s+/g, "").toLowerCase() || "brand"
   const caption = truncateWithMore(copy.primaryText, 90, "more")
@@ -28,7 +29,7 @@ export function InstagramFeedAd({ copy, asset }: Props) {
       <article className="w-full border-b border-border bg-card">
         <header className="flex items-center gap-2.5 px-3 py-2.5">
           <IgGradientRing>
-            <BrandAvatar name={brand} size="sm" />
+            <BrandAvatar name={brand} size="sm" metaPageId={metaPageId} />
           </IgGradientRing>
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold lowercase text-foreground">{username}</p>
