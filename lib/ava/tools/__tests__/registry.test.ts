@@ -24,7 +24,14 @@ test("ava tool catalog: names unique and complete", () => {
   assert.ok(AVA_TOOL_NAMES.includes("get_pacing_snapshot"))
   assert.ok(AVA_TOOL_NAMES.includes("apply_form_patch"))
   assert.ok(AVA_TOOL_NAMES.includes("get_media_plan_summary"))
-  assert.equal(AVA_TOOL_NAMES.length, 10)
+  assert.ok(AVA_TOOL_NAMES.includes("get_platform_specs"))
+  assert.ok(AVA_TOOL_NAMES.includes("start_mi_interview"))
+  assert.ok(AVA_TOOL_NAMES.includes("generate_mi_workbook"))
+  assert.equal(AVA_TOOL_NAMES.length, 13)
+  assert.deepEqual(
+    AVA_TOOL_NAMES.slice(-3),
+    ["get_platform_specs", "start_mi_interview", "generate_mi_workbook"],
+  )
 })
 
 test("get_client_details shape", () => {
