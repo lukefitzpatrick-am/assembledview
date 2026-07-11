@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react"
+import { usePathname } from "next/navigation"
 
 import {
   allocate,
@@ -16,6 +17,7 @@ import type {
 } from "@/app/tools/behavioural-planner/lib/types"
 import { MethodologyPanel } from "@/components/planning/MethodologyPanel"
 import { PlanningStepper } from "@/components/planning/PlanningStepper"
+import { robustnessFromN } from "@/components/planning/robustness"
 import { StageAudiences } from "@/components/planning/StageAudiences"
 import { StageBrief } from "@/components/planning/StageBrief"
 import {
@@ -38,6 +40,8 @@ import {
 } from "@/components/planning/store"
 import type { StageId } from "@/components/planning/constants"
 import { useToast } from "@/components/ui/use-toast"
+import { setAssistantContext, clearAssistantContext } from "@/lib/assistantBridge"
+import type { PageContext } from "@/lib/ava/types"
 import { adaptAudienceToEngine, type AdapterResult } from "@/lib/planning/adapter"
 import { resolveEngineParams } from "@/lib/planning/engineParams"
 import type { PlanningAudienceRow } from "@/lib/planning/audienceTypes"
@@ -50,6 +54,14 @@ import type {
 import { PLANNING_GENDERS } from "@/lib/planning/types"
 
 const DEBOUNCE_MS = 350
+const AVA_LIST_CAP = 20
+const AVA_TEXT_CAP = 200
+
+function avaTruncate(value: unknown, max = AVA_TEXT_CAP): string {
+  const s = value == null ? "" : String(value)
+  if (s.length <= max) return s
+  return `${s.slice(0, max - 1)}…`
+}
 
 type AudienceResult = {
   adapted: AdapterResult | null
@@ -182,6 +194,7 @@ function briefClientId(
 }
 
 export function BehaviouralPlannerClient() {
+  const pathname = usePathname()
   const { toast } = useToast()
   const [meta, setMeta] = useState<PlanningMeta | null>(null)
   const [metaError, setMetaError] = useState<string | null>(null)
@@ -465,6 +478,64 @@ export function BehaviouralPlannerClient() {
       description: "Builder restored from the saved definition.",
     })
   }
+
+  const getPageContext = useCallback((): PageContext => {
+    const audiences = state.audiences.slice(0, AVA_LIST_CAP).map((a) => {
+      const adapted = results[a.id]?.adapted
+      const rob = robustnessFromN(adapted?.unweightedN ?? 0)
+      return {
+        id: a.id,
+        name: avaTruncate(a.name, 80),
+        reachBasis: a.reachBasis,
+        states: a.states.slice(0, 8),
+        audienceWc: adapted?.audienceWc ?? null,
+        unweightedN: rob.n,
+        robustnessBand: rob.band,
+        robustnessLabel: rob.label,
+      }
+    })
+    const active = state.audiences.find((a) => a.id === state.activeAudienceId)
+
+    return {
+      route: { pathname: pathname || "/tools/behavioural-planner" },
+      generatedAt: new Date().toISOString(),
+      entities: {
+        clientName: state.brief.clientName || undefined,
+        campaignName: state.brief.campaignName || undefined,
+      },
+      pageText: {
+        title: "Demand Flow planner",
+        breadcrumbs: ["Tools", "Planning"],
+      },
+      state: {
+        surface: "planning",
+        stage: state.stage,
+        waveId: state.waveId || null,
+        brief: {
+          clientId: state.brief.clientId,
+          clientName: avaTruncate(state.brief.clientName, 80),
+          startDate: state.brief.startDate,
+          endDate: state.brief.endDate,
+          budget: state.brief.budget,
+          objectiveKind: state.brief.objectiveKind,
+        },
+        activeAudienceId: state.activeAudienceId,
+        activeReachBasis: active?.reachBasis ?? null,
+        audienceCount: state.audiences.length,
+        audiences,
+      },
+    }
+  }, [pathname, results, state])
+
+  useEffect(() => {
+    setAssistantContext({ pageContext: getPageContext() })
+  }, [getPageContext])
+
+  useEffect(() => {
+    return () => {
+      clearAssistantContext()
+    }
+  }, [])
 
   if (metaLoading) {
     return (
