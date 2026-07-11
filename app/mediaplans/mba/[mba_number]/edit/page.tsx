@@ -8714,6 +8714,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             <Button variant="outline" size="sm" type="button" className="text-xs" asChild>
               <Link href={`/mediaplans/mba/${encodeURIComponent(mbaNumber)}/creative`}>Creative</Link>
             </Button>
+            <Button variant="outline" size="sm" type="button" className="text-xs" asChild>
+              <Link href={`/mediaplans/mba/${encodeURIComponent(mbaNumber)}/trafficking`}>Trafficking</Link>
+            </Button>
             <Button
               variant="ghost"
               size="sm"

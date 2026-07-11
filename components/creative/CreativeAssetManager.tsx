@@ -331,6 +331,13 @@ export function CreativeAssetManager({
               </Button>
             </div>
           }
+          actions={
+            <Button variant="outline" size="sm" type="button" className="text-xs" asChild>
+              <Link href={`/mediaplans/mba/${encodeURIComponent(mbaNumber)}/trafficking`}>
+                Trafficking
+              </Link>
+            </Button>
+          }
         />
       ) : null}
 
