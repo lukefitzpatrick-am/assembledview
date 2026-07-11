@@ -32,6 +32,7 @@ import {
   createAudienceDraft,
   createInitialState,
   deriveBcsParams,
+  effectiveSegmentId,
   isAudiencesComplete,
   isBriefComplete,
   planningReducer,
@@ -70,20 +71,15 @@ type AudienceResult = {
   error: string | null
 }
 
-function defaultSegmentId(meta: PlanningMeta): string {
-  return (
-    meta.segments.find((s) => s.segment_id === "metro")?.segment_id ??
-    meta.segments.find((s) => /metro|cap.?cit/i.test(s.name))?.segment_id ??
-    meta.segments[0]?.segment_id ??
-    ""
-  )
+function defaultSegmentId(_meta: PlanningMeta): string {
+  return "base"
 }
 
 function toAudienceRequest(
   waveId: string,
   draft: AudienceDraft
 ): AudienceRequest | null {
-  if (!waveId || !draft.segmentId) return null
+  if (!waveId) return null
   if (draft.states.length === 0) return null
   const genders =
     draft.gender === "all"
@@ -93,7 +89,7 @@ function toAudienceRequest(
         : []
   return {
     wave_id: waveId,
-    segment_id: draft.segmentId,
+    segment_id: effectiveSegmentId(draft.segmentId),
     states: draft.states,
     genders,
     age_bands: draft.ageBands,
@@ -105,7 +101,7 @@ function audienceKey(waveId: string, draft: AudienceDraft): string {
   return [
     waveId,
     draft.id,
-    draft.segmentId,
+    effectiveSegmentId(draft.segmentId),
     draft.states.join(","),
     draft.ageBands.join(","),
     draft.gender,
@@ -145,7 +141,7 @@ function toPlannerInputs(
   const geos: GeoId[] = draft.states.map((s) => STATE_TO_GEO[s] ?? "au")
   return {
     objective,
-    segments: draft.segmentId ? [draft.segmentId] : [],
+    segments: [effectiveSegmentId(draft.segmentId)],
     weights,
     flight,
     budget,
@@ -313,7 +309,7 @@ export function BehaviouralPlannerClient() {
         const next = adaptAudienceToEngine({
           audience: data,
           meta: currentMeta,
-          segmentId: draft.segmentId,
+          segmentId: effectiveSegmentId(draft.segmentId),
         })
         setResults((prev) => ({
           ...prev,

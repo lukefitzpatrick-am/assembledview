@@ -35,7 +35,11 @@ import {
   pctOfUniverse,
   robustnessFromN,
 } from "./robustness"
-import type { AudienceDraft } from "./store"
+import {
+  effectiveSegmentId,
+  isBaseSegmentLens,
+  type AudienceDraft,
+} from "./store"
 
 type AudienceResult = {
   adapted: AdapterResult | null
@@ -133,17 +137,23 @@ function topSkewChannel(adapted: AdapterResult | null, segmentId: string): strin
 function LivePanel({
   draft,
   result,
+  segments,
 }: {
   draft: AudienceDraft
   result: AudienceResult | undefined
+  segments: PlanningSegment[]
 }) {
+  const lensId = effectiveSegmentId(draft.segmentId)
+  const lensLabel = isBaseSegmentLens(draft.segmentId)
+    ? "All People"
+    : segments.find((s) => s.segment_id === draft.segmentId)?.name ?? draft.segmentId
   const adapted = result?.adapted ?? null
   const audience_wc = adapted?.audienceWc ?? 0
   const unweighted_n = adapted?.unweightedN ?? 0
   const universe = adapted?.universeWc ?? 0
   const pct = pctOfUniverse(audience_wc, universe)
   const rob = robustnessFromN(unweighted_n)
-  const affinities = topAffinities(adapted, draft.segmentId, 5)
+  const affinities = topAffinities(adapted, lensId, 5)
   const show18 = draft.ageBands.includes("14-24")
 
   const robClass =
@@ -155,9 +165,10 @@ function LivePanel({
 
   return (
     <div className="rounded-card border border-border bg-surface-panel p-4 shadow-e0">
-      <h4 className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+      <h4 className="mb-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
         Live audience
       </h4>
+      <p className="mb-3 text-sm font-medium">{lensLabel}</p>
       {result?.loading && !adapted ? (
         <p className="text-sm text-muted-foreground">Composing audience…</p>
       ) : result?.error && !adapted ? (
@@ -248,8 +259,9 @@ export function StageAudiences({
   if (!active) return null
 
   const [ageLo, ageHi] = rangeFromBands(active.ageBands)
+  // Segment lens optional — empty / base = All People; Continue only needs geo + age.
   const canContinue = audiences.every(
-    (a) => a.segmentId && a.states.length > 0 && a.ageBands.length > 0
+    (a) => a.states.length > 0 && a.ageBands.length > 0
   )
 
   const toggleState = (s: PlanningState) => {
@@ -337,14 +349,20 @@ export function StageAudiences({
           <div className="mb-4">
             <FieldLabel>Segment lens</FieldLabel>
             <p className="mb-2 text-[11px] text-muted-foreground">
-              Segments are separate lenses and can&apos;t be combined
+              Optional lens — leave unset for All People (national base). Segments
+              can&apos;t be combined.
             </p>
             <div className="flex flex-wrap gap-1.5">
               {segments.map((s) => (
                 <Chip
                   key={s.segment_id}
                   active={active.segmentId === s.segment_id}
-                  onClick={() => onPatch(active.id, { segmentId: s.segment_id })}
+                  onClick={() =>
+                    onPatch(active.id, {
+                      segmentId:
+                        active.segmentId === s.segment_id ? "" : s.segment_id,
+                    })
+                  }
                 >
                   {s.name}
                 </Chip>
@@ -441,7 +459,7 @@ export function StageAudiences({
           </div>
         </div>
 
-        <LivePanel draft={active} result={results[active.id]} />
+        <LivePanel draft={active} result={results[active.id]} segments={segments} />
       </div>
 
       {/* Comparison strip — never sums audience_wc across audiences */}
@@ -454,7 +472,7 @@ export function StageAudiences({
             const accent = AUDIENCE_ACCENTS[a.colorIndex]!
             const r = results[a.id]?.adapted
             const rob = robustnessFromN(r?.unweightedN ?? 0)
-            const skew = topSkewChannel(r ?? null, a.segmentId)
+            const skew = topSkewChannel(r ?? null, effectiveSegmentId(a.segmentId))
             return (
               <button
                 key={a.id}

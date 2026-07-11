@@ -36,11 +36,23 @@ export type AudienceDraft = {
   id: string
   name: string
   colorIndex: 0 | 1 | 2
+  /** Empty or `"base"` = national all-people lens (no segment selected). */
   segmentId: string
   states: PlanningState[]
   gender: Gender
   ageBands: PlanningAgeBand[]
   reachBasis: ReachBasis
+}
+
+/** API / affinity key: no lens choice → national `"base"`. */
+export function effectiveSegmentId(segmentId: string): string {
+  const id = segmentId.trim()
+  return id || "base"
+}
+
+export function isBaseSegmentLens(segmentId: string): boolean {
+  const id = segmentId.trim()
+  return !id || id === "base"
 }
 
 export type DiagnosisState = {
@@ -220,8 +232,9 @@ export function isBriefComplete(brief: BriefState): boolean {
 
 export function isAudiencesComplete(audiences: AudienceDraft[]): boolean {
   if (audiences.length === 0) return false
+  // Segment lens is optional — empty / base = All People national.
   return audiences.every(
-    (a) => a.segmentId && a.states.length > 0 && a.ageBands.length > 0 && a.name.trim()
+    (a) => a.states.length > 0 && a.ageBands.length > 0 && a.name.trim()
   )
 }
 
@@ -259,7 +272,7 @@ export function planningReducer(
       if (state.audiences.length >= MAX_AUDIENCES) return state
       const used = new Set(state.audiences.map((a) => a.colorIndex))
       const colorIndex = ([0, 1, 2] as const).find((i) => !used.has(i)) ?? 0
-      const segmentId = state.audiences[0]?.segmentId ?? ""
+      const segmentId = state.audiences[0]?.segmentId ?? "base"
       const next = createAudienceDraft({ colorIndex, segmentId })
       return {
         ...state,
