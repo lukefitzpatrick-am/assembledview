@@ -272,9 +272,6 @@ export function StageBrief({ brief, onPatch, onObjective, onContinue }: StageBri
               >
                 <div className="text-sm font-medium">{preset.label}</div>
                 <div className="mt-1 text-[11px] text-muted-foreground">{preset.blurb}</div>
-                <div className="mt-2 text-[10px] tabular-nums text-muted-foreground">
-                  Create:Capture {100 - preset.createCapture}:{preset.createCapture}
-                </div>
               </button>
             )
           })}
