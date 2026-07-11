@@ -10,6 +10,7 @@ import {
   FileText,
   FileVideo,
   Film,
+  LayoutTemplate,
   MoreHorizontal,
   Trash2,
 } from "lucide-react"
@@ -49,6 +50,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { MockupDialog } from "@/components/creative/mockups/MockupDialog"
 import type { CreativeAsset } from "@/lib/creative/types"
 import { formatDimensions, formatFileSize } from "@/lib/creative/metadata"
 import type { LineItemOption } from "@/lib/creative/lineItemOptions"
@@ -57,6 +59,7 @@ import { cn } from "@/lib/utils"
 type CreativeAssetTableProps = {
   assets: CreativeAsset[]
   lineItemOptions: LineItemOption[]
+  defaultBrandName?: string
   onRename: (id: number, assetName: string) => Promise<void>
   onLineItemChange: (
     id: number,
@@ -155,12 +158,14 @@ function InlineAssetName({
 export function CreativeAssetTable({
   assets,
   lineItemOptions,
+  defaultBrandName = "Brand",
   onRename,
   onLineItemChange,
   onStatusToggle,
   onDelete,
 }: CreativeAssetTableProps) {
   const [deleteTarget, setDeleteTarget] = useState<CreativeAsset | null>(null)
+  const [mockupTarget, setMockupTarget] = useState<CreativeAsset | null>(null)
   const [deleting, setDeleting] = useState(false)
 
   const optionsById = useMemo(() => {
@@ -286,6 +291,10 @@ export function CreativeAssetTable({
                             Download
                           </a>
                         </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setMockupTarget(asset)}>
+                          <LayoutTemplate className="mr-2 h-4 w-4" />
+                          Mockup
+                        </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={() =>
                             void onStatusToggle(
@@ -353,6 +362,15 @@ export function CreativeAssetTable({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <MockupDialog
+        asset={mockupTarget}
+        open={!!mockupTarget}
+        onOpenChange={(open) => {
+          if (!open) setMockupTarget(null)
+        }}
+        defaultBrandName={defaultBrandName}
+      />
     </>
   )
 }

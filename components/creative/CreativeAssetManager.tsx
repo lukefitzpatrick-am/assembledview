@@ -30,6 +30,8 @@ type MediaPlanPayload = {
   media_plan_master_id?: number
   mp_campaignname?: string
   campaign_name?: string
+  mp_client_name?: string
+  client_name?: string
   lineItems?: Record<string, unknown[]>
 }
 
@@ -47,6 +49,7 @@ export function CreativeAssetManager({ mbaNumber, showPageHeader = false }: Crea
   const [lineItemOptions, setLineItemOptions] = useState<LineItemOption[]>([])
   const [mediaPlanMasterId, setMediaPlanMasterId] = useState<number | null>(null)
   const [campaignName, setCampaignName] = useState<string>("")
+  const [clientName, setClientName] = useState<string>("")
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("active")
   const [nameFilter, setNameFilter] = useState("")
   const [uploadLineItemKey, setUploadLineItemKey] = useState("none")
@@ -88,6 +91,9 @@ export function CreativeAssetManager({ mbaNumber, showPageHeader = false }: Crea
       setMediaPlanMasterId(masterId)
       setCampaignName(
         String(plan.mp_campaignname || plan.campaign_name || "").trim() || mbaNumber,
+      )
+      setClientName(
+        String(plan.mp_client_name || plan.client_name || "").trim() || "Brand",
       )
       setLineItemOptions(flattenLineItemOptions(plan.lineItems))
     } catch (error) {
@@ -307,6 +313,7 @@ export function CreativeAssetManager({ mbaNumber, showPageHeader = false }: Crea
           <CreativeAssetTable
             assets={filteredAssets}
             lineItemOptions={lineItemOptions}
+            defaultBrandName={clientName}
             onRename={handleRename}
             onLineItemChange={handleLineItemChange}
             onStatusToggle={handleStatusToggle}
