@@ -95,6 +95,7 @@ function ReceivablesMonthSections({
   refetch,
   onToggleBilled,
   onNotesSaved,
+  onLineAmountCommitted,
 }: {
   groups: ReturnType<typeof useReceivablesData>["visibleMonthGroups"]
   refetch: () => void
@@ -104,6 +105,11 @@ function ReceivablesMonthSections({
     notes: string
     persisted_record_id: number
   }) => void
+  onLineAmountCommitted?: (
+    line: import("@/lib/types/financeBilling").BillingLineItem,
+    next: { amount: number; billing_mode?: "auto" | "manual" | null },
+    ctx: import("@/lib/finance/commitInlineScheduleAmountEdit").InlineScheduleEditContext
+  ) => void
 }) {
   if (groups.length === 0) return null
 
@@ -124,6 +130,7 @@ function ReceivablesMonthSections({
                 refetch={refetch}
                 onToggleBilled={onToggleBilled}
                 onNotesSaved={onNotesSaved}
+                onLineAmountCommitted={onLineAmountCommitted}
               />
             ))}
           </div>
@@ -144,6 +151,7 @@ export function ReceivablesPageClient() {
     bumpReceivablesFetch,
     updateBilledByInvoiceKey,
     updateNotesByInvoiceKey,
+    updateReceivableLineAmount,
   } = useReceivablesData("billing")
 
   const { toast } = useToast()
@@ -194,6 +202,26 @@ export function ReceivablesPageClient() {
       })
     },
     [updateNotesByInvoiceKey]
+  )
+
+  const handleLineAmountCommitted = useCallback(
+    (
+      line: import("@/lib/types/financeBilling").BillingLineItem,
+      next: { amount: number; billing_mode?: "auto" | "manual" | null },
+      ctx: import("@/lib/finance/commitInlineScheduleAmountEdit").InlineScheduleEditContext
+    ) => {
+      updateReceivableLineAmount(
+        {
+          mba_number: ctx.mbaNumber,
+          billing_month: ctx.billingMonthIso,
+          schedule_line_item_id: line.schedule_line_item_id,
+          item_code: line.item_code,
+          line_type: line.line_type,
+        },
+        next
+      )
+    },
+    [updateReceivableLineAmount]
   )
 
   const synced = loadedSignature === filterSig
@@ -283,6 +311,7 @@ export function ReceivablesPageClient() {
               refetch={bumpReceivablesFetch}
               onToggleBilled={handleToggleBilled}
               onNotesSaved={handleNotesSaved}
+              onLineAmountCommitted={handleLineAmountCommitted}
             />
 
             {billedInvoiceCount > 0 ? (
@@ -300,6 +329,7 @@ export function ReceivablesPageClient() {
                     refetch={bumpReceivablesFetch}
                     onToggleBilled={handleToggleBilled}
                     onNotesSaved={handleNotesSaved}
+                    onLineAmountCommitted={handleLineAmountCommitted}
                   />
                 </CollapsibleContent>
               </Collapsible>

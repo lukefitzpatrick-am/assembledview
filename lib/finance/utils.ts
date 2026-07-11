@@ -12,6 +12,8 @@ export interface FinanceLineItem {
    * (e.g. MBA+TV+1). Used to join finance lines back to plan tables for description enrichment.
    */
   planLineItemId?: string | null
+  /** Persisted schedule billingMode when present on the source line. */
+  billingMode?: "auto" | "manual" | null
 }
 
 export interface FinanceServiceRow {
@@ -82,6 +84,7 @@ export function mergeFinanceLineItems(items: FinanceLineItem[]): FinanceLineItem
         amount: item.amount,
         publisherName: item.publisherName ?? null,
         planLineItemId: item.planLineItemId ?? null,
+        billingMode: item.billingMode ?? null,
       }
       byKey.set(key, copy)
       merged.push(copy)
@@ -636,6 +639,10 @@ export function extractLineItemsFromBillingSchedule(
       const planLineItemId =
         rawPlanId != null && String(rawPlanId).trim() ? String(rawPlanId).trim() : null
 
+      const rawMode = (lineItem as { billingMode?: unknown }).billingMode
+      const billingMode =
+        rawMode === "auto" || rawMode === "manual" ? rawMode : null
+
       lineItems.push({
         itemCode,
         mediaType: mediaTypeDisplayName,
@@ -643,6 +650,7 @@ export function extractLineItemsFromBillingSchedule(
         amount,
         publisherName: pub,
         planLineItemId,
+        billingMode,
       })
     }
   }

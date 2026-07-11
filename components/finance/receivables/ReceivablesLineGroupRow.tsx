@@ -3,16 +3,46 @@
 import { useState } from "react"
 import { ChevronDown } from "lucide-react"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { InlineScheduleAmountCell } from "@/components/finance/receivables/InlineScheduleAmountCell"
+import type { InlineScheduleEditContext } from "@/lib/finance/commitInlineScheduleAmountEdit"
 import { formatLineItemDescription } from "@/lib/finance/lineItemDescription"
 import type { GroupedLineItem } from "@/lib/finance/groupIdenticalLineItems"
+import type { BillingLineItem } from "@/lib/types/financeBilling"
 import { formatAUD } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
 
 type ReceivablesLineGroupRowProps = {
   group: GroupedLineItem
+  editCtx?: InlineScheduleEditContext | null
+  onLineAmountCommitted?: (
+    line: BillingLineItem,
+    next: { amount: number; billing_mode?: "auto" | "manual" | null }
+  ) => void
 }
 
-export function ReceivablesLineGroupRow({ group }: ReceivablesLineGroupRowProps) {
+function LineAmountCell({
+  line,
+  editCtx,
+  onLineAmountCommitted,
+}: {
+  line: BillingLineItem
+  editCtx?: InlineScheduleEditContext | null
+  onLineAmountCommitted?: ReceivablesLineGroupRowProps["onLineAmountCommitted"]
+}) {
+  return (
+    <InlineScheduleAmountCell
+      line={line}
+      ctx={editCtx ?? null}
+      onCommitted={(next) => onLineAmountCommitted?.(line, next)}
+    />
+  )
+}
+
+export function ReceivablesLineGroupRow({
+  group,
+  editCtx,
+  onLineAmountCommitted,
+}: ReceivablesLineGroupRowProps) {
   const [open, setOpen] = useState(false)
   const publisher = (group.publisher_name ?? "").trim() || "—"
   const description = (group.description ?? "").trim() || "—"
@@ -26,7 +56,11 @@ export function ReceivablesLineGroupRow({ group }: ReceivablesLineGroupRowProps)
           <p className="truncate text-xs text-foreground">{primary}</p>
           <p className="mt-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">{channelLabel}</p>
         </div>
-        <p className="num shrink-0 text-xs text-muted-foreground">{formatAUD(li.amount)}</p>
+        <LineAmountCell
+          line={li}
+          editCtx={editCtx}
+          onLineAmountCommitted={onLineAmountCommitted}
+        />
       </div>
     )
   }
@@ -53,14 +87,18 @@ export function ReceivablesLineGroupRow({ group }: ReceivablesLineGroupRowProps)
             const { primary, channelLabel } = formatLineItemDescription(li)
             return (
               <div
-                key={`${group.key}-${liIdx}-${li.sort_order}`}
+                key={`${group.key}-${liIdx}-${li.sort_order}-${li.schedule_line_item_id ?? li.item_code}`}
                 className="flex items-start justify-between gap-3 border-b border-border py-1.5 last:border-0"
               >
                 <div className="min-w-0">
                   <p className="truncate text-[11px] text-foreground">{primary}</p>
                   <p className="mt-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">{channelLabel}</p>
                 </div>
-                <p className="num shrink-0 text-[11px] text-muted-foreground">{formatAUD(li.amount)}</p>
+                <LineAmountCell
+                  line={li}
+                  editCtx={editCtx}
+                  onLineAmountCommitted={onLineAmountCommitted}
+                />
               </div>
             )
           })}

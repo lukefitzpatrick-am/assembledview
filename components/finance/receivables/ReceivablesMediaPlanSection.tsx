@@ -5,6 +5,7 @@ import { ChevronDown } from "lucide-react"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import type { BillingLineItem, BillingRecord } from "@/lib/types/financeBilling"
 import type { MediaPlanGroup } from "@/lib/finance/useReceivablesData"
+import type { InlineScheduleEditContext } from "@/lib/finance/commitInlineScheduleAmountEdit"
 import { groupIdenticalLineItems } from "@/lib/finance/groupIdenticalLineItems"
 import { formatAUD } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
@@ -52,9 +53,22 @@ type ReceivablesMediaPlanSectionProps = {
     notes: string
     persisted_record_id: number
   }) => void
+  onLineAmountCommitted?: (
+    line: BillingLineItem,
+    next: { amount: number; billing_mode?: "auto" | "manual" | null },
+    ctx: InlineScheduleEditContext
+  ) => void
 }
 
-function MediaTypeRollupRow({ rollup }: { rollup: MediaTypeRollup }) {
+function MediaTypeRollupRow({
+  rollup,
+  editCtx,
+  onLineAmountCommitted,
+}: {
+  rollup: MediaTypeRollup
+  editCtx: InlineScheduleEditContext | null
+  onLineAmountCommitted?: ReceivablesMediaPlanSectionProps["onLineAmountCommitted"]
+}) {
   const [open, setOpen] = useState(false)
   const grouped = useMemo(
     () =>
@@ -82,7 +96,15 @@ function MediaTypeRollupRow({ rollup }: { rollup: MediaTypeRollup }) {
       <CollapsibleContent>
         <div className="mx-2 mb-2 rounded-input border border-border bg-background px-2">
           {grouped.map((g) => (
-            <ReceivablesLineGroupRow key={g.key} group={g} />
+            <ReceivablesLineGroupRow
+              key={g.key}
+              group={g}
+              editCtx={editCtx}
+              onLineAmountCommitted={(line, next) => {
+                if (!editCtx) return
+                onLineAmountCommitted?.(line, next, editCtx)
+              }}
+            />
           ))}
         </div>
       </CollapsibleContent>
@@ -97,8 +119,22 @@ export function ReceivablesMediaPlanSection({
   refetch,
   onToggleBilled,
   onNotesSaved,
+  onLineAmountCommitted,
 }: ReceivablesMediaPlanSectionProps) {
   const rollups = useMemo(() => buildMediaTypeRollups(mp.records), [mp.records])
+
+  const editCtx = useMemo<InlineScheduleEditContext | null>(() => {
+    if (kind !== "media") return null
+    if (!mp.mbaNumber || mp.versionId == null || mp.versionNumber == null) return null
+    const billingMonthIso = mp.records[0]?.billing_month ?? ""
+    if (!billingMonthIso) return null
+    return {
+      versionId: mp.versionId,
+      versionNumber: mp.versionNumber,
+      mbaNumber: mp.mbaNumber,
+      billingMonthIso,
+    }
+  }, [kind, mp.mbaNumber, mp.versionId, mp.versionNumber, mp.records])
 
   return (
     <div className="space-y-2 border-b border-border/50 pb-4 last:border-0 last:pb-0">
@@ -140,7 +176,12 @@ export function ReceivablesMediaPlanSection({
       ) : (
         <div className="space-y-0.5">
           {rollups.map((rollup) => (
-            <MediaTypeRollupRow key={rollup.mediaType} rollup={rollup} />
+            <MediaTypeRollupRow
+              key={rollup.mediaType}
+              rollup={rollup}
+              editCtx={editCtx}
+              onLineAmountCommitted={onLineAmountCommitted}
+            />
           ))}
         </div>
       )}

@@ -14,6 +14,11 @@ import {
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import {
+  applyScheduleLineAmountEdit,
+  applyScheduleMonthCostEdit,
+} from "@/lib/billing/applyScheduleLineAmountEdit"
+import { formatBillingCurrency } from "@/lib/billing/recalculateBillingMonths"
 import type { BillingMonth, BillingLineItem as BillingLineItemType } from "@/lib/billing/types"
 
 const GRAND_TOTAL_TOLERANCE = 0.01
@@ -33,13 +38,6 @@ type Props = {
   isSaving?: boolean
 }
 
-const currencyFormatter = new Intl.NumberFormat("en-AU", {
-  style: "currency",
-  currency: "AUD",
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-})
-
 function parseCurrency(value: unknown): number {
   if (typeof value === "number") return Number.isFinite(value) ? value : 0
   if (typeof value !== "string") return 0
@@ -53,31 +51,6 @@ function deepCloneMonths(months: BillingMonth[]): BillingMonth[] {
 
 function computeGrandTotal(months: BillingMonth[]): number {
   return months.reduce((sum, m) => sum + parseCurrency(m.totalAmount), 0)
-}
-
-/**
- * Recalculates mediaCosts / mediaTotal / totalAmount for every month from its line items.
- * Production is kept separate from mediaTotal (matches edit-page behaviour).
- */
-function recalculateMonths(months: BillingMonth[]): void {
-  months.forEach((m) => {
-    if (!m.mediaCosts) return
-    let mediaTotalNum = 0
-    Object.entries(m.lineItems || {}).forEach(([mediaKey, items]) => {
-      const arr = items as BillingLineItemType[] | undefined
-      if (!arr?.length) return
-      const sum = arr.reduce((s, li) => s + (li.monthlyAmounts?.[m.monthYear] || 0), 0)
-      if (mediaKey in m.mediaCosts!) {
-        ;(m.mediaCosts as Record<string, string>)[mediaKey] = currencyFormatter.format(sum)
-      }
-      if (mediaKey !== "production") mediaTotalNum += sum
-    })
-    const fee = parseCurrency(m.feeTotal)
-    const adserv = parseCurrency(m.adservingTechFees)
-    const prod = parseCurrency(m.production)
-    m.mediaTotal = currencyFormatter.format(mediaTotalNum)
-    m.totalAmount = currencyFormatter.format(mediaTotalNum + fee + adserv + prod)
-  })
 }
 
 function collectMediaKeys(months: BillingMonth[]): string[] {
@@ -117,31 +90,20 @@ export function AlterBillingDialog({
   const isWithinTolerance = Math.abs(grandTotalDelta) <= GRAND_TOTAL_TOLERANCE
 
   const handleLineItemAmountChange = (
-    mediaKey: string,
+    _mediaKey: string,
     lineItemId: string,
     monthYear: string,
     rawValue: string
   ) => {
     const numericValue = parseCurrency(rawValue)
     setMonths((prev) => {
-      const copy = deepCloneMonths(prev)
-      copy.forEach((m) => {
-        const items = m.lineItems?.[mediaKey as keyof typeof m.lineItems] as
-          | BillingLineItemType[]
-          | undefined
-        if (!items) return
-        const li = items.find((x) => x.id === lineItemId)
-        if (!li) return
-        if (m.monthYear === monthYear) {
-          li.monthlyAmounts[monthYear] = numericValue
-        }
-        li.totalAmount = Object.values(li.monthlyAmounts || {}).reduce(
-          (s: number, v) => s + (Number(v) || 0),
-          0
-        )
+      const next = applyScheduleLineAmountEdit(prev, {
+        lineItemId,
+        monthYear,
+        amount: numericValue,
+        stampManual: false,
       })
-      recalculateMonths(copy)
-      return copy
+      return next ?? prev
     })
     setValidationError(null)
   }
@@ -151,30 +113,26 @@ export function AlterBillingDialog({
     field: "feeTotal" | "adservingTechFees" | "production",
     rawValue: string
   ) => {
-    const formatted = currencyFormatter.format(parseCurrency(rawValue))
-    setMonths((prev) => {
-      const copy = deepCloneMonths(prev)
-      const m = copy[monthIndex]
-      if (!m) return prev
-      m[field] = formatted
-      if (field === "production" && m.mediaCosts?.production !== undefined) {
-        m.mediaCosts.production = formatted
-      }
-      recalculateMonths(copy)
-      return copy
+    const month = months[monthIndex]
+    if (!month) return
+    const next = applyScheduleMonthCostEdit(months, {
+      monthYear: month.monthYear,
+      field,
+      amount: parseCurrency(rawValue),
     })
+    if (next) setMonths(next)
     setValidationError(null)
   }
 
   const handleSaveClick = async () => {
     if (!isWithinTolerance) {
       setValidationError(
-        `Grand total must match the original within ${currencyFormatter.format(
+        `Grand total must match the original within ${formatBillingCurrency(
           GRAND_TOTAL_TOLERANCE
         )}. ` +
-          `Current ${currencyFormatter.format(currentGrandTotal)} vs original ${currencyFormatter.format(
+          `Current ${formatBillingCurrency(currentGrandTotal)} vs original ${formatBillingCurrency(
             originalGrandTotal
-          )} (delta ${currencyFormatter.format(grandTotalDelta)}).`
+          )} (delta ${formatBillingCurrency(grandTotalDelta)}).`
       )
       return
     }
@@ -202,7 +160,7 @@ export function AlterBillingDialog({
             </DialogHeader>
             <DialogDescription className="mt-1 text-sm text-muted-foreground">
               Shift amounts between months and line items. The grand total must remain the same as the
-              original (±{currencyFormatter.format(GRAND_TOTAL_TOLERANCE)}). Saving will patch this
+              original (±{formatBillingCurrency(GRAND_TOTAL_TOLERANCE)}). Saving will patch this
               version&apos;s billing schedule in place — no new version will be created.
             </DialogDescription>
           </div>
@@ -221,13 +179,13 @@ export function AlterBillingDialog({
                     <AccordionItem key={mediaKey} value={`alter-billing-${mediaKey}`}>
                       <AccordionTrigger className="text-left capitalize">{mediaKey}</AccordionTrigger>
                       <AccordionContent>
-                        <div className="overflow-x-auto mt-4">
+                        <div className="mt-4 overflow-x-auto">
                           <Table>
                             <TableHeader>
                               <TableRow>
                                 <TableHead>Line Item</TableHead>
                                 {months.map((m) => (
-                                  <TableHead key={m.monthYear} className="text-right whitespace-nowrap">
+                                  <TableHead key={m.monthYear} className="whitespace-nowrap text-right">
                                     {m.monthYear}
                                   </TableHead>
                                 ))}
@@ -245,8 +203,8 @@ export function AlterBillingDialog({
                                     return (
                                       <TableCell key={month.monthYear} align="right">
                                         <Input
-                                          className="text-right w-28"
-                                          defaultValue={currencyFormatter.format(amount)}
+                                          className="w-28 text-right"
+                                          defaultValue={formatBillingCurrency(amount)}
                                           onBlur={(e) =>
                                             handleLineItemAmountChange(
                                               mediaKey,
@@ -260,13 +218,13 @@ export function AlterBillingDialog({
                                     )
                                   })}
                                   <TableCell className="text-right font-semibold">
-                                    {currencyFormatter.format(lineItem.totalAmount || 0)}
+                                    {formatBillingCurrency(lineItem.totalAmount || 0)}
                                   </TableCell>
                                 </TableRow>
                               ))}
                             </TableBody>
                             <TableFooter>
-                              <TableRow className="font-bold border-t-2 bg-muted/30">
+                              <TableRow className="border-t-2 bg-muted/30 font-bold">
                                 <TableCell>Subtotal</TableCell>
                                 {months.map((m) => {
                                   const subtotal = items.reduce(
@@ -275,12 +233,12 @@ export function AlterBillingDialog({
                                   )
                                   return (
                                     <TableCell key={m.monthYear} className="text-right">
-                                      {currencyFormatter.format(subtotal)}
+                                      {formatBillingCurrency(subtotal)}
                                     </TableCell>
                                   )
                                 })}
                                 <TableCell className="text-right">
-                                  {currencyFormatter.format(
+                                  {formatBillingCurrency(
                                     items.reduce((sum, li) => sum + (li.totalAmount || 0), 0)
                                   )}
                                 </TableCell>
@@ -296,13 +254,13 @@ export function AlterBillingDialog({
               <AccordionItem value="alter-billing-costs">
                 <AccordionTrigger className="text-left">Fees, Ad Serving & Production</AccordionTrigger>
                 <AccordionContent>
-                  <div className="overflow-x-auto mt-4">
+                  <div className="mt-4 overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
                           <TableHead>Type</TableHead>
                           {months.map((m) => (
-                            <TableHead key={m.monthYear} className="text-right whitespace-nowrap">
+                            <TableHead key={m.monthYear} className="whitespace-nowrap text-right">
                               {m.monthYear}
                             </TableHead>
                           ))}
@@ -323,14 +281,14 @@ export function AlterBillingDialog({
                               {months.map((m, monthIndex) => (
                                 <TableCell key={m.monthYear} align="right">
                                   <Input
-                                    className="text-right w-28"
+                                    className="w-28 text-right"
                                     defaultValue={m[field] || "$0.00"}
                                     onBlur={(e) => handleCostChange(monthIndex, field, e.target.value)}
                                   />
                                 </TableCell>
                               ))}
                               <TableCell className="text-right font-semibold">
-                                {currencyFormatter.format(
+                                {formatBillingCurrency(
                                   months.reduce((acc, m) => acc + parseCurrency(m[field]), 0)
                                 )}
                               </TableCell>
@@ -347,7 +305,7 @@ export function AlterBillingDialog({
             <div className="space-y-2 text-right text-sm">
               <div>
                 Original total:{" "}
-                <span className="font-semibold">{currencyFormatter.format(originalGrandTotal)}</span>
+                <span className="font-semibold">{formatBillingCurrency(originalGrandTotal)}</span>
               </div>
               <div>
                 Current total:{" "}
@@ -356,20 +314,20 @@ export function AlterBillingDialog({
                     isWithinTolerance ? "text-foreground" : "text-destructive"
                   }`}
                 >
-                  {currencyFormatter.format(currentGrandTotal)}
+                  {formatBillingCurrency(currentGrandTotal)}
                 </span>
               </div>
               <div>
                 Delta:{" "}
                 <span className={isWithinTolerance ? "text-muted-foreground" : "text-destructive"}>
-                  {currencyFormatter.format(grandTotalDelta)}
+                  {formatBillingCurrency(grandTotalDelta)}
                 </span>
               </div>
-              {validationError && (
+              {validationError ? (
                 <div className="mt-2 rounded border border-destructive/60 bg-destructive/10 p-3 text-left text-destructive">
                   {validationError}
                 </div>
-              )}
+              ) : null}
             </div>
           </div>
 

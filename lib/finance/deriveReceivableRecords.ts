@@ -34,6 +34,8 @@ function financeMediaLineToBillingLine(
     amount: li.amount,
     client_pays_media: false,
     sort_order: idx,
+    schedule_line_item_id: li.planLineItemId ?? null,
+    billing_mode: li.billingMode ?? null,
     ...extras,
   }
 }

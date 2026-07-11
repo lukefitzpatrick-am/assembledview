@@ -3,8 +3,9 @@
 import { ChevronDown } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import type { BillingLineItem, BillingRecord } from "@/lib/types/financeBilling"
 import type { ClientGroup } from "@/lib/finance/useReceivablesData"
-import type { BillingRecord } from "@/lib/types/financeBilling"
+import type { InlineScheduleEditContext } from "@/lib/finance/commitInlineScheduleAmountEdit"
 import { clientInitials } from "@/lib/finance/cardHelpers"
 import { formatAUD } from "@/lib/format/money"
 import { BilledStatusPill } from "./BilledStatusPill"
@@ -21,6 +22,11 @@ type ReceivablesClientCardProps = {
     notes: string
     persisted_record_id: number
   }) => void
+  onLineAmountCommitted?: (
+    line: BillingLineItem,
+    next: { amount: number; billing_mode?: "auto" | "manual" | null },
+    ctx: InlineScheduleEditContext
+  ) => void
 }
 
 export function ReceivablesClientCard({
@@ -29,6 +35,7 @@ export function ReceivablesClientCard({
   refetch,
   onToggleBilled,
   onNotesSaved,
+  onLineAmountCommitted,
 }: ReceivablesClientCardProps) {
   const invCount =
     client.mediaPlans.reduce((n, mp) => n + mp.records.length, 0) +
@@ -73,6 +80,7 @@ export function ReceivablesClientCard({
                 refetch={refetch}
                 onToggleBilled={onToggleBilled}
                 onNotesSaved={onNotesSaved}
+                onLineAmountCommitted={onLineAmountCommitted}
               />
             ))}
             {client.scopeOfWorks.map((mp, mpIdx) => (
@@ -84,6 +92,7 @@ export function ReceivablesClientCard({
                 refetch={refetch}
                 onToggleBilled={onToggleBilled}
                 onNotesSaved={onNotesSaved}
+                onLineAmountCommitted={onLineAmountCommitted}
               />
             ))}
             {client.retainers.length > 0 ? (
