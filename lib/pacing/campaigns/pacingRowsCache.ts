@@ -2,6 +2,7 @@ import "server-only"
 import { unstable_cache } from "next/cache"
 import { fetchAdServingPacingCampaignRows } from "@/lib/pacing/ad-serving/fetchAdServingPacingCampaignRows"
 import { fetchSearchPacingCampaignRows } from "@/lib/pacing/campaigns/fetchSearchPacingCampaignRows"
+import { fetchDirectPacingRows } from "@/lib/pacing/direct/fetchDirectPacingRows"
 import { fetchProgrammaticPacingCampaignRows } from "@/lib/pacing/programmatic/fetchProgrammaticPacingCampaignRows"
 import { fetchSocialPacingCampaignRows } from "@/lib/pacing/social/fetchSocialPacingCampaignRows"
 
@@ -61,6 +62,22 @@ export async function getCachedAdServingPacingRows(
   const cached = unstable_cache(
     async () => fetchAdServingPacingCampaignRows({ asOfDate, allowedClientSlugs }),
     ["pacing-rows", "ad-serving", asOfDate, scopeKey],
+    { revalidate: REVALIDATE_SECONDS, tags: [PACING_CAMPAIGNS_TAG] }
+  )
+  return cached()
+}
+
+export async function getCachedDirectPacingRows(
+  asOfDate: string,
+  allowedClientSlugs: Set<string> | null,
+  includeHistorical: boolean
+) {
+  const scopeKey = pacingScopeKey(allowedClientSlugs)
+  const histKey = includeHistorical ? "hist" : "current"
+  const cached = unstable_cache(
+    async () =>
+      fetchDirectPacingRows({ asOfDate, allowedClientSlugs, includeHistorical }),
+    ["pacing-rows", "direct", asOfDate, scopeKey, histKey],
     { revalidate: REVALIDATE_SECONDS, tags: [PACING_CAMPAIGNS_TAG] }
   )
   return cached()

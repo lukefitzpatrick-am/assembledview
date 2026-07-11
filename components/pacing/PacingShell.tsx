@@ -13,6 +13,7 @@ const baseTabs = [
   { href: "/pacing/social", label: "Social" },
   { href: "/pacing/programmatic", label: "Programmatic" },
   { href: "/pacing/ad-serving", label: "Ad Serving" },
+  { href: "/pacing/direct", label: "Direct" },
 ] as const
 
 interface PacingShellProps {
