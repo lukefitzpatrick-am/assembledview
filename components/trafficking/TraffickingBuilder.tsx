@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 import { ArrowLeft, ClipboardCopy, Download, Loader2, RotateCcw } from "lucide-react"
 
 import { BestPracticeRail } from "@/components/trafficking/BestPracticeRail"
@@ -13,6 +14,8 @@ import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
+import { setAssistantContext, clearAssistantContext } from "@/lib/assistantBridge"
+import type { PageContext } from "@/lib/ava/types"
 import { copyToClipboard } from "@/lib/copyToClipboard"
 import { composeName } from "@/lib/naming/compose"
 import {
@@ -33,6 +36,16 @@ import {
 import { PICKLISTS, getTemplate } from "@/lib/naming/templates"
 import type { NamingTemplate } from "@/lib/naming/types"
 import type { MediaContainerBestPractice } from "@/lib/types/publisher"
+
+const AVA_LIST_CAP = 20
+const AVA_TEXT_CAP = 200
+const AVA_INVALID_SAMPLE = 5
+
+function avaTruncate(value: unknown, max = AVA_TEXT_CAP): string {
+  const s = value == null ? "" : String(value)
+  if (s.length <= max) return s
+  return `${s.slice(0, max - 1)}…`
+}
 
 type TraffickingBuilderProps = {
   mbaNumber: string
@@ -172,6 +185,7 @@ async function readError(response: Response, fallback: string): Promise<string> 
 }
 
 export function TraffickingBuilder({ mbaNumber }: TraffickingBuilderProps) {
+  const pathname = usePathname()
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
   const [campaignName, setCampaignName] = useState("")
@@ -459,6 +473,101 @@ export function TraffickingBuilder({ mbaNumber }: TraffickingBuilderProps) {
     },
     [resolveComposites],
   )
+
+  const getPageContext = useCallback((): PageContext => {
+    const platform = activePlatform || tabs[0]?.platform || ""
+    const templates = platform ? templatesForPlatform(platform) : []
+    let rowCount = 0
+    let invalidRowCount = 0
+    let validNameCount = 0
+    const invalidSamples: Array<{
+      rowId: string
+      level: string
+      error: string
+    }> = []
+
+    for (const template of templates) {
+      const rows = platformState[platform]?.levels[template.level] ?? []
+      for (const row of rows) {
+        rowCount += 1
+        if (row.excluded) {
+          invalidRowCount += 1
+          if (invalidSamples.length < AVA_INVALID_SAMPLE) {
+            invalidSamples.push({
+              rowId: row.id,
+              level: template.level,
+              error: "Excluded",
+            })
+          }
+          continue
+        }
+        const merged = mergeRowForCompose(platform, template, row)
+        const attempt = tryComposeName(template, merged)
+        if (attempt.ok) {
+          validNameCount += 1
+        } else {
+          invalidRowCount += 1
+          if (invalidSamples.length < AVA_INVALID_SAMPLE) {
+            invalidSamples.push({
+              rowId: row.id,
+              level: template.level,
+              error: avaTruncate(attempt.error || "Invalid", 80),
+            })
+          }
+        }
+      }
+    }
+
+    const platformTabs = tabs.slice(0, AVA_LIST_CAP).map((t) => t.platform)
+
+    return {
+      route: {
+        pathname: pathname || `/mediaplans/mba/${mbaNumber}/trafficking`,
+        mbaSlug: mbaNumber,
+      },
+      generatedAt: new Date().toISOString(),
+      entities: {
+        mbaNumber,
+        campaignName: campaignName || undefined,
+        clientName: globals?.client || globals?.brand || undefined,
+      },
+      pageText: {
+        title: "Trafficking builder",
+        breadcrumbs: ["Media Plans", mbaNumber, "Trafficking"],
+      },
+      state: {
+        surface: "trafficking",
+        activePlatform: platform || null,
+        platforms: platformTabs,
+        platformCount: tabs.length,
+        rowCount,
+        invalidRowCount,
+        validNameCount,
+        namesComplete: rowCount > 0 && invalidRowCount === 0,
+        invalidSamples,
+      },
+    }
+  }, [
+    activePlatform,
+    campaignName,
+    globals?.brand,
+    globals?.client,
+    mbaNumber,
+    mergeRowForCompose,
+    pathname,
+    platformState,
+    tabs,
+  ])
+
+  useEffect(() => {
+    setAssistantContext({ pageContext: getPageContext() })
+  }, [getPageContext])
+
+  useEffect(() => {
+    return () => {
+      clearAssistantContext()
+    }
+  }, [])
 
   const copyPlatformBlock = async (tab: PlatformTab) => {
     const templates = templatesForPlatform(tab.platform)
