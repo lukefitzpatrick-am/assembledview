@@ -12,6 +12,10 @@ import { auth0 } from "@/lib/auth0"
 import { getUserClientSlugs, getUserMbaNumbers, getUserRoles } from "@/lib/rbac"
 import type { PageContext } from "@/lib/ava/types"
 import { buildAvaSystemPrompt } from "@/lib/ava/buildAvaSystemPrompt"
+import {
+  AVA_MI_INTERVIEW_GUIDANCE,
+  AVA_MI_TOOL_HINTS,
+} from "@/lib/ava/miInterviewGuidance"
 import { runAvaAgent } from "@/lib/ava/agentLoop"
 import type { AvaToolContext } from "@/lib/ava/tools/types"
 
@@ -35,6 +39,7 @@ Reach for this when:
 - get_saved_audiences — saved planning audiences by client or MBA
 - get_best_practice — media-container best-practice copy by channel
 - get_methodology — planning methodology title/formula/source (e.g. affinity, DFII)
+${AVA_MI_TOOL_HINTS}
 - apply_form_patch — only when the user explicitly asks to change editable field values
 
 Page snapshot surfaces (state.surface) — use on-page state first; pair tools only when you need more than the snapshot:
@@ -42,6 +47,8 @@ Page snapshot surfaces (state.surface) — use on-page state first; pair tools o
 - trafficking — active platform, row/invalid counts, invalid samples, namesComplete; pair with get_naming_rules to explain compose patterns
 - planning — stage, brief, audience tabs (wc / n / robustness), reachBasis; pair with get_saved_audiences or get_methodology
 - finance — active tab, FY/month, aggregate KPIs only (never invent invoice rows); answer from aggregates; do not claim row-level detail
+
+${AVA_MI_INTERVIEW_GUIDANCE}
 
 Never return JSON reply contracts in prose. After apply_form_patch, confirm changes in plain English.
 `.trim()
