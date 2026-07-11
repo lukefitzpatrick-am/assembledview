@@ -97,13 +97,25 @@ export function extractProgrammaticLineItemId(item: ProgrammaticLineItem): strin
   return cleanId(id)
 }
 
-/** DV360 line items only — matches ProgrammaticDeliveryContainer filtering. */
-export function normalizeDv360ProgrammaticLineItems(items: unknown[] | undefined): ProgrammaticLineItem[] {
+/** Platforms accepted into Programmatic Display / Video delivery sections. */
+const PROGRAMMATIC_ACCEPTED_PLATFORMS = new Set([
+  "dv360",
+  "youtube - dv360",
+  "youtube-dv360",
+  "taboola",
+  "native - taboola",
+  "native",
+])
+
+/** Programmatic line items for DV360 + Taboola (and native aliases). */
+export function normalizeProgrammaticLineItems(items: unknown[] | undefined): ProgrammaticLineItem[] {
   const arr = Array.isArray(items) ? items : []
   return arr
     .filter((item) => {
-      const platform = String((item as ProgrammaticLineItem)?.platform ?? "").toLowerCase()
-      return platform === "dv360" || platform === "youtube - dv360" || platform === "youtube-dv360"
+      const platform = String((item as ProgrammaticLineItem)?.platform ?? "")
+        .trim()
+        .toLowerCase()
+      return PROGRAMMATIC_ACCEPTED_PLATFORMS.has(platform)
     })
     .flatMap((item) => {
       const typed = item as ProgrammaticLineItem
@@ -118,6 +130,9 @@ export function normalizeDv360ProgrammaticLineItems(items: unknown[] | undefined
       ]
     })
 }
+
+/** @deprecated Prefer {@link normalizeProgrammaticLineItems}. */
+export const normalizeDv360ProgrammaticLineItems = normalizeProgrammaticLineItems
 
 function startOfDay(date: Date) {
   const d = new Date(date)

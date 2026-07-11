@@ -17,7 +17,7 @@ import {
   buildProgrammaticTargetCurveLineItem,
   getProgrammaticDeliverableLabel,
   mapCombinedRowToDv360,
-  normalizeDv360ProgrammaticLineItems,
+  normalizeProgrammaticLineItems,
   summarizeDv360Actuals,
   type ProgrammaticLineItem,
   type ProgrammaticLineItemMetrics,
@@ -83,6 +83,24 @@ function ratioTargetPercentPoints(raw: number | null | undefined): number | unde
 
 function burstsForLineItem(lineItem: ProgrammaticLineItem): unknown {
   return lineItem.bursts_json ?? lineItem.bursts ?? null
+}
+
+const DV360_PLATFORMS = new Set(["dv360", "youtube - dv360", "youtube-dv360"])
+const TABOOLA_PLATFORMS = new Set(["taboola", "native - taboola", "native"])
+
+function programmaticConnectionLabel(items: ProgrammaticLineItem[]): string {
+  let hasDv360 = false
+  let hasTaboola = false
+  for (const item of items) {
+    const platform = String(item.platform ?? "")
+      .trim()
+      .toLowerCase()
+    if (DV360_PLATFORMS.has(platform)) hasDv360 = true
+    if (TABOOLA_PLATFORMS.has(platform)) hasTaboola = true
+  }
+  if (hasDv360 && hasTaboola) return "DV360 + Taboola connected"
+  if (hasTaboola) return "Taboola connected"
+  return "DV360 connected"
 }
 
 function buildProgrammaticKpiTiles(input: {
@@ -262,7 +280,7 @@ export function buildProgrammaticChannelSection(input: {
     lastSyncedAt,
   } = input
 
-  const normalized = normalizeDv360ProgrammaticLineItems(rawLineItems)
+  const normalized = normalizeProgrammaticLineItems(rawLineItems)
   if (!normalized.length) return null
 
   const dvRows = combinedRows.filter((r) => r.channel === snowflakeChannel).map(mapCombinedRowToDv360)
@@ -462,7 +480,7 @@ export function buildProgrammaticChannelSection(input: {
     title,
     dateRange: { startISO: campaignStart, endISO: campaignEnd },
     lastSyncedAt,
-    connections: [{ label: "DV360 connected", tone: "dv360" }],
+    connections: [{ label: programmaticConnectionLabel(normalized), tone: "dv360" }],
     mediaTypeColour: accentColour,
     aggregate: {
       summaryChips,
