@@ -1,12 +1,8 @@
-import { Suspense } from "react"
-import { ReceivablesPageClient } from "./ReceivablesPageClient"
+import { redirect } from "next/navigation"
 
 export const dynamic = "force-dynamic"
 
+/** Legacy path — receivables now live on the finance hub billing tab. */
 export default function ReceivablesPage() {
-  return (
-    <Suspense fallback={null}>
-      <ReceivablesPageClient />
-    </Suspense>
-  )
+  redirect("/finance?tab=billing")
 }

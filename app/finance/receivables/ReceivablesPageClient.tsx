@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useMemo } from "react"
+import { useCallback, useEffect, useMemo } from "react"
 import { ChevronDown } from "lucide-react"
 import { FinanceFilterToolbar } from "@/components/finance/FinanceFilterToolbar"
 import { ReceivablesClientCard } from "@/components/finance/receivables/ReceivablesClientCard"
@@ -14,6 +14,20 @@ import { useToast } from "@/components/ui/use-toast"
 import { expandMonthRange } from "@/lib/finance/monthRange"
 import { formatAUD } from "@/lib/format/money"
 import type { BillingRecord } from "@/lib/types/financeBilling"
+
+export type ReceivablesHubBridge = {
+  synced: boolean
+  loading: boolean
+  bump: () => void
+  visibleMonthGroups: MonthGroup[]
+}
+
+type ReceivablesPageClientProps = {
+  /** When true, omit page chrome / duplicate filter bar (hub already provides them). */
+  embedded?: boolean
+  /** Hub bridge for toolbar sync + finance report export. */
+  onHubBridge?: (bridge: ReceivablesHubBridge) => void
+}
 
 function formatMonthRangeSubtitle(from: string, to: string): string {
   const months = expandMonthRange({ from, to })
@@ -140,7 +154,7 @@ function ReceivablesMonthSections({
   )
 }
 
-export function ReceivablesPageClient() {
+export function ReceivablesPageClient({ embedded = false, onHubBridge }: ReceivablesPageClientProps = {}) {
   const filters = useFinanceStore((s) => s.filters)
   const {
     loading,
@@ -155,6 +169,17 @@ export function ReceivablesPageClient() {
   } = useReceivablesData("billing")
 
   const { toast } = useToast()
+
+  const synced = loadedSignature === filterSig
+
+  useEffect(() => {
+    onHubBridge?.({
+      synced,
+      loading,
+      bump: bumpReceivablesFetch,
+      visibleMonthGroups,
+    })
+  }, [onHubBridge, synced, loading, bumpReceivablesFetch, visibleMonthGroups])
 
   const handleToggleBilled = useCallback(
     async (rec: BillingRecord, nextBilled: boolean) => {
@@ -224,7 +249,6 @@ export function ReceivablesPageClient() {
     [updateReceivableLineAmount]
   )
 
-  const synced = loadedSignature === filterSig
   const awaitingExplicitLoad = !synced
 
   const allRecords = useMemo(
@@ -257,35 +281,18 @@ export function ReceivablesPageClient() {
 
   const subtitle = formatMonthRangeSubtitle(filters.monthRange.from, filters.monthRange.to)
 
-  return (
-    <div className="w-full max-w-none px-4 pb-10 pt-4 md:px-6 md:pt-6">
-      <header className="mb-4">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">Receivables</h1>
-        {subtitle ? (
-          <p className="mt-1 text-sm text-muted-foreground">Billing period: {subtitle}</p>
-        ) : null}
-      </header>
-
-      <div className="rounded-card border border-border bg-card px-3 py-2 shadow-e1">
-        <FinanceFilterToolbar
-          receivables={{
-            synced,
-            loading,
-            bump: bumpReceivablesFetch,
-          }}
-        />
-      </div>
-
+  const body = (
+    <>
       {synced && !loading ? (
         <ReceivablesSummaryStrip
-          className="mt-4"
+          className={embedded ? undefined : "mt-4"}
           totalToBill={kpi.totalToBill}
           billed={kpi.billed}
           outstanding={kpi.outstanding}
         />
       ) : null}
 
-      <div className="relative mt-4">
+      <div className={embedded ? "relative mt-4" : "relative mt-4"}>
         {loading && visibleMonthGroups.length === 0 ? (
           <LoadingState rows={5} />
         ) : loadError && !loading ? (
@@ -349,6 +356,33 @@ export function ReceivablesPageClient() {
           </div>
         )}
       </div>
+    </>
+  )
+
+  if (embedded) {
+    return <div className="w-full">{body}</div>
+  }
+
+  return (
+    <div className="w-full max-w-none px-4 pb-10 pt-4 md:px-6 md:pt-6">
+      <header className="mb-4">
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">Receivables</h1>
+        {subtitle ? (
+          <p className="mt-1 text-sm text-muted-foreground">Billing period: {subtitle}</p>
+        ) : null}
+      </header>
+
+      <div className="rounded-card border border-border bg-card px-3 py-2 shadow-e1">
+        <FinanceFilterToolbar
+          receivables={{
+            synced,
+            loading,
+            bump: bumpReceivablesFetch,
+          }}
+        />
+      </div>
+
+      {body}
     </div>
   )
 }

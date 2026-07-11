@@ -10,6 +10,7 @@ const nextConfig = {
       { source: "/finance/publishers", destination: "/finance?tab=payables", permanent: true },
       { source: "/finance/accrual", destination: "/finance?tab=accrual", permanent: true },
       { source: "/finance/forecast", destination: "/finance?tab=forecast", permanent: true },
+      { source: "/finance/receivables", destination: "/finance?tab=billing", permanent: true },
       { source: "/learning", destination: "/knowledge", permanent: true },
       { source: "/learning/:path*", destination: "/knowledge/:path*", permanent: true },
     ]
