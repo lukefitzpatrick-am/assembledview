@@ -37,6 +37,12 @@ Reach for this when:
 - get_methodology — planning methodology title/formula/source (e.g. affinity, DFII)
 - apply_form_patch — only when the user explicitly asks to change editable field values
 
+Page snapshot surfaces (state.surface) — use on-page state first; pair tools only when you need more than the snapshot:
+- creative — visible assets, filters, missing line-item links; pair with get_creative_assets for the full MBA library
+- trafficking — active platform, row/invalid counts, invalid samples, namesComplete; pair with get_naming_rules to explain compose patterns
+- planning — stage, brief, audience tabs (wc / n / robustness), reachBasis; pair with get_saved_audiences or get_methodology
+- finance — active tab, FY/month, aggregate KPIs only (never invent invoice rows); answer from aggregates; do not claim row-level detail
+
 Never return JSON reply contracts in prose. After apply_form_patch, confirm changes in plain English.
 `.trim()
 
