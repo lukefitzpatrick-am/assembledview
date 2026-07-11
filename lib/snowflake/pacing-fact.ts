@@ -24,7 +24,7 @@ export type PacingFactRow = {
   UPDATED_AT: string | null
 }
 
-type Channel = "meta" | "tiktok" | "programmatic-display" | "programmatic-video"
+type Channel = "meta" | "tiktok" | "programmatic-display" | "programmatic-video" | "ad-serving"
 
 type QueryPacingFactParams = {
   channel: Channel
@@ -94,6 +94,8 @@ export async function queryPacingFact(params: QueryPacingFactParams, options: Qu
         return "LOWER(CHANNEL) LIKE '%programmatic%' AND LOWER(CHANNEL) LIKE '%display%'"
       case "programmatic-video":
         return "LOWER(CHANNEL) LIKE '%programmatic%' AND LOWER(CHANNEL) LIKE '%video%'"
+      case "ad-serving":
+        return "LOWER(CHANNEL) LIKE '%ad serving%'"
       default: {
         const exhaustive: never = channel
         throw new Error(`Unsupported pacing channel: ${String(exhaustive)}`)
@@ -102,7 +104,14 @@ export async function queryPacingFact(params: QueryPacingFactParams, options: Qu
   })()
 
   const baseSql = `  SELECT
-    CHANNEL,
+    CASE
+      WHEN LOWER(CHANNEL) LIKE '%meta%' THEN 'meta'
+      WHEN LOWER(CHANNEL) LIKE '%tiktok%' THEN 'tiktok'
+      WHEN LOWER(CHANNEL) LIKE '%programmatic%' AND LOWER(CHANNEL) LIKE '%display%' THEN 'programmatic-display'
+      WHEN LOWER(CHANNEL) LIKE '%programmatic%' AND LOWER(CHANNEL) LIKE '%video%' THEN 'programmatic-video'
+      WHEN LOWER(CHANNEL) LIKE '%ad serving%' THEN 'ad-serving'
+      ELSE LOWER(CHANNEL)
+    END AS CHANNEL,
     TO_VARCHAR(CAST(DATE_DAY AS DATE), 'YYYY-MM-DD') AS DATE_DAY,
     LINE_ITEM_ID,
     ENTITY_NAME,

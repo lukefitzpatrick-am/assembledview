@@ -13,6 +13,7 @@ import DeliveryDataProvider from "./DeliveryDataProvider"
 import { DeliveryContainer } from "./DeliveryContainer"
 import { buildProgrammaticDisplaySection } from "./channels/programmaticDisplayAdapter"
 import { buildProgrammaticVideoSection } from "./channels/programmaticVideoAdapter"
+import { buildAdServingSection } from "./channels/adServingAdapter"
 import { buildSearchSection } from "./channels/searchAdapter"
 import { buildSocialMetaSection } from "./channels/socialMetaAdapter"
 import { buildSocialTiktokSection } from "./channels/socialTiktokAdapter"
@@ -71,6 +72,7 @@ export type CampaignDeliverySectionProps = {
   mpSearchEnabled: boolean
   progDisplayLineItems: unknown[]
   progVideoLineItems: unknown[]
+  adServingLineItems: unknown[]
 }
 
 type DeliveryBodyProps = {
@@ -93,6 +95,7 @@ type DeliveryBodyProps = {
   includeSearch: boolean
   progDisplayLineItems: unknown[]
   progVideoLineItems: unknown[]
+  adServingLineItems: unknown[]
 }
 
 function CampaignDeliveryBody({
@@ -115,6 +118,7 @@ function CampaignDeliveryBody({
   includeSearch,
   progDisplayLineItems,
   progVideoLineItems,
+  adServingLineItems,
 }: DeliveryBodyProps) {
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null)
 
@@ -212,6 +216,22 @@ function CampaignDeliveryBody({
       if (s) out.push(s)
     }
 
+    if (adServingLineItems.length > 0) {
+      const s = buildAdServingSection({
+        adServingLineItems,
+        combinedRows: rows,
+        campaignStart,
+        campaignEnd,
+        mbaNumber,
+        filterRange,
+        kpiVersionNumber,
+        lineItemTargets,
+        brandColour,
+        lastSyncedAt,
+      })
+      if (s) out.push(s)
+    }
+
     return out
   }, [
     rows,
@@ -221,6 +241,7 @@ function CampaignDeliveryBody({
     includeSearch,
     progDisplayLineItems,
     progVideoLineItems,
+    adServingLineItems,
     campaignStart,
     campaignEnd,
     filterRange,
@@ -264,6 +285,7 @@ export function CampaignDeliverySection({
   mpSearchEnabled,
   progDisplayLineItems,
   progVideoLineItems,
+  adServingLineItems,
 }: CampaignDeliverySectionProps) {
   const pacingWindow = useMemo(() => getPacingWindow(campaignStart, campaignEnd), [campaignStart, campaignEnd])
 
@@ -316,6 +338,13 @@ export function CampaignDeliverySection({
     return Array.from(new Set(ids)).sort()
   }, [progVideoLineItems, filterByPacingSet])
 
+  const adServingLineItemIds = useMemo(() => {
+    const ids = (adServingLineItems ?? [])
+      .map(extractPacingLineItemIdFromItem)
+      .filter(filterByPacingSet) as string[]
+    return Array.from(new Set(ids)).sort()
+  }, [adServingLineItems, filterByPacingSet])
+
   const normalizedSearchLineItemIds = useMemo(() => {
     const ids = (searchLineItemIds ?? [])
       .map((id) => cleanPacingLineItemId(id))
@@ -334,6 +363,7 @@ export function CampaignDeliverySection({
       tiktokLineItemIds={tiktokLineItemIds}
       progDisplayLineItemIds={progDisplayLineItemIds}
       progVideoLineItemIds={progVideoLineItemIds}
+      adServingLineItemIds={adServingLineItemIds}
       campaignStart={campaignStart}
       campaignEnd={campaignEnd}
       searchEnabled={includeSearch}
@@ -360,6 +390,7 @@ export function CampaignDeliverySection({
           includeSearch={includeSearch}
           progDisplayLineItems={progDisplayLineItems}
           progVideoLineItems={progVideoLineItems}
+          adServingLineItems={adServingLineItems}
         />
       )}
     </DeliveryDataProvider>

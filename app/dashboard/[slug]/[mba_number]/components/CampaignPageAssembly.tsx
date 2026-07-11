@@ -115,6 +115,7 @@ type CampaignPageAssemblyProps = {
   mpSearchEnabled: boolean
   progDisplayItemsActive: any[]
   progVideoItemsActive: any[]
+  adServingItemsActive: any[]
   deliveryLineItemIds: string[]
   availableVersions: MediaPlanVersionListEntry[]
   currentVersion: number
@@ -156,6 +157,7 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
     mpSearchEnabled,
     progDisplayItemsActive,
     progVideoItemsActive,
+    adServingItemsActive,
     deliveryLineItemIds,
     availableVersions,
     currentVersion,
@@ -255,6 +257,15 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
       return bursts.some((b: unknown) => burstOverlapsRange(b, filterRange))
     })
   }, [filterRange, isUnfiltered, progVideoItemsActive])
+
+  const filteredAdServing = useMemo(() => {
+    if (isUnfiltered) return adServingItemsActive
+    return adServingItemsActive.filter((item) => {
+      const bursts = Array.isArray(item?.bursts) ? item.bursts : []
+      if (bursts.length === 0) return true
+      return bursts.some((b: unknown) => burstOverlapsRange(b, filterRange))
+    })
+  }, [filterRange, isUnfiltered, adServingItemsActive])
 
   // --- KPI targets for delivery containers (Stage 3b) ---
   const [savedCampaignKPIs, setSavedCampaignKPIs] = useState<CampaignKPI[]>([])
@@ -447,6 +458,7 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
                 mpSearchEnabled={mpSearchEnabled}
                 progDisplayLineItems={filteredProgDisplay}
                 progVideoLineItems={filteredProgVideo}
+                adServingLineItems={filteredAdServing}
               />
               </div>
             </Suspense>
