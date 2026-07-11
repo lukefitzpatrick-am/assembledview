@@ -104,6 +104,31 @@ export function CreativeAssetManager({ mbaNumber, showPageHeader = false }: Crea
     }
   }, [mbaNumber, toast])
 
+  /** Quiet list reconcile — no loading spinner, preserves filters / scroll / form state. */
+  const refreshAssets = useCallback(async () => {
+    try {
+      const assetsRes = await fetch(
+        `/api/creative-assets?mba_number=${encodeURIComponent(mbaNumber)}`,
+      )
+      if (!assetsRes.ok) return
+      const assetRows = (await assetsRes.json()) as CreativeAsset[]
+      setAssets(Array.isArray(assetRows) ? assetRows : [])
+    } catch {
+      // Keep optimistic rows if reconcile fails.
+    }
+  }, [mbaNumber])
+
+  const handleAssetRegistered = useCallback(
+    (asset: CreativeAsset) => {
+      setAssets((prev) => {
+        if (prev.some((row) => row.id === asset.id)) return prev
+        return [asset, ...prev]
+      })
+      void refreshAssets()
+    },
+    [refreshAssets],
+  )
+
   useEffect(() => {
     void loadData()
   }, [loadData])
@@ -281,7 +306,7 @@ export function CreativeAssetManager({ mbaNumber, showPageHeader = false }: Crea
             mbaNumber={mbaNumber}
             mediaPlanMasterId={mediaPlanMasterId}
             lineItemLink={uploadLineItemLink}
-            onAssetRegistered={() => void loadData()}
+            onAssetRegistered={handleAssetRegistered}
             onError={(message) => toast({ title: "Upload failed", description: message, variant: "destructive" })}
           />
         </CardContent>

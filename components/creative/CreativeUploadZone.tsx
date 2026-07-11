@@ -14,6 +14,7 @@ import {
   isAcceptedCreativeFile,
 } from "@/lib/creative/metadata"
 import type { LineItemOption } from "@/lib/creative/lineItemOptions"
+import type { CreativeAsset } from "@/lib/creative/types"
 
 export type UploadQueueItem = {
   id: string
@@ -25,12 +26,14 @@ export type UploadQueueItem = {
   error?: string
 }
 
+const CLEAR_DONE_DELAY_MS = 1600
+
 type CreativeUploadZoneProps = {
   mbaNumber: string
   mediaPlanMasterId: number
   lineItemLink: Pick<LineItemOption, "line_item_id" | "source_table"> | null
   disabled?: boolean
-  onAssetRegistered: () => void
+  onAssetRegistered: (asset: CreativeAsset) => void
   onError: (message: string) => void
 }
 
@@ -60,7 +63,7 @@ export function CreativeUploadZone({
       file: File,
       blob: { url: string; pathname: string; contentType?: string },
       dimensions: Awaited<ReturnType<typeof extractAssetDimensions>>,
-    ) => {
+    ): Promise<CreativeAsset> => {
       const payload = {
         mba_number: mbaNumber,
         media_plan_master_id: mediaPlanMasterId,
@@ -89,7 +92,7 @@ export function CreativeUploadZone({
         throw new Error(data?.error || "Failed to register asset")
       }
 
-      const row = (await response.json()) as { id: number; media_plan_master_id?: number }
+      const row = (await response.json()) as CreativeAsset
       const needsDimensionPatch =
         row.media_plan_master_id === 0 ||
         dimensions.width_px > 0 ||
@@ -110,7 +113,10 @@ export function CreativeUploadZone({
           const data = (await patchResponse.json().catch(() => null)) as { error?: string } | null
           throw new Error(data?.error || "Failed to update asset metadata")
         }
+        return (await patchResponse.json()) as CreativeAsset
       }
+
+      return row
     },
     [lineItemLink, mbaNumber, mediaPlanMasterId],
   )
@@ -152,9 +158,12 @@ export function CreativeUploadZone({
 
         updateQueueItem(queueId, { status: "registering", progress: 100 })
         const dimensions = await extractAssetDimensions(file)
-        await registerAsset(file, blob, dimensions)
+        const asset = await registerAsset(file, blob, dimensions)
         updateQueueItem(queueId, { status: "done", progress: 100 })
-        onAssetRegistered()
+        onAssetRegistered(asset)
+        window.setTimeout(() => {
+          setQueue((prev) => prev.filter((item) => item.id !== queueId))
+        }, CLEAR_DONE_DELAY_MS)
       } catch (error) {
         const message = error instanceof Error ? error.message : "Upload failed"
         updateQueueItem(queueId, { status: "error", error: message })
