@@ -3,11 +3,14 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
-import type { AllocatedChannel } from "@/app/tools/behavioural-planner/lib/types"
+import type { AllocatedChannel, ScoredChannel } from "@/app/tools/behavioural-planner/lib/types"
 import type { AdapterResult } from "@/lib/planning/adapter"
 import type { PlanningAudienceRow } from "@/lib/planning/audienceTypes"
+import { dfii } from "@/lib/planning/dfii"
 import { cn } from "@/lib/utils"
+import { DfiiValue, OutcomeCharts, topDfiiLabel } from "./OutcomeCharts"
 import { AUDIENCE_ACCENTS } from "./constants"
 import { formatAudienceWc, robustnessFromN } from "./robustness"
 import type {
@@ -19,6 +22,8 @@ import type {
 export type AudienceCompareBundle = {
   draft: AudienceDraft
   adapted: AdapterResult | null
+  /** Full BCS-scored set (Stage D exclusions already applied). */
+  scored: ScoredChannel[]
   allocated: AllocatedChannel[]
   loading: boolean
   error: string | null
@@ -42,7 +47,7 @@ type StageCompareProps = {
   bundles: AudienceCompareBundle[]
   savedAudiences: PlanningAudienceRow[]
   savedLoading: boolean
-  onOpenMethodology: () => void
+  onOpenMethodology: (focusId?: string) => void
   onLoadSaved: (row: PlanningAudienceRow) => void
   onAudienceSaved: () => void
   onBack: () => void
@@ -71,6 +76,7 @@ type CompareRow = {
     reachWc: number
     dollars: number
     isLead: boolean
+    dfii: number | null
   } | null>
   combinedWeight: number
 }
@@ -80,6 +86,14 @@ function buildCompareRows(bundles: AudienceCompareBundle[]): CompareRow[] {
     string,
     { name: string; weights: number[]; byAudience: Map<string, AllocatedChannel> }
   >()
+
+  const dfiiByAudience = new Map<string, Map<string, number | null>>()
+  for (const b of bundles) {
+    const vals = dfii(b.scored.map((s) => ({ bcs: s.bcs })))
+    const map = new Map<string, number | null>()
+    b.scored.forEach((s, i) => map.set(s.ch.id, vals[i] ?? null))
+    dfiiByAudience.set(b.draft.id, map)
+  }
 
   for (const b of bundles) {
     for (const a of b.allocated) {
@@ -107,6 +121,7 @@ function buildCompareRows(bundles: AudienceCompareBundle[]): CompareRow[] {
         reachWc: alloc.ch.reachWc ?? 0,
         dollars: alloc.dollars,
         isLead: false,
+        dfii: dfiiByAudience.get(b.draft.id)?.get(channelId) ?? null,
       }
     })
 
@@ -279,6 +294,10 @@ export function StageCompare({
                     ? mix.map((m) => `${m.ch.name} ${Math.round(m.pct)}%`).join(" · ")
                     : "—"}
                 </div>
+                <div className="text-xs">
+                  <span className="text-muted-foreground">Top DFII: </span>
+                  {topDfiiLabel(b.scored) ?? "—"}
+                </div>
                 <div className="flex flex-wrap gap-2">
                   <Button
                     type="button"
@@ -306,6 +325,12 @@ export function StageCompare({
         })}
       </div>
 
+      <Tabs defaultValue="mix" className="w-full">
+        <TabsList>
+          <TabsTrigger value="mix">Mix table</TabsTrigger>
+          <TabsTrigger value="charts">Charts</TabsTrigger>
+        </TabsList>
+        <TabsContent value="mix" className="space-y-4">
       <div className="overflow-x-auto rounded-card border border-border bg-card shadow-e1">
         <table className="w-full min-w-[640px] border-collapse text-sm">
           <thead>
@@ -373,12 +398,17 @@ export function StageCompare({
                             <span className="h-2 w-2 shrink-0" aria-hidden />
                           )}
                         </div>
-                        <div className="mt-0.5 text-[10px] text-muted-foreground">
-                          <span className="num tabular-nums">
-                            {formatAudienceWc(cell.reachWc)}
+                        <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
+                          <span>
+                            <span className="num tabular-nums">
+                              {formatAudienceWc(cell.reachWc)}
+                            </span>
+                            &apos;000s ·{" "}
+                            <span className="num tabular-nums">{fmtDollars(cell.dollars)}</span>
                           </span>
-                          &apos;000s ·{" "}
-                          <span className="num tabular-nums">{fmtDollars(cell.dollars)}</span>
+                          <span className="inline-flex items-center gap-1">
+                            DFII <DfiiValue value={cell.dfii} />
+                          </span>
                         </div>
                       </td>
                     )
@@ -389,6 +419,11 @@ export function StageCompare({
           </tbody>
         </table>
       </div>
+        </TabsContent>
+        <TabsContent value="charts">
+          <OutcomeCharts bundles={bundles} onOpenMethodology={onOpenMethodology} />
+        </TabsContent>
+      </Tabs>
 
       <div className="flex flex-wrap items-center gap-1.5">
         <Badge variant="outline" size="sm" className="font-normal">
@@ -410,7 +445,7 @@ export function StageCompare({
         ) : null}
         <button
           type="button"
-          onClick={onOpenMethodology}
+          onClick={() => onOpenMethodology()}
           className="text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
         >
           How we calculate →

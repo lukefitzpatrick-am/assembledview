@@ -101,6 +101,10 @@ type FactAggRow = {
   SELECTION_NULL_COUNT: unknown
   SELECTION_UNWEIGHTED: unknown
   BASE_WC: unknown
+  SELECTION_WC_ADDRESSABLE: unknown
+  SELECTION_WC_TOTAL: unknown
+  BASE_WC_ADDRESSABLE: unknown
+  BASE_WC_TOTAL: unknown
 }
 
 async function safeQuery<T>(
@@ -294,25 +298,25 @@ export async function getAudienceProfile(
 
   // Selection predicate reused in CASE expressions (binds repeated per CASE).
   // reach_basis picks the wc column via bound string — never interpolates identifiers.
+  const selectionPred = `
+          f.SEGMENT_ID = ?
+            AND f.STATE IN (${statePh})
+            AND f.GENDER IN (${genderPh})
+            AND f.AGE_BAND IN (${agePh})`
+
   const sql = `
     SELECT
       f.CHANNEL_ID AS CHANNEL_ID,
       SUM(
         CASE
-          WHEN f.SEGMENT_ID = ?
-            AND f.STATE IN (${statePh})
-            AND f.GENDER IN (${genderPh})
-            AND f.AGE_BAND IN (${agePh})
+          WHEN ${selectionPred}
           THEN IFF(? = 'addressable', f.WC_ADDRESSABLE, f.WC_TOTAL)
           ELSE NULL
         END
       ) AS SELECTION_WC,
       SUM(
         CASE
-          WHEN f.SEGMENT_ID = ?
-            AND f.STATE IN (${statePh})
-            AND f.GENDER IN (${genderPh})
-            AND f.AGE_BAND IN (${agePh})
+          WHEN ${selectionPred}
             AND IFF(? = 'addressable', f.WC_ADDRESSABLE, f.WC_TOTAL) IS NULL
           THEN 1
           ELSE 0
@@ -320,10 +324,7 @@ export async function getAudienceProfile(
       ) AS SELECTION_NULL_COUNT,
       SUM(
         CASE
-          WHEN f.SEGMENT_ID = ?
-            AND f.STATE IN (${statePh})
-            AND f.GENDER IN (${genderPh})
-            AND f.AGE_BAND IN (${agePh})
+          WHEN ${selectionPred}
           THEN f.UNWEIGHTED
           ELSE NULL
         END
@@ -335,7 +336,37 @@ export async function getAudienceProfile(
           THEN IFF(? = 'addressable', f.WC_ADDRESSABLE, f.WC_TOTAL)
           ELSE NULL
         END
-      ) AS BASE_WC
+      ) AS BASE_WC,
+      SUM(
+        CASE
+          WHEN ${selectionPred}
+          THEN f.WC_ADDRESSABLE
+          ELSE NULL
+        END
+      ) AS SELECTION_WC_ADDRESSABLE,
+      SUM(
+        CASE
+          WHEN ${selectionPred}
+          THEN f.WC_TOTAL
+          ELSE NULL
+        END
+      ) AS SELECTION_WC_TOTAL,
+      SUM(
+        CASE
+          WHEN f.SEGMENT_ID = 'base'
+            AND f.STATE = 'NAT'
+          THEN f.WC_ADDRESSABLE
+          ELSE NULL
+        END
+      ) AS BASE_WC_ADDRESSABLE,
+      SUM(
+        CASE
+          WHEN f.SEGMENT_ID = 'base'
+            AND f.STATE = 'NAT'
+          THEN f.WC_TOTAL
+          ELSE NULL
+        END
+      ) AS BASE_WC_TOTAL
     FROM ${MART}.PLANNING_FACT_REACH f
     WHERE f.WAVE_ID = ?
       AND (
@@ -362,12 +393,14 @@ export async function getAudienceProfile(
     basis,
   ]
 
-  const selectionUnweightedBinds = [
+  const selectionDimBinds = [
     params.segment_id,
     ...states,
     ...genders,
     ...ageBands,
   ]
+
+  const selectionUnweightedBinds = selectionDimBinds
 
   const binds = [
     // SELECTION_WC CASE
@@ -378,6 +411,11 @@ export async function getAudienceProfile(
     ...selectionUnweightedBinds,
     // BASE_WC CASE (basis only)
     basis,
+    // SELECTION_WC_ADDRESSABLE
+    ...selectionDimBinds,
+    // SELECTION_WC_TOTAL
+    ...selectionDimBinds,
+    // BASE_WC_ADDRESSABLE / BASE_WC_TOTAL — no binds
     // WHERE
     params.wave_id,
     params.segment_id,
@@ -398,5 +436,9 @@ export async function getAudienceProfile(
     selection_null_count: toNumber(r.SELECTION_NULL_COUNT, 0),
     selection_unweighted: toNumber(r.SELECTION_UNWEIGHTED, 0),
     base_wc: toNumber(r.BASE_WC, 0),
+    selection_wc_addressable: toNumber(r.SELECTION_WC_ADDRESSABLE, 0),
+    selection_wc_total: toNumber(r.SELECTION_WC_TOTAL, 0),
+    base_wc_addressable: toNumber(r.BASE_WC_ADDRESSABLE, 0),
+    base_wc_total: toNumber(r.BASE_WC_TOTAL, 0),
   }))
 }

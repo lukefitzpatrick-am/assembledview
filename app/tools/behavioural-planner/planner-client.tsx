@@ -187,6 +187,7 @@ export function BehaviouralPlannerClient() {
   const [metaError, setMetaError] = useState<string | null>(null)
   const [metaLoading, setMetaLoading] = useState(true)
   const [methodologyOpen, setMethodologyOpen] = useState(false)
+  const [methodologyFocusId, setMethodologyFocusId] = useState<string | null>(null)
 
   const [state, dispatch] = useReducer(
     planningReducer,
@@ -380,6 +381,7 @@ export function BehaviouralPlannerClient() {
       const result = results[draft.id]
       const adapted = result?.adapted ?? null
       let allocated: AudienceCompareBundle["allocated"] = []
+      let scored: AudienceCompareBundle["scored"] = []
       if (adapted) {
         const inputs = toPlannerInputs(
           draft,
@@ -389,12 +391,13 @@ export function BehaviouralPlannerClient() {
           "q3-2026"
         )
         const channels = toEngineChannels(adapted, excluded)
-        const scored = computeBcs(inputs, channels, engineParams)
+        scored = computeBcs(inputs, channels, engineParams)
         allocated = allocate(scored, state.brief.budget, engineParams)
       }
       return {
         draft,
         adapted,
+        scored,
         allocated,
         loading: result?.loading ?? false,
         error: result?.error ?? null,
@@ -508,7 +511,11 @@ export function BehaviouralPlannerClient() {
           <MethodologyPanel
             rows={meta.methodology}
             open={methodologyOpen}
-            onOpenChange={setMethodologyOpen}
+            onOpenChange={(open) => {
+              setMethodologyOpen(open)
+              if (!open) setMethodologyFocusId(null)
+            }}
+            focusId={methodologyFocusId}
             showTrigger
           />
           <button
@@ -587,7 +594,10 @@ export function BehaviouralPlannerClient() {
           bundles={compareBundles}
           savedAudiences={savedAudiences}
           savedLoading={savedLoading}
-          onOpenMethodology={() => setMethodologyOpen(true)}
+          onOpenMethodology={(focusId) => {
+            setMethodologyFocusId(focusId ?? null)
+            setMethodologyOpen(true)
+          }}
           onLoadSaved={handleLoadSaved}
           onAudienceSaved={() => setSavedRefresh((n) => n + 1)}
           onBack={() => goTo("constraints")}

@@ -31,6 +31,10 @@ export type AdaptedChannel = {
   /** Real RM reach fraction 0..1 (0 for benchmark-only Search). */
   reachPct: number
   reachWc: number
+  /** Addressable reach fraction 0..1 (both bases always populated when RM-measured). */
+  reachPctAddressable: number
+  /** Total reach fraction 0..1. */
+  reachPctTotal: number
   isRmMeasured: boolean
   ageBase: number
 }
@@ -168,6 +172,8 @@ export function adaptAudienceToEngine(opts: {
       genderMod: row.gender_fit,
       reachPct: row.reach_pct,
       reachWc: row.reach_wc,
+      reachPctAddressable: row.reach_pct_addressable,
+      reachPctTotal: row.reach_pct_total,
       isRmMeasured: row.is_rm_measured,
       ageBase: row.age_base,
     })
@@ -189,6 +195,8 @@ export function adaptAudienceToEngine(opts: {
       genderMod: 1,
       reachPct: 0,
       reachWc: 0,
+      reachPctAddressable: 0,
+      reachPctTotal: 0,
       isRmMeasured: false,
       ageBase: 14,
     })

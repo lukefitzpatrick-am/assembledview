@@ -40,6 +40,10 @@ function agg(
     selection_null_count: 0,
     selection_unweighted: 0,
     base_wc: 0,
+    selection_wc_addressable: 0,
+    selection_wc_total: 0,
+    base_wc_addressable: 0,
+    base_wc_total: 0,
     ...over,
   }
 }

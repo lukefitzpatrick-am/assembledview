@@ -107,6 +107,11 @@ export type AudienceAggregateRow = {
    * media channels typically null → 0).
    */
   selection_unweighted: number
+  /** Always both bases — for addressable-vs-total gap charts. */
+  selection_wc_addressable: number
+  selection_wc_total: number
+  base_wc_addressable: number
+  base_wc_total: number
 }
 
 export type AudienceChannelResult = {
@@ -114,6 +119,10 @@ export type AudienceChannelResult = {
   engine_channel_id: string
   reach_wc: number
   reach_pct: number
+  /** Reach % on addressable wc (independent of request reach_basis). */
+  reach_pct_addressable: number
+  /** Reach % on total wc (independent of request reach_basis). */
+  reach_pct_total: number
   affinity_by_segment: Record<string, number | null>
   age_fit: number
   gender_fit: number

@@ -13,7 +13,8 @@ export {
 export {
   BarChart, HorizontalBarChart, GroupedBarChart, StackedBarChart,
   PercentStackedBarChart, ComboChart, Histogram,
-  type BarProps, type ComboProps, type SeriesClickPayload,
+  type BarProps, type ComboProps, type ComboSeries, type ComboReferenceLine,
+  type ChartReferenceLine, type SeriesClickPayload,
 } from './bar-charts';
 
 // Composition
@@ -25,7 +26,7 @@ export {
 // Distribution & relationship
 export {
   ScatterChart, RadarChart, SlopeChart,
-  type ScatterPoint, type RadarSeries,
+  type ScatterPoint, type ScatterQuadrantLabels, type RadarSeries,
 } from './relation-charts';
 
 // Flow & variance

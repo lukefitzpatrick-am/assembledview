@@ -80,6 +80,8 @@ export function computeAudienceResponse(input: ComputeAudienceInput): AudienceRe
   const pop = aggregates.find((r) => r.channel_id === POPULATION_CHANNEL_ID)
   const universe_wc = pop ? toFiniteNumber(pop.base_wc) : 0
   const baseAudienceWc = universe_wc
+  const audienceWcAddressable = pop ? toFiniteNumber(pop.selection_wc_addressable) : 0
+  const audienceWcTotal = pop ? toFiniteNumber(pop.selection_wc_total) : 0
 
   const channelById = new Map(channels.map((c) => [c.channel_id, c]))
   const aggById = new Map(aggregates.map((r) => [r.channel_id, r]))
@@ -108,6 +110,14 @@ export function computeAudienceResponse(input: ComputeAudienceInput): AudienceRe
     const base_wc = toFiniteNumber(agg.base_wc)
     const selection_pct = reachPct(reach_wc, audience_wc)
     const base_pct = reachPct(base_wc, baseAudienceWc)
+    const reach_pct_addressable = reachPct(
+      toFiniteNumber(agg.selection_wc_addressable),
+      audienceWcAddressable
+    )
+    const reach_pct_total = reachPct(
+      toFiniteNumber(agg.selection_wc_total),
+      audienceWcTotal
+    )
 
     const is_rm_measured = meta?.is_rm_measured ?? true
     const affinity = is_rm_measured
@@ -121,6 +131,8 @@ export function computeAudienceResponse(input: ComputeAudienceInput): AudienceRe
       engine_channel_id: meta?.engine_channel_id ?? channelId,
       reach_wc,
       reach_pct: selection_pct,
+      reach_pct_addressable,
+      reach_pct_total,
       affinity_by_segment: { [segment_id]: affinity },
       // Phase 1: reach is already computed on the selected cells, so the prototype's
       // age/gender skew modifiers are redundant — multiply by 1 harmlessly.
