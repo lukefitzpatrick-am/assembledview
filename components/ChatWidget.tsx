@@ -19,6 +19,24 @@ type ChatWidgetProps = {
   className?: string
 }
 
+const STARTER_CHIPS: Record<ChatMode, string[]> = {
+  general: [
+    "How is pacing looking for this client?",
+    "What fees are set on this client?",
+    "What's the affinity methodology?",
+  ],
+  mediaplan_create: [
+    "Help me fill the campaign basics",
+    "What's a sensible media mix to start?",
+    "Set the campaign name from the brief",
+  ],
+  mediaplan_edit: [
+    "Summarise this media plan",
+    "Show creative assets for this MBA",
+    "Preview naming for the line items",
+  ],
+}
+
 export function ChatWidget({
   getPageContext,
   pageContext,
@@ -89,11 +107,12 @@ export function ChatWidget({
     }
   }, [dragState])
 
-  async function sendMessage() {
-    if (!input.trim()) return
+  async function sendMessage(overrideText?: string) {
+    const text = (overrideText ?? input).trim()
+    if (!text) return
     setIsSending(true)
     setError(null)
-    const updatedMessages: ChatCompletionMessageParam[] = [...messages, { role: "user", content: input.trim() }]
+    const updatedMessages: ChatCompletionMessageParam[] = [...messages, { role: "user", content: text }]
     setMessages(updatedMessages)
     setInput("")
 
@@ -152,6 +171,8 @@ export function ChatWidget({
     }
   }
 
+  const starterChips = STARTER_CHIPS[mode] ?? STARTER_CHIPS.general
+
   return (
     <div
       className={cn("fixed bottom-6 right-6 z-50", className)}
@@ -204,7 +225,24 @@ export function ChatWidget({
 
           {!isCollapsed && (
             <div className="flex h-80 flex-col gap-3 overflow-y-auto bg-muted/50 px-3 py-3">
-              {messages.length === 0 && <p className="text-sm text-muted-foreground">How can I help?</p>}
+              {messages.length === 0 && (
+                <div className="flex flex-col gap-3">
+                  <p className="text-sm text-muted-foreground">How can I help?</p>
+                  <div className="flex flex-col gap-2">
+                    {starterChips.map((chip) => (
+                      <button
+                        key={chip}
+                        type="button"
+                        disabled={isSending}
+                        onClick={() => void sendMessage(chip)}
+                        className="interactive-tint rounded-input border border-border bg-background px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-table-row-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {chip}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {messages.map((msg, idx) => (
                 <div key={idx} className="flex flex-col gap-1">
@@ -234,11 +272,11 @@ export function ChatWidget({
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault()
-                  sendMessage()
+                  void sendMessage()
                 }
               }}
             />
-            <Button onClick={sendMessage} disabled={isSending}>
+            <Button onClick={() => void sendMessage()} disabled={isSending}>
               Send
             </Button>
           </div>

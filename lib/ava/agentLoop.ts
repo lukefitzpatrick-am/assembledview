@@ -35,6 +35,16 @@ const FALLBACK_REPLY = "I did not produce a response. Please try again.";
 const TOOL_LIMIT_REPLY =
   "I hit the tool call limit before finishing. Please try a simpler request or ask me to continue.";
 
+/** Structured failure string for the model — never crash the turn on a tool throw/timeout. */
+function formatToolFailure(toolName: string, rawMessage: string): string {
+  const safe = rawMessage
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 240);
+  const message = safe.length > 0 ? safe : "unexpected error";
+  return `Tool ${toolName} failed: ${message}`;
+}
+
 function truncatePreview(text: string, maxLen: number): string {
   if (text.length <= maxLen) return text;
   return text.slice(0, maxLen);
@@ -177,16 +187,19 @@ export async function runAvaAgent(
 
           const tool = getToolByName(name);
           if (!tool) {
-            resultContent = `Unknown tool: ${name}`;
+            resultContent = formatToolFailure(name, `Unknown tool: ${name}`);
             resultIsError = true;
           } else {
             try {
               const executed = await tool.execute(toolInput, input.context);
               resultContent = executed.content;
               resultIsError = executed.isError ?? false;
+              if (resultIsError) {
+                resultContent = formatToolFailure(name, resultContent);
+              }
             } catch (err) {
               const msg = err instanceof Error ? err.message : String(err);
-              resultContent = msg;
+              resultContent = formatToolFailure(name, msg);
               resultIsError = true;
             }
           }
