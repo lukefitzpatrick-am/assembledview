@@ -41,6 +41,9 @@ import {
 import { formatMoney } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
 import { useFinanceStore, type FinanceHubTab } from "@/lib/finance/useFinanceStore"
+import { setAssistantContext, clearAssistantContext } from "@/lib/assistantBridge"
+import type { PageContext } from "@/lib/ava/types"
+import { useAuthContext } from "@/contexts/AuthContext"
 import {
   australianFyStartYearForDate,
   billingMonthsInAustralianFinancialYear,
@@ -179,7 +182,9 @@ function useFinanceOverview() {
 }
 
 export function FinanceOverviewProvider({ children }: { children: ReactNode }) {
+  const { isAdmin } = useAuthContext()
   const filters = useFinanceStore((s) => s.filters)
+  const activeTab = useFinanceStore((s) => s.activeTab)
   const setFilters = useFinanceStore((s) => s.setFilters)
   const setActiveTab = useFinanceStore((s) => s.setActiveTab)
   const billingRecords = useFinanceStore((s) => s.billingRecords)
@@ -614,6 +619,69 @@ export function FinanceOverviewProvider({ children }: { children: ReactNode }) {
       attentionItems,
     ]
   )
+
+  const getPageContext = useCallback((): PageContext | undefined => {
+    // Hard requirement: never emit finance aggregates for non-admin sessions.
+    if (!isAdmin) return undefined
+
+    return {
+      route: { pathname: "/finance" },
+      generatedAt: new Date().toISOString(),
+      pageText: {
+        title: "Finance Hub",
+        breadcrumbs: ["Finance"],
+      },
+      state: {
+        surface: "finance",
+        activeTab,
+        financialYear: filters.financialYear,
+        monthRange: {
+          from: filters.monthRange.from,
+          to: filters.monthRange.to,
+        },
+        fyStart,
+        currentMonth,
+        hubRangeLabel,
+        // Aggregate KPIs only — never row-level invoice/payable records.
+        aggregates: {
+          kpiReceivablesThisMonth,
+          kpiReceivablesFytd,
+          kpiPayablesThisMonth,
+          kpiPayablesFytd,
+          kpiNetAccrualFytd,
+        },
+      },
+    }
+  }, [
+    activeTab,
+    currentMonth,
+    filters.financialYear,
+    filters.monthRange.from,
+    filters.monthRange.to,
+    fyStart,
+    hubRangeLabel,
+    isAdmin,
+    kpiNetAccrualFytd,
+    kpiPayablesFytd,
+    kpiPayablesThisMonth,
+    kpiReceivablesFytd,
+    kpiReceivablesThisMonth,
+  ])
+
+  useEffect(() => {
+    const pageContext = getPageContext()
+    if (!pageContext) {
+      setAssistantContext({ pageContext: undefined })
+      return
+    }
+    setAssistantContext({ pageContext })
+  }, [getPageContext])
+
+  useEffect(() => {
+    return () => {
+      clearAssistantContext()
+    }
+  }, [])
 
   return (
     <FinanceOverviewContext.Provider value={contextValue}>{children}</FinanceOverviewContext.Provider>
