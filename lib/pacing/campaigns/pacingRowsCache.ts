@@ -1,5 +1,6 @@
 import "server-only"
 import { unstable_cache } from "next/cache"
+import { fetchAdServingPacingCampaignRows } from "@/lib/pacing/ad-serving/fetchAdServingPacingCampaignRows"
 import { fetchSearchPacingCampaignRows } from "@/lib/pacing/campaigns/fetchSearchPacingCampaignRows"
 import { fetchProgrammaticPacingCampaignRows } from "@/lib/pacing/programmatic/fetchProgrammaticPacingCampaignRows"
 import { fetchSocialPacingCampaignRows } from "@/lib/pacing/social/fetchSocialPacingCampaignRows"
@@ -47,6 +48,19 @@ export async function getCachedProgrammaticPacingRows(
   const cached = unstable_cache(
     async () => fetchProgrammaticPacingCampaignRows({ asOfDate, allowedClientSlugs }),
     ["pacing-rows", "programmatic", asOfDate, scopeKey],
+    { revalidate: REVALIDATE_SECONDS, tags: [PACING_CAMPAIGNS_TAG] }
+  )
+  return cached()
+}
+
+export async function getCachedAdServingPacingRows(
+  asOfDate: string,
+  allowedClientSlugs: Set<string> | null
+) {
+  const scopeKey = pacingScopeKey(allowedClientSlugs)
+  const cached = unstable_cache(
+    async () => fetchAdServingPacingCampaignRows({ asOfDate, allowedClientSlugs }),
+    ["pacing-rows", "ad-serving", asOfDate, scopeKey],
     { revalidate: REVALIDATE_SECONDS, tags: [PACING_CAMPAIGNS_TAG] }
   )
   return cached()
