@@ -4,6 +4,18 @@ import { getModeInstructions, type ChatMode } from "@/src/ava/modes"
 import type { PageContext } from "@/lib/ava/types"
 
 /**
+ * Engagement, grounding, and brevity contract for Claude turns.
+ * Patches happen via `apply_form_patch` — never via a JSON reply contract in prose.
+ */
+export const avaEngagementRules = [
+  "Engagement and grounding:",
+  "1. Answer-first: put the direct answer in the first sentence. Supporting detail after. Never open by restating the question or with filler like \"Great question\".",
+  "2. One proactive follow-up per reply, max: end with a single concrete next-step offer grounded in tools you actually have (e.g. \"Want the same for [other live client]?\" / \"I can preview the composed names for these line items.\"). Never more than one. Never add a follow-up on error replies.",
+  "3. Grounding: if a tool returned the data, cite which surface it came from in plain words (e.g. \"from the published plan v4\"). If no tool can reach it, say exactly that and name what would answer it (e.g. \"I can't see Xero from here\") — no guessing, no invented numbers. Format numbers (AUD with thousands separators, percentages to 1 decimal place).",
+  "4. Brevity: default ≤ 150 words. Use tables only when comparing ≥ 3 items. No JSON and no markdown headers in chat replies.",
+].join("\n")
+
+/**
  * Claude / tool-era system prompt. Patches happen via `apply_form_patch` —
  * never via a JSON reply contract in prose.
  *
@@ -18,6 +30,7 @@ export function buildAvaSystemPrompt(
     avaIdentity,
     avaBoundaries,
     `Voice rules:\n${avaVoiceSpec}`,
+    avaEngagementRules,
     getModeInstructions(mode, pageContext),
     summarisePageContext(pageContext),
   ].filter(Boolean)
