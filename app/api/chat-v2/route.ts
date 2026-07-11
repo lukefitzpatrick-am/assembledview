@@ -9,11 +9,7 @@ import type Anthropic from "@anthropic-ai/sdk"
 import { getModeInstructions, type ChatMode } from "@/src/ava/modes"
 import { auth0 } from "@/lib/auth0"
 import { getUserRoles } from "@/lib/rbac"
-import {
-  buildSystemPrompt,
-  type FormPatch,
-  type PageContext,
-} from "@/lib/openai"
+import { buildSystemPrompt, type PageContext } from "@/lib/openai"
 import { runAvaAgent } from "@/lib/ava/agentLoop"
 import {
   avaGptErrorResponse,
@@ -59,6 +55,15 @@ export async function POST(req: NextRequest) {
       if (!Array.isArray(body.messages)) {
         return NextResponse.json({ error: "'messages' must be an array" }, { status: 400 })
       }
+      if (!process.env.OPENAI_API_KEY) {
+        return NextResponse.json(
+          {
+            error:
+              "OPENAI_API_KEY is not configured. AVA (GPT engine) cannot start. Ask an admin to set it in the deployment environment.",
+          },
+          { status: 503 },
+        )
+      }
       try {
         return await handleOpenAvaGptChat(roles, {
           messages: body.messages,
@@ -78,6 +83,16 @@ export async function POST(req: NextRequest) {
     if (process.env.AVA_ENGINE !== "claude") {
       return NextResponse.json(
         { error: "AVA Claude engine is not enabled on this deployment." },
+        { status: 503 },
+      )
+    }
+
+    if (!process.env.ANTHROPIC_API_KEY) {
+      return NextResponse.json(
+        {
+          error:
+            "ANTHROPIC_API_KEY is not configured. AVA (Claude engine) cannot start. Ask an admin to set it in the deployment environment.",
+        },
         { status: 503 },
       )
     }
