@@ -61,6 +61,16 @@ export type PlanningChannelMeta = {
   bench: PlanningBench
 }
 
+export type PlanningMethodologyRow = {
+  methodology_id: string
+  title: string
+  formula_text: string
+  description: string
+  data_source: string
+  sort_order: number
+  updated_at: string | null
+}
+
 export type PlanningMeta = {
   waves: PlanningWave[]
   segments: PlanningSegment[]
@@ -68,6 +78,10 @@ export type PlanningMeta = {
   states: readonly PlanningState[]
   age_bands: readonly PlanningAgeBand[]
   genders: readonly PlanningGender[]
+  /** Ordered PLANNING_METHODOLOGY rows (empty if table missing/unseeded). */
+  methodology: PlanningMethodologyRow[]
+  /** PARAM_KEY → PARAM_VALUE from PLANNING_ENGINE_PARAMS (empty → code defaults). */
+  engine_params: Record<string, number>
 }
 
 export type AudienceRequest = {

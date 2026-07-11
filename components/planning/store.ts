@@ -4,6 +4,10 @@ import type {
   ReachBasis,
 } from "@/lib/planning/types"
 import {
+  CODE_ENGINE_PARAMS,
+  type EngineParams,
+} from "@/lib/planning/engineParams"
+import {
   MAX_AUDIENCES,
   OBJECTIVE_PRESETS,
   type ObjectiveKind,
@@ -81,6 +85,15 @@ export type PlanningAction =
   | { type: "PATCH_DIAGNOSIS"; patch: Partial<DiagnosisState> }
   | { type: "TOGGLE_CHANNEL"; engineChannelId: string }
   | { type: "SET_EXCLUDED"; ids: string[] }
+  | {
+      type: "LOAD_SAVED"
+      waveId: string
+      brief?: Partial<BriefState>
+      audiences: AudienceDraft[]
+      activeAudienceId: string
+      diagnosis: DiagnosisState
+      excludedChannelIds: string[]
+    }
   | { type: "RESET"; waveId: string; defaultSegmentId: string }
 
 let audienceSeq = 1
@@ -150,29 +163,46 @@ export function createInitialState(opts: {
 }
 
 /**
- * Stage C → BCS mapping (v1 client-side; Snowflake engine params arrive in R2).
+ * Stage C → BCS mapping.
  *
  * - `createCapture` → `objective` (Create=brand … Capture=action)
  * - Objective cards set createCapture + base weight presets
  * - Salience nudges Attention (T); target−penetration gap nudges Audience fit (A);
  *   capture-heavy createCapture nudges Cost (C)
- * Engine formula in bcs-engine.ts is unchanged — we only derive its inputs.
+ * Nudge scalars come from engine params (meta) when present; else CODE_ENGINE_PARAMS.
  */
-export function deriveBcsParams(diagnosis: DiagnosisState): {
+export function deriveBcsParams(
+  diagnosis: DiagnosisState,
+  engineParams: EngineParams = CODE_ENGINE_PARAMS
+): {
   objective: number
   weights: Weights
 } {
   const gap = Math.max(0, diagnosis.target - diagnosis.penetration)
-  const salienceBoost = diagnosis.salience === "high" ? 8 : diagnosis.salience === "low" ? -6 : 0
-  const gapBoost = Math.min(12, Math.round(gap * 0.25))
-  const captureBoost = diagnosis.createCapture >= 60 ? 6 : diagnosis.createCapture <= 30 ? -4 : 0
+  const salienceBoost =
+    diagnosis.salience === "high"
+      ? engineParams.salience_boost_high
+      : diagnosis.salience === "low"
+        ? engineParams.salience_boost_low
+        : 0
+  const gapBoost = Math.min(
+    engineParams.gap_boost_cap,
+    Math.round(gap * engineParams.gap_boost_factor)
+  )
+  const captureBoost =
+    diagnosis.createCapture >= engineParams.capture_threshold
+      ? engineParams.capture_boost
+      : diagnosis.createCapture <= engineParams.create_threshold
+        ? engineParams.create_boost
+        : 0
 
+  const floor = engineParams.weight_floor
   const base = diagnosis.weights
   const weights: Weights = {
-    A: Math.max(5, base.A + gapBoost),
-    T: Math.max(5, base.T + salienceBoost),
-    E: Math.max(5, base.E),
-    C: Math.max(5, base.C + captureBoost),
+    A: Math.max(floor, base.A + gapBoost),
+    T: Math.max(floor, base.T + salienceBoost),
+    E: Math.max(floor, base.E),
+    C: Math.max(floor, base.C + captureBoost),
   }
   return { objective: diagnosis.createCapture, weights }
 }
@@ -271,6 +301,26 @@ export function planningReducer(
     }
     case "SET_EXCLUDED":
       return { ...state, excludedChannelIds: action.ids }
+    case "LOAD_SAVED": {
+      if (action.audiences.length === 0) return state
+      return {
+        ...state,
+        stage: "compare",
+        waveId: action.waveId || state.waveId,
+        brief: action.brief ? { ...state.brief, ...action.brief } : state.brief,
+        audiences: action.audiences,
+        activeAudienceId: action.activeAudienceId,
+        diagnosis: action.diagnosis,
+        excludedChannelIds: action.excludedChannelIds,
+        completed: {
+          brief: true,
+          audiences: true,
+          diagnosis: true,
+          constraints: true,
+          compare: false,
+        },
+      }
+    }
     case "RESET":
       return createInitialState({
         waveId: action.waveId,

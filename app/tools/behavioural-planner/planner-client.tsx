@@ -14,22 +14,33 @@ import type {
   PlannerInputs,
   Weights as EngineWeights,
 } from "@/app/tools/behavioural-planner/lib/types"
+import { MethodologyPanel } from "@/components/planning/MethodologyPanel"
 import { PlanningStepper } from "@/components/planning/PlanningStepper"
 import { StageAudiences } from "@/components/planning/StageAudiences"
 import { StageBrief } from "@/components/planning/StageBrief"
-import { StageCompare, type AudienceCompareBundle } from "@/components/planning/StageCompare"
+import {
+  StageCompare,
+  type AudienceCompareBundle,
+  type SavedAudienceDefinition,
+} from "@/components/planning/StageCompare"
 import { StageConstraints } from "@/components/planning/StageConstraints"
 import { StageDiagnosis } from "@/components/planning/StageDiagnosis"
 import {
+  createAudienceDraft,
   createInitialState,
   deriveBcsParams,
   isAudiencesComplete,
   isBriefComplete,
   planningReducer,
   type AudienceDraft,
+  type BriefState,
+  type DiagnosisState,
 } from "@/components/planning/store"
 import type { StageId } from "@/components/planning/constants"
+import { useToast } from "@/components/ui/use-toast"
 import { adaptAudienceToEngine, type AdapterResult } from "@/lib/planning/adapter"
+import { resolveEngineParams } from "@/lib/planning/engineParams"
+import type { PlanningAudienceRow } from "@/lib/planning/audienceTypes"
 import type {
   AudienceRequest,
   AudienceResponse,
@@ -132,10 +143,50 @@ function toPlannerInputs(
   }
 }
 
+function parseSavedDefinition(raw: unknown): SavedAudienceDefinition | null {
+  if (!raw || typeof raw !== "object") return null
+  const o = raw as Record<string, unknown>
+  if (!o.audience || typeof o.audience !== "object") return null
+  const audience = o.audience as AudienceDraft
+  if (!audience.id || !audience.name || !audience.segmentId) return null
+  return {
+    audience: createAudienceDraft({
+      ...audience,
+      colorIndex: (audience.colorIndex ?? 0) as 0 | 1 | 2,
+      segmentId: audience.segmentId,
+      id: audience.id,
+    }),
+    brief: (o.brief && typeof o.brief === "object" ? o.brief : {}) as BriefState,
+    diagnosis: (o.diagnosis && typeof o.diagnosis === "object"
+      ? o.diagnosis
+      : {
+          penetration: 35,
+          target: 45,
+          salience: "medium",
+          createCapture: 35,
+          weights: { A: 30, T: 25, E: 30, C: 15 },
+        }) as DiagnosisState,
+    exclusions: Array.isArray(o.exclusions)
+      ? o.exclusions.map((x) => String(x))
+      : [],
+    wave_id: typeof o.wave_id === "string" ? o.wave_id : "",
+  }
+}
+
+function briefClientId(
+  fromSaved: BriefState,
+  current: BriefState
+): number | null {
+  if (typeof fromSaved.clientId === "number") return fromSaved.clientId
+  return current.clientId
+}
+
 export function BehaviouralPlannerClient() {
+  const { toast } = useToast()
   const [meta, setMeta] = useState<PlanningMeta | null>(null)
   const [metaError, setMetaError] = useState<string | null>(null)
   const [metaLoading, setMetaLoading] = useState(true)
+  const [methodologyOpen, setMethodologyOpen] = useState(false)
 
   const [state, dispatch] = useReducer(
     planningReducer,
@@ -144,11 +195,13 @@ export function BehaviouralPlannerClient() {
   )
 
   const [results, setResults] = useState<Record<string, AudienceResult>>({})
+  const [savedAudiences, setSavedAudiences] = useState<PlanningAudienceRow[]>([])
+  const [savedLoading, setSavedLoading] = useState(false)
+  const [savedRefresh, setSavedRefresh] = useState(0)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const abortMap = useRef<Map<string, AbortController>>(new Map())
   const genMap = useRef<Map<string, number>>(new Map())
 
-  // Load meta once.
   useEffect(() => {
     let cancelled = false
     ;(async () => {
@@ -162,7 +215,11 @@ export function BehaviouralPlannerClient() {
         }
         const data = (await res.json()) as PlanningMeta
         if (cancelled) return
-        setMeta(data)
+        setMeta({
+          ...data,
+          methodology: data.methodology ?? [],
+          engine_params: data.engine_params ?? {},
+        })
         const waveId = data.waves[0]?.wave_id ?? ""
         const seg = defaultSegmentId(data)
         dispatch({ type: "RESET", waveId, defaultSegmentId: seg })
@@ -177,6 +234,33 @@ export function BehaviouralPlannerClient() {
       cancelled = true
     }
   }, [])
+
+  useEffect(() => {
+    const clientId = state.brief.clientId
+    if (!clientId) {
+      setSavedAudiences([])
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      setSavedLoading(true)
+      try {
+        const res = await fetch(
+          `/api/planning/audiences?clients_id=${encodeURIComponent(String(clientId))}`
+        )
+        if (!res.ok) throw new Error(`Failed to list audiences (${res.status})`)
+        const rows = (await res.json()) as PlanningAudienceRow[]
+        if (!cancelled) setSavedAudiences(Array.isArray(rows) ? rows : [])
+      } catch {
+        if (!cancelled) setSavedAudiences([])
+      } finally {
+        if (!cancelled) setSavedLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [state.brief.clientId, state.stage, savedRefresh])
 
   const fetchOne = useCallback(
     async (draft: AudienceDraft, currentMeta: PlanningMeta, waveId: string) => {
@@ -199,7 +283,6 @@ export function BehaviouralPlannerClient() {
       }))
 
       try {
-        // One POST per audience (§8.3) — never sum audience_wc across audiences.
         const res = await fetch("/api/planning/audience", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -241,7 +324,6 @@ export function BehaviouralPlannerClient() {
     .map((a) => audienceKey(state.waveId, a))
     .join("||")
 
-  // Debounced multi-audience fetch — one request per audience definition.
   useEffect(() => {
     if (!meta || !state.waveId) return
     if (debounceRef.current) clearTimeout(debounceRef.current)
@@ -249,7 +331,6 @@ export function BehaviouralPlannerClient() {
       for (const draft of state.audiences) {
         void fetchOne(draft, meta, state.waveId)
       }
-      // Drop results for removed audiences
       setResults((prev) => {
         const keep = new Set(state.audiences.map((a) => a.id))
         const next: Record<string, AudienceResult> = {}
@@ -262,11 +343,18 @@ export function BehaviouralPlannerClient() {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-    // keysSignature captures audience definition slice
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meta, keysSignature, fetchOne])
 
-  const bcsParams = useMemo(() => deriveBcsParams(state.diagnosis), [state.diagnosis])
+  const engineParams = useMemo(
+    () => resolveEngineParams(meta?.engine_params),
+    [meta?.engine_params]
+  )
+
+  const bcsParams = useMemo(
+    () => deriveBcsParams(state.diagnosis, engineParams),
+    [state.diagnosis, engineParams]
+  )
   const excluded = useMemo(
     () => new Set(state.excludedChannelIds),
     [state.excludedChannelIds]
@@ -301,8 +389,8 @@ export function BehaviouralPlannerClient() {
           "q3-2026"
         )
         const channels = toEngineChannels(adapted, excluded)
-        const scored = computeBcs(inputs, channels)
-        allocated = allocate(scored, state.brief.budget)
+        const scored = computeBcs(inputs, channels, engineParams)
+        allocated = allocate(scored, state.brief.budget, engineParams)
       }
       return {
         draft,
@@ -312,7 +400,7 @@ export function BehaviouralPlannerClient() {
         error: result?.error ?? null,
       }
     })
-  }, [state.audiences, state.brief.budget, results, bcsParams, excluded])
+  }, [state.audiences, state.brief.budget, results, bcsParams, excluded, engineParams])
 
   const goTo = (stage: StageId) => {
     dispatch({ type: "SET_STAGE", stage })
@@ -337,6 +425,42 @@ export function BehaviouralPlannerClient() {
       defaultSegmentId: defaultSegmentId(meta),
     })
     setResults({})
+  }
+
+  const handleLoadSaved = (row: PlanningAudienceRow) => {
+    const parsed = parseSavedDefinition(row.definition_json)
+    if (!parsed) {
+      toast({
+        title: "Could not load audience",
+        description: "Saved definition_json is missing required fields.",
+        variant: "destructive",
+      })
+      return
+    }
+    dispatch({
+      type: "LOAD_SAVED",
+      waveId: parsed.wave_id || state.waveId,
+      brief: {
+        clientId: briefClientId(parsed.brief, state.brief),
+        clientName: parsed.brief.clientName || state.brief.clientName,
+        brandOverride: parsed.brief.brandOverride ?? state.brief.brandOverride,
+        campaignName: parsed.brief.campaignName || state.brief.campaignName,
+        startDate: parsed.brief.startDate ?? state.brief.startDate,
+        endDate: parsed.brief.endDate ?? state.brief.endDate,
+        category: parsed.brief.category || state.brief.category,
+        market: parsed.brief.market || state.brief.market,
+        budget: parsed.brief.budget || state.brief.budget,
+        objectiveKind: parsed.brief.objectiveKind ?? state.brief.objectiveKind,
+      },
+      audiences: [parsed.audience],
+      activeAudienceId: parsed.audience.id,
+      diagnosis: parsed.diagnosis,
+      excludedChannelIds: parsed.exclusions,
+    })
+    toast({
+      title: `Loaded “${row.name}”`,
+      description: "Builder restored from the saved definition.",
+    })
   }
 
   if (metaLoading) {
@@ -380,13 +504,21 @@ export function BehaviouralPlannerClient() {
             Brief → audiences → diagnosis → constraints → compare. Wave {waveLabel}.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={handleReset}
-          className="text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
-        >
-          Reset
-        </button>
+        <div className="flex items-center gap-2">
+          <MethodologyPanel
+            rows={meta.methodology}
+            open={methodologyOpen}
+            onOpenChange={setMethodologyOpen}
+            showTrigger
+          />
+          <button
+            type="button"
+            onClick={handleReset}
+            className="text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+          >
+            Reset
+          </button>
+        </div>
       </div>
 
       <PlanningStepper
@@ -448,9 +580,16 @@ export function BehaviouralPlannerClient() {
         <StageCompare
           brief={state.brief}
           diagnosis={state.diagnosis}
+          waveId={state.waveId}
           waveLabel={waveLabel}
           reachBasis={reachBasisLabel}
+          excludedChannelIds={state.excludedChannelIds}
           bundles={compareBundles}
+          savedAudiences={savedAudiences}
+          savedLoading={savedLoading}
+          onOpenMethodology={() => setMethodologyOpen(true)}
+          onLoadSaved={handleLoadSaved}
+          onAudienceSaved={() => setSavedRefresh((n) => n + 1)}
           onBack={() => goTo("constraints")}
         />
       ) : null}

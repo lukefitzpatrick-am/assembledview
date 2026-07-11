@@ -10,6 +10,7 @@ import {
   type PlanningBench,
   type PlanningChannelMeta,
   type PlanningMeta,
+  type PlanningMethodologyRow,
   type PlanningSegment,
   type PlanningWave,
   type ReachBasis,
@@ -79,6 +80,21 @@ type ChannelRow = {
   CPM: unknown
 }
 
+type MethodologyRow = {
+  METHODOLOGY_ID: string
+  TITLE: string
+  FORMULA_TEXT: string | null
+  DESCRIPTION: string | null
+  DATA_SOURCE: string | null
+  SORT_ORDER: unknown
+  UPDATED_AT: string | null
+}
+
+type EngineParamRow = {
+  PARAM_KEY: string
+  PARAM_VALUE: unknown
+}
+
 type FactAggRow = {
   CHANNEL_ID: string
   SELECTION_WC: unknown
@@ -87,17 +103,30 @@ type FactAggRow = {
   BASE_WC: unknown
 }
 
+async function safeQuery<T>(
+  label: string,
+  run: () => Promise<T[] | null | undefined>
+): Promise<T[]> {
+  try {
+    return (await run()) ?? []
+  } catch (err) {
+    console.warn(`[planning/queries] ${label} unavailable:`, err)
+    return []
+  }
+}
+
 /**
- * Waves, segments, channels (+ benchmarks LEFT JOIN), and static state/age/gender lists.
- * Compose metadata only — no fact maths here.
+ * Waves, segments, channels (+ benchmarks LEFT JOIN), methodology, engine params,
+ * and static state/age/gender lists. Compose metadata only — no fact maths here.
  */
 export async function getPlanningMeta(opts?: {
   requestId?: string
   signal?: AbortSignal
 }): Promise<PlanningMeta> {
-  const [wavesRaw, segmentsRaw, channelsRaw] = await Promise.all([
-    querySnowflake<WaveRow>(
-      `
+  const [wavesRaw, segmentsRaw, channelsRaw, methodologyRaw, engineParamsRaw] =
+    await Promise.all([
+      querySnowflake<WaveRow>(
+        `
       SELECT
         WAVE_ID,
         LABEL,
@@ -106,11 +135,11 @@ export async function getPlanningMeta(opts?: {
       FROM ${MART}.PLANNING_DIM_WAVE
       ORDER BY LOADED_AT DESC NULLS LAST, WAVE_ID
       `,
-      [],
-      { requestId: opts?.requestId, signal: opts?.signal, label: "planning_meta_waves" }
-    ),
-    querySnowflake<SegmentRow>(
-      `
+        [],
+        { requestId: opts?.requestId, signal: opts?.signal, label: "planning_meta_waves" }
+      ),
+      querySnowflake<SegmentRow>(
+        `
       SELECT
         SEGMENT_ID,
         NAME,
@@ -119,11 +148,11 @@ export async function getPlanningMeta(opts?: {
       FROM ${MART}.PLANNING_DIM_SEGMENT
       ORDER BY NAME
       `,
-      [],
-      { requestId: opts?.requestId, signal: opts?.signal, label: "planning_meta_segments" }
-    ),
-    querySnowflake<ChannelRow>(
-      `
+        [],
+        { requestId: opts?.requestId, signal: opts?.signal, label: "planning_meta_segments" }
+      ),
+      querySnowflake<ChannelRow>(
+        `
       SELECT
         c.CHANNEL_ID,
         c.LEVEL1,
@@ -141,10 +170,49 @@ export async function getPlanningMeta(opts?: {
         ON b.CHANNEL_ID = c.CHANNEL_ID
       ORDER BY c.SORT_ORDER ASC NULLS LAST, c.CHANNEL_ID
       `,
-      [],
-      { requestId: opts?.requestId, signal: opts?.signal, label: "planning_meta_channels" }
-    ),
-  ])
+        [],
+        { requestId: opts?.requestId, signal: opts?.signal, label: "planning_meta_channels" }
+      ),
+      safeQuery<MethodologyRow>("planning_meta_methodology", () =>
+        querySnowflake<MethodologyRow>(
+          `
+        SELECT
+          METHODOLOGY_ID,
+          TITLE,
+          FORMULA_TEXT,
+          DESCRIPTION,
+          DATA_SOURCE,
+          SORT_ORDER,
+          TO_VARCHAR(UPDATED_AT) AS UPDATED_AT
+        FROM ${MART}.PLANNING_METHODOLOGY
+        ORDER BY SORT_ORDER ASC NULLS LAST, METHODOLOGY_ID
+        `,
+          [],
+          {
+            requestId: opts?.requestId,
+            signal: opts?.signal,
+            label: "planning_meta_methodology",
+          }
+        )
+      ),
+      safeQuery<EngineParamRow>("planning_meta_engine_params", () =>
+        querySnowflake<EngineParamRow>(
+          `
+        SELECT
+          PARAM_KEY,
+          PARAM_VALUE
+        FROM ${MART}.PLANNING_ENGINE_PARAMS
+        ORDER BY PARAM_KEY
+        `,
+          [],
+          {
+            requestId: opts?.requestId,
+            signal: opts?.signal,
+            label: "planning_meta_engine_params",
+          }
+        )
+      ),
+    ])
 
   const waves: PlanningWave[] = (wavesRaw ?? []).map((r) => ({
     wave_id: toStr(r.WAVE_ID),
@@ -171,6 +239,23 @@ export async function getPlanningMeta(opts?: {
     bench: benchFromRow(r as unknown as Record<string, unknown>),
   }))
 
+  const methodology: PlanningMethodologyRow[] = methodologyRaw.map((r) => ({
+    methodology_id: toStr(r.METHODOLOGY_ID),
+    title: toStr(r.TITLE),
+    formula_text: r.FORMULA_TEXT == null ? "" : toStr(r.FORMULA_TEXT),
+    description: r.DESCRIPTION == null ? "" : toStr(r.DESCRIPTION),
+    data_source: r.DATA_SOURCE == null ? "" : toStr(r.DATA_SOURCE),
+    sort_order: toNumber(r.SORT_ORDER),
+    updated_at: r.UPDATED_AT == null ? null : toStr(r.UPDATED_AT),
+  }))
+
+  const engine_params: Record<string, number> = {}
+  for (const r of engineParamsRaw) {
+    const key = toStr(r.PARAM_KEY)
+    const value = toNumberOrNull(r.PARAM_VALUE)
+    if (key && value != null) engine_params[key] = value
+  }
+
   return {
     waves,
     segments,
@@ -178,6 +263,8 @@ export async function getPlanningMeta(opts?: {
     states: PLANNING_STATES,
     age_bands: PLANNING_AGE_BANDS,
     genders: PLANNING_GENDERS,
+    methodology,
+    engine_params,
   }
 }
 

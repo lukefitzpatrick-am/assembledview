@@ -1,19 +1,20 @@
 "use client"
 
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
+import { useToast } from "@/components/ui/use-toast"
 import type { AllocatedChannel } from "@/app/tools/behavioural-planner/lib/types"
 import type { AdapterResult } from "@/lib/planning/adapter"
+import type { PlanningAudienceRow } from "@/lib/planning/audienceTypes"
 import { cn } from "@/lib/utils"
 import { AUDIENCE_ACCENTS } from "./constants"
 import { formatAudienceWc, robustnessFromN } from "./robustness"
-import type { AudienceDraft, BriefState, DiagnosisState } from "./store"
+import type {
+  AudienceDraft,
+  BriefState,
+  DiagnosisState,
+} from "./store"
 
 export type AudienceCompareBundle = {
   draft: AudienceDraft
@@ -23,12 +24,27 @@ export type AudienceCompareBundle = {
   error: string | null
 }
 
+export type SavedAudienceDefinition = {
+  audience: AudienceDraft
+  brief: BriefState
+  diagnosis: DiagnosisState
+  exclusions: string[]
+  wave_id: string
+}
+
 type StageCompareProps = {
   brief: BriefState
   diagnosis: DiagnosisState
+  waveId: string
   waveLabel: string
   reachBasis: string
+  excludedChannelIds: string[]
   bundles: AudienceCompareBundle[]
+  savedAudiences: PlanningAudienceRow[]
+  savedLoading: boolean
+  onOpenMethodology: () => void
+  onLoadSaved: (row: PlanningAudienceRow) => void
+  onAudienceSaved: () => void
   onBack: () => void
 }
 
@@ -94,7 +110,6 @@ function buildCompareRows(bundles: AudienceCompareBundle[]): CompareRow[] {
       }
     })
 
-    // Lead = highest weight among defined cells for this channel
     let maxW = -1
     let leadIdx = -1
     cells.forEach((c, i) => {
@@ -122,15 +137,78 @@ function buildCompareRows(bundles: AudienceCompareBundle[]): CompareRow[] {
 export function StageCompare({
   brief,
   diagnosis,
+  waveId,
   waveLabel,
   reachBasis,
+  excludedChannelIds,
   bundles,
+  savedAudiences,
+  savedLoading,
+  onOpenMethodology,
+  onLoadSaved,
+  onAudienceSaved,
   onBack,
 }: StageCompareProps) {
+  const { toast } = useToast()
   const rows = buildCompareRows(bundles)
   const createShare = 100 - diagnosis.createCapture
   const captureShare = diagnosis.createCapture
   const colCount = bundles.length
+  const [savingId, setSavingId] = useState<string | null>(null)
+  const [lastSavedName, setLastSavedName] = useState<string | null>(null)
+
+  const canSave = Boolean(brief.clientId && brief.clientName.trim())
+
+  async function handleUseAudience(bundle: AudienceCompareBundle) {
+    if (!brief.clientId) {
+      toast({
+        title: "Select a client first",
+        description: "Stage A needs a client before saving an audience.",
+        variant: "destructive",
+      })
+      return
+    }
+    setSavingId(bundle.draft.id)
+    try {
+      const definition: SavedAudienceDefinition = {
+        audience: bundle.draft,
+        brief,
+        diagnosis,
+        exclusions: excludedChannelIds,
+        wave_id: waveId,
+      }
+      const res = await fetch("/api/planning/audiences", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clients_id: brief.clientId,
+          name: bundle.draft.name,
+          definition_json: definition,
+          composed_wc: bundle.adapted?.audienceWc ?? 0,
+          client_visible: false,
+        }),
+      })
+      if (!res.ok) {
+        const errBody = (await res.json().catch(() => null)) as { error?: string } | null
+        throw new Error(errBody?.error ?? `Save failed (${res.status})`)
+      }
+      const saved = (await res.json()) as PlanningAudienceRow
+      setLastSavedName(saved.name)
+      onAudienceSaved()
+      toast({
+        title: `Saved “${saved.name}”`,
+        description: "Audience stored for this client. Start a campaign from Campaigns.",
+      })
+    } catch (err) {
+      toast({
+        title: "Could not save audience",
+        description: err instanceof Error ? err.message : "Unknown error",
+        variant: "destructive",
+      })
+    } finally {
+      setSavingId(null)
+    }
+  }
 
   return (
     <div className="space-y-5">
@@ -141,21 +219,33 @@ export function StageCompare({
         </p>
       </div>
 
-      {/* Per-audience cards */}
-      <div className={cn("grid gap-3", colCount === 1 ? "sm:grid-cols-1" : colCount === 2 ? "sm:grid-cols-2" : "sm:grid-cols-3")}>
+      <div
+        className={cn(
+          "grid gap-3",
+          colCount === 1
+            ? "sm:grid-cols-1"
+            : colCount === 2
+              ? "sm:grid-cols-2"
+              : "sm:grid-cols-3"
+        )}
+      >
         {bundles.map((b) => {
           const accent = AUDIENCE_ACCENTS[b.draft.colorIndex]!
           const rob = robustnessFromN(b.adapted?.unweightedN ?? 0)
           const lead = b.allocated[0]
           const mix = topMix(b.allocated, 3)
           const reach = blendedReach(b.allocated)
+          const busy = savingId === b.draft.id
           return (
             <div
               key={b.draft.id}
               className="overflow-hidden rounded-card border border-border bg-card shadow-e1"
             >
               <div
-                className={cn("px-4 py-2.5 text-sm font-medium text-primary-foreground", accent.bg)}
+                className={cn(
+                  "px-4 py-2.5 text-sm font-medium text-primary-foreground",
+                  accent.bg
+                )}
               >
                 {b.draft.name}
               </div>
@@ -176,7 +266,6 @@ export function StageCompare({
                     <span className="num text-foreground">{Math.round(reach)}%</span>
                   </span>
                 </div>
-                {/* Verify hooks */}
                 <div className="sr-only">
                   audience_wc={b.adapted?.audienceWc ?? 0} unweighted_n={rob.n}
                 </div>
@@ -190,27 +279,33 @@ export function StageCompare({
                     ? mix.map((m) => `${m.ch.name} ${Math.round(m.pct)}%`).join(" · ")
                     : "—"}
                 </div>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="inline-block">
-                        <Button type="button" size="sm" variant="outline" disabled>
-                          Use audience →
-                        </Button>
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      Save &amp; handoff arrives in the next build
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={!canSave || busy || !b.adapted}
+                    onClick={() => void handleUseAudience(b)}
+                  >
+                    {busy ? "Saving…" : "Use audience →"}
+                  </Button>
+                  {lastSavedName === b.draft.name ? (
+                    <Button type="button" size="sm" variant="ghost" disabled>
+                      Saved — start campaign from Campaigns
+                    </Button>
+                  ) : null}
+                </div>
+                {!canSave ? (
+                  <p className="text-[10px] text-muted-foreground">
+                    Select a client in Stage A to enable save.
+                  </p>
+                ) : null}
               </div>
             </div>
           )
         })}
       </div>
 
-      {/* Channel-mix comparison table */}
       <div className="overflow-x-auto rounded-card border border-border bg-card shadow-e1">
         <table className="w-full min-w-[640px] border-collapse text-sm">
           <thead>
@@ -295,8 +390,7 @@ export function StageCompare({
         </table>
       </div>
 
-      {/* Sources chips */}
-      <div className="flex flex-wrap gap-1.5">
+      <div className="flex flex-wrap items-center gap-1.5">
         <Badge variant="outline" size="sm" className="font-normal">
           Roy Morgan Single Source · wave {waveLabel}
         </Badge>
@@ -314,6 +408,51 @@ export function StageCompare({
             {brief.brandOverride || brief.clientName}
           </Badge>
         ) : null}
+        <button
+          type="button"
+          onClick={onOpenMethodology}
+          className="text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+        >
+          How we calculate →
+        </button>
+      </div>
+
+      <div className="rounded-card border border-border bg-card p-4 shadow-e1">
+        <h3 className="text-sm font-medium">Saved audiences</h3>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          Load a saved definition back into the builder for this client.
+        </p>
+        {!brief.clientId ? (
+          <p className="mt-3 text-xs text-muted-foreground">Select a client in Stage A.</p>
+        ) : savedLoading ? (
+          <p className="mt-3 text-xs text-muted-foreground">Loading saved audiences…</p>
+        ) : savedAudiences.length === 0 ? (
+          <p className="mt-3 text-xs text-muted-foreground">No saved audiences for this client yet.</p>
+        ) : (
+          <ul className="mt-3 space-y-2">
+            {savedAudiences.map((row) => (
+              <li
+                key={row.id}
+                className="flex items-center justify-between gap-3 text-sm"
+              >
+                <span>
+                  {row.name}{" "}
+                  <span className="num text-xs text-muted-foreground">
+                    ({formatAudienceWc(Number(row.composed_wc))} &apos;000s)
+                  </span>
+                </span>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => onLoadSaved(row)}
+                >
+                  Load
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       <p className="text-[11px] leading-relaxed text-muted-foreground">

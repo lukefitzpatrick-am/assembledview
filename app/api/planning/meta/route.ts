@@ -5,8 +5,8 @@ import { getCachedPlanningMeta } from "@/lib/planning/metaCache"
 export const dynamic = "force-dynamic"
 
 /**
- * GET /api/planning/meta — waves, segments, channels (+ benches), static lists.
- * Gate: admin | manager. Auth outside unstable_cache.
+ * GET /api/planning/meta — waves, segments, channels (+ benches), methodology,
+ * engine_params, static lists. Gate: admin | manager. Auth outside unstable_cache.
  */
 export async function GET(request: NextRequest) {
   const gate = await requireRole(request, ["admin", "manager"])
