@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/xano-line-item-sync",
       "schedule": "0 19 * * *"
+    },
+    {
+      "path": "/api/cron/ops-health",
+      "schedule": "0 22 * * *"
     }
   ]
 }
