@@ -1,0 +1,148 @@
+{
+  "publisher_slug": "tonic",
+  "publisher_name": "Tonic Media Network",
+  "container_category_default": "OOH",
+  "category_note": "Tonic spans waiting-room TV/screens (OOH-Health), Brochure Board and posters (Print), and Solus EDM (Direct Digital). Map per format below.",
+  "last_refreshed": "2026-05-22",
+  "source": "Tonic_Media_Network_Asset_Specifications_16_09_2025.pdf",
+  "supply_deadline_rule_default": "5 working days prior to campaign start",
+  "supply_deadline_rule_print_brochure": "By the 15th of the month prior to start date",
+  "formats": [
+    {
+      "format_name": "Tonic Television",
+      "container": "OOH",
+      "file_type": "MP4/MPEG-4 Video (H.264)",
+      "video_bit_rate": "5-8 Mbps",
+      "dimensions": "1920x1080 landscape",
+      "duration_options": ["15s", "30s", "60s", "90s (max 90s)"],
+      "audio_required": true,
+      "audio_spec": "OP59 compliant (background music must not be higher volume than dialogue). Audio mandatory; if not provided Tonic will add from approved music library.",
+      "captions": "SRT, 1920x1080",
+      "static_alternative": "High-resolution JPEG, PSD, or AI",
+      "restrictions": "Tonic watermark in top-right corner — leave 211 x 151px area clear",
+      "supply_deadline_rule": "5 working days prior to campaign start",
+      "best_practice_notes": [
+        "Large text and short sentences (waiting-room readability)",
+        "No cursive or running writing"
+      ]
+    },
+    {
+      "format_name": "Tonic Digital Panel",
+      "container": "OOH",
+      "file_type": "JPEG or EPS (static), MP4/MPEG-4 (animated)",
+      "dimensions": "1080x1920 portrait",
+      "resolution": "300 DPI minimum (static)",
+      "duration_max": "10 seconds",
+      "audio_available": false,
+      "supply_deadline_rule": "5 working days prior to campaign start",
+      "best_practice_notes": [
+        "No more than 40 words (10-second display)",
+        "Large text, short sentences",
+        "No cursive or running writing",
+        "Vector files for fonts (not bitmap)"
+      ]
+    },
+    {
+      "format_name": "Tonic Pharmacy Screen",
+      "container": "OOH",
+      "file_type": "JPEG or EPS (static), MP4/MPEG-4 (animated)",
+      "dimensions": "1080x1920 portrait",
+      "resolution": "300 DPI minimum (static)",
+      "duration_max": "10 seconds",
+      "audio_available": false,
+      "supply_deadline_rule": "5 working days prior to campaign start",
+      "best_practice_notes": [
+        "No more than 40 words",
+        "Large text, short sentences",
+        "No cursive or running writing",
+        "Vector files for fonts"
+      ]
+    },
+    {
+      "format_name": "Aboriginal Health Television (AHTV)",
+      "container": "OOH",
+      "file_type": "MP4/MPEG-4 Video (H.264)",
+      "video_bit_rate": "5-8 Mbps",
+      "dimensions": "1920x1080 landscape",
+      "duration_options": ["15s", "30s", "60s", "90s (max 90s)"],
+      "audio_required": true,
+      "audio_spec": "OP59 compliant. Audio mandatory; Tonic adds from approved library if not supplied.",
+      "captions": "SRT, 1920x1080",
+      "restrictions": "AHTV watermark in right-hand corner — leave 211 x 151px area clear",
+      "supply_deadline_rule": "5 working days prior to campaign start"
+    },
+    {
+      "format_name": "Tonic Brochure Board (DL Brochures)",
+      "container": "Print",
+      "physical_dimensions": "210mm(h) x 100mm(w), portrait",
+      "paper_weight": "Multipage min 130gsm; single page flyers min 300gsm card",
+      "bundling": "Bundled in groups of 20 (rubber/paper bands, NO shrink wrap)",
+      "carton_weight_max": "10kg",
+      "carton_labelling": "Title of artwork, quantity in box, number of boxes, contact name and address",
+      "also_required": "PDF version of brochure",
+      "poster_recommendations": {
+        "hero_image": "1500x1001",
+        "include": ["Hyperlinks", "PDF version"]
+      },
+      "supply_deadline_rule": "By the 15th of the month prior to start date"
+    },
+    {
+      "format_name": "A3 Poster Display (Integrated and Floating)",
+      "container": "Print",
+      "physical_dimensions": "297mm(w) x 420mm(h), portrait",
+      "paper_weight": "Min 170gsm",
+      "delivery": "Flat, no folds or creases",
+      "carton_weight_max": "10kg",
+      "carton_labelling": "Title, quantity, no. of boxes, contact name and address",
+      "variants": {
+        "integrated": "Displayed within Brochure Board, protected by Perspex, state-wide or national, full campaign duration",
+        "floating": "Outside Brochure Board, not protected by Perspex, may stay up months to years at clinic's discretion"
+      },
+      "supply_deadline_rule": "By the 15th of the month prior to start date"
+    },
+    {
+      "format_name": "Solus Display Poster",
+      "container": "Print",
+      "physical_dimensions": "297mm(w) x 420mm(h), portrait",
+      "paper_weight": "Min 170gsm",
+      "delivery": "Flat, no folds or creases",
+      "carton_weight_max": "10kg",
+      "supply_deadline_rule": "By the 15th of the month prior to start date"
+    },
+    {
+      "format_name": "Solus EDM",
+      "container": "Direct Digital",
+      "audience": "Australian healthcare professionals",
+      "required_assets": {
+        "logo": "Transparent PNG preferred",
+        "subject_line_max": "60 characters",
+        "header_max": "100 characters",
+        "sub_header_max": "50 characters",
+        "body_copy_max": "200-300 words",
+        "cta_text_max": "4 words plus link",
+        "imagery": "High-resolution PNG/JPG",
+        "graphics_tables": "High-resolution PNG/JPG (static, not embedded)"
+      },
+      "recommended": {
+        "preview_text": "40-70 characters (maximises open rates)"
+      },
+      "restrictions": [
+        "Videos cannot be embedded — link via thumbnail/hyperlink",
+        "Tables and graphics must be supplied as static images",
+        "If supplying full creative as document/PDF, end result may differ after email-builder optimisation"
+      ],
+      "supply_deadline_rule": "5 working days prior to campaign start"
+    },
+    {
+      "format_name": "GP Packs",
+      "container": "Print",
+      "standard_pack": "C4 envelope (fits flat A4 contents)",
+      "max_weight": "500g per pack",
+      "delivery_state": "Pre-packed and sealed",
+      "non_standard_pack_note": "Dimension and weight must be discussed and pre-approved by Tonic team",
+      "carton_weight_max": "10kg",
+      "carton_labelling": "Title, quantity, no. of boxes, contact name and address",
+      "supply_deadline_rule": "By the 15th of the month prior to start date"
+    }
+  ]
+}

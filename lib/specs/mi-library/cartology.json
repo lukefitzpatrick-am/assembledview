@@ -1,0 +1,81 @@
+{
+  "publisher_slug": "cartology",
+  "publisher_name": "Cartology",
+  "container_category_default": "OOH",
+  "category_note": "Cartology is Coles Group's retail media network. Operates digital screens in Coles supermarkets (Shopper Network Small Format), plus shopper marketing, sampling, and onsite digital. This entry covers Small Format digital screens.",
+  "last_refreshed": "2026-05-22",
+  "source": "Cartology_Small-Format-Specifications.pdf (supplied by Cartology, current as of 2026-05)",
+  "source_url": "https://cartology.com.au",
+  "stub_status": "complete_for_small_format",
+  "incomplete_for": ["Large Format", "Sampling", "Onsite Digital", "Shopper marketing executions"],
+  "formats": [
+    {
+      "format_name": "Shopper Network Small Format - Static",
+      "container": "OOH",
+      "common_name": "Cartology Shopper Network Small Format (Static)",
+      "network": "Coles supermarket digital screens (small format)",
+      "dimensions": "1080x1920",
+      "ratio": "9:16",
+      "orientation": "Portrait",
+      "resolution": "72 DPI",
+      "file_type": ["JPG (Best Quality)", "JPEG", "PNG"],
+      "max_file_size": "Under 30MB",
+      "creative_type": "Static",
+      "audio_available": false,
+      "naming_convention": "Brand_Client_Campaign_Smallformat_PixelDimension_Duration",
+      "supply_deadline_rule": "5-10 working days before live (confirm per booking)",
+      "aliases": ["retail", "retail panel", "retail panels", "small format", "small format static", "sf", "sf static"],
+      "restrictions": [
+        "No competitor product references in-store",
+        "No claims that contradict Coles' supermarket positioning",
+        "Confirm any health or therapeutic claims with Cartology compliance before submission"
+      ],
+      "best_practice_notes": [
+        "In-store context — shoppers in browsing/purchase mindset",
+        "Product-led creative with clear pack shots performs well",
+        "Promotional pricing call-outs allowed if aligned with Coles ranging",
+        "Audio not available — design for silent viewing",
+        "Save JPG at highest quality setting (Best Quality)"
+      ]
+    },
+    {
+      "format_name": "Shopper Network Small Format - Animated",
+      "container": "OOH",
+      "common_name": "Cartology Shopper Network Small Format (Animated)",
+      "network": "Coles supermarket digital screens (small format)",
+      "dimensions": "1080x1920",
+      "ratio": "9:16",
+      "orientation": "Portrait",
+      "file_type": "MP4",
+      "codec": "H.264",
+      "video_bit_rate": "12 Mbps CBR (Constant Bit Rate)",
+      "max_file_size": "Under 60MB",
+      "duration": "7 seconds",
+      "creative_type": "Animated",
+      "audio_available": false,
+      "naming_convention": "Brand_Client_Campaign_Smallformat_PixelDimension_Duration",
+      "supply_deadline_rule": "5-10 working days before live (confirm per booking)",
+      "aliases": ["retail animated", "small format animated", "sf animated", "animated retail"],
+      "restrictions": [
+        "No competitor product references in-store",
+        "No claims that contradict Coles' supermarket positioning",
+        "Confirm any health or therapeutic claims with Cartology compliance before submission",
+        "Exactly 7 seconds creative duration",
+        "Audio not played back even if included in file"
+      ],
+      "best_practice_notes": [
+        "In-store context — high purchase intent",
+        "7-second window is tight — front-load message",
+        "Product-led creative with clear pack shots performs well",
+        "Promotional pricing call-outs allowed if aligned with Coles ranging",
+        "Design for silent viewing (no audio playback)",
+        "Use CBR encoding at 12 Mbps for clean playback"
+      ]
+    }
+  ],
+  "supply_deadline_general": "5-10 working days before live date. Confirm exact timing with Cartology account manager.",
+  "refresh_instructions": [
+    "Cartology publishes spec sheets per format family. Request Large Format, Sampling, and Onsite Digital spec sheets from Cartology account manager to extend this library entry.",
+    "When refreshing, parse with pdftotext -layout and merge using scripts/save_to_library.py"
+  ]
+}

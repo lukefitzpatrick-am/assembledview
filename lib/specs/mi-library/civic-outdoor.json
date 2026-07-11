@@ -1,0 +1,82 @@
+{
+  "publisher_slug": "civic-outdoor",
+  "publisher_name": "Civic Outdoor",
+  "container_category": "OOH",
+  "last_refreshed": "2026-05-22",
+  "source": "Civic-Outdoor-Digital-Specs-VIC.pdf (v provided 2026-05)",
+  "source_url": "https://www.civicoutdoor.com.au",
+  "universal_specs": {
+    "file_type": "JPEG or PNG (HTML on enquiry)",
+    "colour": "RGB",
+    "resolution": "72 DPI",
+    "image_quality_note": "Save at highest quality setting (100/100 or 12/12), use art-optimised anti-aliasing",
+    "naming_convention": "Business_Creative_Dimensions.jpg (e.g. McDonalds_BigMac_720x432.jpg)",
+    "no_oversizing": "There is no benefit in supplying images at a greater pixel size than what is listed"
+  },
+  "panel_groups": [
+    {
+      "panel_type": "Digital Spectacular",
+      "dimensions": "1185x315",
+      "sites": ["6108-D Keilor Park", "6120-D Mt Waverley", "6128-D Derrimut"]
+    },
+    {
+      "panel_type": "Digital Supersite",
+      "dimensions": "1060x360",
+      "sites": [
+        "6102-D Preston", "6104-D Leopold", "6113-D Knoxfield", "6116-D Southbank",
+        "6136-D Bundoora", "6139-I-D Williams L.", "6139-O-D Williams L.", "6141-D Hallam",
+        "6166-D Thomastown", "6169-D Port Melbourne", "6216-I-D Carlton", "6216-O-D Carlton",
+        "6251-D Keilor East"
+      ]
+    },
+    {
+      "panel_type": "Digital Landmark A",
+      "dimensions": "560x320",
+      "sites": ["6106-D Kilsyth", "6123-D Bentleigh", "6134-D Bayswater", "6144-D Hoppers Crossing", "6160-D Laverton North", "6161-D Mill Park"]
+    },
+    {
+      "panel_type": "Digital Landmark B",
+      "dimensions": "720x432",
+      "sites": ["6110-D Collingwood", "6218-D Richmond", "6219-D Mitcham"]
+    },
+    {
+      "panel_type": "Digital Portrait",
+      "dimensions": "288x432",
+      "sites": ["6115-D Wantirna South", "6158-D Brooklyn", "6174-D Horsham"]
+    }
+  ],
+  "individual_sites": [
+    {"site": "6148-D Cooper St, Epping", "dimensions": "2304x384", "restrictions": "Artwork cannot contain telephone numbers or email addresses"},
+    {"site": "6240-D Port Melbourne", "dimensions": "1920x356"},
+    {"site": "6175-D Swanston St, Melbourne", "dimensions": "2640x675"},
+    {"site": "6238-D Hoddle St, Collingwood", "dimensions": "1248x320"},
+    {"site": "6211-D Strathmore", "dimensions": "1040x270"},
+    {"site": "6227-D Nunawading", "dimensions": "1520x400"},
+    {"site": "6228-I-D Hume Fwy, Epping", "dimensions": "1520x400"},
+    {"site": "6221-D Springvale", "dimensions": "1244x329"},
+    {"site": "6223-D Caroline Springs", "dimensions": "1080x288"},
+    {"site": "6210-D Pakenham", "dimensions": "1248x336"},
+    {"site": "6255-D Ormond", "dimensions": "1056x336"},
+    {"site": "6256-D Hampton East", "dimensions": "960x320"},
+    {"site": "6168-D Box Hill", "dimensions": "1295x432", "notes": "Separate specs and templates available"},
+    {"site": "6209-I-D West Gate Fwy, Brooklyn", "dimensions": "1600x570"},
+    {"site": "6209-O-D West Gate Fwy, Brooklyn", "dimensions": "1600x570"},
+    {"site": "6205-D Windsor", "dimensions": "896x320"},
+    {"site": "6257-D Swan Hill", "dimensions": "592x288"},
+    {"site": "6167-D Oakleigh", "dimensions": "864x432"},
+    {"site": "6214-D Lilydale", "dimensions": "864x432"},
+    {"site": "6241-D Southbank", "dimensions": "720x480"},
+    {"site": "6163-D Sunbury", "dimensions": "599x404"},
+    {"site": "6199-D South Yarra", "dimensions": "660x810"},
+    {"site": "6232-D Benalla", "dimensions": "432x576"},
+    {"site": "6237-D Cremorne", "dimensions": "520x760"},
+    {"site": "6119-D Sunshine", "dimensions": "260x380"}
+  ],
+  "supply_deadline_rule": "Standard OOH lead times apply; confirm per booking",
+  "best_practice_notes": [
+    "Save images at highest quality setting (100/100 or 12/12)",
+    "Use art-optimised anti-aliasing",
+    "No benefit supplying images at greater pixel size than listed",
+    "Resolution always 72 DPI for digital panels"
+  ]
+}

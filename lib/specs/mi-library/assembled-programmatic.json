@@ -1,0 +1,251 @@
+{
+  "publisher_slug": "assembled-programmatic",
+  "publisher_name": "Assembled Programmatic (internal default specs)",
+  "container_category_default": "Programmatic",
+  "category_note": "These are AssembledMedia's internal universal digital creative specifications. Use as fallback when a publisher-specific spec isn't available, OR when the line item is bought through AssembledMedia's programmatic stack (Campaign Manager 360, DV360).",
+  "last_refreshed": "2026-05-22",
+  "source": "Digital_Creative_Specifications_-_v1_02.pdf (Assembled Media internal, dated 2021-12-13)",
+  "formats": [
+    {
+      "format_name": "Standard Display",
+      "container": "Programmatic",
+      "file_type": [
+        "HTML5 (.zip)",
+        "GIF",
+        "JPG",
+        "PNG"
+      ],
+      "max_file_size": {
+        "initial_load": "<100KB",
+        "polite_load": "<1MB",
+        "user_initiated": "<10MB (2MB best practice)"
+      },
+      "backup_image": "GIF/JPG, <50KB",
+      "ad_sizes": [
+        "300x250 (MREC)",
+        "728x90 (Leaderboard)",
+        "300x600 (Half Page)",
+        "320x50 (Mobile Banner)",
+        "970x250 (Billboard)",
+        "160x600 (Wide Sky)"
+      ],
+      "animation": {
+        "max_length": "15 seconds, static after",
+        "max_loops": "3 within 15 seconds",
+        "gif_frame_rate_max": "5 fps"
+      },
+      "html5_notes": [
+        "Served through CM360 ad server",
+        "Accepted file types inside zip: GIF, JPEG, JPG, PNG, HTML, JS, CSS, JSON, XML, SVG, MP4",
+        "No nested zips",
+        "At least 1 click tag (no hardcoded URL)",
+        "No local or session storage",
+        "Audio must be user-initiated"
+      ],
+      "ssl": "All calls must be HTTPS"
+    },
+    {
+      "format_name": "Native",
+      "container": "Programmatic",
+      "ad_group_specs": {
+        "images_landscape": {
+          "aspect_ratio": "1.91:1",
+          "size": "1200x628",
+          "min_count": 2,
+          "max_count": 15
+        },
+        "images_square": {
+          "aspect_ratio": "1:1",
+          "size": "600x600",
+          "max_count": 15
+        },
+        "logo_square": {
+          "aspect_ratio": "1:1",
+          "size": "1200x1200"
+        },
+        "logo_landscape": {
+          "aspect_ratio": "4:1",
+          "size": "1200x300"
+        }
+      },
+      "text": {
+        "headlines": "Max 30 characters, up to 5 variations",
+        "long_headline": "Max 90 characters, 1 version",
+        "description": "Max 90 characters, up to 5 versions",
+        "business_name": "Up to 30 characters"
+      },
+      "restrictions": [
+        "No logo or graphics overlaid on images",
+        "No text overlaid on images",
+        "No fake buttons or clickable elements in images",
+        "Cannot imply association with a news provider"
+      ]
+    },
+    {
+      "format_name": "Search",
+      "container": "Search",
+      "platform": "Google Ads",
+      "ad_group_specs": {
+        "headlines": "Min 5, max 15, 30 characters each",
+        "descriptions": "2-4, 90 characters each",
+        "display_path": "Max 2 paths, 15 characters each",
+        "final_url": "Final URL after click"
+      }
+    },
+    {
+      "format_name": "Pre-Roll Video",
+      "container": "Programmatic",
+      "duration_options": [
+        "15s",
+        "30s"
+      ],
+      "file_type": "MP4",
+      "max_file_size": "10MB",
+      "codec": "H.264",
+      "video_bit_rate": "1000-1500 kbps",
+      "audio_bit_rate": "AAC up to 48kHz or 64kbps",
+      "audio_levels": "-24 LKFS",
+      "frame_rate": "24-25 or 29-30 fps",
+      "resolution": "640x360 (16:9) or 480x360 (4:3)",
+      "audio_codec": "MP3 or AAC",
+      "notes": [
+        "Remove all slates and countdowns",
+        "Video will be scaled/letterboxed to fit"
+      ]
+    },
+    {
+      "format_name": "BVOD / Connected TV",
+      "container": "BVOD",
+      "duration_options": [
+        "15s",
+        "30s"
+      ],
+      "file_type": "MP4",
+      "max_file_size": "20MB",
+      "codec": "H.264",
+      "video_bit_rate_per_broadcaster": {
+        "SBS": "1000 kbps",
+        "Nine": "3000 kbps",
+        "Kayo": "3000 kbps",
+        "Optus": "3000 kbps",
+        "Seven": "3000 kbps",
+        "Ten": "15-30 Mbps"
+      },
+      "audio_bit_rate": "AAC up to 48kHz or 64kbps",
+      "audio_levels": "-24 LKFS",
+      "frame_rate": "24-25 or 29-30 fps",
+      "resolution": "1920x1080 (16:9)",
+      "audio_codec": "MP3 or AAC",
+      "notes": [
+        "Remove all slates and countdowns"
+      ]
+    },
+    {
+      "format_name": "YouTube",
+      "container": "YouTube",
+      "video_requirements": [
+        "Uploaded to YouTube (full URL, not shortened)",
+        "Must allow embedding",
+        "Public or unlisted",
+        "No true streaming"
+      ],
+      "duration_options": {
+        "bumper": "6 seconds (exact)",
+        "skippable_min": "12 seconds",
+        "skippable_max": "6 minutes",
+        "skippable_recommended": "15s or 30s",
+        "non_skippable": "15 seconds (exact)"
+      },
+      "horizontal": {
+        "aspect_ratio": "16:9",
+        "min": "1280x720",
+        "recommended": "1920x1080",
+        "safe_zone": "Bottom 387px clear"
+      },
+      "shorts": {
+        "aspect_ratio": "9:16",
+        "min": "720x1280",
+        "recommended": "1080x1920",
+        "safe_zone": "Bottom 672px clear"
+      },
+      "companion_banner": {
+        "dimensions": "300x60",
+        "max_file_size": "150KB",
+        "optional": true
+      },
+      "cta_max": "10 characters",
+      "headline_max": "15 characters"
+    },
+    {
+      "format_name": "Meta Image Feed",
+      "container": "Social",
+      "file_type": "JPG or PNG",
+      "ratio": "1.91:1 or 1:1",
+      "resolution": "1080x1080",
+      "max_file_size": "30MB",
+      "text": {
+        "primary_text": "125 characters",
+        "headline": "40 characters",
+        "description": "30 characters"
+      }
+    },
+    {
+      "format_name": "Meta Video Feed",
+      "container": "Social",
+      "file_type": "MP4 or MOV",
+      "ratio": "1:1",
+      "resolution": "1080x1080",
+      "video_settings": "H.264 compression, square pixels, fixed frame rate, progressive scan, stereo AAC audio at 128kbps+",
+      "text": {
+        "primary_text": "125 characters",
+        "headline": "40 characters",
+        "description": "30 characters"
+      }
+    },
+    {
+      "format_name": "Meta Carousel",
+      "container": "Social",
+      "file_type_image": "JPG or PNG",
+      "file_type_video": "MP4, MOV or GIF",
+      "ratio": "1:1",
+      "resolution": "At least 1080x1080",
+      "cards": "2-10",
+      "max_file_size_image": "30MB",
+      "max_file_size_video": "4GB",
+      "video_duration": "1s-4min (6s or 15s recommended)",
+      "text": {
+        "primary_text": "125 characters",
+        "headline": "40 characters",
+        "description": "20 characters"
+      }
+    },
+    {
+      "format_name": "Meta Stories / Reels",
+      "container": "Social",
+      "file_type_image": "JPG or PNG",
+      "file_type_video": "MP4 or MOV",
+      "ratio": "9:16",
+      "resolution": "1080x1920",
+      "max_file_size_image": "30MB",
+      "max_file_size_video": "4GB",
+      "video_duration": "1s-4min (6s or 15s recommended)",
+      "video_settings": "H.264, square pixels, fixed frame rate, progressive scan, stereo AAC at 128kbps+",
+      "text": {
+        "primary_text": "125 characters"
+      },
+      "safe_zone": "Leave top 14% (250px) and bottom 20% (340px) free from key elements"
+    }
+  ],
+  "universal_constraints": [
+    "No key-modifier tracking",
+    "No mouse-location tracking",
+    "All ad code must be localised (no external server calls)",
+    "Destination URL cannot lead to email or file (PDFs, images, etc.) \u2014 must be a web page",
+    "Destination URL opens in new window/tab",
+    "All ads must be SSL compliant (https://)",
+    "Audio must be user-initiated",
+    "Ad must occupy entire allotted space, no curved edges, no sideways/upside-down",
+    "Visible non-white 1x1 border on solid-colour creatives",
+    "Cannot mimic news articles or system warnings"
+  ]
+}

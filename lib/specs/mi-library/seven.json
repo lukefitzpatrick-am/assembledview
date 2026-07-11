@@ -1,0 +1,41 @@
+{
+  "publisher_slug": "seven",
+  "publisher_name": "Seven Network",
+  "container_category_default": "Television",
+  "category_note": "Seven Network spans Channel Seven (broadcast TV), 7Plus (BVOD), and Seven West Media (digital + print). Confirm arm per line item.",
+  "last_refreshed": "2026-05-22",
+  "source": "STUB ENTRY — Broadcast TV specs are typically delivered via CAD (Commercial Approvals Division) or Adstream. Confirm with Seven traffic team per booking.",
+  "stub_status": "incomplete",
+  "formats": [
+    {
+      "format_name": "Broadcast TV (Channel Seven)",
+      "container": "Television",
+      "file_type": "ProRes 422 HQ (preferred) or broadcast-quality MP4 H.264",
+      "resolution": "1920x1080 (16:9)",
+      "frame_rate": "25fps PAL",
+      "audio_levels": "-24 LKFS (broadcast standard, AS/NZS broadcast loudness compliance)",
+      "audio_format": "Stereo, sample rate 48kHz",
+      "duration_options": ["15s", "30s", "45s", "60s", "90s"],
+      "delivery_method": "CAD (Commercial Approvals Division) submission or Adstream",
+      "supply_deadline_rule": "Typically 3-5 business days before broadcast — confirm with Seven traffic team. CAD clearance must be obtained before delivery.",
+      "cad_required": true,
+      "best_practice_notes": [
+        "All commercials must obtain CAD clearance before going to air",
+        "Audio levels must comply with AS/NZS broadcast loudness standards",
+        "Confirm any health, financial, or therapeutic claims with CAD early — these often need extra clearance time",
+        "30-second slots are the most common Australian TV length; 15s for higher-frequency reach buys"
+      ]
+    },
+    {
+      "format_name": "7Plus (BVOD)",
+      "container": "BVOD",
+      "see_also": "library/assembled-programmatic.json :: BVOD / Connected TV",
+      "video_bit_rate": "3000 kbps",
+      "supply_deadline_rule": "5 working days before live"
+    }
+  ],
+  "refresh_instructions": [
+    "Request Seven's current TV delivery specifications from your Seven account manager",
+    "CAD requirements documented at https://www.cad.com.au/"
+  ]
+}

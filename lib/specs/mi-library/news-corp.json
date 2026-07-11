@@ -1,0 +1,56 @@
+{
+  "publisher_slug": "news-corp",
+  "publisher_name": "News Corp Australia",
+  "container_category_default": "Direct Digital",
+  "category_note": "News Corp spans Direct Digital (publisher buys, home page buy-outs, native), Print (newspaper mastheads), and BVOD via partner deals. Confirm which arm per line item.",
+  "last_refreshed": "2026-05-22",
+  "source": "STUB ENTRY — News Corp's digital media assets page (https://www.newscorpaustralia.com/media-assets/digital-media-assets/) is a JavaScript SPA that doesn't respond to web_fetch. When a News Corp line item appears, ask the planner to download the relevant spec PDF and supply it.",
+  "source_url": "https://www.newscorpaustralia.com/media-assets/digital-media-assets/",
+  "stub_status": "incomplete",
+  "known_format_families": [
+    {
+      "family": "Standard Display",
+      "container": "Direct Digital",
+      "common_sizes": ["300x250 (MREC)", "300x600 (Half Page)", "728x90 (Leaderboard)", "970x250 (Billboard)", "320x50 (Mobile Banner)"],
+      "fallback_specs": "Use Assembled Programmatic standard display specs as a starting point — confirm with News Corp per booking"
+    },
+    {
+      "family": "High Impact",
+      "container": "Direct Digital",
+      "executions": ["Home Page Buy-Out", "Road Block", "Mobile Skin", "Desktop Skin", "Custom Wrap"],
+      "notes": "Always custom-spec per masthead and execution — confirm with News Corp account manager"
+    },
+    {
+      "family": "Native",
+      "container": "Direct Digital",
+      "fallback_specs": "Use Assembled Programmatic native specs as starting point"
+    },
+    {
+      "family": "Print",
+      "container": "Print",
+      "mastheads": [
+        "The Australian",
+        "Herald Sun (VIC)",
+        "Daily Telegraph (NSW)",
+        "Courier Mail (QLD)",
+        "Advertiser (SA)",
+        "Mercury (TAS)",
+        "NT News",
+        "Geelong Advertiser",
+        "Townsville Bulletin"
+      ],
+      "notes": "Print specs vary by masthead, section, and edition. Confirm masthead and placement before resolving specs."
+    },
+    {
+      "family": "BVOD (via Foxtel / Kayo)",
+      "container": "BVOD",
+      "notes": "Use BVOD specs at 3000 kbps bit rate. Confirm if Kayo or broader Foxtel."
+    }
+  ],
+  "refresh_instructions": [
+    "Download the latest spec PDF from the News Corp media assets page",
+    "Run pdftotext -layout on the downloaded PDF",
+    "Use scripts/save_to_library.py to add structured spec records",
+    "Update last_refreshed date and remove stub_status"
+  ]
+}

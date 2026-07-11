@@ -1,0 +1,76 @@
+{
+  "version": "1.0",
+  "description": "Column structure for the Material Instructions output xlsx. Each container_category has a tab with these columns. Sections are: AM (Assembled Media to complete), SPECS (generated), CLIENT (Client/Creative Agency to complete).",
+  "section_colours": {
+    "AM": "DCE6F1",
+    "SPECS": "FFF2CC",
+    "CLIENT": "E2EFDA"
+  },
+  "tabs": {
+    "Search": {
+      "AM": ["Campaign", "Line Item", "Ad Group", "Publisher", "Live Date", "Bid Strategy", "Status"],
+      "SPECS": ["Headline Limits", "Description Limits", "Display Path Limits", "Asset Requirements", "Supply Deadline", "Best Practice Notes", "Source"],
+      "CLIENT": ["Final URL", "Display Path 1", "Display Path 2", "Headlines (1-15)", "Descriptions (1-4)", "Sitelinks", "Callouts", "Approved? (Y/N)"]
+    },
+    "Social": {
+      "AM": ["Campaign", "Line Item", "Publisher", "Format", "Placement", "Variant", "Objective", "Live Date", "Status"],
+      "SPECS": ["File Type", "Ratio / Dimensions", "Resolution", "Max File Size", "Duration", "Character Limits", "Supply Deadline", "Naming Convention", "Best Practice Notes", "Source"],
+      "CLIENT": ["Image/Video File Name", "Primary Text", "Headline", "Description", "Call To Action", "Landing Page URL", "Preview Link", "Approved? (Y/N)"]
+    },
+    "Programmatic": {
+      "AM": ["Campaign", "Line Item", "Publisher", "Format", "Objective", "Live Date", "Status"],
+      "SPECS": ["File Type", "Ad Dimensions", "File Size Limits", "Animation Rules", "Backup Image", "Supply Deadline", "Best Practice Notes", "Source"],
+      "CLIENT": ["File Name / ZIP", "Backup Image File", "Landing Page URL", "Click Tag Confirmed (Y/N)", "Approved? (Y/N)"]
+    },
+    "Direct Digital": {
+      "AM": ["Campaign", "Line Item", "Publisher", "Format", "Placement", "Live Date", "Status"],
+      "SPECS": ["File Type", "Dimensions", "File Size Limits", "Animation Rules", "Publisher-Specific Notes", "Supply Deadline", "Best Practice Notes", "Source"],
+      "CLIENT": ["File Name / ZIP", "Backup Image File", "Landing Page URL", "Approved? (Y/N)"]
+    },
+    "YouTube": {
+      "AM": ["Campaign", "Line Item", "Targeting", "Objective", "Creative Length", "Creative Type", "Live Date", "Status"],
+      "SPECS": ["Video Requirements", "Aspect Ratio", "Resolution", "Safe Zone", "Companion Banner", "Character Limits (CTA / Headline)", "Supply Deadline", "Best Practice Notes", "Source"],
+      "CLIENT": ["YouTube URL", "Landing Page URL", "Call To Action (max 10 char)", "Headline (max 15 char)", "Companion Banner File (optional)", "Approved? (Y/N)"]
+    },
+    "BVOD": {
+      "AM": ["Campaign", "Line Item", "Publisher / Broadcaster", "Targeting", "Objective", "Creative Length", "Live Date", "Status"],
+      "SPECS": ["File Format", "Codec", "Video Bit Rate", "Audio Bit Rate", "Audio Levels", "Frame Rate", "Resolution", "File Size Max", "Supply Deadline", "Best Practice Notes", "Source"],
+      "CLIENT": ["File Name", "Landing Page URL", "Approved? (Y/N)"]
+    },
+    "Audio": {
+      "AM": ["Campaign", "Line Item", "Publisher", "Station", "Format", "Spot Type", "Placement", "Live Date", "Status"],
+      "SPECS": ["File Format", "Bit Rate", "Creative Length", "Specs Notes", "Supply Deadline", "Source"],
+      "CLIENT": ["Audio File Name", "Script (if Live Read)", "Rotation", "Approved? (Y/N)"]
+    },
+    "OOH": {
+      "AM": ["Campaign", "Publisher", "Market", "Site / Panel Code", "Panel Type", "Type (Digital/Static)", "Placement", "Live Date", "Status"],
+      "SPECS": ["Creative Type (Static/Animated)", "Format", "Pixel Dimensions", "File Size", "DPI / Bit Rate", "Creative Duration", "Naming Convention", "Restrictions", "Supply Deadline", "Best Practice Notes", "Source"],
+      "CLIENT": ["File Name", "Primary Text", "Headline", "Description", "Timings", "Rotation", "Approved? (Y/N)"]
+    },
+    "Print": {
+      "AM": ["Campaign", "Publisher", "Publication / Masthead", "Variation", "Live Date", "Objective", "Format", "Placement", "Status"],
+      "SPECS": ["File Type", "Physical Dimensions", "Resolution", "Paper Weight / Stock", "Delivery Notes", "Specs Link", "Supply Deadline", "Source"],
+      "CLIENT": ["File Name", "Approved? (Y/N)"]
+    },
+    "Cinema": {
+      "AM": ["Campaign", "Publisher", "Format", "Placement", "Live Date", "Status"],
+      "SPECS": ["File Format", "Codec", "Frame Rate", "Audio Specs", "Duration", "Supply Deadline", "Source"],
+      "CLIENT": ["File Name", "Approved? (Y/N)"]
+    },
+    "Television": {
+      "AM": ["Campaign", "Publisher", "Station", "Daypart", "Placement", "Live Date", "End Date", "Length", "Buy Type", "Status"],
+      "SPECS": ["File Format", "Resolution", "Audio Levels", "Length", "Cleared Material", "Supply Deadline", "Best Practice Notes", "Source"],
+      "CLIENT": ["File Name (CAD/Adstream)", "Approved? (Y/N)"]
+    }
+  },
+  "meta_sheet": {
+    "fields": [
+      "Campaign Name",
+      "Client",
+      "Prepared By",
+      "Prepared Date",
+      "Overall Supply Deadline",
+      "Notes"
+    ]
+  }
+}
