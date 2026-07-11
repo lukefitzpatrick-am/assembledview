@@ -21,6 +21,7 @@ import {
 import { Segmented, SegmentedItem } from "@/components/ui/segmented"
 import { Textarea } from "@/components/ui/textarea"
 import type { CreativeAsset } from "@/lib/creative/types"
+import { LivePageMockup } from "./LivePageMockup"
 import { MOCK_TEMPLATES, type MockTemplateId, getMockTemplate } from "./mockTemplates"
 import {
   SOCIAL_CTA_OPTIONS,
@@ -157,6 +158,8 @@ export function MockupDialog({
 
   const template = getMockTemplate(templateId)
   const isSocial = template.kind === "social"
+  const isLive = template.kind === "live"
+  const isWebpage = template.kind === "webpage"
 
   return (
     <Dialog
@@ -177,8 +180,8 @@ export function MockupDialog({
             <DialogTitle>Creative mockup</DialogTitle>
             <DialogDescription>
               {asset
-                ? `Preview “${asset.asset_name}” in social and webpage frames.`
-                : "Preview creative in social and webpage frames."}
+                ? `Preview “${asset.asset_name}” in social, webpage, or live-page frames.`
+                : "Preview creative in social, webpage, or live-page frames."}
             </DialogDescription>
           </div>
 
@@ -213,7 +216,12 @@ export function MockupDialog({
 
           <div className="min-h-0 flex-1 overflow-auto bg-background px-4 py-6 sm:px-8">
             {asset ? (
-              isSocial ? (
+              isLive ? (
+                <LivePageMockup
+                  asset={asset}
+                  onUseBuiltInTemplates={() => setTemplateId("news-article")}
+                />
+              ) : isSocial ? (
                 <SocialMockFrames
                   templateId={
                     templateId as
@@ -226,12 +234,12 @@ export function MockupDialog({
                   asset={asset}
                   metaPageId={metaPageId}
                 />
-              ) : (
+              ) : isWebpage ? (
                 <WebPageMockTemplates
                   templateId={templateId as "news-article" | "homepage"}
                   asset={asset}
                 />
-              )
+              ) : null
             ) : null}
           </div>
         </div>
