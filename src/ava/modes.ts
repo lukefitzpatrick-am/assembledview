@@ -1,30 +1,32 @@
-import type { PageContext } from "@/lib/openai"
+import type { PageContext } from "@/lib/ava/types"
 
 export type ChatMode = "general" | "mediaplan_create" | "mediaplan_edit"
 
-const patchGuidance = [
-  "Return JSON only matching the response contract.",
-  'Always return: {"replyText": string, "patch": FormPatch | null}.',
-  'FormPatch shape: {"updates":[{"fieldId":string,"value":any}]}.',
-  "If the user did not request a change, return patch as null.",
-  "Only include updates for fields present in the provided PageContext and marked editable.",
+const toolPatchGuidance = [
+  "When the user asks you to change form values, call the apply_form_patch tool.",
+  "Never embed FormPatch JSON or a replyText/patch object in your prose reply.",
+  "Only patch fields present in the provided PageContext and marked editable.",
+  "After a successful patch, confirm the changes in plain English.",
 ].join("\n")
 
 const modeInstructions: Record<ChatMode, (pageContext?: PageContext) => string> = {
   general: () =>
     [
       "General assistant mode. Provide concise, helpful answers grounded in the provided PageContext when available.",
-      patchGuidance,
+      "Prefer tools over guessing when the user asks about clients, campaigns, pacing, creative, naming, or methodology.",
+      toolPatchGuidance,
     ].join("\n"),
   mediaplan_create: () =>
     [
-      "Media plan creation mode. Clarify missing goals, budgets, dates, and media mix. Provide stepwise guidance and propose edits aligned to editable fields.",
-      patchGuidance,
+      "Media plan creation mode. Clarify missing goals, budgets, dates, and media mix.",
+      "Provide stepwise guidance and propose edits via apply_form_patch for editable fields.",
+      toolPatchGuidance,
     ].join("\n"),
   mediaplan_edit: () =>
     [
       "Media plan editing mode. Respect current values, propose incremental improvements, and confirm before overwriting budgets, dates, or selections.",
-      patchGuidance,
+      "Use tools to load campaign, creative, audience, or pacing context before advising.",
+      toolPatchGuidance,
     ].join("\n"),
 }
 
@@ -33,9 +35,7 @@ export function getModeInstructions(mode?: ChatMode | string, pageContext?: Page
     mode === "mediaplan_create" || mode === "mediaplan_edit" ? mode : "general"
 
   const routeHint =
-    typeof pageContext?.route === "string"
-      ? pageContext?.route
-      : pageContext?.route?.pathname
+    typeof pageContext?.route === "string" ? pageContext?.route : pageContext?.route?.pathname
 
   const instructions = modeInstructions[resolvedMode](pageContext)
   if (routeHint) {
@@ -43,13 +43,3 @@ export function getModeInstructions(mode?: ChatMode | string, pageContext?: Page
   }
   return instructions
 }
-
-
-
-
-
-
-
-
-
-

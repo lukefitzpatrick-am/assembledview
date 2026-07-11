@@ -6,33 +6,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { getAssistantContext } from "@/lib/assistantBridge"
-import type { FormPatch, ModelChatReply, PageContext } from "@/lib/openai"
+import type { FormPatch, ModelChatReply, PageContext } from "@/lib/ava/types"
 import type { ChatMode } from "@/src/ava/modes"
 import { ChevronDown, ChevronUp } from "lucide-react"
-
-/**
- * Part of the AVA Phase 1 Claude migration. Chooses the chat API by
- * `NEXT_PUBLIC_AVA_ENGINE` or a per-tab override in `localStorage`.
- *
- * To try Claude in the browser console, run:
- * `localStorage.setItem("ava:engine", "claude")`
- * then refresh the page.
- */
-function resolveAvaEngine(): "openai" | "claude" {
-  // Server-side rendering safety
-  if (typeof window === "undefined") return "openai"
-  // Per-session override via localStorage, useful for A/B testing on a single machine
-  try {
-    const override = window.localStorage.getItem("ava:engine")
-    if (override === "claude" || override === "openai") return override
-  } catch {
-    // ignore
-  }
-  // Env default
-  const envDefault = process.env.NEXT_PUBLIC_AVA_ENGINE
-  if (envDefault === "claude") return "claude"
-  return "openai"
-}
 
 type ChatWidgetProps = {
   getPageContext?: () => Promise<PageContext | undefined> | PageContext | undefined
@@ -61,8 +37,6 @@ export function ChatWidget({
   const [dragState, setDragState] = useState<{ offsetX: number; offsetY: number } | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const dragMovedRef = useRef(false)
-
-  const engine = resolveAvaEngine()
 
   const appendAssistantNote = useCallback(
     (content: string) => setMessages((prev) => [...prev, { role: "assistant", content }]),
@@ -131,7 +105,6 @@ export function ChatWidget({
         messages: updatedMessages,
         pageContext: resolvedPageContext,
         mode,
-        engine,
       }
 
       const response = await fetch("/api/chat-v2", {
@@ -214,10 +187,7 @@ export function ChatWidget({
             >
               <p className="text-sm font-semibold text-foreground">Ava</p>
               <div className="flex flex-wrap items-center gap-2">
-                <p className="text-xs text-muted-foreground">Ask about this page, Xano data, or delivery</p>
-                <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                  {engine === "claude" ? "Claude" : "GPT"}
-                </span>
+                <p className="text-xs text-muted-foreground">Ask about this page, plans, or delivery</p>
               </div>
             </div>
             <Button

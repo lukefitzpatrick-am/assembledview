@@ -46,8 +46,8 @@ import { AuthPageLoading } from "@/components/AuthLoadingState"
 import { cn } from "@/lib/utils"
 import { compareValues, SortableTableHeader, SortDirection } from "@/components/ui/sortable-table-header"
 import { useAuthContext } from "@/contexts/AuthContext"
-import { setAssistantContext } from "@/lib/assistantBridge"
-import type { PageContext, PageField } from "@/lib/openai"
+import { setAssistantContext, clearAssistantContext } from "@/lib/assistantBridge"
+import type { PageContext, PageField } from "@/lib/ava/types"
 import {
   DASHBOARD_TEMPLATES,
   buildFiltersForTemplate,
@@ -2220,6 +2220,12 @@ export default function DashboardOverview({
       },
     })
   }, [authError, fetchError, getPageContext, handleSetField, isClient, isLoading, mounted, user])
+
+  useEffect(() => {
+    return () => {
+      clearAssistantContext()
+    }
+  }, [])
 
   const dashboardClientTreemapColors = useMemo(() => {
     const out: Record<string, string> = {}

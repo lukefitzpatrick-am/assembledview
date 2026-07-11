@@ -16,6 +16,8 @@ import { getAssistantContext } from "@/lib/assistantBridge"
 import { CommandPalette } from "@/components/CommandPalette"
 import { ThemeToggle } from "@/components/ThemeToggle"
 import { cn } from "@/lib/utils"
+import type { ChatMode } from "@/src/ava/modes"
+import type { PageContext } from "@/lib/ava/types"
 
 export function ClientLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -105,7 +107,24 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   )
 }
 
+function resolveAvaChatMode(pathname: string | null): ChatMode {
+  if (pathname === "/mediaplans/create") return "mediaplan_create"
+  if (pathname && /^\/mediaplans\/mba\/[^/]+\/edit$/.test(pathname)) return "mediaplan_edit"
+  return "general"
+}
+
+function pageContextMatchesPath(pageContext: PageContext | undefined, pathname: string | null): boolean {
+  if (!pageContext || !pathname) return Boolean(pageContext)
+  const route = pageContext.route
+  const routePath =
+    typeof route === "string" ? route : typeof route?.pathname === "string" ? route.pathname : undefined
+  if (!routePath) return true
+  return routePath === pathname
+}
+
+/** AdminAssistantGate — mounts Ask Ava for admins; ignores stale bridge contexts. */
 function AssistantMount({ isShellVisible }: { isShellVisible: boolean }) {
+  const pathname = usePathname()
   const { user, isLoading, isAdmin } = useAuthContext()
   const [isAdminFallback, setIsAdminFallback] = useState<boolean | null>(null)
 
@@ -144,10 +163,15 @@ function AssistantMount({ isShellVisible }: { isShellVisible: boolean }) {
   }, [isAdmin, isLoading, isShellVisible, user])
 
   const showAssistant = isShellVisible && (isAdmin || isAdminFallback === true)
-  const getPageContext = useCallback(() => getAssistantContext()?.pageContext, [])
+  const mode = resolveAvaChatMode(pathname)
+  const getPageContext = useCallback(() => {
+    const pageContext = getAssistantContext()?.pageContext
+    if (!pageContextMatchesPath(pageContext, pathname)) return undefined
+    return pageContext
+  }, [pathname])
 
   if (!showAssistant) return null
-  return <ChatWidget getPageContext={getPageContext} />
+  return <ChatWidget getPageContext={getPageContext} mode={mode} />
 }
 
 function UserGreeting() {

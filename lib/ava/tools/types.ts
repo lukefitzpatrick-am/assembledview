@@ -1,7 +1,8 @@
-/* AVA tool contract. Phase 1 Claude migration. */
+/* AVA tool contract. Claude tool-era. */
 
 import type Anthropic from "@anthropic-ai/sdk";
-import type { FormPatch, PageContext } from "@/lib/openai";
+import type { FormPatch, PageContext } from "@/lib/ava/types";
+import type { UserRole } from "@/lib/rbac";
 
 export type AvaToolContext = {
   pageContext: PageContext | undefined;
@@ -9,6 +10,8 @@ export type AvaToolContext = {
   mbaNumber: string | undefined;
   userSub: string | undefined;
   userEmail: string | undefined;
+  /** Caller roles from chat-v2 session (defence-in-depth scoping inside tools). */
+  roles: UserRole[];
   capturedPatch: FormPatch | null;
 };
 

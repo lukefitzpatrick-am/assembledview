@@ -51,7 +51,7 @@ import {
   type PartialApprovalMetadata,
   type PartialMbaValues,
 } from "@/lib/mediaplan/partialMba"
-import { setAssistantContext } from "@/lib/assistantBridge"
+import { setAssistantContext, clearAssistantContext } from "@/lib/assistantBridge"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { getSearchBursts } from "@/components/media-containers/SearchContainer"
 import { getSocialMediaBursts } from "@/components/media-containers/SocialMediaContainer"
@@ -8299,6 +8299,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       },
     })
   }, [getPageContext, handleClick, handleSelect, handleSetField, handleToggle])
+
+  useEffect(() => {
+    return () => {
+      clearAssistantContext()
+    }
+  }, [])
 
   const handleCopyPageContext = useCallback(async () => {
     try {

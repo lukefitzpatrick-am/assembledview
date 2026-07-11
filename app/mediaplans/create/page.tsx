@@ -106,7 +106,7 @@ import {
 } from "@/lib/api"
 import { checkLineItemDatesOutsideCampaign } from "@/lib/utils/mediaPlanValidation"
 import { toDateOnlyString } from "@/lib/timezone"
-import { setAssistantContext } from "@/lib/assistantBridge"
+import { setAssistantContext, clearAssistantContext } from "@/lib/assistantBridge"
 import { KPISection } from "@/components/kpis/KPISection"
 import { createMediaPlanKpiHost } from "@/components/kpis/kpiHost"
 import { resolveAllKPIs } from "@/lib/kpi/resolve"
@@ -5648,6 +5648,12 @@ const handleSaveAll = async () => {
   useEffect(() => {
     setAssistantContext({ pageContext: getPageContext() })
   }, [getPageContext])
+
+  useEffect(() => {
+    return () => {
+      clearAssistantContext()
+    }
+  }, [])
 
   const handleCopyPageContext = useCallback(async () => {
     try {

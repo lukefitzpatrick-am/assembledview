@@ -1,4 +1,4 @@
-import type { PageContext } from "@/lib/openai"
+import type { PageContext } from "@/lib/ava/types"
 
 type AssistantActionHandlers = {
   /**
@@ -6,12 +6,20 @@ type AssistantActionHandlers = {
    * Expected payload shape:
    * { action: "updateBurstBudget", mediaType: string, burstIndex: number, budget: number }
    */
-  updateBurstBudget?: (payload: { mediaType: string; burstIndex?: number; budget: number }) => Promise<string | void> | string | void
+  updateBurstBudget?: (payload: {
+    mediaType: string
+    burstIndex?: number
+    budget: number
+  }) => Promise<string | void> | string | void
   /**
    * Generic field setter using known ids or selectors.
    * Supports { fieldId, selector, value } (string/number/boolean).
    */
-  setField?: (payload: { fieldId?: string; selector?: string; value: any }) => Promise<string | void> | string | void
+  setField?: (payload: {
+    fieldId?: string
+    selector?: string
+    value: any
+  }) => Promise<string | void> | string | void
   /**
    * Generic click action by selector.
    */
@@ -19,11 +27,17 @@ type AssistantActionHandlers = {
   /**
    * Generic select option action by selector and value.
    */
-  select?: (payload: { selector: string; value: string }) => Promise<string | void> | string | void
+  select?: (payload: {
+    selector: string
+    value: string
+  }) => Promise<string | void> | string | void
   /**
    * Generic toggle (checkbox/switch) by selector.
    */
-  toggle?: (payload: { selector: string; value: boolean }) => Promise<string | void> | string | void
+  toggle?: (payload: {
+    selector: string
+    value: boolean
+  }) => Promise<string | void> | string | void
 }
 
 export type AssistantContext = {
@@ -52,3 +66,8 @@ export function setAssistantContext(next: AssistantContext) {
   }
 }
 
+/** Clear bridge state when a provider page unmounts (avoids stale PageContext). */
+export function clearAssistantContext() {
+  if (typeof window === "undefined") return
+  delete (window as any)[GLOBAL_KEY]
+}

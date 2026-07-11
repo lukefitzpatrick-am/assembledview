@@ -7,7 +7,7 @@ import {
 } from "./anthropic";
 import { AVA_TOOL_DEFINITIONS, getToolByName } from "./tools/registry";
 import type { AvaToolContext } from "./tools/types";
-import type { FormPatch, PageContext } from "@/lib/openai";
+import type { FormPatch, PageContext } from "@/lib/ava/types";
 
 export type AvaAgentInput = {
   systemPrompt: string;

@@ -1,35 +1,32 @@
 /**
- * Canonical AVA chat API: OpenAI (GPT) when `engine: "openai"`, else Claude (when enabled).
- * Former `/api/chat` OpenAI logic lives in `@/lib/ava/openAvaGptHandler`.
+ * Canonical AVA chat API — Anthropic Claude agent loop only.
+ * Optional kill-switch: AVA_ENGINE=off → 503.
+ * Streaming is a later phase; maxDuration mitigates Vercel timeout risk for multi-tool turns.
  */
 
 import { NextRequest, NextResponse } from "next/server"
 import type { ChatCompletionMessageParam } from "openai/resources/index.mjs"
 import type Anthropic from "@anthropic-ai/sdk"
-import { getModeInstructions, type ChatMode } from "@/src/ava/modes"
+import { type ChatMode } from "@/src/ava/modes"
 import { auth0 } from "@/lib/auth0"
 import { getUserRoles } from "@/lib/rbac"
-import { buildSystemPrompt, type PageContext } from "@/lib/openai"
+import type { PageContext } from "@/lib/ava/types"
+import { buildAvaSystemPrompt } from "@/lib/ava/buildAvaSystemPrompt"
 import { runAvaAgent } from "@/lib/ava/agentLoop"
-import {
-  avaGptErrorResponse,
-  handleOpenAvaGptChat,
-  isAvaGptValidationError,
-} from "@/lib/ava/openAvaGptHandler"
 import type { AvaToolContext } from "@/lib/ava/tools/types"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
+/** Multi-tool Claude turns can exceed the default serverless limit; streaming is a later phase. */
+export const maxDuration = 60
 
 const AVA_V2_APPENDIX =
-  "\n\nYou are AVA, the AssembledView AI assistant. You respond in Australian English with short, direct sentences. You can call tools to fetch data and apply form edits. Only call get_media_plan_summary if the user's question actually needs plan details. Only call apply_form_patch if the user explicitly asks you to change field values. When you call apply_form_patch, confirm the changes in your reply in plain English."
+  "\n\nYou are AVA, the AssembledView AI assistant. You respond in Australian English with short, direct sentences. You can call tools to fetch data and apply form edits. Only call get_media_plan_summary if the user's question actually needs plan details. Only call apply_form_patch if the user explicitly asks you to change field values. When you call apply_form_patch, confirm the changes in your reply in plain English. Never return JSON reply contracts in prose."
 
 type ChatRequestBody = {
   messages?: ChatCompletionMessageParam[]
   pageContext?: PageContext
   mode?: ChatMode
-  /** `openai` = legacy GPT path; `claude` = Anthropic (default for backwards compat) */
-  engine?: "openai" | "claude"
 }
 
 export async function POST(req: NextRequest) {
@@ -48,41 +45,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "AVA is available to Admin users only." }, { status: 403 })
     }
 
-    const body = ((await req.json()) ?? {}) as ChatRequestBody
-    const engine = body.engine === "openai" ? "openai" : "claude"
-
-    if (engine === "openai") {
-      if (!Array.isArray(body.messages)) {
-        return NextResponse.json({ error: "'messages' must be an array" }, { status: 400 })
-      }
-      if (!process.env.OPENAI_API_KEY) {
-        return NextResponse.json(
-          {
-            error:
-              "OPENAI_API_KEY is not configured. AVA (GPT engine) cannot start. Ask an admin to set it in the deployment environment.",
-          },
-          { status: 503 },
-        )
-      }
-      try {
-        return await handleOpenAvaGptChat(roles, {
-          messages: body.messages,
-          pageContext: body.pageContext,
-          mode: body.mode,
-        })
-      } catch (error) {
-        console.error("[AVA openai]", error)
-        if (isAvaGptValidationError(error)) {
-          return avaGptErrorResponse(error)
-        }
-        const message = error instanceof Error ? error.message : "Unknown error"
-        return NextResponse.json({ error: message }, { status: 500 })
-      }
-    }
-
-    if (process.env.AVA_ENGINE !== "claude") {
+    if (process.env.AVA_ENGINE === "off") {
       return NextResponse.json(
-        { error: "AVA Claude engine is not enabled on this deployment." },
+        {
+          error:
+            "AVA is temporarily disabled on this deployment. Ask an admin to re-enable it (unset AVA_ENGINE=off).",
+        },
         { status: 503 },
       )
     }
@@ -91,11 +59,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           error:
-            "ANTHROPIC_API_KEY is not configured. AVA (Claude engine) cannot start. Ask an admin to set it in the deployment environment.",
+            "ANTHROPIC_API_KEY is not configured. AVA cannot start. Ask an admin to set it in the deployment environment.",
         },
         { status: 503 },
       )
     }
+
+    const body = ((await req.json()) ?? {}) as ChatRequestBody
 
     if (!Array.isArray(body.messages)) {
       throw new ValidationError("'messages' must be an array")
@@ -108,12 +78,7 @@ export async function POST(req: NextRequest) {
 
     const { clientSlug, mbaNumber } = deriveAvaIdentifiers(pageContext)
 
-    const customInstructions = getModeInstructions(resolvedMode, pageContext)
-    const systemPrompt =
-      buildSystemPrompt({
-        pageContext,
-        customInstructions,
-      }) + AVA_V2_APPENDIX
+    const systemPrompt = buildAvaSystemPrompt(resolvedMode, pageContext, AVA_V2_APPENDIX)
 
     const user = session.user as { sub?: string; email?: string }
     const context: AvaToolContext = {
@@ -122,6 +87,7 @@ export async function POST(req: NextRequest) {
       mbaNumber,
       userSub: typeof user.sub === "string" ? user.sub : undefined,
       userEmail: typeof user.email === "string" ? user.email : undefined,
+      roles,
       capturedPatch: null,
     }
 
