@@ -1,29 +1,10 @@
-import { CHANNELS, GEO_POP } from "./data";
 import type { Channel, PlannerInputs, ScoredChannel, AllocatedChannel } from "./types";
 
-function ageFit(ch: Channel, ageMin: number, ageMax: number): number {
-  const audCenter = (ageMin + ageMax) / 2;
-  const audSpread = (ageMax - ageMin) / 2;
-  const overlap = 1 - Math.min(1, Math.abs(audCenter - ch.ageSkew.center) / (ch.ageSkew.spread + audSpread));
-  return 0.7 + overlap * 0.6;
-}
-
-function genderFit(ch: Channel, gender: PlannerInputs["gender"]): number {
-  if (gender === "all" || gender === "non-binary") return 1.0;
-  return (ch.genderSkew[gender] || 100) / 100;
-}
-
-export function audienceSize(inputs: PlannerInputs): number {
-  let pop = 0;
-  inputs.geos.forEach((g) => { pop += GEO_POP[g] || 0; });
-  const ageFrac = (inputs.ageMax - inputs.ageMin) / 85;
-  const genderFrac = inputs.gender === "all" ? 1.0 : inputs.gender === "non-binary" ? 0.02 : 0.49;
-  const segCount = inputs.segments.length;
-  const segFrac = segCount === 0 ? 0 : Math.min(0.45, 0.08 + (segCount - 1) * 0.06);
-  return pop * ageFrac * genderFrac * segFrac;
-}
-
-export function computeBcs(inputs: PlannerInputs): ScoredChannel[] {
+/**
+ * BCS scoring over adapted live channels (affinities + age/gender fits from the API).
+ * Does not invent audience size or reach — those come from the audience adapter.
+ */
+export function computeBcs(inputs: PlannerInputs, channels: Channel[]): ScoredChannel[] {
   const O = inputs.objective / 100;
   const wSum = inputs.weights.A + inputs.weights.T + inputs.weights.E + inputs.weights.C || 1;
   const wA = inputs.weights.A / wSum;
@@ -32,10 +13,11 @@ export function computeBcs(inputs: PlannerInputs): ScoredChannel[] {
   const wC = inputs.weights.C / wSum;
   if (inputs.segments.length === 0) return [];
 
-  const scored = CHANNELS.map((ch): ScoredChannel => {
-    const affAvg = inputs.segments.reduce((s, sg) => s + (ch.aff[sg] || 100), 0) / inputs.segments.length;
-    const ageMod = ageFit(ch, inputs.ageMin, inputs.ageMax);
-    const genderMod = genderFit(ch, inputs.gender);
+  const scored = channels.map((ch): ScoredChannel => {
+    const affAvg =
+      inputs.segments.reduce((s, sg) => s + (ch.aff[sg] ?? 100), 0) / inputs.segments.length;
+    const ageMod = ch.ageMod;
+    const genderMod = ch.genderMod;
     const A = Math.min(100, affAvg * 0.7 * ageMod * genderMod);
     const T = Math.min(100, ch.attn * 3.2);
     const E = (1 - O) * ch.B + O * ch.D;
@@ -63,8 +45,9 @@ export function totalBcs(allocated: AllocatedChannel[]): number {
   return allocated.reduce((s, a) => s + a.bcs * (a.pct / 100), 0);
 }
 
+/** Mix-weighted real RM reach % (0–100). No fictional cap. */
 export function totalReach(allocated: AllocatedChannel[]): number {
-  return Math.min(82, allocated.reduce((s, a) => s + a.A * (a.pct / 100) * 0.85, 0));
+  return allocated.reduce((s, a) => s + a.ch.reachPct * 100 * (a.pct / 100), 0);
 }
 
 export function totalAttention(allocated: AllocatedChannel[]): number {
