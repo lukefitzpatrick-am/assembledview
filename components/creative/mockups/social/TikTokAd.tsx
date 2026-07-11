@@ -4,6 +4,7 @@ import type { ReactNode } from "react"
 import { Bookmark, Heart, MessageCircle, Share2 } from "lucide-react"
 
 import type { CreativeAsset } from "@/lib/creative/types"
+import { TikTokFeedShell } from "./FeedShells"
 import { BrandAvatar, InertCta, StoryMedia } from "./shared"
 import type { SocialAdCopy } from "./types"
 
@@ -32,9 +33,11 @@ export function TikTokAd({ copy, asset }: Props) {
   const username = brand.replace(/\s+/g, "").toLowerCase() || "brand"
 
   return (
-    <article className="mx-auto w-full max-w-[320px] overflow-hidden rounded-frame border border-border bg-foreground shadow-e2">
-      <div className="relative aspect-[9/16] w-full">
-        <StoryMedia asset={asset} />
+    <TikTokFeedShell>
+      <article className="relative h-full min-h-[520px] w-full overflow-hidden bg-foreground">
+        <div className="absolute inset-0">
+          <StoryMedia asset={asset} />
+        </div>
 
         <div className="absolute bottom-28 right-2 z-20 flex flex-col items-center gap-4">
           <BrandAvatar name={brand} size="md" className="ring-2 ring-background" />
@@ -74,7 +77,7 @@ export function TikTokAd({ copy, asset }: Props) {
             {copy.ctaLabel}
           </InertCta>
         </div>
-      </div>
-    </article>
+      </article>
+    </TikTokFeedShell>
   )
 }
