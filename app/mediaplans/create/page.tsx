@@ -399,7 +399,7 @@ const argbToCssHex = (argb?: string) => {
 const getMediaTypeAccentColor = (mediaName: string) =>
   argbToCssHex(MEDIA_TYPE_COLORS[mediaKeyMap[mediaName]])
 
-export default function CreateMediaPlan() {
+function CreateMediaPlan() {
 
   //general and client info
   const router = useRouter()
@@ -7585,5 +7585,13 @@ const handleSaveAll = async () => {
         isSaving={isLoading || isPlanSaving || isVersionSaving}
       />
     </>
+  )
+}
+
+export default function CreateMediaPlanPage() {
+  return (
+    <Suspense fallback={<MediaContainerSuspenseFallback label="campaign form" />}>
+      <CreateMediaPlan />
+    </Suspense>
   )
 }
