@@ -24,7 +24,7 @@ function buildSkillGuidanceTable(): string {
 
   return `
 Assembled skills (load_skill):
-Load at most ONE skill per turn (plus its auto-chained decision rules). Skills' "clarify below ~90% confidence — ask" rule is binding; ask ONE clarifying question per turn (same as engagement rules). Load references lazily: call load_skill again with reference when the skill body says to (e.g. specs-and-evidence, example-output) — never all upfront.
+Load at most ONE skill per turn (plus its auto-chained decision rules). Page skill buttons send a visible user message — route via load_skill from that intent; there is no hidden side-channel. Skills' "clarify below ~90% confidence — ask" rule is binding; ask ONE clarifying question per turn (same as engagement rules). Load references lazily: call load_skill again with reference when the skill body says to (e.g. specs-and-evidence, example-output) — never all upfront. Respect get_platform_specs character limits when a copy skill says write to spec. For commentary: four questions (what/how/why/next); never invent numbers; name omitted context rings (minimal mode).
 Commentary: load assembled-insight-commentary THEN get_pacing_snapshot / get_campaign_context.
 Copy (meta/search/linkedin/video): load the matching copy skill THEN get_client_details + get_saved_audiences + get_best_practice + get_platform_specs.
 Audience insight: load assembled-audience-insight THEN get_saved_audiences + get_methodology + use planning page context.

@@ -12,6 +12,8 @@ export const AVA_SKILL_MESSAGES = {
     "Write the planning rationale for this plan the Assembled way.",
   writeCommentary:
     "Write delivery commentary for what's on this pacing view.",
+  writeCampaignCommentary:
+    "Write delivery commentary for this campaign — ground in page context and tools, no invented numbers.",
   findInsight:
     "Find the audience insight and planning theme for the audience(s) on screen.",
   draftCopyAsset:
@@ -49,7 +51,7 @@ export function AvaCampaignCommentaryAction() {
   return (
     <AvaSkillAction
       label="Write commentary"
-      message={AVA_SKILL_MESSAGES.writeCommentary}
+      message={AVA_SKILL_MESSAGES.writeCampaignCommentary}
       className="h-9 min-w-[7.5rem] justify-center rounded-pill border-border bg-card shadow-e0"
     />
   )

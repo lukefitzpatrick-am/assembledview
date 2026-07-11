@@ -62,4 +62,7 @@ test("skill guidance mentions one skill per turn and paired tools", () => {
   assert.match(AVA_SKILL_GUIDANCE, /assembled-insight-commentary/)
   assert.match(AVA_SKILL_GUIDANCE, /get_platform_specs/)
   assert.match(AVA_SKILL_GUIDANCE, /outline-only/i)
+  assert.match(AVA_SKILL_GUIDANCE, /visible user message/i)
+  assert.match(AVA_SKILL_GUIDANCE, /four questions/i)
+  assert.match(AVA_SKILL_GUIDANCE, /omitted context rings/i)
 })

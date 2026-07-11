@@ -69,7 +69,12 @@ export function ChatWidget({
     return subscribeAvaChatOpen(({ message }) => {
       setIsOpen(true)
       setIsCollapsed(false)
-      void sendMessageRef.current(message)
+      setError(null)
+      // Defer one tick so open/collapse paint before the send (and so getPageContext
+      // sees the current route after rapid navigation).
+      queueMicrotask(() => {
+        void sendMessageRef.current(message)
+      })
     })
   }, [])
 
