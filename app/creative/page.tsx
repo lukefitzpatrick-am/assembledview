@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation"
 
+import { AvaCreativeSkillActions } from "@/components/ava/AvaSkillActionSets"
 import { CreativeCampaignPicker } from "@/components/creative/CreativeCampaignPicker"
 import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
 import { auth0 } from "@/lib/auth0"
@@ -27,6 +28,7 @@ export default async function CreativeUploadsPage() {
               Pick a client and campaign, then upload or manage creative assets.
             </p>
           }
+          actions={<AvaCreativeSkillActions />}
         />
         <CreativeCampaignPicker />
       </div>

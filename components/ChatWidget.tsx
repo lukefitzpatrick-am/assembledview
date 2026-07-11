@@ -5,7 +5,7 @@ import type { ChatCompletionMessageParam } from "openai/resources/index.mjs"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
-import { getAssistantContext } from "@/lib/assistantBridge"
+import { getAssistantContext, subscribeAvaChatOpen } from "@/lib/assistantBridge"
 import type { FormPatch, ModelChatReply, PageContext } from "@/lib/ava/types"
 import type { ChatMode } from "@/src/ava/modes"
 import { ChevronDown, ChevronUp } from "lucide-react"
@@ -62,6 +62,16 @@ export function ChatWidget({
   )
 
   const toggle = useCallback(() => setIsOpen((v) => !v), [])
+
+  const sendMessageRef = useRef<(overrideText?: string) => Promise<void>>(async () => {})
+
+  useEffect(() => {
+    return subscribeAvaChatOpen(({ message }) => {
+      setIsOpen(true)
+      setIsCollapsed(false)
+      void sendMessageRef.current(message)
+    })
+  }, [])
 
   const startDrag = useCallback(
     (event: React.MouseEvent) => {
@@ -170,6 +180,8 @@ export function ChatWidget({
       setIsSending(false)
     }
   }
+
+  sendMessageRef.current = sendMessage
 
   const starterChips = STARTER_CHIPS[mode] ?? STARTER_CHIPS.general
 

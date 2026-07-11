@@ -8,6 +8,7 @@ import { ArrowLeft, Loader2 } from "lucide-react"
 import { CreativeAssetTable } from "@/components/creative/CreativeAssetTable"
 import { CreativeUploadZone } from "@/components/creative/CreativeUploadZone"
 import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
+import { AvaCreativeSkillActions } from "@/components/ava/AvaSkillActionSets"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -399,11 +400,14 @@ export function CreativeAssetManager({
             </div>
           }
           actions={
-            <Button variant="outline" size="sm" type="button" className="text-xs" asChild>
-              <Link href={`/mediaplans/mba/${encodeURIComponent(mbaNumber)}/trafficking`}>
-                Trafficking
-              </Link>
-            </Button>
+            <>
+              <AvaCreativeSkillActions />
+              <Button variant="outline" size="sm" type="button" className="text-xs" asChild>
+                <Link href={`/mediaplans/mba/${encodeURIComponent(mbaNumber)}/trafficking`}>
+                  Trafficking
+                </Link>
+              </Button>
+            </>
           }
         />
       ) : null}

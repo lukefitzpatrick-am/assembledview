@@ -47,6 +47,11 @@ export type AssistantContext = {
 }
 
 const GLOBAL_KEY = "__AV_ASSISTANT__"
+const OPEN_CHAT_EVENT = "ava:open-chat"
+
+export type OpenAvaChatDetail = {
+  message: string
+}
 
 export function getAssistantContext(): AssistantContext | undefined {
   if (typeof window === "undefined") return undefined
@@ -70,4 +75,33 @@ export function setAssistantContext(next: AssistantContext) {
 export function clearAssistantContext() {
   if (typeof window === "undefined") return
   delete (window as any)[GLOBAL_KEY]
+}
+
+/**
+ * Open the Ava chat widget and send a visible first user message.
+ * ChatWidget subscribes via `subscribeAvaChatOpen`.
+ */
+export function openAvaChat(detail: OpenAvaChatDetail) {
+  if (typeof window === "undefined") return
+  const message = detail?.message?.trim()
+  if (!message) return
+  window.dispatchEvent(
+    new CustomEvent(OPEN_CHAT_EVENT, {
+      detail: { message } satisfies OpenAvaChatDetail,
+    }),
+  )
+}
+
+export function subscribeAvaChatOpen(
+  handler: (detail: OpenAvaChatDetail) => void,
+): () => void {
+  if (typeof window === "undefined") return () => {}
+  const listener = (event: Event) => {
+    const custom = event as CustomEvent<OpenAvaChatDetail>
+    const message = custom.detail?.message?.trim()
+    if (!message) return
+    handler({ message })
+  }
+  window.addEventListener(OPEN_CHAT_EVENT, listener)
+  return () => window.removeEventListener(OPEN_CHAT_EVENT, listener)
 }

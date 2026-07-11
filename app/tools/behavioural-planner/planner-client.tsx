@@ -16,6 +16,7 @@ import type {
   Weights as EngineWeights,
 } from "@/app/tools/behavioural-planner/lib/types"
 import { MethodologyPanel } from "@/components/planning/MethodologyPanel"
+import { AvaPlanningInsightAction } from "@/components/ava/AvaSkillActionSets"
 import { PlanningStepper } from "@/components/planning/PlanningStepper"
 import { robustnessFromN } from "@/components/planning/robustness"
 import { StageAudiences } from "@/components/planning/StageAudiences"
@@ -579,6 +580,7 @@ export function BehaviouralPlannerClient() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <AvaPlanningInsightAction />
           <MethodologyPanel
             rows={meta.methodology}
             open={methodologyOpen}

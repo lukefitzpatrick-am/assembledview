@@ -33,6 +33,7 @@ import { cn } from "@/lib/utils"
 import { CampaignExportsSection } from "@/components/dashboard/CampaignExportsSection"
 import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
 import { PlanWizardShell } from "@/components/mediaplans/PlanWizardShell"
+import { AvaMediaplanEditActions } from "@/components/ava/AvaSkillActionSets"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -8723,6 +8724,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             <Button variant="outline" size="sm" type="button" className="text-xs" asChild>
               <Link href={`/mediaplans/mba/${encodeURIComponent(mbaNumber)}/trafficking`}>Trafficking</Link>
             </Button>
+            <AvaMediaplanEditActions />
             <Button
               variant="ghost"
               size="sm"

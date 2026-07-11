@@ -31,6 +31,7 @@ import { formatMoney } from "@/lib/format/money"
 import { MoneyInput } from "@/components/ui/MoneyInput"
 import { CampaignExportsSection } from "@/components/dashboard/CampaignExportsSection"
 import { PlanWizardShell } from "@/components/mediaplans/PlanWizardShell"
+import { AvaMediaplanCreateActions } from "@/components/ava/AvaSkillActionSets"
 import { sortByLabel } from "@/lib/utils/sort"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
@@ -5822,15 +5823,18 @@ const handleSaveAll = async () => {
         title="Create a Campaign"
         subtitle={<p>Set up campaign details, select media types, and configure line items.</p>}
         heroActions={
-          <Button
-            variant="ghost"
-            size="sm"
-            type="button"
-            className="text-xs"
-            onClick={handleCopyPageContext}
-          >
-            Copy Context
-          </Button>
+          <>
+            <AvaMediaplanCreateActions />
+            <Button
+              variant="ghost"
+              size="sm"
+              type="button"
+              className="text-xs"
+              onClick={handleCopyPageContext}
+            >
+              Copy Context
+            </Button>
+          </>
         }
         steps={createCampaignSteps.map((step) => ({
           id: step.id,

@@ -5,6 +5,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
+import { AvaPacingCommentaryAction } from "@/components/ava/AvaSkillActionSets"
 import { PacingFilterToolbar } from "@/components/pacing/PacingFilterToolbar"
 
 const baseTabs = [
@@ -38,6 +39,7 @@ export function PacingShell({ children, isAdmin = false }: PacingShellProps) {
       <MediaPlanEditorHero
         title="Pacing"
         detail={<p>Portfolio pacing across all clients in your scope.</p>}
+        actions={<AvaPacingCommentaryAction />}
       />
 
       {/* Top tabs */}
