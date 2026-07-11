@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -8,6 +9,7 @@ import { useToast } from "@/components/ui/use-toast"
 import type { AllocatedChannel, ScoredChannel } from "@/app/tools/behavioural-planner/lib/types"
 import type { AdapterResult } from "@/lib/planning/adapter"
 import type { PlanningAudienceRow } from "@/lib/planning/audienceTypes"
+import { buildCreateCampaignHref } from "@/lib/mediaplan/createPrefill"
 import { dfii } from "@/lib/planning/dfii"
 import { cn } from "@/lib/utils"
 import { DfiiValue, OutcomeCharts, topDfiiLabel } from "./OutcomeCharts"
@@ -166,6 +168,7 @@ export function StageCompare({
   onBack,
 }: StageCompareProps) {
   const { toast } = useToast()
+  const router = useRouter()
   const rows = buildCompareRows(bundles)
   const createShare = 100 - diagnosis.createCapture
   const captureShare = diagnosis.createCapture
@@ -214,7 +217,7 @@ export function StageCompare({
       toast({
         title: `Saved “${saved.name}”`,
         description:
-          "Audience stored for this client. Attach it to a campaign below to show on the client dashboard.",
+          "Audience stored for this client. Start campaign to prefill create, or attach below for the client dashboard.",
       })
     } catch (err) {
       toast({
@@ -311,8 +314,22 @@ export function StageCompare({
                     {busy ? "Saving…" : "Use audience →"}
                   </Button>
                   {lastSavedName === b.draft.name ? (
-                    <Button type="button" size="sm" variant="ghost" disabled>
-                      Saved — attach to a campaign below
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      onClick={() =>
+                        router.push(
+                          buildCreateCampaignHref({
+                            clientId: brief.clientId,
+                            campaignName: brief.campaignName,
+                            start: brief.startDate,
+                            end: brief.endDate,
+                          })
+                        )
+                      }
+                    >
+                      Start campaign
                     </Button>
                   ) : null}
                 </div>

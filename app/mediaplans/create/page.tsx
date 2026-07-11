@@ -38,7 +38,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { UnsavedChangesDialog } from "@/components/mediaplans/UnsavedChangesDialog"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { toast } from "@/components/ui/use-toast"
-import { usePathname, useRouter } from "next/navigation"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { parsePrefillYmd } from "@/lib/mediaplan/createPrefill"
 import { Table, TableBody, TableCell, TableHeader, TableRow, TableHead, TableFooter } from "@/components/ui/table"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { SavingModal, type SaveStatusItem } from "@/components/ui/saving-modal"
@@ -403,7 +404,9 @@ export default function CreateMediaPlan() {
   //general and client info
   const router = useRouter()
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [clients, setClients] = useState<Client[]>([])
+  const [clientsReady, setClientsReady] = useState(false)
   const [reportId, setReportId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [selectedClientId, setSelectedClientId] = useState<string>("")
@@ -425,6 +428,7 @@ export default function CreateMediaPlan() {
   const [modalLoading, setModalLoading] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const navigationHydratedRef = useRef(false);
+  const prefillDoneRef = useRef(false);
   const markUnsavedChanges = useCallback(() => {
     if (!navigationHydratedRef.current) return;
     setHasUnsavedChanges(true);
@@ -2897,6 +2901,7 @@ export default function CreateMediaPlan() {
     } catch (error) {
     } finally {
       setIsLoading(false)
+      setClientsReady(true)
     }
   }
 
@@ -3033,6 +3038,55 @@ export default function CreateMediaPlan() {
       setClientPostcode("");
     }
   }
+
+  // Planning handoff: ?clientId=&campaignName=&start=&end= — once, while pristine only.
+  useEffect(() => {
+    if (prefillDoneRef.current) return
+    if (!clientsReady) return
+
+    const { isDirty } = form.formState
+    if (isDirty || selectedClientId) {
+      prefillDoneRef.current = true
+      return
+    }
+
+    const clientIdParam = searchParams.get("clientId")
+    const campaignName = (searchParams.get("campaignName") ?? "").trim()
+    const startParam = searchParams.get("start")
+    const endParam = searchParams.get("end")
+
+    if (!clientIdParam && !campaignName && !startParam && !endParam) {
+      prefillDoneRef.current = true
+      return
+    }
+
+    const prevHydrated = navigationHydratedRef.current
+    navigationHydratedRef.current = false
+    try {
+      if (campaignName) {
+        form.setValue("mp_campaignname", campaignName, { shouldDirty: false })
+      }
+      const startDate = parsePrefillYmd(startParam)
+      const endDate = parsePrefillYmd(endParam)
+      if (startDate) {
+        form.setValue("mp_campaigndates_start", startDate, { shouldDirty: false })
+      }
+      if (endDate) {
+        form.setValue("mp_campaigndates_end", endDate, { shouldDirty: false })
+      }
+      if (clientIdParam) {
+        const known = clients.some((c) => c.id.toString() === clientIdParam)
+        if (known) {
+          handleClientChange(clientIdParam)
+        }
+      }
+    } finally {
+      navigationHydratedRef.current = prevHydrated
+      prefillDoneRef.current = true
+    }
+    // handleClientChange is stable enough for one-shot mount; omit to avoid re-runs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- pristine one-shot prefill
+  }, [clientsReady, clients, selectedClientId, searchParams, form])
 
   const normalizeBursts = (bursts: BillingBurst[]): BillingBurst[] =>
     bursts.map((burst) => {
