@@ -24,7 +24,9 @@
 ## Tools
 
 - Registry: `lib/ava/tools/registry.ts`.
-- Baseline: `get_media_plan_summary`, `apply_form_patch` (context tools added in A1 commit 2).
+- Form: `apply_form_patch`, `get_media_plan_summary`.
+- Context platform: `get_client_details`, `get_campaign_context`, `get_saved_audiences`, `get_best_practice`, `get_naming_rules`, `get_creative_assets`, `get_methodology`, `get_pacing_snapshot`.
+- Tools receive session `roles` / `clientSlugs` / `mbaNumbers` and enforce scope internally.
 
 ## Client
 

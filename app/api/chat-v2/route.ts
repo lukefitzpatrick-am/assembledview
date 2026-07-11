@@ -9,7 +9,7 @@ import type { ChatCompletionMessageParam } from "openai/resources/index.mjs"
 import type Anthropic from "@anthropic-ai/sdk"
 import { type ChatMode } from "@/src/ava/modes"
 import { auth0 } from "@/lib/auth0"
-import { getUserRoles } from "@/lib/rbac"
+import { getUserClientSlugs, getUserMbaNumbers, getUserRoles } from "@/lib/rbac"
 import type { PageContext } from "@/lib/ava/types"
 import { buildAvaSystemPrompt } from "@/lib/ava/buildAvaSystemPrompt"
 import { runAvaAgent } from "@/lib/ava/agentLoop"
@@ -20,8 +20,23 @@ export const dynamic = "force-dynamic"
 /** Multi-tool Claude turns can exceed the default serverless limit; streaming is a later phase. */
 export const maxDuration = 60
 
-const AVA_V2_APPENDIX =
-  "\n\nYou are AVA, the AssembledView AI assistant. You respond in Australian English with short, direct sentences. You can call tools to fetch data and apply form edits. Only call get_media_plan_summary if the user's question actually needs plan details. Only call apply_form_patch if the user explicitly asks you to change field values. When you call apply_form_patch, confirm the changes in your reply in plain English. Never return JSON reply contracts in prose."
+const AVA_V2_APPENDIX = `
+You are AVA, the AssembledView AI assistant. Respond in Australian English with short, direct sentences.
+
+Tool discipline — prefer one well-chosen tool call over guessing:
+- get_client_details — client fees, brand colour, platform ID populated y/n
+- get_campaign_context — MBA master/version summary + compact line items
+- get_media_plan_summary — lighter plan text summary when full line items are not needed
+- get_saved_audiences — saved planning audiences by client or MBA
+- get_best_practice — media container best-practice copy by channel
+- get_naming_rules — template element order + composed name preview
+- get_creative_assets — creative files for an MBA
+- get_methodology — planning methodology title/formula/source (e.g. affinity, DFII)
+- get_pacing_snapshot — pacing/delivery story for a client or MBA (cached channel rows)
+- apply_form_patch — only when the user explicitly asks to change editable field values
+
+Never return JSON reply contracts in prose. After apply_form_patch, confirm changes in plain English.
+`.trim()
 
 type ChatRequestBody = {
   messages?: ChatCompletionMessageParam[]
@@ -36,6 +51,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 })
     }
     const roles = getUserRoles(session.user)
+    const clientSlugs = getUserClientSlugs(session.user)
+    const mbaNumbers = getUserMbaNumbers(session.user)
     if (!roles.includes("admin")) {
       console.warn("[AVA v2] /api/chat-v2 denied (not admin)", {
         sub: (session.user as any)?.sub,
@@ -88,6 +105,8 @@ export async function POST(req: NextRequest) {
       userSub: typeof user.sub === "string" ? user.sub : undefined,
       userEmail: typeof user.email === "string" ? user.email : undefined,
       roles,
+      clientSlugs,
+      mbaNumbers,
       capturedPatch: null,
     }
 

@@ -12,6 +12,10 @@ export type AvaToolContext = {
   userEmail: string | undefined;
   /** Caller roles from chat-v2 session (defence-in-depth scoping inside tools). */
   roles: UserRole[];
+  /** Tenant client slugs from session claims (empty for admin / unscoped). */
+  clientSlugs: string[];
+  /** Optional MBA allow-list from session app_metadata. */
+  mbaNumbers: string[];
   capturedPatch: FormPatch | null;
 };
 

@@ -24,7 +24,8 @@
     "snowflake:migrate:pacing": "tsx scripts/snowflake/run-pacing-migrations.ts",
     "pacing:backfill:search-mappings": "tsx scripts/pacing/backfill-search-mappings.ts",
     "test:kpi-resolve": "tsx --test lib/kpi/__tests__/resolve.test.ts",
-    "test:pacing-maths": "tsx --test lib/pacing/maths/__tests__/*.test.ts"
+    "test:pacing-maths": "tsx --test lib/pacing/maths/__tests__/*.test.ts",
+    "test:ava-tools": "tsx --test lib/ava/tools/__tests__/registry.test.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.97.1",
