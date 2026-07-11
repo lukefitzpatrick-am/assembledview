@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
-import { ArrowLeft, Loader2, RotateCcw } from "lucide-react"
+import { ArrowLeft, ClipboardCopy, Download, Loader2, RotateCcw } from "lucide-react"
 
 import { BestPracticeRail } from "@/components/trafficking/BestPracticeRail"
 import {
@@ -13,7 +13,14 @@ import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
+import { copyToClipboard } from "@/lib/copyToClipboard"
 import { composeName } from "@/lib/naming/compose"
+import {
+  downloadTraffickingWorkbook,
+  formatPlatformBlock,
+  tryComposeName,
+  type TraffickingExportPlatform,
+} from "@/lib/naming/exportTraffickingWorkbook"
 import {
   baseRowsForPlatform,
   derivePlatformTabs,
@@ -433,6 +440,100 @@ export function TraffickingBuilder({ mbaNumber }: TraffickingBuilderProps) {
     toast({ title: "Reset", description: "Rows regenerated from the media plan." })
   }
 
+  const mergeRowForCompose = useCallback(
+    (
+      platform: string,
+      template: NamingTemplate,
+      row: NamingGridRow,
+    ): Record<string, string> => {
+      const merged: Record<string, string> = {
+        ...row.values,
+        ...resolveComposites(platform, row.values),
+      }
+      for (const el of template.elements) {
+        if (el.source === "literal" && el.literal) {
+          merged[el.key] = el.literal
+        }
+      }
+      return merged
+    },
+    [resolveComposites],
+  )
+
+  const copyPlatformBlock = async (tab: PlatformTab) => {
+    const templates = templatesForPlatform(tab.platform)
+    const levels = templates.map((template) => {
+      const rows = platformState[tab.platform]?.levels[template.level] ?? []
+      const names: string[] = []
+      for (const row of rows) {
+        if (row.excluded) continue
+        const merged = mergeRowForCompose(tab.platform, template, row)
+        const attempt = tryComposeName(template, merged)
+        if (attempt.ok) names.push(attempt.name)
+      }
+      return { level: template.level, names }
+    })
+    const text = formatPlatformBlock(levels)
+    const ok = await copyToClipboard(text)
+    if (!ok) {
+      toast({
+        title: "Copy failed",
+        description: "Clipboard is unavailable in this browser context.",
+        variant: "destructive",
+      })
+      return
+    }
+    const total = levels.reduce((n, l) => n + l.names.length, 0)
+    toast({
+      title: "Copied",
+      description: `Platform block (${total} names)`,
+    })
+  }
+
+  const [exporting, setExporting] = useState(false)
+
+  const downloadWorkbook = async () => {
+    if (!globals) return
+    setExporting(true)
+    try {
+      const seenIds = new Set<string>()
+      const inputRows = tabs.flatMap((tab) =>
+        baseRowsForPlatform(tab.platform, lineItems, tab).filter((row) => {
+          if (seenIds.has(row.line_item_id)) return false
+          seenIds.add(row.line_item_id)
+          return true
+        }),
+      )
+
+      const platforms: TraffickingExportPlatform[] = tabs.map((tab) => ({
+        platform: tab.platform,
+        levels: templatesForPlatform(tab.platform).map((template) => {
+          const rows = platformState[tab.platform]?.levels[template.level] ?? []
+          return {
+            template,
+            rows: rows.map((row) => ({
+              values: mergeRowForCompose(tab.platform, template, row),
+              excluded: row.excluded,
+            })),
+          }
+        }),
+      }))
+
+      const filename = await downloadTraffickingWorkbook({
+        globals,
+        inputRows,
+        platforms,
+      })
+      toast({ title: "Downloaded", description: filename })
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to build workbook"
+      toast({ title: "Export failed", description: message, variant: "destructive" })
+    } finally {
+      setExporting(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24 text-muted-foreground">
@@ -477,6 +578,21 @@ export function TraffickingBuilder({ mbaNumber }: TraffickingBuilderProps) {
               size="sm"
               type="button"
               className="text-xs"
+              disabled={exporting || tabs.length === 0}
+              onClick={() => void downloadWorkbook()}
+            >
+              {exporting ? (
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden />
+              ) : (
+                <Download className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+              )}
+              Download workbook
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              type="button"
+              className="text-xs"
               onClick={resetToPlan}
             >
               <RotateCcw className="mr-1.5 h-3.5 w-3.5" aria-hidden />
@@ -485,11 +601,6 @@ export function TraffickingBuilder({ mbaNumber }: TraffickingBuilderProps) {
           </>
         }
       />
-
-      {/* N3 placeholder */}
-      <div className="rounded-card border border-dashed border-border bg-surface-panel px-4 py-3 text-sm text-muted-foreground">
-        Export actions (copy / Excel) — coming in N3.
-      </div>
 
       {tabs.length === 0 ? (
         <div className="rounded-card border border-border bg-card px-4 py-8 text-center text-sm text-muted-foreground shadow-e1">
@@ -513,9 +624,21 @@ export function TraffickingBuilder({ mbaNumber }: TraffickingBuilderProps) {
 
               {tabs.map((tab) => (
                 <TabsContent key={tab.platform} value={tab.platform} className="space-y-4">
-                  <p className="text-sm text-muted-foreground">
-                    {tab.mappingLabels.join(" · ")}
-                  </p>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-sm text-muted-foreground">
+                      {tab.mappingLabels.join(" · ")}
+                    </p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="text-xs"
+                      onClick={() => void copyPlatformBlock(tab)}
+                    >
+                      <ClipboardCopy className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                      Copy platform block
+                    </Button>
+                  </div>
 
                   {templatesForPlatform(tab.platform).map((template) => {
                     const levelKey = `${tab.platform}:${template.level}`

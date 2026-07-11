@@ -1,6 +1,6 @@
 "use client"
 
-import { Copy, Trash2 } from "lucide-react"
+import { ClipboardCopy, Copy, Trash2 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -22,7 +22,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { composeName } from "@/lib/naming/compose"
+import { useToast } from "@/components/ui/use-toast"
+import { copyToClipboard } from "@/lib/copyToClipboard"
+import {
+  formatLevelCopy,
+  tryComposeName,
+} from "@/lib/naming/exportTraffickingWorkbook"
 import { PICKLISTS } from "@/lib/naming/templates"
 import type { NamingTemplate, TemplateElement } from "@/lib/naming/types"
 import { validateValue } from "@/lib/naming/validate"
@@ -72,24 +77,10 @@ function liveCompose(
   template: NamingTemplate,
   values: Record<string, string>,
 ): { name: string | null; error?: string } {
-  for (const el of template.elements) {
-    if (el.source === "literal") continue
-    const raw = values[el.key] ?? ""
-    if (!raw.trim()) {
-      if (el.optional) continue
-      return { name: null, error: `Missing ${el.key}` }
-    }
-    const check = validateValue(el, raw)
-    if (!check.ok) return { name: null, error: check.message }
-  }
-  try {
-    return { name: composeName(template, values) }
-  } catch (err) {
-    return {
-      name: null,
-      error: err instanceof Error ? err.message : "Compose failed",
-    }
-  }
+  const result = tryComposeName(template, values)
+  return result.ok
+    ? { name: result.name }
+    : { name: null, error: result.error }
 }
 
 function CellEditor({
@@ -160,6 +151,23 @@ function CellEditor({
   )
 }
 
+function mergeRowValues(
+  template: NamingTemplate,
+  row: NamingGridRow,
+  resolveComposites: (values: Record<string, string>) => Record<string, string>,
+): Record<string, string> {
+  const merged: Record<string, string> = {
+    ...row.values,
+    ...resolveComposites(row.values),
+  }
+  for (const el of template.elements) {
+    if (el.source === "literal" && el.literal) {
+      merged[el.key] = el.literal
+    }
+  }
+  return merged
+}
+
 export function NamingLevelGrid({
   template,
   rows,
@@ -172,10 +180,65 @@ export function NamingLevelGrid({
   onDelete,
   onToggleExcluded,
 }: NamingLevelGridProps) {
+  const { toast } = useToast()
   const hasSize = template.elements.some((el) => el.key === "size")
   const sizeOptions = PICKLISTS.iab_sizes
 
   const visibleElements = template.elements.filter((el) => el.source !== "literal")
+
+  const rowResults = rows.map((row) => {
+    const merged = mergeRowValues(template, row, resolveComposites)
+    const composed = row.excluded
+      ? { name: null as string | null, error: "Excluded" }
+      : liveCompose(template, merged)
+    return { row, merged, composed }
+  })
+
+  const validNames = rowResults
+    .filter((r) => r.composed.name)
+    .map((r) => r.composed.name as string)
+  const invalidCount = rowResults.filter((r) => !r.composed.name).length
+
+  const copyOne = async (name: string) => {
+    const ok = await copyToClipboard(name)
+    if (ok) {
+      toast({ title: "Copied" })
+    } else {
+      toast({
+        title: "Copy failed",
+        description: "Clipboard is unavailable in this browser context.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const copyAll = async () => {
+    if (validNames.length === 0) {
+      toast({
+        title: "Nothing to copy",
+        description:
+          invalidCount > 0
+            ? `${invalidCount} invalid skipped`
+            : "No composed names at this level.",
+        variant: "destructive",
+      })
+      return
+    }
+    const ok = await copyToClipboard(formatLevelCopy(validNames))
+    if (!ok) {
+      toast({
+        title: "Copy failed",
+        description: "Clipboard is unavailable in this browser context.",
+        variant: "destructive",
+      })
+      return
+    }
+    const skipped =
+      invalidCount > 0 ? `, ${invalidCount} invalid skipped` : ""
+    toast({
+      title: `${validNames.length} copied${skipped}`,
+    })
+  }
 
   return (
     <section className="space-y-3 rounded-card border border-border bg-card p-4 shadow-e1">
@@ -194,43 +257,56 @@ export function NamingLevelGrid({
           </p>
         </div>
 
-        {hasSize ? (
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex max-w-md flex-wrap gap-2">
-              {sizeOptions.map((size) => {
-                const checked = sizeSelection.includes(size)
-                return (
-                  <label
-                    key={size}
-                    className="interactive-tint flex cursor-pointer items-center gap-1.5 rounded-input border border-border px-2 py-1 text-xs"
-                  >
-                    <Checkbox
-                      checked={checked}
-                      onCheckedChange={(next) => {
-                        const on = next === true
-                        onSizeSelectionChange(
-                          on
-                            ? [...sizeSelection, size]
-                            : sizeSelection.filter((s) => s !== size),
-                        )
-                      }}
-                    />
-                    <span className="num">{size}</span>
-                  </label>
-                )
-              })}
-            </div>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={sizeSelection.length === 0}
-              onClick={onExpandSizes}
-            >
-              Expand
-            </Button>
-          </div>
-        ) : null}
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="text-xs"
+            onClick={() => void copyAll()}
+          >
+            <ClipboardCopy className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+            Copy all ({validNames.length})
+          </Button>
+
+          {hasSize ? (
+            <>
+              <div className="flex max-w-md flex-wrap gap-2">
+                {sizeOptions.map((size) => {
+                  const checked = sizeSelection.includes(size)
+                  return (
+                    <label
+                      key={size}
+                      className="interactive-tint flex cursor-pointer items-center gap-1.5 rounded-input border border-border px-2 py-1 text-xs"
+                    >
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={(next) => {
+                          const on = next === true
+                          onSizeSelectionChange(
+                            on
+                              ? [...sizeSelection, size]
+                              : sizeSelection.filter((s) => s !== size),
+                          )
+                        }}
+                      />
+                      <span className="num">{size}</span>
+                    </label>
+                  )
+                })}
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={sizeSelection.length === 0}
+                onClick={onExpandSizes}
+              >
+                Expand
+              </Button>
+            </>
+          ) : null}
+        </div>
       </div>
 
       <div className="overflow-x-auto">
@@ -253,7 +329,7 @@ export function NamingLevelGrid({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.length === 0 ? (
+            {rowResults.length === 0 ? (
               <TableRow>
                 <TableCell
                   colSpan={visibleElements.length + 3}
@@ -263,21 +339,7 @@ export function NamingLevelGrid({
                 </TableCell>
               </TableRow>
             ) : (
-              rows.map((row) => {
-                const merged = {
-                  ...row.values,
-                  ...resolveComposites(row.values),
-                }
-                // Attach literals for compose
-                for (const el of template.elements) {
-                  if (el.source === "literal" && el.literal) {
-                    merged[el.key] = el.literal
-                  }
-                }
-                const composed = row.excluded
-                  ? { name: null as string | null, error: "Excluded" }
-                  : liveCompose(template, merged)
-
+              rowResults.map(({ row, merged, composed }) => {
                 return (
                   <TableRow
                     key={row.id}
@@ -312,9 +374,22 @@ export function NamingLevelGrid({
                     ))}
                     <TableCell>
                       {composed.name ? (
-                        <code className="num block max-w-xs truncate font-mono text-xs text-foreground">
-                          {composed.name}
-                        </code>
+                        <div className="group flex max-w-xs items-center gap-1">
+                          <code className="num block min-w-0 flex-1 truncate font-mono text-xs text-foreground">
+                            {composed.name}
+                          </code>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7 shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                            title="Copy name"
+                            aria-label="Copy composed name"
+                            onClick={() => void copyOne(composed.name!)}
+                          >
+                            <ClipboardCopy className="h-3.5 w-3.5" aria-hidden />
+                          </Button>
+                        </div>
                       ) : (
                         <span className="text-xs text-status-critical-fg">
                           {composed.error ?? "—"}
