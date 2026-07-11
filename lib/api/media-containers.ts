@@ -63,27 +63,28 @@ export interface SpendFilterOptions {
   monthsOrder?: string[]
 }
 
-// Media container endpoints mapping
+// Media container endpoints mapping — paths match live Xano media_plan_* tables
+// (same map as MEDIA_TYPE_ENDPOINTS in app/api/mediaplans/mba/[mba_number]/route.ts)
 export const MEDIA_CONTAINER_ENDPOINTS = {
-  television: 'television_line_items',
-  radio: 'radio_line_items',
-  newspaper: 'newspaper_line_items',
-  magazines: 'magazines_line_items',
-  ooh: 'ooh_line_items',
-  cinema: 'cinema_line_items',
+  television: 'media_plan_television',
+  radio: 'media_plan_radio',
+  newspaper: 'media_plan_newspaper',
+  magazines: 'media_plan_magazines',
+  ooh: 'media_plan_ooh',
+  cinema: 'media_plan_cinema',
   digitalDisplay: 'media_plan_digi_display',
-  digitalAudio: 'digital_audio_line_items',
-  digitalVideo: 'digital_video_line_items',
-  bvod: 'bvod_line_items',
-  integration: 'integration_line_items',
-  search: 'search_line_items',
-  socialMedia: 'social_media_line_items',
-  progDisplay: 'prog_display_line_items',
-  progVideo: 'prog_video_line_items',
-  progBvod: 'prog_bvod_line_items',
-  progAudio: 'prog_audio_line_items',
+  digitalAudio: 'media_plan_digi_audio',
+  digitalVideo: 'media_plan_digi_video',
+  bvod: 'media_plan_digi_bvod',
+  integration: 'media_plan_integrations',
+  search: 'media_plan_search',
+  socialMedia: 'media_plan_social',
+  progDisplay: 'media_plan_prog_display',
+  progVideo: 'media_plan_prog_video',
+  progBvod: 'media_plan_prog_bvod',
+  progAudio: 'media_plan_prog_audio',
   progOoh: 'media_plan_prog_ooh',
-  influencers: 'influencers_line_items',
+  influencers: 'media_plan_influencers',
   production: 'media_plan_production',
 }
 
