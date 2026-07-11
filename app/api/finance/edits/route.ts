@@ -5,10 +5,14 @@ import {
   xanoFinanceGet,
   xanoFinancePost,
 } from "@/lib/finance/xanoFinanceApi"
+import { requireFinanceAdmin } from "@/lib/requireRole"
 
 export const maxDuration = 60
 
 export async function GET(request: NextRequest) {
+  const gate = await requireFinanceAdmin(request)
+  if ("response" in gate) return gate.response
+
   try {
     const recordId = request.nextUrl.searchParams.get("finance_billing_records_id")
     const data = await xanoFinanceGet(FINANCE_EDITS_PATH)
@@ -26,6 +30,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const gate = await requireFinanceAdmin(request)
+  if ("response" in gate) return gate.response
+
   try {
     const body = (await request.json()) as Record<string, unknown>
     const payload = await xanoFinancePost(FINANCE_EDITS_PATH, body)

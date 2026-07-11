@@ -9,10 +9,14 @@ import {
 } from "@/lib/finance/utils"
 import { xanoUrl } from "@/lib/api/xano"
 import { fetchRelevantPlanVersionsForFinanceMonth } from "@/lib/finance/relevantPlanVersions"
+import { requireFinanceAdmin } from "@/lib/requireRole"
 
 export const maxDuration = 60
 
 export async function GET(request: NextRequest) {
+  const gate = await requireFinanceAdmin(request)
+  if ("response" in gate) return gate.response
+
   try {
     const searchParams = request.nextUrl.searchParams
     const monthParam = searchParams.get("month") // Format: YYYY-MM

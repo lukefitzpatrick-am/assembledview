@@ -25,6 +25,7 @@ import {
   filterByStatuses,
 } from "@/lib/finance/filterBillingRecords"
 import { financeClientNamesMatch } from "@/lib/finance/utils"
+import { requireFinanceAdmin } from "@/lib/requireRole"
 
 export const maxDuration = 60
 
@@ -103,6 +104,9 @@ function buildPublisherIdMap(publishers: Record<string, unknown>[]): Map<number,
 }
 
 export async function GET(request: NextRequest) {
+  const gate = await requireFinanceAdmin(request)
+  if ("response" in gate) return gate.response
+
   const requestUrl = request.url
   const query = searchParamsRecord(request.nextUrl.searchParams)
 

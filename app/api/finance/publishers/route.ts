@@ -6,6 +6,7 @@
 import axios from "axios"
 import { NextRequest, NextResponse } from "next/server"
 import { parseXanoListPayload, xanoUrl } from "@/lib/api/xano"
+import { requireFinanceAdmin } from "@/lib/requireRole"
 
 export const maxDuration = 60
 
@@ -49,6 +50,9 @@ function enumerateMonths(from: string, to: string): string[] {
 }
 
 export async function GET(request: NextRequest) {
+  const gate = await requireFinanceAdmin(request)
+  if ("response" in gate) return gate.response
+
   try {
     const search = request.nextUrl.searchParams
     const monthFrom = search.get("month_from")

@@ -7,6 +7,7 @@ import {
   parseScopeJSON,
 } from "@/lib/finance/scopeScheduleExtract"
 import { xanoUrl } from "@/lib/api/xano"
+import { requireFinanceAdmin } from "@/lib/requireRole"
 
 export const maxDuration = 60
 
@@ -43,6 +44,9 @@ type FinanceCampaignData = {
 }
 
 export async function GET(request: NextRequest) {
+  const gate = await requireFinanceAdmin(request)
+  if ("response" in gate) return gate.response
+
   try {
     const searchParams = request.nextUrl.searchParams
     const monthParam = searchParams.get("month") // YYYY-MM
