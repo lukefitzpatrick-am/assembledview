@@ -9,7 +9,14 @@ import { fetchBillingRecords, fetchPayablesRecords, FinanceHttpError } from "@/l
 import { getCurrentBillingMonth } from "@/lib/finance/months"
 import { expandMonthRange } from "@/lib/finance/monthRange"
 
-export type FinanceHubTab = "overview" | "billing" | "payables" | "accrual" | "forecast" | "report"
+export type FinanceHubTab =
+  | "overview"
+  | "billing"
+  | "payables"
+  | "accrual"
+  | "forecast"
+  | "report"
+  | "queue"
 
 /** Client-side snapshot of a failed finance list fetch (for toasts + clipboard debug). */
 export type FinanceHubFetchError = {
@@ -27,6 +34,7 @@ const HUB_TABS: readonly FinanceHubTab[] = [
   "accrual",
   "forecast",
   "report",
+  "queue",
 ]
 
 export function parseFinanceHubTabParam(tab: string | null | undefined): FinanceHubTab {

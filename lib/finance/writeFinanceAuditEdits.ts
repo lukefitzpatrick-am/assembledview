@@ -87,7 +87,7 @@ export async function writeScheduleDiffEdits(
  */
 export async function writeStatusChangeEdit(
   params: {
-    finance_billing_records_id: number
+    finance_billing_records_id: number | null
     finance_billing_line_items_id?: number | null
     field_name: string
     old_value: string | null

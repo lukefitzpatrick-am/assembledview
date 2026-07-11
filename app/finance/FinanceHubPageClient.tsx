@@ -111,6 +111,10 @@ const FinanceReportPanel = dynamic(
   () => import("@/components/finance/hub/panels/FinanceReportPanel"),
   { loading: () => <HubPanelFallback /> }
 )
+const FinanceXeroQueuePanel = dynamic(
+  () => import("@/components/finance/hub/panels/FinanceXeroQueuePanel"),
+  { loading: () => <HubPanelFallback /> }
+)
 
 function readSavedViews(): HubSavedView[] {
   try {
@@ -922,6 +926,12 @@ export default function FinanceHubPageClient() {
               >
                 Report
               </TabsTrigger>
+              <TabsTrigger
+                value="queue"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+              >
+                Xero Queue
+              </TabsTrigger>
             </TabsList>
             <div className="flex items-center gap-2 pb-2">
               {activeTab === "billing" ? (
@@ -1031,6 +1041,11 @@ export default function FinanceHubPageClient() {
             <TabsContent value="report" className="mt-0">
               <Suspense fallback={<HubPanelFallback />}>
                 <FinanceReportPanel />
+              </Suspense>
+            </TabsContent>
+            <TabsContent value="queue" className="mt-0">
+              <Suspense fallback={<HubPanelFallback />}>
+                <FinanceXeroQueuePanel />
               </Suspense>
             </TabsContent>
           </div>
