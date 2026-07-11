@@ -11,6 +11,7 @@ import type { PlanningAudienceRow } from "@/lib/planning/audienceTypes"
 import { dfii } from "@/lib/planning/dfii"
 import { cn } from "@/lib/utils"
 import { DfiiValue, OutcomeCharts, topDfiiLabel } from "./OutcomeCharts"
+import { SavedAudienceAttachList } from "./SavedAudienceAttachList"
 import { AUDIENCE_ACCENTS } from "./constants"
 import { formatAudienceWc, robustnessFromN } from "./robustness"
 import type {
@@ -212,7 +213,8 @@ export function StageCompare({
       onAudienceSaved()
       toast({
         title: `Saved “${saved.name}”`,
-        description: "Audience stored for this client. Start a campaign from Campaigns.",
+        description:
+          "Audience stored for this client. Attach it to a campaign below to show on the client dashboard.",
       })
     } catch (err) {
       toast({
@@ -310,7 +312,7 @@ export function StageCompare({
                   </Button>
                   {lastSavedName === b.draft.name ? (
                     <Button type="button" size="sm" variant="ghost" disabled>
-                      Saved — start campaign from Campaigns
+                      Saved — attach to a campaign below
                     </Button>
                   ) : null}
                 </div>
@@ -452,43 +454,14 @@ export function StageCompare({
         </button>
       </div>
 
-      <div className="rounded-card border border-border bg-card p-4 shadow-e1">
-        <h3 className="text-sm font-medium">Saved audiences</h3>
-        <p className="mt-0.5 text-xs text-muted-foreground">
-          Load a saved definition back into the builder for this client.
-        </p>
-        {!brief.clientId ? (
-          <p className="mt-3 text-xs text-muted-foreground">Select a client in Stage A.</p>
-        ) : savedLoading ? (
-          <p className="mt-3 text-xs text-muted-foreground">Loading saved audiences…</p>
-        ) : savedAudiences.length === 0 ? (
-          <p className="mt-3 text-xs text-muted-foreground">No saved audiences for this client yet.</p>
-        ) : (
-          <ul className="mt-3 space-y-2">
-            {savedAudiences.map((row) => (
-              <li
-                key={row.id}
-                className="flex items-center justify-between gap-3 text-sm"
-              >
-                <span>
-                  {row.name}{" "}
-                  <span className="num text-xs text-muted-foreground">
-                    ({formatAudienceWc(Number(row.composed_wc))} &apos;000s)
-                  </span>
-                </span>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => onLoadSaved(row)}
-                >
-                  Load
-                </Button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      <SavedAudienceAttachList
+        clientId={brief.clientId}
+        clientName={brief.clientName}
+        savedAudiences={savedAudiences}
+        savedLoading={savedLoading}
+        onLoadSaved={onLoadSaved}
+        onAudiencePatched={onAudienceSaved}
+      />
 
       <p className="text-[11px] leading-relaxed text-muted-foreground">
         Reach figures are channel-consumption potential for the composed audience (weighted

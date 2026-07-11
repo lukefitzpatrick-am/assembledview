@@ -29,8 +29,17 @@ const ALL_AUDIENCES = "__all__"
 const ADDR_GAP_PTS = 2
 
 type OutcomeChartsProps = {
-  bundles: AudienceCompareBundle[]
-  onOpenMethodology: (focusId?: string) => void
+  bundles?: AudienceCompareBundle[]
+  onOpenMethodology?: (focusId?: string) => void
+  /**
+   * Client dashboard mode: reach × index only — no DFII / cost / benchmark badges.
+   * 18+ honesty badge stays. Hides other chart suite members.
+   */
+  clientSafe?: boolean
+  /** Preset rows for clientSafe dashboard (from by-mba whitelist payload). */
+  reachIndexPreset?: Array<{ channel: string; reach_pct: number; affinity_index: number }>
+  audienceLabel?: string
+  accentColor?: string
 }
 
 function median(values: number[]): number {
@@ -57,7 +66,14 @@ function DfiiValue({ value }: { value: number | null }) {
   )
 }
 
-export function OutcomeCharts({ bundles, onOpenMethodology }: OutcomeChartsProps) {
+export function OutcomeCharts({
+  bundles = [],
+  onOpenMethodology,
+  clientSafe = false,
+  reachIndexPreset,
+  audienceLabel = "Audience",
+  accentColor,
+}: OutcomeChartsProps) {
   const ready = bundles.filter((b) => b.scored.length > 0)
   const [audienceKey, setAudienceKey] = useState<string>(
     () => ready[0]?.draft.id ?? ALL_AUDIENCES
@@ -75,9 +91,27 @@ export function OutcomeCharts({ bundles, onOpenMethodology }: OutcomeChartsProps
       ? null
       : ready.find((b) => b.draft.id === audienceKey) ?? ready[0] ?? null
 
-  const comparison = audienceKey === ALL_AUDIENCES && ready.length > 1
+  const comparison = !clientSafe && audienceKey === ALL_AUDIENCES && ready.length > 1
+
+  const presetReachData = useMemo(() => {
+    if (!reachIndexPreset?.length) return null
+    const color = accentColor ?? AUDIENCE_ACCENTS[0]!.cssVar
+    const rows = reachIndexPreset
+      .map((p) => ({
+        channel: p.channel,
+        reach_a: p.reach_pct,
+        index_a: p.affinity_index,
+      }))
+      .toSorted((a, b) => b.reach_a - a.reach_a)
+    return {
+      rows,
+      bars: [{ key: "reach_a", label: `${audienceLabel} reach %`, color, format: "number" as const }],
+      lines: [{ key: "index_a", label: `${audienceLabel} index`, color, format: "number" as const }],
+    }
+  }, [reachIndexPreset, audienceLabel, accentColor])
 
   const reachIndexData = useMemo(() => {
+    if (presetReachData) return presetReachData
     const sources = comparison ? ready : activeBundle ? [activeBundle] : []
     if (sources.length === 0) return { rows: [] as Record<string, string | number>[], bars: [], lines: [] }
 
@@ -133,10 +167,32 @@ export function OutcomeCharts({ bundles, onOpenMethodology }: OutcomeChartsProps
     }))
 
     return { rows, bars, lines }
-  }, [activeBundle, comparison, ready])
+  }, [activeBundle, comparison, ready, presetReachData])
 
   const highlightDetail = useMemo(() => {
-    if (!highlighted) return null
+    if (!highlighted || clientSafe) {
+      if (!highlighted || !reachIndexPreset) return null
+      const hit = reachIndexPreset.find((p) => p.channel === highlighted)
+      if (!hit) return null
+      return {
+        channel: highlighted,
+        parts: [
+          {
+            audience: audienceLabel,
+            colorIndex: 0 as const,
+            reachWc: 0,
+            reachPct: hit.reach_pct,
+            index: hit.affinity_index,
+            dfii: null as number | null,
+            isRm: true,
+            isBench: false,
+            ageBase: 14,
+            addr: null as number | null,
+            total: null as number | null,
+          },
+        ],
+      }
+    }
     const sources = comparison ? ready : activeBundle ? [activeBundle] : []
     const parts = sources.map((b) => {
       const scored = b.scored.find((s) => s.ch.name === highlighted || s.ch.id === highlighted)
@@ -159,7 +215,15 @@ export function OutcomeCharts({ bundles, onOpenMethodology }: OutcomeChartsProps
       }
     }).filter(Boolean)
     return parts.length ? { channel: highlighted, parts } : null
-  }, [highlighted, comparison, ready, activeBundle])
+  }, [
+    highlighted,
+    comparison,
+    ready,
+    activeBundle,
+    clientSafe,
+    reachIndexPreset,
+    audienceLabel,
+  ])
 
   const scatterData = useMemo((): ScatterPoint[] => {
     const sources = comparison ? ready : activeBundle ? [activeBundle] : []
@@ -220,10 +284,18 @@ export function OutcomeCharts({ bundles, onOpenMethodology }: OutcomeChartsProps
       .toSorted((a, b) => b.gap - a.gap)
   }, [activeBundle, ready])
 
-  if (ready.length === 0) {
+  if (!clientSafe && ready.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
         No scored channels yet — complete audiences and wait for profiles.
+      </p>
+    )
+  }
+
+  if (clientSafe && !reachIndexData.rows.length) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        No reach profile available for this audience yet.
       </p>
     )
   }
@@ -233,6 +305,7 @@ export function OutcomeCharts({ bundles, onOpenMethodology }: OutcomeChartsProps
 
   return (
     <div className="space-y-6">
+      {!clientSafe ? (
       <div className="flex flex-wrap items-center gap-2">
         {ready.length > 1 ? (
           <button
@@ -269,18 +342,25 @@ export function OutcomeCharts({ bundles, onOpenMethodology }: OutcomeChartsProps
             </button>
           )
         })}
-        <button
-          type="button"
-          onClick={() => onOpenMethodology("dfii")}
-          className="ml-auto text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-        >
-          DFII methodology →
-        </button>
+        {onOpenMethodology ? (
+          <button
+            type="button"
+            onClick={() => onOpenMethodology("dfii")}
+            className="ml-auto text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+          >
+            DFII methodology →
+          </button>
+        ) : null}
       </div>
+      ) : null}
 
       <BaseChartCard
         title="Reach × Index"
-        subtitle="Grouped weekly reach % with affinity index overlay · sorted by reach"
+        subtitle={
+          clientSafe
+            ? "Weekly reach % with affinity index · sorted by reach"
+            : "Grouped weekly reach % with affinity index overlay · sorted by reach"
+        }
         bodyRef={reachRef}
         toolbar={
           <ChartExportToolbar
@@ -324,15 +404,25 @@ export function OutcomeCharts({ bundles, onOpenMethodology }: OutcomeChartsProps
                         <p className="font-medium">{p.audience}</p>
                         <p className="text-muted-foreground">
                           Reach{" "}
-                          <span className="num text-foreground">
-                            {formatAudienceWc(p.reachWc)}
-                          </span>
-                          &apos;000s ({p.reachPct}%)
+                          {clientSafe || !p.reachWc ? (
+                            <span className="num text-foreground">{p.reachPct}%</span>
+                          ) : (
+                            <>
+                              <span className="num text-foreground">
+                                {formatAudienceWc(p.reachWc)}
+                              </span>
+                              &apos;000s ({p.reachPct}%)
+                            </>
+                          )}
                         </p>
                         <p className="text-muted-foreground">
                           Index <span className="num text-foreground">{p.index}</span>
-                          {" · "}
-                          DFII <DfiiValue value={p.dfii} />
+                          {!clientSafe ? (
+                            <>
+                              {" · "}
+                              DFII <DfiiValue value={p.dfii} />
+                            </>
+                          ) : null}
                         </p>
                         <div className="flex flex-wrap gap-1">
                           {p.isRm ? (
@@ -340,7 +430,7 @@ export function OutcomeCharts({ bundles, onOpenMethodology }: OutcomeChartsProps
                               18+ / RM
                             </Badge>
                           ) : null}
-                          {p.isBench ? (
+                          {!clientSafe && p.isBench ? (
                             <Badge variant="outline" size="sm">
                               Benchmark
                             </Badge>
@@ -370,6 +460,8 @@ export function OutcomeCharts({ bundles, onOpenMethodology }: OutcomeChartsProps
         )}
       </BaseChartCard>
 
+      {!clientSafe ? (
+        <>
       <BaseChartCard
         title="Reach × Index quadrant"
         subtitle="Point size = DFII · guides at median reach and index 100"
@@ -502,6 +594,8 @@ export function OutcomeCharts({ bundles, onOpenMethodology }: OutcomeChartsProps
           </>
         )}
       </BaseChartCard>
+        </>
+      ) : null}
 
       <p className="text-[11px] leading-relaxed text-muted-foreground">
         Reach figures are channel-consumption potential for the composed audience (weighted

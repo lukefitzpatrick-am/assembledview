@@ -13,6 +13,7 @@ import CampaignSummaryRow from "@/components/dashboard/campaign/CampaignSummaryR
 import SpendChartsRow from "@/components/dashboard/campaign/SpendChartsRow"
 import MediaPlanVizSection from "@/components/dashboard/campaign/MediaPlanVizSection"
 import CampaignDetailsModal from "@/components/dashboard/campaign/CampaignDetailsModal"
+import { PlannedAudienceSection } from "@/components/dashboard/campaign/PlannedAudienceSection"
 import { CampaignDeliverySection } from "@/components/dashboard/delivery/CampaignDeliverySection"
 import CampaignActions from "./CampaignActions"
 import type { MediaPlanVersionListEntry } from "@/lib/api/dashboard"
@@ -376,6 +377,14 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
           </div>
         </Suspense>
       </SectionBoundary>
+
+      <section className="mt-6">
+        <SectionBoundary title="Planned audience">
+          <div className="campaign-section-enter" style={{ animationDelay: "50ms" }}>
+            <PlannedAudienceSection mbaNumber={mbaNumber} />
+          </div>
+        </SectionBoundary>
+      </section>
 
       <section className="mt-6">
         <SectionBoundary title="Progress summary">
