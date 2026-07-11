@@ -29,6 +29,7 @@ import { formatLineItemDescription } from "@/lib/finance/lineItemDescription"
 import { cn } from "@/lib/utils"
 import { formatAUD } from "@/lib/format/money"
 import { MediaPlanActionBar } from "@/components/finance/MediaPlanActionBar"
+import { ReceivableNotesButton } from "@/components/finance/receivables/ReceivableNotesButton"
 import { buildFinanceHubWorkbook } from "@/lib/finance/excelFinanceExport"
 import { exportBillingRecordsCsv, exportPayablesDetailCsv } from "@/lib/finance/export"
 import { exportAccrualWorkbook } from "@/lib/finance/accrualExcel"
@@ -145,7 +146,17 @@ function invoiceStatusBadgeProps(status: string): {
   return { variant: "outline", className: "text-muted-foreground", label: status || "Draft" }
 }
 
-function HubReceivableRecordArticle({ rec }: { rec: BillingRecord }) {
+function HubReceivableRecordArticle({
+  rec,
+  onNotesSaved,
+}: {
+  rec: BillingRecord
+  onNotesSaved?: (result: {
+    invoice_key: string
+    notes: string
+    persisted_record_id: number
+  }) => void
+}) {
   const statusBadge = invoiceStatusBadgeProps(rec.status)
 
   return (
@@ -164,12 +175,15 @@ function HubReceivableRecordArticle({ rec }: { rec: BillingRecord }) {
           ) : null}
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1">
-          <Badge
-            variant="secondary"
-            className={cn("text-[10px] font-semibold uppercase", billingTypeBadgeClass(rec.billing_type))}
-          >
-            {receivableRecordSectionLabel(rec.billing_type)}
-          </Badge>
+          <div className="flex items-center gap-1.5">
+            <ReceivableNotesButton record={rec} onSaved={onNotesSaved} />
+            <Badge
+              variant="secondary"
+              className={cn("text-[10px] font-semibold uppercase", billingTypeBadgeClass(rec.billing_type))}
+            >
+              {receivableRecordSectionLabel(rec.billing_type)}
+            </Badge>
+          </div>
           <p className="num text-sm font-semibold">{formatAUD(rec.total)}</p>
         </div>
       </div>
@@ -209,12 +223,18 @@ function FinanceHubReceivablesSection({
   awaitingExplicitLoad,
   loadError,
   bumpReceivablesFetch,
+  onNotesSaved,
 }: {
   visibleMonthGroups: MonthGroup[]
   loading: boolean
   awaitingExplicitLoad: boolean
   loadError: string | null
   bumpReceivablesFetch: () => void
+  onNotesSaved?: (result: {
+    invoice_key: string
+    notes: string
+    persisted_record_id: number
+  }) => void
 }) {
   return (
     <div className="relative">
@@ -338,6 +358,7 @@ function FinanceHubReceivablesSection({
                                               <HubReceivableRecordArticle
                                                 key={`${mg.monthIso}-${client.clientsId}-${mp.mbaNumber}-${mpIdx}-${rec.billing_type}-${rec.id}-${recIdx}`}
                                                 rec={rec}
+                                                onNotesSaved={onNotesSaved}
                                               />
                                             ))}
                                           </div>
@@ -400,6 +421,7 @@ function FinanceHubReceivablesSection({
                                                 <HubReceivableRecordArticle
                                                   key={`${mg.monthIso}-${client.clientsId}-sow-${mp.mbaNumber}-${mpIdx}-${rec.billing_type}-${rec.id}-${recIdx}`}
                                                   rec={rec}
+                                                  onNotesSaved={onNotesSaved}
                                                 />
                                               ))}
                                             </div>
@@ -426,6 +448,7 @@ function FinanceHubReceivablesSection({
                                         <HubReceivableRecordArticle
                                           key={`${mg.monthIso}-${client.clientsId}-ret-${rec.billing_type}-${rec.id}-${recIdx}`}
                                           rec={rec}
+                                          onNotesSaved={onNotesSaved}
                                         />
                                       ))}
                                     </div>
@@ -493,8 +516,18 @@ export default function FinanceHubPageClient() {
     filterSig: hubReceivablesFilterSig,
     loadError: hubReceivablesLoadError,
     bumpReceivablesFetch,
+    updateNotesByInvoiceKey,
   } = useReceivablesData(activeTab)
   const hubReceivablesSynced = hubReceivablesLoadedSignature === hubReceivablesFilterSig
+  const handleHubNotesSaved = useCallback(
+    (result: { invoice_key: string; notes: string; persisted_record_id: number }) => {
+      updateNotesByInvoiceKey(result.invoice_key, {
+        notes: result.notes || null,
+        persisted_record_id: result.persisted_record_id,
+      })
+    },
+    [updateNotesByInvoiceKey]
+  )
   const [financeReportDownloading, setFinanceReportDownloading] = useState(false)
   const setFilters = useFinanceStore((s) => s.setFilters)
   const setActiveTab = useFinanceStore((s) => s.setActiveTab)
@@ -977,6 +1010,7 @@ export default function FinanceHubPageClient() {
                 awaitingExplicitLoad={!hubReceivablesSynced}
                 loadError={hubReceivablesLoadError}
                 bumpReceivablesFetch={bumpReceivablesFetch}
+                onNotesSaved={handleHubNotesSaved}
               />
             </TabsContent>
             <TabsContent value="payables" className="mt-0">

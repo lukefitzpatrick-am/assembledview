@@ -86,6 +86,13 @@ export type HubReceivablesHubState = {
       persisted_record_id?: number | null
     }
   ) => void
+  updateNotesByInvoiceKey: (
+    invoiceKey: string,
+    fields: {
+      notes: string | null
+      persisted_record_id?: number | null
+    }
+  ) => void
 }
 
 export function useReceivablesData(activeTab: FinanceHubTab): HubReceivablesHubState {
@@ -129,6 +136,25 @@ export function useReceivablesData(activeTab: FinanceHubTab): HubReceivablesHubS
                 billed: fields.billed,
                 billed_at: fields.billed_at,
                 billed_by: fields.billed_by,
+                persisted_record_id:
+                  fields.persisted_record_id ?? r.persisted_record_id ?? null,
+              }
+            : r
+        )
+      )
+    },
+    []
+  )
+
+  const updateNotesByInvoiceKey = useCallback<HubReceivablesHubState["updateNotesByInvoiceKey"]>(
+    (invoiceKey, fields) => {
+      if (!invoiceKey) return
+      setRecords((prev) =>
+        prev.map((r) =>
+          r.invoice_key === invoiceKey
+            ? {
+                ...r,
+                notes: fields.notes,
                 persisted_record_id:
                   fields.persisted_record_id ?? r.persisted_record_id ?? null,
               }
@@ -327,6 +353,7 @@ export function useReceivablesData(activeTab: FinanceHubTab): HubReceivablesHubS
     loadError,
     bumpReceivablesFetch,
     updateBilledByInvoiceKey,
+    updateNotesByInvoiceKey,
   }
 }
 

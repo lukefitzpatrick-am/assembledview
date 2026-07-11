@@ -94,10 +94,16 @@ function ReceivablesMonthSections({
   groups,
   refetch,
   onToggleBilled,
+  onNotesSaved,
 }: {
   groups: ReturnType<typeof useReceivablesData>["visibleMonthGroups"]
   refetch: () => void
   onToggleBilled: (rec: BillingRecord, nextBilled: boolean) => Promise<void>
+  onNotesSaved?: (result: {
+    invoice_key: string
+    notes: string
+    persisted_record_id: number
+  }) => void
 }) {
   if (groups.length === 0) return null
 
@@ -117,6 +123,7 @@ function ReceivablesMonthSections({
                 monthLabel={mg.monthLabel}
                 refetch={refetch}
                 onToggleBilled={onToggleBilled}
+                onNotesSaved={onNotesSaved}
               />
             ))}
           </div>
@@ -136,6 +143,7 @@ export function ReceivablesPageClient() {
     loadError,
     bumpReceivablesFetch,
     updateBilledByInvoiceKey,
+    updateNotesByInvoiceKey,
   } = useReceivablesData("billing")
 
   const { toast } = useToast()
@@ -176,6 +184,16 @@ export function ReceivablesPageClient() {
       }
     },
     [toast, updateBilledByInvoiceKey]
+  )
+
+  const handleNotesSaved = useCallback(
+    (result: { invoice_key: string; notes: string; persisted_record_id: number }) => {
+      updateNotesByInvoiceKey(result.invoice_key, {
+        notes: result.notes || null,
+        persisted_record_id: result.persisted_record_id,
+      })
+    },
+    [updateNotesByInvoiceKey]
   )
 
   const synced = loadedSignature === filterSig
@@ -264,6 +282,7 @@ export function ReceivablesPageClient() {
               groups={unbilledGroups}
               refetch={bumpReceivablesFetch}
               onToggleBilled={handleToggleBilled}
+              onNotesSaved={handleNotesSaved}
             />
 
             {billedInvoiceCount > 0 ? (
@@ -280,6 +299,7 @@ export function ReceivablesPageClient() {
                     groups={billedGroups}
                     refetch={bumpReceivablesFetch}
                     onToggleBilled={handleToggleBilled}
+                    onNotesSaved={handleNotesSaved}
                   />
                 </CollapsibleContent>
               </Collapsible>

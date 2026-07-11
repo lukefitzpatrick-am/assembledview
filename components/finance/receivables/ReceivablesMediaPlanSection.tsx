@@ -10,6 +10,7 @@ import { formatAUD } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
 import { MediaPlanActionBar } from "@/components/finance/MediaPlanActionBar"
 import { BilledStatusPill } from "./BilledStatusPill"
+import { ReceivableNotesButton } from "./ReceivableNotesButton"
 import { ReceivablesLineGroupRow } from "./ReceivablesLineGroupRow"
 
 type MediaTypeRollup = {
@@ -46,6 +47,11 @@ type ReceivablesMediaPlanSectionProps = {
   sectionLabel?: string
   refetch: () => void
   onToggleBilled: (rec: BillingRecord, nextBilled: boolean) => Promise<void>
+  onNotesSaved?: (result: {
+    invoice_key: string
+    notes: string
+    persisted_record_id: number
+  }) => void
 }
 
 function MediaTypeRollupRow({ rollup }: { rollup: MediaTypeRollup }) {
@@ -90,6 +96,7 @@ export function ReceivablesMediaPlanSection({
   sectionLabel,
   refetch,
   onToggleBilled,
+  onNotesSaved,
 }: ReceivablesMediaPlanSectionProps) {
   const rollups = useMemo(() => buildMediaTypeRollups(mp.records), [mp.records])
 
@@ -118,12 +125,13 @@ export function ReceivablesMediaPlanSection({
       </div>
 
       {mp.records.length > 0 ? (
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           <BilledStatusPill
             billed={mp.records[0]?.billed}
             onToggle={(next) => onToggleBilled(mp.records[0], next)}
             disabled={!mp.records[0]?.invoice_key}
           />
+          <ReceivableNotesButton record={mp.records[0]} onSaved={onNotesSaved} />
         </div>
       ) : null}
 
