@@ -14,6 +14,7 @@ import { getPacingSnapshotTool } from "./getPacingSnapshot";
 import { getPlatformSpecsTool } from "./getPlatformSpecs";
 import { startMiInterviewTool } from "./startMiInterview";
 import { generateMiWorkbookTool } from "./generateMiWorkbook";
+import { loadSkillTool } from "./loadSkill";
 
 const AVA_TOOLS: AvaTool[] = [
   getMediaPlanSummaryTool,
@@ -29,6 +30,7 @@ const AVA_TOOLS: AvaTool[] = [
   getPlatformSpecsTool,
   startMiInterviewTool,
   generateMiWorkbookTool,
+  loadSkillTool,
 ];
 
 const registeredNames = AVA_TOOLS.map((t) => t.definition.name);

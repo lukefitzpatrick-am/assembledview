@@ -16,6 +16,10 @@ import {
   AVA_MI_INTERVIEW_GUIDANCE,
   AVA_MI_TOOL_HINTS,
 } from "@/lib/ava/miInterviewGuidance"
+import {
+  AVA_SKILL_GUIDANCE,
+  AVA_SKILL_TOOL_HINTS,
+} from "@/lib/ava/skills/skillGuidance"
 import { runAvaAgent } from "@/lib/ava/agentLoop"
 import type { AvaToolContext } from "@/lib/ava/tools/types"
 
@@ -40,6 +44,7 @@ Reach for this when:
 - get_best_practice — media-container best-practice copy by channel
 - get_methodology — planning methodology title/formula/source (e.g. affinity, DFII)
 ${AVA_MI_TOOL_HINTS}
+${AVA_SKILL_TOOL_HINTS}
 - apply_form_patch — only when the user explicitly asks to change editable field values
 
 Page snapshot surfaces (state.surface) — use on-page state first; pair tools only when you need more than the snapshot:
@@ -49,6 +54,8 @@ Page snapshot surfaces (state.surface) — use on-page state first; pair tools o
 - finance — active tab, FY/month, aggregate KPIs only (never invent invoice rows); answer from aggregates; do not claim row-level detail
 
 ${AVA_MI_INTERVIEW_GUIDANCE}
+
+${AVA_SKILL_GUIDANCE}
 
 Never return JSON reply contracts in prose. After apply_form_patch, confirm changes in plain English.
 `.trim()
