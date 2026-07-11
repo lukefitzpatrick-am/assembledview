@@ -17,8 +17,11 @@ import type {
 } from "@/lib/pacing/programmatic/types";
 import { slugifyPlanClientName } from "@/lib/pacing/scope/resolveClientSlugs";
 import { isLiveCampaignStatus, type MediaPlanMaster } from "@/lib/types/mediaPlanMaster";
+import { boundedMap } from "@/lib/utils/boundedMap";
 
 const MEDIA_PLANS_KEYS = ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"] as const;
+/** Parallel Xano per-master fetches; well under Launch-plan 100 req/s ceiling. */
+const XANO_MASTER_FETCH_CONCURRENCY = 8;
 
 export type GetLiveProgrammaticLineItemsArgs = {
   asOfDate: string;
@@ -217,50 +220,55 @@ export async function resolveLiveProgrammaticLineItemInputs(
   if (liveMasters.length === 0) return [];
 
   const versionRowsByMba = await fetchCurrentVersionRowsForMasters(liveMasters);
-  const inputs: LiveProgrammaticLineItemInput[] = [];
 
-  for (const master of liveMasters) {
-    const versionRow = versionRowsByMba.get(norm(master.mba_number));
-    if (!versionRow) {
-      console.warn(
-        "[pacing/programmatic] no version row for master",
-        master.mba_number,
-        master.version_number
-      );
-      continue;
-    }
-
-    for (const spec of PROG_TABLES) {
-      const progRows = await fetchProgrammaticLineItemsForMba({
-        mba_number: master.mba_number,
-        versionRowId: versionRow.id,
-        versionNumber: master.version_number,
-        tableName: spec.tableName,
-      });
-
-      for (const progRow of progRows) {
-        const lineItemId = String(progRow.line_item_id ?? progRow.lineItemId ?? "").trim();
-        if (!lineItemId) {
-          console.warn(
-            "[pacing/programmatic] row missing line_item_id",
-            master.mba_number,
-            spec.tableName,
-            progRow.id
-          );
-          continue;
-        }
-        inputs.push({
-          master,
-          versionRow,
-          progRow,
-          channelFamily: spec.channelFamily,
-          snowflakeChannel: spec.snowflakeChannel,
-        });
+  const perMaster = await boundedMap(
+    liveMasters,
+    async (master) => {
+      const versionRow = versionRowsByMba.get(norm(master.mba_number));
+      if (!versionRow) {
+        console.warn(
+          "[pacing/programmatic] no version row for master",
+          master.mba_number,
+          master.version_number
+        );
+        return [] as LiveProgrammaticLineItemInput[];
       }
-    }
-  }
 
-  return inputs;
+      const inputs: LiveProgrammaticLineItemInput[] = [];
+      for (const spec of PROG_TABLES) {
+        const progRows = await fetchProgrammaticLineItemsForMba({
+          mba_number: master.mba_number,
+          versionRowId: versionRow.id,
+          versionNumber: master.version_number,
+          tableName: spec.tableName,
+        });
+
+        for (const progRow of progRows) {
+          const lineItemId = String(progRow.line_item_id ?? progRow.lineItemId ?? "").trim();
+          if (!lineItemId) {
+            console.warn(
+              "[pacing/programmatic] row missing line_item_id",
+              master.mba_number,
+              spec.tableName,
+              progRow.id
+            );
+            continue;
+          }
+          inputs.push({
+            master,
+            versionRow,
+            progRow,
+            channelFamily: spec.channelFamily,
+            snowflakeChannel: spec.snowflakeChannel,
+          });
+        }
+      }
+      return inputs;
+    },
+    XANO_MASTER_FETCH_CONCURRENCY
+  );
+
+  return perMaster.flat();
 }
 
 function mapProgRowToCampaignRow(

@@ -15,8 +15,11 @@ import type {
 } from "@/lib/pacing/ad-serving/types";
 import { slugifyPlanClientName } from "@/lib/pacing/scope/resolveClientSlugs";
 import { isLiveCampaignStatus, type MediaPlanMaster } from "@/lib/types/mediaPlanMaster";
+import { boundedMap } from "@/lib/utils/boundedMap";
 
 const MEDIA_PLANS_KEYS = ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"] as const;
+/** Parallel Xano per-master fetches; well under Launch-plan 100 req/s ceiling. */
+const XANO_MASTER_FETCH_CONCURRENCY = 8;
 
 export type GetLiveAdServingLineItemsArgs = {
   asOfDate: string;
@@ -173,51 +176,56 @@ export async function resolveLiveAdServingLineItemInputs(
   if (liveMasters.length === 0) return [];
 
   const versionRowsByMba = await fetchCurrentVersionRowsForMasters(liveMasters);
-  const inputs: LiveAdServingLineItemInput[] = [];
 
-  for (const master of liveMasters) {
-    const versionRow = versionRowsByMba.get(norm(master.mba_number));
-    if (!versionRow) {
-      console.warn(
-        "[pacing/ad-serving] no version row for master",
-        master.mba_number,
-        master.version_number
-      );
-      continue;
-    }
-
-    for (const spec of DIGITAL_TABLES) {
-      const digitalRows = await fetchDigitalLineItemsForMba({
-        mba_number: master.mba_number,
-        versionRowId: versionRow.id,
-        versionNumber: master.version_number,
-        tableName: spec.tableName,
-      });
-
-      for (const digitalRow of digitalRows) {
-        const lineItemId = String(
-          digitalRow.line_item_id ?? digitalRow.lineItemId ?? ""
-        ).trim();
-        if (!lineItemId) {
-          console.warn(
-            "[pacing/ad-serving] row missing line_item_id",
-            master.mba_number,
-            spec.tableName,
-            digitalRow.id
-          );
-          continue;
-        }
-        inputs.push({
-          master,
-          versionRow,
-          digitalRow,
-          channelFamily: spec.channelFamily,
-        });
+  const perMaster = await boundedMap(
+    liveMasters,
+    async (master) => {
+      const versionRow = versionRowsByMba.get(norm(master.mba_number));
+      if (!versionRow) {
+        console.warn(
+          "[pacing/ad-serving] no version row for master",
+          master.mba_number,
+          master.version_number
+        );
+        return [] as LiveAdServingLineItemInput[];
       }
-    }
-  }
 
-  return inputs;
+      const inputs: LiveAdServingLineItemInput[] = [];
+      for (const spec of DIGITAL_TABLES) {
+        const digitalRows = await fetchDigitalLineItemsForMba({
+          mba_number: master.mba_number,
+          versionRowId: versionRow.id,
+          versionNumber: master.version_number,
+          tableName: spec.tableName,
+        });
+
+        for (const digitalRow of digitalRows) {
+          const lineItemId = String(
+            digitalRow.line_item_id ?? digitalRow.lineItemId ?? ""
+          ).trim();
+          if (!lineItemId) {
+            console.warn(
+              "[pacing/ad-serving] row missing line_item_id",
+              master.mba_number,
+              spec.tableName,
+              digitalRow.id
+            );
+            continue;
+          }
+          inputs.push({
+            master,
+            versionRow,
+            digitalRow,
+            channelFamily: spec.channelFamily,
+          });
+        }
+      }
+      return inputs;
+    },
+    XANO_MASTER_FETCH_CONCURRENCY
+  );
+
+  return perMaster.flat();
 }
 
 function mapDigitalRowToCampaignRow(
