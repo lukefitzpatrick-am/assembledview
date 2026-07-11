@@ -600,6 +600,7 @@ export function TraffickingBuilder({ mbaNumber }: TraffickingBuilderProps) {
   }
 
   const [exporting, setExporting] = useState(false)
+  const [exportingMaterialInstructions, setExportingMaterialInstructions] = useState(false)
 
   const downloadWorkbook = async () => {
     if (!globals) return
@@ -640,6 +641,38 @@ export function TraffickingBuilder({ mbaNumber }: TraffickingBuilderProps) {
       toast({ title: "Export failed", description: message, variant: "destructive" })
     } finally {
       setExporting(false)
+    }
+  }
+
+  const downloadMaterialInstructions = async () => {
+    setExportingMaterialInstructions(true)
+    try {
+      const response = await fetch(
+        `/api/mediaplans/mba/${encodeURIComponent(mbaNumber)}/material-instructions`,
+        { method: "POST" },
+      )
+      if (!response.ok) {
+        const message = await response.json()
+          .then((body: { error?: string }) => body.error)
+          .catch(() => undefined)
+        throw new Error(message || "Failed to build material instructions")
+      }
+      const filename = response.headers
+        .get("content-disposition")
+        ?.match(/filename="([^"]+)"/i)?.[1] || "material-instructions.xlsx"
+      const url = URL.createObjectURL(await response.blob())
+      const link = document.createElement("a")
+      link.href = url
+      link.download = filename
+      link.click()
+      URL.revokeObjectURL(url)
+      toast({ title: "Downloaded", description: filename })
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to download material instructions"
+      toast({ title: "Export failed", description: message, variant: "destructive" })
+    } finally {
+      setExportingMaterialInstructions(false)
     }
   }
 
@@ -696,6 +729,21 @@ export function TraffickingBuilder({ mbaNumber }: TraffickingBuilderProps) {
                 <Download className="mr-1.5 h-3.5 w-3.5" aria-hidden />
               )}
               Download workbook
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              type="button"
+              className="text-xs"
+              disabled={exportingMaterialInstructions}
+              onClick={() => void downloadMaterialInstructions()}
+            >
+              {exportingMaterialInstructions ? (
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden />
+              ) : (
+                <Download className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+              )}
+              Download material instructions
             </Button>
             <Button
               variant="outline"
